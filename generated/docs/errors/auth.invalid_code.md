@@ -8,7 +8,10 @@ HTTP 401. Retryable: no.
 
 - access.actors.redeem
 - connections.complete_auth
+- dropbox.connect.complete
+- engine.mcp.oauth_complete
 - forms.submit
+- google.user.complete
 - identity.claim_owner
 - identity.github_sign_in
 - identity.pair_redeem
@@ -23,5 +26,6 @@ HTTP 401. Retryable: no.
 - mcp.token.register
 - members.accept
 - members.invites.preview
+- ms.user.complete
 - network.enroll
 - network.enroll_status

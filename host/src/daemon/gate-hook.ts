@@ -104,12 +104,18 @@ export function createGateHook(d: GateHookDeps): GateHook {
   };
 }
 
-/** The Gate's module conditions for the live modules that export one: `git.is_protected` over the git module's `isProtectedCall`. Called as the Space itself. */
+/** The Gate's module conditions for the live modules that export one: `git.is_protected` over the git module's `isProtectedCall`, `terminal.is_danger` over the terminal module's `isDangerCall`. Called as the Space itself. */
 export function moduleWhens(
   exports: ReadonlyMap<string, Record<string, unknown>>, db: () => ScopedDb | null, call: (cap: string, input: unknown) => Promise<unknown>,
 ): NonNullable<GateHookDeps["evaluators"]> {
+  const out: NonNullable<GateHookDeps["evaluators"]> = {};
   const fn = exports.get("git")?.["isProtectedCall"];
-  if (typeof fn !== "function") return {};
-  const isProtected = fn as (ctx: { db: ScopedDb; call: typeof call }, input: unknown) => Promise<boolean>;
-  return { "git.is_protected": (input) => { const h = db(); return h ? isProtected({ db: h, call }, input) : true; } };
+  if (typeof fn === "function") {
+    const isProtected = fn as (ctx: { db: ScopedDb; call: typeof call }, input: unknown) => Promise<boolean>;
+    out["git.is_protected"] = (input) => { const h = db(); return h ? isProtected({ db: h, call }, input) : true; };
+  }
+  const danger = exports.get("terminal")?.["isDangerCall"];
+  // a destructive or elevated command is held for a yes whatever the mode; an unreadable call counts as destructive
+  if (typeof danger === "function") out["terminal.is_danger"] = (input) => (danger as (ctx: unknown, input: unknown) => Promise<boolean>)(null, input);
+  return out;
 }

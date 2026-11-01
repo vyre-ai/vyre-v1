@@ -60,6 +60,8 @@ export interface ConnectIn {
   address: string;
   privacy?: "private" | "space" | "people";
   imap?: ImapConfig;
+  /** A person's own Gmail or Outlook sign-in (google.user.*, ms.user.*) this mailbox reads and sends through, in place of the Space's delegation. */
+  connectionId?: string;
   idempotencyKey: string;
 }
 
@@ -189,7 +191,7 @@ export async function ingest(ctx: MailCtx, input: IngestIn): Promise<IngestOut> 
     if (link?.contactId) payload.contactId = link.contactId;
     if (reply.campaignId) payload.campaignId = reply.campaignId;
     // Mail kept in the mailbox view is announced to the mailbox owner only.
-    if (filingBlocked(box)) ctx.emit("mail.received", `mailbox/${mailboxId}`, payload, { vis: "owner" });
+    if (filingBlocked(box) || str(box, "privacy") === "private") ctx.emit("mail.received", `mailbox/${mailboxId}`, payload, { vis: "owner" });
     else ctx.emit("mail.received", `mailbox/${mailboxId}`, payload);
   }
   return result(messageId, false, link);
@@ -351,7 +353,9 @@ interface Link {
 async function settleLink(ctx: MailCtx, messageId: string, p: Parsed, box: Row, campaignId?: string): Promise<Link | null> {
   const stored = readLink(ctx, messageId);
   if (stored) return stored;
-  if (filingBlocked(box)) return null;
+  if (filingBlocked(box)) return null;   // paused or disconnected: stored, not linked
+  const own = str(box, "privacy") === "private" ? strOrNull(box, "ownerId") : null;
+  if (str(box, "privacy") === "private" && !own) return null;
   let answer: Link;
   try {
     const counterparty = p.direction === "out" ? (p.to[0]?.address ?? p.from.address) : p.from.address;
@@ -369,6 +373,7 @@ async function settleLink(ctx: MailCtx, messageId: string, p: Parsed, box: Row, 
     const threadId = strOrNull(first(ctx.db.all(`SELECT "threadId" FROM mail_message WHERE id = ?`, messageId)), "threadId");
     if (threadId) input.threadId = threadId;
     if (campaignId) input.campaignId = campaignId;
+    if (own) { input.private = true; input.ownerId = own; }   // a private mailbox's mail is linked into a conversation of its owner's own, never to a record
     answer = parseLink(await ctx.call("inbox.link_message", input));
   } catch (e) {
     // The message is stored either way. With no link row the next copy (or a re-sync) tries again.
@@ -432,12 +437,12 @@ function loadMailbox(ctx: MailCtx, id: string): Row | null {
   return first(ctx.db.all(`SELECT * FROM mail_mailbox WHERE id = ? AND deleted_at IS NULL`, id));
 }
 
-/** Private and paused mailboxes keep their mail in the mailbox view. */
+/** Paused and disconnected mailboxes keep their mail in the mailbox view. A private mailbox's mail is linked, but only into its owner's own conversations (see settleLink). */
 function filingBlocked(box: Row): boolean {
   if (num(box, "paused") === 1) return true;
   const state = str(box, "state");
   if (state === "paused" || state === "disconnected") return true;
-  return str(box, "privacy") === "private";
+  return false;
 }
 
 function syncBlocked(box: Row): boolean {
@@ -468,6 +473,8 @@ export async function connect(ctx: MailCtx, input: ConnectIn): Promise<{ mailbox
   }
   const imap = input.provider === "imap" ? requireImap(ctx, input.imap) : null;
   if (imap) await probeImap(ctx, imap);
+  const own = input.connectionId;
+  if (own !== undefined && !(USER_CONNECTION.test(own) && own.startsWith(input.provider === "google" ? "gua_" : "mua_"))) bad(ctx, "That is not a sign-in for this provider.");
 
   const id = newId("mbx", ctx.now());
   const now = ctx.now();
@@ -476,7 +483,7 @@ export async function connect(ctx: MailCtx, input: ConnectIn): Promise<{ mailbox
       id, kind, address, title, "ownerId", "agentId", provider, privacy, state, "connectionId", "lastSyncAt", paused, version, updated_at, deleted_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, agentId ? "agent" : "personal", address, address.split("@")[0] || address, ownerId, agentId, input.provider, privacy,
-    "pending", null, null, 0, 1, now, null,
+    "pending", own ?? null, null, 0, 1, now, null,
   );
   if (imap) {
     ctx.db.run(
@@ -517,6 +524,8 @@ function requireImap(ctx: MailCtx, imap: ImapConfig | undefined): ImapConfig {
   return { host: imap.host.trim().toLowerCase(), port: imap.port, secure: imap.secure, username: imap.username, passwordHandle: imap.passwordHandle };
 }
 
+/** The ids of a person's own Google (gua_) and Microsoft (mua_) sign-ins. */
+const USER_CONNECTION = /^(gua|mua)_[0-9a-f]{32}$/;
 const SIGN_IN_FAILED = "The mailbox did not accept the sign-in.";
 
 /** LOGIN and NOOP only: a probe never fetches, sends or changes anything. */

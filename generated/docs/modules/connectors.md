@@ -4,7 +4,7 @@ Lane L3. Kind module. Version 0.1.0.
 
 Requires: records, schema.
 
-## Capabilities (44)
+## Capabilities (46)
 
 - [connections.complete_auth](../capabilities/connections.complete_auth.md): Finish an OAuth sign-in from the callback: the state and the code, or the error the app sent back when the person declined. Only the person who started the sign-in can finish it
 - [connections.create](../capabilities/connections.create.md): Plug an account into a connector; secrets are named Vault items, never values
@@ -14,9 +14,11 @@ Requires: records, schema.
 - [connections.pause](../capabilities/connections.pause.md): The owner pauses a connection; syncing and actions stop
 - [connections.reconnect](../capabilities/connections.reconnect.md): Start signing in again; returns the provider sign-in address when one is needed
 - [connections.resume](../capabilities/connections.resume.md): The owner resumes a connection
+- [connections.set_secret](../capabilities/connections.set_secret.md): Fill one empty secret slot of a connection from a Vault handle (a name such as #Resend_Webhook.secret, never a value). The last empty slot turns a pending API connection active.
 - [connections.test](../capabilities/connections.test.md): Probe a connection with the connector health call
 - [connections.update](../capabilities/connections.update.md): Rename a connection or change its scopes
 - [connectors.build](../capabilities/connectors.build.md): Run the build-connector flow: read the app docs, draft the connector, ask for a key through a Vault request, run the harness
+- [connectors.define](../capabilities/connectors.define.md): Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.
 - [connectors.diff](../capabilities/connectors.diff.md): Diff a draft against the live version of a connector
 - [connectors.export](../capabilities/connectors.export.md): Export a connector as a folder in Files (no public gallery in v1)
 - [connectors.get](../capabilities/connectors.get.md): Read one connector: auth, egress domains, secret names, sources, synced types and actions

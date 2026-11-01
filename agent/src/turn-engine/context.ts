@@ -8,6 +8,7 @@
 //   memory      the agent's MAP.md as the nightly job wrote it
 //   skills      the index of skills it may load, one line each
 //   can         a map of what it can do here: grants, routines and watchers, its computer, the Vault handles it may use
+//   task        in a task thread: your seat, the brief, what counts as done, the fixes asked for and the baton tools to finish with (modules/engine/context.ts)
 //   earlier     a summary of the turns older than the recent ones shown word for word
 //   handoff     one turn only: the chat moved to this engine, with the summary it starts from
 //   screen      what the person has open (ScreenContext)
@@ -20,9 +21,9 @@
 import type { SystemBlock } from "../drivers/api/types.ts";
 import { fingerprint } from "../drivers/api/prefix.ts";
 
-export type SectionId = "identity" | "rules" | "where" | "memory" | "skills" | "can" | "earlier" | "handoff" | "screen" | "focus" | "now" | "waiting";
+export type SectionId = "identity" | "rules" | "where" | "memory" | "skills" | "can" | "task" | "earlier" | "handoff" | "screen" | "focus" | "now" | "waiting";
 
-export const SECTION_ORDER: readonly SectionId[] = ["identity", "rules", "where", "memory", "skills", "can", "earlier", "handoff", "screen", "focus", "now", "waiting"];
+export const SECTION_ORDER: readonly SectionId[] = ["identity", "rules", "where", "memory", "skills", "can", "task", "earlier", "handoff", "screen", "focus", "now", "waiting"];
 
 export interface ContextSection {
   id: SectionId;
@@ -142,7 +143,7 @@ export function ordered(sections: readonly ContextSection[]): ContextSection[] {
 
 /** The title a section is shown under in a prompt. */
 const TITLE: Readonly<Record<SectionId, string>> = {
-  identity: "", rules: "", where: "Where you are", memory: "", skills: "", can: "What you can do here", earlier: "Earlier in this chat (a summary of turns before the recent ones below; search the transcript for exact words)", handoff: "You are taking over this chat",
+  identity: "", rules: "", where: "Where you are", memory: "", skills: "", can: "What you can do here", task: "Your task", earlier: "Earlier in this chat (a summary of turns before the recent ones below; search the transcript for exact words)", handoff: "You are taking over this chat",
   screen: "On the person's screen", focus: "Focus for this place", now: "", waiting: "You are waiting on",
 };
 

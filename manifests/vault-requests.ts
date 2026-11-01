@@ -28,7 +28,7 @@ export default defineManifest({
   capabilities: [
     write('vault.request', 'Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status', {
       ...V, idem: 'key', in: { name: t.str({ examples: ['Dana_Lawmatics'] }), fields: t.opt(t.arr(fieldKey)), reason: t.str(), forRun: t.opt(id.run), folderId: t.opt(id.vaultFolder) },
-      out: { request: requestRow }, emits: ['vault.requested'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['validation.duplicate'],
+      out: { request: requestRow }, emits: ['vault.requested'], audit: 'sensitive', agent: { planMode: 'allowed' }, tool: 'vault', offline: 'online', errors: ['validation.duplicate'],
     }),
     read('vault.requests.list', 'Key requests I made, or waiting on me as a folder manager', { ...V, in: { mine: t.opt(t.bool()), state: t.opt(t.enm('waiting', 'fulfilled', 'declined', 'canceled')), ...pageIn }, out: { requests: t.arr(requestRow), ...pageOut }, tool: 'vault' }),
     read('vault.requests.get', 'One key request with its task and status', { ...V, in: { requestId: reqId }, out: { request: requestRow }, tool: 'vault' }),
@@ -37,7 +37,7 @@ export default defineManifest({
       out: { request: requestRow }, emits: ['vault.request_fulfilled'], audit: 'always', tool: 'vault', offline: 'online', errors: ['permission.no_grant', 'validation.precondition_failed'],
     }),
     write('vault.requests.decline', 'Decline a key request with a note', { ...V, in: { requestId: reqId, note: t.opt(t.str()) }, out: ok, emits: ['vault.request_declined'], audit: 'sensitive', tool: 'vault' }),
-    write('vault.requests.cancel', 'Withdraw my own key request', { ...V, in: { requestId: reqId }, out: ok, emits: ['vault.request_canceled'], tool: 'vault' }),
+    write('vault.requests.cancel', 'Withdraw my own key request', { ...V, in: { requestId: reqId }, out: ok, emits: ['vault.request_canceled'], agent: { planMode: 'allowed' }, tool: 'vault' }),
   ],
 
   screens: [

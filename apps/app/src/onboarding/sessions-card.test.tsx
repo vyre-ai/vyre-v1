@@ -8,6 +8,11 @@ import { SessionsCard } from "./SessionsCard.tsx";
 import type { CapCall } from "../shell/session/caps.ts";
 
 const HOUR = 3_600_000;
+// The clock reads midday today, so "2 hours ago" never crosses midnight into "Yesterday" whenever the suite runs.
+const realNow = Date.now;
+const MIDDAY = new Date(); MIDDAY.setHours(12, 0, 0, 0);
+Date.now = () => MIDDAY.getTime();
+test.after(() => { Date.now = realNow; });
 const found = () => [
   { provider: "claude", sessionId: "a1", sessionKey: "claude:a1", projectKey: "p", cwd: "/Users/maya/code/site", title: "Fix the login bug", updatedAt: String(Date.now() - 2 * HOUR) },
   { provider: "codex", sessionId: "b2", sessionKey: "codex:b2", projectKey: "q", cwd: "/Users/maya/code/api", title: "Add dark mode", updatedAt: String(Date.now() - 30 * HOUR) },

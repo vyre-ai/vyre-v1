@@ -9,13 +9,22 @@ import { bindBridge, createBridge } from "./handlers/bridge.ts";
 import type { StreamEvent } from "./handlers/bridge.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { createEngineApiTools } from "./api-tools.ts";
-import { buildOpener, roleBlocks } from "./session.ts";
+import { buildNodeOpener, buildOpener, roleBlocks } from "./session.ts";
+import { remoteLauncher, routed } from "./node-turns.ts";
+import type { NodeRelay } from "./node-turns.ts";
 import { withRecall } from "./recall.ts";
+import { withChatSettings } from "./chat-settings.ts";
+import { createLimitSwitch } from "./switch-on-limit.ts";
+import { checkedOpen, createRunnableAccount } from "./runnable-account.ts";
+import type { NodeCliProbe } from "./cli-programs.ts";
 import { createContextBuilder, diskSkills, takeHandoff, withTurnContext } from "./context.ts";
 import { withTranscript } from "./transcript.ts";
+import { recordAccountLimits } from "./handlers/usage.ts";
 import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
+import { onTurnEnded } from "./handlers/task-baton.ts";
 import { defaultSandbox } from "./sandbox-default.ts";
 import { closePluginRuntime, pluginRuntime } from "./plugin-host.ts";
+import { bindOauthStore } from "./mcp-oauth.ts";
 import { createPluginTools } from "./plugin-tools.ts";
 import type { DefaultSandbox } from "./sandbox-default.ts";
 import type { SandboxPlan } from "./sandbox.ts";
@@ -38,10 +47,12 @@ export interface EngineHostSeam {
   /** The host's invoke pipeline, for tools on API-key chats: each tool call is one capability invoke as the agent acting for the asker. Absent: an API chat answers in words only. */
   invoke?: Invoke;
   space?: string;
+  /** The computers that joined the Space, for a turn pinned to one of them (node-turns.ts). Absent: no turn runs on a server. */
+  nodes?: NodeRelay;
   /** True when the person is on their own computer (a local model on this machine is then reachable). */
   own?: (person: string) => boolean;
   /** CLI engines: swap a program for a command (a fake CLI in a test), and extra read-only folders the sandbox must expose for it. Default: the real CLI, nothing extra. */
-  cli?: { command?: Readonly<Record<string, readonly string[]>>; programRead?: readonly string[] };
+  cli?: { command?: Readonly<Record<string, readonly string[]>>; programRead?: readonly string[]; /** Where programs are looked for (a test's own folders); default: this computer's PATH. */ probe?: NodeCliProbe };
   /** The Space data directory. With it and no `sandbox`, the module builds the default sandbox for this platform on the first CLI turn (sandbox-default.ts). */
   dataDir?: string;
   now?: () => number;
@@ -92,7 +103,7 @@ export function sandboxPlan(): Promise<SandboxPlan> {
   return Promise.reject(new Error("no sandbox is set up on this computer"));
 }
 
-async function accountFor(h: EngineHostSeam, q: AccountQuery): Promise<ResolvedAccount | null> {
+async function resolveOne(h: EngineHostSeam, q: AccountQuery): Promise<ResolvedAccount | null> {
   const res = (await h.call("engine.account.resolve", { threadId: q.threadId, agentId: q.agentId, askerId: q.askerId, ...(q.stepKey ? { stepKey: q.stepKey } : {}), ...(q.unavailable?.length ? { unavailable: [...q.unavailable] } : {}) }, q.askerId)) as ResolveOut;
   if (!res.allowed || !res.accountRef || !res.payer) {
     h.log?.("no account can pay for this turn", { threadId: q.threadId, agentId: q.agentId, asker: q.askerId, allowed: res.allowed, reason: res.reason, accountRef: res.accountRef ?? null });
@@ -102,6 +113,16 @@ async function accountFor(h: EngineHostSeam, q: AccountQuery): Promise<ResolvedA
   const row = list.accounts.find((a) => a.ref === res.accountRef);
   if (!row) { h.log?.("the account the turn resolved is not in the payer's list", { threadId: q.threadId, accountRef: res.accountRef, payer: res.payer }); return null; }   // the key vanished between the two calls: treat as none, the next turn asks again
   return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(res.itemId ? { itemId: res.itemId } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}) };
+}
+
+/** An account whose engine can run on this computer: the pick, or another account of the person when the pick's program is not installed (runnable-account.ts). */
+function runnableAccount(h: EngineHostSeam): (q: AccountQuery) => Promise<ResolvedAccount | null> {
+  // A host that hands in its own opener (a test's scripted one) starts no program of ours: nothing to check, and one resolve per turn.
+  if (h.openSession) return (q) => resolveOne(h, q);
+  return createRunnableAccount({
+    call: h.call, resolve: (q) => resolveOne(h, q), ...(h.cli?.command ? { command: h.cli.command } : {}), ...(h.cli?.probe ? { probe: h.cli.probe } : {}),
+    ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}),
+  });
 }
 
 /** The task an unattended turn with no AI account leaves for the person. A chat turn leaves none: the chat shows it inline (apps/app/src/places/chats/conversation/status.ts). The app opens the direct sign-in for it (apps/app/src/places/chats/needsyou/account.ts holds the same title; test/no-account-title.test.ts keeps them equal). */
@@ -183,7 +204,7 @@ async function oneShot(openSession: OpenSession, i: CompleteIn, now: () => numbe
 
 let defaultBuilt: DefaultSandbox | null = null;
 /** The default sandbox plan for this platform, built once per runtime. */
-const defaultPlan = (dataDir: string, programRead?: readonly string[]) => async (): Promise<SandboxPlan> => (defaultBuilt ??= await defaultSandbox({ dataDir, ...(programRead ? { programRead } : {}) })).plan;
+export const defaultPlan = (dataDir: string, programRead?: readonly string[]) => async (): Promise<SandboxPlan> => (defaultBuilt ??= await defaultSandbox({ dataDir, ...(programRead ? { programRead } : {}) })).plan;
 /** Stop the default sandbox's wall (daemon shutdown, tests). */
 export async function closeDefaultSandbox(): Promise<void> { const d = defaultBuilt; defaultBuilt = null; await d?.close(); }
 
@@ -192,12 +213,22 @@ export async function closeDefaultSandbox(): Promise<void> { const d = defaultBu
  * (a daemon without the engine seam, or a unit test), in which case the control handlers keep raising internal.unavailable.
  */
 export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | null> {
+  bindOauthStore(ctx as never);   // the sealed MCP sign-in tokens are read through the module's own ctx (db, seal, clock)
   if (!host || (!host.openSession && !host.session)) return Promise.resolve(null);   // no way to open a session: the control handlers keep answering internal.unavailable
   const h = host;
   const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call), call: h.call, plugins: createPluginTools({ call: h.call, runtime: pluginRuntime, ...(h.log ? { log: h.log } : {}) }) }) : undefined;
-  const opener = host.openSession ? null : buildOpener({ ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, host.cli?.programRead) } : {}) });
-  const openSession = host.openSession ?? (opener as NonNullable<typeof opener>).openSession;
-  closeOpener = opener ? () => opener.close() : null;
+  const opener = host.openSession ? null : buildOpener({ ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.cli?.probe ? { cliProbe: host.cli.probe } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, host.cli?.programRead) } : {}) });
+  const baseOpen = host.openSession ?? checkedOpen((opener as NonNullable<typeof opener>).openSession, { ...(host.cli?.command ? { command: host.cli.command } : {}), ...(host.cli?.probe ? { probe: host.cli.probe } : {}) });
+  // a turn the person pinned to one of their servers opens through that server's opener; everything else opens as before
+  const nodeOpeners = new Map<string, ReturnType<typeof buildNodeOpener>>();
+  const openerHost = { ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call };
+  const nodeOpener = (nodeId: string) => {
+    let o = nodeOpeners.get(nodeId);
+    if (!o) { o = buildNodeOpener(openerHost, remoteLauncher(h.nodes as NodeRelay, nodeId)); nodeOpeners.set(nodeId, o); }
+    return o.openSession;
+  };
+  const openSession = host.session && h.nodes && !host.openSession ? routed(baseOpen, { call: h.call, relay: h.nodes, nodeOpener, db: ctx.db }) : baseOpen;
+  closeOpener = opener ? async () => { await opener.close(); await Promise.all([...nodeOpeners.values()].map((o) => o.close())); } : null;
   building ??= (async () => {
     const now = h.now ?? Date.now;
     const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, ...(h.stream ? { stream: h.stream } : {}), addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
@@ -207,16 +238,26 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       call: h.call, skills: h.skills ?? diskSkills(), now, handoff: takeHandoff,
       waiting: (threadId, agentId) => (live?.waiting(threadId) ?? []).filter((w) => w.agentId === agentId).map((w) => `an answer to task ${w.taskId} (a held call needs approval)`),
     });
+    const limitSwitch = createLimitSwitch({
+      call: h.call, accountFor: runnableAccount(h), now, ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}),
+      modelOf: (threadId, agentId) => { try { return live?.agents(threadId).find((a) => a.id === agentId)?.model; } catch { return undefined; } },
+      providerOf: async (ref, payer) => {
+        const list = (await h.call("engine.accounts.list", {}, payer)) as { accounts: Array<{ ref: string; driver: string }> };
+        const row = list.accounts.find((a) => a.ref === ref);
+        return row ? providerOfDriver(row.driver) : undefined;
+      },
+    });
     const engine = createTurnEngine({
-      holder: h.holder, openSession: withTurnContext(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), turnContext), now,
+      holder: h.holder, openSession: withChatSettings(withTurnContext(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), turnContext), h.call), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
-      resolveAccount: (q) => accountFor(h, q),
-      nextAccount: (q) => accountFor(h, q),
+      resolveAccount: (q) => limitSwitch.resolve(q),
+      nextAccount: (q) => limitSwitch.next(q),
       onNoAccount: async (info) => {
         try { await unblock(h, ctx.db, info); }
         catch (e) { h.log?.("could not open the Unblock task for a turn with no account", { threadId: info.threadId, asker: info.asker, error: e instanceof Error ? e.message : String(e) }); throw e; }
       },
       onTurnEnd: (turn, account) => meter(h, turn, account),
+      onLimits: (account, reading) => recordAccountLimits(ctx.db, account.ref, reading, now()),
       ...(apiTools ? { callTool: apiTools.runner } : {}),
     });
     live = engine;
@@ -239,6 +280,9 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     };
     engine.subscribe((ev) => {
       if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") report(ev.turnId, ev);
+      if (ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") {
+        void onTurnEnded(ctx, { call: h.call, now, ...(h.log ? { log: h.log } : {}) }, engine, ev).catch((err) => h.log?.("a task baton check failed", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
+      }
       if (ev.type !== "turn.completed") return;
       void reviewAfter({ call: h.call, ...(h.postAs ? { postAs: h.postAs } : {}) }, ctx.db, engine, ev, () => mintEngineId("msg", now())).catch((err) => h.log?.("the reviewer could not be asked", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
     });
@@ -273,4 +317,39 @@ export async function wakeAfterUnblock(ctx: EngineCtx, taskId: string): Promise<
   await open(ctx, row.thread_id);
   engine.wake(row.thread_id, row.agent_id);
   return true;
+}
+
+type AnsweredRow = { messageId: string; author: { kind: string; id: string }; blocks?: Array<{ type?: string; id?: string; data?: Record<string, unknown> }> };
+
+/** The answer to a question as the agent reads it: the label of the option chosen, the words the person gave, or what a card handed back (a command's output, a folder that was mounted). */
+export function answerWords(data: Record<string, unknown>): string {
+  const options = Array.isArray(data["options"]) ? (data["options"] as Array<{ key?: unknown; label?: unknown }>) : [];
+  const one = (a: unknown): string => {
+    if (typeof a === "string") return String(options.find((o) => o.key === a)?.label ?? a);
+    if (a !== null && typeof a === "object" && typeof (a as { other?: unknown }).other === "string") return (a as { other: string }).other;
+    return JSON.stringify(a);
+  };
+  const a = data["answer"];
+  return (Array.isArray(a) ? a.map(one).join(", ") : one(a)).slice(0, 8000);
+}
+
+/**
+ * A question block was answered (ask_question, a plan, a Mount card, a Run this card): the answer goes to the agent that asked it. Nothing woke the agent before, so a parked question never carried on.
+ * The answer is posted in the thread as the person who gave it, mentioning the agent, which is the ordinary way an agent is told something: its next turn runs on the same account as any reply.
+ */
+export async function wakeAfterAnswer(ctx: EngineCtx, event: { payload: { threadId: string; blockId: string; by: string } }): Promise<boolean> {
+  const h = host;
+  if (!h) return false;
+  const { threadId, blockId, by } = event.payload;
+  if (!by.startsWith("usr_")) return false;
+  const list = (await h.call("chat.messages.list", { threadId, limit: 100 }, by)) as { messages: AnsweredRow[] };
+  for (const m of list.messages) {
+    const b = (m.blocks ?? []).find((x) => x.id === blockId);
+    if (!b || m.author.kind !== "agent" || b.type !== "question" || b.data === undefined) continue;
+    const body = answerWords(b.data);
+    if (body === "") return false;
+    await h.call("chat.post", { threadId, body, mentions: [{ kind: "agent", id: m.author.id }], idempotencyKey: `answer:${blockId}` }, by);
+    return true;
+  }
+  return false;
 }

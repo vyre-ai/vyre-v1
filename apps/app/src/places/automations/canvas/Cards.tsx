@@ -5,7 +5,9 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import { Glyph } from "./icons.tsx";
+import { StepLogo } from "./StepLogo.tsx";
 import { cardLabel, moreLabel, runStateText, triggerLabel } from "../a11y.ts";
+import { NOT_SET_UP } from "./form-model.ts";
 import { CARD_H, CARD_W, TRIG_HEAD, TRIG_ROW, messages, triggerMeta } from "./model.ts";
 import type { CardNode, DefTrigger, IconKey, Issue, RunState } from "./model.ts";
 import { Face, IconButton, pointer, shadow, webOnly } from "./parts.tsx";
@@ -70,10 +72,10 @@ export function StepCard({ card, selected, hovered, focused = false, handlers, a
         dim && ring === null && card.state ? { opacity: 0.55 } : null,
       ]}
     >
-      <View style={c.tile}><Glyph name={card.icon ?? "record"} size={16} color="var(--ink-2)" /></View>
+      <StepLogo stepKey={card.node?.key ?? ""} {...(card.node ? { input: card.node.input } : {})} icon={card.icon ?? "record"} name={card.title} />
       <View style={c.text}>
         <Text numberOfLines={1} style={c.title}>{card.title}</Text>
-        <Text numberOfLines={1} style={c.sub}>{card.sub}</Text>
+        <Text numberOfLines={1} testID={`card-sub-${card.id}`} style={[c.sub, card.sub === NOT_SET_UP && c.subWarn]}>{card.sub}</Text>
       </View>
       {card.issues.length > 0 ? (
         <View testID={`issue-${card.id}`} accessibilityLabel={problem} {...webOnly({ title: problem })}>
@@ -165,7 +167,7 @@ function TriggerRow({ index, title, sub, icon, selected, onPress, onOpen, onMenu
       <View style={[c.tile, { backgroundColor: "var(--accent-wash)" as string }]}><Glyph name={icon} size={16} color="var(--accent)" /></View>
       <View style={c.text}>
         <Text numberOfLines={1} style={c.title}>{title}</Text>
-        <Text numberOfLines={1} style={c.sub}>{sub}</Text>
+        <Text numberOfLines={1} testID={`trigger-sub-${index}`} style={[c.sub, sub === NOT_SET_UP && c.subWarn]}>{sub}</Text>
       </View>
       {over || selected || hovered ? <IconButton icon="more" label={moreLabel(title)} size={22} onPress={() => onMenu(-1, -1)} /> : null}
     </Pressable>
@@ -203,6 +205,7 @@ export const c = StyleSheet.create({
   text: { flex: 1, minWidth: 0, justifyContent: "center" },
   title: { fontSize: 13, lineHeight: 17, color: "var(--ink)" as string },
   sub: { fontSize: 11.5, lineHeight: 15, color: "var(--ink-3)" as string },
+  subWarn: { color: "var(--warn)" as string },
   status: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--hover)" as string },
   statusOk: { borderColor: "var(--ok)" as string },
   statusWait: { borderColor: "var(--warn)" as string },

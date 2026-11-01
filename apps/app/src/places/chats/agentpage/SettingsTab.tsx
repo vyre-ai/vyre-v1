@@ -10,6 +10,7 @@ import type { Entry } from "../rightpane/parts.tsx";
 import { acceptSuggestion, dismissSuggestion, moveToTrash, pause, resume, setRoutine } from "./actions.ts";
 import type { PageDeps } from "./actions.ts";
 import { useAccountEntries } from "./AccountsRows.tsx";
+import { hasComputers } from "../rightpane/data.tsx";
 import { useAgentPageData, useScreenQuery } from "./data.tsx";
 import { CAPTURE_WORDS, accountLine, instructionsLine, limitRows, lastRun, mineOnly, routineLabel, routineNote, suggestionTitle } from "./model.ts";
 import type { AgentRow, Routine, Suggestion } from "./model.ts";
@@ -62,7 +63,10 @@ export function SettingsTab({ agent, deps, window }: { agent: AgentRow; deps: Pa
   entries.push({ key: "m-account", type: "row", title: "Runs on", note: accountLine(agent), testID: "setting-account" });
   entries.push(...accounts.entries);
   entries.push({ key: "m-memory", type: "row", title: "Memory", note: CAPTURE_WORDS[agent.captureMode], testID: "setting-memory" });
-  entries.push({ key: "m-computer", type: "row", title: "Computer", note: agent.hasComputer ? "Has its own computer" : data.space.personal ? "Agent computers need a Team Space" : "None yet", testID: "setting-computer" });
+  // no capable host, no row: nothing is said about a computer that cannot exist here
+  if (agent.hasComputer || hasComputers(data.space)) entries.push({ key: "m-computer", type: "row", title: "Computer", note: agent.hasComputer ? "Has its own computer" : "None yet", testID: "setting-computer" });
+  // where no machine can run one yet, the one way in: a server
+  else if (data.nav.openAddServer) entries.push({ key: "m-add-server", type: "row", title: "Add a server", leading: <LeadIcon name="plus" />, onPress: () => data.nav.openAddServer?.(), testID: "setting-add-server" });
 
   /* ---- limits, access, keys */
   const limits = limitRows(agent.limits);

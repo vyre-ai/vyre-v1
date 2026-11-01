@@ -57,16 +57,9 @@ test("a computer that is not the caller's needs a grant to use it", async () => 
   bindHost(null);
 });
 
-test("a Personal Space has no agent computers", async () => {
-  const w = await world({ harness: { personalSpace: true } }).catch(() => null);
-  // provisioning is refused there, so the world cannot even be built: the tools say the same by themselves.
-  assert.equal(w, null);
-  bindTeam(null);
-  const h = harness();
-  const d = agentd(h);
-  bindTeam(() => false);
-  await refused("computers.chrome.state", () => tool["computers.chrome.state"]!(h.ctx, { computerId: "cmt_x" }), "permission.needs_team");
-  assert.equal(d.calls.length, 0);
+test("a Personal Space with a capable host runs the tools like a team one", async () => {
+  const w = await world({ harness: { personalSpace: true } });
+  assert.equal((await tool["computers.chrome.state"]!(w.agent().ctx, {})).loading, false);
   bindTeam(null);
   bindHost(null);
 });

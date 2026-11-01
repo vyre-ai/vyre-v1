@@ -34,9 +34,13 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "ms.drive.delete_item": Handler<"ms.drive.delete_item", X>;
   "ms.drive.delta": Handler<"ms.drive.delta", X>;
   "ms.drive.download_item": Handler<"ms.drive.download_item", X>;
+  "ms.drive.download_version": Handler<"ms.drive.download_version", X>;
   "ms.drive.get_item": Handler<"ms.drive.get_item", X>;
   "ms.drive.list_items": Handler<"ms.drive.list_items", X>;
+  "ms.drive.list_versions": Handler<"ms.drive.list_versions", X>;
   "ms.drive.share_item": Handler<"ms.drive.share_item", X>;
+  "ms.drive.subscribe": Handler<"ms.drive.subscribe", X>;
+  "ms.drive.unsubscribe": Handler<"ms.drive.unsubscribe", X>;
   "ms.drive.upload_item": Handler<"ms.drive.upload_item", X>;
   "ms.health": Handler<"ms.health", X>;
   "ms.mail.create_draft": Handler<"ms.mail.create_draft", X>;
@@ -58,4 +62,14 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "ms.teams.recordings.list_recordings": Handler<"ms.teams.recordings.list_recordings", X>;
   "ms.teams.recordings.list_transcripts": Handler<"ms.teams.recordings.list_transcripts", X>;
   "ms.teams.recordings.subscribe": Handler<"ms.teams.recordings.subscribe", X>;
+  "ms.user.app_set": Handler<"ms.user.app_set", X>;
+  "ms.user.app_status": Handler<"ms.user.app_status", X>;
+  "ms.user.complete": Handler<"ms.user.complete", X>;
+  "ms.user.list": Handler<"ms.user.list", X>;
+  "ms.user.remove": Handler<"ms.user.remove", X>;
+  "ms.user.send_message": Handler<"ms.user.send_message", X>;
+  "ms.user.start": Handler<"ms.user.start", X>;
+  "ms.workbook.append_rows": Handler<"ms.workbook.append_rows", X>;
+  "ms.workbook.get_range": Handler<"ms.workbook.get_range", X>;
+  "ms.workbook.update_range": Handler<"ms.workbook.update_range", X>;
 }

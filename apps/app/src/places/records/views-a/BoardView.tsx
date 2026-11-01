@@ -78,7 +78,7 @@ function Card({ row, board, lane }: { row: RecordRow; board: Board; lane: Lane }
       draggable: true, "data-testid": `drag-${row.id}`,
       onDragStart: (e: { dataTransfer?: { setData(t: string, v: string): void; effectAllowed: string } }) => { board.drag.current = row; if (e.dataTransfer) { e.dataTransfer.setData("text/plain", row.id); e.dataTransfer.effectAllowed = "move"; } },
       onDragEnd: () => { board.drag.current = null; },
-      style: { cursor: "grab" },
+      style: { cursor: "grab", width: "100%" },
     },
     card,
   );
@@ -86,7 +86,7 @@ function Card({ row, board, lane }: { row: RecordRow; board: Board; lane: Lane }
 
 // ---------------------------------------------------------------- one lane
 
-function LaneColumn({ board, lane }: { board: Board; lane: Lane }): ReactElement | null {
+function LaneColumn({ board, lane, width }: { board: Board; lane: Lane; width: number }): ReactElement | null {
   const { ctx, st, field } = board;
   const [limit, setLimit] = useState(LANE_PAGE);
   const [over, setOver] = useState(false);
@@ -104,7 +104,7 @@ function LaneColumn({ board, lane }: { board: Board; lane: Lane }): ReactElement
   if (lane.none && count === 0) return null;
   const hue = lane.color && /^\d+$/.test(lane.color) ? Number(lane.color) : hueOf(lane.key || "none");
   const body = (
-    <View testID={`lane-${lane.key || "none"}`} accessibilityLabel={`${lane.title}, ${count}`} style={[c.lane, over && c.laneOver]}>
+    <View testID={`lane-${lane.key || "none"}`} accessibilityLabel={`${lane.title}, ${count}`} style={[c.lane, { width }, over && c.laneOver]}>
       <View style={c.laneHead}>
         <View style={[c.dot, { backgroundColor: lane.none ? "var(--ink-4)" : `hsl(${hue}, 55%, 52%)` }]} />
         <Text numberOfLines={1} style={c.laneTitle}>{lane.title}</Text>
@@ -135,7 +135,7 @@ function LaneColumn({ board, lane }: { board: Board; lane: Lane }): ReactElement
   return createElement(
     "div",
     {
-      "data-testid": `drop-${lane.key || "none"}`, style: { display: "flex", flexDirection: "column", minHeight: 0, maxHeight: "100%" },
+      "data-testid": `drop-${lane.key || "none"}`, style: { display: "flex", flexDirection: "column", minHeight: 0, maxHeight: "100%", width },
       onDragOver: (e: { preventDefault(): void; dataTransfer?: { dropEffect: string } }) => { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = "move"; if (!over) setOver(true); },
       onDragLeave: () => setOver(false),
       onDrop: (e: { preventDefault(): void }) => { e.preventDefault(); setOver(false); const row = board.drag.current; board.drag.current = null; if (row) board.move(row, lane); },
@@ -230,7 +230,7 @@ export function BoardView({ ctx }: { ctx: ViewCtx }): ReactElement {
       <View style={c.sheet} {...({ onKeyDown } as object)}>
         <ScrollView horizontal style={c.lanes} contentContainerStyle={c.lanesIn} testID="board-lanes">
           {each(lanes, (l) => (
-            <View key={l.key || "none"} style={{ width: laneWidth, maxHeight: "100%" }}><LaneColumn board={board} lane={l} /></View>
+            <LaneColumn key={l.key || "none"} board={board} lane={l} width={laneWidth} />
           ))}
         </ScrollView>
       </View>
@@ -252,7 +252,7 @@ const c = StyleSheet.create({
   laneCount: { fontSize: 12, fontWeight: "500", color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   laneBody: { flexGrow: 0, flexShrink: 1, minHeight: 0 },
   laneCards: { gap: 8, paddingHorizontal: 8, paddingTop: 2, paddingBottom: 8 },
-  card: { borderRadius: 10, backgroundColor: "var(--raised)" as string, paddingVertical: 10, paddingHorizontal: 11, gap: 8 },
+  card: { width: "100%", borderRadius: 10, backgroundColor: "var(--raised)" as string, paddingVertical: 10, paddingHorizontal: 11, gap: 8 },
   cardOn: { backgroundColor: "var(--sel)" as string },
   title: { fontSize: 13, lineHeight: 18, fontWeight: "500", color: "var(--ink)" as string },
   meta: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },

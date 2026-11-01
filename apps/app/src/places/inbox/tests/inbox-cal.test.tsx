@@ -67,6 +67,7 @@ test("screen: Day, Week and Month are a header choice with the current one selec
   assert.ok(has(m, "October 2025") && has(m, 'data-testid="cal-month"'));
   const cells = [...m.matchAll(/data-testid="cell:(\d+)"/g)];
   assert.equal(cells.length, 35, "five whole weeks cover October 2025");
+  assert.ok(!has(m, '<button aria-label="Fri 24"') && !/<button[^>]*data-testid="cell:/.test(m), "a day cell holds event buttons, so it is not a button itself (no button inside a button)");
   assert.ok(has(m, 'data-testid="more:' + TODAY + '"') && has(m, "2 more"), "Friday has five events: three show and the rest fold into a count");
 });
 

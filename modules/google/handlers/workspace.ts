@@ -5,10 +5,11 @@
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
   ADMIN_CONSOLE_URL, api, apiRaw, bad, bearer, CALENDAR, CONFIG_ID, config, DOCS, DRIVE, EMAIL, enc, ensure, EVENTS, first, forgetTokens, int, list, MEET,
-  needHost, newId, normalizeEmail, num, obj, pushToken, refusal, rowsOf, SCOPES, SHEETS, str, strOrNull, text, codeOf,
+  needHost, newId, normalizeEmail, num, obj, pushToken, refusal, rowsOf, SCOPES, SHEETS, str, strOrNull, text, codeOf, userAccountByEmail,
 } from "../projections.ts";
 import type { Call, GoogleCtx } from "../projections.ts";
 import { ensureMailbox, pollInterval, pullMailbox } from "./gmail.ts";
+import { userSigninLost } from "./personal.ts";
 import { pullMeet } from "./meet.ts";
 import { connectCalendar, syncCalendar } from "./calendar.ts";
 import type { Act } from "./gmail.ts";
@@ -310,16 +311,23 @@ export async function receivePush(
   for (const k of ["mailbox", "historyId", "channelId", "resourceState", "resourceId"] as const) if (input[k] !== undefined) payload[k] = input[k];
   ctx.emit("google.push_received", "connector/google", payload);
   if (input.kind === "gmail" && input.mailbox) await pullAndSchedule(ctx, normalizeEmail(input.mailbox), input.messageId);
+  // a Drive change notice wakes the mounts that watch that channel; the first notice after a watch opens ("sync") only says the channel works
+  if (input.kind === "drive" && input.channelId && input.resourceState !== "sync") {
+    await ctx.call("mounts.nudge", { source: "google", channelId: input.channelId }).catch((e: unknown) => ctx.log.warn("google drive nudge failed", { code: codeOf(e) }));
+  }
   return { accepted: true };
 }
 
 /** Pull one mailbox for a push notice or a poll, then keep exactly one future poll queued for it. A failed pull never fails the notice. */
 async function pullAndSchedule(ctx: GoogleCtx, email: string, cause: string): Promise<void> {
   const cfg = config(ctx);
-  const connectionId = strOrNull(cfg, "connectionId");
-  if (!cfg || num(cfg, "configured") !== 1 || !connectionId) return;
+  const workspaceId = strOrNull(cfg, "connectionId");
   const member = first(ctx.db.all(`SELECT mapped, excluded FROM google_member WHERE email = ?`, email));
-  if (!member || num(member, "mapped") !== 1 || num(member, "excluded") === 1) return;
+  const delegated = !!cfg && num(cfg, "configured") === 1 && !!workspaceId && !!member && num(member, "mapped") === 1 && num(member, "excluded") !== 1;
+  // an address the Workspace covers is read through the delegation; any other is a person's own sign-in (google.user.*), if there is one
+  const own = delegated ? null : userAccountByEmail(ctx, email);
+  const connectionId = delegated ? workspaceId! : own?.accountId;
+  if (!connectionId) return;
   const now = ctx.now();
   let delay: number;
   try {
@@ -328,11 +336,19 @@ async function pullAndSchedule(ctx: GoogleCtx, email: string, cause: string): Pr
     ctx.log.info("google pull", { mailbox: email, ingested: pull.ingested, deduped: pull.deduped, skipped: pull.skipped, complete: pull.complete, cause });
   } catch (e) {
     ctx.log.warn("google pull failed", { mailbox: email, code: codeOf(e), cause });
+    // a person's own sign-in that the provider no longer accepts: say so once and stop polling (signing in again starts the chain)
+    if (own && !delegated && codeOf(e) === "provider.auth_failed") {
+      await userSigninLost(ctx, own);
+      ctx.db.run(`UPDATE google_mailbox SET "nextPollAt" = ? WHERE email = ?`, null, email);
+      return;
+    }
     delay = pollInterval(now, null, false);
   }
-  // Meet transcripts ride on the same pass; a Meet failure never fails the mailbox pull
-  await syncCalendar(ctx, { connectionId, email });
-  await pullMeet(ctx, { connectionId, mailbox: email }).catch((e: unknown) => ctx.log.warn("google meet pull failed", { mailbox: email, code: codeOf(e) }));
+  // Meet transcripts ride on the same pass; a Meet failure never fails the mailbox pull. A person's own sign-in carries mail only.
+  if (delegated) {
+    await syncCalendar(ctx, { connectionId, email });
+    await pullMeet(ctx, { connectionId, mailbox: email }).catch((e: unknown) => ctx.log.warn("google meet pull failed", { mailbox: email, code: codeOf(e) }));
+  }
   const box = first(ctx.db.all(`SELECT "nextPollAt" FROM google_mailbox WHERE email = ?`, email));
   const queued = box && typeof box.nextPollAt === "number" ? box.nextPollAt : 0;
   if (queued > now) return;   // a poll is already waiting; a push or a manual sync does not start a second chain
@@ -474,15 +490,25 @@ export async function calendarStopWatch(ctx: GoogleCtx, a: Act & { channelId: st
 
 // ---- Drive
 
-const FILE_FIELDS = "id,name,mimeType,parents,modifiedTime,size,webViewLink,driveId";
+const FILE_FIELDS = "id,name,mimeType,parents,modifiedTime,size,webViewLink,driveId,headRevisionId,lastModifyingUser(displayName,emailAddress)";
 const mapFile = (f: Record<string, unknown>) => {
   const out: Record<string, unknown> = { id: text(f.id) ?? "", name: text(f.name) ?? "", mimeType: text(f.mimeType) ?? "" };
   if (Array.isArray(f.parents)) out.parents = f.parents.filter((x): x is string => typeof x === "string");
   for (const k of ["modifiedTime", "webViewLink", "driveId"] as const) if (text(f[k]) !== undefined) out[k] = text(f[k]);
   const size = int(f.size);
   if (size !== undefined) out.size = size;
+  if (text(f.headRevisionId) !== undefined) out.headRevisionId = text(f.headRevisionId);
+  const who = mapUser(obj(f.lastModifyingUser));
+  if (who) out.lastModifyingUser = who;
   return out;
 };
+/** Drive's person, as the name and address shown for "last edited by". */
+function mapUser(u: Record<string, unknown>): { name?: string; email?: string } | undefined {
+  const out: { name?: string; email?: string } = {};
+  if (text(u.displayName) !== undefined) out.name = text(u.displayName);
+  if (text(u.emailAddress) !== undefined) out.email = text(u.emailAddress);
+  return out.name !== undefined || out.email !== undefined ? out : undefined;
+}
 const shared = { supportsAllDrives: true } as const;
 const quote = (s: string): string => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 
@@ -531,13 +557,48 @@ export async function drivePermissions(ctx: GoogleCtx, a: Act & { fileId: string
   };
 }
 
-export async function driveUpload(ctx: GoogleCtx, a: Act & { name: string; parentId?: string; fileId: string }) {
+/**
+ * Send a Space file to Drive. Without `remoteId` it is a new file; with it the file's content is replaced in place (a new revision).
+ * `ifRevision` makes the replace conditional: Drive has no If-Match, so the head revision is read first and a file that moved on is left alone (`stale`, with its current metadata).
+ */
+export async function driveUpload(ctx: GoogleCtx, a: Act & { name: string; parentId?: string; fileId: string; remoteId?: string; ifRevision?: string }) {
+  if (a.remoteId !== undefined && a.ifRevision !== undefined) {
+    const now = mapFile(await g(ctx, a, "google.drive.upload_file", "drive", { url: `${DRIVE}/files/${enc(a.remoteId)}`, query: { fields: FILE_FIELDS, ...shared } }));
+    if (now.headRevisionId !== a.ifRevision) return { file: now, stale: true };
+  }
   const { token } = await bearer(ctx, { cap: "google.drive.upload_file", connectionId: a.connectionId, ...(a.as ? { as: a.as } : {}), scope: "drive" });
-  const answered = await needHost(ctx).upload(ctx, {
-    url: `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=${enc(FILE_FIELDS)}`, token, fileId: a.fileId,
-    metadata: { name: a.name, ...(a.parentId ? { parents: [a.parentId] } : {}) },
-  });
+  const base = "https://www.googleapis.com/upload/drive/v3/files";
+  const answered = a.remoteId !== undefined
+    ? await needHost(ctx).upload(ctx, { url: `${base}/${enc(a.remoteId)}?uploadType=multipart&supportsAllDrives=true&fields=${enc(FILE_FIELDS)}`, token, fileId: a.fileId, metadata: {}, method: "PATCH" })
+    : await needHost(ctx).upload(ctx, {
+      url: `${base}?uploadType=multipart&supportsAllDrives=true&fields=${enc(FILE_FIELDS)}`, token, fileId: a.fileId,
+      metadata: { name: a.name, ...(a.parentId ? { parents: [a.parentId] } : {}) },
+    });
   return { file: mapFile(obj(answered)) };
+}
+
+/** The revisions Drive keeps of a file, newest last. */
+export async function driveRevisions(ctx: GoogleCtx, a: Act & { fileId: string }) {
+  const r = await g(ctx, a, "google.drive.list_revisions", "drive", {
+    url: `${DRIVE}/files/${enc(a.fileId)}/revisions`, bulk: true, query: { pageSize: 200, fields: "revisions(id,modifiedTime,size,lastModifyingUser(displayName,emailAddress))" },
+  });
+  return {
+    revisions: list(r.revisions).map((x) => {
+      const o = obj(x);
+      const rev: Record<string, unknown> = { id: text(o.id) ?? "", modifiedTime: text(o.modifiedTime) ?? "" };
+      const size = int(o.size);
+      if (size !== undefined) rev.size = size;
+      const who = mapUser(obj(o.lastModifyingUser));
+      if (who) rev.lastModifyingUser = who;
+      return rev;
+    }),
+  };
+}
+
+export async function driveRevisionDownload(ctx: GoogleCtx, a: Act & { fileId: string; revisionId: string }) {
+  const { token } = await bearer(ctx, { cap: "google.drive.download_revision", connectionId: a.connectionId, ...(a.as ? { as: a.as } : {}), scope: "drive" });
+  const got = await needHost(ctx).download(ctx, { url: `${DRIVE}/files/${enc(a.fileId)}/revisions/${enc(a.revisionId)}?alt=media`, token });
+  return { blobId: got.blobId, size: got.size, mimeType: got.mime };
 }
 
 export async function driveCreateFolder(ctx: GoogleCtx, a: Act & { name: string; parentId?: string }) {

@@ -20,6 +20,13 @@ export const handlers: Record<string, Handler> = {
   "ms.consent.verify": (ctx, i) => h.consentVerify(ctx, i),
   "ms.consent.members": (ctx, i) => h.consentMembers(ctx, i),
   "ms.consent.my_account": (ctx) => h.consentMyAccount(ctx),
+  "ms.user.app_status": (ctx) => h.userAppStatus(ctx),
+  "ms.user.app_set": (ctx, i) => h.userAppSet(ctx, i),
+  "ms.user.start": (ctx, i) => h.userStart(ctx, i),
+  "ms.user.complete": (ctx, i) => h.userComplete(ctx, i),
+  "ms.user.list": (ctx) => h.userList(ctx),
+  "ms.user.remove": (ctx, i) => h.userRemove(ctx, i),
+  "ms.user.send_message": (ctx, i) => h.userSend(ctx, i),
   "ms.consent.set_excluded": (ctx, i) => h.consentExclude(ctx, i),
   "ms.directory.list": (ctx, i) => h.directoryList(ctx, i),
   "ms.directory.import": (ctx, i) => h.directoryImport(ctx, i),
@@ -58,9 +65,16 @@ export const handlers: Record<string, Handler> = {
   "ms.drive.download_item": (ctx, i) => h.driveDownload(ctx, i),
   "ms.drive.delta": (ctx, i) => h.driveDelta(ctx, i),
   "ms.drive.upload_item": (ctx, i) => h.driveUpload(ctx, i),
+  "ms.drive.list_versions": (ctx, i) => h.driveVersions(ctx, i),
+  "ms.drive.download_version": (ctx, i) => h.driveVersionDownload(ctx, i),
+  "ms.drive.subscribe": (ctx, i) => h.driveSubscribe(ctx, i),
+  "ms.drive.unsubscribe": (ctx, i) => h.driveUnsubscribe(ctx, i),
   "ms.drive.create_folder": (ctx, i) => h.driveFolder(ctx, i),
   "ms.drive.share_item": (ctx, i) => h.driveShare(ctx, i),
   "ms.drive.delete_item": (ctx, i) => h.driveDelete(ctx, i),
+  "ms.workbook.get_range": (ctx, i) => h.workbookRange(ctx, i),
+  "ms.workbook.update_range": (ctx, i) => h.workbookUpdate(ctx, i),
+  "ms.workbook.append_rows": (ctx, i) => h.workbookAppend(ctx, i),
   "ms.teams.recordings.list_recordings": (ctx, i) => h.recordings(ctx, i),
   "ms.teams.recordings.get_recording": (ctx, i) => h.recordingGet(ctx, i),
   "ms.teams.recordings.list_transcripts": (ctx, i) => h.transcripts(ctx, i),
@@ -89,6 +103,11 @@ export const hostSeams: SeamSetters = { setMsHost };
 
 /** /hooks/microsoft: the subscription's clientState is checked before anything is recorded (handlers/hook.ts); a new subscription's validation token is handed back. */
 export const hostCalls = {
+  /** The removal wizard (host/src/seams/people.ts): a person whose mailbox connections are revoked loses their own sign-ins too. */
+  "microsoft.reassign_owned": async (ctx: Ctx, i: { person: string; kind: string; action: string }): Promise<number> => {
+    hostOnly(ctx, "microsoft.reassign_owned");
+    return i.kind === "mailbox_connections" && i.action === "revoke" ? h.dropAccountsOf(ctx as never, i.person) : 0;
+  },
   "microsoft.accept_webhook": async (ctx: Ctx, a: WebhookAccept): Promise<unknown> => {
     hostOnly(ctx, "microsoft.accept_webhook");   // a host call: the webhook route is the only way in
     return h.acceptHook(ctx, a);

@@ -9,7 +9,7 @@ import { TabStrip } from "../../../../../../ui/src/TabStrip/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { RightPaneDataProvider } from "../rightpane/data.tsx";
+import { RightPaneDataProvider, hasComputers } from "../rightpane/data.tsx";
 import { ComputerTab } from "../rightpane/ComputerTab.tsx";
 import { FilesTab } from "../rightpane/FilesTab.tsx";
 import { MemoryTab } from "../rightpane/MemoryTab.tsx";
@@ -21,6 +21,7 @@ import type { AgentPageData } from "./data.tsx";
 import { ChatsTab } from "./ChatsTab.tsx";
 import { TabMeasure, useFittedTabs, useTitleWidths } from "../rightpane/fit.tsx";
 import { RoleLine } from "./RoleLine.tsx";
+import { WorkingOn } from "./WorkingOn.tsx";
 import { SettingsTab } from "./SettingsTab.tsx";
 import { DEFAULT_TAB, TABS, collect, spendRatio, statusLine, stripOf } from "./model.ts";
 import type { TabKey } from "./model.ts";
@@ -70,11 +71,11 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   const menu = useMenu();
   const win = useWindowDimensions();
   const narrow = win.width > 0 && win.width < NARROW;
-  // a Personal Space has no agent computers: no Computer tab, and the page opens on Chats
-  const personal = data.space.personal;
-  const [own, setOwn] = useState<TabKey>(initialTab ?? (personal ? "chats" : DEFAULT_TAB));
-  const tab = personal && (controlled ?? own) === "computer" ? "chats" : controlled ?? own;
-  const tabList = useMemo(() => TABS.filter((t) => !(personal && t.key === "computer")), [personal]);
+  // no capable host, no agent computers: no Computer tab, and the page opens on Chats
+  const noComputers = !hasComputers(data.space);
+  const [own, setOwn] = useState<TabKey>(initialTab ?? (noComputers ? "chats" : DEFAULT_TAB));
+  const tab = noComputers && (controlled ?? own) === "computer" ? "chats" : controlled ?? own;
+  const tabList = useMemo(() => TABS.filter((t) => !(noComputers && t.key === "computer")), [noComputers]);
   const [colW, setColW] = useState(0);
   const titles = useTitleWidths();
   const [notice, setNotice] = useState<{ text: string; undo?: () => Promise<void> | void } | null>(null);
@@ -111,7 +112,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
       { label: "Chat", onSelect: chat },
       { label: "Automation Runs", onSelect: () => data.nav.openAutomationRuns(agentId) },
       { label: "Open Folder", onSelect: () => data.nav.openFolder(agent.folderId) },
-      ...(agent.hasComputer && data.agent.computerId ? [{ label: "Open Computer", onSelect: () => data.nav.openComputer(data.agent.computerId ?? "") }] : []),
+      ...(!noComputers && agent.hasComputer && data.agent.computerId ? [{ label: "Open Computer", onSelect: () => data.nav.openComputer(data.agent.computerId ?? "") }] : []),
       ...(data.canEdit ? [{ separator: true as const }, paused ? { label: "Resume", onSelect: () => void resume(deps, agentId, name) } : { label: "Pause", onSelect: () => void pause(deps, agentId, name, "Paused from the agent page") }] : []),
     ], x, y, "other", { label: `${name}'s page` });
   };
@@ -137,7 +138,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
             <TextButton label="Chat" primary testID="chat-button" onPress={chat} />
             <TextButton label="Automation runs" testID="runs-button" onPress={() => data.nav.openAutomationRuns(agentId)} />
             <Tool icon="folder" label="Open folder" testID="folder-button" onPress={() => data.nav.openFolder(agent.folderId)} />
-            {agent.hasComputer && data.agent.computerId ? <Tool icon="watch" label="Computer" testID="computer-button" onPress={() => data.nav.openComputer(data.agent.computerId ?? "")} /> : null}
+            {!noComputers && agent.hasComputer && data.agent.computerId ? <Tool icon="watch" label="Computer" testID="computer-button" onPress={() => data.nav.openComputer(data.agent.computerId ?? "")} /> : null}
             <Tool icon="more" label="More" testID="more-button" onPress={moreMenu} />
           </View>
         </View>
@@ -153,6 +154,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
             ))}
           </View>
         ) : <View testID="agent-strip-loading" style={st.skStrip} />}
+        <WorkingOn />
         <TabMeasure titles={TAB_TITLES} onWidth={titles.set} />
         <TabStrip tabs={strip} active={tab} onSelect={select} label={`${name}'s page`} />
         <View testID={`page-body-${tab}`} style={st.body}>

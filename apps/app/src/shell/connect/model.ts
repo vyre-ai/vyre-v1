@@ -4,7 +4,8 @@
 import type { MenuEntry, MenuItem } from "../../../../../ui/src/Menu/props.ts";
 
 export type ConnectNeed =
-  | { kind: "mailbox" }
+  /** `provider` picks the sheet's first tab: Gmail, Outlook or an IMAP mailbox (Other email). */
+  | { kind: "mailbox"; provider?: "google" | "microsoft" | "imap" }
   | { kind: "ai" }
   | { kind: "key"; app?: string }
   | { kind: "number" }
@@ -24,7 +25,7 @@ export type OpenConnect = (need: ConnectNeed) => Promise<Connected | null>;
 
 export const CONNECT_ANOTHER = "+ Connect another";
 
-const SERVICE_WORDS: Readonly<Record<string, string>> = { google: "Google", microsoft: "Microsoft", github: "GitHub", ms: "Microsoft" };
+const SERVICE_WORDS: Readonly<Record<string, string>> = { google: "Google", microsoft: "Microsoft", github: "GitHub", ms: "Microsoft", dropbox: "Dropbox" };
 
 function serviceWord(service: string): string {
   return SERVICE_WORDS[service] ?? service.charAt(0).toUpperCase() + service.slice(1);
@@ -107,4 +108,12 @@ export function stepNeed(step: StepLike, schema?: unknown, kind: "personal" | "s
     return named ? { kind: "connector", service: named } : undefined;
   }
   return undefined;
+}
+
+/** A lost mailbox sign-in leaves an unblock task with a mail_signin block (modules/google and microsoft handlers/personal.ts): which provider's sign-in to repeat, or null for any other task. */
+export function mailFixOf(t: { kind: string; blocks: readonly { type: string; data?: unknown }[] }): "google" | "microsoft" | null {
+  if (t.kind !== "unblock") return null;
+  const d = t.blocks.find((x) => x.type === "mail_signin")?.data;
+  const provider = typeof d === "object" && d !== null && !Array.isArray(d) ? (d as Record<string, unknown>)["provider"] : undefined;
+  return provider === "google" || provider === "microsoft" ? provider : null;
 }

@@ -26,7 +26,7 @@ const SCOPES = [
 ];
 const healthOut = { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) };
 const gmailMessage = t.obj({ id: t.str(), threadId: t.str(), labelIds: t.arr(t.str()), snippet: t.opt(t.str()), historyId: t.opt(t.str()), internalDate: t.opt(t.ts()), payload: t.opt(t.rec()) });
-const driveFile = t.obj({ id: t.str(), name: t.str(), mimeType: t.str(), parents: t.opt(t.arr(t.str())), modifiedTime: t.opt(t.str()), size: t.opt(t.int()), webViewLink: t.opt(t.str()), driveId: t.opt(t.str()) });
+const driveFile = t.obj({ id: t.str(), name: t.str(), mimeType: t.str(), parents: t.opt(t.arr(t.str())), modifiedTime: t.opt(t.str()), size: t.opt(t.int()), webViewLink: t.opt(t.str()), driveId: t.opt(t.str()), headRevisionId: t.opt(t.str()), lastModifyingUser: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })) });
 const gcalEvent = t.obj({
   id: t.str(), status: t.opt(t.str()), summary: t.opt(t.str()), start: t.rec(), end: t.rec(), location: t.opt(t.str()), hangoutLink: t.opt(t.str()),
   attendees: t.opt(t.arr(t.obj({ email, responseStatus: t.opt(t.str()), optional: t.opt(t.bool()) }))), organizer: t.opt(t.rec()), updated: t.opt(t.str()),
@@ -89,6 +89,27 @@ const capabilities = [
     gate: { act: 'connection_change', when: "actor.kind != 'person'" },
   }),
   read('google.health', 'Health probe: mint a token for the probe user and call users.getProfile', { in: { as: t.opt(email) }, out: healthOut }),
+  // ---- a person's own Google sign-in for mail (no Workspace delegation needed): the OAuth client lives in a Vault item, the person's refresh token is sealed in the module
+  read('google.user.app_status', 'Whether a Google OAuth client is set up for signing in to your own Gmail, and the redirect address to give Google for it', {
+    in: {}, out: { configured: t.bool(), clientId: t.opt(t.str()), vaultItem: t.opt(t.str()), redirectUri: t.opt(t.str()) },
+  }),
+  write('google.user.app_set', 'Name the Vault item that holds the Google OAuth client (client_id, and client_secret for a web client)', {
+    in: { vaultItem: id.handle }, out: { configured: t.bool(), clientId: t.str() }, perm: 'connectors.manage', audit: 'always', errors: ['provider.auth_failed'],
+  }),
+  write('google.user.start', 'Start signing in to your own Gmail: the address to approve at', {
+    in: { loginHint: t.opt(email) }, out: { authUrl: t.str(), state: t.str() }, idem: 'none', errors: ['validation.precondition_failed'],
+  }),
+  write('google.user.complete', 'Finish signing in from the callback: the state and the code, or the error Google sent when the person declined. Only who started it can finish it. Makes the mailbox and starts its first sync', {
+    in: { state: t.str(), code: t.opt(t.str()), error: t.opt(t.str()) }, out: { accountId: t.str(), email, mailboxId: t.opt(id.mailbox) },
+    emits: ['google.user_connected'], audit: 'always', idem: 'none', offline: 'online',
+    errors: ['auth.invalid_code', 'provider.auth_failed', 'provider.network', 'provider.bad_response', 'validation.precondition_failed', 'validation.duplicate'],
+  }),
+  read('google.user.list', 'Your own signed-in Google accounts', { in: {}, out: { accounts: t.arr(t.obj({ accountId: t.str(), email })) } }),
+  write('google.user.remove', 'Sign out of your own Google account: revoke it at Google and remove its token', { in: { accountId: t.str() }, out: { removed: t.bool() }, audit: 'always' }),
+  outward('google.user.send_message', "Send a message from your own signed-in Gmail (mail.send_as uses it for a mailbox made by google.user.complete)", {
+    in: { accountId: t.str(), to: t.arr(email), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), threadId: t.opt(t.str()), attachments: t.opt(t.arr(id.file)) },
+    out: { id: t.str(), threadId: t.str() }, gate: 'send', errors: ['provider.rate_limited', 'provider.auth_failed', 'validation.not_found'],
+  }),
   write('google.receive_push', 'Record a verified Google push (Gmail Pub/Sub, Calendar channel, Drive changes, Meet events) after dedupe', {
     in: {
       kind: t.enm('gmail', 'calendar', 'drive', 'meet'), messageId: t.str(), mailbox: t.opt(email), historyId: t.opt(t.str()), channelId: t.opt(t.str()),
@@ -136,7 +157,9 @@ const capabilities = [
   gr('google.drive.download_file', 'Download a Drive file into a blob', { fileId: t.str() }, { blobId: id.blob, size: t.int(), mimeType: t.str() }, { tool: 'files', deferred: true }),
   gr('google.drive.export_file', 'Export a Google document, sheet or slide as PDF, DOCX, XLSX or text', { fileId: t.str(), mimeType: t.str({ examples: ['application/pdf'] }) }, { blobId: id.blob, size: t.int() }, { tool: 'files', deferred: true }),
   gr('google.drive.get_permissions', 'Who a Drive file is shared with', { fileId: t.str() }, { permissions: t.arr(t.obj({ id: t.str(), role: t.str(), type: t.str(), emailAddress: t.opt(email) })) }, { tool: 'files', deferred: true }),
-  gw('google.drive.upload_file', 'Upload a Space file into Drive', { name: t.str(), parentId: t.opt(t.str()), fileId: id.file }, { file: driveFile }, { gate: 'post', tool: 'files', deferred: true }),
+  gw('google.drive.upload_file', 'Upload a Space file into Drive; with remoteId it replaces that file, and with ifRevision only if Drive still holds that revision', { name: t.str(), parentId: t.opt(t.str()), fileId: id.file, remoteId: t.opt(t.str()), ifRevision: t.opt(t.str()) }, { file: driveFile, stale: t.opt(t.bool()) }, { gate: 'post', tool: 'files', deferred: true }),
+  gr('google.drive.list_revisions', 'The revisions Drive keeps of a file, with who saved each', { fileId: t.str() }, { revisions: t.arr(t.obj({ id: t.str(), modifiedTime: t.str(), size: t.opt(t.int()), lastModifyingUser: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })) })) }, { tool: 'files', deferred: true }),
+  gr('google.drive.download_revision', 'Download one revision of a Drive file into a blob', { fileId: t.str(), revisionId: t.str() }, { blobId: id.blob, size: t.int(), mimeType: t.str() }, { tool: 'files', deferred: true }),
   gw('google.drive.create_folder', 'Create a Drive folder', { name: t.str(), parentId: t.opt(t.str()) }, { file: driveFile }, { gate: 'post', tool: 'files', deferred: true }),
   gw('google.drive.copy_file', 'Copy a Drive file', { fileId: t.str(), name: t.opt(t.str()), parentId: t.opt(t.str()) }, { file: driveFile }, { gate: 'post', tool: 'files', deferred: true }),
   gw('google.drive.share_file', 'Share a Drive file with people; Google emails them', { fileId: t.str(), emails: t.arr(email, { minItems: 1 }), role: t.enm('reader', 'commenter', 'writer'), notify: t.opt(t.bool()) }, { shared: t.bool() }, { gate: 'send', tool: 'files', deferred: true }),
@@ -156,6 +179,11 @@ const capabilities = [
   gr('google.docs.get_document', 'Read a Google Doc as structured content', { documentId: t.str() }, { title: t.str(), body: t.rec() }, { tool: 'files', deferred: true }),
   gw('google.docs.create_document', 'Create a Google Doc', { title: t.str(), parentId: t.opt(t.str()) }, { documentId: t.str(), url: t.str() }, { gate: 'post', tool: 'files', deferred: true }),
   gw('google.docs.batch_update', 'Edit a Google Doc with a list of requests', { documentId: t.str(), requests: t.arr(t.rec()) }, { applied: t.int() }, { gate: 'post', tool: 'files', deferred: true }),
+  gw('google.docs.replace_text', 'Replace every occurrence of some text in a Google Doc', { documentId: t.str(), find: t.str({ minLength: 1 }), replace: t.str(), matchCase: t.opt(t.bool()) }, { replaced: t.int({ minimum: 0 }) },
+    { gate: 'post', tool: 'files', deferred: true }),
+  gw('google.docs.insert_text', 'Insert text into a Google Doc after or before some existing text, or at its start or end; refuses if the document changed meanwhile', {
+    documentId: t.str(), text: t.str({ minLength: 1 }), where: t.opt(t.enm('after', 'before', 'start', 'end')), anchor: t.opt(t.str({ minLength: 1, description: 'The text to put it after or before' })), matchCase: t.opt(t.bool()),
+  }, { inserted: t.bool(), index: t.int({ minimum: 1 }) }, { gate: 'post', tool: 'files', deferred: true, errors: ['validation.not_found', 'validation.version_conflict'] }),
   // ---- Meet (conferenceRecords through the Google connector)
   gr('google.meet.list_conference_records', 'List Meet conference records in a time range', { from: t.opt(t.str()), to: t.opt(t.str()), pageToken: t.opt(t.str()) },
     { records: t.arr(t.obj({ name: t.str(), startTime: t.str(), endTime: t.opt(t.str()), space: t.opt(t.str()) })), nextPageToken: t.opt(t.str()) }, { tool: 'inbox', deferred: true }),
@@ -227,6 +255,7 @@ export default defineManifest({
   events: [
     ev('google.dwd_configured', 'Domain-wide delegation was set up', { p: { connector: t.lit('google'), adminEmail: email, mappedMembers: t.int(), autoConnect: t.bool() }, subject: ['connector', '/connector'], vis: 'space' }),
     ev('google.dwd_probed', 'A delegation probe ran', { p: { connector: t.lit('google'), ok: t.bool(), email: t.opt(email), scopesMissing: t.arr(t.str()) }, subject: ['connector', '/connector'] }),
+    ev('google.user_connected', 'A person signed in to their own Google account', { p: { accountId: t.str(), email }, subject: ['entity', '/accountId'] }),
     ev('google.dwd_revoked', 'Delegation was turned off', { p: { connector: t.lit('google'), by: t.str() }, subject: ['connector', '/connector'] }),
     ev('google.push_received', 'A verified Google push notice arrived (Gmail, Calendar, Drive or Meet)', {
       p: { connector: t.lit('google'), kind: t.enm('gmail', 'calendar', 'drive', 'meet'), messageId: t.str(), mailbox: t.opt(email), historyId: t.opt(t.str()), channelId: t.opt(t.str()), resourceState: t.opt(t.str()), resourceId: t.opt(t.str()) },

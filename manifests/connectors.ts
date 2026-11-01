@@ -37,6 +37,8 @@ const connectionRow = t.obj({
   owner: t.obj({ kind: t.enm('person', 'space'), id: t.str() }),
   state: t.enm('pending', 'active', 'paused', 'needs_reconnect', 'failing'), pausedBy: t.opt(t.str()),
   scopes: t.arr(t.str()), lastSyncAt: t.opt(t.ts()), createdAt: t.ts(),
+  handles: t.arr(id.handle, { description: 'The Vault handles this connection uses. Names only, never a value.' }),
+  filled: t.arr(t.str(), { description: 'The secret slots that hold a Vault handle. A slot the connector declares and this list lacks is still empty.' }),
 });
 
 const syncedTypeRow = t.obj({
@@ -113,19 +115,29 @@ export default defineManifest({
   ],
   capabilities: [
     // ---- connector framework
-    read('connectors.list', 'List connectors: built-in, installed and drafts', { in: { state: t.opt(t.enm('live', 'draft', 'failing_tests')), ...pageIn }, out: { connectors: t.arr(connectorRow), ...pageOut }, perm: 'connectors.manage', tool: 'engineer', cli: 'vyre connector list' }),
-    read('connectors.get', 'Read one connector: auth, egress domains, secret names, sources, synced types and actions', { in: { key: id.connector }, out: { connector: connectorRow }, on: ['connector', '/key'], tool: 'engineer' }),
+    read('connectors.list', 'List connectors: built-in, installed and drafts', { in: { state: t.opt(t.enm('live', 'draft', 'failing_tests')), ...pageIn }, out: { connectors: t.arr(connectorRow), ...pageOut }, perm: 'connectors.manage', tool: 'automations', cli: 'vyre connector list' }),
+    read('connectors.get', 'Read one connector: auth, egress domains, secret names, sources, synced types and actions', { in: { key: id.connector }, out: { connector: connectorRow }, on: ['connector', '/key'], tool: 'automations' }),
     create('connectors.init', 'Scaffold a connector folder: connector.toml, transforms.js, tests, README', {
-      in: { key: id.connector, title: t.str(), mode, docsUrl: t.opt(t.str()) }, out: { key: id.connector, folderId: id.folder },
+      in: { key: id.connector, title: t.str(), mode, docsUrl: t.opt(t.str()), source: t.opt(t.bool()) }, out: { key: id.connector, folderId: t.opt(id.folder) },
       // The key names the new connector, never an existing parent. Authorize its Space; connector.created registers the new resource there.
-      perm: 'connectors.manage', emits: ['connector.created'], audit: 'always', tool: 'engineer', cli: 'vyre connector init',
+      perm: 'connectors.manage', emits: ['connector.created'], audit: 'always', tool: 'automations', cli: 'vyre connector init',
+    }),
+    write('connectors.define', 'Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.', {
+      in: {
+        key: id.connector, title: t.opt(t.str()), domains: t.arr(t.str(), { minItems: 1 }),
+        auth: t.obj({ type: t.enm('none', 'api_key', 'bearer'), secret: t.opt(t.str()), header: t.opt(t.str()), prefix: t.opt(t.str()) }),
+        secrets: t.opt(t.arr(t.obj({ name: t.str(), description: t.str() }))),
+        actions: t.arr(t.obj({ name: t.str(), method: t.opt(t.enm('GET', 'POST', 'PUT', 'PATCH', 'DELETE')), url: t.str(), headers: t.opt(t.rec(t.str())), query: t.opt(t.rec(t.str())), output: t.opt(t.str()), write: t.opt(t.bool()) }), { minItems: 1 }),
+      },
+      out: { key: id.connector, draftId, actions: t.arr(t.str()), domains: t.arr(t.str()) },
+      on: ['connector', '/key'], perm: 'connectors.manage', emits: ['connector.built'], audit: 'always', tool: 'automations',
     }),
     write('connectors.build', 'Run the build-connector flow: read the app docs, draft the connector, ask for a key through a Vault request, run the harness', {
       in: { key: id.connector, docsUrl: t.opt(t.str()), notes: t.opt(t.str()) }, out: { ...runStarted, draftId },
       on: ['connector', '/key'], perm: 'connectors.manage', idem: 'key', run: { kind: 'connector_build', stoppable: true }, emits: ['connector.built'], tool: 'engineer', cli: 'vyre connector build',
     }),
     read('connectors.test', 'Run the harness on recorded responses and report each case', {
-      in: { key: id.connector, draftId: t.opt(draftId) }, out: { result: testResult }, on: ['connector', '/key'], perm: 'connectors.manage', tool: 'engineer', cli: 'vyre connector test',
+      in: { key: id.connector, draftId: t.opt(draftId) }, out: { result: testResult }, on: ['connector', '/key'], perm: 'connectors.manage', tool: 'automations', cli: 'vyre connector test',
     }),
     outward('connectors.run', 'Run one connector action against the live app, sandboxed to the connector domains, with a dry run option', {
       in: { key: id.connector, action: t.str(), connectionId: id.connection, input: t.json(), dryRun: t.opt(t.bool()) }, out: { output: t.json(), dryRun: t.bool() },
@@ -136,7 +148,7 @@ export default defineManifest({
     }),
     write('connectors.publish', 'Publish a draft after a fresh test run; a failing test keeps the last good version live', {
       in: { key: id.connector, draftId: t.opt(draftId), note: t.opt(t.str()) }, out: { published: t.bool(), version: t.opt(t.str()), result: testResult },
-      on: ['connector', '/key'], perm: 'connectors.manage', idem: 'key', audit: 'always', emits: ['connector.published', 'connector.publish_failed'], tool: 'engineer', cli: 'vyre connector publish',
+      on: ['connector', '/key'], perm: 'connectors.manage', idem: 'key', audit: 'always', emits: ['connector.published', 'connector.publish_failed'], tool: 'automations', cli: 'vyre connector publish',
     }),
     read('connectors.versions', 'List published versions of a connector', { in: { key: id.connector }, out: { versions: t.arr(t.obj({ version: t.str(), at: t.ts(), by: t.str(), note: t.opt(t.str()), tests: t.int() })) }, on: ['connector', '/key'], perm: 'connectors.manage', tool: 'engineer' }),
     write('connectors.rollback', 'Put an earlier connector version back live', {
@@ -149,14 +161,15 @@ export default defineManifest({
     }),
     // ---- connections
     read('connections.list', 'List connections; mine, the Space ones or all the caller may see', {
-      in: { connector: t.opt(id.connector), whose: t.opt(t.enm('mine', 'space', 'all')), ...pageIn }, out: { connections: t.arr(connectionRow), ...pageOut }, tool: 'engineer', label: 'filter',
+      in: { connector: t.opt(id.connector), whose: t.opt(t.enm('mine', 'space', 'all')), ...pageIn }, out: { connections: t.arr(connectionRow), ...pageOut }, tool: 'automations', label: 'filter',
     }),
-    read('connections.get', 'Read one connection', { in: { connectionId: id.connection }, out: { connection: connectionRow }, on: ['connection', '/connectionId'], tool: 'engineer' }),
+    read('connections.get', 'Read one connection', { in: { connectionId: id.connection }, out: { connection: connectionRow }, on: ['connection', '/connectionId'], tool: 'automations' }),
     create('connections.create', 'Plug an account into a connector; secrets are named Vault items, never values', {
       in: { connector: id.connector, title: t.str(), ownerKind: t.enm('person', 'space'), secrets: t.opt(t.rec(id.handle)), scopes: t.opt(t.arr(t.str())) },
-      out: { connection: connectionRow, authUrl: t.opt(t.str()) }, make: ['connection', '/connector'], perm: 'connectors.manage', emits: ['connection.created', 'connection.pending'], audit: 'always', tool: 'engineer',
+      out: { connection: connectionRow, authUrl: t.opt(t.str()) }, make: ['connection', '/connector'], perm: 'connectors.manage', emits: ['connection.created', 'connection.pending'], audit: 'always', tool: 'automations',
     }),
     write('connections.update', 'Rename a connection or change its scopes', { in: { connectionId: id.connection, title: t.opt(t.str()), scopes: t.opt(t.arr(t.str())) }, out: { connection: connectionRow }, on: ['connection', '/connectionId'], level: 'manage', tool: 'engineer' }),
+    write('connections.set_secret', 'Fill one empty secret slot of a connection from a Vault handle (a name such as #Resend_Webhook.secret, never a value). The last empty slot turns a pending API connection active.', { in: { connectionId: id.connection, slot: t.str(), handle: id.handle }, out: { connection: connectionRow }, on: ['connection', '/connectionId'], level: 'manage', audit: 'always', tool: 'automations' }),
     write('connections.pause', 'The owner pauses a connection; syncing and actions stop', { in: { connectionId: id.connection }, out: { ok: t.bool() }, on: ['connection', '/connectionId'], level: 'manage', emits: ['connection.paused'], tool: 'engineer' }),
     write('connections.resume', 'The owner resumes a connection', { in: { connectionId: id.connection }, out: { ok: t.bool() }, on: ['connection', '/connectionId'], level: 'manage', emits: ['connection.resumed'], tool: 'engineer' }),
     write('connections.reconnect', 'Start signing in again; returns the provider sign-in address when one is needed', { in: { connectionId: id.connection }, out: { authUrl: t.opt(t.str()) }, on: ['connection', '/connectionId'], level: 'manage', tool: 'engineer' }),

@@ -22,10 +22,15 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.lease.heartbeat": Handler<"engine.lease.heartbeat", X>;
   "engine.lease.release": Handler<"engine.lease.release", X>;
   "engine.mcp.call": Handler<"engine.mcp.call", X>;
+  "engine.mcp.oauth_complete": Handler<"engine.mcp.oauth_complete", X>;
+  "engine.mcp.oauth_start": Handler<"engine.mcp.oauth_start", X>;
+  "engine.mcp.oauth_status": Handler<"engine.mcp.oauth_status", X>;
   "engine.mcp.read": Handler<"engine.mcp.read", X>;
   "engine.mcp.tools": Handler<"engine.mcp.tools", X>;
   "engine.models.list": Handler<"engine.models.list", X>;
   "engine.placement.decide": Handler<"engine.placement.decide", X>;
+  "engine.placement.options": Handler<"engine.placement.options", X>;
+  "engine.placement.set": Handler<"engine.placement.set", X>;
   "engine.policy.get": Handler<"engine.policy.get", X>;
   "engine.policy.set": Handler<"engine.policy.set", X>;
   "engine.pool.status": Handler<"engine.pool.status", X>;
@@ -62,6 +67,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.turn.start": Handler<"engine.turn.start", X>;
   "engine.turn.wait": Handler<"engine.turn.wait", X>;
   "engine.turns.list": Handler<"engine.turns.list", X>;
+  "engine.usage.get": Handler<"engine.usage.get", X>;
   "engine.usage.query": Handler<"engine.usage.query", X>;
   "engine.use_policy.export": Handler<"engine.use_policy.export", X>;
   "engine.warm": Handler<"engine.warm", X>;

@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
-import { Group, Section } from "../shell/ui.tsx";
+import { Empty, Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Actions, Button, Field, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
 import { Tick } from "./ai-controls.tsx";
@@ -59,7 +59,7 @@ export function ErasePerson(): ReactElement {
   return <>
     <Section title="Find a person"><Group>
       <Field label="Name" value={name} onChange={(value) => { setName(value); onEdit(); }} /><Field label="Email" value={email} onChange={(value) => { setEmail(value); onEdit(); }} /><Field label="Phone" value={phone} onChange={(value) => { setPhone(value); onEdit(); }} />
-      <Button label="Find data" disabled={action.busy || !Object.keys(subject).length} onPress={find} />
+      <Button label="Find data" disabled={action.busy || !Object.keys(subject).length} why={!Object.keys(subject).length?"Name a person first":undefined} onPress={find} />
     </Group></Section>
     {finding ? <Section title="Erase preview"><Group>
       <Row title="Preview expires" note={new Date(finding.expiresAt).toLocaleString()} />
@@ -70,7 +70,7 @@ export function ErasePerson(): ReactElement {
       {reviewed ? <><Note>This permanently erases {reviewed.include.join(", ")}. Tombstones will prevent restore from bringing the data back.</Note><Actions><Button label="Back" onPress={() => setReviewed(null)} /><Button label="Start erasure" danger disabled={action.busy} onPress={() => void action.run<CapMap["governance.erase.apply"]["out"]>("governance.erase.apply", reviewed, (out) => { setRunId(out.runId); return `Erasure run ${out.runId} started`; }).then((out) => { if (out) setReviewed(null); })} /></Actions></> : <Button label="Review erasure" danger disabled={action.busy} onPress={review} />}
     </Group></Section> : null}
     {runId ? <EraseRun runId={runId} /> : null}
-    <Section title="Past erasures" count={erasures.length}><Group>{erasures.length ? erasures.map((row) => <Row key={row.findingId} title={row.kinds.join(", ")} note={`${new Date(row.at).toLocaleString()} · ${data.name(row.by)} · ${row.tombstones} tombstones`} />) : <Note>No erasures yet.</Note>}{historyNext ? <Button label={historyPage.busy ? "Loading erasures…" : "Load more erasures"} disabled={historyPage.busy} onPress={() => { if (historyPage.busy) return; setHistoryPage((current) => ({ ...current, busy: true })); void data.call("governance.erase.list", { cursor: historyNext, limit: 100 }).then((out) => { const page = out as CapMap["governance.erase.list"]["out"]; setMoreHistory((current) => mergeEraseHistory(current, page.erasures)); setHistoryPage({ loaded: true, ...(page.next ? { next: page.next } : {}), busy: false }); }, () => setHistoryPage((current) => ({ ...current, busy: false }))); }} /> : null}</Group></Section>
+    <Section title="Past erasures" count={erasures.length}><Group>{erasures.length ? erasures.map((row) => <Row key={row.findingId} title={row.kinds.join(", ")} note={`${new Date(row.at).toLocaleString()} · ${data.name(row.by)} · ${row.tombstones} tombstones`} />) : <Empty icon="doc">No erasures yet</Empty>}{historyNext ? <Button label={historyPage.busy ? "Loading erasures…" : "Load more erasures"} disabled={historyPage.busy} onPress={() => { if (historyPage.busy) return; setHistoryPage((current) => ({ ...current, busy: true })); void data.call("governance.erase.list", { cursor: historyNext, limit: 100 }).then((out) => { const page = out as CapMap["governance.erase.list"]["out"]; setMoreHistory((current) => mergeEraseHistory(current, page.erasures)); setHistoryPage({ loaded: true, ...(page.next ? { next: page.next } : {}), busy: false }); }, () => setHistoryPage((current) => ({ ...current, busy: false }))); }} /> : null}</Group></Section>
     {action.note ? <Note>{action.note}</Note> : null}
   </>;
 }

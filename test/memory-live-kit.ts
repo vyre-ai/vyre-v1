@@ -64,7 +64,8 @@ export const standIn: OpenSession = async () => {
   } as EngineSession;
 };
 
-export async function boot(dir: string, openSession: OpenSession = standIn): Promise<Daemon> {
+/** `http` is the network under ctx.http (a provider's own API): tests answer it; omitted, it is the real network. */
+export async function boot(dir: string, openSession: OpenSession = standIn, http?: Parameters<typeof startDaemon>[0]["http"]): Promise<Daemon> {
   return startDaemon({
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     codeRoot: CODE_ROOT,
@@ -78,6 +79,7 @@ export async function boot(dir: string, openSession: OpenSession = standIn): Pro
       },
     }),
     fetch: caddyFetch,
+    ...(http ? { http } : {}),
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
     vault: { secret: async () => KEY, signRs256: async () => "" },
     engineOpenSession: openSession,

@@ -13,7 +13,7 @@ import { StarredGroup } from "../starred/index.ts";
 import type { StarsOut } from "../starred/index.ts";
 import { useOptionalRecordsData, useRecordsData, useScreenQuery } from "./data.tsx";
 import { MANAGE_TYPE, SCREENS, compact, effectiveType, sortedViews, typeGroups, worthShowing } from "./model.ts";
-import { Glyph, TypeTile, typeHue, typeIcon } from "./parts.tsx";
+import { Glyph, TypeTile, typeHue, typeIcon, viewGlyph } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
 import { useRecordsState } from "./state.tsx";
 
@@ -116,7 +116,7 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
   for (const v of saved) {
     viewRows.push(
       <SideRow
-        key={v.viewId} id={`view:${v.viewId}`} title={v.title} glyph={v.shared ? "users" : "filter"} selected={state.viewId === v.viewId}
+        key={v.viewId} id={`view:${v.viewId}`} title={v.title} glyph={viewGlyph(v.kind)} trailing={v.shared ? <Glyph name="users" size={12} /> : null} selected={state.viewId === v.viewId}
         onPress={() => { dispatch({ type: "open", key: v.type, viewId: v.viewId }); choose(); }}
       />,
     );

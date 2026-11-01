@@ -1,6 +1,6 @@
 {
   "name": "@vyre/desktop",
-  "version": "1.0.0-rc.7",
+  "version": "1.0.0-rc.8",
   "private": true,
   "type": "module",
   "engines": { "node": ">=24 <25" },

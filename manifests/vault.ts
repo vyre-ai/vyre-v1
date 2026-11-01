@@ -32,7 +32,7 @@ const handleField = t.str({ pattern: '^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$', desc
 const providerRow = t.obj({
   id: t.id('prv'), providerKey: t.str({ examples: ['anthropic'] }), name: t.str(), logo: t.opt(t.str()),
   connection: t.enm('subscription', 'api_key', 'local_model'), via: t.str({ examples: ['Subscription, yours'] }), scope: t.enm('mine', 'shared'),
-  itemId: id.vaultItem, handle: t.opt(id.handle), agentsUsing: t.arr(id.agent),
+  itemId: id.vaultItem, itemName: t.opt(t.str({ description: 'The name the person gave this account in the Vault, so two accounts of one provider read differently', examples: ['Dana Claude Max'] })), handle: t.opt(id.handle), agentsUsing: t.arr(id.agent),
   usage: t.obj({ tokens: t.int({ minimum: 0 }), costCents: t.int({ minimum: 0 }), periodStart: t.ts() }),
   engine: t.str({ examples: ['claude-code'] }), spaceMayUse: t.bool(), state: t.enm('ok', 'needs_sign_in', 'failing'),
   address: t.opt(t.str({ description: 'The address a local model or custom endpoint is reached at' })), keyless: t.opt(t.bool()),
@@ -125,7 +125,7 @@ export default defineManifest({
     // ---- use by handle
     write('vault.use', 'Ask for an item by name: returns a handle like #Dana_Lawmatics and the field names, never values', {
       in: { item: t.str({ description: 'Item name or id', examples: ['Dana_Lawmatics'] }), fields: t.opt(t.arr(fieldKey)), purpose: t.opt(t.str()) },
-      out: { handle: id.handle, itemId: id.vaultItem, fields: t.arr(fieldKey) }, on: ['vault_item', '/item'], resolve: 'name', level: 'use', emits: ['vault.used'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['permission.provider_label'],
+      out: { handle: id.handle, itemId: id.vaultItem, fields: t.arr(fieldKey) }, on: ['vault_item', '/item'], resolve: 'name', level: 'use', emits: ['vault.used'], audit: 'sensitive', agent: { planMode: 'allowed' }, tool: 'vault', offline: 'online', errors: ['permission.provider_label'],
     }),
     write('vault.fill', 'Fill a handle into a process at the last moment (env, request header, browser field, terminal) and scrub it from the output; the value stays in the filler', {
       in: { handle: handleField, target: t.obj({ kind: t.enm('env', 'http_header', 'browser', 'terminal', 'file', 'git_credential', 'container_env', 'route_auth'), ref: t.str() }), returnValue: t.opt(t.bool()) },
@@ -186,13 +186,13 @@ export default defineManifest({
     read('providers.list', 'My connected AI providers: logo, how connected, Mine or Shared, agents using it, this month\'s usage', { ...V, in: {}, out: { providers: t.arr(providerRow) }, tool: 'vault' }),
     write('providers.add', 'Connect a provider with a pasted API key (stored once, used by handle) or a local model address', {
       ...V, idem: 'key', in: { providerKey: t.str({ examples: ['anthropic'] }), connection: t.enm('api_key', 'local_model'), name: t.opt(t.str()), apiKey: t.opt(t.str()), address: t.opt(url), scope: t.enm('mine', 'shared'), folderId: t.opt(id.vaultFolder) },
-      out: { provider: providerRow }, emits: ['provider.added', 'vault.item_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['validation.duplicate', 'provider.auth_failed'],
+      out: { provider: providerRow }, emits: ['provider.added', 'vault.item_created', 'vault.folder_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['validation.duplicate', 'provider.auth_failed'],
     }),
     write('providers.subscription_start', 'Start a subscription sign-in (Claude, ChatGPT through Codex, Grok): the server starts the provider\'s own sign-in and answers its link, and the code to type where the provider shows one. A person does this, never an agent.', {
       ...V, idem: 'key', in: { providerKey: t.str({ examples: ['claude-code'] }) }, out: { flowId: t.id('sub'), instruction: t.str(), url: t.opt(url), userCode: t.opt(t.str()), needsCode: t.opt(t.bool()) }, audit: 'sensitive', tool: 'vault', offline: 'online',
     }),
     write('providers.subscription_complete', 'Finish a subscription sign-in. Pass the pasted code where the provider shows one; call again until it answers a provider (waiting means the person has not approved yet). The credential goes straight into a Mine item of kind ai_subscription and is never returned.', {
-      ...V, in: { flowId: t.id('sub'), code: t.opt(t.str({ description: 'The code the provider\'s page showed, pasted back' })) }, out: { provider: t.opt(providerRow), waiting: t.opt(t.bool()) }, emits: ['provider.added', 'vault.item_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['provider.auth_failed', 'timeout.deadline'],
+      ...V, in: { flowId: t.id('sub'), code: t.opt(t.str({ description: 'The code the provider\'s page showed, pasted back' })) }, out: { provider: t.opt(providerRow), waiting: t.opt(t.bool()) }, emits: ['provider.added', 'vault.item_created', 'vault.folder_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['provider.auth_failed', 'timeout.deadline'],
     }),
     write('providers.set_space_use', 'Let the Space run work on my subscription, or stop it (stopping ends my sandbox)', {
       ...V, in: { providerId: t.id('prv'), allow: t.bool() }, out: { provider: providerRow }, emits: ['provider.updated'], audit: 'always', tool: 'vault', offline: 'online',
@@ -200,7 +200,7 @@ export default defineManifest({
     read('providers.test', 'Test a provider connection and list the models it offers', { ...V, in: { providerId: t.id('prv') }, out: { ok: t.bool(), models: t.arr(t.str()), latencyMs: t.int({ minimum: 0 }), detail: t.opt(t.str()) }, tool: 'vault', offline: 'online' }),
     write('providers.custom_add', 'Register an OpenAI-compatible endpoint (a gateway, vLLM, LiteLLM, a hosted model) by base address and connect it with my key, held in the Vault by handle', {
       ...V, idem: 'key', in: { name: t.str({ examples: ['Acme gateway'] }), baseUrl: t.str({ examples: ['https://llm.acme.test/v1'] }), apiKey: t.opt(t.str()), models: t.opt(t.arr(t.str())), scope: t.enm('mine', 'shared'), folderId: t.opt(id.vaultFolder) },
-      out: { endpoint: customEndpoint, provider: providerRow }, emits: ['provider.added', 'vault.item_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['validation.duplicate'],
+      out: { endpoint: customEndpoint, provider: providerRow }, emits: ['provider.added', 'vault.item_created', 'vault.folder_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['validation.duplicate'],
     }),
     read('providers.custom_list', 'The custom OpenAI-compatible endpoints this Space registered', { ...V, in: {}, out: { endpoints: t.arr(customEndpoint) }, tool: 'vault' }),
     write('providers.custom_remove', 'Remove a custom endpoint I registered, and my connections to it', {

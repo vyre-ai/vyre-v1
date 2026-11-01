@@ -15,6 +15,11 @@ HTTP 502. Retryable: yes.
 - connections.complete_auth
 - connectors.push
 - connectors.run
+- dropbox.connect.complete
+- dropbox.files.create_folder
+- dropbox.files.delete
+- dropbox.files.restore
+- dropbox.files.upload
 - email_builder.send_test
 - engine.mcp.call
 - engine.probe_account
@@ -26,8 +31,3 @@ HTTP 502. Retryable: yes.
 - github.issue.comment
 - github.issue.create
 - github.issue.update
-- github.pull_request.close
-- github.pull_request.comment
-- github.pull_request.create
-- github.pull_request.merge
-- github.pull_request.request_review

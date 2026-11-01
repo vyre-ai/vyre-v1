@@ -12,7 +12,7 @@ import { useCap, useReviewData, useReviewLayout } from "./data.tsx";
 import { GateRow } from "./GateRow.tsx";
 import { Glyph } from "./icons.tsx";
 import {
-  APPROVE_LABEL, approveBlocked, baseLine, blockedReason, changedLine, isOpen, needsGate, requestLabel, settledWords, totalsWords,
+  APPROVE_LABEL, BASE_HELP, approveBlocked, baseLine, blockedReason, changedLine, isOpen, needsGate, requestLabel, settledWords, totalsWords,
 } from "./model.ts";
 import type { GateState, GateView } from "./model.ts";
 import { Btn, IconBtn, Note, Segmented, Skeleton, Switch, TextField, anchorOf, webProps } from "./parts.tsx";
@@ -138,7 +138,7 @@ export function ChangesetHeader({ changesetId, unsent = 0, panel: startPanel }: 
           </View>
           <View style={st.t2}>
             <Text style={st.where} testID="changeset-where">{data.nameOf(cs.folderId)}</Text>
-            {baseLine(cs) ? <Text style={st.mut} numberOfLines={3}>{baseLine(cs)}</Text> : null}
+            {baseLine(cs) ? <Text style={st.mut} numberOfLines={1} {...{ title: BASE_HELP }} accessibilityHint={BASE_HELP} testID="changeset-base">{baseLine(cs)}</Text> : null}
           </View>
         </View>
         <View style={st.acts}>

@@ -4,7 +4,7 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (65)
+## Capabilities (76)
 
 - [google.calendar.create_event](../capabilities/google.calendar.create_event.md): Create an event; Google invites the attendees
 - [google.calendar.delete_event](../capabilities/google.calendar.delete_event.md): Delete an event; Google tells the attendees
@@ -21,19 +21,23 @@ Requires: mail.
 - [google.docs.batch_update](../capabilities/google.docs.batch_update.md): Edit a Google Doc with a list of requests
 - [google.docs.create_document](../capabilities/google.docs.create_document.md): Create a Google Doc
 - [google.docs.get_document](../capabilities/google.docs.get_document.md): Read a Google Doc as structured content
+- [google.docs.insert_text](../capabilities/google.docs.insert_text.md): Insert text into a Google Doc after or before some existing text, or at its start or end; refuses if the document changed meanwhile
+- [google.docs.replace_text](../capabilities/google.docs.replace_text.md): Replace every occurrence of some text in a Google Doc
 - [google.drive.changes_start_token](../capabilities/google.drive.changes_start_token.md): The Drive changes start page token, so a mount syncs incrementally from now instead of rescanning
 - [google.drive.copy_file](../capabilities/google.drive.copy_file.md): Copy a Drive file
 - [google.drive.create_folder](../capabilities/google.drive.create_folder.md): Create a Drive folder
 - [google.drive.download_file](../capabilities/google.drive.download_file.md): Download a Drive file into a blob
+- [google.drive.download_revision](../capabilities/google.drive.download_revision.md): Download one revision of a Drive file into a blob
 - [google.drive.export_file](../capabilities/google.drive.export_file.md): Export a Google document, sheet or slide as PDF, DOCX, XLSX or text
 - [google.drive.get_file](../capabilities/google.drive.get_file.md): Read Drive file metadata
 - [google.drive.get_permissions](../capabilities/google.drive.get_permissions.md): Who a Drive file is shared with
 - [google.drive.list_changes](../capabilities/google.drive.list_changes.md): Drive changes since a page token (mount sync and mount lag)
 - [google.drive.list_files](../capabilities/google.drive.list_files.md): List or search Drive files and folders (My Drive and Shared Drives)
+- [google.drive.list_revisions](../capabilities/google.drive.list_revisions.md): The revisions Drive keeps of a file, with who saved each
 - [google.drive.share_file](../capabilities/google.drive.share_file.md): Share a Drive file with people; Google emails them
 - [google.drive.stop_watch](../capabilities/google.drive.stop_watch.md): Close a Drive watch channel
 - [google.drive.trash_file](../capabilities/google.drive.trash_file.md): Move a Drive file to Trash
-- [google.drive.upload_file](../capabilities/google.drive.upload_file.md): Upload a Space file into Drive
+- [google.drive.upload_file](../capabilities/google.drive.upload_file.md): Upload a Space file into Drive; with remoteId it replaces that file, and with ifRevision only if Drive still holds that revision
 - [google.drive.watch_changes](../capabilities/google.drive.watch_changes.md): Open a Drive changes.watch channel
 - [google.dwd.disable](../capabilities/google.dwd.disable.md): Turn delegation off and stop every member sync
 - [google.dwd.map_member](../capabilities/google.dwd.map_member.md): Match a Google address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Meet come in
@@ -71,10 +75,18 @@ Requires: mail.
 - [google.sheets.get_spreadsheet](../capabilities/google.sheets.get_spreadsheet.md): Spreadsheet metadata: sheets and ranges
 - [google.sheets.get_values](../capabilities/google.sheets.get_values.md): Read a range of cells
 - [google.sheets.update_values](../capabilities/google.sheets.update_values.md): Write a range of cells
+- [google.user.app_set](../capabilities/google.user.app_set.md): Name the Vault item that holds the Google OAuth client (client_id, and client_secret for a web client)
+- [google.user.app_status](../capabilities/google.user.app_status.md): Whether a Google OAuth client is set up for signing in to your own Gmail, and the redirect address to give Google for it
+- [google.user.complete](../capabilities/google.user.complete.md): Finish signing in from the callback: the state and the code, or the error Google sent when the person declined. Only who started it can finish it. Makes the mailbox and starts its first sync
+- [google.user.list](../capabilities/google.user.list.md): Your own signed-in Google accounts
+- [google.user.remove](../capabilities/google.user.remove.md): Sign out of your own Google account: revoke it at Google and remove its token
+- [google.user.send_message](../capabilities/google.user.send_message.md): Send a message from your own signed-in Gmail (mail.send_as uses it for a mailbox made by google.user.complete)
+- [google.user.start](../capabilities/google.user.start.md): Start signing in to your own Gmail: the address to approve at
 
-## Events (4)
+## Events (5)
 
 - [google.dwd_configured](../events/google.dwd_configured.md): Domain-wide delegation was set up
 - [google.dwd_probed](../events/google.dwd_probed.md): A delegation probe ran
 - [google.dwd_revoked](../events/google.dwd_revoked.md): Delegation was turned off
 - [google.push_received](../events/google.push_received.md): A verified Google push notice arrived (Gmail, Calendar, Drive or Meet)
+- [google.user_connected](../events/google.user_connected.md): A person signed in to their own Google account

@@ -69,6 +69,7 @@ type Out = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
     vaultKeys: Array<string>;
@@ -162,6 +163,7 @@ type Out = {
       "pausedReason": "example",
       "role": "example",
       "status": "awake",
+      "switchOnLimit": true,
       "teammateOf": "prj_a1b2c3",
       "templateVersion": 1,
       "toolsAllowed": [

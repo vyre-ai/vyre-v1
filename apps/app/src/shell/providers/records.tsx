@@ -23,6 +23,9 @@ import { SCHEMA_PAGE } from "../../places/records/typeedit/index.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import { AskPane, ASK_CLOSED, askPaneReduce, makeAskVyre } from "../../places/records/askpane/index.ts";
 import { RecordsAssistant } from "./records-ask.tsx";
+import { RecordShareSheet } from "../../places/records/sharing/index.ts";
+import type { RecordsShare, ShareTarget } from "../../places/records/sidebar/index.ts";
+import { useDirectory } from "./automations-parts.tsx";
 
 const SIDEBAR_W = 240;
 
@@ -52,6 +55,11 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
   }, [state.type, id, schemaView, opened]);
   // Ask Vyre opens a pane beside the page, in this tab; it never goes to Chats.
   const [pane, ask] = useReducer(askPaneReduce, ASK_CLOSED);
+  // Sharing: a Team Space only (a Personal Space has no one to share with). The sheet is the Files Share sheet with the Records line on top.
+  const [sharing, setSharing] = useState<ShareTarget | null>(null);
+  const directory = useDirectory(rt);
+  const team = rt.space.kind !== "personal";
+  const share = useMemo<RecordsShare | undefined>(() => (team ? { open: setSharing } : undefined), [team]);
   const schema = useMemo<SchemaData>(() => ({
     screens: rt.screens,
     call: rt.call,
@@ -68,14 +76,14 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
   const type = target.args.type ?? effectiveType(state, typeGroups(types.status === "ready" ? types.data.types : []));
   const data = useMemo(() => {
     const base = recordsData(rt, target.screen, canEdit);
-    return { ...base, askVyre: makeAskVyre(ask, { type, screen: target.screen }), nav: { ...base.nav, openRecord: (recordId: string) => {
+    return { ...base, ...(share ? { share } : {}), askVyre: makeAskVyre(ask, { type, screen: target.screen }), nav: { ...base.nav, openRecord: (recordId: string) => {
       const open = (): void => rt.open({ subject: { type: "record", id: recordId }, args: type ? { type } : {} });
       // an Agents row opens the agent's own page; a row with no agent behind it opens the "not set up" page
       if (type !== "agent") { open(); return; }
       void agentOfRecord(rt.call, recordId).then((r) => { if ("agent" in r) openAgent(rt, r.agent.agentId); else open(); }, open);
     } } };
-  }, [rt, type, target.screen, canEdit]);
-  return <RecordsDataProvider value={data}><View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordsSidebarSlot />{id ? <RecordDetail key={`${id}:${target.args.type ?? ""}`} rt={rt} recordId={id} {...(target.args.type ? { type: target.args.type } : {})} fields={target.screen === "records.record-page" || target.args.recordView === "fields"} tab={target.screen === "records.project-plan" || target.args.tab === "plan" ? "plan" : target.args.tab === "files" ? "files" : target.args.tab === "chat" ? "chat" : "overview"} /> : schemaView ? <SchemaDataProvider value={schema}>{schemaView === "types" ? <RecordTypesList /> : <SchemaMap />}</SchemaDataProvider> : <RecordViews extraKinds={EXTRA_KINDS} {...(target.args.type ? { type: target.args.type } : {})} {...(target.args.kind ? { kind: target.args.kind } : {})} />}{pane.open ? <AskPane about={pane.about} onClose={() => ask({ type: "close" })}><RecordsAssistant rt={rt} about={pane.about} /></AskPane> : null}</View></RecordsDataProvider>;
+  }, [rt, type, target.screen, canEdit, share]);
+  return <RecordsDataProvider value={data}><View testID="records-place" style={{ flex: 1, flexDirection: "row", minHeight: 0 }}><RecordsSidebarSlot />{id ? <RecordDetail key={`${id}:${target.args.type ?? ""}`} rt={rt} recordId={id} {...(target.args.type ? { type: target.args.type } : {})} fields={target.screen === "records.record-page" || target.args.recordView === "fields"} tab={target.screen === "records.project-plan" || target.args.tab === "plan" ? "plan" : target.args.tab === "files" ? "files" : target.args.tab === "chat" ? "chat" : "overview"} /> : schemaView ? <SchemaDataProvider value={schema}>{schemaView === "types" ? <RecordTypesList /> : <SchemaMap />}</SchemaDataProvider> : <RecordViews extraKinds={EXTRA_KINDS} {...(target.args.type ? { type: target.args.type } : {})} {...(target.args.kind ? { kind: target.args.kind } : {})} />}{pane.open ? <AskPane about={pane.about} onClose={() => ask({ type: "close" })}><RecordsAssistant rt={rt} about={pane.about} /></AskPane> : null}{sharing ? <RecordShareSheet target={sharing} directory={{ people: directory.people, groups: directory.groups, agents: directory.agents }} onClose={() => setSharing(null)} /> : null}</View></RecordsDataProvider>;
 }
 
 export default function RecordsPlace(_props: { place: string }): ReactElement {

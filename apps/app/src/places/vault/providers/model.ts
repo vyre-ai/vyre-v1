@@ -8,9 +8,9 @@ export type ConnectionKind = Provider["connection"];
 export const CONNECTION_NAME: Readonly<Record<ConnectionKind, string>> = { subscription: "Subscription", api_key: "API key", local_model: "Local model" };
 /** What each way of connecting means, in one line, for the gallery. */
 export const CONNECTION_NOTE: Readonly<Record<ConnectionKind, string>> = {
-  subscription: "Sign in with your own plan. It stays yours and follows you across Spaces and devices.",
-  api_key: "Paste a key once. It can be shared with people and agents.",
-  local_model: "A model running on a computer you control. Give its address.",
+  subscription: "Sign in with your own plan. It stays yours.",
+  api_key: "Paste a key once. You can share it.",
+  local_model: "A model on your own computer.",
 };
 
 /** "Subscription, yours" or "API key #Northwind_Anthropic": how a provider signs in, as the row says it. */

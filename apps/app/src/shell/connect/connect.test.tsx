@@ -8,7 +8,7 @@ import { find, flush, installDom, mount, press, textOf } from "../../../../../ui
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 import { ConnectInlineHost } from "./ConnectInline.tsx";
 import { useConnectInline } from "./context.ts";
-import { connectEntries, connectLabel, connectThen, stepNeed } from "./model.ts";
+import { connectEntries, connectLabel, connectThen, mailFixOf, stepNeed } from "./model.ts";
 import type { Connected, ConnectNeed } from "./model.ts";
 
 const labels = (entries: readonly MenuEntry[]): string[] => entries.map((e) => ("label" in e ? e.label : "separator" in e ? "---" : "head" in e ? e.head : ""));
@@ -21,6 +21,7 @@ test("an empty picker ends in Connect with the thing's own words", () => {
   assert.equal(need({ kind: "ai" }), "Add an AI account");
   assert.equal(need({ kind: "key" }), "Add a key");
   assert.equal(need({ kind: "number" }), "Connect Twilio");
+  assert.equal(need({ kind: "connector", service: "dropbox" }), "Connect Dropbox");
   assert.equal(need({ kind: "connector", service: "google" }), "Connect Google");
   const entries = connectEntries([], { kind: "mailbox" }, async () => made, () => undefined, true);
   assert.deepEqual(labels(entries), ["Connect a mailbox"]);
@@ -111,4 +112,13 @@ test("without a host there is no door, so no picker draws a Connect item", async
     const root = await mount(createRoot, <Asker need={{ kind: "ai" }} into={() => undefined} />);
     assert.ok(textOf(root).includes("door no"));
   } finally { restore(); }
+});
+
+test("a lost mailbox sign-in is recognised by its block and its kind, and nothing else is", () => {
+  const block = (provider: string) => [{ type: "mail_signin", data: { provider, address: "a@b.test", accountId: "gua_1" } }];
+  assert.equal(mailFixOf({ kind: "unblock", blocks: block("google") }), "google");
+  assert.equal(mailFixOf({ kind: "unblock", blocks: block("microsoft") }), "microsoft");
+  assert.equal(mailFixOf({ kind: "unblock", blocks: block("imap") }), null);
+  assert.equal(mailFixOf({ kind: "work", blocks: block("google") }), null);
+  assert.equal(mailFixOf({ kind: "unblock", blocks: [] }), null);
 });

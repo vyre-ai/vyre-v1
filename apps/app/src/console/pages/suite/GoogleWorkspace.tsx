@@ -106,7 +106,7 @@ export function GoogleWorkspacePage(): ReactElement {
       <Step n={2} title="Add the key to the Vault" state={stateOf(1)}>
         {stored ? <Para>The key is in the Vault as {GOOGLE_HANDLE}. Paste a new file below only to replace it.</Para> : <Para>Open the downloaded file in any text editor, copy everything, and paste it here. The Vault keeps it; this page will never show it again.</Para>}
         <PasteBox label="Service-account key (JSON)" value={pasted} onChange={setPasted} testID="google-key" hint="Starts with { and contains private_key." />
-        <Actions><Button label={stored ? "Replace key in the Vault" : "Save to the Vault"} disabled={act.busy || pasted.trim() === ""} testID="google-save-key" onPress={() => void saveKey()} /></Actions>
+        <Actions><Button label={stored ? "Replace key in the Vault" : "Save to the Vault"} disabled={act.busy || pasted.trim() === ""} why={pasted.trim()===""?"Paste the key first":undefined} testID="google-save-key" onPress={() => void saveKey()} /></Actions>
         {identity ? <Para>Recognised {identity.clientEmail}. The client ID is {identity.clientId}.</Para> : null}
       </Step>
       <Step n={3} title="Allow the scopes in Google Admin" state={stateOf(2)}>
@@ -125,12 +125,12 @@ export function GoogleWorkspacePage(): ReactElement {
         <Para>Type the email address of a Workspace admin. Vyre uses it for checks and matches your members by email on that address's domain.</Para>
         <Field label="Admin email" value={adminEmail} onChange={setAdmin} testID="google-admin-email" />
         {adminEmail && looksLikeEmail(adminEmail) ? <Para>Members with an address @{domainOf(adminEmail)} are matched.</Para> : null}
-        <Actions><Button label={configured ? "Connect again" : "Connect Google Workspace"} disabled={act.busy || !stored} testID="google-connect" onPress={() => void connect()} /></Actions>
+        <Actions><Button label={configured ? "Connect again" : "Connect Google Workspace"} disabled={act.busy || !stored} why={!stored?"Save the key first":undefined} testID="google-connect" onPress={() => void connect()} /></Actions>
         {!stored ? <Para>Save the key in step 2 first.</Para> : null}
       </Step>
       <Step n={5} title="Check the connection" state={stateOf(4)}>
         <Para>Vyre asks Google for a sign-in for each scope and names any that are missing.</Para>
-        <Actions><Button label="Check connection" disabled={act.busy || !configured} testID="google-check" onPress={() => void check()} /></Actions>
+        <Actions><Button label="Check connection" disabled={act.busy || !configured} why={!configured?"Connect first":undefined} testID="google-check" onPress={() => void check()} /></Actions>
       </Step>
     </StepsCard>
   );

@@ -147,14 +147,37 @@ test("streamed deltas append once per frame", () => {
   assert.equal(store.stats().appends, 1, "one append for 100 deltas");
 });
 
-test("an error is one inline row: what, why, next, What happened, Copy trace id; Retry carries the turn", async () => {
+test("an error is one inline row: what, why, next, Details, Copy id; Retry carries the turn", async () => {
   const s = createSample("errors");
   const out = html(s);
   assert.ok(has(out, "Docs did not read fee-schedule.csv") && has(out, "Restricted data only goes to a model on your computer."));
-  for (const t of ["Switch to Llama 3.3 on this computer", "Ask for access", "Retry", "What happened?", "Copy trace id", "Report a problem"]) assert.ok(has(out, t), t);
+  for (const t of ["Switch to Llama 3.3 on this computer", "Ask for access", "Retry", "Details", "Copy id", "Report"]) assert.ok(has(out, t), t);
   assert.ok(has(out, "Changed 1 file in Rivera matter") && has(out, "Review changes") && has(out, "Rivera engagement letter"));
   await act.retryTurn(s.data, "turn_9").catch(() => undefined);
   assert.equal(s.calls[0]!.cap, "engine.turn.retry");
+});
+
+test("the buttons on a failed reply: Install copies the exact command; Unlock asks for the password and then sends the stopped reply again, once", async () => {
+  const s = createSample("errors");
+  const said: string[] = [];
+  await act.errorAction(s.data, "install:codex", "turn_9", (t) => said.push(t));
+  assert.deepEqual(s.copied.slice(-1), ["npm install -g @openai/codex"]);
+  assert.match(said[0] ?? "", /^Copied: npm install -g @openai\/codex/);
+
+  // no way to open the key here: a sentence, and nothing is retried
+  await act.errorAction(s.data, "unlock_vault", "turn_9", (t) => said.push(t));
+  assert.equal(s.calls.filter((c) => c.cap === "engine.turn.retry").length, 0);
+
+  let asked = 0, open = false;
+  const withKey = { ...s.data, nav: { ...s.data.nav, unlockVault: async () => { asked++; return open; } } };
+  await act.errorAction(withKey, "unlock_vault", "turn_9", (t) => said.push(t));
+  assert.equal(asked, 1);
+  assert.equal(s.calls.filter((c) => c.cap === "engine.turn.retry").length, 0, "Cancel leaves the reply as it was");
+  open = true;
+  await act.errorAction(withKey, "unlock_vault", "turn_9", (t) => said.push(t));
+  const retries = s.calls.filter((c) => c.cap === "engine.turn.retry");
+  assert.equal(retries.length, 1, "the key opened, so the turn that stopped runs again");
+  assert.deepEqual(retries[0]?.input, { turnId: "turn_9" });
 });
 
 test("cards: a plan waits for approval and a question waits for an answer; both write", async () => {
@@ -238,13 +261,13 @@ test("Accept and Reject are the changeset capabilities; an edit goes back as a r
   assert.ok((s.calls[3]!.input as { note: string }).note.startsWith("Suggested to Maya Chen: "));
 });
 
-test("the plan card is on the page: name, open comments, click to open beside the chat", () => {
+test("the plan card is on the page: name, open comments", () => {
   const s = createSample("idle");
   const out = html(s);
   const block = msgs(s).find((m) => m.messageId === "m4")!.blocks.find((b) => b.id === "pl1")!;
   assert.ok(isPlanFile(block));
-  inOrder(out, ['data-testid="plancard-pl1"', "Plan · 1 open comment · click to open beside the chat", "client-intake.pdf"]);
-  assert.equal(planFileLine(2), "Plan · 2 open comments · click to open beside the chat");
+  inOrder(out, ['data-testid="plancard-pl1"', "Plan · 1 open comment", "client-intake.pdf"]);
+  assert.equal(planFileLine(2), "Plan · 2 open comments");
 });
 
 test("the header has the agent chip with a face and mode mark, the participants count, search and the pane", () => {
@@ -267,14 +290,14 @@ test("find in chat: matches are ignoring case and accents, counted, and stepped"
   assert.deepEqual(findMatches([{ ...all[0]!, body: "Café Rivera" }], "cafe"), ["m1"]);
 });
 
-test("the composer has the model chip (Opus) and the computer button; its placeholder names who answers", () => {
+test("the composer's agent strip names who answers and on what model (Opus), with the computer button; its placeholder names who answers", () => {
   const s = createSample("idle");
   const out = html(s);
-  assert.ok(has(out, 'data-testid="model-chip"') && has(out, "Model: Opus") && has(out, 'data-testid="computer-button"') && has(out, "Intake's computer"));
+  assert.ok(has(out, 'data-testid="composer-strip"') && has(out, "Intake will answer on Opus") && has(out, 'data-testid="computer-button"') && has(out, "Intake's computer"));
   assert.ok(has(out, "Message Intake…"));
   assert.equal(modelLabel("opus"), "Opus");
   assert.equal(placeholderFor(thread(s), s.data.nameOf, true), "Queue a message for when Intake finishes…");
-  assert.ok(!has(html(createSample("nolead")), 'data-testid="model-chip"'));
+  assert.ok(!has(html(createSample("nolead")), 'data-testid="composer-strip"'), "no lead, nobody @mentioned: no strip");
 });
 
 test("switching the model lists the allowed models and sets the lead's model; the header and composer follow", async () => {
@@ -284,7 +307,7 @@ test("switching the model lists the allowed models and sets the lead's model; th
   await act.setModel(s.data, "agt_intake", models[1]!);
   assert.deepEqual(s.calls.map((c) => c.cap), ["engine.models.list", "engine.set_model"]);
   assert.deepEqual(s.calls[1]!.input, { threadId: "c1", agentId: "agt_intake", provider: "anthropic", model: "sonnet" });
-  assert.ok(has(html(s), "Model: Sonnet"));
+  assert.ok(has(html(s), "Intake will answer on Sonnet"));
 });
 
 test("the browser chat-open probe: one warm-up discarded, the median of five against the unchanged 100 ms budget, the worst printed, exactly 50 messages", () => {

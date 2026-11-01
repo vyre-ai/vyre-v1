@@ -62,9 +62,13 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.transcript.summary": Handler<"chat.transcript.summary", X>;
   "chat.unpin": Handler<"chat.unpin", X>;
   "threads.add_agent": Handler<"threads.add_agent", X>;
+  "threads.agent.configure": Handler<"threads.agent.configure", X>;
+  "threads.archive": Handler<"threads.archive", X>;
   "threads.close": Handler<"threads.close", X>;
+  "threads.delete": Handler<"threads.delete", X>;
   "threads.erase": Handler<"threads.erase", X>;
   "threads.get": Handler<"threads.get", X>;
+  "threads.leave": Handler<"threads.leave", X>;
   "threads.list": Handler<"threads.list", X>;
   "threads.make_channel": Handler<"threads.make_channel", X>;
   "threads.mark_read": Handler<"threads.mark_read", X>;
@@ -72,7 +76,10 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "threads.members.remove": Handler<"threads.members.remove", X>;
   "threads.remove_agent": Handler<"threads.remove_agent", X>;
   "threads.reopen": Handler<"threads.reopen", X>;
+  "threads.restore": Handler<"threads.restore", X>;
   "threads.set_folder": Handler<"threads.set_folder", X>;
+  "threads.set_mode": Handler<"threads.set_mode", X>;
   "threads.set_plan_mode": Handler<"threads.set_plan_mode", X>;
+  "threads.unarchive": Handler<"threads.unarchive", X>;
   "threads.update": Handler<"threads.update", X>;
 }

@@ -19,7 +19,7 @@ Start a chat or an Ask pane with one or more agents, or a direct message with on
 | HTTP | POST /v1/chat/start |
 | MCP tool | chat_start (chats) |
 | CLI | vyre chat start |
-| Emits | thread.started, agent.engaged, message.received, message.direct |
+| Emits | thread.started, agent.engaged, message.received, message.direct, thread.unarchived |
 
 ## Input
 
@@ -59,6 +59,7 @@ type Out = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -140,6 +141,7 @@ type Out = {
           "kind": "person"
         }
       ],
+      "mode": "ask",
       "parentMessageId": "msg_a1b2c3",
       "parentThreadId": "thr_a1b2c3",
       "path": [

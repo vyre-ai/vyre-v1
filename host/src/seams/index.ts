@@ -6,6 +6,8 @@
 // tree yet) leaves that seam "absent"; it is reported in the result, not a boot failure.
 import { createComputersHost } from "./computers-host.ts";
 import type { ComputersHostDeps, ComputersHostSeam } from "./computers-host.ts";
+import { createDropboxHost } from "./dropbox.ts";
+import type { DropboxHostSeam } from "./dropbox.ts";
 import { createEngineHost } from "./engine.ts";
 import type { EngineHostDeps, EngineHostSeam, EngineInvoke, EngineSessionPorts } from "./engine.ts";
 import { createGoogleHost } from "./google.ts";
@@ -26,8 +28,8 @@ import type { FetchedResponse, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, 
 
 export { createGithubHost, createStripeHost, createTwilioHost, createZoomHost };
 export type { GithubHostSeam, StripeHostSeam, TwilioHostSeam, ZoomHostSeam, FillerPort };
-export { createComputersHost, createEngineHost, createGoogleHost, createImapSecretResolver, createMailgunHost, createMsHost, createResendHost, createSourcesSecretResolver };
-export type { ComputersHostDeps, ComputersHostSeam, EngineHostDeps, EngineHostSeam, EngineInvoke, EngineSessionPorts, FetchedResponse, GoogleHostSeam, MailgunHostSeam, ResendHostSeam, GoogleSeamDeps, ImapSecretResolver, MsHostSeam, SourcesSecretResolver, MsSeamDeps, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort };
+export { createComputersHost, createDropboxHost, createEngineHost, createGoogleHost, createImapSecretResolver, createMailgunHost, createMsHost, createResendHost, createSourcesSecretResolver };
+export type { ComputersHostDeps, ComputersHostSeam, DropboxHostSeam, EngineHostDeps, EngineHostSeam, EngineInvoke, EngineSessionPorts, FetchedResponse, GoogleHostSeam, MailgunHostSeam, ResendHostSeam, GoogleSeamDeps, ImapSecretResolver, MsHostSeam, SourcesSecretResolver, MsSeamDeps, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort };
 
 /** Every host driver is built from the same deps; a driver may return anything the setter accepts (a seam object, a function, a config). */
 export type SeamDriver = (d: SeamDriverDeps) => unknown;
@@ -59,6 +61,8 @@ export interface SeamSetters {
   setTwilioHost?: ((h: TwilioHostSeam | null) => void) | undefined;
   setGithubHost?: ((h: GithubHostSeam | null) => void) | undefined;
   setZoomHost?: ((h: ZoomHostSeam | null) => void) | undefined;
+  /** Dropbox as a file source (live folders L3): the app key and secret, sign-in and refresh, uploads and downloads */
+  setDropboxHost?: ((h: DropboxHostSeam | null) => void) | undefined;
   [name: string]: ((driver: never) => void) | undefined;
 }
 
@@ -104,8 +108,8 @@ export const defaultFetch: SeamFetch = async (url, init) => {
 
 /** The drivers the host builds from the Vault and the Space ports alone. */
 export const BUILTIN_DRIVERS: Readonly<Record<string, SeamDriver>> = Object.freeze({
-  setGoogleHost: (d: SeamDriverDeps) => createGoogleHost(d.common),
-  setMsHost: (d: SeamDriverDeps) => createMsHost(d.common),
+  setGoogleHost: (d: SeamDriverDeps) => createGoogleHost({ ...d.common, publicUrl: d.publicUrl }),
+  setMsHost: (d: SeamDriverDeps) => createMsHost({ ...d.common, publicUrl: d.publicUrl }),
   setImapSecretResolver: (d: SeamDriverDeps) => createImapSecretResolver(d.vault),
   setSourcesSecretResolver: (d: SeamDriverDeps) => createSourcesSecretResolver(d.vault, d.space),
   setResendHost: (d: SeamDriverDeps) => createResendHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
@@ -113,6 +117,7 @@ export const BUILTIN_DRIVERS: Readonly<Record<string, SeamDriver>> = Object.free
   setStripeHost: (d: SeamDriverDeps) => createStripeHost({ vault: d.vault }),
   setTwilioHost: (d: SeamDriverDeps) => createTwilioHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, publicUrl: d.publicUrl }),
   setZoomHost: (d: SeamDriverDeps) => createZoomHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs }),
+  setDropboxHost: (d: SeamDriverDeps) => createDropboxHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
   setPluginsHost: () => createPluginsHost(),
   setGithubHost: (d: SeamDriverDeps) => createGithubHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, filler: d.filler, publicUrl: d.publicUrl }),
 });

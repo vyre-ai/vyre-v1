@@ -100,12 +100,20 @@ export async function hopLimit(ctx: ChatCtx): Promise<number> {
 
 // ---- threads ----------------------------------------------------------------------------------------------------------------------------------------
 
+/** How much a chat's agents may do without asking: "auto" (the default for a new chat, owner 1 Nov 2026), "ask" or "plan". Anything that leaves Vyre is held for a yes in every mode. */
+export type ChatMode = "ask" | "auto" | "plan";
+export const CHAT_MODES: readonly ChatMode[] = ["ask", "auto", "plan"];
+/** modePlan keeps its column: 0 or null is ask, 1 is plan (so an older client that reads it as a checkbox still sees plan mode), 2 is auto. */
+export const modeOfCode = (v: unknown): ChatMode => (Number(v) === 1 ? "plan" : Number(v) === 2 ? "auto" : "ask");
+export const codeOfMode = (m: ChatMode): number => (m === "plan" ? 1 : m === "auto" ? 2 : 0);
+
 export interface ThreadRec {
   id: string; kind: ThreadKind; title?: string; starter?: string; recordId?: string; folderId?: string; scopeType?: string; scopeId?: string; channelId?: string;
-  parentThreadId?: string; parentMessageId?: string; listed: boolean; planMode: boolean; createdAt: number; closedAt?: number;
+  parentThreadId?: string; parentMessageId?: string; listed: boolean; planMode: boolean; mode: ChatMode; createdAt: number; closedAt?: number;
 }
 export function threadOf(r: Row): ThreadRec {
-  const o: ThreadRec = { id: str(r["id"]), kind: str(r["kind"]) as ThreadKind, listed: flag(r["listed"]), planMode: flag(r["modePlan"]), createdAt: num(r["createdAt"]) };
+  const mode = modeOfCode(r["modePlan"]);
+  const o: ThreadRec = { id: str(r["id"]), kind: str(r["kind"]) as ThreadKind, listed: flag(r["listed"]), planMode: mode === "plan", mode, createdAt: num(r["createdAt"]) };
   const set = <K extends keyof ThreadRec>(k: K, v: ThreadRec[K] | undefined): void => { if (v !== undefined) o[k] = v; };
   set("title", optStr(r["title"])); set("starter", optStr(r["starter"])); set("recordId", optStr(r["recordId"])); set("folderId", optStr(r["folderId"]));
   set("scopeType", optStr(r["scopeType"])); set("scopeId", optStr(r["scopeId"])); set("channelId", optStr(r["channelId"]));
@@ -120,7 +128,7 @@ export function threadBy(db: Db, id: string): ThreadRec | null {
 
 export interface NewThread {
   kind: ThreadKind; title?: string | undefined; starter?: string | undefined; recordId?: string | undefined; folderId?: string | undefined; scopeType?: string | undefined; scopeId?: string | undefined;
-  channelId?: string | undefined; parentThreadId?: string | undefined; parentMessageId?: string | undefined; listed: boolean; planMode?: boolean;
+  channelId?: string | undefined; parentThreadId?: string | undefined; parentMessageId?: string | undefined; listed: boolean; planMode?: boolean; mode?: ChatMode;
 }
 export function insertThread(ctx: Pick<ChatCtx, "db" | "now">, t: NewThread): ThreadRec {
   const now = ctx.now();
@@ -129,7 +137,7 @@ export function insertThread(ctx: Pick<ChatCtx, "db" | "now">, t: NewThread): Th
     `INSERT INTO chat_thread (id, kind, title, starter, recordId, folderId, scopeType, scopeId, channelId, parentThreadId, parentMessageId, listed, modePlan, createdAt, closedAt, version, updated_at, deleted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, ?, NULL)`,
     id, t.kind, t.title ?? null, t.starter ?? null, t.recordId ?? null, t.folderId ?? null, t.scopeType ?? null, t.scopeId ?? null, t.channelId ?? null,
-    t.parentThreadId ?? null, t.parentMessageId ?? null, t.listed ? 1 : 0, t.planMode ? 1 : 0, now, now,
+    t.parentThreadId ?? null, t.parentMessageId ?? null, t.listed ? 1 : 0, codeOfMode(t.mode ?? (t.planMode ? "plan" : "auto")), now, now,
   );
   return threadBy(ctx.db, id)!;
 }
@@ -186,7 +194,7 @@ export function addAgent(ctx: Pick<ChatCtx, "db" | "now">, thread: string, a: { 
 /** The full thread row of the contract. */
 export function threadOut(db: Db, t: ThreadRec): Record<string, unknown> {
   const out: Record<string, unknown> = {
-    threadId: t.id, kind: t.kind, listed: t.listed, planMode: t.planMode,
+    threadId: t.id, kind: t.kind, listed: t.listed, planMode: t.planMode, mode: t.mode,
     members: membersOf(db, t.id).map(refOf),
     agents: agentsOf(db, t.id).map((a) => ({ agentId: a.agentId, mode: a.mode, ...(a.model !== undefined ? { model: a.model } : {}), ...(a.provider !== undefined ? { provider: a.provider } : {}), ...(a.effort !== undefined ? { effort: a.effort } : {}), ...(a.accountRef !== undefined ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watches: a.watches } : {}) })),
     createdAt: t.createdAt,

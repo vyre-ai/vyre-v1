@@ -135,6 +135,11 @@ export function createContactTabSample(space: SampleSpace = northwind, o: { onli
   };
 
   const writes: Record<string, (i: never) => unknown> = {
+    // every sender (comms.senders.list): the Space's mailboxes by their provider, then its numbers through Twilio; one default per channel
+    "comms.senders.list": () => ({ senders: [
+      ...space.mailboxes.filter((m) => m.kind !== "agent").map((m, n) => ({ id: m.id, channel: "email" as const, name: m.title, address: m.address, via: m.provider === "microsoft" ? "Outlook" : m.provider === "google" ? "Gmail" : String(m.provider), provider: m.provider === "google" ? "gmail" : String(m.provider), scope: m.privacy === "private" ? "personal" : "space", default: n === 0, usable: true })),
+      ...space.numbers.map((n, k) => ({ id: n, channel: "text" as const, name: k === 0 ? "Main line" : n, address: n, via: "Twilio", provider: "twilio", scope: "space", default: k === 0, usable: true })),
+    ] }),
     "mail.send": (i: { mailboxId: string; to: { address: string; contactId?: string }[]; subject: string; text?: string; draftId?: string; contactId?: string; idempotencyKey: string }) => {
       sent.push({ cap: "mail.send", input: i });
       const status = mailStatus.next;

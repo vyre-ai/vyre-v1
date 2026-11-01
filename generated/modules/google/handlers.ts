@@ -20,15 +20,19 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "google.docs.batch_update": Handler<"google.docs.batch_update", X>;
   "google.docs.create_document": Handler<"google.docs.create_document", X>;
   "google.docs.get_document": Handler<"google.docs.get_document", X>;
+  "google.docs.insert_text": Handler<"google.docs.insert_text", X>;
+  "google.docs.replace_text": Handler<"google.docs.replace_text", X>;
   "google.drive.changes_start_token": Handler<"google.drive.changes_start_token", X>;
   "google.drive.copy_file": Handler<"google.drive.copy_file", X>;
   "google.drive.create_folder": Handler<"google.drive.create_folder", X>;
   "google.drive.download_file": Handler<"google.drive.download_file", X>;
+  "google.drive.download_revision": Handler<"google.drive.download_revision", X>;
   "google.drive.export_file": Handler<"google.drive.export_file", X>;
   "google.drive.get_file": Handler<"google.drive.get_file", X>;
   "google.drive.get_permissions": Handler<"google.drive.get_permissions", X>;
   "google.drive.list_changes": Handler<"google.drive.list_changes", X>;
   "google.drive.list_files": Handler<"google.drive.list_files", X>;
+  "google.drive.list_revisions": Handler<"google.drive.list_revisions", X>;
   "google.drive.share_file": Handler<"google.drive.share_file", X>;
   "google.drive.stop_watch": Handler<"google.drive.stop_watch", X>;
   "google.drive.trash_file": Handler<"google.drive.trash_file", X>;
@@ -70,4 +74,11 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "google.sheets.get_spreadsheet": Handler<"google.sheets.get_spreadsheet", X>;
   "google.sheets.get_values": Handler<"google.sheets.get_values", X>;
   "google.sheets.update_values": Handler<"google.sheets.update_values", X>;
+  "google.user.app_set": Handler<"google.user.app_set", X>;
+  "google.user.app_status": Handler<"google.user.app_status", X>;
+  "google.user.complete": Handler<"google.user.complete", X>;
+  "google.user.list": Handler<"google.user.list", X>;
+  "google.user.remove": Handler<"google.user.remove", X>;
+  "google.user.send_message": Handler<"google.user.send_message", X>;
+  "google.user.start": Handler<"google.user.start", X>;
 }

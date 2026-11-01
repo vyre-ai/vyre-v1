@@ -9,6 +9,8 @@ import type { StoredRecord, TypeDef } from "../../../kernel/src/store/types.ts";
 import { DAY, FIELD_KEY, LABELS, TRASH_DAYS, TYPE_KEY, allDefs, checkLite, clone, cloneDefs, ensureTables, isDerived, mintShort, nowOf, refuse, rowCount, saveDef, seedManifestTypes, toStoreType } from "../projections.ts";
 import type { FieldDefT, Label, SchemaCtx, SchemaDeps, TypeDefT } from "../projections.ts";
 import { viewRowOf } from "./describe.ts";
+import { SEALABLE_FROM, openJob, putInVault, writeRefs } from "./seal.ts";
+import type { Move } from "./seal.ts";
 import type { GapRule, LayoutSection, ViewRow } from "./describe.ts";
 
 export type OpName = "type.create" | "type.update" | "type.drop" | "field.add" | "field.update" | "field.retype" | "field.rename" | "field.drop" | "field.reorder" | "relation.add" | "relation.drop";
@@ -120,6 +122,7 @@ type Effect =
   | { k: "drop"; type: string; field: string; def: FieldDefT }
   | { k: "rename"; type: string; from: string; to: string }
   | { k: "retype"; type: string; field: string; from: FieldDefT; to: FieldDefT }
+  | { k: "seal"; type: string; field: string; from: FieldDefT; to: FieldDefT }
   | { k: "dropType"; type: string; def: TypeDefT };
 
 interface Plan {
@@ -360,7 +363,11 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
           if (toType === f.type) no(`${f.key} is already ${toType}`);
           if (manifestField(deps, t, f.key)) no(`${f.key} is part of the ${t.key} system type and cannot be retyped`);
           if (NO_RETYPE_FROM.has(f.type)) no(`a ${f.type} field cannot be retyped`);
-          if (NO_RETYPE_TO.has(toType)) no(`a field cannot be retyped to ${toType}`);
+          // sealing is the one retype to a sealed field, and a migration of its own (seal.ts): the values move into the Vault and cannot come back as plain text here
+          const sealing = toType === "sealed";
+          if (sealing && !SEALABLE_FROM.has(f.type)) no(`a ${f.type} field cannot be sealed: only text, email, phone, number and link fields can`);
+          if (sealing && t.titleField === f.key) no(`${f.key} names the record, so it cannot be sealed`);
+          if (!sealing && NO_RETYPE_TO.has(toType)) no(`a field cannot be retyped to ${toType}`);
           if (dependents(st, t.key, f.key).length) no(`${f.key} is used by ${dependents(st, t.key, f.key).join(", ")}`);
           const from = clone(f);
           const to: FieldDefT = { ...clone(f), type: toType };
@@ -373,6 +380,12 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
           checkField(deps, st, t, f);
           if (f.unique && hasDuplicates(deps, t.key, f.key)) no(`${f.key} has duplicate values`);
           const rows = countValues(deps, t.key, f.key);
+          if (sealing) {
+            plan.effects.push({ k: "seal", type: t.key, field: f.key, from, to });
+            plan.touched.add(t.key);
+            add(op, `Seal ${f.title} of ${t.title}: ${rows} value${rows === 1 ? "" : "s"} move into the Vault and cannot be turned back into plain text`, { destructive: true, rows });
+            break;
+          }
           let lost = 0;
           if (rows) {
             let cursor: string | undefined;
@@ -535,7 +548,7 @@ function repairDependents(deps: SchemaDeps, e: Effect): void {
     tx.run("DELETE FROM sc_views WHERE type = ?", e.type);
     return;
   }
-  if (e.k === "retype") return;
+  if (e.k === "retype" || e.k === "seal") return;
   const to = e.k === "rename" ? e.to : null;
   const field = e.k === "rename" ? e.from : e.field;
   const lay = tx.get<{ sections: string }>("SELECT sections FROM sc_layout WHERE type = ?", e.type);
@@ -585,10 +598,18 @@ async function execute(deps: SchemaDeps, ctx: SchemaCtx, ops: SchemaOp[], o: App
   const touchedLive = [...plan.touched].filter((k) => !plan.created.has(k) && !plan.dropped.has(k));
   const moved = touchedLive.filter((k) => plan.effects.some((e) => e.type === k && e.k !== "dropType"));
 
+  // sealing, step one: the values go into the Vault before anything in the Space changes
+  const sealMoves = new Map<Effect, Move[]>();
+  for (const e of plan.effects) if (e.k === "seal") sealMoves.set(e, await putInVault(deps, ctx, e.type, e.field));
+
   // 1. bridge types, 2. move the data
   const prior = new Map((await store.types()).map((t) => [t.name, t]));
   if (moved.length) await store.define({ change_types: moved.map((k) => bridgeOf(deps, plan, k, prior)) });
   const trash: { type: string; field: string | null; rows: number; payload: unknown }[] = [];
+  // sealing: the values go into the Vault now (the field is already sealed in the bridge type), and the job that cleans the old copies is owed once this commits
+  for (const [e, moves] of sealMoves) {
+    if (e.k === "seal") openJob(deps, e.type, e.field, await writeRefs(deps, e.type, e.field, moves), changeId, now);
+  }
   for (const k of moved) {
     const effs = plan.effects.filter((e) => e.type === k);
     const kept = new Map<number, Record<string, unknown>>();
@@ -895,6 +916,12 @@ export function createApplyHandlers(deps: SchemaDeps): ApplyHandlers {
 
     "views.share_external": async (ctx, input) => {
       const v = viewRow(ctx, input.viewId);
+      // links to people outside the Space are off for a type until its Share sheet turns them on
+      // fail closed: only a type that says outside:true allows it; no way to ask, or no answer, refuses
+      {
+        const of = ctx.call ? ((await ctx.call("access.shares_of", { resource: { type: "record_type", id: v.type } }).catch(() => null)) as { outside?: boolean } | null) : null;
+        if (of?.outside !== true) refuse(ctx, "validation.precondition_failed", "Links outside the Space are off for this type. Turn them on in its Share sheet.");
+      }
       const now = nowOf(deps);
       if (input.expiresAt !== undefined && input.expiresAt <= now) refuse(ctx, "validation.bad_input", "The link would already have expired.");
       const bytes = globalThis.crypto.getRandomValues(new Uint8Array(24));

@@ -431,7 +431,7 @@ const styles = StyleSheet.create({
   confirmBtns: { flexDirection: "row", gap: 8, justifyContent: "flex-end" },
   done: { margin: 18, marginBottom: 0, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, backgroundColor: "var(--sunk)" as string, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   doneText: { color: "var(--ink-2)" as string, fontSize: 12.5 },
-  error: { marginHorizontal: 18, marginTop: 8, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 8, backgroundColor: "var(--danger-bg)" as string },
+  error: { marginHorizontal: 18, marginTop: 8, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
   errorText: { color: "var(--danger)" as string, fontSize: 12.5 },
   body: { flex: 1 },
   bodyInner: { padding: 18, gap: 18 },

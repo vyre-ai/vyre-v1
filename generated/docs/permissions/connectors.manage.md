@@ -17,6 +17,7 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - calendar.connect_provider
 - connections.create
 - connectors.build
+- connectors.define
 - connectors.diff
 - connectors.export
 - connectors.init
@@ -34,6 +35,7 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - documenso.create
 - docusign.cancel
 - docusign.create
+- dropbox.app.set
 - dropbox_sign.cancel
 - dropbox_sign.create
 - esign.provider_set
@@ -52,6 +54,7 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - google.dwd.setup
 - google.dwd.status
 - google.dwd.sync_members
+- google.user.app_set
 - hubspot.push_object
 - mail.auto_connect_members
 - mail.mailbox.create
@@ -68,6 +71,7 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - ms.directory.import
 - ms.directory.list
 - ms.subscriptions.renew
+- ms.user.app_set
 - sources.create
 - sources.delete
 - sources.deliveries.list

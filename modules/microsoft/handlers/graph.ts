@@ -3,7 +3,7 @@
 // by delta query, so a missed change notification costs nothing, and lands each message through mail.ingest. A message is never lost: when
 // mail.ingest cannot take it, the folder's delta link stays where it was.
 import {
-  api, apiRaw, bad, bearer, codeOf, EMAIL, enc, ensure, first, GRAPH, int, list, needHost, normalizeEmail, num, obj, query, refusal, resolveSubject, skipTokenOf, strOrNull, text, userUrl,
+  api, apiRaw, bad, bearer, codeOf, EMAIL, enc, ensure, first, GRAPH, int, isUserConnection, list, ME, needHost, normalizeEmail, num, obj, query, refusal, resolveSubject, skipTokenOf, strOrNull, text, userUrl,
 } from "../projections.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import type { Call, MsCtx } from "../projections.ts";
@@ -366,7 +366,18 @@ export function mapItem(f: Record<string, unknown>) {
   if (f.folder !== undefined) out.folder = true;
   const parent = text(obj(f.parentReference).id);
   if (parent) out.parentId = parent;
+  if (text(f.eTag) !== undefined) out.eTag = text(f.eTag);
+  const by = mapEditor(obj(obj(f.lastModifiedBy).user));
+  if (by) out.lastModifiedBy = by;
   return out;
+}
+
+/** Graph's person, as the name and address shown for "last edited by". */
+function mapEditor(u: Record<string, unknown>): { name?: string; email?: string } | undefined {
+  const out: { name?: string; email?: string } = {};
+  if (text(u.displayName) !== undefined) out.name = text(u.displayName);
+  if (text(u.email) !== undefined) out.email = text(u.email);
+  return out.name !== undefined || out.email !== undefined ? out : undefined;
 }
 
 const driveBase = (sub: string, driveId?: string): string => (driveId ? `${GRAPH}/drives/${enc(driveId)}` : userUrl(sub, "/drive"));
@@ -398,12 +409,43 @@ export async function driveDelta(ctx: MsCtx, a: Act & { driveId?: string; deltaL
   return { changed: r.changed.map(mapItem), removed: r.removed, deltaLink: r.deltaLink };
 }
 
-export async function driveUpload(ctx: MsCtx, a: Act & { driveId?: string; folderId?: string; name: string; fileId: string }) {
+/**
+ * Send a Space file to OneDrive or SharePoint. Without `remoteId` the file is written by name into the folder; with it the item's content is replaced in place.
+ * `ifMatch` (the item's eTag) makes the replace conditional: Graph answers 412 when the item moved on, and nothing is written (`stale`).
+ */
+export async function driveUpload(ctx: MsCtx, a: Act & { driveId?: string; folderId?: string; name: string; fileId: string; remoteId?: string; ifMatch?: string }) {
   if (!a.name || /[\\/:*?"<>|]/.test(a.name)) bad(ctx, "The file name has characters OneDrive does not allow.");
   const { sub, token } = await bearer(ctx, { cap: "ms.drive.upload_item", connectionId: a.connectionId, ...(a.as ? { as: a.as } : {}) });
   const base = driveBase(sub, a.driveId);
-  const url = a.folderId ? `${base}/items/${enc(a.folderId)}:/${enc(a.name)}:/content` : `${base}/root:/${enc(a.name)}:/content`;
-  return { item: mapItem(obj(await needHost(ctx).upload(ctx, { url, token, fileId: a.fileId }))) };
+  const url = a.remoteId !== undefined ? `${base}/items/${enc(a.remoteId)}/content` : a.folderId ? `${base}/items/${enc(a.folderId)}:/${enc(a.name)}:/content` : `${base}/root:/${enc(a.name)}:/content`;
+  try {
+    return { item: mapItem(obj(await needHost(ctx).upload(ctx, { url, token, fileId: a.fileId, ...(a.remoteId !== undefined && a.ifMatch !== undefined ? { ifMatch: a.ifMatch } : {}) }))) };
+  } catch (e) {
+    if (a.ifMatch !== undefined && codeOf(e) === "validation.version_conflict") return { stale: true };
+    throw e;
+  }
+}
+
+/** The versions OneDrive or SharePoint keeps of an item, with who saved each. */
+export async function driveVersions(ctx: MsCtx, a: Act & { driveId?: string; itemId: string }) {
+  const sub = await who(ctx, a, "ms.drive.list_versions");
+  const r = await call(ctx, a, "ms.drive.list_versions", { url: `${driveBase(sub, a.driveId)}/items/${enc(a.itemId)}/versions`, bulk: true });
+  return {
+    versions: list(r.value).map((x) => {
+      const o = obj(x);
+      const v: Record<string, unknown> = { id: text(o.id) ?? "", lastModifiedDateTime: text(o.lastModifiedDateTime) ?? "" };
+      if (int(o.size) !== undefined) v.size = int(o.size);
+      const by = mapEditor(obj(obj(o.lastModifiedBy).user));
+      if (by) v.lastModifiedBy = by;
+      return v;
+    }),
+  };
+}
+
+export async function driveVersionDownload(ctx: MsCtx, a: Act & { driveId?: string; itemId: string; versionId: string }) {
+  const { sub, token } = await bearer(ctx, { cap: "ms.drive.download_version", connectionId: a.connectionId, ...(a.as ? { as: a.as } : {}) });
+  const got = await needHost(ctx).download(ctx, { url: `${driveBase(sub, a.driveId)}/items/${enc(a.itemId)}/versions/${enc(a.versionId)}/content`, token });
+  return { blobId: got.blobId, size: got.size };
 }
 
 export async function driveFolder(ctx: MsCtx, a: Act & { driveId?: string; parentId?: string; name: string }) {
@@ -539,6 +581,8 @@ export async function pullMailbox(ctx: MsCtx, a: { connectionId: string; mailbox
   ensure(ctx);
   const email = normalizeEmail(a.mailbox);
   const act: Act = { connectionId: a.connectionId, as: email };
+  // a person's own sign-in reads its mailbox as /me (a personal Microsoft account has no /users/{id}); the delegated mailboxes are read as /users/{address}
+  const sub = isUserConnection(a.connectionId) ? ME : email;
   ensureMailbox(ctx, email, a.connectionId);
   const state = first(ctx.db.all(`SELECT * FROM microsoft_mailbox WHERE email = ?`, email))!;
   const deltaLinks = links(strOrNull(state, "deltaLinks"));
@@ -550,15 +594,15 @@ export async function pullMailbox(ctx: MsCtx, a: { connectionId: string; mailbox
     let walked: { changed: Record<string, unknown>[]; removed: string[]; deltaLink: string };
     if (start) {
       try {
-        walked = await walkDelta(ctx, act, "ms.mail.delta", { base: userUrl(email, `/mailFolders/${folder}/messages/delta`), resume: start });
+        walked = await walkDelta(ctx, act, "ms.mail.delta", { base: userUrl(sub, `/mailFolders/${folder}/messages/delta`), resume: start });
       } catch (e) {
         if (codeOf(e) !== "validation.precondition_failed") throw e;
         delete deltaLinks[folder];   // the delta token expired: start this folder over
-        walked = await firstWalk(ctx, act, email, folder, now);
+        walked = await firstWalk(ctx, act, sub, folder, now);
         bootstrapped = true;
       }
     } else {
-      walked = await firstWalk(ctx, act, email, folder, now);
+      walked = await firstWalk(ctx, act, sub, folder, now);
       bootstrapped = true;
     }
     let folderComplete = true;
@@ -569,7 +613,7 @@ export async function pullMailbox(ctx: MsCtx, a: { connectionId: string; mailbox
       if (!id || seen.has(id)) continue;   // a message that changed twice in one walk appears twice
       seen.add(id);
       const got = await apiRaw(ctx, {
-        cap: "ms.mail.get_message", connectionId: a.connectionId, as: email, bulk: true, url: userUrl(email, `/messages/${enc(id)}`), query: { $select: FULL_FIELDS },
+        cap: "ms.mail.get_message", connectionId: a.connectionId, as: email, bulk: true, url: userUrl(sub, `/messages/${enc(id)}`), query: { $select: FULL_FIELDS },
       });
       if (got.status === 404) { skipped += 1; continue; }   // deleted between the delta entry and now
       if (got.status >= 300) throw refusal(ctx, got.status, got.json);
@@ -597,9 +641,9 @@ export async function pullMailbox(ctx: MsCtx, a: { connectionId: string; mailbox
 }
 
 /** The first delta walk of a folder starts from the last 90 days; Graph answers with every message still in the window. */
-async function firstWalk(ctx: MsCtx, act: Act, email: string, folder: string, now: number) {
+async function firstWalk(ctx: MsCtx, act: Act, sub: string, folder: string, now: number) {
   const since = new Date(now - 90 * DAY).toISOString().replace(/\.\d+Z$/, "Z");
-  return walkDelta(ctx, act, "ms.mail.delta", { base: userUrl(email, `/mailFolders/${folder}/messages/delta`), first: { $select: "id,isDraft", $filter: `receivedDateTime ge ${since}` } });
+  return walkDelta(ctx, act, "ms.mail.delta", { base: userUrl(sub, `/mailFolders/${folder}/messages/delta`), first: { $select: "id,isDraft", $filter: `receivedDateTime ge ${since}` } });
 }
 
 // ---- Graph message to mail.ingest input
@@ -644,7 +688,7 @@ export async function toIngest(ctx: MsCtx, act: Act, mailbox: string, folder: st
   if (m.hasAttachments === true) {
     const attachments: { name: string; mime: string; size: number; blobId: string }[] = [];
     try {
-      const listing = await call(ctx, act, "ms.mail.get_attachment", { url: userUrl(mailbox, `/messages/${enc(id)}/attachments`), query: { $select: "id,name,contentType,size,isInline" } });
+      const listing = await call(ctx, act, "ms.mail.get_attachment", { url: userUrl(isUserConnection(act.connectionId) ? ME : mailbox, `/messages/${enc(id)}/attachments`), query: { $select: "id,name,contentType,size,isInline" } });
       for (const x of list(listing.value)) {
         const o = obj(x);
         if (o["@odata.type"] !== "#microsoft.graph.fileAttachment" || o.isInline === true) continue;

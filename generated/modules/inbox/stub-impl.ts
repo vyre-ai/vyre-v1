@@ -4,6 +4,8 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
+  "comms.senders.list": async () => ({"senders":[{"address":"intake@example.com","channel":"email","default":true,"id":"mbx_a1b2c3","name":"Intake line","provider":"google","scope":"mine","usable":true,"via":"Gmail","why":"example"}]} as unknown) as never,
+  "comms.senders.set_default": async () => ({"channel":"email","senderId":"example"} as unknown) as never,
   "inbox.counts": async () => ({"byInbox":[{"id":"example","kind":"mailbox","name":"example","unread":1}],"needsMatch":1,"total":1} as unknown) as never,
   "inbox.follow_set": async () => ({"alertOnReplies":true,"following":true} as unknown) as never,
   "inbox.following": async () => ({"next":"example","rows":[{"alertOnReplies":true,"contactId":"rec_a1b2c3","reasons":["owner"]}],"total":1} as unknown) as never,

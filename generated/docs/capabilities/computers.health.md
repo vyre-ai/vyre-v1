@@ -15,7 +15,7 @@ Health of the container runtime and agentd on the host
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |
-| Team Space only | yes |
+| Team Space only | no |
 | HTTP | POST /v1/computers/health |
 | MCP tool | none |
 | CLI | none |
@@ -44,7 +44,6 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
-- permission.needs_team
 - permission.no_grant
 - validation.bad_input
 

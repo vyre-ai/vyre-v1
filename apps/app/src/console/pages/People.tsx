@@ -4,13 +4,13 @@ import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { ObjectPage, ObjectSection, withBaseTabs } from "../../../../../ui/src/ObjectPage/index.tsx";
-import { Group, Section } from "../shell/ui.tsx";
+import { Empty, Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { ObjectList } from "../objects/ObjectList.tsx";
 import type { ObjectListRow } from "../objects/ObjectList.tsx";
 import { useObjectNames } from "../objects/names.ts";
 import { PersonLifecycle } from "./PersonLifecycle.tsx";
-import { Actions, Button, Field, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
+import { Help,  Actions, Button, Field, FormSheet, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
 
 type Roles = CapMap["access.roles.list"]["out"];
 type Groups = CapMap["access.groups.list"]["out"];
@@ -43,6 +43,7 @@ export function People({ initialPersonId }: { initialPersonId?: string } = {}): 
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("");
   const [link, setLink] = useState("");
+  const [inviting, setInviting] = useState(false);
   const [selected, setSelected] = useState<string | null>(initialPersonId ?? null);
   const [filters, setFilters] = useState<ReadonlySet<string>>(new Set());
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
@@ -86,7 +87,7 @@ export function People({ initialPersonId }: { initialPersonId?: string } = {}): 
   };
   const bulkLabel = bulk?.kind === "role" ? `Assign ${roleName(bulk.value)}` : bulk?.kind === "group" ? `Add to ${groups.data.groups.find((g) => g.id === bulk.value)?.name ?? "group"}` : "Suspend";
   return <View testID="console-people">
-    <Section title="People" count={rows.length}>
+    <Section title="People" count={rows.length} right={<Button label="Invite a person" testID="console-invite-open" onPress={() => setInviting(true)} />}>
       <ObjectList rows={rows} selectedId={null} onOpen={(row) => setSelected(row.value!.id)} filters={personFilters(everyone, roles.data.roles, groups.data.groups)} activeFilters={filters} onFilters={setFilters} picked={picked} onPicked={setPicked}
         bulkActions={[{ label: "Assign role…", onSelect: () => startBulk("role") }, { label: "Add to group…", onSelect: () => startBulk("group") }, { label: "Suspend…", onSelect: () => startBulk("suspend") }]} empty="No people match." testID="console-people-list" />
     </Section>
@@ -100,7 +101,10 @@ export function People({ initialPersonId }: { initialPersonId?: string } = {}): 
       </Group>
     </Section> : null}
     {report ? <Note>{report}</Note> : null}
-    <Section title="Invite a person"><Group><Field label="Email (optional)" testID="console-invite-email" value={email} onChange={setEmail} /><Select label="Role" value={chosenRole} options={inviteRoles.map((r) => ({ key: r.id, title: r.name }))} onChange={setRole} /><Button label="Create invite" testID="console-invite-create" disabled={!chosenRole || action.busy} onPress={() => void action.run<CapMap["members.invites.create"]["out"]>("members.invites.create", { role: chosenRole, ...(email.trim() ? { email: email.trim() } : {}), idempotencyKey: attempt() }, "Invite created").then((out) => { if (out) setLink(out.link); })} />{link ? <><Note>Copy this one-time invite link:</Note><Text selectable testID="console-invite-link">{link}</Text></> : null}</Group></Section>
+    {inviting ? <FormSheet title="Invite a person" testID="invite-sheet" onClose={() => { setInviting(false); setLink(""); }} submit={link ? "Done" : "Create invite"} disabled={!link && (!chosenRole || action.busy)} why={!chosenRole ? "Pick a role first" : undefined}
+      onSubmit={() => { if (link) { setInviting(false); setLink(""); setEmail(""); return; } void action.run<CapMap["members.invites.create"]["out"]>("members.invites.create", { role: chosenRole, ...(email.trim() ? { email: email.trim() } : {}), idempotencyKey: attempt() }, "Invite created").then((out) => { if (out) setLink(out.link); }); }}>
+      {link ? <><Note>Copy this one-time invite link:</Note><Text selectable testID="console-invite-link">{link}</Text></> : <><Field label="Email (optional)" testID="console-invite-email" value={email} onChange={setEmail} /><Select label="Role" value={chosenRole} options={inviteRoles.map((r) => ({ key: r.id, title: r.name }))} onChange={setRole} /></>}
+    </FormSheet> : null}
     {action.note && !report ? <Note>{action.note}</Note> : null}
   </View>;
 }
@@ -152,7 +156,7 @@ function PersonObject({ person, roles, groups, onBack, refresh }: { person: Pers
         </View>
         {effective.data.grants.map((grant) => <Row key={grant.id} id={`person-grant-${grant.id}`} title={names.resource(grant.resource)} note={`${grant.level} · direct grant`} />)}
         {effective.data.owns.map((own) => <Row key={`${own.type}:${own.id}`} id={`person-owns-${own.id}`} title={names.resource(own)} note="Owns" />)}
-        {effective.data.grants.length + effective.data.owns.length === 0 ? <Note>No direct grants and nothing owned. Access comes from roles and groups.</Note> : null}
+        {effective.data.grants.length + effective.data.owns.length === 0 ? <Empty icon="doc">No direct grants and nothing owned</Empty> : null}
       </> : <ReadState error={effective.error} retry={effective.refresh} />}
     </ObjectSection>;
   } else if (tab === "groups") {
@@ -167,12 +171,12 @@ function PersonObject({ person, roles, groups, onBack, refresh }: { person: Pers
     body = <ObjectSection title="Devices" count={live.length} testID="person-devices">
       {devices.data ? <>
         {live.map((device) => <Row key={device.id} id={`person-device-${device.id}`} title={device.name} note={`${device.class}${device.lastSeenAt ? ` · last seen ${new Date(device.lastSeenAt).toLocaleString()}` : ""}${device.location ? ` · ${device.location}` : ""}`} trailing={revoking === device.id ? <Actions><Button label="Cancel" onPress={() => setRevoking(null)} /><Button label="Confirm revoke" testID={`person-device-revoke-confirm-${device.id}`} danger disabled={action.busy} onPress={() => void action.run("devices.revoke", { deviceId: device.id }, "Device revoked").then(() => setRevoking(null))} /></Actions> : <Button label="Revoke…" onPress={() => setRevoking(device.id)} />} />)}
-        {live.length === 0 ? <Note>No signed-in devices.</Note> : <Note>Revoking ends the device’s sessions and purges its local copy on next contact.</Note>}
+        {live.length === 0 ? <Empty icon="doc">No signed-in devices</Empty> : <Help>Revoking ends the device’s sessions and purges its local copy on next contact.</Help>}
       </> : <ReadState error={devices.error} retry={devices.refresh} />}
       {action.note ? <Note>{action.note}</Note> : null}
     </ObjectSection>;
   } else if (tab === "activity") {
-    body = <ObjectSection title="Activity" count={activity.data?.rows.length ?? 0}>{activity.data ? (activity.data.rows.length ? activity.data.rows.map((row) => <Row key={row.id} id={`person-activity-${row.id}`} title={row.action} note={`${row.class} · ${new Date(row.at).toLocaleString()}`} />) : <Note>No recorded activity for this person.</Note>) : <ReadState error={activity.error} retry={activity.refresh} />}</ObjectSection>;
+    body = <ObjectSection title="Activity" count={activity.data?.rows.length ?? 0}>{activity.data ? (activity.data.rows.length ? activity.data.rows.map((row) => <Row key={row.id} id={`person-activity-${row.id}`} title={row.action} note={`${row.class} · ${new Date(row.at).toLocaleString()}`} />) : <Empty icon="doc">No recorded activity for this person</Empty>) : <ReadState error={activity.error} retry={activity.refresh} />}</ObjectSection>;
   } else {
     body = <View testID="person-overview"><Section title="Roles"><PersonRoles personId={person.id} /></Section><PersonLifecycle personId={person.id} refresh={refresh} /></View>;
   }

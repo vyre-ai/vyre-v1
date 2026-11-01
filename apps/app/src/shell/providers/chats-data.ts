@@ -1,5 +1,7 @@
 // The data contexts the Chats place hands its three parts, built from the Space's runtime. Each part reads the same ScreenHooks and `call`; what differs is the nav: a click
 // says what to open and this place decides (the open chat is local state of the place, the pane is a toggle). Nothing here touches the network.
+import { askVaultUnlock } from "../session/vault-gate.ts";
+import { computersAvailableNow } from "../computers-available.ts";
 import type { ComposerLists, ListItem } from "../../../../../ui/src/Composer/index.tsx";
 import type { ChatsNav, ChatsSidebarData } from "../../places/chats/sidebar/data.tsx";
 import type { ComposerFill, ConversationData, ConversationNav, PluginCommand } from "../../places/chats/conversation/data.tsx";
@@ -13,6 +15,7 @@ import { KNOW_SCREEN, routeToArgs } from "../../places/files/memory/know.ts";
 import { nameLookup } from "./records-live.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 import { nameOr } from "../../places/chats/names.ts";
+import { requestChannelSheet } from "../../places/chats/channels/request.ts";
 
 export interface ChatsActions {
   /** Open a chat or channel's thread in the main column. */
@@ -75,12 +78,12 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
     openAllAgents: () => rt.open({ screen: "chats.all-agents" }),
     openSearch: () => rt.open({ screen: "shell.cmdk" }),
     openSpaceSwitcher: () => rt.open({ screen: "spaces.switcher" }),
-    openNewChannel: () => rt.open({ screen: "chats.sidebar" }),
+    openNewChannel: () => requestChannelSheet("new"),
   };
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection,
-    space: { name: rt.space.name, otherNeedsYou: othersNeedingYou(rt.knownSpaces ?? [], rt.space.id).length > 0, assistant: { agentId: rt.assistant.id, name: rt.assistant.name } },
-    nav, clock: rt.clock,
+    space: { name: rt.space.name, otherNeedsYou: othersNeedingYou(rt.knownSpaces ?? [], rt.space.id).length > 0, ...(rt.space.kind === "personal" ? { personal: true } : {}), assistant: { agentId: rt.assistant.id, name: rt.assistant.name } },
+    nav, me: { id: rt.me.id }, clock: rt.clock,
   };
 }
 
@@ -142,12 +145,13 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     togglePane: a.togglePane,
     openBeside: (kind, id) => rt.open({ subject: { type: kind, id } }),
     openAiSetup: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),   // the same page the Needs you sign-in opens
+    ...(rt.unlockVault ? { unlockVault: () => askVaultUnlock(rt.unlockVault!) } : {}),
   };
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, threadId, me: { id: rt.me.id, name: rt.me.name },
     nameOf: (id) => nameOr(byId.get(id)?.name, id),
     kindOf: (id) => kindOf(byId.get(id)),
-    nav, clock: rt.clock, spaceName: rt.space.name,
+    nav, clock: rt.clock, spaceName: rt.space.name, ...(rt.space.kind === "personal" ? { personal: true } : {}),
     ...(fill ? { fill } : {}),
     memory: chatMemory(rt, a),
     lists: composerLists(principals, rt.me.id),
@@ -182,7 +186,7 @@ export function paneData(rt: ShellRuntime, a: ChatsActions, threadId: string, ag
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, threadId,
     agent: { agentId: agent.agentId, name: agent.name },
-    space: { name: rt.space.name, personal: rt.space.kind === "personal" },
+    space: { name: rt.space.name, personal: rt.space.kind === "personal", computers: computersAvailableNow(rt.space) },
     nav, clock: rt.clock,
     memory: chatMemory(rt, a),
   };

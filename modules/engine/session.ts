@@ -6,10 +6,12 @@ import { LaunchError, createLocalLauncher } from "../../agent/src/drivers/cli/la
 import { SandboxError } from "../../sandbox/src/index.ts";
 import { openMcpBridge } from "./mcp-bridge.ts";
 import { enginePath } from "./sandbox-default.ts";
+import { CLI_NAME, findProgram } from "./cli-programs.ts";
+import type { NodeCliProbe } from "./cli-programs.ts";
 import { sandboxWrap, scratchFolder, workFolder } from "./sandbox.ts";
 import { placeCredentialFiles, takeCredentialFiles } from "./credential-files.ts";
 import type { Placed } from "./credential-files.ts";
-import type { CliProcess, LaunchSpec } from "../../agent/src/drivers/cli/types.ts";
+import type { CliProcess, LaunchSpec, Launcher } from "../../agent/src/drivers/cli/types.ts";
 import { nativePlugins } from "./plugin-native.ts";
 import type { SandboxPlan } from "./sandbox.ts";
 import type { ApiTools } from "../../agent/src/drivers/open/api-tools.ts";
@@ -47,6 +49,8 @@ export interface OpenerHost {
   defaultSandbox?: () => Promise<SandboxPlan>;
   /** Replace a CLI engine's program (argv[0], e.g. "claude") with a command, for a fake CLI in the booted test. Default: the real CLI. */
   cliCommand?: Readonly<Record<string, readonly string[]>>;
+  /** Where programs are looked for (a test's folders). Default: this computer's PATH. */
+  cliProbe?: NodeCliProbe;
   /** Tools for API-key chats (modules/engine/api-tools.ts). Without them an API chat answers in words only. */
   apiTools?: ApiTools;
   own?: (person: string) => boolean;
@@ -122,6 +126,27 @@ export async function spawnCli(planned: SandboxPlan, spec: LaunchSpec, argv: rea
   } catch (e) { placed?.release(); throw e; }
 }
 
+/**
+ * The opener of a turn pinned to one of the person's servers (node-turns.ts): the same driver, account fill and MCP session as the Space's own, but the CLI engine is started on the server by `launcher`.
+ * The server has no Space work folder, no native plugins and no sandbox socket for MCP: the engine works in a folder of the server's and reaches the Space's tools at the address it joined by.
+ */
+export function buildNodeOpener(h: OpenerHost, launcher: Launcher): SessionOpener {
+  const system = roleBlocks(h.call);
+  return createSessionOpener({
+    source: h.session.source, reportMiss: h.session.reportMiss, mcp: h.session.mcp, ...(h.own ? { own: h.own } : {}),
+    launcher, where: "device", placement: "device",
+    apiContext: async (spec, input) => {
+      if (spec.tools === "none") return { system: [{ text: "You are completing one step of an automation. Answer with the result only.", stable: true }], tools: [] };
+      return h.apiTools ? h.apiTools.context(spec, input) : { system: await system(spec, input), tools: [] };
+    },
+  });
+}
+
+/** An engine that is not installed says so by name; the sandbox's own "execvp failed" says nothing a person can act on. Throws before anything is filled or started. */
+export function refuseMissingProgram(program: string, probe?: NodeCliProbe): void {
+  if (program in CLI_NAME && findProgram(program, probe) === null) throw new LaunchError("engine.cli_missing", `${program} is not installed on this computer.`);
+}
+
 /** Builds the opener; the runtime keeps it for the life of the daemon and calls close() on shutdown. */
 export function buildOpener(h: OpenerHost): SessionOpener {
   const system = roleBlocks(h.call);
@@ -141,6 +166,7 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     launcher: {
       spawn: async (spec) => {
         const swap = spec.argv[0] !== undefined ? h.cliCommand?.[spec.argv[0]] : undefined;
+        if (swap === undefined) refuseMissingProgram(spec.argv[0] ?? "", h.cliProbe);
         return spawnCli(await plan(), spec, swap ? [...swap, ...spec.argv.slice(1)] : spec.argv);
       },
     },

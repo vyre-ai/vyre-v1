@@ -1,6 +1,7 @@
 // What can run (spec 4.14, 3.10): engine.models.list and engine.providers.list.
 // Both read the person's connected providers (providers.list, which answers for the person the call acts for) and the Space's AI policy. A model or provider
 // the policy or the open label forbids is still listed, greyed, with the reason, so the picker can say why. Nothing here holds a secret value.
+import { windowFor } from "../../../../agent/src/transcript/windows.ts";
 import { raise } from "../../projections.ts";
 import type { EngineCtx } from "../../projections.ts";
 import { blockedBy, readPolicy } from "./config.ts";
@@ -52,7 +53,7 @@ function prettyModel(model: string): string {
 }
 
 interface ModelInfo {
-  provider: string; model: string; title: string; driver: Driver; allowed: boolean; reason?: "label_provider" | "policy_model" | "not_connected";
+  provider: string; model: string; title: string; driver: Driver; contextTokens?: number; allowed: boolean; reason?: "label_provider" | "policy_model" | "not_connected";
 }
 
 export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; threadId?: string; recordLabel?: Label }): Promise<{ models: ModelInfo[] }> {
@@ -75,7 +76,7 @@ export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; t
   for (const { p, models } of found) {
     for (const model of models) {
       const why = blockedBy(policy, { provider: p.providerKey, model, ...(label === undefined ? {} : { label }) });
-      const row: ModelInfo = { provider: p.providerKey, model, title: prettyModel(model), driver: driverOf(p), allowed: why === null, ...(why === null ? {} : { reason: why }) };
+      const row: ModelInfo = { provider: p.providerKey, model, title: prettyModel(model), driver: driverOf(p), contextTokens: windowFor(model, p.providerKey), allowed: why === null, ...(why === null ? {} : { reason: why }) };
       const key = `${row.provider}/${row.model}`;
       const had = byKey.get(key);
       if (!had || (!had.allowed && row.allowed)) byKey.set(key, row);

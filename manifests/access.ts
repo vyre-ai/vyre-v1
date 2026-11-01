@@ -20,7 +20,12 @@ const conditions = t.obj({
   labelCeiling: t.opt(label),
   window: t.opt(t.obj({ from: t.ts(), to: t.ts() })),
   expiresAt: t.opt(t.ts()),
+  export: t.opt(t.bool()),
+  reshare: t.opt(t.bool()),
 });
+const audience = t.enm('space', 'added', 'me');
+const exporters = t.enm('admins', 'viewers', 'chosen');
+const rights = t.obj({ manage: t.bool(), edit: t.opt(t.bool()), share: t.bool(), export: t.bool() });
 const roleHolderRef = t.obj({ kind: t.enm('person', 'agent', 'actor', 'service', 'group'), id: t.str({ pattern: '^(usr|agt|act|svc|grp)_[a-z0-9]+$', examples: ['usr_a1b2c3'] }) });
 const principalRow = t.obj({
   id: pid, kind: t.enm('person', 'agent', 'actor', 'service'), name: t.str(), owner: t.opt(pid),
@@ -101,6 +106,8 @@ export default defineManifest({
     read('access.roles.preview', 'Stage a change to the permissions of a role as a diff: who gains and who loses what', { ...V, in: { roleId: id.role, permissions: t.arr(t.str()) }, out: { gains: t.arr(t.obj({ principal: principalRef, permission: t.str() })), losses: t.arr(t.obj({ principal: principalRef, permission: t.str() })), previewHash: t.str() }, perm: 'access.manage', tool: 'engineer' }),
     write('access.roles.apply', 'Apply a staged role permission change (the diff from preview)', { ...V, in: { roleId: id.role, permissions: t.arr(t.str()), previewHash: t.str() }, out: { role: roleRow }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.field_locked', 'validation.precondition_failed'] }),
     write('access.roles.delete', 'Delete a custom role; blocked while anyone holds it', { ...V, in: { roleId: id.role }, out: { deleted: t.bool() }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.field_locked', 'validation.precondition_failed'] }),
+    read('access.connector_builder.status', 'Does this assistant hold the permission to build connectors, and may the caller give it', { ...V, in: { agentId: id.agent }, out: { allowed: t.bool(), canGrant: t.bool() }, agent: false }),
+    write('access.connector_builder.grant', 'Give an assistant the Connector builder role (Member permissions plus connectors.manage), making the role if the Space has none. Needs access.manage.', { ...V, in: { agentId: id.agent }, out: { roleId: id.role, created: t.bool() }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', agent: false }),
     write('access.roles.assign', 'Give a role to a person, group or agent (agents never get Owner or Admin)', { ...V, in: { subject: roleHolderRef, roleId: id.role }, out: { roles: t.arr(id.role) }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.precondition_failed'] }),
     write('access.roles.unassign', 'Take a role away from a person, group or agent', { ...V, in: { subject: roleHolderRef, roleId: id.role }, out: { roles: t.arr(id.role) }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.precondition_failed'] }),
 
@@ -117,11 +124,16 @@ export default defineManifest({
 
     // ---- grants and sharing (no explicit deny grants exist)
     write('access.share', 'Give a person, group, role, agent or automation a level on a resource (flows down; folders cover their items)', {
-      ...V, idem: 'key', in: { resource: resourceRef, subject: subjectRef, level, conditions: t.opt(conditions), source: t.opt(t.str({ description: "Source tag, for example 'project:prj_a1b2c3'; removing the member revokes by source" })) },
+      ...V, idem: 'key', in: { resource: resourceRef, subject: subjectRef, level, conditions: t.opt(conditions), source: t.opt(t.str({ description: "Source tag, for example 'project:prj_a1b2c3'; removing the member revokes by source" })), export: t.opt(t.bool()), reshare: t.opt(t.bool()) },
       out: { grant: grantRow }, emits: ['grant.created', 'access.changed', 'folder.shared'], audit: 'always', tool: 'meta', errors: ['permission.not_contained', 'validation.precondition_failed'], team: true,
     }),
     write('access.unshare', 'Remove a grant, or every grant of one source on a resource', { ...V, in: { grantId: t.opt(id.grant), resource: t.opt(resourceRef), subject: t.opt(subjectRef), source: t.opt(t.str()) }, out: { revoked: t.int({ minimum: 0 }) }, emits: ['grant.revoked', 'access.changed', 'folder.shared'], audit: 'always', tool: 'meta', team: true }),
-    read('access.shares_of', 'Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry', { ...V, in: { resource: resourceRef }, out: { shares: t.arr(t.obj({ grant: grantRow, through: t.enm('direct', 'group', 'role', 'folder', 'owner') })) }, tool: 'meta' }),
+    read('access.shares_of', 'Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry; for a record type or a record also who it is open to and who may export', { ...V, in: { resource: resourceRef }, out: { shares: t.arr(t.obj({ grant: grantRow, through: t.enm('direct', 'group', 'role', 'folder', 'owner') })), audience: t.opt(audience), exporters: t.opt(exporters), inherits: t.opt(t.str({ description: 'The container this resource follows (the record type of a record), when it follows it' })), outside: t.opt(t.bool()), can: t.opt(rights) }, tool: 'meta' }),
+    write('access.audience_set', 'Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record\'s Files folder can follow its record', {
+      ...V, in: { resource: resourceRef, audience: t.opt(audience), exporters: t.opt(exporters), outside: t.opt(t.bool()), follows: t.opt(id.record) }, out: { audience, exporters, outside: t.bool() },
+      emits: ['grant.created', 'grant.revoked', 'access.changed'], audit: 'always', tool: 'meta', team: true, errors: ['permission.not_contained', 'validation.precondition_failed'],
+    }),
+    read('access.record_marks', 'For the rows of one record type: which differ from the type (their own audience or direct grants), and whether the caller was given the type or a row by name', { ...V, in: { type: id.recordType }, out: { typeShared: t.bool(), audience, can: rights, rows: t.arr(t.obj({ id: id.record, audience, direct: t.int({ minimum: 0 }), mine: t.bool() })) }, tool: 'meta' }),
     read('access.deciders', 'The people who hold Manage on a resource and so may decide a request about it. Used to route a request to a person even when the caller, an agent, cannot see the resource itself; it names people and shows nothing else', { ...V, in: { resource: resourceRef }, out: { people: t.arr(id.user) }, tool: 'meta' }),
     read('access.grants.list', 'List grants by resource, subject or source (Console Grants)', { ...V, in: { resource: t.opt(resourceRef), subject: t.opt(subjectRef), source: t.opt(t.str()), ...pageIn }, out: { grants: t.arr(grantRow), ...pageOut }, perm: 'access.manage', tool: 'engineer' }),
     write('access.grants.update', 'Change the level, conditions or expiry of a grant', { ...V, in: { grantId: id.grant, level: t.opt(level), conditions: t.opt(conditions) }, out: { grant: grantRow }, emits: ['grant.updated', 'access.changed'], audit: 'always', tool: 'meta', team: true, errors: ['permission.not_contained'] }),

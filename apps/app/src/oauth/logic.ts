@@ -38,12 +38,21 @@ export function describeFailure(e: unknown): Outcome {
   return failed("Couldn’t reach the Space", "The connection to the Space dropped, so it is not known whether the sign-in finished.", "Try again; if it says the link was already used, check Connections.", { retryable: true });
 }
 
+/** Dropbox, Google mail, Microsoft mail and remote outside-tool servers (mcs_) keep their own sign-ins (the state starts dbs_, gos_, mos_): the module that started one finishes it, everything else is the connectors module. */
+const finishing = (state: string): string => {
+  if (state.startsWith("dbs_")) return "dropbox.connect.complete";
+  if (state.startsWith("gos_")) return "google.user.complete";   // a person's own Google or Microsoft mailbox
+  if (state.startsWith("mos_")) return "ms.user.complete";
+  if (state.startsWith("mcs_")) return "engine.mcp.oauth_complete";   // a remote outside-tool server, finished in the engine
+  return "connections.complete_auth";
+};
+
 /** Finish the sign-in with what the address carried. */
 export async function completeCallback(call: CapCall, p: CallbackParams): Promise<Outcome> {
   if (p.state === null) return failed("There is no sign-in to finish", "This address has no sign-in state. It only works when an app sends you back to it.", START_AGAIN);
   if (p.error === null && p.code === null) return failed("The app did not send a sign-in code", "It returned to Vyre without a code or an error.", START_AGAIN);
   try {
-    const out = (await call("connections.complete_auth", p.error !== null ? { state: p.state, error: p.error } : { state: p.state, code: p.code })) as { connectionId: string };
-    return { kind: "connected", connectionId: out.connectionId };
+    const out = (await call(finishing(p.state), p.error !== null ? { state: p.state, error: p.error } : { state: p.state, code: p.code })) as { connectionId?: string; accountId?: string };
+    return { kind: "connected", connectionId: out.connectionId ?? out.accountId ?? "" };
   } catch (e) { return describeFailure(e); }
 }

@@ -140,6 +140,27 @@ test("chat.question.ask writes the block the answer capability expects", async (
   await refuses(hn, "chat.question.ask", "validation.not_found", () => g["chat.question.ask"](hn.person(MAYA), { threadId, prompt: "Hi", mode: "free" }));
 });
 
+test("a question can carry a terminal card, and what the person ran comes back as the answer", async () => {
+  const hn = harness();
+  const threadId = await chatOf(hn);
+  const card = { kind: "terminal" as const, command: "sudo apt install ffmpeg", host: "device" as const, risk: "danger" as const };
+  const q = await g["chat.question.ask"](hn.agent(), { threadId, prompt: "ffmpeg is needed", mode: "single", allowOther: true, options: [{ key: "run", label: "Run in my terminal" }, { key: "copy", label: "Copy" }, { key: "decline", label: "Decline" }], card });
+  const stored = JSON.parse(String(hn.rows("SELECT data FROM chat_block WHERE id = ?", q.blockId)[0]!["data"])) as { card?: unknown };
+  assert.deepEqual(stored.card, card);
+  assert.deepEqual(await answerBlock(hn.ctx, { threadId, blockId: q.blockId, answer: { other: "Ran in my terminal (exit 0):\nffmpeg installed" } }), { ok: true });
+  const plain = await g["chat.question.ask"](hn.agent(), { threadId, prompt: "Which?", mode: "free" });
+  assert.equal(JSON.parse(String(hn.rows("SELECT data FROM chat_block WHERE id = ?", plain.blockId)[0]!["data"])).card, undefined);
+});
+
+test("a question made only of mount sources takes the words of what was mounted", async () => {
+  const hn = harness();
+  const threadId = await chatOf(hn);
+  const q = await g["chat.question.ask"](hn.agent(), { threadId, prompt: "Where is the Q4 deck?", mode: "single", options: [{ key: "mount:google_drive", label: "Google Drive" }, { key: "mount:github", label: "GitHub" }] });
+  assert.deepEqual(await answerBlock(hn.ctx, { threadId, blockId: q.blockId, answer: 'Mounted "Sales" (folder fld_1). It is shared with you.' }), { ok: true });
+  const plain = await g["chat.question.ask"](hn.agent(), { threadId, prompt: "Pick", mode: "single", options: [{ key: "a", label: "A" }] });
+  await assert.rejects(() => answerBlock(hn.ctx, { threadId, blockId: plain.blockId, answer: "free words" }));
+});
+
 test("plans: propose, approve, tick steps, reject", async () => {
   const hn = harness();
   const threadId = await chatOf(hn);

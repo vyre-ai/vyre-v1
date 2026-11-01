@@ -4,7 +4,7 @@ import { Row } from "../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
-import { Actions, Button, Field, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
+import { Help,  Actions, Button, Field, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
 import { Choice } from "./ai-controls.tsx";
 import { retentionValue } from "./ai-data-values.ts";
 
@@ -46,7 +46,7 @@ export function Retention(): ReactElement {
       {error ? <Note>{error}</Note> : null}
       {reviewed ? <><Note>{selected.title} will change from {currentValue} to {reviewed}{recordType ? ` for ${schema.data.types.find((type) => type.key === recordType)?.title ?? recordType}` : ""}.</Note><Actions><Button label="Back" onPress={() => setReviewed(null)} /><Button label="Apply rule" danger disabled={action.busy} onPress={() => void action.run("governance.retention.set", { kind: selected.key, value: reviewed, ...(recordType ? { recordType } : {}) }, () => readback(reviewed)).then((out) => { if (out) setReviewed(null); })} /></Actions></> : <Actions><Button label="Review change" onPress={review} /><Button label="Reset to default…" onPress={() => setConfirm("reset")} /><Button label="Run job now…" onPress={() => setConfirm("run")} /></Actions>}
       {confirm === "reset" ? <><Note>This removes the {recordType ? "record-type" : "Space"} override and restores the declared default.</Note><Actions><Button label="Cancel" onPress={() => setConfirm(null)} /><Button label="Confirm reset" danger disabled={action.busy} onPress={() => void action.run("governance.retention.reset", { kind: selected.key, ...(recordType ? { recordType } : {}) }, "Retention reset").then((out) => { if (out) setConfirm(null); })} /></Actions></> : null}
-      {confirm === "run" ? <><Note>The retention job will remove expired data and skip anything covered by a hold.</Note><Actions><Button label="Cancel" onPress={() => setConfirm(null)} /><Button label="Start job" danger disabled={action.busy} onPress={() => void action.run<CapMap["governance.jobs.run_now"]["out"]>("governance.jobs.run_now", { kind: selected.key, idempotencyKey: attempt() }, (out) => `Retention run ${out.runId} started`).then((out) => { if (out) setConfirm(null); })} /></Actions></> : null}
+      {confirm === "run" ? <><Help>The retention job will remove expired data and skip anything covered by a hold.</Help><Actions><Button label="Cancel" onPress={() => setConfirm(null)} /><Button label="Start job" danger disabled={action.busy} onPress={() => void action.run<CapMap["governance.jobs.run_now"]["out"]>("governance.jobs.run_now", { kind: selected.key, idempotencyKey: attempt() }, (out) => `Retention run ${out.runId} started`).then((out) => { if (out) setConfirm(null); })} /></Actions></> : null}
       {job ? <><Row title="Job state" note={job.state} /><Row title="Last run" note={job.lastRunAt ? new Date(job.lastRunAt).toLocaleString() : "Not run yet"} /><Row title="Next run" note={job.nextRunAt ? new Date(job.nextRunAt).toLocaleString() : "Not scheduled"} /><Row title="Last result" note={`${job.lastRemoved ?? 0} removed · ${job.lastSkippedOnHold ?? 0} skipped on hold`} /></> : null}
     </Group></Section> : <Note>Select a policy to inspect or change it.</Note>}
     {action.note ? <Note>{action.note}</Note> : null}

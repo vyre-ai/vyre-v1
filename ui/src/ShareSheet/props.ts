@@ -28,6 +28,10 @@ export interface ShareRow {
   via: ShareVia;
   /** Set when the row is inherited. The sheet shows it and the item cannot lower it. */
   fromFolderId: string | null;
+  /** Records only: the grant also carries the export right. */
+  canExport?: boolean;
+  /** Records only: the holder may share it further, up to their own level. */
+  canShare?: boolean;
 }
 
 export interface ShareSheetProps {

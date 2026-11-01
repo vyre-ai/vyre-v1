@@ -52,3 +52,13 @@ test("Escape goes back only when nothing else took it", () => {
   assert.equal(escapeGoesBack({ key: "Escape", defaultPrevented: false }, true), false);
   assert.equal(escapeGoesBack({ key: "Enter", defaultPrevented: false }, false), false);
 });
+
+test("a collapsed sidebar's show button sits beside the place, not over its title: the stage moves over only while it is collapsed on a computer", async () => {
+  const { collapseKey, writeCollapsed } = await import("../sidebar/index.ts");
+  const store = { getItem: (k: string) => (k === collapseKey("d1", "p1", "northwind", "files") ? writeCollapsed(true) : null), setItem: () => undefined };
+  const collapsed = renderToStaticMarkup(<SidebarSlotProvider {...props} compact={false} storage={store} initialEntry={entry}><Stage><Text>The open file</Text></Stage></SidebarSlotProvider>);
+  assert.ok(collapsed.includes('data-testid="sidebar-expand"'));
+  assert.match(tagOf(collapsed, "place-stage"), /r-paddingLeft-/);
+  const open = draw(false, true);
+  assert.doesNotMatch(tagOf(open, "place-stage"), /r-paddingLeft-/, "an open sidebar leaves the place where it was");
+});

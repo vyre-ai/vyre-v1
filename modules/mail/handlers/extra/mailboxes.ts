@@ -155,6 +155,23 @@ export async function mailboxSetPrivacy(ctx: MailCtx, input: { mailboxId: string
   return answer(ctx, id);
 }
 
+// ---- mail.mailbox.set_sync_state
+
+/** A connection that owns its own sign-in (the google and microsoft modules) says it lost it, or has it again. A paused or disconnected mailbox keeps its state. */
+export async function mailboxSetSyncState(ctx: MailCtx, input: { mailboxId: string; state: "error" | "syncing"; reason?: string }): Promise<{ mailbox: MailboxRow }> {
+  ensureAll(ctx);
+  const id = mbxId(ctx, input.mailboxId);
+  if (input.state !== "error" && input.state !== "syncing") bad(ctx, "State is not supported.");
+  const row = loadLive(ctx, id);
+  const now = str(row, "state");
+  if (now === "paused" || now === "disconnected" || now === input.state) return answer(ctx, id);
+  bump(ctx, row, { state: input.state });
+  if (input.state === "error") {
+    ctx.emit("mailbox.sync_failed", `mailbox/${id}`, { mailboxId: id, reason: (input.reason ?? "The sign-in was lost. Sign in again.").slice(0, 200) }, { vis: "participants" });
+  }
+  return answer(ctx, id);
+}
+
 // ---- mail.mailbox.pause / resume / disconnect
 
 export async function mailboxPause(ctx: MailCtx, input: { mailboxId: string }): Promise<{ mailbox: MailboxRow }> {
@@ -197,6 +214,12 @@ export async function mailboxDisconnect(ctx: MailCtx, input: { mailboxId: string
     `UPDATE mail_mailbox SET state = ?, paused = ?, deleted_at = ?, version = ?, updated_at = ? WHERE id = ?`,
     "disconnected", 1, now, num(existing, "version") + 1, now, id,
   );
+  // a mailbox that read and sent through a person's own sign-in ends that sign-in too: Google or Microsoft is told, and the sealed token goes
+  const own = typeof existing.connectionId === "string" ? existing.connectionId : "";
+  if (own.startsWith("gua_") || own.startsWith("mua_")) {
+    try { await ctx.call(own.startsWith("gua_") ? "google.user.remove" : "ms.user.remove", { accountId: own }); }
+    catch (e) { ctx.log.warn("mail: a person's sign-in was not removed with its mailbox", { mailboxId: id, error: e instanceof Error ? e.name : "unknown" }); }
+  }
   ctx.emit("mailbox.disconnected", `mailbox/${id}`, { mailboxId: id }, { vis: "participants" });
   return { disconnected: true };
 }

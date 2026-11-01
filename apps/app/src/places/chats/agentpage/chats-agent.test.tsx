@@ -153,7 +153,7 @@ test("Settings: AGENT.md against 150 lines, agent.toml, model, account, memory, 
   assert.equal(accountLine({ ...agentNow(s), accountPolicy: "key", accountKey: "#TEAM_ANTHROPIC" }), "Runs on the key #TEAM_ANTHROPIC");
   assert.deepEqual(limitRows({}), []);
   assert.deepEqual(limitRows({ dayCostMicros: 5_000_000, tokensPerDay: 1_200_000 }).map((l) => [l.label, l.value]), [["Spend per day", "$5"], ["Tokens per day", "1,200,000"]]);
-  assert.ok(has(html(createSample("personal"), "settings"), "Agent computers need a Team Space"));
+  assert.ok(!has(html(createSample("personal"), "settings"), "Agent computers") && !has(html(createSample("personal"), "settings"), 'data-testid="setting-computer"'), "no capable host, nothing said about a computer");
 });
 
 test("a broken agent.toml shows the line and message and says the last good version is running", () => {

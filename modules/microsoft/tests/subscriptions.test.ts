@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  calendarSubscribe, calendarUnsubscribe, consentDisable, consentExclude, consentLink, consentMembers, consentSetup, consentSnippet, consentStatus, consentVerify, health,
+  calendarSubscribe, calendarUnsubscribe, consentDisable, consentExclude, consentLink, consentMembers, consentSetup, consentSnippet, consentStatus, consentVerify, driveSubscribe, driveUnsubscribe, health,
   mailSubscribe, mailUnsubscribe, receiveNotification, renew, teamsSubscribe,
 } from "../handlers/subscriptions.ts";
 import { mailFolders } from "../handlers/graph.ts";
@@ -413,7 +413,7 @@ test("health is healthy with a latency, degraded when Microsoft struggles, down 
 test("the handler map covers exactly the capabilities the microsoft manifest declares", () => {
   const declared = registry.capabilities.filter((c) => c.module === "microsoft").map((c) => c.name).sort();
   assert.deepEqual(Object.keys(handlers).sort(), declared);
-  assert.equal(declared.length, 53);
+  assert.equal(declared.length, 67);
 });
 
 test("verify asks for a fresh token, so a permission consented a moment ago is seen at once", async () => {
@@ -423,4 +423,38 @@ test("verify asks for a fresh token, so a permission consented a moment ago is s
   await consentVerify(h.ctx, {});
   await consentVerify(h.ctx, {});
   assert.equal((h.state.mints ?? 0) - before, 2, "each check signs in again instead of reading a token minted before the consent");
+});
+
+test("a drive subscription watches a library or the member's own OneDrive, and a drive notice wakes the mounts that hold it", async () => {
+  const h = ready();
+  h.on("POST", `${GRAPH}/subscriptions`, (r) => ({ body: { id: r.body && (r.body as { resource: string }).resource.startsWith("drives/") ? "subD" : "subO", expirationDateTime: (r.body as { expirationDateTime: string }).expirationDateTime } }));
+  const lib = await driveSubscribe(h.ctx, { ...act, driveId: "b!drv1", notificationUrl: URL_OK });
+  const own = await driveSubscribe(h.ctx, { ...act, notificationUrl: URL_OK });
+  const bodies = h.hits(`${GRAPH}/subscriptions`).map((x) => x.body as Record<string, string>);
+  assert.deepEqual(bodies.map((b) => [b.changeType, b.resource]), [["updated", "drives/b!drv1/root"], ["updated", `users/${MAYA}/drive/root`]]);
+  assert.deepEqual(h.rows(`SELECT * FROM microsoft_subscription`).map((r) => [r.id, r.kind]).sort(), [["subD", "drive"], ["subO", "drive"]]);
+  check("ms.drive.subscribe", lib);
+  check("ms.drive.subscribe", own);
+
+  h.ctx.call = async (cap, input) => { h.called.push({ cap, input: input as Record<string, unknown> }); return { mounts: 1, passes: 1 }; };
+  const notice = { notificationId: "d1", subscriptionId: "subD", resource: "drives/b!drv1/root", changeType: "updated" as const, clientStateOk: true };
+  assert.deepEqual(await receiveNotification(h.ctx, notice), { accepted: true });
+  assert.deepEqual(h.calls("mounts.nudge").map((c) => c.input), [{ source: "microsoft", subscriptionId: "subD" }]);
+  assert.deepEqual(h.ingests, [], "a drive notice pulls no mail");
+
+  h.on("DELETE", `${GRAPH}/subscriptions/subD`, { status: 204 });
+  assert.deepEqual(await driveUnsubscribe(h.ctx, { ...act, subscriptionId: "subD" }), { removed: true });
+  assert.equal(h.rows(`SELECT * FROM microsoft_subscription`).length, 1);
+});
+
+test("a drive subscription Graph forgot is made again and the mount is told the new id", async () => {
+  const h = ready();
+  h.on("POST", `${GRAPH}/subscriptions`, (r) => ({ body: { id: h.rows(`SELECT id FROM microsoft_subscription`).length === 0 ? "subD" : "subD2", expirationDateTime: (r.body as { expirationDateTime: string }).expirationDateTime } }));
+  await driveSubscribe(h.ctx, { ...act, driveId: "b!drv1", notificationUrl: URL_OK });
+  h.ctx.call = async (cap, input) => { h.called.push({ cap, input: input as Record<string, unknown> }); return { mounts: 1, passes: 0 }; };
+  h.on("PATCH", `${GRAPH}/subscriptions/subD`, { status: 404, body: {} });
+  h.advance(4225 * MIN);
+  await renew(h.ctx);
+  assert.deepEqual(h.rows(`SELECT id FROM microsoft_subscription`).map((r) => r.id), ["subD2"]);
+  assert.deepEqual(h.calls("mounts.nudge").map((c) => c.input), [{ source: "microsoft", subscriptionId: "subD", replacedBy: "subD2" }]);
 });

@@ -9,7 +9,22 @@ import type { AskAbout } from "../askpane/model.ts";
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
 
 /** The capabilities the table reads live. */
-export type LiveCap = "records.query" | "records.counts" | "schema.describe";
+export type LiveCap = "records.query" | "records.counts" | "schema.describe" | "access.record_marks" | "access.shares_of";
+
+/** What the Share sheet opens for: a record type (all its records) or one record. */
+export interface ShareTarget {
+  type: "record_type" | "record";
+  id: string;
+  /** The type's plural for a type ("Deals"), the record's title for a record. */
+  name: string;
+  /** The record's type, so the sheet can say what it follows ("Deals"). */
+  typeName?: string;
+}
+
+/** Sharing in the Records place. Left out in a Personal Space (there is no one to share with) and where the shell has no sheet: no Share button is drawn. */
+export interface RecordsShare {
+  open(target: ShareTarget): void;
+}
 
 /** Where a click goes. The shell supplies these (tabs, the record page, the Record types list and the Schema map); the Records place never decides how a thing opens. */
 export interface RecordsNav {
@@ -34,6 +49,8 @@ export interface RecordsData {
   nav: RecordsNav;
   /** May this person change record types and fields (the Console's schema.manage; the owner of a Personal Space)? Left out, the editing controls are not drawn. */
   canEditSchema?: boolean;
+  /** The Share sheet. Team Spaces only. */
+  share?: RecordsShare;
   /** Ask Vyre: opens the assistant as a pane in this tab, told where the person is. It never navigates. Left out where the shell has no assistant: no Ask button is drawn. */
   askVyre?(about: AskAbout): void;
 }

@@ -1,6 +1,6 @@
 # tasks.update
 
-Edit the title, summary, why, due, effort or content blocks of a task (status goes through tasks.transition)
+Edit the title, summary, why, due, effort or content blocks of a task, or link its thread when it has none (status goes through tasks.transition)
 
 | | |
 |---|---|
@@ -36,6 +36,7 @@ type In = {
       v?: number;
       data: unknown;
     }>;
+  threadId?: string;
 };
 ```
 
@@ -121,6 +122,7 @@ type Out = {
     "effort": 1,
     "summary": "example",
     "taskId": "tsk_a1b2c3",
+    "threadId": "thr_a1b2c3",
     "title": "example",
     "why": "example"
   },

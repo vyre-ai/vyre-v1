@@ -25,6 +25,8 @@ export interface ConversationNav {
   openConnectOutsideAgent?(channelId: string): void;
   /** "Connect your AI" on a reply that could not start: the sign-in and key page. Left out where the shell has none. */
   openAiSetup?(): void;
+  /** "Unlock" on a reply that stopped because the Vault is locked: asks for the password in place. True once the key is open. Left out where the shell has no Vault key to open. */
+  unlockVault?(): Promise<boolean>;
 }
 
 /** A slash command a plugin adds. It runs `run` when it has one, else its `prompt` is sent as the message ($ARGUMENTS is replaced by what follows the name). */
@@ -70,6 +72,8 @@ export interface ConversationData {
   saveFile?(name: string, mime: string, content: string): void;
   /** The name of the Space this chat lives in. */
   spaceName?: string;
+  /** A Personal Space has no agent computers: the composer draws no computer button. */
+  personal?: boolean;
   /** The other Spaces this person is in on this device, and a way to act in them. Left out when there is only this one. */
   elsewhere?: { spaces: readonly { id: string; name: string }[]; call(spaceId: string, cap: string, input: unknown): Promise<unknown> };
   /** Slash commands that plugins add (name, one line, and what to run). Left out when no plugin offers any. */
@@ -84,6 +88,10 @@ export interface ConversationData {
   fill?: ComposerFill;
   /** A line above the composer for work that waits in the background ("Waiting on: build 42"); the shell draws it from the thread's runs (P-L9b_23). */
   waitingLine?: ReactElement;
+  /** The shell has a terminal: a Run this card can type a command into one. */
+  terminal?: boolean;
+  /** The mount sheet for a Mount card in the chat: connect a folder from the source the card named, then hand back what was mounted. The shell draws it over the page. Left out where the shell has no Files. */
+  mountSheet?(p: { source: string; onMounted(info: { folderId: string; name: string }): void; onClose(): void }): ReactElement;
   /** What the chat's memory surfaces read and write (Used N memories, quote cards, Learned lines, underlined subjects, the message menu's memory items). Left out where the shell has none: every surface then draws nothing. */
   memory?: ChatMemoryData;
 }

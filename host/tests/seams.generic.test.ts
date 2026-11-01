@@ -68,7 +68,7 @@ test("seams.generic: a driver that throws is reported as missing with its reason
 });
 
 test("seams.generic: the built-in registry covers the connector and mail-driver seams, and a push port without a transport refuses to send", async () => {
-  assert.deepEqual(Object.keys(BUILTIN_DRIVERS).sort(), ["setGithubHost", "setGoogleHost", "setImapSecretResolver", "setMailgunHost", "setMsHost", "setPluginsHost", "setResendHost", "setSourcesSecretResolver", "setStripeHost", "setTwilioHost", "setZoomHost"]);
+  assert.deepEqual(Object.keys(BUILTIN_DRIVERS).sort(), ["setDropboxHost", "setGithubHost", "setGoogleHost", "setImapSecretResolver", "setMailgunHost", "setMsHost", "setPluginsHost", "setResendHost", "setSourcesSecretResolver", "setStripeHost", "setTwilioHost", "setZoomHost"]);
   const port = createPushPort();
   await assert.rejects(() => port.send({ device: "d", platform: "ios", token: "t", title: "x", deepLink: "vyre://x", tag: "t" }), /No push transport/);
   const sent: string[] = [];
@@ -302,3 +302,39 @@ test("seams.generic: a periodic job is put on the scheduler under its name and r
 });
 
 // P-H_06: each named test shows its own ok line in the run on the last commit.
+
+// ---------------------------------------------------------------- sealed fields: the Vault seam of Records
+
+test("seams.generic: setRecordsVault is called with the daemon's driver, and its host half keeps sealed values in one Vault folder and reveals as the asking person", async () => {
+  const got: Record<string, unknown> = {};
+  const setters = { setRecordsVault: (v: unknown) => { got["vault"] = v; } } as unknown as SeamSetters;
+  const calls: { who: string; cap: string; input: Record<string, unknown> }[] = [];
+  const registered: string[] = [];
+  const { createRecordsVaultHost } = await import("../src/seams/records-vault.ts");
+  const w = wireSeams(setters, deps({ drivers: { setRecordsVault: () => createRecordsVaultHost({
+    system: async (cap, input) => {
+      calls.push({ who: "system", cap, input: input as Record<string, unknown> });
+      if (cap === "vault.folders.list") return { folders: [] };
+      if (cap === "vault.folders.create") return { folder: { id: "vfd_sealed" } };
+      if (cap === "vault.item.put") return { item: { id: "vit_one" } };
+      return {};
+    },
+    as: async (person, cap, input) => { calls.push({ who: person, cap, input: input as Record<string, unknown> }); return { fields: [{ key: "value", value: "123-45-6789" }] }; },
+    registerFolder: async (id) => { registered.push(id); },
+  }) } }));
+  assert.deepEqual(w.missing, []);
+  const seam = got["vault"] as { put(o: Record<string, unknown>): Promise<string>; reveal(ref: string, person: string): Promise<string> };
+  assert.equal(await seam.put({ type: "client", recordId: "rec_1", field: "ssn", value: "123-45-6789" }), "vit_one");
+  assert.equal(await seam.put({ type: "client", recordId: "rec_2", field: "ssn", value: "x" }), "vit_one");
+  assert.equal(calls.filter((c) => c.cap === "vault.folders.create").length, 1, "the folder is made once");
+  assert.deepEqual(registered, ["vfd_sealed"]);
+  const put = calls.find((c) => c.cap === "vault.item.put")!;
+  assert.equal(put.input["name"], "client.ssn.rec_1");
+  assert.equal(put.input["idempotencyKey"], "sealed-client-ssn-rec_1", "a retry of the same put is the same item");
+  assert.equal(await seam.put({ type: "client", recordId: "rec_1", field: "ssn", value: "new", ref: "vit_one" }), "vit_one");
+  assert.equal(calls.at(-1)!.cap, "vault.item.update");
+  assert.equal(await seam.reveal("vit_one", "usr_olivia"), "123-45-6789");
+  assert.deepEqual({ who: calls.at(-1)!.who, cap: calls.at(-1)!.cap }, { who: "usr_olivia", cap: "vault.item.reveal" }, "the reveal runs as the person, so the Vault checks their access");
+  w.unwire();
+  assert.equal(got["vault"], null);
+});

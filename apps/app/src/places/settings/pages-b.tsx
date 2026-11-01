@@ -1,5 +1,6 @@
 // Settings pages that are the same in every Space: Sign-in and devices, Appearance (with Kit choice), Keyboard, This computer, Spaces.
 import { SessionImport } from "./SessionImport.tsx";
+import { ComputersSection } from "./Computers.tsx";
 import { DesktopUpdate } from "./DesktopUpdate.tsx";
 import { useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
@@ -223,7 +224,7 @@ export function AppearancePage({ rows, found }: PageProps): ReactElement {
   const shown = hover ?? current;
   return (
     <>
-      <Everywhere text="Everything here is the same in every Space except the skin" />
+      <Everywhere text="Same in every Space, except the skin" />
       <RegistrySections page="appearance" rows={rows} found={found} />
       {skinRow ? (
         <View testID="row-appearance.skin" {...webOnly({ dataSet: { sid: "appearance.skin" } })} style={found === "appearance.skin" ? a.foundBlock : undefined}>
@@ -286,7 +287,7 @@ export function KeyboardPage({ rows, found }: PageProps): ReactElement {
   return (
     <>
       <Everywhere text="Same in every Space" />
-      <Section title="Shortcuts">
+      <Section>
         <SettingsRow
           id="keyboard.overrides" label="Shortcuts" first found={found === "keyboard.overrides"} sub={Object.keys(map).length === 0 ? "All at their defaults" : `${Object.keys(map).length} changed`}
           control={Object.keys(map).length > 0 && row ? <SmallButton label="Reset all" testID="reset-shortcuts" onPress={() => void change(row, {})} /> : undefined}
@@ -303,7 +304,8 @@ export function KeyboardPage({ rows, found }: PageProps): ReactElement {
 export function ComputerPage({ rows, found }: PageProps): ReactElement {
   return (
     <>
-      <Everywhere text="Everything here is about this computer, in every Space" />
+      <Everywhere text="This computer, in every Space" />
+      <ComputersSection />
       <RegistrySections page="computer" rows={rows} found={found} />
       <DesktopUpdate />
       <SessionImport />

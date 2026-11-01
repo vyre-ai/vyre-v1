@@ -46,6 +46,11 @@ type Out = {
     folder?: boolean;
     webUrl?: string;
     parentId?: string;
+    eTag?: string;
+    lastModifiedBy?: {
+      name?: string;
+      email?: string;
+    };
   };
 };
 ```
@@ -75,8 +80,13 @@ type Out = {
   },
   "output": {
     "item": {
+      "eTag": "example",
       "folder": true,
       "id": "example",
+      "lastModifiedBy": {
+        "email": "example",
+        "name": "example"
+      },
       "lastModifiedDateTime": "example",
       "name": "example",
       "parentId": "example",

@@ -64,3 +64,19 @@ test("a finish that comes without a recorded start records the start first, so t
   assert.deepEqual([h.named("turn.started").length, h.named("turn.failed").length], [1, 1]);
   assert.ok(h.emitted.findIndex((e) => e.name === "turn.started") < h.emitted.findIndex((e) => e.name === "turn.failed"));
 });
+
+test("turns that start together with the same queue number each get a row: the number is allocated in the one INSERT, never a UNIQUE clash", async () => {
+  const h = harness();
+  const ctx = withReview(h, 0);
+  // A fresh boot of the engine counts from 1 again, and several turns start in the same tick.
+  const ids = ["trn_a", "trn_b", "trn_c", "trn_d"];
+  const out = await Promise.all(ids.map((turnId) => H["engine.turn.record"](ctx, { threadId: T, turnId, agentId: A, phase: "started", qseq: 1 })));
+  assert.deepEqual(out.map((o) => o.turn.state), ["running", "running", "running", "running"]);
+  const q = h.rows("SELECT qseq FROM engine_turns WHERE thread_id = ?", T).map((r) => Number(r["qseq"]));
+  assert.equal(new Set(q).size, 4, "four rows, four distinct numbers");
+  assert.equal(h.named("turn.started").length, 4);
+  // An earlier run's row at the same number does not block a new turn either.
+  const late = await H["engine.turn.record"](ctx, { threadId: T, turnId: "trn_e", agentId: A, phase: "failed", qseq: 1, code: "x" });
+  assert.equal(late.turn.state, "failed");
+  assertEventsConform(h);
+});

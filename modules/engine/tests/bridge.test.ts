@@ -138,6 +138,18 @@ test("a failed turn becomes a status block in the chat", async () => {
   assert.deepEqual(post.blocks, [{ type: "turn_status", v: 1, data: { state: "failed", turnId: s.engine.turns(T)[0]?.id, code: "rate_limited" } }]);
 });
 
+test("a missing engine and an unreadable Vault carry what the chat needs to say precisely: the program, the Vault's own code, nothing else", async () => {
+  const missing = setup({ script: [{ type: "error", code: "engine.cli_missing", message: "codex is not installed on this computer." }] });
+  await missing.say("Go");
+  assert.deepEqual(missing.chat.find((r) => r.author.id === LEAD)?.blocks, [{ type: "turn_status", v: 1, data: { state: "failed", turnId: missing.engine.turns(T)[0]?.id, code: "engine.cli_missing", program: "codex" } }]);
+  const free = setup({ script: [{ type: "error", code: "engine.cli_missing", message: "rm -rf is not installed" }] });
+  await free.say("Go");
+  assert.equal((free.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data["program"], undefined, "only the engines are named");
+  const vault = setup({ script: [{ type: "error", code: "engine.vault_unreadable", message: "The Vault could not be read (provider.unavailable)." }] });
+  await vault.say("Go");
+  assert.equal((vault.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data["reason"], "provider.unavailable");
+});
+
 test("an agent message the engine did not write is received like any other (an outside post)", async () => {
   const s = setup({ agents: [{ agentId: LEAD, mode: "lead" }, { agentId: "agt_docs", mode: "listen" }], script: reply("Seen.") });
   await s.say("hi");

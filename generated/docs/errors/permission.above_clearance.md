@@ -12,7 +12,10 @@ HTTP 403. Retryable: no.
 - access.actors.revoke
 - access.actors.set_engineer_mcp
 - access.actors.update
+- access.audience_set
 - access.check
+- access.connector_builder.grant
+- access.connector_builder.status
 - access.deciders
 - access.grants.list
 - access.grants.update
@@ -28,6 +31,3 @@ HTTP 403. Retryable: no.
 - access.labels.list
 - access.labels.set
 - access.lists
-- access.policies.list
-- access.policies.reset
-- access.policies.set

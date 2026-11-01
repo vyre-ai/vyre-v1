@@ -10,12 +10,12 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
-import type { PaneTab } from "../../../../../../ui/src/SidePane/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { AskTab } from "../ask/AskTab.tsx";
 import { AskVyre } from "../ask/AskVyre.tsx";
 import type { AskBundle } from "../ask/bundle.ts";
-import { loadProductCatalog, menuGroups } from "../catalog/model.ts";
+import { iconForStep, loadProductCatalog, menuGroups } from "../catalog/model.ts";
+import { StepLogo } from "./StepLogo.tsx";
 import type { CatalogStep, CatalogTrigger } from "../catalog/model.ts";
 import { applyAccount, connectedOption } from "../connect/accounts.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
@@ -38,11 +38,15 @@ import { AddDot, StepCard, TriggerCard } from "./Cards.tsx";
 import type { CardHandlers } from "./Cards.tsx";
 import { canvasScale, COMPACT_REGIONS, compactRegionLabel, frameFor, layoutForWidth } from "./frame.ts";
 import { Inspector } from "./Inspector.tsx";
+import { dropTrigger, normalKey, openTab, paneTabs, triggerIndexOf } from "./tabs.ts";
+import { requiredOf } from "./form-model.ts";
+import type { RefNames } from "./form-model.ts";
+import { usePersonZone } from "./TriggerForm.tsx";
 import { Glyph } from "./icons.tsx";
 import { CANVAS, CONFIG, useAutomationsData, useScreenOrRead, useScreenQuery } from "./data.tsx";
 import {
-  addAfter, addInto, addTrigger, check, clampZoom, describeTrigger, duplicateStep, fitScale, kindOfKey, layout, liveBlockerStep, moveStep, neighbour, removeStep, removeTrigger, sortedIssues, titleOfKey, updateStep,
-  startsByHand,
+  addAfter, addInto, addTrigger, check, clampZoom, describeTrigger, duplicateStep, fitScale, kindOfKey, layout, liveBlockerStep, moveStep, neighbour, removeStep, removeTrigger, sortedIssues, updateStep,
+  startsByHand, withPreset,
 } from "./model.ts";
 import type { CardNode, DefTrigger, Definition, Issue, RunState } from "./model.ts";
 import { Dot, IconButton, SubTabs, TextButton, pointer, webOnly } from "./parts.tsx";
@@ -111,6 +115,9 @@ function Frame({ children }: { children: ReactNode }): ReactElement {
   return <View testID="canvas-frame" style={s.frame} {...webOnly({ dataSet: { vyreFocus: "1" } })}>{children}</View>;
 }
 
+/** The step picker is a searchable, wider menu. */
+const PICKER = { search: "Search steps", width: 320 } as const;
+
 type CatalogPhase = { phase: "loading" } | { phase: "ready"; steps: CatalogStep[]; triggers: CatalogTrigger[] } | { phase: "unavailable"; message: string };
 
 function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onClearRun, paneOpen, onTogglePane, initialZoom, initialSelected, initialPanel, initialPromote, data }: {
@@ -148,8 +155,11 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const [promoteOpen, setPromoteOpen] = useState(initialPromote);
   const [catalog, setCatalog] = useState<CatalogPhase>({ phase: "loading" });
   const [samples, setSamples] = useState<Record<string, unknown>>({});
-  const [stepTabs, setStepTabs] = useState<PaneTab[]>(initialPanel && initialSelected ? [{ key: initialSelected, title: initialSelected }] : []);
-  const [activeStep, setActiveStep] = useState<string | null>(initialPanel ? initialSelected : null);
+  const [openKeys, setOpenKeys] = useState<string[]>(initialPanel && initialSelected ? [normalKey(initialSelected)] : []);
+  const [activeStep, setActiveStep] = useState<string | null>(initialPanel && initialSelected ? normalKey(initialSelected) : null);
+  const zone = usePersonZone();
+  const refNames = useRefNames(data);
+  const stepTabs = paneTabs(def, openKeys);
   const [sections, setSections] = useState<Record<string, "configure" | "data" | "test">>({});
   const [saving, setSaving] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -186,7 +196,12 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   useEffect(() => { installFocusRing(); }, []);
   const issues = useMemo(() => sortedIssues([...check(def, a.kind), ...serverIssues]), [def, a.kind, serverIssues]);
   const tested = useMemo(() => new Set(Object.keys(samples)), [samples]);
-  const lay = useMemo(() => layout(def, { issues, tested, ...(shownRun ? { run: shownRun.states } : {}), keyName: (id) => data.keys.find((k) => k.id === id)?.name ?? data.name(id) }), [def, issues, shownRun, data, tested]);
+  const required = useMemo(() => {
+    const out: Record<string, string[]> = {};
+    if (catalog.phase === "ready") for (const step of catalog.steps) { const r = requiredOf(step.input); if (r.length > 0) out[step.key] = r; }
+    return out;
+  }, [catalog]);
+  const lay = useMemo(() => layout(def, { issues, tested, required, ...(shownRun ? { run: shownRun.states } : {}), keyName: (id) => data.keys.find((k) => k.id === id)?.name ?? data.name(id) }), [def, issues, shownRun, data, tested, required]);
   const errors = issues.filter((i) => i.severity === "error");
   const agentOf = (n: CardNode): string | undefined => (n.node?.ai?.agentId ? data.name(n.node.ai.agentId) : n.node?.ai ? "Assistant" : undefined);
 
@@ -213,31 +228,55 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   }, [draft, saving, data, a.id, a.version]);
 
   const selected = sel ? (sel.id === "trigger" ? null : def.nodes.find((n) => n.id === sel.id) ?? null) : null;
-  const select = (id: string | null, trigger: number | null = null): void => { setSel(id === null ? null : { id, trigger }); if (id === null) setPanel(false); };
   const tabKey = (id: string, trigger: number | null): string => (id === "trigger" ? `trigger:${trigger ?? 0}` : id);
   const openPanel = (id: string, trigger: number | null = null): void => {
     setSel({ id, trigger });
     setPanel(true);
     const key = tabKey(id, trigger);
-    const title = id === "trigger" ? "Trigger" : (def.nodes.find((n) => n.id === id)?.title ?? titleOfKey(def.nodes.find((n) => n.id === id)?.key ?? id));
-    setStepTabs((cur) => cur.some((t) => t.key === key) ? cur : [...cur, { key, title }]);
+    setOpenKeys((cur) => openTab(cur, key));
     setActiveStep(key);
+  };
+  // with the panel open, picking another card shows that card in it
+  const select = (id: string | null, trigger: number | null = null): void => {
+    if (id !== null && panel) { openPanel(id, trigger); return; }
+    setSel(id === null ? null : { id, trigger });
+    if (id === null) setPanel(false);
   };
   const focusStepTab = (key: string): void => {
     setActiveStep(key);
-    if (key.startsWith("trigger:")) setSel({ id: "trigger", trigger: Number(key.slice(8)) });
+    const at = triggerIndexOf(key);
+    if (at !== null) setSel({ id: "trigger", trigger: at });
     else setSel({ id: key, trigger: null });
     setPanel(true);
   };
+  const removeTriggerAt = (index: number): void => {
+    edit(removeTrigger(def, index));
+    const keys = dropTrigger(openKeys, index);
+    setOpenKeys(keys);
+    const closing = activeStep !== null && triggerIndexOf(activeStep) === index;
+    if (keys.length === 0) { setPanel(false); setSel(null); setActiveStep(null); return; }
+    if (closing) { focusStepTab(keys[keys.length - 1]!); return; }
+    const at = activeStep !== null ? triggerIndexOf(activeStep) : null;
+    if (at !== null && at > index) { setActiveStep(`trigger:${at - 1}`); setSel({ id: "trigger", trigger: at - 1 }); }
+  };
 
   // ---- menus. The product catalog is the runtime list. A failed load stays unavailable.
-  const addEntries = (onPick: (key: string) => void): MenuEntry[] => {
+  const addEntries = (onPick: (key: string, preset?: Record<string, unknown>) => void): MenuEntry[] => {
     if (catalog.phase === "loading") return [{ label: "Loading the step catalog", onSelect: () => undefined }];
     if (catalog.phase === "unavailable") return [{ label: catalog.message, onSelect: () => undefined }];
     const out: MenuEntry[] = [];
     for (const g of menuGroups(catalog.steps)) {
       out.push({ head: g.head });
-      for (const p of g.items) out.push({ label: p.availability === "preview" ? `${p.title} (Preview)` : p.title, onSelect: () => onPick(p.key) });
+      for (const p of g.items) out.push({
+        label: p.availability === "preview" ? `${p.title} (Preview)` : p.title, keywords: `${p.key} ${p.group}`,
+        leading: <StepLogo stepKey={p.key} {...(p.preset ? { input: p.preset } : {})} icon={iconForStep(p.key)} name={p.title} size={20} />,
+        ...(p.untested ? { mark: "Untested: never tried against the real app" } : {}),
+        onSelect: () => onPick(p.key, p.preset),
+      });
+    }
+    if (data.nav.buildConnector) {
+      const build = data.nav.buildConnector;
+      out.push({ separator: true }, { label: "Build a connector", pinned: true, leading: <StepLogo stepKey="" icon="plus" name="Build a connector" size={20} />, onSelect: () => build() });
     }
     if (out.length === 0) return [{ label: "The step catalog is empty", onSelect: () => undefined }];
     return out;
@@ -260,15 +299,15 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
     if (host && lanes.length > 0) {
       // a step with lanes: say which lane the new step starts
       const choose: MenuEntry[] = [{ head: "Add to which lane?" }];
-      lanes.forEach((b, i) => choose.push({ label: b.label || `Lane ${i + 1}`, onSelect: () => show(addEntries((key) => { const r = addInto(def, host.id, key, i); edit(r.def); openPanel(r.id); }), p.x, p.y, "other") }));
+      lanes.forEach((b, i) => choose.push({ label: b.label || `Lane ${i + 1}`, onSelect: () => show(addEntries((key, preset) => { const r = addInto(def, host.id, key, i); edit(withPreset(r.def, r.id, preset)); openPanel(r.id); }), p.x, p.y, "other", undefined, PICKER) }));
       show(choose, p.x, p.y, "other");
       return;
     }
-    show(addEntries((key) => {
+    show(addEntries((key, preset) => {
       const r = addAfter(def, afterId, key);
-      edit(r.def);
+      edit(withPreset(r.def, r.id, preset));
       openPanel(r.id);
-    }), p.x, p.y, "other");
+    }), p.x, p.y, "other", undefined, PICKER);
   };
   const openCardMenu = (id: string, x: number, y: number): void => {
     const p = at(x, y, id);
@@ -294,7 +333,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
     if (catalog.phase === "loading") entries.push({ label: "Loading the trigger catalog", onSelect: () => undefined });
     else if (catalog.phase === "unavailable") entries.push({ label: catalog.message, onSelect: () => undefined });
     else if (triggers.length === 0) entries.push({ label: "The trigger catalog is empty", onSelect: () => undefined });
-    for (const t of triggers) entries.push({ label: t.availability === "preview" ? `${t.title} (Preview)` : t.title, checked: used.has(t.key), onSelect: () => { edit(addTrigger(def, t.key)); openPanel("trigger", def.triggers.length); } });
+    for (const t of triggers) entries.push({ label: t.availability === "preview" ? `${t.title} (Preview)` : t.title, onSelect: () => { edit(addTrigger(def, t.key, zone)); openPanel("trigger", def.triggers.length); } });
     show(entries, p.x, p.y, "other");
   };
   const openTriggerMenu = (index: number, x: number, y: number): void => {
@@ -303,10 +342,10 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
       { label: "Edit this trigger", onSelect: () => openPanel("trigger", index) },
       { label: "Add another trigger", onSelect: () => openTriggerAdd(p.x, p.y) },
       { separator: true },
-      { label: "Remove", danger: true, onSelect: () => { edit(removeTrigger(def, index)); select(null); } },
+      { label: "Remove", danger: true, onSelect: () => removeTriggerAt(index) },
     ], p.x, p.y, "context");
   };
-  const describe = (t: DefTrigger): string => describeTrigger(t);
+  const describe = (t: DefTrigger): string => describeTrigger(t, refNames, zone);
 
   // ---- keys
   const onKey = (e: KeyEventLike, id: string): void => {
@@ -391,7 +430,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
     show([
       ...(a.kind === "space" ? [{ label: "Make a personal copy", onSelect: () => void data.call("automations.make_personal_copy", { automationId: a.id, name: `${a.name} (mine)` }).then(() => flash("A personal copy is in your Automations")).catch((x: unknown) => flash(x instanceof Error ? x.message : "No copy was made")) }] : [{ label: "Promote to the Space", onSelect: () => setPromoteOpen(true) }]),
       { label: "Analytics", onSelect: () => setTab("analytics") },
-      ...(tight && !phone ? [{ label: "Events", onSelect: () => setEventsOpen(true) }] : []),
+      ...(phone ? [] : [{ label: "Live events", onSelect: () => setEventsOpen(true) }]),
       { label: "Undo last edit", onSelect: undoEdit },
       { separator: true },
       { label: "Move to Trash", danger: true, onSelect: () => void data.call("automations.delete", { automationId: a.id }).catch((x: unknown) => flash(x instanceof Error ? x.message : "That did not move")) },
@@ -459,7 +498,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
       version={a.version}
       onStoreSample={(id, output) => setSamples((cur) => ({ ...cur, [id]: output }))}
       def={def} node={selected} trigger={trigSel && sel?.trigger !== null && sel?.trigger !== undefined ? def.triggers[sel.trigger] ?? null : null} triggerIndex={trigSel ? sel?.trigger ?? null : null}
-      issues={issues} keys={data.keys} kind={a.kind} {...(shownRun ? { runId: shownRun.id } : {})} {...(data.keysStatus ? { keysStatus: data.keysStatus } : {})} {...(data.accounts ? { accounts: data.accounts } : {})} {...(data.lastPicks ? { lastPicks: data.lastPicks } : {})} {...(stepSchema !== undefined ? { inputSchema: stepSchema } : {})} onChange={edit} onClose={() => select(null)} onDelete={() => { if (sel && sel.id !== "trigger") { edit(removeStep(def, sel.id)); select(null); } }}
+      issues={issues} keys={data.keys} kind={a.kind} {...(shownRun ? { runId: shownRun.id } : {})} {...(data.keysStatus ? { keysStatus: data.keysStatus } : {})} {...(data.accounts ? { accounts: data.accounts } : {})} {...(data.lastPicks ? { lastPicks: data.lastPicks } : {})} {...(stepSchema !== undefined ? { inputSchema: stepSchema } : {})} onChange={edit} onClose={() => select(null)} onRemoveTrigger={removeTriggerAt} onDelete={() => { if (sel && sel.id !== "trigger") { const gone = sel.id; edit(removeStep(def, gone)); setOpenKeys((cur) => cur.filter((k) => k !== gone)); select(null); } }}
       onAsk={(bundle) => data.nav.ask(a.id, bundle)}
     />
   ) : null;
@@ -498,7 +537,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
         <View style={s.kind} testID="kind"><Glyph name={a.kind === "space" ? "users" : "key"} size={13} color="var(--ink-3)" /><Text style={s.kindText}>{a.kind === "space" ? "Space" : "Personal"}</Text></View>
         {needs ? (<><View style={s.sep} /><View style={s.needs}><Dot tone="warn" size={6} /><Text numberOfLines={1} style={s.needsText}>{needs.replace(/^needs/i, "Needs")}</Text></View></>) : null}
         <View style={{ flex: 1 }} />
-        {phone ? null : <View accessibilityLabel="Builder mode" testID="builder-mode" style={s.seg}>
+        {phone ? null : <View accessibilityLabel="Builder mode" testID="builder-mode" style={s.seg} {...webOnly({ title: "Basic shows each step as a form. Advanced adds the step or trigger as JSON under the form." })}>
           {/* ui-rows-lint: not a list (Basic and Advanced toggle) */}
           {BUILDER_MODES.map((label) => {
             const on = (label === "Advanced") === (mode === "advanced");
@@ -511,7 +550,6 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
         </View>}
         {connectTarget ? <TextButton label={`Connect ${connectTarget.service}`} icon="key" testID="connect" onPress={() => data.nav.connect(connectTarget)} /> : null}
         {!connectTarget && blockedIssue?.setup.blocked ? <Text testID="blocked-step" style={s.needsText}>{blockedIssue.setup.blocked}</Text> : null}
-        {phone || tight ? null : <TextButton label="Events" icon="bolt" bare={tight} testID="events" onPress={() => setEventsOpen(true)} />}
         {hasManual ? <TextButton label="Run now" icon="bolt" bare={tight} testID="run-now" onPress={() => void runNow()} /> : null}
         <TextButton label="Test" icon="flask" bare={tight} testID="test-run" onPress={() => void test()} />
         {dirty ? <TextButton label={saving ? "Saving" : "Save"} primary disabled={saving || errors.length > 0} testID="save" onPress={() => void save()} /> : null}
@@ -540,7 +578,14 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
           ) : null}
           <View testID="tool-row" style={s.tool}>
             <Text testID="definition-crumb" style={s.toolText}>{definitionCrumb({ status: a.status, dirty, pinned })}</Text>
+            <Text testID="build-hint" numberOfLines={1} style={[s.toolText, { color: "var(--ink-4)" as string }]}>
+              {dirty ? "Unsaved changes. Save to keep them." : def.nodes.length === 0 ? "Press + under the trigger to add the first step." : "Click a card to set it up. Press + under a card to add a step."}
+            </Text>
             <View style={{ flex: 1 }} />
+            <Pressable accessibilityRole="button" accessibilityLabel="Undo the last edit" accessibilityState={{ disabled: !dirty }} testID="undo-edit" disabled={!dirty} onPress={undoEdit} style={[s.shelfBtn, !dirty && { opacity: 0.4 }, pointer]}>
+              <Glyph name="reply" size={14} color="var(--ink-2)" />
+              <Text style={s.toolText}>Undo</Text>
+            </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel={DATA_SHELF_NAME} testID="open-data-shelf" onPress={openShelf} style={[s.shelfBtn, pointer]}>
               <Glyph name="record" size={14} color="var(--ink-2)" />
               <Text style={s.toolText}>{DATA_SHELF_NAME}</Text>
@@ -597,10 +642,10 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
                 activeTab={activeStep}
                 onSelectTab={focusStepTab}
                 onCloseTab={(key) => {
-                  const next = stepTabs.filter((t) => t.key !== key);
-                  setStepTabs(next);
+                  const next = openKeys.filter((k) => k !== key);
+                  setOpenKeys(next);
                   if (next.length === 0) { setPanel(false); setSel(null); setActiveStep(null); return; }
-                  if (activeStep === key) focusStepTab(next[next.length - 1]!.key);
+                  if (activeStep === key) focusStepTab(next[next.length - 1]!);
                 }}
               >
                 {inspectorPane}
@@ -819,3 +864,23 @@ const s = StyleSheet.create({
   graphCol: { width: 250, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--win)" as string, ...({ backgroundImage: "radial-gradient(var(--line) 1px, transparent 1px)", backgroundSize: "22px 22px" } as object) },
   dim: { fontSize: 13, color: "var(--ink-3)" as string },
 });
+
+/** Names for the ids a trigger is narrowed to (a record type, a form, a Journey), read once for the cards. A list that cannot be read leaves the id as it is. */
+function useRefNames(data: ReturnType<typeof useAutomationsData>): RefNames {
+  const [names, setNames] = useState<{ type: Record<string, string>; form: Record<string, string>; journey: Record<string, string> }>({ type: {}, form: {}, journey: {} });
+  useEffect(() => {
+    let live = true;
+    const load = async (cap: string, list: string, id: string, name: string): Promise<Record<string, string>> => {
+      try {
+        const out = await data.call(cap, {}) as Record<string, unknown>;
+        const rows = Array.isArray(out[list]) ? out[list] as Record<string, unknown>[] : [];
+        const map: Record<string, string> = {};
+        for (const row of rows) if (typeof row[id] === "string" && typeof row[name] === "string") map[row[id] as string] = row[name] as string;
+        return map;
+      } catch { return {}; }
+    };
+    void Promise.all([load("schema.types.list", "types", "key", "title"), load("forms.list", "forms", "formId", "name"), load("journeys.list", "journeys", "id", "name")]).then(([type, form, journey]) => { if (live) setNames({ type, form, journey }); });
+    return () => { live = false; };
+  }, [data]);
+  return useMemo(() => ({ type: (k: string) => names.type[k] ?? k, form: (k: string) => names.form[k] ?? k, journey: (k: string) => names.journey[k] ?? k }), [names]);
+}

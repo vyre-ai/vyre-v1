@@ -10,7 +10,7 @@ import { useLive } from "./tree/data.tsx";
 import type { SortKey } from "./tree/model.ts";
 
 /** Column widths. The header and the cells use the same numbers, so they line up; the Name column takes the rest. */
-export const COL = { modified: 112, by: 150, size: 84, kind: 128, gap: 12 } as const;
+export const COL = { modified: 112, by: 150, size: 84, kind: 168, gap: 12 } as const;
 /** Row height of the list. Row paints 28 inside it, centred. */
 export const LIST_ROW = 38;
 /** Left edge of the Name column: Row padding, the icon box and its margin. Both the header and the rows start their text here. */

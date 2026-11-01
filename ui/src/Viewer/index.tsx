@@ -15,6 +15,12 @@ import { viewerLabel } from "./props.ts";
 import type { MarkupTool, ViewerPin, ViewerProps } from "./props.ts";
 
 export type { MarkupTool, ViewerKind, ViewerPane, ViewerPin, ViewerProps } from "./props.ts";
+import { FileLinkText, withFileLinks } from "./FileLinkText.tsx";
+import { splitRefs } from "./links.ts";
+import type { FileLinks } from "./links.ts";
+export { distinctRefs, refsIn, splitRefs } from "./links.ts";
+export type { FileLinkTarget, FileLinks, FileRef } from "./links.ts";
+export { FileLinkText, withFileLinks } from "./FileLinkText.tsx";
 export { MARKUP_TOOLS, VIEWER_KINDS, viewerLabel } from "./props.ts";
 
 /* ---------- pure logic ---------- */
@@ -96,17 +102,20 @@ export interface Sheet { cols: readonly string[]; rows: readonly (readonly strin
 
 /** The text a person sees: **bold** and [[link]] markers removed. Find reads this, so a match is always something on screen. */
 export function stripInline(s: string): string {
-  return s.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\[\[(.+?)\]\]/g, "$1");
+  return s.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\[\[(.+?)\]\]/g, "$1").replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, "$1");
 }
-export interface InlineRun { text: string; bold?: boolean; link?: boolean }
-/** Splits **bold** and [[link]] into runs; the runs' text joins to stripInline(s). */
+/** A run of a line: plain, bold, or a link. `ref` is what a link points at (the name in [[Name]], the path in [text](path)). */
+export interface InlineRun { text: string; bold?: boolean; link?: boolean; ref?: string; kind?: "wiki" | "md" }
+/** Splits **bold**, [[link]] and [text](target) into runs; the runs' text joins to stripInline(s). */
 export function inlineRuns(s: string): readonly InlineRun[] {
   const out: InlineRun[] = [];
   let at = 0;
-  for (const m of s.matchAll(/\*\*(.+?)\*\*|\[\[(.+?)\]\]/g)) {
+  for (const m of s.matchAll(/\*\*(.+?)\*\*|\[\[(.+?)\]\]|\[([^\]\n]+)\]\(([^)\s]+)\)/g)) {
     const i = m.index ?? 0;
     if (i > at) out.push({ text: s.slice(at, i) });
-    if (m[1] !== undefined) out.push({ text: m[1], bold: true }); else out.push({ text: m[2] ?? "", link: true });
+    if (m[1] !== undefined) out.push({ text: m[1], bold: true });
+    else if (m[2] !== undefined) out.push({ text: m[2], link: true, ref: m[2].trim(), kind: "wiki" });
+    else out.push({ text: m[3] ?? "", link: true, ref: decodeURI(m[4] ?? "").replace(/#.*$/, "").replace(/^\.\//, ""), kind: "md" });
     at = i + m[0].length;
   }
   if (at < s.length) out.push({ text: s.slice(at) });
@@ -222,6 +231,8 @@ export interface ViewerViewProps extends ViewerProps {
   zoom?: number;
   /** The memory graph and this file's node in it: Links to and Linked from come from here. */
   graph?: ViewerGraph;
+  /** The file references in the words (a name, a path, a [[link]]) and where they point: they draw as links that open the file in a tab. */
+  fileLinks?: FileLinks;
   nodeId?: string;
   onOpenLink?: (nodeId: string) => void;
   /** The Details panel (the info button): path, kind, size and the file's links. */
@@ -251,6 +262,8 @@ export interface ViewerViewProps extends ViewerProps {
   onInfo?: () => void;
   onHistory?: () => void;
   onMore?: () => void;
+  /** A file that lives at a provider (Google Docs, Word, Excel, Dropbox): one press opens it in the provider's own editor. `label` reads "Open in Google Docs". */
+  openIn?: { label: string; onOpen: () => void };
   onBoxes?: (boxes: readonly MarkupBox[]) => void;
   onStrokes?: (strokes: readonly Stroke[]) => void;
   onEdit?: (blocks: readonly DocBlock[]) => void;
@@ -368,6 +381,10 @@ export function Viewer(props: ViewerViewProps): ReactElement {
             ))}
           </View>
         </View>
+      ) : null}
+      {props.openIn !== undefined ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={props.openIn.label} testID="vw-open-in" onPress={props.openIn.onOpen}
+          style={({ hovered }: { hovered?: boolean }) => [s.openIn, hovered === true && s.toolOver]}><Text style={s.openInText} numberOfLines={1}>{props.openIn.label}</Text></Pressable>
       ) : null}
       {iconBtn("Find in file", ICON.find, "vw-find-btn", () => setFindOpen((o) => !o), findOpen)}
       {iconBtn("Details", ICON.info, "vw-info", () => { setDetailsOpen((o) => !o); props.onInfo?.(); }, detailsOpen)}
@@ -488,7 +505,13 @@ export function Viewer(props: ViewerViewProps): ReactElement {
               {lead}
               {shownComments.length > 0 && marks.some((m) => m.comment !== undefined)
                 ? each(marks, (m, i) => (m.comment !== undefined ? <Text key={i} style={s.commented} {...web({ "data-comment": m.comment })}>{m.text}</Text> : m.text))
-                : each(inlineRuns(b.text), (r, i) => (r.bold === true ? <Text key={i} style={s.bold}>{r.text}</Text> : r.link === true ? <Text key={i} style={s.link} {...web({ "data-link": "true" })}>{r.text}</Text> : r.text))}
+                : each(inlineRuns(b.text), (r, i) => (r.bold === true
+                  ? <Text key={i} style={s.bold}>{r.text}</Text>
+                  : r.link === true
+                    ? (props.fileLinks && r.ref !== undefined && r.kind !== undefined && !/^(https?:|mailto:)/.test(r.ref)
+                      ? <FileLinkText key={i} r={{ start: 0, end: 0, label: r.text, ref: r.ref, kind: r.kind }} links={props.fileLinks} />
+                      : <Text key={i} style={s.link} {...web({ "data-link": "true" })}>{r.text}</Text>)
+                    : props.fileLinks ? <Text key={i}>{withFileLinks(splitRefs(r.text), props.fileLinks)}</Text> : r.text))}
             </Text>
           );
         })}
@@ -610,6 +633,8 @@ const s = StyleSheet.create({
   tile: { width: 28, height: 28, borderRadius: 6, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center" },
   tileText: { color: "var(--ink-3)" as string, fontSize: 8.5, fontWeight: "700" },
   iconBtn: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
+  openIn: { height: 28, paddingHorizontal: 10, borderRadius: 7, borderWidth: 1, borderColor: "var(--line)" as string, alignItems: "center", justifyContent: "center", flexShrink: 1 },
+  openInText: { color: "var(--ink-2)" as string, fontSize: 12.5, fontWeight: "500" },
   modeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   saved: { color: "var(--ok)" as string, fontSize: 12 },
   seg: { flexDirection: "row", padding: 2, borderRadius: 8, backgroundColor: "var(--sunk)" as string },

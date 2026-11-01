@@ -55,6 +55,8 @@ export interface EngineOptions {
   onNoAccount?: (info: { threadId: string; turnId: string; agentId: string; asker: string; routine: boolean }) => Promise<void> | void;
   /** A turn ended (completed, failed or cancelled): meter its usage. Not called for a turn parked on a held call until it ends. */
   onTurnEnd?: (turn: Readonly<TurnRow>, account: ResolvedAccount | null) => Promise<void> | void;
+  /** The engine of a turn reported a limit window of the paying account (percent used and reset time). Keep the latest per account; it must never fail the turn. */
+  onLimits?: (account: ResolvedAccount, limits: { window: "session" | "week"; pct: number; resetsAt?: number }) => Promise<void> | void;
   queue?: QueueStore;
   leases?: LeaseStore;
   messages?: MessageStore;
@@ -122,6 +124,10 @@ export interface TurnEngine {
   /** Turns parked on a held tool call in this thread. */
   waiting(threadId: string): Array<{ turnId: string; agentId: string; taskId: string }>;
   setMode(threadId: string, agentId: string, mode: AgentMode): void;
+  /** An agent joined a thread that is already open here (a task's reviewer, an agent added to a chat): it can be woken and mentioned from now on. Nothing changes when it is in already. */
+  engage(threadId: string, agent: EngineAgent): void;
+  /** Who a wake on this thread runs for (and whose account pays) when the thread was opened for someone else: a task thread is worked for the person who asked for the task. */
+  setStarter(threadId: string, starter: string): void;
   /** Change the model, engine or paying account an agent runs on in this thread, from its next turn. */
   setAgent(threadId: string, agentId: string, patch: { model?: string; accountRef?: string }): void;
   agents(threadId: string): EngineAgent[];
@@ -377,6 +383,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             turn.tokensIn += ev.inputTokens;
             turn.tokensOut += ev.outputTokens;
             break;
+          case "limits":
+            if (paying && opts.onLimits) { try { void Promise.resolve(opts.onLimits(paying, { window: ev.window, pct: ev.pct, ...(ev.resetsAt !== undefined ? { resetsAt: ev.resetsAt } : {}) })).catch(() => undefined); } catch { /* a limit reading is a convenience, never a reason to fail a turn */ } }
+            break;
           case "done":
             mentions = ev.mentions ?? [];
             ended = true;
@@ -509,6 +518,14 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       return item.qseq;
     },
     waiting: (threadId) => waits.open(threadId).filter((w) => w.resolution === null).map((w) => ({ turnId: w.turnId, agentId: w.agentId, taskId: w.taskId })),
+    setStarter(threadId, starter) {
+      need(threadId).thread.starter = starter;
+    },
+    engage(threadId, agent) {
+      const st = need(threadId);
+      if (st.thread.agents.some((a) => a.id === agent.id)) return;
+      st.thread.agents = [...st.thread.agents, { ...agent, mode: st.thread.agents.some((a) => a.mode === "lead") ? "listen" : agent.mode }];
+    },
     setMode(threadId, agentId, mode) {
       const st = need(threadId);
       st.thread.agents = withMode(st.thread.agents, agentId, mode);

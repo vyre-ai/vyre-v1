@@ -80,6 +80,7 @@
         "modules/git/",
         "modules/previews/",
         "modules/documents/",
+        "modules/dropbox/",
         "modules/runbooks/",
         "package-lock.json"
       ],
@@ -89,6 +90,7 @@
         "git",
         "previews",
         "documents",
+        "dropbox",
         "runbooks"
       ]
     },
@@ -423,6 +425,7 @@
     "contacts-link": "L5",
     "devices": "L7a",
     "documents": "L4",
+    "dropbox": "L4",
     "email-builder-api": "L8",
     "engine": "L2",
     "esign": "L8",

@@ -56,6 +56,8 @@ export interface DaemonConfig {
   caddyAdmin: string;
   /** relay base URL; the time-skew probe reads its Date header */
   relayUrl: string | null;
+  /** the relay a phone address is claimed at, and dialled for it when no relay is configured (VYRE_PHONE_RELAY_URL; staging points elsewhere) */
+  phoneRelayUrl: string;
   /** the address people reach this Space at (own domain or relay name); the local URL when absent */
   address: string | null;
   /** `personal` while this daemon hosts a Personal Space (one person's desktop, ARCH 5.13); anything else, or absent, is a Team Space. */
@@ -96,6 +98,7 @@ export function loadConfig(argv: readonly string[], env: NodeJS.ProcessEnv = pro
     owner: flag(argv, "owner") ?? env["VYRE_OWNER"] ?? null,
     caddyAdmin: flag(argv, "caddy-admin") ?? env["VYRE_CADDY_ADMIN"] ?? DEFAULTS.caddyAdmin,
     relayUrl: flag(argv, "relay") ?? env["VYRE_RELAY_URL"] ?? null,
+    phoneRelayUrl: env["VYRE_PHONE_RELAY_URL"] ?? "wss://relay.vyre.run",
     address: flag(argv, "address") ?? env["VYRE_ADDRESS"] ?? null,
     ...spaceKindOf(flag(argv, "space-kind") ?? env["VYRE_SPACE_KIND"]),
     ...((flag(argv, "space-name") ?? env["VYRE_SPACE_NAME"]) ? { spaceName: (flag(argv, "space-name") ?? env["VYRE_SPACE_NAME"])! } : {}),

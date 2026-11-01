@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  configure, get, giveBack, health, list, provision, remove, sessionSignOut, sessionsList, sleep, sleepIdle, takeOver, wake,
+  configure, get, giveBack, health, hosts, list, provision, remove, sessionSignOut, sessionsList, sleep, sleepIdle, takeOver, wake,
 } from "../handlers/lifecycle.ts";
 import { bindHost, redeemTicket } from "../projections.ts";
 import { assertEventsConform, asPerson, codeOf, contractErrors, DANA, harness, INTAKE, MIN, NOW, OMAR } from "../fixtures/harness.ts";
@@ -38,8 +38,6 @@ test("provision refuses a second computer, a missing agent, a Personal Space and
   await assert.rejects(() => provision(h.ctx, { agentId: INTAKE, idempotencyKey: "k2" }), (e) => codeOf(e) === "validation.duplicate");
   const missing = harness({ respond: { "agents.get": () => { throw new Error("no such agent"); } } });
   await assert.rejects(() => provision(missing.ctx, { agentId: "agt_none", idempotencyKey: "k" }), (e) => codeOf(e) === "validation.bad_input");
-  const personal = harness({ personalSpace: true });
-  await assert.rejects(() => provision(personal.ctx, { agentId: INTAKE, idempotencyKey: "k" }), (e) => codeOf(e) === "permission.needs_team");
   const broken = harness({ fakeOptions: { failing: new Set(["create"]) } });
   await assert.rejects(() => provision(broken.ctx, { agentId: INTAKE, idempotencyKey: "k" }), (e) => codeOf(e) === "provider.unavailable");
   assert.equal(broken.rows("SELECT computer_id FROM computers_computers").length, 0);
@@ -313,9 +311,35 @@ test("sessions: listed from the running computer, from the last list while it sl
   assert.deepEqual(assertEventsConform(h), []);
 });
 
-test("everything needs a Team Space", async () => {
-  const h = harness({ personalSpace: true });
-  await assert.rejects(() => list(h.ctx, {}), (e) => codeOf(e) === "permission.needs_team");
-  await assert.rejects(() => wake(h.ctx, { computerId: "cmt_x" }), (e) => codeOf(e) === "permission.needs_team");
-  await assert.rejects(() => health(h.ctx, {}), (e) => codeOf(e) === "permission.needs_team");
+test("a Personal Space runs agent computers on a capable host: this computer with Docker, or a server it added; with neither, nothing is offered and provision says so", async () => {
+  const h = harness({ personalSpace: true, respond: { "spaces.matrix": () => ({ kind: "personal" }) } });
+  const made = await provision(h.ctx, { agentId: INTAKE, idempotencyKey: "k" });
+  assert.equal(made.computer.state, "asleep", "a Personal Space provisions like a team one");
+  assert.deepEqual((await list(h.ctx, {})).computers.map((c) => c.agentId), [INTAKE]);
+  assert.equal((await health(h.ctx, {})).runtime, "ready");
+  assert.deepEqual(await hosts(h.ctx, {}), { available: true, hosts: [{ hostId: "this", kind: "this", name: "This computer", online: true, canRun: true, runs: 1 }] });
+  const bare = harness({ personalSpace: true, respond: { "spaces.matrix": () => ({ kind: "personal" }) } });
+  bindHost(null);
+  assert.deepEqual(await hosts(bare.ctx, {}), { available: false, hosts: [{ hostId: "this", kind: "this", name: "This computer", online: true, canRun: false, runs: 0, reason: "No Docker" }] });
+  await assert.rejects(() => provision(bare.ctx, { agentId: INTAKE, idempotencyKey: "k" }), (e) => codeOf(e) === "provider.unavailable");
+  assert.deepEqual((await list(bare.ctx, {})).computers, []);
+  await assert.rejects(() => wake(bare.ctx, { computerId: "cmt_x" }), (e) => codeOf(e) === "validation.not_found");
+});
+
+test("servers you added are hosts once approved: offline or without Docker they are listed but cannot run one; the Space server is the Space in a Team Space", async () => {
+  const h = harness({
+    personalSpace: true,
+    respond: { "spaces.matrix": () => ({ kind: "personal" }), "network.my_computers": () => ({ computers: [
+      { serverId: "srv_home", name: "home-box", state: "healthy", enrollment: "approved", facts: { docker: true } },
+      { serverId: "srv_off", name: "old-mac", state: "down", enrollment: "approved", facts: { docker: true } },
+      { serverId: "srv_nodocker", name: "pi", state: "healthy", enrollment: "approved", facts: { docker: false } },
+      { serverId: "srv_wait", name: "new", state: "down", enrollment: "pending", facts: { docker: true } },
+    ] }) },
+  });
+  bindHost(null);
+  const out = await hosts(h.ctx, {});
+  assert.equal(out.available, true, "one server can run them");
+  assert.deepEqual(out.hosts.map((x) => [x.hostId, x.canRun, x.reason ?? null]), [["this", false, "No Docker"], ["srv_home", true, null], ["srv_off", false, "Offline"], ["srv_nodocker", false, "No Docker"]], "a waiting server is not a host yet");
+  const team = harness({ respond: { "spaces.matrix": () => ({ kind: "team" }) } });
+  assert.deepEqual((await hosts(team.ctx, {})).hosts.map((x) => [x.hostId, x.kind, x.name]), [["space", "space", "The Space"]]);
 });

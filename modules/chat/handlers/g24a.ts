@@ -6,6 +6,7 @@ import {
 } from "../projections.ts";
 import type { ChatCtx, Mode, ThreadKind, ThreadRec } from "../projections.ts";
 import { canSpeak, rootOf } from "./post.ts";
+import { applyMode } from "./modes.ts";
 
 type Row = Record<string, unknown>;
 const MAX_AGENTS = 20;
@@ -41,15 +42,15 @@ export function unreadOf(ctx: Pick<ChatCtx, "db">, threadId: string, person: str
 // ---- shared -----------------------------------------------------------------------------------------------------------------------------------------
 
 /** The thread, or "not found" when it does not exist or is a private chat of other people. */
-function load(ctx: ChatCtx, threadId: string): ThreadRec {
+export function load(ctx: ChatCtx, threadId: string): ThreadRec {
   ensure(ctx.db);
   const t = threadBy(ctx.db, threadId);
   if (!t || !canSpeak(ctx, t)) raise(ctx, "validation.not_found", "That chat does not exist or is not yours.");
   return t;
 }
 
-const out = (ctx: ChatCtx, id: string) => ({ thread: threadOut(ctx.db, threadBy(ctx.db, id)!) });
-const touch = (ctx: ChatCtx, id: string, set: string, ...args: unknown[]): void => {
+export const out = (ctx: ChatCtx, id: string) => ({ thread: threadOut(ctx.db, threadBy(ctx.db, id)!) });
+export const touch = (ctx: ChatCtx, id: string, set: string, ...args: unknown[]): void => {
   ctx.db.run(`UPDATE chat_thread SET ${set}, version = version + 1, updated_at = ? WHERE id = ?`, ...args, ctx.now(), id);
 };
 const isPrivateRoot = (root: ThreadRec): boolean => root.kind === "chat" || root.kind === "ask";
@@ -135,12 +136,12 @@ export async function setFolder(ctx: ChatCtx, input: { threadId: string; folderI
   return out(ctx, t.id);
 }
 
+/** The older on or off switch. On is Plan. Off leaves Plan for Ask first; a chat that is on Auto is not in plan mode, so off leaves it alone. */
 export async function setPlanMode(ctx: ChatCtx, input: { threadId: string; planMode: boolean }) {
   const t = load(ctx, input.threadId);
   if (typeof input.planMode !== "boolean") raise(ctx, "validation.bad_input", "Plan mode is on or off.");
-  if (input.planMode === t.planMode) return out(ctx, t.id);
-  touch(ctx, t.id, "modePlan = ?", input.planMode ? 1 : 0);
-  ctx.emit("thread.plan_mode_changed", t.id, { threadId: t.id, planMode: input.planMode, by: askerOf(ctx) });
+  if (input.planMode) applyMode(ctx, t, "plan");
+  else if (t.mode === "plan") applyMode(ctx, t, "ask");
   return out(ctx, t.id);
 }
 

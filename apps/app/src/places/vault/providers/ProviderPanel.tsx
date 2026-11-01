@@ -9,6 +9,7 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useVaultData, usePrincipals } from "../layout/data.tsx";
 import type { Provider } from "../layout/model.ts";
 import { Btn, Glyph } from "../layout/parts.tsx";
+import { Info } from "../../../../../../ui/src/Tip/index.tsx";
 import { canShare, countWords, howConnected, scopeWords, stateWords, testWords, usageWords, userKind } from "./model.ts";
 
 export interface ProviderPanelProps {
@@ -74,7 +75,7 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
             <View style={{ flex: 1 }}><Text style={s.switchTitle}>The Space can use this key</Text><Text style={s.switchNote}>Automations and agents without a key of their own run on it.</Text></View>
             <View style={[s.track, spaceMay && s.trackOn]}><View style={[s.knob, spaceMay && s.knobOn]} /></View>
           </Pressable>
-        ) : <Text style={s.note} testID="provider-private">A subscription sign-in stays yours. It follows you across Spaces and devices and cannot be shared.</Text>}
+        ) : <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 12 }} testID="provider-private"><Glyph name="lock" size={12} color="var(--ink-3)" /><Text style={s.note}>Mine</Text><Info help="Only you can use this sign-in" /></View>}
       </ScrollView>
     </View>
   );

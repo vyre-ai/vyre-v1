@@ -225,6 +225,9 @@ function guessMime(name: string, asText: boolean): string {
     png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
     pdf: "application/pdf", csv: "text/csv", html: "text/html",
     js: "text/javascript", ts: "text/plain", py: "text/plain",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", yml: "text/plain", yaml: "text/plain", toml: "text/plain", sql: "text/plain", sh: "text/plain",
+    heic: "image/heic", bmp: "image/bmp", avif: "image/avif", tiff: "image/tiff",
   };
   if (known[ext]) return known[ext];
   return asText ? "text/plain" : "application/octet-stream";
@@ -233,15 +236,15 @@ function guessMime(name: string, asText: boolean): string {
 function guessKind(name: string, mime: string): string {
   const ext = extOf(name);
   if (ext === "md" || ext === "markdown" || mime === "text/markdown") return "markdown";
-  if (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext) || mime.startsWith("image/")) return "image";
+  if (["png", "jpg", "jpeg", "gif", "webp", "svg", "heic", "bmp", "avif", "tiff"].includes(ext) || mime.startsWith("image/")) return "image";
   if (ext === "pdf" || mime === "application/pdf") return "pdf";
-  if (["csv", "xlsx", "xls"].includes(ext) || mime === "text/csv" || mime.includes("spreadsheet")) return "spreadsheet";
-  if (["doc", "docx"].includes(ext)) return "document";
-  if (["ppt", "pptx"].includes(ext)) return "presentation";
+  if (["csv", "xlsx", "xls", "ods", "tsv"].includes(ext) || mime === "text/csv" || mime.includes("spreadsheet")) return "spreadsheet";
+  if (["doc", "docx", "odt", "rtf"].includes(ext) || mime.includes("wordprocessingml") || mime === "application/msword") return "document";
+  if (["ppt", "pptx", "odp", "key"].includes(ext) || mime.includes("presentationml") || mime === "application/vnd.ms-powerpoint") return "presentation";
   if (["mp4", "mov", "webm"].includes(ext) || mime.startsWith("video/")) return "video";
   if (["mp3", "wav", "ogg"].includes(ext) || mime.startsWith("audio/")) return "audio";
   if (["zip", "gz", "tgz"].includes(ext)) return "archive";
-  if (["js", "ts", "tsx", "jsx", "py", "go", "rs", "java", "rb"].includes(ext)) return "code";
+  if (["js", "ts", "tsx", "jsx", "py", "go", "rs", "java", "rb", "c", "h", "cpp", "cs", "kt", "swift", "php", "sh", "sql", "css", "html", "yml", "yaml", "toml", "xml"].includes(ext)) return "code";
   if (mime.startsWith("text/") || ext === "txt" || ext === "json") return "text";
   return "other";
 }
@@ -848,11 +851,34 @@ async function filesGet(ctx: Ctx, input: unknown): Promise<{ file: FileOut }> {
   return { file: fileOutC(ctx, mustFile(ctx, reqStr(ctx, o, "fileId"))) };
 }
 
+const EXTRACT_EXT = new Set(["pdf", "docx", "xlsx", "pptx", "odt", "ods", "odp", "doc", "xls", "ppt", "rtf"]);
+
+/** Files whose text is not their bytes: a PDF, or a Word, Excel, PowerPoint or OpenDocument file. */
+function extractable(name: string, mime: string): boolean {
+  return EXTRACT_EXT.has(extOf(name)) || mime === "application/pdf" || mime.includes("officedocument") || mime.includes("opendocument") || mime === "application/msword" || mime === "application/vnd.ms-excel" || mime === "application/vnd.ms-powerpoint";
+}
+
+async function extractedText(ctx: Ctx, fileId: string, versionId: string | undefined): Promise<{ text: string; truncated: boolean }> {
+  try {
+    const out = (await ctx.call("previews.text", { fileId, ...(versionId ? { versionId } : {}) })) as { text?: string; truncated?: boolean; source?: string };
+    return { text: typeof out.text === "string" ? out.text : "", truncated: out.truncated === true };
+  } catch (e) {
+    // the text could not be taken out (a converter is down, a damaged file): say so, rather than hand back the bytes of a zip file as if they were words
+    const code = (e as { error?: { code?: string } } | null)?.error?.code;
+    fail(ctx, "validation.unsupported", code === "provider.unavailable" || code === "internal.unavailable" ? "The text of this file cannot be read right now." : "The text of this file cannot be read.");
+  }
+}
+
 async function filesRead(ctx: Ctx, input: unknown): Promise<{ text?: string; base64?: string; url?: string; mime: string; size: number; version: number; truncated: boolean }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
-  const file = mustFile(ctx, reqStr(ctx, o, "fileId"));
+  let file = mustFile(ctx, reqStr(ctx, o, "fileId"));
   const versionId = optStr(ctx, o, "versionId");
+  // A file of a live mount is an empty placeholder until it is opened: reading it opens it first (mounts.open fetches the provider's current copy, or answers that the file is not mounted).
+  if (num(file.size) === 0 && !versionId) {
+    try { await ctx.call("mounts.open", { fileId: String(file.id) }); } catch { /* not mounted, or the provider cannot be reached: the file reads as it is */ }
+    file = mustFile(ctx, String(file.id));
+  }
   let blobId = String(file.blob);
   let n = num(file.version);
   if (versionId) {
@@ -874,6 +900,12 @@ async function filesRead(ctx: Ctx, input: unknown): Promise<{ text?: string; bas
   const length = optInt(ctx, o, "length");
   if (offset < 0) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "offset" });
   if (length !== undefined && length < 1) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "length" });
+  // As text, a PDF or an Office file is read through its extracted text (previews.text), the way an agent or a person reads it, not as the bytes of a zip file. Offset and length then count characters.
+  if (as === "text" && !textLike(mime) && extractable(String(file.name), mime)) {
+    const out = await extractedText(ctx, String(file.id), versionId);
+    const text = out.text.slice(Math.min(offset, out.text.length), length === undefined ? undefined : offset + length);
+    return { text, mime, size, version: n, truncated: out.truncated || offset > 0 || (length !== undefined && offset + length < out.text.length) };
+  }
   const plain = openBlob(ctx, blobId);
   const end = length === undefined ? plain.byteLength : Math.min(plain.byteLength, offset + length);
   const slice = plain.subarray(Math.min(offset, plain.byteLength), end);

@@ -6,6 +6,7 @@ HTTP 422. Retryable: no.
 
 ## Raised by
 
+- access.audience_set
 - access.groups.add_member
 - access.roles.apply
 - access.roles.assign
@@ -27,7 +28,6 @@ HTTP 422. Retryable: no.
 - chat.approve_plan
 - chat.fork
 - chat.handoff
+- comms.senders.set_default
 - computers.record_start
 - computers.sleep
-- computers.take_over
-- conflicts.confirm

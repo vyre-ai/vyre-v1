@@ -16,6 +16,7 @@ export interface ChatsNav {
   openAllAgents(): void;
   openSearch(): void;
   openSpaceSwitcher(): void;
+  /** Opens the New channel sheet. */
   openNewChannel(): void;
   /** Hides the sidebar (the panel button in its header). Left out where the shell keeps the sidebar always. */
   toggleSidebar?(): void;
@@ -29,8 +30,10 @@ export interface ChatsSidebarData {
   call(cap: string, input: unknown): Promise<unknown>;
   connection: Connection;
   /** The Space's name and whether another Space needs you (the red dot). */
-  space: { name: string; otherNeedsYou: boolean; /** your assistant: the new-chat icon starts a chat with it */ assistant: { agentId: string; name: string } };
+  space: { name: string; otherNeedsYou: boolean; /** A Personal Space: no channels */ personal?: boolean; /** your assistant: the new-chat icon starts a chat with it */ assistant: { agentId: string; name: string } };
   nav: ChatsNav;
+  /** You: left out of the people a channel can add (you are always in), and the test for "a channel you are not in". */
+  me?: { id: string };
   clock(): { now: number; offsetMin: number };
 }
 

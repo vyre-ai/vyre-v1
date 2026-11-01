@@ -9,10 +9,11 @@ import { isTrustedService } from "../../../lib/trust.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
   api, apiRaw, bad, CONFIG_ID, config, EMAIL, enc, ensure, first, forgetTokens, GRAPH, int, needHost, newId, normalizeEmail, num, obj, PERMISSIONS, refusal, resolveSubject, rowsOf,
-  str, strOrNull, text, codeOf, userUrl,
+  str, strOrNull, text, codeOf, userAccountByEmail, userUrl,
 } from "../projections.ts";
 import type { MsCtx } from "../projections.ts";
 import { ensureMailbox, pollInterval, pullMailbox } from "./graph.ts";
+import { userSigninLost } from "./personal.ts";
 import { pullTeams } from "./teams.ts";
 import { connectCalendar, syncCalendar } from "./calendar.ts";
 import type { Act } from "./graph.ts";
@@ -44,7 +45,7 @@ function checkUrl(ctx: MsCtx, url: string): string {
 }
 
 async function create(
-  ctx: MsCtx, a: Act, cap: string, o: { kind: "mail" | "calendar" | "teams"; resource: string; mailbox: string | null; notificationUrl: string; changeType: string; maxMinutes: number },
+  ctx: MsCtx, a: Act, cap: string, o: { kind: "mail" | "calendar" | "teams" | "drive"; resource: string; mailbox: string | null; notificationUrl: string; changeType: string; maxMinutes: number },
 ): Promise<Made> {
   const notificationUrl = checkUrl(ctx, o.notificationUrl);
   const state = clientState(ctx.now());
@@ -85,6 +86,16 @@ export async function calendarSubscribe(ctx: MsCtx, a: Act & { calendarId?: stri
   return create(ctx, a, "ms.calendar.subscribe", { kind: "calendar", resource, mailbox: sub, notificationUrl: a.notificationUrl, changeType: "created,updated,deleted", maxMinutes: MAIL_MAX_MINUTES });
 }
 
+/** Watch a drive (`driveId`) or the member's own OneDrive: Graph says "something changed" and a mount pass reads the delta. */
+export async function driveSubscribe(ctx: MsCtx, a: Act & { driveId?: string; notificationUrl: string }) {
+  ensure(ctx);
+  const sub = resolveSubject(ctx, { connectionId: a.connectionId, ...(a.as ? { as: a.as } : {}) });
+  // a SharePoint drive id looks like b!AbC-d_E: base64url after a bang
+  if (a.driveId !== undefined && !/^[A-Za-z0-9!_=+.-]+$/.test(a.driveId)) bad(ctx, "The id has characters Microsoft does not allow in a resource.");
+  const resource = a.driveId ? `drives/${a.driveId}/root` : `users/${sub}/drive/root`;
+  return create(ctx, a, "ms.drive.subscribe", { kind: "drive", resource, mailbox: sub, notificationUrl: a.notificationUrl, changeType: "updated", maxMinutes: MAIL_MAX_MINUTES });
+}
+
 export async function teamsSubscribe(ctx: MsCtx, a: Act & { resource: string; notificationUrl: string }) {
   ensure(ctx);
   const sub = resolveSubject(ctx, { connectionId: a.connectionId, ...(a.as ? { as: a.as } : {}) });
@@ -111,6 +122,7 @@ export async function unsubscribe(ctx: MsCtx, a: Act & { subscriptionId: string 
 }
 
 export const mailUnsubscribe = (ctx: MsCtx, a: Act & { subscriptionId: string }) => unsubscribe(ctx, a, "ms.mail.unsubscribe");
+export const driveUnsubscribe = (ctx: MsCtx, a: Act & { subscriptionId: string }) => unsubscribe(ctx, a, "ms.drive.unsubscribe");
 export const calendarUnsubscribe = (ctx: MsCtx, a: Act & { subscriptionId: string }) => unsubscribe(ctx, a, "ms.calendar.unsubscribe");
 
 /** The renewal Run: extend every subscription that would expire within a day, recreate one Graph lost, queue the next Run. */
@@ -163,6 +175,7 @@ async function recreate(ctx: MsCtx, row: Record<string, string | number | null>,
   });
   const id = text(r.id);
   if (!id) return;
+  if (str(row, "kind") === "drive") await ctx.call("mounts.nudge", { source: "microsoft", subscriptionId: str(row, "id"), replacedBy: id }).catch(() => undefined);
   ctx.db.run(`DELETE FROM microsoft_subscription WHERE id = ?`, str(row, "id"));
   ctx.db.run(
     `INSERT INTO microsoft_subscription (id, kind, resource, mailbox, "connectionId", "notificationUrl", "clientState", "expiresAt", "maxMinutes", "changeType") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -182,7 +195,7 @@ export async function receiveNotification(
   ctx.db.run(`INSERT INTO microsoft_notification_seen ("notificationId", at) VALUES (?, ?)`, input.notificationId, ctx.now());
   // The hook layer compares clientState; a notification that failed it, or names no subscription of ours, is dropped. "manual" and "poll"
   // are this connector's own nudges (a manual sync, the queued poll) and carry no Graph subscription.
-  const sub = first(ctx.db.all(`SELECT mailbox FROM microsoft_subscription WHERE id = ?`, input.subscriptionId));
+  const sub = first(ctx.db.all(`SELECT mailbox, kind FROM microsoft_subscription WHERE id = ?`, input.subscriptionId));
   const own = input.subscriptionId === "manual" || input.subscriptionId === "poll";
   if (!input.clientStateOk || (!sub && !own)) return { accepted: false };
   const payload: Record<string, unknown> = {
@@ -192,6 +205,8 @@ export async function receiveNotification(
   ctx.emit("microsoft.notification_received", "connector/microsoft", payload);
   const mailbox = strOrNull(sub, "mailbox") ?? mailboxOf(input.resource);
   if (mailbox && /(^|\/)(messages|mailFolders)/i.test(input.resource)) await pullAndSchedule(ctx, mailbox, input.notificationId);
+  // a drive notice wakes the mounts that hold this subscription
+  if (strOrNull(sub, "kind") === "drive") await ctx.call("mounts.nudge", { source: "microsoft", subscriptionId: input.subscriptionId }).catch((e: unknown) => ctx.log.warn("microsoft drive nudge failed", { code: codeOf(e) }));
   return { accepted: true };
 }
 
@@ -205,10 +220,13 @@ function mailboxOf(resource: string): string | null {
 /** Pull one mailbox for a notice or a poll, then keep exactly one future poll queued for it. A failed pull never fails the notice. */
 async function pullAndSchedule(ctx: MsCtx, email: string, cause: string): Promise<void> {
   const cfg = config(ctx);
-  const connectionId = strOrNull(cfg, "connectionId");
-  if (!cfg || num(cfg, "configured") !== 1 || !connectionId) return;
+  const tenantId = strOrNull(cfg, "connectionId");
   const member = first(ctx.db.all(`SELECT mapped, excluded FROM microsoft_member WHERE email = ?`, email));
-  if (!member || num(member, "mapped") !== 1 || num(member, "excluded") === 1) return;
+  const delegated = !!cfg && num(cfg, "configured") === 1 && !!tenantId && !!member && num(member, "mapped") === 1 && num(member, "excluded") !== 1;
+  // an address the tenant's consent covers is read through it; any other is a person's own sign-in (ms.user.*), if there is one
+  const own = delegated ? null : userAccountByEmail(ctx, email);
+  const connectionId = delegated ? tenantId! : own?.accountId;
+  if (!connectionId) return;
   const now = ctx.now();
   let delay: number;
   try {
@@ -217,11 +235,19 @@ async function pullAndSchedule(ctx: MsCtx, email: string, cause: string): Promis
     ctx.log.info("microsoft pull", { mailbox: email, ingested: pull.ingested, deduped: pull.deduped, skipped: pull.skipped, complete: pull.complete, cause });
   } catch (e) {
     ctx.log.warn("microsoft pull failed", { mailbox: email, code: codeOf(e), cause });
+    // a person's own sign-in that the provider no longer accepts: say so once and stop polling (signing in again starts the chain)
+    if (own && !delegated && codeOf(e) === "provider.auth_failed") {
+      await userSigninLost(ctx, own);
+      ctx.db.run(`UPDATE microsoft_mailbox SET "nextPollAt" = ? WHERE email = ?`, null, email);
+      return;
+    }
     delay = pollInterval(now, null, false);
   }
-  // Teams transcripts ride on the same pass; a Teams failure never fails the mailbox pull
-  await syncCalendar(ctx, { connectionId, email });
-  await pullTeams(ctx, { connectionId, mailbox: email }).catch((e: unknown) => ctx.log.warn("microsoft teams pull failed", { mailbox: email, code: codeOf(e) }));
+  // Teams transcripts ride on the same pass; a Teams failure never fails the mailbox pull. A person's own sign-in carries mail only.
+  if (delegated) {
+    await syncCalendar(ctx, { connectionId, email });
+    await pullTeams(ctx, { connectionId, mailbox: email }).catch((e: unknown) => ctx.log.warn("microsoft teams pull failed", { mailbox: email, code: codeOf(e) }));
+  }
   const box = first(ctx.db.all(`SELECT "nextPollAt" FROM microsoft_mailbox WHERE email = ?`, email));
   const queued = box && typeof box.nextPollAt === "number" ? box.nextPollAt : 0;
   if (queued > now) return;   // a poll is already waiting; a notice or a manual sync does not start a second chain

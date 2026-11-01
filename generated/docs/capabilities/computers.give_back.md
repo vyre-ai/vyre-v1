@@ -15,7 +15,7 @@ Give the computer back to the agent
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |
-| Team Space only | yes |
+| Team Space only | no |
 | HTTP | POST /v1/computers/give_back |
 | MCP tool | computers_give_back (computer) |
 | CLI | none |
@@ -55,7 +55,6 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
-- permission.needs_team
 - permission.no_grant
 - permission.role_lacks_permission
 - validation.bad_input

@@ -116,7 +116,7 @@ Events:
 
 ### network
 
-Capabilities to implement: 19. Events to emit: 6. Contract tests that must go green: `generated/tests/network/`.
+Capabilities to implement: 24. Events to emit: 6. Contract tests that must go green: `generated/tests/network/`.
 
 Capabilities:
 - network.certificate_renew (write, server.network, level edit)
@@ -129,6 +129,11 @@ Capabilities:
 - network.my_computer_approve (write, grant only, level use, gate enroll_node)
 - network.my_computer_code (write, grant only, level use)
 - network.my_computer_decline (write, grant only, level use)
+- network.my_computer_remove (write, grant only, level use, gate delete)
+- network.my_computers (read, grant only, level use)
+- network.phone (read, grant only, level use)
+- network.phone_claim (write, grant only, level use)
+- network.phone_release (write, grant only, level use)
 - network.public_hostnames (read, server.network, level view)
 - network.relay_set (write, server.network, level manage)
 - network.server_approve (write, server.network, level manage, gate enroll_node)

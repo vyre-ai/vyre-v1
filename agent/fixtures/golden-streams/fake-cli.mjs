@@ -112,6 +112,7 @@ async function run(prompt) {
     case "authfail": replay("error-auth"); break;
     case "maxturns": replay("max-turns"); break;
     case "mcpfail": replay("mcp-failed"); break;
+    case "limits": out(JSON.stringify({ type: "rate_limit_event", rate_limit_info: { status: "allowed_warning", resetsAt: 1_792_000_000, rateLimitType: "five_hour", utilization: 0.43 }, session_id: session })); say("ok"); break;
     case "slow": await sleep(Number(words[1] ?? 400)); replay("text"); break;
     case "hang":
       out(JSON.stringify(bin === "codex" ? { type: "thread.started", thread_id: session } : { type: "system", subtype: "init", session_id: session, mcp_servers: [{ name: "vyre", status: "connected" }] }));

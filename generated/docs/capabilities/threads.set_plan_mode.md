@@ -19,7 +19,7 @@ Switch plan mode for a thread: the agent may read and plan but changes nothing u
 | HTTP | POST /v1/threads/set_plan_mode |
 | MCP tool | threads_set_plan_mode (chats) |
 | CLI | none |
-| Emits | thread.plan_mode_changed |
+| Emits | thread.updated, thread.plan_mode_changed |
 
 ## Input
 
@@ -48,6 +48,7 @@ type Out = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -116,6 +117,7 @@ type Out = {
           "kind": "person"
         }
       ],
+      "mode": "ask",
       "parentMessageId": "msg_a1b2c3",
       "parentThreadId": "thr_a1b2c3",
       "path": [

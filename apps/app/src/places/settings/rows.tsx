@@ -4,7 +4,7 @@ import type { ReactElement } from "react";
 import { Fragment } from "react";
 import { useSaved } from "./saved.tsx";
 import { useSettingsData } from "./data.tsx";
-import { MODES, bytesLabel, controlFor, hoursSummary, labelOf, rowLabel, splitList, summaryOf, timeIn } from "./model.ts";
+import { MODES, bytesLabel, controlFor, hoursSummary, labelOf, rowHelp, rowLabel, splitList, summaryOf, timeIn } from "./model.ts";
 import type { Hours, SettingRow } from "./model.ts";
 import { Choice, Field, Segmented, SettingsRow, SmallButton, Slider, Stepper, Switch, Value } from "./ui.tsx";
 
@@ -96,7 +96,8 @@ export function SettingRowFor({ row, first, found = false }: { row: SettingRow; 
   if (c.kind === "spacemap") {
     const map = (row.value ?? {}) as Record<string, boolean>;
     const items = data.spaces.filter((sp) => sp.kind === "team");
-    const out: ReactElement[] = [<SettingsRow key={row.key} id={row.key} label={row.title} first={first} found={found} control={<Value text={items.length === 0 ? "No Team Spaces" : `${items.filter((sp) => map[sp.id] === true).length} of ${items.length}`} />} />];
+    if (items.length === 0) return <Fragment />;   // a per-Space switch needs a Team Space to switch
+    const out: ReactElement[] = [<SettingsRow key={row.key} id={row.key} label={rowLabel(row)} {...(rowHelp(row) ? { help: rowHelp(row)! } : {})} first={first} found={found} control={<Value text={items.length === 0 ? "No Team Spaces" : `${items.filter((sp) => map[sp.id] === true).length} of ${items.length}`} />} />];
     for (const sp of items) {
       out.push(<SettingsRow key={`${row.key}-${sp.id}`} id={`${row.key}.${sp.id}`} label={sp.name} indent control={<SpaceSwitch rowKey={row} spaceId={sp.id} on={map[sp.id] === true} />} />);
     }
@@ -105,7 +106,7 @@ export function SettingRowFor({ row, first, found = false }: { row: SettingRow; 
   const sub = row.key === "profile.timezone" && typeof row.value === "string" ? `It is ${timeIn(data.clock().now, row.value)} for you now` : subOf(row);
   return (
     <SettingsRow
-      id={row.key} label={rowLabel(row)} first={first} found={found} {...(sub ? { sub } : {})}
+      id={row.key} label={rowLabel(row)} first={first} found={found} inline={c.kind === "switch"} {...(sub ? { sub } : {})} {...(rowHelp(row) ? { help: rowHelp(row)! } : {})}
       control={<>{changed ? <SmallButton label="Reset" testID={`reset-${row.key}`} onPress={() => void reset()} /> : null}<SettingControl row={row} /></>}
     />
   );
@@ -114,7 +115,7 @@ export function SettingRowFor({ row, first, found = false }: { row: SettingRow; 
 function SpaceSwitch({ rowKey, spaceId, on }: { rowKey: SettingRow; spaceId: string; on: boolean }): ReactElement {
   const change = useChange();
   const map = (rowKey.value ?? {}) as Record<string, boolean>;
-  return <Switch on={on} label={`${rowKey.title}, ${spaceId}`} testID={`ctl-${rowKey.key}.${spaceId}`} onChange={(n) => void change(rowKey, { ...map, [spaceId]: n })} />;
+  return <Switch on={on} label={`${rowLabel(rowKey)}, ${spaceId}`} testID={`ctl-${rowKey.key}.${spaceId}`} onChange={(n) => void change(rowKey, { ...map, [spaceId]: n })} />;
 }
 
 export { labelOf };

@@ -105,6 +105,8 @@ export function rig(o: RigOptions = {}) {
       }
       case "google.gmail.send_message": return { id: `gm_${++state.n}`, threadId: "thr_g" };
       case "ms.mail.send_message": return { sent: true };
+      case "google.user.send_message": return { id: `gu_${++state.n}`, threadId: "thr_u" };
+      case "ms.user.send_message": return { sent: true };
       case "files.get": return { file: { name: `${String(body.fileId)}.pdf` } };
       default: throw new Error(`unexpected capability ${cap}`);
     }

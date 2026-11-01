@@ -8,6 +8,17 @@ HTTP 502. Retryable: no.
 
 - connections.complete_auth
 - connectors.push
+- dropbox.app.set
+- dropbox.connect.complete
+- dropbox.files.create_folder
+- dropbox.files.delete
+- dropbox.files.download
+- dropbox.files.get_metadata
+- dropbox.files.latest_cursor
+- dropbox.files.list_folder
+- dropbox.files.list_revisions
+- dropbox.files.restore
+- dropbox.files.upload
 - engine.probe_account
 - engine.step_turn
 - engine.switch
@@ -19,15 +30,4 @@ HTTP 502. Retryable: no.
 - google.dwd.probe
 - google.dwd.setup
 - google.gmail.send_message
-- import.parse_airtable
-- import.parse_google_sheets
-- import.parse_notion
-- mail.connect
-- mail.domain.add
-- mail.send
-- mail.send_as
-- mailgun.send_email
-- meetings.attach_recording
-- mounts.add
-- mounts.browse
-- ms.consent.setup
+- google.user.app_set

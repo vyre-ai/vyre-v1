@@ -99,22 +99,19 @@ test("the caller's own line shows until the text addresses someone", () => {
   assert.equal(answerLine("anything", "Intake will reply", undefined).line, "Intake will reply");
 });
 
-test("the rendered composer shows the who line, the field, the symbols and an up-arrow send", () => {
+test("the rendered composer says who will answer (strip and a spoken line), the field, the + menu and an up-arrow send", () => {
   const html = renderToStaticMarkup(<Composer whoWillAnswer="Intake will reply" lead="Intake" lists={lists} placeholder="Message Intake" />);
   assert.match(html, /Intake will reply/);
   assert.match(html, /data-testid="composer-who"/);
+  assert.match(html, /data-testid="composer-strip"/);
   assert.match(html, /placeholder="Message Intake"/);
-  assert.match(html, /data-testid="composer-symbol-at"/);
-  assert.match(html, /data-testid="composer-symbol-hash"/);
-  assert.match(html, /data-testid="composer-symbol-slash"/);
+  assert.match(html, /data-testid="composer-attach"/);
   assert.match(html, /aria-label="Send"/);
   assert.match(html, /aria-disabled="true"/, "the arrow is disabled until there is text");
 });
 
-test("the symbols prop narrows the buttons and the recipients slot only mounts when it sends outside", () => {
+test("the recipients slot only mounts when it sends outside", () => {
   const some = renderToStaticMarkup(<Composer whoWillAnswer="x" symbols={["at"]} />);
-  assert.match(some, /composer-symbol-at/);
-  assert.doesNotMatch(some, /composer-symbol-hash|composer-symbol-slash/);
   assert.doesNotMatch(some, /composer-recipients/);
   const out = renderToStaticMarkup(<Composer whoWillAnswer="x" sendsOutside recipients={<span>To field</span>} />);
   assert.match(out, /composer-recipients/);
@@ -169,12 +166,13 @@ test("@ lists agents then people, narrowed by typing, at most eight", () => {
   assert.deepEqual(narrow.map((i) => i.label), ["Maya Chen", "Omar Haddad"]);
 });
 
-test("# groups are Folders, Channels, Records, Files; folders first when an agent leads, channels first with people", () => {
-  const heads = (agentChat: boolean) => popupFor({ ch: "#", start: 0, end: 1, query: "" }, lists, agentChat).filter((e) => !isPopupItem(e)).map((e) => ("head" in e ? e.head : ""));
-  assert.deepEqual(heads(true), ["Folders", "Channels", "Records", "Files"]);
-  assert.deepEqual(heads(false), ["Channels", "Folders", "Records", "Files"]);
+test("# is one search grouped Records, Files, Folders, Chats, Automations, Projects, Channels with section heads; a scope narrows it to one group", () => {
+  const more: ComposerLists = { ...lists, chats: [{ t: "Pricing questions", kind: "Chat", ref: "thr_1" }], automations: [{ t: "Weekly digest", kind: "Automation", ref: "aut_1" }], projects: [{ t: "Acme onboarding", kind: "Project", ref: "prj_1" }] };
+  const heads = (scope?: "All" | "Files") => popupFor({ ch: "#", start: 0, end: 1, query: "" }, more, true, scope).filter((e) => !isPopupItem(e)).map((e) => ("head" in e ? e.head : ""));
+  assert.deepEqual(heads(), ["Records", "Files", "Folders", "Chats", "Automations", "Projects", "Channels"]);
+  assert.deepEqual(heads("Files"), ["Files"]);
   const narrowed = popupFor({ ch: "#", start: 0, end: 4, query: "riv" }, lists, true).filter(isPopupItem).map((i) => i.label);
-  assert.deepEqual(narrowed, ["Projects/Rivera matter", "rivera-engagement", "Rivera Holdings"]);
+  assert.deepEqual(narrowed, ["Rivera Holdings", "Projects/Rivera matter", "rivera-engagement"]);
 });
 
 test("/ lists commands, templates and snippets", () => {
@@ -206,14 +204,14 @@ test("picking @ writes the first name and a space", () => {
   assert.equal(r.next.cursor, 10);
 });
 
-test("picking a folder with # sets the folder chip and the thread folder; picking a record adds a chip", () => {
+test("picking a folder with # sets the folder chip and the thread folder; picking a record writes an inline token", () => {
   const folder = pickOf(detectTrigger("#Mark", 5), "#Mark", "Marketing");
   assert.equal(folder.next.text, "");
   assert.equal(folder.next.folder, "Marketing");
   assert.deepEqual(folder.effect, { kind: "folder", folder: "Marketing" });
   const record = pickOf(detectTrigger("look at #Riv", 12), "look at #Riv", "Rivera Holdings");
-  assert.deepEqual(record.next.chips, [{ kind: "Record", name: "Rivera Holdings" }]);
-  assert.equal(record.next.text, "look at ");
+  assert.deepEqual(record.next.chips, []);
+  assert.equal(record.next.text, "look at #Rivera Holdings ");
 });
 
 test("[[ links a record in the text and the send carries the link", () => {

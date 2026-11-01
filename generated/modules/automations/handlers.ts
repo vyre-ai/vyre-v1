@@ -9,6 +9,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.alerts.get": Handler<"automations.alerts.get", X>;
   "automations.alerts.set": Handler<"automations.alerts.set", X>;
   "automations.analytics": Handler<"automations.analytics", X>;
+  "automations.connector_card": Handler<"automations.connector_card", X>;
+  "automations.connector_levels": Handler<"automations.connector_levels", X>;
   "automations.connector_offer.accept": Handler<"automations.connector_offer.accept", X>;
   "automations.connector_offer.decline": Handler<"automations.connector_offer.decline", X>;
   "automations.connector_offers": Handler<"automations.connector_offers", X>;
@@ -40,6 +42,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.packages.list": Handler<"automations.packages.list", X>;
   "automations.preview_promote": Handler<"automations.preview_promote", X>;
   "automations.promote": Handler<"automations.promote", X>;
+  "automations.read_docs": Handler<"automations.read_docs", X>;
   "automations.replay": Handler<"automations.replay", X>;
   "automations.restore_version": Handler<"automations.restore_version", X>;
   "automations.retry": Handler<"automations.retry", X>;
@@ -56,6 +59,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.undelete": Handler<"automations.undelete", X>;
   "automations.update": Handler<"automations.update", X>;
   "automations.validate": Handler<"automations.validate", X>;
+  "automations.vault_usage": Handler<"automations.vault_usage", X>;
   "automations.versions": Handler<"automations.versions", X>;
   "automations.webhook_url.get": Handler<"automations.webhook_url.get", X>;
   "automations.webhook_url.rotate": Handler<"automations.webhook_url.rotate", X>;

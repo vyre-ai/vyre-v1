@@ -33,7 +33,7 @@ type In = Record<string, unknown>;
 type Out = {
   kind: "personal" | "team";
   features: Array<{
-      key: "apps_public" | "campaign_sending" | "console" | "agent_computers" | "webhooks" | "always_on_runs" | "sharing" | "members";
+      key: "apps_public" | "campaign_sending" | "console" | "webhooks" | "always_on_runs" | "sharing" | "members";
       available: boolean;
       line?: string;
     }>;

@@ -20,7 +20,7 @@ A drive, library, local folder or repository was mounted as a folder
 type Payload = {
   mountId: string;
   folderId: string;
-  kind: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+  kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
   by: string;
 };
 ```

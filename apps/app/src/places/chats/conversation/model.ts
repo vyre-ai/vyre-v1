@@ -138,7 +138,16 @@ export interface QuestionOption { id: string; label: string }
 export function questionOptions(d: Record<string, unknown>): QuestionOption[] {
   const raw = d.options;
   if (!Array.isArray(raw)) return [];
-  return raw.map((o, i) => (isRec(o) ? { id: str(o.id) || String(i), label: str(o.label) || str(o.id) } : { id: String(o), label: String(o) })).filter((o) => o.label !== "");
+  return raw.map((o, i) => (isRec(o) ? { id: str(o.id) || str(o.key) || String(i), label: str(o.label) || str(o.id) } : { id: String(o), label: String(o) })).filter((o) => o.label !== "");
+}
+
+/** The terminal card a question carries (terminal.request): the command, its risk and the host, or null for an ordinary question. */
+export function terminalAskOf(d: Record<string, unknown>): { command: string; risk: "read" | "change" | "danger"; host?: "agent_computer" | "space_server" | "device" } | null {
+  const c = d.card;
+  if (!isRec(c) || c.kind !== "terminal" || typeof c.command !== "string" || c.command === "") return null;
+  const risk = c.risk === "read" || c.risk === "change" || c.risk === "danger" ? c.risk : "change";
+  const host = c.host === "agent_computer" || c.host === "space_server" || c.host === "device" ? c.host : undefined;
+  return { command: c.command, risk, ...(host ? { host } : {}) };
 }
 
 export interface PlanStep { id: string; text: string; done: boolean }
@@ -317,7 +326,7 @@ export interface Pending {
   refs?: readonly PendingRef[];
 }
 
-export interface PendingFile { name: string; file?: unknown; size?: number; mime?: string }
+export interface PendingFile { name: string; file?: unknown; size?: number; mime?: string; fileId?: string }
 export interface PendingRef { kind: string; id: string; title: string }
 
 /** A file id before the file is stored: the chip shows the name the person picked. */

@@ -18,7 +18,7 @@ function agentsOf(db: LocalDb, thread: string): Array<Record<string, unknown>> {
 function threadOut(db: LocalDb, r: SqlRow): Record<string, unknown> {
   const id = str(r["id"]);
   const o: Record<string, unknown> = {
-    threadId: id, kind: str(r["kind"]), listed: flag(r["listed"]), planMode: flag(r["modePlan"]),
+    threadId: id, kind: str(r["kind"]), listed: flag(r["listed"]), planMode: Number(r["modePlan"]) === 1, mode: Number(r["modePlan"]) === 1 ? "plan" : Number(r["modePlan"]) === 2 ? "auto" : "ask",
     members: rows(db, `SELECT "principal" FROM "chat_thread_member" WHERE "thread" = ? AND deleted_at IS NULL ORDER BY rowid`, [id]).map((m) => principalRef(str(m["principal"]))),
     agents: agentsOf(db, id), createdAt: num(r["createdAt"]),
   };

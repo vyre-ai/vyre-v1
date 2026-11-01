@@ -15,6 +15,8 @@ import { createQueryHandlers, createRecordsHandlers, mapError, RecordsError, toR
 import type { QueryHandlers, RecordRow, WriteCtx, WriteHandlers } from "./handlers/index.ts";
 import { fieldMetaTable, historyText, recordsFieldMeta } from "./projections.ts";
 import { createHistoryHandlers } from "./handlers/history.ts";
+import { createCommentsHandlers, settleTurn } from "./handlers/comments.ts";
+import type { CommentsHandlers } from "./handlers/comments.ts";
 import type { HistoryHandlers } from "./handlers/history.ts";
 import { createMergeHandlers } from "./handlers/merge.ts";
 import type { MergeHandlers } from "./handlers/merge.ts";
@@ -26,6 +28,55 @@ import { createPurgeHandlers } from "./handlers/purge.ts";
 import type { PurgeHandlers } from "./handlers/purge.ts";
 import { createSiteTableHandlers } from "./handlers/site-tables.ts";
 import type { SiteTableEvent, SiteTableHandlers } from "./handlers/site-tables.ts";
+
+/** The Vault, as Records needs it for sealed fields (host/src/seams/records-vault.ts builds it). Absent: a sealed value cannot be saved or shown, and says so. */
+export interface RecordsVault {
+  put(o: { type: string; recordId: string; field: string; value: string; ref?: string }): Promise<string>;
+  reveal(ref: string, person: string): Promise<string>;
+}
+let vault: RecordsVault | null = null;
+/** The host hands the Vault (a seam like the others). */
+export function setRecordsVault(v: RecordsVault | null): void { vault = v; }
+
+/**
+ * The sealed path: the one way a plaintext reaches a sealed field is `{ sealed: true, value: "text" }`. The text goes to the Vault and the row keeps the reference only, so no row, event,
+ * history entry or log line ever holds it. A reference passes as it is (a record read and written back), and null clears the field.
+ */
+async function sealIn(def: TypeDef, recordId: string, data: Record<string, unknown>, current?: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const out: Record<string, unknown> = { ...data };
+  for (const f of def.fields) {
+    if (f.kind !== "sealed" || !Object.prototype.hasOwnProperty.call(out, f.name)) continue;
+    const v = out[f.name];
+    if (!v || typeof v !== "object" || (v as { sealed?: unknown }).sealed !== true || typeof (v as { value?: unknown }).value !== "string") continue;
+    if (!vault) throw new StoreError("unavailable", `${f.name} is sealed and the Vault is not available on this server, so the value was not saved.`);
+    const have = current?.[f.name];
+    const ref = await vault.put({ type: def.name, recordId, field: f.name, value: (v as { value: string }).value, ...(isSealedRef(have) ? { ref: (have as { ref: string }).ref } : {}) });
+    out[f.name] = { sealed: f.name, ref, present: true, set_at: Date.now() };
+  }
+  return out;
+}
+
+/** The singular and plural spellings a type key may be asked for by: deal and deals, company and companies, status and statuses. */
+function variants(name: string): string[] {
+  const out = new Set<string>([name, `${name}s`, `${name}es`]);
+  if (/[^aeiou]y$/.test(name)) out.add(`${name.slice(0, -1)}ies`);
+  if (name.endsWith("ies")) out.add(`${name.slice(0, -3)}y`);
+  if (name.endsWith("es")) out.add(name.slice(0, -2));
+  if (name.endsWith("s")) out.add(name.slice(0, -1));
+  return [...out];
+}
+
+/**
+ * The type a record call names. The name must match; failing that, the one type whose name is the singular or the plural of what was asked (a table that sends deal for the type deals), so
+ * a type made a moment ago works whichever of the two a screen holds. Two candidates, or none, is no match.
+ */
+export function typeNamed(types: readonly TypeDef[], asked: string): TypeDef | undefined {
+  const exact = types.find((t) => t.name === asked);
+  if (exact) return exact;
+  const near = variants(asked);
+  const found = types.filter((t) => t.name !== asked && near.includes(t.name));
+  return found.length === 1 ? found[0] : undefined;
+}
 
 export interface FieldWrite {
   value: unknown;
@@ -120,6 +171,29 @@ function assertWriteOnce(def: TypeDef, current: Record<string, unknown>, patch: 
   }
 }
 
+const blank = (v: unknown): boolean => v === undefined || v === null || (typeof v === "string" && v.trim() === "") || (Array.isArray(v) && v.length === 0);
+
+/**
+ * A status field whose stages list fields to fill (`stageGates`, kept by the schema module) refuses a stage change while they are empty. The values counted are the record's own with this patch
+ * on top, so one update can fill the fields and change the stage. Every caller comes through here: a person, an Automation, an agent.
+ */
+function assertStageGates(def: TypeDef, current: Record<string, unknown>, patch: Record<string, unknown>): void {
+  for (const f of def.fields) {
+    const gates = f["stageGates"] as Record<string, { enter?: string[]; leave?: string[] }> | undefined;
+    if (!gates || !Object.prototype.hasOwnProperty.call(patch, f.name)) continue;
+    const from = current[f.name], to = patch[f.name];
+    if (typeof to !== "string" || same(from, to)) continue;
+    const merged = { ...current, ...patch };
+    const wants: { key: string; stage: string; when: "enter" | "leave" }[] = [
+      ...((typeof from === "string" ? gates[from]?.leave : undefined) ?? []).map((key) => ({ key, stage: from as string, when: "leave" as const })),
+      ...(gates[to]?.enter ?? []).map((key) => ({ key, stage: to, when: "enter" as const })),
+    ];
+    const open = wants.filter((w, i) => blank(merged[w.key]) && wants.findIndex((x) => x.key === w.key) === i)
+      .map((w) => ({ ...w, title: String(def.fields.find((x) => x.name === w.key)?.label ?? w.key) }));
+    if (open.length) throw new RecordsError("stage_gate", `Fill these first: ${open.map((m) => m.title).join(", ")}.`, { reason: "fields_required", fields: open, toStage: to });
+  }
+}
+
 export function openRecords(o: { path?: string; space?: string; actor?: string; clock?: () => number; opened?: { host: ProjectionHost; store: Store } } = {}): RecordsHandle {
   // `opened` is the Space store the host hands over (P-H_08); without it (tests) the module opens a private one
   const opened = o.opened ?? openRecordStore({
@@ -131,13 +205,12 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
   });
   const inner = opened.store;
   const host = opened.host;
-  let typeCache: readonly TypeDef[] | null = null;
-  const allTypes = async (): Promise<readonly TypeDef[]> => {
-    if (!typeCache) typeCache = await inner.types();
-    return typeCache;
-  };
+  // Types are read from the store every time, never kept: schema.apply (and sync, and replay) define types through the Space store without passing this wrapper,
+  // so a copy kept here went stale and a type made after the first record write answered "no type" (rc.7 owner bug). One indexed read of one row is cheap.
+  const allTypes = async (): Promise<readonly TypeDef[]> => inner.types();
   const needType = async (type: string): Promise<TypeDef> => {
-    const def = (await allTypes()).find((t) => t.name === type);
+    const row = /^[a-z][a-z0-9_]{0,62}$/.test(type) ? host.tx.get<{ def: string }>("SELECT def FROM rs_types WHERE name = ?", type) : undefined;
+    const def = row ? (JSON.parse(row.def) as TypeDef) : typeNamed(await allTypes(), type);
     if (!def) throw new StoreError("unknown_type", `no type ${type}`);
     return def;
   };
@@ -150,18 +223,19 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
         const t = have.find((x) => x.name === name);
         if (t?.["protected"] === true) throw new RecordsError("protected", `type ${name} is protected and cannot be dropped`);
       }
-      try { return await inner.define(diff); } finally { typeCache = null; }
+      return inner.define(diff);
     },
     async create(type, id, data) {
       const def = await needType(type);
-      return inner.create(type, id, scrub(def, { ...data }));
+      return inner.create(def.name, id, scrub(def, await sealIn(def, id, { ...data })));
     },
     async update(type, id, patch, base) {
       const def = await needType(type);
-      const clean = scrub(def, { ...patch });
-      const row = await inner.get(type, id);
+      const row = await inner.get(def.name, id);
+      const clean = scrub(def, await sealIn(def, id, { ...patch }, row?.data));
       if (row && row.version === base) assertWriteOnce(def, row.data, clean);
-      return inner.update(type, id, clean, base);
+      if (row) assertStageGates(def, row.data, clean);
+      return inner.update(def.name, id, clean, base);
     },
     async remove(type, id, base) {
       const def = (await allTypes()).find((t) => t.name === type);
@@ -204,7 +278,7 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
       const f = known.get(name);
       if (!f) throw new StoreError("unknown_field", `${type} has no field ${name}`);
       if (!parseHlc(inc.hlc)) throw new StoreError("invalid", `${name} needs a field clock`);
-      const patch = scrub(def, { [name]: inc.value });
+      const patch = scrub(def, await sealIn(def, id, { [name]: inc.value }, row.data));
       const value = patch[name];
       assertWriteOnce(def, row.data, { [name]: value });
       const next: FieldWrite = { value, hlc: inc.hlc };
@@ -287,21 +361,26 @@ export function setRecordsSpaceStore(seam: SpaceStoreSeam | null): void {
   extra = null;
   seam?.declare([recordsFieldMeta]);
 }
-export const hostSeams: SeamSetters = { setRecordsSpaceStore };
+export const hostSeams: SeamSetters = { setRecordsSpaceStore, setRecordsVault };
 function live(): RecordsHandle {
   if (!shared) shared = openRecords(spaceSeam ? { opened: spaceSeam.open() } : {});
   return shared;
 }
 
 // The rest of the live map (P-L3_LIVE): history, versions and holds (handlers/history.ts), merge, bulk upsert and export (handlers/merge.ts), both built once over the live handle.
-// DECISION: reveal has no `unseal` and export no `putFile` until the host hands this module the Vault and the Files port (a host seam); until then they refuse, they do not guess.
+// DECISION: reveal opens a sealed reference through the Vault seam (setRecordsVault); export has no `putFile` until the host hands this module the Files port; until then it refuses, it does not guess.
 type LiveHistory = Omit<HistoryHandlers, "records.history">;
-let extra: { history: LiveHistory; merge: MergeHandlers; sites: SiteTableHandlers; review: ReviewHandlers; views: ViewHandlers; purge: PurgeHandlers } | null = null;
+let extra: { comments: CommentsHandlers; history: LiveHistory; merge: MergeHandlers; sites: SiteTableHandlers; review: ReviewHandlers; views: ViewHandlers; purge: PurgeHandlers } | null = null;
 function more(): NonNullable<typeof extra> {
   if (!extra) {
     const h = live();
     extra = {
-      history: createHistoryHandlers({ tx: h.host.tx, store: h.store, writes: h.handlers, readLog: (q) => h.host.store.read(q) }),
+      comments: createCommentsHandlers({ tx: h.host.tx }),
+      history: createHistoryHandlers({
+        tx: h.host.tx, store: h.store, writes: h.handlers, readLog: (q) => h.host.store.read(q),
+        // a reveal is the Vault's: it checks the person's access to the item and logs the reveal
+        unseal: (sealed, ctx) => (vault && ctx.principal ? vault.reveal(sealed.ref, ctx.principal.id) : Promise.reject(new Error("the vault is not available"))),
+      }),
       merge: createMergeHandlers({ store: h.store, tx: h.host.tx }),
       sites: createSiteTableHandlers({ store: h.store }),
       review: createReviewHandlers({ tx: h.host.tx, store: h.store, writes: h.handlers, space: h.host.store.space }),
@@ -312,7 +391,7 @@ function more(): NonNullable<typeof extra> {
   return extra;
 }
 
-export type LiveRecordsHandlers = RecordsHandlers & LiveHistory & MergeHandlers & ReviewHandlers & ViewHandlers & PurgeHandlers;
+export type LiveRecordsHandlers = RecordsHandlers & LiveHistory & CommentsHandlers & MergeHandlers & ReviewHandlers & ViewHandlers & PurgeHandlers;
 
 /** Loader entry. The module stays stub until its manifest flips to live, which is when the host reads this. */
 export const handlers: LiveRecordsHandlers = {
@@ -325,6 +404,12 @@ export const handlers: LiveRecordsHandlers = {
   "records.counts": (ctx, input) => live().handlers["records.counts"](ctx, input),
   "records.get": (ctx, input) => live().handlers["records.get"](ctx, input),
   "records.history": (ctx, input) => live().handlers["records.history"](ctx, input),
+  "records.activity": (ctx, input) => more().history["records.activity"](ctx, input),
+  "records.comments.list": (ctx, input) => more().comments["records.comments.list"](ctx, input),
+  "records.comments.add": (ctx, input) => more().comments["records.comments.add"](ctx, input),
+  "records.comments.edit": (ctx, input) => more().comments["records.comments.edit"](ctx, input),
+  "records.comments.resolve": (ctx, input) => more().comments["records.comments.resolve"](ctx, input),
+  "records.comments.delete": (ctx, input) => more().comments["records.comments.delete"](ctx, input),
   "records.as_of": (ctx, input) => more().history["records.as_of"](ctx, input),
   "records.versions": (ctx, input) => more().history["records.versions"](ctx, input),
   "records.restore_version": (ctx, input) => more().history["records.restore_version"](ctx, input),
@@ -357,6 +442,15 @@ export const consumers = {
       const ev = event.payload as unknown as SiteTableEvent;
       if (event.name === "site.table_created") await more().sites.created(ev);
       else await more().sites.promoted(ev);
+    },
+  },
+  /** A mentioned agent's turn ended: its comment stops saying "is replying" (it answered by calling records.comments.add, which cleared it already, or it did not and the turn is over). */
+  "records.comment_turns": {
+    on: ["turn.completed", "turn.failed", "turn.cancelled"],
+    async run(_ctx: unknown, event: { name: string; payload: Record<string, unknown> }): Promise<void> {
+      const { threadId, agentId } = event.payload as { threadId?: string; agentId?: string };
+      if (typeof threadId !== "string" || typeof agentId !== "string") return;
+      settleTurn(live().host.tx, threadId, agentId, event.name === "turn.completed" ? "done" : "failed");
     },
   },
   /** An agent or automation proposed a value: it waits for review or counts straight away (per field), and the source is kept for the popover. */

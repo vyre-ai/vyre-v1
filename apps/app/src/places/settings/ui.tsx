@@ -3,10 +3,11 @@
 import { useOpenConnect } from "../../shell/connect/context.ts";
 import { connectEntries } from "../../shell/connect/model.ts";
 import type { Connected, ConnectNeed } from "../../shell/connect/model.ts";
-import { createElement, useState } from "react";
+import { createElement, isValidElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
+import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { TextField } from "../../../../../ui/src/TextField/index.tsx";
 import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
@@ -55,14 +56,20 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)", fill }: { name:
 
 // ---------------------------------------------------------------- the card and the row
 
-export function Section({ title, note, children, testID }: { title?: string; note?: string; children: ReactNode; testID?: string }): ReactElement {
+export function Section({ title, note, help, children, testID }: { title?: string; note?: string; help?: string; children: ReactNode; testID?: string }): ReactElement {
   return (
-    <View style={s.section} testID={testID ?? (title ? `section-${title}` : undefined)} accessibilityLabel={title}>
+    <Tip help={help}><View style={s.section} testID={testID ?? (title ? `section-${title}` : undefined)} accessibilityLabel={title}>
       {title ? <Text accessibilityRole="header" style={s.sTitle}>{title}</Text> : null}
       <View style={s.card}>{children}</View>
       {note ? <Text style={s.sNote}>{note}</Text> : null}
-    </View>
+    </View></Tip>
   );
+}
+
+/** Hover help: the words a row or section used to carry as a bracket or a paragraph. A `display: contents` span carries the browser's own tooltip without touching the layout; off the web there is nothing to hover. */
+export function Tip({ help, children }: { help: string | undefined; children: ReactElement }): ReactElement {
+  if (!web || !help) return children;
+  return createElement("span", { title: help, style: { display: "contents" } }, children);
 }
 
 export interface SettingsRowProps {
@@ -80,32 +87,32 @@ export interface SettingsRowProps {
   /** The search found this row: it takes a quiet accent outline for a moment. */
   found?: boolean;
   danger?: boolean;
+  /** The control is small (a switch): it stays beside the label even on a phone. */
+  inline?: boolean;
+  /** What the row used to say in a long title or a paragraph: shown on hover, never as a line of its own. */
+  help?: string;
 }
 
-/** One row anatomy: lead mark, label, a sub line only when it adds information, control on the right. Hover paints the whole row when it can be pressed. */
-export function SettingsRow({ id, label, sub, subAlert = false, lead, control, first = false, onPress, indent = false, found = false, danger = false }: SettingsRowProps): ReactElement {
-  const [over, setOver] = useState(false);
-  const body = (
-    <>
-      {lead ? <View style={s.lead}>{lead}</View> : null}
-      <View style={s.text}>
-        <Text numberOfLines={1} style={[s.label, indent && { color: "var(--ink-2)" as string }, danger && { color: "var(--danger)" as string }]}>{label}</Text>
-        {sub ? <Text numberOfLines={2} style={s.sub} {...(subAlert ? { accessibilityRole: "alert" as const } : {})}>{sub}</Text> : null}
+/** One row: the shared ui/Row with the label, a sub line only when it adds information, and the control at the right. Wrapped here only for what Settings adds (the line between rows, the search highlight, the indent). */
+export function SettingsRow({ id, label, sub, subAlert = false, lead, control, first = false, onPress, indent = false, found = false, danger = false, inline = false, help }: SettingsRowProps): ReactElement {
+  const wrap = [s.rowWrap, !first && s.rowLine, indent && { paddingLeft: 20 }, found && { backgroundColor: "var(--accent-wash)" as string }];
+  // On a phone a control that needs room (a menu, a field, a stepper) goes under its label and takes the width; a switch or a small button stays beside it.
+  const narrow = useWindowDimensions().width < 560;
+  const small = inline || isValidElement(control) && (control.type === Switch || control.type === SmallButton || control.type === Value);
+  const stack = narrow && control !== undefined && control !== null && !small;
+  return (
+    <Tip help={help}>
+      <View style={wrap} {...webOnly({ dataSet: { sid: id } })}>
+        <Row
+          id={id} title={label} {...(sub ? { note: sub, tall: sub.length > 56 } : {})} {...(subAlert ? { noteLead: "Failed", noteLeadTone: "warning" as const } : {})}
+          {...(lead ? { leading: <View style={s.lead}>{lead}</View> } : {})} {...(control && !stack ? { trailing: <View style={small ? s.controlFixed : s.control}>{control}</View> } : {})}
+          {...(danger ? { titleMarks: <View style={s.dangerDot} /> } : {})}
+          {...(onPress ? { onPress } : { domProps: { style: { cursor: "default", backgroundColor: "transparent" } } })}
+        />
+        {subAlert && sub ? <Text accessibilityRole="alert" style={s.srOnly}>{sub}</Text> : null}
+        {stack ? <View style={s.stacked}>{control}</View> : null}
       </View>
-      {control ? <View style={s.control}>{control}</View> : null}
-    </>
-  );
-  const common = [s.row, !first && s.rowLine, indent && { paddingLeft: 28 }, found && { backgroundColor: "var(--accent-wash)" as string }] as const;
-  return onPress ? (
-    <Pressable
-      accessibilityRole="button" accessibilityLabel={sub ? `${label}. ${sub}` : label} testID={`row-${id}`} onPress={onPress}
-      onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)} {...webOnly({ dataSet: { sid: id } })}
-      style={[...common, over && { backgroundColor: "var(--hover)" as string }, pointer]}
-    >
-      {body}
-    </Pressable>
-  ) : (
-    <View testID={`row-${id}`} accessibilityLabel={label} {...webOnly({ dataSet: { sid: id } })} style={common}>{body}</View>
+    </Tip>
   );
 }
 
@@ -270,13 +277,17 @@ export const s = StyleSheet.create({
   sTitle: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string, marginBottom: 8, paddingHorizontal: 2 },
   sNote: { fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string, marginTop: 8, paddingHorizontal: 2 },
   card: { borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string, overflow: "hidden" },
-  row: { minHeight: 54, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 12, paddingVertical: 8 },
+  rowWrap: { paddingHorizontal: 4, paddingVertical: 4, justifyContent: "center" },
+  stacked: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", gap: 8, paddingHorizontal: 8, paddingBottom: 6 },
+  srOnly: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
+  dangerDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--danger)" as string },
   rowLine: { borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   lead: { width: 34, alignItems: "center", justifyContent: "center" },
   text: { flex: 1, minWidth: 0, justifyContent: "center" },
   label: { fontSize: 13.5, lineHeight: 18, color: "var(--ink)" as string },
   sub: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
   control: { flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8, maxWidth: "62%" },
+  controlFixed: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 8 },
   sw: { width: 34, height: 20, borderRadius: 10, justifyContent: "center" },
   knob: { position: "absolute", top: 2, width: 16, height: 16, borderRadius: 8, backgroundColor: "#fff" },
   choice: { height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 7, flexShrink: 1, minWidth: 0 },

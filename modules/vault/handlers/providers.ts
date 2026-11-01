@@ -64,6 +64,7 @@ function rowOut(ctx: VaultCtx, p: Row, used?: { tokens: number; costCents: numbe
   return {
     id: str(p, "id"), providerKey: str(p, "providerKey"), name: c?.name ?? str(p, "providerKey"), ...(c?.logo ? { logo: c.logo } : {}),
     connection: str(p, "connection"), via: viaOf(str(p, "connection"), str(p, "scope")), scope: str(p, "scope"), itemId: str(p, "itemId"),
+    ...(item && str(item, "name") ? { itemName: str(item, "name") } : {}),
     ...(item && str(item, "handle") ? { handle: str(item, "handle") } : {}), agentsUsing: [],
     usage: { tokens: used?.tokens ?? 0, costCents: used?.costCents ?? 0, periodStart: monthStart(ctx.now()) }, engine: c?.engine ?? str(p, "providerKey"),
     spaceMayUse: num(p, "spaceMayUse") === 1, state: str(p, "state"),
@@ -119,9 +120,11 @@ export async function list(ctx: VaultCtx, _input: Record<string, never>) {
 async function mineFolder(ctx: VaultCtx): Promise<string> {
   const have = rowsOf(ctx.db.all(`SELECT * FROM vault_folder`)).find((f) => live(f) && str(f, "scope") === "mine" && str(f, "owner") === ctx.principal.id && str(f, "name") === "AI providers");
   if (have) return str(have, "id");
-  // made quietly: providers.add declares provider.added and vault.item_created, not vault.folder_created, and the folder is the module's own bookkeeping for the person
+  // The folder is announced like any other (vault.folder_created): the access module registers a folder from that event, and a folder that was never registered answers "not found" to its own owner
+  // when an item is put into it (the Add to the Vault sheet offers it as Mine).
   const id = newId("vfd", ctx.now());
   ctx.db.run(`INSERT INTO vault_folder ("id", "name", "parentId", "scope", "owner", "whoCanExport", "createdAt") VALUES (?, ?, ?, ?, ?, ?, ?)`, id, "AI providers", null, "mine", ctx.principal.id, "[]", ctx.now());
+  ctx.emit("vault.folder_created", `vault_folder/${id}`, { folderId: id, scope: "mine" }, { vis: "participants" });
   return id;
 }
 

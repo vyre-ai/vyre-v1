@@ -97,7 +97,7 @@ test("the Personal matrix: a Team Space has everything, a Personal Space shows o
   const p = await call("spaces.matrix", personal.ctx, {}) as { kind: string; features: { key: string; available: boolean; line?: string }[] };
   assert.equal(p.kind, "personal");
   assert.ok(p.features.every((f) => !f.available && f.line === TEAM_LINE));
-  assert.deepEqual(p.features.map((f) => f.key), ["apps_public", "campaign_sending", "console", "agent_computers", "webhooks", "always_on_runs", "sharing", "members"]);
+  assert.deepEqual(p.features.map((f) => f.key), ["apps_public", "campaign_sending", "console", "webhooks", "always_on_runs", "sharing", "members"]);
 });
 
 test("export is the Space-wide export of the backup module and answers with its run", async () => {

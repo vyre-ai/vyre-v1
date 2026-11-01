@@ -35,6 +35,8 @@ export interface ReviewData {
   call(cap: string, input: unknown): Promise<unknown>;
   /** The name to show for a person or agent id. */
   nameOf(id: string): string;
+  /** A file named in a note (or the Inherits chip) opens in a tab of its own; `background` leaves the person where they are. */
+  openFileTab?(fileId: string, background: boolean): void;
   /** A fresh idempotency key for one attempt. */
   key(): string;
   /** Now, for "2 minutes ago" lines. */

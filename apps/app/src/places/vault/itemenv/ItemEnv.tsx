@@ -13,6 +13,7 @@ import type { Folder, Item, Share } from "../layout/model.ts";
 import { Btn, Glyph, IconBtn, LogoTile, Mono } from "../layout/parts.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { MASK, formatEnv, keysOf } from "./env.ts";
+import { AutomationsRow } from "./AutomationsRow.tsx";
 import { WhoCanUse } from "./WhoCanUse.tsx";
 import { createRevealStore } from "./reveal.ts";
 import type { RevealStore } from "./reveal.ts";
@@ -235,6 +236,8 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
             {rv.error ? <Text style={s.error} accessibilityRole="alert" testID="env-error">{rv.error}</Text> : null}
           </View>
 
+          <AutomationsRow item={{ id: itemId, name: item.name, handle: item.handle, kind: item.kind, yourLevel: item.yourLevel, folderId: item.folderId }} />
+
           {rot ? (
             <View style={s.row} testID="item-rotation">
               <Glyph name="clock" size={14} color={rot.due ? "var(--warn)" : "var(--ink-3)"} />
@@ -301,7 +304,7 @@ function FieldLine({ view, fieldKey, secret, hasValue, value, canSee, online, bu
   const text = shown ? value : hasValue ? MASK : "";
   return (
     <Pressable
-      accessibilityRole="button" accessibilityLabel={`${fieldKey}${shown ? "" : ", hidden"}`} testID={`env-line-${fieldKey}`}
+      accessibilityRole="group" accessibilityLabel={`${fieldKey}${shown ? "" : ", hidden"}`} testID={`env-line-${fieldKey}`}
       onPress={canSee ? onCopy : undefined} onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)} onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
       style={[s.line, over && { backgroundColor: "var(--hover)" as string }]}
     >

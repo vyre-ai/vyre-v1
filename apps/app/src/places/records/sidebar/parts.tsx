@@ -17,6 +17,9 @@ export const ICON = {
   sync: ["M13 6A5 5 0 004.2 4.2L3 5.5M3 2.5v3h3", "M3 10a5 5 0 008.8 1.8L13 10.5M13 13.5v-3h-3"],
   map: ["M2.5 4l3.5-1.5 4 1.5 3.5-1.5v9.5L10 13.5 6 12l-3.5 1.5z", "M6 2.5V12M10 4v9.5"],
   schema: ["M8 2.5v3M4 9.5V8h8v1.5M8 5.5V8M4 9.5h.01M12 9.5h.01M3 9.5h2v3H3zM11 9.5h2v3h-2zM7 2.5h2v3H7z"],
+  board: ["M2.5 3.5h3.2v9H2.5zM6.4 3.5h3.2v5.5H6.4zM10.3 3.5h3.2v7.5h-3.2z"],
+  gallery: ["M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z"],
+  list: ["M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01"],
   users: ["M8 5.5a2.3 2.3 0 11-4.6 0 2.3 2.3 0 014.6 0z", "M1.8 13a4.2 4.2 0 018.4 0"],
   chevd: ["M3.5 6l4.5 4.5L12.5 6"],
   chevr: ["M6 3.5l4.5 4.5L6 12.5"],
@@ -38,10 +41,18 @@ export const ICON = {
   route: ["M4 12.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z", "M12 6.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z", "M5.5 11h4a2 2 0 002-2V8"],
   pull: ["M4.5 5.2a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM4.5 13.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z", "M4.5 5.2v5.3M11.5 13.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z", "M11.5 10.5V6.5a2 2 0 00-2-2H8"],
   more: ["M3.5 8h.01M8 8h.01M12.5 8h.01"],
+  download: ["M8 2.5v7.5M4.8 7.2L8 10.4l3.2-3.2", "M3 12.8h10"],
+  lock: ["M4.5 7.5h7v5.5h-7z", "M6 7.5V5.6a2 2 0 014 0v1.9"],
+  share: ["M8 5.5a2.3 2.3 0 11-4.6 0 2.3 2.3 0 014.6 0z", "M1.8 13a4.2 4.2 0 018.4 0", "M12 5v4M10 7h4"],
   spark: ["M8 2v3M8 11v3M2 8h3M11 8h3M4 4l2 2M10 10l2 2M12 4l-2 2M6 10l-2 2"],
   issue: ["M13.5 8a5.5 5.5 0 11-11 0 5.5 5.5 0 0111 0z", "M8 8h.01"],
 } as const;
 export type IconName = keyof typeof ICON;
+
+/** The glyph of a saved view: the one of its kind (table, board, gallery, list), or the filter for a kind this set does not draw. */
+export function viewGlyph(kind: string): IconName {
+  return kind === "table" || kind === "board" || kind === "gallery" || kind === "list" ? kind : "filter";
+}
 
 /** The glyph a record type's `icon` names; an icon this set does not draw falls back to the table. */
 export function typeIcon(icon: string): IconName {

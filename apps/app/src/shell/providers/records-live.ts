@@ -2,6 +2,7 @@
 // Space's people. A runtime whose hooks cannot answer a capability query (a replica without per-capability readers) gives a query that stays loading, so a place draws its loading frame.
 import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
 import type { Principal } from "../../places/home/sections-a/data.tsx";
+import { unnamed } from "../../places/chats/names.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 type CapQuery = <T>(cap: string, input?: Record<string, unknown>) => LiveQuery<T>;
@@ -22,6 +23,7 @@ export function nameLookup(rt: ShellRuntime): (id: string) => string {
     if (id === rt.me.id) return rt.me.name;
     const s = rt.principals.getSnapshot();
     const p: Principal | undefined = s.status === "ready" ? s.data.find((x) => x.id === id) : undefined;
-    return p ? p.name : id;
+    // never a raw id: a service (svc_host) is Vyre, and anyone not known is a plain word
+    return p ? p.name : unnamed(id);
   };
 }

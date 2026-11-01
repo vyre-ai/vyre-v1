@@ -18,6 +18,9 @@ import { LIST_SCREEN, STARS_SCREEN } from "./data.ts";
 import type { TerminalData } from "./data.ts";
 import { ago, chipLabel, ordered, sessionLine } from "./model.ts";
 import { closeSession, openSession, toggleStar } from "./session.ts";
+import { openHostCall } from "./hosts.ts";
+import type { HostChoice } from "./hosts.ts";
+import { useHosts } from "./useHosts.ts";
 
 type ListOut = CapMap["terminal.list"]["out"];
 type StarsOut = CapMap["stars.list"]["out"];
@@ -34,6 +37,7 @@ export function TerminalList({ data, x, y, onClose, window }: { data: TerminalDa
   const q = useLive<ListOut>(data.screens, LIST_SCREEN, "terminals", {});
   const stars = useLive<StarsOut>(data.screens, STARS_SCREEN, "stars", {});
   const menu = useMenu();
+  const hosts = useHosts(data);
   const [line, setLine] = useState<string | null>(null);
   const deps = { call: data.call, newKey: data.newKey };
   const starred = new Set(stars.status === "ready" ? stars.data.stars.filter((s) => s.resource.type === "terminal").map((s) => s.resource.id) : []);
@@ -46,9 +50,18 @@ export function TerminalList({ data, x, y, onClose, window }: { data: TerminalDa
       (e: unknown) => setLine(h === "server" && isRefusal(e) ? "The Space server's shell needs server.services. Ask an Owner or a Developer." : errorWords(e, "Could not open it.")),
     );
   };
+  const openOnHost = (h: HostChoice): void => {
+    const c = openHostCall(h, data.newKey());
+    void (data.call(c.cap, c.input) as Promise<{ terminal: { terminalId: string } }>).then(
+      (o) => { data.nav.openTerminal(o.terminal.terminalId); onClose(); },
+      (e: unknown) => setLine(h.kind === "server" && isRefusal(e) ? "The Space server needs an Owner or a Developer." : errorWords(e, "Could not open it.")),
+    );
+  };
   const newMenu = (px: number, py: number): void => {
+    // every computer the person has when it is known; the three kinds while it is still loading or cannot be read
     const items: MenuEntry[] = [{ head: "New terminal on" }];
-    for (const h of TERMINAL_HOSTS) items.push({ label: HOST_NAMES[h], onSelect: () => openOn(h) });
+    if (hosts.length > 0) for (const h of hosts) items.push({ label: h.label, ...(h.online ? { onSelect: () => openOnHost(h) } : { disabled: true, reason: h.why ?? "Offline" }) });
+    else for (const k of TERMINAL_HOSTS) items.push({ label: HOST_NAMES[k], onSelect: () => openOn(k) });
     menu.show(items, px, py, "other", { label: "New terminal" });
   };
 

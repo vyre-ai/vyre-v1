@@ -42,10 +42,10 @@ export function MemorySpend(): ReactElement | null {
   };
   const last = s.lastNight;
   return (
-    <Section title="Memory spend" note="What the nightly model pass costs. Rules-only upkeep is free.">
+    <Section title="Memory spend" help="What the nightly model pass costs. Rules-only upkeep is free.">
       <SettingsRow id="memory.spend.night" label="Last night" first sub={last ? `${last.runs} ${last.runs === 1 ? "run" : "runs"}, ${last.tokensIn + last.tokensOut} tokens` : "No model pass ran"} control={<Value text={last ? dollars(last.costMicros) : "$0.00"} testID="spend-night" />} />
       <SettingsRow id="memory.spend.month" label="This month" sub={monthNote(s)} control={<Value text={dollars(s.spentMicros)} accent={s.capReached} testID="spend-month" />} />
-      <SettingsRow id="memory.spend.cap" label="Monthly cap" sub="Upkeep stops using a model at this many dollars a month" control={<Stepper value={dollarsCap} onChange={change} min={0} max={1000} step={1} label="Monthly cap in dollars" unit="$" testID="ctl-memory-spend-cap" />} />
+      <SettingsRow id="memory.spend.cap" label="Monthly cap" sub="Upkeep stops using a model at this amount" control={<Stepper value={dollarsCap} onChange={change} min={0} max={1000} step={1} label="Monthly cap in dollars" format={(n) => `$${n}`} testID="ctl-memory-spend-cap" />} />
     </Section>
   );
 }

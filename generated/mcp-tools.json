@@ -168,6 +168,99 @@
     },
     {
       "blocks": [],
+      "cap": "access.audience_set",
+      "deferred": false,
+      "description": "Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record's Files folder can follow its record",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "audience": {
+            "enum": [
+              "space",
+              "added",
+              "me"
+            ],
+            "type": "string"
+          },
+          "exporters": {
+            "enum": [
+              "admins",
+              "viewers",
+              "chosen"
+            ],
+            "type": "string"
+          },
+          "follows": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "outside": {
+            "type": "boolean"
+          },
+          "resource": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "rec_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "space",
+                  "record_type",
+                  "record",
+                  "project",
+                  "folder",
+                  "file",
+                  "channel",
+                  "thread",
+                  "inbox",
+                  "mailbox",
+                  "vault_folder",
+                  "vault_item",
+                  "automation_group",
+                  "automation",
+                  "agent",
+                  "connector",
+                  "connection",
+                  "site",
+                  "form",
+                  "campaign",
+                  "kit",
+                  "terminal",
+                  "computer",
+                  "task",
+                  "run",
+                  "number",
+                  "domain",
+                  "calendar"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "resource"
+        ],
+        "type": "object"
+      },
+      "name": "access_audience_set",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "access.check",
       "deferred": false,
       "description": "Access checker: can principal P do action A on resource R, with each step in plain words",
@@ -499,6 +592,9 @@
                 "minimum": 0,
                 "type": "integer"
               },
+              "export": {
+                "type": "boolean"
+              },
               "hiddenFields": {
                 "items": {
                   "type": "string"
@@ -513,6 +609,9 @@
                   "restricted"
                 ],
                 "type": "string"
+              },
+              "reshare": {
+                "type": "boolean"
               },
               "rowFilter": {
                 "description": "Any JSON value"
@@ -1471,6 +1570,32 @@
     },
     {
       "blocks": [],
+      "cap": "access.record_marks",
+      "deferred": false,
+      "description": "For the rows of one record type: which differ from the type (their own audience or direct grants), and whether the caller was given the type or a row by name",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "name": "access_record_marks",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "access.request",
       "deferred": false,
       "description": "Ask the Manage holders of a resource (or the admins, for a permission) for access; one open request per person and resource",
@@ -2206,6 +2331,9 @@
                 "minimum": 0,
                 "type": "integer"
               },
+              "export": {
+                "type": "boolean"
+              },
               "hiddenFields": {
                 "items": {
                   "type": "string"
@@ -2220,6 +2348,9 @@
                   "restricted"
                 ],
                 "type": "string"
+              },
+              "reshare": {
+                "type": "boolean"
               },
               "rowFilter": {
                 "description": "Any JSON value"
@@ -2252,6 +2383,9 @@
             },
             "type": "object"
           },
+          "export": {
+            "type": "boolean"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -2267,6 +2401,9 @@
               "manage"
             ],
             "type": "string"
+          },
+          "reshare": {
+            "type": "boolean"
           },
           "resource": {
             "properties": {
@@ -2365,7 +2502,7 @@
       "blocks": [],
       "cap": "access.shares_of",
       "deferred": false,
-      "description": "Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry",
+      "description": "Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry; for a record type or a record also who it is open to and who may export",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -3733,6 +3870,40 @@
           "allowOther": {
             "type": "boolean"
           },
+          "card": {
+            "properties": {
+              "command": {
+                "type": "string"
+              },
+              "host": {
+                "enum": [
+                  "agent_computer",
+                  "space_server",
+                  "device"
+                ],
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "terminal"
+                ],
+                "type": "string"
+              },
+              "risk": {
+                "enum": [
+                  "read",
+                  "change",
+                  "danger"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "command"
+            ],
+            "type": "object"
+          },
           "mode": {
             "enum": [
               "single",
@@ -4421,6 +4592,72 @@
     },
     {
       "blocks": [],
+      "cap": "automations.connector_card",
+      "deferred": false,
+      "description": "Post a compact card in the chat: a title and up to 20 rows, each done or not. Used for connector test results and the review before publish. A key is refused.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "items": {
+            "items": {
+              "properties": {
+                "done": {
+                  "type": "boolean"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text",
+                "done"
+              ],
+              "type": "object"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "title",
+          "items"
+        ],
+        "type": "object"
+      },
+      "name": "automations_connector_card",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.connector_levels",
+      "deferred": false,
+      "description": "Which connector actions were tried against the real app (tested) and which were not (draft). Keys only.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "automations_connector_levels",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.connector_offer.accept",
       "deferred": false,
       "description": "Accept a connector setup offer. Accepting is final for that Vault item.",
@@ -4620,6 +4857,14 @@
                         "backupKeyId": {
                           "type": "string"
                         },
+                        "doneMeans": {
+                          "items": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "maxItems": 20,
+                          "type": "array"
+                        },
                         "escalateTo": {
                           "properties": {
                             "id": {
@@ -4646,6 +4891,13 @@
                           "type": "object"
                         },
                         "keyId": {
+                          "type": "string"
+                        },
+                        "mode": {
+                          "enum": [
+                            "answer",
+                            "task"
+                          ],
                           "type": "string"
                         },
                         "nudgeMinutes": {
@@ -5548,6 +5800,31 @@
     },
     {
       "blocks": [],
+      "cap": "automations.read_docs",
+      "deferred": false,
+      "description": "Read one public API docs page as plain text, with its same-site links. For an OpenAPI document, one line per operation. GET only, no key, public hosts only. Give focus to get just the passages around a word.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "focus": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      },
+      "name": "automations_read_docs",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.replay",
       "deferred": false,
       "description": "Live rerun of a past run on the same definition version or the current one, not a sandbox replay",
@@ -6000,6 +6277,10 @@
             },
             "type": "array"
           },
+          "header": {
+            "description": "The header the app wants the key in. Default Authorization.",
+            "type": "string"
+          },
           "markedSafe": {
             "type": "boolean"
           },
@@ -6009,7 +6290,12 @@
           "path": {
             "type": "string"
           },
+          "prefix": {
+            "description": "Text before the key in that header. Default Bearer for Authorization, none otherwise.",
+            "type": "string"
+          },
           "vaultItemId": {
+            "description": "The Vault handle with its field (#Name.api_key) or an item id. The key is released to the person asking, never returned.",
             "type": "string"
           }
         },
@@ -6137,6 +6423,14 @@
                         "backupKeyId": {
                           "type": "string"
                         },
+                        "doneMeans": {
+                          "items": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "maxItems": 20,
+                          "type": "array"
+                        },
                         "escalateTo": {
                           "properties": {
                             "id": {
@@ -6163,6 +6457,13 @@
                           "type": "object"
                         },
                         "keyId": {
+                          "type": "string"
+                        },
+                        "mode": {
+                          "enum": [
+                            "answer",
+                            "task"
+                          ],
                           "type": "string"
                         },
                         "nudgeMinutes": {
@@ -6433,6 +6734,14 @@
                         "backupKeyId": {
                           "type": "string"
                         },
+                        "doneMeans": {
+                          "items": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "maxItems": 20,
+                          "type": "array"
+                        },
                         "escalateTo": {
                           "properties": {
                             "id": {
@@ -6459,6 +6768,13 @@
                           "type": "object"
                         },
                         "keyId": {
+                          "type": "string"
+                        },
+                        "mode": {
+                          "enum": [
+                            "answer",
+                            "task"
+                          ],
                           "type": "string"
                         },
                         "nudgeMinutes": {
@@ -6645,6 +6961,29 @@
         "type": "object"
       },
       "name": "automations_validate",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.vault_usage",
+      "deferred": false,
+      "description": "Which Automation steps use which Vault item, by handle. Optionally one item. Only Automations the caller can see. A Vault value is never included.",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "handle": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "automations_vault_usage",
       "planMode": "allowed",
       "toolset": "automations",
       "v": 1
@@ -10518,7 +10857,7 @@
       "blocks": [],
       "cap": "chat.recent",
       "deferred": false,
-      "description": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse",
+      "description": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -11636,6 +11975,62 @@
     },
     {
       "blocks": [],
+      "cap": "comms.senders.list",
+      "deferred": false,
+      "description": "Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "email",
+              "text"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "comms_senders_list",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "comms.senders.set_default",
+      "deferred": false,
+      "description": "Choose the default sender of a channel for me; it must be a usable sender from comms.senders.list",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "email",
+              "text"
+            ],
+            "type": "string"
+          },
+          "senderId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "senderId"
+        ],
+        "type": "object"
+      },
+      "name": "comms_senders_set_default",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "computers.files.delete",
       "deferred": false,
       "description": "Delete a file from the agent Files folder; always asks outside work/",
@@ -11889,6 +12284,21 @@
       },
       "name": "computers_give_back",
       "planMode": "blocked",
+      "toolset": "computer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "computers.hosts",
+      "deferred": false,
+      "description": "The machines an agent computer can run on for you: this computer or the Space server when its container runtime answers, and each server you added that has Docker. Nothing about agent computers is offered until one can run them",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "computers_hosts",
+      "planMode": "allowed",
       "toolset": "computer",
       "v": 1
     },
@@ -12796,7 +13206,7 @@
       },
       "name": "connections_create",
       "planMode": "blocked",
-      "toolset": "engineer",
+      "toolset": "automations",
       "v": 1
     },
     {
@@ -12848,7 +13258,7 @@
       },
       "name": "connections_get",
       "planMode": "allowed",
-      "toolset": "engineer",
+      "toolset": "automations",
       "v": 1
     },
     {
@@ -12886,7 +13296,7 @@
       },
       "name": "connections_list",
       "planMode": "allowed",
-      "toolset": "engineer",
+      "toolset": "automations",
       "v": 1
     },
     {
@@ -12965,6 +13375,44 @@
       "name": "connections_resume",
       "planMode": "blocked",
       "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "connections.set_secret",
+      "deferred": false,
+      "description": "Fill one empty secret slot of a connection from a Vault handle (a name such as #Resend_Webhook.secret, never a value). The last empty slot turns a pending API connection active.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "handle": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          },
+          "slot": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "slot",
+          "handle"
+        ],
+        "type": "object"
+      },
+      "name": "connections_set_secret",
+      "planMode": "blocked",
+      "toolset": "automations",
       "v": 1
     },
     {
@@ -13069,6 +13517,134 @@
     },
     {
       "blocks": [],
+      "cap": "connectors.define",
+      "deferred": false,
+      "description": "Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "actions": {
+            "items": {
+              "properties": {
+                "headers": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "method": {
+                  "enum": [
+                    "GET",
+                    "POST",
+                    "PUT",
+                    "PATCH",
+                    "DELETE"
+                  ],
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "output": {
+                  "type": "string"
+                },
+                "query": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "write": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "name",
+                "url"
+              ],
+              "type": "object"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "auth": {
+            "properties": {
+              "header": {
+                "type": "string"
+              },
+              "prefix": {
+                "type": "string"
+              },
+              "secret": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "none",
+                  "api_key",
+                  "bearer"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          "domains": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "key": {
+            "examples": [
+              "hubspot"
+            ],
+            "type": "string"
+          },
+          "secrets": {
+            "items": {
+              "properties": {
+                "description": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "description"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "domains",
+          "auth",
+          "actions"
+        ],
+        "type": "object"
+      },
+      "name": "connectors_define",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "connectors.diff",
       "deferred": false,
       "description": "Diff a draft against the live version of a connector",
@@ -13146,7 +13722,7 @@
       },
       "name": "connectors_get",
       "planMode": "allowed",
-      "toolset": "engineer",
+      "toolset": "automations",
       "v": 1
     },
     {
@@ -13183,6 +13759,9 @@
             ],
             "type": "string"
           },
+          "source": {
+            "type": "boolean"
+          },
           "title": {
             "type": "string"
           }
@@ -13197,7 +13776,7 @@
       },
       "name": "connectors_init",
       "planMode": "blocked",
-      "toolset": "engineer",
+      "toolset": "automations",
       "v": 1
     },
     {
@@ -13229,7 +13808,7 @@
       },
       "name": "connectors_list",
       "planMode": "allowed",
-      "toolset": "engineer",
+      "toolset": "automations",
       "v": 1
     },
     {
@@ -13365,7 +13944,7 @@
       },
       "name": "connectors_publish",
       "planMode": "blocked",
-      "toolset": "engineer",
+      "toolset": "automations",
       "v": 1
     },
     {
@@ -13562,7 +14141,7 @@
       },
       "name": "connectors_test",
       "planMode": "allowed",
-      "toolset": "engineer",
+      "toolset": "automations",
       "v": 1
     },
     {
@@ -15040,6 +15619,284 @@
     },
     {
       "blocks": [],
+      "cap": "dropbox.files.create_folder",
+      "deferred": true,
+      "description": "Create a Dropbox folder",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "dropbox_files_create_folder",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "dropbox.files.delete",
+      "deferred": true,
+      "description": "Delete a Dropbox file or folder (Dropbox keeps it in its deleted files for a while)",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "rev": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "dropbox_files_delete",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "dropbox.files.download",
+      "deferred": true,
+      "description": "Download a Dropbox file, or one of its revisions, into a blob",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "rev": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "dropbox_files_download",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "dropbox.files.get_metadata",
+      "deferred": true,
+      "description": "Read one Dropbox file or folder",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "dropbox_files_get_metadata",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "dropbox.files.list_folder",
+      "deferred": true,
+      "description": "List a Dropbox folder, or continue a listing with its cursor; a cursor kept from before reads only what changed since",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 2000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "path": {
+            "description": "Empty for the root, /Folder, or an id such as id:abc",
+            "type": "string"
+          },
+          "recursive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "connectionId"
+        ],
+        "type": "object"
+      },
+      "name": "dropbox_files_list_folder",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "dropbox.files.list_revisions",
+      "deferred": true,
+      "description": "List the saved revisions of a Dropbox file, newest first",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "dropbox_files_list_revisions",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "dropbox.files.restore",
+      "deferred": true,
+      "description": "Restore a Dropbox file to one of its revisions",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "rev": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "path",
+          "rev"
+        ],
+        "type": "object"
+      },
+      "name": "dropbox_files_restore",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "dropbox.files.upload",
+      "deferred": true,
+      "description": "Upload a Space file to Dropbox; with rev it only replaces that revision",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "path": {
+            "description": "Where it goes, such as /Sales/Report.docx",
+            "type": "string"
+          },
+          "rev": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "fileId",
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "dropbox_files_upload",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "email_builder.ask_cancel",
       "deferred": false,
       "description": "Stop my Ask Vyre request on a design that is still waiting for the agent",
@@ -16010,6 +16867,77 @@
     },
     {
       "blocks": [],
+      "cap": "engine.placement.options",
+      "deferred": false,
+      "description": "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; and where the chat runs now",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_placement_options",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.placement.set",
+      "deferred": false,
+      "description": "Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers. The next turn goes there; a teammate's machine is never a choice",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "serverId": {
+            "type": "string"
+          },
+          "target": {
+            "enum": [
+              "device",
+              "space",
+              "server"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "target"
+        ],
+        "type": "object"
+      },
+      "name": "engine_placement_set",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "engine.policy.get",
       "deferred": false,
       "description": "AI policies: allowed accounts, allowed models and providers, and which providers each label may reach",
@@ -16839,6 +17767,47 @@
       "name": "engine_turns_list",
       "planMode": "allowed",
       "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.usage.get",
+      "deferred": false,
+      "description": "For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "accountRef": {
+            "description": "Vault handle or subscription account reference; never a secret value",
+            "examples": [
+              "#Team_Anthropic_Key"
+            ],
+            "type": "string"
+          },
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_usage_get",
+      "planMode": "allowed",
+      "toolset": "meta",
       "v": 1
     },
     {
@@ -18487,7 +19456,7 @@
       "blocks": [],
       "cap": "files.read",
       "deferred": false,
-      "description": "Read the content of a file or one of its versions as text, base64 or a short-lived download address",
+      "description": "Read the content of a file or one of its versions as text, base64 or a short-lived download address; as text, a PDF, Word, Excel or PowerPoint file comes back as its extracted text",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -20310,7 +21279,8 @@
               "site_promote",
               "signature_send",
               "spend_raise",
-              "signin_change"
+              "signin_change",
+              "approve"
             ],
             "type": "string"
           },
@@ -20402,7 +21372,8 @@
               "site_promote",
               "signature_send",
               "spend_raise",
-              "signin_change"
+              "signin_change",
+              "approve"
             ],
             "type": "string"
           },
@@ -20495,7 +21466,8 @@
               "site_promote",
               "signature_send",
               "spend_raise",
-              "signin_change"
+              "signin_change",
+              "approve"
             ],
             "type": "string"
           },
@@ -22796,6 +23768,130 @@
     },
     {
       "blocks": [],
+      "cap": "google.docs.insert_text",
+      "deferred": true,
+      "description": "Insert text into a Google Doc after or before some existing text, or at its start or end; refuses if the document changed meanwhile",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "anchor": {
+            "description": "The text to put it after or before",
+            "minLength": 1,
+            "type": "string"
+          },
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "documentId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "matchCase": {
+            "type": "boolean"
+          },
+          "text": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "where": {
+            "enum": [
+              "after",
+              "before",
+              "start",
+              "end"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "documentId",
+          "text",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "google_docs_insert_text",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "google.docs.replace_text",
+      "deferred": true,
+      "description": "Replace every occurrence of some text in a Google Doc",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "documentId": {
+            "type": "string"
+          },
+          "find": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "matchCase": {
+            "type": "boolean"
+          },
+          "replace": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "documentId",
+          "find",
+          "replace",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "google_docs_replace_text",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "google.drive.copy_file",
       "deferred": true,
       "description": "Copy a Drive file",
@@ -22926,6 +24022,47 @@
         "type": "object"
       },
       "name": "google_drive_download_file",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "google.drive.download_revision",
+      "deferred": true,
+      "description": "Download one revision of a Drive file into a blob",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fileId": {
+            "type": "string"
+          },
+          "revisionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "fileId",
+          "revisionId"
+        ],
+        "type": "object"
+      },
+      "name": "google_drive_download_revision",
       "planMode": "allowed",
       "toolset": "files",
       "v": 1
@@ -23100,6 +24237,43 @@
     },
     {
       "blocks": [],
+      "cap": "google.drive.list_revisions",
+      "deferred": true,
+      "description": "The revisions Drive keeps of a file, with who saved each",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fileId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "name": "google_drive_list_revisions",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "google.drive.share_file",
       "deferred": true,
       "description": "Share a Drive file with people; Google emails them",
@@ -23216,7 +24390,7 @@
       "blocks": [],
       "cap": "google.drive.upload_file",
       "deferred": true,
-      "description": "Upload a Space file into Drive",
+      "description": "Upload a Space file into Drive; with remoteId it replaces that file, and with ifRevision only if Drive still holds that revision",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -23248,10 +24422,16 @@
             "minLength": 1,
             "type": "string"
           },
+          "ifRevision": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
           "parentId": {
+            "type": "string"
+          },
+          "remoteId": {
             "type": "string"
           }
         },
@@ -28445,6 +29625,14 @@
             "pattern": "^[^@\\s]+@[^@\\s]+$",
             "type": "string"
           },
+          "connectionId": {
+            "description": "A person's own Gmail or Outlook sign-in (google.user.*, ms.user.*) the mailbox reads and sends through",
+            "examples": [
+              "gua_0123456789abcdef0123456789abcdef"
+            ],
+            "pattern": "^(gua|mua)_[0-9a-f]{32}$",
+            "type": "string"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -29163,6 +30351,43 @@
     },
     {
       "blocks": [],
+      "cap": "mail.mailbox.set_sync_state",
+      "deferred": false,
+      "description": "A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "mailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "error",
+              "syncing"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mailboxId",
+          "state"
+        ],
+        "type": "object"
+      },
+      "name": "mail_mailbox_set_sync_state",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mail.mailbox.update",
       "deferred": false,
       "description": "Rename a mailbox or change its agent",
@@ -29606,6 +30831,13 @@
             "minimum": 0,
             "type": "integer"
           },
+          "senderId": {
+            "description": "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "type": "string"
+          },
           "subject": {
             "type": "string"
           },
@@ -29681,6 +30913,13 @@
               "mbx_a1b2c3"
             ],
             "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "senderId": {
+            "description": "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+            "examples": [
+              "mbx_a1b2c3"
+            ],
             "type": "string"
           },
           "to": {
@@ -31506,7 +32745,7 @@
         "type": "object"
       },
       "name": "memory_facts_remove",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -31536,7 +32775,7 @@
         "type": "object"
       },
       "name": "memory_forget",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -32553,7 +33792,7 @@
         "type": "object"
       },
       "name": "memory_propose",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -32757,7 +33996,7 @@
         "type": "object"
       },
       "name": "memory_remember",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -32783,7 +34022,7 @@
         "type": "object"
       },
       "name": "memory_restore",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -33009,7 +34248,7 @@
         "type": "object"
       },
       "name": "memory_undo",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "memory",
       "v": 1
     },
@@ -33179,7 +34418,7 @@
       "blocks": [],
       "cap": "mounts.add",
       "deferred": false,
-      "description": "Mount a Google or SharePoint folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run",
+      "description": "Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -33234,6 +34473,7 @@
                   "google_drive",
                   "sharepoint",
                   "onedrive",
+                  "dropbox",
                   "local",
                   "github"
                 ],
@@ -33247,7 +34487,7 @@
                 "type": "string"
               },
               "ref": {
-                "description": "Drive or folder id, library path, or owner/repo",
+                "description": "Drive or folder id, library path, Dropbox folder id or / for all of Dropbox, or owner/repo",
                 "type": "string"
               }
             },
@@ -33273,7 +34513,7 @@
       "blocks": [],
       "cap": "mounts.browse",
       "deferred": false,
-      "description": "Browse a drive, library or repository search to pick what to mount",
+      "description": "Browse a drive, library, Dropbox folder or repository search to pick what to mount",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -33292,6 +34532,7 @@
               "google_drive",
               "sharepoint",
               "onedrive",
+              "dropbox",
               "local",
               "github"
             ],
@@ -33315,6 +34556,163 @@
         "type": "object"
       },
       "name": "mounts_browse",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mounts.doc_insert_text",
+      "deferred": true,
+      "description": "Insert text into a mounted Google Doc after or before some existing text, or at its start or end; refuses if the Doc changed meanwhile",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "anchor": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "matchCase": {
+            "type": "boolean"
+          },
+          "text": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "where": {
+            "enum": [
+              "after",
+              "before",
+              "start",
+              "end"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "text",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_doc_insert_text",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mounts.doc_replace_text",
+      "deferred": true,
+      "description": "Replace text in a mounted Google Doc, in the Doc itself; the change shows in its Google version history",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "find": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "matchCase": {
+            "type": "boolean"
+          },
+          "replace": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "find",
+          "replace",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_doc_replace_text",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mounts.editors",
+      "deferred": false,
+      "description": "Who last edited each file at the provider, for the rows of a file list (files outside a mount are left out)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "fileIds": {
+            "items": {
+              "examples": [
+                "fil_a1b2c3"
+              ],
+              "pattern": "^fil_[a-z0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": "array"
+          }
+        },
+        "required": [
+          "fileIds"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_editors",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mounts.file_link",
+      "deferred": true,
+      "description": "Where a mounted file opens at its provider (Google Docs, Sheets, Slides, Word, Excel, PowerPoint, Dropbox) and what an agent can do to it in place",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_file_link",
       "planMode": "allowed",
       "toolset": "files",
       "v": 1
@@ -33347,6 +34745,32 @@
     },
     {
       "blocks": [],
+      "cap": "mounts.history",
+      "deferred": false,
+      "description": "The provider's revisions of a file, newest first, with who saved each (the person or agent for edits sent from Vyre)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_history",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mounts.list",
       "deferred": false,
       "description": "List mounts the caller can see",
@@ -33361,6 +34785,7 @@
               "google_drive",
               "sharepoint",
               "onedrive",
+              "dropbox",
               "local",
               "github"
             ],
@@ -33376,6 +34801,76 @@
       },
       "name": "mounts_list",
       "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mounts.nudge",
+      "deferred": false,
+      "description": "A provider push notice (Drive channel, Graph subscription, Dropbox account) or an app showing a mount asks for a sync pass (system)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "channelId": {
+            "type": "string"
+          },
+          "mountId": {
+            "examples": [
+              "mnt_a1b2c3"
+            ],
+            "pattern": "^mnt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "replacedBy": {
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "google",
+              "microsoft",
+              "dropbox",
+              "client"
+            ],
+            "type": "string"
+          },
+          "subscriptionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_nudge",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mounts.open",
+      "deferred": false,
+      "description": "Open a file of a mount: ask the provider what it holds now and fetch the content only when the copy in Vyre is not that version",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_open",
+      "planMode": "blocked",
       "toolset": "files",
       "v": 1
     },
@@ -33436,6 +34931,36 @@
     },
     {
       "blocks": [],
+      "cap": "mounts.restore",
+      "deferred": false,
+      "description": "Put an earlier revision of a file back as the newest; it goes out like any edit",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "revisionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "revisionId"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_restore",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mounts.resume",
       "deferred": false,
       "description": "Resume a paused mount",
@@ -33456,6 +34981,146 @@
         "type": "object"
       },
       "name": "mounts_resume",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mounts.sheet_append",
+      "deferred": true,
+      "description": "Add rows under the last used row of a mounted Google Sheet or Excel worksheet",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "sheet": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "description": "Any JSON value"
+              },
+              "type": "array"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "fileId",
+          "values",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_sheet_append",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mounts.sheet_read",
+      "deferred": true,
+      "description": "Read cells of a mounted Google Sheet or Excel workbook from the provider, without downloading the file",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "range": {
+            "examples": [
+              "A1:D20"
+            ],
+            "type": "string"
+          },
+          "sheet": {
+            "description": "Worksheet name; needed for Excel",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "range"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_sheet_read",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mounts.sheet_write",
+      "deferred": true,
+      "description": "Write cells of a mounted Google Sheet or Excel workbook in the provider file itself",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "range": {
+            "examples": [
+              "B2"
+            ],
+            "type": "string"
+          },
+          "sheet": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "description": "Any JSON value"
+              },
+              "type": "array"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "fileId",
+          "range",
+          "values",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "mounts_sheet_write",
       "planMode": "blocked",
       "toolset": "files",
       "v": 1
@@ -34510,6 +36175,50 @@
     },
     {
       "blocks": [],
+      "cap": "ms.drive.download_version",
+      "deferred": true,
+      "description": "Download one version of an item into a blob",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId",
+          "versionId"
+        ],
+        "type": "object"
+      },
+      "name": "ms_drive_download_version",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "ms.drive.get_item",
       "deferred": true,
       "description": "Read item metadata",
@@ -34592,6 +36301,46 @@
     },
     {
       "blocks": [],
+      "cap": "ms.drive.list_versions",
+      "deferred": true,
+      "description": "The versions OneDrive or SharePoint keeps of an item, with who saved each",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId"
+        ],
+        "type": "object"
+      },
+      "name": "ms_drive_list_versions",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "ms.drive.share_item",
       "deferred": true,
       "description": "Create a sharing link or invite people; Microsoft emails them",
@@ -34660,7 +36409,7 @@
       "blocks": [],
       "cap": "ms.drive.upload_item",
       "deferred": true,
-      "description": "Upload a Space file into OneDrive or SharePoint",
+      "description": "Upload a Space file into OneDrive or SharePoint; with remoteId it replaces that item, and with ifMatch only if the item still has that eTag",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -34698,7 +36447,13 @@
             "minLength": 1,
             "type": "string"
           },
+          "ifMatch": {
+            "type": "string"
+          },
           "name": {
+            "type": "string"
+          },
+          "remoteId": {
             "type": "string"
           }
         },
@@ -35200,6 +36955,193 @@
     },
     {
       "blocks": [],
+      "cap": "ms.workbook.append_rows",
+      "deferred": true,
+      "description": "Add rows under the last used row of a worksheet in an Excel workbook",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "sheet": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "description": "Any JSON value"
+              },
+              "type": "array"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId",
+          "sheet",
+          "values",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "ms_workbook_append_rows",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ms.workbook.get_range",
+      "deferred": true,
+      "description": "Read a range of cells from an Excel workbook in OneDrive or SharePoint",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "range": {
+            "examples": [
+              "A1:C10"
+            ],
+            "type": "string"
+          },
+          "sheet": {
+            "examples": [
+              "Sheet1"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId",
+          "sheet",
+          "range"
+        ],
+        "type": "object"
+      },
+      "name": "ms_workbook_get_range",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ms.workbook.update_range",
+      "deferred": true,
+      "description": "Write a block of cells in an Excel workbook; a single start cell grows to the size of the values",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "driveId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "range": {
+            "examples": [
+              "B2"
+            ],
+            "type": "string"
+          },
+          "sheet": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "items": {
+                "description": "Any JSON value"
+              },
+              "type": "array"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "connectionId",
+          "itemId",
+          "sheet",
+          "range",
+          "values",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "ms_workbook_update_range",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "network.certificate_renew",
       "deferred": false,
       "description": "Renew a certificate now",
@@ -35290,7 +37232,7 @@
       "blocks": [],
       "cap": "network.my_computer_code",
       "deferred": false,
-      "description": "Make a join code for your own computer (a Mac, PC or Linux box): it will run only your own agents",
+      "description": "Make a join code for your own computer or server (a Mac, PC or Linux box): it will run only your own agents. A nickname names it once it arrives; it also works in a Personal Space",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -35299,6 +37241,13 @@
               "idem_1"
             ],
             "minLength": 1,
+            "type": "string"
+          },
+          "nickname": {
+            "examples": [
+              "home-box"
+            ],
+            "maxLength": 40,
             "type": "string"
           }
         },
@@ -35334,6 +37283,109 @@
         "type": "object"
       },
       "name": "network_my_computer_decline",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.my_computer_remove",
+      "deferred": false,
+      "description": "Remove one of your own computers or servers: its access ends at once",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "serverId": {
+            "examples": [
+              "srv_a1b2c3"
+            ],
+            "pattern": "^srv_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId"
+        ],
+        "type": "object"
+      },
+      "name": "network_my_computer_remove",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.my_computers",
+      "deferred": false,
+      "description": "The computers and servers you added: nickname, online state, what they run on, waiting ones with the fingerprint to compare",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "network_my_computers",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.phone",
+      "deferred": false,
+      "description": "Your phone address on vyre.run: the name this computer holds, whether it is online, and the link that opens it on a phone",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "network_phone",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.phone_claim",
+      "deferred": false,
+      "description": "Claim a name like alex.vyre.run once, so a phone reaches this computer there while it is on and online. The relay only passes sealed bytes",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "examples": [
+              "alex"
+            ],
+            "type": "string"
+          },
+          "nickname": {
+            "examples": [
+              "home-laptop"
+            ],
+            "maxLength": 40,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "name": "network_phone_claim",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.phone_release",
+      "deferred": false,
+      "description": "Give up the phone address. The name stays reserved to this computer",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "network_phone_release",
       "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
@@ -36647,6 +38699,12 @@
             },
             "type": "array"
           },
+          "auth": {
+            "enum": [
+              "oauth"
+            ],
+            "type": "string"
+          },
           "command": {
             "type": "string"
           },
@@ -36663,6 +38721,13 @@
               "type": "string"
             },
             "type": "object"
+          },
+          "hub": {
+            "enum": [
+              "composio",
+              "pipedream"
+            ],
+            "type": "string"
           },
           "idempotencyKey": {
             "examples": [
@@ -37808,6 +39873,42 @@
         "type": "object"
       },
       "name": "projects_file_chat",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.files_folder",
+      "deferred": false,
+      "description": "The folder that holds a record's files: a project's own, else Files > Projects > Record files > the record (made on first use unless create is false, with the record's access mirrored onto it)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "create": {
+            "type": "boolean"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_files_folder",
       "planMode": "blocked",
       "toolset": "records",
       "v": 1
@@ -39011,6 +41112,53 @@
     },
     {
       "blocks": [],
+      "cap": "records.activity",
+      "deferred": false,
+      "description": "What happened to a record, newest first: created, field edits with who, when and the old and new value, stage moves, links, removals and sync pushes",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "before": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "records_activity",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "records.as_of",
       "deferred": false,
       "description": "Read a record as it was at a time",
@@ -39100,6 +41248,205 @@
         "type": "object"
       },
       "name": "records_bulk_upsert",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.comments.add",
+      "deferred": false,
+      "description": "Comment on a record or reply to a comment; @ people and agents. A mentioned person gets an Answer request in Needs you; a mentioned agent answers under the comment, headless (no chat is made)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "mentions": {
+            "items": {
+              "properties": {
+                "id": {
+                  "examples": [
+                    "usr_a1b2c3"
+                  ],
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "person",
+                    "agent"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "type": "object"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId",
+          "text",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "records_comments_add",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.comments.delete",
+      "deferred": false,
+      "description": "Delete your own comment (or any, with manage on the record)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "commentId": {
+            "examples": [
+              "rcm_a1b2c3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "commentId"
+        ],
+        "type": "object"
+      },
+      "name": "records_comments_delete",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.comments.edit",
+      "deferred": false,
+      "description": "Edit your own comment",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "commentId": {
+            "examples": [
+              "rcm_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "text": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "commentId",
+          "text"
+        ],
+        "type": "object"
+      },
+      "name": "records_comments_edit",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.comments.list",
+      "deferred": false,
+      "description": "Comments on a record as threads (a root comment and its replies, oldest first); resolved threads only when asked for",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "includeResolved": {
+            "type": "boolean"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "records_comments_list",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "records.comments.resolve",
+      "deferred": false,
+      "description": "Resolve a comment thread or reopen it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "commentId": {
+            "examples": [
+              "rcm_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "resolved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "commentId",
+          "resolved"
+        ],
+        "type": "object"
+      },
+      "name": "records_comments_resolve",
       "planMode": "blocked",
       "toolset": "records",
       "v": 1
@@ -47542,6 +49889,218 @@
     },
     {
       "blocks": [],
+      "cap": "tasks.ask",
+      "deferred": false,
+      "description": "Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "question": {
+            "examples": [
+              "Which of the two dates is right?"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "to": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "usr_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "person",
+                  "agent",
+                  "group",
+                  "role",
+                  "automation"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "taskId",
+          "question"
+        ],
+        "type": "object"
+      },
+      "name": "task_ask",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.block",
+      "deferred": false,
+      "description": "Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "reason": {
+            "examples": [
+              "I cannot open the client folder"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "name": "task_block",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.decide",
+      "deferred": false,
+      "description": "Decide on reviewed work: approve it (Done, held actions release) or reject it with a reason (back to the doer)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "approve",
+              "reject"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "verdict"
+        ],
+        "type": "object"
+      },
+      "name": "task_decide",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.review",
+      "deferred": false,
+      "description": "Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fixes": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "note": {
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "approve",
+              "send_back"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "verdict"
+        ],
+        "type": "object"
+      },
+      "name": "task_review",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.submit",
+      "deferred": false,
+      "description": "Hand in your part of a work task with its outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "outputs": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "summary": {
+            "examples": [
+              "Drafted the letter and checked the dates"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "name": "task_submit",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.act",
       "deferred": false,
       "description": "Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once",
@@ -47840,6 +50399,12 @@
               "signature"
             ],
             "type": "string"
+          },
+          "notes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
           },
           "parentTaskId": {
             "examples": [
@@ -48572,7 +51137,7 @@
       "blocks": [],
       "cap": "tasks.update",
       "deferred": false,
-      "description": "Edit the title, summary, why, due, effort or content blocks of a task (status goes through tasks.transition)",
+      "description": "Edit the title, summary, why, due, effort or content blocks of a task, or link its thread when it has none (status goes through tasks.transition)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -48634,6 +51199,13 @@
               "tsk_a1b2c3"
             ],
             "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
             "type": "string"
           },
           "title": {
@@ -49758,6 +52330,13 @@
             "minimum": 0,
             "type": "integer"
           },
+          "senderId": {
+            "description": "An id from comms.senders.list. For a text it is the number id and must equal numberId",
+            "examples": [
+              "num_a1b2c3"
+            ],
+            "type": "string"
+          },
           "to": {
             "examples": [
               "+14155550123"
@@ -50443,6 +53022,50 @@
       "v": 1
     },
     {
+      "blocks": [
+        "question"
+      ],
+      "cap": "terminal.request",
+      "deferred": false,
+      "description": "Ask the person to run a command themselves (sudo, a login, an interactive install): the chat shows the command, why and its risk, and the person runs it in their terminal, copies it or declines; what it printed comes back to you",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "host": {
+            "enum": [
+              "agent_computer",
+              "space_server",
+              "device"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "command",
+          "why"
+        ],
+        "type": "object"
+      },
+      "name": "terminal_request",
+      "planMode": "allowed",
+      "toolset": "terminal",
+      "v": 1
+    },
+    {
       "blocks": [],
       "cap": "terminal.resize",
       "deferred": false,
@@ -50477,6 +53100,28 @@
       },
       "name": "terminal_resize",
       "planMode": "blocked",
+      "toolset": "terminal",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "terminal.risk",
+      "deferred": false,
+      "description": "What a command can do before it runs: read-only, changes something or destructive, and what your rules say; red always asks",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "command": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command"
+        ],
+        "type": "object"
+      },
+      "name": "terminal_risk",
+      "planMode": "allowed",
       "toolset": "terminal",
       "v": 1
     },
@@ -50688,6 +53333,119 @@
         "type": "object"
       },
       "name": "threads_add_agent",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "threads.agent.configure",
+      "deferred": false,
+      "description": "Pick the model, provider, effort or account an agent answers with, for this chat or as the agent default; null clears a field",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "accountRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "max"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope": {
+            "enum": [
+              "chat",
+              "agent"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "threads_agent_configure",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "threads.archive",
+      "deferred": false,
+      "description": "Archive a chat for me: it leaves my list and waits in my Archived section; the others in a group chat still see it. New messages do not bring it back, an @mention of me does",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "threads_archive",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1
@@ -51049,6 +53807,41 @@
     },
     {
       "blocks": [],
+      "cap": "threads.set_mode",
+      "deferred": false,
+      "description": "Set how much the agents of a chat may do alone: auto (the default), ask (Ask first) or plan. Anything that leaves Vyre is held for a yes in every mode",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "mode": {
+            "enum": [
+              "ask",
+              "auto",
+              "plan"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "mode"
+        ],
+        "type": "object"
+      },
+      "name": "threads_set_mode",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "threads.set_plan_mode",
       "deferred": false,
       "description": "Switch plan mode for a thread: the agent may read and plan but changes nothing until a plan is approved",
@@ -51073,6 +53866,32 @@
         "type": "object"
       },
       "name": "threads_set_plan_mode",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "threads.unarchive",
+      "deferred": false,
+      "description": "Put an archived chat back in my list",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "threads_unarchive",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1
@@ -52554,7 +55373,7 @@
         "type": "object"
       },
       "name": "vault_request",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "vault",
       "v": 1
     },
@@ -52580,7 +55399,7 @@
         "type": "object"
       },
       "name": "vault_requests_cancel",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "vault",
       "v": 1
     },
@@ -52976,7 +55795,7 @@
         "type": "object"
       },
       "name": "vault_use",
-      "planMode": "blocked",
+      "planMode": "allowed",
       "toolset": "vault",
       "v": 1
     },

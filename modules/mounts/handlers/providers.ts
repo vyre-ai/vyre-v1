@@ -1,8 +1,10 @@
 // Mount providers (spec 2.16 Mounts; ARCH 7.5 and 8). Each provider turns one outside system into the same few operations the engine uses:
 //   pull      the next batch of remote items (a full listing, or the change feed since the stored cursor)
 //   download  the bytes of one item as a blob in the files blob store
-//   upload / createFolder / remove   the Vyre-side change going out
+//   upload / createFolder / remove   the Vyre-side change going out; an upload names the version it was based on and is refused (stale) when the provider moved on
 //   browse    names a person can already open there, for the mount sheet
+//   watch / unwatch   a push channel (Drive changes.watch, a Graph drive subscription) that wakes a pass when something changes there
+//   revisions / revisionBlob   the provider's own history of a file, and the bytes of one revision
 // Google Drive and Graph (SharePoint, OneDrive) go through the google and microsoft modules' capabilities, which carry the connection; nothing here talks to a provider API.
 // Local folders have no pull: a device reports changes with mounts.local_report. A GitHub mount is a git folder: the git module clones (init, remote_add, pull) and pulls.
 //
@@ -10,10 +12,11 @@
 // until a cursor is stored; once one is, every pass reads the feed. Graph returns a delta link with the first listing, so it is on the feed from the first pass.
 
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
+import { dropbox } from "./dropbox-provider.ts";
 
 type Row = Record<string, unknown>;
 
-export type MountKind = "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+export type MountKind = "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
 export type MountMode = "server_copy" | "live_only";
 
 export interface MountRec {
@@ -46,7 +49,23 @@ export interface RemoteItem {
   mime?: string;
   /** a Google-native document: kept as an export snapshot, never uploaded back */
   native?: boolean;
+  /** the provider's revision or etag of the content: what a write is conditional on */
+  revision?: string;
+  /** who last edited it at the provider, and when */
+  editor?: Person;
+  modifiedAt?: number;
 }
+
+export interface Person { name?: string; email?: string }
+
+/** One entry of the provider's history of a file. */
+export interface Revision { id: string; at?: number; size?: number; by?: Person }
+
+/** A push channel the provider holds for a mount: `id` is what a notice names, `resource` what is needed to close it. */
+export interface Watch { id: string; resource?: string; expiresAt: number }
+
+/** The version a write was based on. Drive checks `revision`, Graph sends it as If-Match. */
+export interface IfMatch { version?: string; revision?: string }
 
 export interface PullBatch {
   items: RemoteItem[];
@@ -68,6 +87,10 @@ export interface Downloaded {
 export interface Uploaded {
   remoteId: string;
   version?: string;
+  revision?: string;
+  editor?: Person;
+  /** nothing was written: the item at the provider is no longer the one the write was based on */
+  stale?: boolean;
 }
 
 export interface BrowseItem { ref: string; name: string; isFolder: boolean; path?: string; shared?: boolean }
@@ -78,9 +101,20 @@ export interface Provider {
   pushes: boolean;
   pull?(ctx: Ctx, m: MountRec): Promise<PullBatch>;
   download?(ctx: Ctx, m: MountRec, item: { remoteId: string; name: string; mime?: string; native?: boolean }): Promise<Downloaded>;
-  upload?(ctx: Ctx, m: MountRec, a: { fileId: string; name: string; parentRemote: string; remoteId?: string }): Promise<Uploaded>;
+  upload?(ctx: Ctx, m: MountRec, a: { fileId: string; name: string; parentRemote: string; remoteId?: string; ifMatch?: IfMatch }): Promise<Uploaded>;
   createFolder?(ctx: Ctx, m: MountRec, a: { name: string; parentRemote: string }): Promise<Uploaded>;
   remove?(ctx: Ctx, m: MountRec, remoteId: string, isFolder: boolean): Promise<void>;
+  /** The item as the provider holds it now (undefined: gone). Opening a file compares this with what is cached. */
+  stat?(ctx: Ctx, m: MountRec, remoteId: string): Promise<RemoteItem | undefined>;
+  /** The provider renews its own push channel (Graph, by the microsoft module's Run); the mount only keeps the id. */
+  watchRenewsItself?: boolean;
+  /** Open a push channel; absent or undefined: this mount cannot be pushed to and is polled. `cursor` is the change token the channel starts from. */
+  watch?(ctx: Ctx, m: MountRec, a: { address: string; channelId: string }): Promise<Watch | undefined>;
+  unwatch?(ctx: Ctx, m: MountRec, w: { id: string; resource?: string }): Promise<void>;
+  revisions?(ctx: Ctx, m: MountRec, remoteId: string): Promise<Revision[]>;
+  revisionBlob?(ctx: Ctx, m: MountRec, a: { remoteId: string; revisionId: string }): Promise<Downloaded>;
+  /** The URL path the provider's notices come in on, appended to the Space's public address. */
+  hookPath?: string;
   browse(ctx: Ctx, input: { connectionId?: string; parent?: string; q?: string; cursor?: string; limit?: number }): Promise<{ items: BrowseItem[]; next?: string }>;
 }
 
@@ -120,6 +154,17 @@ export function exportMimeFor(native: string): string {
   return "application/pdf";
 }
 
+const personOf = (u: Row, nameKey: string, mailKey: string): Person | undefined => {
+  const name = text(u[nameKey]);
+  const email = text(u[mailKey]);
+  return name !== undefined || email !== undefined ? { ...(name !== undefined ? { name } : {}), ...(email !== undefined ? { email } : {}) } : undefined;
+};
+
+const stamp = (v: unknown): number | undefined => {
+  const t = typeof v === "string" ? Date.parse(v) : Number.NaN;
+  return Number.isFinite(t) ? t : undefined;
+};
+
 function driveItem(f: Row, parentId?: string): RemoteItem | undefined {
   const id = text(f["id"]);
   if (id === undefined) return undefined;
@@ -128,6 +173,9 @@ function driveItem(f: Row, parentId?: string): RemoteItem | undefined {
   const parent = parentId ?? text(list(f["parents"])[0]);
   const size = whole(f["size"]);
   const version = text(f["modifiedTime"]);
+  const revision = text(f["headRevisionId"]);
+  const editor = personOf(obj(f["lastModifyingUser"]), "name", "email");
+  const modifiedAt = stamp(version);
   return {
     id,
     name: text(f["name"]) ?? id,
@@ -137,6 +185,9 @@ function driveItem(f: Row, parentId?: string): RemoteItem | undefined {
     ...(version !== undefined ? { version } : {}),
     ...(mime !== "" ? { mime } : {}),
     ...(!isFolder && mime.startsWith(DRIVE_NATIVE) ? { native: true } : {}),
+    ...(revision !== undefined ? { revision } : {}),
+    ...(editor !== undefined ? { editor } : {}),
+    ...(modifiedAt !== undefined ? { modifiedAt } : {}),
   };
 }
 
@@ -204,9 +255,47 @@ const google: Provider = {
     return { blobId: text(res["blobId"]) ?? "", size: whole(res["size"]) ?? 0, ...(text(res["mimeType"]) !== undefined ? { mime: text(res["mimeType"]) as string } : {}) };
   },
   async upload(ctx, m, a) {
-    const res = obj(await ctx.call("google.drive.upload_file", { ...withConnection(m), name: a.name, parentId: a.parentRemote, fileId: a.fileId }));
-    const f = obj(res["file"]);
-    return { remoteId: text(f["id"]) ?? a.remoteId ?? "", ...(text(f["modifiedTime"]) !== undefined ? { version: text(f["modifiedTime"]) as string } : {}) };
+    const res = obj(await ctx.call("google.drive.upload_file", {
+      ...withConnection(m), name: a.name, parentId: a.parentRemote, fileId: a.fileId,
+      ...(a.remoteId !== undefined ? { remoteId: a.remoteId } : {}),
+      ...(a.remoteId !== undefined && a.ifMatch?.revision !== undefined ? { ifRevision: a.ifMatch.revision } : {}),
+    }));
+    const it = driveItem(obj(res["file"]));
+    return {
+      remoteId: it?.id ?? a.remoteId ?? "",
+      ...(it?.version !== undefined ? { version: it.version } : {}),
+      ...(it?.revision !== undefined ? { revision: it.revision } : {}),
+      ...(it?.editor !== undefined ? { editor: it.editor } : {}),
+      ...(res["stale"] === true ? { stale: true } : {}),
+    };
+  },
+  hookPath: "/hooks/google/drive",
+  async stat(ctx, m, remoteId) {
+    return driveItem(obj(obj(await ctx.call("google.drive.get_file", { ...withConnection(m), fileId: remoteId }))["file"]));
+  },
+  async watch(ctx, m, a) {
+    // a channel starts from the change token the mount already holds; before the first pass there is none and the mount is scanned
+    if (m.cursor === undefined) return undefined;
+    const res = obj(await ctx.call("google.drive.watch_changes", { ...withConnection(m), pageToken: m.cursor, channelId: a.channelId, address: a.address }));
+    const resource = text(res["resourceId"]);
+    return { id: a.channelId, ...(resource !== undefined ? { resource } : {}), expiresAt: whole(res["expiration"]) ?? 0 };
+  },
+  async unwatch(ctx, m, w) {
+    if (w.resource !== undefined) await ctx.call("google.drive.stop_watch", { ...withConnection(m), channelId: w.id, resourceId: w.resource });
+  },
+  async revisions(ctx, m, remoteId) {
+    const res = obj(await ctx.call("google.drive.list_revisions", { ...withConnection(m), fileId: remoteId }));
+    return list(res["revisions"]).map((r) => {
+      const o = obj(r);
+      const at = stamp(o["modifiedTime"]);
+      const size = whole(o["size"]);
+      const by = personOf(obj(o["lastModifyingUser"]), "name", "email");
+      return { id: text(o["id"]) ?? "", ...(at !== undefined ? { at } : {}), ...(size !== undefined ? { size } : {}), ...(by !== undefined ? { by } : {}) };
+    });
+  },
+  async revisionBlob(ctx, m, a) {
+    const res = obj(await ctx.call("google.drive.download_revision", { ...withConnection(m), fileId: a.remoteId, revisionId: a.revisionId }));
+    return { blobId: text(res["blobId"]) ?? "", size: whole(res["size"]) ?? 0, ...(text(res["mimeType"]) !== undefined ? { mime: text(res["mimeType"]) as string } : {}) };
   },
   async createFolder(ctx, m, a) {
     const res = obj(await ctx.call("google.drive.create_folder", { ...withConnection(m), name: a.name, parentId: a.parentRemote }));
@@ -243,6 +332,9 @@ function graphItem(f: Row): RemoteItem | undefined {
   const parent = text(f["parentId"]);
   const size = whole(f["size"]);
   const version = text(f["lastModifiedDateTime"]);
+  const revision = text(f["eTag"]);
+  const editor = personOf(obj(f["lastModifiedBy"]), "name", "email");
+  const modifiedAt = stamp(version);
   return {
     id,
     name: text(f["name"]) ?? id,
@@ -250,6 +342,9 @@ function graphItem(f: Row): RemoteItem | undefined {
     isFolder,
     ...(size !== undefined ? { size } : {}),
     ...(version !== undefined ? { version } : {}),
+    ...(revision !== undefined ? { revision } : {}),
+    ...(editor !== undefined ? { editor } : {}),
+    ...(modifiedAt !== undefined ? { modifiedAt } : {}),
   };
 }
 
@@ -282,9 +377,46 @@ const graph: Provider = {
     return { blobId: text(res["blobId"]) ?? "", size: whole(res["size"]) ?? 0 };
   },
   async upload(ctx, m, a) {
-    const res = obj(await ctx.call("ms.drive.upload_item", { ...withConnection(m), ...driveOf(m), folderId: a.parentRemote, name: a.name, fileId: a.fileId }));
-    const it = obj(res["item"]);
-    return { remoteId: text(it["id"]) ?? a.remoteId ?? "", ...(text(it["lastModifiedDateTime"]) !== undefined ? { version: text(it["lastModifiedDateTime"]) as string } : {}) };
+    const res = obj(await ctx.call("ms.drive.upload_item", {
+      ...withConnection(m), ...driveOf(m), folderId: a.parentRemote, name: a.name, fileId: a.fileId,
+      ...(a.remoteId !== undefined ? { remoteId: a.remoteId } : {}),
+      ...(a.remoteId !== undefined && a.ifMatch?.revision !== undefined ? { ifMatch: a.ifMatch.revision } : {}),
+    }));
+    const it = graphItem(obj(res["item"]));
+    return {
+      remoteId: it?.id ?? a.remoteId ?? "",
+      ...(it?.version !== undefined ? { version: it.version } : {}),
+      ...(it?.revision !== undefined ? { revision: it.revision } : {}),
+      ...(it?.editor !== undefined ? { editor: it.editor } : {}),
+      ...(res["stale"] === true ? { stale: true } : {}),
+    };
+  },
+  hookPath: "/hooks/microsoft",
+  watchRenewsItself: true,
+  async stat(ctx, m, remoteId) {
+    return graphItem(obj(obj(await ctx.call("ms.drive.get_item", { ...withConnection(m), ...driveOf(m), itemId: remoteId }))["item"]));
+  },
+  async watch(ctx, m, a) {
+    const res = obj(await ctx.call("ms.drive.subscribe", { ...withConnection(m), ...driveOf(m), notificationUrl: a.address }));
+    const id = text(res["subscriptionId"]);
+    return id !== undefined ? { id, expiresAt: whole(res["expiresAt"]) ?? 0 } : undefined;
+  },
+  async unwatch(ctx, m, w) {
+    await ctx.call("ms.drive.unsubscribe", { ...withConnection(m), subscriptionId: w.id });
+  },
+  async revisions(ctx, m, remoteId) {
+    const res = obj(await ctx.call("ms.drive.list_versions", { ...withConnection(m), ...driveOf(m), itemId: remoteId }));
+    return list(res["versions"]).map((r) => {
+      const o = obj(r);
+      const at = stamp(o["lastModifiedDateTime"]);
+      const size = whole(o["size"]);
+      const by = personOf(obj(o["lastModifiedBy"]), "name", "email");
+      return { id: text(o["id"]) ?? "", ...(at !== undefined ? { at } : {}), ...(size !== undefined ? { size } : {}), ...(by !== undefined ? { by } : {}) };
+    });
+  },
+  async revisionBlob(ctx, m, a) {
+    const res = obj(await ctx.call("ms.drive.download_version", { ...withConnection(m), ...driveOf(m), itemId: a.remoteId, versionId: a.revisionId }));
+    return { blobId: text(res["blobId"]) ?? "", size: whole(res["size"]) ?? 0 };
   },
   async createFolder(ctx, m, a) {
     const res = obj(await ctx.call("ms.drive.create_folder", { ...withConnection(m), ...driveOf(m), parentId: a.parentRemote, name: a.name }));
@@ -352,6 +484,7 @@ export function providerOf(kind: MountKind): Provider {
     case "google_drive": return google;
     case "sharepoint": return graph;
     case "onedrive": return { ...graph, label: "OneDrive" };
+    case "dropbox": return dropbox;
     case "local": return local;
     case "github": return github;
   }
@@ -361,8 +494,9 @@ export const PROVIDER_LABEL: Record<MountKind, string> = {
   google_drive: "Google Drive",
   sharepoint: "SharePoint",
   onedrive: "OneDrive",
+  dropbox: "Dropbox",
   local: "Local folder",
   github: "GitHub",
 };
 
-export const isCloud = (kind: MountKind): boolean => kind === "google_drive" || kind === "sharepoint" || kind === "onedrive";
+export const isCloud = (kind: MountKind): boolean => kind === "google_drive" || kind === "sharepoint" || kind === "onedrive" || kind === "dropbox";

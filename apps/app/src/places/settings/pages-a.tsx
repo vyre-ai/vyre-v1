@@ -1,13 +1,16 @@
 // Settings pages that belong to the open Space: Profile (with Copy from another Space), Notifications, Models and usage, Connections, Memory and privacy.
+import { AppHubsCard } from "../../hubs/AppHubs.tsx";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Avatar, assistantId, assistantLook, setAssistantLook, subscribeAssistant } from "../../../../../ui/src/Avatar/index.tsx";
+import { useOpenConnect } from "../../shell/connect/context.ts";
 import { Bar, RegistrySections, useRead } from "./blocks.tsx";
 import { CopyFromSpace } from "./CopyFromSpace.tsx";
 import { MemoryKeys } from "./MemoryKeys.tsx";
-import { CONNECTIONS, MODELS, NOTIFICATIONS, useSettingsData, useScreenQuery } from "./data.tsx";
+import { SignInApps } from "./SignInApps.tsx";
+import { CONNECTIONS, MODELS, NOTIFICATIONS, useIsPersonal, useSettingsData, useScreenQuery } from "./data.tsx";
 import { labelOf, moneyLabel, sectionsFor } from "./model.ts";
 import type { SettingRow } from "./model.ts";
 import { SettingRowFor, useChange } from "./rows.tsx";
@@ -120,10 +123,19 @@ export function NotificationsPage({ rows, found }: PageProps): ReactElement {
   const saved = useSaved();
   const kinds = useRead<KindsOut>("notifications.kinds.list");
   const mutes = useScreenQuery<MutesOut>(NOTIFICATIONS, "mutes", {});
+  const [levels, setLevels] = useState<Record<string, string>>({});
+  const setLevel = (key: string, was: string, level: string): void => {
+    setLevels((cur) => ({ ...cur, [key]: level }));
+    void data.call("notifications.kind.set_level", { kind: key, level }).then(
+      () => saved.saved("Saved", async () => { setLevels((cur) => ({ ...cur, [key]: was })); await data.call("notifications.kind.set_level", { kind: key, level: was }); }),
+      (e: unknown) => { setLevels((cur) => ({ ...cur, [key]: was })); saved.failed(e instanceof Error ? e.message : "That did not save."); },
+    );
+  };
   const list: ReactElement[] = [];
-  (kinds?.kinds ?? []).forEach((k, i) => list.push(
-    <SettingsRow key={k.key} id={`kind.${k.key}`} label={k.title} first={i === 0} control={<Value text={LEVEL[k.level] ?? labelOf(k.level)} testID={`kind-${k.key}`} />} />,
-  ));
+  (kinds?.kinds ?? []).forEach((k, i) => {
+    const level = levels[k.key] ?? k.level;
+    list.push(<SettingsRow key={k.key} id={`kind.${k.key}`} label={k.title} first={i === 0} control={<Choice value={level} options={LEVELS} label={k.title} testID={`kind-${k.key}`} onChange={(v) => setLevel(k.key, level, v)} />} />);
+  });
   const muteRows: ReactElement[] = [];
   if (mutes.status === "ready") {
     mutes.data.mutes.forEach((m, i) => muteRows.push(
@@ -141,8 +153,8 @@ export function NotificationsPage({ rows, found }: PageProps): ReactElement {
     </>
   );
 }
-/** How each level reaches the person: interrupt rings the desktop and the phone, badge adds a dot only, digest waits for While you were away. */
-const LEVEL: Record<string, string> = { interrupt: "Interrupt on desktop, Interrupt on phone", badge: "Badge only", digest: "Digest" };
+/** How each level reaches the person: interrupt rings the desktop and the phone, badge adds a dot only, digest waits for While you were away. A level the Space holds higher (approvals) refuses with its reason. */
+const LEVELS: readonly { value: string; label: string }[] = [{ value: "interrupt", label: "Interrupt" }, { value: "badge", label: "Badge only" }, { value: "digest", label: "Digest" }];
 
 // ---------------------------------------------------------------- Models and usage
 
@@ -216,6 +228,7 @@ export function ConnectionsPage({ rows, found }: PageProps): ReactElement {
   const data = useSettingsData();
   const saved = useSaved();
   const boxes = useScreenQuery<MailboxesOut>(CONNECTIONS, "mailboxes", {});
+  const openConnect = useOpenConnect();
   const list: ReactElement[] = [];
   if (boxes.status === "ready") {
     boxes.data.mailboxes.forEach((m, i) => list.push(
@@ -225,6 +238,9 @@ export function ConnectionsPage({ rows, found }: PageProps): ReactElement {
         control={
           <>
             <Value text={STATE[m.state] ?? m.state} accent={m.state === "error"} />
+            {m.state === "error" && (m.provider === "google" || m.provider === "microsoft") && openConnect
+              ? <SmallButton label="Sign in again" primary testID={`mailbox-fix-${m.id}`} onPress={() => void openConnect({ kind: "mailbox", provider: m.provider as "google" | "microsoft" })} />
+              : null}
             {m.state === "paused"
               ? <SmallButton label="Resume" onPress={() => void data.call("mail.mailbox.resume", { mailboxId: m.id }).then(() => saved.saved("Resumed")).catch(() => saved.failed("That did not resume."))} />
               : <SmallButton label="Pause" onPress={() => void data.call("mail.mailbox.pause", { mailboxId: m.id }).then(() => saved.saved("Paused", async () => { await data.call("mail.mailbox.resume", { mailboxId: m.id }); })).catch(() => saved.failed("That did not pause."))} />}
@@ -244,21 +260,26 @@ export function ConnectionsPage({ rows, found }: PageProps): ReactElement {
   }, [data]);
   const mine = boxes.status === "ready" ? boxes.data.mailboxes.map((m) => ({ id: m.id, address: m.address, provider: m.provider, state: m.state })) : [];
   const suites = suiteSections(mine, calendars ?? []);
+  const personal = useIsPersonal();
   const firm: ReactElement[] = [];
   suites.forEach((suite, si) => firm.push(
     <SettingsRow key={suite.key} id={`suite.${suite.key}`} label={suite.title} sub={throughFirm(suite)} first={si === 0} lead={<Glyph name="link" size={15} />} control={<Value text={suite.rows.map((r) => r.service).filter((v, i, a) => a.indexOf(v) === i).join(" and ")} />} />,
   ));
   return (
     <>
-      <Section title="Through your firm" note={suites.length === 0 && boxes.status === "ready" && calendars !== null ? NOT_CONNECTED : undefined}>
-        {firm}
-      </Section>
+      {personal ? null : (
+        <Section title="Through your Space" note={suites.length === 0 && boxes.status === "ready" && calendars !== null ? NOT_CONNECTED : undefined}>
+          {firm}
+        </Section>
+      )}
       <Section title="Mail and calendar">
         {list}
-        <SettingsRow id="connect-mailbox" label="Connect a mailbox" first={list.length === 0} lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("mailbox")} control={<Glyph name="chevR" size={13} />} />
+        <SettingsRow id="connect-mailbox" label="Connect a mailbox" first={list.length === 0} lead={<Glyph name="plus" size={15} />} onPress={() => (openConnect ? void openConnect({ kind: "mailbox" }) : data.nav.connect("mailbox"))} control={<Glyph name="chevR" size={13} />} />
         <SettingsRow id="connect-calendar" label="Connect a calendar" lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("calendar")} control={<Glyph name="chevR" size={13} />} />
-        <SettingsRow id="connect-twilio" label="Connect Twilio" lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("twilio")} control={<Glyph name="chevR" size={13} />} />
+        <SettingsRow id="connect-twilio" label="Connect Twilio" lead={<Glyph name="plus" size={15} />} onPress={() => (openConnect ? void openConnect({ kind: "number" }) : data.nav.connect("twilio"))} control={<Glyph name="chevR" size={13} />} />
       </Section>
+      <Section title="App hubs"><AppHubsCard call={data.call} /></Section>
+      <SignInApps />
       <RegistrySections page="connections" rows={rows} found={found} />
     </>
   );

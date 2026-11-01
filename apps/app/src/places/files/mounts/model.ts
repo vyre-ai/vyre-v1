@@ -1,5 +1,5 @@
 // The mount sheet's logic without a renderer (spec 2.16 Mounts, 3.5 Files > mount a folder): the three steps, what a pick means, the mounts.add input, who can see it, error words.
-// Steps: 1 pick a source (Google Drive, Microsoft 365, this computer, GitHub); 2 browse or search and pick one thing; 3 options (name, who can see it, copy or branch, Into, Review changes).
+// Steps: 1 pick a source (Google Drive, Microsoft 365, Dropbox, this computer, GitHub); 2 browse or search and pick one thing; 3 options (name, who can see it, copy or branch, Into, Review changes).
 // A mount is a real directory synced by the mount engine; access never widens, so "who can see it" is a share made after the mount exists (access.share), never a grant the sheet invents.
 import type { CapMap } from "../../../../../../generated/types.ts";
 
@@ -8,7 +8,10 @@ export type AddInput = CapMap["mounts.add"]["in"];
 export type BrowseIn = CapMap["mounts.browse"]["in"];
 export type MountRow = CapMap["mounts.list"]["out"]["mounts"][number];
 
-export type SourceId = "google_drive" | "microsoft" | "local" | "github";
+/** "microsoft" is both Microsoft kinds at one root (kept for callers that browse the whole suite); the sheet lists OneDrive and SharePoint as two sources of the same connection. */
+export type SourceId = "google_drive" | "microsoft" | "onedrive" | "sharepoint" | "dropbox" | "local" | "github";
+/** The connections a Space has: one per account, however many sources it feeds. */
+export type AccountKey = "google_drive" | "microsoft" | "dropbox" | "local" | "github";
 
 export interface SourceDef {
   id: SourceId;
@@ -19,20 +22,28 @@ export interface SourceDef {
   kinds: readonly MountKind[];
 }
 
+/** The sources the sheet lists, in the order a person looks for them (keys 1 to 6). */
 export const SOURCES: readonly SourceDef[] = [
   { id: "google_drive", name: "Google Drive", what: "Google Shared Drive or folder", kinds: ["google_drive"] },
-  { id: "microsoft", name: "Microsoft 365", what: "SharePoint library or OneDrive folder", kinds: ["sharepoint", "onedrive"] },
-  { id: "local", name: "This computer", what: "Folder on your computer", kinds: ["local"] },
+  { id: "onedrive", name: "OneDrive", what: "OneDrive folder", kinds: ["onedrive"] },
+  { id: "sharepoint", name: "SharePoint", what: "SharePoint site or library", kinds: ["sharepoint"] },
+  { id: "dropbox", name: "Dropbox", what: "Dropbox folder", kinds: ["dropbox"] },
   { id: "github", name: "GitHub", what: "GitHub repository", kinds: ["github"] },
+  { id: "local", name: "This computer", what: "Folder on your computer", kinds: ["local"] },
 ];
 
+const SUITE: SourceDef = { id: "microsoft", name: "Microsoft 365", what: "SharePoint library or OneDrive folder", kinds: ["sharepoint", "onedrive"] };
+
 export function sourceOf(id: SourceId): SourceDef {
-  return SOURCES.find((s) => s.id === id) ?? (SOURCES[0] as SourceDef);
+  return SOURCES.find((s) => s.id === id) ?? (id === "microsoft" ? SUITE : (SOURCES[0] as SourceDef));
 }
+
+/** The connection a source uses: OneDrive and SharePoint share the Microsoft one. */
+export const accountKey = (id: SourceId): AccountKey => (id === "onedrive" || id === "sharepoint" ? "microsoft" : id);
 
 /** The source a stored mount kind belongs to. */
 export function sourceOfKind(kind: MountKind): SourceId {
-  return kind === "sharepoint" || kind === "onedrive" ? "microsoft" : kind;
+  return kind;
 }
 
 /** The account line under a source: who is connected there. Without a connection the row says so and the press connects it. */
@@ -43,7 +54,7 @@ export interface Account {
   /** This computer: the device the folder lives on. */
   deviceId?: string;
 }
-export type Accounts = Record<SourceId, Account>;
+export type Accounts = Record<AccountKey, Account>;
 
 export interface BrowseItem {
   ref: string;
@@ -122,7 +133,10 @@ export const canMount = (d: Draft): boolean => d.step === 3 && d.picked !== null
 /** Breadcrumb words: the source, then each folder walked into. Empty at the root, as the prototype shows none there. */
 export function crumbs(d: Draft): string[] {
   if (d.source === null || d.path.length === 0) return [];
-  return [sourceOf(d.source).name, ...d.path.map((c) => c.name)];
+  const names = d.path.map((c) => c.name);
+  // OneDrive opens its one drive at once: the crumb would only say "OneDrive / OneDrive"
+  if (d.source === "onedrive" && names[0] === sourceOf(d.source).name) names.shift();
+  return names.length === 0 ? [] : [sourceOf(d.source).name, ...names];
 }
 
 /** The mounts.browse calls that list the current level: one per provider kind at a source root, otherwise the kind of the folder walked into. */
@@ -158,7 +172,7 @@ export function addInput(d: Draft, accounts: Accounts): AddInput | null {
   const p = d.picked;
   const src = d.source;
   if (p === null || src === null || !canMount(d)) return null;
-  const acc = accounts[src];
+  const acc = accounts[accountKey(src)];
   const source: AddInput["source"] = {
     kind: src === "microsoft" ? p.kind : (src as MountKind),
     ...(acc.connectionId ? { connectionId: acc.connectionId } : {}),

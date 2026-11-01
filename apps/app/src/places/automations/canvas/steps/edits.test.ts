@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   EXAMPLE_SCHEMA, answerKindOf, authOf, bodyKindOf, headerProblem, hostsOf, joinHandle, pairsOf, recordOf, setAnswerKind, setAuth, setBodyKind, setHosts, setJsonBody, setMethod, setSchemaText, setTimeoutMinutes,
-  splitHandle, typedText, withAi, withField,
+  sameKeySteps, splitHandle, typedText, withAi, withField,
 } from "./edits.ts";
 
 test("rows become a record: blanks go, the last same name wins, no rows removes the key, and typed values stay typed", () => {
@@ -90,4 +90,81 @@ test("the AI step's own settings: timeout in minutes, answer kind and the JSON s
   assert.deepEqual(withAi({ keyId: "#K" }, "reviewer", { kind: "person", id: "usr_a" }), { keyId: "#K", reviewer: { kind: "person", id: "usr_a" } });
   assert.deepEqual(withAi({ keyId: "#K", reviewer: { kind: "person", id: "usr_a" } }, "reviewer", undefined), { keyId: "#K" });
   assert.deepEqual(withField({ a: 1 }, "a", undefined), {});
+});
+
+test("the other steps that sign with the same Vault item are named by title, or by kind without one", () => {
+  const nodes = [
+    { id: "a", key: "http_request", input: { auth: { kind: "bearer", handle: "#Acme_API.api_key" } } },
+    { id: "b", key: "http_request", title: "Read invoices", input: { auth: { kind: "bearer", handle: "#Acme_API" } } },
+    { id: "c", key: "http_request", input: { auth: { kind: "bearer", handle: "#Other" } } },
+    { id: "d", key: "http_request", input: {} },
+  ];
+  assert.deepEqual(sameKeySteps(nodes, "a", "#Acme_API"), ["Read invoices"]);
+  assert.deepEqual(sameKeySteps(nodes, "b", "#Acme_API"), ["http_request"]);
+  assert.deepEqual(sameKeySteps(nodes, "a", ""), []);
+});
+
+// ---- the agent task kind (work baton, lane W2)
+import { validate as validateAgainst } from "../../../../../../../packages/contracts/src/jsonschema.ts";
+import { doneMeansText, fieldsOf, modeOf, schemaFromFields, setDoneMeans, setMode, setNudgeMinutes, setTimeLimit } from "./edits.ts";
+
+test("the mode is Answer unless the step says Task, and switching back leaves no mode behind", () => {
+  assert.equal(modeOf(undefined), "answer");
+  assert.equal(modeOf(setMode({ agentId: "a" }, "task")), "task");
+  assert.deepEqual(setMode({ agentId: "a", mode: "task" }, "answer"), { agentId: "a" });
+});
+
+test("done means is one check per line; bullets and blanks are dropped; none leaves the field out", () => {
+  assert.deepEqual(setDoneMeans({}, "- Names the client\n\n• States the fee\n  third  ").doneMeans, ["Names the client", "States the fee", "third"]);
+  assert.equal(doneMeansText({ doneMeans: ["a", "b"] }), "a\nb");
+  assert.equal("doneMeans" in setDoneMeans({ doneMeans: ["a"] }, "  \n"), false);
+});
+
+test("a task's time limit runs to a day and the nudge to a day; both refuse what is not whole minutes", () => {
+  assert.equal(setTimeLimit({}, "90", 1440).ok, true);
+  assert.deepEqual(setTimeLimit({}, "1441", 1440), { ok: false, message: "Minutes is a whole number from 1 to 1440." });
+  assert.equal(setTimeLimit({ timeoutMinutes: 5 }, "", 1440).ok && "timeoutMinutes" in (setTimeLimit({ timeoutMinutes: 5 }, "", 1440) as { value: object }).value, false);
+  assert.equal(setNudgeMinutes({}, "10").ok, true);
+  assert.equal(setNudgeMinutes({}, "0").ok, false);
+  assert.equal(setNudgeMinutes({}, "soon").ok, false);
+});
+
+test("the deliverable is a list of fields and back: every named field is required, an unknown type is text, and a deeper shape is not a field list", () => {
+  const schema = schemaFromFields([{ key: "letter", value: "text" }, { key: "pages", value: "Whole Number" }, { key: "ok", value: "mystery" }, { key: "  ", value: "text" }])!;
+  assert.deepEqual(schema, { type: "object", required: ["letter", "pages", "ok"], properties: { letter: { type: "string" }, pages: { type: "integer" }, ok: { type: "string" } } });
+  assert.deepEqual(fieldsOf(schema), [{ key: "letter", value: "text" }, { key: "pages", value: "whole number" }, { key: "ok", value: "text" }]);
+  const typed = schemaFromFields([{ key: "due", value: "date" }, { key: "agree", value: "yes/no" }, { key: "tags", value: "list" }, { key: "matter", value: "record link" }])!;
+  assert.deepEqual(fieldsOf(typed)!.map((p) => p.value), ["date", "yes/no", "list", "record link"], "every picker type comes back as itself");
+  assert.deepEqual(validateAgainst(typed, { due: "2026-11-02", agree: true, tags: ["a"], matter: "rec_a1" }), []);
+  assert.notDeepEqual(validateAgainst(typed, { due: "soon", agree: true, tags: ["a"], matter: "rec_a1" }), [], "a date is a date");
+  assert.notDeepEqual(validateAgainst(typed, { due: "2026-11-02", agree: true, tags: ["a"], matter: "Smith" }), [], "a record link is a record id");
+  assert.equal(schemaFromFields([]), undefined);
+  assert.deepEqual(fieldsOf(undefined), []);
+  assert.equal(fieldsOf({ type: "object", properties: { a: { type: "object" } } }), null);
+  assert.equal(fieldsOf({ type: "object", required: [], properties: { a: { type: "string" } } }), null, "an optional field is not a plain list");
+  assert.equal(fieldsOf({ type: "array" }), null);
+});
+
+import { addChip, chipLabel, dropChip, joinTemplate, splitTemplate } from "./edits.ts";
+
+test("a template is text and data chips, and goes back to the same string", () => {
+  const t = "Draft the letter for {{ trigger.name }} using {{steps.find.out.rows}}, then stop.";
+  const segs = splitTemplate(t);
+  assert.deepEqual(segs.map((s) => (s.kind === "text" ? s.text : `<${s.ref}>`)), ["Draft the letter for ", "<trigger.name>", " using ", "<steps.find.out.rows>", ", then stop."]);
+  assert.equal(joinTemplate(segs), "Draft the letter for {{ trigger.name }} using {{ steps.find.out.rows }}, then stop.");
+  assert.deepEqual(splitTemplate(""), [{ kind: "text", text: "" }]);
+  assert.equal(joinTemplate(splitTemplate("no data here")), "no data here");
+});
+
+test("chips say what they bring in, by the step's name, and dropping one joins the text around it", () => {
+  const title = (id: string): string => (id === "find" ? "Find rows" : id);
+  assert.equal(chipLabel("trigger", title), "Trigger");
+  assert.equal(chipLabel("trigger.name", title), "Trigger \u00b7 Name");
+  assert.equal(chipLabel("trigger.first_name", title), "Trigger \u00b7 First name");
+  assert.equal(chipLabel("steps.find.out", title), "Find rows");
+  assert.equal(chipLabel("steps.find.out.count", title), "Find rows \u00b7 Count");
+  assert.equal(chipLabel("vars.x", title), "vars.x");
+  assert.equal(joinTemplate(dropChip(splitTemplate("a {{ trigger }} b"), 1)), "a  b");
+  assert.equal(addChip("Draft it", "trigger"), "Draft it {{ trigger }}");
+  assert.equal(addChip("", "trigger"), "{{ trigger }}");
 });

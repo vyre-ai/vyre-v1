@@ -41,10 +41,10 @@ export type KnowView = KnowRoute["v"];
 export const LIST_KINDS: readonly ListKind[] = ["person", "client", "project", "topic"];
 export const LIST_TITLE: Record<ListKind, string> = { person: "People", client: "Clients", project: "Projects", topic: "Topics" };
 export const LIST_LEDE: Record<ListKind, string> = {
-  person: "The people on your team and what Vyre knows about working with them.",
-  client: "Clients and their contacts: preferences, plans, history.",
-  project: "Each project keeps its own facts, shared with the people on it.",
-  topic: "Rules and ideas that cut across clients and projects.",
+  person: "Your team and how they like to work.",
+  client: "Clients and their contacts.",
+  project: "Facts each project keeps.",
+  topic: "Rules that cut across.",
 };
 export const KIND_ONE: Record<PageKind, string> = { person: "Person", client: "Client", project: "Project", agent: "Agent", record: "Record", topic: "Topic", decision: "Decision", site: "Site" };
 export const KIND_MANY: Record<PageKind, string> = { person: "People", client: "Clients", project: "Projects", agent: "Agents", record: "Records", topic: "Topics", decision: "Decisions", site: "Sites" };

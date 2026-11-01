@@ -199,7 +199,7 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
         if (ac.signal.aborted || closed) return;
         const c = await compact(fixed, messages, window, deps.summarize);
         if (c.dropped > 0) { compactions += 1; messages = c.messages; }
-        const req: CallRequest = { model, system, tools: ctx.tools, messages, maxOutputTokens: ctx.maxOutputTokens ?? deps.adapter.defaultMaxOutput, prefixHash: hash };
+        const req: CallRequest = { model, system, tools: ctx.tools, messages, maxOutputTokens: ctx.maxOutputTokens ?? deps.adapter.defaultMaxOutput, prefixHash: hash, ...(spec.agent.effort !== undefined ? { effort: spec.agent.effort } : {}) };
         tracker.note(hash);
         calls += 1;
         let text = "";

@@ -11,17 +11,27 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { TabStrip } from "../../../../../../ui/src/TabStrip/index.tsx";
 import { JourneyStepper } from "../journey/JourneyStepper.tsx";
-import { isJourneyDef } from "../journey/model.ts";
+import { isJourneyDef, stageFieldOf } from "../journey/model.ts";
+import { useJourneyStages } from "../journey/useStages.ts";
+import { stageFieldOf as typeStageField, stagesOf, stagesOn } from "../typeedit/stages.ts";
+import { Glyph as Icon } from "../schemamap/icons.tsx";
 import { Face, Glyph, pointOf } from "../sidebar/parts.tsx";
+import { useOptionalRecordsData } from "../sidebar/data.tsx";
+import { useRecordRights } from "../sharing/useRecordAccess.ts";
+import { tabsOf, visibleSections, withStages } from "./groups.ts";
 import { errorText, savePrefs, saveField, saveValue, sourceOf, undoSave } from "./actions.ts";
 import { useLive, useOptionalPageData, usePageData } from "./data.tsx";
 import {
-  PANE_TABS, RING_R, activityLine, ago, asksForFields, each, editKind, historyVersions, hueOf, inputText, isEmpty, mapLayout, optionsOf, peekFields, relationIds, relationTarget, resolveLink, ringOf, sectionsOf,
+  PANE_TABS, RING_R, ago, asksForFields, each, editKind, historyVersions, hueOf, inputText, isEmpty, mapLayout, optionsOf, peekFields, relationIds, relationTarget, resolveLink, ringOf, sectionsOf,
   shownFields, sourceText, splitLinks, toggleFold, valueText,
 } from "./model.ts";
+import { TabMeasure, useFittedTabs, useTitleWidths } from "../../chats/rightpane/fit.tsx";
+import { PANE_CHROME, PANE_TAB_EXTRA } from "../../chats/rightpane/ChatRightPane.tsx";
 import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import { channelFieldToAdd, findContact } from "./askfor.ts";
+import { ActivityTab, ChatTab, CommentsTab, FilesTab } from "../recordpane/index.ts";
 import type { FieldDef, PaneKey, RecordRow, RelNode, Section, TypeDef, Undo } from "./model.ts";
+import { SealedField } from "./SealedField.tsx";
 
 export interface RecordPageStart {
   /** The relationship map open. */
@@ -92,14 +102,14 @@ function Tag({ field, value }: { field: FieldDef; value: string }): ReactElement
 
 interface FieldProps {
   field: FieldDef; row: RecordRow; type: string; editing: { key: string; text: string; error?: string } | null; nodes: readonly RelNode[];
-  show: (items: readonly MenuEntry[], x: number, y: number) => void; onEdit: (f: FieldDef) => void; onText: (t: string) => void; onCommit: (f: FieldDef, text: string) => void; onCancel: () => void; onValue: (f: FieldDef, v: unknown) => void; onSource: (f: FieldDef, x: number, y: number) => void;
+  show: (items: readonly MenuEntry[], x: number, y: number) => void; readOnly?: boolean; onEdit: (f: FieldDef) => void; onText: (t: string) => void; onCommit: (f: FieldDef, text: string) => void; onCancel: () => void; onValue: (f: FieldDef, v: unknown) => void; onSource: (f: FieldDef, x: number, y: number) => void;
 }
 
 function FieldRow(q: FieldProps): ReactElement {
   const data = usePageData();
   const { field: f, row } = q;
   const v = row.fields[f.key];
-  const kind = editKind(f);
+  const kind = q.readOnly === true ? "none" : editKind(f);
   const open = q.editing?.key === f.key;
   const trig = menuTrigger((x, y) => q.onSource(f, x, y));
   let body: ReactElement;
@@ -115,6 +125,8 @@ function FieldRow(q: FieldProps): ReactElement {
         {q.editing!.error ? <Text style={p.errText} accessibilityRole="alert" testID={`error-${f.key}`}>{q.editing!.error}</Text> : null}
       </View>
     );
+  } else if (f.type === "sealed") {
+    body = <SealedField field={f} row={row} type={q.type} />;
   } else if (f.type === "relation") {
     const cards: ReactElement[] = [];
     for (const id of relationIds(f, row)) cards.push(<RelationCard key={id} field={f} id={id} />);
@@ -167,17 +179,6 @@ function FolderLink({ folderId, type, recordId }: { folderId: string; type: stri
   );
 }
 
-/** What is in the record's folder, so the Files tab shows the files and not only a button. */
-function FolderContents({ folderId, type, recordId }: { folderId: string; type: string; recordId: string }): ReactElement {
-  const data = usePageData();
-  const lq = useLive("files.list", { folder: folderId });
-  if (lq.status !== "ready") return <Text style={p.paneEmpty} testID="folder-contents-loading">Loading</Text>;
-  const kids: ReactElement[] = [];
-  for (const d of lq.data.folders) kids.push(<Row key={d.folderId} id={`folder:${d.folderId}`} title={d.name} note="Folder" onPress={() => data.nav.openFiles(type, recordId)} />);
-  for (const x of lq.data.files) kids.push(<Row key={x.fileId} id={`file:${x.fileId}`} title={x.name} note={x.kind} onPress={() => data.nav.openFiles(type, recordId)} />);
-  return kids.length > 0 ? <View testID="folder-contents">{kids}</View> : <Text style={p.paneEmpty} testID="folder-empty">Nothing in this folder yet.</Text>;
-}
-
 /** A choice or status field: its options in one menu under the value. */
 function chooseFrom(f: FieldDef, q: FieldProps, x: number, y: number): void {
   const items: MenuEntry[] = each(optionsOf(f), (o): MenuEntry => ({ label: o.title, checked: q.row.fields[f.key] === o.key, onSelect: () => q.onValue(f, o.key) }));
@@ -187,36 +188,50 @@ function chooseFrom(f: FieldDef, q: FieldProps, x: number, y: number): void {
 
 // ---------------------------------------------------------------- the right pane
 
-function Pane({ type, row, def, tab, onTab }: { type: string; row: RecordRow; def: TypeDef; tab: PaneKey; onTab: (k: PaneKey) => void }): ReactElement {
+const PANE_W = 340;
+const PINNED_TABS = PANE_TABS.map((t) => ({ ...t, pinned: true }));
+const withMore = (w: ReadonlyMap<string, number>): ReadonlyMap<string, number> => new Map(w).set("More", 14).set("More tabs", 14);
+
+function Pane({ type, row, def, tab, onTab, phone = false }: { type: string; row: RecordRow; def: TypeDef; tab: PaneKey; onTab: (k: PaneKey) => void; phone?: boolean }): ReactElement {
   const data = usePageData();
-  const hq = useLive("records.history", { type, recordId: row.id });
+  const menu = useMenu();
+  const win = useWindowDimensions();
+  const [paneW, setPaneW] = useState(PANE_W);
+  const titles = useTitleWidths();
+  const paneNow = phone ? win.width : paneW;
+  // the tabs that do not fit fold behind one More tab, as in the Chats pane
+  const { strip, select } = useFittedTabs(PINNED_TABS, tab, paneNow, {
+    extra: PANE_TAB_EXTRA, chrome: PANE_CHROME + 28, ...(titles.widths.size > 0 ? { chevron: true } : {}), menu, left: Math.max(0, win.width - paneNow) + 40, top: 118, measured: withMore(titles.widths),
+    pick: (key) => onTab(key as PaneKey),
+  });
   const vq = useLive("records.versions", { type, recordId: row.id });
   const mq = useLive("memory.find_by_subject", { subject: row.id });
   const now = data.now();
-  const entries = hq.status === "ready" ? hq.data.entries : [];
-  const lines: ReactElement[] = [];
-  entries.forEach((e, i) => lines.push(<Row key={`${e.hlc}:${i}`} id={`act:${i}`} title={activityLine(e, def, data.nameOf)} note={e.reason ?? ""} leading={<Face name={data.nameOf(e.actor)} size={20} />} />));
   const facts: ReactElement[] = [];
   if (mq.status === "ready") for (const f of mq.data.facts) facts.push(<Row key={f.factId} id={`fact:${f.factId}`} title={f.text} note={`${f.layer} · ${ago(f.learnedAt, now)}`} onPress={() => data.nav.openSource(f.sourceLink ?? f.sourceRef)} />);
   const notes: ReactElement[] = [];
   if (mq.status === "ready") for (const n of mq.data.notes) notes.push(<Row key={n.noteId} id={`note:${n.noteId}`} title={n.title} note={n.path} onPress={() => data.nav.openSource(n.path)} />);
-  const link = (label: string, on: () => void, id: string): ReactElement => <Pressable accessibilityRole="button" testID={id} onPress={on} style={({ hovered }: { hovered?: boolean }) => [p.open, hovered === true && p.cardOver]}><Text style={p.openText}>{label}</Text></Pressable>;
   let body: ReactElement;
-  if (tab === "activity") body = lines.length > 0 ? <View testID="pane-activity">{lines}</View> : <Text style={p.paneEmpty}>Nothing has changed yet.</Text>;
-  else if (tab === "comments") body = <View testID="pane-comments" style={p.paneBody}><Text style={p.paneText}>Comments and @mentions live in this record's chat, so everyone who follows it sees them.</Text>{link("Open the chat", () => data.nav.openChat(type, row.id), "open-chat-comments")}</View>;
-  else if (tab === "chat") body = <View testID="pane-chat" style={p.paneBody}><Text style={p.paneText}>Ask any agent about this record. It reads the page, the history and its memory.</Text>{link("Chat about this record", () => data.nav.openChat(type, row.id), "open-chat")}</View>;
-  else if (tab === "files") {
-    const folderId = row.fields["folder"];
-    body = <View testID="pane-files" style={p.paneBody}><Text style={p.paneText}>The files that belong to this record are in its folder.</Text>{link("Open its folder", () => data.nav.openFiles(type, row.id), "open-files")}{typeof folderId === "string" && folderId.startsWith("fld_") ? <FolderContents folderId={folderId} type={type} recordId={row.id} /> : null}</View>;
-  }
+  // Comments and Chat fill the pane's height (a field at the bottom); the other tabs scroll
+  let fill = false;
+  if (tab === "activity") body = <ActivityTab type={type} recordId={row.id} def={def} />;
+  else if (tab === "comments") { fill = true; body = <CommentsTab type={type} recordId={row.id} />; }
+  else if (tab === "chat") { fill = true; body = <ChatTab type={type} recordId={row.id} />; }
+  else if (tab === "files") { fill = true; body = <FilesTab type={type} recordId={row.id} title={String(row.fields[def.titleField] ?? row.id)} {...(typeof row.fields["folder"] === "string" ? { fieldFolder: row.fields["folder"] as string } : {})} />; }
   else if (tab === "memory") body = facts.length + notes.length > 0 ? <View testID="pane-memory">{facts}{notes}</View> : <Text style={p.paneEmpty}>No agent has remembered anything about this record.</Text>;
   else body = vq.status === "ready" ? (
     <View testID="pane-history"><HistoryTab resourceType="record" resourceId={row.id} recordType={type} versions={historyVersions(vq.data.versions, data.nameOf)} selectedVersionId={null} density="compact" invoke={(cap, input) => data.call(cap, input).then(() => undefined)} /></View>
   ) : <Text style={p.paneEmpty}>Loading</Text>;
   return (
-    <ResizableColumn paneKey="record-pane" defaultWidth={340} grow="left" min={280} style={p.pane as never} testID="record-pane" label="Record details">
-      <TabStrip tabs={each(PANE_TABS, (t) => ({ key: t.key, title: t.title }))} active={tab} onSelect={(k) => onTab(k as PaneKey)} />
-      <ScrollView style={p.paneScroll}>{body}</ScrollView>
+    <ResizableColumn
+      paneKey={phone ? "record-pane-phone" : "record-pane"} defaultWidth={phone ? win.width : PANE_W} grow="left" min={phone ? win.width : 280} {...(phone ? { maxFraction: 1 } : {})}
+      style={(phone ? [p.pane, p.panePhone] : p.pane) as never} testID="record-pane" label="Record details"
+      onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}
+    >
+      <TabMeasure titles={PANE_TABS.map((x) => x.title)} onWidth={titles.set} />
+      <TabStrip tabs={strip as never} active={tab} onSelect={select} />
+      {fill ? <View style={p.paneFill}>{body}</View> : <ScrollView style={p.paneScroll}>{body}</ScrollView>}
+      {menu.element}
     </ResizableColumn>
   );
 }
@@ -256,6 +271,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const mq = useLive("records.relations_map", { type, recordId, hops: 2 }, late || map);
   const width = useWindowDimensions().width;
   const wide = width === 0 || width >= 900;
+  const phone = width > 0 && width < 640;
   const [editing, setEditing] = useState<{ key: string; text: string; error?: string } | null>(start.edit ?? null);
   const [flash, setFlash] = useState<Flash | null>(null);
   const [all, setAll] = useState(start.all === true || start.edit !== undefined);
@@ -270,13 +286,24 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
     return () => { cancelAnimationFrame(a); cancelAnimationFrame(b); };
   }, [late]);
   const menu = useMenu();
+  // a person who may only view the record (it was shared with them to view) sees it read only: nothing to click that would be refused
+  const rights = useRecordRights(recordId);
+  const readOnly = rights.on && rights.can.edit === false;
   const def = dq.status === "ready" ? dq.data.types.find((t) => t.key === type) : undefined;
   const row = rq.status === "ready" ? (rq.data.record as RecordRow | undefined) : undefined;
+  const [group, setGroup] = useState("overview");
+  const journey = useJourneyStages(data.call, type, def !== undefined && isJourneyDef(def));
   if (!def || !row) {
     return <View style={p.main} testID="record-page-loading" accessibilityLabel="Loading"><View style={p.head}><Text accessibilityRole="header" style={p.h1}>Record</Text></View></View>;
   }
   const prefs = pq.status === "ready" ? pq.data : { folded: [], keepVisible: [] };
-  const sections = sectionsOf(def, lq.status === "ready" ? lq.data : undefined, pq.status === "ready" ? pq.data : undefined);
+  const plain = sectionsOf(def, lq.status === "ready" ? lq.data : undefined, pq.status === "ready" ? pq.data : undefined);
+  // a Journey record leads with the group of the stage it is in; the groups of later stages stay locked until their stage opens
+  const stageNow = (() => { const sf = stageFieldOf(def); const v = sf ? row.fields[sf.key] : undefined; return typeof v === "string" ? v : ""; })();
+  const ownStages = stagesOn(def) ? stagesOf(typeStageField(def)).map((g, i) => ({ key: g.key, title: g.title, order: i, ...(g.fields ? { fields: g.fields } : {}) })) : [];
+  const sections = journey ? withStages(def, plain, journey.stages, stageNow, prefs.folded) : ownStages.length ? withStages(def, plain, ownStages, stageNow, prefs.folded) : plain;
+  const tabs = tabsOf(sections);
+  const shown = visibleSections(sections, tabs, group);
   const ring = cq.status === "ready" && asksForFields(def, cq.data) ? ringOf(cq.data) : null;
   const nodes = mq.status === "ready" ? mq.data.nodes : [];
   const title = String(row.fields[def.titleField] ?? "") || "Untitled";
@@ -308,9 +335,9 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const showSource = (f: FieldDef, x: number, y: number): void => {
     sourceOf(data, type, row.id, f.key).then((s) => menu.show([{ head: sourceText(s as Parameters<typeof sourceText>[0]) }], x, y)).catch(() => menu.show([{ head: "No source recorded for this value." }], x, y));
   };
-  const fold = (s: Section): void => { void savePrefs(data, type, { folded: toggleFold(each(sections.filter((x) => x.folded), (x) => x.key), s.key) }); };
+  const fold = (s: Section): void => { void savePrefs(data, type, { folded: toggleFold(each(sections.filter((x) => x.folded && x.stage?.state !== "locked"), (x) => x.key), s.key) }); };
 
-  const fieldProps = { row, type, editing, nodes, show: menu.show, onEdit: (f: FieldDef) => setEditing({ key: f.key, text: inputText(f, row.fields[f.key]) }), onText: (t: string) => setEditing((e) => (e ? { ...e, text: t, ...(e.error ? { error: "" } : {}) } : e)), onCommit: commit, onCancel: () => setEditing(null), onValue: setValue, onSource: showSource };
+  const fieldProps = { readOnly, row, type, editing, nodes, show: menu.show, onEdit: (f: FieldDef) => setEditing({ key: f.key, text: inputText(f, row.fields[f.key]) }), onText: (t: string) => setEditing((e) => (e ? { ...e, text: t, ...(e.error ? { error: "" } : {}) } : e)), onCommit: commit, onCancel: () => setEditing(null), onValue: setValue, onSource: showSource };
 
   // Ask for these: the person's conversation in the Inbox with a drafted message. A record with nobody to reach opens its empty Email (or Phone) field instead
   const askForThese = (missing: readonly { field: string; title: string }[]): void => {
@@ -327,18 +354,19 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const body: ReactElement[] = [];
   // the first frame draws what the screen shows (about the first eight fields); the sections below it join after the first paint, with the right pane (navigate budget, 50 ms)
   let drawn = 0;
-  for (const s of sections) {
+  for (const s of shown) {
     if (!late && drawn >= FIRST_FRAME_FIELDS) break;
     const sh = shownFields(s, row, prefs.keepVisible, all);
     if (!s.folded) drawn += sh.fields.length;
     const fields: ReactElement[] = [];
     for (const f of sh.fields) fields.push(<View key={f.key} style={wide ? p.half : p.full}><FieldRow field={f} {...fieldProps} /></View>);
+    const locked = s.stage?.state === "locked", now = s.stage?.state === "current";
     body.push(
-      <View key={s.key} testID={`section-${s.key}`}>
-        <Pressable accessibilityRole="button" accessibilityState={{ expanded: !s.folded }} aria-expanded={!s.folded} accessibilityLabel={s.title} testID={`fold-${s.key}`} onPress={() => fold(s)} style={({ hovered }: { hovered?: boolean }) => [p.sh, hovered === true && p.cardOver]}>
-          <View style={s.folded ? p.shut : undefined}><Glyph name="chevd" size={10} /></View>
-          <Text style={p.st}>{s.title}</Text>
-          <Text style={p.sn}>{s.fields.length}</Text>
+      <View key={s.key} testID={`section-${s.key}`} style={now ? p.nowBox : undefined}>
+        <Pressable accessibilityRole="button" accessibilityState={{ expanded: !s.folded, disabled: locked }} aria-expanded={!s.folded} accessibilityLabel={locked ? `${s.title}, opens at ${s.stage!.opensAt}` : s.title} testID={`fold-${s.key}`} disabled={locked} onPress={() => fold(s)} style={({ hovered }: { hovered?: boolean }) => [p.sh, hovered === true && !locked && p.cardOver]}>
+          {locked ? <Icon name="lock" size={12} /> : <View style={s.folded ? p.shut : undefined}><Glyph name="chevd" size={10} /></View>}
+          <Text style={[p.st, now && p.stNow]}>{s.title}</Text>
+          {locked ? <Text style={p.sn} testID={`opens-${s.key}`}>{`Opens at ${s.stage!.opensAt}`}</Text> : now ? <Text style={p.sn}>This stage</Text> : <Text style={p.sn}>{s.fields.length}</Text>}
         </Pressable>
         {s.folded ? null : <View style={p.fields}>{fields}</View>}
         {!s.folded && sh.hidden > 0 && !all ? <Pressable accessibilityRole="button" testID={`more-${s.key}`} onPress={() => setAll(true)}><Text style={p.more}>{`Show ${sh.hidden} empty ${sh.hidden === 1 ? "field" : "fields"}`}</Text></Pressable> : null}
@@ -356,6 +384,8 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
         {wide ? <><Text style={p.slash}>/</Text>
         <Text accessibilityRole="header" aria-level={1} style={p.h1} numberOfLines={1} testID="record-title-crumb">{title}</Text></> : null}
         <View style={p.grow} />
+        {readOnly ? <View style={p.ro} testID="record-readonly" accessibilityLabel="You can view this record"><Glyph name="lock" size={12} color="var(--ink-3)" /><Text style={p.hbText}>Read only</Text></View> : null}
+        <ShareButton recordId={recordId} title={title} typeName={def.plural} wide={wide} />
         {late ? <><Pressable accessibilityRole="button" accessibilityLabel="Relationships" accessibilityState={{ selected: map }} testID="toggle-map" onPress={() => setMap(!map)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, map && p.hbOn]}><Glyph name="map" size={14} color={map ? "var(--accent)" : "var(--ink-2)"} />{wide ? <Text style={[p.hbText, map && p.lit]}>Relationships</Text> : null}</Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Details" accessibilityState={{ selected: paneOpen }} testID="toggle-pane" onPress={() => setPane(!paneOpen)} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver, paneOpen && p.hbOn]}><Glyph name="expand" size={14} color={paneOpen ? "var(--accent)" : "var(--ink-2)"} />{wide ? <Text style={[p.hbText, paneOpen && p.lit]}>Details</Text> : null}</Pressable></> : null}
       </View>
@@ -367,9 +397,9 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
         </View>
       ) : null}
       <View style={wide ? p.split : p.stack}>
-        <ScrollView style={p.sheet} contentContainerStyle={p.sheetIn} testID="record-sheet">
-          {isJourneyDef(def) ? <JourneyStepper type={type} row={row} def={def} /> : null}
-          <Pressable accessibilityRole="button" accessibilityLabel="Edit title" testID="title" onPress={() => fieldProps.onEdit(def.fields.find((f) => f.key === def.titleField)!)}>
+        <ScrollView style={[p.sheet, phone && paneOpen && p.hidden]} contentContainerStyle={p.sheetIn} testID="record-sheet">
+          {isJourneyDef(def) || stagesOn(def) ? <JourneyStepper type={type} row={row} def={def} /> : null}
+          <Pressable accessibilityRole="button" accessibilityLabel="Edit title" testID="title" onPress={() => { if (!readOnly) fieldProps.onEdit(def.fields.find((f) => f.key === def.titleField)!); }}>
             {editing?.key === def.titleField
               ? <TextInput autoFocus value={editing.text} onChangeText={fieldProps.onText} accessibilityLabel="Title" testID={`edit-${def.titleField}`} onBlur={() => commit(def.fields.find((f) => f.key === def.titleField)!, editing.text)} onSubmitEditing={() => commit(def.fields.find((f) => f.key === def.titleField)!, editing.text)} onKeyPress={(e) => { if (e.nativeEvent.key === "Escape") setEditing(null); }} style={p.titleInput} />
               : <Text accessibilityRole="header" aria-level={2} style={p.title}>{title}</Text>}
@@ -385,13 +415,26 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
             </View>
           ) : null}
           {map ? <View style={p.mapBox} testID="relation-map-box">{nodes.length > 1 ? <RelationMap nodes={nodes} edges={mapEdges} onOpen={(n) => data.nav.openRecord(n.type, n.recordId)} /> : <Text style={p.paneEmpty}>Nothing is linked to this record yet.</Text>}</View> : null}
+          {tabs ? <TabStrip tabs={each(tabs, (t) => ({ key: t.key, title: t.title }))} active={tabs.some((t) => t.key === group) ? group : tabs[0]!.key} onSelect={setGroup} /> : null}
           {body}
           {all ? <Pressable accessibilityRole="button" testID="hide-empty" onPress={() => setAll(false)}><Text style={p.more}>Hide empty fields</Text></Pressable> : null}
         </ScrollView>
-        {paneOpen ? (late ? <Pane type={type} row={row} def={def} tab={tab} onTab={setTab} /> : <ResizableColumn paneKey="record-pane" defaultWidth={340} grow="left" min={280} style={p.pane as never} testID="record-pane-reserved" />) : null}
+        {paneOpen ? (late ? <Pane type={type} row={row} def={def} tab={tab} onTab={setTab} phone={phone} /> : <ResizableColumn paneKey="record-pane" defaultWidth={340} grow="left" min={280} style={p.pane as never} testID="record-pane-reserved" />) : null}
       </View>
       {menu.element}
     </View>
+  );
+}
+
+/** Share, in a Team Space, for someone who may share this record. A Personal Space and a viewer draw nothing. */
+function ShareButton({ recordId, title, typeName, wide }: { recordId: string; title: string; typeName: string; wide: boolean }): ReactElement | null {
+  const data = useOptionalRecordsData();
+  const { on, can } = useRecordRights(recordId);
+  if (!on || !(can.manage || can.share)) return null;
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel="Share" testID="record-share-btn" onPress={() => data?.share?.open({ type: "record", id: recordId, name: title, typeName })} style={({ hovered }: { hovered?: boolean }) => [p.hb, hovered === true && p.cardOver]}>
+      <Glyph name="share" size={14} color="var(--ink-2)" />{wide ? <Text style={p.hbText}>Share</Text> : null}
+    </Pressable>
   );
 }
 
@@ -408,6 +451,7 @@ const p = StyleSheet.create({
   slash: { fontSize: 14, color: "var(--ink-4)" as string },
   h1: { margin: 0, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, flexShrink: 1 },
   grow: { flex: 1 },
+  ro: { height: 28, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", gap: 6 },
   hb: { height: 28, paddingHorizontal: 8, borderRadius: 7, flexDirection: "row", alignItems: "center", gap: 6 },
   hbOn: { backgroundColor: "var(--accent-wash)" as string },
   hbText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
@@ -426,6 +470,8 @@ const p = StyleSheet.create({
   sh: { height: 32, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 16, paddingHorizontal: 4, borderRadius: 6 },
   shut: { transform: [{ rotate: "-90deg" }] },
   st: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string },
+  stNow: { color: "var(--accent)" as string },
+  nowBox: { borderRadius: 10, backgroundColor: "var(--accent-wash)" as string, paddingHorizontal: 10, paddingBottom: 6, marginTop: 6 },
   sn: { fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   fields: { flexDirection: "row", flexWrap: "wrap" },
   half: { width: "50%", paddingRight: 16 },
@@ -463,13 +509,16 @@ const p = StyleSheet.create({
   peekRow: { flexDirection: "row", justifyContent: "space-between", gap: 14 },
   peekLabel: { fontSize: 12, color: "var(--ink-3)" as string },
   peekValue: { fontSize: 12, color: "var(--ink-2)" as string, flexShrink: 1 },
-  more: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingVertical: 8, paddingHorizontal: 4 },
+  more: { fontSize: 12.5, color: "var(--ink-3)" as string, paddingVertical: 8, paddingHorizontal: 0 },
   flash: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 18, paddingVertical: 7, backgroundColor: "var(--accent-wash)" as string },
   flashBad: { backgroundColor: "var(--sunk)" as string },
   flashText: { flex: 1, fontSize: 12.5, color: "var(--ink)" as string },
   flashLink: { fontSize: 12.5, fontWeight: "600", color: "var(--accent)" as string },
   pane: { width: 340, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string },
   paneScroll: { flex: 1 },
+  hidden: { display: "none" },
+  panePhone: { width: "100%", borderLeftWidth: 0 },
+  paneFill: { flex: 1, minHeight: 0 },
   paneBody: { padding: 16, gap: 10 },
   paneText: { fontSize: 13, color: "var(--ink-2)" as string, lineHeight: 19 },
   paneEmpty: { fontSize: 13, color: "var(--ink-3)" as string, padding: 16 },

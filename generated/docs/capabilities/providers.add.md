@@ -19,7 +19,7 @@ Connect a provider with a pasted API key (stored once, used by handle) or a loca
 | HTTP | POST /v1/providers/add |
 | MCP tool | providers_add (vault) |
 | CLI | none |
-| Emits | provider.added, vault.item_created |
+| Emits | provider.added, vault.item_created, vault.folder_created |
 
 ## Input
 
@@ -49,6 +49,7 @@ type Out = {
     via: string;
     scope: "mine" | "shared";
     itemId: string;
+    itemName?: string;
     handle?: string;
     agentsUsing: Array<string>;
     usage: {
@@ -100,6 +101,7 @@ type Out = {
       "handle": "#Dana_Lawmatics",
       "id": "prv_a1b2c3",
       "itemId": "vit_a1b2c3",
+      "itemName": "Dana Claude Max",
       "keyless": true,
       "logo": "example",
       "name": "example",

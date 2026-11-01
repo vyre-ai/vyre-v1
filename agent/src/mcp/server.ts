@@ -84,9 +84,10 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       canEngineer: () => caller.engineer === true,
     });
     const threadId = caller.threadId ?? caller.sessionId;
+    if (caller.preload) tools.preload(threadId, caller.preload);
     const ctx: ToolCtx = {
       space: caller.space, agentId: caller.principal.id, asker,
-      thread: { threadId, kind: "chat", planMode: caller.planMode === true },
+      thread: { threadId, kind: "chat", planMode: caller.planMode === true || caller.mode === "plan", ...(caller.mode !== undefined ? { mode: caller.mode } : {}) },
       ...(caller.rules ? { rules: caller.rules } : {}),
       ...(caller.provider ? { provider: caller.provider } : {}),
       ...(caller.runId ? { runId: caller.runId } : {}),

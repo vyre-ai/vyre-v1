@@ -26,6 +26,7 @@ Send a text through the single send API: suppression, SMS consent, send window, 
 ```ts
 type In = {
   numberId: string;
+  senderId?: string;
   to: string;
   body: string;
   mediaFileIds?: Array<string>;
@@ -78,6 +79,7 @@ type Out = {
     "numberId": "num_a1b2c3",
     "replyToId": "sms_a1b2c3",
     "sendAt": 1760000000000,
+    "senderId": "num_a1b2c3",
     "to": "+14155550123"
   },
   "output": {

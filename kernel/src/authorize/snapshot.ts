@@ -31,6 +31,8 @@ export interface GrantRec {
   readonly hidden: readonly string[];
   readonly hasHidden: boolean;
   readonly ceiling: number;
+  /** The grant carries the export right. */
+  readonly xport: boolean;
 }
 
 const NONE: readonly string[] = Object.freeze([]);
@@ -54,12 +56,13 @@ export class AccessSnapshot {
   private grantsOnCache: Map<string, GrantRec[]> | null = null;
   private typeWideCache: Map<string, GrantRec[]> | null = null;
   private chainCache = new Map<string, readonly ResourceRow[] | null>();
+  private cutCache: Map<string, number> | null = null;
 
   /** `access.changed`: drop every derived view and bump the epoch. */
   changed(): void {
     this.epoch++;
     this.infoCache.clear(); this.chainCache.clear();
-    this.grantsOnCache = null; this.typeWideCache = null;
+    this.grantsOnCache = null; this.typeWideCache = null; this.cutCache = null;
   }
 
   putPrincipal(p: PrincipalRow): void { this.principals.set(p.id, p); this.changed(); }
@@ -144,6 +147,7 @@ export class AccessSnapshot {
         exp: row.expires_at == null ? Infinity : row.expires_at, nb: c.notBefore ?? -Infinity, na: c.notAfter ?? Infinity,
         filter: c.rowFilter ?? null, hidden, hasHidden: hidden.length > 0,
         ceiling: c.labelCeiling === undefined ? Infinity : Number.isFinite(c.labelCeiling) ? c.labelCeiling : -1,
+        xport: c.export === true,
       };
       const [map, k] = row.resource_id === null ? [tw, row.resource_type] as const : [on, row.resource_id] as const;
       const l = map.get(k); if (l) l.push(rec); else map.set(k, [rec]);
@@ -155,6 +159,16 @@ export class AccessSnapshot {
   allGrantRecs(): GrantRec[] {
     if (!this.grantsOnCache) this.buildGrantIndex();
     return [...this.grantsOnCache!.values(), ...this.typeWideCache!.values()].flat();
+  }
+
+  /** How many resources were cut off from this container (Only people added, Only me) and so no longer reach it through the chain. A reader that trusts a container's grants must look at these one by one. */
+  cutFrom(container: string): number {
+    if (!this.cutCache) {
+      const m = new Map<string, number>();
+      for (const r of this.resources.values()) if (r.home !== undefined) m.set(r.home, (m.get(r.home) ?? 0) + 1);
+      this.cutCache = m;
+    }
+    return this.cutCache.get(container) ?? 0;
   }
 
   /** The resource followed by its ancestors up to the root, or null when the resource (or an ancestor) is unknown. A cycle ends the walk. */

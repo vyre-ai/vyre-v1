@@ -172,6 +172,11 @@ test("only simple field types can start a new field", () => {
   assert.deepEqual(addableTypes(fieldTypes).map((t) => t.key), ["text", "number", "email", "status"]);
 });
 
+test("the Add field chips say Long text, Date and time and URL, not the raw keys", () => {
+  const raw = ["longtext", "datetime", "url", "multichoice", "text"].map((key) => ({ key, title: key[0]!.toUpperCase() + key.slice(1), filterOps: [], sortable: true, groupable: false, sealed: false }));
+  assert.deepEqual(addableTypes(raw).map((t) => t.title), ["Text", "Long text", "Date and time", "URL", "Multi choice"]);
+});
+
 test("a column header offers Rename, Change type and Delete only with permission; a built in field shows them off", () => {
   const custom = { system: false, titleField: "name" };
   assert.deepEqual(fieldMenuEntries(false, custom, { key: "notes", type: "text" }, () => undefined), []);

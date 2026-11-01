@@ -87,7 +87,7 @@ test("Projects at risk lists overdue, blocked and slipped with the reason in wor
 
 test("While you were away: three lines on top, at most seven items, decisions with Undo, See all and Mark seen", () => {
   const out = html(createSampleHome());
-  assert.ok(has(out, 'data-testid="away-line-0"') && has(out, 'data-testid="away-line-2"') && !has(out, 'data-testid="away-line-3"'));
+  assert.ok(has(out, 'data-testid="away-summary"') && has(out, 'data-testid="away-chip-decision"') && !has(out, 'data-testid="away-line-0"'), "the headline is chips with counts, not a paragraph");
   assert.ok(has(out, "Booked Sam Ortega") && has(out, "Reconciled October and drafted 12 invoices"));
   assert.ok(has(out, 'data-testid="away-undo-0"'), "the decision has Undo");
   assert.ok(!has(out, 'data-testid="away-undo-1"'), "work that was only finished does not");

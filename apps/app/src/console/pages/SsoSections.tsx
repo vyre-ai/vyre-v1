@@ -36,7 +36,7 @@ export function SsoProviderView({kind,provider,redirect,editing=false,busy=false
   </Group>
   <Actions><Button label={copied?"Copied":"Copy redirect URL"} testID={`sso-${kind}-copy`} onPress={copy}/>{provider?<Button label="Test it" testID={`sso-${kind}-test`} onPress={()=>onTest?.()}/>:null}{!editing?<Button label={provider?"Change":"Set up"} testID={`sso-${kind}-edit`} onPress={()=>onEdit?.()}/>:null}</Actions>
   {tested?<Note>{tested}</Note>:null}
-  <Note>{`Register this redirect URL in your ${title} app, then paste the app's Client ID and a Client secret below. Only existing members and people with an accepted invite can sign in.`}</Note>
+  <Note>{`Register this redirect URL in your ${title} app, then paste its Client ID and a secret.`}</Note>
   {editing?<>
    <Field label={`${title} Client ID`} value={clientId} onChange={setClientId} testID={`sso-${kind}-client-id`}/>
    <Field label={provider?.clientSecretHandle?"New Client secret (leave empty to keep the saved one)":"Client secret"} value={secret} onChange={setSecret} secure testID={`sso-${kind}-client-secret`}/>

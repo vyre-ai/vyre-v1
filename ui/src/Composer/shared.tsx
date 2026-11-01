@@ -12,6 +12,8 @@ export const ICON_UP = svg('<path d="M8 13V3M3.5 7.5L8 3l4.5 4.5"/>');
 
 /** An icon: inline svg on web, a plain character on native until the native icon set lands. */
 export function Glyph({ icon, native, size = 16, color }: { icon: string; native: string; size?: number; color?: string }): ReactElement {
-  if (Platform.OS === "web") return <MenuIcon icon={icon} size={size} {...(color === undefined ? {} : { color })} />;
+  // a raw svg without its own size is drawn at the glyph's size (an svg with none would take the browser's 300 by 150)
+  const sized = icon.trimStart().startsWith("<svg") && !/^<svg[^>]*\swidth=/.test(icon.trimStart()) ? icon.trimStart().replace("<svg", `<svg width="${size}" height="${size}"`) : icon;
+  if (Platform.OS === "web") return <MenuIcon icon={sized} size={size} {...(color === undefined ? {} : { color })} />;
   return <Text style={{ color: color ?? "var(--ink-3)", fontSize: size, lineHeight: size + 2 }}>{native}</Text>;
 }

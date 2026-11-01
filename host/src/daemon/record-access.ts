@@ -7,13 +7,15 @@ import {canonical} from "../../../lib/canonical.ts";
 import type {Filter,Sort} from "../../../kernel/src/store/types.ts";
 
 type ReadSeed=CtxSeed&{readCap?:string;readInput?:unknown;labels?:Readonly<Record<string,number>>};
-const READS=new Set(["records.get","records.query","records.search","records.history"]);
+const READS=new Set(["records.get","records.query","records.search","records.history","records.activity"]);
 const RETRY_MS=[0,40,120];
 const object=(value:unknown):Record<string,unknown>=>value!==null&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};
 export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapshot;now():number;fresh():boolean;refresh?():Promise<void>;warn?(info:{cap:string;type:string;traceId:string;returned:number;allowed:number;missing:string[]}):void}){
  const cursors=new Map<string,{key:string;cursor:string;expires:number;skip:number}>();
  const random=()=>Array.from(crypto.getRandomValues(new Uint8Array(24)),byte=>byte.toString(16).padStart(2,"0")).join("");
- function related(resourceId:string|null,type:string):boolean{const snapshot=ports.snapshot();return resourceId!==null&&(snapshot.chain(type)?.some(parent=>parent.id===resourceId)===true||snapshot.chain(resourceId)?.some(parent=>parent.id===type)===true);}
+ function related(resourceId:string|null,type:string):boolean{const snapshot=ports.snapshot();return resourceId!==null&&(snapshot.chain(type)?.some(parent=>parent.id===resourceId)===true||snapshot.chain(resourceId)?.some(parent=>parent.id===type)===true||snapshot.resource(resourceId)?.home===type);}
+ // a record cut off from its type (Only me) is still a row of the type, but no grant on the type reaches it
+ function inType(snapshot:AccessSnapshot,resource:{id:string;home?:string|undefined},type:string):boolean{return resource.home===type||snapshot.chain(resource.id)?.some(parent=>parent.id===type)===true;}
  function subjects(req:Req):string[]{const output=[req.principal,...(req.actingFor?[req.actingFor]:[])];for(let at=0;at<output.length;at++){const info=ports.snapshot().info(output[at]!);if(info?.p.kind==="svc"&&info.p.owner&&!output.includes(info.p.owner))output.push(info.p.owner);}return output;}
  function assertFields(req:Req,type:string,labels:Readonly<Record<string,number>>,touched:readonly string[],trace:string):void{
   if(!touched.length)return;
@@ -41,7 +43,7 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
     const resource=grant.row.resource_id?snapshot.resource(grant.row.resource_id):undefined;
     if(resource&&related(resource.id,type))return true;
    }
-   return [...snapshot.allResources()].some(resource=>resource.type==="record"&&resource.owner_id===principal&&snapshot.chain(resource.id)?.some(parent=>parent.id===type));
+   return [...snapshot.allResources()].some(resource=>resource.type==="record"&&resource.owner_id===principal&&inType(snapshot,resource,type));
   });
  }
  function references(value:unknown):string[]{const output:string[]=[];const visit=(item:unknown):void=>{if(Array.isArray(item)){item.forEach(visit);return;}if(!item||typeof item!=="object")return;const row=object(item);if(typeof row["field"]==="string")output.push(row["field"]);Object.values(row).forEach(visit);};visit(value);return output;}
@@ -52,10 +54,16 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
   const result=authorize(snapshot,{principal:seed.principal.id,actingFor:seed.actingFor,provider:seed.provider,cap:seed.readCap,input:seed.readInput,action:{perm:null,level:"view"},resource:{type:"record",id:row.id},row:{...row.data,id:row.id,owner_id:resource.owner_id},now:ports.now()});
   return result.effect==="allow"?result:null;
  }
+ // a relation value is a reference (vyre://<space>/<type>/<id>) to a record: one the caller may not see is not in the list, so the value cannot say it exists
+ function seeable(seed:ReadSeed,value:unknown):unknown{
+  if(!Array.isArray(value))return value;
+  const snapshot=ports.snapshot();
+  return value.filter(item=>{const urn=item&&typeof item==="object"?(item as Record<string,unknown>)["urn"]:undefined;if(typeof urn!=="string")return true;const id=urn.split("/").pop()!;const resource=snapshot.resource(id);if(!resource||resource.type!=="record")return true;return authorize(snapshot,{principal:seed.principal.id,actingFor:seed.actingFor,provider:seed.provider,action:{perm:null,level:"view"},resource:{type:"record",id},now:ports.now()}).effect==="allow";});
+ }
  function fields(seed:ReadSeed,row:StoredRecord,original:Record<string,unknown>,trace:string){
   const result=decision(seed,row);if(!result)throw fail("permission.no_grant",trace);
   const snapshot=ports.snapshot(),hidden=new Set(result.scope?.hiddenFields??[]);let ceiling=result.scope?.labelCeiling??-1;if(seed.provider)for(const policy of snapshot.policies())if(policy.kind==="provider_label")ceiling=Math.min(ceiling,policy.allow[seed.provider]??policy.defaultMax??Infinity);
-  return Object.fromEntries(Object.entries(original).filter(([key])=>!hidden.has(key)&&seed.labels?.[key]!==undefined&&seed.labels[key]<=ceiling&&snapshot.fieldLabel(row.type,key)<=ceiling&&snapshot.fieldLabel("record",key)<=ceiling));
+  return Object.fromEntries(Object.entries(original).filter(([key])=>!hidden.has(key)&&seed.labels?.[key]!==undefined&&seed.labels[key]<=ceiling&&snapshot.fieldLabel(row.type,key)<=ceiling&&snapshot.fieldLabel("record",key)<=ceiling).map(([key,value])=>[key,seeable(seed,value)]));
  }
  return{
   async collection(cap:string,input:unknown,seed:ReadSeed,req:Req,trace:string):Promise<{finish():unknown}|null>{
@@ -66,11 +74,12 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
    seed={...seed,labels:await recordSensitivity(ports.store(),type,trace)};
    const snapshot=ports.snapshot(),parent=authorize(snapshot,req),scope=parent.scope;
    if(parent.effect==="hold")throw fail("permission.needs_approval",trace);
-   if(parent.effect==="allow"&&scope&&!scope.rowFilter&&!scope.hiddenFields.length&&scope.labelCeiling>=3&&!seed.provider)return null;
-   const children=[...snapshot.allResources()].filter(resource=>resource.type==="record"&&snapshot.chain(resource.id)?.some(parent=>parent.id===type));
+   const cut=snapshot.cutFrom(type)>0;
+   if(parent.effect==="allow"&&scope&&!scope.rowFilter&&!scope.hiddenFields.length&&scope.labelCeiling>=3&&!seed.provider&&!cut)return null;
+   const children=[...snapshot.allResources()].filter(resource=>resource.type==="record"&&inType(snapshot,resource,type));
    // Keep the existing indexed query/FTS path for unrestricted callers. The
    // scoped path below pages authorized rows, rather than filtering a raw page.
-   if(!seed.provider&&parent.effect==="allow"&&scope&&!scope.rowFilter&&!scope.hiddenFields.length&&children.every(resource=>resource.label<=scope.labelCeiling)){
+   if(!seed.provider&&!cut&&parent.effect==="allow"&&scope&&!scope.rowFilter&&!scope.hiddenFields.length&&children.every(resource=>resource.label<=scope.labelCeiling)){
     const definition=await ports.store().describe(type);
     if(definition?.fields.every(field=>(seed.labels?.[field.name]??0)<=scope.labelCeiling&&snapshot.fieldLabel(type,field.name)<=scope.labelCeiling&&snapshot.fieldLabel("record",field.name)<=scope.labelCeiling))return null;
    }
@@ -129,7 +138,7 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
     }
     return req;
    }
-   if(!["records.get","records.history"].includes(cap))return req;
+   if(!["records.get","records.history","records.activity"].includes(cap))return req;
    const value=object(input);if(typeof value["type"]!=="string"||typeof value["recordId"]!=="string")return req;
    const row=await ports.store().get(value["type"],value["recordId"]);if(!row)return req;
    const resource=ports.snapshot().resource(row.id);
@@ -140,10 +149,10 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
    seed={...seed,readCap:cap,readInput:input};
    const value=object(input),result=object(output);const type=value["type"];
    if(typeof type!=="string")throw fail("validation.bad_input",trace);
-   if(cap==="records.history"){
+   if(cap==="records.history"||cap==="records.activity"){
     const id=value["recordId"];const row=typeof id==="string"?await ports.store().get(type,id):null;
     if(!row)throw fail("permission.no_grant",trace);
-    return async()=>{seed={...seed,labels:await recordSensitivity(ports.store(),type,trace)};const visible=fields(seed,row,row.data,trace);return{...result,entries:(Array.isArray(result["entries"])?result["entries"]:[]).filter(entry=>typeof object(entry)["field"]==="string"&&Object.hasOwn(visible,object(entry)["field"] as string))};};
+    return async()=>{seed={...seed,labels:await recordSensitivity(ports.store(),type,trace)};const visible=fields(seed,row,row.data,trace);return{...result,entries:(Array.isArray(result["entries"])?result["entries"]:[]).filter(entry=>typeof object(entry)["field"]==="string"?Object.hasOwn(visible,object(entry)["field"] as string):cap==="records.activity")};};
    }
    const originals=cap==="records.get"?[object(result["record"])]:Array.isArray(result["rows"])?result["rows"].map(object):[];
    const stored=await Promise.all(originals.map(row=>typeof row["id"]==="string"?ports.store().get(type,row["id"]):Promise.resolve(null)));

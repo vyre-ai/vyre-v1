@@ -7,6 +7,7 @@ import type { VaultBrowsers, VaultData, VaultRoute } from "../../places/vault/la
 import { usePlaceHash } from "../hash/context.tsx";
 import type { HashTarget } from "../hash/hash.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
+import { connectorOpening } from "../../places/vault/itemenv/automations.ts";
 import { openAsk } from "./ask.ts";
 import { attemptKey } from "./files-review.ts";
 import type { ShellRuntime } from "./runtime.tsx";
@@ -54,7 +55,7 @@ export function withKeys(call: ShellRuntime["call"]): ShellRuntime["call"] {
 
 export function vaultData(rt: ShellRuntime, browsers: VaultBrowsers | undefined = desktopBrowsers()): VaultData {
   return {
-    screens: rt.screens, call: withKeys(rt.call), connection: rt.connection, principals: rt.principals, me: rt.me, spaceName: rt.space.name, ...(rt.space.kind === "personal" ? { personal: true } : {}),
+    screens: rt.screens, assistantId: rt.assistant.id, call: withKeys(rt.call), connection: rt.connection, principals: rt.principals, me: rt.me, spaceName: rt.space.name, ...(rt.space.kind === "personal" ? { personal: true } : {}),
     nav: {
       openShare: (itemId) => rt.open({ screen: "vault.layout", args: { share: itemId } }),
       openExport: (folderId) => rt.open({ screen: "vault.export", args: { folderId } }),
@@ -66,6 +67,9 @@ export function vaultData(rt: ShellRuntime, browsers: VaultBrowsers | undefined 
       openRequests: () => rt.open({ screen: "vault_requests.list" }),
       openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
       ask: (agentId, _mode, about) => openAsk(rt, agentId, about),
+      addToAutomations: (item) => openAsk(rt, "assistant", { kind: "vault_item", id: item.id, title: item.name }, undefined, connectorOpening(item)),
+      openAutomation: (automationId) => rt.open({ screen: "automations.canvas", args: { automationId } }),
+      openAddProvider: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),
     },
     clock: () => ({ now: rt.clock().now }),
     ...(browsers ? { browsers } : {}),

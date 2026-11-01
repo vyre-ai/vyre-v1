@@ -9,6 +9,7 @@
 import {
   MAX_NAME, askerOf, channelBy, channelByName, channelOfRecord, channelOut, ensure, membersOf, agentsOf, isMember, addAgent, addMember, messageOf, nameKey, raise, threadBy, threadOf,
 } from "../projections.ts";
+import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChannelRec, ChatCtx, Db, Mode } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -21,15 +22,20 @@ function tables(db: Db): void {
 }
 function prepare(ctx: ChatCtx): void { ensure(ctx.db); tables(ctx.db); }
 
-function load(ctx: ChatCtx, channelId: string): ChannelRec {
+function load(ctx: ChatCtx, channelId: string, o: { anyone?: boolean } = {}): ChannelRec {
   prepare(ctx);
   const ch = channelBy(ctx.db, channelId);
   if (!ch) raise(ctx, "validation.not_found", "That channel does not exist.");
+  // an invite-only channel is not there for someone who is not in it (the same answer as a channel that does not exist); Join alone says why it cannot be entered
+  if (o.anyone !== true && ch.visibility === "invite" && !isTrustedService(ctx.principal) && !isMember(ctx.db, ch.mainThread, askerOf(ctx)) && ch.createdBy !== askerOf(ctx)
+    && !(ctx.principal.kind === "agent" && agentsOf(ctx.db, ch.mainThread).some((a) => a.agentId === ctx.principal.id))) {
+    raise(ctx, "validation.not_found", "That channel does not exist.");
+  }
   return ch;
 }
 /** A channel that still takes changes. */
-function loadLive(ctx: ChatCtx, channelId: string): ChannelRec {
-  const ch = load(ctx, channelId);
+function loadLive(ctx: ChatCtx, channelId: string, o: { anyone?: boolean } = {}): ChannelRec {
+  const ch = load(ctx, channelId, o);
   if (ch.archived) raise(ctx, "validation.bad_input", "This channel is archived. Bring it back first.");
   return ch;
 }
@@ -94,7 +100,7 @@ export async function channelsList(ctx: ChatCtx, input: { section?: "personal" |
 // ---- me in and out -------------------------------------------------------------------------------------------------------------------------------
 
 export async function channelsJoin(ctx: ChatCtx, input: { channelId: string }) {
-  const ch = loadLive(ctx, input.channelId);
+  const ch = loadLive(ctx, input.channelId, { anyone: true });
   const asker = askerOf(ctx);
   if (!asker.startsWith("usr_")) raise(ctx, "validation.bad_input", "Only a person joins a channel.");
   if (isMember(ctx.db, ch.mainThread, asker)) return view(ctx, ch);

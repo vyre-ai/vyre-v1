@@ -67,7 +67,7 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
     t.diagnostic("PASS Review sampling mutation and readback");
 
     await open("console.ai-incidents", '[data-testid="console-ai-incidents"]');
-    await page.getByLabel("Title", { exact: true }).fill("Browser AI incident"); await page.getByLabel("Opening note", { exact: true }).fill("Opened by production proof"); await page.getByRole("button", { name: "Open incident", exact: true }).click();
+    await page.getByTestId("incident-open").click(); await page.getByTestId("incident-sheet").waitFor(); await page.getByLabel("Title", { exact: true }).fill("Browser AI incident"); await page.getByLabel("Opening note", { exact: true }).fill("Opened by production proof"); await page.getByRole("button", { name: "Open incident", exact: true }).click();
     await page.getByText("Browser AI incident", { exact: true }).first().waitFor();
     const incident = (await api("engine.incidents.list", { state: ["open"], limit: 100 }) as { incidents: { incidentId: string; title: string }[] }).incidents.find((row) => row.title === "Browser AI incident"); assert.ok(incident);
     await page.getByTestId("object-action-assign").click(); await page.getByRole("button", { name: "Owner", exact: true }).click();
@@ -82,10 +82,10 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
     t.diagnostic("PASS Incident open, named assignment, note, resolve and readback");
 
     await open("governance.holds", 'text="Place a hold"', "holds");
-    const holdSection = page.getByTestId("section-Place a hold");
-    await page.getByLabel("Find a person, file, folder, channel or thread", { exact: true }).fill(owner.name); await holdSection.getByRole("button", { name: "Search", exact: true }).click();
-    await holdSection.getByRole("button", { name: "Target", exact: true }).click(); await page.getByRole("menuitem", { name: `${owner.name} · person`, exact: true }).click();
-    await page.getByLabel("Reason", { exact: true }).fill("Production browser release proof"); await page.getByRole("button", { name: "Review hold", exact: true }).click(); await page.getByRole("button", { name: "Place hold", exact: true }).click(); await page.getByText("Hold placed", { exact: true }).waitFor();
+    await page.getByTestId("hold-new").click(); const holdSheet = page.getByTestId("hold-sheet"); await holdSheet.waitFor();
+    await holdSheet.getByLabel("Find a person, file, folder, channel or thread", { exact: true }).fill(owner.name);
+    await holdSheet.getByText(owner.name, { exact: true }).first().click();
+    await holdSheet.getByLabel("Reason", { exact: true }).fill("Production browser release proof"); await holdSheet.getByRole("button", { name: "Review hold", exact: true }).click(); await holdSheet.getByRole("button", { name: "Place hold", exact: true }).click(); await page.getByText("Hold placed", { exact: true }).waitFor();
     const held = (await api("governance.holds.list", { kind: "person", limit: 100 }) as { holds: { target: { id: string }; reason: string }[] }).holds.find((hold) => hold.reason === "Production browser release proof"); assert.ok(held);
     await capture("person-hold-placed");
     await page.getByText(owner.name, { exact: true }).first().click(); await page.getByRole("button", { name: "Release hold", exact: true }).click(); await page.getByText("Hold released", { exact: true }).waitFor();
@@ -108,17 +108,17 @@ test("production Console AI/Data: policies, spend, Gate, review, incidents, hold
     await capture("ai-policy-export");
 
     await open("console.schema", '[data-testid="console-schema"]', "schema");
-    await page.getByRole("button", { name: "Create record type", exact: true }).click(); await page.getByLabel("Type key", { exact: true }).fill("browser_ai_data"); await page.getByLabel("Singular title", { exact: true }).fill("Browser AI datum"); await page.getByLabel("Plural title", { exact: true }).fill("Browser AI data");
-    await page.getByTestId("schema-preview").click(); await page.getByRole("button", { name: "Apply exact preview", exact: true }).click(); await page.getByText("Schema updated", { exact: true }).waitFor();
+    await page.getByTestId("schema-new-type").click(); await page.getByLabel("Type key", { exact: true }).fill("browser_ai_data"); await page.getByLabel("Singular title", { exact: true }).fill("Browser AI datum"); await page.getByLabel("Plural title", { exact: true }).fill("Browser AI data");
+    await page.getByTestId("schema-preview").click(); await page.getByRole("button", { name: "Apply exact preview", exact: true }).click(); await page.getByText("Schema updated", { exact: true }).waitFor(); await page.getByTestId("sheet-cancel").click(); await page.getByTestId("sheet-cancel").waitFor({ state: "detached" });
     assert.ok((await api("schema.describe", {}) as { types: { key: string }[] }).types.some((type) => type.key === "browser_ai_data"));
     await page.getByText("Browser AI datum", { exact: true }).first().click(); await page.getByRole("button", { name: "Add field", exact: true }).click();
     await page.getByLabel("Field key", { exact: true }).fill("risk_score"); await page.getByLabel("Field title", { exact: true }).fill("Risk score"); await page.getByRole("button", { name: "Field type", exact: true }).click(); await page.getByRole("menuitem", { name: "Number", exact: true }).click();
-    await page.getByTestId("schema-preview").click(); await page.getByRole("button", { name: "Apply exact preview", exact: true }).click(); await page.getByText("Schema updated", { exact: true }).waitFor();
+    await page.getByTestId("schema-preview").click(); await page.getByRole("button", { name: "Apply exact preview", exact: true }).click(); await page.getByText("Schema updated", { exact: true }).waitFor(); await page.getByTestId("sheet-cancel").click(); await page.getByTestId("sheet-cancel").waitFor({ state: "detached" });
     const typed = (await api("schema.describe", {}) as { types: { key: string; fields: { key: string; type: string }[] }[] }).types.find((type) => type.key === "browser_ai_data"); assert.equal(typed?.fields.find((field) => field.key === "risk_score")?.type, "number");
     await capture("schema-typed-field");
 
     await open("console.labels", '[data-testid="console-labels"]', "labels");
-    await page.getByText("Restricted", { exact: true }).click(); await page.getByRole("button", { name: "Resource", exact: true }).click(); await page.getByRole("menuitem", { name: "Browser AI datum", exact: true }).click(); await page.getByTestId("label-set").click(); await page.getByText("Label updated", { exact: true }).waitFor();
+    await page.getByText("Restricted", { exact: true }).click(); await page.getByTestId("label-new").click(); await page.getByRole("button", { name: "Resource", exact: true }).click(); await page.getByRole("menuitem", { name: "Browser AI datum", exact: true }).click(); await page.getByTestId("label-set").click(); await page.getByText("Label updated", { exact: true }).waitFor(); await page.getByTestId("sheet-cancel").click(); await page.getByTestId("sheet-cancel").waitFor({ state: "detached" });
     assert.equal((await api("schema.describe", {}) as { types: { key: string; label: string }[] }).types.find((type) => type.key === "browser_ai_data")?.label, "restricted");
     await capture("sensitivity-label");
 

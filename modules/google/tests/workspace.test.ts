@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  calendarList, calendarStopWatch, calendarWatch, docBatch, docCreate, docGet, driveChanges, driveCopy, driveCreateFolder, driveDownload, driveExport, driveGet, driveList,
+  calendarList, calendarStopWatch, calendarWatch, docBatch, docCreate, docGet, driveChanges, driveCopy, driveCreateFolder, driveDownload, driveExport, driveGet, driveList, driveRevisionDownload, driveRevisions,
   drivePermissions, driveShare, driveStopWatch, driveTrash, driveUpload, driveWatch, dwdDisable, dwdMembers, dwdMyAccount, dwdProbe, dwdScopes, dwdSetExcluded, dwdSetup, dwdStatus,
   eventCreate, eventDelete, eventGet, eventRespond, eventsList, eventUpdate, freeBusy, health, meetEntries, meetRecordings, meetRecords, meetSubscribe, meetTranscripts,
   receivePush, sheetAppend, sheetBatch, sheetCreate, sheetGet, sheetUpdate, sheetValues,
@@ -585,4 +585,49 @@ test("the handler map covers exactly the capabilities the google manifest declar
   const declared = registry.capabilities.filter((c) => c.module === "google").map((c) => c.name).sort();
   assert.deepEqual(Object.keys(handlers).sort(), declared);
   assert.ok(declared.length > 0);
+});
+
+test("an upload with a remote id replaces that file in place; with ifRevision it is refused when Drive's head revision moved on", async () => {
+  const h = ready();
+  h.on("GET", `${DRIVE}/files/f1?`, { body: { ...file, headRevisionId: "r1", lastModifyingUser: { displayName: "Maya Lin", emailAddress: MAYA } } });
+  const same = await driveUpload(h.ctx, { ...act, name: "Intake.docx", parentId: "root1", fileId: "fil_x", remoteId: "f1", ifRevision: "r1" });
+  assert.equal(same.stale, undefined);
+  assert.equal(same.file.headRevisionId, "rev_new");
+  assert.deepEqual(same.file.lastModifyingUser, { name: "Maya Lin", email: MAYA });
+  assert.equal(h.uploads.length, 1);
+  assert.equal(h.uploads[0]?.method, "PATCH");
+  assert.match(h.uploads[0]?.url ?? "", /\/upload\/drive\/v3\/files\/f1\?uploadType=multipart/);
+  assert.deepEqual(h.uploads[0]?.metadata, {}, "an in-place replace does not rename or move");
+
+  const moved = await driveUpload(h.ctx, { ...act, name: "Intake.docx", fileId: "fil_x", remoteId: "f1", ifRevision: "r0" });
+  assert.equal(moved.stale, true);
+  assert.equal(moved.file.headRevisionId, "r1", "the file as Drive holds it now");
+  assert.equal(h.uploads.length, 1, "nothing was sent");
+
+  const fresh = await driveUpload(h.ctx, { ...act, name: "New.docx", parentId: "root1", fileId: "fil_y" });
+  assert.equal(h.uploads[1]?.method, undefined);
+  assert.deepEqual(h.uploads[1]?.metadata, { name: "New.docx", parents: ["root1"] });
+  for (const [cap, out] of [["google.drive.upload_file", same], ["google.drive.upload_file", moved], ["google.drive.upload_file", fresh]] as const) check(cap, out);
+});
+
+test("revisions list who saved each one, and one revision downloads into a blob", async () => {
+  const h = ready();
+  h.on("GET", `${DRIVE}/files/f1/revisions`, { body: { revisions: [{ id: "r1", modifiedTime: "2026-10-01T08:00:00Z", size: "10", lastModifyingUser: { displayName: "Maya Lin", emailAddress: MAYA } }, { id: "r2", modifiedTime: "2026-10-02T08:00:00Z" }] } });
+  const revs = await driveRevisions(h.ctx, { ...act, fileId: "f1" });
+  assert.deepEqual(revs.revisions, [{ id: "r1", modifiedTime: "2026-10-01T08:00:00Z", size: 10, lastModifyingUser: { name: "Maya Lin", email: MAYA } }, { id: "r2", modifiedTime: "2026-10-02T08:00:00Z" }]);
+  const dl = await driveRevisionDownload(h.ctx, { ...act, fileId: "f1", revisionId: "r1" });
+  assert.deepEqual(dl, { blobId: "blb_download", size: 42, mimeType: "application/pdf" });
+  check("google.drive.list_revisions", revs);
+  check("google.drive.download_revision", dl);
+});
+
+test("a Drive push notice wakes the mounts that watch the channel; the first notice after a watch opens does not", async () => {
+  const h = admin();
+  h.ctx.call = async (cap, input) => { h.called.push({ cap, input: input as Record<string, unknown> }); return { mounts: 1, passes: 1 }; };
+  await receivePush(h.ctx, { kind: "drive", messageId: "chn1:1", channelId: "chn1", resourceState: "sync" });
+  assert.deepEqual(h.calls("mounts.nudge"), []);
+  await receivePush(h.ctx, { kind: "drive", messageId: "chn1:2", channelId: "chn1", resourceState: "change" });
+  assert.deepEqual(h.calls("mounts.nudge").map((c) => c.input), [{ source: "google", channelId: "chn1" }]);
+  await receivePush(h.ctx, { kind: "calendar", messageId: "cal1:1", channelId: "cal1", resourceState: "exists" });
+  assert.equal(h.calls("mounts.nudge").length, 1, "only Drive notices wake mounts");
 });

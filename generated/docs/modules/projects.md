@@ -4,12 +4,13 @@ Lane L3. Kind module. Version 0.1.0.
 
 Requires: agents, records, tasks.
 
-## Capabilities (27)
+## Capabilities (28)
 
 - [projects.apply_cascade](../capabilities/projects.apply_cascade.md): Apply a cascade proposal, or keep the dates
 - [projects.cascade](../capabilities/projects.cascade.md): Propose the cascade after something slips: which later tasks move and which dates still hold (an agent may call this too)
 - [projects.create](../capabilities/projects.create.md): Make a project: the record, exactly one channel and one folder (Projects/<name>), and an empty plan
 - [projects.file_chat](../capabilities/projects.file_chat.md): File a private chat under the project; it stays private and the agent gets the project memory and folder
+- [projects.files_folder](../capabilities/projects.files_folder.md): The folder that holds a record's files: a project's own, else Files > Projects > Record files > the record (made on first use unless create is false, with the record's access mirrored onto it)
 - [projects.from_channel](../capabilities/projects.from_channel.md): Make this channel a project: create the record and attach the channel, a folder and an empty plan
 - [projects.get](../capabilities/projects.get.md): Read one project: record fields, channel, folder and counts
 - [projects.link_tasks](../capabilities/projects.link_tasks.md): Add a dependency arrow between two tasks

@@ -5,6 +5,8 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "comms.senders.list": async (ctx) => { throw new VyreErr(notImplemented("comms.senders.list", ctx.trace)); },
+  "comms.senders.set_default": async (ctx) => { throw new VyreErr(notImplemented("comms.senders.set_default", ctx.trace)); },
   "inbox.counts": async (ctx) => { throw new VyreErr(notImplemented("inbox.counts", ctx.trace)); },
   "inbox.follow_set": async (ctx) => { throw new VyreErr(notImplemented("inbox.follow_set", ctx.trace)); },
   "inbox.following": async (ctx) => { throw new VyreErr(notImplemented("inbox.following", ctx.trace)); },

@@ -1,0 +1,13 @@
+// The chats that build a connector: the titles the Vault (Add to Automations) and the step picker (Build a connector) give them, the skill they run on, and the tools that skill uses.
+// A CLI engine lists its tools once when it starts and cannot pick up a tool found later with tool_search, so these are listed from the first turn of such a chat.
+
+/** The titles of the chats Add to Automations and Build a connector start. */
+export const CONNECTOR_CHAT = /^(Add .+ to Automations|Build a connector)$/;
+export const CONNECTOR_SKILL = "connector-builder";
+
+/** What the connector-builder skill calls beyond the default tools. */
+export const CONNECTOR_TOOLS: readonly string[] = [
+  "automations_draft_connector", "automations_read_docs", "automations_try_read", "automations_connector_card",
+  "connectors_list", "connectors_get", "connectors_init", "connectors_define", "connectors_test", "connectors_publish",
+  "connections_list", "connections_create", "agents_builtin_skill_get",
+];

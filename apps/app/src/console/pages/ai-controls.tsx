@@ -1,18 +1,10 @@
 import type { ReactElement } from "react";
 import { Pressable, Text, View } from "react-native";
-import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
+import { Select } from "./shared.tsx";
 
+/** The labelled picker the AI pages use: the shared Select, so every picker looks and opens the same way. */
 export function Choice({ label, value, options, onChange, disabled = false }: { label: string; value: string; options: readonly { key: string; title: string }[]; onChange(value: string): void; disabled?: boolean }): ReactElement {
-  const menu = useMenu();
-  return <View style={{ gap: 6, marginVertical: 8 }}>
-    <Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{label}</Text>
-    <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} accessibilityState={{ disabled }} style={{ minHeight: 34, paddingHorizontal: 10, justifyContent: "center", borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 6, opacity: disabled ? 0.5 : 1 }} onPress={(event) => {
-      const target = event.currentTarget as unknown as { getBoundingClientRect?(): { left: number; bottom: number } };
-      const rect = target.getBoundingClientRect?.();
-      menu.show(options.map((option) => ({ label: option.title, checked: option.key === value, onSelect: () => onChange(option.key) })), rect?.left ?? event.nativeEvent.pageX, rect?.bottom ?? event.nativeEvent.pageY, "other");
-    }}><Text style={{ fontSize: 13, color: "var(--ink)" as string }}>{options.find((option) => option.key === value)?.title ?? value}</Text></Pressable>
-    {menu.element}
-  </View>;
+  return <Select label={label} value={value} options={options} onChange={onChange} disabled={disabled} />;
 }
 
 export function Tick({ label, checked, onChange, disabled = false }: { label: string; checked: boolean; onChange(checked: boolean): void; disabled?: boolean }): ReactElement {

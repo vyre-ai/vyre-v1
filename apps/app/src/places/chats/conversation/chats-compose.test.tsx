@@ -309,12 +309,15 @@ test("a [[ pick keeps the thing's id, and only links the text still names are se
   assert.deepEqual(refsIn(edited), [], "the link was deleted from the text, so it is not sent");
 });
 
-test("a # pick keeps its id on the chip", () => {
+test("a # pick keeps its id on the inline token it writes, and sends it while the text holds it", () => {
   const lists: ComposerLists = { files: [{ t: "plan.md", s: "Projects", kind: "File", ref: "fil_7" }] };
   const trigger: Trigger = { ch: "#", start: 0, end: 1, query: "" };
   const item = popupFor(trigger, lists, true).find((e): e is PopupItem => "group" in e)!;
   const done = applyPick(initialState("#"), trigger, item);
-  assert.deepEqual(done.next.chips, [{ kind: "File", name: "plan.md", id: "fil_7" }]);
+  assert.equal(done.next.text, "#plan.md ");
+  assert.deepEqual(done.next.refs, [{ kind: "File", id: "fil_7", title: "plan.md", token: "#" }]);
+  assert.deepEqual(sendNow(done.next, "")?.payload.refs, [{ kind: "File", id: "fil_7", title: "plan.md", token: "#" }]);
+  assert.deepEqual(refsIn({ ...done.next, text: "never mind" }), [], "the token was deleted, so it is not sent");
 });
 
 test("picking a command that takes words writes its name and waits; one that takes none runs at once", () => {
@@ -347,7 +350,7 @@ test("# and [[ open a query; anything else does not", () => {
   assert.equal(openQuery("done [[Title]] and more"), null);
 });
 
-test("a # search fills records, files, folders and channels with their ids; a [[ search asks for records only", async () => {
+test("a # search fills records, files, folders, channels, chats, automations and projects with their ids; a [[ search asks for records only", async () => {
   const asked: Array<{ cap: string; input: any }> = [];   // eslint-disable-line @typescript-eslint/no-explicit-any
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     asked.push({ cap, input: input as never });
@@ -357,17 +360,23 @@ test("a # search fills records, files, folders and channels with their ids; a [[
         { kind: "file", id: "fil_1", title: "plan.md", path: "Projects/plan.md", link: "x", score: 1 },
         { kind: "channel", id: "chn_1", title: "intake", link: "x", score: 1 },
         { kind: "person", id: "usr_1", title: "Maya", link: "x", score: 1 },
+        { kind: "chat", id: "thr_9", title: "Rivera kickoff", snippet: "2 days ago", link: "x", score: 1 },
+        { kind: "automation", id: "aut_1", title: "Rivera reminders", link: "x", score: 1 },
       ], tookMs: 1, hasMore: false };
     }
     if (cap === "files.folder.search") return { folders: [{ folderId: "fld_1", name: "Probate", path: "Projects/Probate" }] };
+    if (cap === "projects.list") return { projects: [{ projectId: "prj_1", recordId: "rec_p", type: "project", title: "Rivera filing", status: "active", channelId: "chn_p", folderId: "fld_p", memberCount: 2, openTasks: 3, lateTasks: 0 }, { projectId: "prj_2", recordId: "rec_q", type: "project", title: "Other", status: "active", channelId: "c", folderId: "f", memberCount: 1, openTasks: 1, lateTasks: 0 }], hasMore: false };
     throw new Error(cap);
   };
   const hash = await fetchSuggestions({ call }, "#", "riv");
-  assert.deepEqual(hash.records, [{ t: "Rivera Holdings", s: "Client", kind: "Record", ref: "rec_1" }]);
+  assert.deepEqual(hash.records, [{ t: "Rivera Holdings", s: "Client", data: { type: "Client" }, kind: "Record", ref: "rec_1" }]);
+  assert.deepEqual(hash.chats, [{ t: "Rivera kickoff", s: "2 days ago", kind: "Chat", ref: "thr_9" }]);
+  assert.deepEqual(hash.automations, [{ t: "Rivera reminders", kind: "Automation", ref: "aut_1" }]);
+  assert.deepEqual(hash.projects, [{ t: "Rivera filing", s: "Project \u00b7 3 open tasks", kind: "Project", ref: "prj_1", data: { status: "active" } }]);
   assert.deepEqual(hash.files, [{ t: "plan.md", s: "Projects/plan.md", kind: "File", ref: "fil_1" }]);
   assert.deepEqual(hash.channels, [{ t: "intake", kind: "Channel", ref: "chn_1" }]);
   assert.deepEqual(hash.folders, [{ t: "Probate", s: "Projects/Probate", kind: "Folder", ref: "fld_1" }]);
-  assert.deepEqual(asked[0]!.input.types, ["record", "file", "channel"]);
+  assert.deepEqual(asked[0]!.input.types, ["record", "file", "channel", "chat", "automation"]);
   asked.length = 0;
   const link = await fetchSuggestions({ call }, "[[", "riv");
   assert.deepEqual(asked.map((a) => a.cap), ["search.query"]);

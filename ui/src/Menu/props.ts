@@ -2,6 +2,8 @@
 // Items use label and icon so a menu is all icons or no icons.
 // Report a problem is appended by this module, never by a caller.
 
+import type { ReactNode } from "react";
+
 export const REPORT_A_PROBLEM = "Report a problem";
 
 /** context: right-click. help: Help menu. shortcut: Cmd-Shift-/. other: leave items alone. */
@@ -26,6 +28,14 @@ export interface MenuItem {
   disabled?: boolean;
   reason?: string;
   onSelect?: () => void;
+  /** An element before the label (an app logo). It replaces `icon` on this row; the all-or-none rule is about `icon` only. */
+  leading?: ReactNode;
+  /** More words a typed search matches besides the label (an app name for one of its actions). */
+  keywords?: string;
+  /** A small dot after the label; its text is the tooltip and the screen reader label (an untested action). */
+  mark?: string;
+  /** Stays in the list whatever is typed in the search (a closing "Build a connector" row). */
+  pinned?: boolean;
 }
 
 export type MenuEntry = MenuSeparator | MenuHead | MenuItem;
@@ -36,6 +46,30 @@ export interface MenuProps {
   y?: number;
   /** Defaults to context, which appends Report a problem. */
   source?: MenuSource;
+  /** A search field at the top (this is its placeholder). Typing narrows the rows; a group with no match goes away, a pinned row stays. Type-ahead is off. */
+  search?: string;
+  /** Panel width in px; by default the menu is 220 to 320 wide. */
+  width?: number;
+}
+
+/** The entries a typed search leaves: matching items, the heads that still have one, pinned items always. Nothing typed leaves all of them. */
+export function filterMenuEntries(entries: readonly MenuEntry[], query: string): MenuEntry[] {
+  const needle = query.trim().toLowerCase();
+  if (needle === "") return entries.slice();
+  const out: MenuEntry[] = [];
+  let head: MenuEntry | null = null;
+  let any = false;
+  for (const e of entries) {
+    if (isSeparator(e)) { head = null; if (out.length > 0 && !isSeparator(out[out.length - 1]!)) out.push(e); continue; }
+    if (isHead(e)) { head = e; any = false; continue; }
+    const hit = e.pinned === true || e.label.toLowerCase().includes(needle) || (e.keywords ?? "").toLowerCase().includes(needle);
+    if (!hit) continue;
+    if (head !== null && !any) out.push(head);
+    any = true;
+    out.push(e);
+  }
+  while (out.length > 0 && isSeparator(out[out.length - 1]!)) out.pop();
+  return out;
 }
 
 export function isSeparator(entry: MenuEntry): entry is MenuSeparator {

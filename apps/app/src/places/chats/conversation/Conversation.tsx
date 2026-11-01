@@ -6,15 +6,17 @@ import { rememberFirstLine } from "../sidebar/titles.ts";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
-import type { ComposerSend } from "../../../../../../ui/src/Composer/index.tsx";
+import type { ComposerSend, ListItem } from "../../../../../../ui/src/Composer/index.tsx";
 import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/Deferred.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { RunsOnChip } from "./RunsOn.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { Feed, SkeletonMessage } from "../../../../../../ui/src/stream/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { BlockHost } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import { Face } from "../needsyou/parts.tsx";
+import { droppedOf, sharedLine, shareWithAgents, undoShare } from "./dropshare.ts";
 import { ConversationDataProvider, useConversationData, useOnline, useOptionalConversationData, useScreenQuery } from "./data.tsx";
 import type { ConversationData, ConversationNav } from "./data.tsx";
 import * as act from "./actions.ts";
@@ -25,10 +27,13 @@ import { commandItems, lastActionable, runSlash } from "./commands.ts";
 import type { CommandEnv } from "./commands.ts";
 import { parseSlash } from "../../../../../../lib/chat-commands.ts";
 import { pluginNames } from "./commands.ts";
-import { useSuggest } from "./suggest.ts";
+import { composerSuggest, previewOf } from "./suggest.ts";
+import { ChatBrain, modeOf, setChatMode, stripAgents, useAccounts, useUsage } from "./brain.tsx";
+import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
+import { useConnectVersion } from "../../../shell/connect/context.ts";
 import { windowAround } from "./focus.ts";
 import type { MessageActions } from "./MessageView.tsx";
-import { FaceButton, Glyph, IconButton, TextButton, anchorOf } from "./parts.tsx";
+import { FaceButton, Glyph, IconButton, TextButton } from "./parts.tsx";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import {
   WINDOW, beforeCursor, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, sendKind, stillPending, stopLabel, swapNeeded,
@@ -100,6 +105,8 @@ function ConversationView(): ReactElement {
   const [cursor, setCursor] = useState<number | null>(null);
   const [pending, setPending] = useState<Pending[]>([]);
   const [line, setLine] = useState("");
+  /** A line with an Undo (a drop that shared something): the taking-back runs when it is pressed. */
+  const [undo, setUndo] = useState<(() => void) | null>(null);
   // text asked for by a pane or a page ("Ask about this file"): taken when this conversation opens and whenever it is asked again, after what the person had typed
   const [seed, setSeed] = useState<{ value: string; n: number }>(() => ({ value: data.fill?.take() ?? "", n: 0 }));
   const [typed, setTyped] = useState(seed.value);
@@ -114,7 +121,8 @@ function ConversationView(): ReactElement {
   /** Messages read around a marked one that is older than the page holds: shown instead of the newest, until "Jump to latest". */
   const [around, setAround] = useState<Message[] | null>(null);
   useEffect(() => { setFocusId(data.focus ?? null); }, [data.focus]);
-  const suggested = useSuggest(data, typed);
+  const accounts = useAccounts(data, useConnectVersion());
+  const [modeOver, setModeOver] = useState<ChatMode | null>(null);
   const width = useWindowDimensions().width;
   const mobileBack = useMobileBack();
   const narrow = width > 0 && width < 640;
@@ -139,7 +147,7 @@ function ConversationView(): ReactElement {
     setSeed((x) => ({ value, n: x.n + 1 }));
   }), [data.fill]);
 
-  const say = useCallback((text: string) => { setLine(text); }, []);
+  const say = useCallback((text: string) => { setLine(text); setUndo(null); }, []);
   /** A rejected write: say what did not happen and that it can be tried again. The page keeps what it showed. */
   const fail = (what: string) => (): void => say(`${what} Try again.`);
 
@@ -149,7 +157,9 @@ function ConversationView(): ReactElement {
     if (emptyRef.current) { emptyRef.current = false; rememberFirstLine(data.threadId, p.body); }
     void (async () => {
       // files first: each is stored in Files under a key derived from this send, so a retry finds the same files and attaches them again
-      const attachments = p.files && p.files.length > 0 ? await act.uploadAttachments(data, p.files, `chat-attach:${p.key}`) : [];
+      const kept = (p.files ?? []).flatMap((f) => (f.fileId !== undefined ? [f.fileId] : []));
+      const fresh = (p.files ?? []).filter((f) => f.fileId === undefined);
+      const attachments = [...(fresh.length > 0 ? await act.uploadAttachments(data, fresh, `chat-attach:${p.key}`) : []), ...kept];
       return act.sendMessage(data, { text: p.body, mentions: p.mentions, key: p.key, kind: p.kind, working: p.working, ...(p.refs && p.refs.length > 0 ? { refs: p.refs } : {}), attachments });
     })().then(
       (r) => setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, messageId: r.messageId, state: "sending" as const } : x))),
@@ -157,6 +167,12 @@ function ConversationView(): ReactElement {
     );
   }, [data, say]);
 
+  const leadNow = threadQ.status === "loading" ? undefined : leadOf(threadQ.data.thread);
+  // the lead's context, read again whenever the message count changes (a turn ended or a message went out)
+  const leadUsage = useUsage(data, leadNow?.agentId ?? null, leadNow?.accountRef ?? null, messagesQ.status === "loading" ? 0 : messagesQ.data.messages.length);
+  const serverMode = threadQ.status === "loading" ? null : modeOf(threadQ.data.thread);
+  // what the server says wins once it changes (a /plan, another device); a local choice holds until then
+  useEffect(() => { setModeOver(null); }, [serverMode]);
   if (threadQ.status === "loading" || messagesQ.status === "loading") return <ConversationLoading />;
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;
@@ -188,7 +204,7 @@ function ConversationView(): ReactElement {
     const key = data.newKey();
     const mentions = mentionsIn(payload.text, data.directory);
     const refs = [...payload.refs, ...payload.chips.flatMap((c) => (c.id !== undefined ? [{ kind: c.kind.toLowerCase(), id: c.id, title: c.name }] : []))];
-    const files = payload.files.map((f) => ({ name: f.name, ...(f.file !== undefined ? { file: f.file } : {}), ...(f.size !== undefined ? { size: f.size } : {}), ...(f.mime ? { mime: f.mime } : {}) }));
+    const files = payload.files.map((f) => ({ name: f.name, ...(f.file !== undefined ? { file: f.file } : {}), ...(f.size !== undefined ? { size: f.size } : {}), ...(f.mime ? { mime: f.mime } : {}), ...(f.fileId !== undefined ? { fileId: f.fileId } : {}) }));
     const p: Pending = { key, body: payload.text, at: data.clock().now, state: "sending", kind: sendKind(kind, isWorking), mentions, working: isWorking, ...(files.length > 0 ? { files } : {}), ...(refs.length > 0 ? { refs } : {}) };
     setPending((cur) => [...cur, p]);
     setLine("");
@@ -285,7 +301,7 @@ function ConversationView(): ReactElement {
   };
   const moreMenu = (x: number, y: number): void => {
     const items: MenuEntry[] = [
-      { label: "Plan Mode", checked: thread.planMode, onSelect: () => void act.setPlanMode(data, !thread.planMode).then(() => say(thread.planMode ? "Plan mode is off" : "Plan mode is on: the agent plans and changes nothing until you approve"), fail("Could not change plan mode.")) },
+      { label: "Plan Mode", checked: mode === "plan", onSelect: () => chooseChatMode(mode === "plan" ? "ask" : "plan") },
       ...(lead ? [{ label: `Open ${nameOf(lead.agentId)}'s Page`, onSelect: () => data.nav.openAgent(lead.agentId) } as MenuEntry] : []),
       ...connectEntries(thread, data.nav),
       { separator: true } as MenuEntry,
@@ -318,10 +334,12 @@ function ConversationView(): ReactElement {
     approvePlan: (planId) => void act.approvePlan(data, planId).then(() => say("Plan approved. The steps run and tick off in the card."), fail("Could not approve the plan.")),
     retryTurn: (turnId) => void act.retryTurn(data, turnId).catch(fail("Could not retry.")),
     accountReady: () => act.hasWorkingAccount(data),
-    errorNext: (key) => (key === "connect_ai" ? (data.nav.openAiSetup ? data.nav.openAiSetup() : say("Open the Vault and add an AI account.")) : say(`Choose ${key} in the model switcher or ask for access.`)),
+    errorNext: (key, turnId) => void act.errorAction(data, key, turnId, say).catch(fail("Could not do that.")),
     retrySend: (id) => { const p = pending.find((x) => `pending:${x.key}` === id); if (p) { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "sending" as const } : x))); setLine(""); run(p); } },
     discardSend: (id) => { setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id)); setLine(""); },
     showMenu: (entries, x, y, label) => menu.show(entries, x, y, "context", { label }),
+    ...(data.terminal ? { terminalCard: { deps: { call: data.call, newKey: data.newKey }, ...(lead ? { agentId: lead.agentId } : {}), copy: (t: string) => data.copy(t), openTerminal: (id: string) => data.nav.openBeside("terminal", id) } } : {}),
+    ...(data.mountSheet ? { mountCard: { agents: thread.agents.map((a) => ({ id: a.agentId, name: nameOf(a.agentId) })), data } } : {}),
     ...(memoryEntries ? { memoryEntries } : {}),
     fork: (id) => void act.forkChat(data, id, data.newKey()).then((next) => { say("Branched into a new chat, linked back to this one"); data.nav.openThread(next); }, fail("Could not fork it.")),
     makeTask: (id) => {
@@ -334,7 +352,29 @@ function ConversationView(): ReactElement {
     openMessage: (threadId, messageId) => data.nav.openThread(threadId, messageId),
   };
 
-  const lists = { ...data.lists, commands: commandItems(data.pluginCommands?.()), records: suggested.records, files: suggested.files, folders: suggested.folders, channels: suggested.channels };
+  const inThread = new Map(thread.agents.map((a) => [a.agentId, a.mode] as const));
+  const dirId = (name: string, kind: "agent" | "person"): string | undefined => data.directory.find((c) => c.kind === kind && c.name === name)?.id;
+  const noteFor = (x: ListItem, kind: "agent" | "person"): ListItem => {
+    const name = typeof x === "string" ? x : x.t;
+    const id = (typeof x === "string" ? undefined : x.ref) ?? dirId(name, kind);
+    const base = typeof x === "string" ? { t: x } : x;
+    const where = kind === "agent"
+      ? (id && inThread.has(id) ? (inThread.get(id) === "lead" ? "Leads this chat" : "Listening") : "Not in this chat yet")
+      : (id && thread.members.some((m) => m.id === id) ? "In this chat" : "Not in this chat");
+    return { ...base, kind: kind === "agent" ? "Agent" : "Person", ...(id ? { ref: id } : {}), s: base.s ? `${base.s} \u00b7 ${where}` : where };
+  };
+  const lists = { ...data.lists, agents: (data.lists.agents ?? []).map((x) => noteFor(x, "agent")), people: (data.lists.people ?? []).map((x) => noteFor(x, "person")), commands: commandItems(data.pluginCommands?.()) };
+  const mode: ChatMode = modeOver ?? modeOf(thread);
+  const chooseChatMode = (m: ChatMode): void => {
+    setModeOver(m);
+    void setChatMode(data, m).then(
+      () => say(m === "plan" ? "Plan mode is on: the agent plans and changes nothing until you approve" : m === "auto" ? "Auto: the agent acts on its own and still asks before anything leaves Vyre" : "Ask first: the agent asks before it changes or sends anything"),
+      () => { setModeOver(null); say("Could not change the mode. Try again."); },
+    );
+  };
+  const contexts = new Map<string, { used: number; window: number } | null>();
+  if (lead && leadUsage !== "loading") contexts.set(lead.agentId, leadUsage?.context ?? null);
+  const composerAgents = stripAgents(thread, nameOf, accounts ?? [], contexts);
   const personMention = thread.kind === "chat" && thread.members.filter((m) => m.kind === "person").length <= 1
     ? mentionsIn(typed, data.directory.filter((c) => c.kind === "person" && c.id !== data.me.id))[0]
     : undefined;
@@ -343,12 +383,26 @@ function ConversationView(): ReactElement {
   const title = titleOf(thread, nameOf);
   const q = queueNote(queued, lead ? nameOf(lead.agentId) : "");
 
+  // A mounted folder or file dragged from Files is shared with this chat's agents (desktop); the line says so and can take it back
+  const dropShare = (e: { preventDefault: () => void; dataTransfer?: { getData?: (t: string) => string } }): void => {
+    const items = droppedOf(e.dataTransfer?.getData?.("text/plain") ?? "");
+    if (items.length === 0) return;
+    e.preventDefault();
+    const agents = thread.agents.map((a) => ({ id: a.agentId, name: nameOf(a.agentId) }));
+    if (agents.length === 0) { say("No agent in this chat."); return; }
+    void shareWithAgents(data, items, agents, data.newKey()).then(
+      (done) => { setLine(sharedLine(done)); setUndo(() => () => { void undoShare(data, done.grants).then(() => say("Taken back."), fail("Could not take it back.")); }); },
+      fail("Could not share that."),
+    );
+  };
+  const dropProps = Platform.OS === "web" ? ({ onDragOver: (e: { preventDefault: () => void; dataTransfer?: { types?: ArrayLike<string> } }) => { if (Array.from(e.dataTransfer?.types ?? []).includes("text/plain")) e.preventDefault(); }, onDrop: dropShare } as object) : {};
   return (
-    <View testID="conversation" accessibilityLabel={`Conversation, ${title}`} style={st.root}>
+    <View testID="conversation" accessibilityLabel={`Conversation, ${title}`} style={st.root} {...dropProps}>
       {compact ? null : (
       <View testID="conversation-head" accessibilityRole="header" style={st.head}>
         {mobileBack ? <IconButton icon="back" label="Back" size={32} testID="conversation-back" onPress={() => mobileBack()} /> : null}
         <Text numberOfLines={1} testID="conversation-title" style={st.title}>{title}</Text>
+        <RunsOnChip call={data.call} threadId={data.threadId} agentId={lead?.agentId} narrow={narrow} say={say} />
         {leadFace && !narrow ? <FaceButton key={leadFace.agentId} name={leadFace.name} seedId={leadFace.agentId} mode={leadFace.mode} working={leadFace.working} title={modeTitle(leadFace)} testID={`face-${leadFace.agentId}`} {...(title !== leadFace.name ? { label: leadFace.name } : {})} size={20} onPress={(x, y) => modeMenu(leadFace, x, y)} /> : null}
         <View testID="conversation-faces" accessibilityRole="toolbar" accessibilityLabel="Agents in this thread" style={st.faces}>
           {collect(narrow ? [] : otherFaces, (f) => <FaceButton key={f.agentId} name={f.name} seedId={f.agentId} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
@@ -422,7 +476,7 @@ function ConversationView(): ReactElement {
 
       {data.waitingLine ?? null}
       {q ? <Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>{q}</Text> : null}
-      {line ? <View testID="conversation-line" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{line}</Text></View> : null}
+      {line ? <View testID="conversation-line" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{line}</Text>{undo ? <TextButton link label="Undo" testID="conversation-undo" onPress={undo} /> : null}</View> : null}
       {personMention ? (
         <View testID="channel-offer" style={st.offer}>
           <Face name={nameOf(personMention.id)} seedId={personMention.id} kind="person" size={18} />
@@ -437,7 +491,10 @@ function ConversationView(): ReactElement {
           <Composer
             key={`composer-${seed.n}`} {...(seed.value !== "" ? { value: seed.value } : {})}
             testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={placeholderFor(thread, nameOf, isWorking)} working={isWorking}
-            {...(lead ? { whoExtra: <ModelChip label={modelLabel(lead.model ?? "")} onPress={modelMenu} />, barExtra: <IconButton icon="monitor" label={`${nameOf(lead.agentId)}'s computer`} size={26} testID="computer-button" onPress={() => data.nav.openBeside("computer", lead.agentId)} /> } : {})}
+            {...(lead && !data.personal ? { barExtra: <IconButton icon="monitor" label={`${nameOf(lead.agentId)}'s computer`} size={26} testID="computer-button" onPress={() => data.nav.openBeside("computer", lead.agentId)} /> } : {})}
+            agents={composerAgents} mode={mode} onMode={chooseChatMode}
+            suggest={composerSuggest(data)} preview={(item) => previewOf(data, item)}
+            renderPanel={(agent, close, narrowPanel) => <ChatBrain data={data} thread={thread} agent={agent} accounts={accounts} mode={mode} onMode={chooseChatMode} close={close} narrow={narrowPanel} say={say} />}
             {...(lead ? { lead: nameOf(lead.agentId) } : {})} listening={collect(thread.agents.filter((a) => a.mode === "listen"), (a) => nameOf(a.agentId))}
             lists={lists} agentChat={thread.kind !== "channel"} onChange={(t) => { typedRef.current = t; setTyped(t); }} onCommand={(name) => void runSlash(`/${name}`, commandEnv())}
             onSubmit={(p) => submit(p, "queue")} onInterrupt={(p) => submit(p, "interrupt")}
@@ -510,16 +567,6 @@ function OlderPage({ before, onPage }: { before: number; onPage: (page: Messages
   return null;
 }
 
-/** The model the lead answers with: its name and a chevron; a press opens the list under it. */
-function ModelChip({ label, onPress }: { label: string; onPress: (x: number, y: number) => void }): ReactElement {
-  return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Model: ${label}`} testID="model-chip" onPress={(e) => { const p = anchorOf(e); onPress(p.x, p.y); }} style={st.model}>
-      <Text style={st.modelText}>{label}</Text>
-      <Glyph name="chevd" size={11} color="var(--ink-3)" />
-    </Pressable>
-  );
-}
-
 const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   head: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
@@ -527,8 +574,6 @@ const st = StyleSheet.create({
   faces: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
   find: { height: 40, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   findInput: { flex: 1, minWidth: 0, height: 28, fontSize: 13.5, color: "var(--ink)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
-  model: { height: 22, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 6, borderRadius: 6 },
-  modelText: { fontSize: 12, fontWeight: "500", color: "var(--ink-2)" as string },
   live: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 6 },
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string },
   liveText: { fontSize: 12, color: "var(--ink-2)" as string },
@@ -543,7 +588,7 @@ const st = StyleSheet.create({
   toLatest: { position: "absolute", alignSelf: "center", bottom: 10, height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: 15, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string },
   toLatestText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   queue: { paddingHorizontal: 24, paddingVertical: 4, fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
-  lineBox: { paddingHorizontal: 24, paddingVertical: 4, alignItems: "center" },
+  lineBox: { paddingHorizontal: 24, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   lineText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   offer: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "center", maxWidth: 760, paddingHorizontal: 24, paddingVertical: 4 },
   offerText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-2)" as string },

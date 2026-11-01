@@ -26,7 +26,7 @@ const graphEvent = t.obj({
   id: t.str(), subject: t.opt(t.str()), start: t.rec(), end: t.rec(), location: t.opt(t.rec()), onlineMeeting: t.opt(t.rec()),
   attendees: t.opt(t.arr(t.obj({ email, response: t.opt(t.str()), type: t.opt(t.str()) }))), organizer: t.opt(t.rec()), isCancelled: t.opt(t.bool()),
 });
-const driveItem = t.obj({ id: t.str(), name: t.str(), size: t.opt(t.int()), lastModifiedDateTime: t.opt(t.str()), folder: t.opt(t.bool()), webUrl: t.opt(t.str()), parentId: t.opt(t.str()) });
+const driveItem = t.obj({ id: t.str(), name: t.str(), size: t.opt(t.int()), lastModifiedDateTime: t.opt(t.str()), folder: t.opt(t.bool()), webUrl: t.opt(t.str()), parentId: t.opt(t.str()), eTag: t.opt(t.str()), lastModifiedBy: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })) });
 const eventWrite = {
   calendarId: t.opt(t.str()), subject: t.opt(t.str()), body: t.opt(t.str()), location: t.opt(t.str()), start: t.opt(t.rec()), end: t.opt(t.rec()),
   attendees: t.opt(t.arr(t.obj({ email, optional: t.opt(t.bool()) }))), teamsMeeting: t.opt(t.bool()),
@@ -58,6 +58,27 @@ const capabilities = [
   }),
   read('ms.consent.my_account', 'The Microsoft 365 address the caller is matched to, if any (a OneDrive or SharePoint mount names it so it syncs as the person, not as an admin)', {
     in: {}, out: { email: t.opt(email) },
+  }),
+  // ---- a person's own Microsoft sign-in for mail (no tenant consent needed): the OAuth app lives in a Vault item, the person's refresh token is sealed in the module
+  read('ms.user.app_status', 'Whether a Microsoft OAuth app is set up for signing in to your own Outlook, and the redirect address to give Microsoft for it', {
+    in: {}, out: { configured: t.bool(), clientId: t.opt(t.str()), vaultItem: t.opt(t.str()), redirectUri: t.opt(t.str()) },
+  }),
+  write('ms.user.app_set', 'Name the Vault item that holds the Microsoft OAuth app (client_id, client_secret when it has one, tenant when it is not common)', {
+    in: { vaultItem: id.handle }, out: { configured: t.bool(), clientId: t.str() }, perm: 'connectors.manage', audit: 'always', errors: ['provider.auth_failed'],
+  }),
+  write('ms.user.start', 'Start signing in to your own Outlook: the address to approve at', {
+    in: { loginHint: t.opt(email) }, out: { authUrl: t.str(), state: t.str() }, idem: 'none', errors: ['validation.precondition_failed'],
+  }),
+  write('ms.user.complete', 'Finish signing in from the callback: the state and the code, or the error Microsoft sent when the person declined. Only who started it can finish it. Makes the mailbox and starts its first sync', {
+    in: { state: t.str(), code: t.opt(t.str()), error: t.opt(t.str()) }, out: { accountId: t.str(), email, mailboxId: t.opt(id.mailbox) },
+    emits: ['microsoft.user_connected'], audit: 'always', idem: 'none', offline: 'online',
+    errors: ['auth.invalid_code', 'provider.auth_failed', 'provider.network', 'provider.bad_response', 'validation.precondition_failed', 'validation.duplicate'],
+  }),
+  read('ms.user.list', 'Your own signed-in Microsoft accounts', { in: {}, out: { accounts: t.arr(t.obj({ accountId: t.str(), email })) } }),
+  write('ms.user.remove', 'Sign out of your own Microsoft account and remove its token', { in: { accountId: t.str() }, out: { removed: t.bool() }, audit: 'always' }),
+  outward('ms.user.send_message', "Send a message from your own signed-in Outlook (mail.send_as uses it for a mailbox made by ms.user.complete)", {
+    in: { accountId: t.str(), to: t.arr(email), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), conversationId: t.opt(t.str()), attachments: t.opt(t.arr(id.file)) },
+    out: { sent: t.bool() }, gate: 'send', errors: ['provider.rate_limited', 'provider.auth_failed', 'validation.not_found'],
   }),
   read('ms.consent.members', 'Tenant users mapped to Space members by email, with exclusion and mailbox state', {
     in: { ...pageIn }, out: { members: t.arr(t.obj({ email, userId: t.opt(id.user), mapped: t.bool(), excluded: t.bool(), mailboxState: t.opt(t.str()) })), ...pageOut }, perm: 'connectors.manage', tool: 'engineer',
@@ -129,10 +150,22 @@ const capabilities = [
   gr('ms.drive.get_item', 'Read item metadata', { driveId: t.opt(t.str()), itemId: t.str() }, { item: driveItem }, { tool: 'files', deferred: true }),
   gr('ms.drive.download_item', 'Download an item into a blob', { driveId: t.opt(t.str()), itemId: t.str() }, { blobId: id.blob, size: t.int() }, { tool: 'files', deferred: true }),
   gr('ms.drive.delta', 'Item changes since a delta link (mount sync and mount lag)', { driveId: t.opt(t.str()), deltaLink: t.opt(t.str()) }, { changed: t.arr(driveItem), removed: t.arr(t.str()), deltaLink: t.str() }),
-  gw('ms.drive.upload_item', 'Upload a Space file into OneDrive or SharePoint', { driveId: t.opt(t.str()), folderId: t.opt(t.str()), name: t.str(), fileId: id.file }, { item: driveItem }, { gate: 'post', tool: 'files', deferred: true }),
+  gw('ms.drive.upload_item', 'Upload a Space file into OneDrive or SharePoint; with remoteId it replaces that item, and with ifMatch only if the item still has that eTag', { driveId: t.opt(t.str()), folderId: t.opt(t.str()), name: t.str(), fileId: id.file, remoteId: t.opt(t.str()), ifMatch: t.opt(t.str()) }, { item: t.opt(driveItem), stale: t.opt(t.bool()) }, { gate: 'post', tool: 'files', deferred: true }),
+  gr('ms.drive.list_versions', 'The versions OneDrive or SharePoint keeps of an item, with who saved each', { driveId: t.opt(t.str()), itemId: t.str() }, { versions: t.arr(t.obj({ id: t.str(), lastModifiedDateTime: t.str(), size: t.opt(t.int()), lastModifiedBy: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })) })) }, { tool: 'files', deferred: true }),
+  gr('ms.drive.download_version', 'Download one version of an item into a blob', { driveId: t.opt(t.str()), itemId: t.str(), versionId: t.str() }, { blobId: id.blob, size: t.int() }, { tool: 'files', deferred: true }),
+  gw('ms.drive.subscribe', 'Subscribe to change notifications for a drive', { driveId: t.opt(t.str()), notificationUrl: t.str() }, { subscriptionId: t.str(), expiresAt: t.ts() }, { gate: quiet('Registers a change subscription for the Space; nothing is sent to anyone') }),
+  gw('ms.drive.unsubscribe', 'Remove a drive change subscription', { subscriptionId: t.str() }, { removed: t.bool() }, { gate: quiet('Removes a change subscription; nothing is sent to anyone') }),
   gw('ms.drive.create_folder', 'Create a folder', { driveId: t.opt(t.str()), parentId: t.opt(t.str()), name: t.str() }, { item: driveItem }, { gate: 'post', tool: 'files', deferred: true }),
   gw('ms.drive.share_item', 'Create a sharing link or invite people; Microsoft emails them', { driveId: t.opt(t.str()), itemId: t.str(), emails: t.opt(t.arr(email)), role: t.enm('read', 'write') }, { shared: t.bool(), link: t.opt(t.str()) }, { gate: 'send', tool: 'files', deferred: true }),
   gw('ms.drive.delete_item', 'Delete an item', { driveId: t.opt(t.str()), itemId: t.str() }, { deleted: t.bool() }, { gate: 'delete', tool: 'files', deferred: true }),
+  // ---- Excel workbooks in a drive: cells are read and written in place, nothing is downloaded
+  gr('ms.workbook.get_range', 'Read a range of cells from an Excel workbook in OneDrive or SharePoint', { driveId: t.opt(t.str()), itemId: t.str(), sheet: t.str({ examples: ['Sheet1'] }), range: t.str({ examples: ['A1:C10'] }) },
+    { address: t.str(), values: t.arr(t.arr(t.json())) }, { tool: 'files', deferred: true }),
+  gw('ms.workbook.update_range', 'Write a block of cells in an Excel workbook; a single start cell grows to the size of the values', {
+    driveId: t.opt(t.str()), itemId: t.str(), sheet: t.str(), range: t.str({ examples: ['B2'] }), values: t.arr(t.arr(t.json()), { minItems: 1 }),
+  }, { address: t.str(), updatedCells: t.int({ minimum: 0 }) }, { gate: 'post', tool: 'files', deferred: true }),
+  gw('ms.workbook.append_rows', 'Add rows under the last used row of a worksheet in an Excel workbook', { driveId: t.opt(t.str()), itemId: t.str(), sheet: t.str(), values: t.arr(t.arr(t.json()), { minItems: 1 }) },
+    { address: t.str(), updatedRows: t.int({ minimum: 0 }) }, { gate: 'post', tool: 'files', deferred: true }),
   // ---- Teams recordings and transcripts (needs OnlineMeetingRecording.Read.All and OnlineMeetingTranscript.Read.All)
   gr('ms.teams.recordings.list_recordings', 'Recordings of an online meeting', { onlineMeetingId: t.str() }, { recordings: t.arr(t.obj({ id: t.str(), createdAt: t.opt(t.str()), contentUrl: t.opt(t.str()) })) }, { tool: 'inbox', deferred: true }),
   gr('ms.teams.recordings.get_recording', 'Download a Teams recording into a blob', { onlineMeetingId: t.str(), recordingId: t.str() }, { blobId: id.blob, size: t.int() }, { tool: 'inbox', deferred: true }),
@@ -184,6 +217,7 @@ export default defineManifest({
   events: [
     ev('microsoft.consent_configured', 'The Microsoft app registration was stored and members mapped', { p: { connector: t.lit('microsoft'), tenantId: t.str(), mappedMembers: t.int(), autoConnect: t.bool() }, subject: ['connector', '/connector'] }),
     ev('microsoft.consent_verified', 'A consent and access policy check ran', { p: { connector: t.lit('microsoft'), ok: t.bool(), missingPermissions: t.arr(t.str()) }, subject: ['connector', '/connector'] }),
+    ev('microsoft.user_connected', 'A person signed in to their own Microsoft account', { p: { accountId: t.str(), email }, subject: ['entity', '/accountId'] }),
     ev('microsoft.consent_revoked', 'The Microsoft connection was turned off', { p: { connector: t.lit('microsoft'), by: t.str() }, subject: ['connector', '/connector'] }),
     ev('microsoft.notification_received', 'A verified Graph change notification arrived', {
       p: { connector: t.lit('microsoft'), notificationId: t.str(), subscriptionId: t.str(), resource: t.str(), changeType: t.enm('created', 'updated', 'deleted'), tenantId: t.opt(t.str()) }, subject: ['connector', '/connector'],

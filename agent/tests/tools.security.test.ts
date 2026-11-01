@@ -66,16 +66,17 @@ test("Ask mode prompts for each local call; Allow and Auto run without a prompt;
     const out = await session.call(ctx(), "terminal_run", { command: "ls" });
     return { out, asked, calls: calls.length };
   };
+  // terminal_run carries the Gate's red-command condition; this fake pipeline holds every gated agent call, so a call that gets past the local policy ends "held" here (the real Gate asks only for a red command)
   const ask = await run("ask", "auto", true);
-  assert.deepEqual([ask.out.kind, ask.asked, ask.calls], ["result", 1, 1]);
+  assert.deepEqual([ask.out.kind, ask.asked, ask.calls], ["held", 1, 1]);
   const denied = await run("ask", "auto", false);
   assert.deepEqual([denied.out.kind === "error" && denied.out.error.code, denied.asked, denied.calls], ["permission.needs_approval", 1, 0]);
   for (const m of ["allow", "auto"] as const) {
     const r = await run(m, "auto", false);
-    assert.deepEqual([r.out.kind, r.asked, r.calls], ["result", 0, 1], m);
+    assert.deepEqual([r.out.kind, r.asked, r.calls], ["held", 0, 1], m);
   }
   const floored = await run("auto", "ask", true);
-  assert.deepEqual([floored.out.kind, floored.asked], ["result", 1], "a floor of ask beats a person's Auto");
+  assert.deepEqual([floored.out.kind, floored.asked], ["held", 1], "a floor of ask beats a person's Auto");
 });
 
 test("Auto still asks for the always-ask list and keeps the work-folder wall", async () => {

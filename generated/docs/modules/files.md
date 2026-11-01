@@ -44,7 +44,7 @@ Requires: mounts.
 - [files.move](../capabilities/files.move.md): Move a file to another folder (grants of the new folder apply, nothing is copied)
 - [files.name_version](../capabilities/files.name_version.md): Name a version or give its reason
 - [files.purge](../capabilities/files.purge.md): Delete a file from Trash for good
-- [files.read](../capabilities/files.read.md): Read the content of a file or one of its versions as text, base64 or a short-lived download address
+- [files.read](../capabilities/files.read.md): Read the content of a file or one of its versions as text, base64 or a short-lived download address; as text, a PDF, Word, Excel or PowerPoint file comes back as its extracted text
 - [files.recent](../capabilities/files.recent.md): Recently opened or changed files
 - [files.rename](../capabilities/files.rename.md): Rename a file
 - [files.resolve](../capabilities/files.resolve.md): Turn a tree path such as Projects/Probate GTM/plan.md into an id

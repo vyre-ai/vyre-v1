@@ -4,7 +4,7 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (53)
+## Capabilities (67)
 
 - [ms.calendar.create_event](../capabilities/ms.calendar.create_event.md): Create an event; Exchange invites the attendees
 - [ms.calendar.delete_event](../capabilities/ms.calendar.delete_event.md): Delete an event; Exchange tells the attendees
@@ -35,10 +35,14 @@ Requires: mail.
 - [ms.drive.delete_item](../capabilities/ms.drive.delete_item.md): Delete an item
 - [ms.drive.delta](../capabilities/ms.drive.delta.md): Item changes since a delta link (mount sync and mount lag)
 - [ms.drive.download_item](../capabilities/ms.drive.download_item.md): Download an item into a blob
+- [ms.drive.download_version](../capabilities/ms.drive.download_version.md): Download one version of an item into a blob
 - [ms.drive.get_item](../capabilities/ms.drive.get_item.md): Read item metadata
 - [ms.drive.list_items](../capabilities/ms.drive.list_items.md): List items in a OneDrive or SharePoint folder
+- [ms.drive.list_versions](../capabilities/ms.drive.list_versions.md): The versions OneDrive or SharePoint keeps of an item, with who saved each
 - [ms.drive.share_item](../capabilities/ms.drive.share_item.md): Create a sharing link or invite people; Microsoft emails them
-- [ms.drive.upload_item](../capabilities/ms.drive.upload_item.md): Upload a Space file into OneDrive or SharePoint
+- [ms.drive.subscribe](../capabilities/ms.drive.subscribe.md): Subscribe to change notifications for a drive
+- [ms.drive.unsubscribe](../capabilities/ms.drive.unsubscribe.md): Remove a drive change subscription
+- [ms.drive.upload_item](../capabilities/ms.drive.upload_item.md): Upload a Space file into OneDrive or SharePoint; with remoteId it replaces that item, and with ifMatch only if the item still has that eTag
 - [ms.health](../capabilities/ms.health.md): Health probe: GET /organization
 - [ms.mail.create_draft](../capabilities/ms.mail.create_draft.md): Create a draft in the member mailbox
 - [ms.mail.delete_message](../capabilities/ms.mail.delete_message.md): Delete a message (moves it to Deleted Items)
@@ -59,10 +63,21 @@ Requires: mail.
 - [ms.teams.recordings.list_recordings](../capabilities/ms.teams.recordings.list_recordings.md): Recordings of an online meeting
 - [ms.teams.recordings.list_transcripts](../capabilities/ms.teams.recordings.list_transcripts.md): Transcripts of an online meeting
 - [ms.teams.recordings.subscribe](../capabilities/ms.teams.recordings.subscribe.md): Subscribe to recording and transcript ready notices
+- [ms.user.app_set](../capabilities/ms.user.app_set.md): Name the Vault item that holds the Microsoft OAuth app (client_id, client_secret when it has one, tenant when it is not common)
+- [ms.user.app_status](../capabilities/ms.user.app_status.md): Whether a Microsoft OAuth app is set up for signing in to your own Outlook, and the redirect address to give Microsoft for it
+- [ms.user.complete](../capabilities/ms.user.complete.md): Finish signing in from the callback: the state and the code, or the error Microsoft sent when the person declined. Only who started it can finish it. Makes the mailbox and starts its first sync
+- [ms.user.list](../capabilities/ms.user.list.md): Your own signed-in Microsoft accounts
+- [ms.user.remove](../capabilities/ms.user.remove.md): Sign out of your own Microsoft account and remove its token
+- [ms.user.send_message](../capabilities/ms.user.send_message.md): Send a message from your own signed-in Outlook (mail.send_as uses it for a mailbox made by ms.user.complete)
+- [ms.user.start](../capabilities/ms.user.start.md): Start signing in to your own Outlook: the address to approve at
+- [ms.workbook.append_rows](../capabilities/ms.workbook.append_rows.md): Add rows under the last used row of a worksheet in an Excel workbook
+- [ms.workbook.get_range](../capabilities/ms.workbook.get_range.md): Read a range of cells from an Excel workbook in OneDrive or SharePoint
+- [ms.workbook.update_range](../capabilities/ms.workbook.update_range.md): Write a block of cells in an Excel workbook; a single start cell grows to the size of the values
 
-## Events (4)
+## Events (5)
 
 - [microsoft.consent_configured](../events/microsoft.consent_configured.md): The Microsoft app registration was stored and members mapped
 - [microsoft.consent_revoked](../events/microsoft.consent_revoked.md): The Microsoft connection was turned off
 - [microsoft.consent_verified](../events/microsoft.consent_verified.md): A consent and access policy check ran
 - [microsoft.notification_received](../events/microsoft.notification_received.md): A verified Graph change notification arrived
+- [microsoft.user_connected](../events/microsoft.user_connected.md): A person signed in to their own Microsoft account

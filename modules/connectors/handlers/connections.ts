@@ -7,6 +7,10 @@ import { executeAction } from "./runtime.ts";
 
 export interface ConnectionRow {
   connectionId: string; connector: string; title: string; owner: { kind: "person" | "space"; id: string }; state: ConnectionState; pausedBy?: string; scopes: string[]; lastSyncAt?: number; createdAt: number;
+  /** The Vault handles the connection uses (names, never values), so a Vault item can list what depends on it. */
+  handles: string[];
+  /** The names of the secret slots that hold a Vault handle, so a screen can say which one is still empty. */
+  filled: string[];
 }
 type Health = { state: "healthy" | "degraded" | "down"; detail?: string; latencyMs?: number };
 
@@ -15,6 +19,7 @@ export interface ConnectionsHandlers {
   "connections.get"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<{ connection: ConnectionRow }>;
   "connections.create"(ctx: ConnectorsCtx, input: { connector: string; title: string; ownerKind: "person" | "space"; secrets?: Record<string, string>; scopes?: string[] }): Promise<{ connection: ConnectionRow; authUrl?: string }>;
   "connections.update"(ctx: ConnectorsCtx, input: { connectionId: string; title?: string; scopes?: string[] }): Promise<{ connection: ConnectionRow }>;
+  "connections.set_secret"(ctx: ConnectorsCtx, input: { connectionId: string; slot: string; handle: string }): Promise<{ connection: ConnectionRow }>;
   "connections.pause"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<{ ok: boolean }>;
   "connections.resume"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<{ ok: boolean }>;
   "connections.reconnect"(ctx: ConnectorsCtx, input: { connectionId: string }): Promise<{ authUrl?: string }>;
@@ -33,6 +38,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
   const rowOf = (r: ConnectionDb): ConnectionRow => ({
     connectionId: r.connection_id, connector: r.connector, title: r.title, owner: { kind: r.owner_kind, id: r.owner_id }, state: r.state,
     ...(r.paused_by ? { pausedBy: r.paused_by } : {}), scopes: JSON.parse(r.scopes) as string[], ...(r.last_sync_at !== null ? { lastSyncAt: r.last_sync_at } : {}), createdAt: r.created_at,
+    handles: Object.values(JSON.parse(r.secrets) as Record<string, string>).sort(), filled: Object.keys(JSON.parse(r.secrets) as Record<string, string>).sort(),
   });
   /** A person sees their own connections and the Space's; nobody sees another person's. */
   const visible = (ctx: ConnectorsCtx, r: ConnectionDb): boolean => r.owner_kind === "space" || r.owner_id === actorOf(ctx);
@@ -133,6 +139,19 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       owned(ctx, r);
       if (input.title !== undefined && !input.title.trim()) refuse(ctx, "validation.bad_input", "A connection needs a title.");
       tx.run("UPDATE cn_connections SET title = ?, scopes = ? WHERE connection_id = ?", input.title ?? r.title, JSON.stringify(input.scopes ?? JSON.parse(r.scopes)), r.connection_id);
+      return { connection: rowOf(need(ctx, r.connection_id)) };
+    },
+
+    // Fill one empty secret slot of a connection from a Vault handle (never a value). When the last empty slot is filled a pending API connection becomes active.
+    "connections.set_secret": async (ctx, input) => {
+      const r = need(ctx, input.connectionId);
+      owned(ctx, r);
+      const def = defOf(ctx, r.connector);
+      if (!def.secrets.some((x) => x.name === input.slot)) refuse(ctx, "validation.bad_input", `${def.title} has no secret called ${input.slot}.`);
+      if (!HANDLE.test(input.handle)) refuse(ctx, "validation.bad_input", `${input.slot} must be the name of a Vault item such as #Name, not a value.`);
+      const secrets = { ...secretsOf(r), [input.slot]: input.handle };
+      const state = r.state === "pending" ? initialState(def, secrets) : r.state;
+      tx.run("UPDATE cn_connections SET secrets = ?, state = ? WHERE connection_id = ?", JSON.stringify(secrets), state, r.connection_id);
       return { connection: rowOf(need(ctx, r.connection_id)) };
     },
 

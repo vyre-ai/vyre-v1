@@ -26,6 +26,7 @@ Send an email through the single send API: caps per sender, send windows, thrott
 ```ts
 type In = {
   mailboxId: string;
+  senderId?: string;
   route?: "mailbox" | "space_domain";
   to: Array<{
       address: string;

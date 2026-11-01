@@ -83,11 +83,13 @@ import { createProviderSignin } from "../seams/provider-signin.ts";
 import type { ConnectorNetwork } from "../seams/connectors.ts";
 import { createAuditRecorder } from "../seams/audit.ts";
 import { startRelayBox } from "../seams/relay.ts";
+import type { RelayBox } from "../seams/relay.ts";
 import { createSyncLiveBridge, createSyncSeam } from "../seams/sync.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { createWebhookRoute } from "../routes/webhooks.ts";
 import { createComputeRoute } from "../routes/compute.ts";
 import { createComputeStream } from "../routes/compute-stream.ts";
+import type { ComputeStream } from "../routes/compute-stream.ts";
 import { createRunsHost } from "../seams/runs.ts";
 import type { WebhookAccept } from "../routes/webhooks.ts";
 import { sha256b64 } from "../../../kernel/src/seal/index.ts";
@@ -118,6 +120,8 @@ import { createResourceRegistrar, missingAgentResources } from "../gateway/resou
 import { createPrincipalRegistrar, lowAgentUpgradeEvents, missingAgentPrincipalEvents } from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
+import { createRecordsVaultHost } from "../seams/records-vault.ts";
+import { isErased } from "../../../kernel/src/events/compact.ts";
 import type { HookRunner, ModuleHooks } from "./consumers.ts";
 import { createSpaceStore, spaceStoreDrivers, spaceStorePath } from "./store.ts";
 import { createViewAs } from "./view-as.ts";
@@ -128,7 +132,8 @@ import { collectProjections, createProjectionRunner } from "./projections.ts";
 import type { ProjectionRunner } from "./projections.ts";
 import { managedNetworkPort } from "./network-driver.ts";
 import { pollCommands } from "./commands.ts";
-import type { NetworkPort } from "./commands.ts";
+import { createPhonePort } from "./phone.ts";
+import type { NetworkPort, PhonePort } from "./commands.ts";
 import { alive, clearInfo, ensureAdminToken, ensureDirs, pathsFor, readInfo, writeInfo } from "./config.ts";
 import type { DaemonConfig, DaemonPaths, Role } from "./config.ts";
 import { migrate } from "./hosttables.ts";
@@ -226,6 +231,8 @@ export interface DaemonOptions {
     push?: PushTransportDeps;
     /** the domains a signed webhook may reach; omitted: none */
     webhookAllow?: () => readonly string[];
+    /** Tests: the WebSocket class the relay links use (default: the platform's). */
+    relayWebSocket?: typeof WebSocket;
     postFetch?: PostFetch;
     /** where a vault value may be filled, by kind (git_credential, container_env, env...): each receives the value for one call and must not keep or log it */
     vaultSinks?: Record<string, (f: { value: string; ref: string; handle: string; field: string; itemId: string }) => Promise<void> | void>;
@@ -244,12 +251,16 @@ export interface DaemonOptions {
   computeLeaseMs?: number;
   /** How often a computer's live-view socket checks that its credential still stands (a test sets it low). Default 2 s. */
   computeStreamRecheckMs?: number;
+  /** Tests: decide whether a node's link counts as private (default: TLS, or a peer on this machine). */
+  computeStreamSecure?: (req: import("node:http").IncomingMessage) => boolean;
   /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
   engineSandbox?: unknown;
   /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
   engineCli?: unknown;
   /** Tests: a scripted session opener in place of the real one (the engine runtime's `openSession`), for proofs of what the engine puts in front of a model without running one. */
   engineOpenSession?: unknown;
+  /** The fetch outside-tool (MCP) servers are reached with. Omitted: the network guard, which refuses a private address; a test that runs a server on this machine passes a guard that allows it. */
+  mcpFetch?: unknown;
   /** replace the consumers and periodic jobs read from the live modules' exports (tests) */
   hooks?: ModuleHooks[];
   /** The key behind ctx.seal. Omitted: a random 32-byte key kept in <data dir>/seal.key (0600). */
@@ -293,6 +304,8 @@ export interface Daemon {
   pollCommands(): Promise<number>;
   /** The Chrome bridge behind /chrome-bridge/v1/*: agent tool calls to the extension, and the extension's requests (apps/chrome native host) */
   chromeBridge: ChromeBridge;
+  /** Engine processes on computers that joined (a turn pinned to a server): start one on a node, over its live socket. */
+  nodeRelay: { spawnProc: ComputeStream["spawnProc"]; connected(nodeId: string): boolean; secure(nodeId: string): boolean };
   stop(): Promise<void>;
 }
 
@@ -386,7 +399,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let computeHome: (nodeId: string, a: { token: string; computerId: string; cap: string; input: unknown }) => Promise<{ ok: true; output: unknown } | null> = () => Promise.resolve(null);
   let computeStreamOpen: (ticket: string, computerId: string) => Promise<{ nodeId: string; personId: string; input: boolean } | null> = () => Promise.resolve(null);
   let computeStreamInput: (computerId: string, personId: string) => Promise<boolean> = () => Promise.resolve(false);
-  const computeStream = createComputeStream({ poll: (c) => computePoll(c, {}), open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}) });
+  const computeStream = createComputeStream({ poll: (c) => computePoll(c, {}), open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}), ...(o.computeStreamSecure ? { secure: o.computeStreamSecure } : {}) });
   closers.push(() => computeStream.close());
   let computeRecording: (nodeId: string, a: { token: string; computerId: string; url: string; bytes: Buffer }) => Promise<boolean> = () => Promise.resolve(false);
   const computeRoute = createComputeRoute({ poll: (c, r) => computePoll(c, r), jobs: (n, r) => computeJobs(n, r), result: (n, a) => computeResult(n, a), home: (n, a) => computeHome(n, a), recording: (n, a) => computeRecording(n, a) });
@@ -715,6 +728,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         } },
         resolveItem: (type, kind, value) => resolveVaultItem(db!, type, kind, value),
         ensureResource: async (r) => {
+          if ((r.type === "conversation" || r.type === "mail_message") && r.id !== null) { await ensureRow(r.type, r.id); return; }
           const key = r.type === "connector" ? r.id : r.id === null && r.type === "connection" ? r.parent ?? null : null;
           if (key && builtinConnectors.has(key)) await ensureBuiltinConnector(key);
         },
@@ -906,6 +920,30 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // starts with exactly its bootstrap events (ruling 71).
       const builtinConnectors = new Set(((registry as unknown as { connectors?: { key: string }[] }).connectors ?? []).map((c) => c.key));
       const ensuringConnector = new Map<string, Promise<void>>();
+      // An Inbox conversation and a mail message are resources in access (under the Space), made the first time a call names one that exists. The modules open these rows themselves, and an event whose
+      // subject is an `entity` is never registered by the generic registrar, so without this every call that names one answered "not found" to everyone, the owner included. The module's own door
+      // (a private mailbox, a private message) still decides who sees the content; this only makes the row nameable for the role grants of the Space.
+      const ROW_TABLES: Record<string, string> = { conversation: "inbox_conversation", mail_message: "mail_message" };
+      const ensuringRow = new Map<string, Promise<void>>();
+      const ensureRow = (type: string, id: string): Promise<void> => {
+        if (access.snap.resource(id)) return Promise.resolve();
+        let p = ensuringRow.get(id);
+        if (!p) {
+          p = (async () => {
+            let found = false;
+            try { found = (db!.all(`SELECT id FROM ${ROW_TABLES[type]} WHERE id = ? AND deleted_at IS NULL`, id) as unknown[]).length > 0; } catch { return; }
+            if (!found) return;
+            const r = await spaceLog.appendResult({
+              id: `evt_res_${id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: id,
+              payload: { id, type, parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
+            });
+            if (!r.ok) throw new Error(`could not register the ${type} ${id}: ${r.message}`);
+            if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
+          })().finally(() => ensuringRow.delete(id));
+          ensuringRow.set(id, p);
+        }
+        return p;
+      };
       const ensureBuiltinConnector = (key: string): Promise<void> => {
         let p = ensuringConnector.get(key);
         if (!p) {
@@ -939,7 +977,68 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if (!result.ok) throw new Error(`could not register the folder: ${result.message}`);
         if (!result.duplicate) { access.fold(result.event); accessPending.push(toAccessEvent(result.event)); headSeq = Math.max(headSeq, result.event.seq); await syncAccess(); }
       };
+      // A Vault folder is a resource in access (vault_folder under the Space). One resource.created per folder, with an id made from the folder's own, so a reboot repeats the same event.
+      const registerVaultFolder = async (id: string, owner: string | null): Promise<void> => {
+        if (access.snap.resource(id)) return;
+        const made = await spaceLog.appendResult({
+          id: `evt_res_${id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: id,
+          payload: { id, type: "vault_folder", parent_id: spaceId, label: 0, owner_id: owner ?? access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
+        });
+        if (made.ok && !made.duplicate) { access.fold(made.event); accessPending.push(toAccessEvent(made.event)); headSeq = Math.max(headSeq, made.event.seq); await syncAccess(); }
+      };
+      let sealed: ReturnType<typeof createRecordsVaultHost> | null = null;
+      const sealedVault = (): ReturnType<typeof createRecordsVaultHost> => (sealed ??= createRecordsVaultHost({
+        system: (cap, input) => system(cap, input),
+        as: (person, cap, input) => invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "seam" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)))),
+        registerFolder: (id) => registerVaultFolder(id, access.owner() ?? cfg.owner ?? null),
+        scrub: (type, field) => scrubSealedField(type, field),
+      }));
+      // A field was sealed: the plaintext it held is taken out of what only the host reaches. The events of the Space log that carry it lose their payloads (the chain stays), the kept answers of old writes lose the value, and the search documents of the type go and are read again from the records, which now hold references.
+      const scrubSealedField = async (type: string, field: string): Promise<void> => {
+        const dec = new TextDecoder();
+        const seqs: number[] = [];
+        const ids = new Set<string>();
+        const plain = (v: unknown): boolean => v !== undefined && v !== null && !(typeof v === "object" && typeof (v as { sealed?: unknown }).sealed === "string");
+        for (let after = 0; ;) {
+          const page = await spaceLog.read({ after, limit: 2000 });
+          for (const e of page) {
+            if (!e.type.startsWith("record.") || isErased(e)) continue;
+            let p: Record<string, unknown>;
+            try { p = JSON.parse(dec.decode(e.payload)) as Record<string, unknown>; } catch { continue; }
+            if (p["type"] !== type) continue;
+            if (["fields", "prev", "data", "before"].some((k) => { const part = p[k]; return !!part && typeof part === "object" && plain((part as Record<string, unknown>)[field]); })) {
+              seqs.push(e.seq);
+              if (typeof p["recordId"] === "string") ids.add(p["recordId"] as string);
+            }
+          }
+          if (page.length < 2000) break;
+          after = page[page.length - 1]!.seq;
+        }
+        if (seqs.length) await spaceLog.compactSeqs(seqs);
+        await spaceLog.forgetField(type, field);
+        if (db && ids.size) {
+          const mine = db;
+          try {
+            mine.exec("PRAGMA secure_delete = ON");
+            for (const id of ids) {
+              mine.run("DELETE FROM search_fts WHERE rowid IN (SELECT n FROM search_docs WHERE entity = ? AND id = ?)", `record:${type}`, id);
+              mine.run("DELETE FROM search_docs WHERE entity = ? AND id = ?", `record:${type}`, id);
+            }
+            mine.exec("INSERT INTO search_fts(search_fts) VALUES('optimize')");
+            mine.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+            mine.exec("VACUUM");
+          } catch { /* a Space without the search index has nothing to clear */ }
+        }
+        // the records are read again by search: the touch is an ordinary record.updated, with no values in it
+        for (const id of ids) {
+          await spaceLog.appendResult({ id: `evt_seal_${type}_${field}_${id}`.slice(0, 120), type: "record.updated", sv: 1, trace_id: "5e".repeat(16), actor: "svc_host", vis: "space", entity: "record", entity_id: id, payload: { recordId: id, type, fields: {}, prev: {}, version: 0 } });
+        }
+      };
       const hostDrivers: Record<string, SeamDriver> = {
+        // sealed fields in Records: values live in the Vault, in a Space owned folder; the folder belongs to the Space owner so the owner can reveal what is in it
+        // (schema seals an existing field through the same Vault, so both setters get one driver)
+        setRecordsVault: () => sealedVault(),
+        setSchemaVault: () => sealedVault(),
         setPushPort: () => createPushPort(o.seams?.push),
         // portal invitations and sign-in links go out through mail.send from the service mailbox (P-L8_17)
         configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: d.publicUrl, owner: () => access.owner() ?? cfg.owner ?? null, warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "portal", attrs }) }),
@@ -1018,11 +1117,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setComputersFill: (d) => d.vault ? createComputersFillHost({
           space: spaceId, invoke, vault: d.vault, now,
           baseUrl: () => o.computersBaseUrl ?? `http://host.docker.internal:${boundPort}`,
+          nodeSecure: (n) => computeStream.secure(n),
           mount: (h) => fillRoute.mount(h),
           log: (u) => sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
         }) : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
-        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) })),
+        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) })),
         // Report a problem: the bundle sources (the person's last actions from the log, the versions) and the reports.vyre.run client, signed with a key derived from this Space's seal key
         configureReports: () => createReportsHost({
           space: spaceId, now, fetch: o.reportsFetch ?? ((u, i) => globalThis.fetch(u, i as RequestInit) as never),
@@ -1134,6 +1234,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       // Repair legacy Personal roots before any HTTP request can use an inherited Space grant.
       for (const row of db!.all("SELECT id FROM files_folder WHERE root_key LIKE 'personal:%'") as { id: string }[]) await ensureFileRoot({ id: row.id, type: "folder", parentId: null, privateRoot: true });
+
+      // A Vault folder the AI provider flows made quietly (before they declared it) has rows in the Vault but no resource in access, so putting an item into it answered "not found" to its own owner.
+      // Register each one that is missing, owned by the person the row names. A folder that is already registered is left alone.
+      try {
+        for (const row of db!.all("SELECT id, owner FROM vault_folder WHERE deleted_at IS NULL") as { id: string; owner: string | null }[]) await registerVaultFolder(row.id, row.owner);
+      } catch { /* a Space without a Vault has no table to repair */ }
+
+      // Conversations opened before their births registered them (an older Space): make each nameable, as a new one is. Mail messages are registered the first time a call names one.
+      try { for (const row of db!.all("SELECT id FROM inbox_conversation WHERE deleted_at IS NULL") as { id: string }[]) await ensureRow("conversation", row.id); } catch { /* a Space without an Inbox has no table to repair */ }
 
       // Runs the last server left queued or running are driven again from their step log (P-L6_24). Started, not awaited: boot does not wait for a Run, and shutdown waits for it.
       if (loaded.serving.get("runs") === "live") {
@@ -1388,9 +1497,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       try { return new URL(url).host === address; } catch { return false; }
     }),
   });
+  // The relay link (--relay, or the public relay once a phone address is claimed) and the phone address on it. Both are set where the daemon starts it, after boot.
+  let relayBox: RelayBox | null = null;
+  let startPhoneRelay: (() => RelayBox) | null = null;
+  const phone: PhonePort = createPhonePort({ current: () => relayBox, start: () => startPhoneRelay?.() ?? null, dropped: () => { relayBox = null; }, configured: Boolean(cfg.relayUrl) });
   const runCommands = (): Promise<number> => {
     if (!db) return Promise.resolve(0);
-    const run = () => pollCommands({ db: db!, supervisor, network, now, log: sink.logger({ space: space ?? "-", place: "commands" }), observed: async (event) => {
+    const run = () => pollCommands({ db: db!, supervisor, network, phone, now, log: sink.logger({ space: space ?? "-", place: "commands" }), observed: async (event) => {
     if (!log) throw new Error('The event log is unavailable.');
     const stored = await log.append({ id: event.id, type: event.type, sv: 1, trace_id: ZERO_TRACE, actor: event.actor, entity: 'entity', entity_id: event.target, vis: 'space', payload: event.payload });
     headSeq = Math.max(headSeq, stored.seq);
@@ -1510,23 +1623,31 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     if (hasSpace) { await hooks?.pump(); await projections?.pump(); }
     // A relay is configured (--relay or VYRE_RELAY_URL): keep one outbound connection to it so a phone or another computer reaches this Space without a public address. The relay row in
     // network_endpoint follows the link, so network.endpoints lists it after the direct ones and reads it down when the link drops (P-L7b_16).
-    if (hasSpace && db && cfg.relayUrl) {
+    if (hasSpace && db) {
       const relayDb = db;
-      const box = startRelayBox({
-        relayUrl: cfg.relayUrl, dataDir: paths.root, localPort: () => boundPort,
-        log: (m) => sink.log({ space: space ?? "-", level: 30, msg: "relay.link", place: "relay", attrs: { note: m } }),
-        onState: (st) => {
-          void box.ready.then((r) => {
-            try {
-              relayDb.run(
-                "INSERT INTO network_endpoint (kind, url, state, rtt_ms, heartbeat_at) VALUES ('relay', ?, ?, ?, ?) ON CONFLICT(kind, url) DO UPDATE SET state = excluded.state, rtt_ms = excluded.rtt_ms, heartbeat_at = excluded.heartbeat_at",
-                r.deviceUrl, st.state, st.rttMs ?? null, st.at,
-              );
-            } catch { /* the database closed while the daemon was stopping */ }
-          }, () => {});
-        },
-      });
-      closers.push(() => box.stop());
+      const relayAt = (url: string): RelayBox => {
+        const box = startRelayBox({
+          relayUrl: url, dataDir: paths.root, localPort: () => boundPort,
+          log: (m) => sink.log({ space: space ?? "-", level: 30, msg: "relay.link", place: "relay", attrs: { note: m } }),
+          ...(o.seams?.relayWebSocket ? { WebSocket: o.seams.relayWebSocket } : {}),
+          onState: (st) => {
+            void box.ready.then((r) => {
+              try {
+                relayDb.run(
+                  "INSERT INTO network_endpoint (kind, url, state, rtt_ms, heartbeat_at) VALUES ('relay', ?, ?, ?, ?) ON CONFLICT(kind, url) DO UPDATE SET state = excluded.state, rtt_ms = excluded.rtt_ms, heartbeat_at = excluded.heartbeat_at",
+                  r.deviceUrl, st.state, st.rttMs ?? null, st.at,
+                );
+              } catch { /* the database closed while the daemon was stopping */ }
+            }, () => {});
+          },
+        });
+        closers.push(() => box.stop());
+        return box;
+      };
+      if (cfg.relayUrl) relayBox = relayAt(cfg.relayUrl);
+      // A computer that claimed a phone address keeps the link up across restarts, to the public relay unless a relay is configured.
+      else if ((relayDb.all("SELECT state FROM network_phone WHERE id = 1")[0] as { state?: string } | undefined)?.state === "claimed") relayBox = relayAt(cfg.phoneRelayUrl);
+      startPhoneRelay = () => (relayBox ??= relayAt(cfg.phoneRelayUrl));
     }
     if (hasSpace) {
       const issued = await claimIssue();
@@ -1561,7 +1682,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   requestStop = () => { void stop(); };
 
   return {
-    url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge,
+    url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) },
     runProbes, pollCommands: runCommands,
     stop,
   };

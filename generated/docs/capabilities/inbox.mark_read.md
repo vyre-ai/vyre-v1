@@ -8,9 +8,9 @@ Mark a conversation read or unread
 | Version | 1 (since 1.0.0) |
 | Effects | write |
 | Permission | grant only |
-| Grant level | edit |
+| Grant level | view |
 | Risk | medium |
-| Resource | entity (/conversationId) |
+| Resource | space |
 | Gate | none |
 | Idempotency | natural |
 | Offline | queue |

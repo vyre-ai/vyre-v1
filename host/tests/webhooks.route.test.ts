@@ -8,7 +8,7 @@ import { AUTOMATION_HOOKS_PER_MINUTE, createWebhookRoute, DEFAULT_WEBHOOK_BUDGET
 type Accept = (connector: string, a: { headers: Readonly<Record<string, string | undefined>>; body: string; url: string; kind?: string }) => Promise<unknown>;
 
 async function serve(accept: Accept, opts: { budget?: { perMinute: number; failuresPerMinute: number }; now?: () => number } = {}) {
-  const route = createWebhookRoute({ has: (c) => c === "demo", accept, publicBase: () => "https://space.example/", ...opts });
+  const route = createWebhookRoute({ has: (c) => c === "demo" || c === "dropbox", accept, publicBase: () => "https://space.example/", ...opts });
   const server = http.createServer((req, res) => { if (!route.handle(req, res)) { res.writeHead(404); res.end("{}"); } });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
@@ -30,6 +30,22 @@ test("a good event is answered, the address handed on is the Space's own, and ev
     assert.equal((await fetch(`${s.url}/hooks/demo`)).status, 405, "only POST");
     assert.equal((await fetch(`${s.url}/hooks/nothing`, { method: "POST", body: "x" })).status, 404, "no such connector");
     assert.equal((await fetch(`${s.url}/hooks/demo`, { method: "POST", body: "x".repeat(MAX_WEBHOOK_BYTES + 1) })).status, 413);
+  } finally { await s.close(); }
+});
+
+test("Dropbox's address check: a GET with a challenge is answered with the text, nothing else is a GET", async () => {
+  let asked = 0;
+  const s = await serve(async () => { asked += 1; return { accepted: true }; });
+  try {
+    const ok = await fetch(`${s.url}/hooks/dropbox?challenge=abc_DEF-123.x`);
+    assert.equal(ok.status, 200);
+    assert.equal(await ok.text(), "abc_DEF-123.x");
+    assert.equal(ok.headers.get("content-type"), "text/plain; charset=utf-8");
+    assert.equal(ok.headers.get("x-content-type-options"), "nosniff");
+    assert.equal((await fetch(`${s.url}/hooks/dropbox?challenge=${encodeURIComponent("<script>alert(1)</script>")}`)).status, 400, "only plain tokens are echoed");
+    assert.equal((await fetch(`${s.url}/hooks/dropbox`)).status, 405, "no challenge, no GET");
+    assert.equal((await fetch(`${s.url}/hooks/demo?challenge=abc`)).status, 405, "another connector does not echo");
+    assert.equal(asked, 0, "the check records nothing and asks nobody");
   } finally { await s.close(); }
 });
 

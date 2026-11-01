@@ -29,6 +29,7 @@ type In = {
   agentId: string;
   qseq: number;
   placement: "host" | "device";
+  nodeId?: string;
   accountRef?: string;
   engine: string;
   model: string;
@@ -64,6 +65,7 @@ type Out = {
         }>;
       traceId: string;
     };
+    nodeId?: string;
   };
 };
 ```
@@ -86,6 +88,7 @@ type Out = {
     "agentId": "agt_a1b2c3",
     "engine": "example",
     "model": "example",
+    "nodeId": "example",
     "placement": "host",
     "qseq": 1,
     "threadId": "thr_a1b2c3"
@@ -110,6 +113,7 @@ type Out = {
         "traceId": "0123456789abcdef0123456789abcdef"
       },
       "model": "example",
+      "nodeId": "example",
       "runId": "run_a1b2c3",
       "startedAt": 1760000000000,
       "state": "queued",

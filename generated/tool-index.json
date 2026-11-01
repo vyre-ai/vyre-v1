@@ -32,6 +32,12 @@
     },
     {
       "deferred": false,
+      "name": "access_audience_set",
+      "summary": "Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record's Files folder can follow its record",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "access_check",
       "summary": "Access checker: can principal P do action A on resource R, with each step in plain words",
       "toolset": "engineer"
@@ -170,6 +176,12 @@
     },
     {
       "deferred": false,
+      "name": "access_record_marks",
+      "summary": "For the rows of one record type: which differ from the type (their own audience or direct grants), and whether the caller was given the type or a row by name",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "access_request",
       "summary": "Ask the Manage holders of a resource (or the admins, for a permission) for access; one open request per person and resource",
       "toolset": "meta"
@@ -285,7 +297,7 @@
     {
       "deferred": false,
       "name": "access_shares_of",
-      "summary": "Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry",
+      "summary": "Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry; for a record type or a record also who it is open to and who may export",
       "toolset": "meta"
     },
     {
@@ -566,6 +578,18 @@
     },
     {
       "deferred": false,
+      "name": "automations_connector_card",
+      "summary": "Post a compact card in the chat: a title and up to 20 rows, each done or not. Used for connector test results and the review before publish. A key is refused.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_connector_levels",
+      "summary": "Which connector actions were tried against the real app (tested) and which were not (draft). Keys only.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_connector_offer_accept",
       "summary": "Accept a connector setup offer. Accepting is final for that Vault item.",
       "toolset": "automations"
@@ -734,6 +758,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_read_docs",
+      "summary": "Read one public API docs page as plain text, with its same-site links. For an OpenAPI document, one line per operation. GET only, no key, public hosts only. Give focus to get just the passages around a word.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_replay",
       "summary": "Live rerun of a past run on the same definition version or the current one, not a sandbox replay",
       "toolset": "automations"
@@ -826,6 +856,12 @@
       "deferred": false,
       "name": "automations_validate",
       "summary": "Check a definition against the step and trigger catalogue: missing inputs, unreachable steps, loops, personal triggers that need a Team Space",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_vault_usage",
+      "summary": "Which Automation steps use which Vault item, by handle. Optionally one item. Only Automations the caller can see. A Vault value is never included.",
       "toolset": "automations"
     },
     {
@@ -1407,7 +1443,7 @@
     {
       "deferred": false,
       "name": "chat_recent",
-      "summary": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse",
+      "summary": "Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)",
       "toolset": "chats"
     },
     {
@@ -1574,6 +1610,18 @@
     },
     {
       "deferred": false,
+      "name": "comms_senders_list",
+      "summary": "Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "comms_senders_set_default",
+      "summary": "Choose the default sender of a channel for me; it must be a usable sender from comms.senders.list",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "computer_files_delete",
       "summary": "Delete a file from the agent Files folder; always asks outside work/",
       "toolset": "computer"
@@ -1618,6 +1666,12 @@
       "deferred": false,
       "name": "computers_give_back",
       "summary": "Give the computer back to the agent",
+      "toolset": "computer"
+    },
+    {
+      "deferred": false,
+      "name": "computers_hosts",
+      "summary": "The machines an agent computer can run on for you: this computer or the Space server when its container runtime answers, and each server you added that has Docker. Nothing about agent computers is offered until one can run them",
       "toolset": "computer"
     },
     {
@@ -1786,7 +1840,7 @@
       "deferred": false,
       "name": "connections_create",
       "summary": "Plug an account into a connector; secrets are named Vault items, never values",
-      "toolset": "engineer"
+      "toolset": "automations"
     },
     {
       "deferred": false,
@@ -1798,13 +1852,13 @@
       "deferred": false,
       "name": "connections_get",
       "summary": "Read one connection",
-      "toolset": "engineer"
+      "toolset": "automations"
     },
     {
       "deferred": false,
       "name": "connections_list",
       "summary": "List connections; mine, the Space ones or all the caller may see",
-      "toolset": "engineer"
+      "toolset": "automations"
     },
     {
       "deferred": false,
@@ -1826,6 +1880,12 @@
     },
     {
       "deferred": false,
+      "name": "connections_set_secret",
+      "summary": "Fill one empty secret slot of a connection from a Vault handle (a name such as #Resend_Webhook.secret, never a value). The last empty slot turns a pending API connection active.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "connections_test",
       "summary": "Probe a connection with the connector health call",
       "toolset": "engineer"
@@ -1844,6 +1904,12 @@
     },
     {
       "deferred": false,
+      "name": "connectors_define",
+      "summary": "Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "connectors_diff",
       "summary": "Diff a draft against the live version of a connector",
       "toolset": "engineer"
@@ -1858,19 +1924,19 @@
       "deferred": false,
       "name": "connectors_get",
       "summary": "Read one connector: auth, egress domains, secret names, sources, synced types and actions",
-      "toolset": "engineer"
+      "toolset": "automations"
     },
     {
       "deferred": false,
       "name": "connectors_init",
       "summary": "Scaffold a connector folder: connector.toml, transforms.js, tests, README",
-      "toolset": "engineer"
+      "toolset": "automations"
     },
     {
       "deferred": false,
       "name": "connectors_list",
       "summary": "List connectors: built-in, installed and drafts",
-      "toolset": "engineer"
+      "toolset": "automations"
     },
     {
       "deferred": false,
@@ -1894,7 +1960,7 @@
       "deferred": false,
       "name": "connectors_publish",
       "summary": "Publish a draft after a fresh test run; a failing test keeps the last good version live",
-      "toolset": "engineer"
+      "toolset": "automations"
     },
     {
       "deferred": false,
@@ -1924,7 +1990,7 @@
       "deferred": false,
       "name": "connectors_test",
       "summary": "Run the harness on recorded responses and report each case",
-      "toolset": "engineer"
+      "toolset": "automations"
     },
     {
       "deferred": false,
@@ -2185,6 +2251,54 @@
       "toolset": "files"
     },
     {
+      "deferred": true,
+      "name": "dropbox_files_create_folder",
+      "summary": "Create a Dropbox folder",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "dropbox_files_delete",
+      "summary": "Delete a Dropbox file or folder (Dropbox keeps it in its deleted files for a while)",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "dropbox_files_download",
+      "summary": "Download a Dropbox file, or one of its revisions, into a blob",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "dropbox_files_get_metadata",
+      "summary": "Read one Dropbox file or folder",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "dropbox_files_list_folder",
+      "summary": "List a Dropbox folder, or continue a listing with its cursor; a cursor kept from before reads only what changed since",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "dropbox_files_list_revisions",
+      "summary": "List the saved revisions of a Dropbox file, newest first",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "dropbox_files_restore",
+      "summary": "Restore a Dropbox file to one of its revisions",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "dropbox_files_upload",
+      "summary": "Upload a Space file to Dropbox; with rev it only replaces that revision",
+      "toolset": "files"
+    },
+    {
       "deferred": false,
       "name": "email_builder_ask_cancel",
       "summary": "Stop my Ask Vyre request on a design that is still waiting for the agent",
@@ -2354,6 +2468,18 @@
     },
     {
       "deferred": false,
+      "name": "engine_placement_options",
+      "summary": "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; and where the chat runs now",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_placement_set",
+      "summary": "Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers. The next turn goes there; a teammate's machine is never a choice",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "engine_policy_get",
       "summary": "AI policies: allowed accounts, allowed models and providers, and which providers each label may reach",
       "toolset": "meta"
@@ -2501,6 +2627,12 @@
       "name": "engine_turns_list",
       "summary": "Turns of a thread, newest first",
       "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_usage_get",
+      "summary": "For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated",
+      "toolset": "meta"
     },
     {
       "deferred": false,
@@ -2751,7 +2883,7 @@
     {
       "deferred": false,
       "name": "files_read",
-      "summary": "Read the content of a file or one of its versions as text, base64 or a short-lived download address",
+      "summary": "Read the content of a file or one of its versions as text, base64 or a short-lived download address; as text, a PDF, Word, Excel or PowerPoint file comes back as its extracted text",
       "toolset": "files"
     },
     {
@@ -3374,6 +3506,18 @@
     },
     {
       "deferred": true,
+      "name": "google_docs_insert_text",
+      "summary": "Insert text into a Google Doc after or before some existing text, or at its start or end; refuses if the document changed meanwhile",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "google_docs_replace_text",
+      "summary": "Replace every occurrence of some text in a Google Doc",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
       "name": "google_drive_copy_file",
       "summary": "Copy a Drive file",
       "toolset": "files"
@@ -3388,6 +3532,12 @@
       "deferred": true,
       "name": "google_drive_download_file",
       "summary": "Download a Drive file into a blob",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "google_drive_download_revision",
+      "summary": "Download one revision of a Drive file into a blob",
       "toolset": "files"
     },
     {
@@ -3416,6 +3566,12 @@
     },
     {
       "deferred": true,
+      "name": "google_drive_list_revisions",
+      "summary": "The revisions Drive keeps of a file, with who saved each",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
       "name": "google_drive_share_file",
       "summary": "Share a Drive file with people; Google emails them",
       "toolset": "files"
@@ -3429,7 +3585,7 @@
     {
       "deferred": true,
       "name": "google_drive_upload_file",
-      "summary": "Upload a Space file into Drive",
+      "summary": "Upload a Space file into Drive; with remoteId it replaces that file, and with ifRevision only if Drive still holds that revision",
       "toolset": "files"
     },
     {
@@ -4352,6 +4508,12 @@
     },
     {
       "deferred": false,
+      "name": "mail_mailbox_set_sync_state",
+      "summary": "A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "mail_mailbox_update",
       "summary": "Rename a mailbox or change its agent",
       "toolset": "inbox"
@@ -4941,13 +5103,37 @@
     {
       "deferred": false,
       "name": "mounts_add",
-      "summary": "Mount a Google or SharePoint folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run",
+      "summary": "Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run",
       "toolset": "files"
     },
     {
       "deferred": false,
       "name": "mounts_browse",
-      "summary": "Browse a drive, library or repository search to pick what to mount",
+      "summary": "Browse a drive, library, Dropbox folder or repository search to pick what to mount",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "mounts_doc_insert_text",
+      "summary": "Insert text into a mounted Google Doc after or before some existing text, or at its start or end; refuses if the Doc changed meanwhile",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "mounts_doc_replace_text",
+      "summary": "Replace text in a mounted Google Doc, in the Doc itself; the change shows in its Google version history",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
+      "name": "mounts_editors",
+      "summary": "Who last edited each file at the provider, for the rows of a file list (files outside a mount are left out)",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "mounts_file_link",
+      "summary": "Where a mounted file opens at its provider (Google Docs, Sheets, Slides, Word, Excel, PowerPoint, Dropbox) and what an agent can do to it in place",
       "toolset": "files"
     },
     {
@@ -4958,8 +5144,26 @@
     },
     {
       "deferred": false,
+      "name": "mounts_history",
+      "summary": "The provider's revisions of a file, newest first, with who saved each (the person or agent for edits sent from Vyre)",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
       "name": "mounts_list",
       "summary": "List mounts the caller can see",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
+      "name": "mounts_nudge",
+      "summary": "A provider push notice (Drive channel, Graph subscription, Dropbox account) or an app showing a mount asks for a sync pass (system)",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
+      "name": "mounts_open",
+      "summary": "Open a file of a mount: ask the provider what it holds now and fetch the content only when the copy in Vyre is not that version",
       "toolset": "files"
     },
     {
@@ -4976,8 +5180,32 @@
     },
     {
       "deferred": false,
+      "name": "mounts_restore",
+      "summary": "Put an earlier revision of a file back as the newest; it goes out like any edit",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
       "name": "mounts_resume",
       "summary": "Resume a paused mount",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "mounts_sheet_append",
+      "summary": "Add rows under the last used row of a mounted Google Sheet or Excel worksheet",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "mounts_sheet_read",
+      "summary": "Read cells of a mounted Google Sheet or Excel workbook from the provider, without downloading the file",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "mounts_sheet_write",
+      "summary": "Write cells of a mounted Google Sheet or Excel workbook in the provider file itself",
       "toolset": "files"
     },
     {
@@ -5138,6 +5366,12 @@
     },
     {
       "deferred": true,
+      "name": "ms_drive_download_version",
+      "summary": "Download one version of an item into a blob",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
       "name": "ms_drive_get_item",
       "summary": "Read item metadata",
       "toolset": "files"
@@ -5150,6 +5384,12 @@
     },
     {
       "deferred": true,
+      "name": "ms_drive_list_versions",
+      "summary": "The versions OneDrive or SharePoint keeps of an item, with who saved each",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
       "name": "ms_drive_share_item",
       "summary": "Create a sharing link or invite people; Microsoft emails them",
       "toolset": "files"
@@ -5157,7 +5397,7 @@
     {
       "deferred": true,
       "name": "ms_drive_upload_item",
-      "summary": "Upload a Space file into OneDrive or SharePoint",
+      "summary": "Upload a Space file into OneDrive or SharePoint; with remoteId it replaces that item, and with ifMatch only if the item still has that eTag",
       "toolset": "files"
     },
     {
@@ -5227,6 +5467,24 @@
       "toolset": "inbox"
     },
     {
+      "deferred": true,
+      "name": "ms_workbook_append_rows",
+      "summary": "Add rows under the last used row of a worksheet in an Excel workbook",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "ms_workbook_get_range",
+      "summary": "Read a range of cells from an Excel workbook in OneDrive or SharePoint",
+      "toolset": "files"
+    },
+    {
+      "deferred": true,
+      "name": "ms_workbook_update_range",
+      "summary": "Write a block of cells in an Excel workbook; a single start cell grows to the size of the values",
+      "toolset": "files"
+    },
+    {
       "deferred": false,
       "name": "network_certificate_renew",
       "summary": "Renew a certificate now",
@@ -5253,13 +5511,43 @@
     {
       "deferred": false,
       "name": "network_my_computer_code",
-      "summary": "Make a join code for your own computer (a Mac, PC or Linux box): it will run only your own agents",
+      "summary": "Make a join code for your own computer or server (a Mac, PC or Linux box): it will run only your own agents. A nickname names it once it arrives; it also works in a Personal Space",
       "toolset": "engineer"
     },
     {
       "deferred": false,
       "name": "network_my_computer_decline",
       "summary": "Turn your own waiting computer away",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_my_computer_remove",
+      "summary": "Remove one of your own computers or servers: its access ends at once",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_my_computers",
+      "summary": "The computers and servers you added: nickname, online state, what they run on, waiting ones with the fingerprint to compare",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_phone",
+      "summary": "Your phone address on vyre.run: the name this computer holds, whether it is online, and the link that opens it on a phone",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_phone_claim",
+      "summary": "Claim a name like alex.vyre.run once, so a phone reaches this computer there while it is on and online. The relay only passes sealed bytes",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "network_phone_release",
+      "summary": "Give up the phone address. The name stays reserved to this computer",
       "toolset": "engineer"
     },
     {
@@ -5654,6 +5942,12 @@
     },
     {
       "deferred": false,
+      "name": "projects_files_folder",
+      "summary": "The folder that holds a record's files: a project's own, else Files > Projects > Record files > the record (made on first use unless create is false, with the record's access mirrored onto it)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_from_channel",
       "summary": "Make this channel a project: create the record and attach the channel, a folder and an empty plan",
       "toolset": "records"
@@ -5858,6 +6152,12 @@
     },
     {
       "deferred": false,
+      "name": "records_activity",
+      "summary": "What happened to a record, newest first: created, field edits with who, when and the old and new value, stage moves, links, removals and sync pushes",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "records_as_of",
       "summary": "Read a record as it was at a time",
       "toolset": "records"
@@ -5866,6 +6166,36 @@
       "deferred": false,
       "name": "records_bulk_upsert",
       "summary": "Create or update many records by match key, quietly (no automations unless asked)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_comments_add",
+      "summary": "Comment on a record or reply to a comment; @ people and agents. A mentioned person gets an Answer request in Needs you; a mentioned agent answers under the comment, headless (no chat is made)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_comments_delete",
+      "summary": "Delete your own comment (or any, with manage on the record)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_comments_edit",
+      "summary": "Edit your own comment",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_comments_list",
+      "summary": "Comments on a record as threads (a root comment and its replies, oldest first); resolved threads only when asked for",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "records_comments_resolve",
+      "summary": "Resolve a comment thread or reopen it",
       "toolset": "records"
     },
     {
@@ -7166,6 +7496,36 @@
     },
     {
       "deferred": false,
+      "name": "task_ask",
+      "summary": "Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "task_block",
+      "summary": "Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "task_decide",
+      "summary": "Decide on reviewed work: approve it (Done, held actions release) or reject it with a reason (back to the doer)",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "task_review",
+      "summary": "Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "task_submit",
+      "summary": "Hand in your part of a work task with its outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "tasks_act",
       "summary": "Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once",
       "toolset": "tasks"
@@ -7287,7 +7647,7 @@
     {
       "deferred": false,
       "name": "tasks_update",
-      "summary": "Edit the title, summary, why, due, effort or content blocks of a task (status goes through tasks.transition)",
+      "summary": "Edit the title, summary, why, due, effort or content blocks of a task, or link its thread when it has none (status goes through tasks.transition)",
       "toolset": "tasks"
     },
     {
@@ -7562,8 +7922,20 @@
     },
     {
       "deferred": false,
+      "name": "terminal_request",
+      "summary": "Ask the person to run a command themselves (sudo, a login, an interactive install): the chat shows the command, why and its risk, and the person runs it in their terminal, copies it or declines; what it printed comes back to you",
+      "toolset": "terminal"
+    },
+    {
+      "deferred": false,
       "name": "terminal_resize",
       "summary": "Resize the terminal window",
+      "toolset": "terminal"
+    },
+    {
+      "deferred": false,
+      "name": "terminal_risk",
+      "summary": "What a command can do before it runs: read-only, changes something or destructive, and what your rules say; red always asks",
       "toolset": "terminal"
     },
     {
@@ -7594,6 +7966,18 @@
       "deferred": false,
       "name": "threads_add_agent",
       "summary": "Add an agent to a thread as listening (or leading when it is the only agent)",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_agent_configure",
+      "summary": "Pick the model, provider, effort or account an agent answers with, for this chat or as the agent default; null clears a field",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_archive",
+      "summary": "Archive a chat for me: it leaves my list and waits in my Archived section; the others in a group chat still see it. New messages do not bring it back, an @mention of me does",
       "toolset": "chats"
     },
     {
@@ -7658,8 +8042,20 @@
     },
     {
       "deferred": false,
+      "name": "threads_set_mode",
+      "summary": "Set how much the agents of a chat may do alone: auto (the default), ask (Ask first) or plan. Anything that leaves Vyre is held for a yes in every mode",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "threads_set_plan_mode",
       "summary": "Switch plan mode for a thread: the agent may read and plan but changes nothing until a plan is approved",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_unarchive",
+      "summary": "Put an archived chat back in my list",
       "toolset": "chats"
     },
     {

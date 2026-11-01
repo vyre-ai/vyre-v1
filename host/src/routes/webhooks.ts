@@ -15,6 +15,9 @@ export const MAX_WEBHOOK_BYTES = 1024 * 1024;
 const AUTOMATION_PATH = /^\/hooks\/automation\/(aut_[a-z0-9]+)\/([A-Za-z0-9_-]{8,200})$/;
 const PATH = /^\/hooks\/([a-z][a-z0-9_-]*)(?:\/([a-z]+))?$/;
 const TRACE = "0".repeat(32);
+/** Connectors whose provider checks the address with a GET that carries ?challenge=<text> and expects the text back (Dropbox). The challenge is echoed as plain text, nothing is recorded. */
+const CHALLENGE_CONNECTORS: ReadonlySet<string> = new Set(["dropbox"]);
+const CHALLENGE = /^[A-Za-z0-9_.~-]{1,200}$/;
 
 export interface WebhookAccept {
   headers: Readonly<Record<string, string | undefined>>;
@@ -166,6 +169,12 @@ export function createWebhookRoute(deps: WebhookRouteDeps): { handle(req: http.I
       }
       const m = PATH.exec(url.pathname);
       if (!m || !deps.has(m[1] as string)) return false;
+      const challenge = url.searchParams.get("challenge");
+      if ((req.method ?? "GET").toUpperCase() === "GET" && challenge !== null && CHALLENGE_CONNECTORS.has(m[1] as string)) {
+        if (!CHALLENGE.test(challenge)) refuse(res, 400, "validation.bad_input", "That is not a challenge this connector takes.");
+        else { res.setHeader("x-content-type-options", "nosniff"); send(res, 200, challenge, "text/plain; charset=utf-8"); }
+        return true;
+      }
       if ((req.method ?? "GET").toUpperCase() !== "POST") { res.setHeader("allow", "POST"); refuse(res, 405, "validation.bad_input", "Webhooks are posted."); return true; }
       void serve(req, res, m[1] as string, m[2], url.search).catch(() => { if (!res.headersSent) refuse(res, 500, "internal.unexpected", "Something went wrong on our side."); else res.end(); });
       return true;

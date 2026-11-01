@@ -36,8 +36,8 @@ test("a canonical task opens from a copied Home link, edits, transitions, follow
     await page.getByRole("button", { name: "Save task", exact: true }).click(); await page.getByText("Task updated", { exact: true }).waitFor();
     let actual = (await api("tasks.get", { taskId }) as CapMap["tasks.get"]["out"]).task;
     assert.equal(actual.title, "Review the final release brief"); assert.equal(actual.effort, 20); assert.equal(actual.summary, "Confirm contents and links");
-    await page.getByLabel("Note name", { exact: true }).fill("Release checks"); await page.getByLabel("Working note", { exact: true }).fill("Verified links and contents");
-    await page.getByRole("button", { name: "Save working note", exact: true }).click(); await page.getByText("Working note saved", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Add a note", exact: true }).click(); await page.getByLabel("Note name", { exact: true }).fill("Release checks"); await page.getByLabel("Note", { exact: true }).fill("Verified links and contents");
+    await page.getByRole("button", { name: "Save", exact: true }).click(); await page.getByText("Note saved", { exact: true }).waitFor();
     assert.equal((await api("tasks.get", { taskId }) as CapMap["tasks.get"]["out"]).task.workingNotes["Release checks"], "Verified links and contents");
     await page.getByRole("button", { name: "Task status", exact: true }).click(); await page.getByRole("menuitem", { name: "Doing", exact: true }).click();
     await page.getByText("Status: Doing", { exact: true }).waitFor();

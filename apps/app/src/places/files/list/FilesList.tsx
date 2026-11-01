@@ -13,10 +13,11 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useFilesData, useFolderNodes, useLive, useOnline, useOptionalFilesData, useSource } from "../tree/data.tsx";
 import {
-  SORTS, SORT_LABEL, WHERE_LABEL, createSpring, crumbs, dragPayload, dropMoves, emptyText, fileLine, folderLine, kindLabel, parsePayload, tileLabel, sizeText, sortLines, sourceOf, updatedText,
+  SORTS, SORT_LABEL, WHERE_LABEL, createSpring, crumbs, dragPayload, dropMoves, emptyIcon, emptyText, fileLine, folderLine, kindLabel, parsePayload, tileLabel, sizeText, sortLines, sourceOf, updatedText,
 } from "../tree/model.ts";
 import type { Line, SortKey, Spring } from "../tree/model.ts";
 import { iconOfKind } from "../tree/parts.tsx";
+import { openInLabel, openInProvider, openInWords } from "../open-in.ts";
 import { useFilesState } from "../tree/state.tsx";
 import { ColumnHeader, GridRow, LIST_ROW, LineMarks, RowCells, ThumbTile, Tile, TypeTile, WIDE, chunk, gridKey, gridLayout } from "../FileList.tsx";
 import { Toolbar, crumbTrail } from "../Toolbar.tsx";
@@ -37,7 +38,7 @@ const LINE_STYLE = { margin: "5px 6px", width: "calc(100% - 12px)" } as const;
 export function lineMenuEntries(
   lines: readonly Line[],
   inTrash: boolean,
-  h: { open(l: Line): void; quickLook(l: Line): void; share(l: Line): void; rename(l: Line): void; trash(ls: readonly Line[]): void; restore(ls: readonly Line[]): void; star?(l: Line): void; resolve?(l: Line): void },
+  h: { open(l: Line): void; quickLook(l: Line): void; share(l: Line): void; rename(l: Line): void; trash(ls: readonly Line[]): void; restore(ls: readonly Line[]): void; star?(l: Line): void; resolve?(l: Line): void; openIn?(l: Line): void },
 ): MenuEntry[] {
   const one = lines.length === 1 ? lines[0] : undefined;
   const out: MenuEntry[] = [];
@@ -45,6 +46,9 @@ export function lineMenuEntries(
   if (one) {
     if (one.conflict === true && h.resolve) out.push({ label: "Resolve Conflict…", onSelect: () => h.resolve?.(one) }, { separator: true });
     out.push({ label: "Open", onSelect: () => h.open(one) }, { label: "Quick Look", onSelect: () => h.quickLook(one) });
+    // a file from a connected folder also opens in the app it lives in (Google Docs, Word, Excel, Dropbox)
+    const app = one.type === "file" && h.openIn ? openInLabel(one) : null;
+    if (app !== null) out.push({ label: openInWords(app), onSelect: () => h.openIn?.(one) });
     if (one.type === "file" && h.star) out.push({ label: one.starred === true ? "Remove Star" : "Star", onSelect: () => h.star?.(one) });
     if (one.type === "folder") out.push({ label: "Share…", onSelect: () => h.share(one) });
     out.push({ label: "Rename…", onSelect: () => h.rename(one) });
@@ -150,6 +154,7 @@ function List(): ReactElement {
       open, quickLook: (t) => dispatch({ type: "quicklook", key: t.key }), share: (t) => data.nav.shareFolder(t.id), rename: (t) => data.nav.renameEntry(t.type, t.id, t.name), trash: toTrash, restore,
       star: (t) => void data.call("files.star", { fileId: t.id, starred: t.starred !== true }),
       ...(data.nav.resolveConflict ? { resolve: (t: Line) => data.nav.resolveConflict?.(t.id) } : {}),
+      ...(data.nav.openExternal ? { openIn: (t: Line) => void openInProvider(data.call, data.nav.openExternal as (url: string) => void, t.id) } : {}),
     }), x, y);
   };
 
@@ -299,7 +304,7 @@ function List(): ReactElement {
       {ql ? <QuickLook line={ql} now={c.now} offsetMin={c.offsetMin} nameOf={data.nameOf} onClose={() => dispatch({ type: "quicklook", key: null })} onOpen={() => { dispatch({ type: "quicklook", key: null }); open(ql); }} /> : null}
       {online ? null : <Text style={styles.offline} accessibilityRole="alert" testID="files-offline">Offline, showing your saved copy</Text>}
       {src.status !== "ready" ? <ListLoading bare /> : lines.length === 0 ? (
-        <States kind="empty" title={emptyText(state.where)} icon="files" {...(state.where.kind === "folder" && here !== undefined ? { action: upload ? { label: "Add files", onPress: upload } : { label: "New folder", onPress: () => data.nav.newFolder(scopeHere, here) } } : {})} />
+        <States kind="empty" title={emptyText(state.where)} icon={emptyIcon(state.where)} {...(state.where.kind === "folder" && here !== undefined ? { action: upload ? { label: "Add files", onPress: upload } : { label: "New folder", onPress: () => data.nav.newFolder(scopeHere, here) } } : {})} />
       ) : (
         <View ref={box} style={styles.listBox} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))} {...({ onKeyDown, tabIndex: 0 } as object)}>
           {grid ? (

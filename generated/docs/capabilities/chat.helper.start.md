@@ -19,7 +19,7 @@ Start a helper sub-task thread with its own model, provider and effort; helper c
 | HTTP | POST /v1/chat/helper/start |
 | MCP tool | sub_task_model (chats) |
 | CLI | none |
-| Emits | helper.started, thread.started, message.received |
+| Emits | helper.started, thread.started, message.received, thread.unarchived |
 
 ## Input
 
@@ -53,6 +53,7 @@ type Out = {
     scopeId?: string;
     listed: boolean;
     planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -128,6 +129,7 @@ type Out = {
           "kind": "person"
         }
       ],
+      "mode": "ask",
       "parentMessageId": "msg_a1b2c3",
       "parentThreadId": "thr_a1b2c3",
       "path": [

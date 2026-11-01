@@ -54,7 +54,7 @@ export function SavedBar(): ReactElement {
 }
 
 const s = StyleSheet.create({
-  slot: { height: 28, justifyContent: "center" },
+  slot: { height: 22, justifyContent: "center" },
   line: { flexDirection: "row", alignItems: "center", gap: 7 },
   text: { fontSize: 12.5, color: "var(--ink-2)" as string },
   link: { fontSize: 12.5, color: "var(--accent)" as string },

@@ -43,12 +43,13 @@ export function settledWords(cs: Pick<Changeset, "state">): string {
   return "";
 }
 
-/** The line under the title: what version the changes are based on, and what happens if a file moved on since. */
+/** The line under the title: what version the changes are based on. What happens if a file moved on since is BASE_HELP, on hover. */
 export function baseLine(cs: Pick<Changeset, "baseVersion">): string {
-  return cs.baseVersion
-    ? `Based on version ${cs.baseVersion} of each file. If a file changed since, Vyre merges both edits in three parts (base, theirs, yours) and asks only where the same lines changed.`
-    : "";
+  return cs.baseVersion ? `Based on version ${cs.baseVersion} of each file` : "";
 }
+
+/** The three-way merge, said once, on hover and for a screen reader. */
+export const BASE_HELP = "If a file changed since, Vyre merges both edits in three parts (base, theirs, yours) and asks only where the same lines changed.";
 
 export const APPROVE_LABEL = "Approve and commit";
 

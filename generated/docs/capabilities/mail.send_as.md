@@ -26,6 +26,7 @@ Send through a member's own Gmail, Graph or IMAP mailbox (replies go out from th
 ```ts
 type In = {
   mailboxId: string;
+  senderId?: string;
   to: Array<{
       address: string;
       name?: string;
@@ -104,6 +105,7 @@ type Out = {
     "idempotencyKey": "idem_1",
     "mailboxId": "mbx_a1b2c3",
     "replyToMessageId": "eml_a1b2c3",
+    "senderId": "mbx_a1b2c3",
     "subject": "example",
     "text": "example",
     "to": [

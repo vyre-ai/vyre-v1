@@ -5,6 +5,7 @@ import type { PlaceId } from "../rail/kits.ts";
 import { skins } from "../../../../../ui/src/tokens/skins.ts";
 import type { CmdKData } from "./controller.ts";
 import type { CmdAction, Hit, HitKind } from "./model.ts";
+import { requestChannelSheet } from "../../places/chats/channels/request.ts";
 
 /** The slice of the hub the search drives. */
 export interface GateNav {
@@ -19,7 +20,7 @@ export interface GateSearchDeps {
   runtime: ShellRuntime;
   nav: GateNav;
   /** Whether the person set themself away / offline; the actions read and flip them. */
-  state: { away: boolean; offline: boolean };
+  state: { away: boolean; offline: boolean; terminal?: boolean };
   /** The recent hits read ahead of the sheet (search.recent.list). */
   recent: () => readonly Hit[];
 }
@@ -57,12 +58,14 @@ export function replicaHits(rt: ShellRuntime): readonly Hit[] {
   return out;
 }
 
-export function gateActions(state: { away: boolean; offline: boolean }): readonly CmdAction[] {
+export function gateActions(state: { away: boolean; offline: boolean; terminal?: boolean }, team = true): readonly CmdAction[] {
   return [
     { key: "task.new", title: "New task", icon: "plus" },
+    ...(team ? [{ key: "channel.new", title: "New channel", icon: "plus" }] : []),
     { key: "appearance.skin", title: "Switch skin", icon: "eye" },
     { key: "presence.away", title: state.away ? "Back from away" : "Set yourself away", icon: "clock" },
     { key: "network.offline", title: state.offline ? "Go online" : "Go offline", icon: "x" },
+    ...(state.terminal === true ? [{ key: "terminal.open", title: "Open terminal", icon: "terminal" }] : []),
   ];
 }
 
@@ -83,7 +86,7 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
       return out.hits;
     },
     recent: d.recent,
-    actions: (text) => gateActions(state).filter((a) => !text || a.title.toLowerCase().includes(text.toLowerCase())),
+    actions: (text) => gateActions(state, rt.space.kind === "team").filter((a) => !text || a.title.toLowerCase().includes(text.toLowerCase())),
     skins: () => skins.map((s) => ({ id: s.id, name: s.name, swatch: s.palette.accent })),
     currentSkin: () => "system",
     previewSkin: () => undefined,
@@ -103,7 +106,9 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
         state.offline = !state.offline;
         nav.setOnline(!state.offline && rt.connection.get() === "online", 0);
         nav.flash(state.offline ? "Working offline" : "Back online");
-      } else if (a.key === "task.new") nav.go("home");
+      } else if (a.key === "terminal.open") nav.go("chats", "terminal");
+      else if (a.key === "task.new") nav.go("home");
+      else if (a.key === "channel.new") { nav.go("chats"); requestChannelSheet("new"); }
       else if (a.key === SKIN) nav.go("settings", "page=appearance");
     },
     recordOpened: (hit) => { void rt.call("search.recent.record", { kind: hit.kind, itemId: hit.id }).catch(() => undefined); },

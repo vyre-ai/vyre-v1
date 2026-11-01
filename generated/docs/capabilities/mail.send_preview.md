@@ -26,6 +26,7 @@ Dry run of a send: suppressed recipients, window, caps and throttle, without sen
 ```ts
 type In = {
   mailboxId: string;
+  senderId?: string;
   channel?: "email";
   to: Array<{
       address: string;
@@ -69,6 +70,7 @@ type Out = {
     "campaignId": "cmp_a1b2c3",
     "channel": "email",
     "mailboxId": "mbx_a1b2c3",
+    "senderId": "mbx_a1b2c3",
     "to": [
       {
         "address": "maya@example.com",

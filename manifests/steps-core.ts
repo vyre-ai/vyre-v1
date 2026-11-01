@@ -22,6 +22,7 @@ const aiKeys = {
   agentId: t.opt(id.agent), keyId: t.opt(t.str({ description: 'Inference key: a subscription sign-in or a shared API key' })), backupKeyId: t.opt(t.str()),
   assigned: t.opt(assignee), reviewer: t.opt(assignee), approver: t.opt(assignee),
   timeoutMinutes: t.opt(t.int({ minimum: 1 })), nudgeMinutes: t.opt(t.int({ minimum: 1 })), escalateTo: t.opt(assignee),
+  mode: t.opt(t.enm('answer', 'task')), doneMeans: t.opt(t.arr(t.str({ minLength: 1 }), { maxItems: 20 })),
 };
 
 export default defineManifest({
@@ -61,8 +62,9 @@ export default defineManifest({
       in: {
         kind: t.opt(t.enm('work', 'approve', 'review', 'answer', 'unblock', 'signature')), title: tpl('Task title'), summary: t.opt(tpl('One line')),
         assigned: assignee, reviewer: t.opt(assignee), approver: t.opt(assignee), due: t.opt(t.str({ description: 'Time or duration from now', examples: ['2d'] })), recordId: t.opt(id.record),
+        wait: t.opt(t.bool()),   // true: the Run waits until the task is Done or Canceled, then goes on with what was submitted
       },
-      out: { taskId: id.task },
+      out: { taskId: id.task, state: t.opt(t.str()), outputs: t.opt(t.rec()), summary: t.opt(t.str()) },
     }),
     // send
     step('send_email', 'Send an email', 'send', 'capability', {
@@ -88,7 +90,7 @@ export default defineManifest({
       effects: 'write', idempotency: 'key', retry: { max: 2, backoff: 'exp', baseMs: 2000 },
       errors: ['validation.bad_input', 'internal.unexpected', 'provider.rate_limited', 'provider.auth_failed', 'provider.overloaded', 'provider.context_too_long', 'provider.content_filtered', 'provider.unavailable', 'permission.limit', 'timeout.deadline', 'validation.too_large', 'internal.unavailable'],
       in: { prompt: tpl('What the agent should do'), ...aiKeys, outputSchema: t.opt(t.json()), inputs: t.opt(t.rec()) },
-      out: { text: t.str(), data: t.opt(t.json()), keyUsed: t.str(), modelUsed: t.str() },
+      out: { text: t.str(), data: t.opt(t.json()), keyUsed: t.str(), modelUsed: t.str(), taskId: t.opt(id.task) },
       sample: { text: 'A sample answer.', keyUsed: 'sample', modelUsed: 'sample' },
     }),
     // journey

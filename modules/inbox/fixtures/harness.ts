@@ -51,6 +51,7 @@ export function harness(opts: HarnessOptions = {}) {
   const mail = new Map<string, Mail>((opts.mail ?? []).map((m) => [m.id, m]));
   const added = new Map<string, { contactId: string; value: string }>();
   const denied = new Set<string>();
+  const state = { conversationsUnknown: false };
   const meetings: Record<string, unknown>[] = [];
   const groups: { id: string; name: string }[] = [];
   let mailboxes: Mailbox[] = opts.mailboxes ?? [];
@@ -79,6 +80,8 @@ export function harness(opts: HarnessOptions = {}) {
       return null;
     },
     authorize(_action, resource) {
+      // the real kernel knows nothing of a conversation with no record above it: not_found, and the Inbox's own reasons decide (views.ts canSee)
+      if (state.conversationsUnknown && resource.type === "conversation") return { effect: "deny", reason: "not_found", decisionId: "dec_test" };
       const effect = denied.has(`${resource.type}:${resource.id}`) ? "deny" : "allow";
       return { effect, reason: effect, decisionId: "dec_test" };
     },
@@ -175,7 +178,7 @@ export function harness(opts: HarnessOptions = {}) {
   ensure(ctx);
 
   return {
-    ctx, emitted, called, contacts, campaigns, mailboxOwners, mail, denied, meetings, groups,
+    ctx, emitted, called, contacts, campaigns, mailboxOwners, mail, denied, meetings, groups, state,
     advance(ms: number) { clock += ms; },
     setMailboxes(m: Mailbox[]) { mailboxes = m; },
     setNumbers(n: NonNullable<HarnessOptions["numbers"]>) { numbers = n; },

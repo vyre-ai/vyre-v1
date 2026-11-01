@@ -2,9 +2,11 @@
 //   One message in a thread or channel, numbered by the thread (gap-free), with its hop depth, its blocks and its mentions. The turn engine reads message.received (ids and counts only, never the
 //   text) and routes to the lead agent or the @mentioned agents; this module does not start turns. People get message.mentioned, message.direct and thread.replied.
 import {
-  MAX_BLOCKS, MAX_BODY, MAX_MENTIONS, agentsOf, askerOf, encOf, ensure, hopLimit, insertMessage, isMember, lastMessage, membersOf, messageBy, messageOut, mintId, raise, refOf, refuseUnseenAgents, threadBy,
+  MAX_BLOCKS, MAX_BODY, MAX_MENTIONS, agentsOf, askerOf, encOf, ensure, hopLimit, insertMessage, isMember, lastMessage, membersOf, messageBy, messageOut, mintId, raise, refOf, refuseUnseenAgents, threadBy, channelBy,
 } from "../projections.ts";
+import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
+import { unarchiveForMention } from "./archive-state.ts";
 import { saveScreen } from "./screen.ts";
 
 export interface Mention { kind: "person" | "agent"; id: string }
@@ -32,11 +34,25 @@ export function rootOf(ctx: Pick<ChatCtx, "db">, t: ThreadRec): ThreadRec {
 
 const isPrivateRoot = (root: ThreadRec): boolean => root.kind === "chat" || root.kind === "ask";
 
+/**
+ * An invite-only channel is for the people in it, for reading and writing alike (its threads, messages, reactions and pins follow). The pipeline's grants are role wide, so the channel's own member
+ * list is the check: its members, the person who started it, the agents added to it, and the Space's trusted services (a tenant service such as a public form is not one). A public channel is open to the Space.
+ */
+function mayEnterChannel(ctx: ChatCtx, root: ThreadRec, thread: ThreadRec, asker: string): boolean {
+  const channel = root.channelId === undefined ? null : channelBy(ctx.db, root.channelId);
+  if (!channel || channel.visibility !== "invite") return true;
+  if (isTrustedService(ctx.principal)) return true;
+  // an agent is in when it was added to the channel or its thread, or when the person it acts for is in
+  if (ctx.principal.kind === "agent" && (agentsOf(ctx.db, root.id).some((a) => a.agentId === ctx.principal.id) || agentsOf(ctx.db, thread.id).some((a) => a.agentId === ctx.principal.id))) return true;
+  return isMember(ctx.db, root.id, asker) || root.starter === asker;
+}
+
 /** Who may speak in a thread. Channels and their threads answer to grants (the pipeline already checked them); a private chat answers to its members and the agents in it. */
 export function canSpeak(ctx: ChatCtx, thread: ThreadRec): boolean {
   const root = rootOf(ctx, thread);
-  if (!isPrivateRoot(root)) return true;
   const asker = askerOf(ctx);
+  if (root.channelId !== undefined && !mayEnterChannel(ctx, root, thread, asker)) return false;
+  if (!isPrivateRoot(root)) return true;
   if (isMember(ctx.db, root.id, asker) || root.starter === asker) return true;
   if (ctx.principal.kind === "agent") return agentsOf(ctx.db, root.id).some((a) => a.agentId === ctx.principal.id) || agentsOf(ctx.db, thread.id).some((a) => a.agentId === ctx.principal.id);
   return false;
@@ -83,6 +99,8 @@ export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions
   const direct = author.kind === "person" && isDirect(ctx, root) ? membersOf(ctx.db, root.id).find((p) => !p.startsWith("agt_") && p !== author.id) : undefined;
   if (direct !== undefined) ctx.emit("message.direct", thread.id, { messageId: m.id, threadId: thread.id, personId: direct, author });
   for (const mention of mentions) {
+    // an @mention is the one new message that brings an archived chat back into that person's list (a direct message gets message.direct instead, but the mention still counts)
+    if (mention.kind === "person" && mention.id !== author.id) unarchiveForMention(ctx, root.id, mention.id);
     if (mention.kind !== "person" || mention.id === author.id || mention.id === direct) continue;
     if (isPrivateRoot(root) && !isMember(ctx.db, root.id, mention.id)) continue;
     ctx.emit("message.mentioned", thread.id, { messageId: m.id, threadId: thread.id, personId: mention.id, author, inThread: thread.kind === "thread" });

@@ -8,6 +8,8 @@ import { useMissing } from "../hash/useMissing.ts";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { scrubAskContext } from "../../places/automations/ask/bundle.ts";
+import { BUILD_CONNECTOR_OPENING, connectorOpening } from "../../places/vault/itemenv/automations.ts";
+import { openAsk } from "./ask.ts";
 import { AutomationsDataProvider } from "../../places/automations/canvas/data.tsx";
 import type { AutomationsData, KeysStatus } from "../../places/automations/canvas/data.tsx";
 import type { KeyChoice } from "../../places/automations/canvas/model.ts";
@@ -18,9 +20,13 @@ import type { AccountOption } from "../../places/automations/connect/accounts.ts
 import { connectionRoute } from "../../places/automations/connect/route.ts";
 import { ConfigExtrasProvider } from "../../places/automations/config/data.tsx";
 import { RunsDataProvider } from "../../places/automations/runs/data.tsx";
+import { SideTask } from "./automations-task.tsx";
 import { AutomationRuns, FailedView, JourneyNewView, JourneyView, RunView, configExtras, runsData, useDirectory } from "./automations-parts.tsx";
 import { AllRuns, Dependencies, LiveEvents, NeedsYou, Packages, SpaceAnalytics, TemplateGallery } from "../../places/automations/operations/StudioViews.tsx";
-import { Empty } from "../../places/automations/operations/parts.tsx";
+import { AutomationsStart } from "../../places/automations/start/AutomationsStart.tsx";
+import { AskPane } from "../../places/records/askpane/index.ts";
+import { RecordsAssistant } from "./records-ask.tsx";
+import type { AskScope } from "./records-ask.tsx";
 import { AutomationsSidebarSlot, StudioNav } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
 import { AutomationsSidebar } from "../../places/automations/sidebar/AutomationsSidebar.tsx";
 import type { StudioView } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
@@ -47,6 +53,10 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [step, setStep] = useState<string | null>(null);
   const [sideRun, setSideRun] = useState<string | null>(null);
+  // a task a run made, beside the run: its thread, brief and baton buttons (the Back button returns to the run)
+  const [sideTask, setSideTask] = useState<string | null>(null);
+  // Ask Vyre opens a pane beside the body, in this tab; it never goes to Chats.
+  const [asking, setAsking] = useState(false);
   const setView = (next: StudioView): void => { setOverlay(null); setViewRaw(next); };
   const [keys, setKeys] = useState<readonly KeyChoice[]>([]);
   const [keysStatus, setKeysStatus] = useState<KeysStatus>("loading");
@@ -56,7 +66,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   // the Automations row in the sidebar leaves the open automation (the hash keeps naming it, so that id is remembered as left)
   const [left, setLeft] = useState<string | null>(null);
   const openId = picked ?? (hashed !== null && hashed === left ? null : hashed);
-  const goHome = (): void => { setOpenId(null); setLeft(hashed); setStep(null); setSideRun(null); };
+  const goHome = (): void => { setOpenId(null); setLeft(hashed); setStep(null); setSideRun(null); setSideTask(null); };
   const missing = useMissing(rt.screens, "automations.canvas", "automation", openId ? { automationId: openId, route: { automationId: openId } } : null);
   useEffect(() => {
     let live = true;
@@ -109,6 +119,14 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
       rt.open({ screen: route.screen, args: route.args });
     },
     openKeys: () => rt.open({ screen: "vault.providers" }),
+    buildConnector: () => rt.open({ screen: "chats.conversation", args: { with: rt.assistant.id, first: BUILD_CONNECTOR_OPENING } }),
+    setUpConnector: async (offer) => {
+      // the offer holds an item id and a name; the handle comes from the Vault, which never sends a value
+      const got = (await rt.call("vault.item.get", { itemId: offer.itemId })) as { item?: { handle?: string; name?: string } } | null;
+      const handle = got?.item?.handle;
+      if (!handle) throw new Error("Vyre could not find that Vault item. It may have moved to Trash.");
+      openAsk(rt, "assistant", { kind: "vault_item", id: offer.itemId, title: offer.appName }, undefined, connectorOpening({ name: got?.item?.name ?? offer.appName, handle }));
+    },
   }, keys, keysStatus, accounts, lastPicks), [rt, opened, keys, keysStatus, accounts, lastPicks]);
   const directory = useDirectory(rt);
   const extras = useMemo(() => configExtras(directory, {
@@ -120,17 +138,19 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const runs = useMemo(() => runsData(rt, {
     openAutomation: (id, stepId) => { data.nav.openAutomation(id); if (stepId) setStep(stepId); },
     openRun: (runId) => data.nav.openRun(runId),
-    openRunSide: (runId) => setSideRun(runId),
+    openRunSide: (runId) => { setSideTask(null); setSideRun(runId); },
+    openTaskSide: (taskId) => setSideTask(taskId),
     ask: (id, context) => data.nav.ask(id, context),
   }), [rt, data]);
   const winW = useWindowDimensions().width;
   const phone = winW > 0 && winW < 720;   // the phone has no sidebar beside the body: the list is the first screen
+  const sideTaskView = sideTask ? <SideTask rt={rt} taskId={sideTask} onBack={() => setSideTask(null)} onOpen={(type, id) => rt.open(type === "task" ? { screen: "tasks.page", args: { taskId: id } } : { subject: { type, id } })} /> : null;
   const canvas = openId ? (
     phone && sideRun ? (
       // on the phone a run takes the whole screen; Close goes back to the editor
       <View style={s.main}>
-        <View style={s.sideHead}><TextButton label="Back" icon="x" testID="close-side-run" onPress={() => setSideRun(null)} /></View>
-        <RunView runId={sideRun} />
+        <View style={s.sideHead}><TextButton label="Back" icon="x" testID="close-side-run" onPress={() => (sideTask ? setSideTask(null) : setSideRun(null))} /></View>
+        {sideTask ? sideTaskView : <RunView runId={sideRun} />}
       </View>
     ) : <View style={s.withSide}>
       <View style={s.main}>
@@ -140,7 +160,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
           {...(step ? { initialSelected: step, initialPanel: true } : {})}
         />
       </View>
-      {sideRun ? <ResizableColumn paneKey="automation-run-side" defaultWidth={380} grow="left" min={280} style={s.side as never}><View style={s.sideHead}><TextButton label="Close" icon="x" testID="close-side-run" onPress={() => setSideRun(null)} /></View><RunView runId={sideRun} /></ResizableColumn> : null}
+      {sideRun ? <ResizableColumn paneKey="automation-run-side" defaultWidth={380} grow="left" min={280} style={s.side as never}><View style={s.sideHead}>{sideTask ? <TextButton label="Back to the run" icon="x" testID="close-side-task" onPress={() => setSideTask(null)} /> : null}<TextButton label="Close" icon="x" testID="close-side-run" onPress={() => { setSideTask(null); setSideRun(null); }} /></View>{sideTask ? sideTaskView : <RunView runId={sideRun} />}</ResizableColumn> : null}
     </View>
   ) : null;
   const main = overlay?.kind === "failed" ? <FailedView selectedRunId={sideRun} />
@@ -158,7 +178,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     : canvas
     ? canvas
     : phone ? <PhoneList view={view} onView={setView} />
-    : <View style={s.hintWrap}><Empty testID="automations-start" title="Pick an automation" next="Choose one from the list to see its steps. To make a new one, use the plus beside Personal, or start from a working template." action="Start from a template" onAction={() => setView("templates")} /></View>;
+    : <AutomationsStart onTemplates={() => setView("templates")} onAsk={() => setAsking(true)} />;
   return (
     <AutomationsDataProvider value={data}>
       <RunsDataProvider value={runs}>
@@ -169,6 +189,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
               {phone && view !== "automations" && !openId ? <Pressable accessibilityRole="button" testID="phone-back-to-list" onPress={() => setView("automations")} style={s.backChip}><Text style={s.backText}>{"‹ Automations"}</Text></Pressable> : null}
               {main}
             </View>
+            {asking ? <AskPane about={{}} paneKey="automations-ask" idPrefix="automations-ask" hint="Say what you want to automate. I will draft it and you decide what to keep." onClose={() => setAsking(false)}><RecordsAssistant rt={rt} about={{}} scope={ASK_AUTOMATIONS} /></AskPane> : null}
           </View>
         </ConfigExtrasProvider>
       </RunsDataProvider>
@@ -193,6 +214,12 @@ function PhoneList({ view, onView }: { view: StudioView; onView(next: StudioView
   );
 }
 
+/** What the in-tab Ask pane tells the assistant: it is in Automations, with the focus skill for it. Ids and names only. */
+const ASK_AUTOMATIONS: AskScope = {
+  type: "automations", id: "place", title: "Automations",
+  context: { title: "Automations", actions: ["propose an automation", "suggest a template", "explain a failed run"], focus: "focus-automations" },
+};
+
 const s = StyleSheet.create({
   phoneList: { flex: 1, minHeight: 0 },
   phoneSearch: { height: 36, marginHorizontal: 12, marginTop: 10, paddingHorizontal: 12, borderRadius: 9, backgroundColor: "var(--sunk)" as string, color: "var(--ink)" as string, fontSize: 14 },
@@ -200,7 +227,6 @@ const s = StyleSheet.create({
   backText: { fontSize: 14, color: "var(--accent)" as string },
   page: { flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string },
   main: { flex: 1, minWidth: 0 },
-  hintWrap: { padding: 24 },
   withSide: { flex: 1, flexDirection: "row", minWidth: 0 },
   sideHead: { alignItems: "flex-end", padding: 6 },
   side: { width: 380, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string },

@@ -10,6 +10,7 @@ import { saveFile } from "./actions.ts";
 import { useCap, useReviewData } from "./data.tsx";
 import { Prose } from "../runbook/Prose.tsx";
 import { LintBar } from "./LintBar.tsx";
+import { openByName, useFileLinks } from "../links.ts";
 import type { EditView } from "./LintBar.tsx";
 import { draftDiff, saveBlocked } from "./model.ts";
 import { Btn, Note, TextField } from "./parts.tsx";
@@ -57,6 +58,14 @@ export function AgentFileEditor({ fileId, name, saved, version, density = "regul
   const [saving, setSaving] = useState(false);
   const [line, setLine] = useState<{ text: string; kind: "ok" | "error" | "warn" } | null>(null);
   const lint = useCap("files.lint", { fileId, text: draft });
+  // the folder the file is in, so the names written in it can be looked up beside it
+  const [folderId, setFolderId] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void (data.call("files.get", { fileId }) as Promise<{ file: { folderId: string } }>).then((o) => { if (live) setFolderId(o.file.folderId); }, () => undefined);
+    return () => { live = false; };
+  }, [data, fileId]);
+  const links = useFileLinks(data, folderId !== null ? { folderId } : null, mode === "view" && !isToml ? draft : "");
   const changed = draft !== base.text;
   const red = lint.status === "ready" && saveBlocked(lint.data);
   const diff = useMemo(() => draftDiff(name, base.text, draft), [name, base.text, draft]);
@@ -102,10 +111,10 @@ export function AgentFileEditor({ fileId, name, saved, version, density = "regul
 
   return (
     <View style={st.wrap} testID="agent-file-editor">
-      <LintBar fileId={fileId} name={name} text={draft} {...(isToml ? { view, onView: setView } : {})} onJump={jump} />
+      <LintBar fileId={fileId} name={name} text={draft} {...(isToml ? { view, onView: setView } : {})} onJump={jump} {...(folderId !== null && data.openFileTab ? { onOpenName: (n: string, background: boolean) => void openByName(data, folderId, n, background) } : {})} />
       {above}
       {mode === "view" && !(isToml && view === "form") ? (
-        <View style={st.body} testID="agent-file-view">{isToml ? <Text style={st.mono}>{draft}</Text> : <Prose text={draft} />}</View>
+        <View style={st.body} testID="agent-file-view">{isToml ? <Text style={st.mono}>{draft}</Text> : <Prose text={draft} links={links} />}</View>
       ) : isToml && view === "form" ? (
         <TomlForm text={draft} onChange={edit} issues={lint.status === "ready" ? lint.data.problems : []} />
       ) : (

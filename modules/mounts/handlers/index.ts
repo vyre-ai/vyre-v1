@@ -1,9 +1,10 @@
 // Handlers of the mounts module: the engine (mount lifecycle, sync pass, device reports, lag) over the providers.
 
 import { engineHandlers } from "./engine.ts";
+import { nativeHandlers } from "./native.ts";
 
-export const handlers = { ...engineHandlers };
+export const handlers = { ...engineHandlers, ...nativeHandlers };
 
-export { SYNC_INTERVAL_MS, DEVICE_OFFLINE_MS, LAG_DEGRADED_S, LAG_DOWN_S } from "./engine.ts";
+export { SYNC_INTERVAL_MS, DEVICE_OFFLINE_MS, LAG_DEGRADED_S, LAG_DOWN_S, LIVE_POLL_MS, CLIENT_FRESH_MS } from "./engine.ts";
 export { providerOf, exportMimeFor, PROVIDER_LABEL } from "./providers.ts";
 export type { Provider, MountRec, RemoteItem, PullBatch, MountKind, MountMode } from "./providers.ts";

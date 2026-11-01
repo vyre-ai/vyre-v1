@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (60)
+## Capabilities (66)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status
@@ -23,10 +23,15 @@ Requires: nothing.
 - [engine.lease.heartbeat](../capabilities/engine.lease.heartbeat.md): Extend the lease on a thread
 - [engine.lease.release](../capabilities/engine.lease.release.md): Release the lease on a thread
 - [engine.mcp.call](../capabilities/engine.mcp.call.md): Call an outside MCP tool that may change things; an agent's call goes through the Gate
+- [engine.mcp.oauth_complete](../capabilities/engine.mcp.oauth_complete.md): Finish an OAuth sign-in with the state and code the server sent back, or the error it sent when the person declined. Only the person who started it can finish it.
+- [engine.mcp.oauth_start](../capabilities/engine.mcp.oauth_start.md): Begin signing a remote outside-tool connection in with OAuth (the MCP authorization flow). Answers the address to send the person to; the token that comes back is sealed and never answered.
+- [engine.mcp.oauth_status](../capabilities/engine.mcp.oauth_status.md): Has this remote connection signed in? A yes or no, never the token.
 - [engine.mcp.read](../capabilities/engine.mcp.read.md): Call an outside MCP tool that only reads (the server says so); runs in the sandbox or at the remote server
 - [engine.mcp.tools](../capabilities/engine.mcp.tools.md): The MCP servers a chat with this agent connects to and the tools each offers (starts the server in the sandbox if it is not running)
 - [engine.models.list](../capabilities/engine.models.list.md): Models the account can reach; models that the open labels or policy forbid are listed greyed with the reason
 - [engine.placement.decide](../capabilities/engine.placement.decide.md): Decide where a turn runs: host or the asker device (private chat rules, computers, routines, phone and web askers)
+- [engine.placement.options](../capabilities/engine.placement.options.md): What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; and where the chat runs now
+- [engine.placement.set](../capabilities/engine.placement.set.md): Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers. The next turn goes there; a teammate's machine is never a choice
 - [engine.policy.get](../capabilities/engine.policy.get.md): AI policies: allowed accounts, allowed models and providers, and which providers each label may reach
 - [engine.policy.set](../capabilities/engine.policy.set.md): Change AI policies (models and providers, per label provider rules, allowed accounts)
 - [engine.pool.status](../capabilities/engine.pool.status.md): Warm engine pool: sessions per driver, warm hits, evictions
@@ -63,6 +68,7 @@ Requires: nothing.
 - [engine.turn.start](../capabilities/engine.turn.start.md): Start a queued turn on the placement chosen (host or device); records account, engine and model
 - [engine.turn.wait](../capabilities/engine.turn.wait.md): Park a turn until a task, an answered block, a run or a time
 - [engine.turns.list](../capabilities/engine.turns.list.md): Turns of a thread, newest first
+- [engine.usage.get](../capabilities/engine.usage.get.md): For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated
 - [engine.usage.query](../capabilities/engine.usage.query.md): Usage by day, person, agent or model; people see their own, managers their agents, admins all
 - [engine.use_policy.export](../capabilities/engine.use_policy.export.md): Export the AI use policy (models, providers, label rules, limits, accounts) as a file
 - [engine.warm](../capabilities/engine.warm.md): Hint that a thread was opened or the composer got focus: warm the engine session (drivers pool, prefix cache)

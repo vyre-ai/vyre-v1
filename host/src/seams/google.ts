@@ -5,20 +5,24 @@ import { fail } from "../routes/errors.ts";
 import { HANDLE } from "./ports.ts";
 import type { SeamCtx, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort } from "./ports.ts";
 import { downloadToBlob, statusError, uploadFile } from "./transfer.ts";
+import { createUserOauth } from "./user-oauth.ts";
+import type { UserOauthSeam } from "./user-oauth.ts";
 
 export const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 export const GOOGLE_DOMAINS = ["googleapis.com", "googleusercontent.com", "docs.google.com", "drive.google.com"] as const;
 const GRANT = "urn:ietf:params:oauth:grant-type:jwt-bearer";
 
 /** The shape of GoogleHost (modules/google/projections.ts), kept here so the host never imports a module. The module's type accepts this object. */
-export interface GoogleHostSeam {
+export const GOOGLE_AUTH_DOMAINS = ["oauth2.googleapis.com"] as const;
+
+export interface GoogleHostSeam extends UserOauthSeam {
   mintToken(ctx: SeamCtx, a: { connectionId: string; sub: string; scopes: string[] }): Promise<{ token: string; expiresAt: number }>;
   memberEmails(ctx: SeamCtx): Promise<{ userId: string; email: string }[]>;
   serviceAccount(ctx: SeamCtx, handle: string): Promise<{ clientId: string; clientEmail: string }>;
   fileBytes(ctx: SeamCtx, fileId: string): Promise<{ name: string; mime: string; bytes: Uint8Array }>;
   putBlob(ctx: SeamCtx, bytes: Uint8Array, mime: string): Promise<string>;
   download(ctx: SeamCtx, a: { url: string; token: string; mime?: string }): Promise<{ blobId: string; size: number; mime: string }>;
-  upload(ctx: SeamCtx, a: { url: string; token: string; fileId: string; metadata: Record<string, unknown> }): Promise<unknown>;
+  upload(ctx: SeamCtx, a: { url: string; token: string; fileId: string; metadata: Record<string, unknown>; method?: "POST" | "PATCH" }): Promise<unknown>;
 }
 
 export interface GoogleSeamDeps {
@@ -27,6 +31,8 @@ export interface GoogleSeamDeps {
   files: SpaceFiles;
   blobs: SpaceBlobs;
   members: SpaceMembers;
+  /** the address people reach this Space at, for a person's own sign-in to come back to */
+  publicUrl?: ((space: string) => Promise<string>) | undefined;
 }
 
 const b64url = (s: string): string => Buffer.from(s, "utf8").toString("base64url");
@@ -50,7 +56,9 @@ export function createGoogleHost(d: GoogleSeamDeps): GoogleHostSeam {
     if (typeof row?.h !== "string" || !HANDLE.test(row.h)) throw fail("provider.auth_failed", ctx.trace.traceId, { message: "Google is not connected on this server." });
     return row.h;
   };
+  const user = createUserOauth({ vault: d.vault, fetch: d.fetch, publicUrl: d.publicUrl }, { name: "Google", tokenUrl: () => GOOGLE_TOKEN_URL, domains: GOOGLE_AUTH_DOMAINS });
   return {
+    ...user,
     async mintToken(ctx, a) {
       const handle = handleFor(ctx, a.connectionId);
       const { clientEmail } = identityOf(ctx, await d.vault.secret(handle, ctx.space));

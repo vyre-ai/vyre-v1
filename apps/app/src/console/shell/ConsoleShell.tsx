@@ -21,7 +21,8 @@ import type { ConsoleData } from "./data.tsx";
 import { Dot, Glyph } from "./glyphs.tsx";
 import { DEFAULT_PAGE, GROUPS, PAGES, pageById, visiblePages } from "./nav.ts";
 import type { PageDef } from "./nav.ts";
-import { pointer } from "./ui.tsx";
+import { Lead, PageHelpContext, pointer } from "./ui.tsx";
+import { Info } from "../../../../../ui/src/Tip/index.tsx";
 import { openOnboarding } from "../../onboarding/store.ts";
 
 export const TOP_BAR_HEIGHT = 44;
@@ -86,6 +87,9 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
   const menu = useMenu();
   const searchBtn = useRef<unknown>(null);
   const skinBtn = useRef<unknown>(null);
+  const pagesBtn = useRef<unknown>(null);
+  const [pageHelps, setPageHelps] = useState<readonly string[]>([]);
+  const registerHelp = useCallback((text: string) => { setPageHelps((h) => [...h, text]); return () => setPageHelps((h) => h.filter((x) => x !== text)); }, []);
   const pages = visiblePages(data.can, data.allowedScreens);
   const def = pageById(page) ?? PAGES[0]!;
 
@@ -105,8 +109,8 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
     const box = (ref.current as { getBoundingClientRect?: () => { left: number; bottom: number } } | null)?.getBoundingClientRect?.();
     return { x: box?.left ?? 0, y: (box?.bottom ?? 0) + 4 };
   };
-  const openSearch = useCallback((): void => {
-    const a = below(searchBtn);
+  const openSearch = useCallback((from: { current: unknown } = searchBtn): void => {
+    const a = below(from);
     const entries: MenuEntry[] = [{ head: "Go to" }];
     let group: string | null = null;
     for (const p of visiblePages(data.can, data.allowedScreens)) {
@@ -136,7 +140,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
 
   const navRows: ReactElement[] = [];
   const pushPage = (p: PageDef, indent: boolean): void => {
-    navRows.push(<View key={p.id} style={indent ? s.indent : undefined}><Row id={`nav-${p.id}`} title={p.title} selected={page === p.id} leading={<Glyph name={p.icon} size={15} color={page === p.id ? "var(--ink)" : "var(--ink-3)"} />} onPress={() => go(p.id)} /></View>);
+    navRows.push(<View key={p.id} style={indent ? s.indent : undefined}><Row id={`nav-${p.id}`} title={p.title} selected={page === p.id} leading={<Lead><Glyph name={p.icon} size={15} color={page === p.id ? "var(--ink)" : "var(--ink-3)"} /></Lead>} onPress={() => go(p.id)} /></View>);
   };
   for (const p of pages.filter((x) => x.group === "" && x.id === "overview")) pushPage(p, false);
   for (const g of GROUPS) {
@@ -172,10 +176,10 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
       <View style={s.top} testID="console-top">
         <Avatar name={data.space.name} kind="space" size={22} />
         <Text numberOfLines={1} style={s.space}>{data.space.name}</Text>
-        <Text style={s.console}>Console</Text>
+        {narrow ? null : <Text style={s.console}>Console</Text>}
         {health ? <View style={s.health} testID="console-health" accessibilityLabel={`Server ${HEALTH_LABEL[health].toLowerCase()}`}><Dot tone={HEALTH_TONE[health]} size={8} /></View> : null}
         <View style={{ flex: 1 }} />
-        <Pressable ref={(r) => { searchBtn.current = r; }} accessibilityRole="button" accessibilityLabel="Search" testID="console-search" onPress={openSearch} style={[s.chip, pointer]}>
+        <Pressable ref={(r) => { searchBtn.current = r; }} accessibilityRole="button" accessibilityLabel="Search" testID="console-search" onPress={() => openSearch()} style={[s.chip, pointer]}>
           <Glyph name="search" size={14} color="var(--ink-2)" />{narrow ? null : <><Text style={s.chipText}>Search</Text><Text style={s.kbd}>{"⌘"}K</Text></>}
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Assistant" accessibilityState={{ selected: assistantOn }} aria-pressed={assistantOn} testID="console-assistant-toggle" onPress={() => setAssistantOn((v) => !v)} style={[s.chip, pointer, assistantOn && s.chipOn]}>
@@ -195,10 +199,17 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
       <View style={s.below}>
         {narrow ? null : <ScrollView style={s.nav} contentContainerStyle={s.navScroll} testID="console-nav" accessibilityLabel="Console navigation">{navRows}</ScrollView>}
         <View style={s.main} testID={`page-${def.id}`} accessibilityLabel={def.title}>
-          <View style={s.head}><Text accessibilityRole="header" aria-level={1} style={s.title}>{def.title}</Text></View>
+          <View style={s.head}>
+            {narrow ? (
+              <Pressable ref={(r) => { pagesBtn.current = r; }} accessibilityRole="button" accessibilityLabel={`${def.title}. Go to another page`} testID="console-pages" onPress={() => openSearch(pagesBtn)} style={[s.pages, pointer]}>
+                <Text accessibilityRole="header" aria-level={1} style={s.title}>{def.title}</Text><Glyph name="chevD" size={12} color="var(--ink-3)" />
+              </Pressable>
+            ) : <Text accessibilityRole="header" aria-level={1} style={s.title}>{def.title}</Text>}
+            {pageHelps.length ? <Info help={pageHelps.join(" ")} testID="page-help" /> : null}
+          </View>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={s.content}>
             <View style={def.id === "audit" ? s.wide : s.column}>
-              <ShellDataGate value={shellData}>{body}</ShellDataGate>
+              <PageHelpContext.Provider value={registerHelp}><ShellDataGate value={shellData}>{body}</ShellDataGate></PageHelpContext.Provider>
             </View>
           </ScrollView>
         </View>
@@ -237,7 +248,8 @@ const s = StyleSheet.create({
   groupHead: { flexDirection: "row", alignItems: "center", gap: 6, height: 28, paddingHorizontal: 8, marginTop: 6 },
   groupTitle: { fontSize: 12, fontWeight: "600", color: "var(--ink-3)" as string },
   main: { flex: 1, minWidth: 0 },
-  head: { height: 48, justifyContent: "center", paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  pages: { flexDirection: "row", alignItems: "center", gap: 6, height: 32 },
+  head: { height: 48, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   title: { fontSize: 14.5, fontWeight: "600", color: "var(--ink)" as string },
   content: { padding: 24, alignItems: "center", flexGrow: 1 },
   column: { width: "100%", maxWidth: 960 },

@@ -40,7 +40,7 @@ type Out = {
   mount: {
     mountId: string;
     folderId: string;
-    kind: "google_drive" | "sharepoint" | "onedrive" | "local" | "github";
+    kind: "google_drive" | "sharepoint" | "onedrive" | "dropbox" | "local" | "github";
     provider: string;
     ref?: string;
     name: string;
@@ -53,6 +53,8 @@ type Out = {
     conflicts: number;
     fromDevice?: string;
     error?: string;
+    live?: boolean;
+    liveVia?: "push" | "poll";
   };
 };
 ```
@@ -86,6 +88,8 @@ type Out = {
       "kind": "google_drive",
       "lagSeconds": 1,
       "lastSyncAt": 1760000000000,
+      "live": true,
+      "liveVia": "push",
       "mode": "server_copy",
       "mountId": "mnt_a1b2c3",
       "name": "example",

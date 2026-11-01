@@ -6,14 +6,14 @@
 
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
-import { isHead, isItem, isReportItem, isSeparator, resolveMenuItems } from "./props.ts";
+import { filterMenuEntries, isHead, isItem, isReportItem, isSeparator, resolveMenuItems } from "./props.ts";
 import type { MenuEntry, MenuItem, MenuProps, MenuSource } from "./props.ts";
 import { MenuPortal } from "./portal.tsx";
 
 export type { MenuEntry, MenuHead, MenuItem, MenuProps, MenuSeparator, MenuSource } from "./props.ts";
-export { REPORT_A_PROBLEM, appendReportProblem, resolveMenuItems } from "./props.ts";
+export { REPORT_A_PROBLEM, appendReportProblem, filterMenuEntries, resolveMenuItems } from "./props.ts";
 
 /* ---------- Report a problem hook-up ---------- */
 
@@ -148,6 +148,7 @@ const ICON_PATHS: Readonly<Record<string, string>> = {
   open: '<path d="M6.500 3.500H3.500v9h9v-3M9 3.500h3.500V7M12.500 3.500L7 9"/>',
   link: '<path d="M6.500 9.500l3-3M7 4.500l.8-.8a2.500 2.500 0 013.500 3.500l-.8.800M9 11.500l-.8.800a2.500 2.500 0 01-3.500-3.500l.8-.8"/>',
   clock: '<circle cx="8" cy="8" r="5.500"/><path d="M8 5v3.200l2 1.300"/>',
+  terminal: '<rect x="2" y="3" width="12" height="10" rx="1.800"/><path d="M5 6.500l2 1.500-2 1.500M8.500 10H11"/>',
   eye: '<path d="M1.500 8S4 3.500 8 3.500 14.500 8 14.500 8 12 12.500 8 12.500 1.500 8 1.500 8z"/><circle cx="8" cy="8" r="2"/>',
   search: '<circle cx="7" cy="7" r="4"/><path d="M10 10l3.5 3.5"/>',
   more: '<circle cx="3.5" cy="8" r=".9" fill="currentColor"/><circle cx="8" cy="8" r=".9" fill="currentColor"/><circle cx="12.5" cy="8" r=".9" fill="currentColor"/>',
@@ -158,6 +159,7 @@ const NATIVE_GLYPHS: Readonly<Record<string, string>> = {
   flag: "\u2691",
   x: "\u00d7",
   plus: "+",
+  terminal: ">_",
   minus: "\u2212",
   check: "\u2713",
   more: "\u22ef",
@@ -236,7 +238,10 @@ const MENU_H = 120;
 
 export function Menu(props: MenuViewProps): ReactElement | null {
   const { onClose, reportContext } = props;
-  const entries = useMemo(() => menuEntries(props, reportContext), [props.items, props.source, reportContext]);
+  const all = useMemo(() => menuEntries(props, reportContext), [props.items, props.source, reportContext]);
+  const searching = props.search !== undefined;
+  const [query, setQuery] = useState("");
+  const entries = useMemo(() => (searching ? filterMenuEntries(all, query) : all), [all, searching, query]);
   const window = useWindowDimensions();
   const [gone, setGone] = useState(false);
   const [active, setActive] = useState(() => moveActive(entries, -1, "Home"));
@@ -252,8 +257,8 @@ export function Menu(props: MenuViewProps): ReactElement | null {
   const land = useCallback((index: number) => {
     if (index < 0) return;
     setActive(index);
-    focusNode(nodes.current[index]);
-  }, []);
+    if (!searching) focusNode(nodes.current[index]);
+  }, [searching]);
 
   useEffect(() => {
     land(moveActive(entries, -1, "Home"));
@@ -282,7 +287,12 @@ export function Menu(props: MenuViewProps): ReactElement | null {
       land(moveActive(entries, active, event.shiftKey === true ? "ArrowUp" : "ArrowDown"));
       return;
     }
-    if (key.length === 1 && key !== " " && event.metaKey !== true && event.ctrlKey !== true) {
+    if (key === "Enter" && searching) {
+      const at = entries[active];
+      if (at !== undefined && isItem(at)) { event.preventDefault?.(); choose(at); }
+      return;
+    }
+    if (!searching && key.length === 1 && key !== " " && event.metaKey !== true && event.ctrlKey !== true) {
       const now = Date.now();
       const text = now - typed.current.at < 700 ? typed.current.text + key : key;
       typed.current = { text, at: now };
@@ -333,10 +343,20 @@ export function Menu(props: MenuViewProps): ReactElement | null {
           const { width, height } = event.nativeEvent.layout;
           if (width !== size.w || height !== size.h) setSize({ w: width, h: height });
         }}
-        style={[styles.panel, { left, top, maxHeight: Math.max(120, window.height - 12) }, webProps({ style: { overflowY: "auto" } }).style as object | undefined]}
+        style={[styles.panel, { left, top, maxHeight: Math.max(120, window.height - 12) }, props.width !== undefined ? { width: props.width, minWidth: props.width, maxWidth: props.width } : null, webProps({ style: { overflowY: "auto" } }).style as object | undefined]}
         {...webProps({ onKeyDown })}
       >
+        {searching ? (
+          <View style={styles.search}>
+            <MenuIcon icon="search" color="var(--ink-3)" />
+            <TextInput
+              autoFocus value={query} onChangeText={(t) => { setQuery(t); setActive(-1); }} placeholder={props.search} placeholderTextColor="var(--ink-3)"
+              accessibilityLabel={props.search} testID="menu-search" style={styles.searchInput}
+            />
+          </View>
+        ) : null}
         {rows}
+        {searching && rows.length === 0 ? <Text style={styles.none} testID="menu-none">Nothing matches.</Text> : null}
       </View>
     </View>
     </MenuPortal>
@@ -375,9 +395,13 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
       style={[styles.item, wash, entry.disabled === true ? { opacity: 0.45 } : null]}
       {...webProps({ ...(report ? { dataSet: { report: "true" } } : {}), ...(entry.disabled === true && entry.reason !== undefined ? { title: entry.reason } : {}) })}
     >
-      {entry.icon !== undefined && entry.icon.length > 0 ? <MenuIcon icon={entry.icon} color={ink} /> : null}
+      {entry.leading !== undefined ? <View style={styles.leading}>{entry.leading}</View> : null}
+      {entry.leading === undefined && entry.icon !== undefined && entry.icon.length > 0 ? <MenuIcon icon={entry.icon} color={ink} /> : null}
       <Text numberOfLines={1} style={[styles.label, { color: ink }]}>{entry.label}</Text>
-      {entry.count !== undefined ? <Text style={styles.count} testID={`menu-count-${entry.label}`}>{entry.count}</Text> : null}
+      {entry.mark !== undefined ? (Platform.OS === "web"
+        ? createElement("span", { title: entry.mark, "aria-label": entry.mark, role: "img", "data-mark": "true", "data-testid": `menu-mark-${entry.label}`, style: { width: 7, height: 7, borderRadius: 4, marginLeft: "auto", flexShrink: 0, background: "var(--warn)" } })
+        : <View accessibilityLabel={entry.mark} style={styles.mark} />) : null}
+      {entry.count !== undefined ? <Text style={[styles.count, lit ? { color: ink, opacity: 0.8 } : null]} testID={`menu-count-${entry.label}`}>{entry.count}</Text> : null}
       {entry.checked === true ? <Text style={[styles.check, entry.count !== undefined && styles.checkAfterCount, { color: ink }]}>{"✓"}</Text> : null}
     </Pressable>
   );
@@ -392,6 +416,8 @@ export interface OpenMenu {
   source: MenuSource;
   context?: ReportContext;
   nonce: number;
+  search?: string;
+  width?: number;
 }
 
 interface PointerLike {
@@ -430,21 +456,63 @@ export function menuTrigger(open: (x: number, y: number) => void): Record<string
   };
 }
 
+/* ---------- anchoring to the button that was pressed ---------- */
+
+interface RectLike { left: number; bottom: number }
+interface AnchorEl { getBoundingClientRect?: () => RectLike; closest?: (selector: string) => AnchorEl | null }
+
+const BUTTONISH = "button, [role=button], [role=menuitem], [role=tab], a[href], summary";
+let lastAnchor: { x: number; y: number } | null = null;
+let listening = false;
+
+/** Remembers where the control under `target` sits (its left edge and bottom). Called for every press and for Enter or Space on a focused control. */
+export function noteAnchor(target: unknown): void {
+  const el = target as AnchorEl | null | undefined;
+  if (el === null || el === undefined) return;
+  const host = typeof el.closest === "function" ? (el.closest(BUTTONISH) ?? el) : el;
+  const rect = typeof host.getBoundingClientRect === "function" ? host.getBoundingClientRect() : null;
+  if (rect !== null && Number.isFinite(rect.left) && Number.isFinite(rect.bottom)) lastAnchor = { x: rect.left, y: rect.bottom + 4 };
+}
+
+/** One document listener, installed once on web. A menu opened by a button that has no pointer position (the caller passes -1, or nothing) lands under that button. */
+function listenForPresses(): void {
+  if (listening || Platform.OS !== "web") return;
+  const doc = (globalThis as { document?: { addEventListener?: (type: string, fn: (e: { target?: unknown; key?: string }) => void, capture?: boolean) => void; activeElement?: unknown } }).document;
+  if (doc === undefined || typeof doc.addEventListener !== "function") return;
+  listening = true;
+  doc.addEventListener("pointerdown", (e) => noteAnchor(e.target), true);
+  doc.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") noteAnchor(doc.activeElement); }, true);
+}
+
+/** A point is "unknown" when it is missing, negative or not a number: the caller had no coordinates to give. */
+export function resolveMenuPoint(x: number, y: number): { x: number; y: number } {
+  const known = Number.isFinite(x) && Number.isFinite(y) && x >= 0 && y >= 0;
+  if (known) return { x, y };
+  return lastAnchor ?? { x: 6, y: 6 };
+}
+
+/** Forgets the remembered control (tests). */
+export function resetAnchor(): void { lastAnchor = null; }
+
 /** One open menu for a surface. `element` goes anywhere in the tree; `show` opens it at a point. */
 export function useMenu(): {
   element: ReactElement | null;
-  show: (items: readonly MenuEntry[], x: number, y: number, source?: MenuSource, context?: ReportContext) => void;
+  show: (items: readonly MenuEntry[], x: number, y: number, source?: MenuSource, context?: ReportContext, opts?: { search?: string; width?: number }) => void;
   hide: () => void;
 } {
   const [open, setOpen] = useState<OpenMenu | null>(null);
   const counter = useRef(0);
-  const show = useCallback((items: readonly MenuEntry[], x: number, y: number, source: MenuSource = "context", context?: ReportContext) => {
+  useEffect(() => { listenForPresses(); }, []);
+  const show = useCallback((items: readonly MenuEntry[], x: number, y: number, source: MenuSource = "context", context?: ReportContext, opts?: { search?: string; width?: number }) => {
     counter.current += 1;
-    setOpen({ items, x, y, source, nonce: counter.current, ...(context === undefined ? {} : { context }) });
+    const at = resolveMenuPoint(x, y);
+    x = at.x;
+    y = at.y;
+    setOpen({ items, x, y, source, nonce: counter.current, ...(context === undefined ? {} : { context }), ...(opts?.search === undefined ? {} : { search: opts.search }), ...(opts?.width === undefined ? {} : { width: opts.width }) });
   }, []);
   const hide = useCallback(() => setOpen(null), []);
   const element = open === null ? null : (
-    <Menu key={open.nonce} items={open.items} x={open.x} y={open.y} source={open.source} onClose={hide} {...(open.context === undefined ? {} : { reportContext: open.context })} />
+    <Menu key={open.nonce} items={open.items} x={open.x} y={open.y} source={open.source} onClose={hide} {...(open.context === undefined ? {} : { reportContext: open.context })} {...(open.search === undefined ? {} : { search: open.search })} {...(open.width === undefined ? {} : { width: open.width })} />
   );
   return { element, show, hide };
 }
@@ -470,6 +538,11 @@ const styles = StyleSheet.create({
   checkAfterCount: { marginLeft: 0 },
   count: { marginLeft: "auto", minWidth: 24, textAlign: "right", fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   iconSlot: { width: ICON_SIZE, height: ICON_SIZE, alignItems: "center", justifyContent: "center" },
+  mark: { width: 7, height: 7, borderRadius: 4, marginLeft: "auto", backgroundColor: "var(--warn)" as string },
+  leading: { width: 20, height: 20, alignItems: "center", justifyContent: "center" },
+  search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, paddingHorizontal: 9, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  searchInput: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string, ...({ outlineStyle: "none" } as ViewStyle) },
+  none: { paddingVertical: 10, paddingHorizontal: 9, fontSize: 12.5, color: "var(--ink-3)" as string },
   head: { paddingTop: 6, paddingBottom: 4, paddingHorizontal: 9, fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   sep: { height: 1, backgroundColor: "var(--line)" as string, marginVertical: 4, marginHorizontal: 6 },
 });

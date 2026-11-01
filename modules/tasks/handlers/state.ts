@@ -6,6 +6,7 @@ import {
   actionableByMe, allTasks, clean, emitTask, findTask, getTask, historyOf, holds, isBlocked, isOpen, isRequest, listTasks, myWork, needsYou, newTaskId, openIndex,
   out, page, raise, readPolicy, sameAssignee, toOut, touch, visibleTo, whoIs,
 } from "../projections.ts";
+import { ensureThread, syncThread } from "./thread.ts";
 import type {
   ActionDef, Assignee, Block, ListFilter, Policy, Section, Slot, Task, TaskKind, TaskSource, TaskState, TasksCtx, Who,
 } from "../projections.ts";
@@ -187,6 +188,9 @@ function reachable(db: TasksCtx["db"], from: string, target: string, seen = new 
 
 // ---- capabilities ----
 
+const MAX_START_NOTES = 20;
+const MAX_NOTE_CHARS = 50_000;
+
 export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   const policy = readPolicy(ctx.db);
   const kind: TaskKind = input.kind ?? "work";
@@ -224,7 +228,14 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.source) t.source = input.source as TaskSource;
   if (input.parentTaskId !== undefined) t.parentTaskId = input.parentTaskId;
   if (input.expiresAt !== undefined) t.expiresAt = input.expiresAt;
-  if (ctx.thread) t.threadId = ctx.thread;
+  if (input.notes && typeof input.notes === "object") {
+    // notes the task starts with: a brief, a checklist, a schema. The two reserved keys belong to a held act and are never taken from here.
+    const notes: Record<string, string> = {};
+    for (const [k, v] of Object.entries(input.notes as Record<string, unknown>).slice(0, MAX_START_NOTES)) if (!(k in RESERVED_NOTES) && typeof v === "string") notes[k] = v.slice(0, MAX_NOTE_CHARS);
+    t.workingNotes = notes;
+  }
+  if (ctx.call) await ensureThread(ctx, t, ctx.thread);
+  if (t.threadId === undefined && ctx.thread) t.threadId = ctx.thread;
   const resp = await responsibleFor(ctx, assigned);
   if (resp !== undefined) t.responsible = resp;
   touch(ctx, ctx.db, t);
@@ -297,6 +308,8 @@ export async function update(ctx: TasksCtx, input: In): Promise<unknown> {
   if ("why" in input && input.why !== undefined) set("why", nonEmpty(input.why) ? input.why : undefined);
   if ("due" in input && input.due !== undefined) set("due", input.due === null ? undefined : (input.due as number));
   if ("effort" in input && input.effort !== undefined) set("effort", input.effort === null ? undefined : (input.effort as number));
+  // a task whose thread could not be made when it was created is linked to the one made later; a thread already linked is never replaced
+  if ("threadId" in input && typeof input.threadId === "string" && t.threadId === undefined) { t.threadId = input.threadId; changed.push("threadId"); }
   if (changed.length) {
     touch(ctx, ctx.db, t);
     emitTask(ctx, ctx.db, "task.updated", t, { fields: changed }, { type: "updated", by: ctx.principal.id });
@@ -336,6 +349,7 @@ export async function assign(ctx: TasksCtx, input: In): Promise<unknown> {
   }
   touch(ctx, ctx.db, t);
   emitTask(ctx, ctx.db, "task.assigned", t, { slot, to, from }, { type: "assigned", by: ctx.principal.id });
+  await syncThread(ctx, t);
   return { task: out(ctx, t) };
 }
 

@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -17,6 +18,7 @@ import { useAllClear, useSectionKind } from "./allclear.ts";
 export const AWAY_SCREEN = "home.away-digest";
 type Out = CapMap["home.digest"]["out"];
 
+const KINDS: readonly DigestItem["kind"][] = ["waiting", "decision", "finished", "record_change", "routine"];
 const ICON: Record<DigestItem["kind"], IconName> = { decision: "decision", finished: "done", record_change: "change", routine: "run", waiting: "waiting" };
 
 export function AwayDigest(): ReactElement {
@@ -52,8 +54,19 @@ export function AwayDigest(): ReactElement {
     );
   });
 
-  const lines: ReactElement[] = [];
-  shown.headline.forEach((h, i) => lines.push(<Text key={i} style={local.headline} testID={`away-line-${i}`}>{h}</Text>));
+  // the digest's headline as chips: a count per kind of thing with its icon; the words the assistant wrote are the tooltip
+  const counts = new Map<DigestItem["kind"], number>();
+  for (const it of digest?.items ?? []) counts.set(it.kind, (counts.get(it.kind) ?? 0) + 1);
+  const chips: ReactElement[] = [];
+  for (const kind of KINDS) {
+    const n = counts.get(kind);
+    if (!n) continue;
+    chips.push(
+      <Tooltip key={kind} text={DIGEST_KIND_LABEL[kind]}>
+        <View style={local.chip} testID={`away-chip-${kind}`} accessibilityLabel={`${DIGEST_KIND_LABEL[kind]}, ${n}`}><Glyph name={ICON[kind]} size={13} /><Text style={local.chipText}>{n}</Text></View>
+      </Tooltip>,
+    );
+  }
 
   useSectionKind("away", q.status === "loading" ? "loading" : shown.show ? "items" : "empty");
   if (useAllClear()) return null;
@@ -65,7 +78,7 @@ export function AwayDigest(): ReactElement {
       </SectionHeader>
       {q.status === "loading" ? <Skeleton rows={3} id="away" /> : shown.show ? (
         <View>
-          <View style={local.lines}>{lines}</View>
+          {chips.length ? <Tooltip text={shown.headline.join("\n")}><View style={local.chips} testID="away-summary">{chips}</View></Tooltip> : null}
           <View accessibilityRole="list">{rows}</View>
         </View>
       ) : <EmptyLine id="away" text="Nothing happened while you were away" />}
@@ -75,8 +88,9 @@ export function AwayDigest(): ReactElement {
 }
 
 const local = StyleSheet.create({
-  lines: { gap: 3, marginBottom: 8 },
-  headline: { fontSize: 14, lineHeight: 20, color: "var(--ink-2)" as string },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 8 },
+  chip: { flexDirection: "row", alignItems: "center", gap: 5, height: 24, paddingHorizontal: 9, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
+  chipText: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string },
   icon: { width: 18, alignItems: "center", justifyContent: "center" },
   when: { minWidth: 64, textAlign: "right", color: "var(--ink-3)" as string, fontSize: 12.5 },
 });

@@ -69,6 +69,15 @@ export const recordsRows: InlineProjection = {
       tx.run(`UPDATE ${table(p.type)} SET data = ?, version = ?, updated_at = ? WHERE id = ?`, JSON.stringify(p.data), p.version, p.at, p.id);
       note(tx, "updated", p.type, p.id, p.version, p.at, p.before, p.data);
     },
+    /** A row's whole state again, written after the payloads of its older events were erased (a field was sealed): a rebuild skips those events and this puts the row back, refs only. */
+    "record.rebased"(tx, e) {
+      const p = payloadOf<{ type: string; id: string; data: object; version: number; created_at: number; updated_at: number; deleted_at: number | null }>(e);
+      tx.exec(rowTable(p.type));
+      tx.run(
+        `INSERT INTO ${table(p.type)} (id, version, created_at, updated_at, deleted_at, data) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET version = excluded.version, updated_at = excluded.updated_at, deleted_at = excluded.deleted_at, data = excluded.data`,
+        p.id, p.version, p.created_at, p.updated_at, p.deleted_at, JSON.stringify(p.data),
+      );
+    },
     "record.removed"(tx, e) {
       const p = payloadOf<{ type: string; id: string; version: number; at: number }>(e);
       tx.run(`UPDATE ${table(p.type)} SET version = ?, deleted_at = ?, updated_at = ? WHERE id = ?`, p.version, p.at, p.at, p.id);

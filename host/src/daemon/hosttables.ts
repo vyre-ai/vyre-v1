@@ -32,6 +32,9 @@ CREATE TABLE IF NOT EXISTS network_command (
 CREATE TABLE IF NOT EXISTS network_result (
   id INTEGER PRIMARY KEY, kind TEXT NOT NULL, target TEXT NOT NULL, state TEXT NOT NULL, detail TEXT, at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS network_phone (
+  id INTEGER PRIMARY KEY, name TEXT, nickname TEXT, state TEXT NOT NULL, detail TEXT, box_key TEXT, reported_at INTEGER NOT NULL
+);
 `;
 
 /** Every `modules/<id>/migrations/*.sql` under `codeRoot` that has not run yet, in module then file order. Returns what ran. */

@@ -32,6 +32,7 @@ Counts are not written down: they change with every contract change. Run `node t
 - [documenso](modules/documenso.md) (L8, connector)
 - [documents](modules/documents.md) (L4, module)
 - [docusign](modules/docusign.md) (L8, connector)
+- [dropbox](modules/dropbox.md) (L4, module)
 - [dropbox-sign](modules/dropbox-sign.md) (L8, connector)
 - [email-builder-api](modules/email-builder-api.md) (L8, module)
 - [engine](modules/engine.md) (L2, module)

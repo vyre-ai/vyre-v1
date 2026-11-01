@@ -266,6 +266,46 @@ export function blockView(b: Task["blocks"][number]): BlockView {
   return { type: "line", text: label ? `${b.type.replaceAll("_", " ")}: ${label}` : b.type.replaceAll("_", " ") };
 }
 
+/** A request Vyre itself made (a connection that stopped working, any step the system runs): it is from "Vyre", or from the app it is about ("Composio", named in the task's own notes), never from a person. Null for a request an agent or a person made. */
+export function originOf(t: Task): string | null {
+  const system = t.createdBy.startsWith("svc_") || (t.source?.kind === "manual" && t.source.id.startsWith("connection:"));
+  if (!system) return null;
+  return t.workingNotes["origin"] || "Vyre";
+}
+
+/** Who made the request, as a person reads it: the origin for a system request, else the name of the agent or person. */
+export function fromName(t: Task, nameOf: (id: string) => string): string {
+  return originOf(t) ?? nameOf(t.createdBy);
+}
+
+const ROLES: Record<string, string> = { owner: "Owners", admin: "Admins", manager: "Managers", member: "Members", temp: "Guests" };
+
+/** Who the request is assigned to: a role reads as its people ("Admins"), never as an id. */
+export function assignedName(t: Task, nameOf: (id: string) => string): string {
+  return t.assigned.kind === "role" ? ROLES[t.assigned.id] ?? "Everyone with that role" : nameOf(t.assigned.id);
+}
+
+/** The fix a request is for, when pressing its main button does the fix itself rather than approving or taking it. */
+export function fixOf(t: Task): "replace_key" | null {
+  return t.workingNotes["fix"] === "replace_key" && t.workingNotes["connection"] ? "replace_key" : null;
+}
+
+/** The keys that work on the open request, as the footer says them: arrows always, A and B only when the request has those actions, Enter to open when it has neither. */
+export function footerHint(t: Task | undefined): string {
+  const keys = ["\u2191 \u2193 to move"];
+  if (!t) return keys.join(" \u00b7 ");
+  const a = fixOf(t) === null ? splitActions(t) : { primary: null, sendBack: null, more: [] };
+  if (a.primary) keys.push("A approve");
+  if (a.sendBack) keys.push("B send back");
+  if (!a.primary && !a.sendBack) keys.push("Enter to open");
+  return keys.join(" \u00b7 ");
+}
+
+/** Whether "Open its computer" means anything here: only a request an agent made while it ran, never a system or manual one. */
+export function hasComputer(t: Task): boolean {
+  return t.kind === "unblock" && t.createdBy.startsWith("agt_") && (t.source?.kind === "run" || t.source?.kind === "chat");
+}
+
 export function sourceWord(s: NonNullable<Task["source"]>): string {
   switch (s.kind) {
     case "chat": return "a chat";

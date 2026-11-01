@@ -368,6 +368,32 @@ async function approvalStep(env: StepEnv, node: StepNode, call: StepCall, i: In)
   return { wait: { reason: "approval", taskId, on: "an approval", cancelOn: ["task.withdrawn"] } };
 }
 
+// ---- Create a task and wait for it ----
+
+const jsonOf = (v: string | undefined): unknown => { if (!v) return undefined; try { return JSON.parse(v) as unknown; } catch { return undefined; } };
+
+/**
+ * Create a task, and with `wait` hold the Run until the task is Done or Canceled. What the task's doer handed in comes back as the step's output (`outputs`, `summary`), so an Automation can hand work to
+ * a person or an agent and go on with the result. The same key returns the same task, so a woken step finds its task again. Without `wait` the step is the plain capability and returns at once.
+ */
+async function createTaskStep(env: StepEnv, call: StepCall, i: In): Promise<StepResult> {
+  if (!env.ctx.call) throw stepError("internal.unavailable", "This step cannot run right now.", true);
+  const create = await ADAPTERS.create_task!.input!(i, env, call);
+  const made = (await env.ctx.call("tasks.create", create)) as { task?: { id?: string } };
+  const taskId = made?.task?.id;
+  if (!taskId) throw stepError("internal.unexpected", "The task was not created.", true);
+  const waiting: StepResult = { wait: { reason: "approval", taskId, on: "a task", cancelOn: ["task.withdrawn"] } };
+  if (!call.resumed) return waiting;
+  const got = (await env.ctx.call("tasks.get", { taskId })) as { task?: { state?: string; workingNotes?: Record<string, string> } };
+  const state = got?.task?.state;
+  if (state === "done" || state === "canceled") {
+    const notes = got?.task?.workingNotes ?? {};
+    const outputs = jsonOf(notes["outputs"]);
+    return { output: clean({ taskId, state, outputs: outputs && typeof outputs === "object" ? outputs : undefined, summary: notes["summary"] }) };
+  }
+  return waiting;
+}
+
 /** Start another Automation and wait until that Run finishes. The same step key returns the same Run. */
 export async function callAutomation(env: StepEnv, call: StepCall, i: In): Promise<StepResult> {
   if (!env.ctx.call) throw stepError("internal.unavailable", "Runs are not available right now.", true);
@@ -542,6 +568,7 @@ export async function runStep(env: StepEnv, node: StepNode, call: StepCall): Pro
     case "wait": return waitStep(env, call, input);
     case "wait_stage": return waitStage(env, call, input);
     case "approval": return approvalStep(env, node, call, input);
+    case "create_task": if (input.wait === true) return createTaskStep(env, call, input); break;
     case "transform": return { output: { value: transformValue(input.value, input.mapping ?? {}) } };
     case "collect": return { output: collectItems(input.items, input.fields) };
     case "group_by": return { output: { groups: groupItems(input.items, String(input.by ?? "")) } };

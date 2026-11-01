@@ -24,6 +24,7 @@ const agentRow = t.obj({
   model: t.opt(t.str()), fallbackModel: t.opt(t.str()), accountPolicy: t.enm('asker', 'key'), accountKey: t.opt(t.str({ description: 'Vault handle, never a value', examples: ['#Team_Anthropic_Key'] })),
   accountFallback: t.arr(t.str({ description: 'Vault handles, best first: tried in this order when the chat key fails, before the Space backups' })),
   memoryKey: t.opt(t.str({ description: 'Vault handle that pays for this agent memory upkeep; never a value', examples: ['#Team_Anthropic_Key'] })),
+  switchOnLimit: t.opt(t.bool()),  // on unless false: switch to the next usable account when this one runs out of its limit
   toolsAllowed: t.arr(t.str()), toolsDenied: t.arr(t.str()), vaultKeys: t.arr(t.str()), limits, captureMode, hasComputer: t.bool(), templateVersion: t.int(),
   createdAt: t.ts(), lastActiveAt: t.opt(t.ts()),
   teammateOf: t.opt(id.project),
@@ -277,7 +278,7 @@ export default defineManifest({
       in: { on: t.union(t.obj({ event: t.str(), filter: t.opt(t.json()) }), t.obj({ run: id.run }), t.obj({ at: t.ts() })), timeout: t.opt(t.str({ examples: ['30d'] })) },
       out: { runId: id.run }, cap: 'runs.wait_for', effects: 'write', planMode: 'allowed',
     }),
-    atool('ask_question', 'Ask the person a structured question (single, multi or free text) instead of guessing; the turn parks until answered', {
+    atool('ask_question', 'Ask the person a structured question (single, multi or free text) instead of guessing; the turn parks until answered. To ask them to connect a folder you cannot see, use options keyed mount:google_drive, mount:onedrive, mount:sharepoint or mount:github', {
       in: { prompt: t.str(), mode: t.enm('single', 'multi', 'free'), options: t.opt(t.arr(t.obj({ key: t.str(), label: t.str(), detail: t.opt(t.str()) }))), allowOther: t.opt(t.bool()) },
       out: { blockId: id.block, messageId: id.message }, cap: 'chat.question.ask', effects: 'write', planMode: 'allowed', blocks: ['question'],
     }),

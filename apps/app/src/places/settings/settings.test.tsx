@@ -63,7 +63,7 @@ test("search finds rows by words in any order, ranks a title that starts with th
 
 test("the page list has ten pages in two groups, the first named after the open Space", () => {
   const out = html(createSampleSettings(northwind));
-  assert.deepEqual(PAGES.map((p) => p.title), ["Profile", "Notifications", "Models and usage", "Connections", "Memory and privacy", "Sign-in and devices", "Appearance", "Keyboard", "This computer", "Spaces"]);
+  assert.deepEqual(PAGES.map((p) => p.title), ["Profile", "Notifications", "Models and usage", "Connections", "Memory and privacy", "Sign-in and devices", "Appearance", "Keyboard", "Computers", "Spaces"]);
   assert.equal(PAGES.filter((p) => p.group === "space").length, 5);
   for (const p of PAGES) assert.ok(has(out, `data-testid="row-page-${p.key}"`), p.key);
   const at = (t: string): number => { const i = out.indexOf(`>${t}<`); assert.ok(i >= 0, t); return i; };
@@ -135,7 +135,7 @@ test("controls follow the value: a switch, a choice, a stepper, a field, hours, 
 
 test("the file cache keeps to its range and the mode choices are Ask each time, Allow and Never", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "computer" });
-  assert.ok(has(out, 'aria-label="Less File cache size on this computer (MB)"'));
+  assert.ok(has(out, 'aria-label="Less File cache"'));
   assert.ok(has(out, "Ask each time"));
   assert.equal(bytesLabel(512), "512 MB");
   assert.equal(bytesLabel(2048), "2 GB");
@@ -143,7 +143,7 @@ test("the file cache keeps to its range and the mode choices are Ask each time, 
 
 test("Notifications: each kind with how it arrives, the delivery rows and who is muted", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "notifications" });
-  assert.ok(has(out, "Notify me on") && has(out, "Needs you") && has(out, "Mentions") && has(out, "Interrupt on desktop, Interrupt on phone") && has(out, "Badge only") && has(out, "Digest"));
+  assert.ok(has(out, "Notify me on") && has(out, "Needs you") && has(out, "Mentions") && has(out, ">Interrupt<") && has(out, "Badge only") && has(out, "Digest"));
   assert.ok(!has(out, "Waits outside your working hours") && !has(out, "How each kind arrives"));
   assert.ok(has(out, "Email me once if an approval waits 4 hours") && has(out, 'data-testid="ctl-notifications.push_idle_minutes"'));
   assert.ok(has(out, ">Muted<") && has(out, "Docs") && has(out, "#sales") && has(out, "Unmute"));
@@ -160,7 +160,7 @@ test("Models and usage: defaults, usage by model with bars, the switches, the pr
   const out = html(createSampleSettings(northwind), { initialPage: "models" });
   assert.ok(has(out, "Default model") && has(out, "Claude Sonnet 5.5") && has(out, "Fallback model") && has(out, "Claude Haiku 5.5"));
   assert.ok(has(out, 'data-testid="usage"') && has(out, "OpenAI team key") && has(out, "$48.20") && has(out, "168 turns"));
-  assert.ok(has(out, "Let the Space run work on my subscription"));
+  assert.ok(has(out, "Run Space work on my subscription"));
   assert.ok(has(out, "Providers") && has(out, "Sign in again") && has(out, "Working"));
   assert.ok(has(out, 'data-testid="row-open-vault"'));
   assert.equal(moneyLabel(48_200_000), "$48.20");
@@ -171,9 +171,9 @@ test("Connections lists mailboxes with their state and a way to pause; Memory an
   assert.ok(has(out, "irfad@northwind.example") && has(out, "Google, private to you") && has(out, "Syncing") && has(out, "Pause"));
   assert.ok(has(out, "irfad.imtiaz@outlook.example") && has(out, "Paused") && has(out, "Resume"));
   assert.ok(has(out, "Connect a mailbox") && has(out, "Connect a calendar"));
-  assert.ok(has(out, "Through your firm") && has(out, "Google Workspace") && has(out, "Microsoft 365") && has(out, "Connected through your firm"), "what the firm connected for this person, by suite");
+  assert.ok(has(out, "Through your Space") && has(out, "Google Workspace") && has(out, "Microsoft 365") && has(out, "Connected by your admin"), "what the admin connected for this person, by suite");
   const p = html(createSampleSettings(northwind), { initialPage: "privacy" });
-  assert.ok(has(p, "Weekly reminder about proposed facts") && has(p, "Let the Space continue my chats when my computer is off"));
+  assert.ok(has(p, "Weekly reminder about proposed facts") && has(p, "Continue my chats when my computer is off"));
   assert.ok(has(html(createSampleSettings(harbor), { initialPage: "connections" }), "Connect a mailbox"), "an empty list still offers the connect rows");
 });
 
@@ -196,7 +196,7 @@ test("Sign-in and devices: this device first, the others with Sign out, a signed
 
 test("Appearance: mode, every skin in Dark and Light with the chosen one marked, and the Kit", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "appearance" });
-  assert.ok(has(out, "Everything here is the same in every Space except the skin"));
+  assert.ok(has(out, "Same in every Space, except the skin"));
   assert.ok(!has(out, 'data-testid="ctl-appearance.mode"'), "no separate light or dark control");
   for (const id of ["graphite", "obsidian", "charcoal", "slate", "ember", "moss", "dusk", "paper", "fog", "linen", "sand", "sage", "mist"]) assert.ok(has(out, `data-testid="skin-${id}"`), id);
   assert.match(tag(out, "skin-system"), /aria-checked="true"/, "System is on until a skin is chosen");
@@ -334,4 +334,36 @@ test("Memory and privacy > Memory spend: last night, this month and the monthly 
   assert.equal(dollars(2_500_000), "$2.50");
   assert.match(monthNote({ spentMicros: 5_000_000, capMicros: 5_000_000, capReached: true, modelAvailable: true }), /cap is reached/);
   assert.match(monthNote({ spentMicros: 0, capMicros: 5_000_000, capReached: false, modelAvailable: false }), /rules only/);
+});
+
+const personalSpace = { ...northwind, id: "northwind" as const, name: "Personal", spaces: [{ id: "personal", name: "Personal", addr: "Only on this computer", kind: "personal" as const, role: "Owner", needsYou: 0, current: true }] };
+
+test("a Personal Space shows no team-only rows, no words about other Spaces and no suite section", () => {
+  const s = createSampleSettings(personalSpace);
+  const conn = html(s, { initialPage: "connections" });
+  assert.ok(!has(conn, "Through your Space"), "the admin's suites need a team");
+  assert.ok(has(conn, "Connect a mailbox"));
+  const models = html(s, { initialPage: "models" });
+  assert.ok(!has(models, "Run Space work on my subscription"));
+  assert.ok(!has(html(s, { initialPage: "privacy" }), "Continue my chats when my computer is off"));
+  const computer = html(s, { initialPage: "computer" });
+  assert.ok(!has(computer, "Team agents use my terminal") && !has(computer, "Agents use my Chrome"), "per-Space switches need a Team Space");
+  assert.ok(!has(computer, 'data-testid="everywhere-note"') && !has(html(s, { initialPage: "keyboard" }), 'data-testid="everywhere-note"'), "one Space, so nothing to say about every Space");
+});
+
+test("long registry titles are short labels and the rest is hover help", () => {
+  const out = html(createSampleSettings(northwind), { initialPage: "computer" });
+  assert.ok(has(out, "Terminal prompts") && !has(out, "Ask, Allow or Auto; one value per Space)"), "no bracketed paragraph in the label");
+  assert.ok(has(out, 'title="Ask, Allow or Auto. One value per Space."'), "the detail is the row's hover help");
+  assert.ok(has(html(createSampleSettings(northwind), { initialPage: "notifications" }), 'title="Outside them only calls, urgent approvals and incidents interrupt."'));
+  for (const r of rowsOf(createSampleSettings(northwind))) assert.ok(rowLabel(r).length <= 48, `${r.key} label is short (${rowLabel(r)})`);
+});
+
+test("a notification kind's level is a choice that saves, says why when refused, and puts the old level back", async () => {
+  const s = createSampleSettings(northwind);
+  const out = html(s, { initialPage: "notifications" });
+  assert.ok(has(out, 'data-testid="kind-mention"') && has(out, 'data-testid="kind-approval.requested"'));
+  assert.equal(await s.data.call("notifications.kind.set_level", { kind: "mention", level: "digest" }).then(() => "ok"), "ok");
+  await assert.rejects(s.data.call("notifications.kind.set_level", { kind: "approval.requested", level: "badge" }), /never go below Interrupt/);
+  assert.ok(s.calls.some((c) => c.cap === "notifications.kind.set_level"));
 });

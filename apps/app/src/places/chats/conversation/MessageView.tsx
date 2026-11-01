@@ -20,11 +20,16 @@ import { SubjectText, useSubjectBlocks } from "../memory/Subjects.tsx";
 import { ReplyMemory } from "../memory/Used.tsx";
 import { AgentFileProposal, PlanFileCard, isPlanFile, isProposal } from "./proposal.tsx";
 import { Fold, Glyph, IconButton, TextButton } from "./parts.tsx";
-import { AttachmentChips, LinkedText, refsOf } from "./attachments.tsx";
+import { ApprovalCard } from "./approval.tsx";
+import { ChecklistCard, isChecklist } from "./checklist.tsx";
+import { MountCard } from "./mountcard.tsx";
+import { TerminalCard } from "./TerminalCard.tsx";
+import { mountOffers } from "./mountcard.ts";
+import { AttachmentChips, LinkedText, MountRefs, refsOf } from "./attachments.tsx";
 import { unnamed } from "../names.ts";
 import type { ConversationData } from "./data.tsx";
 import type { GlyphName } from "./parts.tsx";
-import { reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isTurnStatus, planSteps, questionOptions, statusView, workOf } from "./model.ts";
+import { reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isTurnStatus, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
 
 export interface MessageActions {
@@ -39,7 +44,7 @@ export interface MessageActions {
   answer(blockId: string, answer: unknown): void;
   approvePlan(planId: string): void;
   retryTurn(turnId: string): void;
-  errorNext(key: string): void;
+  errorNext(key: string, turnId?: string): void;
   /** True once the person has a working AI account (read after "Connect your AI"). Left out where the chat cannot tell. */
   accountReady?(): Promise<boolean>;
   retrySend(messageId: string): void;
@@ -57,6 +62,10 @@ export interface MessageActions {
   openMessage?(threadId: string, messageId: string): void;
   /** What files and links in a message need: lookups, opening beside the chat, copying. Left out in a place that cannot open them. */
   files?: Pick<ConversationData, "call" | "nav" | "copy">;
+  /** The agents of this chat (for a Mount card, which shares the new folder with them) and the sheet that connects a folder. Left out where the shell has no Files. */
+  mountCard?: { agents: readonly { id: string; name: string }[]; data: Pick<ConversationData, "call" | "mountSheet"> };
+  /** What a Run this card needs: the capability door, a key for a new session, who asked, and how to show a session. Left out where the shell has no terminal. */
+  terminalCard?: { deps: { call(cap: string, input: unknown): Promise<unknown>; newKey(): string }; agentId?: string; copy(text: string): void; openTerminal(terminalId: string): void };
   /** What the shared native blocks (changeset, plan, question, terminal, deploy) call: capabilities as the person, and tabs beside the chat. */
   host: BlockHost;
 }
@@ -213,6 +222,7 @@ function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extra
           {actions.files && refsOf(m).length > 0 ? <LinkedText body={m.body} refs={refsOf(m)} data={actions.files} textStyle={st.bubbleText} /> : <SubjectText text={m.body} style={st.bubbleText} />}
         </View>
       )}
+      {!editing && actions.files && refsOf(m).length > 0 ? <View style={st.mineFiles}><MountRefs refs={refsOf(m)} data={actions.files} /></View> : null}
       {!editing && actions.files && m.attachments.length > 0 ? (
         <View style={st.mineFiles}><AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /></View>
       ) : null}
@@ -272,15 +282,17 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
       ) : null}
       {stream ? <View testID={`body-${m.messageId}`} style={st.body}><StreamText store={stream} /></View> : m.body ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} {...(subjects.renderLink ? { renderLink: subjects.renderLink } : {})} /></View> : null}
       {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} />}
+      {actions.files && refsOf(m).length > 0 ? <MountRefs refs={refsOf(m)} data={actions.files} /> : null}
       {actions.files && m.attachments.length > 0 ? <AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /> : null}
       {collect(cards, (b) => {
         if (isProposal(b)) return <AgentFileProposal key={b.id} block={b} host={actions.host} />;
         if (isPlanFile(b)) return <PlanFileCard key={b.id} block={b} onOpen={(id) => actions.openBeside("file", id)} />;
+        if (isChecklist(b.type)) return <ChecklistCard key={b.id} id={b.id} data={b.data} />;
         if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
       })}
       {collect(errors, (b) => <ErrorRowView key={b.id} block={b} actions={actions} />)}
-      {collect(statuses, (x) => (x.kind === "note" ? <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>{x.text}</Text> : null))}
+      {collect(statuses, (x) => (x.kind === "note" ? <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>{x.text}</Text> : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={item.who.name} agentId={item.who.id} data={actions.files} /> : null))}
       <Reactions m={m} a={actions} mine={false} />
       <LearnedLines messageId={m.messageId} />
       {m.pinned ? <Text testID={`pinned-${m.messageId}`} style={st.edited}>pinned</Text> : null}
@@ -312,6 +324,8 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
   const opens = OPENS.has(line.type);
   const openId = typeof line.data.id === "string" ? line.data.id : line.id;
   const options = line.type === "question" ? questionOptions(line.data) : [];
+  const offers = line.type === "question" ? mountOffers(options) : null;
+  const terminalAsk = line.type === "question" ? terminalAskOf(line.data) : null;
   const answered = line.type === "question" && line.data.answer !== undefined ? String(line.data.answer) : "";
   const steps = line.type === "plan" ? planSteps(line.data) : [];
   const head = (
@@ -335,7 +349,9 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
         </View>
       ) : null}
       {line.type === "plan" && waiting ? <View style={st.cardRow}><TextButton label="Approve plan" primary testID={`plan-approve-${line.id}`} onPress={() => actions.approvePlan(typeof line.data.planId === "string" ? line.data.planId : line.id)} /></View> : null}
-      {line.type === "question" && waiting && options.length > 0 ? (
+      {line.type === "question" && waiting && terminalAsk && actions.terminalCard ? <TerminalCard id={line.id} why={typeof line.data.prompt === "string" ? line.data.prompt : line.title} command={terminalAsk.command} risk={terminalAsk.risk} {...(terminalAsk.host ? { host: terminalAsk.host } : {})} {...(actions.terminalCard.agentId ? { agentId: actions.terminalCard.agentId } : {})} deps={actions.terminalCard.deps} copy={actions.terminalCard.copy} openTerminal={actions.terminalCard.openTerminal} answer={actions.answer} /> : null}
+      {line.type === "question" && waiting && offers && actions.mountCard ? <MountCard id={line.id} prompt={typeof line.data.prompt === "string" ? line.data.prompt : line.title} offers={offers} agents={actions.mountCard.agents} data={actions.mountCard.data} answer={actions.answer} /> : null}
+      {line.type === "question" && waiting && options.length > 0 && !(offers && actions.mountCard) && !(terminalAsk && actions.terminalCard) ? (
         <View testID={`options-${line.id}`} accessibilityRole="radiogroup" style={st.cardRow}>
           {collect(options, (o) => <TextButton key={o.id} label={o.label} testID={`option-${line.id}-${o.id}`} onPress={() => actions.answer(line.id, o.id)} />)}
         </View>
@@ -368,11 +384,11 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
       <View style={st.errTop}><Glyph name="alert" size={15} color="var(--warn)" /><Text style={st.errMsg}>{e.message}</Text></View>
       {e.cause ? <Text style={st.errCause}>{e.cause}</Text> : null}
       <View style={st.errActions}>
-        {collect(e.next, (n) => <TextButton link key={n.key} label={n.label} testID={`err-next-${n.key}`} onPress={() => { if (n.key === "connect_ai") setAsked(true); actions.errorNext(n.key); }} />)}
+        {collect(e.next, (n) => <TextButton link key={n.key} label={n.label} testID={`err-next-${n.key}`} onPress={() => { if (n.key === "connect_ai") setAsked(true); actions.errorNext(n.key, e.turnId); }} />)}
         {e.retryable && e.turnId ? <TextButton link label="Retry" testID="err-retry" onPress={() => actions.retryTurn(e.turnId)} /> : null}
-        <TextButton link label="What happened?" testID="err-what" onPress={() => setOpen((o) => !o)} />
-        <TextButton link label="Copy trace id" testID="err-trace" onPress={() => actions.copy(e.traceId)} />
-        <TextButton link label="Report a problem" testID="err-report" onPress={() => reportProblem({ label: reportLabel(e.message, e.traceId) })} />
+        <TextButton link label="Details" testID="err-what" onPress={() => setOpen((o) => !o)} />
+        <TextButton link label="Copy id" testID="err-trace" onPress={() => actions.copy(e.traceId)} />
+        <TextButton link label="Report" testID="err-report" onPress={() => reportProblem({ label: reportLabel(e.message, e.traceId) })} />
       </View>
       {noAccount && ready && !resent ? (
         <View testID="err-connected" style={st.errActions}>

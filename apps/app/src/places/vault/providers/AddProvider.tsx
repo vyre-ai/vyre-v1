@@ -9,6 +9,7 @@ import { useVaultData } from "../layout/data.tsx";
 import type { Provider } from "../layout/model.ts";
 import { Btn, Glyph, LogoTile, Mono } from "../layout/parts.tsx";
 import { Sheet } from "../layout/Sheet.tsx";
+import { Info } from "../../../../../../ui/src/Tip/index.tsx";
 import { SignInPanel } from "../../../ai-signin/SignInPanel.tsx";
 import { startFlow } from "../../../ai-signin/flow.ts";
 import type { Flow as SignFlow } from "../../../ai-signin/flow.ts";
@@ -31,6 +32,8 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
   const data = useVaultData();
   const { element, show } = useMenu();
   const [catalog, setCatalog] = useState<readonly Catalog[] | null>(null);
+  const [catalogTries, setCatalogTries] = useState(0);
+  const [catalogFailed, setCatalogFailed] = useState(false);
   const [pick, setPick] = useState<Catalog | null>(null);
   const [kind, setKind] = useState<ConnectionKind | null>(initial?.connection ?? null);
   const [scope, setScope] = useState<"mine" | "shared">("mine");
@@ -45,11 +48,12 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
 
   useEffect(() => {
     let live = true;
+    setCatalogFailed(false);
     void (data.call("providers.catalog", {}) as Promise<{ providers: Catalog[] }>)
       .then((out) => { if (!live) return; setCatalog(out.providers); const want = first.current; if (want) setPick(out.providers.find((c) => c.key === want.providerKey) ?? null); })
-      .catch((e: unknown) => { if (live) { setCatalog([]); setLine(e instanceof Error ? e.message : "The providers did not load."); } });
+      .catch(() => { if (live) { setCatalog([]); setCatalogFailed(true); } });
     return () => { live = false; };
-  }, [data]);
+  }, [data, catalogTries]);
 
   const choose = (c: Catalog): void => { setPick(c); setKind(c.connections.length === 1 ? c.connections[0]! : null); setLine(null); };
   const back = (): void => { if (kind && pick && pick.connections.length > 1) { setKind(null); } else { setPick(null); setKind(null); } setFlow(null); setSecret(""); setLine(null); };
@@ -94,7 +98,7 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
       {pick && !added ? <Btn label="Back" onPress={back} testID="provider-back" /> : null}
       <View style={{ flex: 1 }} />
       {added ? <Btn label="Done" primary onPress={onClose} testID="provider-done" /> : <Btn label="Cancel" onPress={onClose} testID="provider-cancel" />}
-      {!added && pick && kind === "api_key" ? <Btn label={busy ? "Adding" : "Add"} primary disabled={busy || secret.trim().length === 0} onPress={() => void addKey()} testID="provider-add" /> : null}
+      {!added && pick && kind === "api_key" ? <Btn label={busy ? "Adding" : "Add"} primary disabled={busy || secret.trim().length === 0} why="Paste the key first" onPress={() => void addKey()} testID="provider-add" /> : null}
       {!added && pick && kind === "local_model" ? <Btn label={busy ? "Testing" : "Add and test"} primary disabled={busy} onPress={() => void addLocal()} testID="provider-add-local" /> : null}
       {!added && pick && kind === "subscription" ? (flow ? (flow.url ? null : <Btn label={busy ? "Checking" : "I have signed in"} primary disabled={busy} onPress={() => void finishSignIn()} testID="provider-signed-in" />) : <Btn label={busy ? "Opening" : `Sign in with ${pick.name}`} primary disabled={busy} onPress={() => void startSignIn()} testID="provider-signin" />) : null}
     </>
@@ -112,7 +116,12 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
           {catalog === null ? <Text style={s.quiet} testID="provider-loading">Loading</Text> : catalog.map((c) => (
             <Row key={c.key} id={`cat:${c.key}`} title={c.name} note={connectionList(c)} leading={<View style={s.logo}><LogoTile name={c.name} size={30} /></View>} onPress={() => choose(c)} />
           ))}
-          {catalog !== null && catalog.length === 0 ? <Text style={s.quiet}>There are no providers to add.</Text> : null}
+          {catalog !== null && catalog.length === 0 ? (
+            <View style={s.empty} testID={catalogFailed ? "provider-load-failed" : "provider-none"}>
+              <Text style={s.emptyTitle}>{catalogFailed ? "Could not load providers" : "No providers to add"}</Text>
+              {catalogFailed ? <Btn label="Try again" onPress={() => setCatalogTries((t) => t + 1)} testID="provider-retry" /> : null}
+            </View>
+          ) : null}
         </View>
       ) : kind === null ? (
         <View testID="provider-kinds" accessibilityLabel="How to connect">
@@ -120,7 +129,7 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
         </View>
       ) : kind === "subscription" ? (
         <View style={s.stack} testID="provider-subscription">
-          <Text style={s.lead}>{CONNECTION_NOTE.subscription}</Text>
+          <View style={s.leadRow}><Text style={s.lead}>Sign in with your plan</Text><Info help={CONNECTION_NOTE.subscription} /></View>
           {flow ? (
             flow.url ? <SignInPanel call={(cap, input) => data.call(cap, input)} flow={flow} onCancel={() => setFlow(null)} onDone={(p) => done(p as unknown as Provider)} /> : (
               <View style={s.stack}><Text style={s.body} testID="provider-instruction">{flow.instruction}</Text></View>
@@ -129,7 +138,7 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
         </View>
       ) : kind === "api_key" ? (
         <View style={s.stack} testID="provider-key">
-          <Text style={s.lead}>{`Paste your ${pick.name} key. It is stored once, encrypted, and never shown again.`}</Text>
+          <View style={s.leadRow}><Text style={s.lead}>{`Paste your ${pick.name} key`}</Text><Info help="It is stored once and never shown again" /></View>
           <TextInput accessibilityLabel="API key" testID="provider-key-input" value={secret} onChangeText={setSecret} secureTextEntry autoCapitalize="none" autoCorrect={false} placeholder="Paste the key" placeholderTextColor="var(--ink-4)" style={s.input} />
           <View style={s.scopes}>
             <Text style={s.quiet}>Belongs to</Text>
@@ -140,7 +149,7 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
         </View>
       ) : (
         <View style={s.stack} testID="provider-local">
-          <Text style={s.lead}>Where does the model server run? It is tested before it is added.</Text>
+          <View style={s.leadRow}><Text style={s.lead}>Model server address</Text><Info help="It is tested before it is added" /></View>
           <TextInput accessibilityLabel="Address" testID="provider-address" value={address} onChangeText={setAddress} autoCapitalize="none" autoCorrect={false} style={[s.input, s.mono]} />
         </View>
       )}
@@ -154,8 +163,11 @@ const MONO = "var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace)" as st
 const s = StyleSheet.create({
   stack: { gap: 10 },
   logo: { marginRight: 10 },
+  leadRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   lead: { fontSize: 13, lineHeight: 19, color: "var(--ink-2)" as string },
   body: { fontSize: 13.5, lineHeight: 20, color: "var(--ink)" as string },
+  empty: { alignItems: "center", gap: 8, paddingVertical: 28 },
+  emptyTitle: { fontSize: 13.5, fontWeight: "500", color: "var(--ink-2)" as string },
   quiet: { fontSize: 13, color: "var(--ink-3)" as string },
   error: { fontSize: 12.5, color: "var(--danger)" as string },
   code: { alignSelf: "flex-start", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: "var(--sunk)" as string },

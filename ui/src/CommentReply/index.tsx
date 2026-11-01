@@ -104,11 +104,12 @@ export function CommentReply(props: CommentReplyViewProps): ReactElement {
     >
       <TextInput
         multiline
+        numberOfLines={1}
         editable={!props.disabled}
         value={text}
         onChangeText={change}
         onKeyPress={onKeyPress as never}
-        onContentSizeChange={(e) => setHeight(Math.max(min, Math.min(max, Math.ceil(e.nativeEvent.contentSize.height) + 12)))}
+        onContentSizeChange={(e) => setHeight(textRef.current === "" ? min : Math.max(min, Math.min(max, Math.ceil(e.nativeEvent.contentSize.height) + 12)))}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         placeholder={props.placeholder}

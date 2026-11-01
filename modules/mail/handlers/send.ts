@@ -39,6 +39,8 @@ export type Actor = "person" | "agent" | "automation" | "campaign";
 
 export interface SendIn {
   mailboxId: string;
+  /** An id from comms.senders.list; for email it is the mailbox id, so it must equal mailboxId. Present: the sender is also checked for being connected before anything is sent. */
+  senderId?: string;
   route?: Route;
   to: Party[];
   cc?: Party[];
@@ -64,6 +66,7 @@ export interface SendOut {
 
 export interface SendAsIn {
   mailboxId: string;
+  senderId?: string;
   to: Party[];
   cc?: Party[];
   bcc?: Party[];
@@ -80,6 +83,7 @@ export interface SendAsIn {
 
 export interface PreviewIn {
   mailboxId: string;
+  senderId?: string;
   channel?: "email";
   to: Party[];
   campaignId?: string;
@@ -409,9 +413,26 @@ interface Plan {
   now: number;
 }
 
+/** A sender chosen from comms.senders.list must still be there, allowed and connected at send time; the refusal says what to do. A connection still waiting for its first sync can send (the first send proves it). */
+function checkChosenSender(ctx: SendCtx, box: Row): void {
+  const state = str(box, "state");
+  if (state === "disconnected") refuse(ctx, "That sender is disconnected. Connect it again in Console, Comms, or pick another sender.");
+  if (state === "paused" || num(box, "paused") === 1) refuse(ctx, "That sender is paused. Resume it in Console, Comms, or pick another sender.");
+  if (state === "error") refuse(ctx, "That sender needs to be reconnected. Sign in again in Console, Comms, or pick another sender.");
+}
+
+/** senderId is the mailbox id for email; naming two different ones is a mistake, not a choice. */
+function agreeSender(ctx: SendCtx, input: { mailboxId: string; senderId?: string }): void {
+  if (input.senderId === undefined) return;
+  if (!isId("mbx", input.senderId)) bad(ctx, "That sender is not an email sender. Pick one from the list of senders for email.");
+  if (input.senderId !== input.mailboxId) bad(ctx, "The sender and the mailbox name different senders. Pass the same id for both.");
+}
+
 async function makePlan(ctx: SendCtx, input: SendIn | PreviewIn | SendAsIn, composed: Composed, requested: Route | undefined, enforce: boolean): Promise<Plan> {
+  agreeSender(ctx, input);
   const box = loadMailbox(ctx, input.mailboxId);
   authorizeSender(ctx, box);
+  if (input.senderId !== undefined && enforce) checkChosenSender(ctx, box);
   const actor = actorOf(ctx.principal.kind, ctx.origin);
   const route = resolveRoute(ctx, box, actor, requested);
   if (route === "mailbox" && enforce) {
@@ -698,6 +719,15 @@ async function viaMailbox(ctx: SendCtx, box: Row, c: Composed, id: string): Prom
   if (c.text !== undefined) body.text = c.text;
   if (c.html !== undefined) body.html = c.html;
   if (c.files.length) body.attachments = c.files;
+  // a mailbox made by a person's own sign-in sends through that account (google.user.*, ms.user.*), not through the Space's delegation
+  const own = /^(gua|mua)_/.test(str(box, "connectionId"));
+  if (own) {
+    const { connectionId, as: _as, ...rest } = body;
+    const mine = { ...rest, accountId: connectionId };
+    if (str(box, "provider") === "google") return text(obj(await ctx.call("google.user.send_message", mine)).id) ?? null;
+    await ctx.call("ms.user.send_message", mine);
+    return null;
+  }
   if (str(box, "provider") === "google") return text(obj(await ctx.call("google.gmail.send_message", body)).id) ?? null;
   await ctx.call("ms.mail.send_message", body);   // Graph answers sent: true and no id; the Sent folder copy arrives through sync
   return null;

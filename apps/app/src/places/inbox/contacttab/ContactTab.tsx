@@ -3,12 +3,14 @@
 // and Ask. The composer switches Email and Text and picks the sending inbox (a reply goes out from the inbox the thread came in on); an agent's draft shows its Gate line with Send, Edit and
 // Discard. Everything reads from the local copy and works offline: a send queues and the foot says so.
 import { useOpenConnect } from "../../../shell/connect/context.ts";
-import { connectEntries } from "../../../shell/connect/model.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { ComposerLists } from "../../../../../../ui/src/Composer/index.tsx";
 import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/Deferred.tsx";
+// the header alone, so the Inbox does not pull the whole composer in before the deferred one loads
+import { OutgoingHeader } from "../../../../../../ui/src/Composer/outgoing.tsx";
+import type { ComposerSender, OutChannel } from "../../../../../../ui/src/Composer/outgoing.tsx";
 import { Recipients } from "../../../../../../ui/src/Recipients/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -22,7 +24,7 @@ import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import type { IconName } from "./icons.tsx";
-import { followMenuEntries, fromMenuEntries, quickEntries, templateEntries } from "./menus.ts";
+import { followMenuEntries, quickEntries, templateEntries } from "./menus.ts";
 import {
   buildFeed, canSend, cannedLists, choicesFor, firstName, draftCards, headerOf, initialDraft, namedTo, pickInbox, sendBlocker, startChannel, textTarget,
 } from "./model.ts";
@@ -102,6 +104,16 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const boxes = useScreenQuery<MailboxesOut>("inbox.sidebar", "mailboxes");
 
   const ask = props.ask;
+  const [senders, setSenders] = useState<ComposerSender[] | null>(null);
+  const [sendersTick, setSendersTick] = useState(0);
+  useEffect(() => {
+    let live = true;
+    void Promise.resolve(data.call("comms.senders.list", {})).then(
+      (out) => { if (live) setSenders(sendersOf(out)); },
+      () => { if (live) setSenders(null); },   // an older server: the send options' inboxes stand in
+    );
+    return () => { live = false; };
+  }, [data, sendersTick]);
   const [over, setOver] = useState<Partial<ComposerDraft>>(() => (ask ? askStart(ask) : {}));
   // the quick form: on by default where one can be made; its link goes into the draft and comes out when the person turns it off
   const [formOn, setFormOn] = useState(ask?.form.available === true);
@@ -147,7 +159,11 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const chan: Chan = over.chan ?? (conv ? startChannel(conv.lastChannel, options) : "email");
   const base = conv ? initialDraft(conv, chan, items) : null;
   const draft: ComposerDraft | null = base ? { ...base, ...over, chan, from: { ...base.from, ...over.from } } : null;
-  const choices = choicesFor(chan, options, titles);
+  // every sender (comms.senders.list) when the server has the list; else the inboxes the send options name
+  const choices: InboxChoice[] = senders
+    ? senders.filter((x) => x.channel === (chan === "email" ? "email" : "text") && x.usable !== false).map((x) => ({ id: x.id, kind: chan === "email" ? "mailbox" as const : "number" as const, address: x.address, label: x.name, isDefault: x.default === true, senderId: x.id }))
+    : choicesFor(chan, options, titles);
+  const listed: ComposerSender[] = senders ?? choices.map((c) => ({ id: c.id, channel: chan === "email" ? "email" as const : "text" as const, name: c.label, address: c.address, via: chan === "email" ? "Mailboxes" : "Numbers", usable: true }));
   const inbox = draft && conv ? (choices.find((c) => c.id === draft.from[chan]) ?? pickInbox(choices, conv.mailboxIds)) : null;
   const textTo = conv ? (ask?.phone?.to ?? textTarget(conv, items)) : null;
 
@@ -156,6 +172,11 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   // opening the conversation reads it
   const unread = conv?.unreadCount ?? 0;
   useEffect(() => { if (unread > 0) void markRead(data, conversationId); }, [conversationId, unread > 0]);
+
+  // every hook above this line: the frame before the conversation arrives and the one after it must call the same hooks
+  const openConnect = useOpenConnect();
+  const [snippets, setSnippets] = useState<readonly { name: string; body: string }[]>([]);
+  useEffect(() => { let live = true; void listSnippets(data).then((x) => { if (live) setSnippets(x); }, () => undefined); return () => { live = false; }; }, [data]);
 
   if (!conv || !draft) return <TabLoading />;
 
@@ -209,19 +230,16 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
     const id = conv.contactId;
     menu.show(followMenuEntries(conv.followed, conv.alertOnReplies, { follow: (f) => void setFollow(data, id, f), alert: (a) => void setFollow(data, id, true, a) }), x, y);
   };
-  const openConnect = useOpenConnect();
-  // the list can end in Connect: a mailbox joins the picker and is chosen; a Twilio account is added and its number is claimed from the Inbox
-  const showFrom = (x: number, y: number): void => menu.show(connectEntries(
-    fromMenuEntries(choices, inbox?.id ?? null, conv.mailboxIds, (id) => patch({ from: { ...draft.from, [chan]: id } })),
-    mail ? { kind: "mailbox" } : { kind: "number" }, openConnect,
-    (made) => { if (mail) patch({ from: { ...draft.from, [chan]: made.id } }); },
-    choices.length === 0,
-  ), x, y);
+  // the From list ends in Connect: a mailbox joins the list and is chosen; a Twilio account is added and its number is claimed from the Inbox
+  const connectFrom = openConnect ? (c: OutChannel): void => {
+    void openConnect(c === "email" ? { kind: "mailbox" } : { kind: "number" }).then((made) => {
+      setSendersTick((n) => n + 1);
+      if (made && c === "email") patch({ from: { ...draft.from, email: made.id } });
+    }, () => setNote("Could not connect it. Try again."));
+  } : undefined;
   // the dock (when one is mounted, `dock`) places the call and saves it to this conversation; otherwise the app's own handler, else the shell opens the dialer
   const dial = (): void => { const n = textTo ?? (conv.address.includes("@") ? null : conv.address); if (n && props.onDial) props.onDial(n); else if (n && dock) dock.dial(n, conv.contactId); else data.nav.openDialer(); };
 
-  const [snippets, setSnippets] = useState<readonly { name: string; body: string }[]>([]);
-  useEffect(() => { let live = true; void listSnippets(data).then((x) => { if (live) setSnippets(x); }, () => undefined); return () => { live = false; }; }, [data]);
   const lists: ComposerLists = cannedLists(conv, snippets);
   const hdr = headerOf(items);
   const starred = starMine ?? conv.starred === true;
@@ -251,7 +269,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
         <View style={s.hid}>
           {unmatched ? <Ghost size={28} /> : <Face name={conv.displayName} seedId={conv.contactId ?? undefined} size={28} />}
           <Text accessibilityRole="header" aria-level={1} style={s.name} numberOfLines={1}>{conv.displayName}</Text>
-          {phone ? null : <Text style={s.co} numberOfLines={1}>{hdr?.company ?? conv.address}</Text>}
+          {phone || headSub(conv.displayName, conv.address, hdr?.company) === null ? null : <Text style={s.co} numberOfLines={1}>{headSub(conv.displayName, conv.address, hdr?.company)}</Text>}
         </View>
         {unmatched ? (
           <Pressable accessibilityRole="link" accessibilityLabel="Match to a record" testID="head-match" onPress={() => data.nav.openMatch(conv.id)} style={s.mlink}>
@@ -290,26 +308,6 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
 
       <View style={s.cmpWrap} testID="contact-composer">
         <View style={s.cmpIn}>
-          <View style={s.ctop}>
-            <View style={s.seg} accessibilityRole="tablist">
-              {each(["email", "sms"] as const, (c) => {
-                const can = options?.channels.includes(c) ?? false;
-                return (
-                  <Pressable
-                    key={c} accessibilityRole="tab" accessibilityLabel={c === "email" ? "Email" : "Text"} accessibilityState={{ selected: chan === c, disabled: !can }} aria-selected={chan === c} testID={`chan-${c}`} disabled={!can}
-                    onPress={() => pickChan(c)} style={({ hovered }: { hovered?: boolean }) => [s.segBtn, chan === c && s.segOn, hovered === true && chan !== c && s.hicOver, !can && s.dim]}
-                  >
-                    <Icon name={c === "email" ? "mail" : "sms"} size={13} color={chan === c ? "var(--ink)" : "var(--ink-3)"} />
-                    <Text style={[s.segText, chan === c && s.segTextOn]}>{c === "email" ? "Email" : "Text"}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <Pressable accessibilityRole="button" accessibilityLabel={mail ? "Send from" : "Text from"} testID="from-pick" onPress={(e) => { const p = pointOf(e); showFrom(p.x, p.y); }} style={({ hovered }: { hovered?: boolean }) => [s.pick, hovered === true && s.hicOver]}>
-              <Text style={s.pickText}>{mail ? "From " : "From "}<Text style={s.pickName} testID="from-name">{inbox?.label ?? "No inbox"}</Text></Text>
-              <Icon name="chevd" size={9} />
-            </Pressable>
-          </View>
           {ask ? (
             ask.form.available ? (
               <Pressable accessibilityRole="switch" accessibilityLabel="Add a quick form" accessibilityState={{ checked: formOn, disabled: formBusy }} aria-checked={formOn} disabled={formBusy} testID="quick-form-toggle" onPress={toggleForm} style={({ hovered }: { hovered?: boolean }) => [s.qf, hovered === true && s.hicOver]}>
@@ -336,7 +334,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
                 </Pressable>
               </View>
             )}
-            sendsOutside={mail}
+            sendsOutside
             lists={lists}
             attachments={attached}
             density={phone ? "compact" : "regular"}
@@ -344,17 +342,21 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             onChange={(t) => patch({ text: t })}
             onAttach={() => { if (props.onAttach) props.onAttach(); else setNote("Attach from Files is not connected in this view"); }}
             onSubmit={(p) => { if (blocker === "") void send(p.text); else setNote(blocker); }}
-            {...(mail ? {
-              recipients: (
-                <View>
-                  <Recipients to={namedTo(draft.to, conv.address, unmatched ? null : conv.displayName)} cc={draft.cc} bcc={draft.bcc} me={inbox?.address ?? ""} onChange={(r) => patch({ to: r.to, cc: r.cc, bcc: r.bcc })} testID="contact-recipients" />
-                  <TextInput
-                    accessibilityLabel="Subject" placeholder="Subject" placeholderTextColor="var(--ink-3)" value={draft.subject} onChangeText={(t) => patch({ subject: t })} testID="contact-subject"
-                    style={s.subject}
-                  />
-                </View>
-              ),
-            } : {})}
+            recipients={(
+              <OutgoingHeader
+                channel={mail ? "email" : "text"}
+                channels={(["email", "sms"] as const).filter((c) => options?.channels.includes(c) ?? false).map((c) => (c === "email" ? "email" as const : "text" as const))}
+                onChannel={(c) => pickChan(c === "email" ? "email" : "sms")}
+                to={mail
+                  ? <Recipients to={namedTo(draft.to, conv.address, unmatched ? null : conv.displayName)} cc={draft.cc} bcc={draft.bcc} me={inbox?.address ?? ""} hideToLabel onChange={(r) => patch({ to: r.to, cc: r.cc, bcc: r.bcc })} testID="contact-recipients" />
+                  : <Text style={s.toText} numberOfLines={1}>{textTo ? `${conv.displayName} \u00b7 ${textTo}` : "No phone number for this contact"}</Text>}
+                senders={listed}
+                senderId={inbox?.id ?? null}
+                onSender={(id) => patch({ from: { ...draft.from, [chan]: id } })}
+                {...(connectFrom ? { onConnect: connectFrom } : {})}
+                {...(mail ? { subject: draft.subject, onSubject: (t: string) => patch({ subject: t }) } : {})}
+              />
+            )}
           />
           {note ? <Text style={s.note} accessibilityRole="alert" testID="contact-note">{note}</Text> : null}
         </View>
@@ -365,6 +367,18 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
 }
 
 /** The tab: a draw of the frame before the shell has given the Inbox its data. */
+/** comms.senders.list as the From picker reads it. */
+export function sendersOf(out: unknown): ComposerSender[] {
+  const rows = (out as { senders?: { id: string; channel: "email" | "text"; name: string; address: string; via: string; provider?: string; default?: boolean; usable?: boolean; why?: string }[] } | undefined)?.senders ?? [];
+  return rows.map((x) => ({ id: x.id, channel: x.channel, name: x.name || x.address, address: x.address, via: x.via, ...(x.provider ? { provider: x.provider } : {}), ...(x.default ? { default: true } : {}), usable: x.usable !== false, ...(x.why ? { why: x.why } : {}) }));
+}
+
+/** The quiet line beside a contact's name: the company, else the address. A contact with no name is called by its address, and the line then says nothing rather than say it twice. */
+export function headSub(displayName: string, address: string, company: string | undefined): string | null {
+  if (company !== undefined && company !== "") return company;
+  return displayName.trim().toLowerCase() === address.trim().toLowerCase() ? null : address;
+}
+
 export function ContactTab(props: ContactTabProps): ReactElement {
   const data = useOptionalInboxData();
   if (!data) return <TabLoading />;
@@ -398,7 +412,7 @@ const s = StyleSheet.create({
   col: { width: "100%", maxWidth: 740, alignSelf: "center", paddingHorizontal: 28, paddingTop: 18, paddingBottom: 20 },
   cmpWrap: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
   cmpIn: { width: "100%", maxWidth: 740, alignSelf: "center" },
-  ctop: { flexDirection: "row", alignItems: "center", gap: 8, paddingBottom: 6 },
+  toText: { fontSize: 13, color: ink("--ink") },
   seg: { flexDirection: "row", padding: 2, borderRadius: 8, backgroundColor: ink("--hover") },
   segBtn: { height: 24, paddingHorizontal: 10, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 6 },
   segOn: { backgroundColor: ink("--win") },

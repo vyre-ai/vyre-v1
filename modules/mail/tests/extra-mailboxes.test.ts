@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  autoConnectMembers, mailboxCreate, mailboxDisconnect, mailboxGet, mailboxList, mailboxPause, mailboxResume, mailboxSetPrivacy, mailboxUpdate,
+  autoConnectMembers, mailboxCreate, mailboxDisconnect, mailboxGet, mailboxList, mailboxPause, mailboxResume, mailboxSetPrivacy, mailboxSetSyncState, mailboxUpdate,
 } from "../handlers/extra/mailboxes.ts";
 import { connect, ingest } from "../handlers/ingest.ts";
 import { eventErrors } from "../handlers/extra/kit.ts";
@@ -142,14 +142,16 @@ test("set_privacy moves the mailbox and announces it to the participants; the sa
   conforms(h);
 });
 
-test("set_privacy to private stops filing for new mail; mail already stored keeps its mark", async () => {
+test("set_privacy to private links new mail only into its owner's own conversations; mail already stored keeps its mark", async () => {
   const h = setup();
   await mailboxSetPrivacy(h.ctx, { mailboxId: "mbx_maya", privacy: "space" });
   const before = await ingest(h.ctx, letter("pat@acme.test", "<a@x>", "p-1", { mailboxId: "mbx_maya" }));
   assert.equal(h.calls("inbox.link_message").length, 1);
   await mailboxSetPrivacy(h.ctx, { mailboxId: "mbx_maya", privacy: "private" });
   await ingest(h.ctx, letter("pat@acme.test", "<b@x>", "p-2", { mailboxId: "mbx_maya" }));
-  assert.equal(h.calls("inbox.link_message").length, 1);   // the second message was not offered to the linking step
+  const calls = h.calls("inbox.link_message");
+  assert.equal(calls.length, 2);
+  assert.deepEqual([calls[0]!.input["private"], calls[1]!.input["private"]], [undefined, true]);   // the second message went to the linking step as private mail
   assert.equal(h.rows(`SELECT "isPrivate" FROM mail_message WHERE id = ?`, before.messageId)[0]!.isPrivate, 0);
 });
 
@@ -252,4 +254,18 @@ test("auto-connect with the same key answers the first counts and adds nothing; 
   await assert.rejects(autoConnectMembers(h.ctx, { provider: "yahoo" as never, members, idempotencyKey: key() }), (e) => codeOf(e) === "validation.bad_input");
   await assert.rejects(autoConnectMembers(h.ctx, { provider: "google", members: "all" as never, idempotencyKey: key() }), (e) => codeOf(e) === "validation.bad_input");
   await assert.rejects(mailboxCreate(h.ctx, { kind: "shared", address: "a@vyre.test", title: "a", idempotencyKey: "" }), (e) => codeOf(e) === "validation.bad_input");
+});
+
+test("set_sync_state: a connection that lost its sign-in marks the mailbox Needs attention once, and a good sign-in puts it back; paused stays paused", async () => {
+  const h = setup();
+  const out = await mailboxSetSyncState(h.ctx, { mailboxId: "mbx_maya", state: "error", reason: "Google stopped accepting the saved sign-in." });
+  assert.deepEqual(contractErrors("mail.mailbox.set_sync_state", "out", out), []);
+  assert.equal(out.mailbox.state, "error");
+  assert.deepEqual(h.named("mailbox.sync_failed").map((e) => e.payload), [{ mailboxId: "mbx_maya", reason: "Google stopped accepting the saved sign-in." }]);
+  await mailboxSetSyncState(h.ctx, { mailboxId: "mbx_maya", state: "error" });
+  assert.equal(h.named("mailbox.sync_failed").length, 1, "said once");
+  assert.equal((await mailboxSetSyncState(h.ctx, { mailboxId: "mbx_maya", state: "syncing" })).mailbox.state, "syncing");
+  await mailboxPause(h.ctx, { mailboxId: "mbx_maya" });
+  assert.equal((await mailboxSetSyncState(h.ctx, { mailboxId: "mbx_maya", state: "error" })).mailbox.state, "paused");
+  conforms(h);
 });

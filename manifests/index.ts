@@ -16,6 +16,7 @@ import m_console_views from './console-views.ts';
 import m_contacts_link from './contacts-link.ts';
 import m_devices from './devices.ts';
 import m_documents from './documents.ts';
+import m_dropbox from './dropbox.ts';
 import m_email_builder_api from './email-builder-api.ts';
 import m_engine from './engine.ts';
 import m_esign from './esign.ts';
@@ -98,6 +99,7 @@ export const all: Manifest[] = [
   m_contacts_link,
   m_devices,
   m_documents,
+  m_dropbox,
   m_email_builder_api,
   m_engine,
   m_esign,

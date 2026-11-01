@@ -18,7 +18,8 @@ export type Fact = CapMap["memory.find_by_subject"]["out"]["facts"][number];
 
 // ---------------------------------------------------------------- sections
 
-export interface Section { key: string; title: string; fields: FieldDef[]; folded: boolean }
+/** A section of the page. A Journey record's stage groups carry `stage`: the current one leads and is lit, earlier ones show, later ones are locked until their stage opens. */
+export interface Section { key: string; title: string; fields: FieldDef[]; folded: boolean; stage?: { state: "current" | "past" | "locked"; opensAt: string } }
 
 const PLAIN_SKIP = new Set(["relation", "files", "longtext", "button", "lookup", "rollup"]);
 
@@ -39,10 +40,13 @@ export function sectionsOf(def: TypeDef, layout: Layout | undefined, prefs: Pref
     }
     const rest = def.fields.filter((f) => !used.has(f.key));
     if (rest.length > 0) {
-      const last = out[out.length - 1];
+      // fields no group holds belong to the ungrouped section when there is one, otherwise to the last section
+      const last = out.find((x) => x.key === "overview") ?? out[out.length - 1];
       if (last) last.fields.push(...rest); else out.push({ key: "details", title: "Details", fields: rest, folded: folded("details", false) });
     }
-    return out.filter((s) => s.fields.length > 0);
+    // an empty Overview still leads the tabs once three groups hold fields
+    const grouped = out.filter((x) => x.key !== "overview" && x.fields.length > 0).length;
+    return out.filter((s) => s.fields.length > 0 || (s.key === "overview" && grouped >= 3));
   }
   const body = def.fields.filter((f) => f.key !== def.titleField && f.key !== def.summaryField);
   const groups: [string, string, FieldDef[]][] = [

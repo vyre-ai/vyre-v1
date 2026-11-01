@@ -4,6 +4,9 @@
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { messageSummary } from "../builder/compose.ts";
 import { LOOP_CHILD, PARALLEL_JOIN, parallelLaneMark } from "../chrome.ts";
+import { NOT_SET_UP, missingFor, triggerMissing, triggerSummary } from "./form-model.ts";
+import type { RefNames } from "./form-model.ts";
+import { deviceTimeZone } from "./schedule.ts";
 
 export type Automation = CapMap["automations.get"]["out"]["automation"];
 export type Definition = Automation["definition"];
@@ -270,11 +273,13 @@ export function subtitleOf(n: DefNode, names: { key?: (id: string) => string } =
     return `${lines === 0 ? "Write the code" : `Runs ${lines} ${lines === 1 ? "line" : "lines"} of code`}, ${reach}`;
   }
   if (k === "ai") {
-    const prompt = str(inp["prompt"]).replace(/\s+/g, " ").trim().replace(/[.]+$/, "");
+    // one short line: what it is asked to do (data references become an ellipsis, not braces), and where it runs only when that was chosen
+    const prompt = str(inp["prompt"]).replace(/\{\{[^}]*\}\}/g, "\u2026").replace(/\s+/g, " ").trim().replace(/\u2026[.]+$/, "\u2026").replace(/[.]+$/, "");
+    if (!prompt) return "Write what the AI should do";
     const key = n.ai?.keyId ? (names.key?.(n.ai.keyId) ?? n.ai.keyId) : "";
     const back = n.ai?.backupKeyId ? (names.key?.(n.ai.backupKeyId) ?? n.ai.backupKeyId) : "";
-    const on = key ? (back ? `${key}, then ${back}` : key) : "your own AI account";
-    return prompt ? `${prompt.length > 70 ? `${prompt.slice(0, 70)}...` : prompt}. ${on}` : "Write what the AI should do";
+    const tail = n.ai?.mode === "task" ? "Agent task" : key ? (back ? `${key}, then ${back}` : key) : "";
+    return `${prompt.length > 60 ? `${prompt.slice(0, 60)}...` : prompt}${tail ? `${prompt.endsWith("\u2026") ? " \u00b7 " : ". "}${tail}` : ""}`;
   }
   const bits: string[] = [];
   for (const [name, v] of Object.entries(inp)) {
@@ -286,11 +291,14 @@ export function subtitleOf(n: DefNode, names: { key?: (id: string) => string } =
   return bits.join(" · ") || titleOfKey(n.key);
 }
 
+/** Whether a card's second line says the step is not set up (the card paints it amber). */
+export const isNotSetUp = (sub: string): boolean => sub === NOT_SET_UP;
+
 export function cardTitle(n: DefNode): string {
   return n.title && n.title.trim() ? n.title : titleOfKey(n.key);
 }
 
-export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?: Readonly<Record<string, RunState>>; keyName?: (id: string) => string; tested?: ReadonlySet<string> } = {}): Layout {
+export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?: Readonly<Record<string, RunState>>; keyName?: (id: string) => string; tested?: ReadonlySet<string>; /** Required input names by step key, from the catalog. A step missing one shows "Not set up". */ required?: Readonly<Record<string, readonly string[]>> } = {}): Layout {
   const by = new Map(def.nodes.map((n) => [n.id, n] as const));
   const issues = opts.issues ?? [];
   const issuesFor = (id: string): Issue[] => issues.filter((i) => i.nodeId === id);
@@ -342,6 +350,8 @@ export function layout(def: Definition, opts: { issues?: readonly Issue[]; run?:
       id: n.id, type: "step", x: cx - CARD_W / 2, y, w: CARD_W, h: CARD_H, node: n, kind: k, icon: iconOfKey(n.key),
       title: cardTitle(n), sub: subtitleOf(n, names), issues: issuesFor(n.id),
     };
+    const need = opts.required?.[n.key];
+    if (need && missingFor(n.key, n.input ?? {}, need, n.branches?.length ?? 0).length > 0) card.sub = NOT_SET_UP;
     const st = stateOf(n.id);
     if (st) card.state = st;
     const chip = stepStatusChip(n.id, card.issues, st, opts.tested);
@@ -523,6 +533,14 @@ export function check(def: Definition, kind: "personal" | "space" = "space"): Is
   const by = new Map(def.nodes.map((n) => [n.id, n] as const));
   if (def.triggers.length === 0) out.push({ severity: "error", message: "Add a trigger so something starts this Automation" });
   for (const t of def.triggers) if (kind === "personal" && t.key === "webhook") out.push({ nodeId: "trigger", severity: "error", message: "A webhook needs a Team Space; a Personal Automation cannot use it" });
+  for (const t of def.triggers) {
+    const miss = triggerMissing(t);
+    if (miss.length === 0) continue;
+    const title = triggerMeta(t.key, t.config).title;
+    // a schedule with no time never fires; any other trigger with no filter would start on every event of its kind
+    if (t.key === "schedule") out.push({ nodeId: "trigger", severity: "error", message: `${title} needs when it runs` });
+    else out.push({ nodeId: "trigger", severity: "warning", message: `${title} needs ${miss.map((m) => m === "type" ? "a record type" : m === "fileId" ? "a spreadsheet" : m).join(" and ")}` });
+  }
   if (def.nodes.length === 0) out.push({ severity: "warning", message: "Add a first step" });
   const reachable = new Set<string>();
   for (const s of def.start ?? def.nodes.slice(0, 1).map((n) => n.id)) for (const id of reach(by, s)) reachable.add(id);
@@ -615,6 +633,12 @@ function startingInput(key: string): Record<string, unknown> {
   if (key === "http_request") return { method: "GET" };
   if (key === "code") return { language: "javascript", source: "// input holds this step's mapped data. Return JSON.\nreturn { ok: true };" };
   return {};
+}
+
+/** A new step that starts with a connector, its action and its connection filled in (a connector someone built, picked from Your connectors). */
+export function withPreset(def: Definition, id: string, preset: Record<string, unknown> | undefined): Definition {
+  if (!preset) return def;
+  return { ...def, nodes: def.nodes.map((n) => (n.id === id ? { ...n, input: { ...n.input, ...preset } } : n)) };
 }
 
 /** Insert a new step after `afterId` (or first, after the trigger, when null). The step that came next now follows the new one. */
@@ -729,9 +753,10 @@ export function duplicateStep(def: Definition, id: string): { def: Definition; i
   return { def: d, id: copy.id };
 }
 
-export function addTrigger(def: Definition, key: string): Definition {
+/** A new trigger. A schedule starts as every day at 09:00 in the person's time zone, so it is never one with no time. */
+export function addTrigger(def: Definition, key: string, zone: string = deviceTimeZone()): Definition {
   const d = clone(def);
-  d.triggers.push({ key });
+  d.triggers.push(key === "schedule" ? { key, config: { cron: "0 9 * * *", timezone: zone, missed: "skip" } } : { key });
   return d;
 }
 
@@ -829,16 +854,9 @@ export function cronWords(cron: string): string | null {
   return null;
 }
 
-export function describeTrigger(t: DefTrigger): string {
-  const cfg = t.config ?? {};
-  if (typeof cfg["cron"] === "string") { const words = cronWords(cfg["cron"]); if (words) return words; }
-  if (t.filter && typeof t.filter === "object") {
-    const where = (t.filter as Record<string, unknown>)["where"];
-    if (typeof where === "string" && where) return `Only when ${where}`;
-  }
-  const parts: string[] = [];
-  for (const [k, v] of Object.entries(cfg)) if (k !== "label" && (typeof v === "string" || typeof v === "number")) parts.push(`${k} ${String(v)}`);
-  return parts.length ? parts.join(" · ") : "Every time";
+/** The second line of a trigger row: what it does from what it holds, or "Not set up". A cron line in words comes from the schedule rules in schedule.ts. */
+export function describeTrigger(t: DefTrigger, names: RefNames = {}, zone?: string): string {
+  return triggerSummary(t, names, zone).text;
 }
 
 /** Whether a person can start it themselves (a Run by hand trigger): the editor offers Run now only then. */

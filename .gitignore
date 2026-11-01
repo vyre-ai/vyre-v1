@@ -9,3 +9,4 @@ build/
 coverage/
 target/
 *.tsbuildinfo
+relay/worker/shell-dist/

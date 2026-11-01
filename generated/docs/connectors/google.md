@@ -31,6 +31,13 @@ Key google, module google. Mode dwd, owned by a space. Auth service_account_dwd.
 - google.dwd.map_member
 - google.dwd.disable
 - google.health
+- google.user.app_status
+- google.user.app_set
+- google.user.start
+- google.user.complete
+- google.user.list
+- google.user.remove
+- google.user.send_message
 - google.receive_push
 - google.gmail.get_profile
 - google.gmail.list_labels
@@ -61,6 +68,8 @@ Key google, module google. Mode dwd, owned by a space. Auth service_account_dwd.
 - google.drive.export_file
 - google.drive.get_permissions
 - google.drive.upload_file
+- google.drive.list_revisions
+- google.drive.download_revision
 - google.drive.create_folder
 - google.drive.copy_file
 - google.drive.share_file
@@ -78,6 +87,8 @@ Key google, module google. Mode dwd, owned by a space. Auth service_account_dwd.
 - google.docs.get_document
 - google.docs.create_document
 - google.docs.batch_update
+- google.docs.replace_text
+- google.docs.insert_text
 - google.meet.list_conference_records
 - google.meet.list_recordings
 - google.meet.list_transcripts

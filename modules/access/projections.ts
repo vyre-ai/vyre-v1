@@ -27,6 +27,10 @@ export interface Cond {
   labelCeiling?: Label;
   window?: { from: number; to: number };
   expiresAt?: number;
+  /** The grant carries the export right; the person needs no role change to export. */
+  export?: boolean;
+  /** The holder may share it further, up to their own level, without Manage. */
+  reshare?: boolean;
 }
 export interface RoleRec {
   id: string;
@@ -314,8 +318,11 @@ export class AccessStore {
     for (const a of this.actors.values()) if (a.engineerMcp && a.status === "active") snap.addPrincipalRole({ holder: a.id, role: "rol_engineer_mcp" });
     for (const g of this.groups.values()) for (const m of g.members) snap.addMember({ group: g.id, member: m.id });
     for (const r of this.resources.values()) {
+      // Only people added and Only me cut a resource off from its container (the record from its type, the type from the Space); the row keeps the natural parent, so a seed that re-registers it cannot undo the cut
+      const cut = (r.row?.["audience"] === "added" || r.row?.["audience"] === "me") && r.parentId !== null;
       snap.putResource({
-        id: r.id, type: r.type, parent_id: r.parentId, label: labelRank(r.label), owner_id: r.ownerId, holds: r.holds,
+        id: r.id, type: r.type, parent_id: cut ? null : r.parentId, label: labelRank(r.label), owner_id: r.ownerId, holds: r.holds,
+        ...(cut ? { home: r.parentId } : {}), ...(r.row?.["exportViewers"] === true ? { export_viewers: true } : {}),
       });
     }
     for (const g of this.grants.values()) snap.putGrant(kernelGrant(g));
@@ -561,6 +568,8 @@ function kernelGrant(g: GrantRec): GrantRow {
   if (c.labelCeiling !== undefined) conditions.labelCeiling = labelRank(c.labelCeiling);
   if (c.hiddenFields?.length) conditions.hiddenFields = c.hiddenFields;
   if (c.window) { conditions.notBefore = c.window.from; conditions.notAfter = c.window.to; }
+  if (c.export) conditions.export = true;
+  if (c.reshare) conditions.reshare = true;
   const row: GrantRow = {
     id: g.id,
     subject_kind: subjectKind(g.subject.kind),
@@ -630,6 +639,8 @@ export function grantView(g: GrantRec): GrantRec {
   if (g.conditions.labelCeiling) conditions.labelCeiling = g.conditions.labelCeiling;
   if (g.conditions.window) conditions.window = g.conditions.window;
   if (g.conditions.expiresAt !== undefined) conditions.expiresAt = g.conditions.expiresAt;
+  if (g.conditions.export) conditions.export = true;
+  if (g.conditions.reshare) conditions.reshare = true;
   const out: GrantRec = {
     id: g.id, subject: { kind: g.subject.kind, id: g.subject.id }, resource: { type: g.resource.type, id: g.resource.id },
     level: g.level, conditions, by: g.by, createdAt: g.createdAt,

@@ -18,6 +18,7 @@ import { SANDBOX_REPLAY_LABEL } from "./ledger.ts";
 import { RunLineage } from "./RunLineage.tsx";
 import type { LineageChild } from "./lineage.ts";
 import { RunLines } from "./RunLines.tsx";
+import { RunWork } from "./RunWork.tsx";
 import { UndoPanel } from "./RunUndo.tsx";
 import { each } from "./each.ts";
 
@@ -130,6 +131,7 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
     <>
       {stateBar}
       <RunLineage parentRun={run.parentRun} steps={steps} children={childLinks} />
+      <RunWork runId={run.id} status={run.status} />
       <ScrollView style={s.scroll} contentContainerStyle={[s.scrollIn, wide && s.scrollWide]}>
         <RunLines
           run={run} lines={lines} me={data.me.id} name={(w) => data.name(w.id)} canRetry={canRetry} openThoughts={openThoughts}

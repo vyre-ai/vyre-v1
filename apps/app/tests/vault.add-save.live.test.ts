@@ -35,7 +35,7 @@ test("production Vault Add: a pasted key gets a name, Add saves one item to Mine
     await page.getByTestId("add-name").waitFor();
     assert.equal(await page.getByTestId("add-name").inputValue(), "My service key", "a paste that names no app is named from its key");
     await page.getByTestId("add-name").fill("");
-    assert.equal(await page.getByTestId("add-why").textContent(), "Give it a name", "a disabled Add says why");
+    assert.equal(await page.locator('[title="Give it a name"]').count(), 1, "a disabled Add says why, as its tooltip");
     await page.getByTestId("add-name").fill("My service key");
     await page.waitForFunction(() => document.querySelector('[data-testid="add-save"]')?.getAttribute("aria-disabled") !== "true", null, { timeout: 15_000 });
     await page.getByTestId("add-save").click();

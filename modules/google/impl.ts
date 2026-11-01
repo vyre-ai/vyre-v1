@@ -26,6 +26,13 @@ export const handlers: Record<string, Handler> = {
   "google.dwd.map_member": (ctx, i) => h.dwdMapMember(ctx, i),
   "google.dwd.disable": (ctx) => h.dwdDisable(ctx),
   "google.health": (ctx, i) => h.health(ctx, i),
+  "google.user.app_status": (ctx) => h.userAppStatus(ctx),
+  "google.user.app_set": (ctx, i) => h.userAppSet(ctx, i),
+  "google.user.start": (ctx, i) => h.userStart(ctx, i),
+  "google.user.complete": (ctx, i) => h.userComplete(ctx, i),
+  "google.user.list": (ctx) => h.userList(ctx),
+  "google.user.remove": (ctx, i) => h.userRemove(ctx, i),
+  "google.user.send_message": (ctx, i) => h.userSend(ctx, i),
   "google.receive_push": async (ctx, i) => { internalOnly(ctx, "google.receive_push"); return h.receivePush(ctx, i); },
   "google.gmail.get_profile": (ctx, i) => h.getProfile(ctx, i),
   "google.gmail.list_labels": (ctx, i) => h.listLabels(ctx, i),
@@ -56,6 +63,8 @@ export const handlers: Record<string, Handler> = {
   "google.drive.export_file": (ctx, i) => h.driveExport(ctx, i),
   "google.drive.get_permissions": (ctx, i) => h.drivePermissions(ctx, i),
   "google.drive.upload_file": (ctx, i) => h.driveUpload(ctx, i),
+  "google.drive.list_revisions": (ctx, i) => h.driveRevisions(ctx, i),
+  "google.drive.download_revision": (ctx, i) => h.driveRevisionDownload(ctx, i),
   "google.drive.create_folder": (ctx, i) => h.driveCreateFolder(ctx, i),
   "google.drive.copy_file": (ctx, i) => h.driveCopy(ctx, i),
   "google.drive.share_file": (ctx, i) => h.driveShare(ctx, i),
@@ -73,6 +82,8 @@ export const handlers: Record<string, Handler> = {
   "google.docs.get_document": (ctx, i) => h.docGet(ctx, i),
   "google.docs.create_document": (ctx, i) => h.docCreate(ctx, i),
   "google.docs.batch_update": (ctx, i) => h.docBatch(ctx, i),
+  "google.docs.replace_text": (ctx, i) => h.docReplace(ctx, i),
+  "google.docs.insert_text": (ctx, i) => h.docInsert(ctx, i),
   "google.meet.list_conference_records": (ctx, i) => h.meetRecords(ctx, i),
   "google.meet.list_recordings": (ctx, i) => h.meetRecordings(ctx, i),
   "google.meet.list_transcripts": (ctx, i) => h.meetTranscripts(ctx, i),
@@ -101,6 +112,11 @@ export const hostSeams: SeamSetters = { setGoogleHost };
 
 /** /hooks/google/<kind>: the push secret is checked before anything is recorded (handlers/hook.ts). */
 export const hostCalls = {
+  /** The removal wizard (host/src/seams/people.ts): a person whose mailbox connections are revoked loses their own sign-ins too. */
+  "google.reassign_owned": async (ctx: Ctx, i: { person: string; kind: string; action: string }): Promise<number> => {
+    hostOnly(ctx, "google.reassign_owned");
+    return i.kind === "mailbox_connections" && i.action === "revoke" ? h.dropAccountsOf(ctx as never, i.person) : 0;
+  },
   "google.accept_webhook": async (ctx: Ctx, a: WebhookAccept): Promise<unknown> => {
     hostOnly(ctx, "google.accept_webhook");   // a host call: the webhook route is the only way in
     return h.acceptHook(ctx, a);

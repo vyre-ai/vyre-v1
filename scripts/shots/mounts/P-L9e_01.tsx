@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { FilesList } from "../../../apps/app/src/places/files/list/index.ts";
 import { createSampleFiles, harbor, northwind } from "../../../apps/app/src/places/files/list/sample.ts";
-import { FilesDataProvider, FilesStateProvider, FilesTree } from "../../../apps/app/src/places/files/tree/index.ts";
+import { FilesDataProvider, FilesStateProvider, FilesTree, useFilesState } from "../../../apps/app/src/places/files/tree/index.ts";
 import type { FilesState, SortKey, Where } from "../../../apps/app/src/places/files/tree/index.ts";
 
 export const title = "Files";
@@ -17,6 +17,15 @@ function whereOf(v: string | null): Where {
   if (v === "recent" || v === "shared" || v === "trash" || v === "knowledge") return { kind: v };
   if (v) return { kind: "folder", id: v.startsWith("fld_") ? v : `fld_${v}` };
   return { kind: "folder", id: "fld_sales" };
+}
+
+/** ?go=recent|shared|trash|knowledge goes there the way a click on the sidebar does (the reducer's "go"), so a place's own opening sort shows. */
+function Go({ where }: { where: string | null }): ReactNode {
+  const { dispatch } = useFilesState();
+  useEffect(() => {
+    if (where === "recent" || where === "shared" || where === "trash" || where === "knowledge") dispatch({ type: "go", where: { kind: where } });
+  }, [where, dispatch]);
+  return null;
 }
 
 function Page({ q }: { q: URLSearchParams }): ReactNode {
@@ -43,6 +52,7 @@ function Page({ q }: { q: URLSearchParams }): ReactNode {
   return (
     <FilesDataProvider value={sample.data}>
       <FilesStateProvider initial={initial}>
+        <Go where={q.get("go")} />
         <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
           {phone ? null : <View style={{ width: 240 }}><FilesTree /></View>}
           <FilesList />

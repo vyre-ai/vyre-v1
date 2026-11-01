@@ -23,6 +23,8 @@ export interface FilesNav {
   newFolder(scope: "personal" | "space", parentId: string | null): void;
   /** Connect a folder from Google Drive, Microsoft 365, this computer or GitHub into a folder (null: the top of the Space): the shell opens the mount sheet. */
   connectFolder?(intoFolderId: string | null): void;
+  /** The Live folders view: every mount with how it is doing. Left out where the shell has no mounts. */
+  openLive?(): void;
   /** Learned: what memory picked up, the first Knowledge screen. */
   openMemory(): void;
   openGraph(): void;
@@ -36,6 +38,8 @@ export interface FilesNav {
   reviewChanges?(changesetId: string): void;
   /** Resolve the two edits of a file (the Conflict tag): the shell opens the conflict choice for it. */
   resolveConflict?(fileId: string): void;
+  /** Open an address outside Vyre (a mounted file in its provider's editor): the shell's own way of opening a link. */
+  openExternal?(url: string): void;
 }
 
 /** The side pane that belongs to this place: the list shows its toggle in the header. */
@@ -55,6 +59,8 @@ export interface FilesData {
   nav: FilesNav;
   /** Which Knowledge screen has the body, when it is not the list: the sidebar marks that row. */
   memoryView?: KnowRoute | null;
+  /** The Live folders view has the body: the sidebar marks its row. */
+  liveView?: boolean;
   /** A Personal Space: nobody shares with you there, so the sidebar has no Shared with me. */
   personal?: boolean;
   /** The side pane's state, when the shell has one. */

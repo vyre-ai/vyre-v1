@@ -332,8 +332,10 @@ test("following a contact and Alert me on replies: stored per person, the follow
 // ---- the registered handlers
 
 test("every capability of the inbox manifest has a handler, and none is extra", () => {
-  const caps = registry.capabilities.filter((c) => c.name.startsWith("inbox.")).map((c) => c.name).sort();
-  assert.equal(caps.length, 17);
+  // the module also owns the composer's sender list (comms.senders.*), so the match is by module, not by name prefix
+  const caps = registry.capabilities.filter((c) => c.module === "inbox").map((c) => c.name).sort();
+  assert.equal(caps.length, 19);
+  assert.deepEqual(caps.filter((n) => !n.startsWith("inbox.")), ["comms.senders.list", "comms.senders.set_default"]);
   assert.deepEqual(Object.keys(handlers).sort(), caps);
 });
 
@@ -348,4 +350,34 @@ test("the time stamps follow the clock the host gives", async () => {
   h.advance(5000);
   const a = await linkMessage(h.ctx, link({ address: "pat@acme.test" }));
   assert.equal(convs(h).find((c) => c.id === a.conversationId)!.updated_at, NOW + 5000);
+});
+
+// ---- mail from a person's private mailbox
+
+test("private mail gets its owner's own conversation: matched to no record even for a known address, shared by that person's later mail, apart from the shared conversation of the same address", async () => {
+  const h = setup();
+  const mine = { ...link({ address: "pat@acme.test", mailboxId: "mbx_work1", preview: "For Maya only" }), private: true, ownerId: "usr_maya01" };
+  const first = await linkMessage(h.ctx, mine);
+  assert.deepEqual(contractErrors("inbox.link_message", "in", mine), []);
+  assert.equal(first.linked, "none");
+  assert.equal(first.contactId, undefined, "Pat Lee is a known contact, and private mail still meets no record");
+  const again = await linkMessage(h.ctx, { ...link({ address: "pat@acme.test", mailboxId: "mbx_work1" }), private: true, ownerId: "usr_maya01" });
+  assert.equal(again.conversationId, first.conversationId, "the same person's next mail joins it");
+  const other = await linkMessage(h.ctx, { ...link({ address: "pat@acme.test", mailboxId: "mbx_work1" }), private: true, ownerId: "usr_omar01" });
+  assert.notEqual(other.conversationId, first.conversationId, "another person's private mail from the same address is theirs");
+  const shared = await linkMessage(h.ctx, link({ address: "pat@acme.test", mailboxId: "mbx_work1" }));
+  assert.equal(shared.linked, "sure");
+  assert.notEqual(shared.conversationId, first.conversationId, "shared mail never merges into a private conversation");
+  const row = convs(h).find((c) => c.id === first.conversationId)!;
+  assert.deepEqual([row.contactId, row.ownerId, row.needsMatch], [null, "usr_maya01", 0]);
+  assert.equal(items(h, first.conversationId).length, 2);
+  assert.equal(h.rows(`SELECT "conversationId" FROM inbox_private`).length, 2);
+});
+
+test("a private conversation cannot be matched to a record, and a private message names whose it is", async () => {
+  const h = setup();
+  const made = await linkMessage(h.ctx, { ...link({ address: "new@nowhere.test", mailboxId: "mbx_work1" }), private: true, ownerId: "usr_maya01" });
+  await refused(match(h.ctx, { conversationId: made.conversationId, recordId: LEE.id }), "validation.precondition_failed");
+  await refused(matchNew(h.ctx, { conversationId: made.conversationId, type: "contact", idempotencyKey: "pm-1" } as never), "validation.precondition_failed");
+  await refused(linkMessage(h.ctx, { ...link({ address: "x@y.test" }), private: true }), "validation.bad_input");
 });

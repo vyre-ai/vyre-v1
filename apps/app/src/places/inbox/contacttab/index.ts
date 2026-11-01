@@ -1,5 +1,5 @@
 // Inbox > contact tab: the conversation, the composer and the agent drafts.
-export { ContactTab, SCREEN as CONTACT_TAB_SCREEN, TabLoading } from "./ContactTab.tsx";
+export { ContactTab, SCREEN as CONTACT_TAB_SCREEN, TabLoading, headSub } from "./ContactTab.tsx";
 export { followMenuEntries, fromMenuEntries } from "./menus.ts";
 export type { ContactTabProps } from "./ContactTab.tsx";
 export * from "./ask.ts";

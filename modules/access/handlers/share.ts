@@ -364,7 +364,36 @@ function checkConditions(ctx: AccessCtx, c: Cond | undefined): Cond {
     if (c.expiresAt <= ctx.now()) raise(ctx.trace.traceId, "validation.precondition_failed", "the expiry is already past");
     out.expiresAt = c.expiresAt;
   }
+  if (c.export === true) out.export = true;
+  if (c.reshare === true) out.reshare = true;
   return out;
+}
+
+const RECORDS = new Set(["record_type", "record"]);
+
+/** May this caller (and the person they act for) export what this resource holds: the role permission, or a grant that carries it. */
+function mayExport(ctx: AccessCtx, store: AccessStore, res: ResourceRec): boolean {
+  const d = authorize(store.snapshot(), {
+    principal: ctx.principal.id, ...(ctx.actingFor && ctx.actingFor !== ctx.principal.id ? { actingFor: ctx.actingFor } : {}),
+    action: { perm: "records.export", level: "view" }, resource: { type: res.type, id: res.id }, now: ctx.now(),
+  });
+  return d.effect === "allow";
+}
+
+/** The flags a grant may carry: only on records, and the export right only from someone who holds it. A flag the grant already had is not the giver's to judge. */
+function assertFlags(ctx: ShareCtx, store: AccessStore, res: ResourceRec, next: Cond, before: Cond | undefined): void {
+  const trace = ctx.trace.traceId;
+  if (!next.export && !next.reshare) return;
+  if (!RECORDS.has(res.type)) raise(trace, "validation.bad_input", "export and share are rights on records");
+  if (next.export && !before?.export && !mayExport(ctx, store, res)) raise(trace, "permission.not_contained", "you cannot export this, so you cannot give the right to");
+}
+
+/** Sharing a record or a record type needs Manage, or Edit with the right to share it on. */
+function mayShareOn(ctx: ShareCtx, store: AccessStore, res: ResourceRec, have: Level): boolean {
+  if (!RECORDS.has(res.type) || atLeast(res.type, have, "manage")) return true;
+  const snap = store.snapshot();
+  const who = [ctx.principal.id, ...(ctx.actingFor?.id ? [ctx.actingFor.id] : [])];
+  return who.every((id) => { const i = snap.info(id); return i !== null && matched(snap, store, i, res, ctx.now()).some((g) => g.row.conditions?.reshare === true); });
 }
 
 function checkLink(ctx: ShareCtx, store: AccessStore, subject: SubjectRef, level: Level, cond: Cond): Cond {
@@ -397,7 +426,7 @@ export function filterContained(parent: unknown, child: unknown): boolean {
 function hasOwnerPredicate(value:unknown):boolean {if(!value||typeof value!=="object")return false;const row=value as {op?:string;args?:unknown[]};return row.op==="owner_me"||!!row.args?.some(hasOwnerPredicate);}
 /** Every acting subject must delegate through an independent, live path. The grant being edited cannot renew itself. */
 function assertDelegation(ctx:ShareCtx,store:AccessStore,res:ResourceRec,subject:SubjectRef,level:Level,conditions:Cond,exclude?:string):void {
- const have=must(ctx,store,res,"edit","sharing");if(rank(res.type,level)>rank(res.type,have))raise(ctx.trace.traceId,"permission.not_contained",`you hold ${have} here and cannot give ${level}`);
+ const have=must(ctx,store,res,"edit","sharing");if(!mayShareOn(ctx,store,res,have))raise(ctx.trace.traceId,"permission.no_grant","sharing this needs Manage, or the right to share it on");if(rank(res.type,level)>rank(res.type,have))raise(ctx.trace.traceId,"permission.not_contained",`you hold ${have} here and cannot give ${level}`);
  const snap=store.snapshot(),me=snap.info(ctx.principal.id);if(!me)raise(ctx.trace.traceId,"permission.no_grant");const subjects:Info[]=[me];
  const add=(id:string|null|undefined)=>{const who=id?snap.info(id):null;if(who&&!subjects.includes(who))subjects.push(who);};if(me.p.kind==="svc")add(me.p.owner);if(ctx.actingFor)add(ctx.actingFor.id);
  for(const who of subjects){if(res.ownerId===who.p.id)continue;
@@ -418,14 +447,14 @@ export async function updateGrant(ctx:ShareCtx,input:{grantId:string;level?:Leve
  const store=storeOf(ctx),grant=store.grants.get(input.grantId);if(!grant)raise(ctx.trace.traceId,"validation.not_found","no such grant");
  const res=resourceOf(ctx,store,grant.resource),level=input.level??grant.level;let conditions=checkConditions(ctx,input.conditions??grant.conditions);checkSubject(ctx,store,grant.subject);
  if(grant.subject.kind==="link")conditions=checkLink(ctx,store,grant.subject,level,conditions);
- assertDelegation(ctx,store,res,grant.subject,level,conditions,grant.id);
+ assertFlags(ctx,store,res,conditions,grant.conditions);assertDelegation(ctx,store,res,grant.subject,level,conditions,grant.id);
  const ss=shareOf(ctx),wasFresh=isFresh(ctx,store,ss);grant.level=level;grant.conditions=conditions;
  const updated:{grantId:string;level:Level;expiresAt?:number}={grantId:grant.id,level};if(conditions.expiresAt!==undefined)updated.expiresAt=conditions.expiresAt;
  ctx.emit("grant.updated",grant.id,updated);changed(ctx,store,"assignment");commit(ctx,store,ss,wasFresh,[res.id],false);return {grant:grantView(grant)};
 }
 
 export async function share(ctx: ShareCtx, input: {
-  resource: ResourceRef; subject: SubjectRef; level: Level; conditions?: Cond; source?: string; idempotencyKey?: string;
+  resource: ResourceRef; subject: SubjectRef; level: Level; conditions?: Cond; source?: string; idempotencyKey?: string; export?: boolean; reshare?: boolean;
 }) {
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
@@ -440,6 +469,13 @@ export async function share(ctx: ShareCtx, input: {
   const sameSource = input.source ?? undefined;
   let grant = [...store.grants.values()].find((g) =>
     g.subject.kind === input.subject.kind && g.subject.id === input.subject.id && g.resource.type === res.type && g.resource.id === res.id && g.source === sameSource);
+  // a flag left out keeps what the grant had; a flag sent sets it
+  for (const flag of ["export", "reshare"] as const) {
+    const sent = input[flag] ?? input.conditions?.[flag];
+    const kept = sent === undefined ? grant?.conditions[flag] === true : sent;
+    if (kept) cond[flag] = true; else delete cond[flag];
+  }
+  assertFlags(ctx,store,res,cond,grant?.conditions);
   assertDelegation(ctx,store,res,input.subject,input.level,cond,grant?.id);
   const created = !grant;
   if (grant) { grant.level = input.level; grant.conditions = cond; }
@@ -550,7 +586,134 @@ export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) 
     const through = ancestor ? "folder" : g.subject.kind === "group" ? "group" : g.subject.kind === "role" ? "role" : "direct";
     shares.push({ grant: grantView(g), through });
   }
-  return { shares };
+  if (!RECORDS.has(res.type)) return { shares };
+  const audience = audienceOf(res);
+  const out: { shares: typeof shares; audience: Audience; exporters: Exporters; inherits?: string; outside?: boolean; can: Rights } = { shares, audience, exporters: exportersOf(store, res), can: rightsOf(ctx, store, res) };
+  if (res.type === "record_type") out.outside = res.row?.["outside"] === true;
+  // a record follows its type until it is cut off from it
+  if (res.type === "record" && audience === "space" && res.parentId !== null && store.resources.get(res.parentId)?.type === "record_type") out.inherits = res.parentId;
+  return out;
+}
+
+// ---- who a record type or a record is open to ---------------------------------------------------------------------------
+
+export type Audience = "space" | "added" | "me";
+export type Exporters = "admins" | "viewers" | "chosen";
+/** Grants an audience choice made for itself: the admins who keep a type that is only for people added, or the person who made a record only theirs. */
+const AUDIENCE_SOURCE = "audience";
+const KEEPERS = ["rol_owner", "rol_admin"] as const;
+
+export interface Rights { manage: boolean; edit: boolean; share: boolean; export: boolean }
+/** What the caller may do with a record type or a record, so the app draws the Share and Export buttons only for those who can. */
+function rightsOf(ctx: ShareCtx, store: AccessStore, res: ResourceRec): Rights {
+  const have = callerLevel(ctx, store, res);
+  return { manage: atLeast(res.type, have, "manage"), edit: atLeast(res.type, have, "edit"), share: have !== null && atLeast(res.type, have, "edit") && mayShareOn(ctx, store, res, have), export: have !== null && mayExport(ctx, store, res) };
+}
+
+function audienceOf(res: ResourceRec): Audience {
+  const a = res.row?.["audience"];
+  return a === "added" || a === "me" ? a : "space";
+}
+
+function exportersOf(store: AccessStore, res: ResourceRec): Exporters {
+  if (res.row?.["exportViewers"] === true) return "viewers";
+  if (res.row?.["exportChosen"] === true) return "chosen";
+  for (const g of store.grants.values()) if (g.resource.id === res.id && g.conditions.export === true) return "chosen";
+  return "admins";
+}
+
+function dropGrant(ctx: ShareCtx, store: AccessStore, g: GrantRec): void {
+  store.grants.delete(g.id);
+  ctx.emit("grant.revoked", g.id, { grantId: g.id, subject: g.subject, resource: g.resource, reason: "unshared" });
+}
+
+function addGrant(ctx: ShareCtx, store: AccessStore, res: ResourceRec, subject: SubjectRef, level: Level): void {
+  const g: GrantRec = { id: nid("gnt"), subject, resource: { type: res.type, id: res.id }, level, conditions: {}, by: ctx.principal.id, source: AUDIENCE_SOURCE, createdAt: ctx.now() };
+  store.grants.set(g.id, g);
+  ctx.emit("grant.created", g.id, { grantId: g.id, subject: g.subject, resource: g.resource, level: g.level, source: AUDIENCE_SOURCE });
+}
+
+export async function audienceSet(ctx: ShareCtx, input: { resource: ResourceRef; audience?: Audience; exporters?: Exporters; outside?: boolean; follows?: string }) {
+  const store = storeOf(ctx);
+  const ss = shareOf(ctx);
+  const trace = ctx.trace.traceId;
+  const res = resourceOf(ctx, store, input.resource);
+  if (input.follows !== undefined) {
+    // a record's Files folder hangs under the record, so it is open to exactly who may see the record, and goes with it when the record is set apart
+    if (res.type !== "folder") raise(trace, "validation.bad_input", "only a Files folder can follow a record");
+    const rec = store.resources.get(input.follows);
+    if (!rec || rec.type !== "record") raise(trace, "validation.not_found", "no such record");
+    // the host's own sweeps (kind svc) bring old folders in line; it only narrows who may open the folder
+    if (ctx.principal.kind !== "svc" && !ctx.principal.id.startsWith("svc_")) must(ctx, store, res, "manage", "attaching the folder to its record");
+    const wasFresh = isFresh(ctx, store, ss);
+    res.parentId = rec.id;
+    changed(ctx, store, "assignment");
+    commit(ctx, store, ss, false && wasFresh, [res.id], false);
+    return { audience: "space" as Audience, exporters: "admins" as Exporters, outside: false };
+  }
+  if (!RECORDS.has(res.type)) raise(trace, "validation.bad_input", "who it is open to is set on a record type or a record");
+  must(ctx, store, res, "manage", "changing who it is open to");
+  if ((input.exporters !== undefined || input.outside !== undefined) && res.type !== "record_type") raise(trace, "validation.bad_input", "who may export and links outside the Space are set on the record type");
+  const wasFresh = isFresh(ctx, store, ss);
+  const row: Record<string, unknown> = { ...(res.row ?? {}) };
+  if (input.audience !== undefined) {
+    for (const g of [...store.grants.values()]) if (g.resource.id === res.id && g.source === AUDIENCE_SOURCE) dropGrant(ctx, store, g);
+    if (input.audience === "space") delete row["audience"]; else row["audience"] = input.audience;
+    if (input.audience === "added") for (const role of KEEPERS) if (store.roles.has(role)) addGrant(ctx, store, res, { kind: "role", id: role }, "manage");
+    // a record only for me stays with whoever set it, even when someone else made it
+    if (input.audience === "me" && res.ownerId !== ctx.principal.id) addGrant(ctx, store, res, { kind: "person", id: ctx.principal.id }, "manage");
+  }
+  if (input.exporters !== undefined) {
+    // chosen people is a choice of its own, so it holds before anyone is chosen
+    if (input.exporters === "viewers") row["exportViewers"] = true; else delete row["exportViewers"];
+    if (input.exporters === "chosen") row["exportChosen"] = true; else delete row["exportChosen"];
+    if (input.exporters === "admins") {
+      for (const g of store.grants.values()) if (g.resource.id === res.id && g.conditions.export) {
+        delete g.conditions.export;   // the flag is a field of the grant the module already holds; access.changed below tells everyone
+      }
+    }
+  }
+  if (input.outside !== undefined) { if (input.outside) row["outside"] = true; else delete row["outside"]; }
+  if (Object.keys(row).length > 0) res.row = row; else delete res.row;
+  changed(ctx, store, "assignment");
+  commit(ctx, store, ss, wasFresh, [res.id], false);
+  return { audience: audienceOf(res), exporters: exportersOf(store, res), outside: res.row?.["outside"] === true };
+}
+
+/** What differs from its type among the rows of one type, and whether the caller was given the type or a row by name (not just the role they hold). */
+export async function recordMarks(ctx: ShareCtx, input: { type: string }) {
+  const store = storeOf(ctx);
+  const trace = ctx.trace.traceId;
+  const typeRes = store.resources.get(input.type);
+  if (!typeRes || typeRes.type !== "record_type") raise(trace, "validation.not_found", "no such record type");
+  must(ctx, store, typeRes, "view", "listing it");
+  const snap = store.snapshot();
+  const me = snap.info(ctx.principal.id);
+  const now = ctx.now();
+  const named = (id: string, whole: boolean): boolean => {
+    if (!me) return false;
+    const chain = whole ? snap.chain(id) ?? [] : [store.resources.get(id)!];
+    for (const c of chain) for (const g of snap.grantsOn(c.id) ?? []) {
+      if (g.key.startsWith("role:") || !me.keys.has(g.key) || g.exp <= now || now < g.nb || now > g.na) continue;
+      if (c.type === "space") continue;
+      return true;
+    }
+    return false;
+  };
+  const direct = new Map<string, number>();
+  for (const g of store.grants.values()) if (g.resource.type === "record" && g.source !== AUDIENCE_SOURCE) direct.set(g.resource.id, (direct.get(g.resource.id) ?? 0) + 1);
+  const rows: { id: string; audience: Audience; direct: number; mine: boolean }[] = [];
+  for (const r of store.resources.values()) {
+    if (r.type !== "record") continue;
+    const home = r.row?.["audience"] === "added" || r.row?.["audience"] === "me" ? r.parentId : snap.chain(r.id)?.find((c) => c.type === "record_type")?.id;
+    if (home !== input.type) continue;
+    // a row the caller cannot see is not named to them
+    if (callerLevel(ctx, store, r) === null) continue;
+    const audience = audienceOf(r), n = direct.get(r.id) ?? 0, mine = r.ownerId !== ctx.principal.id && named(r.id, false);
+    if (audience === "space" && n === 0 && !mine) continue;
+    rows.push({ id: r.id, audience, direct: n, mine });
+  }
+  return { can: rightsOf(ctx, store, typeRes), typeShared: !!me && typeRes.ownerId !== ctx.principal.id && named(input.type, true), audience: audienceOf(typeRes), rows: rows.sort((a, b) => (a.id < b.id ? -1 : 1)) };
 }
 
 // ---- folders -------------------------------------------------------------------------------------------------------

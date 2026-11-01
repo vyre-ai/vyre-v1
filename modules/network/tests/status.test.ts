@@ -211,6 +211,6 @@ test("seed rows fit the migration and impl exposes every handler", async () => {
   for (const r of seed.rows) h.raw.run("INSERT INTO network_server (server_id, name, role, state, heartbeat_at) VALUES (?, ?, ?, ?, ?)", r.server_id, r.name, r.role, r.state, r.heartbeat_at);
   assert.equal((await serverList(h.ctx, {})).servers.length, 1);
   assert.equal(impl.handlers, handlers);
-  assert.equal(Object.keys(impl.handlers).length, 19);
+  assert.equal(Object.keys(impl.handlers).length, 24);
   assert.deepEqual([impl.projections, impl.consumers, impl.inline, impl.codecs], [[], {}, {}, {}]);
 });

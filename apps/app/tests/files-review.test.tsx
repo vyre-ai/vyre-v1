@@ -491,7 +491,7 @@ test("agent file header: the file-type tile and the more menu; the suggestion ca
   assert.ok(has(tag(out, "agent-file-more"), 'aria-haspopup="menu"'), "the ... menu");
   assert.equal(extOf("agent.toml"), "TOML");
   assert.equal(extOf("Makefile"), "FILE");
-  assert.ok(has(text(out), "Nothing changes until you apply it. The old version stays in history."), "the card's footer");
+  assert.ok(has(text(out), "Nothing changes until you apply it."), "the card's footer");
   assert.ok(has(out, 'data-testid="suggestion-face"'), "the agent's face leads the card");
 });
 

@@ -7,12 +7,15 @@ HTTP 502. Retryable: yes.
 ## Raised by
 
 - connectors.push
+- dropbox.files.list_folder
 - engine.step_turn
 - google.gmail.send_message
+- google.user.send_message
 - mail.send
 - mail.send_as
 - mailgun.send_email
 - ms.mail.send_message
+- ms.user.send_message
 - resend.send_email
 - telephony.send_sms
 - twilio.call.create

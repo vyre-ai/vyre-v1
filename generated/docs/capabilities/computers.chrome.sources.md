@@ -15,7 +15,7 @@ List scripts, requests and storage a page uses (to work out backend calls for a 
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |
-| Team Space only | yes |
+| Team Space only | no |
 | HTTP | POST /v1/computers/chrome/sources |
 | MCP tool | chrome_sources (computer) |
 | CLI | none |
@@ -46,7 +46,6 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
-- permission.needs_team
 - permission.no_grant
 - permission.role_lacks_permission
 - provider.unavailable

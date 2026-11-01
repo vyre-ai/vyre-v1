@@ -287,3 +287,19 @@ test("revoke_external: revokes one link of that file once, says so once, drops i
   assert.deepEqual((await call(ctx, "files.external_links", { fileId: b })).links, []);
   assert.equal(await code(call(ctx, "files.external_links", { fileId: "fil_nope" })), "validation.not_found");
 });
+
+test("mounted files get their kind the way the mount engine creates them (a name and the provider's mime, no kind), so each opens in the same viewer as a local file of its type", async () => {
+  const { ctx } = world();
+  const folderId = await personal(ctx);
+  const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  const PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+  const cases: Array<[name: string, mime: string | undefined, kind: string]> = [
+    ["Report.docx", DOCX, "document"], ["Export", DOCX, "document"], ["Budget.xlsx", undefined, "spreadsheet"], ["Deck", PPTX, "presentation"],
+    ["scan.pdf", "application/pdf", "pdf"], ["photo", "image/jpeg", "image"], ["logo.svg", undefined, "image"], ["README.md", undefined, "markdown"],
+    ["main.go", undefined, "code"], ["ci.yml", undefined, "code"], ["notes.txt", undefined, "text"],
+  ];
+  for (const [name, mime, kind] of cases) {
+    const made = await call(ctx, "files.create", { folderId, name, content: { text: "x" }, ...(mime ? { mime } : {}), idempotencyKey: `kind-${name}` });
+    assert.equal(made.file.kind, kind, `${name} (${mime ?? "no mime"})`);
+  }
+});
