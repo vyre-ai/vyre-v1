@@ -603,11 +603,11 @@ export type Exporters = "admins" | "viewers" | "chosen";
 const AUDIENCE_SOURCE = "audience";
 const KEEPERS = ["rol_owner", "rol_admin"] as const;
 
-export interface Rights { manage: boolean; share: boolean; export: boolean }
+export interface Rights { manage: boolean; edit: boolean; share: boolean; export: boolean }
 /** What the caller may do with a record type or a record, so the app draws the Share and Export buttons only for those who can. */
 function rightsOf(ctx: ShareCtx, store: AccessStore, res: ResourceRec): Rights {
   const have = callerLevel(ctx, store, res);
-  return { manage: atLeast(res.type, have, "manage"), share: have !== null && atLeast(res.type, have, "edit") && mayShareOn(ctx, store, res, have), export: have !== null && mayExport(ctx, store, res) };
+  return { manage: atLeast(res.type, have, "manage"), edit: atLeast(res.type, have, "edit"), share: have !== null && atLeast(res.type, have, "edit") && mayShareOn(ctx, store, res, have), export: have !== null && mayExport(ctx, store, res) };
 }
 
 function audienceOf(res: ResourceRec): Audience {

@@ -111,6 +111,11 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
       await page.getByTestId("row-nav:type:rt_deal").click();
       await page.getByTestId(`rec-${deals["Acme renewal"]}`).waitFor({ timeout: 20_000 });
     };
+    // a phone-width picture rebuilds the page, which closes an open sheet: put it back as a person would (the Share button)
+    const sheet = async (page: any, button = "records-share-btn"): Promise<void> => {   // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (await page.getByTestId("records-share").count() === 0) await page.getByTestId(button).click();
+      await page.getByTestId("records-share").waitFor({ timeout: 15_000 });
+    };
     const count = (page: any, id: string): Promise<number> => page.getByTestId(id).count();   // eslint-disable-line @typescript-eslint/no-explicit-any
 
     await t.test("1 Ada opens Deals: everyone in the Space reaches it, and Share is on the header", async () => {
@@ -129,6 +134,7 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
     });
 
     await t.test("3 Only people added, then Bea as Can edit and Cal as Can view", async () => {
+      await sheet(A);
       await A.getByTestId("share-audience-pick-added").click();
       await A.waitForFunction(() => document.querySelector('[data-testid="share-audience-pick-added"]')?.getAttribute("aria-selected") === "true");
       for (const [who, level] of [[bea, "Can edit"], [cal, "Can view"]] as const) {
@@ -141,9 +147,11 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
         }
         await A.getByRole("button", { name: new RegExp(`Level for ${who.name}: ${level}`) }).waitFor();
       }
+      await sheet(A);
       await snap(A, "ada-sheet-added");
       const shares = (await api(ada, "access.shares_of", { resource: deal })).shares as Array<{ grant: { subject: { id: string }; level: string }; through: string }>;
       assert.deepEqual(shares.filter((s) => s.through === "direct").map((s) => [s.grant.subject.id, s.grant.level]).sort(), [[bea.id, "edit"], [cal.id, "view"]].sort());
+      await sheet(A, "records-share-btn");
       await A.getByTestId("share-done").click();
       await A.getByTestId("records-share").waitFor({ state: "detached" });
     });
@@ -170,10 +178,10 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
       await C.getByTestId(`rec-${deals["Birch lease"]}`).dblclick();
       await C.getByTestId("record-page").waitFor({ timeout: 20_000 });
       assert.equal(await count(C, "record-share-btn"), 0);
+      await C.getByTestId("record-readonly").waitFor({ timeout: 15_000 });
       await C.getByTestId("title").click();
-      await C.getByTestId("edit-name").fill("Birch lease changed");
-      await C.getByTestId("edit-name").press("Enter");
-      await C.getByTestId("record-flash").waitFor({ timeout: 15_000 });
+      assert.equal(await count(C, "edit-name"), 0, "the title does not open for editing");
+      assert.equal(await count(C, "record-share-btn"), 0);
       await snap(C, "cal-cannot-edit");
       assert.equal((await api(ada, "records.get", { type: "rt_deal", recordId: deals["Birch lease"] })).record.fields.name, "Birch lease");
       await C.getByTestId("rail-records-selected").click().catch(() => undefined);
@@ -193,11 +201,12 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
       // one deal is Only me already, so the export has a row Cal cannot see
       await api(ada, "access.audience_set", { resource: { type: "record", id: deals["Dune expansion"] }, audience: "me" });
       await A.getByTestId("records-share-btn").click();
-      await A.getByTestId(`share-export-${cal.id}`).waitFor();
+      await A.getByTestId(`share-export-${cal.id}`).waitFor({ timeout: 15_000 }).catch(async (e: Error) => { await A.screenshot({ path: path.join(OUT, "debug-step7.png") }); throw e; });
       assert.equal(await A.getByTestId(`share-export-${cal.id}`).getAttribute("aria-checked"), "false");
       await A.getByTestId(`share-export-${cal.id}`).click();
       await A.waitForFunction((id: string) => document.querySelector(`[data-testid="share-export-${id}"]`)?.getAttribute("aria-checked") === "true", cal.id);
       await snap(A, "ada-export-for-cal");
+      await sheet(A, "records-share-btn");
       await A.getByTestId("share-done").click();
       await C.getByTestId("records-export-btn").waitFor({ timeout: 20_000 });
       await snap(C, "cal-export-button-appears");
@@ -214,6 +223,11 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
     });
 
     await t.test("8 Ada sets one deal to Only me: Bea and Cal lose it at once, without a refresh", async () => {
+      // back on the table, where the deal is on screen (both were on a record page)
+      for (const page of [B, C]) {
+        await page.getByRole("tab", { name: "Records" }).first().click().catch(async () => { await page.getByTestId("rail-records").or(page.getByTestId("rail-records-selected")).first().click(); });
+        await page.getByTestId(`rec-${deals["Cedar upsell"]}`).waitFor({ timeout: 20_000 });
+      }
       assert.ok(await count(B, `rec-${deals["Cedar upsell"]}`) > 0, "Bea has the deal on screen");
       assert.ok(await count(C, `rec-${deals["Cedar upsell"]}`) > 0, "Cal has the deal on screen");
       await A.getByTestId(`rec-${deals["Cedar upsell"]}`).dblclick();
@@ -222,6 +236,7 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
       await A.getByTestId("records-share").waitFor();
       await A.getByTestId("share-override").waitFor();
       await snap(A, "ada-record-follows-the-type");
+      await sheet(A, "record-share-btn");
       await A.getByTestId("share-override").click();
       await A.getByTestId("share-audience-pick-me").click();
       await A.waitForFunction(() => document.querySelector('[data-testid="share-audience-pick-me"]')?.getAttribute("aria-selected") === "true");
@@ -232,10 +247,12 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
       await snap(C, "cal-lost-the-deal");
       assert.equal((await post("records.get", { type: "rt_deal", recordId: deals["Cedar upsell"] }, bea.token)).status, 403);
       // back to following the type: the deal returns to both tables, still without a refresh
+      await sheet(A, "record-share-btn");
       await A.getByTestId("share-audience-pick-space").click();
       await B.getByTestId(`rec-${deals["Cedar upsell"]}`).waitFor({ timeout: 20_000 });
       await C.getByTestId(`rec-${deals["Cedar upsell"]}`).waitFor({ timeout: 20_000 });
       await snap(A, "ada-back-to-the-type");
+      await sheet(A, "record-share-btn");
       await A.getByTestId("share-done").click();
     });
 
@@ -248,6 +265,7 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
       await A.getByTestId("share-audience-pick-space").click();
       await A.waitForFunction(() => document.querySelector('[data-testid="share-audience-pick-space"]')?.getAttribute("aria-selected") === "true");
       await snap(A, "ada-everyone-again");
+      await sheet(A, "records-share-btn");
       await A.getByTestId("share-done").click();
       await D.getByTestId("row-nav:type:rt_deal").waitFor({ timeout: 20_000 });
       await snap(D, "dee-has-deals-again");
