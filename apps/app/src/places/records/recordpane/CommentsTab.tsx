@@ -22,6 +22,7 @@ export function CommentsTab({ type, recordId }: { type: string; recordId: string
   const api: CommentApi = useMemo(() => ({
     now: data.now, nameOf: data.nameOf, meId, people,
     add: async (text: string, mentions: Mention[], parentId?: string) => { await data.call("records.comments.add", { type, recordId, text, ...(parentId ? { parentId } : {}), ...(mentions.length ? { mentions } : {}), idempotencyKey: key() }); },
+    ...(data.files ? { attach: async (files: readonly { name: string; mime?: string; file?: unknown }[]) => { await data.files!.attach(files.map((f) => ({ name: f.name, mime: f.mime ?? "application/octet-stream", file: f.file as never })), { type, recordId, title: recordId }); } } : {}),
     edit: async (commentId: string, text: string) => { await data.call("records.comments.edit", { commentId, text }); },
     resolve: async (commentId: string, r: boolean) => { await data.call("records.comments.resolve", { commentId, resolved: r }); },
     remove: async (commentId: string) => { await data.call("records.comments.delete", { commentId }); },

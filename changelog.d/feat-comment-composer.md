@@ -1,0 +1,1 @@
+- Records: Comments use the shared Composer in a compact form: @ people and agents, # records and files, / commands (resolve a thread), and files that are stored in the record's Files and named under the comment. A refused post puts the text back and says so.
