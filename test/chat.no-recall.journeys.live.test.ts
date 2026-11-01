@@ -9,13 +9,15 @@ import { cli, connectSubscription } from "./support/cli-world.ts";
 
 const OUT = "shots-evidence/chat-streaming";
 // Known gap (see BACKLOG): the daemon's shutdown does not close the CLI session the engine opened (the CLI child, its MCP socket and egress proxy stay up), so this process would wait for the runner's
-// cap. When the journey passed it ends once the results are out; if it failed or skipped it is left alone so a failure is never hidden.
+// cap. The process ends 1.5 s after the journey with the exit code of its result, so a pass or a failure shows at once and not as the runner's cap.
 let passes = 0;
-after(() => { if (passes === 1) setTimeout(() => process.exit(0), 1_500); });
+let ran = false;
+after(() => { if (ran) setTimeout(() => process.exit(passes === 1 ? 0 : 1), 1_500); });
 
 test("a greeting recalls nothing: a reply to \"hi\" carries no Used line and no quote cards, though earlier chats hold \"hi\" and an imported session's preamble", async (t) => {
   const env = await browserOrSkip();
   if (typeof env === "string") { t.skip(env); return; }
+  ran = true;
   const s = await bootScreens({ kind: "personal", engineCli: cli }, env);
   const dir = `${OUT}/no-recall-cards`;
   try {

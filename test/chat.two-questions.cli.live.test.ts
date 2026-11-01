@@ -10,7 +10,7 @@ import { boot, call, connect, hostLog, makeAgent, seededDir, waitFor } from "./s
 const FAKE_CLI = fileURLToPath(new URL("../host/tests/fixtures/fake-cli-driver/fake-cli.mjs", import.meta.url));
 const cli = { command: { claude: [process.execPath, FAKE_CLI, "claude"] }, programRead: [path.dirname(FAKE_CLI)] };
 
-test("a second question asked while the turn is still open is answered, and the agent goes on", async () => {
+test("a second question asked while the turn is still open is answered, and the agent goes on", { timeout: 100_000 }, async () => {
   const dir = seededDir();
   const d = await boot(dir, null, { engineCli: cli });
   let passed = false;
@@ -49,7 +49,7 @@ test("a second question asked while the turn is still open is answered, and the 
     await d.stop();
     fs.rmSync(dir, { recursive: true, force: true });
     // Known gap (see BACKLOG): the daemon's shutdown does not close the CLI session the engine opened (the CLI child, its MCP socket and its egress proxy stay up), so this process would wait for the
-    // runner's cap. A passing run ends here once its results are out; a failing one is left alone so its failure is never hidden.
-    if (passed) setTimeout(() => process.exit(0), 1_500);
+    // runner's cap. The process ends here 1.5 s after the test, with the exit code of its result, so a pass or a failure shows at once and not as the runner's cap.
+    setTimeout(() => process.exit(passed ? 0 : 1), 1_500);
   }
 });
