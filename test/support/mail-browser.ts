@@ -94,30 +94,32 @@ export async function open(seatOf: Seat, s: Screens, route: string): Promise<voi
 }
 
 let shotCount = 0;
-/**
- * One step, up to four pictures: light and dark, desktop and phone. The phone width draws another shell, so what was open (a sheet, a panel) is gone when the page comes back to desktop:
- * `restore` puts it back. A step with typed text but no way to restore it passes `phone: false` and is shot at desktop width only.
- */
-export async function shoot(p: Page, dir: string, step: string, o: { phone?: boolean; restore?: () => Promise<void> } = {}): Promise<string[]> {
+/** One step, two pictures at desktop width: light and dark. Nothing here resizes the page, so what is open stays open. */
+export async function shoot(p: Page, dir: string, step: string): Promise<string[]> {
   const out: string[] = [];
   const n = String(++shotCount).padStart(2, "0");
   fs.mkdirSync(dir, { recursive: true });
-  const sizes = Object.entries(SIZES).filter(([size]) => o.phone !== false || size === "desktop");
-  for (const [size, vp] of sizes) {
-    for (const scheme of SCHEMES) {
-      await p.emulateMedia({ colorScheme: scheme });
-      if (p.viewportSize()?.width !== vp.width) { await p.setViewportSize(vp); await p.waitForTimeout(500); }
-      await p.waitForTimeout(250);
-      const file = path.join(dir, `${n}-${step}-${scheme}-${size}.png`);
-      await p.screenshot({ path: file, animations: "disabled" });
-      out.push(file);
-    }
-    if (size === "phone") {
-      await p.setViewportSize(SIZES.desktop);
-      await p.waitForTimeout(500);
-      if (o.restore) await o.restore();
-    }
+  for (const scheme of SCHEMES) {
+    await p.emulateMedia({ colorScheme: scheme });
+    await p.waitForTimeout(250);
+    const file = path.join(dir, `${n}-${step}-${scheme}-desktop.png`);
+    await p.screenshot({ path: file, animations: "disabled" });
+    out.push(file);
   }
   await p.emulateMedia({ colorScheme: "light" });
   return out;
+}
+
+/**
+ * The phone pass, at the end of a journey: the phone width draws another shell, so it is not done mid-flow. Each route is opened fresh at phone width and shot in light and dark.
+ * A route that cannot draw at phone width fails the journey like any other step.
+ */
+export async function phonePass(seatOf: Seat, s: Screens, dir: string, steps: { name: string; route: string }[]): Promise<void> {
+  await seatOf.page.setViewportSize(SIZES.phone);
+  for (const st of steps) {
+    await open(seatOf, s, st.route);
+    await seatOf.page.waitForTimeout(800);
+    await shoot(seatOf.page, dir, `phone-${st.name}`).then((files) => files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))));
+  }
+  await seatOf.page.setViewportSize(SIZES.desktop);
 }
