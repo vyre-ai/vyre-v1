@@ -58,14 +58,14 @@ test("Connect it to adds a relation to Contacts in one schema.apply, with both e
   schema.host?.close();
 });
 
-test("starter chips add Status, Owner, Due date, Amount and Notes fields with one apply", async () => {
-  assert.deepEqual(STARTER_FIELDS.map((f) => f.title), ["Status", "Owner", "Due date", "Amount", "Notes"]);
+test("every starter chip makes its field with one apply", async () => {
+  assert.deepEqual(STARTER_FIELDS.map((f) => f.title), ["Email", "Phone", "Date", "Due date", "Close date", "Amount", "Number", "Stage", "Status", "Choice", "Multi choice", "Checkbox", "Owner", "Files", "URL", "Notes", "Rating"]);
   const { call, schema } = await realCall();
   const made = createTypeOps({ name: "Deal", plural: "", icon: "table", takenKeys: [], starters: STARTER_FIELDS.map((f) => f.key) });
   const staged = await stageChange(call, made.ops);
   assert.ok(staged.ok, staged.ok ? "" : staged.error);
   assert.ok((await commitChange(call, (staged as { ok: true; staged: Parameters<typeof commitChange>[1] }).staged)).ok);
   const deal = ((await call("schema.types.get", { type: "deal" })) as { type: { fields: { key: string; type: string }[] } }).type;
-  assert.deepEqual(deal.fields.map((f) => [f.key, f.type]), [["name", "text"], ["status", "status"], ["owner", "person"], ["due_date", "datetime"], ["amount", "money"], ["notes", "longtext"]]);
+  assert.deepEqual(deal.fields.map((f) => [f.key, f.type]), [["name", "text"], ...STARTER_FIELDS.map((f) => [f.key === "multichoice" ? "multi_choice" : f.key, f.type])]);   // the field key comes from its title, Multi choice
   schema.host?.close();
 });
