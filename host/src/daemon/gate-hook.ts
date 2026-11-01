@@ -26,6 +26,8 @@ export interface GateHookDeps {
    */
   evaluators?: Record<string, (input: unknown, seed: Pick<CtxSeed, "principal">) => boolean | Promise<boolean>>;
   /** The held row an approval names (the host owns modules.db): who asked, whom for, run and thread, the stored payload hash and its state. Null when there is none. */
+  /** What a capability that can go out without saying so does on this call: the act and where it goes. Null when this call stays here. */
+  outward?(cap: string, input: unknown): { act: string; targets: string[] } | null;
   /** A thread and the threads above it, nearest first: a Job works under the chat that asked for it. */
   threads?(id: string): string[];
   hold(id: string): { state: string; principalKind: string; principalId: string; actingFor?: string | undefined; run?: string | undefined; thread?: string | undefined; payloadHash: string } | null;
@@ -71,22 +73,27 @@ function claimsOf(d: Pick<GateHookDeps, "unseal">, token: string): Claims | null
 export function createGateHook(d: GateHookDeps): GateHook {
   return {
     async applies(cap, input, seed) {
-      const act = cap.gate?.act;
-      if (!act || act === "none") return null;
+      const declared = cap.gate?.act;
+      if (!declared || declared === "none") return null;
       // A step of an automation is the automation's act, not a person's, even when the Run runs as its owner: a condition that lets a person's own act through does not let a step through, and an outward
       // act needs a grant. Only a person's press makes one, so an automation an agent made or edited stops here (chat design, hole 1).
       const asked = seed.step ? { principal: { kind: "service" as const, id: seed.step.automationId } } : seed;
-      if (!(await appliesWhen(d, cap.gate?.when, input, asked))) return null;
+      const when = await appliesWhen(d, cap.gate?.when, input, asked);
+      // A capability that can go out without saying so (a terminal command) names what this call does. A person's own command is their own act.
+      const said = when ? null : d.outward?.(cap.name, input) ?? null;
+      if (!when && (said === null || (seed.principal.kind === "person" && !seed.step))) return null;
+      const act = said?.act ?? declared;
+      const targets = said?.targets ?? targetsOf(input);
       if (seed.step && OUTWARD_ACTS.has(act)) {
         if (seed.step.ask === true) return { act };
-        const g = (await d.call("gate.grants.take", { act, targets: targetsOf(input), step: seed.step })) as { granted?: unknown } | null;
+        const g = (await d.call("gate.grants.take", { act, targets, step: seed.step })) as { granted?: unknown } | null;
         if (g?.granted !== true) return { act };
       }
       const r = (await d.call("gate.effective_rule", { principal: { kind: seed.principal.kind, id: seed.principal.id }, act, ...(seed.gateMode === "admin_only" ? { adminOnly: true } : {}) })) as { hold?: unknown; adminRule?: unknown } | null;
       if (r?.hold !== true) return null;
       // Auto, and the person's own message this turn asked for this act and target: the default hold lifts, once. A rule somebody wrote still holds. Money stays a Need in every mode (chat design, hole 3).
       if (r.adminRule !== true && seed.chatMode === "auto" && act !== "pay" && OUTWARD_ACTS.has(act) && seed.actingFor?.startsWith("usr_") && seed.thread) {
-        const g = (await d.call("gate.grants.take", { act, targets: targetsOf(input), turn: { person: seed.actingFor, threads: d.threads?.(seed.thread) ?? [seed.thread] } })) as { granted?: unknown } | null;
+        const g = (await d.call("gate.grants.take", { act, targets, turn: { person: seed.actingFor, threads: d.threads?.(seed.thread) ?? [seed.thread] } })) as { granted?: unknown } | null;
         if (g?.granted === true) return null;
       }
       return { act };
@@ -123,10 +130,22 @@ export function createGateHook(d: GateHookDeps): GateHook {
 }
 
 /** The Gate's module conditions for the live modules that export one: `git.is_protected` over the git module's `isProtectedCall`, `terminal.is_danger` over the terminal module's `isDangerCall`. Called as the Space itself. */
+/** What a terminal command sends out, from the terminal module's reading of its words. */
+export function moduleOutward(exports: ReadonlyMap<string, Record<string, unknown>>): NonNullable<GateHookDeps["outward"]> {
+  const read = exports.get("terminal")?.["outwardOf"];
+  return (cap, input) => {
+    if (cap !== "terminal.run" || typeof read !== "function") return null;
+    const command = (input as { command?: unknown } | null)?.command;
+    return typeof command === "string" ? (read as (c: string) => { act: string; targets: string[] } | null)(command) : null;
+  };
+}
+
 export function moduleWhens(
   exports: ReadonlyMap<string, Record<string, unknown>>, db: () => ScopedDb | null, call: (cap: string, input: unknown) => Promise<unknown>,
 ): NonNullable<GateHookDeps["evaluators"]> {
   const out: NonNullable<GateHookDeps["evaluators"]> = {};
+  // an agent's delete inside work/ on its own computer is its own change; anywhere else asks
+  out["computers.deletes_outside_work"] = (input, seed) => seed.principal.kind !== "person" && !/^work\/(?!.*\.\.)/.test(String((input as { path?: unknown } | null)?.path ?? ""));
   const fn = exports.get("git")?.["isProtectedCall"];
   if (typeof fn === "function") {
     const isProtected = fn as (ctx: { db: ScopedDb; call: typeof call }, input: unknown) => Promise<boolean>;

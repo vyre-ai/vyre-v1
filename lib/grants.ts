@@ -57,7 +57,7 @@ export async function definitionHash(definition: unknown): Promise<string> {
 export function namedCovers(named: string, target: string): boolean {
   if (named === target) return true;
   const n = named.toLowerCase(), t = target.toLowerCase();
-  if (t.endsWith(`/${n}`) || t.endsWith(`.${n}`)) return true;
+  if (t.endsWith(`/${n}`) || t.startsWith(`${n}/`) || t.endsWith(`.${n}`)) return true;
   const [local, domain] = t.split("@");
   if (domain === undefined) return false;
   return (local ?? "").split(/[._+-]/).includes(n) || domain.split(".").includes(n);

@@ -51,7 +51,7 @@ function stepCovered(ctx: GateCtx, step: StepRef, act: string, targets: readonly
   return held.has(ANY_TARGET) || (targets.length > 0 && targets.every((t) => held.has(t)));
 }
 
-/** Spend the person's own ask on this call. Every target must be one they named. A request that named none covers any target, once, in a thread no outside content has reached. */
+/** Spend the person's own ask on this call. Every target must be one they named. A request that named none covers any target, and a call that shows none (a crew push, a saved draft) takes any ask for its act: once, and only in a thread no outside content has reached, because nothing checks where it goes. */
 function turnSpent(ctx: GateCtx, act: string, targets: readonly string[], turn: { person: string; threads: string[] }): boolean {
   const marks = turn.threads.map(() => "?").join(", ");
   const taint = ctx.db.all(`SELECT cleared_at FROM gate_taint WHERE thread_id IN (${marks})`, ...turn.threads) as unknown as { cleared_at: number | null }[];
@@ -59,7 +59,8 @@ function turnSpent(ctx: GateCtx, act: string, targets: readonly string[], turn: 
   const rows = ctx.db.all(`SELECT id, target FROM gate_grants WHERE kind = 'turn' AND person = ? AND act = ? AND used_at IS NULL AND expires_at > ? AND thread_id IN (${marks}) ORDER BY created_at ASC, id ASC`,
     turn.person, act, ctx.now(), ...turn.threads) as unknown as { id: string; target: string }[];
   const named = targets.map((t) => rows.find((r) => r.target !== "" && namedCovers(r.target, t)));
-  const spend = targets.length > 0 && named.every((r) => r !== undefined) ? named.map((r) => r!.id) : taint.length === 0 ? rows.filter((r) => r.target === "").slice(0, 1).map((r) => r.id) : [];
+  const loose = targets.length === 0 ? rows : rows.filter((r) => r.target === "");
+  const spend = targets.length > 0 && named.every((r) => r !== undefined) ? named.map((r) => r!.id) : taint.length === 0 ? loose.slice(0, 1).map((r) => r.id) : [];
   if (spend.length === 0) return false;
   let won = 0;
   for (const id of new Set(spend)) won += ctx.db.run("UPDATE gate_grants SET used_at = ? WHERE id = ? AND used_at IS NULL", ctx.now(), id).changes;

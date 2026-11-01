@@ -79,7 +79,7 @@ import type { FetchFn, ProbeName, ProbeResult } from "../platform/probes.ts";
 import { Scheduler } from "../scheduler/index.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
-import { createGateHook, moduleWhens } from "./gate-hook.ts";
+import { createGateHook, moduleOutward, moduleWhens } from "./gate-hook.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { createComputersFillHost, createFillRoute } from "../seams/computers.ts";
 import { homeCallAllowed, homeScopeOf } from "./home-confine.ts";
@@ -728,6 +728,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           },
           unseal: (s) => seal.unseal(s), now,
           evaluators: moduleWhens(loaded.moduleExports, () => db, (cap, input) => system(cap, input)),
+          outward: moduleOutward(loaded.moduleExports),
           threads: (id) => {
             const chain = [id];
             for (let cur = id, i = 0; i < 8; i++) {

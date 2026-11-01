@@ -76,3 +76,30 @@ test("money and a non-outward act are never lifted by an ask", async () => {
     assert.equal(takes().length, 0);
   }
 });
+
+const terminal = { name: "terminal.run", v: 1, gate: { act: "approve", when: "terminal.is_danger(input.command)" } } as unknown as CapabilityDef;
+function shell(o: { granted?: boolean; rule?: { hold: boolean; adminRule?: boolean } } = {}) {
+  const taken: Record<string, unknown>[] = [];
+  const h = createGateHook({
+    call: async (cap, i) => { if (cap === "gate.grants.take") taken.push(i as Record<string, unknown>); return cap === "gate.effective_rule" ? (o.rule ?? { hold: true }) : { granted: o.granted === true }; },
+    unseal: () => new Uint8Array(), now: () => 0, hold: () => null,
+    evaluators: { "terminal.is_danger": (i) => /--force/.test(String((i as { command: string }).command)) },
+    outward: (_cap, i) => (/git push/.test(String((i as { command: string }).command)) ? { act: "push_protected", targets: ["origin/main"] } : null),
+  });
+  return { h, taken };
+}
+
+test("an agent's outward command follows the outward rule; a plain command runs", async () => {
+  assert.deepEqual(await shell().h.applies(terminal, { command: "git push origin main" }, agent), { act: "push_protected" });
+  assert.equal(await shell().h.applies(terminal, { command: "ls" }, agent), null);
+  const asked = shell({ granted: true });
+  assert.equal(await asked.h.applies(terminal, { command: "git push origin main" }, agent), null, "the person asked");
+  assert.deepEqual(asked.taken[0], { act: "push_protected", targets: ["origin/main"], turn: { person: "usr_noah", threads: ["thr_job"] } });
+});
+
+test("a person's own command is their own act; a red command stays red even when asked", async () => {
+  assert.equal(await shell().h.applies(terminal, { command: "git push origin main" }, person), null);
+  const red = shell({ granted: true });
+  assert.deepEqual(await red.h.applies(terminal, { command: "git push --force" }, agent), { act: "approve" });
+  assert.equal(red.taken.length, 0);
+});

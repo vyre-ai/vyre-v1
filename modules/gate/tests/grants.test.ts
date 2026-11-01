@@ -102,3 +102,10 @@ test("a person may ask for the same thing twice in one replayed message: one row
   assert.equal(await granted(take(h, ["lee@acme.test"])), true);
   assert.equal(await granted(take(h, ["lee@acme.test"])), false);
 });
+
+test("a call that shows no target takes any ask for its act, once, in a clean thread", async () => {
+  const h = harness();
+  await ask(h, "msg_1", [{ act: "push_protected", target: "main" }]);
+  assert.equal(await granted(take(h, [], ["thr_chat"], "push_protected")), true);
+  assert.equal(await granted(take(h, [], ["thr_chat"], "push_protected")), false);
+});

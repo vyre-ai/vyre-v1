@@ -51,4 +51,5 @@ test("a name covers an address it is part of, and nothing wider", () => {
   assert.equal(namedCovers("lee@acme.test", "lee@evil.test"), false);
   assert.equal(namedCovers("site", "acme/site"), true);
   assert.equal(namedCovers("main", "origin/main"), true);
+  assert.equal(namedCovers("origin", "origin/main"), true);
 });

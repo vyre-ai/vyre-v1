@@ -252,7 +252,7 @@ export default defineManifest({
       in: { ...optComp, from: t.str(), to: t.str() }, out: { ok: t.bool() }, ...local({ mcpName: 'computer_files_move', idem: 'none', risk: 'medium' }),
     }),
     write('computers.files.delete', 'Delete a file from the agent Files folder; always asks outside work/', {
-      in: { ...optComp, path: t.str() }, out: { ok: t.bool() }, ...local({ mcpName: 'computer_files_delete', idem: 'none', risk: 'high', gate: { act: 'delete', when: "actor.kind != 'person'" } }),
+      in: { ...optComp, path: t.str() }, out: { ok: t.bool() }, ...local({ mcpName: 'computer_files_delete', idem: 'none', risk: 'high', gate: { act: 'delete', when: 'computers.deletes_outside_work(input.path)' } }),
     }),
   ],
   events: [

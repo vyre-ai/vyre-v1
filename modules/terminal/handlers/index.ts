@@ -22,3 +22,4 @@ export const handlers = {
   "terminal.health": health,
 };
 export { isDangerCall } from "./sessions.ts";
+export { fetchesOutside, outwardOf } from "../risk.ts";

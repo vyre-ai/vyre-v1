@@ -32,7 +32,7 @@ const DANGER: ReadonlyArray<RegExp> = [
   /\bdocker\s+(system\s+prune|volume\s+(rm|prune)|rm\s+-f|rmi\s+-f)\b/, /\bkubectl\s+(delete|drain|cordon)\b/,
   /\b(curl|wget)\b[^|;&]*\|\s*(sudo\s+)?(ba|z|da)?sh\b/, /:\(\)\s*\{/,
   />\s*\/dev\/(sd|nvme|disk|hd)/, /\b(iptables|ufw|nft)\b/, /\bcrontab\s+-r\b/, /\bpasswd\b|\bvisudo\b|\buserdel\b|\bdeluser\b/,
-  /\bkill\s+-9\s+(-1|1)\b|\bkillall\b|\bpkill\s+-9\b/, /\bsystemctl\s+(stop|disable|mask)\b/, /\bnpm\s+publish\b|\bcargo\s+publish\b/,
+  /\bkill\s+-9\s+(-1|1)\b|\bkillall\b|\bpkill\s+-9\b/, /\bsystemctl\s+(stop|disable|mask)\b/,
 ];
 
 const words = (p: string): string[] => p.trim().split(/\s+/).filter((x) => x !== "");
@@ -83,3 +83,49 @@ export function judged(rules: Rules, command: string): Judged {
 
 /** The Gate's condition on terminal.run: an agent's red command is held for a yes, in every mode. */
 export const isDangerous = (command: string): boolean => riskOf(command) === "danger";
+
+// ---- commands that go outward (chat design, hole 4) ----
+
+export interface Outward { act: "send" | "post" | "push_protected"; targets: string[] }
+
+const hostOf = (raw: string): string => { try { return new URL(/^[a-z]+:\/\//i.test(raw) ? raw : `https://${raw}`).hostname.toLowerCase(); } catch { return raw.toLowerCase(); } };
+const hostsIn = (p: string): string[] => [...new Set([...p.matchAll(/\bhttps?:\/\/[^\s'"]+/gi)].map((m) => hostOf(m[0])))];
+const repoFlag = (p: string): string[] => { const m = /(?:^|\s)(?:--repo|-R)[\s=]+(\S+)/.exec(p); return m ? [m[1]!.toLowerCase()] : []; };
+const CURL_SENDS = /\s(-d|--data\S*|--json|-F|--form\S*|-T|--upload-file|-[a-zA-Z]*[dFT])(\s|=|$)|\s(-X|--request)[\s=]*['"]?(POST|PUT|PATCH|DELETE)\b/;
+
+/** What one simple command sends out. Null when it reaches nobody. */
+function partOutward(raw: string): Outward | null {
+  const w = words(raw);
+  while (w.length > 0 && (/^[A-Za-z_][A-Za-z0-9_]*=/.test(w[0]!) || ["env", "command", "time", "nice", "nohup", "exec"].includes(w[0]!))) w.shift();
+  if (w[0] === undefined || READ.has(w[0])) return null;
+  const p = w.join(" ");
+  const push = /\bgit\b(?:\s+-[cC]\s+\S+)*\s+push\b(.*)$/.exec(p);
+  if (push) { const to = (push[1] ?? "").trim().split(/\s+/).filter((x) => x !== "" && !x.startsWith("-")).map((x) => x.toLowerCase()); return { act: "push_protected", targets: to.length > 0 ? [to.slice(0, 2).join("/")] : [] }; }
+  if (/\bgh\s+(pr\s+(create|merge|comment|review|close|edit)|issue\s+(create|comment|close|edit)|release\s+(create|upload|edit)|repo\s+(create|edit|delete)|gist\s+create)\b/.test(p)) return { act: "post", targets: repoFlag(p) };
+  if (/\bgh\s+api\b/.test(p) && /\s(-X|--method)[\s=]*(POST|PUT|PATCH|DELETE)\b|\s(-f|-F|--field|--raw-field|--input)(\s|=)/.test(p)) return { act: "post", targets: repoFlag(p) };
+  if (/\b(npm|pnpm|yarn|bun|cargo|gem|twine|poetry)\s+(publish|upload|push)\b|\bdocker\s+push\b|\bhelm\s+push\b/.test(p)) return { act: "post", targets: [] };
+  if (/\bcurl\b/.test(p) && CURL_SENDS.test(` ${p}`)) return { act: "send", targets: hostsIn(p) };
+  if (/\bwget\b/.test(p) && /\s--(post-data|post-file|body-data|body-file|method)\b/.test(p)) return { act: "send", targets: hostsIn(p) };
+  const remote = /\b(ssh|scp|sftp|rsync)\b/.exec(p);
+  if (remote && (remote[1] === "ssh" || remote[1] === "sftp" || /\S+@?\S*:\S*/.test(p))) {
+    const rest = p.slice(remote.index + remote[1]!.length).split(/\s+/).filter((x) => x !== "" && !x.startsWith("-"));
+    const named = rest.map((x) => /^(?:[\w.-]+@)?([\w.-]+):/.exec(x)?.[1] ?? /^[\w.-]+@([\w.-]+)$/.exec(x)?.[1]).find((x) => x !== undefined);
+    const host = named ?? (remote[1] === "ssh" || remote[1] === "sftp" ? rest[0] : undefined);
+    return { act: "send", targets: host ? [host.toLowerCase()] : [] };
+  }
+  if (/\b(sendmail|mutt|mailx)\b/.test(p) || /^mail\s/.test(p)) return { act: "send", targets: [] };
+  return null;
+}
+
+/** The first outward part of a command line, read through `sh -c "..."`. A reading of the words: a command hidden from it (an encoded script, a program that sends on its own) is not caught here. */
+export function outwardOf(command: string): Outward | null {
+  const inner = command.replace(/\b(?:ba|z|da)?sh\s+-[a-z]*c\s+(['"])(.*?)\1/g, "$2");
+  for (const part of segmentsOf(inner)) {
+    const o = partOutward(part);
+    if (o) return o;
+  }
+  return null;
+}
+
+/** The command brings text from outside into the turn: a download that sends nothing. */
+export const fetchesOutside = (command: string): boolean => outwardOf(command) === null && /\b(curl|wget|http|lynx|links)\b[^|;&]*(https?:\/\/|\bwww\.)/i.test(command);
