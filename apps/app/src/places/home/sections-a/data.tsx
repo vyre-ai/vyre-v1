@@ -19,6 +19,8 @@ export interface HomeNav {
   openActivity(): void;
   openAgent(agentId: string): void;
   openSubject(subject: { type: string; id: string }): void;
+  /** The Inbox: the list of conversations, or the senders waiting for a match. */
+  openInbox?(which: "unread" | "match"): void;
 }
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }

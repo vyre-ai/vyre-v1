@@ -12,6 +12,7 @@ import { SettingsPlace } from "../../places/settings/SettingsPlace.tsx";
 import { PAGES } from "../../places/settings/model.ts";
 import type { PageKey } from "../../places/settings/model.ts";
 import { usePlaceHash } from "../hash/context.tsx";
+import { applySkinToWindow } from "./settings-skin.ts";
 import { nameOf } from "./misc-common.ts";
 import { chooseProfilePhoto } from "./settings-photo.ts";
 import { loadSecurity } from "./settings-security.ts";
@@ -53,6 +54,7 @@ export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["man
       openSpace: (id) => rt.open({ screen: "spaces.switcher", args: { id } }),
       connect: (kind) => kind === "twilio" ? rt.open({ screen: "vault.layout", args: { add: "twilio" } }) : rt.open({ screen: "settings.page", args: { page: "connections" } }),
       choosePhoto: () => chooseProfilePhoto(rt),
+      applySkin: (skinId) => void applySkinToWindow(rt, skinId),
       ...(manageSecurity ? { manageSecurity } : {}),
     },
     clock: () => rt.clock(),

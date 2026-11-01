@@ -17,6 +17,7 @@ export interface ComputersHostSeam {
     putBytes(url: string, bytes: Uint8Array): Promise<void>;
     intervalMs?: number;
     manifest(agentId: string): string;
+    announce?: (a: { agentId: string; computerId: string; files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }> }) => Promise<boolean | void>;
     log?: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => void;
   };
   /** How long a wake waits for agentd (Xvfb and Chromium start before it answers). */
@@ -33,6 +34,8 @@ export interface ComputersHostDeps {
   callAs?: (agentId: string, cap: string, input: unknown) => Promise<unknown>;
   /** Send bytes to an upload url that files.upload_url handed out. */
   putBytes?: (url: string, bytes: Uint8Array) => Promise<void>;
+  /** Said once when the agent has made files on its computer: the daemon puts a file card in the chat the work was for. */
+  announce?: (a: { agentId: string; computerId: string; files: Array<{ fileId: string; name: string; kind: string; size: number; version: number }> }) => Promise<boolean | void>;
   /** How often a pass runs while a computer is awake. Default 3 s. */
   homeIntervalMs?: number;
   log?: (level: "info" | "warn", msg: string, attrs?: Record<string, unknown>) => void;
@@ -46,7 +49,7 @@ export function createComputersHost(d: ComputersHostDeps): ComputersHostSeam {
     ...(d.socketPath !== undefined ? { socketPath: d.socketPath } : {}),
     image: d.image ?? process.env["VYRE_AGENT_COMPUTER_IMAGE"] ?? "vyre/agent-computer:1",
     startTimeoutMs: d.startTimeoutMs ?? 120_000,
-    ...(d.callAs && d.putBytes ? { home: { callAs: d.callAs as never, putBytes: d.putBytes, ...(d.homeIntervalMs !== undefined ? { intervalMs: d.homeIntervalMs } : {}), manifest: (agentId: string) => path.join(root, agentId, "home-manifest.json"), ...(d.log ? { log: d.log } : {}) } } : {}),
+    ...(d.callAs && d.putBytes ? { home: { callAs: d.callAs as never, putBytes: d.putBytes, ...(d.homeIntervalMs !== undefined ? { intervalMs: d.homeIntervalMs } : {}), manifest: (agentId: string) => path.join(root, agentId, "home-manifest.json"), ...(d.announce ? { announce: d.announce } : {}), ...(d.log ? { log: d.log } : {}) } } : {}),
     filesRoot(agentId) {
       if (!AGENT_ID.test(agentId)) return null;
       // the parent stays private to the daemon's user; the folder itself is open to the computer's own user (uid 10001), which only the bind mount can reach

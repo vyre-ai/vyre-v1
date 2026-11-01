@@ -26,6 +26,7 @@ Resume sync of a type
 ```ts
 type In = {
   type: string;
+  account?: string;
 };
 ```
 
@@ -52,6 +53,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "account": "example",
     "type": "contact"
   },
   "output": {

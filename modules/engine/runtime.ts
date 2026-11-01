@@ -6,6 +6,7 @@ import type { TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { AccountQuery, EngineEvent, OpenSession, ResolvedAccount, TurnRow } from "../../agent/src/turn-engine/types.ts";
 import { open } from "./handlers/control.ts";
 import { bindBridge, createBridge } from "./handlers/bridge.ts";
+import { createCrewWatcher } from "./crew-watch.ts";
 import type { StreamEvent } from "./handlers/bridge.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { createEngineApiTools } from "./api-tools.ts";
@@ -86,7 +87,8 @@ let closeOpener: (() => Promise<void>) | null = null;
 /** The module's seam: the daemon calls this at boot with the host half (null at shutdown). */
 export function setEngineHost(h: EngineHostSeam | null): void {
   if (h === null) void closePluginRuntime();   // plugin servers end with the daemon
-  if (h === null && closeOpener) void closeOpener().catch(() => undefined);   // processes end and MCP tokens are revoked at shutdown
+  // At shutdown the engine processes end and MCP tokens are revoked, and then the default sandbox's wall (its egress proxy) stops: the proxy outlives nothing it served, and nothing keeps the daemon's process alive.
+  if (h === null) void (closeOpener ? closeOpener().catch(() => undefined) : Promise.resolve()).then(() => closeDefaultSandbox()).catch(() => undefined);
   closeOpener = null;
   host = h;
   building = null;
@@ -215,6 +217,9 @@ export async function closeDefaultSandbox(): Promise<void> { const d = defaultBu
 export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | null> {
   bindOauthStore(ctx as never);   // the sealed MCP sign-in tokens are read through the module's own ctx (db, seal, clock)
   if (!host || (!host.openSession && !host.session)) return Promise.resolve(null);   // no way to open a session: the control handlers keep answering internal.unavailable
+  // One runtime per host: every call after the first answers with it. The opener below is part of it; building another on each call left the first one, the one with the live CLI sessions, unreachable
+  // for closeOpener, so Quit closed an empty pool and the engine process, its MCP socket and its egress proxy outlived the daemon.
+  if (building) return building;
   const h = host;
   const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call), call: h.call, plugins: createPluginTools({ call: h.call, runtime: pluginRuntime, ...(h.log ? { log: h.log } : {}) }) }) : undefined;
   const opener = host.openSession ? null : buildOpener({ ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.cli?.probe ? { cliProbe: host.cli.probe } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, host.cli?.programRead) } : {}) });
@@ -231,7 +236,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   closeOpener = opener ? async () => { await opener.close(); await Promise.all([...nodeOpeners.values()].map((o) => o.close())); } : null;
   building ??= (async () => {
     const now = h.now ?? Date.now;
-    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, ...(h.stream ? { stream: h.stream } : {}), addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
+    const crewWatch = h.postAs ? createCrewWatcher({ db: ctx.db, host: h, now }) : null;
+    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, stream: (e) => { h.stream?.(e); crewWatch?.(e); }, addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
     // The turn context is built as the asker before each turn (modules/engine/context.ts); what the agent waits on is read off the engine once it exists.
     let live: TurnEngine | null = null;
     const turnContext = createContextBuilder({
@@ -294,17 +300,25 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     bindStepOpen(openSession);
     bindBridge(bridge);
     // threads with work a dead host left: queued or running rows with no live lease
-    const stale = ctx.db.all("SELECT DISTINCT thread_id FROM engine_thread_queue WHERE state IN ('queued', 'running')") as Array<{ thread_id: string }>;
-    for (const r of stale) {
-      try {
-        await open(ctx as EngineCtx, r.thread_id);
-        engine.recover(r.thread_id);
-      } catch { /* a thread that cannot be opened now is opened by its next message */ }
-    }
+    await recoverStale(ctx, engine, ["queued", "running"]);
     void closeNoAccountTasks(ctx.db).catch((e) => h.log?.("the no-account sweep failed", { error: e instanceof Error ? e.message : String(e) }));
     return engine;
   })().catch((e) => { building = null; throw e; });
   return building;
+}
+
+/**
+ * Threads with work a dead host left: rows still marked running (or queued) whose lease nobody beats any more. At boot this runs once, but a restart inside the lease's 20 seconds finds the dead host's lease still
+ * alive and recover() answers false, so the sweep runs again from the periodic job until the lease has run out. A turn this host is running keeps its own lease, so it is never touched.
+ */
+export async function recoverStale(ctx: Pick<EngineCtx, "db">, engine: TurnEngine, states: readonly string[] = ["running"]): Promise<void> {
+  const stale = ctx.db.all(`SELECT DISTINCT thread_id FROM engine_thread_queue WHERE state IN (${states.map(() => "?").join(", ")})`, ...states) as Array<{ thread_id: string }>;
+  for (const r of stale) {
+    try {
+      await open(ctx as EngineCtx, r.thread_id);
+      engine.recover(r.thread_id);
+    } catch { /* a thread that cannot be opened now is opened by its next message */ }
+  }
 }
 
 /** The person answered an Unblock (the task is done): wake the agent that had no account, in the same thread. */

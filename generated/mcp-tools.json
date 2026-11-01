@@ -9696,6 +9696,9 @@
             "pattern": "^fld_[a-z0-9]+$",
             "type": "string"
           },
+          "governance": {
+            "type": "boolean"
+          },
           "limit": {
             "maximum": 500,
             "minimum": 1,
@@ -10076,6 +10079,79 @@
     },
     {
       "blocks": [],
+      "cap": "chat.aside",
+      "deferred": false,
+      "description": "Ask a side question (/btw) while an agent works: it runs as a separate short read-only turn on your own account with what this chat knows, in a hidden thread; nothing is written into this chat and the agent working here does not see it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "question": {
+            "description": "The question, up to 2000 characters",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "question",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_aside",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.aside_keep",
+      "deferred": false,
+      "description": "Keep the answer of an aside: it is posted into the chat it came from as one card from you",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "asideThreadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "asideThreadId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_aside_keep",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.ask_level",
       "deferred": false,
       "description": "The level the caller has on the object an Ask pane is about (view, use, edit or manage), null when none: the Ask pane's tools never go past it",
@@ -10159,6 +10235,32 @@
         "type": "object"
       },
       "name": "chat_asks_of",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.catch_up",
+      "deferred": false,
+      "description": "What you missed in a thread since you last read it: counts, who wrote, tasks and decisions that landed, and messages with an @ in them. A plain read, kept until something new arrives",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "chat_catch_up",
       "planMode": "allowed",
       "toolset": "chats",
       "v": 1
@@ -10275,6 +10377,48 @@
     },
     {
       "blocks": [],
+      "cap": "chat.flow_card",
+      "deferred": false,
+      "description": "Leave the card of a drafted Flow in its chat: its name, what it does in plain words and Turn on and Test buttons. Written by the server from the draft itself; only a draft gets one",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "automationId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_flow_card",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.fork",
       "deferred": false,
       "description": "Branch a chat at one message: a new private chat that holds a copy of everything up to there, with the same agents and a line that links back",
@@ -10340,6 +10484,55 @@
       },
       "name": "chat_helpers_list",
       "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.make_task",
+      "deferred": false,
+      "description": "Turn a message into a task: the title is its first line, the task points back at it and a \"Task created\" card in the thread links to the task. An agent may do it for the person it acts for",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "assigneeId": {
+            "description": "A person or an agent in this chat; default the asker",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "messageId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_make_task",
+      "planMode": "blocked",
       "toolset": "chats",
       "v": 1
     },
@@ -10880,6 +11073,52 @@
     },
     {
       "blocks": [],
+      "cap": "chat.remember",
+      "deferred": false,
+      "description": "Remember a message as a fact in the memory of the project this chat belongs to (else your own), sourced to the message; a \"Remembered for ...\" card in the thread links to the fact. A shared layer keeps its review rule",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "text": {
+            "description": "The words to keep; default the message",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "messageId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_remember",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.screen.get",
       "deferred": false,
       "description": "The screen context the person sent with a message (or the latest in the thread): the place, open objects, selection, filters and a summary of visible rows",
@@ -10950,6 +11189,60 @@
       },
       "name": "chat_search",
       "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.share",
+      "deferred": false,
+      "description": "Share a message to another chat (a channel or a person): a card there carries it, and a card here says where it went; both open the other chat. You must be able to write in the chat it goes to",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "to": {
+            "description": "A name for the place it went (a channel name); default the chat itself",
+            "type": "string"
+          },
+          "toThreadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "messageId",
+          "toThreadId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "chat_share",
+      "planMode": "blocked",
       "toolset": "chats",
       "v": 1
     },
@@ -13845,6 +14138,9 @@
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "account": {
+            "type": "string"
+          },
           "cursor": {
             "type": "string"
           },
@@ -14061,6 +14357,9 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "account": {
+            "type": "string"
+          },
           "connectionId": {
             "examples": [
               "con_a1b2c3"
@@ -15159,6 +15458,277 @@
       "name": "contacts_suppression_remove",
       "planMode": "blocked",
       "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.crew.list",
+      "deferred": false,
+      "description": "The crew of a chat: one row per teammate job, newest first, with what each is on and how it stands",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "crew_list",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.crew.merge",
+      "deferred": false,
+      "description": "Land a teammate's branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. A person presses Merge; an agent asking holds at the Gate",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "crew_merge",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.crew.message",
+      "deferred": false,
+      "description": "Send a message to a teammate in its own thread; a teammate that stopped picks up where it left off",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId",
+          "body",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "crew_message",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.crew.push",
+      "deferred": false,
+      "description": "Push the project repository's base branch, with a teammate's merged work in it, to its remote. It is an outward act from the host and always holds at the Gate for a person's approval",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "crew_push",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "helper"
+      ],
+      "cap": "engine.crew.start",
+      "deferred": false,
+      "description": "Start a teammate on a brief: it gets its own thread under this chat and its own copy of the project repository on its own branch, and works until it is done",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "brief": {
+            "type": "string"
+          },
+          "effort": {
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "max"
+            ],
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "teammateId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "projectId",
+          "teammateId",
+          "title",
+          "brief",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "crew_start",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.crew.stop",
+      "deferred": false,
+      "description": "Stop a teammate: its running turn ends and anything queued for it is dropped; its work stays on its branch",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "crew_stop",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.crew.wait",
+      "deferred": false,
+      "description": "Wake me when the checks of a pull request end: the host looks at them, not the model, shows the progress in the Crew tab, and posts one message here that wakes the lead when they finish",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "number": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "repo": {
+            "examples": [
+              "acme/site"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "repo",
+          "number",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "crew_wait",
+      "planMode": "blocked",
+      "toolset": "chats",
       "v": 1
     },
     {
@@ -16510,6 +17080,71 @@
     },
     {
       "blocks": [],
+      "cap": "engine.crew.repo.get",
+      "deferred": false,
+      "description": "The project's repository for the crew, or nothing when none is set",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_crew_repo_get",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.crew.repo.set",
+      "deferred": false,
+      "description": "Say which folder on this computer holds the project's repository, and the branch teammates start from; the folder must be a git repository",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "baseBranch": {
+            "examples": [
+              "main"
+            ],
+            "type": "string"
+          },
+          "path": {
+            "examples": [
+              "/Users/maya/code/site"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "engine_crew_repo_set",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "engine.defaults.get",
       "deferred": false,
       "description": "The caller default model, provider, effort and fallback order in this Space",
@@ -16577,6 +17212,40 @@
       "name": "engine_defaults_set",
       "planMode": "blocked",
       "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.drop_queued",
+      "deferred": false,
+      "description": "Take a message that is waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "messageId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_drop_queued",
+      "planMode": "blocked",
+      "toolset": "chats",
       "v": 1
     },
     {
@@ -16823,6 +17492,32 @@
       },
       "name": "engine_interrupt",
       "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.live_turns",
+      "deferred": false,
+      "description": "The turns being written in a thread right now, with the text so far: what a chat opened or reconnected mid-turn shows before it follows the live stream",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_live_turns",
+      "planMode": "allowed",
       "toolset": "chats",
       "v": 1
     },
@@ -27370,6 +28065,9 @@
             "pattern": "^cnv_[a-z0-9]+$",
             "type": "string"
           },
+          "fileAttachments": {
+            "type": "boolean"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -27379,6 +28077,9 @@
           },
           "name": {
             "type": "string"
+          },
+          "replyTask": {
+            "type": "boolean"
           },
           "type": {
             "enum": [
@@ -49004,6 +49705,9 @@
             "pattern": "^agt_[a-z0-9]+$",
             "type": "string"
           },
+          "crew": {
+            "type": "boolean"
+          },
           "effort": {
             "enum": [
               "low",
@@ -49170,6 +49874,2075 @@
     },
     {
       "blocks": [],
+      "cap": "sync_specs.apply",
+      "deferred": false,
+      "description": "Apply a validated SyncSpec: a live connector (with its own tests), a connection holding the Vault handle, the record types with fields, choices, relations and stages, the synced-type bindings, and the first pull",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "spec": {
+            "properties": {
+              "app": {
+                "properties": {
+                  "account": {
+                    "description": "Which account of the app this is (a location, a workspace); accounts share record types and each record says which it came from",
+                    "type": "string"
+                  },
+                  "docsUrl": {
+                    "type": "string"
+                  },
+                  "domain": {
+                    "examples": [
+                      "api.example.com"
+                    ],
+                    "type": "string"
+                  },
+                  "logoHint": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "domain"
+                ],
+                "type": "object"
+              },
+              "auth": {
+                "properties": {
+                  "header": {
+                    "type": "string"
+                  },
+                  "headers": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "prefix": {
+                    "type": "string"
+                  },
+                  "style": {
+                    "enum": [
+                      "bearer",
+                      "header",
+                      "basic",
+                      "query",
+                      "oauth"
+                    ],
+                    "type": "string"
+                  },
+                  "vaultHandle": {
+                    "examples": [
+                      "#Dana_Lawmatics"
+                    ],
+                    "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "vaultHandle",
+                  "style"
+                ],
+                "type": "object"
+              },
+              "mapping": {
+                "items": {
+                  "properties": {
+                    "createAtSource": {
+                      "type": "boolean"
+                    },
+                    "deletes": {
+                      "enum": [
+                        "off",
+                        "soft",
+                        "travel"
+                      ],
+                      "type": "string"
+                    },
+                    "fields": {
+                      "items": {
+                        "properties": {
+                          "direction": {
+                            "enum": [
+                              "both",
+                              "pull",
+                              "push",
+                              "off"
+                            ],
+                            "type": "string"
+                          },
+                          "field": {
+                            "examples": [
+                              "email"
+                            ],
+                            "pattern": "^[a-z][a-z0-9_]*$",
+                            "type": "string"
+                          },
+                          "path": {
+                            "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                            "examples": [
+                              "/id"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "direction"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "match": {
+                      "items": {
+                        "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                        "examples": [
+                          "/id"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "recordType": {
+                      "examples": [
+                        "contact"
+                      ],
+                      "pattern": "^[a-z][a-z0-9_]*$",
+                      "type": "string"
+                    },
+                    "remote": {
+                      "type": "string"
+                    },
+                    "stagesFrom": {
+                      "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                      "examples": [
+                        "/id"
+                      ],
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "titleField": {
+                      "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                      "examples": [
+                        "/id"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "remote",
+                    "recordType",
+                    "fields"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "objects": {
+                "items": {
+                  "properties": {
+                    "count": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "create": {
+                      "properties": {
+                        "bodyAt": {
+                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "description": "The docs page or quote that shows this call. A write without it is refused.",
+                          "type": "string"
+                        },
+                        "idAt": {
+                          "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                          "examples": [
+                            "/id"
+                          ],
+                          "type": "string"
+                        },
+                        "method": {
+                          "enum": [
+                            "POST",
+                            "PUT",
+                            "PATCH",
+                            "DELETE"
+                          ],
+                          "type": "string"
+                        },
+                        "path": {
+                          "examples": [
+                            "/contacts/{id}"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "evidence"
+                      ],
+                      "type": "object"
+                    },
+                    "delete": {
+                      "properties": {
+                        "bodyAt": {
+                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "description": "The docs page or quote that shows this call. A write without it is refused.",
+                          "type": "string"
+                        },
+                        "idAt": {
+                          "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                          "examples": [
+                            "/id"
+                          ],
+                          "type": "string"
+                        },
+                        "method": {
+                          "enum": [
+                            "POST",
+                            "PUT",
+                            "PATCH",
+                            "DELETE"
+                          ],
+                          "type": "string"
+                        },
+                        "path": {
+                          "examples": [
+                            "/contacts/{id}"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "evidence"
+                      ],
+                      "type": "object"
+                    },
+                    "fields": {
+                      "items": {
+                        "properties": {
+                          "choices": {
+                            "examples": [
+                              [
+                                {
+                                  "label": "Lead",
+                                  "value": "lead"
+                                }
+                              ]
+                            ],
+                            "items": {
+                              "properties": {
+                                "label": {
+                                  "type": "string"
+                                },
+                                "value": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "value"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                            "examples": [
+                              "/id"
+                            ],
+                            "type": "string"
+                          },
+                          "readOnly": {
+                            "type": "boolean"
+                          },
+                          "relationTo": {
+                            "description": "The remote object a relation points at",
+                            "type": "string"
+                          },
+                          "type": {
+                            "enum": [
+                              "text",
+                              "number",
+                              "money",
+                              "date",
+                              "bool",
+                              "choice",
+                              "multi",
+                              "email",
+                              "phone",
+                              "url",
+                              "relation",
+                              "json"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "label",
+                          "type"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "get": {
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path"
+                      ],
+                      "type": "object"
+                    },
+                    "id": {
+                      "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                      "examples": [
+                        "/id"
+                      ],
+                      "type": "string"
+                    },
+                    "itemsAt": {
+                      "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                      "examples": [
+                        "/id"
+                      ],
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "list": {
+                      "properties": {
+                        "cursor": {
+                          "properties": {
+                            "kind": {
+                              "enum": [
+                                "none",
+                                "page",
+                                "cursor",
+                                "offset",
+                                "link"
+                              ],
+                              "type": "string"
+                            },
+                            "next": {
+                              "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                              "examples": [
+                                "/id"
+                              ],
+                              "type": "string"
+                            },
+                            "param": {
+                              "type": "string"
+                            },
+                            "size": {
+                              "minimum": 1,
+                              "type": "integer"
+                            },
+                            "sizeParam": {
+                              "type": "string"
+                            },
+                            "start": {
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        "filter": {
+                          "properties": {
+                            "param": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "param",
+                            "value"
+                          ],
+                          "type": "object"
+                        },
+                        "path": {
+                          "examples": [
+                            "/contacts"
+                          ],
+                          "type": "string"
+                        },
+                        "query": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object"
+                        },
+                        "updatedSince": {
+                          "properties": {
+                            "format": {
+                              "type": "string"
+                            },
+                            "param": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "param"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "path"
+                      ],
+                      "type": "object"
+                    },
+                    "openUrl": {
+                      "description": "Address of a record in the app; {id} is filled in. Shown as Open in the app.",
+                      "type": "string"
+                    },
+                    "remote": {
+                      "type": "string"
+                    },
+                    "update": {
+                      "properties": {
+                        "bodyAt": {
+                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "description": "The docs page or quote that shows this call. A write without it is refused.",
+                          "type": "string"
+                        },
+                        "idAt": {
+                          "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                          "examples": [
+                            "/id"
+                          ],
+                          "type": "string"
+                        },
+                        "method": {
+                          "enum": [
+                            "POST",
+                            "PUT",
+                            "PATCH",
+                            "DELETE"
+                          ],
+                          "type": "string"
+                        },
+                        "path": {
+                          "examples": [
+                            "/contacts/{id}"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "evidence"
+                      ],
+                      "type": "object"
+                    },
+                    "updatedAt": {
+                      "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                      "examples": [
+                        "/id"
+                      ],
+                      "type": "string"
+                    },
+                    "webhook": {
+                      "properties": {
+                        "events": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "evidence": {
+                          "type": "string"
+                        },
+                        "manualUrl": {
+                          "type": "boolean"
+                        },
+                        "signature": {
+                          "type": "string"
+                        },
+                        "subscribePath": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "events"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "remote",
+                    "label",
+                    "list",
+                    "id",
+                    "itemsAt",
+                    "fields"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "plan": {
+                "properties": {
+                  "audience": {
+                    "enum": [
+                      "space",
+                      "added",
+                      "me"
+                    ],
+                    "type": "string"
+                  },
+                  "backfill": {
+                    "enum": [
+                      "later",
+                      "now"
+                    ],
+                    "type": "string"
+                  },
+                  "conflicts": {
+                    "const": "newest",
+                    "type": "string"
+                  },
+                  "firstPull": {
+                    "properties": {
+                      "words": {
+                        "description": "Plain words: what the first pull brings in",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "words"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "firstPull",
+                  "backfill",
+                  "conflicts"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "app",
+              "auth",
+              "objects",
+              "mapping",
+              "plan"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "spec",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "sync_specs_apply",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sync_specs.backfill",
+      "deferred": false,
+      "description": "Bring in everything, not just the first-pull filter: re-applies the stored spec with the filter dropped and starts the pull",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "sync_specs_backfill",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sync_specs.get",
+      "deferred": false,
+      "description": "Read the SyncSpec a synced type was made from (so Edit mapping can open the agent with it)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "connector": {
+            "examples": [
+              "hubspot"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "sync_specs_get",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sync_specs.preview",
+      "deferred": false,
+      "description": "Dry run of a SyncSpec: the record types it would make, three sample records drawn from the real page, and what the first pull would bring in. Writes nothing to Vyre or to the app",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "spec": {
+            "properties": {
+              "app": {
+                "properties": {
+                  "account": {
+                    "description": "Which account of the app this is (a location, a workspace); accounts share record types and each record says which it came from",
+                    "type": "string"
+                  },
+                  "docsUrl": {
+                    "type": "string"
+                  },
+                  "domain": {
+                    "examples": [
+                      "api.example.com"
+                    ],
+                    "type": "string"
+                  },
+                  "logoHint": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "domain"
+                ],
+                "type": "object"
+              },
+              "auth": {
+                "properties": {
+                  "header": {
+                    "type": "string"
+                  },
+                  "headers": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "prefix": {
+                    "type": "string"
+                  },
+                  "style": {
+                    "enum": [
+                      "bearer",
+                      "header",
+                      "basic",
+                      "query",
+                      "oauth"
+                    ],
+                    "type": "string"
+                  },
+                  "vaultHandle": {
+                    "examples": [
+                      "#Dana_Lawmatics"
+                    ],
+                    "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "vaultHandle",
+                  "style"
+                ],
+                "type": "object"
+              },
+              "mapping": {
+                "items": {
+                  "properties": {
+                    "createAtSource": {
+                      "type": "boolean"
+                    },
+                    "deletes": {
+                      "enum": [
+                        "off",
+                        "soft",
+                        "travel"
+                      ],
+                      "type": "string"
+                    },
+                    "fields": {
+                      "items": {
+                        "properties": {
+                          "direction": {
+                            "enum": [
+                              "both",
+                              "pull",
+                              "push",
+                              "off"
+                            ],
+                            "type": "string"
+                          },
+                          "field": {
+                            "examples": [
+                              "email"
+                            ],
+                            "pattern": "^[a-z][a-z0-9_]*$",
+                            "type": "string"
+                          },
+                          "path": {
+                            "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                            "examples": [
+                              "/id"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "direction"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "match": {
+                      "items": {
+                        "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                        "examples": [
+                          "/id"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "recordType": {
+                      "examples": [
+                        "contact"
+                      ],
+                      "pattern": "^[a-z][a-z0-9_]*$",
+                      "type": "string"
+                    },
+                    "remote": {
+                      "type": "string"
+                    },
+                    "stagesFrom": {
+                      "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                      "examples": [
+                        "/id"
+                      ],
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "titleField": {
+                      "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                      "examples": [
+                        "/id"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "remote",
+                    "recordType",
+                    "fields"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "objects": {
+                "items": {
+                  "properties": {
+                    "count": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "create": {
+                      "properties": {
+                        "bodyAt": {
+                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "description": "The docs page or quote that shows this call. A write without it is refused.",
+                          "type": "string"
+                        },
+                        "idAt": {
+                          "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                          "examples": [
+                            "/id"
+                          ],
+                          "type": "string"
+                        },
+                        "method": {
+                          "enum": [
+                            "POST",
+                            "PUT",
+                            "PATCH",
+                            "DELETE"
+                          ],
+                          "type": "string"
+                        },
+                        "path": {
+                          "examples": [
+                            "/contacts/{id}"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "evidence"
+                      ],
+                      "type": "object"
+                    },
+                    "delete": {
+                      "properties": {
+                        "bodyAt": {
+                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "description": "The docs page or quote that shows this call. A write without it is refused.",
+                          "type": "string"
+                        },
+                        "idAt": {
+                          "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                          "examples": [
+                            "/id"
+                          ],
+                          "type": "string"
+                        },
+                        "method": {
+                          "enum": [
+                            "POST",
+                            "PUT",
+                            "PATCH",
+                            "DELETE"
+                          ],
+                          "type": "string"
+                        },
+                        "path": {
+                          "examples": [
+                            "/contacts/{id}"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "evidence"
+                      ],
+                      "type": "object"
+                    },
+                    "fields": {
+                      "items": {
+                        "properties": {
+                          "choices": {
+                            "examples": [
+                              [
+                                {
+                                  "label": "Lead",
+                                  "value": "lead"
+                                }
+                              ]
+                            ],
+                            "items": {
+                              "properties": {
+                                "label": {
+                                  "type": "string"
+                                },
+                                "value": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "value"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                            "examples": [
+                              "/id"
+                            ],
+                            "type": "string"
+                          },
+                          "readOnly": {
+                            "type": "boolean"
+                          },
+                          "relationTo": {
+                            "description": "The remote object a relation points at",
+                            "type": "string"
+                          },
+                          "type": {
+                            "enum": [
+                              "text",
+                              "number",
+                              "money",
+                              "date",
+                              "bool",
+                              "choice",
+                              "multi",
+                              "email",
+                              "phone",
+                              "url",
+                              "relation",
+                              "json"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "label",
+                          "type"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "get": {
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path"
+                      ],
+                      "type": "object"
+                    },
+                    "id": {
+                      "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                      "examples": [
+                        "/id"
+                      ],
+                      "type": "string"
+                    },
+                    "itemsAt": {
+                      "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                      "examples": [
+                        "/id"
+                      ],
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "list": {
+                      "properties": {
+                        "cursor": {
+                          "properties": {
+                            "kind": {
+                              "enum": [
+                                "none",
+                                "page",
+                                "cursor",
+                                "offset",
+                                "link"
+                              ],
+                              "type": "string"
+                            },
+                            "next": {
+                              "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                              "examples": [
+                                "/id"
+                              ],
+                              "type": "string"
+                            },
+                            "param": {
+                              "type": "string"
+                            },
+                            "size": {
+                              "minimum": 1,
+                              "type": "integer"
+                            },
+                            "sizeParam": {
+                              "type": "string"
+                            },
+                            "start": {
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        "filter": {
+                          "properties": {
+                            "param": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "param",
+                            "value"
+                          ],
+                          "type": "object"
+                        },
+                        "path": {
+                          "examples": [
+                            "/contacts"
+                          ],
+                          "type": "string"
+                        },
+                        "query": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object"
+                        },
+                        "updatedSince": {
+                          "properties": {
+                            "format": {
+                              "type": "string"
+                            },
+                            "param": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "param"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "path"
+                      ],
+                      "type": "object"
+                    },
+                    "openUrl": {
+                      "description": "Address of a record in the app; {id} is filled in. Shown as Open in the app.",
+                      "type": "string"
+                    },
+                    "remote": {
+                      "type": "string"
+                    },
+                    "update": {
+                      "properties": {
+                        "bodyAt": {
+                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "description": "The docs page or quote that shows this call. A write without it is refused.",
+                          "type": "string"
+                        },
+                        "idAt": {
+                          "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                          "examples": [
+                            "/id"
+                          ],
+                          "type": "string"
+                        },
+                        "method": {
+                          "enum": [
+                            "POST",
+                            "PUT",
+                            "PATCH",
+                            "DELETE"
+                          ],
+                          "type": "string"
+                        },
+                        "path": {
+                          "examples": [
+                            "/contacts/{id}"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "evidence"
+                      ],
+                      "type": "object"
+                    },
+                    "updatedAt": {
+                      "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                      "examples": [
+                        "/id"
+                      ],
+                      "type": "string"
+                    },
+                    "webhook": {
+                      "properties": {
+                        "events": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "evidence": {
+                          "type": "string"
+                        },
+                        "manualUrl": {
+                          "type": "boolean"
+                        },
+                        "signature": {
+                          "type": "string"
+                        },
+                        "subscribePath": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "events"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "remote",
+                    "label",
+                    "list",
+                    "id",
+                    "itemsAt",
+                    "fields"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "plan": {
+                "properties": {
+                  "audience": {
+                    "enum": [
+                      "space",
+                      "added",
+                      "me"
+                    ],
+                    "type": "string"
+                  },
+                  "backfill": {
+                    "enum": [
+                      "later",
+                      "now"
+                    ],
+                    "type": "string"
+                  },
+                  "conflicts": {
+                    "const": "newest",
+                    "type": "string"
+                  },
+                  "firstPull": {
+                    "properties": {
+                      "words": {
+                        "description": "Plain words: what the first pull brings in",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "words"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "firstPull",
+                  "backfill",
+                  "conflicts"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "app",
+              "auth",
+              "objects",
+              "mapping",
+              "plan"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "spec"
+        ],
+        "type": "object"
+      },
+      "name": "sync_specs_preview",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sync_specs.remove",
+      "deferred": false,
+      "description": "Stop syncing an app into Records and remove its connector and connection; keep its records as plain records, or remove them with their types (a copy waits in Trash for 30 days)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "records": {
+            "enum": [
+              "keep",
+              "remove"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "records"
+        ],
+        "type": "object"
+      },
+      "name": "sync_specs_remove",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sync_specs.sample",
+      "deferred": false,
+      "description": "Read one page of an app, read-only (GET only), with a Vault handle as the key: where the lists are, what one item holds, how the next page is asked for, a total if there is one. Also reads field-metadata and schema endpoints",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "auth": {
+            "properties": {
+              "header": {
+                "type": "string"
+              },
+              "headers": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              "prefix": {
+                "type": "string"
+              },
+              "style": {
+                "enum": [
+                  "bearer",
+                  "header",
+                  "basic"
+                ],
+                "type": "string"
+              },
+              "vaultHandle": {
+                "examples": [
+                  "#Dana_Lawmatics"
+                ],
+                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "vaultHandle",
+              "style"
+            ],
+            "type": "object"
+          },
+          "domain": {
+            "examples": [
+              "api.example.com"
+            ],
+            "type": "string"
+          },
+          "items": {
+            "maximum": 10,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "path": {
+            "examples": [
+              "/contacts"
+            ],
+            "type": "string"
+          },
+          "query": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "url": {
+            "description": "A full address on the same host, such as a next link",
+            "type": "string"
+          }
+        },
+        "required": [
+          "auth",
+          "domain",
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "sync_specs_sample",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sync_specs.survey",
+      "deferred": false,
+      "description": "Read up to 12 paths of an app at once, read-only, and say for each what lists it holds, how many items, a total if given. Use it to see which objects an app has",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "auth": {
+            "properties": {
+              "header": {
+                "type": "string"
+              },
+              "headers": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              "prefix": {
+                "type": "string"
+              },
+              "style": {
+                "enum": [
+                  "bearer",
+                  "header",
+                  "basic"
+                ],
+                "type": "string"
+              },
+              "vaultHandle": {
+                "examples": [
+                  "#Dana_Lawmatics"
+                ],
+                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "vaultHandle",
+              "style"
+            ],
+            "type": "object"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "paths": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 12,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "auth",
+          "domain",
+          "paths"
+        ],
+        "type": "object"
+      },
+      "name": "sync_specs_survey",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sync_specs.validate",
+      "deferred": false,
+      "description": "Check a SyncSpec against a real sampled page of the app (read-only GET with the Vault handle): the list, ids, next page, every mapped field path, value types and choices. Writes nothing",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "spec": {
+            "properties": {
+              "app": {
+                "properties": {
+                  "account": {
+                    "description": "Which account of the app this is (a location, a workspace); accounts share record types and each record says which it came from",
+                    "type": "string"
+                  },
+                  "docsUrl": {
+                    "type": "string"
+                  },
+                  "domain": {
+                    "examples": [
+                      "api.example.com"
+                    ],
+                    "type": "string"
+                  },
+                  "logoHint": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "domain"
+                ],
+                "type": "object"
+              },
+              "auth": {
+                "properties": {
+                  "header": {
+                    "type": "string"
+                  },
+                  "headers": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "prefix": {
+                    "type": "string"
+                  },
+                  "style": {
+                    "enum": [
+                      "bearer",
+                      "header",
+                      "basic",
+                      "query",
+                      "oauth"
+                    ],
+                    "type": "string"
+                  },
+                  "vaultHandle": {
+                    "examples": [
+                      "#Dana_Lawmatics"
+                    ],
+                    "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "vaultHandle",
+                  "style"
+                ],
+                "type": "object"
+              },
+              "mapping": {
+                "items": {
+                  "properties": {
+                    "createAtSource": {
+                      "type": "boolean"
+                    },
+                    "deletes": {
+                      "enum": [
+                        "off",
+                        "soft",
+                        "travel"
+                      ],
+                      "type": "string"
+                    },
+                    "fields": {
+                      "items": {
+                        "properties": {
+                          "direction": {
+                            "enum": [
+                              "both",
+                              "pull",
+                              "push",
+                              "off"
+                            ],
+                            "type": "string"
+                          },
+                          "field": {
+                            "examples": [
+                              "email"
+                            ],
+                            "pattern": "^[a-z][a-z0-9_]*$",
+                            "type": "string"
+                          },
+                          "path": {
+                            "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                            "examples": [
+                              "/id"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "direction"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "match": {
+                      "items": {
+                        "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                        "examples": [
+                          "/id"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "recordType": {
+                      "examples": [
+                        "contact"
+                      ],
+                      "pattern": "^[a-z][a-z0-9_]*$",
+                      "type": "string"
+                    },
+                    "remote": {
+                      "type": "string"
+                    },
+                    "stagesFrom": {
+                      "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                      "examples": [
+                        "/id"
+                      ],
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "titleField": {
+                      "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                      "examples": [
+                        "/id"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "remote",
+                    "recordType",
+                    "fields"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "objects": {
+                "items": {
+                  "properties": {
+                    "count": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "create": {
+                      "properties": {
+                        "bodyAt": {
+                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "description": "The docs page or quote that shows this call. A write without it is refused.",
+                          "type": "string"
+                        },
+                        "idAt": {
+                          "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                          "examples": [
+                            "/id"
+                          ],
+                          "type": "string"
+                        },
+                        "method": {
+                          "enum": [
+                            "POST",
+                            "PUT",
+                            "PATCH",
+                            "DELETE"
+                          ],
+                          "type": "string"
+                        },
+                        "path": {
+                          "examples": [
+                            "/contacts/{id}"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "evidence"
+                      ],
+                      "type": "object"
+                    },
+                    "delete": {
+                      "properties": {
+                        "bodyAt": {
+                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "description": "The docs page or quote that shows this call. A write without it is refused.",
+                          "type": "string"
+                        },
+                        "idAt": {
+                          "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                          "examples": [
+                            "/id"
+                          ],
+                          "type": "string"
+                        },
+                        "method": {
+                          "enum": [
+                            "POST",
+                            "PUT",
+                            "PATCH",
+                            "DELETE"
+                          ],
+                          "type": "string"
+                        },
+                        "path": {
+                          "examples": [
+                            "/contacts/{id}"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "evidence"
+                      ],
+                      "type": "object"
+                    },
+                    "fields": {
+                      "items": {
+                        "properties": {
+                          "choices": {
+                            "examples": [
+                              [
+                                {
+                                  "label": "Lead",
+                                  "value": "lead"
+                                }
+                              ]
+                            ],
+                            "items": {
+                              "properties": {
+                                "label": {
+                                  "type": "string"
+                                },
+                                "value": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "value"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                            "examples": [
+                              "/id"
+                            ],
+                            "type": "string"
+                          },
+                          "readOnly": {
+                            "type": "boolean"
+                          },
+                          "relationTo": {
+                            "description": "The remote object a relation points at",
+                            "type": "string"
+                          },
+                          "type": {
+                            "enum": [
+                              "text",
+                              "number",
+                              "money",
+                              "date",
+                              "bool",
+                              "choice",
+                              "multi",
+                              "email",
+                              "phone",
+                              "url",
+                              "relation",
+                              "json"
+                            ],
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "label",
+                          "type"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "get": {
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path"
+                      ],
+                      "type": "object"
+                    },
+                    "id": {
+                      "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                      "examples": [
+                        "/id"
+                      ],
+                      "type": "string"
+                    },
+                    "itemsAt": {
+                      "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                      "examples": [
+                        "/id"
+                      ],
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "list": {
+                      "properties": {
+                        "cursor": {
+                          "properties": {
+                            "kind": {
+                              "enum": [
+                                "none",
+                                "page",
+                                "cursor",
+                                "offset",
+                                "link"
+                              ],
+                              "type": "string"
+                            },
+                            "next": {
+                              "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                              "examples": [
+                                "/id"
+                              ],
+                              "type": "string"
+                            },
+                            "param": {
+                              "type": "string"
+                            },
+                            "size": {
+                              "minimum": 1,
+                              "type": "integer"
+                            },
+                            "sizeParam": {
+                              "type": "string"
+                            },
+                            "start": {
+                              "minimum": 0,
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "kind"
+                          ],
+                          "type": "object"
+                        },
+                        "filter": {
+                          "properties": {
+                            "param": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "param",
+                            "value"
+                          ],
+                          "type": "object"
+                        },
+                        "path": {
+                          "examples": [
+                            "/contacts"
+                          ],
+                          "type": "string"
+                        },
+                        "query": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
+                          "type": "object"
+                        },
+                        "updatedSince": {
+                          "properties": {
+                            "format": {
+                              "type": "string"
+                            },
+                            "param": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "param"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "path"
+                      ],
+                      "type": "object"
+                    },
+                    "openUrl": {
+                      "description": "Address of a record in the app; {id} is filled in. Shown as Open in the app.",
+                      "type": "string"
+                    },
+                    "remote": {
+                      "type": "string"
+                    },
+                    "update": {
+                      "properties": {
+                        "bodyAt": {
+                          "description": "Pointer in the body where the properties go; empty for the body itself",
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "description": "The docs page or quote that shows this call. A write without it is refused.",
+                          "type": "string"
+                        },
+                        "idAt": {
+                          "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                          "examples": [
+                            "/id"
+                          ],
+                          "type": "string"
+                        },
+                        "method": {
+                          "enum": [
+                            "POST",
+                            "PUT",
+                            "PATCH",
+                            "DELETE"
+                          ],
+                          "type": "string"
+                        },
+                        "path": {
+                          "examples": [
+                            "/contacts/{id}"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "evidence"
+                      ],
+                      "type": "object"
+                    },
+                    "updatedAt": {
+                      "description": "A JSON pointer: /id, /properties/email. / is the whole answer.",
+                      "examples": [
+                        "/id"
+                      ],
+                      "type": "string"
+                    },
+                    "webhook": {
+                      "properties": {
+                        "events": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "evidence": {
+                          "type": "string"
+                        },
+                        "manualUrl": {
+                          "type": "boolean"
+                        },
+                        "signature": {
+                          "type": "string"
+                        },
+                        "subscribePath": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "events"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "remote",
+                    "label",
+                    "list",
+                    "id",
+                    "itemsAt",
+                    "fields"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "plan": {
+                "properties": {
+                  "audience": {
+                    "enum": [
+                      "space",
+                      "added",
+                      "me"
+                    ],
+                    "type": "string"
+                  },
+                  "backfill": {
+                    "enum": [
+                      "later",
+                      "now"
+                    ],
+                    "type": "string"
+                  },
+                  "conflicts": {
+                    "const": "newest",
+                    "type": "string"
+                  },
+                  "firstPull": {
+                    "properties": {
+                      "words": {
+                        "description": "Plain words: what the first pull brings in",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "words"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "firstPull",
+                  "backfill",
+                  "conflicts"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "app",
+              "auth",
+              "objects",
+              "mapping",
+              "plan"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "spec"
+        ],
+        "type": "object"
+      },
+      "name": "sync_specs_validate",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sync.status",
       "deferred": false,
       "description": "Sync state of this device: head, cursor, lag, epoch and the last full snapshot",
@@ -49199,6 +51972,9 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "account": {
+            "type": "string"
+          },
           "decision": {
             "enum": [
               "mark_removed",
@@ -49233,6 +52009,10 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "account": {
+            "description": "Which account of the app this binding reads; accounts of one app share the record type",
+            "type": "string"
+          },
           "conflict": {
             "enum": [
               "newest",
@@ -49263,6 +52043,10 @@
           "fields": {
             "items": {
               "properties": {
+                "constant": {
+                  "description": "A value stamped on every record this binding pulls (the From field)",
+                  "type": "string"
+                },
                 "dir": {
                   "enum": [
                     "pull",
@@ -49272,9 +52056,23 @@
                   ],
                   "type": "string"
                 },
+                "inverse": {
+                  "examples": [
+                    "email"
+                  ],
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "type": "string"
+                },
                 "key": {
                   "examples": [
                     "email"
+                  ],
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "type": "string"
+                },
+                "relation": {
+                  "examples": [
+                    "contact"
                   ],
                   "pattern": "^[a-z][a-z0-9_]*$",
                   "type": "string"
@@ -49398,12 +52196,57 @@
     },
     {
       "blocks": [],
+      "cap": "sync_types.field_history",
+      "deferred": false,
+      "description": "The earlier values of one field that a newest-wins settlement replaced: yours when the app was newer, the app's when you were",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "field": {
+            "examples": [
+              "email"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId",
+          "field"
+        ],
+        "type": "object"
+      },
+      "name": "sync_types_field_history",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sync_types.get",
       "deferred": false,
       "description": "Read the sync binding of a record type (the header line, mapping and rules)",
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "account": {
+            "type": "string"
+          },
           "type": {
             "examples": [
               "contact"
@@ -49460,6 +52303,9 @@
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "account": {
+            "type": "string"
+          },
           "cursor": {
             "type": "string"
           },
@@ -49494,6 +52340,9 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "account": {
+            "type": "string"
+          },
           "type": {
             "examples": [
               "contact"
@@ -49520,6 +52369,9 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "account": {
+            "type": "string"
+          },
           "type": {
             "examples": [
               "contact"
@@ -49546,6 +52398,9 @@
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "account": {
+            "type": "string"
+          },
           "direction": {
             "enum": [
               "pull",
@@ -49568,6 +52423,40 @@
         "type": "object"
       },
       "name": "sync_types_preview",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sync_types.record_state",
+      "deferred": false,
+      "description": "Where one record came from and how each of its synced fields is doing: saved, saving, failed or only here, with the address to open it in the app",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "sync_types_record_state",
       "planMode": "allowed",
       "toolset": "records",
       "v": 1
@@ -49646,12 +52535,61 @@
     },
     {
       "blocks": [],
+      "cap": "sync_types.restore_field",
+      "deferred": false,
+      "description": "Put an earlier value of a field back (an ordinary edit, newer than the app's value, so it is sent on the next pass) and start that pass",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "field": {
+            "examples": [
+              "email"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "historyId": {
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId",
+          "field",
+          "historyId"
+        ],
+        "type": "object"
+      },
+      "name": "sync_types_restore_field",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sync_types.resume",
       "deferred": false,
       "description": "Resume sync of a type",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "account": {
+            "type": "string"
+          },
           "type": {
             "examples": [
               "contact"
@@ -49683,6 +52621,9 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "account": {
+            "type": "string"
           },
           "ignore": {
             "items": {
@@ -49718,6 +52659,9 @@
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "account": {
+            "type": "string"
+          },
           "type": {
             "examples": [
               "contact"
@@ -49732,6 +52676,35 @@
         "type": "object"
       },
       "name": "sync_types_schema_changes",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sync_types.status",
+      "deferred": false,
+      "description": "The Sync page of a synced type: last pass, counts, failures, pushes waiting, whether a first-pull filter still holds, and the next poll",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "name": "sync_types_status",
       "planMode": "allowed",
       "toolset": "records",
       "v": 1
@@ -49778,6 +52751,9 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "account": {
+            "type": "string"
+          },
           "conflict": {
             "enum": [
               "newest",
@@ -49801,6 +52777,10 @@
           "fields": {
             "items": {
               "properties": {
+                "constant": {
+                  "description": "A value stamped on every record this binding pulls (the From field)",
+                  "type": "string"
+                },
                 "dir": {
                   "enum": [
                     "pull",
@@ -49810,9 +52790,23 @@
                   ],
                   "type": "string"
                 },
+                "inverse": {
+                  "examples": [
+                    "email"
+                  ],
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "type": "string"
+                },
                 "key": {
                   "examples": [
                     "email"
+                  ],
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "type": "string"
+                },
+                "relation": {
+                  "examples": [
+                    "contact"
                   ],
                   "pattern": "^[a-z][a-z0-9_]*$",
                   "type": "string"

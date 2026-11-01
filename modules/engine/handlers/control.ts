@@ -77,6 +77,13 @@ export async function open(ctx: EngineCtx, threadId: string): Promise<TurnEngine
   return engine;
 }
 
+/** engine.drop_queued: a message waiting behind a running turn is taken out of the queue, so it can be edited and sent again. Nothing happens to a message whose turn has already started. */
+export async function dropQueued(ctx: EngineCtx, input: { threadId: string; messageId: string }): Promise<{ dropped: boolean }> {
+  const engine = await open(ctx, input.threadId);
+  const n = engine.dropQueued(input.threadId, input.messageId);
+  return { dropped: n > 0 };
+}
+
 // ---- interrupt, stop, stop_all
 
 export async function interrupt(ctx: EngineCtx, input: { threadId: string; messageId?: string }): Promise<{ queued: boolean }> {

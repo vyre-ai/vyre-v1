@@ -103,6 +103,7 @@ function pluginsSeen() {
   return seen.join("|");
 }
 
+let folding = false;
 async function run(prompt) {
   const words = prompt.trim().split(/\s+/);
   switch (words[0]) {
@@ -113,6 +114,7 @@ async function run(prompt) {
     case "maxturns": replay("max-turns"); break;
     case "mcpfail": replay("mcp-failed"); break;
     case "limits": out(JSON.stringify({ type: "rate_limit_event", rate_limit_info: { status: "allowed_warning", resetsAt: 1_792_000_000, rateLimitType: "five_hour", utilization: 0.43 }, session_id: session })); say("ok"); break;
+    case "fold": folding = true; await sleep(Number(words[1] ?? 400)); folding = false; replay("text"); break;   // a turn that reads a mid-turn message at a step boundary and answers it inside the same turn
     case "slow": await sleep(Number(words[1] ?? 400)); replay("text"); break;
     case "hang":
       out(JSON.stringify(bin === "codex" ? { type: "thread.started", thread_id: session } : { type: "system", subtype: "init", session_id: session, mcp_servers: [{ name: "vyre", status: "connected" }] }));
@@ -141,7 +143,10 @@ if (bin === "claude") {
       if (line.trim() === "") continue;
       let prompt = "";
       try { prompt = JSON.parse(line).message.content.map((c) => c.text ?? "").join("\n"); } catch { continue; }
-      queue = queue.then(() => run(prompt));
+      // the real engine echoes each user message when it takes it up (--replay-user-messages): here, when the turn for it starts, or at once when a running "fold" turn takes it in
+      if (!folding && /^\s*fold\b/.test(prompt)) folding = true;   // the turn is under way the moment its message is in
+      else if (folding) { if (argv.includes("--replay-user-messages")) out(JSON.stringify({ type: "user", isReplay: true, message: { role: "user", content: [{ type: "text", text: prompt }] } })); continue; }
+      queue = queue.then(() => { if (argv.includes("--replay-user-messages")) out(JSON.stringify({ type: "user", isReplay: true, message: { role: "user", content: [{ type: "text", text: prompt }] } })); return run(prompt); });
     }
   });
   process.stdin.on("end", () => { queue.then(() => process.exit(0)); });

@@ -39,6 +39,10 @@ export function homeCallAllowed(db: Pick<HostDb, "all">, scope: HomeScope, cap: 
     case "files.read": case "files.write": case "files.delete": return fileInside(db, scope, str(i["fileId"]));
     case "files.create": return folderInside(db, scope, str(i["folderId"]));
     case "files.folder.create": return folderInside(db, scope, str(i["parentId"]));
+    case "made_files": {   // the node says which files the agent made; each must be inside the home, and there are few
+      const list = i["files"];
+      return Array.isArray(list) && list.length > 0 && list.length <= 50 && list.every((f) => f && typeof f === "object" && fileInside(db, scope, str((f as In)["fileId"])));
+    }
     case "files.upload_url": return true;   // a slot for bytes: it names no file; the write that uses it is checked above
     case "agents.get": case "agents.suggestion.propose": return i["agentId"] === scope.agentId;
     case "tasks.create": {

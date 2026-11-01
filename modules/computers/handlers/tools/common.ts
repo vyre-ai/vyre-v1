@@ -25,7 +25,8 @@ export class ToolError extends Error {
 
 /** What the host binds on top of ComputerHost for the tools; the Docker host (impl.ts) has it. */
 export interface ToolHost {
-  tool(a: { computerId: string; tool: string; args: ToolArgs; timeoutMs: number }): Promise<ToolAnswer>;
+  /** `by: "person"` is the person at the controls acting through the live view: agentd lets it through a take-over that holds the agent's tools. */
+  tool(a: { computerId: string; tool: string; args: ToolArgs; timeoutMs: number; by?: "person" }): Promise<ToolAnswer>;
 }
 
 export const DEFAULT_TOOL_MS = 30_000;
@@ -116,6 +117,24 @@ async function keepFrame(ctx: CompCtx, c: ComputerRow, frame: unknown, at: numbe
   }
 }
 
+// The live card (rc.9): the first thing an agent does on its computer for a chat puts one message in that chat, a screenshot block marked live. The chat draws it as the computer's live view while the
+// computer works and as the last picture afterwards. One card per chat and computer for a burst of work; a new burst (ten quiet minutes) gets a new one. Posting never fails the tool call.
+const LIVE_GAP_MS = 10 * 60_000;
+const lastCard = new Map<string, number>();
+async function liveCard(ctx: CompCtx, c: ComputerRow, caption: string, fileId: string | undefined, at: number): Promise<void> {
+  if (!ctx.thread || ctx.principal.kind !== "agent" || !fileId) return;
+  const key = `${c.computerId}|${ctx.thread}`;
+  const prev = lastCard.get(key);
+  lastCard.set(key, at);
+  if (prev !== undefined && at - prev < LIVE_GAP_MS) return;
+  try {
+    await ctx.call("chat.post", {
+      threadId: ctx.thread, body: "", mentions: [], idempotencyKey: `cmplive:${c.computerId}:${ctx.thread}:${Math.floor(at / LIVE_GAP_MS)}`,
+      blocks: [{ type: "screenshot", v: 1, data: { computerId: c.computerId, fileId, caption, at, live: true } }],
+    });
+  } catch { lastCard.delete(key); }
+}
+
 export interface Resolved { computer: ComputerRow; host: ComputerHost & ToolHost }
 
 /** Everything before the call: team Space, the computer, the caller's right to it, awake, and the controls with the agent. Returns null when the spec says to leave a sleeping computer alone. */
@@ -124,7 +143,9 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
   needTeam(ctx);
   let c = computerFor(ctx, computerId);
   mayUse(ctx, c);
-  if (c.state === "takeover" && !spec.duringTakeover) raise(ctx, "validation.bad_input", "A person has the controls. The tools wait until they give them back.", { takeoverBy: c.takeoverBy });
+  // The controls are the person's: the tools wait for an agent, never for the person at the controls (their own click or key through the live view is a tool call as them).
+  const atTheControls = ctx.principal.kind === "person" && c.takeoverBy !== undefined && actorOf(ctx) === c.takeoverBy;
+  if (c.state === "takeover" && !spec.duringTakeover && !atTheControls) raise(ctx, "validation.bad_input", "A person has the controls. The tools wait until they give them back.", { takeoverBy: c.takeoverBy });
   if (c.state === "asleep" && spec.noWake) return null;
   if (c.state === "asleep" || c.state === "error") c = await awaken(ctx, c, actorOf(ctx));
   if (c.state === "provisioning" || c.state === "waking") raise(ctx, "provider.unavailable", "This computer is still starting.");
@@ -136,7 +157,8 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
   const c = r.computer;
   let raw: ToolAnswer;
   try {
-    raw = await r.host.tool({ computerId: c.computerId, tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS) });
+    const byPerson = c.state === "takeover" && ctx.principal.kind === "person" && c.takeoverBy !== undefined && actorOf(ctx) === c.takeoverBy;
+    raw = await r.host.tool({ computerId: c.computerId, tool: spec.name, args, timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS), ...(byPerson ? { by: "person" as const } : {}) });
   } catch (e) {
     return refuse(ctx, e);
   }
@@ -152,6 +174,7 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
     addStep(ctx.db, c.computerId, at, {
       by: ctx.principal.kind === "agent" ? "agent" : "person", caption: words, tool: spec.name, ...(frameFileId ? { frameFileId } : {}), ...(ctx.run ? { runId: ctx.run } : {}), ...(ctx.thread ? { threadId: ctx.thread } : {}),
     });
+    await liveCard(ctx, c, words, frameFileId, at);
   }
   return out;
 }

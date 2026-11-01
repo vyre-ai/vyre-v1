@@ -2,6 +2,7 @@
 // and no mode (Ask, Allow, Auto) or plan state can make this module skip it. We only (a) refuse what was never offered this turn, (b) route the answer back as a tool result.
 import { HostError, makeError } from "../../../host/src/routes/errors.ts";
 import type { CtxSeed, Invoke } from "../../../host/src/invoke.ts";
+import { heldCard, recordWork, workCardOf } from "./work-cards.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
@@ -147,11 +148,19 @@ export function createToolSession(deps: CallDeps): ToolSession {
     try {
       const res = await deps.invoke(t.cap, isDynamic && deps.dynamic ? deps.dynamic.input(ctx, t, input) : input, seed);
       if (res.status === "held") {
+        recordWork(ctx.turnId, heldCard(t.cap, res.taskId, input));
         return {
           kind: "held", taskId: res.taskId, traceId: res.traceId, ...(res.runId === undefined ? {} : { runId: res.runId }),
           result: { ok: false, content: { held: true, taskId: res.taskId, message: "Waiting for approval." } },
         };
       }
+      // A Flow the agent drafted in a chat leaves its card there. Done here, after the call returned, because only now is the new draft registered in access, so the card's handler (chat.flow_card) can read it
+      // as the agent; the card itself is written by that server handler, so the agent cannot dress up a button.
+      if (t.cap === "automations.create" && ctx.thread.threadId) {
+        const made = (res.output as { automation?: { id?: unknown } } | null)?.automation?.id;
+        if (typeof made === "string") await deps.invoke("chat.flow_card", { threadId: ctx.thread.threadId, automationId: made, idempotencyKey: `flow-card:${made}` }, seed).catch(() => undefined);
+      }
+      recordWork(ctx.turnId, workCardOf(t.cap, input, res.output));
       const content: { data: unknown; blocks?: string[] } = { data: res.output };
       if (t.blocks.length > 0) content.blocks = t.blocks;
       if (deps.hooks?.after) void Promise.resolve(deps.hooks.after(ctx, t, input, { ok: true, output: res.output })).catch(() => undefined);

@@ -371,3 +371,38 @@ test("a request Vyre made carries the origin's mark, not a person's face", () =>
   assert.ok(has(plain, 'data-testid="origin-Vyre"'));
   assert.ok(has(html(createSample("northwind")), 'data-testid="face-'), "an agent's request keeps its face");
 });
+
+// ---- a key request in Needs you: the main button collects the key; a bare Done cannot close it ----
+const keyTask = () => ({
+  id: "tsk_kr", kind: "unblock", title: "Fathom key needed", summary: "To read your meetings.", state: "todo", blocked: true,
+  blocks: [{ type: "vault_request", v: 1, data: { requestId: "vrq_1", name: "Fathom", fields: ["api_key"], reason: "To read your meetings.", state: "waiting" } }],
+  actions: [{ key: "cannot", label: "Decline", note: "optional" }], assigned: { kind: "person", id: "usr_irfad" }, fileIds: [], source: { kind: "manual", id: "vrq_1" }, dependsOn: [], followers: [],
+  workingNotes: { thread: "thr_1" }, reviewLoops: 0, createdBy: "agt_intake", createdAt: SAMPLE_NOW - 600_000, updatedAt: SAMPLE_NOW - 600_000,
+});
+test("Provide the key is the main button of a key request; no bare resolve, Decline or approve key is offered", () => {
+  const s = createSample("northwind");
+  for (const r of s.replica.rows("needs")) s.replica.remove("needs", [r.id]);
+  s.replica.put("needs", [{ id: "tsk_kr", reason: "blocking", task: keyTask() }]);
+  const out = html(s);
+  assert.ok(has(out, 'data-testid="needs-provide-key"') && has(out, "Provide the key"));
+  assert.ok(!has(out, 'data-testid="needs-primary"') && !has(out, 'data-testid="needs-sendback"') && !has(out, ">Take<"));
+  assert.ok(has(out, "Open the chat") && !has(out, "A approve"));
+});
+
+test("an access request's Approve grants (access.requests.approve); it is not a bare resolve", () => {
+  const s = createSample("northwind");
+  for (const r of s.replica.rows("needs")) s.replica.remove("needs", [r.id]);
+  s.replica.put("needs", [{ id: "tsk_ar", reason: "blocking", task: { ...keyTask(), id: "tsk_ar", title: "Maya asks for use access to Fathom", blocks: [{ type: "access_request", v: 1, data: { requestId: "arq_1", level: "use", state: "waiting" } }], workingNotes: {} } }]);
+  const out = html(s);
+  assert.ok(has(out, 'data-testid="needs-access-approve"') && has(out, 'data-testid="needs-access-decline"'));
+  assert.ok(!has(out, 'data-testid="needs-primary"'));
+});
+
+test("a connection that stopped working offers Reconnect and Check again; no bare Fix, no Take", () => {
+  const s = createSample("northwind");
+  for (const r of s.replica.rows("needs")) s.replica.remove("needs", [r.id]);
+  s.replica.put("needs", [{ id: "tsk_cf", reason: "blocking", task: { ...keyTask(), id: "tsk_cf", title: "Your Acme key stopped working", blocks: [{ type: "connection_fix", v: 1, data: { connectionId: "con_1", title: "Acme" } }], workingNotes: {}, source: { kind: "manual", id: "con_1" } } }]);
+  const out = html(s);
+  assert.ok(has(out, 'data-testid="needs-reconnect"') && has(out, 'data-testid="needs-check-again"'));
+  assert.ok(!has(out, 'data-testid="needs-primary"') && !has(out, ">Fix<") && !has(out, "connection fix"));
+});

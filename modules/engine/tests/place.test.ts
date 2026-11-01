@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { placementDecide, poolStatus, warm } from "../handlers/place.ts";
-import { bindOpener } from "../projections.ts";
+import { bindOpener, ensure } from "../projections.ts";
 import { harness } from "../fixtures/harness.ts";
 
 const NOW = 1_760_000_000_000;
@@ -162,4 +162,12 @@ test("the Space menu's Chats run on: with engine.local_runs off a private chat d
   };
   assert.equal((await placementDecide(mk(true), { threadId: "thr_1", agentId: "agt_1", kind: "message" })).placement, "device");
   assert.deepEqual(await placementDecide(mk(false), { threadId: "thr_1", agentId: "agt_1", kind: "message" }), { placement: "wait", reason: "local_runs_off", wakeLine: "Running chats on your computer is off" });
+});
+
+test("a crew teammate's thread runs on the host even with the asker's computer online: its repository copy is on the host", async () => {
+  const c = ctxFor("helper", [{ kind: "person", id: "usr_dana" }], [mac]);
+  assert.equal((await placementDecide(c.ctx, { threadId: "thr_mate", agentId: "agt_1", kind: "message" })).placement, "device", "a plain helper thread follows the device");
+  ensure(c.ctx.db);
+  c.ctx.db.run("INSERT INTO engine_crew_job (job_id, thread_id, lead_thread_id, project_id, agent_id, asker, title, branch, base_branch, repo_path, state, started_at) VALUES ('crw_1', 'thr_mate', 'thr_lead', 'prj_1', 'agt_1', 'usr_dana', 'T', 'crew/a-1', 'main', '/r', 'working', 1)");
+  assert.deepEqual(await placementDecide(c.ctx, { threadId: "thr_mate", agentId: "agt_1", kind: "message" }), { placement: "host", reason: "crew" });
 });

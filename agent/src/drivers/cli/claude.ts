@@ -11,6 +11,7 @@
 // With partial messages on, the text of a message arrives twice: as deltas and again in its `assistant` line. The deltas are the ones passed on; the whole message only fills in when no delta
 // was seen for it (an older CLI, or partial messages off).
 import { arr, num, obj, parseLine, str } from "./json.ts";
+import { toolDetail } from "./detail.ts";
 import type { Json } from "./json.ts";
 import type { Effort } from "../../turn-engine/types.ts";
 import type { CliAdapter, CliDecoder, CliEvent, CommandOptions, NativePlugins } from "./types.ts";
@@ -103,7 +104,12 @@ export function createClaudeDecoder(): CliDecoder {
       const t = str(b["type"]);
       if (t === "text" && str(b["text"]) !== "" && !streamed.has(id)) { sawText = true; out.push({ type: "text", text: str(b["text"]) }); }
       else if (t === "thinking" && str(b["thinking"]) !== "" && !streamed.has(id)) out.push({ type: "thinking", text: str(b["thinking"]) });
-      else if (t === "tool_use" && str(b["id"]) !== "" && !called.has(str(b["id"]))) { called.add(str(b["id"])); out.push({ type: "tool", phase: "call", id: str(b["id"]), name: str(b["name"]) }); }
+      else if (t === "tool_use" && str(b["id"]) !== "") {
+        if (!called.has(str(b["id"]))) { called.add(str(b["id"])); out.push({ type: "tool", phase: "call", id: str(b["id"]), name: str(b["name"]) }); }
+        // the whole message carries the call's input (the streamed start does not): what it touches, in safe words only
+        const detail = toolDetail(str(b["name"]), b["input"]);
+        if (detail !== "") out.push({ type: "tool", phase: "input", id: str(b["id"]), detail });
+      }
     }
     return out;
   }
@@ -111,6 +117,8 @@ export function createClaudeDecoder(): CliDecoder {
   function onUser(j: Json): CliEvent[] {
     const m = obj(j["message"]);
     const out: CliEvent[] = [];
+    // With --replay-user-messages the engine echoes each message we wrote when it takes it up: that is when it was read, mid-turn at a step boundary or as the start of the next turn.
+    if (j["isReplay"] === true) out.push({ type: "read" });
     for (const raw of arr(m?.["content"])) {
       const b = obj(raw);
       if (b && str(b["type"]) === "tool_result" && str(b["tool_use_id"]) !== "") out.push({ type: "tool", phase: "result", id: str(b["tool_use_id"]), ok: b["is_error"] !== true });
@@ -191,6 +199,7 @@ export const claudeCode: CliAdapter = {
   id: "claude_code",
   bin: "claude",
   persistent: true,
+  steers: true,
   models: MODELS,
   systemFlag: true,
   env: () => ({}),
@@ -201,7 +210,7 @@ export const claudeCode: CliAdapter = {
     const allowed = tools ? ["mcp__vyre__*", ...Object.keys(o.plugins?.mcpServers ?? {}).map((n) => `mcp__plugin_${n}__*`), ...(o.workFolder !== null ? folderTools : [])] : [];
     const effort = claudeEffort(o.effort);
     return [
-      "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
+      "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--replay-user-messages",
       ...(tools ? ["--mcp-config", mcpConfigJson(o.mcpUrl, o.mcpStdio, o.plugins)] : []), "--strict-mcp-config",
       // installed plugins load natively: their commands, skills and agents come from the plugin folder in the work folder
       ...(tools ? (o.plugins?.dirs ?? []).flatMap((d) => ["--plugin-dir", d]) : []),

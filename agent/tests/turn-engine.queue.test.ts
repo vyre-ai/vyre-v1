@@ -281,6 +281,27 @@ test("crash: after the lease expires another host requeues what the dead one ran
   assert.equal(queue.list("T").filter((r) => r.state === "done").length, 1);
 });
 
+test("heartbeat: a lease store that is gone ends the beat quietly instead of throwing out of the timer", async () => {
+  const clock = manualClock();
+  const real = createMemoryLeases();
+  let closed = false;
+  const leases = { ...real, renew: (...a: Parameters<typeof real.renew>) => { if (closed) throw new Error("database is not open"); return real.renew(...a); } };
+  const beats: Array<() => void> = [];
+  const stopped: number[] = [];
+  const hold = gate();
+  const p = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const engine = createTurnEngine({ holder: "host:a", openSession: p.openSession, leases, now: clock.now, schedule: (fn) => { beats.push(fn); return () => { stopped.push(1); }; } });
+  engine.openThread(thread("T"));
+  engine.receive({ threadId: "T", author: person("dana") });
+  await until(() => p.sessions.length === 1 && beats.length === 1);
+  closed = true;
+  assert.doesNotThrow(() => beats[0]?.(), "the host shut down under a running turn");
+  assert.equal(stopped.length, 1, "the beat stopped");
+  closed = false;
+  hold.open();
+  await engine.stop("T");
+});
+
 test("crash after the reply: a turn that posted its answer and died before the row closed is not run again", async () => {
   const clock = manualClock();
   const queue = createMemoryQueue();
@@ -354,4 +375,34 @@ test("modes: defaults, one lead per thread, and the composer line comes from rou
   assert.equal(engine.preview("T", { author: person("dana"), mentions: [person("sam")] }).line, "");
   engine.setMode("T", "docs", "lead");
   assert.equal(engine.preview("T", { author: person("dana") }).line, "Docs will reply");
+});
+
+test("a queued message can be taken out of the queue (to edit it) and is then never answered; a message whose turn has started cannot", async () => {
+  const hold = gate();
+  const p = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0 && p.sessions.length === 1) await hold.wait; } });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
+  engine.openThread(thread("T"));
+  const first = engine.receive({ threadId: "T", author: person("dana"), body: "long job" });
+  await until(() => p.sessions.length === 1);
+  const waiting = engine.receive({ threadId: "T", author: person("dana"), body: "never mind this one" });
+  assert.equal(engine.dropQueued("T", waiting.messageId), 1, "it was waiting");
+  assert.equal(engine.dropQueued("T", waiting.messageId), 0, "and is gone");
+  assert.equal(engine.dropQueued("T", first.messageId), 0, "the running turn's own message is not in the queue");
+  hold.open();
+  await engine.idle("T");
+  assert.equal(engine.turns("T").length, 1, "the dropped message got no turn");
+});
+
+test("interrupt for a message that is already waiting runs it once, first, not twice", async () => {
+  const hold = gate();
+  const p = scriptedProvider({ script: quiet, beforeEvent: async (i) => { if (i === 0 && p.sessions.length === 1) await hold.wait; } });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
+  engine.openThread(thread("T"));
+  engine.receive({ threadId: "T", author: person("dana"), body: "long job" });
+  await until(() => p.sessions.length === 1);
+  const waiting = engine.receive({ threadId: "T", author: person("dana"), body: "send me now" });
+  await engine.interrupt("T", waiting.messageId);
+  await engine.idle("T");
+  const bodies = p.sessions.flatMap((s) => s.inputs.map((i) => i.trigger?.body));
+  assert.equal(bodies.filter((b) => b === "send me now").length, 1, `answered once: ${JSON.stringify(bodies)}`);
 });

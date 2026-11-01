@@ -54,8 +54,9 @@ export async function rememberMessage(mem: ChatMemoryData, threadId: string, m: 
   const text = rememberText(m.body);
   if (text === "") { say("There are no words in this message to remember."); return; }
   try {
-    const out = await mem.store.write<{ fact: { factId: string } }>("memory.remember", { text, threadId, sourceRef: m.messageId });
-    say(FLASH.remembered, () => mem.store.write("memory.undo", { factId: out.fact.factId }));
+    // the server picks the layer (the chat's project, else the person's own), keeps the message as the source and leaves a "Remembered for ..." card in the thread
+    const out = await mem.store.write<{ factId: string; layer: "project" | "person"; merged: boolean; projectTitle?: string }>("chat.remember", { threadId, messageId: m.messageId, text, idempotencyKey: `remember-${m.messageId}-${mem.now().toString(36)}` });
+    say(out.layer === "project" && out.projectTitle ? (out.merged ? FLASH.rememberedFor(out.projectTitle) : FLASH.proposedTo(out.projectTitle)) : FLASH.remembered, () => mem.store.write("memory.undo", { factId: out.factId }));
   } catch (e) {
     say(errorLine(e, "Could not remember it"));
   }

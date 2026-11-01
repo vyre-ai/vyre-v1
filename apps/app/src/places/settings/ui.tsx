@@ -107,7 +107,7 @@ export function SettingsRow({ id, label, sub, subAlert = false, lead, control, f
           id={id} title={label} {...(sub ? { note: sub, tall: sub.length > 56 } : {})} {...(subAlert ? { noteLead: "Failed", noteLeadTone: "warning" as const } : {})}
           {...(lead ? { leading: <View style={s.lead}>{lead}</View> } : {})} {...(control && !stack ? { trailing: <View style={small ? s.controlFixed : s.control}>{control}</View> } : {})}
           {...(danger ? { titleMarks: <View style={s.dangerDot} /> } : {})}
-          {...(onPress ? { onPress } : { domProps: { style: { cursor: "default", backgroundColor: "transparent" } } })}
+          {...(onPress ? { onPress } : { domProps: { role: undefined, tabIndex: undefined, style: { cursor: "default", backgroundColor: "transparent" } } })}
         />
         {subAlert && sub ? <Text accessibilityRole="alert" style={s.srOnly}>{sub}</Text> : null}
         {stack ? <View style={s.stacked}>{control}</View> : null}
@@ -286,7 +286,7 @@ export const s = StyleSheet.create({
   text: { flex: 1, minWidth: 0, justifyContent: "center" },
   label: { fontSize: 13.5, lineHeight: 18, color: "var(--ink)" as string },
   sub: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
-  control: { flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8, maxWidth: "62%" },
+  control: { flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8, maxWidth: 400 },   // not a percent: the row sizes this box to its content, so 62% of that clipped every menu
   controlFixed: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 8 },
   sw: { width: 34, height: 20, borderRadius: 10, justifyContent: "center" },
   knob: { position: "absolute", top: 2, width: 16, height: 16, borderRadius: 8, backgroundColor: "#fff" },

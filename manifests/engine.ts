@@ -18,6 +18,14 @@ const mcpServerRow = t.obj({ key: t.str({ examples: ['greeter/echo'] }), name: t
 const mcpCallIn = { agentId: id.agent, server: t.str({ examples: ['greeter/echo'] }), tool: t.str(), input: t.opt(t.json()) };
 const mcpCallOut = { isError: t.bool(), text: t.str(), structured: t.opt(t.json()) };
 const agentMode = t.enm('lead', 'listen');
+// The crew (DESIGN-crew.md): a teammate working in its own copy of the project repository, on its own branch, in its own thread under the lead's chat.
+const crewState = t.enm('working', 'waiting', 'done', 'failed', 'stopped', 'merged');
+const crewJob = t.obj({
+  jobId: t.str({ examples: ['crw_01a1b2'] }), threadId: id.thread, leadThreadId: id.thread, projectId: id.project, agentId: id.agent, name: t.opt(t.str()), title: t.str(), branch: t.str({ examples: ['crew/ember-1'] }),
+  base: t.str({ examples: ['main'] }), state: crewState, startedAt: t.ts(), endedAt: t.opt(t.ts()), result: t.opt(t.rec()),
+});
+const crewWait = t.obj({ waitId: t.str(), kind: t.enm('checks'), label: t.str({ examples: ['acme/site#12'] }), state: t.enm('pending', 'passing', 'failing', 'none'), done: t.int(), total: t.int(), startedAt: t.ts() });
+const crewRepo = t.obj({ projectId: id.project, path: t.str(), baseBranch: t.str(), branch: t.str({ description: 'The branch the repository is on now' }) });
 const turnState = t.enm('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled');
 const driverId = t.enm('anthropic', 'openai', 'openrouter', 'google', 'xai', 'opencode_go', 'local', 'custom', 'claude_code', 'codex', 'grok');
 const accountRef = t.str({ description: 'Vault handle or subscription account reference; never a secret value', examples: ['#Team_Anthropic_Key'] });
@@ -54,6 +62,42 @@ export default defineManifest({
   title: 'Engine',
   owner: 'L2',
   capabilities: [
+    write('engine.crew.repo.set', 'Say which folder on this computer holds the project\'s repository, and the branch teammates start from; the folder must be a git repository', {
+      in: { projectId: id.project, path: t.str({ examples: ['/Users/maya/code/site'] }), baseBranch: t.opt(t.str({ examples: ['main'] })) }, out: { repo: crewRepo },
+      on: ['project', '/projectId'], level: 'manage', idem: 'natural', audit: 'always', tool: 'chats', errors: ['validation.bad_input'],
+    }),
+    read('engine.crew.repo.get', 'The project\'s repository for the crew, or nothing when none is set', { in: { projectId: id.project }, out: { repo: t.nullable(crewRepo) }, on: ['project', '/projectId'], tool: 'chats' }),
+    write('engine.crew.start', 'Start a teammate on a brief: it gets its own thread under this chat and its own copy of the project repository on its own branch, and works until it is done', {
+      in: { ...threadT, projectId: id.project, teammateId: id.agent, title: t.str(), brief: t.str(), model: t.opt(t.str()), provider: t.opt(t.str()), effort: t.opt(effort) }, out: { job: crewJob },
+      on: ['thread', '/threadId'], level: 'use', idem: 'key', audit: 'always', emits: ['crew.job_started'], tool: 'chats', mcpName: 'crew_start', agent: { planMode: 'blocked', blocks: ['helper'] },
+      errors: ['validation.bad_input', 'validation.precondition_failed'],
+    }),
+    read('engine.crew.list', 'The crew of a chat: one row per teammate job, newest first, with what each is on and how it stands', {
+      in: { ...threadT }, out: { jobs: t.arr(crewJob), waits: t.arr(crewWait) }, on: ['thread', '/threadId'], tool: 'chats', mcpName: 'crew_list', agent: { planMode: 'allowed', blocks: [] },
+    }),
+    write('engine.crew.message', 'Send a message to a teammate in its own thread; a teammate that stopped picks up where it left off', {
+      in: { jobId: t.str(), body: t.str() }, out: { sent: t.bool() }, level: 'use', idem: 'key', audit: 'always', tool: 'chats', mcpName: 'crew_message', agent: { planMode: 'blocked', blocks: [] },
+      errors: ['validation.not_found', 'validation.bad_input'],
+    }),
+    write('engine.crew.stop', 'Stop a teammate: its running turn ends and anything queued for it is dropped; its work stays on its branch', {
+      in: { jobId: t.str() }, out: { job: crewJob }, level: 'use', idem: 'key', audit: 'always', tool: 'chats', mcpName: 'crew_stop', agent: { planMode: 'blocked', blocks: [] }, errors: ['validation.not_found'],
+    }),
+    write('engine.crew.merge', 'Land a teammate\'s branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. A person presses Merge; an agent asking holds at the Gate', {
+      in: { jobId: t.str() }, out: { job: crewJob, landed: t.bool(), ref: t.str(), note: t.opt(t.str()) }, level: 'use', idem: 'key', audit: 'always', risk: 'high',
+      gate: { act: 'push_protected', when: "actor.kind != 'person'" }, emits: ['crew.job_merged', 'crew.job_pushed'], tool: 'chats', mcpName: 'crew_merge', agent: { planMode: 'blocked', blocks: [] },
+      errors: ['validation.not_found', 'validation.precondition_failed', 'permission.needs_approval'],
+    }),
+    write('engine.crew.wait', 'Wake me when the checks of a pull request end: the host looks at them, not the model, shows the progress in the Crew tab, and posts one message here that wakes the lead when they finish', {
+      in: { ...threadT, repo: t.str({ examples: ['acme/site'] }), number: t.int({ minimum: 1 }) }, out: { wait: crewWait }, on: ['thread', '/threadId'], level: 'use', idem: 'key', audit: 'always', tool: 'chats', mcpName: 'crew_wait',
+      agent: { planMode: 'blocked', blocks: [] }, errors: ['validation.bad_input'],
+    }),
+    write('engine.crew.push', 'Push the project repository\'s base branch, with a teammate\'s merged work in it, to its remote. It is an outward act from the host and always holds at the Gate for a person\'s approval', {
+      in: { jobId: t.str() }, out: { job: crewJob, pushed: t.bool(), note: t.opt(t.str()) }, level: 'use', idem: 'key', audit: 'always', risk: 'high', gate: { act: 'push_protected' },
+      emits: ['crew.job_merged', 'crew.job_pushed'], tool: 'chats', mcpName: 'crew_push', agent: { planMode: 'blocked', blocks: [] }, errors: ['validation.not_found', 'validation.precondition_failed', 'permission.needs_approval'],
+    }),
+    read('engine.crew.workspace', 'System: the repository copy a teammate thread works in, so the engine can make it before the first turn', {
+      in: { ...threadT }, out: { workspace: t.nullable(t.obj({ jobId: t.str(), repo: t.str(), base: t.str(), branch: t.str(), name: t.str() })) }, on: ['thread', '/threadId'],
+    }),
     read('engine.mcp.tools', 'The MCP servers a chat with this agent connects to and the tools each offers (starts the server in the sandbox if it is not running)', {
       in: { agentId: id.agent, server: t.opt(t.str()) }, out: { servers: t.arr(mcpServerRow) }, perm: null, level: 'view', tool: 'agents', mcpName: 'mcp_tools', agent: { planMode: 'allowed' },
     }),
@@ -76,6 +120,9 @@ export default defineManifest({
     write('engine.interrupt', 'Interrupt now: cancel the current turn and queue the message at top priority ("stop and send")', {
       in: { ...threadT, messageId: t.opt(id.message) }, out: { queued: t.bool() }, on: ['thread', '/threadId'], level: 'use', emits: ['turn.cancelled', 'turn.queued'],
       tool: 'chats', offline: 'online', idem: 'natural', risk: 'low',
+    }),
+    write('engine.drop_queued', 'Take a message that is waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it', {
+      in: { ...threadT, messageId: id.message }, out: { dropped: t.bool() }, on: ['thread', '/threadId'], level: 'use', tool: 'chats', offline: 'online', idem: 'natural', risk: 'low',
     }),
     write('engine.stop', 'Stop one agent working in a thread (per-agent Stop)', {
       in: { ...threadT, agentId: t.opt(id.agent) }, out: { stopped: t.int() }, on: ['thread', '/threadId'], level: 'use', emits: ['turn.cancelled'],
@@ -316,11 +363,23 @@ export default defineManifest({
     read('engine.pool.status', 'Warm engine pool: sessions per driver, warm hits, evictions', {
       out: { sessions: t.arr(t.obj({ driver: driverId, warm: t.int(), max: t.int(), hits: t.int(), misses: t.int() })), totalWarm: t.int() }, perm: null, level: 'manage', tool: 'engineer',
     }),
+    read('engine.live_turns', 'The turns being written in a thread right now, with the text so far: what a chat opened or reconnected mid-turn shows before it follows the live stream', {
+      in: { threadId: id.thread }, out: { turns: t.arr(t.obj({ turnId: t.str(), agentId: id.agent, text: t.str() })) }, on: ['thread', '/threadId'], perm: null, tool: 'chats',
+    }),
     read('engine.health', 'Engine health: queue age, lease holders, provider reachability', {
       out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()), oldestQueuedMs: t.int() },
     }),
   ],
   events: [
+    ev('crew.job_merged', 'A teammate\'s branch was landed in the project repository', {
+      p: { jobId: t.str(), threadId: id.thread, leadThreadId: id.thread, branch: t.str(), landed: t.bool() }, subject: ['thread', '/leadThreadId'], vis: 'participants', label: 'subject',
+    }),
+    ev('crew.job_pushed', 'A crew\'s merged work was pushed to the project\'s remote', {
+      p: { jobId: t.str(), threadId: id.thread, leadThreadId: id.thread, branch: t.str() }, subject: ['thread', '/leadThreadId'], vis: 'participants', label: 'subject',
+    }),
+    ev('crew.job_started', 'A teammate started on a brief in its own thread and its own branch', {
+      p: { jobId: t.str(), threadId: id.thread, leadThreadId: id.thread, projectId: id.project, agentId: id.agent, branch: t.str() }, subject: ['thread', '/leadThreadId'], vis: 'participants', label: 'subject',
+    }),
     ev('turn.queued', 'A turn was queued for an agent in a thread', {
       p: { threadId: id.thread, agentId: id.agent, kind: t.str(), qseq: t.int(), messageId: t.opt(id.message) }, subject: ['thread', '/threadId'], vis: 'participants', label: 'subject',
     }),

@@ -6,7 +6,7 @@ import type { CompCtx } from "../projections.ts";
 
 /** The calls a node's home mirror may make as the agent. Anything else is refused, whatever the token. */
 export const HOME_CAPS: ReadonlySet<string> = new Set([
-  "files.list", "files.read", "files.upload_url", "files.write", "files.create", "files.delete", "files.folder.create", "put_upload", "agents.get", "agents.suggestion.propose", "tasks.create",
+  "files.list", "files.read", "files.upload_url", "files.write", "files.create", "files.delete", "files.folder.create", "put_upload", "agents.get", "agents.suggestion.propose", "tasks.create", "made_files",
 ]);
 /** Only a job that works on the home (waking, sleeping, syncing, a tool that changes files, a recording being saved into its folder) may reach it. */
 export const HOME_JOBS: ReadonlySet<string> = new Set(["start", "stop", "sync", "tool", "saveRecording"]);

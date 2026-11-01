@@ -40,6 +40,9 @@ export interface LiveTurns {
   subscribe(l: () => void): () => void;
   /** The saved message is on screen: its stream can go. */
   settle(messageId: string): void;
+  /** Take the turns the host says are being written now (engine.live_turns), and hear when a piece arrives for a turn this device never saw begin. */
+  seed(threadId: string, turns: readonly { turnId: string; agentId: string; text: string }[]): void;
+  onGap(l: (threadId: string) => void): () => void;
 }
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
@@ -66,6 +69,8 @@ export interface ConversationData {
   newKey(): string;
   /** The stream of a message that is still being written; none once it is complete. A row id `turn:<id>` is a reply that has no saved message yet. */
   streamOf(messageId: string): StreamStore | undefined;
+  /** What the turn behind a reply being written is doing (steps, thinking): the live line under it. Absent where nothing streams. */
+  activityOf?(rowId: string): import("../../../shell/session/turn-streams.ts").ActivityStore | undefined;
   /** Put bytes at a one-time upload address (files.upload_url). Left out where the shell cannot: a large file is then refused with a clear line. */
   putBlob?(url: string, bytes: Uint8Array): Promise<void>;
   /** Hand the person a file: a download in the browser, a save sheet on a phone. Left out: the text is copied instead. */
@@ -88,6 +93,8 @@ export interface ConversationData {
   fill?: ComposerFill;
   /** A line above the composer for work that waits in the background ("Waiting on: build 42"); the shell draws it from the thread's runs (P-L9b_23). */
   waitingLine?: ReactElement;
+  /** The Space's own address, where relative stream addresses start (the live card in a message). */
+  spaceUrl?: string;
   /** The shell has a terminal: a Run this card can type a command into one. */
   terminal?: boolean;
   /** The mount sheet for a Mount card in the chat: connect a folder from the source the card named, then hand back what was mounted. The shell draws it over the page. Left out where the shell has no Files. */

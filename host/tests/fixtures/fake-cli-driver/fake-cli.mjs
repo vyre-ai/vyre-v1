@@ -128,12 +128,123 @@ async function callTool(prompt) {
   } finally { mcp?.close(); }
 }
 
+// A real claude merges a user message that arrives while it is mid-turn into that turn (one result for both) instead of answering it as a turn of its own. `holding` is the part of a turn where the fake does the same:
+// what arrives then is absorbed into the running turn's answer, and no second result follows.
+let holding = false;
+const absorbed = [];
+
+/**
+ * "slow <words> <ms>": a reply that arrives the way a real one does: a pause before the first word, then the words one by one as partial messages (stream_event text deltas), then the whole assistant message
+ * (which repeats the text) and the result. A screen that shows the text only when the turn ends, or shows it twice, is caught by it.
+ */
+async function slow(prompt) {
+  const m = /^\s*slow\s+(\d+)\s+(\d+)/.exec(prompt);
+  const n = m ? Number(m[1]) : 6, ms = m ? Number(m[2]) : 500;
+  init();
+  const mid = `m_slow_${process.pid}_${Date.now()}`;   // the partial messages and the whole one carry the same message id, as the real CLI's do
+  out({ type: "stream_event", event: { type: "message_start", message: { id: mid } } });
+  await new Promise((res) => setTimeout(res, ms * 2));
+  const words = Array.from({ length: n }, (_, i) => `word${i + 1}`);
+  for (const w of words) {
+    out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: `${w} ` } } });
+    await new Promise((res) => setTimeout(res, ms));
+  }
+  const full = words.map((w) => `${w} `).join("");
+  out({ type: "assistant", message: { id: mid, content: [{ type: "text", text: full }], usage: { input_tokens: 9, output_tokens: n } } });
+  out({ type: "result", subtype: "success", is_error: false, result: full, session_id: session, usage: { input_tokens: 9, output_tokens: n } });
+}
+
+/**
+ * "think <ms>": a reply that works before it speaks, the way a real one does: it thinks (thinking deltas), reads a file (a Read tool call and its result), thinks again, reads another, then answers in words.
+ * The line under the reply must say so while it happens, and "Worked for N s" must stay under the finished reply.
+ */
+async function think(prompt) {
+  const m = /^\s*think\s+(\d+)/.exec(prompt);
+  const ms = m ? Number(m[1]) : 600;
+  const wait = (n) => new Promise((res) => setTimeout(res, n));
+  init();
+  const mid = `m_think_${process.pid}_${Date.now()}`;
+  out({ type: "stream_event", event: { type: "message_start", message: { id: mid } } });
+  const thought = async (text) => { for (const w of text.split(" ")) { out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: `${w} ` } } }); await wait(60); } };
+  await thought("I should look at the notes first and then compare them with the plan.");
+  await wait(ms);
+  out({ type: "stream_event", event: { type: "content_block_start", index: 1, content_block: { type: "tool_use", id: `toolu_a_${process.pid}`, name: "Read" } } });
+  // the whole message arrives with the call's input, as the real CLI's does
+  out({ type: "assistant", message: { id: `m_ta_${process.pid}`, content: [{ type: "tool_use", id: `toolu_a_${process.pid}`, name: "Read", input: { file_path: "/work/notes/model.ts" } }] } });
+  await wait(ms * 2);
+  out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: `toolu_a_${process.pid}`, content: "ok" }] } });
+  await thought("That covers the first part, now the second file.");
+  out({ type: "stream_event", event: { type: "content_block_start", index: 2, content_block: { type: "tool_use", id: `toolu_b_${process.pid}`, name: "WebSearch" } } });
+  out({ type: "assistant", message: { id: `m_tb_${process.pid}`, content: [{ type: "tool_use", id: `toolu_b_${process.pid}`, name: "WebSearch", input: { query: "stream pacing" } }] } });
+  await wait(ms * 2);
+  out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: `toolu_b_${process.pid}`, content: "ok" }] } });
+  // a command with a secret in it: it must never be shown, only "Running a command"
+  out({ type: "stream_event", event: { type: "content_block_start", index: 2, content_block: { type: "tool_use", id: `toolu_c_${process.pid}`, name: "Bash" } } });
+  out({ type: "assistant", message: { id: `m_tc_${process.pid}`, content: [{ type: "tool_use", id: `toolu_c_${process.pid}`, name: "Bash", input: { command: "curl -H 'Authorization: Bearer sk-ant-FAKESECRETFAKESECRET123456' https://example.com/x?token=abc" } }] } });
+  await wait(ms * 2);
+  out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: `toolu_c_${process.pid}`, content: "ok" }] } });
+  await wait(ms);
+  const words = ["The", "notes", "agree", "with", "the", "plan."];
+  for (const w of words) { out({ type: "stream_event", event: { type: "content_block_delta", index: 3, delta: { type: "text_delta", text: `${w} ` } } }); await wait(120); }
+  const full = words.map((w) => `${w} `).join("");
+  out({ type: "assistant", message: { id: mid, content: [{ type: "text", text: full }], usage: { input_tokens: 9, output_tokens: words.length } } });
+  out({ type: "result", subtype: "success", is_error: false, result: full, session_id: session, usage: { input_tokens: 9, output_tokens: words.length } });
+}
+
+/** "askhold <ms> <json>": asks the question over MCP (ask_question), then keeps its turn open for <ms> as a model does while it finishes its sentence, and only then ends it. */
+async function askHold(prompt) {
+  const m = /^\s*askhold\s+(\d+)\s+(.*)$/s.exec(prompt);
+  if (!m) { reply(["askhold: say how long and what to ask"]); return; }
+  let args = {};
+  try { args = JSON.parse(m[2].trim()); } catch { reply(["askhold: the question is not JSON"]); return; }
+  let mcp;
+  try {
+    mcp = await mcpOpen();
+    const r = await mcp.call("ask_question", args);
+    holding = true;
+    init();
+    // while it finishes its work the model reads a few files: each is a tool call and its result, a step boundary the engine looks at for steering
+    const until = Date.now() + Number(m[1]);
+    for (let n = 1; Date.now() < until; n++) {
+      out({ type: "assistant", message: { id: `m_step${n}`, content: [{ type: "tool_use", id: `toolu_step${n}`, name: "Read", input: { file_path: "/tmp/x" } }] } });
+      await new Promise((res) => setTimeout(res, 150));
+      out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: `toolu_step${n}`, content: "ok" }] } });
+      await new Promise((res) => setTimeout(res, 150));
+    }
+    holding = false;
+    const merged = absorbed.splice(0, absorbed.length);
+    // The real engine reads a mid-turn message at its next step and acts on it inside the turn it is running: one that carries a new instruction (askhold ...) is carried out here, before the turn's one result.
+    const next = merged.flatMap((p) => p.split("\n")).reverse().find((l) => /^askhold\s+\d+/.test(l.trim()));
+    if (next) { mcp?.close(); mcp = undefined; await askHold(next.trim()); return; }
+    reply([r?.error || r?.result?.isError ? `ask_question refused: ${JSON.stringify(r)}` : `I have asked; waiting for your answer.${merged.length ? ` Merged: ${merged.join(" | ")}` : ""}`]);
+  } catch (e) {
+    reply([`mcp error: ${e instanceof Error ? e.message : "the call failed"}`]);
+  } finally { mcp?.close(); }
+}
+
 async function run(raw) {
   const prompt = withoutContext(raw);
   // a "tool" line is the person's message, which comes last and may follow context or memory the engine put in front of it
   const toolLine = prompt.split("\n").reverse().find((l) => /^tool\s+\S+/.test(l));
   if (toolLine) { await callTool(toolLine); return; }
   const first = prompt.trim().split(/\s+/)[0];
+  // a side question (/btw): its first message carries "The question: ..."; the answer streams a few words
+  const asked = /The question: ([^\n]*)/.exec(prompt);
+  if (asked && /A side question, asked while you may be busy/.test(prompt)) {
+    init();
+    const mid = `m_aside_${process.pid}_${Date.now()}`;
+    out({ type: "stream_event", event: { type: "message_start", message: { id: mid } } });
+    const words = `Aside answer to ${asked[1].trim()} is short`.split(" ");
+    for (const w of words) { out({ type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: `${w} ` } } }); await new Promise((res) => setTimeout(res, 250)); }
+    const full = words.map((w) => `${w} `).join("");
+    out({ type: "assistant", message: { id: mid, content: [{ type: "text", text: full }], usage: { input_tokens: 9, output_tokens: words.length } } });
+    out({ type: "result", subtype: "success", is_error: false, result: full, session_id: session, usage: { input_tokens: 9, output_tokens: words.length } });
+    return;
+  }
+  const holdLine = prompt.split("\n").reverse().find((l) => /^askhold\s+\d+/.test(l));   // the instruction may follow other lines the person's messages brought
+  if (holdLine) { await askHold(holdLine.trim()); return; }
+  if (first === "slow") { await slow(prompt.trim()); return; }
+  if (first === "think") { await think(prompt.trim()); return; }
   switch (first) {
     case "hello": reply(["Hello", " from the fake engine."]); break;
     case "envcheck": {
@@ -171,6 +282,9 @@ async function run(raw) {
   }
 }
 
+// With --replay-user-messages the real engine echoes each user message when it takes it up: at the start of its turn, or, for one that arrives mid-turn, when it folds it in at a step boundary.
+const replay = (text) => { if (argv.includes("--replay-user-messages")) out({ type: "user", isReplay: true, message: { role: "user", content: [{ type: "text", text }] } }); };
+
 // Persistent engine: one JSON user message per line on stdin, answered in order.
 let buf = "";
 let queue = Promise.resolve();
@@ -183,7 +297,8 @@ process.stdin.on("data", (d) => {
     if (line.trim() === "") continue;
     let prompt = "";
     try { prompt = JSON.parse(line).message.content.map((c) => c.text ?? "").join("\n"); } catch { continue; }
-    queue = queue.then(() => run(prompt));
+    if (holding) { absorbed.push(withoutContext(prompt)); replay(prompt); continue; }
+    queue = queue.then(() => { replay(prompt); return run(prompt); });
   }
 });
 process.stdin.on("end", () => { queue.then(() => process.exit(0)); });

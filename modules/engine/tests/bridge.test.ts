@@ -6,6 +6,7 @@ import { createBridge } from "../handlers/bridge.ts";
 import type { AgentPost, Bridge, StreamEvent } from "../handlers/bridge.ts";
 import { harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
+import { recordWork, workCardOf } from "../../../agent/src/tools/work-cards.ts";
 import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
 import type { DriverEvent, TurnInput } from "../../../agent/src/turn-engine/types.ts";
 import type { EngineCtx } from "../projections.ts";
@@ -16,7 +17,7 @@ const WATCHER = "agt_watch";
 
 interface ChatRow { messageId: string; threadId: string; threadSeq: number; author: { kind: string; id: string }; body: string; blocks: unknown[]; mentions: unknown[]; via?: { routineOwner: string }; depth: number; attachments?: string[] }
 
-function setup(opts: { agentModel?: string; stream?: (e: StreamEvent) => void; addressAsker?: (threadId: string, agentId: string) => boolean; agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
+function setup(opts: { agentModel?: string; stream?: (e: StreamEvent) => void; addressAsker?: (threadId: string, agentId: string) => boolean; refuse?: (p: AgentPost) => boolean; agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
   const h = harness();
   const chat: ChatRow[] = [];
   const echoes: Array<{ id: string; result: unknown }> = [];
@@ -35,7 +36,9 @@ function setup(opts: { agentModel?: string; stream?: (e: StreamEvent) => void; a
   };
   let bridge: Bridge;
   const postAs = async (agentId: string, p: AgentPost): Promise<void> => {
-    // chat.post as the agent: stored under the clientId, then message.received like any message
+    // chat.post as the agent: stored under the clientId, then message.received like any message. Chat refuses a message with more than 20 blocks, as the real chat.post does.
+    if (p.blocks.length > 20) throw new Error("A message can carry at most 20 blocks.");
+    if (opts.refuse?.(p)) throw new Error("chat.post refused");
     const row: ChatRow = { messageId: p.clientId, threadId: p.threadId, threadSeq: chat.length + 1, author: { kind: "agent", id: agentId }, body: p.body, blocks: p.blocks, mentions: p.mentions, depth: 1, ...(p.via ? { via: p.via } : {}) };
     chat.push(row);
     const result = await bridge.onEvent(ctx, { name: "message.received", payload: { messageId: row.messageId, threadId: T, author: { kind: "agent", id: agentId }, mentions: p.mentions, depth: 1 } });
@@ -203,6 +206,14 @@ test("a live turn streams start, each piece of text, end, then the message it be
   assert.equal(seen.every((e) => e.threadId === T && e.agentId === LEAD), true);
 });
 
+test("the start of a live turn names the message that started it, so a screen can put the reply after it", async () => {
+  const seen: StreamEvent[] = [];
+  const s = setup({ stream: (e) => seen.push(e), script: reply("Done.") });
+  const { id } = await s.say("Please draft it.");
+  const start = seen.find((e) => e.kind === "start") as Extract<StreamEvent, { kind: "start" }> | undefined;
+  assert.equal(start?.triggerId, id);
+});
+
 test("a stream listener that throws never fails the turn or the post", async () => {
   const s = setup({ stream: () => { throw new Error("socket gone"); }, script: reply("Fine.") });
   await s.say("hi");
@@ -243,4 +254,124 @@ test("a chat that pins no model runs on the agent's own model, so the turn and i
   const none = setup({ script: reply("Hi.") });
   await none.say("Hello");
   assert.equal(none.engine.turns(T)[0]?.model ?? null, null, "an agent with no model of its own leaves the turn unpinned");
+});
+
+test("an agent that joined the chat after it was opened here hears a message that @mentions it", async () => {
+  const agents: Array<{ agentId: string; mode: "lead" | "listen" }> = [{ agentId: LEAD, mode: "lead" }];
+  const s = setup({ script: reply("Here you go."), agents });
+  await s.say("Morning.");
+  assert.equal(s.engine.agents(T).some((a) => a.id === WATCHER), false, "not in the engine yet");
+  agents.push({ agentId: WATCHER, mode: "listen" });
+  const { result } = await s.say("@Watch sum this up", [{ kind: "agent", id: WATCHER }]);
+  assert.deepEqual(result, { receivedAs: [WATCHER] }, "the mention reaches the agent that joined later");
+  assert.equal(s.engine.agents(T).some((a) => a.id === WATCHER), true);
+});
+
+test("the turns being written are listed with their text so far, and each piece carries where it starts", async () => {
+  const seen: StreamEvent[] = [];
+  const s = setup({ script: reply("Hello there."), stream: (e) => seen.push(e) });
+  await s.say("Hi");
+  const at = seen.filter((e) => e.kind === "delta").map((e) => (e as { at: number }).at);
+  assert.equal(at[0], 0);
+  assert.ok(at.every((x, i) => i === 0 || x > at[i - 1]!), "each piece starts after the one before");
+  assert.deepEqual(s.bridge.liveTurns(T), [], "an ended turn is not listed");
+});
+
+test("a message that arrives while the thread is being opened for an earlier one is not copied as history, so its own event still reaches the agent", async () => {
+  const s = setup({ script: reply("Here you go.") });
+  s.chat.push({ messageId: "msg_early", threadId: T, threadSeq: 1, author: { kind: "person", id: "usr_dana" }, body: "Morning.", blocks: [], mentions: [], depth: 0 } as never);
+  s.chat.push({ messageId: "msg_late", threadId: T, threadSeq: 2, author: { kind: "person", id: "usr_dana" }, body: "Please sum up.", blocks: [], mentions: [{ kind: "agent", id: LEAD }], depth: 0 } as never);
+  await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_early", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0 } });
+  const late = await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_late", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [{ kind: "agent", id: LEAD }], depth: 0 } });
+  assert.deepEqual(late, { receivedAs: [LEAD] });
+});
+
+const steps = (n: number): DriverEvent[] => Array.from({ length: n }, (_, i): DriverEvent[] => [
+  { type: "block", kind: "tool_call", payload: { id: `c${i}`, name: "records_query" } }, { type: "block", kind: "tool_result", payload: { id: `c${i}`, ok: i !== 7 } },
+]).flat();
+
+test("a turn of 30 tool calls posts its reply: the steps fold into one summary, the text and the cards stay", async () => {
+  const s = setup({ script: [...steps(30), { type: "block", kind: "chart", payload: { n: 1 } }, { type: "text", text: "Here is what I found." }, { type: "done" }] });
+  await s.say("Check everything.");
+  const posts = s.chat.filter((r) => r.author.id === LEAD);
+  assert.equal(posts.length, 1, "one reply");
+  assert.equal(posts[0]?.body, "Here is what I found.");
+  const blocks = posts[0]!.blocks as { type: string; data: Record<string, unknown> }[];
+  assert.ok(blocks.length <= 20);
+  assert.deepEqual(blocks.map((b) => b.type), ["tool_steps", "chart"]);
+  assert.deepEqual(blocks[0]!.data, { calls: 30, results: 30, failed: 1 });
+});
+
+test("cards past the limit are not dropped: they follow in messages of their own, in order", async () => {
+  const cards = Array.from({ length: 45 }, (_, i): DriverEvent => ({ type: "block", kind: "card", payload: { n: i } }));
+  const s = setup({ script: [...cards, { type: "text", text: "Done." }, { type: "done" }] });
+  await s.say("Make cards.");
+  const posts = s.chat.filter((r) => r.author.id === LEAD);
+  assert.equal(posts[0]?.body, "Done.");
+  assert.deepEqual(posts.map((p) => p.blocks.length), [20, 20, 5]);
+  assert.deepEqual(posts.flatMap((p) => (p.blocks as { data: { n: number } }[]).map((b) => b.data.n)), cards.map((_, i) => i));
+});
+
+test("a post that is refused is never silent: the person gets the words and a failed turn they can retry", async () => {
+  let refused = 0;
+  const s = setup({ refuse: (p) => p.blocks.some((b) => b.type === "chart") && ++refused > 0, script: [{ type: "block", kind: "chart", payload: {} }, { type: "text", text: "The answer is 42." }, { type: "done" }] });
+  await s.say("What is it?");
+  const posts = s.chat.filter((r) => r.author.id === LEAD);
+  assert.equal(refused, 1);
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0]?.body, "The answer is 42.", "the words survive");
+  assert.deepEqual(posts[0]?.blocks, [{ type: "turn_status", v: 1, data: { state: "failed", turnId: (posts[0]!.blocks[0] as { data: { turnId: string } }).data.turnId, code: "engine.post_failed" } }]);
+});
+
+test("what a turn started comes under its reply as cards, in one message, in the order it was made", async () => {
+  const s = setup({
+    script: (i) => {
+      recordWork(i.turnId, workCardOf("records.create", {}, { record: { id: "rec_1", type: "contact", fields: { name: "Dana Fox" } } }));
+      recordWork(i.turnId, workCardOf("tasks.create", {}, { task: { id: "tsk_1", title: "Call Dana" } }));
+      return [{ type: "text", text: "Done, I made both." }, { type: "done" }];
+    },
+  });
+  await s.say("Add Dana and a task to call her.");
+  const posts = s.chat.filter((r) => r.author.id === LEAD);
+  assert.equal(posts.length, 1, "one reply, not a pile");
+  assert.equal(posts[0]?.body, "Done, I made both.");
+  assert.deepEqual((posts[0]!.blocks as { type: string; data: { lead: string; title: string } }[]).map((b) => `${b.type}:${b.data.lead}:${b.data.title}`), ["link_card:Record:Dana Fox", "link_card:Task:Call Dana"]);
+});
+
+test("steps and thinking go to the live link as they happen, names only, and the saved reply keeps its steps and how long the turn took", async () => {
+  const seen: StreamEvent[] = [];
+  const s = setup({
+    stream: (e) => seen.push(e),
+    script: [{ type: "thinking", text: "I will read it" }, { type: "block", kind: "tool_call", payload: { id: "c1", name: "Read" } }, { type: "block", kind: "tool_input", payload: { id: "c1", detail: "model.ts" } }, { type: "block", kind: "tool_result", payload: { id: "c1", ok: true } }, { type: "text", text: "Done." }, { type: "usage", inputTokens: 5, outputTokens: 2 }, { type: "done" }],
+  });
+  await s.say("Please check the file.");
+  const kinds = seen.map((e) => e.kind);
+  assert.deepEqual(kinds.filter((k) => k !== "delta"), ["start", "thinking", "step", "step", "step", "end", "final"]);
+  const steps = seen.filter((e): e is Extract<StreamEvent, { kind: "step" }> => e.kind === "step");
+  assert.deepEqual(steps.map((e) => [e.phase, e.id, e.name, e.detail]), [["call", "c1", "Read", undefined], ["input", "c1", undefined, "model.ts"], ["result", "c1", "Read", undefined]]);
+  assert.ok(!JSON.stringify(steps).includes("file_path") && !JSON.stringify(steps).includes("command"), "names and one short safe detail: no raw input of the step goes out");
+  const post = s.chat.find((r) => r.author.id === LEAD && r.blocks.length > 0) as { blocks: Array<{ type: string; data: Record<string, unknown> }> } | undefined;
+  assert.deepEqual(post?.blocks.map((b) => b.type), ["tool_call", "tool_result"], "what a call touches is not saved with the reply");
+  assert.ok(!JSON.stringify(post).includes("model.ts"));
+  assert.equal(post?.blocks[1]?.data["name"], "Read");
+  assert.equal(typeof post?.blocks[1]?.data["turnSecs"], "number", "how long the whole turn took rides on the last step");
+});
+
+test("an agent message chat already holds (a crew card posted by the host) is not posted a second time", async () => {
+  const s = setup({ script: reply("Done.") });
+  await s.say("Please draft the closing letter.");
+  const before = s.echoes.length;
+  const row: ChatRow = { messageId: "msg_crwcard1", threadId: T, threadSeq: s.chat.length + 1, author: { kind: "agent", id: LEAD }, body: "Ember finished it.", blocks: [{ type: "crew_result", v: 1, data: { jobId: "crw_1" } }], mentions: [], depth: 1 };
+  s.chat.push(row);
+  await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: row.messageId, threadId: T, author: { kind: "agent", id: LEAD }, mentions: [], depth: 1 } });
+  await s.bridge.flush();
+  assert.equal(s.echoes.length, before, "no second post of a message chat already has");
+  assert.equal(s.chat.filter((r) => r.messageId === "msg_crwcard1").length, 1);
+});
+
+test("words after a tool call start a new paragraph instead of running into the sentence before it", async () => {
+  const s = setup({ script: [{ type: "text", text: "Heredoc blocked by the sandbox; I'll use Edit." }, { type: "block", kind: "tool_call", payload: { id: "t1", name: "Edit" } }, { type: "block", kind: "tool_result", payload: { id: "t1", ok: true } }, { type: "text", text: "The footer is added." }, { type: "usage", inputTokens: 5, outputTokens: 2 }, { type: "done" }] });
+  await s.say("Add a footer.");
+  const body = s.chat.filter((r) => r.author.kind === "agent").map((r) => r.body).join("");
+  assert.match(body, /I'll use Edit\.\n\nThe footer is added\./);
 });

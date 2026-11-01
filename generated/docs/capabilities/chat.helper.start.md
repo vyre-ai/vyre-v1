@@ -32,6 +32,7 @@ type In = {
   model?: string;
   provider?: string;
   effort?: "low" | "medium" | "high" | "max";
+  crew?: boolean;
 };
 ```
 
@@ -95,6 +96,7 @@ type Out = {
   "name": "example",
   "input": {
     "agentId": "agt_a1b2c3",
+    "crew": true,
     "effort": "low",
     "instruction": "example",
     "model": "example",

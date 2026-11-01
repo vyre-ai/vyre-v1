@@ -1,5 +1,6 @@
 // Per-message recall (spec 2.15): before a turn runs, ask the memory module what it knows that matches the message, as the person who wrote it, and hand the lines to the driver on the turn input.
 // A person's own layer is only ever read for that person (the call acts for the asker). A memory that is slow, off or failing never holds a turn up: the turn runs without the lines.
+import { asksForWords, recallable } from "../../lib/recall-intent.ts";
 import type { EngineSession, OpenSession, RecallLine, TurnInput } from "../../agent/src/turn-engine/types.ts";
 
 type Call = (cap: string, input: unknown, as?: string) => Promise<unknown>;
@@ -12,14 +13,17 @@ interface QuoteRow { ref: string; text: string; author: { id: string; name?: str
 /** The lines memory recalls for the message that caused this turn: facts from the pointer and the exact words of past chat lines, both as the asker; none for a wake, a resumed call or a message nobody wrote. */
 export async function recallFor(call: Call, input: TurnInput): Promise<RecallLine[]> {
   const t = input.trigger;
-  if (input.resumed || !t || t.author.kind !== "person" || t.body.trim() === "") return [];
+  // a greeting, thanks, a few words or an imported session's preamble is not something to recall against: nothing comes back for it, facts or quotes
+  if (input.resumed || !t || t.author.kind !== "person" || !recallable(t.body)) return [];
   const facts = (async (): Promise<RecallLine[]> => {
     try {
       const out = (await call("memory.pointer", { threadId: input.threadId, agentId: input.agent.id, text: t.body }, input.asker)) as { lines?: RecallLine[] };
       return out.lines ?? [];
     } catch { return []; }
   })();
+  // exact words of earlier chats come back only when the person asked to find what was said; otherwise every message would be matched against everything ever typed
   const quotes = (async (): Promise<RecallLine[]> => {
+    if (!asksForWords(t.body)) return [];
     try {
       const out = (await call("memory.quote", { q: t.body, excludeThreadId: input.threadId, limit: QUOTES, minCoverage: 0.6 }, input.asker)) as { quotes?: QuoteRow[] };
       return (out.quotes ?? []).map((q): RecallLine => {

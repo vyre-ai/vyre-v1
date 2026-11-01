@@ -39,3 +39,18 @@ test("a chat that builds a connector lists the builder's tools from its first tu
   assert.ok((await withChatMode(titled("Build a connector", "yolo"), caller())).preload?.includes("connectors_publish"), "even when the mode is not one it carries");
   assert.equal((await withChatMode(titled("Intake desk"), caller())).preload, undefined);
 });
+
+test("a chat that brings a CRM into Records lists the sync tools from its first turn", async () => {
+  const titled = (title: string) => ({ ...runtime("auto"), invoke: (async () => ({ status: "ok", output: { thread: { mode: "auto", title } } })) as Invoke });
+  for (const t of ["Sync HubSpot to Records", "Bring my CRM into Records", "Change how Ledger syncs to Records"]) {
+    const built = await withChatMode(titled(t), caller());
+    assert.ok(built.preload?.includes("sync_specs_sample") && built.preload.includes("sync_specs_apply"), t);
+  }
+});
+
+test("a chat inside a project lists the crew tools from its first turn, so a plain \"give it to a teammate\" can start one; a chat outside a project does not", async () => {
+  const scoped = (scopeType: unknown, kind = "chat") => ({ ...runtime("auto"), invoke: (async () => ({ status: "ok", output: { thread: { mode: "auto", title: "Bakery site", kind, scopeType } } })) as Invoke });
+  assert.ok((await withChatMode(scoped("project"), caller())).preload?.includes("crew_start"));
+  assert.ok((await withChatMode(scoped(undefined), caller())).preload?.includes("crew_start"), "a plain chat reaches crew too: the lead finds the project");
+  assert.equal((await withChatMode(scoped("project", "helper"), caller())).preload, undefined, "a teammate's own thread does not start more teammates");
+});

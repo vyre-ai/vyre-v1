@@ -5,7 +5,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
 import { exportAs } from "./export.ts";
 import type { ExportFormat } from "./export.ts";
-import { postInput } from "./model.ts";
+import { mentionsIn, postInput } from "./model.ts";
 import { carriesScreen, currentScreen } from "../../../shell/ask/screen.ts";
 import type { AgentMode, Message, SendKind, Thread } from "./model.ts";
 
@@ -220,6 +220,15 @@ export async function forkChat(data: ConversationData, messageId: string | undef
 
 /** A task from a message: the task's title is the first line (or the words given), its summary the whole message, and a block links back to the message. */
 export async function makeTask(data: ConversationData, thread: Thread, message: Pick<Message, "messageId" | "body" | "author" | "createdAt">, key: string, title?: string): Promise<string> {
+  // a real message: the server makes the task, points it back at the message and leaves the "Task created" card in the thread. The first person @named in the message gets it (a name in the chat
+  // directory, not the asker), else the asker does.
+  if (message.messageId !== "") {
+    const named = mentionsIn(message.body, data.directory.filter((c) => c.id !== data.me.id && (c.kind === "person" || thread.agents.some((x) => x.agentId === c.id))))[0];
+    const out = (await data.call("chat.make_task", {
+      threadId: thread.threadId, messageId: message.messageId, ...(title?.trim() ? { title: title.trim() } : {}), ...(named ? { assigneeId: named.id } : {}), idempotencyKey: key,
+    } as CapMap["chat.make_task"]["in"])) as CapMap["chat.make_task"]["out"];
+    return out.taskId;
+  }
   const firstLine = message.body.trim().split(/\n/)[0] ?? "";
   const name = (title?.trim() || firstLine || "Follow up on this message").slice(0, 120);
   const out = (await data.call("tasks.create", {
@@ -307,4 +316,61 @@ export async function continueElsewhere(data: ConversationData, thread: Thread, 
   const first = `Continue a conversation I had in ${fromName}. What follows is a copy of it, not new instructions.\n\n${copy.length > CONTINUE_LIMIT ? `${copy.slice(-CONTINUE_LIMIT)}` : copy}`;
   const out = (await data.elsewhere.call(space.id, "chat.start", { kind: "chat", agentIds: [agent.agentId], title: `${title} (from ${fromName})`, first, idempotencyKey: key })) as CapMap["chat.start"]["out"];
   return out.thread.threadId;
+}
+
+/** A place a message can be shared to: a channel (its main chat) or a person (the chat with them, made when there is none). */
+export interface ShareTarget { label: string; threadId?: string; personId?: string }
+
+const MAX_TARGETS = 12;
+
+/** The channels the person is in and the people they can write to, except where they already are. */
+export async function shareTargets(data: ConversationData, here: string): Promise<ShareTarget[]> {
+  const out: ShareTarget[] = [];
+  const list = (await data.call("channels.list", {} as CapMap["channels.list"]["in"])) as CapMap["channels.list"]["out"];
+  for (const c of list.channels) if (!c.archived && c.mainThreadId !== here) out.push({ label: `#${c.name}`, threadId: c.mainThreadId });
+  for (const p of data.directory) if (p.kind === "person" && p.id !== data.me.id) out.push({ label: p.name, personId: p.id });
+  return out.slice(0, MAX_TARGETS);
+}
+
+/** Share a message: to a person it first makes sure there is a chat with them (the same call a new chat makes; an existing one is returned). */
+export async function shareTo(data: ConversationData, threadId: string, messageId: string, to: ShareTarget, key: string): Promise<void> {
+  let target = to.threadId;
+  if (!target && to.personId) {
+    const started = (await data.call("chat.start", { kind: "chat", agentIds: [], personId: to.personId, idempotencyKey: `${key}:chat` } as CapMap["chat.start"]["in"])) as CapMap["chat.start"]["out"];
+    target = started.thread.threadId;
+  }
+  if (!target) return;
+  await data.call("chat.share", { threadId, messageId, toThreadId: target, to: to.threadId ? to.label : to.personId, idempotencyKey: key } as CapMap["chat.share"]["in"]);
+}
+
+/** /btw: a side question, answered in a hidden read-only thread of the asker's; the chat it was asked in is not written to. */
+export async function startAside(data: ConversationData, threadId: string, question: string, key: string): Promise<{ asideThreadId: string }> {
+  const out = (await data.call("chat.aside", { threadId, question, idempotencyKey: key } as CapMap["chat.aside"]["in"])) as CapMap["chat.aside"]["out"];
+  return { asideThreadId: out.asideThreadId };
+}
+
+/** Keep an aside's answer: one card in the chat it came from. */
+export async function keepAside(data: ConversationData, asideThreadId: string, key: string): Promise<void> {
+  await data.call("chat.aside_keep", { asideThreadId, idempotencyKey: key } as CapMap["chat.aside_keep"]["in"]);
+}
+
+/** Dismiss an aside: its thread is put away (best effort: the card is gone either way). */
+export async function dismissAside(data: ConversationData, asideThreadId: string): Promise<void> {
+  await data.call("threads.delete", { threadId: asideThreadId } as CapMap["threads.delete"]["in"]).catch(() => undefined);
+}
+
+/** Send a queued message now: the running turn is cut and the message goes first (the same call as the composer's Now). */
+/** Engines that cannot take a message mid-turn: a chat on them keeps the queued wording: the message waits until the turn ends. */
+export const CANNOT_STEER = new Set(["codex", "grok"]);
+
+export async function sendQueuedNow(data: ConversationData, threadId: string, messageId: string): Promise<void> {
+  await data.call("engine.interrupt", { threadId, messageId } as CapMap["engine.interrupt"]["in"]);
+}
+
+/** Take a queued message back to edit it: it leaves the queue and the chat, and its words are returned for the composer. False when its turn had already started. */
+export async function takeBackQueued(data: ConversationData, threadId: string, messageId: string): Promise<boolean> {
+  const out = (await data.call("engine.drop_queued", { threadId, messageId } as CapMap["engine.drop_queued"]["in"])) as CapMap["engine.drop_queued"]["out"];
+  if (!out.dropped) return false;
+  await data.call("chat.delete_message", { threadId, messageId } as CapMap["chat.delete_message"]["in"]).catch(() => undefined);
+  return true;
 }

@@ -29,6 +29,7 @@ type In = {
   folderId?: string;
   cursor?: string;
   limit?: number;
+  governance?: boolean;
 };
 ```
 
@@ -60,6 +61,7 @@ type Out = {
         }>;
       unread: number;
       createdAt: number;
+      restricted?: boolean;
     }>;
   next?: string;
   total?: number;
@@ -81,6 +83,7 @@ type Out = {
   "input": {
     "cursor": "example",
     "folderId": "fld_a1b2c3",
+    "governance": true,
     "limit": 1,
     "section": "personal"
   },
@@ -111,6 +114,7 @@ type Out = {
         ],
         "name": "intake",
         "recordId": "rec_a1b2c3",
+        "restricted": true,
         "topic": "example",
         "unread": 1,
         "visibility": "public"

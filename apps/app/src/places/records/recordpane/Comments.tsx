@@ -1,10 +1,12 @@
 // Right pane > Comments (the pieces): the field that takes a comment with its @mention picker, and one thread. Comments are notes on the record that everyone who can see it reads: a person
 // @mentioned gets a request in Needs you, an agent @mentioned answers under the comment on its own, and "Intake is replying" shows while it works.
-import { createElement, useState } from "react";
+import { createElement, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { CommentReply } from "../../../../../../ui/src/CommentReply/index.tsx";
+import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/Deferred.tsx";
+import type { ComposerSend, ListItem } from "../../../../../../ui/src/Composer/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
@@ -20,6 +22,8 @@ export interface CommentApi {
   meId: string;
   people: readonly PickEntry[];
   add(text: string, mentions: Mention[], parentId?: string): Promise<void>;
+  /** Stores files in the record's Files; where the shell cannot, a comment with a file is refused. */
+  attach?(files: readonly CommentFile[]): Promise<void>;
   edit(commentId: string, text: string): Promise<void>;
   resolve(commentId: string, resolved: boolean): Promise<void>;
   remove(commentId: string): Promise<void>;
@@ -31,38 +35,46 @@ function Glyph({ name }: { name: "check" | "undo" | "more" }): ReactElement | nu
   return createElement("svg", { viewBox: "0 0 16 16", width: 14, height: 14, "aria-hidden": true, style: { display: "block", stroke: "var(--ink-3)", strokeWidth: name === "more" ? 2.4 : 1.4, fill: "none", strokeLinecap: "round", strokeLinejoin: "round" } }, createElement("path", { d }));
 }
 
-/** The field a comment or reply is written in. Typing @ opens the people and agents; a press or Enter takes one. Enter otherwise sends, Shift-Enter makes a new line. A refused post keeps the text. */
-export function MentionField({ api, id, placeholder, onSend }: { api: CommentApi; id: string; placeholder: string; onSend(text: string, mentions: Mention[]): Promise<void> }): ReactElement {
-  const [value, setValue] = useState("");
-  const [busy, setBusy] = useState(false);
+/** What a comment may carry that a plain note could not: files go to the record's own Files and are named in the comment. */
+export interface CommentFile { name: string; mime?: string; file?: unknown }
+
+/**
+ * The field a comment or reply is written in: the shared Composer in its compact comment form (no agent strip, no model or mode, nobody to wait for). Typing @ opens the people and agents, # a
+ * record or file, and / the comment's commands; the plus takes files, which are stored in the record's Files and named under the comment. Enter sends, Shift-Enter makes a new line. A refused
+ * post puts the text back in the field and says so, so nothing written is lost.
+ */
+export function MentionField({ api, id, placeholder, onSend, commands = [] }: { api: CommentApi; id: string; placeholder: string; onSend(text: string, mentions: Mention[]): Promise<void>; commands?: readonly { name: string; label: string; run(): void }[] }): ReactElement {
+  const [seed, setSeed] = useState<{ value: string; n: number }>({ value: "", n: 0 });
   const [failed, setFailed] = useState(false);
-  const q = mentionQuery(value);
-  const list = q ? candidates(api.people, q.query) : [];
-  const send = (text: string): void => {
-    // Enter with the picker open takes the first name instead of sending the half-typed @. The field's own text decides (the sent text is trimmed, so "@Intake " would look unfinished).
-    const first = list[0];
-    if (first) { setValue(insertMention(value, first.name)); return; }
-    setBusy(true);
+  const lists = useMemo(() => {
+    const item = (e: PickEntry): ListItem => ({ t: e.name, ...(e.sub ? { s: e.sub } : {}), kind: e.kind === "agent" ? "Agent" : "Person", ref: e.id });
+    return { people: api.people.filter((e) => e.kind === "person").map(item), agents: api.people.filter((e) => e.kind === "agent").map(item), commands: commands.map((c): ListItem => ({ t: c.name, s: c.label })) };
+  }, [api.people, commands]);
+  const submit = (p: ComposerSend): void => {
+    const typed = p.text.trim();
+    if (typed === "" && p.files.length === 0) return;
     setFailed(false);
-    onSend(text, mentionsIn(text, api.people)).then(
-      () => { setBusy(false); setValue(""); },
-      () => { setBusy(false); setFailed(true); setValue(text); },
+    void (async () => {
+      let text = typed;
+      if (p.files.length > 0) {
+        if (!api.attach) throw new Error("This record cannot take files here.");
+        await api.attach(p.files.map((f) => ({ name: f.name, ...(f.mime ? { mime: f.mime } : {}), ...(f.file !== undefined ? { file: f.file } : {}) })));
+        text = `${text}${text ? "\n" : ""}Attached to the record: ${p.files.map((f) => f.name).join(", ")}`;
+      }
+      await onSend(text, mentionsIn(text, api.people));
+    })().then(
+      () => undefined,
+      () => { setFailed(true); setSeed((x) => ({ value: p.text, n: x.n + 1 })); },
     );
   };
   return (
     <View style={s.field} testID={`comment-field-${id}`}>
-      {list.length ? (
-        <View style={s.pick} testID={`mention-picker-${id}`}>
-          {/* ui-rows-lint: not a list (at most six names under the field) */}
-          {list.map((e) => (
-            <View key={e.id} style={{ height: 30 }}>
-              <Row id={`mention-${id}-${e.id}`} title={e.name} {...(e.sub ? { titleSuffix: e.sub } : {})} leading={<View style={s.face}><Avatar name={e.name} seedId={e.id} kind={e.kind} size={18} /></View>} onPress={() => setValue((v) => insertMention(v, e.name))} />
-            </View>
-          ))}
-        </View>
-      ) : null}
-      <CommentReply threadId={id} value={value} placeholder={placeholder} disabled={busy} density="regular" onChange={(t) => setValue(t)} onSend={(t) => send(t)} testID={`comment-reply-${id}`} />
-      {failed ? <Text accessibilityRole="alert" testID={`comment-error-${id}`} style={s.error}>Could not post. Try again</Text> : null}
+      <Composer
+        key={`comment-composer-${seed.n}`} {...(seed.value !== "" ? { value: seed.value } : {})}
+        testID={`comment-reply-${id}`} whoWillAnswer="" hideWho symbols={["at", "hash", "slash"]} density="compact" placeholder={placeholder} label={placeholder}
+        lists={lists} onSubmit={submit} onCommand={(name) => commands.find((c) => c.name === name)?.run()}
+      />
+      {failed ? <Text accessibilityRole="alert" testID={`comment-error-${id}`} style={s.error}>Could not post. Your text is still here, try again</Text> : null}
     </View>
   );
 }
@@ -144,7 +156,7 @@ export function ThreadView({ t, api }: { t: Thread; api: CommentApi }): ReactEle
       {replying.length ? <Text style={s.replying} testID={`replying-${t.root.commentId}`}>{replyingLine(replying, api.nameOf)}</Text> : null}
       {!t.root.resolved ? (
         <View style={s.replyField}>
-          <MentionField api={api} id={t.root.commentId} placeholder="Reply" onSend={(text, mentions) => api.add(text, mentions, t.root.commentId)} />
+          <MentionField api={api} id={t.root.commentId} placeholder="Reply" onSend={(text, mentions) => api.add(text, mentions, t.root.commentId)} commands={[{ name: "resolve", label: "Resolve this thread", run: () => void api.resolve(t.root.commentId, true) }]} />
         </View>
       ) : null}
     </View>

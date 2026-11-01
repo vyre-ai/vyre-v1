@@ -19,6 +19,8 @@ export interface PlaceThread {
   persons: number;
   /** An Ask pane scoped to a record other people can see. */
   onSharedRecord?: boolean;
+  /** A crew teammate's thread: its work is a copy of the project's repository on the host, so it runs there and nowhere else. */
+  crew?: boolean;
 }
 
 export interface PlaceDevice {
@@ -50,7 +52,7 @@ export interface PlaceInput {
 }
 
 export type PlaceReason =
-  | "shared_thread" | "routine" | "agent_computer" | "wake_shared"
+  | "shared_thread" | "routine" | "agent_computer" | "wake_shared" | "crew"
   | "device" | "no_daemon" | "device_off_runtime_opt_in" | "device_off" | "local_runs_off" | "chosen_space" | "chosen_server" | "server_off";
 
 export interface Placement {
@@ -81,6 +83,7 @@ export function isPrivate(t: PlaceThread): boolean {
 
 export function placeTurn(i: PlaceInput): Placement {
   const origin: Origin = i.item.origin ?? "message";
+  if (i.thread.crew === true) return { placement: "host", reason: "crew" };
   if (!isPrivate(i.thread)) {
     return { placement: "host", reason: i.item.kind === "wake" ? "wake_shared" : "shared_thread" };
   }

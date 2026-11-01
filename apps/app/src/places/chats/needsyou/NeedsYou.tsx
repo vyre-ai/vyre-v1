@@ -12,17 +12,20 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { act, snooze, take } from "./actions.ts";
+import { HeldMailCard } from "./HeldMail.tsx";
+import { heldMail, labelOf } from "./heldmail.ts";
 import type { NeedsDeps } from "./actions.ts";
 import { NeedsYouDataProvider, useNeedsData, useOnline, useOptionalNeedsData, useScreenQuery } from "./data.tsx";
 import type { NeedsYouData } from "./data.tsx";
 import {
-  FILTERS, SNOOZES, arrivedLabel, assignedName, fixOf, footerHint, fromName, hasComputer, originOf, blockView, holder, kindWord, matchesFilter, needsLine, needsNote, needsTake, nextSelection, notePrompt, roleWord, rowNote, sortItems,
+  FILTERS, SNOOZES, arrivedLabel, assignedName, accessRequestOf, connectionFixOf, fixOf, footerHint, keyRequestOf, fromName, hasComputer, originOf, blockView, holder, kindWord, matchesFilter, needsLine, needsNote, needsTake, nextSelection, notePrompt, roleWord, rowNote, sortItems,
   isWithdrawn, peopleCount, participants, sourceWord, splitActions, splitWithdrawn, stateWord, stepSelection,
 } from "./model.ts";
 import type { Action, BlockView, Item, KindFilter, Task } from "./model.ts";
 import { isNoAccount, mailFix } from "./account.ts";
 import { useOpenConnect } from "../../../shell/connect/index.ts";
 import { Button, Face, Icon, LeadIcon, OriginMark, Tool } from "./parts.tsx";
+import { KeyRequestCard } from "../conversation/keyrequest.tsx";
 import { ReplaceKeySheet } from "../../../hubs/ReplaceKey.tsx";
 
 type ItemsOut = CapMap["tasks.needs_you"]["out"];
@@ -105,7 +108,7 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
     if (ev.key === "ArrowDown" || ev.key === "ArrowUp") { ev.preventDefault?.(); setSelected(stepSelection(pool, current?.task.id ?? null, ev.key === "ArrowDown" ? 1 : -1)); return; }
     if (!current) return;
     if (ev.key === "Enter") { ev.preventDefault?.(); setScreen("detail"); return; }
-    if (fixOf(current.task) !== null) return;
+    if (fixOf(current.task) !== null || keyRequestOf(current.task) !== null || accessRequestOf(current.task) !== null || connectionFixOf(current.task) !== null) return;
     const a = splitActions(current.task);
     if ((ev.key === "a" || ev.key === "A") && a.primary) { ev.preventDefault?.(); void doAct(current, a.primary); }
     if ((ev.key === "b" || ev.key === "B") && a.sendBack) { ev.preventDefault?.(); void doAct(current, a.sendBack); }
@@ -114,7 +117,7 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
   const renderRow = (i: Item): ReactElement => {
     const sel = current?.task.id === i.task.id;
     const a = splitActions(i.task);
-    const quick = a.primary && !needsNote(a.primary) && !isWithdrawn(i) && fixOf(i.task) === null ? a.primary : null;
+    const quick = a.primary && !needsNote(a.primary) && !isWithdrawn(i) && fixOf(i.task) === null && keyRequestOf(i.task) === null && accessRequestOf(i.task) === null && connectionFixOf(i.task) === null ? a.primary : null;
     const verb = i.task.kind === "unblock" ? "Unblock" : kindWord(i.task);
     const full = rowNote(i, who(i.task), clock);
     const note = full.startsWith(`${verb} \u00b7 `) ? full.slice(verb.length + 3) : full;
@@ -192,11 +195,17 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
   const clock = data.clock();
   const who = fromName(t, data.nameOf);
   const fix = fixOf(t);
+  const keyReq = keyRequestOf(t);
+  const [providing, setProviding] = useState(false);
+  const accessReq = accessRequestOf(t);
+  const connFix = connectionFixOf(t);
+  const [fixNote, setFixNote] = useState("");
+  const [deciding, setDeciding] = useState(false);
   const system = originOf(t) !== null;
   const [replacing, setReplacing] = useState(false);
   const actions = splitActions(t);
   const held = holder(item, data.me);
-  const mustTake = needsTake(t, data.me) && held.kind === "free" && fix === null;
+  const mustTake = needsTake(t, data.me) && held.kind === "free" && fix === null && keyReq === null && accessReq === null && connFix === null;
   const warn = t.blocked || t.kind === "unblock";
   const src = t.source;
   const srcTitle = src ? data.sourceTitle(src.kind, src.id) ?? sourceWord(src) : "";
@@ -209,9 +218,12 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
     showMenu(who, x, y);
   };
   const blockNodes: ReactElement[] = [];
-  for (const [i, b] of t.blocks.entries()) blockNodes.push(<Block key={`${b.type}-${i}`} view={blockView(b)} />);
+  const mail = heldMail(t);
+  // a held send shows the draft with its record; the raw block would show only its type
+  if (mail) blockNodes.push(<HeldMailCard key="held-mail" mail={mail} call={data.call} onOpenRecord={(id) => data.nav.openSource("record", id)} />);
+  else for (const [i, b] of t.blocks.entries()) if (b.type !== "vault_request" && b.type !== "access_request" && b.type !== "connection_fix") blockNodes.push(<Block key={`${b.type}-${i}`} view={blockView(b)} />);
   const moreButtons: ReactElement[] = [];
-  for (const m of actions.more) moreButtons.push(<Button key={m.key} label={m.label} onPress={() => onAct(m)} testID={`needs-action-${m.key}`} />);
+  for (const m of actions.more) moreButtons.push(<Button key={m.key} label={labelOf(mail, m)} onPress={() => onAct(m)} testID={`needs-action-${m.key}`} />);
   const noAccount = isNoAccount(t);
   const mailSignIn = mailFix(t);
   const openConnect = useOpenConnect();
@@ -243,9 +255,11 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
       {blockNodes}
       <View style={st.src}>
         <Text style={st.srcText}>From </Text>
-        {src && !system ? <Pressable accessibilityRole="link" onPress={() => data.nav.openSource(src.kind, src.id)} testID="needs-source"><Text style={st.link}>{srcTitle}</Text></Pressable> : <Text style={st.srcText}>{who}</Text>}
-        <Text style={st.srcText}>{system ? ` · ${arrivedLabel(t.updatedAt, clock)}` : ` · ${who} · ${arrivedLabel(t.updatedAt, clock)}`}</Text>
+        {src && !system && src.kind !== "manual" ? <Pressable accessibilityRole="link" onPress={() => data.nav.openSource(src.kind, src.id)} testID="needs-source"><Text style={st.link}>{srcTitle}</Text></Pressable> : <Text style={st.srcText}>{who}</Text>}
+        <Text style={st.srcText}>{system || src?.kind === "manual" ? ` · ${arrivedLabel(t.updatedAt, clock)}` : ` · ${who} · ${arrivedLabel(t.updatedAt, clock)}`}</Text>
       </View>
+      {fixNote ? <Text accessibilityRole="status" style={st.why}>{fixNote}</Text> : null}
+      {t.workingNotes["thread"] ? <View style={st.acts}><Button label="Open the chat" onPress={() => data.nav.openSource("chat", t.workingNotes["thread"] ?? "")} testID="needs-open-chat" /></View> : null}
       {held.kind === "handled" ? <Text testID="needs-handled" style={st.holder}>{`Handled by ${data.nameOf(held.by ?? "")}`}</Text> : null}
       {held.kind === "taken" ? <Text testID="needs-taken" style={st.holder}>{`Taken by ${data.nameOf(held.by ?? "")}`}</Text> : null}
       {compose ? (
@@ -255,7 +269,7 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
             {...{ onKeyPress: (e: { nativeEvent?: { key?: string } }) => { if (e.nativeEvent?.key === "Escape") onCancel(); } }}
           />
           <View style={st.row}>
-            <Button label={compose.label} primary disabled={draft.trim() === "" && needsNote(compose)} onPress={() => onAct(compose, draft)} testID="needs-send" />
+            <Button label={mail ? labelOf(mail, compose) : compose.label} primary disabled={draft.trim() === "" && needsNote(compose)} onPress={() => onAct(compose, draft)} testID="needs-send" />
             <Button label="Cancel" onPress={onCancel} testID="needs-cancel" />
           </View>
         </View>
@@ -263,15 +277,24 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
       {held.kind === "free" && !compose ? (
         <View testID="needs-actions" style={st.acts}>
           {mustTake ? <Button label="Take" primary onPress={() => void take(deps, t)} testID="needs-take" /> : null}
+          {connFix ? <Button label="Reconnect" primary onPress={() => void Promise.resolve(data.call("connections.reconnect", { connectionId: connFix.connectionId })).then((out) => {
+            const url = (out as { authUrl?: string } | undefined)?.authUrl;
+            if (url) (globalThis as { open?: (u: string) => void }).open?.(url); else setFixNote("Replace the key in the Vault, then press Check again.");
+          }, () => setFixNote("That did not start. Try again."))} testID="needs-reconnect" /> : null}
+          {connFix ? <Button label="Check again" onPress={() => void Promise.resolve(data.call("connections.test", { connectionId: connFix.connectionId })).then(() => setFixNote("Checked. It clears here when the connection works."), () => setFixNote("It still does not work."))} testID="needs-check-again" /> : null}
+          {accessReq ? <Button label="Approve" primary disabled={deciding} onPress={() => { setDeciding(true); void Promise.resolve(data.call("access.requests.approve", { requestId: accessReq.requestId, ...(accessReq.level ? { level: accessReq.level } : {}) })).finally(() => setDeciding(false)); }} testID="needs-access-approve" /> : null}
+          {accessReq ? <Button label="Decline" disabled={deciding} onPress={() => { setDeciding(true); void Promise.resolve(data.call("access.requests.decline", { requestId: accessReq.requestId })).finally(() => setDeciding(false)); }} testID="needs-access-decline" /> : null}
+          {keyReq && !providing ? <Button label="Provide the key" primary onPress={() => setProviding(true)} testID="needs-provide-key" /> : null}
           {fix === "replace_key" ? <Button label="Replace key" primary onPress={() => setReplacing(true)} testID="needs-replace-key" /> : null}
           {!mustTake && noAccount ? <Button label="Sign in" primary onPress={() => data.nav.openSignIn()} testID="needs-signin" /> : null}
           {!mustTake && mailSignIn ? <Button label="Sign in again" primary onPress={() => void openConnect?.({ kind: "mailbox", provider: mailSignIn })} testID="needs-mailfix" /> : null}
-          {!mustTake && !noAccount && fix === null && !mailSignIn && primary ? <Button label={primary.label} primary hint="A" onPress={() => onAct(primary)} testID="needs-primary" /> : null}
-          {!mustTake && fix === null && sendBack ? <Button label="Send back" hint="B" onPress={() => onAct(sendBack)} testID="needs-sendback" /> : null}
-          {!mustTake && fix === null ? moreButtons : null}
+          {!mustTake && !noAccount && fix === null && keyReq === null && accessReq === null && connFix === null && !mailSignIn && primary ? <Button label={labelOf(mail, primary)} primary hint="A" onPress={() => onAct(primary)} testID="needs-primary" /> : null}
+          {!mustTake && fix === null && keyReq === null && accessReq === null && connFix === null && sendBack ? <Button label={mail ? labelOf(mail, sendBack) : "Send back"} hint="B" onPress={() => onAct(sendBack)} testID="needs-sendback" /> : null}
+          {!mustTake && fix === null && keyReq === null && accessReq === null && connFix === null ? moreButtons : null}
           {hasComputer(t) && !noAccount ? <Button label="Open its computer" onPress={() => data.nav.openComputer(t.createdBy)} testID="needs-computer" /> : null}
         </View>
       ) : null}
+      {keyReq && providing ? <KeyRequestCard requestId={keyReq.requestId} agent={who} agentId={t.createdBy} data={{ call: data.call }} /> : null}
       {replacing && fix === "replace_key" ? (
         <ReplaceKeySheet call={data.call} connectionId={t.workingNotes["connection"] ?? ""} hubId={t.workingNotes["hub"] ?? ""} onClose={() => setReplacing(false)}
           onDone={() => { setReplacing(false); const done = t.actions.find((a) => a.key === "resolved"); if (done) onAct(done); }} />

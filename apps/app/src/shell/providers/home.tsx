@@ -37,6 +37,7 @@ export function homeNav(rt: ShellRuntime): HomeNav {
     openActivity: () => rt.open({ screen: "runs.my-runs" }),
     openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
     openSubject: (subject) => rt.open({ subject }),
+    openInbox: (which) => rt.open({ screen: which === "match" ? "inbox.unmatched" : "inbox.contact-list" }),
   };
 }
 

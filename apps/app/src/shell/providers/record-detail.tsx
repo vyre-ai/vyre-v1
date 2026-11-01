@@ -69,6 +69,7 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
     },
     nav: {
       openFile: (id) => rt.open({ subject: { type: "file", id } }),
+      openSubject: (subject) => rt.open({ subject }),
       openRecord: (type, id) => rt.open({ subject: { type: "record", id }, args: { type } }),
       openChat: (type, id) => { void rt.call("chat.start", { kind: "ask", idempotencyKey: attemptKey(), agentIds: [rt.assistant.id], scopeType: type, scopeId: id }).then((out: unknown) => { rt.open({ subject: { type: "thread", id: (out as { thread: { threadId: string } }).thread.threadId } }); }).catch(() => setActionError("Couldn’t open the record’s chat. Try again.")); },
       askFor: (input) => {

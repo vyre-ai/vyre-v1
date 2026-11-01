@@ -36,7 +36,7 @@ async function runCompute(config: DaemonConfig): Promise<number> {
           async run(kind, input) {
             const s = (await seams) as { buildComputerHost?: (c: unknown) => unknown; nodeRun?: (h: unknown, k: string, i: unknown) => Promise<unknown> } | undefined;
             if (!s?.buildComputerHost || !s.nodeRun) throw new Error("this computer has no agent computers module");
-            host ??= s.buildComputerHost(createComputersHost({ dataDir: config.dataDir, callAs: link.call, putBytes: link.put, homeIntervalMs: 2_000_000_000, log: (level, msg, attrs) => process.stderr.write(`vyred: ${level} ${msg} ${JSON.stringify(attrs ?? {})}\n`) }));
+            host ??= s.buildComputerHost(createComputersHost({ dataDir: config.dataDir, callAs: link.call, putBytes: link.put, announce: async (m) => ((await link.call(m.agentId, "made_files", { files: m.files.map((f) => ({ fileId: f.fileId })) })) as { said?: boolean } | undefined)?.said !== false, homeIntervalMs: 2_000_000_000, log: (level, msg, attrs) => process.stderr.write(`vyred: ${level} ${msg} ${JSON.stringify(attrs ?? {})}\n`) }));
             return s.nodeRun(host, kind, input);
           },
         };

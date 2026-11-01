@@ -1,1 +1,0 @@
-- A public form or other tenant service can no longer reach into an invite-only channel; only the Space's own trusted services can.

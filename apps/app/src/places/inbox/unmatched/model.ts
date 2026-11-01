@@ -25,4 +25,12 @@ export const scorePercent = (s: Suggestion): number => Math.round(s.score * 100)
 
 /** The line a match leaves where it happened. */
 export const matchedLine = (who: string, name: string): string => `${who} matched to ${name}`;
+/** What Add as a client did, in one line: who, the files filed and the Reply task. Nothing is said about a step that did not happen. */
+export function addedLine(who: string, out: { filed?: number | undefined; skipped?: number | undefined; taskId?: string | undefined }): string {
+  const parts = [`${who} added as a client`];
+  if (out.filed) parts.push(`${out.filed} ${out.filed === 1 ? "file" : "files"} filed`);
+  if (out.skipped) parts.push(`${out.skipped} could not be filed`);
+  if (out.taskId) parts.push("Reply task on your list");
+  return parts.join(". ");
+}
 export const createdLine = (who: string, type: "contact" | "company"): string => `${who} saved as a new ${type}`;

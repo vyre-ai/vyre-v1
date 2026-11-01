@@ -21,8 +21,12 @@ export interface RecordPageNav {
   openFiles(type: string, recordId: string): void;
   /** The place a fact or a note came from. */
   openSource(link: string): void;
+  /** The Sync page of a record type that syncs from an app (the source chip opens it). */
+  openSync?(type: string): void;
   /** A file opens in the viewer. */
   openFile?(fileId: string): void;
+  /** Something the Everything feed lists (a task, a run, a chat, a file) opens where it lives. */
+  openSubject?(subject: { type: string; id: string }): void;
 }
 
 /** A file picked or dropped on the Files tab. */

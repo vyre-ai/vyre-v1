@@ -1,6 +1,7 @@
 // The conversation's logic, with no renderer (spec 3.2 Chats, 2.5 Chat, 4.13 Agents lead and listen): which messages are on the page (the last 50, older ones stream in),
 // how they group into a timeline, how an agent's work folds into "Worked for 14s, 3 steps", who leads and who listens, what a send does while an agent works (queue it, or
 // interrupt), and the optimistic message that shows in the same frame as the send.
+import { stepWords } from "./activity.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { BLOCK_FALLBACKS, isNativeBlockType } from "../../../../../../ui/src/blocks/registry.ts";
 import { applyFallback } from "../../../../../../ui/src/blocks/GenericBlock.tsx";
@@ -91,12 +92,14 @@ const dataOf = (b: MessageBlock): Record<string, unknown> => (isRec(b.data) ? b.
 
 /** A step of an agent's work (a tool call, a page opened, a record read). They fold into one line. */
 export const isStep = (b: MessageBlock): boolean => b.type === "step";
+/** The steps a turn took, as the host records them on its reply: a call and its result for each, or one summary when there were many. They fold into "Worked for 14s", they are not cards. */
+export const isToolStep = (b: MessageBlock): boolean => b.type === "tool_call" || b.type === "tool_result" || b.type === "tool_steps";
 /** The shared error shape (V1-SPEC 4.18): what, why, next, trace id. */
 export const isErrorBlock = (b: MessageBlock): boolean => b.type === "error";
 /** Everything else is a native card: terminal, changeset, question, plan, deploy, file, and so on. */
 /** Blocks that are data for the page, not a card: the links of a message (drawn inside its text) and the line a fork starts with (drawn as a link). */
 const QUIET_BLOCKS = new Set(["refs", "fork_origin"]);
-export const isCard = (b: MessageBlock): boolean => !isStep(b) && !isErrorBlock(b) && !isTurnStatus(b) && !QUIET_BLOCKS.has(b.type);
+export const isCard = (b: MessageBlock): boolean => !isStep(b) && !isToolStep(b) && !isErrorBlock(b) && !isTurnStatus(b) && !QUIET_BLOCKS.has(b.type);
 export { isTurnStatus, statusView } from "./status.ts";
 export type { StatusView } from "./status.ts";
 
@@ -111,11 +114,14 @@ export interface Work { steps: StepLine[]; secs: number; live: boolean; summary:
 
 /** "Worked for 14s, 3 steps" once done; "Working, 2 steps so far" while a step is live. */
 export function workOf(m: Message): Work | null {
-  const steps = m.blocks.filter(isStep);
+  const tools = m.blocks.filter(isToolStep);
+  const steps = [...m.blocks.filter(isStep), ...tools.filter((b) => b.type === "tool_call" || b.type === "tool_steps")];
   if (steps.length === 0) return null;
-  const lines = steps.map(stepLine);
+  const lines = steps.map((b) => (b.type === "tool_call" ? { id: b.id, title: stepWords(str(dataOf(b).name)), sub: "", state: "done" as const } : b.type === "tool_steps" ? { id: b.id, title: `${num(dataOf(b).calls)} steps`, sub: "", state: "done" as const } : stepLine(b)));
+  steps.push(...tools.filter((b) => b.type === "tool_result"));   // their times count, they are not lines of their own
   const live = lines.some((l) => l.state === "live");
-  const secs = steps.reduce((n, b) => n + num(dataOf(b).secs), 0);
+  // the whole turn when the host said how long it took (thinking and writing too), else the time of the steps
+  const secs = Math.max(steps.reduce((n, b) => n + num(dataOf(b).secs), 0), steps.reduce((n, b) => Math.max(n, num(dataOf(b).turnSecs)), 0));
   const n = lines.length;
   const count = `${n} ${n === 1 ? "step" : "steps"}`;
   const summary = live ? `Working, ${count} so far` : secs > 0 ? `Worked for ${secs}s, ${count}` : `Worked ${count}`;
@@ -242,7 +248,9 @@ export function timeline(messages: readonly Message[], ctx: TimelineCtx): Item[]
 /** Agents that have a live step, or a message still being written (`writing` holds those message ids): the ones the Stop buttons act on. */
 export function workingAgents(messages: readonly Message[], writing: ReadonlySet<string> = new Set()): string[] {
   const ids = new Set<string>();
-  for (const m of messages) if (m.author.kind === "agent" && (writing.has(m.messageId) || m.blocks.some((b) => b.state === "live"))) ids.add(m.author.id);
+  // a crew teammate's line stays "live" in the chat that started it for as long as the job exists (nothing closes it): the Crew tab and the result card carry that state, so it is not the lead working
+  const liveWork = (b: Message["blocks"][number]): boolean => b.state === "live" && !(b.type === "helper" && (b.data as { crew?: unknown } | null)?.crew === true);
+  for (const m of messages) if (m.author.kind === "agent" && (writing.has(m.messageId) || m.blocks.some(liveWork))) ids.add(m.author.id);
   return [...ids];
 }
 
@@ -342,14 +350,17 @@ export function pendingMessage(p: Pending, meId: string, threadId: string, seq: 
  * The rows for replies that are being written (or just finished and not yet saved). Each is a normal agent message with no words of its own: the words come from its stream. Once the host has said
  * which message the turn became, the row takes that id, so when the saved message arrives it lands on the same key and nothing remounts. A turn whose message is already in the list shows no row.
  */
-export function ghostMessages(turns: readonly { turnId: string; agentId: string; messageId?: string | null | undefined; startedAt: number }[], have: readonly Message[], threadId: string): Message[] {
+export function ghostMessages(turns: readonly { turnId: string; agentId: string; messageId?: string | null | undefined; startedAt: number; triggerId?: string | undefined }[], have: readonly Message[], threadId: string): Message[] {
   const ids = new Set(have.map((m) => m.messageId));
   const last = have.reduce((n, m) => Math.max(n, m.threadSeq), 0);
   const out: Message[] = [];
   for (const t of turns) {
     const id = t.messageId ?? `turn:${t.turnId}`;
     if (ids.has(id)) continue;
-    out.push({ messageId: id, threadId, threadSeq: last + 1 + out.length, author: { kind: "agent", id: t.agentId }, kind: "agent", body: "", blocks: [], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: t.startedAt } as Message);
+    // The reply being written sits after the message that started it and before those sent while it writes (they are queued behind it). The host names the message that started the turn.
+    const trigger = t.triggerId === undefined ? undefined : have.find((m) => m.messageId === t.triggerId);
+    const seq = trigger !== undefined ? trigger.threadSeq + 0.5 + out.length / 100 : last + 1 + out.length;
+    out.push({ messageId: id, threadId, threadSeq: seq, author: { kind: "agent", id: t.agentId }, kind: "agent", body: "", blocks: [], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: t.startedAt } as Message);
   }
   return out;
 }
@@ -373,14 +384,28 @@ export function queuedCount(messages: readonly Message[], meId: string, working:
   return n;
 }
 
+/** The ids of the messages queued behind a running agent, oldest first (the same run as queuedCount counts). */
+export function queuedIds(messages: readonly Message[], meId: string, working: boolean): string[] {
+  if (!working) return [];
+  const ids: string[] = [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (!m) break;
+    if (m.author.kind === "person" && m.author.id === meId) ids.unshift(m.messageId);
+    else if (m.author.kind === "agent") break;
+  }
+  return ids;
+}
+
 /** The post for a send: mentions, a retry-safe key, the composer's folder and links. */
 export function postInput(threadId: string, body: string, mentions: readonly { kind: "person" | "agent"; id: string }[], key: string, replyTo?: string): CapMap["chat.post"]["in"] {
   return { threadId, body, idempotencyKey: key, ...(mentions.length > 0 ? { mentions: mentions.map((x) => ({ kind: x.kind, id: x.id })) } : {}), ...(replyTo ? { replyTo } : {}) };
 }
 
 /** The line under the header while a send waits for the agent's next step. */
-export function queueNote(n: number, leadName: string): string {
+export function queueNote(n: number, leadName: string, steers = false): string {
   if (n <= 0) return "";
+  if (steers) return "Goes in at the next step";
   return `${n} ${n === 1 ? "message" : "messages"} queued for ${leadName || "the agent"}'s next step`;
 }
 
@@ -392,8 +417,9 @@ export function whoLine(t: Thread, nameOf: (id: string) => string): string {
   return lead ? `${nameOf(lead.agentId)} will reply` : "No agent will reply · type @ to ask one";
 }
 
-export function placeholderFor(t: Thread, nameOf: (id: string) => string, working = false): string {
+export function placeholderFor(t: Thread, nameOf: (id: string) => string, working = false, steers = false): string {
   const lead = leadOf(t);
+  if (lead && working && steers) return `Steer ${nameOf(lead.agentId)}…`;
   if (lead && working) return `Queue a message for when ${nameOf(lead.agentId)} finishes…`;
   if (lead) return `Message ${nameOf(lead.agentId)}…`;
   return t.kind === "channel" ? `Message ${titleOf(t, nameOf)}…` : "Message…";

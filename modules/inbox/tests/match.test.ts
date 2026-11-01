@@ -17,8 +17,8 @@ async function refused(p: Promise<unknown>, code: string): Promise<void> {
 
 const convs = (h: Harness) => h.rows(`SELECT * FROM inbox_conversation ORDER BY "lastMessageAt" ASC, id ASC`);
 const items = (h: Harness, conversationId: string) => h.rows(`SELECT * FROM inbox_item WHERE "conversationId" = ? ORDER BY at ASC, id ASC`, conversationId);
-const setup = () => {
-  const h = harness({ contacts: [{ ...LEE }, { ...DANA }] });
+const setup = (extra: { mail?: Parameters<typeof harness>[0] extends infer O ? (O extends { mail?: infer M } ? M : never) : never } = {}) => {
+  const h = harness({ contacts: [{ ...LEE }, { ...DANA }], ...(extra.mail ? { mail: extra.mail } : {}) });
   h.mailboxOwners.set("mbx_work1", "usr_maya01");
   return h;
 };
@@ -380,4 +380,34 @@ test("a private conversation cannot be matched to a record, and a private messag
   await refused(match(h.ctx, { conversationId: made.conversationId, recordId: LEE.id }), "validation.precondition_failed");
   await refused(matchNew(h.ctx, { conversationId: made.conversationId, type: "contact", idempotencyKey: "pm-1" } as never), "validation.precondition_failed");
   await refused(linkMessage(h.ctx, { ...link({ address: "x@y.test" }), private: true }), "validation.bad_input");
+});
+
+test("Add as a client: the attachments are filed in the record's folder, a file the person cannot read is skipped and counted, and a Reply task is made", async () => {
+  const mail = [{ id: "eml_att1", threadId: "t1", subject: "Hello", from: "robin@fresh.test", to: ["me@x.test"], attachments: [
+    { attachmentId: "a1", name: "id.pdf", mime: "application/pdf", size: 10, fileId: "fil_one" }, { attachmentId: "a2", name: "contract.docx", mime: "application/msword", size: 10, fileId: "fil_secret" }, { attachmentId: "a3", name: "inline.png", mime: "image/png", size: 5 }, { attachmentId: "a_secret", name: "private.png", mime: "image/png", size: 5 },
+  ] }];
+  const h = setup({ mail });
+  const a = await linkMessage(h.ctx, link({ address: "robin@fresh.test", id: "eml_att1" }));
+  const out = await matchNew(h.ctx, { conversationId: a.conversationId, type: "contact", fileAttachments: true, replyTask: true });
+  assert.deepEqual(contractErrors("inbox.match_new", "out", out), []);
+  assert.equal(out.filed, 2, "one copied from Files, one saved from the message");
+  assert.equal(out.skipped, 2, "two the person may not file");
+  assert.equal(h.calls("mail.attachment.save")[0]!.input.attachmentId, "a3");
+  assert.equal(h.calls("mail.attachment.save")[0]!.input.folderId, `fld_${out.recordId.replace(/^rec_/, "")}`);
+  const copies = h.calls("files.copy");
+  assert.equal(copies[0]!.input.fileId, "fil_one");
+  assert.equal(copies[0]!.input.toFolderId, `fld_${out.recordId.replace(/^rec_/, "")}`);
+  assert.equal(h.calls("projects.files_folder").length, 1, "the folder is asked for once");
+  const task = h.calls("tasks.create").find((c) => /^Reply to/.test(String(c.input.title)))!.input;
+  assert.deepEqual([task.title, task.assigned, task.recordId, task.idempotencyKey], ["Reply to robin", { kind: "person", id: "usr_maya01" }, out.recordId, `inbox-reply-${a.conversationId}`]);
+  assert.match(out.taskId ?? "", /^tsk_/);
+});
+
+test("match_new without the extras does neither", async () => {
+  const h = setup();
+  const a = await linkMessage(h.ctx, link({ address: "kim@fresh.test" }));
+  const out = await matchNew(h.ctx, { conversationId: a.conversationId, type: "contact" });
+  assert.equal(out.filed, undefined);
+  assert.equal(h.calls("files.copy").length, 0);
+  assert.equal(h.calls("tasks.create").filter((c) => /^Reply to/.test(String(c.input.title))).length, 0);
 });

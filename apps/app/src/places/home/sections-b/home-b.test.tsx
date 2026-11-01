@@ -176,14 +176,14 @@ test("a failed ask returns null and says so", async () => {
   assert.equal(notes.at(-1)?.text, "Could not start that chat. Try again.");
 });
 
-test("the Ask box is a composer for the assistant; without an AI account it is locked and says how to unlock", () => {
+test("the Ask box is a composer for the assistant; without an AI account it still takes the question, as Chats does, and offers the connect step beside it", () => {
   const open = html(createSampleHomeB());
   assert.ok(has(open, 'data-testid="ask-box"') && has(open, "Ask your assistant…"));
   assert.ok(has(open, 'data-testid="ask-agent"') && !has(open, "will reply"), "the agent is the Ask pill beside the box, not a line under it");
   assert.ok(!has(open, 'data-testid="ask-locked"'));
   const locked = html(createSampleHomeB("firstrun"));
+  assert.ok(has(locked, 'data-testid="ask-box"'), "the box is there without an account");
   assert.ok(has(locked, 'data-testid="ask-locked"') && has(locked, "Connect an AI account to ask your assistant"));
-  assert.ok(!has(locked, 'data-testid="ask-box"'));
   for (const id of ["quick-project", "quick-record", "quick-upload"]) assert.ok(has(open, `data-testid="${id}"`), id);
 });
 

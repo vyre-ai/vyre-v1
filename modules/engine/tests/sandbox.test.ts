@@ -6,7 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { sandboxWrap, workFolder } from "../sandbox.ts";
-import { cliInstallRoots, enginePath } from "../sandbox-default.ts";
+import { appleDeveloperRoots, cliInstallRoots, enginePath } from "../sandbox-default.ts";
 import { buildOpener } from "../session.ts";
 import type { SandboxPlan } from "../sandbox.ts";
 
@@ -130,4 +130,12 @@ test("bwrap with sign-in files: the scratch folder's home is bound as the sandbo
   const plain = sandboxWrap(bw)(["codex", "exec"], { env, cwd });
   assert.ok(plain.some((x, i) => x === "--tmpfs" && plain[i + 1] === "/home/agent"));
   assert.ok(!pairs(plain, "--bind").some((p) => p[1] === "/home/agent"));
+});
+
+test("Apple's git under Seatbelt needs the developer folders open for reading: the one xcode-select names, and the fixed ones that exist", () => {
+  const there = new Set(["/Library/Developer/CommandLineTools", "/Applications/Xcode.app/Contents", "/Library/Preferences/com.apple.dt.Xcode.plist", "/Applications/Xcode_26.6.app/Contents"]);
+  assert.deepEqual(appleDeveloperRoots((p) => there.has(p), null), ["/Library/Developer/CommandLineTools", "/Applications/Xcode.app/Contents", "/Library/Preferences/com.apple.dt.Xcode.plist"]);
+  assert.deepEqual(appleDeveloperRoots((p) => there.has(p), "/Applications/Xcode_26.6.app/Contents/Developer"), ["/Applications/Xcode_26.6.app/Contents", "/Library/Developer/CommandLineTools", "/Applications/Xcode.app/Contents", "/Library/Preferences/com.apple.dt.Xcode.plist"], "a hosted runner's Xcode is named by version");
+  assert.deepEqual(appleDeveloperRoots(() => false, "/x/Contents/Developer"), []);
+  assert.deepEqual(appleDeveloperRoots((p) => p === "/Library/Developer/CommandLineTools", "/Library/Developer/CommandLineTools"), ["/Library/Developer/CommandLineTools"]);
 });

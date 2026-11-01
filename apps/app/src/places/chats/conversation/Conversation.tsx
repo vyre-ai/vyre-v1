@@ -23,6 +23,10 @@ import * as act from "./actions.ts";
 import { ChatMemoryProvider } from "../memory/thread.tsx";
 import { useMemoryEntries } from "../memory/menu.tsx";
 import { MessageView } from "./MessageView.tsx";
+import { QueueWaiting } from "./QueueWaiting.tsx";
+import { CatchUpLine } from "./catch-up.tsx";
+import { AsideList } from "./Aside.tsx";
+import type { AsideItem } from "./Aside.tsx";
 import { commandItems, lastActionable, runSlash } from "./commands.ts";
 import type { CommandEnv } from "./commands.ts";
 import { parseSlash } from "../../../../../../lib/chat-commands.ts";
@@ -36,7 +40,7 @@ import type { MessageActions } from "./MessageView.tsx";
 import { FaceButton, Glyph, IconButton, TextButton } from "./parts.tsx";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import {
-  WINDOW, beforeCursor, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, sendKind, stillPending, stopLabel, swapNeeded,
+  WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel, swapNeeded,
   threadKindNote, timeline, titleOf, whoLine, workingAgents,
 } from "./model.ts";
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
@@ -94,6 +98,16 @@ function ConversationView(): ReactElement {
   const compact = useContext(CompactContext);
   const liveTurns = useLiveTurns(data);
   const online = useOnline();
+  // A chat opened mid-turn, on any device, or after a reconnect, shows the running turn at once: ask what it has written so far, then the live pieces carry on from there.
+  useEffect(() => {
+    const live = data.live;
+    if (!live || !online) return;
+    let gone = false;
+    const fetchNow = (): void => { void data.call("engine.live_turns", { threadId: data.threadId }).then((r) => { if (!gone) live.seed(data.threadId, (r as { turns?: { turnId: string; agentId: string; text: string }[] }).turns ?? []); }, () => undefined); };
+    fetchNow();
+    const off = live.onGap((th) => { if (th === data.threadId) fetchNow(); });
+    return () => { gone = true; off(); };
+  }, [data, data.threadId, online]);
   const menu = useMenu();
   const memoryEntries = useMemoryEntries();
   const threadQ = useScreenQuery<ThreadOut>(CONVERSATION_SCREEN, "thread", { threadId: data.threadId });
@@ -117,6 +131,7 @@ function ConversationView(): ReactElement {
   const [finding, setFinding] = useState(false);
   const [query, setQuery] = useState("");
   const [matchAt, setMatchAt] = useState(0);
+  const [asides, setAsides] = useState<AsideItem[]>([]);
   const [focusId, setFocusId] = useState<string | null>(data.focus ?? null);
   /** Messages read around a marked one that is older than the page holds: shown instead of the newest, until "Jump to latest". */
   const [around, setAround] = useState<Message[] | null>(null);
@@ -182,7 +197,8 @@ function ConversationView(): ReactElement {
   const win = lastMessages(all, shown);
   const ghosts = liveView ? ghostMessages(liveTurns, win.rows, thread.threadId) : [];
   const writing = new Set(collect([...win.rows, ...ghosts].filter((m) => { const s = data.streamOf(m.messageId); return s !== undefined && !s.getSnapshot().done; }), (m) => m.messageId));
-  const working = workingAgents(win.rows, writing);
+  // a reply being written has no saved message yet: its row is the live turn (a ghost), and it counts as work from the moment the turn starts
+  const working = workingAgents([...win.rows, ...ghosts], writing);
   const isWorking = working.length > 0;
   const nameOf = data.nameOf;
   const lead = leadOf(thread);
@@ -191,6 +207,7 @@ function ConversationView(): ReactElement {
   const commandEnv = (): CommandEnv => ({
     data, thread, rows: win.rows, say, newKey: data.newKey,
     openFind: () => setFinding(true), openSearch: (q) => data.nav.openSearch?.(q), openModel: () => { if (lead) modelMenu(8, 120); else say("Add an agent to this chat first."); },
+    aside: (question) => void act.startAside(data, thread.threadId, question, data.newKey()).then((r) => setAsides((cur) => [...cur, { id: r.asideThreadId, question }]), fail("Could not ask that.")),
     send: (text) => submit({ text, chips: [], files: [], folder: null, links: [], refs: [], mode: "queue", answers: "" }, "queue"),
   });
 
@@ -218,13 +235,17 @@ function ConversationView(): ReactElement {
   // the message a search result or a fork's link opened on is marked like the current find match, for a few seconds
   const matches = finding ? found : focusId !== null && all.some((m) => m.messageId === focusId) ? [focusId] : [];
   const activeId = finding ? (found.length > 0 ? found[Math.min(matchAt, found.length - 1)] : undefined) : matches[0];
-  const timelineMessages = [...win.rows, ...collect(liveView ? stillPending(pending, win.rows) : [], (p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i)), ...ghosts];
+  // in the order the chat reads: a reply being written sits after the message that started it, before what was sent while it writes
+  const timelineMessages = byOrder([...win.rows, ...collect(liveView ? stillPending(pending, win.rows) : [], (p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i)), ...ghosts]);
   const pendingState = new Map<string, "sending" | "failed">();
   for (const p of stillPending(pending, win.rows)) pendingState.set(`pending:${p.key}`, p.state);
   const items = timeline(timelineMessages, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: data.clock() });
   const lastLive = [...timelineMessages].reverse().find((m) => data.streamOf(m.messageId) !== undefined);
   const lastStream = lastLive ? data.streamOf(lastLive.messageId) : undefined;
   const queued = queuedCount(timelineMessages, data.me.id, isWorking);
+  const queuedIdsNow = queuedIds(timelineMessages, data.me.id, isWorking);
+  const leadDriver = accounts?.find((a) => a.ref === leadNow?.accountRef)?.provider;
+  const canSteer = !(leadDriver !== undefined && act.CANNOT_STEER.has(leadDriver));   // a chat on Codex or Grok keeps its message queued: they read nothing mid-turn
   const helpers = (helpersQ.status === "loading" ? [] : helpersQ.data.helpers).filter((h) => h.status === "running");
 
   /* ---------- menus: all open under the button that asked ---------- */
@@ -338,18 +359,28 @@ function ConversationView(): ReactElement {
     retrySend: (id) => { const p = pending.find((x) => `pending:${x.key}` === id); if (p) { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "sending" as const } : x))); setLine(""); run(p); } },
     discardSend: (id) => { setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id)); setLine(""); },
     showMenu: (entries, x, y, label) => menu.show(entries, x, y, "context", { label }),
+    ...(lead ? { liveCard: { call: data.call, now: () => data.clock().now, ...(data.spaceUrl ? { spaceUrl: data.spaceUrl } : {}), openComputer: (agentId: string) => data.nav.openBeside("computer", agentId), agentId: lead.agentId } } : {}),
+    ...(data.terminal ? { runCode: { deps: { call: data.call, newKey: data.newKey }, team: data.personal !== true, nameOf: (id: string) => data.nameOf(id), now: () => data.clock().now, copy: (t: string) => data.copy(t), openTerminal: (id: string) => data.nav.openBeside("terminal", id) } } : {}),
     ...(data.terminal ? { terminalCard: { deps: { call: data.call, newKey: data.newKey }, ...(lead ? { agentId: lead.agentId } : {}), copy: (t: string) => data.copy(t), openTerminal: (id: string) => data.nav.openBeside("terminal", id) } } : {}),
     ...(data.mountSheet ? { mountCard: { agents: thread.agents.map((a) => ({ id: a.agentId, name: nameOf(a.agentId) })), data } } : {}),
     ...(memoryEntries ? { memoryEntries } : {}),
     fork: (id) => void act.forkChat(data, id, data.newKey()).then((next) => { say("Branched into a new chat, linked back to this one"); data.nav.openThread(next); }, fail("Could not fork it.")),
+    withPeople: thread.members.filter((p) => p.kind === "person").length >= 2,
     makeTask: (id) => {
       const m = all.find((x) => x.messageId === id);
       if (!m) return;
-      void act.makeTask(data, thread, m, data.newKey()).then((taskId) => { say("Task made from this message"); data.nav.openBeside("task", taskId); }, fail("Could not make the task."));
+      void act.makeTask(data, thread, m, data.newKey()).then(() => undefined, fail("Could not make the task."));  // the card in the thread says it and opens it; the person stays where they are
     },
     files: data,
+    ...(data.activityOf ? { activityOf: (id: string) => data.activityOf!(id) } : {}),
     nameOf,
-    openMessage: (threadId, messageId) => data.nav.openThread(threadId, messageId),
+    openMessage: (threadId, messageId) => (messageId === "" ? data.nav.openThread(threadId) : data.nav.openThread(threadId, messageId)),
+    share: (id, x, y) => void act.shareTargets(data, thread.threadId).then((targets) => {
+      const entries: MenuEntry[] = [];
+      for (const to of targets) entries.push({ label: to.label, onSelect: () => void act.shareTo(data, thread.threadId, id, to, data.newKey()).catch(fail("Could not share it.")) });
+      if (entries.length === 0) entries.push({ label: "No one to share with", disabled: true, onSelect: () => undefined } as MenuEntry);
+      menu.show(entries, x, y, "context", { label: "Share to" });
+    }, fail("Could not list where to share it.")),
   };
 
   const inThread = new Map(thread.agents.map((a) => [a.agentId, a.mode] as const));
@@ -381,7 +412,7 @@ function ConversationView(): ReactElement {
   const closed = isClosed(thread);
   const note = threadKindNote(thread, nameOf);
   const title = titleOf(thread, nameOf);
-  const q = queueNote(queued, lead ? nameOf(lead.agentId) : "");
+  const q = queueNote(queued, lead ? nameOf(lead.agentId) : "", canSteer);
 
   // A mounted folder or file dragged from Files is shared with this chat's agents (desktop); the line says so and can take it back
   const dropShare = (e: { preventDefault: () => void; dataTransfer?: { getData?: (t: string) => string } }): void => {
@@ -408,7 +439,7 @@ function ConversationView(): ReactElement {
           {collect(narrow ? [] : otherFaces, (f) => <FaceButton key={f.agentId} name={f.name} seedId={f.agentId} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
           {narrow ? null : <IconButton icon="plus" label="Add an agent" size={24} testID="add-agent" onPress={addMenu} />}
         </View>
-        {isWorking ? <View testID="conversation-live" style={st.live}><View style={st.liveDot} />{narrow ? null : <Text style={st.liveText}>Working</Text>}</View> : null}
+        {isWorking ? <View testID="conversation-live" accessibilityLabel="Working" style={st.live}><View style={st.liveDot} /></View> : null}
         <View style={{ flex: 1 }} />
         {online ? null : <Text testID="conversation-offline" style={st.meta}>Offline</Text>}
         {helpers.length > 0 ? <IconButton icon="helper" label={`${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running`} badge={helpers.length} testID="helpers-button" onPress={helpersMenu} /> : null}
@@ -438,6 +469,7 @@ function ConversationView(): ReactElement {
           <IconButton icon="x" label="Close find" size={24} testID="find-close" onPress={() => { setFinding(false); setQuery(""); }} />
         </View>
       ) : null}
+      <CatchUpLine onJump={(id) => setFocusId(id)} />
       {note ? <Text testID="conversation-note" style={st.noteLine}>{note}</Text> : null}
 
       {liveView ? null : (
@@ -475,7 +507,8 @@ function ConversationView(): ReactElement {
       {cursor !== null ? <OlderPage key={cursor} before={cursor} onPage={(page) => { setOlder((cur) => mergePages(cur, page.messages)); setOlderMore(page.hasMore); setShown((n) => n + WINDOW); setCursor(null); }} /> : null}
 
       {data.waitingLine ?? null}
-      {q ? <Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>{q}</Text> : null}
+      <AsideList items={asides} onDismiss={(id) => setAsides((cur) => cur.filter((x) => x.id !== id))} />
+      <QueueWaiting ids={queuedIdsNow} call={data.call} threadId={thread.threadId}>{(waiting) => (q && waiting.length > 0 ? (<View testID="queue-row" style={st.queueRow}><Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>{queueNote(waiting.length, lead ? nameOf(lead.agentId) : "", canSteer)}</Text>{waiting.length > 0 ? <TextButton link label="Edit" testID="queue-edit" onPress={() => { const id = waiting[waiting.length - 1]!; const words = timelineMessages.find((m) => m.messageId === id)?.body ?? ""; void act.takeBackQueued(data, thread.threadId, id).then((ok) => { if (ok) { setPending((cur) => cur.filter((p) => p.messageId !== id)); setSeed((s) => ({ n: s.n + 1, value: words })); } else say("It was already read, so it cannot be edited now."); }, fail("Could not take it back.")); }} /> : null}{waiting.length > 0 ? <TextButton link label="Stop and send" testID="queue-send-now" onPress={() => void act.sendQueuedNow(data, thread.threadId, waiting[0]!).catch(fail("Could not send it now."))} /> : null}</View>) : null)}</QueueWaiting>
       {line ? <View testID="conversation-line" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{line}</Text>{undo ? <TextButton link label="Undo" testID="conversation-undo" onPress={undo} /> : null}</View> : null}
       {personMention ? (
         <View testID="channel-offer" style={st.offer}>
@@ -490,7 +523,7 @@ function ConversationView(): ReactElement {
         <View style={st.composerBox}>
           <Composer
             key={`composer-${seed.n}`} {...(seed.value !== "" ? { value: seed.value } : {})}
-            testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={placeholderFor(thread, nameOf, isWorking)} working={isWorking}
+            testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={placeholderFor(thread, nameOf, isWorking, canSteer)} working={isWorking}
             {...(lead && !data.personal ? { barExtra: <IconButton icon="monitor" label={`${nameOf(lead.agentId)}'s computer`} size={26} testID="computer-button" onPress={() => data.nav.openBeside("computer", lead.agentId)} /> } : {})}
             agents={composerAgents} mode={mode} onMode={chooseChatMode}
             suggest={composerSuggest(data)} preview={(item) => previewOf(data, item)}
@@ -587,7 +620,8 @@ const st = StyleSheet.create({
   earlier: { alignItems: "center", paddingVertical: 10 },
   toLatest: { position: "absolute", alignSelf: "center", bottom: 10, height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: 15, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string },
   toLatestText: { fontSize: 12.5, color: "var(--ink-2)" as string },
-  queue: { paddingHorizontal: 24, paddingVertical: 4, fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
+  queueRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 24, paddingVertical: 4 },
+  queue: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
   lineBox: { paddingHorizontal: 24, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   lineText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   offer: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "center", maxWidth: 760, paddingHorizontal: 24, paddingVertical: 4 },

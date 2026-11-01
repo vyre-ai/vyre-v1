@@ -232,3 +232,40 @@ test("registrar: a mailbox connected for a member as private is theirs alone: it
   const shared = run({ mailboxId: "mbx_a2", memberId: "usr_noah", provider: "google", auto: false });
   assert.deepEqual([shared[0]?.owner_id, shared[0]?.parent_id], ["usr_noah", "spc_1"]);
 });
+
+test("an agent that makes a record type for a person holds Manage on it, and no more than that person: for an admin it may set the audience, for a member without manage it may not, for no one it gets nothing", async () => {
+  const mk = (kind: "person" | "agent", id: string, actingFor?: string): CtxSeed => ({ space: "spc_1", principal: { kind, id }, ...(actingFor ? { actingFor } : {}) });
+  const run = async (who: CtxSeed) => {
+    const snap = new AccessSnapshot();
+    snap.putRole({ id: "admin", clearance: 3, perms: ["schema.manage"], name: "Admin" });
+    snap.putRole({ id: "member", clearance: 2, perms: ["schema.manage"], name: "Member" });
+    for (const [id, role] of [["usr_adam", "admin"], ["usr_dana", "member"]] as const) { snap.putPrincipal({ id, kind: "person", status: "active", name: id }); snap.addPrincipalRole({ holder: id, role }); }
+    snap.putPrincipal({ id: "agt_helper", kind: "agent", status: "active", name: "Helper", owner_id: "usr_adam" } as never);
+    snap.addPrincipalRole({ holder: "agt_helper", role: "member" });
+    snap.putResource({ id: "spc_1", type: "space", parent_id: null, label: 0, owner_id: null, holds: 0 });
+    snap.putGrant({ id: "g_adam", subject_kind: "actor", subject_id: "usr_adam", resource_type: "space", resource_id: "spc_1", level: "manage" });
+    snap.putGrant({ id: "g_dana", subject_kind: "actor", subject_id: "usr_dana", resource_type: "space", resource_id: "spc_1", level: "edit" });
+    snap.putGrant({ id: "g_agent", subject_kind: "actor", subject_id: "agt_helper", resource_type: "space", resource_id: "spc_1", level: "edit" });   // what the member role gives every agent
+    const caps = [cap({ name: "schema.apply", permission: "schema.manage", level: "edit", emits: ["schema.type_changed"] })];
+    const invoke = createInvoke({
+      caps: indexCapabilities(caps), validateInput: () => [], authorize: (r) => authorize(snap, r),
+      handler: () => (ctx) => { ctx.emit("schema.type_changed" as never, "record_type/company", { type: "company" }); return { ok: true }; },
+      commit: async (b) => { const stored = b.events.map((e, i) => ({ ...e, seq: i }) as EventEnvelope); for (const e of stored) foldEvent(snap, { seq: e.seq, type: e.type, payload: e.payload } as never); return stored; },
+      resources: createResourceRegistrar({ events: EVENTS, exists: (id) => snap.resource(id) !== undefined }),
+    });
+    const r = await invoke("schema.apply", { ops: [] }, who);
+    assert.equal(r.status, "ok");
+    const may = (actingFor?: string): boolean => authorize(snap, { principal: "agt_helper", ...(actingFor ? { actingFor } : {}), action: { perm: null, level: "manage" }, resource: { type: "record_type", id: "company" }, now: 1 }).effect === "allow";
+    return { snap, may };
+  };
+  const forAdmin = await run(mk("agent", "agt_helper", "usr_adam"));
+  assert.equal(forAdmin.snap.resource("company")?.owner_id, "usr_adam", "the person owns the type");
+  assert.ok(forAdmin.may("usr_adam"), "for the admin who owns it: Manage");
+  assert.ok(!forAdmin.may("usr_dana"), "for a member without manage on it: refused, the lower of the two");
+  assert.ok(!forAdmin.may(), "for no one: nothing");
+  const forMember = await run(mk("agent", "agt_helper", "usr_dana"));
+  assert.ok(forMember.may("usr_dana"), "the member who had it made for her owns it");
+  assert.ok(!forMember.may(), "and still nothing for no one");
+  const byPerson = await run(mk("person", "usr_adam"));
+  assert.ok(!byPerson.may("usr_adam") && !byPerson.may(), "a person's own type gives no agent a grant");
+});

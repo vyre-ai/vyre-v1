@@ -11,8 +11,10 @@ import type { Db } from "./projections.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { bridgeConsumers } from "./handlers/bridge.ts";
 import { gateResumeConsumers } from "./handlers/gate-resume.ts";
+import { sweepWaits } from "./crew-waits.ts";
+import { reconcileAll } from "./handlers/crew.ts";
 import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
-import { closeNoAccountTasks, engineHost, ensureRuntime, setEngineHost, wakeAfterAnswer, wakeAfterUnblock } from "./runtime.ts";
+import { closeNoAccountTasks, engineHost, ensureRuntime, recoverStale, setEngineHost, wakeAfterAnswer, wakeAfterUnblock } from "./runtime.ts";
 import { onTaskEvent, sweepBaton } from "./handlers/task-baton.ts";
 import type { EngineCtx } from "./projections.ts";
 
@@ -28,7 +30,7 @@ export const hostSeams = { setEngineHost };
 
 /** The runtime is built at boot, not at the first message, and recovers threads a dead host left mid-turn. */
 export const periodic = {
-  "engine.runtime": { everyMs: 5_000, run: async (ctx: EngineCtx): Promise<void> => { await ensureRuntime(ctx); } },
+  "engine.runtime": { everyMs: 5_000, run: async (ctx: EngineCtx): Promise<void> => { const engine = await ensureRuntime(ctx); if (engine) await recoverStale(ctx, engine); } },
   /** A baton an agent stopped on goes to a person after nudgeMinutes (handlers/task-baton.ts). */
   "engine.task_baton_sweep": {
     everyMs: 60_000,
@@ -36,6 +38,17 @@ export const periodic = {
       const host = engineHost();
       if (!host) return [];
       return sweepBaton(ctx, { call: host.call, now: () => ctx.now(), ...(host.log ? { log: host.log } : {}) }, await ensureRuntime(ctx));
+    },
+  },
+  /** The checks a crew's lead is waiting on, looked at by the host every 15 s (crew-waits.ts). */
+  "engine.crew_waits": {
+    everyMs: 15_000,
+    run: async (ctx: EngineCtx): Promise<string[]> => {
+      const host = engineHost();
+      if (!host) return [];
+      const ended = await sweepWaits({ db: ctx.db, host, now: () => ctx.now() });
+      await reconcileAll(ctx).catch(() => []);   // a branch merged or pushed any other way flips its card and its Crew row
+      return ended;
     },
   },
   ...capturePeriodic,
@@ -71,6 +84,21 @@ export const consumers = {
   "engine.block_answered": {
     on: ["block.answered"],
     run: async (ctx: EngineCtx, event: { payload: { threadId: string; blockId: string; by: string } }): Promise<string[]> => ((await wakeAfterAnswer(ctx, event)) ? [event.payload.blockId] : []),
+  },
+  /** A key an agent asked for in a chat was added or declined: the agent is told in that chat, as the person it asked for, and carries on. */
+  "engine.key_request_answered": {
+    on: ["vault.request_fulfilled", "vault.request_declined"],
+    run: async (ctx: EngineCtx, event: { name: string; payload: { requestId: string; name?: string; note?: string; threadId?: string; agentId?: string; asker?: string } }): Promise<string[]> => {
+      const p = event.payload;
+      const host = engineHost();
+      if (!host || !p.threadId || !p.agentId || !p.asker) return [];
+      await ensureRuntime(ctx);
+      const key = (p.name ?? "").replace(/_+/g, " ").trim();
+      const text = event.name === "vault.request_fulfilled" ? `I added the ${key} key. Carry on.` : `I did not add the ${key} key${p.note ? `: ${p.note}` : "."}`;
+      try { await host.call("chat.post", { threadId: p.threadId, body: text, mentions: [{ kind: "agent", id: p.agentId }], idempotencyKey: `${p.requestId}:carry` }, p.asker); }
+      catch (e) { host.log?.("the agent was not told its key was answered", { requestId: p.requestId, error: e instanceof Error ? e.message : String(e) }); return []; }
+      return [p.requestId];
+    },
   },
   "engine.unblock": {
     on: ["task.completed"],

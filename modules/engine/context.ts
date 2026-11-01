@@ -9,10 +9,10 @@ import type { EngineSession, OpenSession, TurnInput } from "../../agent/src/turn
 type Call = (cap: string, input: unknown, as?: string) => Promise<unknown>;
 type Obj = Record<string, unknown>;
 
-import { CONNECTOR_CHAT, CONNECTOR_SKILL } from "../../lib/connector-chat.ts";
+import { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL } from "../../lib/connector-chat.ts";
 
 /** The titles of the chats the Vault (Add to Automations) and the step picker (Build a connector) start, and the skill they run on. */
-export { CONNECTOR_CHAT, CONNECTOR_SKILL };
+export { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL };
 
 /** The skills a turn can see: an index line each, and the body of one by name. The loader is the skills module's; this is the port the context binds to. */
 export interface SkillsPort {
@@ -184,10 +184,39 @@ export function createContextBuilder(d: ContextDeps) {
 
   async function scopeLine(scopeType: string | undefined, scopeId: string | undefined, asker: string): Promise<string | undefined> {
     if (!scopeType || !scopeId) return undefined;
-    let title: string | undefined;
-    if (scopeType === "project") title = str(((await read<Obj>("projects.get", { projectId: scopeId }, asker))?.["project"] as Obj | undefined)?.["title"]);
-    else if (scopeType === "task") title = str(((await read<Obj>("tasks.get", { taskId: scopeId }, asker))?.["task"] as Obj | undefined)?.["title"]);
+    const title = await scopeTitle(scopeType, scopeId, asker);
     return `about ${scopeType} ${scopeId}${title ? ` "${one(title, 80)}"` : ""}`;
+  }
+
+  /**
+   * What an Ask or comment thread is about, in words: the name of the project, task, record, file, folder, automation or agent, read as the asker (an object they cannot see gives no name). A record
+   * is named by its type and the first of its title, name or subject fields. No field value beyond that one line is put in the context: the agent reads the rest with its own tools.
+   */
+  async function scopeTitle(scopeType: string, scopeId: string, asker: string): Promise<string | undefined> {
+    const got = (out: Obj | undefined, key: string): Obj | undefined => out?.[key] as Obj | undefined;
+    switch (scopeType) {
+      case "project": return str(got(await read<Obj>("projects.get", { projectId: scopeId }, asker), "project")?.["title"]);
+      case "task": return str(got(await read<Obj>("tasks.get", { taskId: scopeId }, asker), "task")?.["title"]);
+      case "file": return str(got(await read<Obj>("files.get", { fileId: scopeId }, asker), "file")?.["name"]);
+      case "folder": return str(got(await read<Obj>("files.folder.get", { folderId: scopeId }, asker), "folder")?.["name"]);
+      case "automation": return str(got(await read<Obj>("automations.get", { automationId: scopeId }, asker), "automation")?.["name"]);
+      case "agent": return str(got(await read<Obj>("agents.get", { agentId: scopeId }, asker), "agent")?.["name"]);
+      case "record": {
+        // records.get needs the type, and a thread names only the record: try the Space's types (a person's own reach decides which answer), once per record for a short while
+        return kept<string>(`rec:${asker}:${scopeId}`, async () => {
+          const types = arr((await kept<Obj>(`rtypes:${asker}`, () => read("schema.describe", {}, asker)))?.["types"]).map((x) => str(x["key"])).filter((k): k is string => k !== undefined).slice(0, 60);
+          for (const type of types) {
+            const rec = got(await read<Obj>("records.get", { type, recordId: scopeId }, asker), "record");
+            if (!rec) continue;
+            const fields = (rec["fields"] as Obj | undefined) ?? {};
+            const name = ["title", "name", "subject", "label", "full_name"].map((k) => str(fields[k])).find((v) => v !== undefined);
+            return name ? `${type}: ${name}` : type;
+          }
+          return undefined;
+        });
+      }
+      default: return undefined;
+    }
   }
 
   /**
@@ -279,12 +308,24 @@ export function createContextBuilder(d: ContextDeps) {
     if (chatMode === "plan" || (chatMode === undefined && th?.["planMode"] === true)) where.push("Mode: Plan. Read and plan, change nothing until the person approves a plan. Propose the plan with plan_propose, then wait.");
     else if (chatMode === "ask") where.push("Mode: Ask first. Before you change or send anything, say what you are about to do. A change that needs a yes waits for it: a held tool call is not a failure, tell the person it is waiting. Your own file-changing and shell tools are not available in this mode; if you need them, say so and the person can switch the chat to Auto.");
     else if (chatMode === "auto") where.push("Mode: Auto. Act on your own without asking. Anything that leaves Vyre (an email, a text, a post, a payment) is still held for a yes.");
+    // a chat in a project that has a repository and teammates: the agent is told how to hand work to one, in the person's words ("give it to a teammate"), so it never needs a tool name from them
+    if (kind === "chat" && str(th?.["scopeType"]) === "project" && str(th?.["scopeId"])) {
+      const projectId = str(th?.["scopeId"])!;
+      const [repoOut, mateOut] = await Promise.all([read<Obj>("engine.crew.repo.get", { projectId }, asker), read<Obj>("projects.teammates.list", { projectId }, asker)]);
+      const mates2 = (arr<Obj>(mateOut?.["teammates"])).filter((m) => str(m["agentId"]) && str(m["agentId"]) !== agentId);
+      if ((repoOut?.["repo"] as Obj | null | undefined)?.["path"] && mates2.length > 0) {
+        where.push(`This project has a code repository and teammates who each work on their own branch in their own copy of it: ${mates2.slice(0, 8).map((m) => `${str(m["name"]) ?? "a teammate"} (teammateId ${str(m["agentId"])}${str(m["role"]) ? `, ${str(m["role"])}` : ""})`).join(", ")}. projectId ${projectId}. When the person asks you to give work to a teammate, hand it off, or have someone else build it, do not do it yourself and do not ask who: start a teammate with crew_start {threadId ${input.threadId}, idempotencyKey, projectId, teammateId, title, brief} (find the crew tools with tool_search "crew"). The brief says what to build and what done looks like. One result card arrives in this chat when the teammate finishes; then say in a line what changed. When the person tells you to merge it or push it, call crew_merge {jobId} or crew_push {jobId}: it is held for their approval, so say it is waiting in Needs you, and the card changes by itself once it lands. The card also changes when the branch is merged or pushed any other way. The result card speaks for itself (who, what changed, the teammate's words): do not repeat its files or text, answer in one short line at most.`);
+      }
+    }
+    if (kind === "chat" && str(th?.["scopeType"]) !== "project") {
+      where.push("If the person asks you to hand work to a teammate and this chat is not in a project: call projects_list, then projects_teammates_list for the likely project, look for one they can see that has teammates and a code repository, and use it (crew_start says when a project has no repository). If there is exactly one, start the teammate there and say which project. If there are several, name them in one line and ask which. If none fits, say in one line that you can set up a project with a repository for this, or move this chat into one. Never answer with a bare question about who.");
+    }
     add("where", true, where.join("\n"));
 
     // skills: the manual is always in front of the agent; the other skills are an index, and the place's focus skill is loaded for it
     // A chat that Add to Automations or Build a connector started is a connector build whatever screen it was sent from: that skill is the focus. Anywhere else it is in the skills index by its description.
     const connectorChat = CONNECTOR_CHAT.test(str(th?.["title"]) ?? "");
-    const focusName = taskId ? "working-on-tasks" : connectorChat ? CONNECTOR_SKILL : screen?.focus ?? (screen ? `focus-${screen.place}` : undefined);
+    const focusName = taskId ? "working-on-tasks" : connectorChat ? CONNECTOR_SKILL : CRM_CHAT.test(str(th?.["title"]) ?? "") ? CRM_SKILL : screen?.focus ?? (screen ? `focus-${screen.place}` : undefined);
     if (d.skills) {
       const idx = await d.skills.index(agentId, asker).catch(() => []);
       const manual = await d.skills.load("working-in-vyre", agentId, asker).catch(() => null);

@@ -1925,6 +1925,13 @@ export const screens: ScreenIndexEntry[] = [
           "threadId": "/state/threadId"
         },
         "live": true
+      },
+      "crew": {
+        "cap": "engine.crew.list",
+        "input": {
+          "threadId": "/state/threadId"
+        },
+        "live": true
       }
     },
     "actions": {
@@ -6965,6 +6972,29 @@ export const screens: ScreenIndexEntry[] = [
     "needs": [
       "connectors.manage"
     ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "records.sync",
+    "module": "connectors",
+    "place": "records",
+    "slot": "main",
+    "builtin": "ui:SyncPage",
+    "caller": "principal",
+    "queries": {
+      "status": {
+        "cap": "sync_types.status",
+        "input": {
+          "type": "/state/type"
+        },
+        "live": true
+      }
+    },
+    "actions": {},
+    "needs": [],
     "perf": {
       "firstPaintMs": 50,
       "completeMs": 100

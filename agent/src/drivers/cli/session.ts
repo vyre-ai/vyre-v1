@@ -5,7 +5,9 @@
 //   tools      Vyre's tools reach the CLI over MCP and are run by the MCP server (access, Gate and audit happen there). The driver only shows the activity as blocks and never runs a tool
 //              itself, so `sendToolResult` has nothing to do.
 //   resume     the engine's session id is learned from its first event and kept; a process that died between turns, or a cancelled one, is replaced by one started with that id.
-//   steering   a message injected during a turn goes to a persistent engine's stdin at once; for a one-shot engine it becomes the next turn of the same send.
+//   steering   an engine that steers (Claude Code) gets a message injected during a turn written to its stdin at once: it reads it at its next step and answers it in the same turn, and says when it read it
+//              (--replay-user-messages), so the turn ends at the engine's own result and is never left waiting for one that will not come. For the others (one-shot engines) the message waits for the turn to end and
+//              becomes the next turn of the same send.
 //   cancel     the process is stopped (TERM, then KILL after the grace time). A cancelled session is dirty: the pool closes it instead of reusing it, and the next one resumes by id.
 import type { ChatMode, DriverEvent, Effort, EngineSession, SessionSpec, StoredMessage, ToolResult, TurnInput } from "../../turn-engine/types.ts";
 import { scrub } from "../api/errors.ts";
@@ -83,6 +85,9 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
   let running = false;
   let abort: AbortController | null = null;
   let outstanding = 0;
+  /** A steering engine: what was written to the process and not yet read, in order ("first" is the turn's own message, "steer" an injected one), and the process a mid-turn write goes to (null between turns). */
+  let unread: Array<"first" | "steer"> = [];
+  let live: Run | null = null;
   let systemSent = deps.resume !== null;
   const steer: StoredMessage[] = [];
   /** The turn-context sections this engine session already holds (id to hash), so a resumed turn is sent only what changed. */
@@ -142,12 +147,14 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     systemSent = true;
     // Before the write: a steering message may be injected the moment the text is on its way, and it counts on top of this one.
     outstanding = 1;
+    unread = a.steers ? ["first"] : [];
     try {
-      try { await r.proc.write(a.encode(text)); }
+      try { live = r; await r.proc.write(a.encode(text)); }
       catch {
         // A persistent process that died since it was last used: replace it once, resuming the engine's session.
         await stop(r, false);
         r = await start();
+        live = r;
         await r.proc.write(a.encode(text));
       }
       if (!a.persistent) r.proc.endInput();
@@ -173,17 +180,22 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
           case "tool":
             yield item.phase === "call"
               ? { type: "block", kind: "tool_call", payload: { id: item.id, name: item.name } }
-              : { type: "block", kind: "tool_result", payload: { id: item.id, ok: item.ok } };
+              : item.phase === "input"
+                ? { type: "block", kind: "tool_input", payload: { id: item.id, detail: item.detail } }
+                : { type: "block", kind: "tool_result", payload: { id: item.id, ok: item.ok } };
             break;
           case "usage": yield { type: "usage", inputTokens: item.inputTokens, outputTokens: item.outputTokens }; break;
           case "limits": yield { type: "limits", window: item.window, pct: item.pct, ...(item.resetsAt !== undefined ? { resetsAt: item.resetsAt } : {}) }; break;
+          case "read": unread.shift(); break;
           case "end":
             outstanding -= 1;
             if (item.error) {
               yield { type: "error", code: item.error.code ?? classifyCli(item.error.message), message: clean(item.error.message) };
               return "stop";
             }
-            if (outstanding <= 0) return "done";
+            // A steering engine's result ends the turn every message it has read belongs to. A message it has not read yet is the start of its next turn, which ends with a result of its own: wait for that
+            // one. Counting results per message instead is what left the agent waiting for a result the engine never sent when it folded a mid-turn message into the turn it was running.
+            if (a.steers ? !unread.includes("steer") : outstanding <= 0) return "done";
             break;
           case "eof": {
             // stderr may still be arriving when stdout closes: the process is gone once both are.
@@ -196,6 +208,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
         }
       }
     } finally {
+      live = null;
       // A one-shot engine's process ends with its turn; a persistent one stays for the next.
       if (!a.persistent && r) await stop(r, true);
     }
@@ -215,8 +228,8 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
       for (;;) {
         const outcome = yield* turn(prompt, input.asker, ac.signal);
         if (outcome === "stop") return;
-        // One-shot engines take steering as the next turn of this send.
-        if (a.persistent || steer.length === 0) break;
+        // Steering takes the next turn of this send.
+        if (steer.length === 0) break;
         prompt = steer.splice(0, steer.length).map((m) => label(m, input.asker)).join("\n\n");
       }
       yield { type: "done" };
@@ -231,11 +244,14 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     get pid() { return run?.proc.pid; },
     send: (input) => send(input),
     sendToolResult(_callId: string, _result: ToolResult) { /* tools run through MCP, not here */ },
+    // A message that arrives while a turn is running: an engine that steers reads it at its next step (written at once, see the header); any other waits for the turn to end and is then sent as the next
+    // turn of this same send.
     inject(msg) {
-      const r = run;
-      if (running && a.persistent && r !== null && r.alive) {
-        outstanding += 1;
-        r.proc.write(a.encode(label(msg, spec.asker))).catch(() => { outstanding -= 1; steer.push(msg); });
+      const r = live;
+      if (a.steers && r !== null && r.alive) {
+        // Mid-turn: written at once. A write that fails (the process just ended) falls back to the next turn.
+        unread.push("steer");
+        void r.proc.write(a.encode(label(msg, spec.asker))).catch(() => { const at = unread.lastIndexOf("steer"); if (at >= 0) unread.splice(at, 1); steer.push(msg); });
         return;
       }
       steer.push(msg);

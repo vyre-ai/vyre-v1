@@ -16,13 +16,22 @@ import type { Page, QuerySpec, Store, StoredRecord } from "../../../kernel/src/s
 // ---- what the engine takes from the connectors module (structural copies; the module's own types are not importable here)
 
 export interface BindingRow {
+  /** The account of an app the binding reads (several accounts of one app share a record type). */
+  account?: string;
   syncTypeId: string; type: string; connector: string; connectionId: string; remote: string;
-  fields: { key: string; remote: string; dir: "pull" | "push" | "both" | "off"; transform?: string }[];
+  fields: { key: string; remote: string; dir: "pull" | "push" | "both" | "off"; transform?: string; relation?: string; inverse?: string; constant?: string }[];
   match: string[]; createAtSource: boolean; deletes: "off" | "soft" | "travel"; conflict: "newest" | "source" | "vyre" | "ask";
+}
+export interface RunOut {
+  summary: string; pulled: number; pushed: number; skipped: number; conflicts: number; dryRun: boolean;
+  /** A big first pull goes a group of pages at a time: true while pages are left, so the caller runs the next group soon. */
+  more?: boolean;
 }
 export interface EngineCtx { trace: { traceId: string }; call(cap: string, input: unknown): Promise<unknown>; emit(name: string, subject: string, payload: Record<string, unknown>): unknown }
 export interface PreviewOut { creates: number; updates: number; removes: number; skips: number; summary: string; matches?: { sure: number; unsure: number; none: number }; samples: { recordId?: string; remoteId?: string; op: string; changes: Record<string, unknown> }[] }
 export interface SyncEngineLike {
+  /** One pass over a synced type: pull, push what people changed, report. Mode backfill and reconcile are the same pass as incremental; the list the connector asks for is what differs. */
+  run(ctx: EngineCtx, b: BindingRow, o: { mode: "incremental" | "reconcile" | "backfill" | "dry_run"; runAutomations?: boolean; by?: string }): Promise<RunOut>;
   preview(ctx: EngineCtx, b: BindingRow, o: { direction?: "pull" | "push" | "both" }): Promise<PreviewOut>;
   confirmDeletes(ctx: EngineCtx, b: BindingRow, decision: "mark_removed" | "keep"): Promise<number>;
   resolveConflict(ctx: EngineCtx, b: BindingRow, conflictId: string, resolution: "ours" | "theirs" | "value", value?: unknown): Promise<{ recordId: string }>;
@@ -32,18 +41,18 @@ export interface SyncEngineLike {
 }
 
 /** The sources module's engine functions, as the daemon finds them in its exports. */
-export interface SyncDepsLike { local: Store; remote: Store; tx: Tx; now?: () => number; emit?: (name: string, subject: string, payload: Record<string, unknown>) => unknown }
+export interface SyncDepsLike { local: Store; remote: Store; tx: Tx; now?: () => number; space?: string; emit?: (name: string, subject: string, payload: Record<string, unknown>) => unknown }
 export interface SyncBindingLike {
   syncTypeId: string; type: string; remote: string; connector: string; label?: string;
-  fields: { local: string; remote: string; direction: "pull" | "push" | "both" | "off"; transform?: string }[];
+  fields: { local: string; remote: string; direction: "pull" | "push" | "both" | "off"; transform?: string; relation?: { syncTypeId: string; type: string; inverse?: string }; constant?: string }[];
   match: string[]; createAtSource: boolean; deletes: boolean; conflict: BindingRow["conflict"];
 }
 export interface SyncReportLike {
   local: { created: number; updated: number }; remote: { created: number; updated: number; removed: number };
-  matched: number; ambiguous: number; conflicts: number; askedConflicts: number; removedAtSource: number; pausedDeletes: boolean; summary: string;
+  matched: number; ambiguous: number; conflicts: number; askedConflicts: number; removedAtSource: number; pausedDeletes: boolean; skipped?: number; summary: string;
 }
 export interface SyncCore {
-  runSync(d: SyncDepsLike, b: SyncBindingLike, o?: { mode?: "pull" | "push" | "both"; dryRun?: boolean; runAutomations?: boolean; traceId?: string }): Promise<SyncReportLike>;
+  runSync(d: SyncDepsLike, b: SyncBindingLike, o?: { mode?: "pull" | "push" | "both"; dryRun?: boolean; runAutomations?: boolean; traceId?: string; by?: string; partial?: StoredRecord[]; pushLocalSince?: number; sweepSeen?: Set<string> }): Promise<SyncReportLike>;
   flushOutbox(d: SyncDepsLike, b: SyncBindingLike): Promise<number>;
   retryPush(d: SyncDepsLike, outboxId: string): boolean;
   undoPush(d: SyncDepsLike, b: SyncBindingLike, outboxId: string): Promise<{ undone: boolean; reason?: string }>;
@@ -61,7 +70,7 @@ export function coreOf(ns: Record<string, unknown> | undefined): SyncCore {
 }
 
 /** The Space store, opened when first needed (after boot, once every module has named its projections). */
-export interface LocalSide { open(): { store: Store; tx: Tx } }
+export interface LocalSide { open(): { store: Store; tx: Tx }; space?: string }
 
 // ---- the remote Store over one connection
 
@@ -89,7 +98,7 @@ export function readRows(output: unknown): { rows: RemoteRow[]; next?: string } 
   return { rows, ...(typeof after === "string" && after !== "" ? { next: after } : {}) };
 }
 
-export interface ObjectNames { list?: string; listAfter?: string; create?: string; update?: string; delete?: string }
+export interface ObjectNames { list?: string; listAfter?: string; create?: string; update?: string; delete?: string; /** The list takes { since } and answers only what changed since. */ since?: boolean }
 export type ObjectMap = Record<string, ObjectNames>;
 
 /** The names a connector spec gives one object (by the bound name, then by its singular), or none. */
@@ -99,34 +108,58 @@ export function namesFor(objects: unknown, remote: string): ObjectNames {
   if (!isObj(hit)) return {};
   const out: ObjectNames = {};
   for (const k of ["list", "listAfter", "create", "update", "delete"] as const) if (typeof hit[k] === "string" && hit[k] !== "") out[k] = hit[k];
+  if (hit["since"] === true) out.since = true;
   return out;
 }
 
-export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "connector" | "connectionId" | "remote">, objects?: unknown): Store & { updatedAtOf(id: string): number } {
+const RATE_CODES = new Set(["rate_limit.exceeded", "provider.rate_limited"]);
+const pause = (ms: number): Promise<void> => new Promise((ok) => { setTimeout(ok, ms); });
+
+export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "connector" | "connectionId" | "remote">, objects?: unknown, opts: { sleep?: (ms: number) => Promise<void>; /** Tells one pass from the next: the same call in another pass is a new call, not a replay of the old answer. */ nonce?: string } = {}): Store & { updatedAtOf(id: string): number; page(after?: string, since?: number): Promise<{ rows: StoredRecord[]; next?: string }>; supportsSince: boolean; lazy: boolean } {
   const one = oneOf(b.remote);
   const names = namesFor(objects, b.remote);
   const nameList = names.list ?? `list_${b.remote}`, nameAfter = names.listAfter ?? `list_${b.remote}_after`;
   const nameCreate = names.create ?? `create_${one}`, nameUpdate = names.update ?? `update_${one}`, nameDelete = names.delete ?? `delete_${one}`;
   const stamps = new Map<string, number>();
+  const sleep = opts.sleep ?? pause;
+  // A pass over thousands of records is many calls. An app (or the connection's own limit) that says slow down is waited for, not failed: the call is tried again after a short pause.
   const run = async (action: string, input: unknown): Promise<unknown> => {
-    const out = (await ctx.call("connectors.run", {
-      key: b.connector, action, connectionId: b.connectionId, input, idempotencyKey: `sync:${sha256Hex(`${b.connectionId}|${action}|${canon(input)}`).slice(0, 32)}`,
-    })) as { output?: unknown };
-    return out.output;
+    for (let wait = 0; ; wait++) {
+      try {
+        // a list is a read: it does not wait at the Gate when the pass runs as an agent or the host; a write goes through connectors.run
+        const reading = action === nameList || action === nameAfter;
+        const out = (await ctx.call(reading ? "connectors.read" : "connectors.run", {
+          key: b.connector, action, connectionId: b.connectionId, input, idempotencyKey: `sync:${sha256Hex(`${b.connectionId}|${action}|${canon(input)}|${opts.nonce ?? ""}`).slice(0, 32)}`,
+        })) as { output?: unknown };
+        return out.output;
+      } catch (e) {
+        const code = isObj(e) && isObj(e["error"]) ? e["error"]["code"] : undefined;
+        if (typeof code !== "string" || !RATE_CODES.has(code) || wait >= 40) throw e;
+        await sleep(Math.min(1500, 250 * (wait + 1)));
+      }
+    }
   };
   const toRecord = (r: RemoteRow, version = 1): StoredRecord => ({
     type: b.remote, id: r.id, version, data: r.data as StoredRecord["data"], created_at: r.updatedAt, updated_at: r.updatedAt,
     ...(r.archived ? { deleted_at: r.updatedAt || 1 } : {}),
   });
+  // One pass reads the app's list once: a push that looks a record up uses that same listing instead of paging through the app again for every record.
+  let listed: RemoteRow[] | undefined;
   async function all(): Promise<RemoteRow[]> {
+    if (listed) return listed;
     const out: RemoteRow[] = [];
     let after: string | undefined;
+    const seen = new Set<string>();
     do {
       const page = readRows(await run(after === undefined ? nameList : nameAfter, after === undefined ? {} : { after }));
-      out.push(...page.rows);
-      after = page.next;
+      // an app that ignores the page parameter answers the same page again: stop when a page brings nothing new
+      const fresh = page.rows.filter((r) => !seen.has(r.id));
+      for (const r of fresh) seen.add(r.id);
+      out.push(...fresh);
+      after = fresh.length === 0 ? undefined : page.next;
     } while (after !== undefined && out.length < 100_000);
     for (const r of out) stamps.set(r.id, r.updatedAt);
+    listed = out;
     return out;
   }
   const unsupported = (what: string) => (): never => { throw new StoreError("unsupported", `A connection does not support ${what}.`); };
@@ -166,18 +199,49 @@ export function remoteStore(ctx: Pick<EngineCtx, "call">, b: Pick<BindingRow, "c
     version: async () => ({ store: "connection", version: "1" }),
     features: () => ({ aggregate: false, search: false, changes: false, cursor_paging: true as const }),
   };
-  return Object.assign(store as Store, { updatedAtOf: (id: string) => stamps.get(id) ?? 0 });
+  // One page of the app's list, for a big app pulled a page group at a time (the whole list is never held).
+  const page = async (after?: string, since?: number): Promise<{ rows: StoredRecord[]; next?: string }> => {
+    const got = readRows(await run(after === undefined ? nameList : nameAfter, { ...(after === undefined ? {} : { after }), ...(since !== undefined ? { since } : {}) }));
+    for (const r of got.rows) stamps.set(r.id, r.updatedAt);
+    return { rows: got.rows.filter((r) => !r.archived).map((r) => toRecord(r)), ...(got.next !== undefined ? { next: got.next } : {}) };
+  };
+  return Object.assign(store as Store, { updatedAtOf: (id: string) => stamps.get(id) ?? 0, page, supportsSince: names.since === true, lazy: names.since === true });
 }
 
 // ---- the engine
 
-const bindingOf = (b: BindingRow): SyncBindingLike => ({
+const bindingOf = (b: BindingRow, relations: Map<string, string> = new Map()): SyncBindingLike => ({
   syncTypeId: b.syncTypeId, type: b.type, remote: b.remote, connector: b.connector, label: b.connector,
-  fields: b.fields.map((f) => ({ local: f.key, remote: f.remote, direction: f.dir, ...(f.transform !== undefined ? { transform: f.transform } : {}) })),
+  fields: b.fields.map((f) => ({
+    local: f.key, remote: f.remote, direction: f.dir, ...(f.transform !== undefined ? { transform: f.transform } : {}), ...(f.constant !== undefined ? { constant: f.constant } : {}),
+    ...(f.relation !== undefined && relations.has(f.relation) ? { relation: { syncTypeId: relations.get(f.relation)!, type: f.relation, ...(f.inverse !== undefined ? { inverse: f.inverse } : {}) } } : {}),
+  })),
   match: b.match, createAtSource: b.createAtSource, deletes: b.deletes !== "off", conflict: b.conflict,
 });
 
-export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: () => number }): SyncEngineLike {
+/** Rows taken from the app per group, and the most pages one group reads. A group is one pass: pull, report, store the place, so a restart or a failure resumes there. */
+const GROUP_ROWS = 2000;
+const FIRST_GROUP_PAGES = 400;
+/** Overlap when a poll asks for what changed since the last one, so a clock a little off loses nothing. */
+const SINCE_OVERLAP_MS = 60_000;
+/** A poll does not see what an app deleted; a sweep of the whole list, once a day and a group at a time, does. */
+const SWEEP_EVERY_MS = 86_400_000;
+interface Progress {
+  after?: string; pulled: number; done: boolean;
+  /** When the first pull began, kept across its groups. */
+  began?: number;
+  /** Polls read what changed since this time (ms). */
+  hwm?: number;
+  /** When a pass last began: what people changed here after it is pushed by the next poll. */
+  lastStart?: number;
+  /** A poll with more changes than one group holds: where it is, and the time the next poll will start from. */
+  delta?: { since: number; after?: string; newHwm: number };
+  sweepAt?: number;
+  /** A deletion sweep under way. */
+  sweep?: { after?: string };
+}
+
+export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: () => number; sleep?: (ms: number) => Promise<void>; groupRows?: number }): SyncEngineLike {
   // the connector's own names for its objects, read once per connector (a connector row without them keeps the convention)
   const maps = new Map<string, Promise<unknown>>();
   const objectsOf = (ctx: EngineCtx, connector: string): Promise<unknown> => {
@@ -188,25 +252,114 @@ export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: ()
     }
     return p;
   };
-  const depsOf = async (ctx: EngineCtx, b: BindingRow): Promise<{ deps: SyncDepsLike; remote: ReturnType<typeof remoteStore>; tx: Tx; local: Store }> => {
+  const depsOf = async (ctx: EngineCtx, b: BindingRow): Promise<{ deps: SyncDepsLike; remote: ReturnType<typeof remoteStore>; tx: Tx; local: Store; binding: SyncBindingLike }> => {
     const { store, tx } = o.local.open();
-    const remote = remoteStore(ctx, b, await objectsOf(ctx, b.connector));
-    return { deps: { local: store, remote, tx, ...(o.now ? { now: o.now } : {}), emit: (n, s, p) => ctx.emit(n, s, p) }, remote, tx, local: store };
+    const remote = remoteStore(ctx, b, await objectsOf(ctx, b.connector), { ...(o.sleep ? { sleep: o.sleep } : {}), nonce: ctx.trace.traceId });
+    // a relation names a record type; the engine needs the synced type that pulls it, to turn the app's id into a link
+    const relations = new Map<string, string>();
+    for (const f of b.fields) {
+      if (f.relation === undefined || relations.has(f.relation)) continue;
+      const got = await ctx.call("sync_types.get", { type: f.relation, ...(b.account ? { account: b.account } : {}) }).catch(() => undefined);
+      const id = isObj(got) && isObj(got["syncedType"]) ? got["syncedType"]["syncTypeId"] : undefined;
+      if (typeof id === "string") relations.set(f.relation, id);
+    }
+    return {
+      deps: { local: store, remote, tx, ...(o.now ? { now: o.now } : {}), ...(o.local.space ? { space: o.local.space } : {}), emit: (n, s, p) => ctx.emit(n, s, p) },
+      remote, tx, local: store, binding: bindingOf(b, relations),
+    };
   };
   return {
+    async run(ctx, b, opts) {
+      const { deps, binding, remote, tx } = await depsOf(ctx, b);
+      const dry = opts.mode === "dry_run";
+      // The first pull (and a backfill) reads the app a group of pages at a time and keeps its place; the next pass carries on from there. Newest first is the app's own order (the spec's list query sorts).
+      // After it, an app that can answer "changed since" is polled for only that; what the app deleted is found by a sweep once a day. An app that cannot is listed whole every poll.
+      // the sync tables are made by the first pass: before it there is no place kept, and this is the first pull
+      let state: { cursor: string | null } | null | undefined;
+      try { state = tx.get<{ cursor: string | null }>("SELECT cursor FROM sy_state WHERE sync_type = ?", b.syncTypeId); } catch { state = undefined; }
+      let progress: Progress | undefined = state?.cursor ? (JSON.parse(state.cursor) as Progress) : undefined;
+      const fresh = state === undefined || state === null;
+      const startedAt = (o.now ?? Date.now)();
+      const save = (p: Progress): void => { tx.run("INSERT INTO sy_state (sync_type, cursor) VALUES (?, ?) ON CONFLICT(sync_type) DO UPDATE SET cursor = excluded.cursor", b.syncTypeId, JSON.stringify(p)); };
+      const outOf = (r: SyncReportLike, summary: string, more: boolean): RunOut => ({ summary, pulled: r.local.created + r.local.updated, pushed: r.remote.created + r.remote.updated + r.remote.removed, skipped: r.skipped ?? 0, conflicts: r.conflicts, dryRun: false, ...(more ? { more: true } : {}) });
+      const common = { ...(opts.runAutomations ? { runAutomations: true } : {}), ...(opts.by ? { by: opts.by } : {}), traceId: ctx.trace.traceId };
+      /** Pages from `from`, until a group is full or the app has no more. An app that ignores the page parameter answers the same page again: it has nothing new. */
+      const group = async (from: string | undefined, since?: number): Promise<{ rows: StoredRecord[]; next?: string }> => {
+        const rows: StoredRecord[] = [];
+        const seen = new Set<string>();
+        let after = from;
+        let next: string | undefined;
+        for (let pages = 0; pages < FIRST_GROUP_PAGES && rows.length < (o.groupRows ?? GROUP_ROWS); pages++) {
+          const got = await remote.page(after, since);
+          const brought = got.rows.filter((r) => !seen.has(r.id));
+          for (const r of brought) seen.add(r.id);
+          rows.push(...brought);
+          next = got.next;
+          if (!next || (brought.length === 0 && got.rows.length > 0)) { next = undefined; break; }
+          after = next;
+        }
+        return { rows, ...(next !== undefined ? { next } : {}) };
+      };
+      const sweepStep = async (p: Progress): Promise<RunOut> => {
+        if (!p.sweep) tx.run("DELETE FROM sy_seen WHERE sync_type = ?", b.syncTypeId);
+        const g = await group(p.sweep?.after);
+        for (const r of g.rows) tx.run("INSERT OR IGNORE INTO sy_seen (sync_type, remote_id) VALUES (?, ?)", b.syncTypeId, r.id);
+        if (g.next !== undefined) { save({ ...p, sweep: { after: g.next } }); return { summary: "Checking what the app removed.", pulled: 0, pushed: 0, skipped: 0, conflicts: 0, dryRun: false, more: true }; }
+        const ids = new Set(tx.all<{ remote_id: string }>("SELECT remote_id FROM sy_seen WHERE sync_type = ?", b.syncTypeId).map((x) => x.remote_id));
+        const r = await o.core.runSync(deps, binding, { mode: "both", partial: [], sweepSeen: ids, ...common });
+        tx.run("DELETE FROM sy_seen WHERE sync_type = ?", b.syncTypeId);
+        const { sweep: _done, ...rest } = p;
+        save({ ...rest, sweepAt: startedAt });
+        return outOf(r, r.summary, false);
+      };
+      const deltaStep = async (p: Progress): Promise<RunOut> => {
+        const d = p.delta ?? { since: p.hwm ?? 0, newHwm: startedAt - SINCE_OVERLAP_MS };
+        const g = await group(d.after, d.since);
+        const r = await o.core.runSync(deps, binding, { mode: "both", partial: g.rows, pushLocalSince: p.lastStart ?? d.since, ...common });
+        if (g.next !== undefined) { save({ ...p, done: false, delta: { ...d, after: g.next } }); return outOf(r, r.summary, true); }
+        const { delta: _d, ...rest } = p;
+        save({ ...rest, done: true, hwm: d.newHwm, lastStart: startedAt });
+        return outOf(r, r.summary, false);
+      };
+      if (!dry) {
+        if (progress?.sweep) return sweepStep(progress);
+        if (progress?.delta) return deltaStep(progress);
+        if (opts.mode === "backfill" || fresh || (progress && !progress.done)) {
+          if (opts.mode === "backfill" && (!progress || progress.done)) progress = { pulled: 0, done: false };
+          progress ??= { pulled: 0, done: false };
+          const began = progress.began ?? startedAt;
+          const g = await group(progress.after);
+          const r = await o.core.runSync(deps, binding, { mode: "both", partial: g.rows, ...common });
+          const total = progress.pulled + g.rows.length;
+          const saved: Progress = g.next !== undefined
+            ? { after: g.next, pulled: total, done: false, began }
+            : { pulled: total, done: true, hwm: began - SINCE_OVERLAP_MS, lastStart: began, sweepAt: began };
+          save(saved);
+          return outOf(r, g.next === undefined ? `${r.summary} All ${total} are in.` : `Catching up: ${total} read so far. ${r.summary}`, g.next !== undefined);
+        }
+        if (remote.supportsSince && progress?.hwm !== undefined) {
+          if (startedAt - (progress.sweepAt ?? 0) > SWEEP_EVERY_MS) return sweepStep(progress);
+          return deltaStep(progress);
+        }
+      }
+      const r = await o.core.runSync(deps, binding, { mode: "both", dryRun: dry, ...(opts.runAutomations ? { runAutomations: true } : {}), ...(opts.by ? { by: opts.by } : {}), traceId: ctx.trace.traceId });
+      return { summary: r.summary, pulled: r.local.created + r.local.updated, pushed: r.remote.created + r.remote.updated + r.remote.removed, skipped: r.skipped ?? 0, conflicts: r.conflicts, dryRun: dry };
+    },
     async preview(ctx, b, opts) {
-      const { deps } = await depsOf(ctx, b);
-      const r = await o.core.runSync(deps, bindingOf(b), { mode: opts.direction ?? "both", dryRun: true, traceId: ctx.trace.traceId });
+      const { deps, binding } = await depsOf(ctx, b);
+      const r = await o.core.runSync(deps, binding, { mode: opts.direction ?? "both", dryRun: true, traceId: ctx.trace.traceId });
       return {
         creates: r.local.created + r.remote.created, updates: r.local.updated + r.remote.updated, removes: r.remote.removed + r.removedAtSource, skips: r.conflicts,
         summary: r.summary, matches: { sure: r.matched, unsure: r.ambiguous, none: 0 }, samples: [],
       };
     },
     async confirmDeletes(ctx, b, decision) {
-      return o.core.confirmDeletes((await depsOf(ctx, b)).deps, bindingOf(b), decision);
+      const { deps, binding } = await depsOf(ctx, b);
+      return o.core.confirmDeletes(deps, binding, decision);
     },
     async resolveConflict(ctx, b, conflictId, resolution, value) {
-      return o.core.resolveConflict((await depsOf(ctx, b)).deps, bindingOf(b), conflictId, resolution, value);
+      const { deps, binding } = await depsOf(ctx, b);
+      return o.core.resolveConflict(deps, binding, conflictId, resolution, value);
     },
     async replayConflict(ctx, b, conflictId) {
       const { tx, local, remote } = await depsOf(ctx, b);
@@ -224,11 +377,11 @@ export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: ()
       ];
     },
     async undoPush(ctx, b, outboxId) {
-      const { deps, tx, local, remote } = await depsOf(ctx, b);
+      const { deps, tx, local, remote, binding } = await depsOf(ctx, b);
       const row = tx.get<{ op: string; status: string; undone_at: number | null; local_id: string; replaced: string | null }>(
         "SELECT op, status, undone_at, local_id, replaced FROM sy_outbox WHERE outbox_id = ? AND sync_type = ?", outboxId, b.syncTypeId,
       );
-      if (!row || row.op !== "remove" || row.status !== "done" || row.undone_at !== null) return o.core.undoPush(deps, bindingOf(b), outboxId);
+      if (!row || row.op !== "remove" || row.status !== "done" || row.undone_at !== null) return o.core.undoPush(deps, binding, outboxId);
       // Undoing a removal: the app has no way to bring a deleted record back, so it is created again from the snapshot taken just before the delete. No snapshot: say so.
       if (!row.replaced) return { undone: false, reason: "The app record was not saved before it was removed, so it cannot be put back." };
       const snapshot = JSON.parse(row.replaced) as Record<string, unknown>;
@@ -243,9 +396,9 @@ export function createSyncEngine(o: { core: SyncCore; local: LocalSide; now?: ()
       return { undone: true };
     },
     async push(ctx, b, outboxId) {
-      const { deps, tx } = await depsOf(ctx, b);
+      const { deps, tx, binding } = await depsOf(ctx, b);
       o.core.retryPush(deps, outboxId);   // a failed row goes back to pending; a pending one is untouched
-      await o.core.flushOutbox(deps, bindingOf(b));
+      await o.core.flushOutbox(deps, binding);
       const row = tx.get<{ status: string; error: string | null }>("SELECT status, error FROM sy_outbox WHERE outbox_id = ? AND sync_type = ?", outboxId, b.syncTypeId);
       if (row?.status === "done") return { state: "sent" };
       return { state: "failed", ...(row?.error ? { error: row.error } : {}) };

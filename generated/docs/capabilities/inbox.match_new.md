@@ -28,6 +28,8 @@ type In = {
   conversationId: string;
   type: "contact" | "company";
   name?: string;
+  fileAttachments?: boolean;
+  replyTask?: boolean;
   idempotencyKey: string;
 };
 ```
@@ -59,6 +61,9 @@ type Out = {
     unmatched?: boolean;
     draftReady?: boolean;
   };
+  filed?: number;
+  skipped?: number;
+  taskId?: string;
 };
 ```
 
@@ -77,8 +82,10 @@ type Out = {
   "name": "example",
   "input": {
     "conversationId": "cnv_a1b2c3",
+    "fileAttachments": true,
     "idempotencyKey": "idem_1",
     "name": "example",
+    "replyTask": true,
     "type": "contact"
   },
   "output": {
@@ -106,7 +113,10 @@ type Out = {
       "unmatched": true,
       "unreadCount": 1
     },
-    "recordId": "rec_a1b2c3"
+    "filed": 1,
+    "recordId": "rec_a1b2c3",
+    "skipped": 1,
+    "taskId": "tsk_a1b2c3"
   }
 }
 ```

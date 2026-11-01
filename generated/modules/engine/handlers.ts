@@ -8,8 +8,19 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.account.resolve": Handler<"engine.account.resolve", X>;
   "engine.accounts.list": Handler<"engine.accounts.list", X>;
   "engine.complete": Handler<"engine.complete", X>;
+  "engine.crew.list": Handler<"engine.crew.list", X>;
+  "engine.crew.merge": Handler<"engine.crew.merge", X>;
+  "engine.crew.message": Handler<"engine.crew.message", X>;
+  "engine.crew.push": Handler<"engine.crew.push", X>;
+  "engine.crew.repo.get": Handler<"engine.crew.repo.get", X>;
+  "engine.crew.repo.set": Handler<"engine.crew.repo.set", X>;
+  "engine.crew.start": Handler<"engine.crew.start", X>;
+  "engine.crew.stop": Handler<"engine.crew.stop", X>;
+  "engine.crew.wait": Handler<"engine.crew.wait", X>;
+  "engine.crew.workspace": Handler<"engine.crew.workspace", X>;
   "engine.defaults.get": Handler<"engine.defaults.get", X>;
   "engine.defaults.set": Handler<"engine.defaults.set", X>;
+  "engine.drop_queued": Handler<"engine.drop_queued", X>;
   "engine.health": Handler<"engine.health", X>;
   "engine.incident.assign": Handler<"engine.incident.assign", X>;
   "engine.incident.get": Handler<"engine.incident.get", X>;
@@ -21,6 +32,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.lease.acquire": Handler<"engine.lease.acquire", X>;
   "engine.lease.heartbeat": Handler<"engine.lease.heartbeat", X>;
   "engine.lease.release": Handler<"engine.lease.release", X>;
+  "engine.live_turns": Handler<"engine.live_turns", X>;
   "engine.mcp.call": Handler<"engine.mcp.call", X>;
   "engine.mcp.oauth_complete": Handler<"engine.mcp.oauth_complete", X>;
   "engine.mcp.oauth_start": Handler<"engine.mcp.oauth_start", X>;

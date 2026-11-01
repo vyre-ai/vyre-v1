@@ -6,6 +6,8 @@ import type { ReactElement } from "react";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, press, textOf, typeInto } from "../../../onboarding/test-dom.ts";
 import type { Node } from "../../../onboarding/test-dom.ts";
+import { Composer } from "../../../../../../ui/src/Composer/index.tsx";
+import { installComposerForTests } from "../../../../../../ui/src/Composer/Deferred.tsx";
 import { RecordPage, RecordPageDataProvider } from "../recordpage/index.ts";
 import { CLIENT, createSamplePage } from "../recordpage/sample.ts";
 import type { SamplePage } from "../recordpage/sample.ts";
@@ -14,6 +16,7 @@ import type { RecordRow } from "../recordpage/model.ts";
 import { activityDetail, activityLine, candidates, insertMention, mentionPieces, mentionQuery, mentionsIn, replyingLine, threadsOf } from "./model.ts";
 import type { Activity, Comment } from "./model.ts";
 
+installComposerForTests(Composer);
 const open: Array<{ unmount(): void }> = [];
 afterEach(async () => { for (const r of open.splice(0)) await act(async () => { r.unmount(); }); });
 async function up(s: SamplePage, tab: "activity" | "comments" | "chat" | "files", id = "cl_0"): Promise<Node> {
@@ -27,8 +30,8 @@ async function up(s: SamplePage, tab: "activity" | "comments" | "chat" | "files"
 }
 const names = (id: string): string => ({ usr_maya: "Maya Chen", usr_omar: "Omar Haddad", usr_irfad: "Irfad Imtiaz", agt_intake: "Intake" } as Record<string, string>)[id] ?? id;
 const inField = (root: Node, fieldId: string, what: string): Node => find(find(root, fieldId)!, what)!;
-const write = async (root: Node, fieldId: string, text: string): Promise<void> => { await typeInto(inField(root, fieldId, "comment-reply-field"), text); await flush(); };
-const send = async (root: Node, fieldId: string): Promise<void> => { await press(inField(root, fieldId, "comment-reply-send")); await flush(); };
+const write = async (root: Node, fieldId: string, text: string): Promise<void> => { await typeInto(inField(root, fieldId, "composer-field"), text); await flush(); };
+const send = async (root: Node, fieldId: string): Promise<void> => { await press(inField(root, fieldId, "composer-send")); await flush(); };
 const ids = (root: Node): string[] => {
   const out: string[] = [];
   const walk = (n: Node | string): void => { if (typeof n === "string") return; const t = n.props["data-testid"]; if (typeof t === "string") out.push(t); (n.children ?? []).forEach(walk); };
@@ -156,36 +159,31 @@ test("resolving a thread hides it from the default view, the Resolved filter sho
   assert.equal(calls(s, "records.comments.resolve").map((c) => c.input.resolved).join(), "true,false");
 });
 
-test("typing @ offers people and agents; a press takes one; the mention goes with the comment", async () => {
+test("a name written after @ goes with the comment as a mention (the picker itself is the shared Composer's, tested there)", async () => {
   const s = createSamplePage();
   const root = await up(s, "comments");
-  await write(root, "comment-field-new", "Can you look, @Om");
-  assert.ok(find(root, "mention-picker-new"), "the picker is open");
-  assert.ok(find(root, "row-mention-new-usr_omar") && !find(root, "row-mention-new-usr_maya"), "narrowed to Omar");
-  await press(find(root, "row-mention-new-usr_omar"));
-  await flush();
-  assert.ok(!find(root, "mention-picker-new"), "taking a name closes it");
+  await write(root, "comment-field-new", "Can you look, @Omar Haddad");
   await send(root, "comment-field-new");
   const made = calls(s, "records.comments.add")[0]!.input;
-  assert.equal(made.text, "Can you look, @Omar Haddad ".trim());
+  assert.equal(made.text, "Can you look, @Omar Haddad");
   assert.deepEqual(made.mentions, [{ kind: "person", id: "usr_omar" }]);
 });
 
-test("Enter with the picker open takes the first name and does not send", async () => {
+test("a refused post puts the text back in the field and says so", async () => {
   const s = createSamplePage();
   const root = await up(s, "comments");
-  await write(root, "comment-field-new", "@Ma");
+  const call = s.data.call;
+  s.data.call = async (cap: string, input: unknown) => { if (cap === "records.comments.add") throw new Error("refused"); return call(cap, input); };
+  await write(root, "comment-field-new", "Do not lose this");
   await send(root, "comment-field-new");
-  assert.equal(calls(s, "records.comments.add").length, 0, "nothing was sent");
-  assert.ok(String((inField(root, "comment-field-new", "comment-reply-field").props as { value?: string }).value).startsWith("@Maya Chen"), "the first name was taken");
+  assert.ok(find(root, "comment-error-new"), "it says it could not post");
+  assert.equal(String((inField(root, "comment-field-new", "composer-field").props as { value?: string }).value), "Do not lose this");
 });
 
 test("an @mentioned agent shows 'Intake is replying' until its answer lands under the comment, as a reply from the agent", async () => {
   const s = createSamplePage();
   const root = await up(s, "comments");
-  await write(root, "comment-field-new", "What changed this week? @Int");
-  await press(find(root, "row-mention-new-agt_intake"));
-  await flush();
+  await write(root, "comment-field-new", "What changed this week? @Intake");
   await send(root, "comment-field-new");
   const made = calls(s, "records.comments.add")[0]!.input;
   assert.equal(made.text, "What changed this week? @Intake");

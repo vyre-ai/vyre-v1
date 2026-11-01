@@ -44,7 +44,7 @@ test("a request goes to the folder's managers as one card each, holds names and 
   const t = tasks[0]!.input;
   assert.equal(t["kind"], "unblock");
   assert.deepEqual(t["source"], { kind: "manual", id: r.id });
-  assert.deepEqual(t["actions"], [{ key: "resolved", label: "Provide the key" }, { key: "cannot", label: "Decline", note: "optional" }]);
+  assert.deepEqual(t["actions"], [{ key: "cannot", label: "Decline", note: "optional" }], "no bare resolve: a key request closes only through fulfil or decline");
   const block = (t["blocks"] as { type: string; data: Record<string, unknown> }[])[0]!;
   assert.equal(block.type, "vault_request");
   assert.deepEqual(block.data, { requestId: r.id, name: "Dana_Lawmatics", fields: ["api_key", "account"], reason: "The intake run needs the Lawmatics key", requester: { kind: "agent", id: "agt_helper" }, forRun: "run_intake", folderId: FOLDER, state: "waiting" });
@@ -113,7 +113,7 @@ test("a manager supplies the key by saving fields in the folder: the value goes 
   assert.deepEqual(w.called("vault.share").map((c) => c.input), [{ resource: { type: "vault_item", id: "vit_new" }, subject: { kind: "agent", id: "agt_helper" }, level: "use", idempotencyKey: `${request.id}:use` }]);
   assert.deepEqual(w.called("tasks.transition").map((c) => [c.input["taskId"], c.input["to"]]), [["tsk_1", "done"]]);
   assert.deepEqual(w.called("runs.resume").map((c) => c.input), [{ runId: "run_intake", reason: "key" }]);
-  assert.deepEqual(w.events, [{ name: "vault.request_fulfilled", subject: request.id, payload: { requestId: request.id, itemId: "vit_new", forRun: "run_intake" } }]);
+  assert.deepEqual(w.events, [{ name: "vault.request_fulfilled", subject: request.id, payload: { requestId: request.id, itemId: "vit_new", name: request.name, forRun: "run_intake" } }]);
   // the value went to the vault service and nowhere else
   const everywhere = JSON.stringify({ rows: w.db.dump(), events: w.events, warnings: w.warnings, others: w.calls.filter((c) => c.cap !== "vault.item.put") });
   assert.equal(everywhere.includes(SECRET), false, "the value is in the vault call only");
@@ -170,7 +170,7 @@ test("declining records the note, closes the cards as canceled and tells the wai
   const got = (await handlers["vault.requests.get"](w.as("agt_helper", "agent"), { requestId: request.id })).request;
   assert.deepEqual([got.state, got.note, got.decidedAt], ["declined", "Use the shared one", NOW]);
   assert.deepEqual(w.called("tasks.transition").map((c) => [c.input["taskId"], c.input["to"], c.input["note"]]), [["tsk_1", "canceled", "Declined: Use the shared one"], ["tsk_2", "canceled", "Declined: Use the shared one"]]);
-  assert.deepEqual(w.events, [{ name: "vault.request_declined", subject: request.id, payload: { requestId: request.id, forRun: "run_x", note: "Use the shared one" } }]);
+  assert.deepEqual(w.events, [{ name: "vault.request_declined", subject: request.id, payload: { requestId: request.id, name: request.name, forRun: "run_x", note: "Use the shared one" } }]);
   assert.equal(w.called("runs.resume").length, 0, "a declined request does not resume the Run");
   assert.equal(w.called("vault.share").length, 0);
 });
@@ -241,4 +241,11 @@ test("every statement the module runs names only its own table", async () => {
   await handlers["vault.requests.list"](w.as("usr_mira"), {});
   assert.ok(w.db.statements.length >= 5);
   assert.ok(w.db.statements.every((s) => /vault_requests_requests/.test(s)));
+});
+
+import { neededTitle } from "../handlers/request.ts";
+test("the card title names the key and says it is needed", () => {
+  assert.equal(neededTitle("Fathom"), "Fathom key needed");
+  assert.equal(neededTitle("Dana_Lawmatics"), "Dana Lawmatics key needed");
+  assert.equal(neededTitle("Fathom_key"), "Fathom key needed");
 });

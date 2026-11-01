@@ -101,6 +101,13 @@ test("while a person has the controls the agent's tools wait, and give back lets
   // Looking at whether Chrome is paused is how the agent finds out; stop is allowed to stop it.
   assert.equal((await tool["computers.chrome.status"]!(agent.ctx, {})).connected, true);
   assert.deepEqual(await tool["computers.chrome.stop"]!(agent.ctx, {}), { stopped: true });
+  // the person at the controls is not held back by their own take-over: their click through the live view reaches the desktop; another person's does not
+  assert.equal((await tool["computers.screen.click"]!(w.h.ctx, { computerId: w.id, x: 5, y: 5 })).ok, true);
+  assert.equal(w.d.calls.filter((c) => c.tool === "screen_click").length, 1);
+  assert.equal((w.d.calls.find((c) => c.tool === "screen_click") as { by?: string }).by, "person", "agentd is told it is the person, or its take-over wait would stop them too");
+  assert.equal((w.d.calls.filter((c) => c.tool === "chrome_status")[0] as { by?: string } | undefined)?.by, undefined, "the agent's own calls carry no such mark");
+  const other = asPerson(w.h, { kind: "person", id: "usr_other" });
+  await refused("computers.screen.click", () => tool["computers.screen.click"]!(other.ctx, { computerId: w.id, x: 1, y: 1 }), "validation.bad_input", "someone else's click during a take-over");
   await giveBack(w.h.ctx, { computerId: w.id });
   assert.equal((await tool["computers.chrome.click"]!(w.agent().ctx, { ref: "e1" })).ok, true);
   bindHost(null);
@@ -196,6 +203,36 @@ test("the run and thread of the caller are on the step, and a frame that cannot 
   assert.equal(row["run_id"], "run_1");
   assert.equal(row["thread_id"], "thr_1");
   assert.equal(row["frame_file_id"], null);
+  bindHost(null);
+});
+
+test("the first thing the agent does for a chat puts one live card in it; more steps add none; a post that fails never fails the tool", async () => {
+  const w = await world({ answers: { chrome_click: () => ({ ok: true, frame: PNG }) } });
+  const a = w.agent();
+  a.ctx.thread = "thr_live";
+  a.respond["files.create"] = () => ({ file: { fileId: "fil_frame" } });
+  a.respond["chat.post"] = () => ({ message: { messageId: "msg_1" } });
+  await tool["computers.chrome.click"]!(a.ctx, { ref: "e1" });
+  await tool["computers.chrome.click"]!(a.ctx, { ref: "e2" });
+  const posts = a.calls("chat.post");
+  assert.equal(posts.length, 1, "one card for the burst of work");
+  const input = posts[0]!.input as { threadId: string; blocks: Array<{ type: string; data: Record<string, unknown> }> };
+  assert.equal(input.threadId, "thr_live");
+  assert.equal(input.blocks[0]!.type, "screenshot");
+  assert.equal(input.blocks[0]!.data["live"], true);
+  assert.equal(input.blocks[0]!.data["fileId"], "fil_frame");
+  assert.equal(input.blocks[0]!.data["computerId"], w.id);
+  // a person at the keyboard, or work for no chat, posts nothing
+  const none = w.agent();
+  const before = none.calls("chat.post").length;
+  await tool["computers.chrome.click"]!(none.ctx, { ref: "e1" });
+  assert.equal(none.calls("chat.post").length, before, "no chat, no card");
+  // a refused post is not a failed tool
+  const f = w.agent();
+  f.ctx.thread = "thr_other";
+  f.respond["files.create"] = () => ({ file: { fileId: "fil_f2" } });
+  f.respond["chat.post"] = () => { throw new Error("not in this chat"); };
+  assert.equal((await tool["computers.chrome.click"]!(f.ctx, { ref: "e1" })).ok, true);
   bindHost(null);
 });
 

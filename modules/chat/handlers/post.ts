@@ -2,7 +2,7 @@
 //   One message in a thread or channel, numbered by the thread (gap-free), with its hop depth, its blocks and its mentions. The turn engine reads message.received (ids and counts only, never the
 //   text) and routes to the lead agent or the @mentioned agents; this module does not start turns. People get message.mentioned, message.direct and thread.replied.
 import {
-  MAX_BLOCKS, MAX_BODY, MAX_MENTIONS, agentsOf, askerOf, encOf, ensure, hopLimit, insertMessage, isMember, lastMessage, membersOf, messageBy, messageOut, mintId, raise, refOf, refuseUnseenAgents, threadBy, channelBy,
+  MAX_BLOCKS, MAX_BODY, MAX_MENTIONS, addAgent, agentsOf, askerOf, channelBy, encOf, ensure, hopLimit, insertMessage, isMember, lastMessage, membersOf, messageBy, messageOut, mintId, raise, refOf, refuseUnseenAgents, threadBy,
 } from "../projections.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
@@ -33,6 +33,15 @@ export function rootOf(ctx: Pick<ChatCtx, "db">, t: ThreadRec): ThreadRec {
 }
 
 const isPrivateRoot = (root: ThreadRec): boolean => root.kind === "chat" || root.kind === "ask";
+
+/**
+ * Governance of an invite-only channel: a person with manage on the channel (an admin) can see that it exists, archive it and change who is in it, and never reads or writes in it unless they are added.
+ * The host's own authorize decides; a hand-built test context without it grants no one.
+ */
+export function mayGovernChannel(ctx: ChatCtx, channelId: string): boolean {
+  const host = ctx as ChatCtx & { authorize?: (action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => { effect?: string } };
+  return typeof host.authorize === "function" && host.authorize({ perm: null, level: "manage" }, { type: "channel", id: channelId }).effect === "allow";
+}
 
 /**
  * An invite-only channel is for the people in it, for reading and writing alike (its threads, messages, reactions and pins follow). The pipeline's grants are role wide, so the channel's own member
@@ -80,8 +89,19 @@ function cleanBlocks(ctx: ChatCtx, raw: PostInput["blocks"]): Array<Record<strin
   return (raw ?? []).map((b) => {
     if (!BLOCK_TYPE.test(b.type)) raise(ctx, "validation.bad_input", "That is not a block type.", { type: b.type });
     if (OWN_TOOL.has(b.type)) raise(ctx, "validation.bad_input", "Questions and plans are made with ask_question and plan_propose, so they can be answered.", { type: b.type });
-    return { type: b.type, v: b.v, id: mintId("blk", ctx.now()), data: b.data, state: "done", traceId: ctx.trace.traceId };
+    return { type: b.type, v: b.v, id: mintId("blk", ctx.now()), data: b.type === "link_card" ? inertCard(b.data) : b.data, state: "done", traceId: ctx.trace.traceId };
   });
+}
+
+/**
+ * A link card that arrives by chat.post (a person's client, an agent's reply, a tool's output) is words and buttons that only report their key: its buttons lose any capability and input. Only a host handler
+ * writes a card whose buttons call something (postLinkCard), because a tap runs that call with the tapper's own rights: a card anyone could write would let anyone make a person's tap do anything.
+ */
+export function inertCard(data: unknown): unknown {
+  if (typeof data !== "object" || data === null || Array.isArray(data)) return data;
+  const d = data as Record<string, unknown>;
+  if (!Array.isArray(d["actions"])) return d;
+  return { ...d, actions: d["actions"].map((a) => { const { cap: _c, input: _i, ...rest } = (a ?? {}) as Record<string, unknown>; return rest; }) };
 }
 
 /**
@@ -93,6 +113,8 @@ export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions
   ctx.emit("message.received", thread.id, {
     messageId: m.id, threadId: thread.id, threadSeq: m.seq, author, kind: m.kind, depth: m.depth, mentions, hasBlocks: m.blocks.length > 0,
     ...(m.via ? { via: m.via.routineOwner } : {}),
+    // an agent speaks for the person it works for: the engine reads a private thread as that person when nobody has spoken in it yet
+    ...(author.kind === "agent" && ctx.actingFor?.startsWith("usr_") ? { actingFor: ctx.actingFor } : {}),
   });
   if (opts.notify === false) return;
   const root = rootOf(ctx, thread);
@@ -121,12 +143,32 @@ export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions
   }
 }
 
+/** A crew teammate's thread: a helper thread whose line in the chat that started it says `crew`. People and the lead steer it directly; a plain helper thread takes no messages. */
+function isCrewThread(ctx: ChatCtx, thread: ThreadRec): boolean {
+  const line = thread.parentMessageId ? messageBy(ctx.db, thread.parentMessageId) : null;
+  return line?.blocks.some((b) => b["type"] === "helper" && (b["data"] as Record<string, unknown> | undefined)?.["crew"] === true && (b["data"] as Record<string, unknown>)["helperThreadId"] === thread.id) ?? false;
+}
+
+/**
+ * A finished crew job reports to the chat that started it with one message carrying a `crew_result` block. That is work coming back, not agents answering each other, so it does not count as a hop: a crew that
+ * runs while nobody is at the keyboard would otherwise stop after a few results. Only the real thing counts: the block names a crew teammate thread under this chat, and the poster is that teammate.
+ */
+function isCrewResult(ctx: ChatCtx, thread: ThreadRec, authorId: string, blocks: Array<Record<string, unknown>>): boolean {
+  for (const b of blocks) {
+    if (b["type"] !== "crew_result") continue;
+    const helperId = (b["data"] as Record<string, unknown> | undefined)?.["threadId"];
+    const helper = typeof helperId === "string" ? threadBy(ctx.db, helperId) : null;
+    if (helper && helper.kind === "helper" && helper.parentThreadId === thread.id && isCrewThread(ctx, helper) && agentsOf(ctx.db, helper.id).some((a) => a.agentId === authorId)) return true;
+  }
+  return false;
+}
+
 export async function post(ctx: ChatCtx, input: PostInput) {
   ensure(ctx.db);
   const thread = threadBy(ctx.db, input.threadId);
   if (!thread || !canSpeak(ctx, thread)) raise(ctx, "validation.not_found", "That chat does not exist or is not yours to write in.");
   const author = ctx.principal;
-  if (thread.kind === "helper" && !(author.kind === "agent" && agentsOf(ctx.db, thread.id).some((a) => a.agentId === author.id))) {
+  if (thread.kind === "helper" && !isCrewThread(ctx, thread) && !(author.kind === "agent" && agentsOf(ctx.db, thread.id).some((a) => a.agentId === author.id))) {
     raise(ctx, "validation.bad_input", "A helper chat takes no messages. Steer the helper from the chat that started it.");
   }
   if (thread.closedAt !== undefined) raise(ctx, "validation.bad_input", "This thread is closed. Reopen it to write in it.");
@@ -156,12 +198,24 @@ export async function post(ctx: ChatCtx, input: PostInput) {
 
   // Hops: an agent answering another agent is one hop further from the last person who spoke; a person's message starts again at 0.
   let depth = 0;
-  if (author.kind === "agent") {
+  if (author.kind === "agent" && !isCrewResult(ctx, thread, author.id, blocks)) {
     const prev = replyTo ?? lastMessage(ctx.db, thread.id);
     if (prev && refOf(prev.author).kind === "agent") depth = prev.author === author.id ? prev.depth : prev.depth + 1;
     if (depth >= 1) {
       const limit = await hopLimit(ctx);
       if (depth > limit) raise(ctx, "permission.limit", `The agents have handed this back and forth ${limit} times. A person has to reply before they go on.`, { limit, depth });
+    }
+  }
+
+  // "@Billing, sum this up" in a chat of their own: a person who @mentions an agent that is not in the chat brings it in as a listener (it answers when mentioned, and the person who mentioned it pays for
+  // the turn it causes). Only for a person's own chat and only for an agent they may see (refused above); a channel's agents are its managers' to add.
+  if (author.kind === "person" && thread.kind === "chat" && thread.channelId === undefined) {
+    const here = new Set(agentsOf(ctx.db, thread.id).map((a) => a.agentId));
+    for (const mention of mentions) {
+      if (mention.kind !== "agent" || here.has(mention.id)) continue;
+      addAgent(ctx, thread.id, { agentId: mention.id, mode: "listen", addedBy: author.id });
+      ctx.emit("agent.engaged", thread.id, { threadId: thread.id, agentId: mention.id, mode: "listen", by: author.id });
+      here.add(mention.id);
     }
   }
 

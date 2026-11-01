@@ -20,8 +20,8 @@ export default defineManifest({
 
   events: [
     ev('vault.requested', 'A key was asked for; the folder managers get a task', { p: { requestId: reqId, name: t.str(), fields: t.arr(fieldKey), requester: principalRef, forRun: t.opt(id.run), taskId: id.task }, subject: ['entity', '/requestId'], vis: 'participants', trigger: { title: 'A key is requested' }, retention: 'audit' }),
-    ev('vault.request_fulfilled', 'A requested key was supplied; the waiting run can resume', { p: { requestId: reqId, itemId: id.vaultItem, forRun: t.opt(id.run) }, subject: ['entity', '/requestId'], vis: 'participants', retention: 'audit' }),
-    ev('vault.request_declined', 'A key request was declined with a note', { p: { requestId: reqId, forRun: t.opt(id.run), note: t.opt(t.str()) }, subject: ['entity', '/requestId'], vis: 'participants' }),
+    ev('vault.request_fulfilled', 'A requested key was supplied; the waiting run can resume', { p: { requestId: reqId, itemId: id.vaultItem, forRun: t.opt(id.run), name: t.opt(t.str()), threadId: t.opt(id.thread), agentId: t.opt(id.agent), asker: t.opt(t.str()) }, subject: ['entity', '/requestId'], vis: 'participants', retention: 'audit' }),
+    ev('vault.request_declined', 'A key request was declined with a note', { p: { requestId: reqId, forRun: t.opt(id.run), note: t.opt(t.str()), name: t.opt(t.str()), threadId: t.opt(id.thread), agentId: t.opt(id.agent), asker: t.opt(t.str()) }, subject: ['entity', '/requestId'], vis: 'participants' }),
     ev('vault.request_canceled', 'The requester withdrew a key request', { p: { requestId: reqId }, subject: ['entity', '/requestId'], vis: 'participants' }),
   ],
 

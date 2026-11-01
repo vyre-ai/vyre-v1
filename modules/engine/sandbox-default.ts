@@ -2,6 +2,7 @@
 // the network wall (an egress proxy behind a unix socket); a Mac gets Seatbelt with an egress proxy on loopback. Where the platform truly cannot sandbox, the plan says so and every CLI turn
 // refuses with sandbox.unavailable; it never falls back to running the engine unwrapped. The wall lives as long as the daemon: close() stops it.
 import fs from "node:fs";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { createEgressProxy, startNetWall } from "../../sandbox/src/index.ts";
 import type { EngineSandbox, SandboxPlan } from "./sandbox.ts";
@@ -66,6 +67,26 @@ export function cliInstallRoots(env: { PATH?: string | undefined }, home: string
   return [...out];
 }
 
+/**
+ * What Apple's `git` needs to run under Seatbelt. /usr/bin/git is a shim that asks xcrun where the real git is, and xcrun loads a library from the developer folder: with that folder closed, git answers
+ * "unable to load libxcrun (file system sandbox blocked open())" and every `git add` a crew teammate runs fails. The folder holds Apple's public tools, so it is opened for reading only.
+ */
+export function appleDeveloperRoots(exists: (p: string) => boolean = fs.existsSync, selected: string | null = selectedDeveloperDir()): string[] {
+  // the developer folder `xcode-select` points at is the one the shim runs (a hosted runner has /Applications/Xcode_26.6.app, not Xcode.app); inside an app, its Contents holds the frameworks the tools load
+  const chosen = selected === null ? [] : [selected.endsWith("/Contents/Developer") ? selected.slice(0, -"/Developer".length) : selected];
+  const all = [...chosen, "/Library/Developer/CommandLineTools", "/Applications/Xcode.app/Contents", "/Library/Preferences/com.apple.dt.Xcode.plist"];
+  return [...new Set(all)].filter((p) => exists(p));
+}
+
+/** The developer folder the shim resolves (`xcode-select -p`), or null where there is none or the tool is missing. */
+export function selectedDeveloperDir(): string | null {
+  try {
+    const r = spawnSync("/usr/bin/xcode-select", ["-p"], { encoding: "utf8", timeout: 3000 });
+    const out = r.status === 0 ? r.stdout.trim() : "";
+    return out.startsWith("/") ? out : null;
+  } catch { return null; }
+}
+
 export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultSandbox> {
   const platform = o.platform ?? process.platform;
   const hosts = o.egressHosts ?? ENGINE_EGRESS_HOSTS;
@@ -82,7 +103,7 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
     const { port } = await proxy.listen();
     // Seatbelt denies reads by default: the program being run (this Node, and the CLI's install folders) must be readable.
     const home = process.env["HOME"] ?? "/";
-    const programRead = [...(o.programRead ?? []), path.dirname(path.dirname(node)), path.join(home, ".local"), "/opt/homebrew", "/usr/local", ...cliInstallRoots({ PATH: enginePath(process.env, home) }, home)].filter((p) => p !== "/");
+    const programRead = [...(o.programRead ?? []), ...appleDeveloperRoots(), path.dirname(path.dirname(node)), path.join(home, ".local"), "/opt/homebrew", "/usr/local", ...cliInstallRoots({ PATH: enginePath(process.env, home) }, home)].filter((p) => p !== "/");
     return done({ kind: "seatbelt", proxyPort: port, programRead }, () => proxy.close());
   }
   return unavailable(`CLI engines cannot be sandboxed on ${platform}`);

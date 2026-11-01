@@ -58,6 +58,7 @@ type Out = {
       }>;
     unread: number;
     createdAt: number;
+    restricted?: boolean;
   };
 };
 ```
@@ -106,6 +107,7 @@ type Out = {
       ],
       "name": "intake",
       "recordId": "rec_a1b2c3",
+      "restricted": true,
       "topic": "example",
       "unread": 1,
       "visibility": "public"

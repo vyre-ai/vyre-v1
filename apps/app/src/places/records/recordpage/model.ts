@@ -259,9 +259,9 @@ export { hueOf, optionsOf };
 
 // ---------------------------------------------------------------- the right pane
 
-export type PaneKey = "activity" | "comments" | "chat" | "files" | "memory" | "history";
+export type PaneKey = "everything" | "activity" | "comments" | "chat" | "files" | "memory" | "history";
 export const PANE_TABS: readonly { key: PaneKey; title: string }[] = [
-  { key: "activity", title: "Activity" }, { key: "comments", title: "Comments" }, { key: "chat", title: "Chat" }, { key: "files", title: "Files" }, { key: "memory", title: "Memory" }, { key: "history", title: "History" },
+  { key: "everything", title: "Everything" }, { key: "activity", title: "Activity" }, { key: "comments", title: "Comments" }, { key: "chat", title: "Chat" }, { key: "files", title: "Files" }, { key: "memory", title: "Memory" }, { key: "history", title: "History" },
 ];
 
 const AGO: readonly (readonly [number, string])[] = [[86_400_000, "d"], [3_600_000, "h"], [60_000, "min"]];

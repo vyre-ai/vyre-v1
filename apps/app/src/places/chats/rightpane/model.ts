@@ -2,7 +2,7 @@
 // agent's folder is walked. The pane follows the agent of the open chat (spec 3.2); nothing here reads the replica, so the tests drive every rule directly.
 import type { CapMap } from "../../../../../../generated/types.ts";
 
-export type TabKey = "computer" | "threads" | "files" | "terminal" | "memory" | "routines";
+export type TabKey = "computer" | "threads" | "files" | "terminal" | "memory" | "routines" | "crew";
 export const TABS: readonly { key: TabKey; title: string }[] = [
   { key: "computer", title: "Computer" },
   { key: "threads", title: "Threads" },
@@ -13,7 +13,12 @@ export const TABS: readonly { key: TabKey; title: string }[] = [
 /** The sixth tab, shown only where the shell has a terminal; it sits after Files. */
 export const TERMINAL_TAB: { key: TabKey; title: string } = { key: "terminal", title: "Terminal" };
 /** The tabs of a pane: the five, with Terminal after Files when the shell has one. */
-export const tabsOf = (terminal: boolean): readonly { key: TabKey; title: string }[] => (terminal ? [...TABS.slice(0, 3), TERMINAL_TAB, ...TABS.slice(3)] : TABS);
+export const tabsOf = (terminal: boolean, crew = false): readonly { key: TabKey; title: string }[] => {
+  const base = terminal ? [...TABS.slice(0, 3), TERMINAL_TAB, ...TABS.slice(3)] : TABS;
+  return crew ? [...base.slice(0, 2), CREW_TAB, ...base.slice(2)] : base;
+};
+/** The Crew tab: shown only in a chat that has teammates working for it, right after Threads. */
+export const CREW_TAB: { key: TabKey; title: string } = { key: "crew", title: "Crew" };
 export const DEFAULT_TAB: TabKey = "computer";
 
 /* ---------- the tab strip at a narrow width ---------- */
@@ -188,6 +193,21 @@ export function helperNote(h: Helper, c: Clock): string {
   if (h.status === "failed") return `Failed ${agoLabel(h.startedAt, c)}`;
   if (h.status === "stopped") return `Stopped ${agoLabel(h.startedAt, c)}`;
   return `Done ${agoLabel(h.startedAt, c)}`;
+}
+
+export type CrewJob = CapMap["engine.crew.list"]["out"]["jobs"][number];
+
+/** A teammate's second line in the Crew tab: what it is on and how it stands, in a few words. */
+export function crewNote(j: CrewJob, c: Clock): string {
+  const files = Array.isArray(j.result?.["summary"] && (j.result["summary"] as { files?: unknown[] }).files) ? ((j.result?.["summary"] as { files: unknown[] }).files.length) : null;
+  switch (j.state) {
+    case "working": return `Working · started ${agoLabel(j.startedAt, c)}`;
+    case "waiting": return "Waiting on you";
+    case "done": return `Done ${agoLabel(j.endedAt ?? j.startedAt, c)}${files === null ? "" : ` · ${files} ${files === 1 ? "file" : "files"}`}`;
+    case "merged": return `Merged ${agoLabel(j.endedAt ?? j.startedAt, c)}`;
+    case "failed": return `Could not finish ${agoLabel(j.endedAt ?? j.startedAt, c)}`;
+    default: return `Stopped ${agoLabel(j.endedAt ?? j.startedAt, c)}`;
+  }
 }
 
 export function threadNote(t: Thread, c: Clock): string {

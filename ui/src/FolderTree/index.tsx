@@ -122,7 +122,7 @@ export function folderMenu(node: FolderNode, open: boolean, hasChildren: boolean
   if (canManageFolder(node)) items.push({ label: "New Folder…", icon: "plus", onSelect: () => h.onNewFolder?.(node.scope, node.id) });
   if (canManageFolder(node) && h.onMount) items.push({ label: "Connect a Folder…", icon: "link", onSelect: () => h.onMount?.(node) });
   if (items.length > 0) items.push({ separator: true });
-  items.push({ label: "Share…", icon: "link", onSelect: () => h.onShare?.(node) });
+  if (h.onShare) items.push({ label: "Share…", icon: "link", onSelect: () => h.onShare?.(node) });
   if (canManageFolder(node)) {
     items.push({ label: "Rename…", icon: "edit", onSelect: () => h.onRename?.(node) });
     items.push({ label: "Move…", icon: "pane", onSelect: () => h.onMove?.(node) });

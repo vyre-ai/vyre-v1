@@ -2,6 +2,7 @@
 import type { RecordsData } from "../../places/records/sidebar/index.ts";
 import { capLive, nameLookup } from "./records-live.ts";
 import type { ShellRuntime } from "./runtime.tsx";
+import { BRING_IN_OPENING } from "../../places/records/sync/opening.ts";
 
 export function recordsData(rt: ShellRuntime, screen?: string, canEditSchema = false): RecordsData {
   return {
@@ -16,6 +17,8 @@ export function recordsData(rt: ShellRuntime, screen?: string, canEditSchema = f
       openRecord: (recordId) => rt.open({ subject: { type: "record", id: recordId } }),
       openRecordTypes: () => rt.open({ screen: "records.types" }),
       openSchemaMap: () => rt.open({ screen: "records.schema-map" }),
+      bringInCrm: () => rt.open({ screen: "chats.conversation", args: { with: rt.assistant.id, first: BRING_IN_OPENING } }),
+      openSync: (type) => rt.open({ screen: "records.sync", args: { type } }),
     },
   };
 }

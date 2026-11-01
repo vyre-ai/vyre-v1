@@ -8,6 +8,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
+import { LiveScreen } from "../computer/LiveScreen.tsx";
 import { copyText, giveBack, provision, signOut, sleep, takeOver, wake } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import { useOnline, usePaneData, useScreenQuery } from "./data.tsx";
@@ -25,13 +26,11 @@ export const POPUP_SCREEN = "chats.computer-popup";
 export const SCREEN_H = 150;
 
 /** The faux window the screen draws: a bar with three dots and a caption line, then lines of content. The real frame replaces it when the stream arrives. */
-function Screen({ view, caption, onPress, name, online }: { view: ReturnType<typeof computerView>; caption: string; onPress: () => void; name: string; online: boolean }): ReactElement {
+function Screen({ view, caption, onPress, name, online, live }: { view: ReturnType<typeof computerView>; caption: string; onPress: () => void; name: string; online: boolean; live?: { computerId: string; state: string; control: boolean } }): ReactElement {
   const dim = view.screen === "asleep";
-  return (
-    <Pressable
-      accessibilityRole="button" accessibilityLabel={view.screen === "asleep" ? `Wake ${name}'s computer` : `${name}'s computer`}
-      onPress={onPress} testID="computer-screen" style={[st.screen, view.screen === "mine" && st.screenMine, !online && { opacity: 0.6 }]}
-    >
+  const data = usePaneData();
+  const body = (
+    <>
       <View style={[st.window, dim && { opacity: 0.45 }]}>
         <View style={st.bar}><View style={st.dot} /><View style={st.dot} /><View style={st.dot} /><View style={st.url} /></View>
         <View style={st.body}>
@@ -43,8 +42,18 @@ function Screen({ view, caption, onPress, name, online }: { view: ReturnType<typ
       </View>
       {dim ? <View style={st.center}><View style={st.wake}><Icon name="moon" size={13} color="var(--ink-2)" /><Text style={st.wakeText}>Wake</Text></View></View> : null}
       {!dim ? <View style={st.cap}><Text numberOfLines={1} style={st.capText}>{view.screen === "mine" ? "You're typing" : caption}</Text></View> : null}
-    </Pressable>
+    </>
   );
+  const label = view.screen === "asleep" ? `Wake ${name}'s computer` : `${name}'s computer`;
+  const style = [st.screen, view.screen === "mine" && st.screenMine, !online && { opacity: 0.6 }];
+  // Working or taken over: the real screen, live in the pane. While you are in control your clicks, wheel and keys go to it, here, without opening anything.
+  if (live && (live.state === "working" || live.state === "takeover")) {
+    return (
+      <LiveScreen computerId={live.computerId} state={live.state} call={data.call} spaceUrl={data.spaceUrl} now={() => data.clock().now} control={live.control} keys onIdlePress={onPress}
+        testID="computer-screen" streamTestID="computer-stream" label={label} style={style}>{body}</LiveScreen>
+    );
+  }
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} testID="computer-screen" style={style}>{body}</Pressable>;
 }
 
 export function ComputerTab({ deps, window }: { deps: PaneDeps; window?: VirtualWindow }): ReactElement {
@@ -87,7 +96,7 @@ function ComputerBody({ deps, computerId, window }: { deps: PaneDeps; computerId
   const moreItems = (): MenuEntry[] => view.screen === "asleep"
     ? [{ label: "Wake", onSelect: () => void wake(deps, c.computerId, name) }, { label: "Pop Out", onSelect: () => data.nav.openComputer(c.computerId) }]
     : view.screen === "mine"
-      ? [{ label: "Give Back", onSelect: () => void giveBack(deps, c.computerId, name) }, { label: "Pop Out", onSelect: () => data.nav.openComputer(c.computerId) }, { separator: true }, { label: "Put to Sleep", onSelect: () => void sleep(deps, c.computerId, name) }]
+      ? [{ label: "Give Back", onSelect: () => void giveBack(deps, c.computerId, name, { threadId: data.threadId, agentId: data.agent.agentId }) }, { label: "Pop Out", onSelect: () => data.nav.openComputer(c.computerId) }, { separator: true }, { label: "Put to Sleep", onSelect: () => void sleep(deps, c.computerId, name) }]
       : [{ label: "Take Over", onSelect: () => void takeOver(deps, c.computerId, name) }, { label: "Pop Out", onSelect: () => data.nav.openComputer(c.computerId) }, { separator: true }, { label: "Put to Sleep", onSelect: () => void sleep(deps, c.computerId, name) }];
 
   const head = (
@@ -102,7 +111,7 @@ function ComputerBody({ deps, computerId, window }: { deps: PaneDeps; computerId
         <Text numberOfLines={1} style={st.statusText}>{shown ? `Step ${(sel ?? 0) + 1} of ${steps.length}` : view.label}</Text>
       </View>
       {view.action === "wake" ? <TextButton label="Wake" onPress={() => void wake(deps, c.computerId, name)} testID="computer-wake" /> : null}
-      {view.action === "give" ? <TextButton label="Give back" primary onPress={() => void giveBack(deps, c.computerId, name)} testID="computer-give" /> : null}
+      {view.action === "give" ? <TextButton label="Give back" primary onPress={() => void giveBack(deps, c.computerId, name, { threadId: data.threadId, agentId: data.agent.agentId })} testID="computer-give" /> : null}
       {view.action === "take" || shown ? <Tool icon="hand" label="Take over" onPress={() => void takeOver(deps, c.computerId, name)} testID="computer-take" /> : null}
       {view.screen !== "asleep" ? <Tool icon="terminal" label="Open terminal" onPress={() => data.nav.openTerminal(c.computerId)} testID="computer-terminal" /> : null}
       <Tool icon="expand" label="Pop out" onPress={() => data.nav.openComputer(c.computerId)} testID="computer-pop" />
@@ -114,7 +123,7 @@ function ComputerBody({ deps, computerId, window }: { deps: PaneDeps; computerId
     { key: "head", type: "block", node: head },
     {
       key: "screen", type: "block",
-      node: <View style={st.padded}><Screen view={view} caption={caption} name={name} online={online} onPress={() => (view.screen === "asleep" ? void wake(deps, c.computerId, name) : data.nav.openComputer(c.computerId))} /></View>,
+      node: <View style={st.padded}><Screen view={view} caption={caption} name={name} online={online} live={{ computerId: c.computerId, state: c.state, control: view.screen === "mine" }} onPress={() => (view.screen === "asleep" ? void wake(deps, c.computerId, name) : view.screen === "mine" ? undefined : data.nav.openComputer(c.computerId))} /></View>,
     },
     { key: "l-session", type: "label", text: view.screen === "asleep" ? "Last session" : "Session", right: stepsLine(steps.length) },
   ];

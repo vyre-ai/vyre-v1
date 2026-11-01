@@ -26,6 +26,7 @@ Bind a record type (new or existing) to a remote object with field directions, m
 ```ts
 type In = {
   type: string;
+  account?: string;
   connectionId: string;
   remote: string;
   fields: Array<{
@@ -33,6 +34,9 @@ type In = {
       remote: string;
       dir: "pull" | "push" | "both" | "off";
       transform?: string;
+      relation?: string;
+      inverse?: string;
+      constant?: string;
     }>;
   match: Array<string>;
   createAtSource?: boolean;
@@ -55,6 +59,7 @@ type Out = {
   syncedType: {
     syncTypeId: string;
     type: string;
+    account?: string;
     connector: string;
     connectionId: string;
     remote: string;
@@ -64,6 +69,9 @@ type Out = {
         remote: string;
         dir: "pull" | "push" | "both" | "off";
         transform?: string;
+        relation?: string;
+        inverse?: string;
+        constant?: string;
       }>;
     match: Array<string>;
     createAtSource: boolean;
@@ -79,6 +87,10 @@ type Out = {
     pending: number;
     conflicts: number;
     schemaChanges: number;
+    app?: {
+      title: string;
+      domain?: string;
+    };
   };
 };
 ```
@@ -98,14 +110,18 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "account": "example",
     "conflict": "newest",
     "connectionId": "con_a1b2c3",
     "createAtSource": true,
     "deletes": "off",
     "fields": [
       {
+        "constant": "example",
         "dir": "pull",
+        "inverse": "email",
         "key": "email",
+        "relation": "contact",
         "remote": "example",
         "transform": "example"
       }
@@ -125,6 +141,11 @@ type Out = {
   },
   "output": {
     "syncedType": {
+      "account": "example",
+      "app": {
+        "domain": "example",
+        "title": "example"
+      },
       "conflict": "newest",
       "conflicts": 1,
       "connectionId": "con_a1b2c3",
@@ -133,8 +154,11 @@ type Out = {
       "deletes": "off",
       "fields": [
         {
+          "constant": "example",
           "dir": "pull",
+          "inverse": "email",
           "key": "email",
+          "relation": "contact",
           "remote": "example",
           "transform": "example"
         }

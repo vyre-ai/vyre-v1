@@ -7,6 +7,8 @@ import { objectsOf } from "./get.ts";
 import type { ObjectActions } from "./get.ts";
 import { canonical } from "../../../lib/canonical.ts";
 import { buildDef, generateMain } from "./source.ts";
+import { shapeCreated, shapeList, ShapeError } from "./shape.ts";
+import { unflatten } from "../syncspec.ts";
 import { oauthOf, refreshSlot } from "./oauth.ts";
 import { ensureTables, mintShort, nowOf, pointerGet, refuse, scrubber, secretsIn, seedBuiltins, takeToken, checkEgress, fillString, fillValue, clone, PAGE } from "../projections.ts";
 import type { ActionDef, ConnectionDb, ConnectorDef, ConnectorState, ConnectorsCtx, ConnectorsDeps, Mode, Scope, TestCase } from "../projections.ts";
@@ -35,6 +37,7 @@ export interface RuntimeHandlers {
   "connectors.define"(ctx: ConnectorsCtx, input: DefineInput): Promise<{ key: string; draftId: string; actions: string[]; domains: string[] }>;
   "connectors.build"(ctx: ConnectorsCtx, input: { key: string; docsUrl?: string; notes?: string }): Promise<{ runId: string; draftId: string }>;
   "connectors.test"(ctx: ConnectorsCtx, input: { key: string; draftId?: string }): Promise<{ result: TestResult }>;
+  "connectors.read"(ctx: ConnectorsCtx, input: { key: string; action: string; connectionId: string; input: unknown }): Promise<{ output: unknown }>;
   "connectors.run"(ctx: ConnectorsCtx, input: { key: string; action: string; connectionId: string; input: unknown; dryRun?: boolean }): Promise<{ output: unknown; dryRun: boolean }>;
   "connectors.diff"(ctx: ConnectorsCtx, input: { key: string; draftId?: string }): Promise<{ files: { path: string; added: number; removed: number }[]; breaking: boolean }>;
   "connectors.publish"(ctx: ConnectorsCtx, input: { key: string; draftId?: string; note?: string }): Promise<{ published: boolean; version?: string; result: TestResult }>;
@@ -60,12 +63,43 @@ const KEY = /^[a-z][a-z0-9_-]{0,40}$/;
 const MODES: readonly Mode[] = ["api", "mcp", "dwd", "oauth_app", "webhook_only"];
 const connectionSecrets = (c: ConnectionDb | undefined): Record<string, string> => (c ? (JSON.parse(c.secrets) as Record<string, string>) : {});
 
-function markReconnect(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: ConnectionDb): void {
+async function markReconnect(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: ConnectionDb): Promise<void> {
   const cur = deps.tx.get<{ state: string }>("SELECT state FROM cn_connections WHERE connection_id = ?", c.connection_id);
   if (!cur || cur.state === "needs_reconnect") return;
   deps.tx.run("UPDATE cn_connections SET state = 'needs_reconnect' WHERE connection_id = ?", c.connection_id);
+  await needsYouTask(deps, ctx, c);
   // the call that rejected the sign-in throws right after this (connectors.run, sync_types.discover), which drops what it buffered; the state change above is already written, so the event is too
   ctx.emit("connection.needs_reconnect", `connection/${c.connection_id}`, { connectionId: c.connection_id, connector: c.connector }, { afterFailure: true });
+}
+
+/**
+ * One item on Home for whoever connected the app, not one per failed call: "Your <app> key stopped working". The person who connected a sync spec is its owner; a person's own connection is theirs.
+ * It closes by itself when a probe of the connection answers well again (clearReconnectTask). Nothing is lost meanwhile: the outbox keeps every edit and syncing resumes.
+ */
+async function needsYouTask(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: ConnectionDb): Promise<void> {
+  const by = deps.tx.get<{ applied_by: string | null }>("SELECT applied_by FROM cn_sync_specs WHERE connection_id = ?", c.connection_id)?.applied_by;
+  const who = c.owner_kind === "person" ? c.owner_id : by && by !== "system" ? by : undefined;
+  const title = deps.tx.get<{ title: string }>("SELECT title FROM cn_connectors WHERE key = ?", c.connector)?.title ?? c.title;
+  if (!who) return;
+  try {
+    const made = (await ctx.call("tasks.create", {
+      kind: "unblock", title: `Your ${title} key stopped working`, summary: `${title} refused the key, so nothing syncs from it. Replace the key in the Vault; syncing resumes by itself and nothing was lost.`,
+      why: "The app refused the key or sign-in.", assigned: { kind: "person", id: who }, source: { kind: "manual", id: c.connection_id },
+      blocks: [{ type: "connection_fix", v: 1, data: { connectionId: c.connection_id, title } }],
+      // no bare resolve: the task closes when the connection works again (Reconnect, or a replaced key and Check again), never by pressing Done
+      actions: [{ key: "cannot", label: "Dismiss", note: "optional" }], idempotencyKey: `needs_reconnect:${c.connection_id}:${nowOf(deps)}`,
+    })) as { task?: { id?: string } } | undefined;
+    const taskId = made?.task?.id;
+    if (taskId) deps.tx.run("INSERT OR REPLACE INTO cn_reconnect_tasks (connection_id, task_id) VALUES (?, ?)", c.connection_id, taskId);
+  } catch { /* the connection state and the event already say it; a task that could not be made is not worth failing the call over */ }
+}
+
+/** The key works again: the Home item closes. */
+export async function clearReconnectTask(deps: ConnectorsDeps, ctx: ConnectorsCtx, connectionId: string): Promise<void> {
+  const row = deps.tx.get<{ task_id: string }>("SELECT task_id FROM cn_reconnect_tasks WHERE connection_id = ?", connectionId);
+  if (!row) return;
+  deps.tx.run("DELETE FROM cn_reconnect_tasks WHERE connection_id = ?", connectionId);
+  try { await ctx.call("tasks.transition", { taskId: row.task_id, to: "done", idempotencyKey: `needs_reconnect_done:${row.task_id}` }); } catch { /* already closed */ }
 }
 
 /** Run one action of a connector. Throws the catalogue error for anything that goes wrong; the message and details never hold a secret. */
@@ -116,15 +150,29 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
   const scrub = scrubber(everySecret);
 
   // the request
-  const scope = { input: o.input ?? {}, secret: values, connection: { id: conn?.connection_id ?? "con_test" } };
+  let input: unknown = o.input ?? {};
+  if (a.shape?.unflatten && typeof input === "object" && input !== null && typeof (input as Record<string, unknown>)["properties"] === "object") {
+    input = { ...(input as Record<string, unknown>), properties: unflatten((input as { properties: Record<string, unknown> }).properties) };
+  }
+  const scope = { input, secret: values, connection: { id: conn?.connection_id ?? "con_test" } };
+  // the next page of a list: a link is the whole address (still checked against the domains below), any other cursor is one query parameter
+  const after = a.shape?.cursor && typeof (input as Record<string, unknown>)["after"] === "string" ? String((input as Record<string, unknown>)["after"]) : undefined;
+  const linked = a.shape?.cursor?.kind === "link" && after !== undefined;
   let method: string;
   let url: URL;
   let headers: Record<string, string>;
   let body: string | undefined;
   try {
     method = a.method ?? "GET";
-    const u = new URL(fillString(a.url, scope, true));
-    for (const [k, v] of Object.entries(a.query ?? {})) u.searchParams.set(k, fillString(v, scope));
+    const u = new URL(linked ? after! : fillString(a.url, scope, true));
+    if (!linked) for (const [k, v] of Object.entries(a.query ?? {})) u.searchParams.set(k, fillString(v, scope));
+    if (!linked && after !== undefined && a.shape?.cursor?.param) u.searchParams.set(a.shape.cursor.param, after);
+    // what changed since a time: the app's own filter, on every page (a link page already carries it)
+    const since = (input as Record<string, unknown>)["since"];
+    if (!linked && a.shape?.since && typeof since === "number" && Number.isFinite(since)) {
+      const f = a.shape.since.format;
+      u.searchParams.set(a.shape.since.param, f === "epoch_ms" ? String(Math.floor(since)) : f === "epoch_s" ? String(Math.floor(since / 1000)) : new Date(since).toISOString());
+    }
     const egress = checkEgress(u.toString(), def.domains);
     if (!egress.ok) refuse(ctx, "permission.no_grant", `Egress refused: ${egress.reason}.`, { connector: def.key, action: actionName });
     url = (egress as { ok: true; url: URL }).url;
@@ -151,7 +199,7 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
     deps.tx.run("INSERT INTO cn_log (at, connection_id, connector, action, method, host, path, status, ms, error, actor) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       started, conn?.connection_id ?? null, def.key, actionName, method, url.hostname, url.pathname, status, nowOf(deps) - started, error === null ? null : scrub.text(error).slice(0, 300), actor);
   };
-  let res: { status: number; text(): Promise<string> };
+  let res: { status: number; text(): Promise<string>; link?: string };
   try {
     res = await http(url.toString(), { method, headers, ...(body !== undefined ? { body } : {}) });
   } catch (e) {
@@ -168,7 +216,7 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
     logRow(res.status, "rejected the sign-in");
     // an OAuth token the app rejects is refreshed once and the call repeated; only a refresh that fails (or a repeat that is rejected again) asks the person to reconnect
     if (conn && persist && !o.refreshed && def.auth.type === "oauth2" && refreshSlot(def) && await oauthOf(deps).refresh(ctx, def, conn)) return executeAction(deps, ctx, def, actionName, { ...o, refreshed: true });
-    if (conn && persist) markReconnect(deps, ctx, conn);
+    if (conn && persist) await markReconnect(deps, ctx, conn);
     return refuse(ctx, "provider.auth_failed", "The app rejected the key or sign-in.", { status: res.status });
   }
   if (res.status === 429) { logRow(res.status, "rate limited"); return refuse(ctx, "provider.rate_limited", "The app is rate limiting this connection.", { status: res.status }); }
@@ -179,7 +227,15 @@ export async function executeAction(deps: ConnectorsDeps, ctx: ConnectorsCtx, de
   }
   let parsed: unknown = text;
   try { parsed = text === "" ? null : (JSON.parse(text) as unknown); } catch { /* the output is the text */ }
-  const output = scrub.value(a.output !== undefined ? (pointerGet(parsed, a.output) ?? null) : parsed);
+  let output: unknown;
+  try {
+    output = a.shape?.items !== undefined ? shapeList(parsed, res.link, a.shape, after) : a.shape?.idAt !== undefined ? (shapeCreated(parsed, a.shape) ?? parsed) : a.output !== undefined ? (pointerGet(parsed, a.output) ?? null) : parsed;
+  } catch (e) {
+    if (!(e instanceof ShapeError)) throw e;
+    logRow(res.status, e.message);
+    return refuse(ctx, "provider.bad_response", scrub.text(`${actionName}: ${e.message}`));
+  }
+  output = scrub.value(output);
   logRow(res.status, null);
   return { output, dryRun: false, status: res.status, ms };
 }
@@ -225,7 +281,7 @@ export async function runCases(deps: ConnectorsDeps, ctx: ConnectorsCtx, def: Co
       const hit = t.responses.find((r) => (r.method ?? "GET").toUpperCase() === method && (r.url === url || r.url === bare));
       if (!hit) throw new Error(`no recorded response for ${method} ${bare}`);
       const text = hit.body === undefined ? "" : typeof hit.body === "string" ? (fill(hit.body) as string) : JSON.stringify(fill(hit.body));
-      return { status: hit.status ?? 200, text: async () => text };
+      return { status: hit.status ?? 200, text: async () => text, ...(hit.link ? { link: hit.link } : {}) };
     };
     try {
       const out = await executeAction(deps, ctx, def, t.action, { input: t.input ?? {}, secrets: synthetic, http, persist: false, actor: "harness" });
@@ -436,6 +492,19 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       const useDraft = input.draftId !== undefined || sourceOf(c.key) !== undefined || (c.state === "draft" && tx.get("SELECT 1 AS x FROM cn_drafts WHERE key = ?", c.key) !== undefined);
       const def = useDraft ? (await draftOf(ctx, c.key, input.draftId)).def : (JSON.parse(c.def) as ConnectorDef);
       return { result: await runCases(deps, ctx, def) };
+    },
+
+    "connectors.read": async (ctx, input) => {
+      const c = need(ctx, input.key);
+      const def = JSON.parse(c.def) as ConnectorDef;
+      const action = def.actions.find((a) => a.name === input.action);
+      if (!action) return refuse(ctx, "validation.bad_input", `${c.key} has no action ${input.action}.`);
+      if (action.write === true || (action.method ?? "GET") !== "GET") return refuse(ctx, "validation.bad_input", `${input.action} writes to the app: it goes through connectors.run.`);
+      const conn = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", input.connectionId) ?? refuse(ctx, "validation.not_found", "There is no such connection.");
+      if (conn.owner_kind === "person" && conn.owner_id !== (ctx.actor ?? "system")) refuse(ctx, "validation.not_found", "There is no such connection.");
+      const out = await executeAction(deps, ctx, def, input.action, { connection: conn, input: input.input });
+      tx.run("UPDATE cn_connections SET last_sync_at = ? WHERE connection_id = ?", nowOf(deps), conn.connection_id);
+      return { output: out.output };
     },
 
     "connectors.run": async (ctx, input) => {

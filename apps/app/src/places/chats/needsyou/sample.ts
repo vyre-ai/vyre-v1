@@ -41,7 +41,9 @@ export function northwindTasks(): { task: Task; reason: Reason; handledBy?: stri
       blocked: true, actions: [{ key: "lend", label: "Lend a login…" }], blocks: [{ type: "screenshot", v: 1, data: { caption: "records.county.gov/search, sign-in page" } }],
     }) },
     { reason: "ready", task: task("n4", "review", "agt_intake", "Pruitt intake summary", "Form came back, 2 fields unclear", "Marcus Pruitt returned the intake form. The property address and the other party's name were unclear, so I left them blank.", "c1", at(10, 24, 9, 10)) },
-    { reason: "ready", task: task("n5", "approve", "agt_research", "Send the ATP reminder to Harlow & Price", "Quarterly worksheet, due Nov 12", "A standard reminder with the worksheet link. It goes from your address.", "c2", at(10, 23, 16, 5)) },
+    { reason: "ready", task: task("n5", "approve", "agt_research", "Send the ATP reminder to Harlow & Price", "Quarterly worksheet, due Nov 12", "A standard reminder with the worksheet link. It goes from your address.", "c2", at(10, 23, 16, 5), {
+      blocks: [{ type: "doc_excerpt", v: 1, data: { act: "send", cap: "mail.send", input: { to: [{ address: "accounts@harlowprice.test", name: "Harlow & Price", contactId: "rec_hp" }], subject: "ATP worksheet due Nov 12", text: "Hello,\n\nThe quarterly worksheet is due Nov 12. The link is below; it takes about ten minutes.\n\nThanks,\nIrfad", contactId: "rec_hp" } } }],
+    }) },
     { reason: "ready", task: task("n6", "review", "agt_assistant", "Problem report from Omar", "The intake form would not send", "Omar pressed Report a problem on the Rivera intake form. The bundle holds the last 20 trace ids, recent errors and a window picture. Sealed values are redacted.", "c7", at(10, 24, 9, 36), {
       blocks: [{ type: "pairs", v: 1, data: { pairs: [["Item", "forms/rivera-intake · e41c"], ["Trace ids", "20 · last tr_91ac07"], ["Errors", "1 · form.send 503"], ["Versions", "app 1.0.0 · server 1.0.0"], ["Device", "MacBook · macOS 26"]] } }],
     }) },
@@ -106,6 +108,11 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     return next.task;
   };
   const writes: Record<string, (input: any) => unknown> = {
+    // the record a held send is about, for its peek
+    "records.get": (i: { type: string; recordId: string }) => {
+      if (i.type !== "company") throw new Error("not a contact");
+      return { record: { id: i.recordId, type: "company", fields: { name: "Harlow & Price", email: "accounts@harlowprice.test", owner: "Maya Cole", status: "active", billing_terms: "Net 30" } } };
+    },
     "tasks.act": (i: { taskId: string; action: string; note?: string }) => {
       const t = patch(i.taskId, { state: "done" });
       replica.remove("needs", [i.taskId]);

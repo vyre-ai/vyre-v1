@@ -29,6 +29,27 @@ export type ChecklistBlockData = {
       by?: string;
     }>;
 };
+export type CrewResultBlockData = {
+  jobId: string;
+  threadId: string;
+  agentId: string;
+  name: string;
+  title: string;
+  branch: string;
+  base: string;
+  state: "done" | "failed";
+  commits?: Array<{
+      sha: string;
+      subject: string;
+    }>;
+  files?: Array<{
+      path: string;
+      added: number;
+      deleted: number;
+    }>;
+  ahead?: number;
+  text?: string;
+};
 export type DeployBlockData = {
   siteId: string;
   deploymentId: string;
@@ -180,6 +201,7 @@ export type ScreenshotBlockData = {
   stepId?: string;
   stepIndex?: number;
   at: number;
+  live?: boolean;
 };
 export type SecretInputBlockData = {
   name: string;
@@ -230,6 +252,7 @@ export interface BlockDataMap {
   "access_request": AccessRequestBlockData;
   "changeset": ChangesetBlockData;
   "checklist": ChecklistBlockData;
+  "crew_result": CrewResultBlockData;
   "deploy": DeployBlockData;
   "diff": DiffBlockData;
   "diff_card": DiffCardBlockData;
@@ -331,6 +354,30 @@ export const blockRegistry = [
     "waitsForAnswer": false,
     "actions": [],
     "opens": null
+  },
+  {
+    "type": "crew_result",
+    "v": 1,
+    "module": "chat",
+    "component": "ui:BlockCrewResult",
+    "fallback": "{{name}} finished {{title}}",
+    "waitsForAnswer": false,
+    "actions": [
+      {
+        "key": "merge",
+        "label": "Merge",
+        "cap": "engine.crew.merge",
+        "input": {
+          "jobId": "/jobId"
+        }
+      }
+    ],
+    "opens": {
+      "tab": "thread",
+      "input": {
+        "threadId": "/threadId"
+      }
+    }
   },
   {
     "type": "deploy",
