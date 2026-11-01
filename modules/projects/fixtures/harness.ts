@@ -34,6 +34,8 @@ export function fakeWorld(clock: { t: number }) {
   const grants: Grant[] = [];
   const folders = new Map<string, { folderId: string; parentId?: string; name: string; deleted?: boolean }>();
   /** What access.shares_of answers for a record: the grants its sharing holds. */
+  /** What access.shares_of says about links outside the Space for a record type: true, false, absent (no field) or a failure. */
+  const outside: { answer: boolean | "absent" | "fails" } = { answer: true };
   const recordShares = new Map<string, Array<{ subject: { kind: string; id: string }; level: string }>>();
   const channels = new Map<string, { channelId: string; mainThreadId: string; name: string; folderId?: string; recordId?: string }>();
   const posts: Array<{ threadId: string; body: string }> = [];
@@ -87,7 +89,7 @@ export function fakeWorld(clock: { t: number }) {
     "files.folder.delete": (i) => { (folders.get(i.folderId) ?? fail("validation.not_found", "no such folder")).deleted = true; return { deleted: true }; },
     "files.folder.restore": (i) => { const f = folders.get(i.folderId) ?? fail("validation.not_found", "no such folder"); delete f.deleted; return { folder: f }; },
     "records.query": (i) => ({ rows: [...records.values()].filter((r) => r.type === i.type).map(recordOut) }),
-    "access.shares_of": (i) => ({ outside: true, shares: (i.resource.type === "record" ? recordShares.get(i.resource.id) ?? [] : []).map((g) => ({ grant: { subject: g.subject, level: g.level, resource: i.resource }, through: "direct" })) }),
+    "access.shares_of": (i) => (outside.answer === "fails" && i.resource.type === "record_type" ? fail("internal.unavailable", "down") : { ...(outside.answer === "absent" ? {} : { outside: outside.answer }), shares: (i.resource.type === "record" ? recordShares.get(i.resource.id) ?? [] : []).map((g) => ({ grant: { subject: g.subject, level: g.level, resource: i.resource }, through: "direct" })) }),
     "access.grants.list": (i) => ({ grants: grants.filter((g) => g.resource.type === i.resource.type && g.resource.id === i.resource.id && (!i.source || g.source === i.source)).map((g) => ({ id: g.id, subject: g.subject, level: g.level, source: g.source })) }),
     "files.move": (i) => ({ file: { fileId: i.fileId, folderId: i.toFolderId } }),
     "files.get": (i) => (i.fileId === "fil_missing" ? fail("validation.not_found", "no such file") : { file: { fileId: i.fileId, name: "x.pdf" } }),
@@ -136,7 +138,7 @@ export function fakeWorld(clock: { t: number }) {
     },
     "tasks.dependencies.remove": (i) => { const t = tasks.get(i.taskId) ?? fail("validation.not_found", "no such task"); t.dependsOn = t.dependsOn.filter((d) => d !== i.dependsOnId); return { task: taskRow(t) }; },
   };
-  return { calls, records, recordShares, tasks, grants, folders, channels, posts, threadFolders, types, handlers, root, down, unknown, next, agents, trashed };
+  return { calls, outside, records, recordShares, tasks, grants, folders, channels, posts, threadFolders, types, handlers, root, down, unknown, next, agents, trashed };
 }
 export type FakeWorld = ReturnType<typeof fakeWorld>;
 

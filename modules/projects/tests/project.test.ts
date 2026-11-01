@@ -501,3 +501,15 @@ test("teammates: one yes makes an agent for the project with a role, the lead co
   h.allowOnly((a) => a.level === "view" || a.level === "edit");
   await refused(run(h, "projects.teammates.create", { projectId: p.projectId, name: "No rights", role: "member", idempotencyKey: key() }), "validation.not_found");
 });
+
+test("share_out fails closed: a link outside the Space is made only when the type positively says outside is on", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  for (const answer of [false, "absent", "fails"] as const) {
+    h.world.outside.answer = answer;
+    await refused(run(h, "projects.share_out", { projectId: p.projectId }), "validation.precondition_failed");
+  }
+  assert.equal(h.rows("SELECT projectId FROM projects_share").length, 0, "no link was made");
+  h.world.outside.answer = true;
+  assert.match((await run(h, "projects.share_out", { projectId: p.projectId })).url, /^\/share\/project\//);
+});
