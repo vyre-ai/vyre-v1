@@ -3,3 +3,5 @@ When an agent in a chat needs a key from you, the ask now appears in that chat a
 "Provide the key" in Needs you now opens the key field and saves the key before the request closes; a request can no longer be closed without a key. An access request's Approve now grants the access instead of only closing the card.
 
 An access request asked from a chat now lands in that chat as a card with Approve and Decline for the people who can decide it. When someone other than the asker adds a key, the agent still carries on in the asker's chat: the host tells it, as the person who asked.
+
+When a connection stops working, its Needs you item now has Reconnect (opens the app's sign-in) and Check again, instead of a Fix button that closed the item with nothing reconnected. The item clears when the connection works again.

@@ -303,6 +303,15 @@ export function accessRequestOf(t: Task): { requestId: string; level?: string } 
   return typeof r["requestId"] === "string" ? { requestId: r["requestId"], ...(typeof r["level"] === "string" ? { level: r["level"] } : {}) } : null;
 }
 
+/** A connection that stopped working (connectors needs_reconnect): the connection its Reconnect and Check again buttons act on. Null for any other task. */
+export function connectionFixOf(t: Task): { connectionId: string } | null {
+  const b = t.blocks.find((x) => x.type === "connection_fix");
+  const d = b?.data;
+  if (typeof d !== "object" || d === null || Array.isArray(d)) return null;
+  const id = (d as Record<string, unknown>)["connectionId"];
+  return typeof id === "string" ? { connectionId: id } : null;
+}
+
 /** The fix a request is for, when pressing its main button does the fix itself rather than approving or taking it. */
 export function fixOf(t: Task): "replace_key" | null {
   return t.workingNotes["fix"] === "replace_key" && t.workingNotes["connection"] ? "replace_key" : null;
@@ -312,7 +321,7 @@ export function fixOf(t: Task): "replace_key" | null {
 export function footerHint(t: Task | undefined): string {
   const keys = ["\u2191 \u2193 to move"];
   if (!t) return keys.join(" \u00b7 ");
-  const a = fixOf(t) === null && keyRequestOf(t) === null && accessRequestOf(t) === null ? splitActions(t) : { primary: null, sendBack: null, more: [] };
+  const a = fixOf(t) === null && keyRequestOf(t) === null && accessRequestOf(t) === null && connectionFixOf(t) === null ? splitActions(t) : { primary: null, sendBack: null, more: [] };
   if (a.primary) keys.push("A approve");
   if (a.sendBack) keys.push("B send back");
   if (!a.primary && !a.sendBack) keys.push("Enter to open");
