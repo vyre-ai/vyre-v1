@@ -314,7 +314,7 @@ export default defineManifest({
     }),
     write('sync_specs.backfill', 'Bring in everything, not just the first-pull filter: re-applies the stored spec with the filter dropped and starts the pull', {
       in: { type: id.recordType, account: t.opt(t.str()) }, out: { runId: t.opt(id.run) },
-      perm: 'connectors.manage', idem: 'key', audit: 'always', emits: ['connector.published'], tool: 'records', errors: ['validation.not_found', 'validation.precondition_failed'],
+      perm: 'connectors.manage', idem: 'key', audit: 'always', emits: ['connector.published', 'connector.created'], tool: 'records', errors: ['validation.not_found', 'validation.precondition_failed'],
     }),
     read('sync_types.record_state', 'Where one record came from and how each of its synced fields is doing: saved, saving, failed or only here, with the address to open it in the app', {
       in: { type: id.recordType, recordId: id.record },
