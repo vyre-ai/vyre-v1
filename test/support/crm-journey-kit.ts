@@ -245,3 +245,11 @@ export async function joinMember(s: Space, username: string, displayName: string
   if (r.status !== 200) throw new Error(`accept ${r.status}: ${(await r.text()).slice(0, 300)}`);
   return ((await r.json()) as { data: { personId: string; token: string } }).data;
 }
+
+/** An admin gives the assistant the right to manage these record types, so it can choose who they are open to. */
+export async function giveManage(s: Space, agentId: string, types: string[]): Promise<void> {
+  for (const id of types) await ok(s, "access.share", { resource: { type: "record_type", id }, subject: { kind: "agent", id: agentId }, level: "manage" });
+}
+export async function agentSaid(s: Space, threadId: string): Promise<string> {
+  return ((await ok(s, "chat.messages.list", { threadId })).messages as { kind: string; body: string }[]).filter((m) => m.kind === "agent").map((m) => m.body).join("\n");
+}

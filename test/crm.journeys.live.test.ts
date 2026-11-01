@@ -6,7 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { claimOnEdge, dismissOnboarding } from "../apps/app/tests/real-app-harness.test.ts";
-import { chatSetup, joinMember, ok, shots, startSpace, until, vaultItemOf, withHandle } from "./support/crm-journey-kit.ts";
+import { agentSaid, chatSetup, joinMember, ok, shots, startSpace, until, vaultItemOf, withHandle } from "./support/crm-journey-kit.ts";
 import type { Space } from "./support/crm-journey-kit.ts";
 import type { Know } from "./support/agent-standin.ts";
 import { orbitSpec } from "../modules/connectors/fixtures/crm.ts";
@@ -142,17 +142,28 @@ test("journey 3, Team: an admin asks in chat, the app is told where to call, a c
   const s = await startSpace({ kind: "team", name: "Firm", address: "https://firm.example" });
   try {
     await session(s, "team", async (page) => {
-      await chatSetup(s, (h) => ledgerKnow(h, { webhook: true, audience: "added" }));
+      const known = (h: string) => ledgerKnow(h, { webhook: true, audience: "added" });
+      // the assistant holds edit, not the right to choose who a type is open to: the apply stops, says why, and brings in nothing (no fallback to the whole Space)
+      const first = await chatSetup(s, known);
+      await until("the agent says why", async () => /Nothing was brought in/.test(await agentSaid(s, first.threadId)), 60_000);
+      assert.deepEqual(await rows(s, "person").catch(() => []), [], "no person was imported");
+      assert.equal(s.crm.c.state.requests.filter((r) => r.path.startsWith("/api/v2/people")).length > 0, true, "the agent only read to propose");
+      assert.ok(!(await ok(s, "sync_types.list", {})).syncedTypes.some((t: { type: string }) => t.type === "person"), "nothing was bound");
+      // the person themself (an admin who can manage the types) brings it in with the same choice: the types are open to people added from the first moment, before anyone is imported
+      const { ledgerSpec } = await import("../modules/connectors/fixtures/crm.ts");
+      const spec = withHandle(ledgerSpec(), first.item.handle) as { objects: { remote: string; webhook?: unknown }[]; plan: Record<string, unknown> };
+      spec.objects.find((o) => o.remote === "people")!.webhook = { events: ["person.updated"], subscribePath: "/api/v2/webhooks", evidence: "https://docs.crm-a.test/webhooks" };
+      spec.plan["audience"] = "added";
+      await ok(s, "sync_specs.apply", { spec, idempotencyKey: "j3-person-apply" });
+      assert.equal((await ok(s, "access.shares_of", { resource: { type: "record_type", id: "person" } })).audience, "added");
+      assert.equal((await ok(s, "access.shares_of", { resource: { type: "record_type", id: "org" } })).audience, "added");
+      assert.deepEqual(await rows(s, "person").catch(() => []), [], "set before anyone was imported");
       await until("people arrive", async () => (await rows(s, "person").catch(() => [])).length === 4, 60_000);
       // telling the app where to call is a write to it, so the first pass a person runs makes the call (the agent's own passes would only wait at the Gate)
       await afterPass(s, "person");
       await until("the Space registered its address with the app", async () => s.crm.c.state.webhooks.length >= 1);
       const hook = new URL(s.crm.c.state.webhooks[0]!.url);
       assert.match(hook.origin, /^https:\/\/firm\.example$/);
-      // the agent cannot narrow who the types are open to (it holds edit, not manage): the sync went ahead and the types are open to the Space; the person narrows them with Share
-      assert.equal((await ok(s, "access.shares_of", { resource: { type: "record_type", id: "person" } })).audience, "space");
-      await ok(s, "access.audience_set", { resource: { type: "record_type", id: "person" }, audience: "added" });
-      assert.equal((await ok(s, "access.shares_of", { resource: { type: "record_type", id: "person" } })).audience, "added");
       // the app says someone changed; the Space starts a pass without waiting for the next poll
       s.crm.c.state.people.push({ id: 107, attributes: { full_name: "Gil Hart", email: "gil@example.test", phone: "", status: "lead", tier: "gold", note: "" }, org_id: null, modified: new Date().toISOString() });
       const res = await fetch(`${s.d.url}${hook.pathname}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ event: "updated" }) });

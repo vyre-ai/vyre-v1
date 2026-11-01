@@ -321,10 +321,17 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
     if (makes.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:type.create`, ops: makeOps, reason: `Bring in ${spec.app.name}` });
     if (adds.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:field.add`, ops: adds, reason: `Fields from ${spec.app.name}` });
     if (rels.length) await ctx.call("schema.apply", { idempotencyKey: `${idem}:relation.add`, ops: rels, reason: `Links from ${spec.app.name}` });
-    // who the new types are open to: the Records sharing capability decides (types that already existed keep their audience)
-    if (spec.plan.audience !== undefined && spec.plan.audience !== "space") {
-      // an agent holds edit on what it made, not manage, so it cannot narrow who a type is open to: the types stay open to the Space and the person narrows them with Share. The sync does not fail for it.
-      for (const m of makes) await ctx.call("access.audience_set", { idempotencyKey: `${idem}:audience:${m.recordType}`, resource: { type: "record_type", id: m.recordType }, audience: spec.plan.audience }).catch(() => undefined);
+    // who the types are open to, set before any record is imported. It is set on every type the spec maps (a retry after a refusal must not find them wider than chosen). If it cannot be set the apply stops here:
+    // no binding, no first pull, no record, and the reason is said in plain words. There is no fallback to the whole Space.
+    if (spec.plan.audience !== undefined) {
+      const words = { space: "everyone in the Space", added: "only the people added", me: "only you" }[spec.plan.audience];
+      for (const t of compiled.types) {
+        try { await ctx.call("access.audience_set", { idempotencyKey: `${idem}:audience:${t.recordType}`, resource: { type: "record_type", id: t.recordType }, audience: spec.plan.audience }); }
+        catch (e) {
+          const why = (e as { error?: { message?: string } }).error?.message ?? "the right to choose who it is open to is missing";
+          refuse(ctx, "permission.no_grant", `Nothing was brought in. ${t.recordType} should be open to ${words}, and that could not be set (${why}). Ask an admin who can manage ${t.recordType} to run this, or to give the assistant that right, then try again.`);
+        }
+      }
     }
 
     // 4. bindings: bind a new type, update one that is already synced
