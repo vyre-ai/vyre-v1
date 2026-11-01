@@ -234,7 +234,8 @@ export async function connectOutsideAgent(
 ) {
   ensure(ctx.db);
   const channel = channelBy(ctx.db, input.channelId);
-  if (!channel) raise(ctx, "validation.not_found", "That channel does not exist.");
+  const main = channel ? threadBy(ctx.db, channel.mainThread) : null;
+  if (!channel || !main || !canSpeak(ctx, main)) raise(ctx, "validation.not_found", "That channel does not exist.");
   if (channel.archived) raise(ctx, "validation.bad_input", "An archived channel takes no new connections.");
   const name = input.name.trim();
   if (name === "" || name.length > 120) raise(ctx, "validation.bad_input", "Give the connection a name of up to 120 characters.");
