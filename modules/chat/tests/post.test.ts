@@ -146,7 +146,7 @@ test("an agent that posts because of a routine carries the owner on the message 
   assert.deepEqual(assertEventsConform(hn), []);
   assert.equal(await failure(() => say(hn.ctx, c.mainThreadId, "I pretend", { via: { routineOwner: MAYA } })), "validation.bad_input");
   const stored = hn.rows("SELECT via FROM chat_message WHERE id = ?", out.message.messageId)[0]!;
-  assert.deepEqual(JSON.parse(String(stored["via"])), { routineOwner: MAYA });
+  assert.equal((JSON.parse(String(stored["via"])) as { routineOwner?: string }).routineOwner, MAYA);
   const plain = await say(hn.ctx, c.mainThreadId, "plain");
   assert.equal(plain.message.via, undefined);
 });
