@@ -342,3 +342,24 @@ export async function shareTo(data: ConversationData, threadId: string, messageI
   if (!target) return;
   await data.call("chat.share", { threadId, messageId, toThreadId: target, to: to.threadId ? to.label : to.personId, idempotencyKey: key } as CapMap["chat.share"]["in"]);
 }
+
+/** /btw: a side question, answered in a hidden read-only thread of the asker's; the chat it was asked in is not written to. */
+export async function startAside(data: ConversationData, threadId: string, question: string, key: string): Promise<{ asideThreadId: string }> {
+  const out = (await data.call("chat.aside", { threadId, question, idempotencyKey: key } as CapMap["chat.aside"]["in"])) as CapMap["chat.aside"]["out"];
+  return { asideThreadId: out.asideThreadId };
+}
+
+/** Keep an aside's answer: one card in the chat it came from. */
+export async function keepAside(data: ConversationData, asideThreadId: string, key: string): Promise<void> {
+  await data.call("chat.aside_keep", { asideThreadId, idempotencyKey: key } as CapMap["chat.aside_keep"]["in"]);
+}
+
+/** Dismiss an aside: its thread is put away (best effort: the card is gone either way). */
+export async function dismissAside(data: ConversationData, asideThreadId: string): Promise<void> {
+  await data.call("threads.delete", { threadId: asideThreadId } as CapMap["threads.delete"]["in"]).catch(() => undefined);
+}
+
+/** Send a queued message now: the running turn is cut and the message goes first (the same call as the composer's Now). */
+export async function sendQueuedNow(data: ConversationData, threadId: string, messageId: string): Promise<void> {
+  await data.call("engine.interrupt", { threadId, messageId } as CapMap["engine.interrupt"]["in"]);
+}

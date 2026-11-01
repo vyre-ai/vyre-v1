@@ -373,6 +373,19 @@ export function queuedCount(messages: readonly Message[], meId: string, working:
   return n;
 }
 
+/** The ids of the messages queued behind a running agent, oldest first (the same run as queuedCount counts). */
+export function queuedIds(messages: readonly Message[], meId: string, working: boolean): string[] {
+  if (!working) return [];
+  const ids: string[] = [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (!m) break;
+    if (m.author.kind === "person" && m.author.id === meId) ids.unshift(m.messageId);
+    else if (m.author.kind === "agent") break;
+  }
+  return ids;
+}
+
 /** The post for a send: mentions, a retry-safe key, the composer's folder and links. */
 export function postInput(threadId: string, body: string, mentions: readonly { kind: "person" | "agent"; id: string }[], key: string, replyTo?: string): CapMap["chat.post"]["in"] {
   return { threadId, body, idempotencyKey: key, ...(mentions.length > 0 ? { mentions: mentions.map((x) => ({ kind: x.kind, id: x.id })) } : {}), ...(replyTo ? { replyTo } : {}) };

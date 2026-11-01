@@ -244,6 +244,16 @@ export default defineManifest({
       in: { ...threadT, automationId: id.automation }, out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', idem: 'key', tool: 'chats', offline: 'online', risk: 'low',
       agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.not_found'],
     }),
+    write('chat.aside', 'Ask a side question (/btw) while an agent works: it runs as a separate short read-only turn on your own account with what this chat knows, in a hidden thread; nothing is written into this chat and the agent working here does not see it', {
+      in: { ...threadT, question: t.str({ description: 'The question, up to 2000 characters' }) }, out: { asideThreadId: id.thread, messageId: id.message },
+      on: ['thread', '/threadId'], level: 'use', idem: 'key', tool: 'chats', offline: 'online', risk: 'low', emits: ['thread.started', 'message.received'],
+      agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.not_found'],
+    }),
+    write('chat.aside_keep', 'Keep the answer of an aside: it is posted into the chat it came from as one card from you', {
+      in: { asideThreadId: id.thread }, out: { messageId: id.message },
+      on: ['thread', '/asideThreadId'], level: 'use', idem: 'key', tool: 'chats', offline: 'online', risk: 'low',
+      agent: { planMode: 'blocked' }, errors: ['validation.bad_input', 'validation.not_found', 'validation.precondition_failed'],
+    }),
     write('chat.remember', 'Remember a message as a fact in the memory of the project this chat belongs to (else your own), sourced to the message; a "Remembered for ..." card in the thread links to the fact. A shared layer keeps its review rule', {
       in: { ...threadT, messageId: id.message, text: t.opt(t.str({ description: 'The words to keep; default the message' })) },
       out: { factId: id.fact, layer: t.enm('project', 'person'), merged: t.bool(), projectId: t.opt(id.project), projectTitle: t.opt(t.str()), by: t.str() },

@@ -24,6 +24,8 @@ import { ChatMemoryProvider } from "../memory/thread.tsx";
 import { useMemoryEntries } from "../memory/menu.tsx";
 import { MessageView } from "./MessageView.tsx";
 import { CatchUpLine } from "./catch-up.tsx";
+import { AsideList } from "./Aside.tsx";
+import type { AsideItem } from "./Aside.tsx";
 import { commandItems, lastActionable, runSlash } from "./commands.ts";
 import type { CommandEnv } from "./commands.ts";
 import { parseSlash } from "../../../../../../lib/chat-commands.ts";
@@ -37,7 +39,7 @@ import type { MessageActions } from "./MessageView.tsx";
 import { FaceButton, Glyph, IconButton, TextButton } from "./parts.tsx";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import {
-  WINDOW, beforeCursor, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, sendKind, stillPending, stopLabel, swapNeeded,
+  WINDOW, beforeCursor, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel, swapNeeded,
   threadKindNote, timeline, titleOf, whoLine, workingAgents,
 } from "./model.ts";
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
@@ -128,6 +130,7 @@ function ConversationView(): ReactElement {
   const [finding, setFinding] = useState(false);
   const [query, setQuery] = useState("");
   const [matchAt, setMatchAt] = useState(0);
+  const [asides, setAsides] = useState<AsideItem[]>([]);
   const [focusId, setFocusId] = useState<string | null>(data.focus ?? null);
   /** Messages read around a marked one that is older than the page holds: shown instead of the newest, until "Jump to latest". */
   const [around, setAround] = useState<Message[] | null>(null);
@@ -203,6 +206,7 @@ function ConversationView(): ReactElement {
   const commandEnv = (): CommandEnv => ({
     data, thread, rows: win.rows, say, newKey: data.newKey,
     openFind: () => setFinding(true), openSearch: (q) => data.nav.openSearch?.(q), openModel: () => { if (lead) modelMenu(8, 120); else say("Add an agent to this chat first."); },
+    aside: (question) => void act.startAside(data, thread.threadId, question, data.newKey()).then((r) => setAsides((cur) => [...cur, { id: r.asideThreadId, question }]), fail("Could not ask that.")),
     send: (text) => submit({ text, chips: [], files: [], folder: null, links: [], refs: [], mode: "queue", answers: "" }, "queue"),
   });
 
@@ -237,6 +241,7 @@ function ConversationView(): ReactElement {
   const lastLive = [...timelineMessages].reverse().find((m) => data.streamOf(m.messageId) !== undefined);
   const lastStream = lastLive ? data.streamOf(lastLive.messageId) : undefined;
   const queued = queuedCount(timelineMessages, data.me.id, isWorking);
+  const queuedIdsNow = queuedIds(timelineMessages, data.me.id, isWorking);
   const helpers = (helpersQ.status === "loading" ? [] : helpersQ.data.helpers).filter((h) => h.status === "running");
 
   /* ---------- menus: all open under the button that asked ---------- */
@@ -497,7 +502,8 @@ function ConversationView(): ReactElement {
       {cursor !== null ? <OlderPage key={cursor} before={cursor} onPage={(page) => { setOlder((cur) => mergePages(cur, page.messages)); setOlderMore(page.hasMore); setShown((n) => n + WINDOW); setCursor(null); }} /> : null}
 
       {data.waitingLine ?? null}
-      {q ? <Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>{q}</Text> : null}
+      <AsideList items={asides} onDismiss={(id) => setAsides((cur) => cur.filter((x) => x.id !== id))} />
+      {q ? <View testID="queue-row" style={st.queueRow}><Text testID="queue-note" accessibilityLiveRegion="polite" style={st.queue}>{q}</Text>{queuedIdsNow.length > 0 ? <TextButton link label="Send now" testID="queue-send-now" onPress={() => void act.sendQueuedNow(data, thread.threadId, queuedIdsNow[0]!).catch(fail("Could not send it now."))} /> : null}</View> : null}
       {line ? <View testID="conversation-line" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{line}</Text>{undo ? <TextButton link label="Undo" testID="conversation-undo" onPress={undo} /> : null}</View> : null}
       {personMention ? (
         <View testID="channel-offer" style={st.offer}>
@@ -609,7 +615,8 @@ const st = StyleSheet.create({
   earlier: { alignItems: "center", paddingVertical: 10 },
   toLatest: { position: "absolute", alignSelf: "center", bottom: 10, height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderRadius: 15, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string },
   toLatestText: { fontSize: 12.5, color: "var(--ink-2)" as string },
-  queue: { paddingHorizontal: 24, paddingVertical: 4, fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
+  queueRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingHorizontal: 24, paddingVertical: 4 },
+  queue: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
   lineBox: { paddingHorizontal: 24, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   lineText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   offer: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "center", maxWidth: 760, paddingHorizontal: 24, paddingVertical: 4 },
