@@ -1,0 +1,1 @@
+- Declining a key or access request from Home or the sidebar now settles it for everyone: the other approvers' copies close, the person is told, and an agent that asked carries on. The Chats badge is the live Needs you count, and a notification stops counting once its request closes.

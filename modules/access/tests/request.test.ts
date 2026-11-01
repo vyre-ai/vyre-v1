@@ -147,7 +147,7 @@ test("decline records the note, tells the requester, grants nothing and closes t
   assert.deepEqual(await handlers["access.requests.decline"](h.as("usr_mgr"), { requestId: request.id, note: "Ask Rivera's lead first" }), { ok: true });
   assert.deepEqual(h.events, [{ name: "access.declined", subject: request.id, payload: { requestId: request.id, resource: FOLDER, requester: "usr_other", note: "Ask Rivera's lead first" } }]);
   assert.equal(can(h, store, "usr_other", "view", FOLDER), false);
-  assert.deepEqual(h.calls.map((c) => [c.cap, c.input["to"], c.input["note"]]), [["tasks.transition", "canceled", "Declined: Ask Rivera's lead first"]]);
+  assert.deepEqual(h.calls.filter((c) => c.cap !== "tasks.get").map((c) => [c.cap, c.input["to"], c.input["note"]]), [["tasks.transition", "canceled", "Declined: Ask Rivera's lead first"]]);
   await assert.rejects(handlers["access.requests.approve"](h.as("usr_mgr"), { requestId: request.id }), (e: unknown) => codeOf(e) === "validation.precondition_failed");
 });
 

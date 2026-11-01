@@ -89,7 +89,7 @@ export const consumers = {
       const host = engineHost();
       if (!host || !p.threadId || !p.agentId || !p.asker) return [];
       await ensureRuntime(ctx);
-      const key = (p.name ?? "").replace(/_+/g, " ").trim();
+      const key = (p.name ?? "").replace(/_+/g, " ").replace(/\s+key$/i, "").trim();
       const text = event.name === "vault.request_fulfilled" ? `I added the ${key} key. Carry on.` : `I did not add the ${key} key${p.note ? `: ${p.note}` : "."}`;
       try { await host.call("chat.post", { threadId: p.threadId, body: text, mentions: [{ kind: "agent", id: p.agentId }], idempotencyKey: `${p.requestId}:carry` }, p.asker); }
       catch (e) { host.log?.("the agent was not told its key was answered", { requestId: p.requestId, error: e instanceof Error ? e.message : String(e) }); return []; }
