@@ -14,18 +14,28 @@ function fakeHost() {
   const screens = new Map<string, string>();
   const state = new Map<string, "idle" | "running">();
   const typed: string[] = [];
+  const seenRunning = new Set<string>();
+  const finishing = new Map<string, () => void>();
   const host: TerminalHost = {
     async open(a) { screens.set(a.terminalId, ""); state.set(a.terminalId, "idle"); return { cwd: "/home/olivia", title: "This computer" }; },
     async input(id, data) { typed.push(data); screens.set(id, (screens.get(id) ?? "") + data); },
     async interrupt() {}, async resize() {},
     async read(id, o) { const all = screens.get(id) ?? ""; const since = o.since ?? 0; return { text: o.lines === 1 && o.since === undefined ? "" : all.slice(since), next: all.length }; },
     async run(_id, o) { return { exitCode: 0, output: `ran: ${o.command}`, truncated: false, durationMs: 5 }; },
-    async status(ids) { return ids.map((id) => ({ terminalId: id, state: state.get(id) ?? "idle", exitCode: null })); },
+    // a command that has been started stays running until someone has looked at it once: a poll that comes late on a loaded runner must still see it run, then idle
+    async status(ids) {
+      return ids.map((id) => {
+        const s = state.get(id) ?? "idle";
+        if (s === "running" && seenRunning.has(id) && finishing.has(id)) { finishing.get(id)!(); finishing.delete(id); seenRunning.delete(id); return { terminalId: id, state: "idle" as const, exitCode: null }; }
+        if (s === "running") seenRunning.add(id);
+        return { terminalId: id, state: s, exitCode: null };
+      });
+    },
     async close() {}, async health() { return { ok: true, sessions: screens.size }; },
   };
   return {
     host, typed,
-    enter(id: string, output: string): void { state.set(id, "running"); setTimeout(() => { screens.set(id, (screens.get(id) ?? "") + `\r\n${output}\r\n$ `); state.set(id, "idle"); }, 40); },
+    enter(id: string, output: string): void { state.set(id, "running"); finishing.set(id, () => { screens.set(id, (screens.get(id) ?? "") + `\r\n${output}\r\n$ `); state.set(id, "idle"); }); },
   };
 }
 
