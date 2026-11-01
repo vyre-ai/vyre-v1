@@ -637,6 +637,7 @@ export type AccessRecordMarksOut = {
   audience: "space" | "added" | "me";
   can: {
     manage: boolean;
+    edit?: boolean;
     share: boolean;
     export: boolean;
   };
@@ -1078,6 +1079,7 @@ export type AccessSharesOfOut = {
   outside?: boolean;
   can?: {
     manage: boolean;
+    edit?: boolean;
     share: boolean;
     export: boolean;
   };
@@ -14915,6 +14917,8 @@ export type InboxLinkMessageIn = {
   threadId?: string;
   subject?: string;
   participants?: Array<string>;
+  private?: boolean;
+  ownerId?: string;
 };
 export type InboxLinkMessageOut = {
   conversationId: string;

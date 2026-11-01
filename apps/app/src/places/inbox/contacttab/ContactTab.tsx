@@ -173,6 +173,11 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const unread = conv?.unreadCount ?? 0;
   useEffect(() => { if (unread > 0) void markRead(data, conversationId); }, [conversationId, unread > 0]);
 
+  // every hook above this line: the frame before the conversation arrives and the one after it must call the same hooks
+  const openConnect = useOpenConnect();
+  const [snippets, setSnippets] = useState<readonly { name: string; body: string }[]>([]);
+  useEffect(() => { let live = true; void listSnippets(data).then((x) => { if (live) setSnippets(x); }, () => undefined); return () => { live = false; }; }, [data]);
+
   if (!conv || !draft) return <TabLoading />;
 
   const patch = (p: Partial<ComposerDraft>): void => setOver((o) => ({ ...o, ...p }));
@@ -225,7 +230,6 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
     const id = conv.contactId;
     menu.show(followMenuEntries(conv.followed, conv.alertOnReplies, { follow: (f) => void setFollow(data, id, f), alert: (a) => void setFollow(data, id, true, a) }), x, y);
   };
-  const openConnect = useOpenConnect();
   // the From list ends in Connect: a mailbox joins the list and is chosen; a Twilio account is added and its number is claimed from the Inbox
   const connectFrom = openConnect ? (c: OutChannel): void => {
     void openConnect(c === "email" ? { kind: "mailbox" } : { kind: "number" }).then((made) => {
@@ -236,8 +240,6 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   // the dock (when one is mounted, `dock`) places the call and saves it to this conversation; otherwise the app's own handler, else the shell opens the dialer
   const dial = (): void => { const n = textTo ?? (conv.address.includes("@") ? null : conv.address); if (n && props.onDial) props.onDial(n); else if (n && dock) dock.dial(n, conv.contactId); else data.nav.openDialer(); };
 
-  const [snippets, setSnippets] = useState<readonly { name: string; body: string }[]>([]);
-  useEffect(() => { let live = true; void listSnippets(data).then((x) => { if (live) setSnippets(x); }, () => undefined); return () => { live = false; }; }, [data]);
   const lists: ComposerLists = cannedLists(conv, snippets);
   const hdr = headerOf(items);
   const starred = starMine ?? conv.starred === true;
@@ -267,7 +269,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
         <View style={s.hid}>
           {unmatched ? <Ghost size={28} /> : <Face name={conv.displayName} seedId={conv.contactId ?? undefined} size={28} />}
           <Text accessibilityRole="header" aria-level={1} style={s.name} numberOfLines={1}>{conv.displayName}</Text>
-          {phone ? null : <Text style={s.co} numberOfLines={1}>{hdr?.company ?? conv.address}</Text>}
+          {phone || headSub(conv.displayName, conv.address, hdr?.company) === null ? null : <Text style={s.co} numberOfLines={1}>{headSub(conv.displayName, conv.address, hdr?.company)}</Text>}
         </View>
         {unmatched ? (
           <Pressable accessibilityRole="link" accessibilityLabel="Match to a record" testID="head-match" onPress={() => data.nav.openMatch(conv.id)} style={s.mlink}>
@@ -369,6 +371,12 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
 export function sendersOf(out: unknown): ComposerSender[] {
   const rows = (out as { senders?: { id: string; channel: "email" | "text"; name: string; address: string; via: string; provider?: string; default?: boolean; usable?: boolean; why?: string }[] } | undefined)?.senders ?? [];
   return rows.map((x) => ({ id: x.id, channel: x.channel, name: x.name || x.address, address: x.address, via: x.via, ...(x.provider ? { provider: x.provider } : {}), ...(x.default ? { default: true } : {}), usable: x.usable !== false, ...(x.why ? { why: x.why } : {}) }));
+}
+
+/** The quiet line beside a contact's name: the company, else the address. A contact with no name is called by its address, and the line then says nothing rather than say it twice. */
+export function headSub(displayName: string, address: string, company: string | undefined): string | null {
+  if (company !== undefined && company !== "") return company;
+  return displayName.trim().toLowerCase() === address.trim().toLowerCase() ? null : address;
 }
 
 export function ContactTab(props: ContactTabProps): ReactElement {

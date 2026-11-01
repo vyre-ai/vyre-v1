@@ -76,6 +76,12 @@ function Greeting(): ReactElement {
   return <GreetingView sub={`${dateLine(c)}${bits.length ? ` · ${bits.join(" · ")}` : calm ? " · Nothing is waiting on you" : ""}`} />;
 }
 
+/** A Personal Space draws no Needs you section while nothing waits on the person, but a thing that does (a mailbox sign-in that Google or Microsoft stopped accepting) must show on Home. */
+function PersonalNeeds(): ReactElement | null {
+  const q = useScreenQuery<NeedsOut>(NEEDS_SCREEN, "items", { limit: 3 });
+  return q.status === "ready" && q.data.total > 0 ? <NeedsYouTop3 /> : null;
+}
+
 function PersonalGreeting(): ReactElement {
   const data = useHomeData();
   return <GreetingView sub={`${dateLine(data.clock())} · ${PERSONAL_INTRO}`} />;
@@ -95,6 +101,7 @@ function Page({ top, bottom, personal }: { top?: ReactNode; bottom?: ReactNode; 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" testID="home-place">
         <View {...clearOnClick(() => sel.select(null))} style={styles.col}>
           <PersonalGreeting />
+          <PersonalNeeds />
           {top}
           {bottom}
         </View>

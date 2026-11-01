@@ -6,7 +6,7 @@
 // stays undoable: Undo gives the history back to the sender. Nothing is ever deleted, only folded (the sender's row is hidden) and restored.
 // DECISION: a match remembers the sender's address on the record (contacts.address.add) unless the caller says rememberAddress false; Undo takes it back off again.
 // DECISION: the Needs you task is assigned to the person route_owner names, else to the admin role; closing it when the sender is matched is the task module's job.
-import { newId, bad, ensure, findRecord, first, followOf, getConversation, isId, kindOfAddress, list, missing, nameOf, nextVersion, normAddress, num, obj, refuse, rowsOf, str, strOrNull, text, toConversation, toJson, codeOf } from "../projections.ts";
+import { newId, bad, ensure, findRecord, first, followOf, getConversation, isId, privateIds, kindOfAddress, list, missing, nameOf, nextVersion, normAddress, num, obj, refuse, rowsOf, str, strOrNull, text, toConversation, toJson, codeOf } from "../projections.ts";
 import type { Channel, ConversationRow, InboxCtx, Json, RecordLite, Row } from "../projections.ts";
 
 const REF_KIND: Record<Channel, string> = { email: "mail_message", sms: "sms", call: "call" };
@@ -158,6 +158,9 @@ export interface LinkIn {
   threadId?: string;
   subject?: string;
   participants?: string[];
+  /** the message is from a person's private mailbox: it has a conversation of that person's own, matched to nothing and merged with nothing */
+  private?: boolean;
+  ownerId?: string;
 }
 
 /** The thread, subject and people of an email, from mail. A message mail will not show (private to another inbox) still gets a thread of its own. */
@@ -170,6 +173,31 @@ async function emailFacts(ctx: InboxCtx, id: string, address: string): Promise<{
     ctx.log.warn("inbox: could not read the message for its thread", { code: codeOf(e) });
     return { threadId: `mail:${id}`, subject: "", participants: [address] };
   }
+}
+
+/** A message from a person's private mailbox: the person's own conversation with this address, never matched to a record and never merged with shared mail. */
+async function linkPrivate(ctx: InboxCtx, input: LinkIn, address: string, itemId: string): Promise<{ conversationId: string; linked: "none" }> {
+  const owner = input.ownerId ?? "";
+  if (!isId("usr", owner)) bad(ctx, "A private message names the person it belongs to.");
+  const mine = privateIds(ctx);
+  let conv = rowsOf(ctx.db.all(`SELECT * FROM inbox_conversation WHERE address = ? AND "contactId" IS NULL AND "ownerId" = ? AND deleted_at IS NULL`, address, owner)).find((r) => mine.has(str(r, "id"))) ?? null;
+  if (!conv) {
+    conv = insertConversation(ctx, { contactId: null, address, displayName: address, at: input.at, channel: input.channel, preview: input.preview ?? "", needsMatch: false, ownerId: owner, campaignId: null });
+    ctx.db.run(`INSERT INTO inbox_private ("conversationId") VALUES (?)`, str(conv, "id"));
+    ctx.emit("conversation.created", `entity/${str(conv, "id")}`, { conversationId: str(conv, "id"), channel: input.channel });
+  }
+  const id = str(conv, "id");
+  const given = typeof input.threadId === "string" && input.threadId !== "" && typeof input.subject === "string"
+    ? { threadId: input.threadId, subject: input.subject, participants: Array.isArray(input.participants) && input.participants.length ? input.participants.map((p) => String(p).toLowerCase()) : [address] }
+    : { threadId: `${input.channel}:private:${address}`, subject: "", participants: [address] };
+  ctx.db.run(
+    `INSERT INTO inbox_item (id, "conversationId", kind, "refId", address, direction, at, "mailboxId", "numberId", "campaignId", "threadId", subject, preview, participants, unread)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    itemId, id, input.channel, input.ref.id, address, input.direction, input.at, input.mailboxId ?? null, null, null, given.threadId, given.subject,
+    input.preview ?? given.subject, JSON.stringify(given.participants), input.direction === "in" ? 1 : 0,
+  );
+  refresh(ctx, id);
+  return { conversationId: id, linked: "none" };
 }
 
 export async function linkMessage(
@@ -190,6 +218,8 @@ export async function linkMessage(
     return answer(ctx, getConversation(ctx, id) as Row, await ensureTask(ctx, id));
   }
 
+  if (input.private === true) return linkPrivate(ctx, input, address, itemId);
+
   // who is it?
   const found = await candidatesFor(ctx, address);
   const sure = found.sure[0];
@@ -199,7 +229,8 @@ export async function linkMessage(
   let conv: Row | null;
   let created = false;
   let ruleMatched: RecordLite | null = null;
-  const ofAddress = first(ctx.db.all(`SELECT * FROM inbox_conversation WHERE address = ? AND "contactId" IS NULL AND deleted_at IS NULL`, address));
+  const hidden = privateIds(ctx);
+  const ofAddress = rowsOf(ctx.db.all(`SELECT * FROM inbox_conversation WHERE address = ? AND "contactId" IS NULL AND deleted_at IS NULL`, address)).find((r) => !hidden.has(str(r, "id"))) ?? null;
   if (sure) {
     conv = first(ctx.db.all(`SELECT * FROM inbox_conversation WHERE "contactId" = ? AND deleted_at IS NULL`, sure.recordId));
     if (!conv) {
@@ -335,6 +366,7 @@ export async function match(
   if (!isId("rec", input.recordId)) bad(ctx, "That is not a record id.");
   const conv = getConversation(ctx, input.conversationId) ?? missing(ctx, "There is no such conversation.");
   if (strOrNull(conv, "contactId")) refuse(ctx, "This conversation is already matched to a record. Undo that match first.");
+  if (privateIds(ctx).has(input.conversationId)) refuse(ctx, "Mail from a private mailbox stays out of records.");
   const rec = (await findRecord(ctx, input.recordId)) ?? missing(ctx, "There is no such contact or company.");
   const added = input.rememberAddress === false ? undefined : await remember(ctx, rec.id, str(conv, "address"), input.conversationId);
   const out = await attach(ctx, conv, rec, byOf(ctx), added);
@@ -403,6 +435,7 @@ export async function matchNew(
   if (input.name !== undefined && (typeof input.name !== "string" || input.name.trim() === "" || input.name.length > 200)) bad(ctx, "The name must be 1 to 200 characters.");
   const conv = getConversation(ctx, input.conversationId) ?? missing(ctx, "There is no such conversation.");
   if (strOrNull(conv, "contactId")) refuse(ctx, "This conversation is already matched to a record.");
+  if (privateIds(ctx).has(input.conversationId)) refuse(ctx, "Mail from a private mailbox stays out of records.");
   const address = str(conv, "address");
   const display = str(conv, "displayName");
   const name = input.name?.trim() || (display && display !== address ? display : address.includes("@") ? address.split("@")[0] ?? address : address);

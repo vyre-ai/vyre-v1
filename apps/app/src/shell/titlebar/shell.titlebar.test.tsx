@@ -6,6 +6,8 @@ import { isHead, isItem } from "../../../../../ui/src/Menu/props.ts";
 import { createShellHub, titleText } from "../spaces/hub.ts";
 import { SEED_DEFS } from "../spaces/model.ts";
 import { TitleBar } from "./TitleBar.tsx";
+import { ResumeContext } from "../../onboarding/resume-context.ts";
+import { ResumeChip } from "../../onboarding/ResumeChip.tsx";
 import type { TitleBarProps } from "./TitleBar.tsx";
 import { skins } from "../../../../../ui/src/tokens/skins.ts";
 import { SYSTEM_SKIN, skinMenuEntries, skinName, syncLabel } from "./model.ts";
@@ -94,4 +96,14 @@ test("the hub keeps a confirmation for a moment, undo takes the action back, off
   assert.equal(hub.session().connection, "offline");
   hub.setAway(true);
   assert.equal(hub.state().away, true);
+});
+
+test("unfinished setup is a pill in the title bar, not a floating chip over the rail: it sits in the bar's flow and never takes a position", () => {
+  const pill = <ResumeChip flow="personal" progress={{ ai: "done" }} device="mac" compact={false} onOpen={() => undefined} />;
+  const withSetup = renderToStaticMarkup(<ResumeContext.Provider value={{ handled: 1, total: 6, open: () => undefined, pill }}><TitleBar {...props()} /></ResumeContext.Provider>).replaceAll("<!-- -->", "");
+  assert.ok(withSetup.includes('data-testid="title-setup"') && withSetup.includes("Finish setup, 1 of"), "the bar carries the entry");
+  const bar = withSetup.slice(withSetup.indexOf('data-testid="shell-titlebar"'));
+  assert.ok(bar.indexOf('data-testid="title-setup"') < bar.indexOf('data-testid="title-sync"'), "it sits before the connection chip, inside the bar");
+  assert.ok(!/position:\s*absolute/.test(withSetup.slice(withSetup.indexOf('data-testid="title-setup"'), withSetup.indexOf('data-testid="title-sync"'))), "nothing in it is positioned over the page");
+  assert.ok(!html(props()).includes("title-setup"), "no unfinished setup, no entry");
 });

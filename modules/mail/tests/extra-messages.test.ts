@@ -66,7 +66,7 @@ test("get refuses an unknown id, a bad id, and a message in no inbox the caller 
   await assert.rejects(messageGet(h.ctx, { messageId: "eml_nope" }), (e) => codeOf(e) === "validation.not_found");
   await assert.rejects(messageGet(h.ctx, { messageId: "m-1" }), (e) => codeOf(e) === "validation.bad_input");
   h.denied.add("mbx_maya");
-  await assert.rejects(messageGet(h.ctx, { messageId: id }), (e) => codeOf(e) === "permission.no_grant");
+  await assert.rejects(messageGet(h.ctx, { messageId: id }), (e) => codeOf(e) === "permission.not_found");
   const base = h.ctx.authorize.bind(h.ctx);
   h.ctx.authorize = (a, r) => (r.id === "mbx_maya" ? { effect: "deny", reason: "above clearance", decisionId: "dec_clear01" } : base(a, r));
   await assert.rejects(messageGet(h.ctx, { messageId: id }), (e) => codeOf(e) === "permission.above_clearance");
@@ -80,7 +80,7 @@ test("a message in several inboxes opens through any inbox the caller may view",
   h.denied.add("mbx_maya");
   assert.equal((await messageGet(h.ctx, { messageId: id })).message.id, id);   // still opens through hello@
   h.denied.add("mbx_hello");
-  await assert.rejects(messageGet(h.ctx, { messageId: id }), (e) => codeOf(e) === "permission.no_grant");
+  await assert.rejects(messageGet(h.ctx, { messageId: id }), (e) => codeOf(e) === "permission.not_found");
 });
 
 test("reading someone else's personal mailbox writes a per-person log row; reading your own or a shared one does not", async () => {
@@ -342,7 +342,7 @@ test("save refuses an unknown attachment, an attachment with no content, a bad i
   h.ctx.db.run(`UPDATE mail_message SET attachments = ? WHERE id = ?`, JSON.stringify([{ name: "empty.txt", mime: "text/plain", size: 0 }]), id);
   await assert.rejects(attachmentSave(h.ctx, { messageId: id, attachmentId: "att_1", idempotencyKey: key() }), (e) => codeOf(e) === "validation.precondition_failed");
   h.denied.add("mbx_maya");
-  await assert.rejects(attachmentSave(h.ctx, { messageId: id, attachmentId: "att_1", idempotencyKey: key() }), (e) => codeOf(e) === "permission.no_grant");
+  await assert.rejects(attachmentSave(h.ctx, { messageId: id, attachmentId: "att_1", idempotencyKey: key() }), (e) => codeOf(e) === "permission.not_found");
   assert.equal(h.calls("files.create").length, 0);
 });
 

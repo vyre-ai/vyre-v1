@@ -109,3 +109,11 @@ export function stepNeed(step: StepLike, schema?: unknown, kind: "personal" | "s
   }
   return undefined;
 }
+
+/** A lost mailbox sign-in leaves an unblock task with a mail_signin block (modules/google and microsoft handlers/personal.ts): which provider's sign-in to repeat, or null for any other task. */
+export function mailFixOf(t: { kind: string; blocks: readonly { type: string; data?: unknown }[] }): "google" | "microsoft" | null {
+  if (t.kind !== "unblock") return null;
+  const d = t.blocks.find((x) => x.type === "mail_signin")?.data;
+  const provider = typeof d === "object" && d !== null && !Array.isArray(d) ? (d as Record<string, unknown>)["provider"] : undefined;
+  return provider === "google" || provider === "microsoft" ? provider : null;
+}

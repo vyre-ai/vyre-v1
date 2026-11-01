@@ -75,7 +75,8 @@ function refuse(ctx: MailCtx, row: Row): never {
     const d = ctx.authorize({ perm: null, level: "view" }, { type: "mailbox", id });
     if (d.effect !== "allow" && d.reason.toLowerCase().includes("clearance")) throw fail("permission.above_clearance", ctx.trace.traceId);
   }
-  throw fail("permission.no_grant", ctx.trace.traceId);
+  // a message the person may not see answers exactly as one that is not there, so its existence is not leaked (the clearance case above is for a message they may see exist)
+  throw fail("permission.not_found", ctx.trace.traceId);
 }
 
 // ---- attachments (stored on the message row as JSON; an ingested one carries a blobId, a draft's one a fileId)
@@ -343,7 +344,7 @@ export async function attachmentSave(
   let fileId = "";
   for (let n = 1; n <= 20 && !fileId; n++) {
     try {
-      const made = (await ctx.call("files.create", { idempotencyKey: `mail-save:${ctx.trace.traceId}:${n}`, folderId, name: numbered(base, n), mime: found.mime, content: { blobId: found.blobId } })) as { file?: { fileId?: unknown } } | null;
+      const made = (await ctx.call("files.create", { idempotencyKey: `mail-save:${ctx.trace.traceId}:${input.messageId}:${input.attachmentId}:${n}`, folderId, name: numbered(base, n), mime: found.mime, content: { blobId: found.blobId } })) as { file?: { fileId?: unknown } } | null;
       if (typeof made?.file?.fileId === "string") fileId = made.file.fileId;
       else throw fail("provider.bad_response", ctx.trace.traceId, { message: "Files did not return the saved file." });
     } catch (e) {

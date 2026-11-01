@@ -16123,11 +16123,9 @@ const routes2: Route[] = [
     "module": "inbox",
     "effects": "write",
     "permission": null,
-    "level": "edit",
+    "level": "view",
     "resource": {
-      "type": "entity",
-      "entity": "conversation",
-      "id": "/conversationId"
+      "type": "space"
     },
     "idempotency": "natural",
     "risk": "medium",
@@ -16145,9 +16143,7 @@ const routes2: Route[] = [
     "permission": "records.edit",
     "level": "edit",
     "resource": {
-      "type": "entity",
-      "entity": "conversation",
-      "id": "/conversationId"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -16165,9 +16161,7 @@ const routes2: Route[] = [
     "permission": "records.create",
     "level": "edit",
     "resource": {
-      "type": "entity",
-      "entity": "conversation",
-      "id": "/conversationId"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "medium",
@@ -16185,9 +16179,7 @@ const routes2: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "entity",
-      "entity": "conversation",
-      "id": "/conversationId"
+      "type": "space"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -16277,9 +16269,7 @@ const routes2: Route[] = [
     "permission": "records.edit",
     "level": "edit",
     "resource": {
-      "type": "entity",
-      "entity": "conversation",
-      "id": "/conversationId"
+      "type": "space"
     },
     "idempotency": "natural",
     "risk": "medium",

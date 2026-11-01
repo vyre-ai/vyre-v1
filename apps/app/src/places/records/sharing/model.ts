@@ -4,7 +4,7 @@ import type { Audience, Exporters, RowFlag, ShareLevel, ShareRow, ShareSubject }
 
 export type SharesOut = CapMap["access.shares_of"]["out"];
 export type MarksOut = CapMap["access.record_marks"]["out"];
-export type Rights = { manage: boolean; share: boolean; export: boolean };
+export type Rights = { manage: boolean; edit?: boolean; share: boolean; export: boolean };
 
 /** The levels a record offers: Can view, Can edit, Full access. */
 export const RECORD_LEVELS: readonly ShareLevel[] = ["view", "edit", "manage"];

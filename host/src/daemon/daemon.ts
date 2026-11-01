@@ -728,6 +728,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         } },
         resolveItem: (type, kind, value) => resolveVaultItem(db!, type, kind, value),
         ensureResource: async (r) => {
+          if ((r.type === "conversation" || r.type === "mail_message") && r.id !== null) { await ensureRow(r.type, r.id); return; }
           const key = r.type === "connector" ? r.id : r.id === null && r.type === "connection" ? r.parent ?? null : null;
           if (key && builtinConnectors.has(key)) await ensureBuiltinConnector(key);
         },
@@ -919,6 +920,30 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // starts with exactly its bootstrap events (ruling 71).
       const builtinConnectors = new Set(((registry as unknown as { connectors?: { key: string }[] }).connectors ?? []).map((c) => c.key));
       const ensuringConnector = new Map<string, Promise<void>>();
+      // An Inbox conversation and a mail message are resources in access (under the Space), made the first time a call names one that exists. The modules open these rows themselves, and an event whose
+      // subject is an `entity` is never registered by the generic registrar, so without this every call that names one answered "not found" to everyone, the owner included. The module's own door
+      // (a private mailbox, a private message) still decides who sees the content; this only makes the row nameable for the role grants of the Space.
+      const ROW_TABLES: Record<string, string> = { conversation: "inbox_conversation", mail_message: "mail_message" };
+      const ensuringRow = new Map<string, Promise<void>>();
+      const ensureRow = (type: string, id: string): Promise<void> => {
+        if (access.snap.resource(id)) return Promise.resolve();
+        let p = ensuringRow.get(id);
+        if (!p) {
+          p = (async () => {
+            let found = false;
+            try { found = (db!.all(`SELECT id FROM ${ROW_TABLES[type]} WHERE id = ? AND deleted_at IS NULL`, id) as unknown[]).length > 0; } catch { return; }
+            if (!found) return;
+            const r = await spaceLog.appendResult({
+              id: `evt_res_${id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: id,
+              payload: { id, type, parent_id: spaceId, label: 0, owner_id: access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
+            });
+            if (!r.ok) throw new Error(`could not register the ${type} ${id}: ${r.message}`);
+            if (!r.duplicate) { access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); await syncAccess(); }
+          })().finally(() => ensuringRow.delete(id));
+          ensuringRow.set(id, p);
+        }
+        return p;
+      };
       const ensureBuiltinConnector = (key: string): Promise<void> => {
         let p = ensuringConnector.get(key);
         if (!p) {
@@ -1215,6 +1240,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       try {
         for (const row of db!.all("SELECT id, owner FROM vault_folder WHERE deleted_at IS NULL") as { id: string; owner: string | null }[]) await registerVaultFolder(row.id, row.owner);
       } catch { /* a Space without a Vault has no table to repair */ }
+
+      // Conversations opened before their births registered them (an older Space): make each nameable, as a new one is. Mail messages are registered the first time a call names one.
+      try { for (const row of db!.all("SELECT id FROM inbox_conversation WHERE deleted_at IS NULL") as { id: string }[]) await ensureRow("conversation", row.id); } catch { /* a Space without an Inbox has no table to repair */ }
 
       // Runs the last server left queued or running are driven again from their step log (P-L6_24). Started, not awaited: boot does not wait for a Run, and shutdown waits for it.
       if (loaded.serving.get("runs") === "live") {

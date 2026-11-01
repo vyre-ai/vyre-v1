@@ -10,7 +10,7 @@ Match a sender to a contact or company record (Undo stays available)
 | Permission | records.edit |
 | Grant level | edit |
 | Risk | medium |
-| Resource | entity (/conversationId) |
+| Resource | space |
 | Gate | none |
 | Idempotency | key |
 | Offline | queue |

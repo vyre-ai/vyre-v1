@@ -21,7 +21,7 @@ const ID_SHAPE: Readonly<Record<string, RegExp | null>> = Object.freeze({
   channel: /^chn_[a-z0-9]+$/, thread: /^thr_[a-z0-9]+$/, mailbox: /^mbx_[a-z0-9]+$/, vault_folder: /^vfd_[a-z0-9]+$/, vault_item: /^vit_[a-z0-9]+$/, automation: /^aut_[a-z0-9]+$/,
   agent: /^agt_[a-z0-9]+$/, connection: /^con_[a-z0-9]+$/, site: /^sit_[a-z0-9]+$/, form: /^frm_[a-z0-9]+$/, campaign: /^cmp_[a-z0-9]+$/, kit: /^kit_[a-z0-9]+$/,
   terminal: /^trm_[a-z0-9]+$/, computer: /^cmt_[a-z0-9]+$/, task: /^tsk_[a-z0-9]+$/, run: /^run_[a-z0-9]+$/, number: /^num_[a-z0-9]+$/, domain: /^dom_[a-z0-9]+$/, note: /^not_[a-z0-9]+$/, email: /^eml_[a-z0-9]+$/,
-  inbox: null, automation_group: null, connector: null, calendar: null,
+  conversation: /^cnv_[a-z0-9]+$/, mail_message: /^eml_[a-z0-9]+$/, inbox: null, automation_group: null, connector: null, calendar: null,
 });
 /**
  * Resource types whose birth event may name the owner, and the payload pointer it does it in. Opt-in per type: the capability that creates one of these decides who may assign an owner
@@ -99,9 +99,22 @@ export function missingAgentResources(a: { space: string; events: readonly Event
   return [...births.values()].filter((row) => !registered.has(row.id) && !deleted.has(row.id));
 }
 
+/**
+ * Rows the Inbox and Mail modules open themselves, whose events name an `entity` subject (a table row, not a resource type) and so are skipped above, yet whose capabilities and handlers ask access about
+ * them: a conversation, and a mail message. Their birth events register them, under the Space like any other object, so the module's own door (a private mailbox, a private message) is the only filter
+ * on who reads the content and the role grants of the Space say who may act on it.
+ */
+const ENTITY_BIRTHS: ReadonlyMap<string, SubjectDef["subject"]> = new Map([
+  ["conversation.created", { type: "conversation", id: "/conversationId" }],
+  ["mail.received", { type: "mail_message", id: "/messageId" }],
+  ["message.sent", { type: "mail_message", id: "/messageId" }],
+]);
+
 export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar {
   const subjects = new Map<string, SubjectDef["subject"]>();
   for (const e of deps.events) if (e.subject.type !== "entity" && !ENDS.test(e.name)) subjects.set(e.name, e.subject);
+  // `mail.received` already names its mailbox as subject; the message is a second object the same event brings into being, so it is kept apart
+  const births = new Map(ENTITY_BIRTHS);
   return {
     register(a) {
       const out: ResourceRow[] = [];
@@ -111,6 +124,14 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
       const given = parentPtr === undefined ? null : pointer(a.input, parentPtr);
       const seen = new Set<string>();
       for (const ev of a.events) {
+        const extra = births.get(ev.type);
+        if (extra) {
+          const xid = pointer(ev.payload, extra.id);
+          if (typeof xid === "string" && idFits(extra.type, xid) && !seen.has(xid) && !deps.exists(xid)) {
+            seen.add(xid);
+            out.push({ id: xid, type: extra.type, parent_id: a.space, label: 0, owner_id: a.owner, holds: 0 });
+          }
+        }
         const s = subjects.get(ev.type);
         if (!s) continue;
         // Agent follow-up events are also scoped to their agent. They must never create a

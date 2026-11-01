@@ -1,0 +1,1 @@
+- Fixed the Finish setup entry covering the Settings icon in the left rail. It now sits in the title bar and never floats over the rail, a sidebar or the page. The Inbox conversation header shows an address once when the contact has no name.

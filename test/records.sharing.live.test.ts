@@ -96,7 +96,7 @@ test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee se
     assert.equal((await C("records.update", { type: "rt_deal", recordId: deals["Acme renewal"], patch: { stage: "lost" } })).status, 403, "Can view does not edit");
     assert.equal((await C("records.export", { type: "rt_deal", format: "csv" })).status, 403, "no export right yet");
     const marks = await C("access.record_marks", { type: "rt_deal" });
-    assert.deepEqual(marks.data.can, { manage: false, share: false, export: false }, "so the app draws no Share and no Export for Cal");
+    assert.deepEqual(marks.data.can, { manage: false, edit: false, share: false, export: false }, "so the app draws no Share and no Export for Cal");
     assert.equal(marks.data.typeShared, true, "and offers Shared with me");
     assert.equal((await B("access.record_marks", { type: "rt_deal" })).data.can.export, false);
 

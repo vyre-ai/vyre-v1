@@ -16,7 +16,7 @@ type Browser = import("playwright-core").Browser;
 type BrowserContext = import("playwright-core").BrowserContext;
 type Page = import("playwright-core").Page;
 
-export interface Screens { browser: Browser; web: Edge; world: MailWorld; close(): Promise<void> }
+export interface Screens { browser: Browser; web: Edge; world: MailWorld; seats: Seat[]; /** what every browser shows and what the app was refused, saved when a journey fails */ debug(dir: string): Promise<void>; close(): Promise<void> }
 
 const freePort = (): Promise<number> => new Promise((resolve, reject) => {
   const s = net.createServer();
@@ -43,7 +43,15 @@ export async function bootScreens(o: Omit<WorldOptions, "address">, env: { dist:
   const world = await bootMailWorld({ ...o, address: `http://127.0.0.1:${port}` });
   const web = await edge(env.dist, world.d.url, undefined, port);
   const browser = await env.chromium.launch({ executablePath: env.exe, args: ["--no-sandbox"] });
-  return { browser, web, world, async close() { await browser.close(); web.close(); await world.stop(); } };
+  const seats: Seat[] = [];
+  const debug = async (dir: string): Promise<void> => {
+    fs.mkdirSync(`${dir}/_failed`, { recursive: true });
+    for (const [i, st] of seats.entries()) {
+      await st.page.screenshot({ path: `${dir}/_failed/seat${i}-${st.who.username}.png` }).catch(() => undefined);
+      fs.writeFileSync(`${dir}/_failed/seat${i}-${st.who.username}.log`, `${st.page.url()}\nerrors: ${JSON.stringify(st.errors)}\n${st.logs.join("\n")}\n`);
+    }
+  };
+  return { browser, web, world, seats, debug, async close() { await browser.close(); web.close(); await world.stop(); } };
 }
 
 /** What the browser holds once signed in as this person. */
@@ -53,7 +61,7 @@ async function sessionFor(s: Screens, who: Person, role: string): Promise<string
   return JSON.stringify({ sessions: { [s.web.origin]: { baseUrl: s.web.origin, token: who.token, def, personId: who.id, marker } } });
 }
 
-export interface Seat { ctx: BrowserContext; page: Page; who: Person; errors: string[]; setEmail(email: string): void }
+export interface Seat { ctx: BrowserContext; page: Page; who: Person; errors: string[]; /** console errors and refused calls, for a failure to explain itself */ logs: string[]; setEmail(email: string): void }
 
 /**
  * A browser for one person. Opening a provider's sign-in page is answered the way the provider does after the person approves: a redirect back to the app with a code for the
@@ -74,7 +82,12 @@ export async function seat(s: Screens, who: Person, role: string): Promise<Seat>
   const page = await ctx.newPage();
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message.slice(0, 200)));
-  return { ctx, page, who, errors, setEmail: (e) => { email = e; } };
+  const logs: string[] = [];
+  page.on("console", (m) => { if (m.type() === "error") logs.push(`console ${m.text().slice(0, 300)}`); });
+  page.on("response", (r) => { if (r.status() >= 400) logs.push(`${r.status()} ${new URL(r.url()).pathname}`); });
+  const made: Seat = { ctx, page, who, errors, logs, setEmail: (e) => { email = e; } };
+  s.seats.push(made);
+  return made;
 }
 
 export async function open(seatOf: Seat, s: Screens, route: string): Promise<void> {
@@ -117,7 +130,7 @@ function darkTokens(p: Page): Promise<{ css: string; mode: string; skin: string 
  * The app takes its skin when a page loads, so emulating a dark computer does not repaint an open page. A dark picture applies the graphite variables to the page as they are, and the light one puts
  * the page's own back. Nothing reloads or resizes, so a sheet or a panel stays open.
  */
-async function setScheme(p: Page, scheme: "light" | "dark"): Promise<void> {
+export async function setScheme(p: Page, scheme: "light" | "dark"): Promise<void> {
   if (scheme === "dark") {
     const dark = await darkTokens(p);
     await p.evaluate((d) => {
@@ -136,30 +149,33 @@ async function setScheme(p: Page, scheme: "light" | "dark"): Promise<void> {
   }
 }
 
-/**
- * One step, up to four pictures: light and dark, desktop and phone. The phone width draws another shell, so what was open (a sheet, a panel) is gone when the page comes back to desktop:
- * `restore` puts it back. A step with typed text but no way to restore it passes `phone: false` and is shot at desktop width only.
- */
-export async function shoot(p: Page, dir: string, step: string, o: { phone?: boolean; restore?: () => Promise<void> } = {}): Promise<string[]> {
+/** One step, two pictures at the current width: light and dark. */
+export async function shoot(p: Page, dir: string, step: string): Promise<string[]> {
   const out: string[] = [];
   const n = String(++shotCount).padStart(2, "0");
   fs.mkdirSync(dir, { recursive: true });
-  const sizes = Object.entries(SIZES).filter(([size]) => o.phone !== false || size === "desktop");
-  for (const [size, vp] of sizes) {
-    for (const scheme of SCHEMES) {
-      await setScheme(p, scheme);
-      if (p.viewportSize()?.width !== vp.width) { await p.setViewportSize(vp); await p.waitForTimeout(500); }
-      await p.waitForTimeout(250);
-      const file = path.join(dir, `${n}-${step}-${scheme}-${size}.png`);
-      await p.screenshot({ path: file, animations: "disabled" });
-      out.push(file);
-    }
-    if (size === "phone") {
-      await p.setViewportSize(SIZES.desktop);
-      await p.waitForTimeout(500);
-      if (o.restore) await o.restore();
-    }
+  for (const scheme of SCHEMES) {
+    await setScheme(p, scheme);
+    await p.waitForTimeout(250);
+    const file = path.join(dir, `${n}-${step}-${scheme}-desktop.png`);
+    await p.screenshot({ path: file, animations: "disabled" });
+    out.push(file);
   }
   await setScheme(p, "light");
   return out;
+}
+
+/**
+ * The phone pass, at the end of a journey: the phone width draws another shell, so it is not done mid-flow. Each route is opened fresh at phone width and shot in light and dark.
+ * A route that cannot draw at phone width fails the journey like any other step.
+ */
+export async function phonePass(seatOf: Seat, s: Screens, dir: string, steps: { name: string; route: string; /** the phone tab to open (Home is the You tab) */ tab?: string }[]): Promise<void> {
+  await seatOf.page.setViewportSize(SIZES.phone);
+  for (const st of steps) {
+    await open(seatOf, s, st.route);
+    if (st.tab) await seatOf.page.getByText(st.tab, { exact: true }).last().click();
+    await seatOf.page.waitForTimeout(800);
+    await shoot(seatOf.page, dir, `phone-${st.name}`).then((files) => files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))));
+  }
+  await seatOf.page.setViewportSize(SIZES.desktop);
 }

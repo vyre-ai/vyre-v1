@@ -8,7 +8,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { connectClaude, makeAgent, unlockVault, until } from "./support/mail-world.ts";
-import { bootScreens, browserOrSkip, open, seat, shoot } from "./support/mail-browser.ts";
+import { bootScreens, browserOrSkip, open, seat } from "./support/mail-browser.ts";
+import { shoot } from "./support/chat-shots.ts";
 import { scriptedModel } from "./support/live.ts";
 
 const OUT = "shots-evidence/chat-flows";

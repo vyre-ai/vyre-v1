@@ -25,7 +25,7 @@ const conditions = t.obj({
 });
 const audience = t.enm('space', 'added', 'me');
 const exporters = t.enm('admins', 'viewers', 'chosen');
-const rights = t.obj({ manage: t.bool(), share: t.bool(), export: t.bool() });
+const rights = t.obj({ manage: t.bool(), edit: t.opt(t.bool()), share: t.bool(), export: t.bool() });
 const roleHolderRef = t.obj({ kind: t.enm('person', 'agent', 'actor', 'service', 'group'), id: t.str({ pattern: '^(usr|agt|act|svc|grp)_[a-z0-9]+$', examples: ['usr_a1b2c3'] }) });
 const principalRow = t.obj({
   id: pid, kind: t.enm('person', 'agent', 'actor', 'service'), name: t.str(), owner: t.opt(pid),
