@@ -11,7 +11,7 @@ import type { VaultPort } from "./ports.ts";
 
 export type VaultLookup =
   | { kind: "value"; itemId: string; value: string; spaceOnly: boolean; injectIntoDeployments: boolean }
-  | { kind: "unknown"; /** In plain words: why the Vault could not give it (the item is gone, or it has no such field). */ why?: string }
+  | { kind: "unknown" }
   | { kind: "denied"; reason: "no_access" | "provider_label" | "other" };
 
 export interface EngineSessionHost {
@@ -104,8 +104,9 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
           if (code !== null && code.startsWith("permission.")) return { kind: "denied", reason: "no_access" };
           // Not the same as "no account": the item is gone, or it has no such field. Say which, in plain words, and log the field NAME (never a value) so the next one explains itself.
           if (code === "validation.not_found" || code === "validation.bad_input") {
+            // the plain words go to the log with the field NAME, never to the caller: a refusal looks the same to the one asking, so nothing is leaked and nothing changes for them
             d.log?.("the vault could not give the account its key", { code, handle: item, field: field ?? null, why: whyUnusable(e, code) });
-            return { kind: "unknown", why: whyUnusable(e, code) };
+            return { kind: "unknown" };
           }
           // Never the original text: it may carry request text. A locked key and every other refusal carry a code of their own, so the chat shows an Unlock card or a precise reason, not "did not finish".
           if (vaultLocked(e)) throw coded("engine.vault_locked", "Your Vault is locked on this computer.");
