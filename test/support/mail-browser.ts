@@ -82,28 +82,42 @@ export async function open(seatOf: Seat, s: Screens, route: string): Promise<voi
   await seatOf.page.getByTestId("shell").or(seatOf.page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30_000 });
   const onboarding = seatOf.page.getByTestId("onboarding");
   if (await onboarding.waitFor({ timeout: 4_000 }).then(() => true, () => false)) {
-    await seatOf.page.getByTestId("onboarding-close").click({ timeout: 10_000 });
+    // a person leaves onboarding with Finish later; when this Space's screen has no such button the picture says what is there instead
+    const closed = await seatOf.page.getByTestId("onboarding-close").click({ timeout: 4_000 }).then(() => true, () => false);
+    if (!closed) {
+      fs.mkdirSync("shots-evidence/personal-mail/_debug", { recursive: true });
+      await seatOf.page.screenshot({ path: `shots-evidence/personal-mail/_debug/onboarding-${Date.now()}.png` });
+      await seatOf.page.keyboard.press("Escape");
+    }
     await onboarding.waitFor({ state: "detached", timeout: 10_000 });
   }
 }
 
 let shotCount = 0;
-/** One step, four pictures: light and dark, desktop and phone. The page goes back to light desktop after. */
-export async function shoot(p: Page, dir: string, step: string): Promise<string[]> {
+/**
+ * One step, up to four pictures: light and dark, desktop and phone. The phone width draws another shell, so what was open (a sheet, a panel) is gone when the page comes back to desktop:
+ * `restore` puts it back. A step with typed text but no way to restore it passes `phone: false` and is shot at desktop width only.
+ */
+export async function shoot(p: Page, dir: string, step: string, o: { phone?: boolean; restore?: () => Promise<void> } = {}): Promise<string[]> {
   const out: string[] = [];
   const n = String(++shotCount).padStart(2, "0");
   fs.mkdirSync(dir, { recursive: true });
-  for (const scheme of SCHEMES) {
-    for (const [size, vp] of Object.entries(SIZES)) {
+  const sizes = Object.entries(SIZES).filter(([size]) => o.phone !== false || size === "desktop");
+  for (const [size, vp] of sizes) {
+    for (const scheme of SCHEMES) {
       await p.emulateMedia({ colorScheme: scheme });
-      await p.setViewportSize(vp);
-      await p.waitForTimeout(350);
+      if (p.viewportSize()?.width !== vp.width) { await p.setViewportSize(vp); await p.waitForTimeout(500); }
+      await p.waitForTimeout(250);
       const file = path.join(dir, `${n}-${step}-${scheme}-${size}.png`);
       await p.screenshot({ path: file, animations: "disabled" });
       out.push(file);
     }
+    if (size === "phone") {
+      await p.setViewportSize(SIZES.desktop);
+      await p.waitForTimeout(500);
+      if (o.restore) await o.restore();
+    }
   }
   await p.emulateMedia({ colorScheme: "light" });
-  await p.setViewportSize(SIZES.desktop);
   return out;
 }

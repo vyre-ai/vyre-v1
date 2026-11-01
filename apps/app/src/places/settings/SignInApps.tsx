@@ -18,7 +18,7 @@ const GUIDES: readonly Guide[] = [
       { text: "Open Credentials in Google Cloud and make an OAuth client of type Web application.", link: "https://console.cloud.google.com/apis/credentials" },
       { text: "Add the redirect address below to it." },
       { text: "Turn on the Gmail API for the project.", link: "https://console.cloud.google.com/apis/library/gmail.googleapis.com" },
-      { text: "On the consent screen choose In production. A client left in Testing signs people out after 7 days." },
+      { text: "Publish the consent screen (Testing signs people out after 7 days)." },
     ],
   },
   {
