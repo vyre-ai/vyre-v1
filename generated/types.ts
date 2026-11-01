@@ -14843,6 +14843,8 @@ export type InboxLinkMessageIn = {
   threadId?: string;
   subject?: string;
   participants?: Array<string>;
+  private?: boolean;
+  ownerId?: string;
 };
 export type InboxLinkMessageOut = {
   conversationId: string;

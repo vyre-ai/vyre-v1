@@ -106469,10 +106469,12 @@
             "direction": "in",
             "mailboxId": "mbx_a1b2c3",
             "numberId": "num_a1b2c3",
+            "ownerId": "usr_a1b2c3",
             "participants": [
               "example"
             ],
             "preview": "example",
+            "private": true,
             "ref": {
               "id": "example",
               "kind": "mail_message"
@@ -106539,6 +106541,13 @@
             "pattern": "^num_[a-z0-9]+$",
             "type": "string"
           },
+          "ownerId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
           "participants": {
             "items": {
               "type": "string"
@@ -106547,6 +106556,9 @@
           },
           "preview": {
             "type": "string"
+          },
+          "private": {
+            "type": "boolean"
           },
           "ref": {
             "properties": {
@@ -106945,7 +106957,7 @@
         ],
         "type": "object"
       },
-      "level": "edit",
+      "level": "view",
       "module": "inbox",
       "name": "inbox.mark_read",
       "offline": "queue",
@@ -106954,9 +106966,7 @@
       },
       "permission": null,
       "resource": {
-        "entity": "conversation",
-        "id": "/conversationId",
-        "type": "entity"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -107075,9 +107085,7 @@
       },
       "permission": "records.edit",
       "resource": {
-        "entity": "conversation",
-        "id": "/conversationId",
-        "type": "entity"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -107199,9 +107207,7 @@
       },
       "permission": "records.create",
       "resource": {
-        "entity": "conversation",
-        "id": "/conversationId",
-        "type": "entity"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",
@@ -107275,9 +107281,7 @@
       },
       "permission": null,
       "resource": {
-        "entity": "conversation",
-        "id": "/conversationId",
-        "type": "entity"
+        "type": "space"
       },
       "risk": "low",
       "since": "1.0.0",
@@ -107939,9 +107943,7 @@
       },
       "permission": "records.edit",
       "resource": {
-        "entity": "conversation",
-        "id": "/conversationId",
-        "type": "entity"
+        "type": "space"
       },
       "risk": "medium",
       "since": "1.0.0",

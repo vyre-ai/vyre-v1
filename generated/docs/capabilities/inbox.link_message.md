@@ -40,6 +40,8 @@ type In = {
   threadId?: string;
   subject?: string;
   participants?: Array<string>;
+  private?: boolean;
+  ownerId?: string;
 };
 ```
 
@@ -74,10 +76,12 @@ type Out = {
     "direction": "in",
     "mailboxId": "mbx_a1b2c3",
     "numberId": "num_a1b2c3",
+    "ownerId": "usr_a1b2c3",
     "participants": [
       "example"
     ],
     "preview": "example",
+    "private": true,
     "ref": {
       "id": "example",
       "kind": "mail_message"

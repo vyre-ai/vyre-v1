@@ -47319,6 +47319,8 @@ lf(a2980[i2980], p + "/participants" + '/' + i2980, e, L2);
 }
 }
 }
+if ("private" in o2978) lf(o2978["private"], p + "/private", e, L7);
+if ("ownerId" in o2978) lf(o2978["ownerId"], p + "/ownerId", e, L25);
 }
 }
 }
