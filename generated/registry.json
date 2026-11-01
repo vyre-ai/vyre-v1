@@ -17328,6 +17328,34 @@
       ],
       "type": "object"
     },
+    "s_d13645dabc": {
+      "properties": {
+        "baseBranch": {
+          "type": "string"
+        },
+        "branch": {
+          "description": "The branch the repository is on now",
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "projectId": {
+          "examples": [
+            "prj_a1b2c3"
+          ],
+          "pattern": "^prj_[a-z0-9]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "projectId",
+        "path",
+        "baseBranch",
+        "branch"
+      ],
+      "type": "object"
+    },
     "s_d29b748c70": {
       "properties": {
         "base": {
@@ -17987,6 +18015,106 @@
           "type": "integer"
         }
       },
+      "type": "object"
+    },
+    "s_dd966b6ddf": {
+      "properties": {
+        "agentId": {
+          "examples": [
+            "agt_a1b2c3"
+          ],
+          "pattern": "^agt_[a-z0-9]+$",
+          "type": "string"
+        },
+        "base": {
+          "examples": [
+            "main"
+          ],
+          "type": "string"
+        },
+        "branch": {
+          "examples": [
+            "crew/ember-1"
+          ],
+          "type": "string"
+        },
+        "endedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "jobId": {
+          "examples": [
+            "crw_01a1b2"
+          ],
+          "type": "string"
+        },
+        "leadThreadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "projectId": {
+          "examples": [
+            "prj_a1b2c3"
+          ],
+          "pattern": "^prj_[a-z0-9]+$",
+          "type": "string"
+        },
+        "result": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "startedAt": {
+          "description": "Milliseconds since the Unix epoch",
+          "examples": [
+            1760000000000
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "state": {
+          "enum": [
+            "working",
+            "waiting",
+            "done",
+            "failed",
+            "stopped",
+            "merged"
+          ],
+          "type": "string"
+        },
+        "threadId": {
+          "examples": [
+            "thr_a1b2c3"
+          ],
+          "pattern": "^thr_[a-z0-9]+$",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "jobId",
+        "threadId",
+        "leadThreadId",
+        "projectId",
+        "agentId",
+        "title",
+        "branch",
+        "base",
+        "state",
+        "startedAt"
+      ],
       "type": "object"
     },
     "s_de3161587f": {
@@ -71475,6 +71603,512 @@
       "risk": "low",
       "since": "1.0.0",
       "summary": "One request and one answer on an account the caller can run on, for work that is not a chat (memory upkeep); returns the text and the token counts and posts nothing",
+      "surfaces": {
+        "http": "auto"
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "jobs": [
+              {
+                "agentId": "agt_a1b2c3",
+                "base": "main",
+                "branch": "crew/ember-1",
+                "endedAt": 1760000000000,
+                "jobId": "crw_01a1b2",
+                "leadThreadId": "thr_a1b2c3",
+                "name": "example",
+                "projectId": "prj_a1b2c3",
+                "result": {},
+                "startedAt": 1760000000000,
+                "state": "working",
+                "threadId": "thr_a1b2c3",
+                "title": "example"
+              }
+            ]
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "engine",
+      "name": "engine.crew.list",
+      "output": {
+        "properties": {
+          "jobs": {
+            "items": {
+              "$ref": "#/$defs/s_dd966b6ddf"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "jobs"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The crew of a chat: one row per teammate job, newest first, with what each is on and how it stands",
+      "surfaces": {
+        "agent": {
+          "blocks": [],
+          "planMode": "allowed"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "crew_list",
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "projectId": "prj_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "repo": {
+              "baseBranch": "example",
+              "branch": "example",
+              "path": "example",
+              "projectId": "prj_a1b2c3"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "engine",
+      "name": "engine.crew.repo.get",
+      "output": {
+        "properties": {
+          "repo": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/s_d13645dabc"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "repo"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/projectId",
+        "type": "project"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "The project's repository for the crew, or nothing when none is set",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "baseBranch": "main",
+            "path": "/Users/maya/code/site",
+            "projectId": "prj_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "repo": {
+              "baseBranch": "example",
+              "branch": "example",
+              "path": "example",
+              "projectId": "prj_a1b2c3"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "baseBranch": {
+            "examples": [
+              "main"
+            ],
+            "type": "string"
+          },
+          "path": {
+            "examples": [
+              "/Users/maya/code/site"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "path"
+        ],
+        "type": "object"
+      },
+      "level": "manage",
+      "module": "engine",
+      "name": "engine.crew.repo.set",
+      "output": {
+        "properties": {
+          "repo": {
+            "$ref": "#/$defs/s_d13645dabc"
+          }
+        },
+        "required": [
+          "repo"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/projectId",
+        "type": "project"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Say which folder on this computer holds the project's repository, and the branch teammates start from; the folder must be a git repository",
+      "surfaces": {
+        "http": "auto",
+        "mcp": {
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "audit": "always",
+      "effects": "write",
+      "emits": [
+        "crew.job_started"
+      ],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found",
+        "validation.precondition_failed"
+      ],
+      "examples": [
+        {
+          "input": {
+            "brief": "example",
+            "effort": "low",
+            "idempotencyKey": "idem_1",
+            "model": "example",
+            "projectId": "prj_a1b2c3",
+            "provider": "example",
+            "teammateId": "agt_a1b2c3",
+            "threadId": "thr_a1b2c3",
+            "title": "example"
+          },
+          "name": "example",
+          "output": {
+            "job": {
+              "agentId": "agt_a1b2c3",
+              "base": "main",
+              "branch": "crew/ember-1",
+              "endedAt": 1760000000000,
+              "jobId": "crw_01a1b2",
+              "leadThreadId": "thr_a1b2c3",
+              "name": "example",
+              "projectId": "prj_a1b2c3",
+              "result": {},
+              "startedAt": 1760000000000,
+              "state": "working",
+              "threadId": "thr_a1b2c3",
+              "title": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "key",
+      "input": {
+        "properties": {
+          "brief": {
+            "type": "string"
+          },
+          "effort": {
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "max"
+            ],
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "teammateId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "projectId",
+          "teammateId",
+          "title",
+          "brief",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "level": "use",
+      "module": "engine",
+      "name": "engine.crew.start",
+      "output": {
+        "properties": {
+          "job": {
+            "$ref": "#/$defs/s_dd966b6ddf"
+          }
+        },
+        "required": [
+          "job"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "medium",
+      "since": "1.0.0",
+      "summary": "Start a teammate on a brief: it gets its own thread under this chat and its own copy of the project repository on its own branch, and works until it is done",
+      "surfaces": {
+        "agent": {
+          "blocks": [
+            "helper"
+          ],
+          "planMode": "blocked"
+        },
+        "http": "auto",
+        "mcp": {
+          "name": "crew_start",
+          "toolset": "chats"
+        }
+      },
+      "v": 1
+    },
+    {
+      "effects": "read",
+      "emits": [],
+      "errors": [
+        "internal.unexpected",
+        "permission.above_clearance",
+        "permission.no_grant",
+        "validation.bad_input",
+        "validation.not_found"
+      ],
+      "examples": [
+        {
+          "input": {
+            "threadId": "thr_a1b2c3"
+          },
+          "name": "example",
+          "output": {
+            "workspace": {
+              "base": "example",
+              "branch": "example",
+              "jobId": "example",
+              "name": "example",
+              "repo": "example"
+            }
+          }
+        }
+      ],
+      "idempotency": "natural",
+      "input": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "level": "view",
+      "module": "engine",
+      "name": "engine.crew.workspace",
+      "output": {
+        "properties": {
+          "workspace": {
+            "anyOf": [
+              {
+                "properties": {
+                  "base": {
+                    "type": "string"
+                  },
+                  "branch": {
+                    "type": "string"
+                  },
+                  "jobId": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "repo": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "jobId",
+                  "repo",
+                  "base",
+                  "branch",
+                  "name"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "workspace"
+        ],
+        "type": "object"
+      },
+      "permission": null,
+      "resource": {
+        "id": "/threadId",
+        "type": "thread"
+      },
+      "risk": "low",
+      "since": "1.0.0",
+      "summary": "System: the repository copy a teammate thread works in, so the engine can make it before the first turn",
       "surfaces": {
         "http": "auto"
       },
@@ -205683,6 +206317,66 @@
       "summary": "A match was undone",
       "sv": 1,
       "vis": "space"
+    },
+    {
+      "label": "subject",
+      "module": "engine",
+      "name": "crew.job_started",
+      "payload": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "jobId": {
+            "type": "string"
+          },
+          "leadThreadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId",
+          "threadId",
+          "leadThreadId",
+          "projectId",
+          "agentId",
+          "branch"
+        ],
+        "type": "object"
+      },
+      "replay": "pure",
+      "subject": {
+        "id": "/leadThreadId",
+        "type": "thread"
+      },
+      "summary": "A teammate started on a brief in its own thread and its own branch",
+      "sv": 1,
+      "vis": "participants"
     },
     {
       "module": "devices",

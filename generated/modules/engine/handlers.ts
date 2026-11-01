@@ -8,6 +8,11 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.account.resolve": Handler<"engine.account.resolve", X>;
   "engine.accounts.list": Handler<"engine.accounts.list", X>;
   "engine.complete": Handler<"engine.complete", X>;
+  "engine.crew.list": Handler<"engine.crew.list", X>;
+  "engine.crew.repo.get": Handler<"engine.crew.repo.get", X>;
+  "engine.crew.repo.set": Handler<"engine.crew.repo.set", X>;
+  "engine.crew.start": Handler<"engine.crew.start", X>;
+  "engine.crew.workspace": Handler<"engine.crew.workspace", X>;
   "engine.defaults.get": Handler<"engine.defaults.get", X>;
   "engine.defaults.set": Handler<"engine.defaults.set", X>;
   "engine.health": Handler<"engine.health", X>;

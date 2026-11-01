@@ -15163,6 +15163,107 @@
     },
     {
       "blocks": [],
+      "cap": "engine.crew.list",
+      "deferred": false,
+      "description": "The crew of a chat: one row per teammate job, newest first, with what each is on and how it stands",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "crew_list",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "helper"
+      ],
+      "cap": "engine.crew.start",
+      "deferred": false,
+      "description": "Start a teammate on a brief: it gets its own thread under this chat and its own copy of the project repository on its own branch, and works until it is done",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "brief": {
+            "type": "string"
+          },
+          "effort": {
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "max"
+            ],
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "teammateId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "projectId",
+          "teammateId",
+          "title",
+          "brief",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "crew_start",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "devices.get",
       "deferred": false,
       "description": "One device with its sessions",
@@ -16506,6 +16607,71 @@
       "name": "engine_accounts_list",
       "planMode": "allowed",
       "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.crew.repo.get",
+      "deferred": false,
+      "description": "The project's repository for the crew, or nothing when none is set",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_crew_repo_get",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.crew.repo.set",
+      "deferred": false,
+      "description": "Say which folder on this computer holds the project's repository, and the branch teammates start from; the folder must be a git repository",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "baseBranch": {
+            "examples": [
+              "main"
+            ],
+            "type": "string"
+          },
+          "path": {
+            "examples": [
+              "/Users/maya/code/site"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "engine_crew_repo_set",
+      "planMode": "blocked",
+      "toolset": "chats",
       "v": 1
     },
     {
