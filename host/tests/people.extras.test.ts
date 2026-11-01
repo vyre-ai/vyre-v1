@@ -47,7 +47,7 @@ test("a plan step goes to the module of its kind: files and channels and private
   assert.equal(await owned.apply("usr_pat", "private_chats", "delete"), 2);
   assert.equal(await owned.apply("usr_pat", "memory_from_you", "delete"), 4);
   assert.equal(await owned.apply("usr_pat", "mailbox_connections", "revoke"), 1);
-  assert.deepEqual(calls.map((c) => c.name), ["files.reassign_owned", "chat.reassign_owned", "chat.reassign_owned", "memory.reassign_owned", "mail.reassign_owned"]);
+  assert.deepEqual(calls.map((c) => c.name), ["files.reassign_owned", "chat.reassign_owned", "chat.reassign_owned", "memory.reassign_owned", "mail.reassign_owned", "google.reassign_owned", "microsoft.reassign_owned"]);
   assert.deepEqual(calls[0]!.input, { person: "usr_pat", kind: "files", action: "reassign", to: "usr_admin" });
   assert.equal(await owned.apply("usr_pat", "nonesuch", "reassign"), 0);
 });

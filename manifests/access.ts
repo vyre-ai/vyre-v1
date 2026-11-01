@@ -20,8 +20,8 @@ const conditions = t.obj({
   labelCeiling: t.opt(label),
   window: t.opt(t.obj({ from: t.ts(), to: t.ts() })),
   expiresAt: t.opt(t.ts()),
-  export: t.opt(t.bool({ description: 'The grant carries the export right for what it reaches (records.export), no role change needed' })),
-  reshare: t.opt(t.bool({ description: 'The holder may share it further, up to their own level, without Manage' })),
+  export: t.opt(t.bool()),
+  reshare: t.opt(t.bool()),
 });
 const audience = t.enm('space', 'added', 'me');
 const exporters = t.enm('admins', 'viewers', 'chosen');
@@ -124,13 +124,13 @@ export default defineManifest({
 
     // ---- grants and sharing (no explicit deny grants exist)
     write('access.share', 'Give a person, group, role, agent or automation a level on a resource (flows down; folders cover their items)', {
-      ...V, idem: 'key', in: { resource: resourceRef, subject: subjectRef, level, conditions: t.opt(conditions), source: t.opt(t.str({ description: "Source tag, for example 'project:prj_a1b2c3'; removing the member revokes by source" })), export: t.opt(t.bool({ description: 'Give the export right with this grant (the giver must hold it); left out keeps what the grant had' })), reshare: t.opt(t.bool({ description: 'Let the holder share it further, up to their own level; left out keeps what the grant had' })) },
+      ...V, idem: 'key', in: { resource: resourceRef, subject: subjectRef, level, conditions: t.opt(conditions), source: t.opt(t.str({ description: "Source tag, for example 'project:prj_a1b2c3'; removing the member revokes by source" })), export: t.opt(t.bool()), reshare: t.opt(t.bool()) },
       out: { grant: grantRow }, emits: ['grant.created', 'access.changed', 'folder.shared'], audit: 'always', tool: 'meta', errors: ['permission.not_contained', 'validation.precondition_failed'], team: true,
     }),
     write('access.unshare', 'Remove a grant, or every grant of one source on a resource', { ...V, in: { grantId: t.opt(id.grant), resource: t.opt(resourceRef), subject: t.opt(subjectRef), source: t.opt(t.str()) }, out: { revoked: t.int({ minimum: 0 }) }, emits: ['grant.revoked', 'access.changed', 'folder.shared'], audit: 'always', tool: 'meta', team: true }),
-    read('access.shares_of', 'Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry; for a record type or a record also who it is open to and who may export', { ...V, in: { resource: resourceRef }, out: { shares: t.arr(t.obj({ grant: grantRow, through: t.enm('direct', 'group', 'role', 'folder', 'owner') })), audience: t.opt(audience), exporters: t.opt(exporters), inherits: t.opt(t.str({ description: 'The container this resource follows (the record type of a record), when it follows it' })), outside: t.opt(t.bool({ description: 'A record type: links to people outside the Space are allowed' })), can: t.opt(rights) }, tool: 'meta' }),
+    read('access.shares_of', 'Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry; for a record type or a record also who it is open to and who may export', { ...V, in: { resource: resourceRef }, out: { shares: t.arr(t.obj({ grant: grantRow, through: t.enm('direct', 'group', 'role', 'folder', 'owner') })), audience: t.opt(audience), exporters: t.opt(exporters), inherits: t.opt(t.str({ description: 'The container this resource follows (the record type of a record), when it follows it' })), outside: t.opt(t.bool()), can: t.opt(rights) }, tool: 'meta' }),
     write('access.audience_set', 'Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record\'s Files folder can follow its record', {
-      ...V, in: { resource: resourceRef, audience: t.opt(audience), exporters: t.opt(exporters), outside: t.opt(t.bool({ description: 'A record type: allow links to people outside the Space (off unless turned on)' })), follows: t.opt(id.record) }, out: { audience, exporters, outside: t.bool() },
+      ...V, in: { resource: resourceRef, audience: t.opt(audience), exporters: t.opt(exporters), outside: t.opt(t.bool()), follows: t.opt(id.record) }, out: { audience, exporters, outside: t.bool() },
       emits: ['grant.created', 'grant.revoked', 'access.changed'], audit: 'always', tool: 'meta', team: true, errors: ['permission.not_contained', 'validation.precondition_failed'],
     }),
     read('access.record_marks', 'For the rows of one record type: which differ from the type (their own audience or direct grants), and whether the caller was given the type or a row by name', { ...V, in: { type: id.recordType }, out: { typeShared: t.bool(), audience, can: rights, rows: t.arr(t.obj({ id: id.record, audience, direct: t.int({ minimum: 0 }), mine: t.bool() })) }, tool: 'meta' }),
