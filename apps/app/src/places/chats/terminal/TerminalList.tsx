@@ -6,8 +6,6 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { MenuIcon, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
-import { HOST_NAMES, TERMINAL_HOSTS } from "../../../../../../ui/src/Terminal/index.tsx";
-import type { TerminalHost } from "../../../../../../ui/src/Terminal/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { errorWords, isRefusal, useLive } from "../mounts/live.ts";
@@ -17,10 +15,10 @@ import type { Entry } from "../rightpane/parts.tsx";
 import { LIST_SCREEN, STARS_SCREEN } from "./data.ts";
 import type { TerminalData } from "./data.ts";
 import { ago, chipLabel, ordered, sessionLine } from "./model.ts";
-import { closeSession, openSession, toggleStar } from "./session.ts";
+import { closeSession, toggleStar } from "./session.ts";
 import { openHostCall } from "./hosts.ts";
 import type { HostChoice } from "./hosts.ts";
-import { useHosts } from "./useHosts.ts";
+import { NO_HOST, useHostsRead } from "./useHosts.ts";
 
 type ListOut = CapMap["terminal.list"]["out"];
 type StarsOut = CapMap["stars.list"]["out"];
@@ -37,19 +35,13 @@ export function TerminalList({ data, x, y, onClose, window }: { data: TerminalDa
   const q = useLive<ListOut>(data.screens, LIST_SCREEN, "terminals", {});
   const stars = useLive<StarsOut>(data.screens, STARS_SCREEN, "stars", {});
   const menu = useMenu();
-  const hosts = useHosts(data);
+  const hostsRead = useHostsRead(data);
+  const hosts = hostsRead ?? [];
   const [line, setLine] = useState<string | null>(null);
   const deps = { call: data.call, newKey: data.newKey };
   const starred = new Set(stars.status === "ready" ? stars.data.stars.filter((s) => s.resource.type === "terminal").map((s) => s.resource.id) : []);
   const now = data.clock().now;
 
-  const openOn = (h: TerminalHost): void => {
-    const who = data.agent ? { agentId: data.agent.agentId, ...(data.agent.computerId ? { computerId: data.agent.computerId } : {}) } : {};
-    void openSession(deps, h, who).then(
-      (t) => { data.nav.openTerminal(t.terminalId); onClose(); },
-      (e: unknown) => setLine(h === "server" && isRefusal(e) ? "The Space server's shell needs server.services. Ask an Owner or a Developer." : errorWords(e, "Could not open it.")),
-    );
-  };
   const openOnHost = (h: HostChoice): void => {
     const c = openHostCall(h, data.newKey());
     void (data.call(c.cap, c.input) as Promise<{ terminal: { terminalId: string } }>).then(
@@ -58,17 +50,17 @@ export function TerminalList({ data, x, y, onClose, window }: { data: TerminalDa
     );
   };
   const newMenu = (px: number, py: number): void => {
-    // every computer the person has when it is known; the three kinds while it is still loading or cannot be read
+    // only the hosts the Space really has: this computer in the desktop app, the server in a Team Space, agent computers; a browser with none says where a terminal can open from
     const items: MenuEntry[] = [{ head: "New terminal on" }];
     if (hosts.length > 0) for (const h of hosts) items.push({ label: h.label, ...(h.online ? { onSelect: () => openOnHost(h) } : { disabled: true, reason: h.why ?? "Offline" }) });
-    else for (const k of TERMINAL_HOSTS) items.push({ label: HOST_NAMES[k], onSelect: () => openOn(k) });
+    else items.push({ label: hostsRead === null ? "Looking for computers" : "No computer here", disabled: true, reason: hostsRead === null ? "One moment" : NO_HOST });
     menu.show(items, px, py, "other", { label: "New terminal" });
   };
 
   const entries: Entry[] = [];
   if (q.status === "ready") {
     const rows = ordered(q.data.terminals);
-    if (rows.length === 0) entries.push({ key: "none", type: "empty", text: "No terminals yet. New terminal starts one on a host.", testID: "terminals-empty" });
+    if (rows.length === 0) entries.push({ key: "none", type: "empty", text: hostsRead !== null && hostsRead.length === 0 ? "No terminals yet. A terminal opens from the Vyre desktop app, or from a Team Space's server or agent computer." : "No terminals yet. New terminal starts one on a host.", testID: "terminals-empty" });
     for (const t of rows) {
       const on = starred.has(t.terminalId);
       const flip = (): void => { void toggleStar(deps, t.terminalId, !on).then((ok) => { if (!ok) setLine("Could not change the star."); }); };

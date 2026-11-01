@@ -15,26 +15,11 @@ import { fakePlatform } from "../host/src/platform/index.ts";
 import { loadConfig } from "../host/src/daemon/config.ts";
 import { CODE_ROOT, startDaemon } from "../host/src/daemon/daemon.ts";
 import { standIn } from "./memory-live-kit.ts";
-import { bindHost as bindTerminal } from "../modules/terminal/impl.ts";
-import type { TerminalHost } from "../modules/terminal/projections.ts";
 import { claimOnEdge, dismissOnboarding, edge } from "../apps/app/tests/real-app-harness.test.ts";
 
 const PASSWORD = "fixture password 123";
 const SHOTS = process.env["VYRE_WALK_SHOTS"] ?? "shots-evidence/personal-walk";
 
-/** A scripted terminal stands in for tmux, as in terminal.pane.journeys: the walk checks what a person sees, not the shell. */
-function scriptedTerminal(): TerminalHost {
-  const screens = new Map<string, string>();
-  return {
-    async open(a) { screens.set(a.terminalId, "$ "); return { cwd: "/home/olivia", title: "Space server" }; },
-    async input(id, data) { screens.set(id, (screens.get(id) ?? "") + data); },
-    async interrupt() {}, async resize() {},
-    async read(id, o) { const all = screens.get(id) ?? ""; return { text: all.slice(o.since ?? 0), next: all.length }; },
-    async run(_id, o) { return { exitCode: 0, output: `ran: ${o.command}`, truncated: false, durationMs: 5 }; },
-    async status(ids) { return ids.map((id) => ({ terminalId: id, state: "idle" as const, exitCode: null })); },
-    async close() {}, async health() { return { ok: true, sessions: screens.size }; },
-  };
-}
 
 test("a fresh Personal Space: the first hour works end to end in the real app", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
@@ -256,8 +241,7 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       assert.equal(await page.getByTestId("skin-preview").getAttribute("aria-label"), mode === "dark" ? "Preview of Graphite" : "Preview of Paper", `the System preview matches data-mode ${mode}`);
     });
 
-    bindTerminal(scriptedTerminal());
-    await step("Terminal: opens from the Space menu, from Search, and again", async () => {
+    await step("Terminal: opens from the Space menu and from Search, and again", async () => {
       await go("chat", "chats-place");
       const list = page.getByTestId("terminal-list");
       const openFromMenu = async (): Promise<void> => {
@@ -266,10 +250,15 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
         await list.waitFor({ timeout: 20_000 });
       };
       await openFromMenu();
-      // open one: the list's New, then the pane of that terminal
+      // a browser has no computer a terminal can open on: the list says where one can, and New offers no row that does nothing
+      await page.getByTestId("terminals-empty").waitFor({ timeout: 10_000 });
+      await page.getByText(/Vyre desktop app/).first().waitFor({ timeout: 10_000 });
       await page.getByTestId("terminal-new").first().click({ timeout: 10_000 });
-      await page.getByRole("menuitem", { name: "Space server", exact: true }).click({ timeout: 10_000 });
-      await page.getByTestId("terminal-tab").first().waitFor({ timeout: 20_000 });
+      await page.getByText("No computer here", { exact: true }).waitFor({ timeout: 10_000 });
+      assert.equal(await page.getByRole("menuitem", { name: "This computer", exact: true }).count(), 0, "no This computer row without a desktop device");
+      assert.equal(await page.getByRole("menuitem", { name: "Space server", exact: true }).count(), 0, "no Space server row in a Personal Space");
+      assert.equal(await page.getByRole("menuitem", { name: "Agent computer", exact: true }).count(), 0, "no Agent computer row without one");
+      await page.keyboard.press("Escape");
       // leave, then open again from Search
       await go("chat", "chats-place");
       await page.keyboard.press("Meta+k");
@@ -279,6 +268,17 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       // open, leave, open: the second open shows the list again
       await go("chat", "chats-place");
       await openFromMenu();
+    });
+
+    await step("Terminal: the chat pane's tab opens and says where a terminal can open from", async () => {
+      await go("chat", "chats-place");
+      const tab = page.getByTestId("tab-terminal").or(page.getByTestId("tab-terminal-selected")).first();
+      if (!(await tab.isVisible().catch(() => false))) await page.getByRole("button", { name: /pane/i }).first().click({ timeout: 10_000 });
+      await tab.waitFor({ timeout: 15_000 });
+      await tab.click({ timeout: 10_000 });
+      await page.getByTestId("pane-body-terminal").waitFor({ timeout: 15_000 });
+      await page.getByTestId("terminal-pane-open").click({ timeout: 10_000 });
+      await page.getByText(/No computer to open a terminal on/).waitFor({ timeout: 15_000 });   // a plain line, not a dead button
     });
   } finally {
     if (failures.length) {
@@ -290,7 +290,6 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
         console.log(`host log (errors): ${JSON.stringify(rows.map((r) => `${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 400)}`))}`);
       } catch (e) { console.log(`host log unreadable: ${String(e)}`); }
     }
-    bindTerminal(null);
     await browser.close(); web.close(); await daemon.stop(); fs.rmSync(dir, { recursive: true, force: true });
   }
   assert.deepEqual(errors, [], "no page errors");
