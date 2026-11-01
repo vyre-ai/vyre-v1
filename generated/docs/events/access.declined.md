@@ -25,5 +25,7 @@ type Payload = {
   };
   requester: string;
   note?: string;
+  threadId?: string;
+  agentId?: string;
 };
 ```

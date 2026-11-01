@@ -26,5 +26,7 @@ type Payload = {
   level: "view" | "use" | "edit" | "manage";
   requester: string;
   grantId: string;
+  threadId?: string;
+  agentId?: string;
 };
 ```
