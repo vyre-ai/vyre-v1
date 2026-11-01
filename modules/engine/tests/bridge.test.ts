@@ -327,5 +327,5 @@ test("what a turn started comes under its reply as cards, in one message, in the
   const posts = s.chat.filter((r) => r.author.id === LEAD);
   assert.equal(posts.length, 1, "one reply, not a pile");
   assert.equal(posts[0]?.body, "Done, I made both.");
-  assert.deepEqual((posts[0]!.blocks as { type: string; data: { lead: string; title: string } }[]).map((b) => `${b.type}:${b.data.lead}:${b.data.title}`), ["link_card:Record created:Dana Fox", "link_card:Task created:Call Dana"]);
+  assert.deepEqual((posts[0]!.blocks as { type: string; data: { lead: string; title: string } }[]).map((b) => `${b.type}:${b.data.lead}:${b.data.title}`), ["link_card:Record:Dana Fox", "link_card:Task:Call Dana"]);
 });

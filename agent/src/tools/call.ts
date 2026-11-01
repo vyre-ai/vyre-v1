@@ -148,7 +148,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
     try {
       const res = await deps.invoke(t.cap, isDynamic && deps.dynamic ? deps.dynamic.input(ctx, t, input) : input, seed);
       if (res.status === "held") {
-        recordWork(ctx.turnId, heldCard(t.cap, res.taskId));
+        recordWork(ctx.turnId, heldCard(t.cap, res.taskId, input));
         return {
           kind: "held", taskId: res.taskId, traceId: res.traceId, ...(res.runId === undefined ? {} : { runId: res.runId }),
           result: { ok: false, content: { held: true, taskId: res.taskId, message: "Waiting for approval." } },

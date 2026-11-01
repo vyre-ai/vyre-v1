@@ -1,9 +1,9 @@
 // The work a turn started, as link cards (rc.9, "all work appears as a card in the chat you are in"). Each tool call that makes something a person would want to find again (a task, a Run, a record, a file,
 // a Routine, a handoff, a computer, a send waiting on a yes) is noted against its turn here, and the bridge puts the cards under the agent's reply when the turn ends, so several from one turn are one group
 // under the words, not a pile. The card carries only a name and where it lives; its state (running, done, waiting on you) and whether the reader may see it are read by the app when it draws the card.
-import type { LinkCardData } from "../../../ui/src/blocks/link-card/model.ts";
 
-export interface WorkCard extends LinkCardData { /** one card per thing: a record changed twice is one card */ key: string }
+/** The link_card block fields a work card fills (the agent layer cannot import ui; the shape is the link_card block's). */
+export interface WorkCard { icon: string; lead: string; title: string; target: { type: string; id: string }; via?: string; /** one card per thing: a record changed twice is one card */ key: string }
 
 const rec = (v: unknown): Record<string, unknown> => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const s = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -22,42 +22,45 @@ export function workCardOf(cap: string, input: unknown, output: unknown): WorkCa
   switch (cap) {
     case "tasks.create": {
       const t = rec(o["task"]);
-      return s(t["id"]) ? { key: `task:${s(t["id"])}`, icon: "task", lead: "Task created", title: clip(first(t["title"], i["title"], "A task")), target: { type: "task", id: s(t["id"]) } } : null;
+      return s(t["id"]) ? { key: `task:${s(t["id"])}`, icon: "task", lead: "Task", title: clip(first(t["title"], i["title"], "A task")), target: { type: "task", id: s(t["id"]) } } : null;
     }
     case "automations.run": case "automations.test": {
       const id = s(o["runId"]);
-      return id ? { key: `run:${id}`, icon: "run", lead: cap === "automations.test" ? "Test started" : "Run started", title: clip(first(i["name"], "A Flow")), target: { type: "run", id } } : null;
+      return id ? { key: `run:${id}`, icon: "run", lead: cap === "automations.test" ? "Test" : "Run", title: clip(first(i["name"], "A Flow")), target: { type: "run", id } } : null;
     }
     case "records.create": case "records.update": {
       const r = rec(o["record"]);
       const id = s(r["id"]);
-      return id ? { key: `record:${id}`, icon: "record", lead: cap === "records.create" ? "Record created" : "Record changed", title: clip(recordName(r) || "A record"), target: { type: "record", id }, via: s(r["type"]) || s(i["type"]) } : null;
+      return id ? { key: `record:${id}`, icon: "record", lead: "Record", title: clip(recordName(r) || "A record"), target: { type: "record", id }, via: s(r["type"]) || s(i["type"]) } : null;
     }
     case "files.create": {
       const f = rec(o["file"]);
-      return s(f["fileId"]) ? { key: `file:${s(f["fileId"])}`, icon: "file", lead: "File made", title: clip(first(f["name"], i["name"], "A file")), target: { type: "file", id: s(f["fileId"]) } } : null;
+      return s(f["fileId"]) ? { key: `file:${s(f["fileId"])}`, icon: "file", lead: "File", title: clip(first(f["name"], i["name"], "A file")), target: { type: "file", id: s(f["fileId"]) } } : null;
     }
     case "agents.routine.save": {
       const r = rec(o["routine"]);
-      return s(r["routineId"]) ? { key: `routine:${s(r["routineId"])}`, icon: "run", lead: "Routine saved", title: clip(first(r["title"], i["title"], "A Routine")), ...(s(i["agentId"]) ? { target: { type: "agent", id: s(i["agentId"]) } } : {}) } : null;
+      return s(r["routineId"]) ? { key: `routine:${s(r["routineId"])}`, icon: "routine", lead: "Routine", title: clip(first(r["title"], i["title"], "A Routine")), ...(s(i["agentId"]) ? { target: { type: "agent", id: s(i["agentId"]) } } : {}) } : null;
     }
     case "chat.handoff": {
       const t = rec(rec(o["thread"])["thread"] ?? o["thread"]);
       const id = s(t["threadId"]);
-      return id ? { key: `thread:${id}`, icon: "thread", lead: "Handed off", title: clip(first(t["title"], "A linked thread")), target: { type: "thread", id } } : null;
+      return id ? { key: `thread:${id}`, icon: "thread", lead: "Handoff", title: clip(first(t["title"], "A linked thread")), target: { type: "thread", id } } : null;
     }
     case "computers.provision": {
       const c = rec(o["computer"]);
-      return s(c["computerId"]) ? { key: `computer:${s(c["computerId"])}`, icon: "computer", lead: "Computer ready", title: clip(first(c["name"], "Agent computer")), target: { type: "computer", id: s(c["computerId"]) } } : null;
+      return s(c["computerId"]) ? { key: `computer:${s(c["computerId"])}`, icon: "computer", lead: "Computer", title: clip(first(c["name"], "Agent computer")), target: { type: "computer", id: s(c["computerId"]) } } : null;
     }
     default: return null;
   }
 }
 
-/** A call a person must say yes to: the card is the one place in the chat that says so and opens the task. */
-export function heldCard(cap: string, taskId: string): WorkCard {
+/** A call a person must say yes to: the card is the one place in the chat that names it and opens the task. A send is named by its subject (else its recipient); anything else by the capability in words. */
+export function heldCard(cap: string, taskId: string, input?: unknown): WorkCard {
+  const i = rec(input);
   const send = /(^|\.)send($|_)/.test(cap) || cap.startsWith("mail.");
-  return { key: `task:${taskId}`, icon: "task", lead: "Held for you", title: send ? "A message to send" : "A step to approve", target: { type: "task", id: taskId } };
+  const to = Array.isArray(i["to"]) ? s(rec((i["to"] as unknown[])[0])["address"]) : "";
+  const title = send ? clip(first(i["subject"], to ? `To ${to}` : "", "Message to send")) : clip(cap.replace(/[._]/g, " "));
+  return { key: `task:${taskId}`, icon: "approval", lead: send ? "Message" : "Approval", title, target: { type: "task", id: taskId } };
 }
 
 const WORK = new Map<string, Map<string, WorkCard>>();
