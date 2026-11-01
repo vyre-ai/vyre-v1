@@ -36,7 +36,7 @@ const indexRow = t.obj({
 });
 const planChild = t.obj({
   key: t.str({ minLength: 1, maxLength: 60, examples: ['draft'] }), title: t.str({ minLength: 1 }), brief: t.opt(t.str()), doneMeans: t.opt(t.arr(t.str({ minLength: 1 }), { maxItems: 20 })),
-  assigned, reviewer: t.opt(assignee), approver: t.opt(assignee), dependsOn: t.opt(t.arr(t.str(), { maxItems: 50 })), due: t.opt(t.ts()), priority: t.opt(priority),
+  assigned: assignee, reviewer: t.opt(assignee), approver: t.opt(assignee), dependsOn: t.opt(t.arr(t.str(), { maxItems: 50 })), due: t.opt(t.ts()), priority: t.opt(priority),
   worker: t.opt(t.enm('thread', 'crew')), projectId: t.opt(id.project),
 });
 const target = { taskId: id.task };
@@ -110,7 +110,7 @@ export default defineManifest({
       tool: 'tasks', label: 'filter', cli: 'vyre tasks needs-you',
     }),
     read('tasks.index', 'The long list of a scope in one read: a light row per task with its rollup, ordered newest first; pass the last rev and an unchanged list answers nothing', {
-      in: { scope: t.enm('mine', 'given', 'everyone'), recordId: t.opt(id.record), done: t.opt(t.bool()), rev: t.opt(t.str()) },
+      in: { scope: t.enm('mine', 'given', 'everyone'), recordId: t.opt(id.record), parentTaskId: t.opt(id.task), done: t.opt(t.bool()), rev: t.opt(t.str()) },
       out: { rev: t.str(), unchanged: t.bool(), rows: t.arr(indexRow), doneThisWeek: t.int(), total: t.int() }, tool: 'tasks', label: 'filter',
     }),
     read('tasks.rev', 'A short mark that changes whenever any task changes, for a screen that holds a long list', { in: {}, out: { rev: t.str() } }),
