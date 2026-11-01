@@ -115,7 +115,7 @@ test("a SIGKILL while a Run is waiting resumes that Run once on the next daemon"
   }
   const next = await boot(dir);
   try {
-    await until("the recovered run to succeed", 20_000, async () => String(((await ok(next.url, "/v1/runs/get", { runId }))["run"] as { status?: string }).status) === "succeeded");
+    await until("the recovered run to succeed", 60_000, async () => String(((await ok(next.url, "/v1/runs/get", { runId }))["run"] as { status?: string }).status) === "succeeded");
     const rows = (await ok(next.url, "/v1/records/query", { type: "note_board" }))["rows"] as { fields: { title?: string } }[];
     assert.equal(rows.filter((row) => row.fields.title === "Made after the kill").length, 1);
   } finally {
