@@ -12,6 +12,7 @@ import { isItem } from "../../../../../../ui/src/Menu/props.ts";
 import { ActivityLine, LiveBody } from "./ActivityLine.tsx";
 import { MarkdownBlocks, StreamText } from "../../../../../../ui/src/stream/index.ts";
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
+import { KeptAside } from "./KeptAside.tsx";
 import { LinkCard } from "../../../../../../ui/src/blocks/link-card/LinkCard.tsx";
 import { linkCardOf } from "../../../../../../ui/src/blocks/link-card/model.ts";
 import type { LinkCardData } from "../../../../../../ui/src/blocks/link-card/model.ts";
@@ -125,6 +126,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
   if (item.kind === "day") return <Text testID={`day-${item.key}`} accessibilityRole="header" style={st.day}>{item.label}</Text>;
   if (item.kind === "event") {
     const link = linkCardOf(item.message.blocks.find((x) => x.type === "link_card") ?? { type: "", data: null });
+    if (link && link.lead === "Aside" && link.body) return <KeptAside id={item.message.messageId} question={link.title} body={link.body} time={item.time} />;
     if (link) {
       const b = item.message.blocks.find((x) => x.type === "link_card")!;
       return (

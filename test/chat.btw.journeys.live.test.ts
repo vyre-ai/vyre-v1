@@ -51,8 +51,9 @@ test("/btw: the slash menu lists it, the aside answers on the side while the mai
     await me.page.getByTestId("composer-send").click();
     await me.page.locator('[data-testid^="aside-question-"]').first().waitFor({ timeout: 10_000 });
     assert.match(await me.page.locator('[data-testid^="aside-question-"]').first().innerText(), /what is the deadline/);
-    assert.ok(await me.page.getByText("Aside", { exact: true }).first().isVisible(), "marked as an aside");
-    assert.ok(await me.page.getByText(/Only you see this/).first().isVisible());
+    assert.ok(await me.page.locator('[data-testid^="aside-lock-"]').first().isVisible(), "marked as private: the lock that says only you see this");
+    assert.equal(await me.page.locator('[data-testid^="aside-lock-"]').first().getAttribute("aria-label"), "Only you see this");
+    assert.equal(await me.page.locator('[data-testid^="aside-lock-"]').first().getAttribute("title"), "Only you see this", "the sentence moved into the lock's tooltip");
     await me.page.locator('[data-testid^="aside-answer-"]').getByText(/Aside answer/).first().waitFor({ timeout: 30_000 });
     await shoot(me.page, dir, "aside-answering", { phone: false });
 
@@ -71,10 +72,18 @@ test("/btw: the slash menu lists it, the aside answers on the side while the mai
     await me.page.locator('[data-testid^="aside-keep-"]').first().click();
     await me.page.getByText(/Aside: what is the deadline|Aside by/).first().waitFor({ timeout: 15_000 }).catch(() => undefined);
     await me.page.waitForFunction(() => document.body.innerText.includes("Aside answer to what is the deadline"), undefined, { timeout: 15_000 });
+    assert.equal(await me.page.locator('[data-testid^="kept-aside-"]').first().count(), 1, "the kept answer is a quiet note in the chat");
+    assert.ok(!(await me.page.locator('[data-testid^="kept-aside-body-"]').first().innerText()).includes("**"), "no raw markdown in the kept answer");
     await shoot(me.page, dir, "aside-kept", { phone: false });
 
-    // Dismiss puts the card away
+    // Keep takes the card away once it has said Kept
+    await me.page.locator('[data-testid^="aside-question-"]').first().waitFor({ state: "detached", timeout: 10_000 });
+    // Dismiss puts the card away: a second aside, closed with its X
+    await field.fill("/btw and the budget");
+    await me.page.getByTestId("composer-send").click();
+    await me.page.locator('[data-testid^="aside-question-"]').first().waitFor({ timeout: 10_000 });
     await me.page.locator('[data-testid^="aside-dismiss-"]').first().click();
+    await me.page.locator('[data-testid^="aside-question-"]').first().waitFor({ state: "detached", timeout: 5_000 });   // the card slides away in 140 ms
     assert.equal(await me.page.locator('[data-testid^="aside-question-"]').count(), 0, "the aside card is gone");
     // the same on a phone: its own pass at the end, because the phone width draws another shell and an aside lives in the chat on screen
     await me.page.setViewportSize({ width: 390, height: 844 });
