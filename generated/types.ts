@@ -7664,6 +7664,7 @@ export type ConnectorsGetOut = {
         create?: string;
         update?: string;
         delete?: string;
+        since?: boolean;
       }>;
     sourceFolderId?: string;
   };
@@ -7716,6 +7717,7 @@ export type ConnectorsListOut = {
           create?: string;
           update?: string;
           delete?: string;
+          since?: boolean;
         }>;
       sourceFolderId?: string;
     }>;
