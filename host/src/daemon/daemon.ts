@@ -1241,6 +1241,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         for (const row of db!.all("SELECT id, owner FROM vault_folder WHERE deleted_at IS NULL") as { id: string; owner: string | null }[]) await registerVaultFolder(row.id, row.owner);
       } catch { /* a Space without a Vault has no table to repair */ }
 
+      // Conversations opened before their births registered them (an older Space): make each nameable, as a new one is. Mail messages are registered the first time a call names one.
+      try { for (const row of db!.all("SELECT id FROM inbox_conversation WHERE deleted_at IS NULL") as { id: string }[]) await ensureRow("conversation", row.id); } catch { /* a Space without an Inbox has no table to repair */ }
+
       // Runs the last server left queued or running are driven again from their step log (P-L6_24). Started, not awaited: boot does not wait for a Run, and shutdown waits for it.
       if (loaded.serving.get("runs") === "live") {
         const recovering = runsHost.recover().catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "runs.recover_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));

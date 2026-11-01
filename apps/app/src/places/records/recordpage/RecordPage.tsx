@@ -29,7 +29,7 @@ import { TabMeasure, useFittedTabs, useTitleWidths } from "../../chats/rightpane
 import { PANE_CHROME, PANE_TAB_EXTRA } from "../../chats/rightpane/ChatRightPane.tsx";
 import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import { channelFieldToAdd, findContact } from "./askfor.ts";
-import { ActivityTab, ChatTab, CommentsTab, FilesTab } from "../recordpane/index.ts";
+import { ActivityTab, ChatTab, CommentsTab, EverythingTab, FilesTab } from "../recordpane/index.ts";
 import type { FieldDef, PaneKey, RecordRow, RelNode, Section, TypeDef, Undo } from "./model.ts";
 import { SealedField } from "./SealedField.tsx";
 
@@ -214,7 +214,8 @@ function Pane({ type, row, def, tab, onTab, phone = false }: { type: string; row
   let body: ReactElement;
   // Comments and Chat fill the pane's height (a field at the bottom); the other tabs scroll
   let fill = false;
-  if (tab === "activity") body = <ActivityTab type={type} recordId={row.id} def={def} />;
+  if (tab === "everything") body = <EverythingTab type={type} recordId={row.id} def={def} onComments={() => onTab("comments")} />;
+  else if (tab === "activity") body = <ActivityTab type={type} recordId={row.id} def={def} />;
   else if (tab === "comments") { fill = true; body = <CommentsTab type={type} recordId={row.id} />; }
   else if (tab === "chat") { fill = true; body = <ChatTab type={type} recordId={row.id} />; }
   else if (tab === "files") { fill = true; body = <FilesTab type={type} recordId={row.id} title={String(row.fields[def.titleField] ?? row.id)} {...(typeof row.fields["folder"] === "string" ? { fieldFolder: row.fields["folder"] as string } : {})} />; }
@@ -276,7 +277,7 @@ function PageBody({ type, recordId, start = {} }: RecordPageProps): ReactElement
   const [flash, setFlash] = useState<Flash | null>(null);
   const [all, setAll] = useState(start.all === true || start.edit !== undefined);
   const [pane, setPane] = useState<boolean | null>(start.pane ?? null);
-  const [tab, setTab] = useState<PaneKey>(start.tab ?? "activity");
+  const [tab, setTab] = useState<PaneKey>(start.tab ?? "everything");
   const busy = useRef(false);
   // the right pane (its three reads and its rows) comes after the first paint on a screen (late, above); a server render or a test has no frames, so it is there at once
   useEffect(() => {
