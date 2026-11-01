@@ -184,10 +184,33 @@ export function createContextBuilder(d: ContextDeps) {
 
   async function scopeLine(scopeType: string | undefined, scopeId: string | undefined, asker: string): Promise<string | undefined> {
     if (!scopeType || !scopeId) return undefined;
-    let title: string | undefined;
-    if (scopeType === "project") title = str(((await read<Obj>("projects.get", { projectId: scopeId }, asker))?.["project"] as Obj | undefined)?.["title"]);
-    else if (scopeType === "task") title = str(((await read<Obj>("tasks.get", { taskId: scopeId }, asker))?.["task"] as Obj | undefined)?.["title"]);
+    const title = await scopeTitle(scopeType, scopeId, asker);
     return `about ${scopeType} ${scopeId}${title ? ` "${one(title, 80)}"` : ""}`;
+  }
+
+  /**
+   * What an Ask or comment thread is about, in words: the name of the project, task, record, file, folder, automation or agent, read as the asker (an object they cannot see gives no name). A record
+   * is named by its type and the first of its title, name or subject fields. No field value beyond that one line is put in the context: the agent reads the rest with its own tools.
+   */
+  async function scopeTitle(scopeType: string, scopeId: string, asker: string): Promise<string | undefined> {
+    const got = (out: Obj | undefined, key: string): Obj | undefined => out?.[key] as Obj | undefined;
+    switch (scopeType) {
+      case "project": return str(got(await read<Obj>("projects.get", { projectId: scopeId }, asker), "project")?.["title"]);
+      case "task": return str(got(await read<Obj>("tasks.get", { taskId: scopeId }, asker), "task")?.["title"]);
+      case "file": return str(got(await read<Obj>("files.get", { fileId: scopeId }, asker), "file")?.["name"]);
+      case "folder": return str(got(await read<Obj>("files.folder.get", { folderId: scopeId }, asker), "folder")?.["name"]);
+      case "automation": return str(got(await read<Obj>("automations.get", { automationId: scopeId }, asker), "automation")?.["name"]);
+      case "agent": return str(got(await read<Obj>("agents.get", { agentId: scopeId }, asker), "agent")?.["name"]);
+      case "record": {
+        const rec = got(await read<Obj>("records.get", { recordId: scopeId }, asker), "record");
+        if (!rec) return undefined;
+        const fields = (rec["fields"] as Obj | undefined) ?? {};
+        const name = ["title", "name", "subject", "label", "full_name"].map((k) => str(fields[k])).find((v) => v !== undefined);
+        const type = str(rec["type"]);
+        return name ? `${type ? `${type}: ` : ""}${name}` : type;
+      }
+      default: return undefined;
+    }
   }
 
   /**

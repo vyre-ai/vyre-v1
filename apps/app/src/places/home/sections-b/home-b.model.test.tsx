@@ -134,3 +134,18 @@ test("no copy in the model uses an em dash", () => {
   const text = [...rows.map((r) => `${r.title} ${r.note} ${r.action}`), ...todayRows(northwindEvents, clock).map((r) => r.note), ...starRows(northwindStars, northwindTerminals).map((r) => r.note)].join(" ");
   assert.ok(!text.includes(dash));
 });
+
+test("startAsk: a plain question is the first message; mentions and linked things post as a message so they are not flattened to text", async () => {
+  const { startAsk } = await import("./actions.ts");
+  const calls: { cap: string; input: Record<string, unknown> }[] = [];
+  const deps = { call: async (cap: string, input: unknown) => { calls.push({ cap, input: input as Record<string, unknown> }); return { thread: { threadId: "thr_1" } }; }, note: () => undefined };
+  assert.equal(await startAsk(deps, "agt_a", "what is due", 1), "thr_1");
+  assert.deepEqual(calls.map((c) => c.cap), ["chat.start"]);
+  assert.equal(calls[0]!.input["first"], "what is due");
+  calls.length = 0;
+  assert.equal(await startAsk(deps, "agt_a", "ask @Docs about #Hart", 2, { mentions: [{ kind: "agent", id: "agt_docs" }], refs: [{ kind: "record", id: "rec_1", title: "Hart" }] }), "thr_1");
+  assert.deepEqual(calls.map((c) => c.cap), ["chat.start", "chat.post"]);
+  assert.equal(calls[0]!.input["first"], undefined);
+  assert.deepEqual(calls[1]!.input["mentions"], [{ kind: "agent", id: "agt_docs" }]);
+  assert.deepEqual((calls[1]!.input["blocks"] as { type: string }[])[0]!.type, "refs");
+});

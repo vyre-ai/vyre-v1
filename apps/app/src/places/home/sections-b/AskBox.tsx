@@ -5,6 +5,7 @@ import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from
 import type { ViewStyle } from "react-native";
 import { AskButton } from "../../../../../../ui/src/AskButton/index.tsx";
 import type { AskAgent } from "../../../../../../ui/src/AskButton/index.tsx";
+import { mentionsIn } from "../../chats/conversation/model.ts";
 import type { ComposerSend } from "../../../../../../ui/src/Composer/index.tsx";
 import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/Deferred.tsx";
 import { useHomeData, useHomeLine, usePrincipals } from "../sections-a/data.tsx";
@@ -34,8 +35,13 @@ export function AskBox(): ReactElement {
   const send = (p: ComposerSend): void => {
     const text = askText(p.text);
     if (text === null) return;
-    void startAsk({ call: data.call, note: line.note }, picked.id, text, data.clock().now).then((thread) => {
-      if (thread !== null) data.nav.openSubject({ type: "thread", id: thread });
+    // what the composer holds beyond the words travels with them: @names become mentions and # links become refs, as in Chats. Files cannot be sent from here, so the person is told, never left to think they went.
+    const mentions = mentionsIn(p.text, people.list.filter((x) => (x.kind === "person" || x.kind === "agent") && x.id !== data.me.id).map((x) => ({ id: x.id, name: x.name, kind: x.kind as "person" | "agent" })));
+    const refs = [...p.refs, ...p.chips.flatMap((c) => (c.id !== undefined ? [{ kind: c.kind.toLowerCase(), id: c.id, title: c.name }] : []))];
+    void startAsk({ call: data.call, note: line.note }, picked.id, text, data.clock().now, { mentions, refs }).then((thread) => {
+      if (thread === null) return;
+      if (p.files.length > 0) line.note("Your files were not sent from Home. Add them in the chat.", () => undefined);
+      data.nav.openSubject({ type: "thread", id: thread });
     });
   };
 
