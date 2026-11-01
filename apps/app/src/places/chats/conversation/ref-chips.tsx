@@ -3,7 +3,9 @@
 // when it cannot (gone, or not yours to open), the text says "a record" rather than the id.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import type { RenderLink } from "../../../../../../ui/src/stream/index.ts";
+import { MarkdownBlocks, useStream } from "../../../../../../ui/src/stream/index.ts";
+import type { RenderLink, StreamStore } from "../../../../../../ui/src/stream/index.ts";
+import type { Block, Inline } from "../../../../../../ui/src/stream/markdown.ts";
 import { LinkPiece, preview } from "./attachments.tsx";
 import type { ConversationData } from "./model.ts";
 
@@ -70,4 +72,60 @@ export function useRefChips(body: string, data: Data | undefined): { body: strin
     return title ? <LinkPiece key={key} r={{ ...r, title }} data={data} /> : <>{children}</>;
   }), [data, ids, names, named]);
   return { body: shown, renderLink };
+}
+
+const mapInline = (items: readonly Inline[], f: (text: string) => Inline[]): Inline[] => {
+  const merged: Inline[] = [];
+  for (const n of items) {
+    const last = merged[merged.length - 1];
+    if (n.t === "text" && last?.t === "text") merged[merged.length - 1] = { t: "text", v: last.v + n.v };
+    else merged.push(n);
+  }
+  return merged.flatMap((n): Inline[] => (n.t === "text" ? f(n.v) : n.t === "strong" || n.t === "em" ? [{ ...n, c: mapInline(n.c, f) }] : [n]));
+};
+
+/** Text nodes of parsed blocks with each id (or [[Name|id]]) cut out as a chip link. Code is never touched. */
+export function refBlocks(blocks: readonly Block[], names: ReadonlyMap<string, string | null>): Block[] {
+  const both = new RegExp(`${NAMED.source}|${ID.source}`, "g");
+  const cut = (text: string): Inline[] => {
+    const out: Inline[] = [];
+    let at = 0;
+    for (const m of text.matchAll(both)) {
+      const i = m.index ?? 0;
+      if (i > at) out.push({ t: "text", v: text.slice(at, i) });
+      const id = m[2] ?? m[0];
+      const kind = KIND_OF[id.split("_")[0]!.toLowerCase()]!;
+      out.push({ t: "link", href: `${HOST}${kind}/${id}`, c: [{ t: "text", v: m[1]?.trim() ?? names.get(id) ?? NAME_OF[kind] ?? "a link" }] });
+      at = i + m[0].length;
+    }
+    if (at < text.length) out.push({ t: "text", v: text.slice(at) });
+    return out;
+  };
+  return blocks.map((b): Block => (b.kind === "p" || b.kind === "h" || b.kind === "quote" ? { ...b, inline: mapInline(b.inline, cut) } : b.kind === "ul" || b.kind === "ol" ? { ...b, items: b.items.map((it) => mapInline(it, cut)) } : b));
+}
+
+const textOf = (items: readonly Inline[]): string => items.map((n) => (n.t === "text" ? n.v : n.t === "strong" || n.t === "em" ? textOf(n.c) : "")).join("");
+const blockText = (b: Block): string => (b.kind === "p" || b.kind === "h" || b.kind === "quote" ? textOf(b.inline) : b.kind === "ul" || b.kind === "ol" ? b.items.map(textOf).join("\n") : "");
+
+/** A reply that is still being written (or an aside): the stream's text with ids drawn as names, the same as a saved reply. */
+export function RefStreamText({ store, data }: { store: StreamStore; data: Data }) {
+  const snap = useStream(store);
+  const text = snap.blocks.map(blockText).join("\n");
+  const ids = useMemo(() => idsIn(text), [text]);
+  const [names, setNames] = useState<ReadonlyMap<string, string | null>>(new Map());
+  useEffect(() => {
+    const todo = ids.filter((r) => !names.has(r.id));
+    if (todo.length === 0) return;
+    let live = true;
+    void Promise.all(todo.map(async (r) => [r.id, (await preview(data, { ...r, title: "" }))?.title ?? null] as const)).then((rows) => { if (live) setNames((cur) => new Map([...cur, ...rows])); });
+    return () => { live = false; };
+  }, [data, ids, names]);
+  const blocks = useMemo(() => (text.includes("_") || text.includes("[[") ? refBlocks(snap.blocks, names) : snap.blocks), [snap.blocks, names, text]);
+  const renderLink = useMemo<RenderLink>(() => (href: string, children: ReactNode, key: number) => {
+    const r = refOfHref(href);
+    if (!r) return null;
+    const title = names.get(r.id) ?? (typeof children === "string" ? children : undefined);
+    return title ? <LinkPiece key={key} r={{ ...r, title }} data={data} /> : <>{children}</>;
+  }, [data, names]);
+  return <MarkdownBlocks blocks={blocks} streaming={!snap.done} renderLink={renderLink} />;
 }

@@ -9,8 +9,10 @@ import { activityLine, elapsedWords, stepLabel, thinkingExcerpt } from "./activi
 import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
 import { useStream } from "../../../../../../ui/src/stream/useStream.ts";
-import { StreamText, createStreamStore } from "../../../../../../ui/src/stream/index.ts";
+import { createStreamStore } from "../../../../../../ui/src/stream/index.ts";
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
+import { useConversationData } from "./data.tsx";
+import { RefStreamText } from "./ref-chips.tsx";
 
 const CSS = [
   "@keyframes vy-shimmer{from{background-position:200% 0}to{background-position:-200% 0}}",
@@ -33,8 +35,9 @@ const web = (cls: string, children: string): ReactElement | string => (Platform.
 /** The body of a reply being written. Before its first word, while the activity line says what the agent is doing, it draws nothing: the line takes that spot and there is no lone caret on an empty line. */
 export function LiveBody({ store, hideEmpty, testID, style }: { store: StreamStore; hideEmpty: boolean; testID: string; style: object }): ReactElement | null {
   const snap = useStream(store);
+  const data = useConversationData();
   if (hideEmpty && snap.blocks.length === 0 && !snap.done) return null;
-  return <View testID={testID} style={style}><StreamText store={store} /></View>;
+  return <View testID={testID} style={style}><RefStreamText store={store} data={data} /></View>;
 }
 
 export function ActivityLine({ store, stream }: { store: ActivityStore; stream?: StreamStore | undefined }): ReactElement {

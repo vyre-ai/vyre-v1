@@ -26,3 +26,13 @@ test("the form agents are told to write, [[Name|id]], shows the name as a link a
   assert.deepEqual(idsIn(text), []);
   assert.equal(withNames(text, new Map()), "Updated [Rivera Holdings](https://ref.vyre.invalid/record/" + REC + ") today.");
 });
+
+test("blocks of a streaming reply: an id or [[Name|id]] in a text node becomes a chip link, code is untouched", async () => {
+  const { refBlocks } = await import("./ref-chips.tsx");
+  const blocks = [{ kind: "p" as const, key: "a", inline: [{ t: "text" as const, v: `Opened [[Dana Fox|${REC}]] and ` }, { t: "text" as const, v: `${REC}.` }, { t: "code" as const, v: REC }] }];
+  const out = refBlocks(blocks, new Map([[REC, "Dana Fox"]]));
+  const inl = (out[0] as { inline: Array<{ t: string; href?: string; c?: Array<{ v: string }>; v?: string }> }).inline;
+  assert.deepEqual(inl.filter((n) => n.t === "link").map((n) => n.c![0]!.v), ["Dana Fox", "Dana Fox"]);
+  assert.ok(inl.some((n) => n.t === "code" && n.v === REC), "code stays as written");
+  assert.ok(!JSON.stringify(inl.filter((n) => n.t === "text")).includes("rec_"), "no raw id in the words");
+});

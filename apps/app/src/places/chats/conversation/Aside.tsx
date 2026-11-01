@@ -7,6 +7,7 @@ import { StreamText, createStreamStore } from "../../../../../../ui/src/stream/i
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
 import { TextButton } from "./parts.tsx";
 import { ActivityLine } from "./ActivityLine.tsx";
+import { RefStreamText } from "./ref-chips.tsx";
 import { useConversationData } from "./data.tsx";
 import * as act from "./actions.ts";
 
@@ -71,7 +72,7 @@ export function AsideCard({ item, onDismiss }: { item: AsideItem; onDismiss: (id
       </View>
       <Text numberOfLines={2} testID={`aside-question-${item.id}`} style={st.question}>{item.question}</Text>
       <View testID={`aside-answer-${item.id}`} style={st.answer}>
-        {store ? <StreamText store={store} /> : null}
+        {store ? <RefStreamText store={store} data={data} /> : null}
         {!answered && turn && data.activityOf?.(turn.messageId ?? `turn:${turn.turnId}`) ? <ActivityLine store={data.activityOf(turn.messageId ?? `turn:${turn.turnId}`)!} /> : !store ? <Text style={st.thinking}>Thinking</Text> : null}
       </View>
       {problem !== "" ? <Text style={st.problem}>{problem}</Text> : null}

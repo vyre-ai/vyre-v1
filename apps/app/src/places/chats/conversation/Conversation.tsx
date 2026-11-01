@@ -393,7 +393,7 @@ function ConversationView(): ReactElement {
     const id = (typeof x === "string" ? undefined : x.ref) ?? dirId(name, kind);
     const base = typeof x === "string" ? { t: x } : x;
     const where = kind === "agent"
-      ? (id && inThread.has(id) ? (inThread.get(id) === "lead" ? "Leads this chat" : "Listening") : "Not in this chat yet")
+      ? (id && inThread.has(id) ? (inThread.size === 1 ? "In this chat" : inThread.get(id) === "lead" ? "Replies to everything" : "Only when @mentioned") : "Not in this chat yet")
       : (id && thread.members.some((m) => m.id === id) ? "In this chat" : "Not in this chat");
     return { ...base, kind: kind === "agent" ? "Agent" : "Person", ...(id ? { ref: id } : {}), s: base.s ? `${base.s} \u00b7 ${where}` : where };
   };
