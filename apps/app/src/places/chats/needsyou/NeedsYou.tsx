@@ -219,7 +219,7 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
   const mail = heldMail(t);
   // a held send shows the draft with its record; the raw block would show only its type
   if (mail) blockNodes.push(<HeldMailCard key="held-mail" mail={mail} call={data.call} onOpenRecord={(id) => data.nav.openSource("record", id)} />);
-  else for (const [i, b] of t.blocks.entries()) blockNodes.push(<Block key={`${b.type}-${i}`} view={blockView(b)} />);
+  else for (const [i, b] of t.blocks.entries()) if (b.type !== "vault_request" && b.type !== "access_request") blockNodes.push(<Block key={`${b.type}-${i}`} view={blockView(b)} />);
   const moreButtons: ReactElement[] = [];
   for (const m of actions.more) moreButtons.push(<Button key={m.key} label={labelOf(mail, m)} onPress={() => onAct(m)} testID={`needs-action-${m.key}`} />);
   const noAccount = isNoAccount(t);

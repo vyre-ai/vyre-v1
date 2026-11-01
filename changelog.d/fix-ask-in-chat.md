@@ -1,3 +1,5 @@
 When an agent in a chat needs a key from you, the ask now appears in that chat as a card: paste the key into a secure field and it goes straight to the Vault (never into a message), or decline. When you add it, the agent carries on by itself in the same chat and says so. Needs you keeps a linked row with an "Open the chat" button, and the row clears when the card is done. The card and the row read "Fathom key needed" instead of "The key Fathom is needed", the row says who asked instead of "From a person", and no longer says only a manager of the Vault can supply the key.
 
 "Provide the key" in Needs you now opens the key field and saves the key before the request closes; a request can no longer be closed without a key. An access request's Approve now grants the access instead of only closing the card.
+
+An access request asked from a chat now lands in that chat as a card with Approve and Decline for the people who can decide it. When someone other than the asker adds a key, the agent still carries on in the asker's chat: the host tells it, as the person who asked.

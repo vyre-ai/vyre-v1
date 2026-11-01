@@ -10,6 +10,8 @@ import type { AccessCtx, AccessStore, GrantRec, ResourceRef } from "../projectio
 /** The part of the host Ctx these handlers use besides AccessCtx. */
 export interface AskCtx extends AccessCtx {
   actingFor?: string;
+  /** The chat the ask was made from, when it was made in one. */
+  thread?: string;
   call(cap: string, input: unknown): Promise<unknown>;
   log: { warn(msg: string, attrs?: Record<string, unknown>): void };
 }
@@ -133,6 +135,11 @@ export async function requestCreate(ctx: AskCtx, input: { resource: ResourceRef;
   );
   const row = requestById(ctx, id)!;
   ctx.emit("access.requested", id, { requestId: id, resource: { type: input.resource.type, id: input.resource.id }, level: input.level, requester, taskId: taskIds[0]! });
+  // asked in a chat: the ask lands there as a card the deciders can answer in place (Needs you keeps its row)
+  if (ctx.thread) {
+    try { await ctx.call("chat.post", { threadId: ctx.thread, body: "", blocks: [block], idempotencyKey: `${id}:card` }); }
+    catch (e) { ctx.log.warn("access request: the chat card was not posted", { requestId: id, error: e instanceof Error ? e.message : String(e) }); }
+  }
   return { request: requestOut(row) };
 }
 
