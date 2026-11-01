@@ -52,7 +52,7 @@ test("each provider shows whether its app is set; setting one up shows the steps
   assert.equal(find(root, "signin-google-redirect"), null, "the guide shows only while setting up");
   await press(find(root, "signin-google"));
   assert.match(textOf(root), /1\. Open Credentials in Google Cloud/);
-  assert.match(textOf(root), /In production/);
+  assert.match(textOf(root), /Publish the consent screen/);
   assert.equal(textOf(find(root, "signin-google-redirect")), "https://space.test/oauth/callback");
 });
 
