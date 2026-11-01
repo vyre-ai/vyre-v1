@@ -20,6 +20,8 @@ export interface CommandEnv {
   openFind(): void;
   openSearch(query: string): void;
   openModel(): void;
+  /** Ask a side question (/btw): it answers in a card of its own and the running turn is left alone. */
+  aside(question: string): void;
   /** Send a message as if typed (a plugin's prompt command). */
   send(text: string): void;
 }
@@ -74,6 +76,7 @@ async function run(id: string, arg: string, env: CommandEnv, plugins: readonly P
       say(want ? "Plan mode is on: the agent plans and changes nothing until you approve" : "Plan mode is off");
       return;
     }
+    case "btw": env.aside(arg); return;
     case "helper": {
       const lead = thread.agents.find((a) => a.mode === "lead");
       const helperId = await act.startHelper(data, thread, arg, lead?.agentId);
@@ -161,6 +164,7 @@ async function run(id: string, arg: string, env: CommandEnv, plugins: readonly P
 function exampleFor(id: string): string {
   switch (id) {
     case "helper": return "read the lease and list the dates";
+    case "btw": return "what is the deadline again?";
     case "handoff": return "@Docs draft the cover letter";
     case "remember": return "I prefer short answers";
     default: return "...";

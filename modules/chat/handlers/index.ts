@@ -2,6 +2,7 @@
 // (P-L2_11, with the three Ask capabilities). P-L2_24a to d wrote the other 51: threads (g24a), channels (g24b), messages and pins (g24c), transcript, plans and helpers (g24d).
 import { archiveHandlers } from "./archive.ts";
 import { catchUp } from "./catch-up.ts";
+import { aside, asideKeep } from "./aside.ts";
 import { share } from "./share.ts";
 import { makeTask } from "./make-task.ts";
 import { flowCard } from "./flow-card.ts";
@@ -34,6 +35,8 @@ export const handlers = {
   "chat.start": start,
   "chat.make_task": makeTask,
   "chat.share": share,
+  "chat.aside": aside,
+  "chat.aside_keep": asideKeep,
   "chat.flow_card": flowCard,
   "chat.catch_up": catchUp,
   "chat.remember": remember,
