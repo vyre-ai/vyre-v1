@@ -23,6 +23,8 @@ import { withTranscript } from "./transcript.ts";
 import { recordAccountLimits } from "./handlers/usage.ts";
 import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
 import { onTurnEnded } from "./handlers/task-baton.ts";
+import { ensureExtra } from "./handlers/extra/schema.ts";
+import { createKeepAwake } from "./keep-awake.ts";
 import { defaultSandbox } from "./sandbox-default.ts";
 import { closePluginRuntime, pluginRuntime } from "./plugin-host.ts";
 import { bindOauthStore } from "./mcp-oauth.ts";
@@ -80,13 +82,14 @@ interface ResolveOut { accountRef: string | null; payer: string | null; reason: 
 const PROVIDER_OF_DRIVER: Readonly<Record<string, string>> = Object.freeze({ claude_code: "anthropic", codex: "openai", grok: "xai" });
 export const providerOfDriver = (driver: string): string => PROVIDER_OF_DRIVER[driver] ?? driver;
 
+const awake = createKeepAwake();
 let host: EngineHostSeam | null = null;
 let building: Promise<TurnEngine | null> | null = null;
 let closeOpener: (() => Promise<void>) | null = null;
 
 /** The module's seam: the daemon calls this at boot with the host half (null at shutdown). */
 export function setEngineHost(h: EngineHostSeam | null): void {
-  if (h === null) void closePluginRuntime();   // plugin servers end with the daemon
+  if (h === null) { void closePluginRuntime(); awake.stop(); }   // plugin servers end with the daemon, and so does holding the computer awake
   // At shutdown the engine processes end and MCP tokens are revoked, and then the default sandbox's wall (its egress proxy) stops: the proxy outlives nothing it served, and nothing keeps the daemon's process alive.
   if (h === null) void (closeOpener ? closeOpener().catch(() => undefined) : Promise.resolve()).then(() => closeDefaultSandbox()).catch(() => undefined);
   closeOpener = null;
@@ -256,6 +259,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     const engine = createTurnEngine({
       holder: h.holder, openSession: withChatSettings(withTurnContext(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), turnContext), h.call), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
+      admit: (q) => admission(h, q),
+      lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),
       resolveAccount: (q) => limitSwitch.resolve(q),
       nextAccount: (q) => limitSwitch.next(q),
       onNoAccount: async (info) => {
@@ -285,7 +290,14 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       if (phase !== "started") void done.then(() => { if (recording.get(turnId) === done) recording.delete(turnId); });
     };
     engine.subscribe((ev) => {
-      if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") report(ev.turnId, ev);
+      if (ev.type === "turn.started") awake.up();
+      else if (ev.type === "turn.completed" || ev.type === "turn.cancelled" || (ev.type === "turn.failed" && ev.code !== "host_lost") || (ev.type === "turn.waiting" && ev.reason === "approval")) awake.down();
+      // a turn a dead host left is not in this engine's rows: its record is closed from what recover() knows, so the turn list, Try again and the agent's Working status are right
+      if (ev.type === "turn.failed" && ev.code === "host_lost") {
+        void h.call("engine.turn.record", { threadId: ev.threadId, turnId: ev.turnId, agentId: ev.agentId, phase: "failed", qseq: ev.qseq ?? 0, ...(ev.asker ? { asker: ev.asker } : {}), code: ev.code }, ev.asker)
+          .catch((err: unknown) => h.log?.("a lost turn could not be recorded", { turnId: ev.turnId, error: err instanceof Error ? err.message : String(err) }));
+      }
+      else if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") report(ev.turnId, ev);
       if (ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") {
         void onTurnEnded(ctx, { call: h.call, now, ...(h.log ? { log: h.log } : {}) }, engine, ev).catch((err) => h.log?.("a task baton check failed", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
       }
@@ -312,23 +324,60 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
  * alive and recover() answers false, so the sweep runs again from the periodic job until the lease has run out. A turn this host is running keeps its own lease, so it is never touched.
  */
 export async function recoverStale(ctx: Pick<EngineCtx, "db">, engine: TurnEngine, states: readonly string[] = ["running"]): Promise<void> {
-  const stale = ctx.db.all(`SELECT DISTINCT thread_id FROM engine_thread_queue WHERE state IN (${states.map(() => "?").join(", ")})`, ...states) as Array<{ thread_id: string }>;
+  const stale = ctx.db.all(`SELECT thread_id, MIN(from_principal) AS person FROM engine_thread_queue WHERE state IN (${states.map(() => "?").join(", ")}) GROUP BY thread_id`, ...states) as Array<{ thread_id: string; person: string }>;
   for (const r of stale) {
     try {
-      await open(ctx as EngineCtx, r.thread_id);
+      await open(ctx as EngineCtx, r.thread_id, asPerson(ctx.db, r.thread_id, r.person));
       engine.recover(r.thread_id);
     } catch { /* a thread that cannot be opened now is opened by its next message */ }
   }
 }
 
+/** Who a job of the host reads a thread as. A private chat answers only to its people, so the host asks as the person the work was for, else the person whose turn ran there last. */
+function asPerson(db: Db, threadId: string, hint: string | undefined): ((threadId: string) => Promise<unknown>) | undefined {
+  const h = host;
+  if (!h) return undefined;
+  ensureExtra(db);
+  const person = hint?.startsWith("usr_") ? hint : (db.all("SELECT asker FROM engine_turns WHERE thread_id = ? AND asker LIKE 'usr%' ORDER BY started_at DESC LIMIT 1", threadId) as Array<{ asker?: string }>)[0]?.asker;
+  return person ? (id) => h.call("threads.get", { threadId: id }, person) : undefined;
+}
+
+/** Open a thread for a job of the host, read as the person it is for. */
+export const openAs = (ctx: EngineCtx, threadId: string, person: string): Promise<TurnEngine> => open(ctx, threadId, asPerson(ctx.db, threadId, person));
+
+/** Make sure the thread a parked turn waits in is open on this host. */
+export async function openFor(ctx: EngineCtx, taskId: string): Promise<void> {
+  const w = (ctx.db.all("SELECT thread_id, asker FROM engine_waits WHERE task_id = ?", taskId) as Array<{ thread_id: string; asker: string }>)[0];
+  if (w) await open(ctx, w.thread_id, asPerson(ctx.db, w.thread_id, w.asker));
+}
+
+/** The record a queue row's turn has, else a new id for one: recover() needs one id to say everything about a lost turn under. */
+export function lostTurnId(db: Db, row: { threadId: string; qseq: number }, mint: () => string): string {
+  ensureExtra(db);
+  const r = (db.all("SELECT turn_id FROM engine_turns WHERE thread_id = ? AND qseq = ? ORDER BY started_at DESC LIMIT 1", row.threadId, row.qseq) as Array<{ turn_id: string }>)[0];
+  return r?.turn_id ?? mint();
+}
+
+/** A paused agent takes no turn and a deleted one is gone. What the agents module answers decides; if it cannot answer, the turn goes on. */
+async function admission(h: EngineHostSeam, q: { threadId: string; agentId: string; asker: string }): Promise<{ code: string; message: string } | null> {
+  let status: { status?: string; reason?: string };
+  try { status = (await h.call("agents.status", { agentId: q.agentId }, q.asker)) as { status?: string; reason?: string }; }
+  catch (e) {
+    const code = (e as { error?: { code?: string } } | null)?.error?.code;
+    return code === "validation.not_found" ? { code: "agent_gone", message: "That agent is not here any more." } : null;
+  }
+  return status.status === "paused" ? { code: "agent_paused", message: status.reason ?? "This agent is paused." } : null;
+}
+
 /** The person answered an Unblock (the task is done): wake the agent that had no account, in the same thread. */
 export async function wakeAfterUnblock(ctx: EngineCtx, taskId: string): Promise<boolean> {
-  const row = (ctx.db.all("SELECT thread_id, agent_id FROM engine_unblock WHERE task_id = ?", taskId) as Array<{ thread_id: string; agent_id: string }>)[0];
+  const row = (ctx.db.all("SELECT thread_id, agent_id, asker FROM engine_unblock WHERE task_id = ?", taskId) as Array<{ thread_id: string; agent_id: string; asker: string }>)[0];
   if (!row) return false;
+  const asker = row.asker;
   ctx.db.run("DELETE FROM engine_unblock WHERE task_id = ?", taskId);
   const engine = await ensureRuntime(ctx);
   if (!engine) return false;
-  await open(ctx, row.thread_id);
+  await open(ctx, row.thread_id, asPerson(ctx.db, row.thread_id, asker));
   engine.wake(row.thread_id, row.agent_id);
   return true;
 }

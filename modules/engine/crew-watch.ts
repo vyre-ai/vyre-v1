@@ -22,7 +22,7 @@ export function cardBody(o: { name: string; title: string; state: "done" | "fail
 }
 
 export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => number }): (e: StreamEvent) => void {
-  const ended = new Map<string, "done" | "failed" | "cancelled" | "waiting">();
+  const ended = new Map<string, "done" | "failed" | "cancelled" | "waiting" | "lost">();
   const warn = (msg: string, attrs: Record<string, unknown>): void => o.host.log?.(msg, attrs);
 
   async function finish(job: Row, turnId: string, state: "done" | "failed", messageId: string | null): Promise<void> {
@@ -56,9 +56,9 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
     ensure(o.db);
     const job = o.db.all("SELECT * FROM engine_crew_job WHERE thread_id = ?", e.threadId)[0] as Row | undefined;
     if (!job) return;
-    if (e.kind === "start") { o.db.run("UPDATE engine_crew_job SET state = 'working', ended_at = NULL WHERE job_id = ? AND state IN ('done', 'failed', 'stopped', 'waiting')", str(job["job_id"])); return; }
+    if (e.kind === "start") { o.db.run("UPDATE engine_crew_job SET state = 'working', ended_at = NULL WHERE job_id = ? AND state IN ('done', 'failed', 'stopped', 'waiting', 'lost', 'paused')", str(job["job_id"])); return; }
     if (e.kind === "end") {
-      ended.set(e.turnId, e.state);
+      ended.set(e.turnId, e.code === "host_lost" ? "lost" : e.state);
       if (e.state === "waiting") o.db.run("UPDATE engine_crew_job SET state = 'waiting' WHERE job_id = ? AND state = 'working'", str(job["job_id"]));
       return;
     }
@@ -66,7 +66,10 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
     const state = ended.get(e.turnId) ?? "done";
     ended.delete(e.turnId);
     if (state === "waiting") return;
+    // a pause stopped this turn on purpose (handlers/departures.ts) and the job already says paused
     if (state === "cancelled") { o.db.run("UPDATE engine_crew_job SET state = 'stopped', ended_at = ? WHERE job_id = ? AND state IN ('working', 'waiting')", o.now(), str(job["job_id"])); return; }
+    // the server stopped under it: it may have done part of the work, so the lead is not woken and nothing runs again until a person presses Run again
+    if (state === "lost") { o.db.run("UPDATE engine_crew_job SET state = 'lost', ended_at = ? WHERE job_id = ? AND state IN ('working', 'waiting')", o.now(), str(job["job_id"])); return; }
     await finish(job, e.turnId, state, e.messageId);
   }
 

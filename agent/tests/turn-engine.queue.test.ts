@@ -256,7 +256,7 @@ test("heartbeat: a holder that lost its lease stops its turn and leaves the queu
   assert.ok(!engine.events("T").some((e) => e.type === "turn.completed" || e.type === "turn.failed"));
 });
 
-test("crash: after the lease expires another host requeues what the dead one ran and resumes the thread", async () => {
+test("crash: a turn that had called no tool runs again on the next host, and nobody hears about it", async () => {
   const clock = manualClock();
   const queue = createMemoryQueue();
   const leases = createMemoryLeases();
@@ -274,11 +274,94 @@ test("crash: after the lease expires another host requeues what the dead one ran
   assert.equal(b.recover("T"), true);
   await b.idle("T");
   assert.equal(b.turns("T")[0]?.state, "completed");
-  assert.ok(b.events("T").some((e) => e.type === "turn.failed" && e.code === "host_lost"));
+  assert.ok(!b.events("T").some((e) => e.type === "turn.failed"), "it ran again, so there is nothing to say");
   hold.open();
   await a.stop("T");
   await a.idle("T");
   assert.equal(queue.list("T").filter((r) => r.state === "done").length, 1);
+});
+
+test("crash: a turn that had started a tool is never replayed: it ends as lost and a person decides", async () => {
+  const clock = manualClock();
+  const queue = createMemoryQueue();
+  const leases = createMemoryLeases();
+  const hold = gate();
+  const script: DriverEvent[] = [{ type: "tool_call", id: "c1", name: "send_email", input: {} }, { type: "done" }];
+  const pa = scriptedProvider({ script });
+  const a = createTurnEngine({ holder: "host:a", openSession: pa.openSession, queue, leases, now: clock.now, callTool: async () => { await hold.wait; return { ok: true, content: {} }; } });
+  const pb = scriptedProvider({ script: ok });
+  const b = createTurnEngine({ holder: "host:b", openSession: pb.openSession, queue, leases, now: clock.now, lostTurn: (row) => `trn_row${row.qseq}` });
+  a.openThread(thread("T"));
+  b.openThread(thread("T"));
+  a.receive({ threadId: "T", author: person("dana") });
+  await until(() => queue.list("T")[0]?.touched === true);
+  clock.advance(21_000);
+  assert.equal(b.recover("T"), true);
+  await b.idle("T");
+  assert.equal(pb.sessions.length, 0, "the send is not run a second time");
+  const lost = b.events("T").find((e) => e.type === "turn.failed");
+  assert.deepEqual(lost && lost.type === "turn.failed" ? [lost.code, lost.turnId, lost.asker] : [], ["host_lost", "trn_row1", "dana"]);
+  assert.equal(queue.list("T")[0]?.state, "done");
+  hold.open();
+  await a.stop("T");
+  await a.idle("T");
+});
+
+test("an engine that runs its own tools crosses the same line: a tool block marks the row", async () => {
+  const queue = createMemoryQueue();
+  const p = scriptedProvider({ script: [{ type: "block", kind: "tool_call", payload: { id: "c1", name: "Bash" } }, { type: "text", text: "ok" }, { type: "done" }] });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, queue });
+  engine.openThread(thread("T"));
+  engine.receive({ threadId: "T", author: person("dana") });
+  await engine.idle("T");
+  assert.equal(queue.list("T")[0]?.touched, true);
+});
+
+test("a wake that was running when the host died is not replayed either: its answer was already used up", async () => {
+  const clock = manualClock();
+  const queue = createMemoryQueue();
+  const leases = createMemoryLeases();
+  const hold = gate();
+  const pa = scriptedProvider({ script: ok, beforeEvent: async (i) => { if (i === 0) await hold.wait; } });
+  const a = createTurnEngine({ holder: "host:a", openSession: pa.openSession, queue, leases, now: clock.now });
+  const pb = scriptedProvider({ script: ok });
+  const b = createTurnEngine({ holder: "host:b", openSession: pb.openSession, queue, leases, now: clock.now });
+  a.openThread(thread("T"));
+  b.openThread(thread("T"));
+  a.wake("T", "intake");
+  await until(() => pa.sessions.length === 1);
+  clock.advance(21_000);
+  b.recover("T");
+  await b.idle("T");
+  assert.equal(pb.sessions.length, 0);
+  assert.ok(b.events("T").some((e) => e.type === "turn.failed" && e.code === "host_lost"));
+  hold.open();
+  await a.stop("T");
+  await a.idle("T");
+});
+
+test("an agent that is paused or gone takes no turn: nothing is opened and nothing is paid for", async () => {
+  const p = scriptedProvider({ script: ok });
+  let resolved = 0;
+  const engine = createTurnEngine({
+    holder: "host:s", openSession: p.openSession, admit: async () => ({ code: "agent_paused", message: "Paused for the audit" }),
+    resolveAccount: async () => { resolved += 1; return null; },
+  });
+  engine.openThread(thread("T"));
+  engine.receive({ threadId: "T", author: person("dana") });
+  await engine.idle("T");
+  assert.equal(p.sessions.length, 0);
+  assert.equal(resolved, 0);
+  assert.ok(engine.events("T").some((e) => e.type === "turn.failed" && e.code === "agent_paused"));
+});
+
+test("a check that cannot answer lets the turn through", async () => {
+  const p = scriptedProvider({ script: ok });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, admit: async () => { throw new Error("down"); } });
+  engine.openThread(thread("T"));
+  engine.receive({ threadId: "T", author: person("dana") });
+  await engine.idle("T");
+  assert.equal(engine.turns("T")[0]?.state, "completed");
 });
 
 test("heartbeat: a lease store that is gone ends the beat quietly instead of throwing out of the timer", async () => {

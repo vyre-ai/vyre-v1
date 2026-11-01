@@ -2,6 +2,7 @@
 // turn would wait for ever, because the approval runs the held call but nothing told the engine. A host that does not hold the thread leaves it to the host that does (resume returns null).
 import { boundEngine } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
+import { openFor } from "../runtime.ts";
 
 interface GateEvent { name: string; payload: { holdId: string; taskId: string; note?: string } }
 
@@ -24,6 +25,8 @@ export const gateResumeConsumers = {
       // a turned-down call tells the agent why when the person said: the reason is what they typed on Deny
       const note = event.name === "gate.denied" && typeof event.payload.note === "string" ? event.payload.note.trim() : "";
       if (!approved && note !== "") result = { ok: false, content: { code: "denied", message: `A person did not approve this: ${note}` } };
+      // a server that restarted while the turn was parked has not opened its thread again: the wait row says whose it is
+      await openFor(ctx, event.payload.taskId).catch((e: unknown) => ctx.log.warn("a parked turn's thread could not be opened", { taskId: event.payload.taskId, error: e instanceof Error ? e.message : String(e) }));
       return { queued: engine.resume(event.payload.taskId, { approved, ...(result ? { result } : {}) }) };
     },
   },

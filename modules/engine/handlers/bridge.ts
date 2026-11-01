@@ -41,7 +41,7 @@ export type StreamEvent =
   | { kind: "step"; threadId: string; turnId: string; agentId: string; phase: "call" | "result" | "input"; id: string; name?: string; ok?: boolean; /** what the call touches, in safe words (a file name, a query): for the live line only */ detail?: string }
   /** A piece of the thinking the provider sent. It goes only to the people who may read the thread, over the live link; it is never logged and never saved. */
   | { kind: "thinking"; threadId: string; turnId: string; agentId: string; text: string }
-  | { kind: "end"; threadId: string; turnId: string; agentId: string; state: "done" | "failed" | "cancelled" | "waiting" }
+  | { kind: "end"; threadId: string; turnId: string; agentId: string; state: "done" | "failed" | "cancelled" | "waiting"; /** why a failed turn failed; host_lost means the server stopped under it */ code?: string }
   | { kind: "final"; threadId: string; turnId: string; agentId: string; messageId: string | null };
 
 export interface BridgeOptions {
@@ -193,6 +193,8 @@ export function createBridge(o: BridgeOptions): Bridge {
       }
       case "turn.failed": case "turn.cancelled": case "turn.waiting": {
         if (e.type === "turn.waiting" && e.reason !== "approval") return;
+        // a turn a dead host left has no turn.started here: who it ran for comes with the event, so the agent can still say so in the chat
+        if (e.type === "turn.failed" && e.asker) askerOf.set(e.threadId, e.asker);
         if (e.type === "turn.failed") warn("a turn failed", { threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, code: e.code, ...(e.message ? { why: scrub(e.message) } : {}) });
         const parked = e.type === "turn.waiting";
         const seg = live.get(e.turnId);
@@ -200,7 +202,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         if (!parked) { live.delete(e.turnId); turns.delete(e.turnId); }
         const blocks = [...(seg?.blocks ?? []), ...workBlocks(e.turnId), status(e)];
         writing.delete(e.turnId);
-        emit({ kind: "end", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, state: e.type === "turn.failed" ? "failed" : e.type === "turn.cancelled" ? "cancelled" : "waiting" });
+        emit({ kind: "end", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, state: e.type === "turn.failed" ? "failed" : e.type === "turn.cancelled" ? "cancelled" : "waiting", ...(e.type === "turn.failed" ? { code: e.code } : {}) });
         enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: seg?.text ?? "", blocks, mentions: askerMention(e.threadId, e.agentId), clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) }, e.turnId);
         return;
       }

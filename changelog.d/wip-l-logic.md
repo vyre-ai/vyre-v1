@@ -1,2 +1,5 @@
 - An agent's kind is a column: the private assistant stays private whatever its role line says, and calling an agent "assistant" no longer hides it.
 - Deleting an agent drops its holds, closes the requests it raised, hands its work to the person behind it and leaves one line in its chats. A person who leaves or is removed comes off every thread, a chat they started gets a new owner, what they held moves on, and their assistant goes with them.
+- A turn a server restart cut off never replays what it may already have done: one that used a tool ends with Try again, one that had not simply runs again. Try again runs straight away instead of waiting for the next message, a parked turn goes on after a restart, and an agent that was working before a crash no longer reads as Working for ever.
+- A paused agent stops and takes no new turn, with the reason in the chat, and a teammate's job follows it (running, paused, lost, stopped). A lost job offers Run again. The Crew tab no longer crashes in a Personal Space.
+- A Mac stays awake while a turn runs.

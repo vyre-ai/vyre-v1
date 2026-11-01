@@ -4,7 +4,8 @@
 // queue rows stay in engine_thread_queue (shared with the in-process engine). A write that repeats (same queue row, same outcome) answers with the first result.
 import { nodeOfTurn } from "../../node-turns.ts";
 import { PRIORITY_INTERRUPT } from "../../../../agent/src/turn-engine/queue.ts";
-import { actorOf, mintId, raise, sqlQueue } from "../../projections.ts";
+import { actorOf, engineIfBound, mintId, raise, sqlQueue } from "../../projections.ts";
+import { open } from "../control.ts";
 import type { EngineCtx } from "../../projections.ts";
 import { blockedBy, readPolicy } from "./config.ts";
 import { ensureExtra } from "./schema.ts";
@@ -231,6 +232,8 @@ export async function turnRecord(
     if (v !== undefined && (!Number.isInteger(v) || v < 0)) raise(ctx, "validation.bad_input", `${field} must be a whole number, zero or more.`, { field });
   }
   const now = ctx.now();
+  // a retry made a queued row for this queue slot: the engine's turn is that retry, so the row takes its id instead of leaving a queued row behind for ever
+  ctx.db.run("UPDATE engine_turns SET turn_id = ?, state = 'running', started_at = ? WHERE thread_id = ? AND qseq = ? AND state = 'queued' AND retry_of IS NOT NULL AND NOT EXISTS (SELECT 1 FROM engine_turns WHERE turn_id = ?)", input.turnId, now, input.threadId, input.qseq, input.turnId);
   let row = rows(ctx, "SELECT * FROM engine_turns WHERE turn_id = ?", input.turnId)[0];
   if (!row) {
     // The in-process engine counts its turns from 1 on every boot, so its number can already be taken by an earlier run's row: the number is chosen inside the one INSERT (the next free one when taken),
@@ -366,5 +369,12 @@ export async function turnRetry(
     turnId, threadId, str(old["agent_id"]), actorOf(ctx), input.accountRef ?? optStr(old["account_ref"]) ?? null, str(old["engine"]), model, str(old["placement"]), ctx.trace.traceId, item.qseq, ctx.now(), input.turnId,
   );
   ctx.emit("turn.queued", threadId, { threadId, agentId: str(old["agent_id"]), kind, qseq: item.qseq, ...(messageId === undefined ? {} : { messageId }) });
+  // the row is durable, but the engine runs what it is told about: without this the retry sat in the queue until the next message came along
+  const engine = engineIfBound();
+  if (engine) {
+    await open(ctx, threadId);
+    if (input.model !== undefined || input.accountRef !== undefined) engine.setAgent(threadId, str(old["agent_id"]), { ...(input.model === undefined ? {} : { model: input.model }), ...(input.accountRef === undefined ? {} : { accountRef: input.accountRef }) });
+    engine.kick(threadId);
+  }
   return { turn: turnOf(loadTurn(ctx, turnId)) };
 }

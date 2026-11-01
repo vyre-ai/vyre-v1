@@ -14,8 +14,9 @@ import { gateResumeConsumers } from "./handlers/gate-resume.ts";
 import { sweepWaits } from "./crew-waits.ts";
 import { reconcileAll } from "./handlers/crew.ts";
 import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
-import { closeNoAccountTasks, engineHost, ensureRuntime, recoverStale, setEngineHost, wakeAfterAnswer, wakeAfterUnblock } from "./runtime.ts";
+import { closeNoAccountTasks, engineHost, ensureRuntime, openAs, recoverStale, setEngineHost, wakeAfterAnswer, wakeAfterUnblock } from "./runtime.ts";
 import { onTaskEvent, sweepBaton } from "./handlers/task-baton.ts";
+import { markLostJobs, ownerChanged, resumeAgent, stopAgent, stopPerson } from "./handlers/departures.ts";
 import type { EngineCtx } from "./projections.ts";
 
 // Every engine capability first makes sure the runtime exists on a daemon that wired the engine seam (the first call builds it; a daemon without the seam leaves it unbound).
@@ -48,6 +49,7 @@ export const periodic = {
       if (!host) return [];
       const ended = await sweepWaits({ db: ctx.db, host, now: () => ctx.now() });
       await reconcileAll(ctx).catch(() => []);   // a branch merged or pushed any other way flips its card and its Crew row
+      markLostJobs(ctx);   // a Job nothing is running for any more says so
       return ended;
     },
   },
@@ -67,6 +69,27 @@ export const consumers = {
   ...withRuntime(bridgeConsumers),
   ...withRuntime(gateResumeConsumers),
   ...captureConsumers,
+  /** An agent ended or stopped: what it had running stops with it, and a Job follows (running, paused, lost, stopped). */
+  "engine.agent_lifecycle": {
+    on: ["agent.deleted", "agent.paused", "agent.resumed"],
+    run: async (ctx: EngineCtx, event: { name: string; payload: { agentId: string } }): Promise<string[]> => {
+      const engine = await ensureRuntime(ctx);
+      const id = event.payload.agentId;
+      if (event.name === "agent.deleted") return stopAgent(ctx, engine, id, "stopped");
+      if (event.name === "agent.paused") return stopAgent(ctx, engine, id, "paused");
+      return resumeAgent(ctx, engine, id, async (threadId, asker) => { await openAs(ctx, threadId, asker); });
+    },
+  },
+  /** A person left: nothing goes on running on their word or their account. */
+  "engine.person_left": {
+    on: ["member.removed"],
+    run: async (ctx: EngineCtx, event: { payload: { personId: string } }): Promise<string[]> => stopPerson(ctx, await ensureRuntime(ctx), event.payload.personId),
+  },
+  /** The owner of a chat changed: its next turn runs for them. */
+  "engine.thread_owner": {
+    on: ["thread.updated"],
+    run: async (ctx: EngineCtx, event: { payload: { threadId: string; starter?: string } }): Promise<void> => { if (event.payload.starter) ownerChanged(await ensureRuntime(ctx), event.payload.threadId, event.payload.starter); },
+  },
   "engine.no_account_sweep": {
     on: ["provider.added"],
     run: async (ctx: EngineCtx): Promise<string[]> => closeNoAccountTasks(ctx.db),

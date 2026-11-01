@@ -20,7 +20,7 @@ export type EngineSessionPorts = EngineSessionHost;
 export type EngineStreamEvent =
   | { kind: "start"; threadId: string; turnId: string; agentId: string; asker: string }
   | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string }
-  | { kind: "end"; threadId: string; turnId: string; agentId: string; state: "done" | "failed" | "cancelled" | "waiting" }
+  | { kind: "end"; threadId: string; turnId: string; agentId: string; state: "done" | "failed" | "cancelled" | "waiting"; code?: string }
   | { kind: "final"; threadId: string; turnId: string; agentId: string; messageId: string | null };
 
 /** Where a live turn frame goes: every live socket whose person `allow` says may read the thread. */

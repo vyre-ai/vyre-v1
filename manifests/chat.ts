@@ -463,7 +463,7 @@ export default defineManifest({
       p: { threadId: id.thread, kind: threadKind, starter: t.str(), parentThreadId: t.opt(id.thread), channelId: t.opt(id.channel), scopeType: t.opt(t.str()), scopeId: t.opt(t.str()) },
       subject: ['thread', '/threadId'], label: 'subject', vis: 'participants', retention: 'transcripts',
     }),
-    ev('thread.updated', 'A thread title, folder or listing changed', { p: { threadId: id.thread, fields: t.arr(t.str()) }, subject: ['thread', '/threadId'], vis: 'participants' }),
+    ev('thread.updated', 'A thread title, folder, listing or owner changed', { p: { threadId: id.thread, fields: t.arr(t.str()), starter: t.opt(id.user) }, subject: ['thread', '/threadId'], vis: 'participants' }),
     ev('thread.closed', 'A thread was closed', { p: { threadId: id.thread }, subject: ['thread', '/threadId'], vis: 'participants' }),
     ev('thread.reopened', 'A thread was reopened', { p: { threadId: id.thread }, subject: ['thread', '/threadId'], vis: 'participants' }),
     ev('thread.archived', 'A person archived a chat: it left their list only', { p: { person: id.user, threadId: id.thread }, subject: ['entity', '/threadId'], vis: 'owner' }),

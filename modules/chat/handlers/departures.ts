@@ -39,7 +39,7 @@ export async function onPersonLeft(ctx: ChatCtx, event: { payload: { personId?: 
     // a thread under a chat follows its parent silently: the line belongs to the conversation people read
     if (r["parent"] === null || r["parent"] === undefined) insertMessage(ctx, id, { author: gone, kind: "system", body: inherits ? `${name} left. ${await nameOf(ctx, heir)} now owns this chat.` : `${name} left.` });
     ctx.emit("channel.member_removed", gone, { personId: gone, by: gone, threadId: id, ...(r["channelId"] ? { channelId: str(r["channelId"]) } : {}) });
-    if (inherits) ctx.emit("thread.updated", id, { threadId: id, fields: ["starter"] });
+    if (inherits) ctx.emit("thread.updated", id, { threadId: id, fields: ["starter"], starter: heir });
     touched.push(id);
   }
   return touched;

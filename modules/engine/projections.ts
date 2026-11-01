@@ -51,6 +51,8 @@ export const actorOf = (ctx: Pick<EngineCtx, "principal" | "actingFor">): string
 // The engine that runs on this host. The host binds it at boot (impl.ts); handlers reach it through boundEngine().
 let bound: TurnEngine | null = null;
 export function bindEngine(engine: TurnEngine | null): void { bound = engine; }
+/** The engine on this host, or null where none runs. */
+export const engineIfBound = (): TurnEngine | null => bound;
 
 /** The session opener of this host (its pool and its warm hint), bound with the engine; null where the engine runs on a scripted provider. */
 export interface BoundOpener { warm(spec: SessionSpec): void; pool: { status(): { sessions: Array<{ driver: string; warm: number; max: number; hits: number; misses: number }>; totalWarm: number } } }
@@ -68,7 +70,7 @@ export function boundEngine(ctx: Pick<EngineCtx, "trace">): TurnEngine {
   return bound;
 }
 
-const SCHEMA = ["0001_init.sql", "0002_usage_item.sql", "0003_unblock.sql", "0004_capture_state.sql", "0005_step_turns.sql", "0006_task_baton.sql", "0007_mcp_oauth.sql", "0008_crew.sql", "0009_crew_wait.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
+const SCHEMA = ["0001_init.sql", "0002_usage_item.sql", "0003_unblock.sql", "0004_capture_state.sql", "0005_step_turns.sql", "0006_task_baton.sql", "0007_mcp_oauth.sql", "0008_crew.sql", "0009_crew_wait.sql", "0010_queue_touched.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 
@@ -86,6 +88,7 @@ export function ensure(db: Db): void {
     db.all("SELECT task_id FROM engine_task_baton WHERE task_id = ?", "probe");
     db.all("SELECT job_id FROM engine_crew_job WHERE job_id = ?", "probe");
     db.all("SELECT wait_id FROM engine_crew_wait WHERE wait_id = ?", "probe");
+    db.all("SELECT touched FROM engine_thread_queue WHERE thread_id = ?", "probe");
   } catch {
     for (const stmt of SCHEMA) db.run(stmt);
   }
@@ -173,7 +176,7 @@ function itemOf(r: Row): QueueItem {
   return {
     threadId: str(r["thread_id"]), qseq: num(r["qseq"]), kind: str(r["kind"]) as QueueKind, messageId: orNull(r["message_id"]), agentId: str(r["agent_id"]),
     from: str(r["from_principal"]), priority: num(r["priority"]), state: str(r["state"]) as QueueState, enqueuedAt: num(r["enqueued_at"]),
-    routine: num(r["routine"]) === 1, steer: num(r["steer"]) === 1,
+    routine: num(r["routine"]) === 1, steer: num(r["steer"]) === 1, ...(num(r["touched"]) === 1 ? { touched: true } : {}),
   };
 }
 
@@ -208,6 +211,9 @@ export function sqlQueue(db: Db): QueueStore {
     steerable: (threadId, agentId) => queued(threadId).filter((r) => r.steer && r.kind === "message" && r.agentId === agentId).sort((a, b) => a.qseq - b.qseq),
     setState(threadId, qseq, state) {
       db.run("UPDATE engine_thread_queue SET state = ? WHERE thread_id = ? AND qseq = ?", state, threadId, qseq);
+    },
+    touch(threadId, qseq) {
+      db.run("UPDATE engine_thread_queue SET touched = 1 WHERE thread_id = ? AND qseq = ?", threadId, qseq);
     },
     cancelQueued(threadId, agentId) {
       const out = queued(threadId).filter((r) => agentId === undefined || r.agentId === agentId);

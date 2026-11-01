@@ -15,7 +15,7 @@ const num = (v: unknown): number => (typeof v === "number" ? v : Number(v) || 0)
 
 export interface CrewJob {
   jobId: string; threadId: string; leadThreadId: string; projectId: string; agentId: string; name?: string; title: string; branch: string; base: string;
-  state: "working" | "waiting" | "done" | "failed" | "stopped" | "merged"; startedAt: number; endedAt?: number; result?: Record<string, unknown>;
+  state: "working" | "waiting" | "paused" | "lost" | "done" | "failed" | "stopped" | "merged"; startedAt: number; endedAt?: number; result?: Record<string, unknown>;
 }
 
 export function jobOut(r: Row, name?: string): CrewJob {
@@ -152,7 +152,7 @@ export async function workspace(ctx: EngineCtx, input: { threadId: string }) {
  */
 export async function reconcile(ctx: EngineCtx, r: Row): Promise<Row> {
   const state = str(r["state"]);
-  if (state === "working" || state === "waiting") return r;
+  if (state === "working" || state === "waiting" || state === "paused") return r;
   const prior = jobOut(r).result ?? {};
   if (state === "merged" && prior["pushed"]) return r;
   const dataDir = engineHost()?.dataDir;
@@ -176,7 +176,7 @@ export async function reconcile(ctx: EngineCtx, r: Row): Promise<Row> {
 /** The periodic sweep: every job that is finished and not yet known as merged and pushed is checked against its repository. */
 export async function reconcileAll(ctx: EngineCtx): Promise<string[]> {
   ensure(ctx.db);
-  const rows = ctx.db.all("SELECT * FROM engine_crew_job WHERE state IN ('done', 'failed', 'stopped', 'merged') ORDER BY started_at DESC LIMIT 50") as Row[];
+  const rows = ctx.db.all("SELECT * FROM engine_crew_job WHERE state IN ('done', 'failed', 'stopped', 'lost', 'merged') ORDER BY started_at DESC LIMIT 50") as Row[];
   const changed: string[] = [];
   for (const r of rows) { const after = await reconcile(ctx, r); if (str(after["state"]) !== str(r["state"]) || str(after["result_json"]) !== str(r["result_json"])) changed.push(str(r["job_id"])); }
   return changed;
@@ -201,7 +201,7 @@ export async function stop(ctx: EngineCtx, input: { jobId: string }) {
   ensure(ctx.db);
   const r = jobRow(ctx, input.jobId);
   await ctx.call("engine.stop_all", { threadId: str(r["thread_id"]) });
-  ctx.db.run("UPDATE engine_crew_job SET state = 'stopped', ended_at = ? WHERE job_id = ? AND state IN ('working', 'waiting')", ctx.now(), input.jobId);
+  ctx.db.run("UPDATE engine_crew_job SET state = 'stopped', ended_at = ? WHERE job_id = ? AND state IN ('working', 'waiting', 'paused', 'lost')", ctx.now(), input.jobId);
   return { job: jobOut(jobRow(ctx, input.jobId)) };
 }
 
