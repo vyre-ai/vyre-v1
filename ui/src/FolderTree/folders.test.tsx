@@ -82,7 +82,7 @@ test("the frozen props render", () => {
 });
 
 test("the folder menu for a folder you own offers everything and ends with Report a problem", () => {
-  const entries = menuEntries({ items: folderMenu(nodes[0] as FolderNode, true, true, {}) });
+  const entries = menuEntries({ items: folderMenu(nodes[0] as FolderNode, true, true, { onShare: () => undefined }) });
   const labels = entries.filter(isItem).map((i) => i.label);
   assert.deepEqual(labels, ["Close", "New Folder…", "Share…", "Rename…", "Move…", "Delete", "Report a problem"]);
   const last = entries[entries.length - 1];
@@ -94,8 +94,13 @@ test("the folder menu for a folder you own offers everything and ends with Repor
 test("a folder shared with you can be opened and shared on, but not renamed, moved or deleted", () => {
   const shared = nodes[5] as FolderNode;
   assert.equal(canManageFolder(shared), false);
-  const labels = menuEntries({ items: folderMenu(shared, false, false, {}) }).filter(isItem).map((i) => i.label);
+  const labels = menuEntries({ items: folderMenu(shared, false, false, { onShare: () => undefined }) }).filter(isItem).map((i) => i.label);
   assert.deepEqual(labels, ["Share…", "Report a problem"]);
+});
+
+test("with no one to share with (no onShare), the menu has no Share item", () => {
+  const labels = menuEntries({ items: folderMenu(nodes[0] as FolderNode, true, true, {}) }).filter(isItem).map((i) => i.label);
+  assert.ok(!labels.includes("Share…"));
 });
 
 test("menu choices call the handlers", () => {

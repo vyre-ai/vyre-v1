@@ -15,10 +15,26 @@ import { fakePlatform } from "../host/src/platform/index.ts";
 import { loadConfig } from "../host/src/daemon/config.ts";
 import { CODE_ROOT, startDaemon } from "../host/src/daemon/daemon.ts";
 import { standIn } from "./memory-live-kit.ts";
+import { bindHost as bindTerminal } from "../modules/terminal/impl.ts";
+import type { TerminalHost } from "../modules/terminal/projections.ts";
 import { claimOnEdge, dismissOnboarding, edge } from "../apps/app/tests/real-app-harness.test.ts";
 
 const PASSWORD = "fixture password 123";
 const SHOTS = process.env["VYRE_WALK_SHOTS"] ?? "shots-evidence/personal-walk";
+
+/** A scripted terminal stands in for tmux, as in terminal.pane.journeys: the walk checks what a person sees, not the shell. */
+function scriptedTerminal(): TerminalHost {
+  const screens = new Map<string, string>();
+  return {
+    async open(a) { screens.set(a.terminalId, "$ "); return { cwd: "/home/olivia", title: "Space server" }; },
+    async input(id, data) { screens.set(id, (screens.get(id) ?? "") + data); },
+    async interrupt() {}, async resize() {},
+    async read(id, o) { const all = screens.get(id) ?? ""; return { text: all.slice(o.since ?? 0), next: all.length }; },
+    async run(_id, o) { return { exitCode: 0, output: `ran: ${o.command}`, truncated: false, durationMs: 5 }; },
+    async status(ids) { return ids.map((id) => ({ terminalId: id, state: "idle" as const, exitCode: null })); },
+    async close() {}, async health() { return { ok: true, sessions: screens.size }; },
+  };
+}
 
 test("a fresh Personal Space: the first hour works end to end in the real app", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
@@ -182,6 +198,16 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await page.getByText("walk.txt", { exact: true }).first().waitFor({ timeout: 20_000 });
     });
 
+    await step("Files: a Personal folder offers no Share, since there is no one to share with", async () => {
+      await go("files", "files-place");
+      const row = page.getByText("Walk folder 2", { exact: true }).first();
+      await row.waitFor({ timeout: 15_000 });
+      await row.click({ button: "right", timeout: 10_000 });
+      await page.getByText(/^(Open|Rename)/).first().waitFor({ timeout: 10_000 });   // the menu is up
+      assert.equal(await page.getByText(/^Share/).count(), 0, "no Share item in the folder menu");
+      await page.keyboard.press("Escape");
+    });
+
     await step("Records: create a Contact, edit a field, see Activity", async () => {
       await go("records", "records-place");
       await page.getByText("Contacts", { exact: true }).first().click({ timeout: 15_000 });
@@ -229,17 +255,29 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       assert.equal(await page.getByTestId("skin-preview").getAttribute("aria-label"), mode === "dark" ? "Preview of Graphite" : "Preview of Paper", `the System preview matches data-mode ${mode}`);
     });
 
-    await step("Terminal: opens", async () => {
+    bindTerminal(scriptedTerminal());
+    await step("Terminal: opens from the Space menu, from Search, and again", async () => {
       await go("chat", "chats-place");
-      // the Terminal is a tab in the chat's right pane; open the pane if it is shut, then press the tab
-      const tab = page.getByTestId("tab-terminal").or(page.getByTestId("tab-terminal-selected")).first();
-      if (!(await tab.isVisible().catch(() => false))) {
-        await page.getByRole("button", { name: /pane/i }).first().click({ timeout: 10_000 });
-      }
-      await tab.waitFor({ timeout: 15_000 });
-      await tab.click({ timeout: 10_000 });
-      await page.getByTestId("pane-body-terminal").waitFor({ timeout: 15_000 });
-      await page.getByTestId("terminal-pane-open").or(page.getByTestId("terminal-pane-hosts")).or(page.getByTestId("terminal-pane-empty")).or(page.getByTestId("terminal-tab")).first().waitFor({ timeout: 20_000 });
+      const list = page.getByTestId("terminal-list");
+      const openFromMenu = async (): Promise<void> => {
+        await page.getByTestId("space-tile").click({ timeout: 10_000 });
+        await page.getByRole("menuitem", { name: "Open Terminal", exact: true }).click({ timeout: 10_000 });
+        await list.waitFor({ timeout: 20_000 });
+      };
+      await openFromMenu();
+      // open one: the list's New, then the pane of that terminal
+      await page.getByTestId("terminal-new").first().click({ timeout: 10_000 });
+      await page.getByRole("menuitem", { name: "Space server", exact: true }).click({ timeout: 10_000 });
+      await page.getByTestId("terminal-tab").first().waitFor({ timeout: 20_000 });
+      // leave, then open again from Search
+      await go("chat", "chats-place");
+      await page.keyboard.press("Meta+k");
+      await page.getByTestId("cmdk-input").fill(">terminal");
+      await page.getByText("Open terminal", { exact: true }).first().click({ timeout: 10_000 });
+      await list.waitFor({ timeout: 20_000 });
+      // open, leave, open: the second open shows the list again
+      await go("chat", "chats-place");
+      await openFromMenu();
     });
   } finally {
     if (failures.length) {
@@ -251,6 +289,7 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
         console.log(`host log (errors): ${JSON.stringify(rows.map((r) => `${r.cap ?? ""} ${r.msg} ${String(r.attrs ?? "").slice(0, 400)}`))}`);
       } catch (e) { console.log(`host log unreadable: ${String(e)}`); }
     }
+    bindTerminal(null);
     await browser.close(); web.close(); await daemon.stop(); fs.rmSync(dir, { recursive: true, force: true });
   }
   assert.deepEqual(errors, [], "no page errors");
