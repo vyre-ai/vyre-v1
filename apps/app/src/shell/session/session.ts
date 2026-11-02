@@ -92,6 +92,12 @@ export function holdsRole(roles: readonly string[], ...names: readonly string[])
 }
 
 /** The rail place a screen belongs to, by the screen's place field. The task screens still say "home": the hub lands them in Chats. */
+/** The built-in roles that hold console.access (manifests/permissions.ts), and the ones that do not. Anything else is a role this Space made, and only the server knows what it holds. */
+const CONSOLE_ROLES = ["owner", "admin", "developer"] as const;
+const PLAIN_ROLES = ["member", "guest"] as const;
+export const roleOpensConsole = (roles: readonly string[]): boolean => holdsRole(roles, ...CONSOLE_ROLES);
+export const roleAsksServer = (roles: readonly string[]): boolean => !roleOpensConsole(roles) && roles.some((r) => !holdsRole([r], ...PLAIN_ROLES));
+
 const RAIL_PLACES: readonly PlaceId[] = ["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings", "console"];
 const railPlace = (p: string): PlaceId | null => (RAIL_PLACES as readonly string[]).includes(p) ? (p as PlaceId) : null;
 
@@ -274,7 +280,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     skinDefault: typeof space.defaults.skin==="string"?space.defaults.skin:"system",
     starred: true,
     needsYou: (switcher?.needsYou ?? 0) > 0,
-    console: holdsRole(who.roles, "owner", "admin"),
+    // whoever holds console.access gets the rail button: the same answer as opening the Console by its address
+    console: roleOpensConsole(who.roles) || (roleAsksServer(who.roles) && await reach("console.nav", {}).then(() => true, () => false)),
     // a Personal Space has one person and their own computer: the terminal is always theirs. A Team Space gives it to owners and developers
     terminal: space.kind === "personal" || holdsRole(who.roles, "owner", "developer"),
     counts: {},   // the Chats badge is Needs you, live: ShellHost follows tasks.count_needs_you
