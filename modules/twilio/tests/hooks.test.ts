@@ -352,3 +352,22 @@ test("receive_webhook through the registered handler lands a delivery like the f
   assert.equal(out.accepted, true);
   assert.equal(h.calls("telephony.ingest_sms").length, 1);
 });
+
+test("a live call asking the voice address again is a redirect, not a replay: it gets a fresh answer", async () => {
+  const h = harness();
+  const first = hookInput(h.ctx, "voice", HOOKS.voice);
+  await receiveWebhook(h.ctx, first);
+  assert.deepEqual((await receiveWebhook(h.ctx, first)).accepted, true);
+  const asked = (): number => h.calls("telephony.ingest_voice").length;
+  assert.equal(asked(), 1, "the same ringing delivery twice is applied once");
+  await receiveWebhook(h.ctx, hookInput(h.ctx, "voice", { ...HOOKS.voice, CallStatus: "in-progress" }));
+  await receiveWebhook(h.ctx, hookInput(h.ctx, "voice", { ...HOOKS.voice, CallStatus: "in-progress" }));
+  assert.equal(asked(), 3, "a transfer and a return from hold each ask who holds the call now");
+});
+
+test("recordingStop accepts the current recording of a call whose recording has no Sid of its own here", async () => {
+  const h = harness();
+  const out = await recordingStop(h.ctx, { callSid: "CA00000000000000000000000000000001", recordingSid: "Twilio.CURRENT" }).catch((e: unknown) => e);
+  assert.notEqual((out as { error?: { code?: string } }).error?.code, "validation.bad_input");
+});
+

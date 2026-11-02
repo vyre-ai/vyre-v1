@@ -15,3 +15,4 @@
 - Someone who can only see an agent no longer reads which keys pay for it, which Vault handles it holds, or its limits. Owners, editors and the agent itself still do, and a turn is built whole whoever asked.
 - A reply on a shared key no longer says it was on the account of the person who asked. A person who joins a group that no agent could answer them in is named in one line of that chat.
 - A stage added to a Journey can now be entered, and a Journey can be made again under a deleted Journey's name. Finishing a task that is not the stage's own, such as a time limit alert, no longer moves the record.
+- A transferred call now rings the person it went to, and a call back from hold rings who held it, not the number's whole route. Stop now stops a recording that began with the call. Only someone a call is ringing for can decline it.
