@@ -39,6 +39,8 @@ import type { StoredSession } from "./stored.ts";
 import { VaultUnlockHost } from "./VaultUnlockHost.tsx";
 import { ReportHost } from "../report/ReportHost.tsx";
 import { isMacShell, lockedIdentity, storeLock } from "./entry.ts";
+import { anyUnread } from "../../places/chats/sidebar/model.ts";
+import type { RecentOut } from "../../places/chats/sidebar/model.ts";
 import type { LockedIdentity } from "./entry.ts";
 
 const PhoneHost = lazy(() => import("./PhoneHost.tsx").then((m) => ({ default: m.PhoneHost })));
@@ -198,6 +200,20 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     const off = q.subscribe(read);
     read();
     return off;
+  }, [session, hub]);
+
+  // the quiet dot on Chats: anything unread for this person (a chat, a channel, a thread they are in), from the same live reads the Chats list draws, so it clears when they read it
+  useEffect(() => {
+    if (!session) return undefined;
+    const recent = session.hooks.capQuery<RecentOut>("chat.recent", { filter: "all" });
+    const channels = session.hooks.capQuery<{ channels: readonly { unread: number }[] }>("channels.list", {});
+    const read = (): void => {
+      const r = recent.getSnapshot(), c = channels.getSnapshot();
+      hub.dot("chats", anyUnread(r.status === "ready" ? r.data : null, c.status === "ready" ? c.data.channels : []));
+    };
+    const offs = [recent.subscribe(read), channels.subscribe(read)];
+    read();
+    return () => { for (const off of offs) off(); };
   }, [session, hub]);
 
   const purge = useMemo<ShellPurge | undefined>(() => (session ? {

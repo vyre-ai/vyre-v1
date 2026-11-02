@@ -6285,6 +6285,7 @@ export type ChatRecentOut = {
       starred: boolean;
       lastAt: number;
       preview?: string;
+      people?: Array<string>;
     }>;
   today: Array<{
       threadId: string;
@@ -6296,6 +6297,7 @@ export type ChatRecentOut = {
       starred: boolean;
       lastAt: number;
       preview?: string;
+      people?: Array<string>;
     }>;
   yesterday: Array<{
       threadId: string;
@@ -6307,6 +6309,7 @@ export type ChatRecentOut = {
       starred: boolean;
       lastAt: number;
       preview?: string;
+      people?: Array<string>;
     }>;
   earlier: Array<{
       threadId: string;
@@ -6318,6 +6321,7 @@ export type ChatRecentOut = {
       starred: boolean;
       lastAt: number;
       preview?: string;
+      people?: Array<string>;
     }>;
   archived: Array<{
       threadId: string;
@@ -6329,8 +6333,10 @@ export type ChatRecentOut = {
       starred: boolean;
       lastAt: number;
       preview?: string;
+      people?: Array<string>;
     }>;
   nextUnread: string | null;
+  threadsUnread?: number;
 };
 export type ChatRememberIn = {
   threadId: string;
@@ -32165,6 +32171,7 @@ export type ThreadsMakeChannelOut = {
 export type ThreadsMarkReadIn = {
   threadId: string;
   upto?: number;
+  unread?: boolean;
 };
 export type ThreadsMarkReadOut = {
   unread: number;

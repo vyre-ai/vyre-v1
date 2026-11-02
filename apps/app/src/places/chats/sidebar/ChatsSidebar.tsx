@@ -20,7 +20,8 @@ import { ChatsSidebarDataProvider, useOnline, useOptionalSidebarData, useScreenQ
 import type { ChatsSidebarData } from "./data.tsx";
 import { chatMenuEntries, importedDeleteConfirm, importedMenuEntries } from "./chat-menu.ts";
 import {
-  FILTERS, NEW_CHAT_MS, buildEntries, faceForDigit, filterCounts, archivedRows, groupRecent, matchesFilter, matchesQuery, openEntry, refetch, selectable, stepKey, waitingAgents,
+  FILTERS, NEW_CHAT_MS, agentUnread, buildEntries, dmThreads, faceForDigit, filterCounts, archivedRows, groupRecent, matchesFilter, matchesQuery, openEntry, peopleWithUnread, personUnread, refetch, selectable,
+  stepKey, waitingAgents,
 } from "./model.ts";
 import type { Agent, ChatRow, Entry, Group, NeedsItem, RecentOut, SectionError, SectionKey, SideFilter } from "./model.ts";
 import { REPORT_PROBLEM_EVENT } from "../../../../../../ui/src/States/index.tsx";
@@ -146,12 +147,18 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   const agents: Agent[] = agentsQ.status === "ready" ? agentsQ.data.agents : [];
   const names = useMemo(() => new Map(agents.map((a) => [a.agentId, a.name])), [agents]);
   const agentName = useCallback((id: string) => nameOr(names.get(id), id), [names]);
+  const personNames = useMemo(() => new Map(peopleQ.map((p) => [p.id, p.name])), [peopleQ]);
+  const personName = useCallback((id: string) => nameOr(personNames.get(id), id), [personNames]);
   // The Agents group is the Space's agents (agents.list takes no "starred" input; starring becomes its own packet): the first FACES_SHOWN of them, the rest behind All agents.
   // Not the assistant (its mark sits beside New chat). An agent waiting on you always comes first, so the cap can never hide one; everyone else keeps the Space's order.
+  // Next come the agents with something new for you, so "N more" never hides an unread chat either.
+  const recentData = recentQ.status === "ready" ? recentQ.data : null;
+  const byAgent = useMemo(() => (recentData ? agentUnread(recentData) : new Map<string, number>()), [recentData]);
   const matching: Agent[] = useMemo(() => {
     const own = agents.filter((a) => a.agentId !== data.space.assistant.agentId && matchesQuery(query, a.name));
-    return [...own.filter((a) => waiting.has(a.agentId)), ...own.filter((a) => !waiting.has(a.agentId))];
-  }, [agents, query, waiting, data.space.assistant.agentId]);
+    const rank = (a: Agent): number => (waiting.has(a.agentId) ? 0 : (byAgent.get(a.agentId) ?? 0) > 0 ? 1 : 2);
+    return [0, 1, 2].flatMap((n) => own.filter((a) => rank(a) === n));
+  }, [agents, query, waiting, byAgent, data.space.assistant.agentId]);
   const faces: Agent[] = useMemo(() => matching.slice(0, FACES_SHOWN), [matching]);
   const facesMore = matching.length - faces.length;
   const recent = recentQ.status === "ready" ? recentQ.data : EMPTY_RECENT;
@@ -170,7 +177,7 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   const pending = (q: { status: string; error?: unknown }): boolean => q.status === "loading" && q.error === undefined;
   const loading = pending(recentQ) || pending(channelsQ) || pending(agentsQ);
 
-  const allGroups: Group[] = useMemo(() => groupRecent(recent, local, agentName).map((g) => ({ ...g, rows: g.rows.map((r) => (waitingThreads.has(r.threadId) ? { ...r, waiting: true } : r)) })), [recent, local, agentName, waitingThreads]);
+  const allGroups: Group[] = useMemo(() => groupRecent(recent, local, agentName, personName).map((g) => ({ ...g, rows: g.rows.map((r) => (waitingThreads.has(r.threadId) ? { ...r, waiting: true } : r)) })), [recent, local, agentName, personName, waitingThreads]);
   const counts = useMemo(() => filterCounts(allGroups.flatMap((g) => g.rows)), [allGroups]);
   const groups: Group[] = useMemo(
     () => allGroups.map((g) => ({ ...g, rows: g.rows.filter((r) => matchesFilter(r, filter) && matchesQuery(query, r.title, r.who)) })).filter((g) => g.rows.length),
@@ -182,7 +189,11 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
     for (const g of [recent.starred, recent.today, recent.yesterday, recent.earlier, recent.archived ?? []]) for (const i of g) m.set(i.threadId, i.lastAt);
     return m;
   }, [recent]);
-  const archivedChats: ChatRow[] = useMemo(() => archivedRows(recent, agentName).filter((r) => matchesFilter(r, filter) && matchesQuery(query, r.title, r.who)), [recent, agentName, filter, query]);
+  const archivedChats: ChatRow[] = useMemo(() => archivedRows(recent, agentName, personName).filter((r) => matchesFilter(r, filter) && matchesQuery(query, r.title, r.who)), [recent, agentName, personName, filter, query]);
+  // Each person's row carries the unread of your direct message with them; the Threads row a dot for what is new in the threads you are in.
+  const people = useMemo(() => peopleWithUnread(peopleQ.filter((p) => matchesQuery(query, p.name)), personUnread(recent)), [peopleQ, query, recent]);
+  const dms = useMemo(() => dmThreads(recent), [recent]);
+  const threadsDot = ((recent as { threadsUnread?: number }).threadsUnread ?? 0) > 0;
   const working = useMemo(() => {
     const set = new Set<string>();
     for (const g of groups) for (const r of g.rows) if (r.working && r.kind === "agent") set.add(agents.find((a) => a.name === r.who)?.agentId ?? r.who);
@@ -192,8 +203,8 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   }, [groups, agents]);
 
   const entries = useMemo(
-    () => buildEntries({ tasksCount, waitingThreads, assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name }, people: peopleQ.filter((p) => matchesQuery(query, p.name)), moreRecent: more.recent === true, morePeople: more.people === true, moreAgents: more.faces === true, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(liveImported)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, archivedImported, personal, searching: query.trim() !== "" }),
-    [personal, query, tasksCount, waitingThreads, peopleQ, more, data.space.assistant.agentId, data.space.assistant.name, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, imported, archivedImported, importedOpen, liveImported, archivedChats, archivedOpen],
+    () => buildEntries({ tasksCount, threadsDot, agentUnread: byAgent, waitingThreads, assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name }, people, moreRecent: more.recent === true, morePeople: more.people === true, moreAgents: more.faces === true, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(liveImported)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, archivedImported, personal, searching: query.trim() !== "" }),
+    [personal, query, tasksCount, threadsDot, byAgent, waitingThreads, people, more, data.space.assistant.agentId, data.space.assistant.name, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, imported, archivedImported, importedOpen, liveImported, archivedChats, archivedOpen],
   );
   const order = useMemo(() => selectable(entries), [entries]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
@@ -257,6 +268,7 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
     open: () => { data.nav.openChat(r.threadId); leave(); },
     star: () => guard(api.star("thread", r.threadId, !r.starred)),
     markRead: () => guard(api.markRead(r.threadId)),
+    markUnread: () => guard(api.markUnread(r.threadId)),
     archive: () => again(api.archive(r.threadId)),
     unarchive: () => again(api.unarchive(r.threadId)),
     leaveChat: () => again(api.leaveChat(r.threadId)),
@@ -272,7 +284,7 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   const channelMenu = (c: Channel): MenuEntry[] => [
     { label: "Open", onSelect: () => { data.nav.openChannel(c.channelId); leave(); } },
     { separator: true },
-    ...(c.unread > 0 ? [{ label: "Mark as Read", onSelect: () => guard(api.markRead(c.mainThreadId)) }] : []),
+    c.unread > 0 ? { label: "Mark as Read", onSelect: () => guard(api.markRead(c.mainThreadId)) } : { label: "Mark as Unread", onSelect: () => guard(api.markUnread(c.mainThreadId)) },
     { label: "Star", onSelect: () => guard(api.star("channel", c.channelId, true)) },
   ];
 
@@ -308,8 +320,14 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
     else if (e.type === "head") { toggle(e.section); return; }
     leave();
   };
+  // a person: Message, and Mark as Read or Unread once you have a direct message with them
+  const personMenu = (e: Extract<Entry, { type: "person" }>): MenuEntry[] => {
+    const dm = dms.get(e.id);
+    const mark: MenuEntry[] = !dm ? [] : [{ separator: true }, e.unread > 0 ? { label: "Mark as Read", onSelect: () => guard(api.markRead(dm)) } : { label: "Mark as Unread", onSelect: () => guard(api.markUnread(dm)) }];
+    return [{ label: "Message", onSelect: () => open(e) }, ...mark];
+  };
   const menuFor = (e: Entry, x: number, y: number): MenuEntry[] | null =>
-    e.type === "chat" ? chatMenu(e.row) : e.type === "face" ? faceMenu(e.agent) : e.type === "channel" ? channelMenu(e.channel) : e.type === "imported" ? importedMenu(e, x, y) : null;
+    e.type === "chat" ? chatMenu(e.row) : e.type === "face" ? faceMenu(e.agent) : e.type === "channel" ? channelMenu(e.channel) : e.type === "imported" ? importedMenu(e, x, y) : e.type === "person" ? personMenu(e) : null;
   /** A row's "...", drawn while the pointer is on it: the same menu as a right-click. */
   const moreTool = (e: Entry, label: string): ReactElement => (
     <Tool icon="more" label={`More for ${label}`} onPress={(x, y) => { const m = menuFor(e, x, y); if (m) menu.show(m, x, y, "context", { label: e.key }); }} testID={`more-${e.key}`} />
@@ -387,14 +405,15 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
           trailing={e.count > 0 ? <Text testID={`count-${e.to}`} style={st.navCount}>{e.count}</Text> : e.dot ? <UnreadDot /> : null}
         />
       );
-      case "person": return (
+      case "person": return wrap(
         <Row id={e.key} title={e.name} selected={sel} hovered={lit} emphasis={e.unread > 0 && !sel} onPress={() => open(e)}
           leading={<View style={{ marginRight: 9 }}><Face name={e.name} seedId={e.id} kind="person" size={18} /></View>}
-          trailing={e.unread > 0 && !sel ? <UnreadDot /> : null} />
+          trailing={e.unread > 0 && !sel ? <UnreadDot /> : null} />,
       );
       case "face": return wrap(
         <Row
-          id={e.key} title={e.assistant ? data.space.assistant.name : e.agent.name} selected={sel} hovered={lit} onPress={() => open(e)}
+          id={e.key} title={e.assistant ? data.space.assistant.name : e.agent.name} selected={sel} hovered={lit} emphasis={(e.unread ?? 0) > 0 && !sel} onPress={() => open(e)}
+          trailing={(e.unread ?? 0) > 0 && !sel ? <UnreadDot /> : null}
           leading={<View testID={e.agent.runtime === "outside" && e.agent.status === "asleep" ? "outside-offline-row" : undefined} accessibilityLabel={e.agent.runtime === "outside" && e.agent.status === "asleep" ? `${e.agent.name} is offline` : undefined} style={{ marginRight: 9, opacity: e.agent.runtime === "outside" && e.agent.status === "asleep" ? 0.5 : 1 }}><Face name={e.assistant ? data.space.assistant.name : e.agent.name} seedId={e.agent.agentId} kind="agent" size={18} pulse={e.working} waiting={e.waiting} /></View>}
         />,
       );

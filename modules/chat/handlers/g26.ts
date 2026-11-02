@@ -1,5 +1,5 @@
 // Chat finish (P-L2_26): the limits the four handler groups of P-L2_24 reported, each fixed by wrapping the group's own function.
-//   chat.recent           real unread counts (the read cursor of threads.mark_read), the unread filter and nextUnread.
+//   chat.recent           real unread counts (the read cursor of threads.mark_read), the unread filter, nextUnread and the Threads row's count.
 //   chat.composer.suggest the / table: the commands chat itself runs.
 //   chat.open_tab         respects the person's tab setting (chat.agent_tabs) and answers no_device when none of their devices is online.
 //   question, plan, helper and handoff messages in a thread that is already sealed: refused, because the server writes them in plain text and a sealed thread takes only envelopes of its own key.
@@ -19,6 +19,8 @@ type Row = Record<string, unknown>;
 
 type Section = "starred" | "today" | "yesterday" | "earlier" | "archived";
 const SECTIONS: readonly Section[] = ["starred", "today", "yesterday", "earlier", "archived"];
+/** How many of my inline threads the Threads count looks at, newest first: the same cap the Threads page lists. */
+const THREADS_MAX = 100;
 
 export async function recentWithUnread(ctx: ChatCtx, input: { filter?: "all" | "unread" | "people" | "agents" }) {
   const asker = askerOf(ctx);
@@ -36,7 +38,13 @@ export async function recentWithUnread(ctx: ChatCtx, input: { filter?: "all" | "
       if (nextUnread === null && unread > 0 && s !== "archived") nextUnread = String(row["threadId"]);
     }
   }
-  return { ...out, nextUnread };
+  // the Threads row: what is new in the inline threads I am in (a reply or a mention joins me), counted by the same read cursor
+  let threadsUnread = 0;
+  const mine = ctx.db.all(
+    `SELECT id FROM chat_thread WHERE kind = 'thread' AND deleted_at IS NULL AND id IN (SELECT thread FROM chat_thread_member WHERE principal = ? AND deleted_at IS NULL) ORDER BY rowid DESC LIMIT ?`, asker, THREADS_MAX,
+  ) as Row[];
+  for (const r of mine) threadsUnread += unreadOf(ctx, String(r["id"]), asker);
+  return { ...out, nextUnread, threadsUnread };
 }
 
 // ---- composer ---------------------------------------------------------------------------------------------------------------------------------------
