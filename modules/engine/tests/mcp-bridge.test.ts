@@ -29,7 +29,8 @@ test("a line is posted to the endpoint with the session token, and the reply is 
   const b = await openMcpBridge({ url: "http://127.0.0.1:1/mcp", token: "tok" }, { scratch, fetch: f });
   assert.ok(fs.existsSync(path.join(scratch, "mcp-shim.mjs")));
   assert.equal(fs.readFileSync(path.join(scratch, "mcp-shim.mjs"), "utf8"), SHIM_SOURCE);
-  assert.ok(b.socket.startsWith(scratch));
+  // Windows: a named pipe (sandbox/src/sock.ts); elsewhere the socket is in the scratch folder
+  if (process.platform === "win32") assert.match(b.socket, /^\\\\\.\\pipe\\vyre-mcp-/); else assert.ok(b.socket.startsWith(scratch));
   const c = net.connect(b.socket);
   const got = lines(c, 1);
   c.write(`${JSON.stringify({ auth: "tok" })}\n${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" })}\n`);
@@ -38,7 +39,7 @@ test("a line is posted to the endpoint with the session token, and the reply is 
   assert.match(seen[0]!.body, /tools\/list/);
   c.destroy();
   await b.close();
-  assert.ok(!fs.existsSync(b.socket));
+  if (process.platform !== "win32") assert.ok(!fs.existsSync(b.socket));
 });
 
 test("a wrong token is closed before anything is posted", async () => {
@@ -70,4 +71,31 @@ test("an event-stream reply gives one line per event, and an endpoint that is do
   assert.equal(failure.id, 1, "the client can settle the request instead of waiting forever");
   assert.match(failure.error?.message ?? "", /could not be reached/);
   await b2.close();
+});
+
+// A person's data folder can be long (a Windows profile, a Mac's Application Support, a deep home). The live rc.14 Windows report died here: "the MCP socket path is too long for a unix socket:
+// 116 characters". A 120-character data folder must still give a bridge the real shim can reach, on every platform (a named pipe on Windows, a short path elsewhere).
+test("a 120-character data folder still gives a bridge the shim reaches", async () => {
+  const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-long-")));
+  let dir = base;
+  while (dir.length < 120) dir = path.join(dir, "a-long-folder-name");
+  const deep = path.join(dir, "scratch", "usr_dana");
+  assert.ok(deep.length >= 120, `the folder is ${deep.length} characters`);
+  const f = (async () => new Response(JSON.stringify({ jsonrpc: "2.0", id: 7, result: { ok: true } }), { headers: { "content-type": "application/json" } })) as unknown as typeof fetch;
+  const b = await openMcpBridge({ url: "http://127.0.0.1:1/mcp", token: "tok" }, { scratch: deep, fetch: f });
+  if (process.platform === "win32") assert.match(b.socket, /^\\\\\.\\pipe\\vyre-mcp-[0-9a-f]+$/);
+  // the program the CLI starts, as it starts it: stdin in, stdout out
+  const { spawn } = await import("node:child_process");
+  const p = spawn(b.stdio.command, b.stdio.args, { env: { ...process.env, VYRE_MCP_TOKEN: "tok" }, stdio: ["pipe", "pipe", "pipe"] });
+  let out = "";
+  let err = "";
+  p.stdout.setEncoding("utf8").on("data", (d: string) => { out += d; });
+  p.stderr.setEncoding("utf8").on("data", (d: string) => { err += d; });
+  p.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 7, method: "tools/list" })}\n`);
+  p.stdin.end();
+  const code = await new Promise<number | null>((ok) => p.once("close", ok));
+  assert.equal(code, 0, err);
+  assert.deepEqual(JSON.parse(out.trim()), { jsonrpc: "2.0", id: 7, result: { ok: true } });
+  await b.close();
+  fs.rmSync(base, { recursive: true, force: true });
 });
