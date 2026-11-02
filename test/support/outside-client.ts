@@ -1,7 +1,9 @@
-// An MCP client that knows nothing but a Space's /mcp address, and the sign-in a person allows, for the live tests of outside agents (test/outside-agents.live.test.ts, test/ask-person.live.test.ts).
+// An MCP client that knows nothing but a Space's /mcp address, the sign-in a person allows, and a booted Space per test, for the live tests of outside agents (test/outside-agents.work.live.test.ts, test/outside-agents.connect.live.test.ts, test/ask-person.live.test.ts).
+import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
 import http from "node:http";
+import { bootAgentGateSpace, LIVE_FOR_GATE_REPLY } from "../../golden/steps/07-agent-gate.ts";
 import { expectStatus } from "../../golden/steps/02-space.ts";
 import type { FlowSpace } from "../../golden/steps/02-space.ts";
 
@@ -92,4 +94,15 @@ export async function signIn(s: FlowSpace, c: Client, person: string): Promise<{
   assert.equal(back.searchParams.get("iss"), c.issuer);
   await c.trade(back.searchParams.get("code")!);
   return { agentId: allow.agentId, requestId };
+}
+
+/** The modules an outside agent's live tests need live. */
+export const OUTSIDE_LIVE: readonly string[] = [...LIVE_FOR_GATE_REPLY, "mcp", "audit", "spaces"];
+
+/** One test on its own booted Space: the owner, Olivia, signed in, and the Space's /mcp address. `extra` names more modules to have live. */
+export function withOutsideSpace(name: string, f: (s: FlowSpace, owner: string, mcp: string) => Promise<void>, extra: readonly string[] = []): void {
+  test(name, async () => {
+    const s = await bootAgentGateSpace([...OUTSIDE_LIVE, ...extra]);
+    try { await f(s, s.signedIn("usr_olivia"), `${s.d.url}/mcp`); } finally { await s.stop(); }
+  });
 }

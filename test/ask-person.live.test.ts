@@ -1,14 +1,11 @@
 // Ask the person (docs/ask-the-person.md), end to end on a booted daemon with a scripted MCP client: an outside agent asks for what only a person does, the person it acts for sees one card and
 // approves it, and it runs as them, once, exactly as asked, with the answer back through agents_next. Declined, it does not run. A person without the role is not asked at all. A key goes in
 // through the person's own paste, and the agent only ever holds its name.
-import test from "node:test";
 import assert from "node:assert/strict";
-import { bootAgentGateSpace, LIVE_FOR_GATE_REPLY } from "../golden/steps/07-agent-gate.ts";
 import { expectStatus } from "../golden/steps/02-space.ts";
 import type { FlowSpace } from "../golden/steps/02-space.ts";
-import { Client, signIn } from "./support/outside-client.ts";
+import { Client, signIn, withOutsideSpace } from "./support/outside-client.ts";
 
-const LIVE = [...LIVE_FOR_GATE_REPLY, "mcp", "audit", "spaces", "members", "vault-requests"];
 type Json = any;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
 const INIT = { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "claude-code", version: "2.1" } };
@@ -27,12 +24,7 @@ async function nextJob(s: FlowSpace, c: Client): Promise<Json> {
   return null;
 }
 
-const withSpace = (name: string, f: (s: FlowSpace, owner: string) => Promise<void>): void => {
-  test(name, async () => {
-    const s = await bootAgentGateSpace(LIVE);
-    try { await f(s, s.signedIn("usr_olivia")); } finally { await s.stop(); }
-  });
-};
+const withSpace = (name: string, f: (s: FlowSpace, owner: string) => Promise<void>): void => withOutsideSpace(name, (s, owner) => f(s, owner), ["members", "vault-requests"]);
 
 withSpace("the owner's agent asks to set up Google sign-in: one card for the owner, approve runs it as her, once, exactly as asked, and the answer reaches the agent", async (s, owner) => {
   const c = new Client(`${s.d.url}/mcp`, {}, "Simba (Claude Code)");
