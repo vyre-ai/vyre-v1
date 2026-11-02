@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { each } from "../../../shell/sidebar/model.ts";
 
 type AgentOut = CapMap["agents.get"]["out"]["agent"];
 type SummaryOut = CapMap["agents.summary"]["out"];
@@ -66,7 +67,7 @@ export function ProfilePane({ tab, name, call, onMessage, onMention, onEdit }: P
         {person ? null : <Pressable role="button" testID="profile-edit" onPress={onEdit} style={st.quiet}><Text style={st.quietText}>Edit</Text></Pressable>}
       </View>
       {working.length > 0 ? <Text style={st.label}>Right now</Text> : null}
-      {working.slice(0, 5).map((w) => <View key={w.id} style={st.kv}><Text numberOfLines={1} style={st.v}>{w.title}</Text></View>)}
+      {each(working.slice(0, 5), (w) => <View key={w.id} style={st.kv}><Text numberOfLines={1} style={st.v}>{w.title}</Text></View>)}
       {person ? null : <Text style={st.label}>Set up</Text>}
       {person ? null : row("Model", agent?.model ?? "Auto")}
       {person ? null : row("Can use", agent ? (agent.toolsAllowed.length > 0 ? `${agent.toolsAllowed.length} tools` : "Nothing yet") : undefined)}

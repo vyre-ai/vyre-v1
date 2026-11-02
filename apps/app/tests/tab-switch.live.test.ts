@@ -21,7 +21,7 @@ test("switching tabs and places never shows a blank frame", async (t) => {
   const chromium = pw.chromium ?? (pw as unknown as { default: typeof pw }).default.chromium;
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();
   if (!fs.existsSync(exe)) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail(`no Chromium at ${exe}`); t.skip("no Chromium on this machine"); return; }
-  const space = await bootFreshSpace();
+  const space = await bootFreshSpace(undefined, true);
   const web = await edge(dist, space.url);
   const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
   try {
@@ -33,15 +33,21 @@ test("switching tabs and places never shows a blank frame", async (t) => {
     const { personKey, ...keys } = made;
     wipe(personKey);
     const code = decodeURIComponent(new URL(space.claim!).pathname.split("/").pop() ?? "");
-    const claimed = await post("identity.claim_owner", { code, spaceId: space.space, username: "ada", displayName: "Ada Archer", password: PASSWORD, deviceName: "Setup", deviceClass: "desktop", keys });
-    const token = claimed.session.token as string;
+    await post("identity.claim_owner", { code, spaceId: space.space, username: "ada", displayName: "Ada Archer", password: PASSWORD, deviceName: "Setup", deviceClass: "desktop", keys });
+    const signedIn = await post("identity.sign_in", { username: "ada", password: PASSWORD, deviceName: "Setup", deviceClass: "desktop" });
+    const token = signedIn.session.token as string;
+    await fetch(`${space.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
     const who = await post("identity.whoami", {}, token);
     const marker = (await post("spaces.get", {}, token)).space.fingerprint as string;
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
-    await ctx.addInitScript((v: string) => { try { if (!localStorage.getItem("vyre.session.v1")) localStorage.setItem("vyre.session.v1", v); } catch { /* blocked */ } }, JSON.stringify({ sessions: { [web.origin]: { ...ownerSession(space, web.origin), token, personId: who.principal.id, marker } } }));
+    await ctx.addInitScript((v: string) => { try { if (!localStorage.getItem("vyre.session.v1")) localStorage.setItem("vyre.session.v1", v); } catch { /* blocked */ } }, JSON.stringify({ sessions: { [web.origin]: { ...ownerSession(space, web.origin), token, personId: who.principal.id, marker, username: "ada" } } }));
     const page = await ctx.newPage();
     await page.goto(`${web.origin}/chat`, { waitUntil: "load" });
+    // the Vault's first-run card, then onboarding: both are walked past the way a person does
+    await page.getByText("Continue", { exact: true }).click({ timeout: 3_000 }).catch(() => undefined);
     await page.getByTestId("onboarding-close").click({ timeout: 10_000 }).catch(() => undefined);
+    await page.reload({ waitUntil: "load" });
+    await page.getByText("Continue", { exact: true }).click({ timeout: 2_000 }).catch(() => undefined);
     await page.getByTestId("chats-landing").waitFor({ timeout: 30_000 });
     await page.getByTestId("rail-records").click();
     await page.getByTestId("records-place").waitFor({ timeout: 15_000 });
