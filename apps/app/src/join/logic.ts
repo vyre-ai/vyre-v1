@@ -67,7 +67,7 @@ export const RUN_STEPS = (space: string): string[] => ["Securing your keys", `Jo
 export function initialState(invite: JoinInvite, over: Partial<FlowState> = {}): FlowState {
   return {
     stage: "accept", step: 0, first: invite.names?.first ?? "", last: invite.names?.last ?? "", photo: "", user: "", pw: "", pw2: "",
-    device: invite.deviceName ?? "", trust: true, rec: false, code: "", saved: false, sheet: false, ai: invite.adminKey ? "admin" : "sub", key: "",
+    device: invite.deviceName ?? deviceNameOf(), trust: true, rec: false, code: "", saved: false, sheet: false, ai: invite.adminKey ? "admin" : "sub", key: "",
     aiProvider: "openrouter", note: "", si: "pw", siUser: "", siPw: "", siCode: "", spaceAddress: "", spaceIntent: "signin", spaceResolving: false, spaceError: "", run: 0, dir: 1, error: "", refused: "", ...over,
   };
 }
@@ -93,6 +93,13 @@ export const cleanUsername = (raw: string): string => raw.toLowerCase().replace(
 
 /** The zone every person's Space address lives under unless they bring their own domain. */
 const SPACE_ZONE = "vyre.run";
+/** The name this device starts with, from what the browser says it is, so nobody has to invent one to go on. */
+export function deviceNameOf(ua: string = globalThis.navigator?.userAgent ?? ""): string {
+  const browser = /Edg\//.test(ua) ? "Edge" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "";
+  const os = /iPhone|iPad/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android" : /Macintosh/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : "";
+  return browser && os ? `${browser} on ${os}` : "This device";
+}
+
 /** A Space is always reached through an explicit HTTP(S) address, never through the Tauri device daemon. A bare name is that name under vyre.run. */
 export function normalizeSpaceAddress(raw: string): string | null {
   const typed = raw.trim();
