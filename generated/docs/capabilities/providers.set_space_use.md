@@ -57,6 +57,10 @@ type Out = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    identity?: string;
+    displayName?: string;
+    aliases?: Array<string>;
+    olderOf?: string;
   };
 };
 ```
@@ -83,15 +87,21 @@ type Out = {
       "agentsUsing": [
         "agt_a1b2c3"
       ],
+      "aliases": [
+        "#Dana_Lawmatics"
+      ],
       "connection": "subscription",
+      "displayName": "Claude Code, dana@example.com",
       "engine": "claude-code",
       "handle": "#Dana_Lawmatics",
       "id": "prv_a1b2c3",
+      "identity": "dana@example.com",
       "itemId": "vit_a1b2c3",
       "itemName": "Dana Claude Max",
       "keyless": true,
       "logo": "example",
       "name": "example",
+      "olderOf": "prv_a1b2c3",
       "providerKey": "anthropic",
       "scope": "mine",
       "spaceKey": true,

@@ -37,6 +37,10 @@ const providerRow = t.obj({
   engine: t.str({ examples: ['claude-code'] }), spaceMayUse: t.bool(), state: t.enm('ok', 'needs_sign_in', 'failing'),
   address: t.opt(t.str({ description: 'The address a local model or custom endpoint is reached at' })), keyless: t.opt(t.bool()),
   spaceKey: t.opt(t.bool()),
+  identity: t.opt(t.str({ description: 'The account a subscription sign-in belongs to, as the provider named it at sign-in (an email, else the organization)', examples: ['dana@example.com'] })),
+  displayName: t.opt(t.str({ description: 'What a sign-in reads by in the composer and pickers: the name the person gave it, else the provider and its account. Never a counter', examples: ['Claude Code, dana@example.com'] })),
+  aliases: t.opt(t.arr(id.handle, { description: 'Handles of sign-ins of the same account that were folded into this row; they lead here' })),
+  olderOf: t.opt({ ...t.id('prv'), description: 'An older sign-in of the same provider whose account cannot be read: the row it is listed under' }),
 });
 const spaceKeyRow = {
   set: t.bool(), providerKey: t.opt(t.str({ examples: ['opencode-go'] })), name: t.opt(t.str({ examples: ['OpenCode Go'] })), providerId: t.opt(t.id('prv')),
@@ -197,7 +201,7 @@ export default defineManifest({
       ...V, idem: 'key', in: { providerKey: t.str({ examples: ['claude-code'] }) }, out: { flowId: t.id('sub'), instruction: t.str(), url: t.opt(url), userCode: t.opt(t.str()), needsCode: t.opt(t.bool()) }, audit: 'sensitive', tool: 'vault', offline: 'online',
     }),
     write('providers.subscription_complete', 'Finish a subscription sign-in. Pass the pasted code where the provider shows one; call again until it answers a provider (waiting means the person has not approved yet). The credential goes straight into a Mine item of kind ai_subscription and is never returned.', {
-      ...V, in: { flowId: t.id('sub'), code: t.opt(t.str({ description: 'The code the provider\'s page showed, pasted back' })) }, out: { provider: t.opt(providerRow), waiting: t.opt(t.bool()) }, emits: ['provider.added', 'vault.item_created', 'vault.folder_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['provider.auth_failed', 'timeout.deadline'],
+      ...V, in: { flowId: t.id('sub'), code: t.opt(t.str({ description: 'The code the provider\'s page showed, pasted back' })) }, out: { provider: t.opt(providerRow), waiting: t.opt(t.bool()) }, emits: ['provider.added', 'provider.updated', 'provider.removed', 'vault.item_created', 'vault.item_updated', 'vault.item_deleted', 'vault.folder_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['provider.auth_failed', 'timeout.deadline'],
     }),
     write('providers.set_space_use', 'Let the Space run work on my subscription, or stop it (stopping ends my sandbox)', {
       ...V, in: { providerId: t.id('prv'), allow: t.bool() }, out: { provider: providerRow }, emits: ['provider.updated'], audit: 'always', tool: 'vault', offline: 'online',

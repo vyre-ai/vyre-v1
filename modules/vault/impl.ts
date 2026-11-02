@@ -76,6 +76,11 @@ export const handlers: Record<string, Handler> = {
 
 export const projections = { inline: {}, consumers: {} };
 
+/** Sign-ins of one account saved twice (before a sign-in named its account) are folded into one row: once at start, then now and then for rows that learn their account later (signins.ts). */
+export const periodic = {
+  "vault.tidy_signins": { everyMs: 15 * 60_000, immediate: true, run: (ctx: Ctx) => pr.tidy(ctx as unknown as Parameters<typeof pr.tidy>[0]) },
+};
+
 /** What the host gives the module at boot (ruling 31/32): the filler's key (32 bytes, kept in the data directory) and the places a value may be filled into. */
 export const hostSeams: SeamSetters = {
   setVaultKeyPort: (port: KeyPort | null) => setKeyPort(port),

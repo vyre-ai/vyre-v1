@@ -74,7 +74,7 @@ export async function configureAgent(data: Pick<ConversationData, "call" | "thre
 
 /* ---------- reading ---------- */
 
-interface AccountRow { ref: string; driver: string; kind: string; title: string; name?: string; status: string }
+interface AccountRow { ref: string; driver: string; kind: string; title: string; name?: string; status: string; aliases?: string[] }
 interface UsageOut {
   account: { ref: string; name: string; provider: string; plan?: string } | null;
   context: { used: number; window: number } | null;
@@ -110,7 +110,13 @@ export function modelReason(m: { reason?: string; resetsAt?: number }, now = Dat
 
 /** Only accounts that are connected (signed in or not yet tested) are offered, by the name the person gave them. */
 export function connectedAccounts(rows: readonly AccountRow[]): PanelAccount[] {
-  return rows.filter((r) => r.status === "ok" || r.status === "untested").map((r) => ({ ref: r.ref, name: r.name ?? r.title, provider: r.driver, ...(r.kind === "api_key" ? { plan: "API key" } : {}) }));
+  return rows.filter((r) => r.status === "ok" || r.status === "untested").map((r) => ({ ref: r.ref, name: r.name ?? r.title, provider: r.driver, ...(r.kind === "api_key" ? { plan: "API key" } : {}), ...(r.aliases?.length ? { aliases: r.aliases } : {}) }));
+}
+
+/** The account a pinned ref shows as: itself, or the account it was folded into or listed under. */
+export function entryOf(accounts: readonly PanelAccount[] | null | undefined, ref: string | null | undefined): PanelAccount | undefined {
+  if (!ref || !accounts) return undefined;
+  return accounts.find((a) => a.ref === ref) ?? accounts.find((a) => a.aliases?.includes(ref) === true);
 }
 
 /** "claude-sonnet-5-5" reads "Sonnet 5.5"; a model the catalog named keeps that name. */
@@ -129,7 +135,7 @@ export function prettyModel(model: string | undefined, titles?: ReadonlyMap<stri
 /** The strip's view of each agent in the thread: provider, model, effort, the account's name when two accounts of one provider are connected, and the context the engine reported. */
 export function stripAgents(thread: Thread, nameOf: (id: string) => string, accounts: readonly PanelAccount[], contexts: ReadonlyMap<string, { used: number; window: number } | null>): ComposerAgent[] {
   return thread.agents.map((a: ThreadAgent) => {
-    const acct = accounts.find((x) => x.ref === a.accountRef);
+    const acct = entryOf(accounts, a.accountRef);
     const sameProvider = acct ? accounts.filter((x) => brandOf(x.provider) === brandOf(acct.provider)).length : 0;
     const ctx = contexts.get(a.agentId);
     return {
@@ -198,7 +204,7 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
   const openConnect = useOpenConnect();
   const accounts = p.accounts;
   // with no account chosen on the agent yet, the first connected account of its provider (else the first) is shown as the one in use
-  const shownRef = accountRef ?? (accounts ?? []).find((a) => brandOf(a.provider) === brandOf(member?.provider))?.ref ?? accounts?.[0]?.ref ?? null;
+  const shownRef = entryOf(accounts, accountRef)?.ref ?? accountRef ?? (accounts ?? []).find((a) => brandOf(a.provider) === brandOf(member?.provider))?.ref ?? accounts?.[0]?.ref ?? null;
   const usage = useUsage(data, p.agent.id, shownRef);
 
   useEffect(() => {

@@ -36,7 +36,7 @@ async function ownerWrap(ctx: VaultCtx, owner: string): Promise<Buffer> {
   const theirs = (ctx.principal.id === owner && ctx.principal.kind === "person") || ctx.actingFor === owner;
   if (!theirs) return denied(ctx, "A Mine item belongs to one person. Only they can read or change it.");
   const key = await currentKeyPort()?.personKey(owner);
-  if (!key) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your vault key is locked. Sign in again to open your Mine items.", details: { reason: "vault_locked" } });
+  if (!key) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your vault key is locked on this computer. Unlock it to open your Mine items.", details: { reason: "vault_locked" } });
   return wrapKeyFromPersonKey(key);
 }
 
@@ -214,7 +214,7 @@ function nameTaken(ctx: VaultCtx, folderId: string, name: string, except?: strin
   return rowsOf(ctx.db.all(`SELECT * FROM vault_meta WHERE "folderId" = ?`, folderId)).some((r) => live(r) && str(r, "id") !== except && str(r, "name").toLowerCase() === name.toLowerCase());
 }
 
-function uniqueHandle(ctx: VaultCtx, name: string, except?: string): string {
+export function uniqueHandle(ctx: Pick<VaultCtx, "db">, name: string, except?: string): string {
   const base = handleOf(name);
   const taken = new Set(rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => str(r, "id") !== except).map((r) => str(r, "handle").toLowerCase()));
   let h = base;

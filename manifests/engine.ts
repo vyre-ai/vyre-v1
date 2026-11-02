@@ -41,6 +41,8 @@ const accountRow = t.obj({
   status: t.enm('ok', 'expired', 'failed', 'untested'), lastProbeAt: t.opt(t.ts()),
   base: t.opt(t.str({ description: 'The address of a local or custom OpenAI-compatible endpoint' })), keyless: t.opt(t.bool()),
   spaceKey: t.opt(t.bool()),
+  aliases: t.opt(t.arr(accountRef, { description: 'Other refs that show as this account: handles folded into it and its older sign-ins. A chat or agent pinned to one of them shows this account' })),
+  older: t.opt(t.arr(t.obj({ ref: accountRef, providerId: t.id('prv'), name: t.str() }), { description: 'Older sign-ins of the same provider whose account cannot be read, listed under this one so a person can remove them' })),
 });
 const turnRow = t.obj({
   turnId: id.turn, threadId: id.thread, agentId: id.agent, asker: t.str(), accountRef: t.opt(accountRef), engine: t.str(), model: t.str(), state: turnState,
