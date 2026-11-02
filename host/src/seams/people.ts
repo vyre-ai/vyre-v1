@@ -231,11 +231,8 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
           const t = d.sso!.tickets.take(key, ticket);
           return t ? personForSso(d.db, (id) => d.access().principal(id)?.status === "active", key, t) : null;
         },
-        // a signed-in person proving a provider identity is theirs
-        link: (key: string, ticket: string, person: string): boolean => {
-          const t = d.sso!.tickets.take(key, ticket);
-          return t ? linkSso(d.db, key, t, person) : false;
-        },
+        // a signed-in person is about to prove a provider identity is theirs
+        offer: (person: string): string => d.sso!.tickets.offer(person),
         // the address a finished sign-in proved, for joining by invitation when everyone must use it; the link is written once the person exists
         prove: (key: string, ticket: string): { email: string; bind(person: string): void } | null => {
           const t = d.sso!.tickets.take(key, ticket);

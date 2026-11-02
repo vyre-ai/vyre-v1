@@ -32,7 +32,7 @@ const companyData = t.obj({ mail: t.bool(), calendar: t.bool(), files: t.bool() 
 const companyStep = t.obj({ id: t.str(), title: t.str(), doc: t.str(), done: t.bool(), optional: t.opt(t.bool()) });
 const companyStatusOut = {
   started: t.bool(), providers: t.opt(t.arr(t.obj({ key: companyProvider, title: t.str() }))), provider: t.opt(companyProvider), title: t.opt(t.str()), data: t.opt(companyData), doc: t.opt(t.str()), steps: t.opt(t.arr(companyStep)), next: t.opt(t.str()),
-  requireSso: t.opt(t.bool()), signInOn: t.opt(t.bool()), keyHandle: t.opt(t.str()), connected: t.opt(t.bool()), connectedAt: t.opt(t.ts()), mapped: t.opt(t.int()), excluded: t.opt(t.arr(email)), space: t.opt(t.str()), redirect: t.opt(t.str()), clientId: t.opt(t.str()), lastSweep: t.opt(t.str()),
+  requireSso: t.opt(t.bool()), signInOn: t.opt(t.bool()), signInTried: t.opt(t.bool()), recoveryKey: t.opt(t.bool()), domain: t.opt(t.str()), who: t.opt(t.str()), probeLine: t.opt(t.str()), keyHandle: t.opt(t.str()), connected: t.opt(t.bool()), connectedAt: t.opt(t.ts()), mapped: t.opt(t.int()), excluded: t.opt(t.arr(email)), space: t.opt(t.str()), redirect: t.opt(t.str()), clientId: t.opt(t.str()), lastSweep: t.opt(t.str()),
 };
 
 export default defineManifest({
@@ -81,7 +81,7 @@ export default defineManifest({
     }),
 
     // ---- sign-in policy, second factor, SSO
-    read('members.sign_in_policy.get', 'The Space sign-in policy: second-factor floor, SSO required, allowed methods', { ...V, in: {}, out: { policy, capabilities: t.opt(t.obj({password:t.bool(),github:t.bool(),sso:t.arr(t.str()),newMemberMfaEnrollment:t.bool(),ownerHasSecondFactor:t.bool(),currentHasSecondFactor:t.bool()})) }, perm: 'policy.manage', tool: 'engineer', team: true }),
+    read('members.sign_in_policy.get', 'The Space sign-in policy: second-factor floor, SSO required, allowed methods', { ...V, in: {}, out: { policy, capabilities: t.opt(t.obj({password:t.bool(),github:t.bool(),sso:t.arr(t.str()),newMemberMfaEnrollment:t.bool(),ownerHasSecondFactor:t.bool(),currentHasSecondFactor:t.bool(),ownerSsoLinked:t.opt(t.bool()),ownerHasRecovery:t.opt(t.bool())})) }, perm: 'policy.manage', tool: 'engineer', team: true }),
     write('members.sign_in_policy.set', 'Set the sign-in policy (owner floor: nobody goes below it)', { ...V, in: { policy }, out: { policy }, perm: 'policy.manage', gate: { act: 'signin_change', when: "actor.kind != 'person'" }, emits: ['policy.changed'], audit: 'always', risk: 'high', tool: 'engineer', team: true }),
     read('members.second_factor.report', 'Who has a second factor and who does not (when the floor is on, the ones locked out soon)', {
       ...V, in: { ...pageIn }, out: { people: t.arr(t.obj({ person: principalRef, name: t.str(), factors: t.arr(t.enm('totp', 'passkey')) })), ...pageOut }, perm: 'policy.manage', tool: 'engineer', team: true,
@@ -96,6 +96,10 @@ export default defineManifest({
       read('company.script', 'The one paste that does the provider\'s side: which shell to open and the script. It holds no secret; the admin runs it under their own account', {
         in: { provider: companyProvider }, out: { shell: t.str(), url: t.str(), script: t.str() }, perm: 'connectors.manage', tool: 'engineer',
       }),
+      write('company.check', 'Prove the key now in the Vault works, with no person involved. Answers what is wrong in plain words, or who it is; never the key. A key that works is remembered', {
+        in: {}, out: { ok: t.bool(), problem: t.opt(t.str()), clientId: t.opt(t.str()), who: t.opt(t.str()), tenantId: t.opt(t.str()), credential: t.opt(t.enm('certificate', 'secret')) }, perm: 'connectors.manage', audit: 'always', tool: 'engineer', errors: ['validation.precondition_failed'],
+      }),
+      write('company.people_done', 'A person has looked at who is in; the flow moves on to the one confirmation', { in: {}, out: companyStatusOut, perm: 'connectors.manage', audit: 'always', tool: 'engineer' }),
       write('company.probe', 'The read-only check of what the company allowed, as one line a person can act on', {
         in: {}, out: { ok: t.bool(), line: t.str(), missing: t.opt(t.arr(t.str())) }, perm: 'connectors.manage', audit: 'always', tool: 'engineer', errors: ['validation.precondition_failed', 'provider.auth_failed'],
       }),
@@ -118,6 +122,10 @@ export default defineManifest({
   ],
 
   screens: [
+    screen('company.setup', 'console', 'ui:ConnectCompany', {
+      q: { status: ['company.status', {}, true] }, a: { start: ['company.start', { provider: '/state/provider' }], check: ['company.check', {}], probe: ['company.probe', {}], connect: ['company.connect', {}, 'Bring everyone included in?'], disconnect: ['company.disconnect', {}, 'Stop every member sync?'] },
+      empty: 'Your company is not connected', primary: 'Connect your company', needs: ['connectors.manage'],
+    }),
     screen('join.accept', 'join', 'ui:JoinAccept', {
       caller: 'pending', q: { invite: ['members.invites.preview', { code: '/state/code' }, false] },
       a: { accept: ['members.accept', { code: '/state/code', username: '/state/username', displayName: '/state/displayName', password: '/state/password', deviceName: '/state/deviceName' }] },

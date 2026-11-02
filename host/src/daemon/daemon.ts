@@ -114,7 +114,7 @@ import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
 import { createGithubSignInRoute } from "../routes/github-signin.ts";
 import { createSsoSignInRoute, createSsoTickets } from "../routes/sso-signin.ts";
-import { createPeopleExtras, githubOAuthFromEnv, ssoProvidersIn } from "../seams/people.ts";
+import { createPeopleExtras, githubOAuthFromEnv, linkSso, ssoProvidersIn } from "../seams/people.ts";
 import {createRecoveryCommit} from "../seams/recovery.ts";
 import type { GithubOAuth } from "../seams/people.ts";
 import { createSpaceAdmin } from "../seams/spaceadmin.ts";
@@ -438,6 +438,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let ssoSecret: (handle: string) => Promise<string> = () => Promise.reject(new Error("The Vault is not live on this server."));
   const ssoSignInRoute = createSsoSignInRoute({
     providers: async () => (db ? ssoProvidersIn(db) : []), secret: (h) => ssoSecret(h), fetch: o.seams?.fetch ?? defaultFetch, tickets: ssoTickets,
+    bind: (key, who, person) => (db ? linkSso(db, key, who, person) : false),
     log: (why, attrs) => sink.log({ space: space ?? "-", level: 30, msg: why, place: "sso", attrs }),
   });
   const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: ownNode });

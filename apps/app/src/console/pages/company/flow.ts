@@ -1,0 +1,46 @@
+// Connect your company, with no screen in it: what a pasted credential is, the section of the guide a step opens, and the sentence for each thing a person can do. The page draws these; a test holds them to the guide.
+import { parseGoogleKey, microsoftSecret } from "../suite/model.ts";
+import type { Parsed } from "../suite/model.ts";
+
+export type Provider = "google" | "microsoft";
+export type Pasted = { kind: "google"; text: string; who: string } | { kind: "microsoft"; text: string; clientId: string; tenantId: string; signInSecret?: string };
+
+/** A pasted or dropped credential, read here so the first thing a person learns is whether it is the right kind of thing. Only the shape is read; the check that it works happens at the provider. */
+export function readPasted(provider: Provider, text: string, hand: { tenantId: string; clientId: string; clientSecret: string }): Parsed<Pasted> {
+  if (provider === "google") {
+    const k = parseGoogleKey(text);
+    return k.ok ? { ok: true, value: { kind: "google", text: text.trim(), who: k.value.clientEmail } } : k;
+  }
+  if (text.trim().startsWith("{")) {
+    let o: Record<string, unknown>;
+    try { o = JSON.parse(text.trim()) as Record<string, unknown>; } catch { return { ok: false, problem: "That is not the whole line. Copy from the first { to the last }." }; }
+    const clientId = o["clientId"], tenantId = o["tenantId"];
+    if (typeof clientId !== "string" || typeof tenantId !== "string") return { ok: false, problem: "That line has no client ID or tenant ID. Paste what the script printed." };
+    const secret = typeof o["clientSecret"] === "string" ? o["clientSecret"] : undefined;
+    return { ok: true, value: { kind: "microsoft", text: text.trim(), clientId, tenantId, ...(secret ? { signInSecret: secret } : {}) } };
+  }
+  const made = microsoftSecret(hand);
+  return made.ok ? { ok: true, value: { kind: "microsoft", text: made.value, clientId: hand.clientId.trim(), tenantId: hand.tenantId.trim(), signInSecret: hand.clientSecret.trim() } } : made;
+}
+
+const slug = (heading: string): string => heading.toLowerCase().replace(/[^a-z0-9 -]/g, "").trim().replace(/\s+/g, "-");
+
+/** One section of a guide, ready for the chat's markdown: a table reads as lines, because that renderer has no tables. Null when the section is not there. */
+export function docSection(page: string, section: string): string | null {
+  const parts = page.split(/^(?=## )/m);
+  const hit = parts.find((p) => p.startsWith("## ") && slug(p.split("\n", 1)[0]!.slice(3)) === section);
+  if (!hit) return null;
+  return hit.split("\n").slice(1).flatMap((line) => {
+    if (/^\|[\s:|-]+\|$/.test(line)) return [];
+    if (!line.startsWith("|")) return [line];
+    return [`- ${line.split("|").slice(1, -1).map((c) => c.trim()).filter(Boolean).join(": ")}`];
+  }).join("\n").trim();
+}
+
+export const dataLine = (d: { mail: boolean; calendar: boolean; files: boolean }): string => {
+  const on = [d.mail ? "Mail" : "", d.calendar ? "Calendar" : "", d.files ? "Files" : ""].filter(Boolean);
+  return on.length === 3 ? "Mail, Calendar and Files" : on.join(" and ");
+};
+
+export const connectLine = (mapped: number, excluded: number, d: { mail: boolean; calendar: boolean; files: boolean }): string =>
+  `${mapped} ${mapped === 1 ? "person gets" : "people get"} ${dataLine(d)} with nothing to sign in to.${excluded ? ` ${excluded} excluded ${excluded === 1 ? "stays" : "stay"} out.` : ""}`;

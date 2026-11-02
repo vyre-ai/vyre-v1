@@ -25,6 +25,7 @@ import { LabelsPage, SchemaPage } from "../../console/pages/Data.tsx";
 import { ApiKeysPage, ConnectorsPage, ConnectionsPage, WebhooksPage } from "../../console/pages/Integrations.tsx";
 import { SkillsPage } from "../../console/pages/Skills.tsx";
 import { PluginsPage } from "../../console/pages/Plugins.tsx";
+import { ConnectCompanyPage } from "../../console/pages/company/ConnectCompany.tsx";
 import { GoogleWorkspacePage } from "../../console/pages/suite/GoogleWorkspace.tsx";
 import { Microsoft365Page } from "../../console/pages/suite/Microsoft365.tsx";
 import { Models } from "../../console/pages/Models.tsx";
@@ -80,6 +81,7 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "numbers") return <NumbersPage {...(args["numberId"]?{initialId:args["numberId"]}:{})} />;
   if (id === "inboxes") return <InboxesPage {...(args["mailboxId"]?{initialId:args["mailboxId"]}:{})} />;
   if (id === "texting") return <TextingPage />;
+  if (id === "company") return <ConnectCompanyPage />;
   if (id === "google") return <GoogleWorkspacePage />;
   if (id === "microsoft") return <Microsoft365Page />;
   if (id === "connectors") return <ConnectorsPage {...(args["connectorKey"]?{initialKey:args["connectorKey"]}:{})} />;

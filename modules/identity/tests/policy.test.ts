@@ -9,3 +9,13 @@ test("current host policy disables password sessions and reports only implemente
 test("a current required MFA policy cannot issue a session to an account without a factor",async()=>{const h=harness();await provisionAccount(h.anon,SEED_PERSON);const ctx={...h.anon,signInPolicy:{methods:{github:false,sso:[],newMemberMfaEnrollment:false},current:()=>({...policy,secondFactor:"required" as const})}};await assert.rejects(handlers["identity.sign_in"](ctx,{username:SEED_PERSON.username,password:SEED_PERSON.secret,...DEVICE}),error=>codeOf(error)==="validation.precondition_failed");assert.equal(h.registered.length,0);});
 
 test("policy rejection does not consume an invite or create a stranded account",async()=>{for(const next of [{...policy,allowPassword:false},{...policy,secondFactor:"required" as const}]){const h=harness();let accepted=0;const ctx={...h.anon,invites:{peek:async()=>({inviteId:"inv_policy",role:"rol_member",groups:[],invitedBy:"usr_owner"}),accept:async()=>{accepted++;}},signInPolicy:{methods:{github:false,sso:[],newMemberMfaEnrollment:false},current:()=>next}};await assert.rejects(handlers["invites.accept_create_account"](ctx,{code:"join-code",username:"newperson",password:"correct horse battery staple",keys:KEYS,...DEVICE}),error=>codeOf(error)==="validation.precondition_failed");assert.equal(accepted,0);assert.equal(h.db.all("SELECT person_id FROM identity_accounts").length,0);assert.equal(h.registered.length,0);}});
+
+test("under required single sign-on, recovery is the owner's break-glass and nobody else's",async()=>{
+ const{assertSignInPolicy}=await import("../policy.ts");
+ const policy={secondFactor:"off" as const,requireSso:true,allowPassword:false,allowGithub:false};
+ const ctx=(owner:string)=>({signInPolicy:{current:()=>policy,methods:{github:false,sso:["google"],newMemberMfaEnrollment:false}},spaceOwner:()=>owner,sso:{providers:()=>[],resolve:()=>null},trace:{traceId:"0".repeat(32)}}) as never;
+ const account={person_id:"usr_owner",totp_secret:null} as never;
+ assert.doesNotThrow(()=>assertSignInPolicy(ctx("usr_owner"),account,"recovery"));
+ assert.throws(()=>assertSignInPolicy(ctx("usr_someone_else"),account,"recovery"),(e:unknown)=>(e as {error?:{code?:string}}).error?.code==="auth.bad_credentials");
+ assert.throws(()=>assertSignInPolicy(ctx("usr_owner"),account,"password"),(e:unknown)=>(e as {error?:{code?:string}}).error?.code==="auth.bad_credentials");
+});

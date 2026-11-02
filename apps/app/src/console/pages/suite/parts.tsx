@@ -10,7 +10,7 @@ import { matchProblem, memberNote } from "./model.ts";
 import type { MemberRow, ServiceRow, Summary } from "./model.ts";
 
 /** Only addresses this module wrote can be opened; nothing a server sent. */
-const SAFE = /^https:\/\/(console\.cloud\.google\.com|admin\.google\.com|entra\.microsoft\.com|learn\.microsoft\.com|login\.microsoftonline\.com)\//;
+const SAFE = /^https:\/\/(console\.cloud\.google\.com|admin\.google\.com|entra\.microsoft\.com|learn\.microsoft\.com|login\.microsoftonline\.com|shell\.azure\.com)\//;
 export const openable = (url: string): boolean => SAFE.test(url);
 
 export function copyToClipboard(text: string): void {

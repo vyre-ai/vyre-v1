@@ -136,3 +136,20 @@ test("a typed issuer is never dialled at a local or private address, by name or 
   await assert.rejects(g("https://sneaky.example.com/x"), refused(/private/));
   assert.equal((await g("https://idp.example.com/x")).status, 200);
 });
+
+test("Google: only a verified Workspace account of the firm's domain, and the person is the subject, never the address", async () => {
+  const google = (token: string) => verifyIdToken(fetchKeys, D, token, { clientId: "app", nonce: "n1", domain: "firm.test", now: NOW, hostedDomain: true });
+  await assert.rejects(google(await sign(good({ sub: "g1", email_verified: true }))), refused(/not a verified Google Workspace/), "a consumer account made with a firm address has no hosted domain");
+  await assert.rejects(google(await sign(good({ sub: "g1", hd: "firm.test", email_verified: undefined }))), refused(/not a verified Google Workspace/));
+  await assert.rejects(google(await sign(good({ sub: "g1", hd: "other.test" }))), refused(/another domain/));
+  assert.deepEqual((await google(await sign(good({ sub: "g1", hd: "firm.test" })))).link, { tenant: "firm.test", subject: "g1" });
+});
+
+test("a token meant for several apps must have been issued to this one", async () => {
+  await assert.rejects(check(await sign(good({ aud: ["app", "other"], azp: "other" }))), refused(/issued to another app/));
+  await check(await sign(good({ aud: ["app", "other"], azp: "app" })));
+});
+
+test("a token with no subject links nobody", async () => {
+  await assert.rejects(check(await sign(good({ sub: undefined }))), refused(/no user id/));
+});

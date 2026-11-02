@@ -16,11 +16,10 @@ const shared = {
 export const FLOW_STEPS: Readonly<Record<CompanyProvider, readonly FlowStep[]>> = {
   google: [
     shared.choose,
-    { id: "signin_app", title: "Make the sign-in app", doc: "make-the-sign-in-app" },
-    shared.try, shared.require,
     { id: "access_key", title: "Make the service account and add its key", doc: "make-the-service-account-and-add-its-key" },
     { id: "access_allow", title: "Allow the scopes in Google Admin", doc: "allow-the-scopes-in-google-admin" },
-    shared.probe, shared.people, shared.confirm,
+    { id: "signin_app", title: "Make the sign-in app", doc: "make-the-sign-in-app" },
+    shared.try, shared.require, shared.probe, shared.people, shared.confirm,
   ],
   microsoft: [
     shared.choose,

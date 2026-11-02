@@ -30,7 +30,7 @@ async function isOwner(ctx: MembersCtx, personId: string): Promise<boolean> {
 
 export async function policyGetH(ctx: MembersCtx, _input: Record<string, never>) {
  const owner=ctx.spaceOwner?.();const who=ctx.principal?.id;
- return { policy: currentPolicy(ctx),capabilities:{password:true,github:ctx.signInMethods?.github??false,sso:[...(ctx.signInMethods?.sso??[])],newMemberMfaEnrollment:ctx.signInMethods?.newMemberMfaEnrollment??false,ownerHasSecondFactor:!!owner&&!!ctx.factors?.of(owner).length,currentHasSecondFactor:!!who&&!!ctx.factors?.of(who).length} };
+ return { policy: currentPolicy(ctx),capabilities:{password:true,github:ctx.signInMethods?.github??false,sso:[...(ctx.signInMethods?.sso??[])],newMemberMfaEnrollment:ctx.signInMethods?.newMemberMfaEnrollment??false,ownerHasSecondFactor:!!owner&&!!ctx.factors?.of(owner).length,currentHasSecondFactor:!!who&&!!ctx.factors?.of(who).length,ownerSsoLinked:!!owner&&!!ctx.breakGlass?.ssoLinked(owner),ownerHasRecovery:!!owner&&!!ctx.breakGlass?.hasRecovery(owner)} };
 }
 
 export async function policySet(ctx: MembersCtx, input: { policy: Policy }) {

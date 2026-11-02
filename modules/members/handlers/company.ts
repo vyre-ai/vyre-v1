@@ -35,34 +35,41 @@ async function statusOf(ctx: Ctx) {
   const f = flowOf(ctx);
   const provider = f ? (f["provider"] as CompanyProvider) : undefined;
   if (!provider) return { started: false, providers: (["google", "microsoft"] as const).map((key) => ({ key, title: PROVIDER_TITLE[key] })) };
-  const { conn, sso, policy } = await facts(ctx, provider);
+  const { conn, sso, policy, caps } = await facts(ctx, provider);
   const data = conn && conn["configured"] === true ? (obj(conn["data"]) as unknown as Data) : dataOf(f);
   const google = provider === "google";
-  const stored = conn?.[google ? "keyStored" : "appStored"] === true;
+  const stored = typeof f!["keyCheckedAt"] === "number" || conn?.[google ? "keyStored" : "appStored"] === true;
   const configured = conn?.["configured"] === true;
   const checked = google ? conn?.["lastProbeOk"] === true : conn?.["consentGiven"] === true;
   const connected = typeof f!["connectedAt"] === "number";
   const done = new Set<StepId>(["choose"]);
   if (sso?.["enabled"] === true) done.add("signin_app");
+  if (caps["ownerSsoLinked"] === true) done.add("signin_try");
+  if (policy["requireSso"] === true) done.add("signin_require");
   if (stored) done.add("access_key");
   if (configured && (google ? checked : conn?.["consentGiven"] === true)) done.add("access_allow");
   if (!google && conn?.["policyConfirmed"] === true) done.add("access_limit");
-  if (checked) done.add("access_probe");
-  if (connected) { done.add("people"); done.add("confirm"); }
+  if (typeof f!["probedAt"] === "number") done.add("access_probe");
+  if (typeof f!["peopleAt"] === "number" || connected) done.add("people");
+  if (connected) done.add("confirm");
   const redirect = str(obj(await quiet(ctx, google ? "google.user.app_status" : "ms.user.app_status", {}))["redirectUri"]);
   const origin = redirect ? new URL(redirect).origin : undefined;
   const out: Row = {
     started: true, provider, title: PROVIDER_TITLE[provider], data, doc: DOC_PAGE[provider],
     steps: FLOW_STEPS[provider].map((s) => ({ id: s.id, title: s.title, doc: s.doc, done: done.has(s.id), ...(s.optional ? { optional: true } : {}) })),
-    requireSso: policy["requireSso"] === true, signInOn: sso?.["enabled"] === true, keyHandle: google ? GOOGLE_KEY_HANDLE : MICROSOFT_KEY_HANDLE, connected,
+    requireSso: policy["requireSso"] === true, signInOn: sso?.["enabled"] === true, signInTried: caps["ownerSsoLinked"] === true, recoveryKey: caps["ownerHasRecovery"] === true, keyHandle: google ? GOOGLE_KEY_HANDLE : MICROSOFT_KEY_HANDLE, connected,
     mapped: typeof conn?.["mappedMembers"] === "number" ? conn["mappedMembers"] : 0, excluded: arr(conn?.["excluded"]).filter((x): x is string => typeof x === "string"),
   };
   const next = nextStep(provider, done);
   if (next) out["next"] = next.id;
   if (origin) { out["space"] = origin; out["redirect"] = `${origin}/auth/sso/${provider}/callback`; }
-  if (str(conn?.["clientId"])) out["clientId"] = conn!["clientId"];
+  const clientId = str(conn?.["clientId"]) ?? str(f!["clientId"]);
+  if (clientId) out["clientId"] = clientId;
+  if (str(f!["accountEmail"])) out["who"] = f!["accountEmail"];
+  if (str(sso?.["domainHint"])) out["domain"] = sso!["domainHint"];
   if (typeof f!["connectedAt"] === "number") out["connectedAt"] = f!["connectedAt"];
   if (str(f!["lastSweepLine"])) out["lastSweep"] = f!["lastSweepLine"];
+  if (str(f!["probeLine"])) out["probeLine"] = f!["probeLine"];
   return out;
 }
 
@@ -88,6 +95,28 @@ export async function companyScript(ctx: Ctx, input: { provider: CompanyProvider
   return { shell: "Azure Cloud Shell", url: "https://shell.azure.com/bash", script: microsoftScript(data, str(obj(status)["redirect"]), perms) };
 }
 
+/** The key is in the Vault: prove it now, with no person involved. What is wrong comes back as words; what is right is remembered, so this is never asked again. The value never comes here. */
+export async function companyCheck(ctx: Ctx) {
+  const f = flowOf(ctx);
+  if (!f) return bad(ctx, "Start Connect your company first.");
+  const google = f["provider"] === "google";
+  const out = obj(await ctx.call((google ? "google.dwd.check_key" : "ms.consent.check_app") as never, { vaultItem: google ? GOOGLE_KEY_HANDLE : MICROSOFT_KEY_HANDLE }));
+  const ok = out["ok"] === true;
+  ctx.db.run(`UPDATE members_company_flow SET "keyCheckedAt" = ?, "clientId" = ?, "accountEmail" = ? WHERE id = ?`, ok ? ctx.now() : null, ok ? str(out["clientId"]) ?? null : null, ok ? str(out["clientEmail"]) ?? null : null, FLOW);
+  return { ok, ...(str(out["problem"]) ? { problem: out["problem"] } : {}), ...(str(out["clientId"]) ? { clientId: out["clientId"] } : {}), ...(str(out["clientEmail"]) ? { who: out["clientEmail"] } : {}), ...(str(out["tenantId"]) ? { tenantId: out["tenantId"] } : {}), ...(str(out["credential"]) ? { credential: out["credential"] } : {}) };
+}
+
+/** A person has looked at who is in. Nothing else changes: this only moves the flow on, and it keeps moving if someone is excluded later. */
+export async function companyPeopleDone(ctx: Ctx) {
+  ctx.db.run(`UPDATE members_company_flow SET "peopleAt" = ? WHERE id = ?`, ctx.now(), FLOW);
+  return statusOf(ctx);
+}
+
+function passed(ctx: Ctx, line: string) {
+  ctx.db.run(`UPDATE members_company_flow SET "probedAt" = ?, "probeLine" = ? WHERE id = ?`, ctx.now(), line, FLOW);
+  return { ok: true, line };
+}
+
 /** The read-only check, as one line a person can act on. It reads whether Google or Microsoft will answer, never anyone's content. */
 export async function companyProbe(ctx: Ctx) {
   const f = flowOf(ctx);
@@ -95,12 +124,12 @@ export async function companyProbe(ctx: Ctx) {
   if (f["provider"] === "google") {
     const out = obj(await ctx.call("google.dwd.probe" as never, {}));
     const missing = arr(out["scopesMissing"]).filter((s): s is string => typeof s === "string").map((s) => s.slice(s.lastIndexOf("/") + 1));
-    if (out["ok"] === true) return { ok: true, line: `Google answered for ${str(out["email"]) ?? "the admin"}. Every scope is allowed.` };
+    if (out["ok"] === true) return passed(ctx, `Google answered for ${str(out["email"]) ?? "the admin"}. Every scope is allowed.`);
     if (missing.length) return { ok: false, line: `Not allowed yet in Google Admin: ${missing.join(", ")}. It can take up to 24 hours, usually much less.`, missing };
     return { ok: false, line: str(out["detail"]) ?? "Google did not accept the check." };
   }
   const out = obj(await ctx.call("ms.consent.verify" as never, {}));
-  if (out["ok"] === true) return { ok: true, line: str(out["detail"]) ?? "Microsoft answered. Consent is given and the app can reach your members' mailboxes." };
+  if (out["ok"] === true) return passed(ctx, str(out["detail"]) ?? "Microsoft answered. Consent is given and the app can reach your members' mailboxes.");
   return { ok: false, line: str(out["detail"]) ?? "Microsoft did not accept the check." };
 }
 
@@ -163,6 +192,8 @@ export const companyHandlers = {
   "company.status": (ctx: Ctx) => companyStatus(ctx),
   "company.start": (ctx: Ctx, i: Parameters<typeof companyStart>[1]) => companyStart(ctx, i),
   "company.script": (ctx: Ctx, i: Parameters<typeof companyScript>[1]) => companyScript(ctx, i),
+  "company.check": (ctx: Ctx) => companyCheck(ctx),
+  "company.people_done": (ctx: Ctx) => companyPeopleDone(ctx),
   "company.probe": (ctx: Ctx) => companyProbe(ctx),
   "company.connect": (ctx: Ctx, i: Parameters<typeof companyConnect>[1]) => companyConnect(ctx, i),
   "company.disconnect": (ctx: Ctx) => companyDisconnect(ctx),

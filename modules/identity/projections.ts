@@ -16,8 +16,8 @@ export interface Db {
 export interface Sso {
   providers(): { key: string; title: string }[];
   resolve(key: string, ticket: string): string | null;
-  /** A signed-in person proves a provider identity is theirs. */
-  link?(key: string, ticket: string, person: string): boolean;
+  /** A signed-in person is about to prove a provider identity is theirs: a one-use id for the start address. */
+  offer?(person: string): string;
   /** The address a finished sign-in proved, for joining by invitation when everyone must use it. */
   prove?(key: string, ticket: string): { email: string; bind(person: string): void } | null;
 }

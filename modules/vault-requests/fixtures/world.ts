@@ -50,6 +50,9 @@ export function world(over: Partial<Script> = {}) {
       }
       case "vault.item.put": return { item: { id: "vit_new", fieldKeys: (i["fields"] as { key: string }[]).map((f) => f.key) } };
       case "vault.share": return { granted: true };
+      case "vault.folders.list": return { folders: [] };
+      case "vault.folders.create": return { folder: { id: "vfd_company" } };
+      case "access.labels.set": return { ok: true };
       case "runs.resume": return { run: { id: i["runId"] } };
       default: throw new Error(`unexpected call ${cap}`);
     }

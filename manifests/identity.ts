@@ -64,8 +64,8 @@ export default defineManifest({
     write('identity.sso_sign_in', 'Finish an OIDC sign-in (Google, Microsoft, Okta) with the one-use ticket the Space leaves in the address after the provider approves (through the sign-in app the firm made in Google or Microsoft, OpenID Connect)', {
       ...V, caller: 'anonymous', in: { provider: t.str({ examples: ['google'] }), code: t.str(), state: t.str(), ...deviceIn }, out: signInOut, emits: ['signin.succeeded', 'signin.failed'], audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'principal' }, errors: ['auth.bad_credentials', 'auth.invalid_code'],
     }),
-    write('identity.sso_link', 'A signed-in person proves a provider identity is theirs by finishing a sign-in with it; the one-use ticket comes back the same way. A provider id already linked to someone else stays theirs', {
-      ...V, in: { provider: t.str({ examples: ['google'] }), code: t.str() }, out: { linked: t.bool() }, audit: 'always', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'principal' },
+    write('identity.sso_link', 'Start proving a provider identity is yours: the address to finish a sign-in at. Whatever comes back is bound to you; a provider id already linked to someone else stays theirs', {
+      ...V, in: { provider: t.str({ examples: ['google'] }) }, out: { start: t.str() }, audit: 'always', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'principal' },
     }),
     write('identity.sign_out', 'End this session; the device keeps nothing it should not', { ...V, in: { sessionId: t.opt(id.session) }, out: ok, offline: 'online', tool: 'meta' }),
     read('identity.whoami', 'Who the caller is here: person, roles, clearance, device, epoch', {

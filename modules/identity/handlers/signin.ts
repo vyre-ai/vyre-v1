@@ -113,11 +113,12 @@ export async function githubSignIn(ctx: IdentityCtx, input: Device & { code: str
   return await afterFirstFactor(ctx, a, input, "github");
 }
 
-/** A signed-in person proves a provider identity is theirs: the owner does this before everyone must use it, so the rule cannot lock them out. */
-export async function ssoLink(ctx: IdentityCtx, input: { provider: string; code: string }): Promise<{ linked: boolean }> {
+/** A signed-in person starts proving a provider identity is theirs: the owner does this before everyone must use it, so the rule cannot lock them out. The address opens in any browser; the sign-in that comes back is bound to them. */
+export async function ssoLink(ctx: IdentityCtx, input: { provider: string }): Promise<{ start: string }> {
   const person = me(ctx);
-  if (!ctx.sso?.link) raise(ctx.trace.traceId, "validation.unsupported", "That sign-in is not set up for this Space");
-  return { linked: ctx.sso.link(input.provider, input.code, person.id) };
+  if (!ctx.sso?.offer || !ctx.sso.providers().some((p) => p.key === input.provider)) raise(ctx.trace.traceId, "validation.unsupported", "That sign-in is not set up for this Space");
+  if (person.kind !== "person") raise(ctx.trace.traceId, "permission.role_lacks_permission", "A person proves their own sign-in.");
+  return { start: `/auth/sso/${encodeURIComponent(input.provider)}/start?link=${encodeURIComponent(ctx.sso.offer(person.id))}` };
 }
 
 export async function ssoSignIn(ctx: IdentityCtx, input: Device & { provider: string; code: string; state: string }): Promise<SignInOut> {

@@ -58,13 +58,21 @@ async function chatOf(ctx: VaultReqCtx, row: RequestRow): Promise<{ threadId: st
   return null;
 }
 
+/** Where a company key lives: the shared folder Connect your company uses, Restricted before anything goes in, so a Member and every agent can neither list, use nor change it. */
+async function companyFolder(ctx: VaultReqCtx): Promise<string | undefined> {
+  const name = "Company connections";
+  const have = (asRow(await ctx.call("vault.folders.list", { scope: "shared" }))?.["folders"] as { id?: string; name?: string }[] | undefined ?? []).find((f) => f.name === name);
+  const id = have?.id ?? strOf(asRow(asRow(await ctx.call("vault.folders.create", { name, scope: "shared", idempotencyKey: `company-folder:${ctx.now()}` }))?.["folder"])?.["id"]);
+  if (id) await ctx.call("access.labels.set", { resource: { type: "vault_folder", id }, label: "restricted" });
+  return id ?? undefined;
+}
+
 export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fields?: string[]; reason: string; forRun?: string; folderId?: string; idempotencyKey: string }) {
   const trace = ctx.trace.traceId;
   const requester = requesterOf(ctx);
   const name = input.name.trim();
   if (!NAME.test(name)) raise(trace, "validation.bad_input", "Name the key like a handle: letters, digits and underscores, starting with a letter.");
   if (!input.reason.trim()) raise(trace, "validation.bad_input", "Say why the key is needed, so a manager can decide.");
-  if (isCompanyKey(`#${name}`)) raise(trace, "validation.precondition_failed", "This key goes in through Connect your company, on the card, so it never passes through a chat or an agent.");
   const fields = [...new Set((input.fields && input.fields.length > 0 ? input.fields : DEFAULT_FIELDS).map((f) => f.trim()))];
   for (const f of fields) if (!FIELD.test(f)) raise(trace, "validation.bad_input", `${f} is not a field name.`);
 
@@ -173,7 +181,7 @@ export async function requestsFulfil(ctx: VaultReqCtx, input: { requestId: strin
     const given = new Map((input.fields ?? []).map((f) => [f.key, f.value] as const));
     const missing = wanted.filter((f) => !(given.get(f)?.length));
     if (missing.length > 0) raise(trace, "validation.precondition_failed", `The key needs a value for ${missing.join(", ")}.`);
-    const folderId = input.folderId ?? row.folder_id ?? undefined;
+    const folderId = input.folderId ?? row.folder_id ?? (isCompanyKey(`#${row.name}`) ? await companyFolder(ctx) : undefined);
     if (!folderId) raise(trace, "validation.precondition_failed", "Choose the folder the new item goes in.");
     const made = asRow(await ctx.call("vault.item.put", {
       folderId, name: row.name, kind: "api_key", fields: (input.fields ?? []).map((f) => ({ key: f.key, value: f.value, secret: true })), idempotencyKey: `${row.id}:put`,
@@ -182,8 +190,9 @@ export async function requestsFulfil(ctx: VaultReqCtx, input: { requestId: strin
     if (!itemId) raise(trace, "internal.unexpected", "The item was not saved.");
   }
 
-  // the requester gets Use: a handle to fill, never the value
-  try {
+  // a company key goes on the card from the person to the Vault, into the Restricted folder, and the agent that asked gets nothing: not Use, not the handle's value. It carries on through the connector, on the server
+  if (isCompanyKey(`#${row.name}`)) await ctx.call("access.labels.set", { resource: { type: "vault_item", id: itemId }, label: "restricted" });
+  else try {
     await ctx.call("vault.share", { resource: { type: "vault_item", id: itemId }, subject: { kind: row.requester_kind, id: row.requester_id }, level: "use", idempotencyKey: `${row.id}:use` });
   } catch (e) {
     // a Mine item is private to its owner: an agent acting for that person already works as them, so there is nothing to share. Any other refusal stands.

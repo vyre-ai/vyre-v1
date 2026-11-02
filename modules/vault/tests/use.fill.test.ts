@@ -338,3 +338,18 @@ test("a rename keeps the handle, so what holds it keeps working; setting a new v
   assert.equal(out(out(await v.itemGet(h.ctx, { itemId: id })).item).lastRotatedAt, h.ctx.now());
   h.cleanup();
 });
+
+test("a company key is for the server alone: no agent fills, injects, exports or is given one, whatever it holds", async () => {
+  for (const name of ["Google DWD", "Microsoft App", "Sso Google Secret"]) {
+    const h = harness();
+    const got = sinks();
+    const f = await folder(h);
+    await put(h, f, name);
+    const handle = `#${name.replace(/ /g, "_")}`;
+    const agent = { ...h.ctx, principal: { kind: "agent" as const, id: AGENT }, actingFor: MAYA, authorize: () => ({ effect: "allow" as const, reason: "ok", decisionId: "d" }) };   // even one that was given Use
+    assert.equal(await refusedWith(u.fill(agent, { handle, target: { kind: "env", ref: "p" } })), "permission.no_grant", name);
+    assert.equal(await refusedWith(v.share(h.ctx, { resource: { type: "vault_item", id: String(out(await u.use(h.ctx, { item: name })).itemId) }, subject: { kind: "agent", id: AGENT }, level: "use", idempotencyKey: key() })), "validation.precondition_failed", `${name} is never shared with an agent`);
+    assert.deepEqual(out(await u.injectEnv(agent, { folderId: f })).handles, []);
+    assert.equal(got.length, 0, "no value left the Vault");
+  }
+});

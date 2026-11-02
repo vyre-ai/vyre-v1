@@ -63,8 +63,9 @@ function parseApp(json: string): App | null {
   const o = (k && typeof k === "object" ? k : {}) as Record<string, unknown>;
   const clientId = o["clientId"] ?? o["client_id"], clientSecret = o["clientSecret"] ?? o["client_secret"], tenantId = o["tenantId"] ?? o["tenant_id"], thumbprint = o["thumbprint"], key = o["private_key"];
   if (typeof clientId !== "string" || typeof tenantId !== "string" || !clientId || !TENANT.test(tenantId)) return null;
-  if (typeof clientSecret === "string" && clientSecret) return { clientId, clientSecret, tenantId };
+  // the certificate first: the secret that travels with it is the sign-in app's, not the data connection's
   if (typeof thumbprint === "string" && /^[0-9a-f:]{40,}$/i.test(thumbprint) && typeof key === "string" && key.includes("PRIVATE KEY")) return { clientId, thumbprint: thumbprint.replaceAll(":", ""), tenantId };
+  if (typeof clientSecret === "string" && clientSecret) return { clientId, clientSecret, tenantId };
   return null;
 }
 
