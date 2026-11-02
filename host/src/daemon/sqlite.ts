@@ -1,6 +1,7 @@
 // The one place the host opens a SQLite file itself (modules.db for ctx.db, and read-only opens for `doctor`). Everything else in the daemon takes a `HostDb`.
 // B2 (scripts/boundaries.json) lists kernel, sync and search for node:sqlite; host/src/logsink already opens logs.db the same way, so this file is the second host exception and the only one in the daemon.
 import { DatabaseSync } from "node:sqlite";
+import { pathToFileURL } from "node:url";
 import type { RawDb } from "../ctx/db.ts";
 
 export interface HostDb extends RawDb {
@@ -10,11 +11,18 @@ export interface HostDb extends RawDb {
   close(): void;
 }
 
-export interface OpenDbOptions { readOnly?: boolean }
+export interface OpenDbOptions {
+  readOnly?: boolean;
+  /** read-only, and SQLite may assume nothing else writes the file: it then makes no -wal or -shm beside a WAL file (a stopped daemon's, read by doctor) */
+  immutable?: boolean;
+}
+
+/** `file` as a SQLite URI that opens it immutable. */
+const immutableUri = (file: string): URL => { const u = pathToFileURL(file); u.searchParams.set("immutable", "1"); return u; };
 
 export function openDb(file: string, o: OpenDbOptions = {}): HostDb {
-  const db = new DatabaseSync(file, o.readOnly ? { readOnly: true } : {});
-  if (!o.readOnly) db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000;");
+  const db = o.immutable ? new DatabaseSync(immutableUri(file), { readOnly: true }) : new DatabaseSync(file, o.readOnly ? { readOnly: true } : {});
+  if (!o.readOnly && !o.immutable) db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000;");
   else db.exec("PRAGMA busy_timeout = 2000;");
   let depth = 0;
   return {

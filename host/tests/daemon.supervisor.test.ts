@@ -220,6 +220,17 @@ test("a failing job is counted and reported and the other jobs still run", async
   assert.equal(seen[0]?.error, "disk full");
 });
 
+test("a job that fails the same way on every run is logged once per streak, and every run still reaches onRun", async () => {
+  let t = 0, why = "disk full";
+  const runs: boolean[] = [], logged: unknown[] = [];
+  const noop = (): void => {};
+  const s = new Scheduler({ now: () => t, onRun: (r) => runs.push(r.ok), log: { debug: noop, info: noop, warn: noop, error: (msg, attrs) => logged.push([msg, attrs?.["error"]]) } });
+  s.add({ name: "bad", schedule: { everyMs: 1 }, run: () => { if (why) throw new Error(why); } });
+  for (const next of ["disk full", "disk full", "locked", "locked", "", "locked"]) { why = next; t++; await s.tick(); }
+  assert.deepEqual(runs, [false, false, false, false, true, false]);
+  assert.deepEqual(logged, [["scheduler.job_failed", "disk full"], ["scheduler.job_failed", "locked"], ["scheduler.job_failed", "locked"]], "a new error, and a failure after a success, are logged");
+});
+
 test("daily jobs run at the next hh:mm and then every day", async () => {
   const noon = Date.UTC(2026, 9, 25, 12, 0, 0);
   assert.equal(nextDaily(noon, 4, 0, true), Date.UTC(2026, 9, 26, 4, 0, 0), "04:00 UTC has passed today, so tomorrow");

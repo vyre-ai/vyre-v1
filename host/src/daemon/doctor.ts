@@ -80,7 +80,8 @@ function eventsFinding(file: string): Finding {
 function logsFinding(file: string, now: number): Finding {
   if (!fs.existsSync(file)) return { key: "logs.errors", state: "healthy", detail: "No log file yet.", next: OK };
   try {
-    const db = openDb(file, { readOnly: true });
+    // logs.db is WAL: with no -wal beside it the daemon closed it and nothing writes it, so it is read as it is and no journal files are made in the data directory
+    const db = openDb(file, fs.existsSync(`${file}-wal`) ? { readOnly: true } : { immutable: true });
     try {
       const since = now - 86_400_000;
       const total = (db.all("SELECT COUNT(*) AS n FROM logs WHERE level >= 40 AND at >= ?", since)[0] as { n: number }).n;
