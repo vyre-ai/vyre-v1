@@ -2,6 +2,7 @@
 // A mailbox is an inbox. These tests drive the handlers on an in-memory database and check every answer against the frozen contract
 // and every event against its frozen payload schema.
 import test from "node:test";
+import { consumers } from "../impl.ts";
 import assert from "node:assert/strict";
 import {
   autoConnectMembers, mailboxCreate, mailboxDisconnect, mailboxGet, mailboxList, mailboxPause, mailboxResume, mailboxSetPrivacy, mailboxSetSyncState, mailboxUpdate,
@@ -271,3 +272,26 @@ test("set_sync_state: a connection that lost its sign-in marks the mailbox Needs
   assert.equal((await mailboxSetSyncState(h.ctx, { mailboxId: "mbx_maya", state: "error" })).mailbox.state, "paused");
   conforms(h);
 });
+
+test("a person who leaves stops: their mailboxes end as the removal wizard ends them, and a repeat changes nothing", async () => {
+  const h = harness();
+  seedMailbox(h, "mbx_mine0001", "noah@vyre.test", { ownerId: "usr_noah01" });
+  seedMailbox(h, "mbx_other001", "maya@vyre.test", { ownerId: "usr_maya01" });
+  const left = consumers["mail.person_left"];
+  assert.ok(left.on.includes("member.removed"));
+  assert.equal(left.run(h.ctx as never, { payload: { personId: "usr_noah01" } }), 1);
+  const state = (id: string): unknown => h.rows("SELECT state FROM mail_mailbox WHERE id = ?", id)[0]?.["state"];
+  assert.equal(state("mbx_mine0001"), "disconnected");
+  assert.notEqual(state("mbx_other001"), "disconnected", "nobody else's");
+  assert.equal(left.run(h.ctx as never, { payload: { personId: "usr_noah01" } }), 0);
+});
+
+test("the host runs all three: a person leaving reaches mail and both sign-in modules", async () => {
+  const { collectHooks } = await import("../../../host/src/daemon/consumers.ts");
+  for (const [id, name] of [["mail", "mail.person_left"], ["google", "google.person_left"], ["microsoft", "ms.person_left"]] as const) {
+    const ns = await import(`../../${id}/impl.ts`) as Record<string, unknown>;
+    const hook = collectHooks(id, ns).consumers.find((c) => c.name === name);
+    assert.deepEqual(hook?.on, ["member.removed"], name);
+  }
+});
+
