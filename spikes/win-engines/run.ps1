@@ -165,6 +165,14 @@ $bp = (Get-Content $bpf -Raw).Trim()
 $env:ANTHROPIC_BASE_URL = "http://127.0.0.1:$bp"
 $env:USERPROFILE = $home2; $env:HOME = $home2; $env:TEMP = "$home2\tmp"; $env:TMP = "$home2\tmp"; $env:CLAUDE_CONFIG_DIR = "$home2\.claude"; $env:CODEX_HOME = "$home2\.codex"
 $cmd = Join-Path $env:WINDIR "System32\cmd.exe"
+# which part of starting a child is denied: a small native program run inside the container
+$bx = Join-Path $bin "bisect.exe"
+Add-Type -Path "$PSScriptRoot\bisect.cs" -OutputAssembly $bx -OutputType ConsoleApplication -ErrorAction SilentlyContinue
+icacls $bx /grant "*${sid}:RX" /Q | Out-Null
+$bo = "$w\bisect.out"
+$code = [Ac]::Run($name, (Q $cmd) + ' /c "' + (Q $bx) + ' ' + (Q "$home2\.codex") + ' ' + (Q $w) + ' > ' + (Q $bo) + ' 2>&1"', $w, 120000)
+"=== bisect in the container (exit $code):"; if (Test-Path $bo) { Get-Content $bo }
+"=== bisect outside (control):"; & $bx "$home2\.codex" $w
 # how a contained Node starts children, on C:
 $po = "$w\spawn.json"; $pe = "$w\spawn.err"
 $code = [Ac]::Run($name, (Q $cmd) + ' /c "' + (Q $node) + ' --preserve-symlinks --preserve-symlinks-main ' + (Q "$w\probe.mjs") + ' spawn ' + (Q $po) + ' x > ' + (Q $pe) + ' 2>&1"', $w, 60000)
