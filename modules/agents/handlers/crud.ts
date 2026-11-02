@@ -6,7 +6,7 @@
 //   snapshot.take / versions / restore_version             the files a run uses, and rolling back
 // A broken agent.toml never stops an agent: the last good configuration stays in agents_agent.config and is what every read here returns.
 import {
-  AGENT_MD_DEFAULT, isAgentMdV1, AWAKE_MS, agentView, teammateOf, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, allows, applyPatch, askerOf, call, canSee, checkToml,
+  AGENT_MD_DEFAULT, isAgentMdV1, AWAKE_MS, agentFor, agentView, seesSetup, withoutSetup, teammateOf, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, allows, applyPatch, askerOf, call, canSee, checkToml,
   codeOf, ensure, insertAgent, makeFile, makeFolder, meta, mintId, newConfig, nameKey, parseToml, raise, saveFile, setMeta, slug, statusOf, storeConfig, textOf, tolerant, tomlFor, versionsOf, visible, widenings,
   writeConfig,
 } from "../projections.ts";
@@ -38,11 +38,11 @@ export async function list(ctx: AgentsCtx, input: { section?: "personal" | "shar
   const offset = input.cursor !== undefined && /^\d+$/.test(input.cursor) ? Number(input.cursor) : 0;
   const limit = input.limit ?? 100;
   const page = rows.slice(offset, offset + limit);
-  return { agents: page.map((a) => agentView(a, now)), ...(offset + limit < rows.length ? { next: String(offset + limit) } : {}), total: rows.length };
+  return { agents: page.map((a) => agentFor(ctx, a, now)), ...(offset + limit < rows.length ? { next: String(offset + limit) } : {}), total: rows.length };
 }
 
 export async function get(ctx: AgentsCtx, input: { agentId: string }) {
-  return { agent: agentView(visible(ctx, input.agentId), ctx.now()) };
+  return { agent: agentFor(ctx, visible(ctx, input.agentId), ctx.now()) };
 }
 
 /** The keys that pay for an agent's memory upkeep and its chat fallbacks. The server reads them for the nightly job, which runs as itself and sees no agents; a person needs to be able to see the agent. */
@@ -50,7 +50,7 @@ export async function memoryKeyGet(ctx: AgentsCtx, input: { agentId: string }) {
   ensure(ctx.db);
   const a = isHostService(ctx.principal) ? agentBy(ctx.db, input.agentId) : visible(ctx, input.agentId);
   if (!a) raise(ctx, "validation.not_found", "That agent does not exist.");
-  return { ...(a.config.memoryKey !== undefined ? { memoryKey: a.config.memoryKey } : {}), ownerId: a.ownerId };
+  return { ...(a.config.memoryKey !== undefined && (isHostService(ctx.principal) || seesSetup(ctx, a)) ? { memoryKey: a.config.memoryKey } : {}), ownerId: a.ownerId };
 }
 
 export async function status(ctx: AgentsCtx, input: { agentId: string }) {
@@ -374,7 +374,7 @@ export async function configGet(ctx: AgentsCtx, input: { agentId: string }) {
   const space = await tolerant<{ files?: Array<{ fileId: string; name: string }> }>(ctx, "files.list", { section: "space", limit: 200 }, {});
   const vyre = (space.files ?? []).find((f) => f.name === "VYRE.md");
   return {
-    effective: cur.config as unknown as Record<string, unknown>,
+    effective: (seesSetup(ctx, a) ? cur.config : withoutSetup(cur.config)) as unknown as Record<string, unknown>,
     ...(a.lastGoodVersionId !== undefined ? { lastGoodVersionId: a.lastGoodVersionId } : {}),
     ...(cur.error ? { error: { ...(cur.error.line !== undefined ? { line: cur.error.line } : {}), message: cur.error.message } } : {}),
     lines: { agentMd: lineCount(await readText(a.agentMdFileId)), vyreMd: lineCount(await readText(vyre?.fileId)) },
@@ -394,6 +394,7 @@ export async function configValidate(ctx: AgentsCtx, input: { agentId: string; t
 
 export async function limitsGet(ctx: AgentsCtx, input: { agentId: string }) {
   const a = visible(ctx, input.agentId);
+  if (!seesSetup(ctx, a)) return { limits: {}, source: {} };
   const caps = async (scope: "space" | "person", scopeId?: string) => (await tolerant<{ caps?: { run?: number; dayMicros?: number; monthMicros?: number; turnsPerDay?: number; timeMinutesPerRun?: number } }>(ctx, "engine.spend.get", { scope, ...(scopeId ? { scopeId } : {}) }, {})).caps ?? {};
   const space = await caps("space"), person = await caps("person", a.ownerId);
   const capFor = (c: typeof space, k: keyof Limits): number | undefined =>

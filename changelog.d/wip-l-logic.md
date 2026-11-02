@@ -12,3 +12,4 @@
 - Retrying a failed loop no longer runs again the items that already went out: they carry over to the new run, and only what did not finish starts. The same holds for parallel lanes.
 - Agents are no longer offered tools that only answer "Not in this version yet": Sites and Vault import leave the tool list and tool search, and come back by themselves when they go live.
 - When one lane of a parallel step ended early, the step after the parallel ran inside the other lane, without waiting and even when the parallel failed. It now runs after the lanes, once.
+- Someone who can only see an agent no longer reads which keys pay for it, which Vault handles it holds, or its limits. Owners, editors and the agent itself still do, and a turn is built whole whoever asked.

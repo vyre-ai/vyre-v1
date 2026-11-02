@@ -19,6 +19,9 @@ export interface AgentsCtx {
   principal: Principal;
   actingFor?: string | undefined;
   thread?: string | undefined;
+  /** Where the call came from and how deep it sits: a read for the server's own use stays whole (seesSetup). */
+  origin?: string | undefined;
+  depth?: number | undefined;
   trace: { traceId: string };
   now(): number;
   db: Db;
@@ -1085,9 +1088,29 @@ export async function makeFile(ctx: AgentsCtx, folderId: string, name: string, t
 
 /** The project an agent was made for (a teammate), or undefined for an agent of the Space. */
 export const teammateOf = (a: Pick<AgentRec, "kind" | "projectId">): string | undefined => (a.kind === "teammate" ? a.projectId : undefined);
+/** Calls the server makes for itself. The engine builds a turn from these reads whoever asked, so a viewer's chat must not lose the agent's own Vault handles and limits. */
+const SERVER_ORIGINS: ReadonlySet<string> = new Set(["engine", "hook", "schedule"]);
+/**
+ * Which key pays for an agent, the Vault handles it holds and what it may spend belong to those who may change it. A handle is never a value, but it says what the agent can reach and whose money runs it.
+ * Whole for the server's own reads, a module's nested call, the agent itself, its owner, an editor, and an admin who has turned on All in the Space. Everyone else sees the agent without them.
+ */
+export function seesSetup(ctx: AgentsCtx, a: AgentRec): boolean {
+  if ((ctx.depth ?? 0) >= 1 || (ctx.origin !== undefined && SERVER_ORIGINS.has(ctx.origin))) return true;
+  return ctx.principal.id === a.id || a.ownerId === askerOf(ctx) || allows(ctx, null, "edit", "agent", a.id) || seesAll(ctx);
+}
+/** An agent's shape without its setup: the fields the contract requires stay, empty. */
+export function withoutSetup<T extends object>(out: T): T {
+  const { accountKey: _key, memoryKey: _memory, ...rest } = out as T & { accountKey?: unknown; memoryKey?: unknown };
+  return { ...rest, accountFallback: [], vaultKeys: [], limits: {} } as unknown as T;
+}
 /** An agent as the contract returns it, with the project it is a teammate of when it is one. */
 export function agentView(a: AgentRec, now: number): Record<string, unknown> {
   const out = agentOut(a, now);
   const project = teammateOf(a);
   return project === undefined ? out : { ...out, teammateOf: project };
+}
+/** agentView for this caller: every read of an agent goes through here. */
+export function agentFor(ctx: AgentsCtx, a: AgentRec, now: number): Record<string, unknown> {
+  const out = agentView(a, now);
+  return seesSetup(ctx, a) ? out : withoutSetup(out);
 }
