@@ -119,7 +119,7 @@ import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
 import { createGithubSignInRoute } from "../routes/github-signin.ts";
 import { createSsoSignInRoute, createSsoTickets } from "../routes/sso-signin.ts";
-import { createPeopleExtras, githubOAuthFromEnv, linkSso, ssoProvidersIn } from "../seams/people.ts";
+import { createPeopleExtras, githubOAuthFromEnv, linkSso, matchProvenAddress, ssoProvidersIn } from "../seams/people.ts";
 import {createRecoveryCommit} from "../seams/recovery.ts";
 import type { GithubOAuth } from "../seams/people.ts";
 import { createSpaceAdmin } from "../seams/spaceadmin.ts";
@@ -459,10 +459,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const githubSignInRoute = createGithubSignInRoute({ oauth: githubNow });
   // Sign in with the firm's own Google or Microsoft app: the providers come from the members policy, the client secret from the Vault (bound once the Vault exists), the tickets are shared with identity
   const ssoTickets = createSsoTickets();
+  // a proven address is matched to its person by the company connection, through the module's host call (bound once the hook runner exists)
+  let matchProven: (key: string, who: { email: string; link: { tenant: string; subject: string } }, person: string) => void = () => undefined;
   let ssoSecret: (handle: string) => Promise<string> = () => Promise.reject(new Error("The Vault is not live on this server."));
   const ssoSignInRoute = createSsoSignInRoute({
     providers: async () => (db ? ssoProvidersIn(db) : []), secret: (h) => ssoSecret(h), fetch: o.seams?.fetch ?? defaultFetch, tickets: ssoTickets,
-    bind: (key, who, person) => (db ? linkSso(db, key, who, person) : false),
+    bind: (key, who, person) => { const bound = db ? linkSso(db, key, who, person) : false; if (bound) matchProven(key, who, person); return bound; },
     log: (why, attrs) => sink.log({ space: space ?? "-", level: 30, msg: why, place: "sso", attrs }),
   });
   const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: ownNode });
@@ -993,6 +995,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
       const spaceLog = log;
+      matchProven = (key, who, person) => matchProvenAddress((n, i) => hookRunner.call(n, i), key, who, person);
       peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, recoveryCommit:createRecoveryCommit({db:db!,now}),call: (n, i, as) => hookRunner.call(n, i, as), keyring, sso: { tickets: ssoTickets }, github: githubNow,
         githubApp: {
           envClientId: () => (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env))?.clientId ?? null,

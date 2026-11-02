@@ -2,9 +2,9 @@
 // a person gone from the directory loses access; the log names who, for whom and which mailbox. Mail, calendar and files come in with nobody signing in.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { accessLog, directoryImport, directoryReconcile, dwdConnectAll, dwdProbe, dwdScopes, dwdSetData, dwdSetExcluded, dwdSetup, dwdStatus, getProfile, personLeft, syncMembers } from "../handlers/index.ts";
+import { accessLog, adoptPolls, directoryImport, directoryReconcile, matchProven, dwdConnectAll, dwdProbe, dwdScopes, dwdSetData, dwdSetExcluded, dwdSetup, dwdStatus, getProfile, personLeft, receivePush, syncMembers } from "../handlers/index.ts";
 import { dataOf, ensure, SCOPE, scopesFor, SCOPES, subjectFor } from "../projections.ts";
-import { act, codeOf, CONN, contractErrors, harness, NOW, seedDelegation } from "../fixtures/harness.ts";
+import { act, codeOf, CONN, contractErrors, fixture, harness, NOW, seedDelegation } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
 const PROFILE = "https://gmail.googleapis.com/gmail/v1/users/me/profile";
@@ -20,6 +20,8 @@ function world(o: Parameters<typeof harness>[0] = {}, seeded: { email: string; u
   h.on("GET", PROFILE, { body: { emailAddress: MAYA, historyId: "1" } });
   return h;
 }
+const asHost = (h: Harness) => ({ ...h.ctx, principal: { kind: "service" as const, id: "svc_host" } });
+const nextPoll = (h: Harness, email: string): unknown => h.rows(`SELECT "nextPollAt" FROM google_mailbox WHERE email = ?`, email)[0]?.nextPollAt;
 const directory = (h: Harness, users: Record<string, unknown>[], next?: string) => h.on("GET", DIRECTORY, { body: { users, ...(next ? { nextPageToken: next } : {}) } });
 const user = (primaryEmail: string, o: Record<string, unknown> = {}) => ({ primaryEmail, suspended: false, ...o });
 
@@ -81,7 +83,31 @@ test("rule: excluding someone stops their mailbox, calendar, mounts and polling 
   await dwdSetExcluded(h.ctx, { email: SAM, excluded: false });
   assert.equal(h.calls("mail.member_pause").at(-1)?.input.paused, false);
   assert.equal(h.calls("mounts.account_pause").at(-1)?.input.paused, false);
-  assert.ok(h.scheduled.some((s) => String(s.input.messageId).startsWith(`first:${SAM}`)));
+  assert.equal(nextPoll(h, SAM), 0, "their pull is due for the host: a job the admin queued would run as the admin, who never reads a teammate's mailbox");
+  await adoptPolls(asHost(h));
+  assert.ok(h.scheduled.some((s) => String(s.input.messageId).startsWith(`adopt:${SAM}`)), "the host queues it");
+});
+
+test("rule: a mail poll an admin queued for a teammate never reads their mailbox as the admin; the host takes it over and their mail comes in", async () => {
+  const h = world();
+  h.on("GET", /\/history\?/, { body: fixture("gmail/history-page2.json") });
+  for (const [id, file] of Object.entries({ m1: "message-m1.json", m3: "message-m3.json", d1: "message-draft.json" })) h.on("GET", `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?`, { body: fixture(`gmail/${file}`) });
+  h.on("GET", "https://gmail.googleapis.com/gmail/v1/users/me/messages/m1/attachments/att1", { body: fixture("gmail/attachment.json") });
+  h.ctx.db.run(`INSERT INTO google_mailbox (email, "connectionId", "historyId", "lastPolledAt", "lastActivityAt", "watchExpiresAt", "pubsubTopic", "nextPollAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, SAM, CONN, "1000", null, null, null, null, NOW);
+  // the job runs as whoever queued it: here the admin who pressed Connect
+  await receivePush(h.ctx, { kind: "gmail", messageId: `poll:${SAM}:${NOW}`, mailbox: SAM });
+  assert.equal(h.ingests.length, 0, "nothing is read as the admin");
+  assert.deepEqual(h.minted.filter((m) => m.sub === SAM), [], "not even a token");
+  assert.equal(h.scheduled.length, 0, "the admin's chain ends here");
+  assert.equal(nextPoll(h, SAM), 0, "and the mailbox is due for the host");
+  assert.deepEqual(await adoptPolls(h.ctx), { adopted: 0 }, "only the host adopts a poll");
+  assert.deepEqual(await adoptPolls(asHost(h)), { adopted: 1 });
+  const job = h.scheduled.at(-1)!;
+  assert.deepEqual([job.cap, job.input.mailbox], ["google.receive_push", SAM]);
+  await receivePush(asHost(h), job.input as never);
+  assert.equal(h.ingests.length, 2, "the host's pass brings their mail in");
+  assert.ok(Number(nextPoll(h, SAM)) > NOW, "and keeps one poll queued");
+  assert.deepEqual(await adoptPolls(asHost(h)), { adopted: 0 }, "a chain the host runs is never taken over twice");
 });
 
 test("rule: a person gone from the directory stops and is suspended, which refuses their next sign-in", async () => {
@@ -168,7 +194,8 @@ test("data: turning a service off stops it for everyone, and on brings it in", a
   assert.equal(h.calls("mounts.account_pause").length, 3);
   await dwdSetData(h.ctx, { data: { mail: true, calendar: true, files: false }, idempotencyKey: "d2" });
   assert.equal(h.calls("mail.auto_connect_members").length, 3);
-  assert.equal(h.scheduled.filter((s) => String(s.input.messageId).startsWith("first:")).length, 3, "each comes back with a first pull");
+  await adoptPolls(asHost(h));
+  assert.deepEqual(h.scheduled.filter((s) => /^(first|adopt):/.test(String(s.input.messageId))).map((s) => s.input.mailbox).sort(), [KIM, MAYA, SAM], "each comes back with a first pull: the caller's own at once, the others by the host");
 });
 
 test("no per-person sign-in: setup can hold, then one confirmation brings everyone in and starts their mail, spaced out", async () => {
@@ -181,10 +208,27 @@ test("no per-person sign-in: setup can hold, then one confirmation brings everyo
   await dwdSetExcluded(h.ctx, { email: KIM, excluded: true });
   const out = await dwdConnectAll(h.ctx, { idempotencyKey: "c1" });
   assert.deepEqual(out, { connected: 2, included: 2 });
-  assert.deepEqual(h.scheduled.map((s) => [s.cap, s.at, s.input.mailbox]), [["google.receive_push", NOW + 1000, MAYA], ["google.receive_push", NOW + 3000, SAM]]);
+  assert.deepEqual(h.scheduled.map((s) => [s.cap, s.at, s.input.mailbox]), [["google.receive_push", NOW + 1000, MAYA]], "the person pressing it pulls their own mailbox");
+  assert.equal(nextPoll(h, SAM), 0, "a teammate's is left due for the host");
+  await adoptPolls(asHost(h));
+  assert.deepEqual(h.scheduled.slice(1).map((s) => [s.cap, s.at, s.input.mailbox]), [["google.receive_push", NOW + 1000, SAM]], "the host queues it within a minute, spaced out");
   assert.equal(h.calls("calendar.connect_provider").filter((c) => c.input.connected !== false).length, 2);
   await dwdConnectAll(h.ctx, { idempotencyKey: "c2" });
+  await adoptPolls(asHost(h));
   assert.equal(h.scheduled.length, 2, "repeating it starts no second chain");
+});
+
+test("rule: Sign in with Google matches the person to the address it proved, and never takes, moves or brings back anyone", async () => {
+  const h = world();
+  const host = asHost(h);
+  assert.deepEqual(await matchProven(host, { person: "usr_new01", email: "new@elsewhere.test" }), { matched: false, reason: "not connected for that domain" });
+  assert.deepEqual(await matchProven(host, { person: "usr_new01", email: SAM }), { matched: false, reason: "matched to someone else" }, "an address another person holds stays theirs");
+  assert.deepEqual(await matchProven(host, { person: "usr_maya01", email: "maya.other@vyre.test" }), { matched: false, reason: "matched to another address" }, "a person matched elsewhere is an admin's call");
+  h.ctx.db.run(`UPDATE google_member SET mapped = ?, "directoryGone" = ? WHERE email = ?`, 0, 1, KIM);
+  assert.deepEqual(await matchProven(host, { person: "usr_kim01", email: KIM }), { matched: false, reason: "gone from the directory" });
+  assert.deepEqual(await matchProven(host, { person: "usr_new01", email: "new@vyre.test" }), { matched: true });
+  assert.deepEqual(h.rows(`SELECT "userId", mapped FROM google_member WHERE email = ?`, "new@vyre.test"), [{ userId: "usr_new01", mapped: 1 }]);
+  assert.deepEqual(await matchProven(host, { person: "usr_new01", email: "new@vyre.test" }), { matched: true }, "a second sign-in changes nothing");
 });
 
 test("subjectFor lets the setup probe act as the admin and nobody else", () => {

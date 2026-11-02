@@ -57,7 +57,7 @@ A super admin does this. It lets the service account act for your people.
 3. Copy the **Client ID** from the step. It is a long number. An email address here does not work.
 4. Copy the **scopes** from the step and paste them as one line.
 5. Press **Authorize**.
-6. Back in Vyre, type the address of a Workspace admin and press **Check**.
+6. Back in Vyre, type the address of a Workspace admin and press **Check**. Vyre only signs in as this address to check the setup, so it can be a shared admin account. Nobody's Inbox gets its mail.
 
 Google can take up to 24 hours to apply this, and it usually takes minutes. The step says which scopes are still missing. You can leave and come back; Vyre remembers where you are.
 
@@ -78,6 +78,8 @@ Vyre puts the secret straight into your Vault in a Restricted folder. Neither As
 Press **Sign in with Google once**. A new window opens. Choose your work account. When it says to go back to Vyre, go back.
 
 This proves the app works, and it ties your Vyre account to your Google account by Google's permanent id for you, not by your address. The Space owner has to do this before anyone can require sign-in, so the owner can never be locked out.
+
+It also matches you to that Google account, so your own mail, calendar and files come in. Everyone else is matched the same way the first time they sign in with Google, or by the address their invitation went to. An address already matched to someone else stays theirs.
 
 ## Decide if everyone must use it
 

@@ -117,7 +117,17 @@ export { consumersAll as consumers };
 export const hostSeams: SeamSetters = { setMsHost };
 
 /** /hooks/microsoft: the subscription's clientState is checked before anything is recorded (handlers/hook.ts); a new subscription's validation token is handed back. */
+/** The host adopts the mail polls nobody's queued job will run (a person queued them for someone else's mailbox, or a chain died), so each member's mail keeps coming in as the server's own work. */
+export const periodic = {
+  "microsoft.adopt_polls": { everyMs: 60_000, run: (ctx: Ctx) => h.adoptPolls(ctx as never) },
+};
+
 export const hostCalls = {
+  /** A finished Sign in with Microsoft proved this account in this tenant is this person's (host/src/seams/people.ts): match them to it. */
+  "microsoft.match_proven": async (ctx: Ctx, i: { person: string; email: string; tenant?: string }): Promise<unknown> => {
+    hostOnly(ctx, "microsoft.match_proven");
+    return h.matchProven(ctx as never, i);
+  },
   /** The removal wizard (host/src/seams/people.ts): a person whose mailbox connections are revoked loses their own sign-ins too. */
   "microsoft.reassign_owned": async (ctx: Ctx, i: { person: string; kind: string; action: string }): Promise<number> => {
     hostOnly(ctx, "microsoft.reassign_owned");

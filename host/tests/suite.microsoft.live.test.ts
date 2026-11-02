@@ -144,7 +144,15 @@ test("Microsoft 365: setup, consent, check, then mail, calendar, Teams and OneDr
     const mine = boxes.mailboxes.filter((b: { address: string }) => b.address === NOAH);
     assert.equal(mine.length, 1);
     assert.equal(boxes.mailboxes.some((b: { address: string }) => b.address === MIA), false, "Mia has none");
-    await w.ok(MEMBER, "mail.sync_now", { mailboxId: mine[0].id });
+    // Noah's mail comes in with nobody pressing anything: the owner's queued first pull would run as the owner, who never reads Noah's mailbox, so the host takes it over
+    await w.d.hooks!.runPeriodic("microsoft.adopt_polls");
+    let arrived: string[] = [];
+    for (let i = 0; i < 100 && arrived.length === 0; i++) {
+      await new Promise((r) => setTimeout(r, 200));
+      arrived = (await w.ok(MEMBER, "mail.message.list", { mailboxId: mine[0].id })).messages.map((m: { subject: string }) => m.subject);
+    }
+    assert.deepEqual(arrived, ["Can we talk about the deed?"], `the host's pull brought it in: ${JSON.stringify(w.logsLike(/microsoft pull/))}`);
+    await w.ok(MEMBER, "mail.sync_now", { mailboxId: mine[0].id });   // and Noah's own Sync now still works, as himself
     const list = await w.ok(MEMBER, "mail.message.list", { mailboxId: mine[0].id });
     assert.deepEqual(list.messages.map((m: { subject: string }) => m.subject), ["Can we talk about the deed?"]);
     const threads = await w.ok(MEMBER, "inbox.list_by_thread", {});

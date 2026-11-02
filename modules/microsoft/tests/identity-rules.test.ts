@@ -1,7 +1,7 @@
 // The identity rules of Connect your company, for Microsoft. The same rules as Google's, and what is Microsoft's own: Mail and Calendars are not consented in Entra, where they would reach every mailbox.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { accessLog, consentConnectAll, consentExclude, consentSetData, consentSetup, consentSnippet, consentStatus, consentVerify, directoryImport, directoryReconcile, mailFolders, renew, syncMembers } from "../handlers/index.ts";
+import { accessLog, adoptPolls, consentConnectAll, consentExclude, consentSetData, consentSetup, consentSnippet, consentStatus, consentVerify, directoryImport, directoryReconcile, mailFolders, matchProven, receiveNotification, renew, syncMembers } from "../handlers/index.ts";
 import { dataOf, ensure, GRAPH, PERMISSIONS, permissionsFor, rolesFor } from "../projections.ts";
 import { act, codeOf, CONN, contractErrors, harness, NOW, seedConsent } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -10,6 +10,7 @@ const MAYA = "maya@vyre.test", SAM = "sam@vyre.test", KIM = "kim@vyre.test";
 const people = [{ email: MAYA, userId: "usr_maya01" }, { email: SAM, userId: "usr_sam01" }, { email: KIM, userId: "usr_kim01" }];
 const USERS = `${GRAPH}/users`;
 
+const asHost = (h: Harness) => ({ ...h.ctx, principal: { kind: "service" as const, id: "svc_host" } });
 function world(o: Parameters<typeof harness>[0] = {}, seeded: { email: string; userId: string; excluded?: boolean }[] = people): Harness {
   const h = harness({ admin: true, members: people, ...o });
   ensure(h.ctx);
@@ -137,5 +138,29 @@ test("data: chosen separately, and one confirmation brings everyone in with nobo
   await consentExclude(h.ctx, { email: KIM, excluded: true });
   assert.deepEqual(await consentConnectAll(h.ctx, { idempotencyKey: "c1" }), { connected: 2, included: 2 });
   assert.equal(h.calls("calendar.connect_provider").filter((c) => c.input.connected !== false).length, 0);
-  assert.equal(h.scheduled.filter((s) => s.cap === "ms.receive_notification").length, 2);
+  assert.deepEqual(h.scheduled.filter((s) => s.cap === "ms.receive_notification").map((s) => s.input.resource), [`users/${MAYA}/messages`], "the person pressing it pulls their own mailbox");
+  await adoptPolls(asHost(h));
+  assert.deepEqual(h.scheduled.filter((s) => s.cap === "ms.receive_notification").map((s) => s.input.resource), [`users/${MAYA}/messages`, `users/${SAM}/messages`], "the host queues the teammate's");
+});
+
+test("rule: a mail poll an admin queued for a teammate never reads their mailbox as the admin; the host takes it over", async () => {
+  const h = world();
+  h.ctx.db.run(`INSERT INTO microsoft_mailbox (email, "connectionId", "nextPollAt") VALUES (?, ?, ?)`, SAM, CONN, NOW);
+  await receiveNotification(h.ctx, { notificationId: `poll:${SAM}:${NOW}`, subscriptionId: "poll", resource: `users/${SAM}/messages`, changeType: "updated", clientStateOk: true });
+  assert.equal(h.requests.filter((r) => r.url.includes(encodeURIComponent(SAM)) || r.url.includes(SAM)).length, 0, "nothing is read as the admin");
+  assert.equal(h.scheduled.length, 0, "the admin's chain ends here");
+  assert.equal(h.rows(`SELECT "nextPollAt" FROM microsoft_mailbox WHERE email = ?`, SAM)[0]?.nextPollAt, 0, "and the mailbox is due for the host");
+  assert.deepEqual(await adoptPolls(h.ctx), { adopted: 0 }, "only the host adopts a poll");
+  assert.deepEqual(await adoptPolls(asHost(h)), { adopted: 1 });
+  assert.deepEqual(h.scheduled.map((s) => [s.cap, s.input.resource]), [["ms.receive_notification", `users/${SAM}/messages`]]);
+});
+
+test("rule: a sign-in proved in the tenant matches the person to that address, and never takes one someone else holds", async () => {
+  const h = world();
+  const host = asHost(h);
+  assert.deepEqual(await matchProven(host, { person: "usr_new01", email: "new@vyre.test", tenant: "other-tenant" }), { matched: false, reason: "not connected for that tenant" });
+  assert.deepEqual(await matchProven(host, { person: "usr_new01", email: SAM, tenant: "tenant-guid" }), { matched: false, reason: "matched to someone else" });
+  assert.deepEqual(await matchProven(host, { person: "usr_maya01", email: "maya.other@vyre.test", tenant: "tenant-guid" }), { matched: false, reason: "matched to another address" });
+  assert.deepEqual(await matchProven(host, { person: "usr_new01", email: "new@vyre.test", tenant: "tenant-guid" }), { matched: true });
+  assert.deepEqual(h.rows(`SELECT "userId", mapped FROM microsoft_member WHERE email = ?`, "new@vyre.test"), [{ userId: "usr_new01", mapped: 1 }]);
 });
