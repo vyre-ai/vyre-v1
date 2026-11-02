@@ -1,4 +1,9 @@
 // The first screen's rules, with no renderer: who a new chat starts with, what starts it, and what the lines under the composer say.
+import { isAssistantRow } from "../../../../../../lib/agent-kind.ts";
+
+type AssistantRow = Parameters<typeof isAssistantRow>[0] & { agentId: string };
+import { isAssistantRow } from "../../../../../../lib/agent-kind.ts";
+import type { AgentKindRow } from "../../../../../../lib/agent-kind.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 
 export type NeedsOut = CapMap["tasks.needs_you"]["out"];
@@ -16,6 +21,21 @@ export function startInput(picked: readonly WithEntry[], assistantId: string): {
   const person = picked.find((w) => w.kind === "person");
   if (agentIds.length === 0 && person === undefined) return { agentIds: [assistantId] };
   return { agentIds, ...(person ? { personId: person.id } : {}) };
+}
+
+/**
+ * The Assistant is made a moment after the account, so the id can still be the placeholder when a person sends at once. The first message waits for the real one and is never refused for it.
+ * Null only if none appeared in about ten seconds.
+ */
+export async function realAssistant(id: string, call: (cap: string, input: unknown) => Promise<unknown> | unknown, wait: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)), tries = 40): Promise<string | null> {
+  if (id !== "assistant") return id;
+  for (let i = 0; i < tries; i++) {
+    const out = await Promise.resolve(call("agents.list", {})).catch(() => null) as { agents?: (AgentKindRow & { agentId: string })[] } | null;
+    const found = out?.agents?.find(isAssistantRow);
+    if (found) return found.agentId;
+    await wait(250);
+  }
+  return null;
 }
 
 export const moreLine = (total: number, shown: number): string | null => (total > shown ? `${total - shown} more in Tasks` : null);

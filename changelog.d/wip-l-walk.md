@@ -17,3 +17,4 @@
 - A mention keeps the agent's whole name.
 - An agent on Claude, Codex or Grok now shows its work as cards under its reply, and a send waiting on a yes shows its Approve card in the chat.
 - A thread shows the message it hangs off at the top.
+- A first message sent right after creating your account waits for your Assistant and goes through.
