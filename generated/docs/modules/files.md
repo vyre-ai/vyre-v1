@@ -33,7 +33,7 @@ Requires: mounts.
 - [files.folder.rename](../capabilities/files.folder.rename.md): Rename a folder
 - [files.folder.restore](../capabilities/files.folder.restore.md): Bring a folder back from Trash
 - [files.folder.search](../capabilities/files.folder.search.md): Find folders by name for the # picker and the Into picker
-- [files.folder.settings](../capabilities/files.folder.settings.md): Change Review changes, sensitivity label or the working-folder flags of a folder
+- [files.folder.settings](../capabilities/files.folder.settings.md): Change Review changes, sensitivity label or the working-folder flags of a folder; the mounts module marks a mounted folder with its source (null takes the mark off)
 - [files.get](../capabilities/files.get.md): Read the metadata of one file
 - [files.health](../capabilities/files.health.md): Blob store and tree health: free space, orphaned blobs, index lag
 - [files.knowledge](../capabilities/files.knowledge.md): The Knowledge section of the tree: the knowledge folders and files the caller may read, plus the Memory and Graph entries

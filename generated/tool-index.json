@@ -2907,7 +2907,7 @@
     {
       "deferred": false,
       "name": "files_folder_settings",
-      "summary": "Change Review changes, sensitivity label or the working-folder flags of a folder",
+      "summary": "Change Review changes, sensitivity label or the working-folder flags of a folder; the mounts module marks a mounted folder with its source (null takes the mark off)",
       "toolset": "files"
     },
     {
