@@ -150,7 +150,7 @@ export function InvitesCard({ call, onDone, gate }: { call: CapCall; onDone(): v
   const [link, setLink] = useState<string | null>(null);
   const [error, setError] = useState("");
   useEffect(() => { let off = false; void invites(call).then((r) => { if (!off) setList(r); }); return () => { off = true; }; }, [call]);
-  useGate(gate, link !== null || (list?.kind === "ready" && list.value.some((i) => i.state === "open")));
+  useGate(gate, link !== null || (list?.kind === "ready" && (list.value ?? []).some((i) => i.state === "open")));
   const make = async (): Promise<void> => {
     setError("");
     try { setLink(await createInviteLink(call, "Member", email.trim() || undefined, `onb-invite-${Date.now()}-${attempt.current++}`)); } catch { setError("Could not make an invite. Try again."); }

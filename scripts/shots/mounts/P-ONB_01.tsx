@@ -46,6 +46,7 @@ const teamCall = (async (cap: string) => {
   if (cap === "providers.space_key.get") return { set: false, models: [], mayManage: true };
   if (cap === "providers.catalog") return { providers: [["anthropic", "Anthropic"], ["opencode-go", "OpenCode Go"], ["openai", "OpenAI"], ["openrouter", "OpenRouter"], ["xai", "xAI"]].map(([key, name]) => ({ key, name, connections: ["api_key"], modelsSource: "", engine: key })) };
   if (cap === "providers.list") return { providers: [] };
+  if (cap === "members.invites.list") return { invites: [] };
   return {};
 }) as never;
 const HOUR = 3_600_000;

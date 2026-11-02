@@ -257,7 +257,7 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
   // Back opens the step before, whatever its state; nothing is marked
   const back = at > 0 ? (): void => open(steps[at - 1]!.key) : null;
   const nextLabel = !isDone && gateLabel ? gateLabel : isLast ? "Done" : "Continue";
-  // a Continue that waits says why, beside it (and to a screen reader); a phone has the hint only
+  // a Continue that waits says why, just above it (and to a screen reader); a phone has the hint only
   const why = !canNext && !saving && def ? waitFor(def.card) : "";
   const ask = def ? askFor(def.card) : null;
   const liveNode = p.live && def && ask ? (p.renderLive ? p.renderLive(def, ask) : p.liveChat ?? null) : null;
@@ -278,7 +278,7 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
   const footBtns = def && ctx ? (
     <>
       {back ? <Pressable testID="step-back" accessibilityRole="button" onPress={back} style={({ hovered }: { hovered?: boolean }) => [s.ghost, phone && s.btnTall, hovered === true && s.ghostOver]}><Text style={s.ghostText}>Back</Text></Pressable> : null}
-      {why && !phone ? <Text testID="step-why" numberOfLines={1} style={s.why}>{why}</Text> : <View style={s.flex} />}
+      <View style={s.flex} />
       {isDone ? null : <Pressable testID="step-later" accessibilityRole="button" onPress={skip} style={({ hovered }: { hovered?: boolean }) => [s.quiet, phone && s.btnTall, hovered === true && s.laterOver]}><Text style={s.quietText}>Skip for now</Text></Pressable>}
       <Pressable testID="step-next" accessibilityRole="button" accessibilityState={{ disabled: !canNext, busy: saving }} {...(why ? { accessibilityHint: why, ...(web ? ({ title: why } as object) : {}) } : {})} disabled={!canNext} onPress={next} style={({ hovered }: { hovered?: boolean }) => [s.primary, phone && s.btnTall, !canNext && s.off, hovered === true && canNext && s.primaryOver]}><Text style={[s.primaryText, !canNext && s.offText]}>{nextLabel}</Text></Pressable>
     </>
@@ -333,7 +333,10 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
               {card ? <View key={def?.key} testID="onboarding-card" style={s.card} {...fade}>{card}</View> : null}
               {liveBox}
             </ScrollView>
-            <View testID="onboarding-footer" style={s.footer}><View style={s.actions}>{footBtns}</View></View>
+            <View testID="onboarding-footer" style={s.footer}>
+              {why ? <Text testID="step-why" style={s.why}>{why}</Text> : null}
+              <View style={s.actions}>{footBtns}</View>
+            </View>
           </>
         )}
       </View>
@@ -391,7 +394,7 @@ const s = StyleSheet.create({
   xText: { fontSize: 22, lineHeight: 24, color: "var(--ink-2)" as string },
   later: { height: 36, paddingHorizontal: 8, borderRadius: 8, justifyContent: "center", alignSelf: "flex-start" },
   quiet: { height: 44, paddingHorizontal: 12, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  why: { flex: 1, minWidth: 0, textAlign: "right", fontSize: 12.5, color: "var(--ink-3)" as string, marginRight: 4 },
+  why: { width: "100%", maxWidth: COLUMN, alignSelf: "center", paddingTop: 10, paddingHorizontal: 32, marginBottom: -4, textAlign: "right", fontSize: 12.5, lineHeight: 16, color: "var(--ink-3)" as string },
   quietText: { fontSize: 14, fontWeight: "500", color: "var(--ink-2)" as string },
   laterOver: { backgroundColor: "var(--hover)" as string },
   finishLater: { fontSize: 13, fontWeight: "500", color: "var(--ink-3)" as string },
