@@ -380,15 +380,57 @@ export interface InvokeSpan {
   principal?: string | undefined;
 }
 
+/** What the invoke pipeline writes into logs.db: its span hook and the Logger it logs `invoke` and `handler threw` rows with. */
+export interface InvokeLogs { onSpan(s: InvokeSpan): void; log: Logger }
+
 /**
- * Invoke spans into logs.db. A fast success of a routine capability (a read, the host's own periodic work) is counted: the first per capability and principal in each window is kept, so the
- * trace of a call someone just made still opens, and the rest leave one `invoke.reads` row per window. Writes, failures, refusals, holds and slow calls are always kept.
+ * Invoke spans and rows into logs.db.
+ * - A fast success of a routine capability (a read, the host's own periodic work and calls) is counted: the first per capability and caller in each window is kept, so the trace of a call
+ *   someone just made still opens, and the rest leave one `invoke.reads` row per window.
+ * - A fast read that fails is a streak per capability and caller: its first failure and any change of error keep their span and rows; a repeat of the same error is counted on one `invoke`
+ *   row per window (result is the error code), and its span and rows are not written. The next success is a row of its own, `invoke.recovered`.
+ * - Writes, refusals, holds and slow calls keep every span and row.
  */
-export function invokeSpanLog(sink: LogSink, space: () => string, routine: (cap: string) => boolean): (s: InvokeSpan) => void {
-  return (s) => {
+export function invokeLogs(sink: LogSink, space: string, kinds: { routine(cap: string): boolean; read(cap: string): boolean }): InvokeLogs {
+  const failing = new Map<string, string>();
+  // traces whose failure was counted: the pipeline logs them right after the span, and those rows are dropped
+  const quiet = new Set<string>();
+  const onSpan = (s: InvokeSpan): void => {
+    const key = `${s.cap}:${s.principal ?? ""}`;
     const row: SpanRow = { trace_id: s.traceId, span_id: s.spanId, parent: s.parent ?? null, name: s.name, at: s.startedAt, dur_us: s.ms * 1000, attrs: { cap: s.cap, status: s.status } };
-    if (s.status !== "ok" || s.ms >= SLOW_MS || !routine(s.cap)) { sink.span(row); return; }
-    const first = sink.count(`invoke:${s.cap}:${s.principal ?? ""}`, { space: space(), level: LEVELS.debug, msg: "invoke.reads", place: "invoke", cap: s.cap, actor: s.principal, result: "ok" }, s.ms, { keepFirst: true });
+    const fast = s.ms < SLOW_MS;
+    if (s.status === "error" && fast && kinds.read(s.cap)) {
+      const code = s.code ?? "error";
+      if (failing.get(key) === code) {
+        if (quiet.size >= 1_000) quiet.clear();
+        quiet.add(s.traceId);
+        sink.count(`invoke:${key}:failed`, { space, level: LEVELS.info, msg: "invoke", place: "invoke", cap: s.cap, actor: s.principal, result: code, attrs: { status: code } }, s.ms);
+        return;
+      }
+      failing.set(key, code);
+      sink.span(row);
+      return;
+    }
+    if (s.status === "ok" && failing.delete(key)) {
+      sink.span(row);
+      sink.log({ space, level: LEVELS.info, msg: "invoke.recovered", place: "invoke", trace_id: s.traceId, cap: s.cap, actor: s.principal, result: "ok" });
+      return;
+    }
+    if (s.status !== "ok" || !fast || !kinds.routine(s.cap)) { sink.span(row); return; }
+    const first = sink.count(`invoke:${key}`, { space, level: LEVELS.debug, msg: "invoke.reads", place: "invoke", cap: s.cap, actor: s.principal, result: "ok" }, s.ms, { keepFirst: true });
     if (first) sink.span(row);
   };
+  const base = sink.invokeLogger(space);
+  const counted = (msg: string, attrs: Record<string, unknown> | undefined): boolean => {
+    const t = attrs?.["traceId"];
+    if (typeof t !== "string" || !quiet.has(t)) return false;
+    if (msg === "invoke") quiet.delete(t);
+    return msg === "invoke" || msg === "handler threw";
+  };
+  const log: Logger = {
+    debug: base.debug, warn: base.warn,
+    info: (msg, attrs) => { if (!counted(msg, attrs)) base.info(msg, attrs); },
+    error: (msg, attrs) => { if (!counted(msg, attrs)) base.error(msg, attrs); },
+  };
+  return { onSpan, log };
 }

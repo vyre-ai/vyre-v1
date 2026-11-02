@@ -50,7 +50,7 @@ import { createInvoke, createRateLimiter, fail, indexCapabilities, makeError, pe
 import type { AuditRow, Handler, Invoke, InvokeDeps } from "../invoke.ts";
 import { fileExportsImporter, fileImporter, fileSeamImporter, loadHost, readModuleList } from "../loader.ts";
 import type { RegistryLike } from "../loader.ts";
-import { LogSink, invokeSpanLog, jobRanLog } from "../logsink/index.ts";
+import { LogSink, invokeLogs, jobRanLog } from "../logsink/index.ts";
 import { nodePlatform } from "../platform/index.ts";
 
 /** Files an agent made on its computer, said in the chat the work was for: one message with a file card each (four at most, the rest counted), posted as the agent for the person it works for. */
@@ -388,6 +388,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   };
   let projections: ProjectionRunner | null = null;
   let log: LogClient | null = null;
+  // the logs module's mirror of logs.db in modules.db, kept to its caps once a minute (seams/telemetry.ts)
+  let capTelemetry: (() => Promise<number>) | null = null;
   let guardExportNetworkCommands: (run: () => Promise<number>) => Promise<number> = run => run();
   const probeState = new Map<ProbeName, ProbeResult>();
   const recent: EventEnvelope[] = [];
@@ -627,7 +629,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const reg = registry as unknown as RegistryLike;
       const loaded = await loadHost({ registry: reg, modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")), routes, importer: fileImporter(codeRoot), seamImporter: fileSeamImporter(codeRoot), exportsImporter: fileExportsImporter(codeRoot), db, ...(o.http ? { fetch: o.http } : {}) });
       const telemetry = createTelemetryRecorder({ space, db, module: loaded.moduleExports.get("logs"), now, secrets: () => [token], capabilities: registry.capabilities.map(cap => cap.name) });
-      if (telemetry) sink.setObserver(telemetry.write, telemetry.position(sink.sourceId));
+      if (telemetry) { sink.setObserver(telemetry.write, telemetry.position(sink.sourceId)); capTelemetry = () => telemetry.cap(); }
       closers.push(() => { try { sink.flush(); } catch { /* The committed native source replays on the next boot. */ } finally { sink.setObserver(undefined); } });
       const registryCaps = registry.capabilities as unknown as CapabilityDef[];
       const readCaps = new Set<string>(registryCaps.filter((c) => c.effects === "read").map((c) => c.name));
@@ -758,7 +760,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const extraCaps = new Set([...(o.extra?.caps ?? []), ...hookRunner.caps].map((c) => c.name));
       const extraEvents = new Set([...(o.extra?.events ?? []), ...(o.extra?.caps ?? []).flatMap((c) => c.emits as string[])]);
       const idem = log.idempotency();
-      const sinkLog = sink.invokeLogger(space);
+      // a fast read, or the host's own periodic work and calls, is counted rather than stored per call (a client polling a dozen reads a second wrote a span each), and so is a read failing the same way again
+      const invokeLog = invokeLogs(sink, space, { routine: (cap) => readCaps.has(cap) || cap.startsWith("host.hook.periodic.") || cap.startsWith("host.hook.call."), read: (cap) => readCaps.has(cap) });
+      const sinkLog = invokeLog.log;
       const spaceId = space;
       // Preserve the operational log and write the audit module’s hash chain from declared pipeline metadata.
       const appendAudit = createAuditRecorder({ space: spaceId, db: db!, module: loaded.moduleExports.get("audit"), principal: (id) => access.snap.principal(id) });
@@ -943,8 +947,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           void hookRunner.pump().catch((e: unknown) => sink.log({ space: spaceId, level: 30, msg: "hooks.pump_failed", place: "hooks", attrs: { error: e instanceof Error ? e.message : String(e) } }));
           void projectionRunner.pump().catch((e: unknown) => sink.log({ space: spaceId, level: 30, msg: "projections.pump_failed", place: "projections", attrs: { error: e instanceof Error ? e.message : String(e) } }));
         },
-        // a fast read, or the host's own periodic work and calls, is counted rather than stored per call (a client polling a dozen reads a second wrote a span each)
-        onSpan: invokeSpanLog(sink, () => spaceId, (cap) => readCaps.has(cap) || cap.startsWith("host.hook.periodic.") || cap.startsWith("host.hook.call.")),
+        onSpan: invokeLog.onSpan,
       });
 
       // A job the host itself scheduled (a webhook retry from the events consumer) runs as the host service, which authorize does not know: it is pre-authorized like the hook that scheduled it.
@@ -1782,6 +1785,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     scheduler.add({ name: "projections.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await projections?.pump(); } });
     scheduler.add({ name: "hooks.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await hooks?.pump(); } });   // the backstop for a consumer that failed, and for events committed by another process
     for (const p of hooks?.periodic ?? []) scheduler.add({ name: `hook.${p.name}`, schedule: { everyMs: p.everyMs, ...(p.immediate ? { immediate: true } : {}) }, run: async () => { await hooks?.runPeriodic(p.name); } });
+    scheduler.add({ name: "logs.cap", schedule: { everyMs: 60_000 }, run: async () => { await capTelemetry?.(); } });
     scheduler.add({ name: "idempotency.purge", schedule: { daily: { hour: 4, minute: 0 } }, run: async () => { await log?.purgeIdempotency(); } });
   }
 

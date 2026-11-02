@@ -1,7 +1,7 @@
 import { isAssistantRow } from "../../../../../lib/agent-kind.ts";
 import {createRecordsPreview} from "../../../../../client/src/gateway/records-preview.ts";
 // A signed-in Space, open (ARCH 7.0): who you are, the Space's name and kind, the capability caller on its gateway, the screen hooks every place reads, the live link that keeps them fresh, and the
-// ShellRuntime the places are handed. `openRealSession` is the only place the shell touches the network; the places only see the runtime. A call that succeeds re-reads what is on screen,
+// ShellRuntime the places are handed. `openRealSession` is the only place the shell touches the network; the places only see the runtime. A call that may change something re-reads what is on screen,
 // the live link re-reads it when the Space changes under you, and while the link is down the session re-reads every few seconds so a place never goes stale silently.
 import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
 import type { ScreenIndexEntry } from "../../../../../generated/screens.ts";
@@ -81,6 +81,11 @@ export interface RealSession {
   refresh(): void;
   close(why?: string): void;
 }
+
+/** How often a hidden window re-reads what is on screen. */
+export const HIDDEN_REFRESH_MS = 30_000;
+/** Is the window hidden (minimized, another desktop, a background tab)? Without a document (tests, native) it counts as showing. */
+const hidden = (): boolean => (globalThis as { document?: { visibilityState?: string } }).document?.visibilityState === "hidden";
 
 const loadScreens = (): Promise<ReadonlyMap<string, ScreenIndexEntry>> => import("../../../../../generated/screens.ts").then((m) => m.screensById);
 
@@ -168,11 +173,20 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
 
   // A 401 means signed out (once, to sign-in): it is never a failure state a screen reacts to by asking again.
   const hooks = createRemoteScreenHooks({ screens, read: (cap, input) => reach(cap, input), ignoreError: (e) => e instanceof CapError && e.status === 401 });
+  // While the window is hidden a change re-reads the screen at most every HIDDEN_REFRESH_MS; showing it again re-reads at once whatever is waiting.
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  const reread = (): void => { if (refreshTimer !== null) clearTimeout(refreshTimer); refreshTimer = null; if (!closed) hooks.invalidate(); };
   const refresh = (): void => {
     if (closed || refreshTimer !== null) return;
-    refreshTimer = setTimeout(() => { refreshTimer = null; if (!closed) hooks.invalidate(); }, 120);
+    refreshTimer = setTimeout(reread, hidden() ? HIDDEN_REFRESH_MS : 120);
   };
+  const page = (globalThis as { document?: { addEventListener?(t: string, l: () => void): void; removeEventListener?(t: string, l: () => void): void } }).document;
+  const shown = (): void => { if (!hidden() && refreshTimer !== null) reread(); };
+  page?.addEventListener?.("visibilitychange", shown);
+  // A read changes nothing, so it does not re-read the screen. Re-reading after every read made a loop: a screen that reads on render re-rendered on the re-read and read again, every two
+  // seconds, whole screens at a time (about 15 reads a second from an idle Mac). Until the route table has loaded, every call re-reads, as before.
+  let reads: ReadonlySet<string> | null = null;
+  void import("../../../../../generated/routes.ts").then((m) => { reads = new Set(m.routes.filter((r) => r.effects === "read").map((r) => r.cap)); }, () => undefined);
   const unlockVault = async (password: string): Promise<void> => {
     const got = (await reach("identity.keys_get", {})) as { keys: { personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string } };
     const { openBundle, wipe } = await loadCryptoKeys();
@@ -186,7 +200,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
 
   const once: CapCall = async (cap, input, opts) => {
     const r = await reach(cap, input, opts);
-    refresh();
+    if (!reads?.has(cap)) refresh();
     return r;
   };
   // a locked vault key asks for the password in place (one prompt for every call that meets it) and tries again; it never ends the session
@@ -219,7 +233,15 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     ready: () => !closed && token !== null && reachable,
     upload: async (samples) => { await reach("logs.client_upload", { device: who.deviceId ?? "web", entries: [], samples }); },
   });
-  const poll = setInterval(() => { if (!closed && live !== "live" && hooks.watching() > 0) hooks.invalidate(); }, o.pollMs ?? 5000);
+  // while the link is down: every pollMs, or every HIDDEN_REFRESH_MS while the window is hidden
+  let polledAt = 0;
+  const poll = setInterval(() => {
+    if (closed || live === "live" || hooks.watching() === 0) return;
+    const t = (o.now ?? Date.now)();
+    if (hidden() && t - polledAt < HIDDEN_REFRESH_MS) return;
+    polledAt = t;
+    hooks.invalidate();
+  }, o.pollMs ?? 5000);
 
   const prefetchPlace = (place: PlaceId): void => {
     if (closed) return;
@@ -347,6 +369,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       clearInterval(poll);
       for (const t of warmTimers) clearTimeout(t);
       if (refreshTimer !== null) clearTimeout(refreshTimer);
+      page?.removeEventListener?.("visibilitychange", shown);
       link.stop();
       turns.dispose();
       for (const off of keep) off();

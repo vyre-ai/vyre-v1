@@ -444,6 +444,25 @@ function saveFold(db: Db, space: string, f: Fold): void {
   db.run("INSERT INTO logs_aggregate (space, day, level, cap, result, n_rows, cost_micros, dur_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", ...key, f.n, f.cost, f.dur);
 }
 
+/**
+ * One batch of full rows into the per-day aggregates: the oldest rows (by id) older than `before`, at most `limit` of them, folded and deleted together. Returns how many were read and deleted.
+ * `before` Infinity folds the oldest rows whatever their age (the row cap).
+ */
+export function foldRows(db: Db, space: string, before: number, limit: number = FOLD_BATCH): { folded: number; deleted: number } {
+  const cut = Number.isFinite(before) ? before : Number.MAX_SAFE_INTEGER;
+  const batch = db.all("SELECT id, at, level, cap, result, cost_micros, dur_ms FROM logs_row WHERE space = ? AND at < ? ORDER BY id LIMIT ?", space, cut, limit);
+  if (batch.length === 0) return { folded: 0, deleted: 0 };
+  const map = new Map<string, Fold>();
+  let maxId = 0;
+  for (const r of batch) {
+    if (!isObj(r)) continue;
+    foldInto(map, r);
+    maxId = Math.max(maxId, int(r["id"]) ?? 0);
+  }
+  for (const f of map.values()) saveFold(db, space, f);
+  return { folded: batch.length, deleted: db.run("DELETE FROM logs_row WHERE space = ? AND at < ? AND id <= ?", space, cut, maxId).changes };
+}
+
 /** The daily retention job. A hold skips it. Safe to run twice: folded rows are deleted in the same pass. */
 export function runRetention(db: Db, space: string, now: number): RetentionResult {
   if (holdActive(db, space, now)) return { held: true, folded: 0, deleted: 0 };
@@ -452,19 +471,9 @@ export function runRetention(db: Db, space: string, now: number): RetentionResul
   const aggBefore = now - s.aggregateDays * DAY_MS;
   let folded = 0, deleted = 0;
   for (;;) {
-    const batch = db.all("SELECT id, at, level, cap, result, cost_micros, dur_ms FROM logs_row WHERE space = ? AND at < ? ORDER BY id LIMIT ?", space, fullBefore, FOLD_BATCH);
-    if (batch.length === 0) break;
-    const map = new Map<string, Fold>();
-    let maxId = 0;
-    for (const r of batch) {
-      if (!isObj(r)) continue;
-      foldInto(map, r);
-      maxId = Math.max(maxId, int(r["id"]) ?? 0);
-    }
-    for (const f of map.values()) saveFold(db, space, f);
-    deleted += db.run("DELETE FROM logs_row WHERE space = ? AND at < ? AND id <= ?", space, fullBefore, maxId).changes;
-    folded += batch.length;
-    if (batch.length < FOLD_BATCH) break;
+    const r = foldRows(db, space, fullBefore);
+    folded += r.folded; deleted += r.deleted;
+    if (r.folded < FOLD_BATCH) break;
   }
   db.run("DELETE FROM logs_span WHERE space = ? AND at < ?", space, fullBefore);
   db.run("DELETE FROM logs_event WHERE at < ?", fullBefore);
