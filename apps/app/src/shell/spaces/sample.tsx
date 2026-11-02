@@ -94,12 +94,14 @@ export function memoryStorage(): TabsStorage & { dump(): Record<string, string> 
 
 export interface SampleShellOptions extends Partial<Omit<HubOptions, "spaces">> {
   openId?: string;
+  /** The seeds with something changed (a screenshot of a rail with nothing flowing into Inbox); the three seeds when absent. */
+  spaces?: HubOptions["spaces"];
 }
 
 /** A hub over the three seeds: Northwind open, Northwind and Harbor Studio starred (pre-opened), Personal on demand. */
 export function createSampleShell(options: SampleShellOptions = {}): ShellHub {
   return createShellHub({
-    spaces: SEED_DEFS,
+    spaces: options.spaces ?? SEED_DEFS,
     openId: options.openId ?? "nw",
     personId: options.personId ?? "irfad",
     deviceId: options.deviceId ?? "mac",

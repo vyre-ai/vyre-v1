@@ -43,6 +43,12 @@ export interface StatusLine {
   undo: boolean;
 }
 
+/** A place that just joined the rail (Inbox, when the first mailbox, calendar or number arrives): it comes in with the rail's calm reveal, once, with an optional one-time tip. */
+export interface FreshPlace {
+  place: PlaceId;
+  tip: string | null;
+}
+
 export interface HubState {
   openId: string;
   phase: Phase;
@@ -56,6 +62,8 @@ export interface HubState {
   status: StatusLine | null;
   /** A Space that did not open: the shell shows one line and Try again. */
   error: string | null;
+  /** A place that just joined the open Space's rail; null once it has settled. */
+  fresh: FreshPlace | null;
 }
 
 export interface HubOptions {
@@ -105,6 +113,10 @@ export interface ShellHub {
   retitle(key: string, title: string): void;
   /** The count on a place of the open Space, from what it counts live (the rail reads it, and only redraws when it changes). */
   count(place: PlaceId, n: number): void;
+  /** Whether this person has something flowing into Inbox in the open Space (rail/inbox-sources.ts). Only a change redraws. With `reveal`, Inbox joining the rail comes in as a fresh place. */
+  setInbox(has: boolean, reveal?: { tip: string | null }): void;
+  /** The fresh place has been seen (its tip dismissed or timed out). */
+  settle(): void;
   /** Show a tab the strip selected. */
   showTab(tab: TabEntry): void;
   newTab(): TabEntry;
@@ -175,6 +187,7 @@ export function createShellHub(options: HubOptions): ShellHub {
   let statusId = 0;
   let cancelStatus: (() => void) | null = null;
   let error: string | null = null;
+  let fresh: FreshPlace | null = null;
   let t0 = now();
   let switchedFrom = openId;
   let drawn = true;
@@ -190,7 +203,7 @@ export function createShellHub(options: HubOptions): ShellHub {
 
   function build(): HubState {
     const s = open();
-    return { openId, phase, epoch, place: s.place, hash: s.hash, away, online, waiting, status, error };
+    return { openId, phase, epoch, place: s.place, hash: s.hash, away, online, waiting, status, error, fresh };
   }
   snap = build();
 
@@ -256,7 +269,7 @@ export function createShellHub(options: HubOptions): ShellHub {
     session: (spaceId) => (spaceId === undefined ? open() : (sessions.get(spaceId) ?? open())),
     rail() {
       const s = open();
-      return railFor({ kit: s.kit, console: s.def.console, counts: s.def.counts, dots: s.def.dots, active: s.place });
+      return railFor({ kit: s.kit, console: s.def.console, ...(s.def.inbox === undefined ? {} : { inbox: s.def.inbox }), counts: s.def.counts, dots: s.def.dots, active: s.place });
     },
     switchTo(spaceId) {
       const next = sessions.get(spaceId);
@@ -267,6 +280,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       closeSubscriptions(prev.def.spaceId);
       switchedFrom = prev.def.spaceId;
       openId = spaceId;
+      fresh = null;
       epoch += 1;
       drawn = false;
       // the skin is on the root before this call returns: the first frame is already the new Space's skin
@@ -298,6 +312,20 @@ export function createShellHub(options: HubOptions): ShellHub {
       const s = open();
       if ((s.def.counts[place] ?? 0) === n) return;
       s.def = { ...s.def, counts: { ...s.def.counts, [place]: n } };
+      emit();
+    },
+    setInbox(has, reveal) {
+      const s = open();
+      if (s.def.inbox === has) return;
+      const joins = has && s.def.inbox === false;
+      s.def = { ...s.def, inbox: has };
+      if (joins && reveal !== undefined) fresh = { place: "inbox", tip: reveal.tip };
+      else if (!has && fresh?.place === "inbox") fresh = null;
+      emit();
+    },
+    settle() {
+      if (fresh === null) return;
+      fresh = null;
       emit();
     },
     retitle(key, title) {

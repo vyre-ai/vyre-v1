@@ -1,6 +1,7 @@
 // The rail (spec 3.0): fixed beside the sheets, the Space tile at the top, then the Kit's main places in one soft track. At the foot one button expands upward into the rest (Apps, Vault, Settings, Console) and
 // shows the open place when it is one of them, with the person's own face under it. Thin icons; the open place carries the accent wash; a quiet count or a coral dot says something is waiting. Every button has a click, a hover, a right-click menu (open in a new tab)
-// and keyboard focus with Enter or Space. Colours are skin tokens, so a skin switch repaints with no re-render.
+// and keyboard focus with Enter or Space. Colours are skin tokens, so a skin switch repaints with no re-render. A place that joins the rail while you work (Inbox, when the first
+// mailbox or calendar arrives) opens into its slot with the same height-and-fade the foot island uses, once, with an optional quiet label beside it that leaves on its own.
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -11,6 +12,8 @@ import { ShellIcon, iconMarkup } from "./icons.tsx";
 import type { PlaceId, RailEntry, RailGroups } from "./kits.ts";
 
 export const RAIL_WIDTH = 60;
+/** How long a fresh place's tip stays before it leaves by itself. */
+export const FRESH_TIP_MS = 6000;
 
 export interface RailProps {
   groups: RailGroups;
@@ -26,17 +29,21 @@ export interface RailProps {
   foot?: ReactNode;
   /** The phone: the rail lies along the bottom of the screen. The top group's places are the bar; the bottom group's places sit behind a "More" button (a menu anchored to it). */
   bottom?: boolean;
+  /** A place that just joined the rail: it comes in with the reveal and, when given, its one-time tip. */
+  fresh?: { place: PlaceId; tip: string | null } | null;
+  /** The fresh place has been seen: pressed, or its tip has had its time. */
+  onSettle?: () => void;
 }
 
-export function Rail({ groups, active, onSelect, onOpenInTab, onPrefetch, header, foot, bottom }: RailProps): ReactElement {
+export function Rail({ groups, active, onSelect, onOpenInTab, onPrefetch, header, foot, bottom, fresh, onSettle }: RailProps): ReactElement {
   const { element, show } = useMenu();
-  const button = (e: RailEntry): ReactElement => (
+  const plain = (e: RailEntry): ReactElement => (
     <RailButton
       key={e.place}
       entry={e}
       flat={bottom === true}
       on={e.place === active}
-      onPress={() => onSelect(e.place)}
+      onPress={() => { if (fresh?.place === e.place) onSettle?.(); onSelect(e.place); }}
       onPrefetch={onPrefetch === undefined ? undefined : () => onPrefetch(e.place)}
       trigger={menuTrigger((x, y) => show(
         [
@@ -47,6 +54,10 @@ export function Rail({ groups, active, onSelect, onOpenInTab, onPrefetch, header
       ))}
     />
   );
+  const button = (e: RailEntry): ReactElement => {
+    const b = plain(e);
+    return bottom !== true && fresh?.place === e.place ? <Reveal key={e.place} place={e.place} tip={fresh.tip} onSettle={onSettle}>{b}</Reveal> : b;
+  };
   const buttons = (entries: readonly RailEntry[]): ReactElement[] => {
     const out: ReactElement[] = [];
     for (const e of entries) out.push(button(e));
@@ -126,6 +137,39 @@ function Isle({ entries, active, render }: { entries: readonly RailEntry[]; acti
   );
 }
 
+/** A place joining the rail: its slot opens from nothing to one button's height while it fades in (the island's own timing), then a quiet label sits beside it for a few seconds. */
+function Reveal({ place, tip, onSettle, children }: { place: PlaceId; tip: string | null; onSettle?: (() => void) | undefined; children: ReactElement }): ReactElement {
+  const [open, setOpen] = useState(Platform.OS !== "web");
+  const [tipOn, setTipOn] = useState(false);
+  const settle = useRef(onSettle);
+  settle.current = onSettle;
+  useEffect(() => {
+    if (open) return undefined;
+    const raf = (globalThis as { requestAnimationFrame?: (f: () => void) => number }).requestAnimationFrame;
+    let t: ReturnType<typeof setTimeout> | null = null;
+    if (raf) raf(() => { t = setTimeout(() => setOpen(true), 0); }); else t = setTimeout(() => setOpen(true), 0);
+    return () => { if (t !== null) clearTimeout(t); };
+  }, [open]);
+  useEffect(() => {
+    if (!open) return undefined;
+    if (tip === null) { const t = setTimeout(() => settle.current?.(), 260); return () => clearTimeout(t); }
+    const show = setTimeout(() => setTipOn(true), 220);
+    const fade = setTimeout(() => setTipOn(false), 220 + FRESH_TIP_MS);
+    const done = setTimeout(() => settle.current?.(), 220 + FRESH_TIP_MS + 200);
+    return () => { clearTimeout(show); clearTimeout(fade); clearTimeout(done); };
+  }, [open, tip]);
+  return (
+    <View testID={`rail-fresh-${place}`} style={styles.fresh}>
+      <View style={[styles.freshSlot, ISLE_REVEAL, { maxHeight: open ? 38 : 0, opacity: open ? 1 : 0 }]}>{children}</View>
+      {tip !== null ? (
+        <View testID={`rail-tip-${place}`} role="tooltip" aria-hidden={!tipOn} pointerEvents="none" style={[styles.tip, TIP_FADE, { opacity: tipOn ? 1 : 0 }]}>
+          <Text numberOfLines={1} style={styles.tipText}>{tip}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 function RailButton({ entry, on, onPress, onPrefetch, trigger, flat = false }: { entry: RailEntry; on: boolean; flat?: boolean; onPress: () => void; onPrefetch?: (() => void) | undefined; trigger: Record<string, unknown> }): ReactElement {
   const [over, setOver] = useState(false);
   return (
@@ -153,6 +197,7 @@ function RailButton({ entry, on, onPress, onPrefetch, trigger, flat = false }: {
 
 const ISLE_MOVE = (Platform.OS === "web" ? { transitionProperty: "background-color", transitionDuration: "180ms", transitionTimingFunction: "ease" } : {}) as object;
 const ISLE_REVEAL = (Platform.OS === "web" ? { transitionProperty: "max-height, opacity", transitionDuration: "200ms, 160ms", transitionTimingFunction: "ease" } : {}) as object;
+const TIP_FADE = (Platform.OS === "web" ? { transitionProperty: "opacity", transitionDuration: "200ms", transitionTimingFunction: "ease" } : {}) as object;
 
 const styles = StyleSheet.create({
   isle: { alignItems: "center", gap: 3, padding: 5, borderRadius: 19 },
@@ -168,5 +213,9 @@ const styles = StyleSheet.create({
   flat: { width: 44, height: 44 },
   over: { backgroundColor: "var(--hover)" as string },
   on: { backgroundColor: "var(--accent-wash)" as string },
+  fresh: { position: "relative" },
+  freshSlot: { overflow: "hidden" },
+  tip: { position: "absolute", left: 46, top: 9, zIndex: 80, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7, backgroundColor: "var(--ink)" as string },
+  tipText: { fontSize: 12, lineHeight: 16, color: "var(--win)" as string, ...({ whiteSpace: "nowrap" } as object) },
   dot: { position: "absolute", top: 6, right: 6, width: 5, height: 5, borderRadius: 3, backgroundColor: "var(--beacon)" as string, ...({ boxShadow: "0 0 0 2px var(--side)" } as object) },
 });

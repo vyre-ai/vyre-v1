@@ -20,8 +20,8 @@ export interface GateNav {
 export interface GateSearchDeps {
   runtime: ShellRuntime;
   nav: GateNav;
-  /** Whether the person set themself away / offline; the actions read and flip them. */
-  state: { away: boolean; offline: boolean; terminal?: boolean };
+  /** Whether the person set themself away / offline; the actions read and flip them. `inbox` is false while nothing flows into Inbox (it is off the rail). */
+  state: { away: boolean; offline: boolean; terminal?: boolean; inbox?: boolean };
   /** The recent hits read ahead of the sheet (search.recent.list). */
   recent: () => readonly Hit[];
 }
@@ -59,9 +59,30 @@ export function replicaHits(rt: ShellRuntime): readonly Hit[] {
   return out;
 }
 
+/** Where connecting email, calendars and numbers lives: Settings, Email and calendar. */
+export const MAIL_PAGE_HASH = "page=mail";
+const INBOX_HIT = "shell:inbox";
+const MAIL_HIT = "shell:mail";
+
+/** Inbox and Connect email as results of their own. With nothing connected Inbox is off the rail, and both open the Email and calendar screen in Settings. */
+export function shellHits(state: { inbox?: boolean }): readonly Hit[] {
+  return [
+    { kind: "inbox", id: INBOX_HIT, title: "Inbox", snippet: state.inbox === false ? "Connect email and calendar" : "Mail, texts and calendar", link: "vyre://inbox", score: 0.8 },
+    { kind: "setting", id: MAIL_HIT, title: "Connect email", snippet: "Email and calendar", link: "vyre://settings/mail", score: 0.8 },
+  ];
+}
+
+/** Where a shell result goes: Inbox itself once something flows in, otherwise the connect screen. Null for any other result. */
+export function shellHitTarget(hit: Hit, state: { inbox?: boolean }): { place: PlaceId; hash: string } | null {
+  if (hit.id === MAIL_HIT || (hit.id === INBOX_HIT && state.inbox === false)) return { place: "settings", hash: MAIL_PAGE_HASH };
+  if (hit.id === INBOX_HIT) return { place: "inbox", hash: "" };
+  return null;
+}
+
 export function gateActions(state: { away: boolean; offline: boolean; terminal?: boolean }, team = true): readonly CmdAction[] {
   return [
     { key: "task.new", title: "New task", icon: "plus" },
+    { key: "mail.connect", title: "Connect email", icon: "plus" },
     ...(team ? [{ key: "channel.new", title: "New channel", icon: "plus" }] : []),
     { key: "appearance.skin", title: "Switch skin", icon: "eye" },
     { key: "presence.away", title: state.away ? "Back from away" : "Set yourself away", icon: "clock" },
@@ -75,13 +96,16 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
   const online = (): boolean => !state.offline && rt.connection.get() === "online";
   const open = (hit: Hit, opts: { newTab: boolean }): void => {
     if (opts.newTab) nav.newTab();
-    nav.go(placeOfHit(hit), hashOfHit(hit));
+    const own = shellHitTarget(hit, state);
+    if (own) nav.go(own.place, own.hash === "" ? undefined : own.hash);
+    else nav.go(placeOfHit(hit), hashOfHit(hit));
   };
   return {
     spaceName: () => rt.space.name,
     scope: () => (online() ? "space" : "device"),
     online,
-    local: (text, types) => replicaHits(rt).filter((h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text))),
+    // Inbox and Connect email answer a typed word only; the replica's people and chats stay the whole of an empty search
+    local: (text, types) => [...replicaHits(rt), ...(text.trim() === "" ? [] : shellHits(state))].filter((h) => (!types || types.includes(h.kind)) && (text === "" || matches(h, text))),
     server: async (text, types) => {
       const out = (await rt.call("search.query", { q: text, ...(types ? { types: [...types] } : {}), limit: 20 })) as { hits: Hit[] };
       return out.hits;
@@ -112,8 +136,9 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
       else if (a.key === "task.new") nav.go("home");
       else if (a.key === "channel.new") { nav.go("chats"); requestChannelSheet("new"); }
       else if (a.key === SKIN) nav.go("settings", "page=appearance");
+      else if (a.key === "mail.connect") nav.go("settings", MAIL_PAGE_HASH);
     },
-    recordOpened: (hit) => { void rt.call("search.recent.record", { kind: hit.kind, itemId: hit.id }).catch(() => undefined); },
+    recordOpened: (hit) => { if (shellHitTarget(hit, state)) return; void rt.call("search.recent.record", { kind: hit.kind, itemId: hit.id }).catch(() => undefined); },
   };
 }
 

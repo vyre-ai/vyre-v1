@@ -128,6 +128,14 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     { id: "mbx_1", kind: "personal", address: "irfad@northwind.example", title: "Work", provider: "google", privacy: "private", state: "syncing", lastSyncAt: SAMPLE_NOW - 2 * MIN, ownerId: "usr_irfad" },
     { id: "mbx_2", kind: "personal", address: "irfad.imtiaz@outlook.example", title: "Outlook", provider: "microsoft", privacy: "people", state: "paused", ownerId: "usr_irfad" },
   ] : []);
+  // Northwind has mail, a calendar and a number of Irfad's own (Inbox is on his rail); Harbor Studio has none, so its Email and calendar page is the connect tiles
+  replica.put("calendars", space.id === "northwind" ? [
+    { id: "cld_work", title: "Work", color: "#4f6bed", provider: "google", ownerId: "usr_irfad", personal: false, state: "syncing" },
+  ] : []);
+  replica.put("numbers", space.id === "northwind" ? [
+    { id: "num_main", e164: "+14155550132", title: "Main line", displayName: "Main line", capabilities: ["voice", "sms"], assigneeKind: "person", assigneeId: "usr_irfad", state: "active" },
+    { id: "num_intake", e164: "+14155550190", title: "Intake", displayName: "Intake", capabilities: ["voice", "sms"], assigneeKind: "agent", assigneeId: "agt_intake", state: "active" },
+  ] : []);
   replica.put("accounts", [
     { id: "acc_claude", ref: "acc_claude", driver: "claude_code", kind: "subscription", title: "Claude Max, your sign-in", mine: true, status: "ok" },
     { id: "acc_openai", ref: "acc_openai", driver: "openai", kind: "api_key", title: "OpenAI team key", mine: false, status: "ok" },
@@ -187,6 +195,8 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     ],
   }) as unknown as CapMap["notifications.kinds.list"]["out"]);
   replica.resolve("mail.mailbox.list", () => ({ mailboxes: replica.rows("mailboxes") as unknown as CapMap["mail.mailbox.list"]["out"]["mailboxes"] }) as CapMap["mail.mailbox.list"]["out"]);
+  replica.resolve("calendar.list_calendars", () => ({ calendars: replica.rows("calendars") as unknown as CapMap["calendar.list_calendars"]["out"]["calendars"] }) as CapMap["calendar.list_calendars"]["out"]);
+  replica.resolve("telephony.number.list", () => ({ numbers: replica.rows("numbers") as unknown as CapMap["telephony.number.list"]["out"]["numbers"] }) as CapMap["telephony.number.list"]["out"]);
   replica.resolve("engine.accounts.list", () => ({ accounts: replica.rows("accounts") as unknown as CapMap["engine.accounts.list"]["out"]["accounts"] }) as CapMap["engine.accounts.list"]["out"]);
   replica.resolve("engine.models.list", () => ({ models: replica.rows("models") as unknown as CapMap["engine.models.list"]["out"]["models"] }) as CapMap["engine.models.list"]["out"]);
   replica.resolve("engine.defaults.get", () => { const x = replica.rows("defaults")[0] as unknown as { provider: string; model: string; fallback: { provider: string; model: string }[] }; return { provider: x.provider, model: x.model, fallback: x.fallback }; });
@@ -230,6 +240,8 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     "devices.revoke_others": () => { let n = 0; for (const x of replica.rows("devices")) if (!x["current"] && x["revokedAt"] === undefined) { replica.put("devices", [{ ...x, revokedAt: SAMPLE_NOW }]); n++; } return { revoked: n }; },
     "mail.mailbox.pause": (i: { mailboxId: string }) => { const m = replica.rows("mailboxes").find((x) => x.id === i.mailboxId); if (m) replica.put("mailboxes", [{ ...m, state: "paused" }]); return { ok: true }; },
     "mail.mailbox.resume": (i: { mailboxId: string }) => { const m = replica.rows("mailboxes").find((x) => x.id === i.mailboxId); if (m) replica.put("mailboxes", [{ ...m, state: "syncing" }]); return { ok: true }; },
+    "mail.mailbox.disconnect": (i: { mailboxId: string }) => { replica.remove("mailboxes", [i.mailboxId]); return { ok: true }; },
+    "calendar.delete_calendar": (i: { calendarId: string }) => { replica.remove("calendars", [i.calendarId]); return { deleted: true }; },
     "memory.key.set": (i: { layer: "space" | "project" | "person"; projectId?: string; accountRef: string | null }) => {
       const k = replica.rows("memkeys")[0] as unknown as { id: string; person: string | null; space: string | null; projects: Record<string, string> };
       if (i.layer !== "person" && space.id !== "northwind") throw new Error("Only a Space admin sets the key for Space and project memory.");

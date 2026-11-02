@@ -1,0 +1,5 @@
+- Inbox is on the rail only for a person with something flowing in: a mailbox, a calendar or a number assigned to them, in Personal and Team Spaces. It is read when the Space opens and on the change events of those reads, and the last answer is kept on the device so the rail does not jump while it loads.
+- When the first source connects, Inbox opens into its place on the rail with the island's calm reveal and a one-time tip, "Your mail and calendar are here". It leaves the rail when the last source is removed.
+- Settings has a new Email and calendar page under Connected: the Inbox's own connect tiles while nothing is connected, then each mailbox, calendar and your numbers with Pause, Resume or Remove, and the tiles to add another. The mail rows and the Through your Space suites moved here from Connected.
+- An Inbox tab, link or agent that opens Inbox with nothing connected shows the connect tiles instead of an empty Inbox; an item still opens.
+- The first screen's setup checklist has an Email and calendar row while nothing is connected. Cmd-K finds Inbox and Connect email, and both open the connect page until something flows in.

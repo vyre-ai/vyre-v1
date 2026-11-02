@@ -1,5 +1,6 @@
 // Inbox > Connect a channel: what the Inbox shows until one mailbox or number can send. Four tiles, each the door to a flow that already exists (mail connections for Gmail, Outlook
-// and IMAP; the Vault's Twilio form for texts and calls). The same choice answers the pencil, the plus and the Dialer while nothing is connected.
+// and IMAP; the Vault's Twilio form for texts and calls). The same choice answers the pencil, the plus and the Dialer while nothing is connected. Settings > Email and calendar
+// draws the same tiles (`inline`, under its own heading), and an Inbox tab with nothing flowing in shows them in place of an empty Inbox.
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { StateTile } from "../../../../../../ui/src/States/index.tsx";
@@ -8,7 +9,8 @@ import { CONNECT_TILES } from "../sidebar/model.ts";
 import type { ConnectTile } from "../sidebar/model.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import type { ConnectNeed } from "../../../shell/connect/model.ts";
-import { useInboxData } from "../sidebar/data.tsx";
+import { useOptionalInboxData } from "../sidebar/data.tsx";
+import type { InboxNav } from "../sidebar/data.tsx";
 import { Glyph } from "../sidebar/parts.tsx";
 
 function Mark({ tile }: { tile: ConnectTile }): ReactElement {
@@ -16,20 +18,28 @@ function Mark({ tile }: { tile: ConnectTile }): ReactElement {
   return <AppIcon brand={tile.brand} size={32} name={tile.label} />;
 }
 
-export function ConnectChannel({ onPick }: { onPick?: (tile: ConnectTile) => void }): ReactElement {
-  const data = useInboxData();
+export interface ConnectChannelProps {
+  onPick?: (tile: ConnectTile) => void;
+  /** Where a tile goes when no connect sheet can open here (a test, a screenshot). Outside the Inbox this stands in for the Inbox's own navigation. */
+  connect?: InboxNav["connect"];
+  /** Drawn inside a page that has its own heading: the tiles alone, from the top. */
+  inline?: boolean;
+}
+
+export function ConnectChannel({ onPick, connect, inline = false }: ConnectChannelProps): ReactElement {
+  const data = useOptionalInboxData();
   const openConnect = useOpenConnect();
   // each tile opens its own connect sheet right here; where there is no door (a test, a screenshot) the old navigation stays
   const pick = (tile: ConnectTile): void => {
     const need: ConnectNeed | null = tile.kind === "gmail" ? { kind: "mailbox", provider: "google" } : tile.kind === "outlook" ? { kind: "mailbox", provider: "microsoft" } : tile.kind === "imap" ? { kind: "mailbox", provider: "imap" } : tile.kind === "twilio" ? { kind: "number" } : null;
-    if (openConnect && need) void openConnect(need); else data.nav.connect(tile.kind);
+    if (openConnect && need) void openConnect(need); else (connect ?? data?.nav.connect)?.(tile.kind);
     onPick?.(tile);
   };
   return (
-    <View style={s.wrap} testID="inbox-connect-channel" accessibilityLabel="Connect a channel">
-      <StateTile name="inbox" />
-      <Text accessibilityRole="header" aria-level={2} style={s.title}>Connect a channel</Text>
-      <View style={s.grid}>
+    <View style={inline ? s.inline : s.wrap} testID="inbox-connect-channel" accessibilityLabel="Connect a channel">
+      {inline ? null : <StateTile name="inbox" />}
+      {inline ? null : <Text accessibilityRole="header" aria-level={2} style={s.title}>Connect a channel</Text>}
+      <View style={[s.grid, inline && s.gridInline]}>
         {/* ui-rows-lint: not a list (channel tiles laid out in a wrapping grid) */}
         {CONNECT_TILES.map((tile) => (
           <Pressable
@@ -51,6 +61,8 @@ export function ConnectChannel({ onPick }: { onPick?: (tile: ConnectTile) => voi
 
 const s = StyleSheet.create({
   wrap: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, padding: 24 },
+  inline: { alignItems: "stretch" },
+  gridInline: { justifyContent: "flex-start", maxWidth: "100%" },
   title: { fontSize: 16, fontWeight: "600", color: "var(--ink)" as string },
   grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 10, maxWidth: 520 },
   tile: { flexDirection: "row", alignItems: "center", gap: 10, width: 240, minHeight: 56, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },

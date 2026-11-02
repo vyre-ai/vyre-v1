@@ -18,6 +18,7 @@ import { tabKey } from "../tabs/store.ts";
 import { titleAsk, typeTitleAsk } from "../tabs/titles.ts";
 import type { PlaceId } from "../rail/kits.ts";
 import { createShellHub } from "../spaces/hub.ts";
+import { INBOX_TIP, followInboxSources, rememberInbox, seedInbox, takeInboxTip } from "../rail/inbox-sources.ts";
 import type { ShellHub } from "../spaces/hub.ts";
 import { watchPurge, webPurgeClient, wipeBrowserStorage } from "../spaces/purge.ts";
 import type { ShellPurge } from "../spaces/purge.ts";
@@ -73,7 +74,8 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const catalogue=sessionCatalogue(activeStored);const catalogueKey=JSON.stringify(catalogue.map(item=>[item.baseUrl,item.personId,item.def]));
   const hub = useMemo(() => {
     if (given) { navRef.current = given; return given; }
-    const h = createShellHub({ spaces: catalogue.map(item=>({...item.def,starred:item.def.spaceId===stored.def.spaceId})), openId: stored.def.spaceId, personId: stored.personId, personIds:Object.fromEntries(catalogue.map(item=>[item.def.spaceId,item.personId])), deviceId: "web", storage: tabsStorage() });
+    // Inbox starts where this device last saw it for this person and Space, so the rail does not jump while the reads answer
+    const h = createShellHub({ spaces: catalogue.map(item=>({...seedInbox(item.def,tabsStorage(),item.personId),starred:item.def.spaceId===stored.def.spaceId})), openId: stored.def.spaceId, personId: stored.personId, personIds:Object.fromEntries(catalogue.map(item=>[item.def.spaceId,item.personId])), deviceId: "web", storage: tabsStorage() });
     // a link in the address wins over the restored tabs from the first frame, so nothing else is drawn first (UrlSync takes over from here)
     const page = (globalThis as { location?: { pathname?: string; hash?: string } }).location;
     if (page?.pathname !== undefined && page.hash !== undefined) readUrlIntoHub(h, { pathname: page.pathname, hash: page.hash });
@@ -88,7 +90,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   // where new chats run by default in a Team Space: this computer (engine.local_runs on) or the Space (off)
   const [runsOn, setRunsOn] = useState<"device" | "space">("device");
   const recent = useRef<readonly Hit[]>([]);
-  const flags = useRef<{ away: boolean; offline: boolean; terminal?: boolean }>({ away: false, offline: false });
+  const flags = useRef<{ away: boolean; offline: boolean; terminal?: boolean; inbox?: boolean }>({ away: false, offline: false });
 
   useEffect(() => { onHub(hub); return () => onHub(null); }, [hub, onHub]);
   useEffect(() => {
@@ -170,6 +172,22 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     session.call(ask.cap, ask.input).then((out) => { const name = ask.name(out); if (!off && name) hub.retitle(key, name); }, () => undefined);
     return () => { off = true; };
   }, [session, hub, location.place, location.hash]);
+
+  // Inbox is on the rail once something flows in: the answer follows the mailbox, calendar and number reads (and their change events), and is kept for the next launch
+  useEffect(() => {
+    if (!session) return undefined;
+    const store = tabsStorage();
+    const me = session.me.id;
+    const space = session.def.spaceId;
+    const was = hub.session().def.inbox;
+    if (was === undefined) delete flags.current.inbox; else flags.current.inbox = was;
+    return followInboxSources(session.hooks, me, (has) => {
+      flags.current.inbox = has;
+      rememberInbox(store, me, space, has);
+      const joins = has && hub.session().def.inbox === false;
+      hub.setInbox(has, joins ? { tip: takeInboxTip(store, me, space) ? INBOX_TIP : null } : undefined);
+    });
+  }, [session, hub]);
 
   // the one badge: what waits on this person, from the one count, on the same tick as everything else on screen
   const [needsYou, setNeedsYou] = useState(0);
