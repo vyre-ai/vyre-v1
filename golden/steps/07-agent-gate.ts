@@ -1,11 +1,13 @@
-// Golden flow 7, second half: the Gate on an agent's send (spec 2.14; ARCH 4.6). A person asks the agent to send an email; the send is an outward act, so the Gate holds it and an Approve task goes to the
-// person; a wrong approval token releases nothing; the person approves and the send goes out once. A second send is left alone: its hold escalates, then expires and the send is dropped.
+// Golden flow 7, second half: the Gate on an agent's send (spec 2.14; ARCH 4.6). A send the person asked for in her own words goes out with no hold, once. Then the agent reaches for a send nobody asked
+// for, to the same address: the ask was spent, so the Gate holds it and an Approve task goes to the person; a wrong approval token releases nothing; the person approves and the send goes out once. A second
+// unasked send is left alone: its hold escalates, then expires and the send is dropped.
 // Same engine setup as the first half (07-agent-reply.ts). The agent's send comes from the CLI calling the mail tool over the loopback MCP session.
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { bootFlowSpace, expectStatus, short, Trail } from "./02-space.ts";
 import type { FlowSpace } from "./02-space.ts";
 import type { Observed } from "../harness/index.ts";
+import { askedIn } from "../../lib/asked.ts";
 import { setDefaultDns } from "../../modules/mail/handlers/extra/dns.ts";
 import type { FetchFn } from "../../host/src/platform/probes.ts";
 import type { SeamFetch } from "../../host/src/seams/ports.ts";
@@ -148,16 +150,36 @@ export async function runAgentGate(live: readonly string[], opts: Parameters<typ
       const m = expectStatus(await s.call("mail.mailbox.create", admin, { idempotencyKey: "golden-7g-mailbox", kind: "agent", address: `mailer@${DOMAIN}`, title: "Mailer", agentId: agent! }), 200, "mail.mailbox.create").mailbox;
       return (m.mailboxId ?? m.id) as string;
     }, ["an agent exists", "a sending domain is added and verifies"]);
-    const ask = (key: string) => async (): Promise<void> => {
-      expectStatus(await s.call("chat.post", admin, { idempotencyKey: key, threadId: thread!, body: `send pat@acme.test ${mailbox!}`, mentions: [{ kind: "agent", id: agent! }] }), 200, "chat.post");
+    const post = async (key: string, body: string): Promise<void> => {
+      expectStatus(await s.call("chat.post", admin, { idempotencyKey: key, threadId: thread!, body, mentions: [{ kind: "agent", id: agent! }] }), 200, "chat.post");
     };
-    await trail.step("she asks it to send an email", ask("golden-7g-ask-1"), ["she starts a chat with it and the engine is bound", "the agent has a mailbox to send from"]);
+    await trail.step("a send she asks for in her own words goes out with no hold, once", async () => {
+      const body = `send pat@acme.test ${mailbox!}`;
+      assert.deepEqual(askedIn(body), [{ act: "send", target: "pat@acme.test" }], "her words ask for this send");
+      await post("golden-7g-asked", body);
+      const end = Date.now() + 40_000;
+      for (;;) {
+        await s.d.hooks?.pump?.();
+        const asks = s.d.db!.all("SELECT used_at FROM gate_grants WHERE kind = 'turn'") as Array<{ used_at: number | null }>;
+        if (asks.length === 1 && asks[0]!.used_at !== null) break;
+        assert.ok(Date.now() < end, `the ask was never spent: ${short(asks)}`);
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      assert.deepEqual(expectStatus(await s.call("gate.holds.list", admin, { states: ["held"] }), 200, "gate.holds.list").holds, [], "nothing waits for a yes");
+    }, ["she starts a chat with it and the engine is bound", "the agent has a mailbox to send from"]);
+    // The agent goes for a send with no ask behind it: the fake engine calls mail_send on a "tool" line, the same MCP path as a real one, and nothing in these words asks for an outward act.
+    const unasked = (key: string) => async (): Promise<void> => {
+      const body = `tool mail_send ${JSON.stringify({ mailboxId: mailbox!, to: [{ address: "pat@acme.test" }], subject: "The weekly note", text: "Written by the agent.", idempotencyKey: key })}`;
+      assert.deepEqual(askedIn(body), [], "nobody asked for this send");
+      await post(key, body);
+    };
+    await trail.step("the agent reaches for a send nobody asked for", unasked("golden-7g-ask-1"), ["a send she asks for in her own words goes out with no hold, once"]);
     const first = await trail.step("the Gate holds the send and opens an Approve task for her", async () => {
       const h = await held(1);
       const t = expectStatus(await s.call("tasks.get", admin, { taskId: h.taskId }), 200, "tasks.get").task;
       assert.equal(t.kind, "approve", `task ${short(t)}`);
       return h;
-    }, ["she asks it to send an email"]);
+    }, ["the agent reaches for a send nobody asked for"]);
     await trail.step("refusal: a wrong approval token releases nothing", async () => {
       const r = await s.call("gate.release", admin, { holdId: first!.id, taskId: first!.taskId, approvalToken: "apv_wrong" });
       assert.ok(r.status >= 400 && r.status < 500, `gate.release with a bad token: ${r.status} ${short(r.body?.error ?? r.body)}`);
@@ -168,7 +190,7 @@ export async function runAgentGate(live: readonly string[], opts: Parameters<typ
       assert.equal(holds.filter((h) => h.id === first!.id).length, 1, `hold ${first!.id} approved once: ${short(holds)}`);
     }, ["the Gate holds the send and opens an Approve task for her"]);
     const second = await trail.step("a second send is held and left alone", async () => {
-      await ask("golden-7g-ask-2")();
+      await unasked("golden-7g-ask-2")();
       return held(1);
     }, ["she approves and the send goes out once"]);
     await trail.step("with no decision the hold escalates", async () => {
