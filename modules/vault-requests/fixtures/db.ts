@@ -8,7 +8,7 @@ import type { Db } from "../projections.ts";
 
 export const MIGRATION = fileURLToPath(new URL("../migrations/0001_vault_requests.sql", import.meta.url));
 /** Later migrations only add columns. */
-export const ADDED = [fileURLToPath(new URL("../migrations/0002_handle_only.sql", import.meta.url)), fileURLToPath(new URL("../migrations/0003_asker.sql", import.meta.url))];
+export const ADDED = [fileURLToPath(new URL("../migrations/0002_handle_only.sql", import.meta.url)), fileURLToPath(new URL("../migrations/0003_asker.sql", import.meta.url)), fileURLToPath(new URL("../migrations/0004_thread.sql", import.meta.url))];
 type Cell = string | number | null;
 type Row = Record<string, Cell>;
 interface Col { name: string; notNull: boolean }

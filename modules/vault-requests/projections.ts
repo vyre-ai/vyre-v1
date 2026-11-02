@@ -34,6 +34,8 @@ export interface RequestRow {
   handle_only?: number | null;
   /** the person an agent asked on behalf of (migrations/0003_asker.sql); null when a person asked for themselves */
   asker_id?: string | null;
+  /** the newest chat the agent asked in (migrations/0004_thread.sql), where it carries on */
+  thread_id?: string | null;
 }
 
 type Code = Parameters<typeof fail>[0];
