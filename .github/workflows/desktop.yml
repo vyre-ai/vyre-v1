@@ -314,6 +314,12 @@ jobs:
         shell: powershell
         continue-on-error: true
         run: spikes/win-appcontainer/run.ps1
+      - name: "Option E: a Low-integrity token and a Job Object (spike)"
+        if: always()
+        shell: powershell
+        continue-on-error: true
+        timeout-minutes: 20
+        run: spikes/win-lowil/run.ps1
       - name: WSL on this runner (option B needs WSL2 with a distro and bubblewrap)
         if: always()
         shell: powershell
