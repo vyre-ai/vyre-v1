@@ -39,8 +39,8 @@ test("the field lists who matches under it; a click picks, and Enter picks inste
     const root = await mount(createRoot, <Host />);
     await typeInto(find(root, "qf"), "Call Omar @Te");
     assert.ok(find(root, "qf-people"), "the list opens on @");
-    assert.ok(find(root, "qf-person-agt_test"));
-    assert.equal(find(root, "qf-person-usr_sara"), null);
+    assert.ok(find(root, "row-qf-person-agt_test"));
+    assert.equal(find(root, "row-qf-person-usr_sara"), null);
     const { act } = await import("react");
     // the browser's Enter, as react-native-web hands it to the field: onKeyPress first, then submit unless that prevented it
     const enter = async (): Promise<void> => {
@@ -54,7 +54,7 @@ test("the field lists who matches under it; a click picks, and Enter picks inste
     await enter();
     assert.deepEqual(made, ["Call Omar @Test "], "with the list closed, Enter makes the task");
     await typeInto(find(root, "qf"), "Ask @sa");
-    await press(find(root, "qf-person-usr_sara"));
+    await press(find(root, "row-qf-person-usr_sara"));
     assert.equal((find(root, "qf") as Node).props.value, "Ask @sara ");
   } finally { restore(); }
 });

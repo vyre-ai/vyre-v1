@@ -80,6 +80,7 @@ test("a relay Space with a phone name invites at that name, not at this computer
     const space = (await ok(d, "/v1/spaces/get", {}))["space"] as { address: { mode: string; host?: string } };
     assert.deepEqual(space.address, { mode: "relay", host: "alex.vyre.run" });
     const made = await ok(d, "/v1/members/invites/create", { role: "rol_member", idempotencyKey: "addr-invite" });
-    assert.match(String(made["link"]), /^https:\/\/alex\.vyre\.run\/join\//);
+    // the code and the invite's own key ride in the fragment, so the relay never sees them (wip/l-space)
+    assert.match(String(made["link"]), /^https:\/\/alex\.vyre\.run\/join#c=[A-Z0-9-]+&k=[A-Za-z0-9_-]{43}&fp=[0-9a-f]{16}$/);
   } finally { await d.stop(); }
 });

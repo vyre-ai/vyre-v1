@@ -2,8 +2,9 @@
 // Tab picks, Escape hides the list, a click picks too. A pick writes the word quick.ts reads back (their username, else the first word of their name), so the task is assigned to who was picked.
 import { forwardRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { StyleSheet, Text, TextInput, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { QuickPerson } from "./quick.ts";
 
 /** The @word being typed at the end of the text, or null. */
@@ -60,11 +61,11 @@ export const QuickField = forwardRef<TextInput, Props>(function QuickField({ val
       {list.length > 0 ? (
         <View testID={`${testID}-people`} accessibilityRole="menu" style={st.pop}>
           {list.map((p, i) => (
-            <Pressable key={p.id} accessibilityRole="menuitem" testID={`${testID}-person-${p.id}`} onPress={() => pick(p)} style={({ hovered }: { hovered?: boolean }) => [st.item, (i === at || hovered === true) && st.on]}>
-              <Avatar name={p.name} seedId={p.id} kind={p.kind === "agent" ? "agent" : "person"} size={20} />
-              <Text numberOfLines={1} style={st.name}>{p.name}</Text>
-              {p.kind === "agent" ? <Text style={st.kind}>Agent</Text> : p.username ? <Text style={st.kind}>{`@${p.username}`}</Text> : null}
-            </Pressable>
+            <Row
+              key={p.id} id={`${testID}-person-${p.id}`} title={p.name} selected={i === at} onPress={() => pick(p)}
+              leading={<View style={st.face}><Avatar name={p.name} seedId={p.id} kind={p.kind === "agent" ? "agent" : "person"} size={20} /></View>}
+              trailing={p.kind === "agent" ? <Text style={st.kind}>Agent</Text> : p.username ? <Text style={st.kind}>{`@${p.username}`}</Text> : null}
+            />
           ))}
         </View>
       ) : null}
@@ -75,8 +76,6 @@ export const QuickField = forwardRef<TextInput, Props>(function QuickField({ val
 const st = StyleSheet.create({
   wrap: { flex: 1, minWidth: 0, position: "relative", zIndex: 5 },
   pop: { position: "absolute", top: "100%", left: -8, marginTop: 4, width: 260, padding: 4, borderRadius: 12, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)", zIndex: 10 } as object,
-  item: { flexDirection: "row", alignItems: "center", gap: 9, height: 32, paddingHorizontal: 8, borderRadius: 8 },
-  on: { backgroundColor: "var(--hover)" as string },
-  name: { flex: 1, minWidth: 0, fontSize: 13.5, color: "var(--ink)" as string },
+  face: { marginRight: 9 },
   kind: { fontSize: 12, color: "var(--ink-4)" as string },
 });
