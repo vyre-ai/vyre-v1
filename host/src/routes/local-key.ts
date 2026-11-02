@@ -17,13 +17,17 @@ export interface LocalKeyDeps {
   allowed(personId: string, sessionId?: string): boolean;
   /** told when a key is handed over or taken away (ids only, never the key) */
   log?(msg: string, attrs: Record<string, unknown>): void;
+  /** A key the person's client handed over at the Space's door, after opening it with their password: the server may keep a wrap of it for their provider sign-ins (host/src/seams/key-wraps.ts). */
+  handed?(personId: string, key: Uint8Array): void;
+  /** The person's wrap on this server: whether one is kept, and their own Forget and Remember (the Space's door only). */
+  wraps?: { has(personId: string): boolean; forgotten(personId: string): boolean; forget(personId: string): void; remember(personId: string): void };
 }
 
 const TRACE = "0".repeat(32);
 const LOOPBACK_ADDR = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
 const LOOPBACK_HOST = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const PROXY_HEADERS = ["x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "forwarded", "x-real-ip", "via"];
-const PATH = /^\/(local\/)?vault\/key\/(unlock|lock|status)$/;
+const PATH = /^\/(local\/)?vault\/key\/(unlock|lock|status|forget|remember)$/;
 
 function send(res: http.ServerResponse, status: number, body?: unknown): void {
   if (body === undefined) { res.writeHead(status, { "cache-control": "no-store" }); res.end(); return; }
@@ -49,7 +53,9 @@ async function bodyOf(req: http.IncomingMessage): Promise<unknown> {
 }
 
 export function createLocalKeyRoute(deps: LocalKeyDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } {
-  async function serve(req: http.IncomingMessage, res: http.ServerResponse, op: "unlock" | "lock" | "status", local: boolean): Promise<void> {
+  type Op = "unlock" | "lock" | "status" | "forget" | "remember";
+  async function serve(req: http.IncomingMessage, res: http.ServerResponse, op: Op, local: boolean): Promise<void> {
+    if (local && (op === "forget" || op === "remember")) { send(res, 404, { error: makeError("validation.not_found", TRACE, { message: "Not here." }) }); return; }
     // the Space's door: the same test as a node link that carries an account key (TLS here, or https as told by a proxy on this machine); never plain http from another machine
     if (local ? !isLocal(req) : !linkIsSecure(req)) return refuse(res, "permission.no_grant", local ? "This only works on your own computer." : "Your key goes to the Space over https only.");
     const caller = await deps.caller(req.headers);
@@ -59,7 +65,17 @@ export function createLocalKeyRoute(deps: LocalKeyDeps): { handle(req: http.Inco
     if (!local && caller.sessionId === undefined) return refuse(res, "permission.no_grant", "Sign in on a device to open your Vault.");
     if (!deps.allowed(person, caller.sessionId)) return refuse(res, "permission.no_grant", "This computer is not yours, so it does not hold your key.");
     // whether this node holds the person's key (a yes or no; the key never leaves). The app asks at launch, to show its lock screen only when it is needed, and while it runs, to hand the key over again after a restart.
-    if (op === "status") { const k = deps.keyring.get(person); const held = k !== null; k?.fill(0); return send(res, 200, { held }); }
+    if (op === "status") {
+      const k = deps.keyring.get(person); const held = k !== null; k?.fill(0);
+      // the Space's door also says whether the server keeps a wrap that opens after a provider sign-in, and whether the person said Forget
+      return send(res, 200, local || !deps.wraps ? { held } : { held, remembered: deps.wraps.has(person), forgotten: deps.wraps.forgotten(person) });
+    }
+    if (op === "forget" || op === "remember") {
+      if (!deps.wraps) return refuse(res, "validation.bad_input", "This server keeps no wrap.");
+      if (op === "forget") deps.wraps.forget(person); else deps.wraps.remember(person);
+      deps.log?.(op === "forget" ? "vault.wrap_forgotten" : "vault.wrap_remembered", { person });
+      return send(res, 204);
+    }
     if (op === "lock") { deps.keyring.clear(person); deps.log?.("vault.key_dropped", { person, door: local ? "local" : "space" }); return send(res, 204); }
     let key: Buffer;
     try {
@@ -68,6 +84,7 @@ export function createLocalKeyRoute(deps: LocalKeyDeps): { handle(req: http.Inco
     } catch { return refuse(res, "validation.bad_input", "Send { key } as base64."); }
     if (key.length !== 32) { key.fill(0); return refuse(res, "validation.bad_input", "The key is 32 bytes, base64."); }
     const held = deps.keyring.hold(person, key, caller.sessionId);
+    if (held && !local) { try { deps.handed?.(person, key); } catch { /* the wrap is a convenience; the unlock stands */ } }
     key.fill(0);
     if (!held) return refuse(res, "permission.no_grant", "This computer is not yours, so it does not hold your key.");
     deps.log?.("vault.key_held", { person, door: local ? "local" : "space", ...(caller.sessionId ? { session: caller.sessionId } : {}) });
@@ -78,7 +95,7 @@ export function createLocalKeyRoute(deps: LocalKeyDeps): { handle(req: http.Inco
       const m = PATH.exec(new URL(req.url ?? "/", "http://vyred").pathname);
       if (!m) return false;
       if ((req.method ?? "GET").toUpperCase() !== "POST") { send(res, 405, { error: makeError("validation.bad_input", TRACE, { message: "POST only." }) }); return true; }
-      void serve(req, res, m[2] as "unlock" | "lock" | "status", m[1] !== undefined).catch(() => { if (!res.headersSent) refuse(res, "validation.bad_input", "That did not work."); else res.end(); });
+      void serve(req, res, m[2] as Op, m[1] !== undefined).catch(() => { if (!res.headersSent) refuse(res, "validation.bad_input", "That did not work."); else res.end(); });
       return true;
     },
   };

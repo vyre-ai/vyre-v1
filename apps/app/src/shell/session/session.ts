@@ -17,7 +17,7 @@ import { withVaultGate } from "./vault-gate.ts";
 import { attemptKey } from "../providers/files-review.ts";
 import { loadCryptoKeys } from "../../../../../client/src/crypto/load.ts";
 import { keepKey, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
-import { holdKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
+import { holdKeyOnOwnNode, serverKeyState, setServerKeyKept } from "../../../../../client/src/gateway/local-key.ts";
 import { shellDesktopLinkBridge } from "../../../../../client/src/connection/desktop-link.ts";
 import { aiHomeOf } from "../../ai-signin/own-ai.ts";
 import { spaceLabel } from "../spaces/space-label.ts";
@@ -346,6 +346,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     },
     ...(aiHome === "here" ? { unlockVault } : {}),
     aiHome,
+    // a Space server keeps a wrap of the person's key for their Google or GitHub sign-ins: the Vault shows it, with Forget on this server
+    serverKey: { state: () => serverKeyState(o.baseUrl, token ?? ""), keep: (keep: boolean) => setServerKeyKept(o.baseUrl, token ?? "", keep) },
     connection: {
       get: () => (reachable && !(everLive && live === "offline") ? "online" : "offline"),
       subscribe: (l) => { listeners.add(l); return () => { listeners.delete(l); }; },

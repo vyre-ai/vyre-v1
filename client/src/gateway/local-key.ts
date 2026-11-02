@@ -63,3 +63,26 @@ export async function keyStatusOnOwnNode(baseUrl: string, token: string, f: Fetc
     return ((await res.json()) as { held?: unknown }).held === true ? "held" : "locked";
   } catch { return "unreachable"; }
 }
+
+/** What a Space server says of the person's key (owner ruling 3 Nov): held now, and whether it keeps a wrap that opens after a Google, Microsoft or GitHub sign-in, or the person said Forget. */
+export interface ServerKeyState { held: boolean; remembered: boolean; forgotten: boolean }
+
+/** The Space's answer, or null where there is no Space door (this computer's own daemon, plain http) or it did not answer. */
+export async function serverKeyState(baseUrl: string, token: string, f: Fetch = (...a) => fetch(...a)): Promise<ServerKeyState | null> {
+  const door = keyDoor(baseUrl);
+  if (door === null || isLoopbackUrl(baseUrl)) return null;
+  try {
+    const res = await f(`${door}/status`, { method: "POST", headers: { authorization: `Bearer ${token}` } });
+    if (res.status !== 200) return null;
+    const b = (await res.json()) as { held?: unknown; remembered?: unknown; forgotten?: unknown };
+    if (typeof b.remembered !== "boolean") return null;
+    return { held: b.held === true, remembered: b.remembered, forgotten: b.forgotten === true };
+  } catch { return null; }
+}
+
+/** "Forget on this server" (true) or take it back (false). True when the Space did it. */
+export async function setServerKeyKept(baseUrl: string, token: string, keep: boolean, f: Fetch = (...a) => fetch(...a)): Promise<boolean> {
+  const door = keyDoor(baseUrl);
+  if (door === null || isLoopbackUrl(baseUrl)) return false;
+  try { return (await f(`${door}/${keep ? "remember" : "forget"}`, { method: "POST", headers: { authorization: `Bearer ${token}` } })).status === 204; } catch { return false; }
+}
