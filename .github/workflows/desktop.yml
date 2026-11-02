@@ -2,6 +2,12 @@ name: desktop
 
 on:
   workflow_call:
+    inputs:
+      only:
+        description: "Run one job only (sandbox-windows)"
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       only:
