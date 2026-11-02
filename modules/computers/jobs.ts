@@ -2,7 +2,9 @@
 //   A call on an agent computer that lives on a node becomes a job row for that node. The node's poll claims queued jobs (a lease, a one-time token), runs each, and posts the answer; the answer is stored.
 //   Never repeated: a retry after a lost reply reaches the node again (the lease ran out), and the node answers from the result it stored, without running the job. The Space takes the first answer
 //   for a job and ignores later ones. A job whose lease runs out twice, or whose deadline passes, is failed; it is never handed to another node.
-//   The job's token is what the node presents to reach the home of this job's computer (and nothing else): shown once at delivery, kept only as a hash, dead when the job ends.
+//   The job's token is what the node presents to reach the home of this job's computer (and nothing else): shown once at delivery, kept only as a hash, dead when the job ends or is delivered again.
+//   A lease that ran out is not proof the node died: a node that was only late (a busy machine, a laptop that slept) says the job is still running and keeps it, with its token. Handing it out again would void the
+//   token under the running job, so its next call into the home would be refused and the sync would fail halfway.
 import { mintId, rowsOf, sha256 } from "./projections.ts";
 import type { Db, Row } from "./projections.ts";
 
@@ -33,12 +35,13 @@ export function enqueueJob(db: Db, a: { nodeId: string; computerId: string; agen
 export function sweepJobs(db: Db, now: number): void {
   db.run("UPDATE computers_job SET state = 'failed', error = 'The computer did not answer in time.', done_at = ?, token_hash = NULL, input_json = json_remove(input_json, '$.fillToken') WHERE state IN ('queued', 'running') AND deadline < ?", now, now);
   db.run("UPDATE computers_job SET state = 'failed', error = 'The computer stopped answering.', done_at = ?, token_hash = NULL, input_json = json_remove(input_json, '$.fillToken') WHERE state = 'running' AND lease_until < ? AND attempts >= ?", now, now, MAX_ATTEMPTS);
-  db.run("UPDATE computers_job SET state = 'queued', lease_until = NULL, token_hash = NULL WHERE state = 'running' AND lease_until < ? AND attempts < ?", now, MAX_ATTEMPTS);
+  // the token stays until the job is delivered again: the node may only be late
+  db.run("UPDATE computers_job SET state = 'queued', lease_until = NULL WHERE state = 'running' AND lease_until < ? AND attempts < ?", now, MAX_ATTEMPTS);
 }
 
-/** A node that is still working on a job says so with every poll, and the job's lease moves out; a node that died stops saying it, and the lease runs out. */
+/** A node that is still working on a job says so with every poll, and the job's lease moves out, even if it ran out and the job waits to be delivered again; a node that died stops saying it, and the lease runs out. */
 export function extendLeases(db: Db, nodeId: string, jobIds: readonly string[], now: number, leaseMs = LEASE_MS): void {
-  for (const id of jobIds.slice(0, 50)) db.run("UPDATE computers_job SET lease_until = ? WHERE job_id = ? AND node_id = ? AND state = 'running'", now + leaseMs, id, nodeId);
+  for (const id of jobIds.slice(0, 50)) db.run("UPDATE computers_job SET state = 'running', lease_until = ? WHERE job_id = ? AND node_id = ? AND (state = 'running' OR (state = 'queued' AND token_hash IS NOT NULL))", now + leaseMs, id, nodeId);
 }
 
 /** What the node asked for, claimed: each job is leased and gets a token that only this delivery knows. */
@@ -94,10 +97,11 @@ export async function awaitJob(db: Db, jobId: string, o: { now(): number; timeou
 }
 
 /** Does this token belong to a live job of this node for this computer? It is the whole of what a token proves. */
-export async function jobForToken(db: Db, nodeId: string, token: string, computerId: string, now: number): Promise<{ jobId: string; agentId: string; kind: JobKind } | null> {
+export async function jobForToken(db: Db, nodeId: string, token: string, computerId: string): Promise<{ jobId: string; agentId: string; kind: JobKind } | null> {
   if (!token.startsWith("vcj_")) return null;
-  const r = rowsOf(db, "SELECT job_id, agent_id, kind, computer_id, node_id, state, lease_until FROM computers_job WHERE token_hash = ?", await sha256(token))[0];
-  if (!r || str(r["state"]) !== "running" || str(r["node_id"]) !== nodeId || str(r["computer_id"]) !== computerId || num(r["lease_until"]) < now) return null;
+  const r = rowsOf(db, "SELECT job_id, agent_id, kind, computer_id, node_id, state FROM computers_job WHERE token_hash = ?", await sha256(token))[0];
+  // a job's end clears its token and a new delivery replaces it, so a token found here is the current one of an unfinished job, whatever its lease says
+  if (!r || (str(r["state"]) !== "running" && str(r["state"]) !== "queued") || str(r["node_id"]) !== nodeId || str(r["computer_id"]) !== computerId) return null;
   return { jobId: str(r["job_id"]), agentId: str(r["agent_id"]), kind: str(r["kind"]) as JobKind };
 }
 

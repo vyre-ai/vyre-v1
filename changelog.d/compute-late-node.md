@@ -1,0 +1,1 @@
+- A joined computer that is only slow to check in keeps the job it is working on, so a busy machine or a laptop waking up no longer fails a wake or a sync halfway.
