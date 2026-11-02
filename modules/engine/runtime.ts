@@ -22,6 +22,9 @@ import type { NodeCliProbe } from "./cli-programs.ts";
 import { configureEngines, engines, enginesRoot } from "./engine-install.ts";
 import { createContextBuilder, diskSkills, takeHandoff, withTurnContext } from "./context.ts";
 import { withTranscript } from "./transcript.ts";
+import { createCompactor, withCompaction } from "./compact.ts";
+import type { Compactor } from "./compact.ts";
+import { keepEvery, keepsSession, resumeId, saveResumeId } from "./cli-sessions.ts";
 import { recordAccountLimits } from "./handlers/usage.ts";
 import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
 import { onTurnEnded, resumeTasks } from "./handlers/task-baton.ts";
@@ -107,7 +110,7 @@ export function setEngineHost(h: EngineHostSeam | null): void {
   building = null;
   const root = h?.engines?.install ? enginesRoot({ dataDir: h.dataDir }) : null;
   configureEngines(root !== null ? { root, ...(h?.log ? { log: h.log } : {}) } : null);
-  if (h === null) { bindEngine(null); bindBridge(null); bindOpener(null); completer = null; bindStepOpen(null); }
+  if (h === null) { bindEngine(null); bindBridge(null); bindOpener(null); completer = null; compactor = null; bindStepOpen(null); }
 }
 
 export function engineHost(): EngineHostSeam | null { return host; }
@@ -208,6 +211,9 @@ async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: Resolv
 export interface CompleteIn { account: ResolvedAccount; system?: string; prompt: string; model?: string }
 export interface CompleteOut { text: string; tokensIn: number; tokensOut: number }
 let completer: ((i: CompleteIn) => Promise<CompleteOut>) | null = null;
+let compactor: Compactor | null = null;
+/** engine.compact's worker (compact.ts): the chat's engine compacts itself, or Vyre compacts for it. Null before the runtime exists. */
+export const compactorOf = (): Compactor | null => compactor;
 /** One request and one answer on an account, through the same opener the turn engine uses: for jobs that need a model but are not a chat (memory upkeep). Null before the runtime exists. */
 export const completerOf = (): typeof completer => completer;
 
@@ -257,7 +263,14 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   if (building) return building;
   const h = host;
   const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call), call: h.call, plugins: createPluginTools({ call: h.call, runtime: pluginRuntime, ...(h.log ? { log: h.log } : {}) }) }) : undefined;
-  const opener = host.openSession ? null : buildOpener({ ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.cli?.probe ? { cliProbe: host.cli.probe } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
+  const now0 = h.now ?? Date.now;
+  // a CLI engine's own session id, kept per chat, agent and person so a restart or an eviction resumes it; and the chat's "Keep this every time" for the CLI's own compaction
+  const sessions = {
+    resume: (k: { threadId: string; agentId: string; person: string; driver: string; tools?: "none" }) => (keepsSession(k) ? resumeId(ctx.db, k) : null),
+    checkpoint: (k: { threadId: string; agentId: string; person: string; driver: string; tools?: "none" }, id: string | null) => { if (keepsSession(k)) saveResumeId(ctx.db, k, id, now0()); },
+    keep: (threadId: string) => keepEvery(ctx.db, threadId),
+  };
+  const opener = host.openSession ? null : buildOpener({ sessions, ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.cli?.probe ? { cliProbe: host.cli.probe } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
   // a turn whose engine Vyre is installing says so on its live line ("Setting up Codex"); the line is the bridge's, which exists once the runtime is built below
   let setupLine: ((e: StreamEvent) => void) | null = null;
   const installer = engines();
@@ -296,7 +309,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       },
     });
     const engine = createTurnEngine({
-      holder: h.holder, openSession: withChatSettings(withSpaceKeyTurns(withTurnContext(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), turnContext), { call: h.call, db: ctx.db, now }), h.call), now,
+      holder: h.holder, openSession: withChatSettings(withSpaceKeyTurns(withTurnContext(withCompaction(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), ctx.db), turnContext), { call: h.call, db: ctx.db, now }), h.call), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       admit: (q) => admission(h, q),
       lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),
@@ -352,6 +365,10 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     bridge?.attach(engine);
     h.extend?.(engine);
     completer = (i) => oneShot(openSession, i, now);
+    compactor = createCompactor({
+      db: ctx.db, call: h.call, engine: () => running, resolve: (q) => resolveOne(h, q), open: openSession, now,
+      ...(opener ? { dropSessions: (threadId: string) => opener.pool.drop(threadId) } : {}), ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}),
+    });
     bindEngine(engine);
     bindOpener(opener);
     bindStepOpen(openSession);

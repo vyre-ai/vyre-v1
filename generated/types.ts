@@ -9371,6 +9371,24 @@ export type EngineAccountsListOut = {
         }>;
     }>;
 };
+export type EngineCompactIn = {
+  threadId: string;
+  agentId?: string;
+  keep?: string;
+  always?: boolean;
+  idempotencyKey: string;
+};
+export type EngineCompactOut = {
+  engine: string;
+  how: "engine" | "vyre";
+  line: string;
+  context: {
+    used: number;
+    window: number;
+  } | null;
+  keepEvery: string;
+  fellBack: boolean;
+};
 export type EngineCompleteIn = {
   accountRef: string;
   prompt: string;
@@ -10511,6 +10529,7 @@ export type EngineUsageGetOut = {
     resetsAt?: number;
   } | null;
   source: "provider" | "estimate" | "none";
+  keepEvery?: string;
 };
 export type EngineUsageQueryIn = {
   by: "day" | "person" | "agent" | "model";
@@ -34438,6 +34457,7 @@ export interface CapMap {
   "email_builder.versions": { in: EmailBuilderVersionsIn; out: EmailBuilderVersionsOut };
   "engine.account.resolve": { in: EngineAccountResolveIn; out: EngineAccountResolveOut };
   "engine.accounts.list": { in: EngineAccountsListIn; out: EngineAccountsListOut };
+  "engine.compact": { in: EngineCompactIn; out: EngineCompactOut };
   "engine.complete": { in: EngineCompleteIn; out: EngineCompleteOut };
   "engine.crew.list": { in: EngineCrewListIn; out: EngineCrewListOut };
   "engine.crew.merge": { in: EngineCrewMergeIn; out: EngineCrewMergeOut };
@@ -39099,6 +39119,16 @@ export type TurnCancelledPayload = {
   agentId: string;
   by: string;
 };
+export type TurnCompactedPayload = {
+  threadId: string;
+  agentId: string;
+  engine: string;
+  how: "engine" | "vyre";
+  kept: boolean;
+  used?: number;
+  window?: number;
+  by: string;
+};
 export type TurnCompletedPayload = {
   turnId: string;
   threadId: string;
@@ -40002,6 +40032,7 @@ export interface EventMap {
   "transcripts.purged": TranscriptsPurgedPayload;
   "turn.block": TurnBlockPayload;
   "turn.cancelled": TurnCancelledPayload;
+  "turn.compacted": TurnCompactedPayload;
   "turn.completed": TurnCompletedPayload;
   "turn.engine_switched": TurnEngineSwitchedPayload;
   "turn.failed": TurnFailedPayload;

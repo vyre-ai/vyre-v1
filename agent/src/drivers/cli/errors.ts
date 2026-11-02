@@ -16,3 +16,10 @@ export function classifyCli(message: string): string {
   if (RATE.test(message)) return "provider.rate_limited";
   return "engine.cli_error";
 }
+
+/**
+ * The engine says the session it was asked to resume is not there (its files were removed, or it never was). Checked against the CLIs' own words: Claude Code 2.1 "No conversation found with session
+ * ID: <id>", Codex 0.164 "No saved session found with ID <id>", Grok 1.0.70 "Session does not exist" and "No session found with id <id>".
+ */
+const GONE = /no conversation found with session id|no saved session found with id|no session found with id|session does not exist|no (?:saved )?(?:session|conversation|rollout|thread) (?:was )?found/i;
+export const sessionGone = (message: string): boolean => GONE.test(message);

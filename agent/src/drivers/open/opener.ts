@@ -66,7 +66,7 @@ export interface SessionOpenerDeps {
   own?(person: string): boolean;
   clock?: Clock;
   api?: Pick<ApiDriverDeps, "summarize" | "retry" | "idleMs" | "maxSteps" | "random">;
-  cli?: Pick<CliDriverDeps, "system" | "workFolder" | "env" | "planMode" | "resume" | "idleMs" | "graceMs" | "prewarm">;
+  cli?: Pick<CliDriverDeps, "system" | "workFolder" | "env" | "planMode" | "resume" | "checkpoint" | "idleMs" | "graceMs" | "prewarm">;
   pool?: Pick<PoolOptions, "maxPerDriver" | "maxPerPerson" | "maxTotal" | "idleMs" | "now">;
   /** A Vault item was used for a session: ids and handles only (audit and usage records). */
   onUsed?(e: { spec: OpenerSpec; used: readonly Used[] }): void;

@@ -30,6 +30,8 @@ export interface PanelUsage {
   context: { used: number; window: number } | null;
   session: UsageMeter | null;
   week: UsageMeter | null;
+  /** What every compaction of this chat keeps ("Keep this every time"), when set: the Compact form opens with it, ticked. */
+  keepEvery?: string;
 }
 
 export type PanelScope = "chat" | "agent";
@@ -178,6 +180,9 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
     const box = node.current?.getBoundingClientRect?.();
     const room = (globalThis as { innerWidth?: number }).innerWidth;
     setFlip(box !== undefined && room !== undefined && box.right + 228 > room);
+    // the Compact form opens with the chat's standing words, ticked, so compacting again keeps them and unticking is a choice the person sees
+    const standing = p.usage !== "loading" ? p.usage?.keepEvery : undefined;
+    if (next === "compact" && sub !== "compact" && standing) { setKeep(standing); setAlways(true); }
     setSub((cur) => (cur === next ? null : next));
     setFind("");
   };

@@ -27,10 +27,11 @@ export const CHAT_COMMANDS: readonly ChatCommandDef[] = Object.freeze([
   { id: "find", detail: "Find words in this chat" },
   { id: "search", detail: "Search every chat you can read", arg: "words" },
   { id: "model", detail: "Choose the model this chat answers with" },
+  { id: "compact", detail: "Free up context, keeping what you name", arg: "what to keep" },
   { id: "stop", detail: "Stop what the agent is doing" },
 ] satisfies readonly ChatCommandDef[]);
 
-export type ChatCommandId = "plan" | "permissions" | "helper" | "handoff" | "pin" | "fork" | "export" | "continue" | "task" | "remember" | "find" | "search" | "model" | "btw" | "stop";
+export type ChatCommandId = "plan" | "permissions" | "helper" | "handoff" | "pin" | "fork" | "export" | "continue" | "task" | "remember" | "find" | "search" | "model" | "compact" | "btw" | "stop";
 
 const BY_ID = new Map(CHAT_COMMANDS.map((c) => [c.id, c] as const));
 export const chatCommand = (id: string): ChatCommandDef | undefined => BY_ID.get(id);

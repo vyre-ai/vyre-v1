@@ -3,6 +3,7 @@
   "capabilities": {
     "engine.account.resolve@1": "c17de0f580f9462e9763980ae814909c6f6bbeefce7c7df586297787ad268fee",
     "engine.accounts.list@1": "8c6edfa9db3b52b55811f93dc81f93a37d09fe918b169d9f245c7ff6104508cf",
+    "engine.compact@1": "48ff04b060857c4d32138a593b2c4b2598529cfa71c338de5e879b12166d39bf",
     "engine.complete@1": "08f02e8950b9b9c9af5cb68979ab5aee051230e968eba37e97fa012843590603",
     "engine.crew.list@1": "ac5202882c817d2ea4314b5a36044e3e52f902997fd45a4a1b8b2539f475cbd7",
     "engine.crew.merge@1": "cd91119ed05b19a35489a7f17f7db1a3fab0b3190eed0eb6c848b5bad241e72a",
@@ -75,7 +76,7 @@
     "engine.turn.start@1": "3d28ad824e9710f4de08cb95da2d0c4fdf7f29dfc637870dcd3a9ff585bea5db",
     "engine.turn.wait@1": "de4002b8dba4dfc12df3140b505da5fccbeba047bee487aa3f922c4d63f23994",
     "engine.turns.list@1": "b4477497b98e9ae2c75d00458a7ffc09bfdf1c0ae231be6e52988e9ced48a0e8",
-    "engine.usage.get@1": "364839be98b1755f4929f7f844465f639b640d27346302d98692bf96efb96a49",
+    "engine.usage.get@1": "0827880cc60252e5d73e8de94157507c42a1919b5f711953283dab4384ba50ac",
     "engine.usage.query@1": "62c1a3ac69aeeafa796a6d42b40756c4ef06bc60cb35f2a279da338749a310c7",
     "engine.use_policy.export@1": "69b76b247ccaca761662386c6abcc8c4b8c0224511ce7f800451e41448030684",
     "engine.warm@1": "57f2deb856c25df196a900692f891a2544972931e223327e2a576f4132bad75b"
@@ -103,6 +104,7 @@
     "thread.reviewer_changed": "b896067e7ece6b53b7d8afa450d281d81558b9d2a547865d82bae287b0e57c94",
     "turn.block": "af73a38fc33851fcd462469b48624744c0478348d2156815c7d2b6cfa7fe160f",
     "turn.cancelled": "2ba0d96fe3c514a849dab52d50ba6b2d6aa17487d823f3389f0d411d53057671",
+    "turn.compacted": "4bab663d513d87b70309391e35147cbf3454f7bce7f82e7964674482859115fa",
     "turn.completed": "4e71153caad0c3d114514d1162688dce991586acb4d89a7815ccc661a8e78042",
     "turn.engine_switched": "906c752d1ab6d1405e60995f65c1ca2aaac81a195d17c137dd9a28eaba6d5759",
     "turn.failed": "ae1e4360167e874b901095d7febd0bbf3a1f635e8918320d742d13a63ca2f8ca",
