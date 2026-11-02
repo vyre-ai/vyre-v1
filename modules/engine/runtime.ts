@@ -18,6 +18,7 @@ import { withChatSettings } from "./chat-settings.ts";
 import { createLimitSwitch } from "./switch-on-limit.ts";
 import { checkedOpen, createRunnableAccount } from "./runnable-account.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
+import { configureEngines, engines, enginesRoot } from "./engine-install.ts";
 import { createContextBuilder, diskSkills, takeHandoff, withTurnContext } from "./context.ts";
 import { withTranscript } from "./transcript.ts";
 import { recordAccountLimits } from "./handlers/usage.ts";
@@ -59,6 +60,8 @@ export interface EngineHostSeam {
   cli?: { command?: Readonly<Record<string, readonly string[]>>; programRead?: readonly string[]; /** Where programs are looked for (a test's own folders); default: this computer's PATH. */ probe?: NodeCliProbe };
   /** The Space data directory. With it and no `sandbox`, the module builds the default sandbox for this platform on the first CLI turn (sandbox-default.ts). */
   dataDir?: string;
+  /** Vyre installs a missing CLI engine into its own engines folder (engine-install.ts). The daemon's entry turns it on; a test daemon leaves it off and never downloads anything. */
+  engines?: { install?: boolean };
   now?: () => number;
   /** The fetch for remote MCP servers: the network guard's (lib/net-guard.ts), so a private address is refused. Absent: a remote server answers "unavailable". */
   mcpFetch?: unknown;
@@ -96,6 +99,8 @@ export function setEngineHost(h: EngineHostSeam | null): void {
   closeOpener = null;
   host = h;
   building = null;
+  const root = h?.engines?.install ? enginesRoot({ dataDir: h.dataDir }) : null;
+  configureEngines(root !== null ? { root, ...(h?.log ? { log: h.log } : {}) } : null);
   if (h === null) { bindEngine(null); bindBridge(null); bindOpener(null); completer = null; bindStepOpen(null); }
 }
 
@@ -105,7 +110,7 @@ export function engineHost(): EngineHostSeam | null { return host; }
 export function sandboxPlan(): Promise<SandboxPlan> {
   const h = host;
   if (h?.sandbox) return Promise.resolve(h.sandbox);
-  if (h?.dataDir) return defaultPlan(h.dataDir, h.cli?.programRead)();
+  if (h?.dataDir) return defaultPlan(h.dataDir, cliRead(h))();
   return Promise.reject(new Error("no sandbox is set up on this computer"));
 }
 
@@ -127,7 +132,7 @@ function runnableAccount(h: EngineHostSeam): (q: AccountQuery) => Promise<Resolv
   if (h.openSession) return (q) => resolveOne(h, q);
   return createRunnableAccount({
     call: h.call, resolve: (q) => resolveOne(h, q), ...(h.cli?.command ? { command: h.cli.command } : {}), ...(h.cli?.probe ? { probe: h.cli.probe } : {}),
-    ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}),
+    ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}), ...(engines() ? { engines: engines()! } : {}),
   });
 }
 
@@ -222,6 +227,13 @@ async function oneShot(openSession: OpenSession, i: CompleteIn, now: () => numbe
 }
 
 let defaultBuilt: DefaultSandbox | null = null;
+/** What the sandbox lets a CLI engine read besides the system: the host's extra folders and Vyre's engines folder, where an engine Vyre installed lives (it may be installed after the sandbox is built). */
+function cliRead(h: EngineHostSeam): readonly string[] | undefined {
+  const root = engines()?.root;
+  const extra = [...(h.cli?.programRead ?? []), ...(root ? [root] : [])];
+  return extra.length > 0 ? extra : undefined;
+}
+
 /** The default sandbox plan for this platform, built once per runtime. */
 export const defaultPlan = (dataDir: string, programRead?: readonly string[]) => async (): Promise<SandboxPlan> => (defaultBuilt ??= await defaultSandbox({ dataDir, ...(programRead ? { programRead } : {}) })).plan;
 /** Stop the default sandbox's wall (daemon shutdown, tests). */
@@ -239,8 +251,11 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   if (building) return building;
   const h = host;
   const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call), call: h.call, plugins: createPluginTools({ call: h.call, runtime: pluginRuntime, ...(h.log ? { log: h.log } : {}) }) }) : undefined;
-  const opener = host.openSession ? null : buildOpener({ ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.cli?.probe ? { cliProbe: host.cli.probe } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, host.cli?.programRead) } : {}) });
-  const baseOpen = host.openSession ?? checkedOpen((opener as NonNullable<typeof opener>).openSession, { ...(host.cli?.command ? { command: host.cli.command } : {}), ...(host.cli?.probe ? { probe: host.cli.probe } : {}) });
+  const opener = host.openSession ? null : buildOpener({ ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.cli?.probe ? { cliProbe: host.cli.probe } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
+  // a turn whose engine Vyre is installing says so on its live line ("Setting up Codex"); the line is the bridge's, which exists once the runtime is built below
+  let setupLine: ((e: StreamEvent) => void) | null = null;
+  const installer = engines();
+  const baseOpen = host.openSession ?? checkedOpen((opener as NonNullable<typeof opener>).openSession, { ...(host.cli?.command ? { command: host.cli.command } : {}), ...(host.cli?.probe ? { probe: host.cli.probe } : {}), ...(installer ? { engines: installer } : {}), live: (e) => setupLine?.(e) });
   // a turn the person pinned to one of their servers opens through that server's opener; everything else opens as before
   const nodeOpeners = new Map<string, ReturnType<typeof buildNodeOpener>>();
   const openerHost = { ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call };
@@ -255,6 +270,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     const now = h.now ?? Date.now;
     const crewWatch = h.postAs ? createCrewWatcher({ db: ctx.db, host: h, now }) : null;
     const live = h.stream ? coalesceLive(h.stream, { now }) : null;
+    setupLine = live;
     const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, stream: (e) => { live?.(e); crewWatch?.(e); }, addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
     // The turn context is built as the asker before each turn (modules/engine/context.ts); what the agent waits on is read off the engine once it exists.
     let running: TurnEngine | null = null;

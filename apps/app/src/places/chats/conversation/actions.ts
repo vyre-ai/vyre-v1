@@ -1,7 +1,7 @@
 // What the conversation writes: one capability per action, each through `call` as the signed-in person. Nothing here touches the screen; the components decide what to show while
 // a write is out (the message is already on the page before chat.post answers) and what to say when it fails.
 import { isAssistantRow } from "../../../../../../lib/agent-kind.ts";
-import { installCommand } from "./status.ts";
+import { installProgram } from "./status.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
 import { exportAs } from "./export.ts";
@@ -139,13 +139,13 @@ export async function retryTurn(data: ConversationData, turnId: string): Promise
 }
 
 /**
- * What a button on a failed reply does. Connect and Open the Vault go to the Vault page; Install copies the exact command; Unlock asks for the password in place and, once the key is open, sends the
- * reply that stopped again (one retry of that turn: the message is not posted twice). Anything else points to the model switcher.
+ * What a button on a failed reply does. Connect and Open the Vault go to the Vault page; Install runs the reply again, and the new turn waits while Vyre sets the engine up on this computer (its live line
+ * says "Setting up Codex"; one retry of that turn, so the message is not posted twice); Unlock asks for the password in place and, once the key is open, sends the reply that stopped again. Anything else
+ * points to the model switcher.
  */
 export async function errorAction(data: ConversationData, key: string, turnId: string | undefined, say: (text: string) => void): Promise<void> {
   if (key === "connect_ai" || key === "open_vault") { if (data.nav.openAiSetup) data.nav.openAiSetup(); else say("Open the Vault and add an AI account."); return; }
-  const command = installCommand(key);
-  if (command) { data.copy(command); say(`Copied: ${command}. Run it in a terminal, then try again.`); return; }
+  if (installProgram(key) !== undefined) { if (turnId) await retryTurn(data, turnId); else say("Send your message again to set it up."); return; }
   if (key === "unlock_vault") {
     if (!data.nav.unlockVault) { say("Unlock your Vault from the Vault page, then try again."); return; }
     if ((await data.nav.unlockVault()) && turnId) await retryTurn(data, turnId);

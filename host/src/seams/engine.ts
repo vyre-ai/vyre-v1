@@ -49,6 +49,8 @@ export interface EngineHostSeam {
   dataDir?: string;
   /** CLI program swap and extra sandbox read folders (tests). Handed to the module as is. */
   cli?: unknown;
+  /** Vyre installs a missing CLI engine into its own engines folder (modules/engine/engine-install.ts). Handed to the module as is. */
+  engines?: { install?: boolean };
   /** A scripted session opener (tests). Handed to the module as is; the real opener is not built. */
   openSession?: unknown;
   /** The daemon's invoke pipeline and Space id, for tools on API-key chats. */
@@ -83,6 +85,8 @@ export interface EngineHostDeps {
   sandbox?: unknown;
   dataDir?: string;
   cli?: unknown;
+  /** Install missing CLI engines into Vyre's own folder: on for the daemon's entry, off for a test daemon. */
+  engineInstall?: boolean;
   /** The live socket's publisher; late-bound because the socket opens after the modules load. */
   publishTurn?: () => PublishTurn | null;
   own?: (person: string) => boolean;
@@ -136,5 +140,5 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
     pub({ t: "turn", turn: turnId, delta: { kind, ...rest } }, (person) => (onlyAsker !== null ? person === onlyAsker : mayRead(e.threadId, person)));
   };
   const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space, ...(d.log ? { log: d.log } : {}) }) : undefined;
-  return { holder: `host:${d.space}`, call, postAs, ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), ...(d.nodes ? { nodes: d.nodes } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
+  return { holder: `host:${d.space}`, call, postAs, ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.engineInstall ? { engines: { install: true } } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), ...(d.nodes ? { nodes: d.nodes } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
 }

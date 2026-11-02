@@ -6,7 +6,7 @@ import { LaunchError, createLocalLauncher } from "../../agent/src/drivers/cli/la
 import { SandboxError } from "../../sandbox/src/index.ts";
 import { openMcpBridge } from "./mcp-bridge.ts";
 import { enginePath } from "./sandbox-default.ts";
-import { CLI_NAME, findProgram } from "./cli-programs.ts";
+import { CLI_NAME, findProgram, isOwned, ownedDirs } from "./cli-programs.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
 import { sandboxWrap, scratchFolder, workFolder } from "./sandbox.ts";
 import { ensureWorkspace } from "./handlers/crew.ts";
@@ -32,8 +32,16 @@ import type { SessionSpec, TurnInput } from "../../agent/src/turn-engine/types.t
 function launcherEnv(): Record<string, string> {
   const out: Record<string, string> = {};
   for (const k of ["HOME", "LANG", "TMPDIR"]) { const v = process.env[k]; if (v !== undefined) out[k] = v; }
-  out["PATH"] = enginePath(process.env, process.env["HOME"] ?? "/");
+  out["PATH"] = enginePath(process.env, process.env["HOME"] ?? "/", process.platform, undefined, undefined, ownedDirs());
   return out;
+}
+
+/** The argv with Vyre's own copy of the program named by its full path, when that is the copy that runs: a sandbox's PATH (bwrap's is fixed) never holds the engines folder. Anything else is left as it is. */
+export function ownedArgv(argv: readonly string[], probe?: NodeCliProbe): readonly string[] {
+  const program = argv[0];
+  if (program === undefined || !Object.hasOwn(CLI_NAME, program)) return argv;
+  const found = findProgram(program, probe);
+  return found !== null && isOwned(found, probe) ? [found, ...argv.slice(1)] : argv;
 }
 
 /** The ports the host builds (host/src/seams/engine-session.ts), as the module sees them: structural, so neither side imports the other. */
@@ -199,7 +207,7 @@ export function buildOpener(h: OpenerHost): SessionOpener {
       spawn: async (spec) => {
         const swap = spec.argv[0] !== undefined ? h.cliCommand?.[spec.argv[0]] : undefined;
         if (swap === undefined) refuseMissingProgram(spec.argv[0] ?? "", h.cliProbe);
-        return spawnCli(await plan(), spec, swap ? [...swap, ...spec.argv.slice(1)] : spec.argv);
+        return spawnCli(await plan(), spec, swap ? [...swap, ...spec.argv.slice(1)] : ownedArgv(spec.argv, h.cliProbe));
       },
     },
     // Behind the wall the engine cannot reach the daemon's loopback: its MCP config starts a stdio shim that talks to a unix socket in the person's scratch folder (ruling 61).

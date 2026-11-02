@@ -274,6 +274,8 @@ export interface DaemonOptions {
   engineSandbox?: unknown;
   /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
   engineCli?: unknown;
+  /** Install a CLI engine a turn needs (Claude Code, Codex, Grok) into Vyre's own engines folder when it is missing. The daemon's entry (main.ts) turns it on; a test daemon leaves it off and never downloads. */
+  engineInstall?: boolean;
   /** Tests: a scripted session opener in place of the real one (the engine runtime's `openSession`), for proofs of what the engine puts in front of a model without running one. */
   engineOpenSession?: unknown;
   /** The fetch outside-tool (MCP) servers are reached with. Omitted: the network guard, which refuses a private address; a test that runs a server on this machine passes a guard that allows it. */
@@ -1296,7 +1298,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           log: (u) => sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
         }) : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
-        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) })),
+        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineInstall ? { engineInstall: true } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}) })),
         // Report a problem: the bundle sources (the person's last actions from the log, the versions) and the reports.vyre.run client, signed with a key derived from this Space's seal key
         configureReports: () => createReportsHost({
           space: spaceId, now, fetch: o.reportsFetch ?? ((u, i) => globalThis.fetch(u, i as RequestInit) as never),
