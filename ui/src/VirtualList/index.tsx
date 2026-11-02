@@ -2,7 +2,7 @@
 // scroller with fixed or measured row heights and a reserved total height, so scrolling to the end never shifts layout.
 // Rows do not subscribe to anything: they render from the item the window hands them.
 
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Platform, ScrollView, View } from "react-native";
 import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent } from "react-native";
@@ -77,7 +77,7 @@ export function VirtualList<T>(props: VirtualListProps<T>) {
   return <NativeList {...props} />;
 }
 
-function WindowedList<T>({ data, renderItem, rowHeight, window: controlled, keyOf, onEndReached }: VirtualListProps<T>) {
+function WindowedList<T>({ data, renderItem, rowHeight, window: controlled, keyOf, onEndReached, heightOf, reveal }: VirtualListProps<T>) {
   const [viewport, setViewport] = useState(DEFAULT_VIEWPORT);
   const [scrolled, setScrolled] = useState<VirtualWindow | null>(null);
   const scrollTop = useRef(0);
@@ -85,11 +85,24 @@ function WindowedList<T>({ data, renderItem, rowHeight, window: controlled, keyO
   const measured = useRef(new Map<number, number>());
   const ended = useRef(false);
   const offsets = useMemo(
-    () => rowOffsets(data.length, rowHeight, measured.current),
-    // version bumps when a measured height changes
+    () => {
+      if (!heightOf) return rowOffsets(data.length, rowHeight, measured.current);
+      const out = new Float64Array(data.length + 1);
+      for (let i = 0; i < data.length; i++) out[i + 1] = out[i] + heightOf(data[i], i);
+      return out;
+    },
+    // version bumps when a measured height changes; with heightOf the rows themselves decide
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data.length, rowHeight, version],
+    [heightOf ? data : data.length, heightOf, rowHeight, version],
   );
+  const scroller = useRef<ScrollView | null>(null);
+  useEffect(() => {
+    if (reveal === undefined || reveal < 0 || reveal >= data.length) return;
+    const top = offsets[reveal], bottom = offsets[reveal + 1];
+    if (top < scrollTop.current) scroller.current?.scrollTo({ y: top, animated: false });
+    else if (bottom > scrollTop.current + viewport) scroller.current?.scrollTo({ y: bottom - viewport, animated: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reveal]);
   // Keep the first paint lean. The slightly wider scrolling window is created only after the initial viewport is crossed.
   const computed = useMemo(() => windowFor(offsets, scrollTop.current, viewport), [offsets, viewport]);
   // Measured rows can move the viewport beyond a cached window without another scroll event. Revalidate it on every offsets version.
@@ -120,12 +133,14 @@ function WindowedList<T>({ data, renderItem, rowHeight, window: controlled, keyO
     const item = data[i];
     const key = keyOf ? keyOf(item, i) : String(i);
     const top = offsets[i];
-    const height = rowHeight === "measure" ? 0 : offsets[i + 1] - top;
-    items.push(<Cell key={key} item={item} index={i} top={top} height={height} render={renderItem} onMeasure={rowHeight === "measure" ? onMeasure : undefined} />);
+    const measuring = rowHeight === "measure" && !heightOf;
+    const height = measuring ? 0 : offsets[i + 1] - top;
+    items.push(<Cell key={key} item={item} index={i} top={top} height={height} render={renderItem} onMeasure={measuring ? onMeasure : undefined} />);
   }
 
   return (
     <ScrollView
+      ref={scroller}
       testID="virtual-list"
       style={{ flex: 1 }}
       scrollEventThrottle={16}

@@ -132,7 +132,7 @@ export function commitMove(ctx: TasksCtx, t: Task, to: TaskState, c: Checked): A
 
   const by = ctx.principal.id;
   const hist = (type: string): { type: string; by: string; note?: string } => clean({ type, by, note });
-  emitTask(ctx, ctx.db, "task.transitioned", t, { kind: t.kind, from, to, note }, hist("transitioned"));
+  emitTask(ctx, ctx.db, "task.transitioned", t, { kind: t.kind, from, to, note }, hist(`transitioned:${to}`));
   if (to === "done") emitTask(ctx, ctx.db, "task.completed", t, { kind: t.kind, recordId: t.recordId, source: t.source }, hist("completed"));
   if (move.action === "send_back") emitTask(ctx, ctx.db, "task.sent_back", t, { by, note: note ?? "", reviewLoops: t.reviewLoops }, hist("sent_back"));
   if (move.action === "reject") emitTask(ctx, ctx.db, "task.rejected", t, { by, note: note ?? "" }, hist("rejected"));
@@ -393,7 +393,7 @@ export async function assign(ctx: TasksCtx, input: In): Promise<unknown> {
 
 export async function snooze(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
-  if (!isOpen(t.state)) raise(ctx, "validation.precondition_failed", "Only an open task can be snoozed.", { reason: "not_a_request" });
+  if (!isOpen(t.state)) raise(ctx, "validation.precondition_failed", "Only an open task can be snoozed.", { reason: "task_closed" });
   if (!actionableByMe(ctx, t) && !isTrustedService(ctx.principal)) raise(ctx, "validation.precondition_failed", "Only the person this task is waiting on can snooze it.", { reason: "wrong_actor" });
   const until: number | null = input.until ?? null;
   if (until !== null && until <= ctx.now()) raise(ctx, "validation.precondition_failed", "Pick a time in the future.", { reason: "past_time" });

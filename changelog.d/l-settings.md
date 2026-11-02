@@ -1,1 +1,2 @@
 - Settings: rebuilt from an audit of what the code really reads. Space policies for approvals, tasks, automations and schedules now take effect, working hours and the email backstop reach delivery, and 35 settings nothing read are gone.
+- Console: a place in the app for admins and owners, opened from the rail or Settings. Settings now holds only what is yours; Space defaults live in the Console, and a Personal Space keeps its own in Settings.

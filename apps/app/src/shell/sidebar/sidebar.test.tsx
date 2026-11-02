@@ -8,10 +8,9 @@ import type { SidebarStorage } from "./index.ts";
 
 const props = { deviceId: "d1", personId: "p1", spaceId: "northwind", place: "chats", epoch: 1 };
 
-test("the collapse key names the device, the person, the Space and the place; the value round-trips and bad data reads as open", () => {
-  assert.equal(collapseKey("d1", "p1", "northwind", "chats"), "vyre.sidebar.v1:d1:p1:northwind:chats");
-  assert.notEqual(collapseKey("d1", "p1", "northwind", "chats"), collapseKey("d1", "p1", "harbor", "chats"));
-  assert.notEqual(collapseKey("d1", "p1", "northwind", "chats"), collapseKey("d1", "p1", "northwind", "records"));
+test("hidden or shown is one choice per device and person, in every place; the value round-trips and bad data reads as open", () => {
+  assert.equal(collapseKey("d1", "p1"), "vyre.sidebar.v2:d1:p1");
+  assert.notEqual(collapseKey("d1", "p1"), collapseKey("d2", "p1"));
   assert.equal(readCollapsed(writeCollapsed(true)), true);
   assert.equal(readCollapsed(writeCollapsed(false)), false);
   for (const bad of [null, "", "nope", "[]", '{"collapsed":"yes"}']) assert.equal(readCollapsed(bad), false, String(bad));
@@ -39,13 +38,15 @@ test("the slot draws the title, the collapse button and the search field, then a
   assert.equal(renderToStaticMarkup(<SidebarSlotProvider {...props} compact={false}><SidebarSlot /></SidebarSlotProvider>), "");
 });
 
-test("a collapsed sidebar draws nothing and leaves the expand button; storage decides the first state", () => {
-  const store: SidebarStorage = { getItem: (k) => (k === collapseKey("d1", "p1", "northwind", "chats") ? writeCollapsed(true) : null), setItem: () => undefined };
+test("a hidden sidebar stays mounted so it slides back at once, leaves the Show button, and the choice holds in every place", () => {
+  const store: SidebarStorage = { getItem: (k) => (k === collapseKey("d1", "p1") ? writeCollapsed(true) : null), setItem: () => undefined };
   const entry = { title: "Chats", searchPlaceholder: "Search chats" };
   const html = renderToStaticMarkup(<SidebarSlotProvider {...props} compact={false} storage={store} initialEntry={entry}><SidebarSlot /><SidebarExpand /></SidebarSlotProvider>);
-  assert.ok(!html.includes('data-testid="place-sidebar"') && html.includes('data-testid="sidebar-expand"'));
-  const open = renderToStaticMarkup(<SidebarSlotProvider {...props} place="records" compact={false} storage={store} initialEntry={entry}><SidebarSlot /><SidebarExpand /></SidebarSlotProvider>);
-  assert.ok(open.includes('data-testid="place-sidebar"') && !open.includes("sidebar-expand"), "another place keeps its own choice");
+  assert.ok(html.includes('data-testid="place-sidebar"') && html.includes('data-testid="sidebar-expand"'));
+  const other = renderToStaticMarkup(<SidebarSlotProvider {...props} place="records" compact={false} storage={store} initialEntry={entry}><SidebarSlot /><SidebarExpand /></SidebarSlotProvider>);
+  assert.ok(other.includes("sidebar-expand"), "the same choice in another place");
+  const open = renderToStaticMarkup(<SidebarSlotProvider {...props} compact={false} storage={{ getItem: () => null, setItem: () => undefined }} initialEntry={entry}><SidebarSlot /><SidebarExpand /></SidebarSlotProvider>);
+  assert.ok(!open.includes("sidebar-expand"));
 });
 
 test("on the phone the sidebar fills the screen on the list view and has no collapse button; Back shows only on the body", () => {

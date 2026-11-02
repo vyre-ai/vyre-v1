@@ -16,7 +16,9 @@ export type StepType = "email" | "wait" | "branch" | "sms" | "task" | "call_task
 
 export interface CampaignConfig {
   /** Public origin for unsubscribe links, for example https://harbor.vyre.run. Links are relative when absent. */
-  publicBase?: string;
+  publicBase?: string | undefined;
+  /** The address is a phone name: the relay carries only /p/*, so the link lives there. */
+  publicPath?: boolean | undefined;
   /** Members handled per engine pass. */
   batch?: number;
 }

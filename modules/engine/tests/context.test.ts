@@ -39,12 +39,25 @@ const skills: SkillsPort = {
 };
 const at = Date.UTC(2026, 9, 29, 22, 7);
 
+test("what is in the agent's context folder is always in its identity, read as the asker", async () => {
+  const f = fake({
+    ...FULL,
+    "files.list": (i: unknown) => ((i as { folder: string }).folder === "fld_ctx" ? { files: [{ fileId: "fil_rates", name: "rates.md" }] } : { files: [{ fileId: "fil_md", name: "AGENT.md" }], folders: [{ folderId: "fld_ctx", name: "context" }] }),
+    "files.read": (i: unknown) => ((i as { fileId: string }).fileId === "fil_rates" ? { text: "Our rate is 200 an hour." } : { text: "# Intake\nBe brief." }),
+  });
+  const ctx = await createContextBuilder({ call: f.call, skills, now: () => at }).build(input());
+  const identity = ctx.sections.find((s) => s.id === "identity")?.text ?? "";
+  assert.match(identity, /What you always know \(your context folder\):\nrates\.md:\nOur rate is 200 an hour\./);
+  assert.ok(f.log.filter((l) => l.cap === "files.read").every((l) => l.as === "usr_maya"));
+});
+
 test("the context holds identity, where, skills, what the agent can do and the time, from reads made as the asker", async () => {
   const f = fake(FULL);
   const ctx = await createContextBuilder({ call: f.call, skills, now: () => at }).build(input());
   const text = (id: string): string => ctx.sections.find((s) => s.id === id)?.text ?? "";
   assert.match(text("identity"), /^You are Intake \(agentId agt_intake\), an agent in Vyre\. You answer intake questions\./);
   assert.match(text("identity"), /Your AGENT\.md:\n# Intake\nBe brief\./);
+  assert.doesNotMatch(text("identity"), /your context folder/, "no context folder, no line");
   assert.match(text("where"), /Space: Northwind \(team\)\./);
   assert.match(text("where"), /threadId thr_1\. This is a chat called "Intake desk"\./);
   assert.match(text("where"), /talking with Maya Chen \(usr_maya; /);

@@ -53,8 +53,7 @@ const webProps = (props: Record<string, unknown>): Record<string, unknown> => (P
 export function Face({ name, seedId, size = 18, pulse = false }: { name: string; seedId?: string | undefined; size?: number; pulse?: boolean }): ReactElement {
   return (
     <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0, flexGrow: 0 }}>
-      <Avatar name={name} seedId={seedId} kind="agent" size={size} />
-      {pulse ? <View testID="pulse" style={[s.pulse, { width: size + 6, height: size + 6, borderRadius: Math.round(size * 0.4) }]} /> : null}
+      <Avatar name={name} seedId={seedId} kind="agent" size={size} state={pulse ? "working" : undefined} {...(pulse ? { testID: "pulse" } : {})} />
     </View>
   );
 }
@@ -184,7 +183,6 @@ export function PaneList({ entries, window, testID, plain = false }: { entries: 
 const SWITCH_ON = { backgroundColor: "var(--ok)" };
 
 export const s = StyleSheet.create({
-  pulse: { position: "absolute", left: -3, top: -3, borderWidth: 1.5, borderColor: "var(--accent)" as string, opacity: 0.55 },
   lead: { width: 18, height: 18, marginRight: 6, alignItems: "center", justifyContent: "center" },
   tool: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   toolOver: { backgroundColor: "var(--press)" as string },

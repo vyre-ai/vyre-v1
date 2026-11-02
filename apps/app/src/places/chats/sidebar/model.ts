@@ -10,11 +10,13 @@ export type Agent = CapMap["agents.list"]["out"]["agents"][number];
 export type NeedsItem = CapMap["tasks.needs_you"]["out"]["items"][number];
 export type Filter = NonNullable<CapMap["chat.recent"]["in"]["filter"]>;
 
-export const FILTERS: readonly { key: Filter; label: string }[] = [
+/** The sidebar's filter menu. The server filters All and Unread; Needs you and Running are read off the rows. */
+export type SideFilter = "all" | "unread" | "needs" | "running";
+export const FILTERS: readonly { key: SideFilter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "unread", label: "Unread" },
-  { key: "people", label: "People" },
-  { key: "agents", label: "Agents" },
+  { key: "needs", label: "Needs you" },
+  { key: "running", label: "Running" },
 ];
 
 /** Cmd-1 to Cmd-9 jump to the first nine starred agent faces. */
@@ -31,7 +33,7 @@ export const GROUPS: readonly { key: GroupKey; label: string }[] = [
   { key: "earlier", label: "Earlier" },
 ];
 
-export type SectionKey = "needs" | "faces" | "recent" | "channels" | "imported" | "archived";
+export type SectionKey = "now" | "people" | "faces" | "recent" | "channels" | "imported" | "archived";
 
 /** A recent row as the sidebar draws it. `person` marks a chat with one person; `local` marks one made on this device that the server has not answered yet. */
 export interface ChatRow {
@@ -45,6 +47,8 @@ export interface ChatRow {
   members?: { id: string; name: string }[] | undefined;
   unread: number;
   working: boolean;
+  /** Something in this chat waits on you: the amber ring. */
+  waiting?: boolean;
   starred: boolean;
   lastAt: number;
   local: boolean;
@@ -92,8 +96,8 @@ export function archivedRows(recent: RecentOut, agentName: (id: string) => strin
 }
 
 /** The server filters; this is the same rule for rows already on the device (a local row with no agent counts as People). */
-export function matchesFilter(row: ChatRow, f: Filter): boolean {
-  return f === "all" || (f === "unread" && row.unread > 0) || (f === "people" && row.kind === "person") || (f === "agents" && row.kind === "agent");
+export function matchesFilter(row: ChatRow, f: SideFilter): boolean {
+  return f === "all" || (f === "unread" && row.unread > 0) || (f === "needs" && row.waiting === true) || (f === "running" && row.working);
 }
 
 /** The shared search field: a row stays when every word of the query is in one of its texts (case-insensitive). An empty query keeps everything. */
@@ -105,13 +109,12 @@ export function matchesQuery(query: string, ...texts: readonly string[]): boolea
 }
 
 /** Counts for the filter menu, from the unfiltered answer. */
-export function filterCounts(recent: RecentOut, local: readonly ChatRow[], agentName: (id: string) => string): Record<Filter, number> {
-  const all = [...local, ...GROUPS.flatMap((g) => recent[g.key].filter((i) => i.kind === "chat").map((i) => rowOf(i, agentName)))];
-  const c: Record<Filter, number> = { all: all.length, unread: 0, people: 0, agents: 0 };
-  for (const r of all) {
+export function filterCounts(rows: readonly ChatRow[]): Record<SideFilter, number> {
+  const c: Record<SideFilter, number> = { all: rows.length, unread: 0, needs: 0, running: 0 };
+  for (const r of rows) {
     if (matchesFilter(r, "unread")) c.unread++;
-    if (matchesFilter(r, "people")) c.people++;
-    if (matchesFilter(r, "agents")) c.agents++;
+    if (matchesFilter(r, "needs")) c.needs++;
+    if (matchesFilter(r, "running")) c.running++;
   }
   return c;
 }
@@ -151,9 +154,12 @@ export function needsKind(item: NeedsItem): { label: string; tone: "accent" | "w
 
 export type Entry =
   | { key: string; type: "head"; section: SectionKey; label: string; count?: number; open: boolean }
-  | { key: string; type: "need"; item: NeedsItem }
-  | { key: string; type: "face"; agent: Agent; digit?: number; working: boolean; waiting: boolean }
-  | { key: string; type: "more"; label: string; to: "agents" | "unread" | "needs" }
+  | { key: string; type: "face"; agent: Agent; digit?: number; working: boolean; waiting: boolean; assistant?: boolean }
+  | { key: string; type: "more"; label: string; to: "agents" | "unread" | "recent" | "people" | "faces" }
+  /** The two rows at the top: Tasks and Threads. */
+  | { key: string; type: "nav"; to: "tasks" | "threads"; label: string; count: number; dot?: boolean }
+  /** A person of the Space: a press opens your chat with them. */
+  | { key: string; type: "person"; id: string; name: string; unread: number }
   | { key: string; type: "group"; label: string }
   | { key: string; type: "chat"; row: ChatRow }
   | { key: string; type: "channel"; channel: Channel; project: boolean }
@@ -177,21 +183,27 @@ export function refetch(screens: object): boolean {
 }
 
 export interface SidebarInput {
-  needs: readonly NeedsItem[];
-  /** how many wait in all (the header says 7 while the sidebar lists the top 3) */
-  needsTotal: number;
   faces: readonly Agent[];
+  /** Your own Assistant, first under Agents. */
+  assistant?: { agentId: string; name: string };
+  /** What you owe, on the Tasks row. */
+  tasksCount?: number;
+  threadsDot?: boolean;
+  /** Chats with something waiting on you: they rise to Now. */
+  waitingThreads?: ReadonlySet<string>;
+  people?: readonly { id: string; name: string; unread?: number }[];
+  moreRecent?: boolean;
+  morePeople?: boolean;
+  moreAgents?: boolean;
   workingAgents: ReadonlySet<string>;
   /** agents with something waiting on the person (any open Needs you item they raised, not only the top three); the face says "Waiting on you" */
   waitingAgents?: ReadonlySet<string>;
   groups: readonly Group[];
   channels: readonly Channel[];
-  filter: Filter;
+  filter: SideFilter;
   closed: ReadonlySet<SectionKey>;
   /** Agents beyond the faces shown: a row under them opens All agents. */
   facesMore?: number;
-  /** A phone shows this many Needs you rows, then a "Show all" row (the desktop lists them all). */
-  needsLimit?: number;
   /** Sections whose read failed: the row under the head says so (and the section never says "empty"). */
   errors?: Partial<Record<SectionKey, SectionError>>;
   /** The chats I archived, already narrowed by the filter and the search box. The section is left out when there are none, and is collapsed until its head is pressed (`archivedOpen`). */
@@ -218,54 +230,75 @@ export function splitChannels(channels: readonly Channel[]): { plain: Channel[];
   return { plain: live.filter((c) => !isProject(c)), projects: live.filter(isProject) };
 }
 
-/** The flat list, top to bottom, as spec 3.2 orders it after ruling 45 (the prototype wins on layout and order): Needs you (only when something waits), Agents, Channels with Projects, then Chats. */
+/** Recent shows this many, then "N more". */
+export const RECENT_SHOWN = 3;
+/** People and Agents show this many, then "N more". */
+export const LIST_SHOWN = 3;
+
+/** The flat list, top to bottom: Tasks and Threads, then Now (running and waiting rise here), Recent, Channels, People, Agents. Every list survives 300 rows: each folds, and long ones stop at "N more". */
 export function buildEntries(i: SidebarInput): Entry[] {
   const out: Entry[] = [];
   const open = (s: SectionKey): boolean => !i.closed.has(s);
   const err = (s: SectionKey): Entry[] => { const e = i.errors?.[s]; return e ? [{ key: `x:${s}`, type: "error", section: s, text: e.text, cause: e.cause, ...(e.code ? { code: e.code } : {}), ...(e.traceId ? { traceId: e.traceId } : {}) }] : []; };
-  if (i.needs.length || i.errors?.needs) {
-    out.push({ key: "h:needs", type: "head", section: "needs", label: "Needs you", count: Math.max(i.needsTotal, i.needs.length), open: open("needs") });
-    if (open("needs")) {
-      out.push(...err("needs"));
-      const shown = i.needsLimit !== undefined ? i.needs.slice(0, i.needsLimit) : i.needs;
-      for (const n of shown) out.push({ key: `n:${n.task.id}`, type: "need", item: n });
-      const all = Math.max(i.needsTotal, i.needs.length);
-      if (i.needsLimit !== undefined && shown.length < all) out.push({ key: "m:needs", type: "more", label: `Show all ${all}`, to: "needs" });
-    }
+  if (!i.searching) {
+    out.push({ key: "nav:tasks", type: "nav", to: "tasks", label: "Tasks", count: i.tasksCount ?? 0 });
+    out.push({ key: "nav:threads", type: "nav", to: "threads", label: "Threads", count: 0, dot: i.threadsDot === true });
   }
-  // a head with nothing under it says nothing: no agents to show, no Agents head
-  const showFaces = i.faces.length > 0 || (i.facesMore ?? 0) > 0 || i.errors?.faces !== undefined;
-  if (showFaces) out.push({ key: "h:faces", type: "head", section: "faces", label: "Agents", open: open("faces") });
-  if (showFaces && open("faces")) {
-    out.push(...err("faces"));
-    const digits = faceDigits(i.faces);
-    for (const a of i.faces) {
-      const d = digits.get(a.agentId);
-      out.push({ key: `f:${a.agentId}`, type: "face", agent: a, ...(d !== undefined ? { digit: d } : {}), working: i.workingAgents.has(a.agentId), waiting: i.waitingAgents?.has(a.agentId) === true });
-    }
+  const rows = i.groups.flatMap((g) => g.rows);
+  const unique = rows.filter((r, n) => rows.findIndex((x) => x.threadId === r.threadId) === n);
+  const isNow = (r: ChatRow): boolean => r.working || i.waitingThreads?.has(r.threadId) === true;
+  const now = unique.filter(isNow);
+  const rest = unique.filter((r) => !isNow(r) && !(r.kind === "person" && r.withPeople === true));
+  if (now.length) {
+    out.push({ key: "h:now", type: "head", section: "now", label: "Now", count: now.length, open: open("now") });
+    if (open("now")) for (const r of now) out.push({ key: `c:${r.threadId}`, type: "chat", row: r });
   }
-  if (open("faces") && (i.facesMore ?? 0) > 0) out.push({ key: "m:agents", type: "more", label: `All agents (${(i.facesMore ?? 0) + i.faces.length})`, to: "agents" });
-  const { plain, projects } = splitChannels(i.channels);
-  if (!i.personal && (plain.length || projects.length || i.errors?.channels || !i.searching)) {
-    out.push({ key: "h:channels", type: "head", section: "channels", label: "Channels", open: open("channels") });
-    if (open("channels")) {
-      out.push(...err("channels"));
-      if (!plain.length && !projects.length && !i.errors?.channels) out.push({ key: "a:new-channel", type: "action", label: "Create a channel", to: "new-channel" });
-      for (const c of plain) out.push({ key: `ch:${c.channelId}`, type: "channel", channel: c, project: false });
-      if (projects.length) {
-        out.push({ key: "g:projects", type: "group", label: "Projects" });
-        for (const c of projects) out.push({ key: `ch:${c.channelId}`, type: "channel", channel: c, project: true });
+  out.push({ key: "h:recent", type: "head", section: "recent", label: "Recent", count: rest.length, open: open("recent") });
+  if (open("recent")) {
+    out.push(...err("recent"));
+    if (!rest.length && !now.length && !i.errors?.recent) out.push({ key: "e:recent", type: "empty", text: i.filter === "all" ? "No chats yet" : "Nothing here" });
+    const shown = i.moreRecent === true || i.searching ? rest : rest.slice(0, RECENT_SHOWN);
+    for (const r of shown) out.push({ key: `c:${r.threadId}`, type: "chat", row: r });
+    if (shown.length < rest.length) out.push({ key: "m:recent", type: "more", label: `${rest.length - shown.length} more`, to: "recent" });
+  }
+  if (i.filter === "all") {
+    const { plain, projects } = splitChannels(i.channels);
+    if (!i.personal && (plain.length || projects.length || i.errors?.channels || !i.searching)) {
+      out.push({ key: "h:channels", type: "head", section: "channels", label: "Channels", count: plain.length + projects.length, open: open("channels") });
+      if (open("channels")) {
+        out.push(...err("channels"));
+        if (!plain.length && !projects.length && !i.errors?.channels) out.push({ key: "a:new-channel", type: "action", label: "Create a channel", to: "new-channel" });
+        for (const c of plain) out.push({ key: `ch:${c.channelId}`, type: "channel", channel: c, project: false });
+        if (projects.length) {
+          out.push({ key: "g:projects", type: "group", label: "Projects" });
+          for (const c of projects) out.push({ key: `ch:${c.channelId}`, type: "channel", channel: c, project: true });
+        }
       }
     }
-  }
-  out.push({ key: "h:recent", type: "head", section: "recent", label: "Chats", open: open("recent") });
-  if (open("recent")) {
-    const rows = i.groups.reduce((n, g) => n + g.rows.length, 0);
-    out.push(...err("recent"));
-    if (!rows && !i.errors?.recent) out.push({ key: "e:recent", type: "empty", text: i.filter === "all" ? "No chats yet" : "Nothing here" });
-    for (const g of i.groups) {
-      out.push({ key: `g:${g.key}`, type: "group", label: g.label });
-      for (const r of g.rows) out.push({ key: `c:${r.threadId}`, type: "chat", row: r });
+    const people = i.people ?? [];
+    if (people.length) {
+      out.push({ key: "h:people", type: "head", section: "people", label: "People", count: people.length, open: open("people") });
+      if (open("people")) {
+        const shown = i.morePeople === true || i.searching ? people : people.slice(0, LIST_SHOWN);
+        for (const p of shown) out.push({ key: `p:${p.id}`, type: "person", id: p.id, name: p.name, unread: p.unread ?? 0 });
+        if (shown.length < people.length) out.push({ key: "m:people", type: "more", label: `${people.length - shown.length} more`, to: "people" });
+      }
+    }
+    // a head with nothing under it says nothing: no agents to show, no Agents head
+    const showFaces = i.assistant !== undefined || i.faces.length > 0 || (i.facesMore ?? 0) > 0 || i.errors?.faces !== undefined;
+    if (showFaces) out.push({ key: "h:faces", type: "head", section: "faces", label: "Agents", count: i.faces.length + (i.assistant ? 1 : 0) + (i.facesMore ?? 0), open: open("faces") });
+    if (showFaces && open("faces")) {
+      out.push(...err("faces"));
+      if (i.assistant) out.push({ key: `f:${i.assistant.agentId}`, type: "face", agent: i.assistant as Agent, working: false, waiting: false, assistant: true });
+      const digits = faceDigits(i.faces);
+      const shown = i.moreAgents === true || i.searching ? i.faces : i.faces.slice(0, LIST_SHOWN);
+      for (const a of shown) {
+        const d = digits.get(a.agentId);
+        out.push({ key: `f:${a.agentId}`, type: "face", agent: a, ...(d !== undefined ? { digit: d } : {}), working: i.workingAgents.has(a.agentId), waiting: i.waitingAgents?.has(a.agentId) === true });
+      }
+      const hidden = i.faces.length - shown.length;
+      if (hidden > 0) out.push({ key: "m:faces", type: "more", label: `${hidden} more`, to: "faces" });
+      if (hidden <= 0 && (i.facesMore ?? 0) > 0) out.push({ key: "m:agents", type: "more", label: `All agents (${(i.facesMore ?? 0) + i.faces.length})`, to: "agents" });
     }
   }
   if (i.archived?.length) {

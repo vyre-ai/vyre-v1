@@ -10,7 +10,7 @@ A task changed status
 | Visibility | participants |
 | Label | subject |
 | Replay | pure |
-| Automation trigger | no |
+| Automation trigger | A task changed status |
 | Notification | none |
 | Retention | default |
 

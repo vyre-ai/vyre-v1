@@ -6,37 +6,40 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { SettingsDataProvider } from "./data.tsx";
 import { SettingsPlace } from "./SettingsPlace.tsx";
 import type { SettingsProps } from "./SettingsPlace.tsx";
-import { ADMIN_LINKS, PAGES, ROW_HELP, SPACE_ROWS, adminHome, rowHelp, pageOfRow, searchRows, spacePagesFor } from "./model.ts";
+import { PERSONAL_SPACE_ROWS, PAGES, ROW_HELP, SPACE_ROWS, rowHelp, pageOfRow, searchRows, spacePagesFor } from "./model.ts";
 import { ROWS, createSampleSettings, harbor, northwind } from "./sample.ts";
 import { registry } from "../../../../../generated/registry.ts";
 import type { SampleSettings } from "./sample.ts";
 
 const html = (s: SampleSettings, props: SettingsProps = {}): string =>
   renderToStaticMarkup(<SettingsDataProvider value={s.data}><SettingsPlace width={1280} {...props} /></SettingsDataProvider>).replaceAll("<!-- -->", "");
-const all = (): ReadonlySet<string> => new Set(Object.values(ADMIN_LINKS).flat().map((l) => l.id));
 
-test("a member has no Space group, an owner has six pages, and a page shows only when it holds something for you", () => {
-  assert.ok(!html(createSampleSettings(harbor)).includes('data-testid="space-group"'));
-  assert.ok(html(createSampleSettings(northwind)).includes('data-testid="space-group"'));
-  assert.deepEqual(spacePagesFor(undefined), []);
-  assert.equal(spacePagesFor({ pages: all(), canPolicy: true }).length, 6);
-  assert.deepEqual(spacePagesFor({ pages: new Set(["network"]), canPolicy: false }), ["advanced"], "someone who can only see the Network page sees one page");
+test("a Team Space has no Space pages in Settings, for anyone: they are the Console's", () => {
+  assert.deepEqual(spacePagesFor(false), []);
+  for (const space of [northwind, harbor]) {
+    const out = html(createSampleSettings(space));
+    assert.ok(!out.includes('data-testid="space-group"') && !out.includes("Agents and rules"), space.name);
+  }
 });
 
-test("every Space row has a plain name and says what it does, and each Console page has one home", () => {
+test("a Personal Space has no Console, so the Space rows its owner needs are in Settings, and rows that need other people are not", () => {
+  const pages = spacePagesFor(true);
+  assert.ok(pages.length > 0 && !pages.includes("people"));
+  for (const id of PERSONAL_SPACE_ROWS) assert.ok(SPACE_ROWS.some((r) => r.id === id), id);
+  for (const id of ["tasks.require_human_approver", "tasks.allow_self_review", "changesets.different_person", "access.review_every_days", "google.auto_connect"]) assert.ok(!PERSONAL_SPACE_ROWS.has(id), id);
+});
+
+test("no setting is in both: a row of You is the person's, a Space row is the Space's, and the two never share a key", async () => {
+  const s = createSampleSettings(northwind);
+  const you = ((await s.data.call("settings.list", {})) as { rows: Parameters<typeof pageOfRow>[0][] }).rows.filter((r) => pageOfRow(r));
+  const spaceKeys = new Set(SPACE_ROWS.map((r) => r.key));
+  for (const r of you) { assert.equal(r.scope, "person", r.key); assert.ok(!spaceKeys.has(r.key), r.key); }
+  for (const r of SPACE_ROWS) assert.ok(!PAGES.some((p) => p.key === r.page && p.group === "you"), r.id);
+});
+
+test("every Space row has a plain name and says what it does", () => {
   for (const r of SPACE_ROWS) { assert.ok(r.help.length > 20, r.id); assert.ok(r.label.length <= 48, r.id); }
   assert.equal(new Set(SPACE_ROWS.map((r) => r.id)).size, SPACE_ROWS.length);
-  const ids = Object.values(ADMIN_LINKS).flat().map((l) => l.id);
-  assert.equal(new Set(ids).size, ids.length);
-  assert.equal(adminHome("gate")?.page, "agents");
-  assert.equal(adminHome("nothing"), null);
-});
-
-test("every Space page draws its rows with their tooltips; a member's data never reaches them", () => {
-  const s = createSampleSettings(northwind);
-  for (const r of SPACE_ROWS) assert.ok(typeof r.page === "string" && PAGES.some((p) => p.key === r.page), r.id);
-  const out = html(s, { initialPage: "agents" });
-  assert.ok(out.includes("Manage") && out.includes("Gate rules"));
 });
 
 test("changing a Space row goes through settings.set_space, hands back the old value, and a member is refused", async () => {
@@ -48,20 +51,11 @@ test("changing a Space row goes through settings.set_space, hands back the old v
   await assert.rejects(createSampleSettings(harbor).data.call("settings.set_space", { key: "gate.timeout_hours", value: 6 }), /Only a Space admin/);
 });
 
-test("search reaches Space rows and Console pages for an owner, and only your own rows for anyone else", () => {
-  const scope = { admin: { pages: all(), canPolicy: true } };
-  assert.ok(searchRows([], "gate", scope).some((h) => h.admin === "gate"));
-  assert.ok(searchRows([], "approval times out", scope).some((h) => h.key === "gate.timeout_hours"));
-  assert.ok(searchRows([], "retention", scope).some((h) => h.admin === "retention" && h.page === "data"));
-  assert.deepEqual(searchRows([], "retention"), [], "a member gets nothing from the Space");
-  assert.ok(searchRows([], "audit", { admin: { pages: new Set(["network"]), canPolicy: false } }).length === 0, "only pages you can open");
-});
-
-test("a Console page opens inside Settings with a way back to the page it sits under", () => {
-  const out = html(createSampleSettings(northwind), { initialAdmin: "backups" });
-  assert.ok(out.includes('data-testid="admin-backups"'));
-  assert.ok(out.includes('data-testid="admin-back"') && out.includes("Back to Data"));
-  assert.ok(out.includes('data-testid="settings-nav"'), "still Settings, not a second app");
+test("search in a Team Space finds only your own rows; a Personal Space's owner also finds its Space rows", () => {
+  assert.deepEqual(searchRows([], "approval times out"), []);
+  assert.deepEqual(searchRows([], "protected branches push", {}), []);
+  assert.ok(searchRows([], "branches push", { personal: true }).some((h) => h.key === "git.protected_branches"));
+  assert.deepEqual(searchRows([], "approval times out", { personal: true }), [], "a rule about other people is not a Personal Space's");
 });
 
 test("every person row that shows says what it does, or is plain enough not to need it", () => {

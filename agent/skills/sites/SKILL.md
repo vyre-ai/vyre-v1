@@ -30,7 +30,7 @@ You build and run the site. Vyre gives it an address. A site is a route: a name,
 
 ## Custom domains
 - A custom domain is public, so only a public site has one, and it serves once the site is published. `sites_domain_add` returns the exact DNS records and adds the route with automatic TLS. Show the person those records. Never change their DNS yourself.
-- `sites_domain_check` says `waiting_dns`, `issuing` or `live`.
+- `sites_domain_check` says Waiting for DNS, Issuing certificate or Live.
 - A custom domain needs a server with a public address. If there is none, say so and offer Add a server in Settings, Computers.
 
 ## Update and roll back

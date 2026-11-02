@@ -1,7 +1,7 @@
 // ui/Composer: the one composer for Chats, threads, Ask panes, inbox email and text, record comments and task threads (spec 4.6, 3.2, 3.3; rc.8 composer prototype).
-// A rounded field with a + menu; the agent strip shows only when an AI will answer (who answers is lib/route.ts, so it never disagrees with the engine) and opens the
-// model panel; the mode chip (Ask first, Auto, Plan; Shift+Tab); the context ring past half full; Send that turns to Stop while an agent works and splits into Queue and
-// Now when you type while it works; a thin working light on the top edge; and a tray for what is attached.
+// One line that grows as you type: plus, words, the model pill, then send or stop. The pill shows only when an AI will answer (who answers is lib/route.ts, so it never disagrees with the engine) and opens the
+// model menu; it carries a chip only when the mode is not Auto or the chat does not run on this computer, the effort bars and the context ring past 60 percent; the face of who answers shows only when more than
+// one agent is here. Shift+Tab cycles the mode. Send turns to Stop while an agent works and splits into Queue and Now when you type while it works. A tray above the line holds what is attached.
 // Symbols (spec 3.0): @ people and agents; # one search over Records, Files, Folders, Chats, Automations, Projects and Channels with a preview, inserting an inline token
 // (a folder sets the thread's folder chip); / commands, skills, templates and snippets; [[ links a record. Sending is optimistic: the field clears and onSend runs in the
 // same call, before any server answer.
@@ -19,9 +19,9 @@ import { Avatar, avatarOf } from "../Avatar/index.tsx";
 import { MenuIcon, menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 import { Row } from "../Row/index.tsx";
-import { answering, contextRing, deleteToken, modeInfo, nextMode, sendControl, sizeLabel, stripName, tokenRanges } from "./brain.ts";
+import { answering, contextRing, deleteToken, effortsFor, modeInfo, nextMode, sendControl, sizeLabel, stripName, tokenRanges } from "./brain.ts";
 import type { ChatMode, ComposerAgent, TokenRange } from "./brain.ts";
-import { BrandMark, ContextRing, EffortBars, GroupHead, I, IconTile, Kbd, Pop, STOP, WorkingLight, ensureComposerCss, useDismiss } from "./parts.tsx";
+import { ContextRing, EffortBars, GroupHead, I, IconTile, Kbd, Pop, STOP, ensureComposerCss, useDismiss } from "./parts.tsx";
 import { composerSymbols } from "./props.ts";
 import { closeEmoji, findEmoji } from "./emoji.ts";
 import type { ComposerAttachment, ComposerChip, ComposerRef, ComposerShellProps, ComposerSymbol } from "./props.ts";
@@ -532,6 +532,10 @@ export interface ComposerProps extends ComposerShellProps {
   agents?: readonly ComposerAgent[];
   /** The model panel for an answering agent, opened from the strip. Without it the strip only shows. */
   renderPanel?: (agent: ComposerAgent, close: () => void, narrow: boolean) => ReactNode;
+  /** The model menu opens under the composer instead of over it (the first screen, where the composer sits high). */
+  panelBelow?: boolean;
+  /** Where the chat runs, when it is not this computer: "On Northwind" in the pill. */
+  runsChip?: string;
   /** The chat's mode; with onMode the chip shows and Shift+Tab cycles it. */
   mode?: ChatMode;
   onMode?: (mode: ChatMode) => void;
@@ -556,11 +560,11 @@ interface ChangeLike {
 }
 
 const webProps = (props: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? props : {});
-const MIN_FIELD = 24;
+const MIN_FIELD = 22;
 const MAX_FIELD = 220;
 const FIELD_STYLE = { outlineStyle: "none", outlineWidth: 0, backgroundColor: "transparent" } as unknown as TextStyle;
 const BOX_SHADOW = { boxShadow: "var(--sh-2)" } as unknown as ViewStyle;
-const FOCUS_SHADOW = { boxShadow: "0 0 0 4px var(--accent-wash), var(--sh-2)" } as unknown as ViewStyle;
+const FOCUS_SHADOW = BOX_SHADOW;
 const HOVER = { backgroundColor: "var(--hover)" };
 const web = Platform.OS === "web";
 
@@ -629,42 +633,27 @@ function FileCard({ f, onRemove, testID }: { f: ComposerAttachment; onRemove?: (
   );
 }
 
-/** The agent strip: who answers and on what. Shown only when an AI will answer; a press opens the model panel. */
-function AgentStrip({ list, narrow, onPress, open }: { list: readonly ComposerAgent[]; narrow: boolean; onPress?: () => void; open: boolean }): ReactElement {
+/** The model pill: how this chat runs. Shown only when an AI will answer; a press opens the model menu. The mode and where it runs appear only when they are not the usual. */
+function AgentStrip({ list, narrow, onPress, open, face, mode, runsChip, ring }: { list: readonly ComposerAgent[]; narrow: boolean; onPress?: () => void; open: boolean; face: boolean; mode?: ChatMode | undefined; runsChip?: string | undefined; ring: { pct: number; warn: boolean } | null }): ReactElement {
   const a = list[0] as ComposerAgent;
   const name = stripName(list);
-  const details = !narrow && (a.modelTitle !== undefined || a.provider !== undefined);
-  const label = `${name} will answer${a.modelTitle ? ` on ${a.modelTitle}` : ""}${a.effort ? `, ${a.effort} effort` : ""}${onPress ? ". Model, effort, context and limits" : ""}`;
+  const title = a.modelTitle ?? "Auto";
+  const label = `${name} will answer on ${title}${a.effort ? `, ${a.effort} effort` : ""}${onPress ? ". Mode, model, effort and limits" : ""}`;
   const body = (
     <>
-      <Avatar {...avatarOf({ id: a.id, name: a.name, kind: a.kind === "assistant" ? "assistant" : "agent" })} size={22} />
-      <Text numberOfLines={1} style={styles.stripName}>{name}</Text>
-      {details ? (
-        <View style={styles.stripModel}>
-          <BrandMark provider={a.provider} size={12} />
-          {a.modelTitle ? <Text numberOfLines={1} style={styles.stripModelText}>{`${a.modelTitle}${a.accountName ? ` · ${a.accountName}` : ""}`}</Text> : null}
-          {a.effort ? <EffortBars effort={a.effort} testID="composer-effort" /> : null}
-        </View>
-      ) : null}
+      {face ? <Avatar {...avatarOf({ id: a.id, name: a.name, kind: a.kind === "assistant" ? "assistant" : "agent" })} size={20} /> : null}
+      {mode !== undefined && mode !== "auto" ? <View style={styles.mchip} testID="composer-mode"><Text style={styles.mchipText}>{modeInfo(mode).label}</Text></View> : null}
+      {runsChip !== undefined ? <View style={styles.rchip} testID="composer-runs"><Text numberOfLines={1} style={styles.rchipText}>{`On ${runsChip}`}</Text></View> : null}
+      {narrow ? null : <Text numberOfLines={1} style={styles.stripModelText}>{`${title}${a.accountName ? ` · ${a.accountName}` : ""}`}</Text>}
+      <EffortBars effort={a.effort} levels={effortsFor(a.provider).length} testID="composer-effort" />
+      {ring ? <ContextRing pct={ring.pct} warn={ring.warn} size={18} /> : null}
     </>
   );
   if (!onPress) return <View style={styles.strip} testID="composer-strip" accessibilityLabel={label}>{body}</View>;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ expanded: open }} testID="composer-strip" onPress={onPress} {...webProps({ title: label })}
+    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ expanded: open }} testID="composer-strip" onPress={onPress} {...webProps({ title: "Mode, provider, model, effort, limits" })}
       style={({ hovered }: { hovered?: boolean }) => [styles.strip, (hovered === true || open) && HOVER]}>
       {body}
-    </Pressable>
-  );
-}
-
-function ModeChip({ mode, onPress }: { mode: ChatMode; onPress: () => void }): ReactElement {
-  const info = modeInfo(mode);
-  const quiet = mode === "ask";
-  return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`Mode: ${info.label}. ${info.note}. Shift Tab to change.`} testID="composer-mode" onPress={onPress} {...webProps({ title: `${info.note}. Shift Tab to change.` })}
-      style={({ hovered }: { hovered?: boolean }) => [styles.mode, quiet ? styles.modeQuiet : styles.modeOn, quiet && hovered === true && HOVER]}>
-      <Glyph icon={MODE_ICON[mode]} native={quiet ? "○" : "●"} size={13} color={quiet ? "var(--ink-3)" : "var(--accent)"} />
-      <Text style={[styles.modeText, quiet ? styles.modeTextQuiet : styles.modeTextOn]}>{info.label}</Text>
     </Pressable>
   );
 }
@@ -1063,18 +1052,64 @@ export function Composer(props: ComposerProps): ReactElement {
   } else if (control === "stop") {
     sendNode = (
       <Pressable accessibilityRole="button" accessibilityLabel="Stop" testID="composer-send" onPress={() => props.onStop?.()} {...webProps({ title: "Stop" })} style={[styles.send, styles.sendStop]}>
-        <Glyph icon={STOP} native={"■"} size={16} color="var(--ink)" />
+        <Glyph icon={STOP} native={"■"} size={14} color="var(--ink)" />
       </Pressable>
     );
   } else {
     sendNode = (
       <Pressable accessibilityRole="button" accessibilityLabel="Send" accessibilityState={{ disabled: !hasContent }} disabled={!hasContent} onPress={() => submit("queue")} testID="composer-send" {...webProps({ title: sendTitle })} style={[styles.send, !hasContent && styles.sendOff]}>
-        <Glyph icon={I.up} native={"↑"} size={18} color="var(--win)" />
+        <Glyph icon={I.up} native={"↑"} size={16} color={hasContent ? "var(--accent-ink)" : "var(--ink-3)"} />
       </Pressable>
     );
   }
 
   const fieldText = compact ? styles.fieldCompact : styles.fieldRegular;
+  // an email keeps its own two rows: its bar holds sender and format buttons; everything else is the one-line pill
+  const oneLine = props.sendsOutside !== true;
+  const plusNode_ = (
+    <View ref={plusBtn as never}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Attach a file" accessibilityState={{ expanded: plusOpen }} testID="composer-attach" onPress={() => { setPanelOpen(false); setPlusOpen((x) => !x); }} {...webProps({ title: "Add" })}
+        style={({ hovered }: { hovered?: boolean }) => [styles.tool, (hovered === true || plusOpen) && HOVER]}>
+        <Glyph icon={I.plus} native="+" size={18} color="var(--ink-3)" />
+      </Pressable>
+    </View>
+  );
+  const fieldNode = (
+    <View style={[styles.fieldWrap, oneLine && styles.fieldLine, !oneLine && compact && styles.fieldWrapCompact]} {...webProps({ dataSet: { cmpField: "1" } })}>
+      {web && ranges.length > 0 ? <TokenBackdrop text={state.text} ranges={ranges} scrollY={scrollY} style={fieldText} /> : null}
+      <TextInput
+        ref={input}
+        multiline
+        value={state.text}
+        placeholder={props.placeholder ?? "Message"}
+        placeholderTextColor="var(--ink-3)"
+        accessibilityLabel={props.label ?? "Message"}
+        onChange={onChange as never}
+        onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })}
+        onKeyPress={onKeyPress as never}
+        onContentSizeChange={(e) => setHeight(Math.max(MIN_FIELD, Math.min(MAX_FIELD, Math.ceil(e.nativeEvent.contentSize.height))))}
+        onScroll={(e) => setScrollY(e.nativeEvent.contentOffset?.y ?? 0)}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        testID="composer-field"
+        style={[styles.field, fieldText, FIELD_STYLE, { height }]}
+        {...webProps({
+          onPaste: (e: { clipboardData?: { files?: ArrayLike<FileLike>; }; preventDefault: () => void }) => {
+            const files = Array.from(e.clipboardData?.files ?? [], (f) => attachmentOf(f, "Pasted image.png"));
+            if (files.length > 0) {
+              e.preventDefault();
+              addFiles(files);
+            }
+          },
+        })}
+      />
+    </View>
+  );
+  const stripNode_ = ai ? (
+    <View ref={stripNode as never} style={styles.stripWrap}>
+      <AgentStrip list={answerers} narrow={narrow} open={panelOpen} face={(props.agents?.length ?? 0) > 1} mode={showMode ? props.mode : undefined} runsChip={props.runsChip} ring={ring} {...(props.renderPanel ? { onPress: () => { setPlusOpen(false); setPanelOpen((x) => !x); } } : {})} />
+    </View>
+  ) : null;
 
   return (
     <View
@@ -1093,7 +1128,6 @@ export function Composer(props: ComposerProps): ReactElement {
         dataSet: { composer: "true", ...(focused ? { cmpFocus: "1" } : {}) },
       })}
     >
-      {working ? <WorkingLight /> : null}
       {props.sendsOutside ? <View style={styles.recipients} testID="composer-recipients">{props.recipients}</View> : null}
       {props.banner ? <View style={styles.banner}>{props.banner}</View> : null}
       {chips.length > 0 || cards.length > 0 ? (
@@ -1104,58 +1138,36 @@ export function Composer(props: ComposerProps): ReactElement {
         </View>
       ) : null}
       {props.engineLine ? <Text style={styles.engine} testID="composer-engine-line">{props.engineLine}</Text> : null}
-      <View style={[styles.fieldWrap, compact && styles.fieldWrapCompact]} {...webProps({ dataSet: { cmpField: "1" } })}>
-        {web && ranges.length > 0 ? <TokenBackdrop text={state.text} ranges={ranges} scrollY={scrollY} style={fieldText} /> : null}
-        <TextInput
-          ref={input}
-          multiline
-          value={state.text}
-          placeholder={props.placeholder ?? "Message"}
-          placeholderTextColor="var(--ink-4)"
-          accessibilityLabel={props.label ?? "Message"}
-          onChange={onChange as never}
-          onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })}
-          onKeyPress={onKeyPress as never}
-          onContentSizeChange={(e) => setHeight(Math.max(MIN_FIELD, Math.min(MAX_FIELD, Math.ceil(e.nativeEvent.contentSize.height))))}
-          onScroll={(e) => setScrollY(e.nativeEvent.contentOffset?.y ?? 0)}
-          onFocus={onFocus}
-          onBlur={onBlur}
-          testID="composer-field"
-          style={[styles.field, fieldText, FIELD_STYLE, { height }]}
-          {...webProps({
-            onPaste: (e: { clipboardData?: { files?: ArrayLike<FileLike> }; preventDefault: () => void }) => {
-              const files = Array.from(e.clipboardData?.files ?? [], (f) => attachmentOf(f, "Pasted image.png"));
-              if (files.length > 0) {
-                e.preventDefault();
-                addFiles(files);
-              }
-            },
-          })}
-        />
-      </View>
       {props.hideWho === true ? null : <Text style={styles.srOnly} testID="composer-who" accessibilityRole="text" accessibilityLiveRegion="polite">{who.line}</Text>}
-      <View style={[styles.bar, compact && styles.barCompact]}>
-        <View ref={plusBtn as never}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Attach a file" accessibilityState={{ expanded: plusOpen }} testID="composer-attach" onPress={() => { setPanelOpen(false); setPlusOpen((x) => !x); }} {...webProps({ title: "Add" })}
-            style={({ hovered }: { hovered?: boolean }) => [styles.tool, (hovered === true || plusOpen) && HOVER]}>
-            <Glyph icon={I.plus} native="+" size={18} color="var(--ink-3)" />
-          </Pressable>
+      {oneLine ? (
+        <View style={styles.line}>
+          {plusNode_}
+          {fieldNode}
+          {stripNode_}
+          {props.barExtra}
+          {props.whoExtra}
+          {sendNode}
         </View>
-        {ai ? <View ref={stripNode as never} style={styles.stripWrap}><AgentStrip list={answerers} narrow={narrow} open={panelOpen} {...(props.renderPanel ? { onPress: () => { setPlusOpen(false); setPanelOpen((x) => !x); } } : {})} /></View> : null}
-        {showMode && props.mode ? <ModeChip mode={props.mode} onPress={cycleMode} /> : null}
-        {props.barExtra}
-        {props.whoExtra}
-        <View style={styles.spacer} />
-        {ring ? <ContextRing pct={ring.pct} warn={ring.warn} /> : null}
-        {sendNode}
-      </View>
+      ) : (
+        <>
+          {fieldNode}
+          <View style={[styles.bar, compact && styles.barCompact]}>
+            {plusNode_}
+            {stripNode_}
+            {props.barExtra}
+            {props.whoExtra}
+            <View style={styles.spacer} />
+            {sendNode}
+          </View>
+        </>
+      )}
       {plusOpen ? (
         <Pop testID="composer-plus" label="Add" style={[popLeft, styles.plusPop] as ViewStyle[]} nodeRef={(n) => { plusNode.current = n; }}>
           <View style={styles.scr}>{plusRows}</View>
         </Pop>
       ) : null}
       {panelOpen && ai && props.renderPanel ? (
-        <Pop testID="composer-panel" label="Model" style={[narrow ? styles.panelNarrow : styles.panelPop] as ViewStyle[]} nodeRef={(n) => { panelNode.current = n; }}>
+        <Pop testID="composer-panel" label="Model" style={[narrow ? styles.panelNarrow : styles.panelPop, props.panelBelow ? styles.panelBelow : null] as ViewStyle[]} nodeRef={(n) => { panelNode.current = n; }}>
           {props.renderPanel(answerers[0] as ComposerAgent, () => setPanelOpen(false), narrow)}
         </Pop>
       ) : null}
@@ -1181,9 +1193,10 @@ export function Composer(props: ComposerProps): ReactElement {
 const CHIP_ICON: Record<string, string> = { Folder: ICON_FOLDER, Record: ICON_RECORD, File: ICON_FILE, Channel: "link" };
 
 const styles = StyleSheet.create({
-  box: { position: "relative", width: "100%", borderRadius: 20, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--raised)" as string },
-  boxCompact: { borderRadius: 16 },
-  drop: { borderStyle: "dashed", borderColor: "var(--accent)" as string },
+  box: { position: "relative", width: "100%", borderRadius: 22, backgroundColor: "var(--raised)" as string },
+  boxCompact: { borderRadius: 18 },
+  line: { flexDirection: "row", alignItems: "flex-end", gap: 2, padding: 7 },
+  drop: { boxShadow: "0 0 0 2px var(--accent)" } as object,
   recipients: { paddingTop: 10, paddingHorizontal: 14 },
   banner: { paddingTop: 8, paddingHorizontal: 14 },
   tray: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingTop: 10, paddingHorizontal: 12 },
@@ -1201,42 +1214,40 @@ const styles = StyleSheet.create({
   engine: { color: "var(--ink-3)" as string, fontSize: 11.5, lineHeight: 16, paddingTop: 8, paddingHorizontal: 16 },
   fieldWrap: { position: "relative", paddingTop: 12, paddingHorizontal: 16, paddingBottom: 4, overflow: "hidden" },
   fieldWrapCompact: { paddingTop: 10, paddingHorizontal: 12 },
+  fieldLine: { flex: 1, minWidth: 0, paddingTop: 6, paddingBottom: 6, paddingHorizontal: 6 },
   field: { width: "100%", color: "var(--ink)" as string, padding: 0, margin: 0, borderWidth: 0 },
   fieldRegular: { fontSize: 15, lineHeight: 22 },
-  fieldCompact: { fontSize: 14, lineHeight: 20 },
+  fieldCompact: { fontSize: 14, lineHeight: 22 },
   backdrop: { position: "absolute", left: 16, right: 16, top: 12 },
   ghost: { color: "transparent", whiteSpace: "pre-wrap", wordBreak: "break-word", overflowWrap: "break-word" } as object,
   tok: { backgroundColor: "var(--accent-wash)" as string, borderRadius: 5, boxShadow: "0 0 0 2px var(--accent-wash)" } as object,
   srOnly: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
   bar: { flexDirection: "row", alignItems: "center", gap: 4, paddingTop: 4, paddingHorizontal: 8, paddingBottom: 8 },
   barCompact: { paddingBottom: 6, paddingHorizontal: 6 },
-  tool: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  tool: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
   stripWrap: { flexShrink: 1, minWidth: 0 },
-  strip: { flexDirection: "row", alignItems: "center", gap: 7, height: 30, paddingLeft: 4, paddingRight: 10, borderRadius: 10, minWidth: 0 },
-  stripName: { fontWeight: "600", fontSize: 12.5, color: "var(--ink)" as string, flexShrink: 1 },
-  stripModel: { flexDirection: "row", alignItems: "center", gap: 5, flexShrink: 1, minWidth: 0 },
+  strip: { flexDirection: "row", alignItems: "center", gap: 7, height: 34, paddingHorizontal: 9, borderRadius: 17, minWidth: 0 },
   stripModelText: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 1 },
-  mode: { flexDirection: "row", alignItems: "center", gap: 5, height: 26, paddingHorizontal: 9, borderRadius: 8 },
-  modeQuiet: { backgroundColor: "transparent" },
-  modeOn: { backgroundColor: "var(--accent-wash)" as string },
-  modeText: { fontSize: 12, fontWeight: "600" },
-  modeTextQuiet: { color: "var(--ink-3)" as string, fontWeight: "500" },
-  modeTextOn: { color: "var(--accent)" as string },
+  mchip: { height: 20, paddingHorizontal: 7, borderRadius: 10, justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
+  mchipText: { fontSize: 11.5, lineHeight: 20, color: "var(--accent)" as string },
+  rchip: { height: 20, paddingHorizontal: 7, borderRadius: 10, justifyContent: "center", backgroundColor: "var(--sunk)" as string, flexShrink: 1 },
+  rchipText: { fontSize: 11.5, lineHeight: 20, color: "var(--ink-3)" as string },
   spacer: { flex: 1 },
-  send: { width: 34, height: 34, borderRadius: 12, alignItems: "center", justifyContent: "center", backgroundColor: "var(--ink)" as string, marginLeft: 2 },
-  sendStop: { backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
-  sendOff: { opacity: 0.25 },
-  split: { flexDirection: "row", alignItems: "center", height: 34, borderRadius: 12, backgroundColor: "var(--ink)" as string, overflow: "hidden", marginLeft: 2 },
+  send: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string, marginLeft: 2, flexShrink: 0 },
+  sendStop: { backgroundColor: "var(--sel)" as string },
+  sendOff: { backgroundColor: "var(--sel)" as string },
+  split: { flexDirection: "row", alignItems: "center", height: 34, borderRadius: 17, backgroundColor: "var(--accent)" as string, overflow: "hidden", marginLeft: 2, flexShrink: 0 },
   splitBtn: { height: 34, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 5 },
   splitHover: { opacity: 0.85 },
-  splitSep: { width: 1, height: 20, backgroundColor: "var(--win)" as string, opacity: 0.25 },
-  splitText: { fontSize: 12.5, fontWeight: "600", color: "var(--win)" as string },
-  splitKbd: { fontSize: 11, color: "var(--win)" as string, opacity: 0.6 },
+  splitSep: { width: 1, height: 20, backgroundColor: "var(--accent-ink)" as string, opacity: 0.25 },
+  splitText: { fontSize: 12.5, fontWeight: "600", color: "var(--accent-ink)" as string },
+  splitKbd: { fontSize: 11, color: "var(--accent-ink)" as string, opacity: 0.6 },
   lead: { marginRight: 10 },
   rowNote: { fontSize: 11.5, color: "var(--ink-4)" as string },
   scr: { padding: 6, maxHeight: 360, overflow: "scroll" } as object,
   plusPop: { width: 280, maxWidth: "100%" } as object,
-  panelPop: { left: 44, bottom: "100%", marginBottom: 8, overflow: "visible" } as object,
+  panelPop: { right: 0, bottom: "100%", marginBottom: 8, overflow: "visible", borderWidth: 0 } as object,
+  panelBelow: { bottom: "auto", top: "100%", marginBottom: 0, marginTop: 8 } as object,
   panelNarrow: { left: 0, right: 0, bottom: "100%", marginBottom: 8, maxHeight: 520, overflow: "scroll" } as object,
   hashPop: { flexDirection: "row", width: 640, maxWidth: "100%", overflow: "hidden" } as object,
   hashNarrow: { width: "100%", right: 6 } as object,

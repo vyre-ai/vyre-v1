@@ -269,7 +269,7 @@ export async function resumeTasks(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
       if (!row) { out.push(...(await onTaskEvent(ctx, host, engine, { name: "task.ready", payload: { taskId: t.id } }))); continue; }
       if (row.sig !== signatureOf(t, holder) || row.turnEndedAt !== undefined || !row.threadId) continue;
       let busy = false;
-      try { busy = engine.turns(row.threadId).some((x) => x.state === "running" || x.state === "waiting" || x.state === "queued"); } catch { /* not open on this host yet */ }
+      try { busy = engine.turns(row.threadId).some((x) => x.state === "running" || x.state === "waiting"); } catch { /* not open on this host yet */ }
       if (busy || await runsOutside(host, holder.who.id)) continue;
       if (await openThread(ctx.db, host, engine, row.threadId, holder.who.id, row.asker ?? t.createdBy)) { engine.wake(row.threadId, holder.who.id); out.push(holder.who.id); }
     }

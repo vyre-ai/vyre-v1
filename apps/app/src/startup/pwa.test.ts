@@ -14,7 +14,7 @@ test("PWA manifest declares an installable standalone Vyre app", () => {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as Record<string, unknown>;
   assert.equal(manifest.name, "Vyre");
   assert.equal(manifest.short_name, "Vyre");
-  assert.equal(manifest.start_url, "/home");
+  assert.equal(manifest.start_url, "/chat");
   assert.equal(manifest.scope, "/");
   assert.equal(manifest.display, "standalone");
   assert.equal(manifest.theme_color, "#ffffff");
@@ -64,7 +64,7 @@ test("production export keeps the install contract in the files a browser receiv
   const read = (name: string): string => fs.readFileSync(path.join(root, name), "utf8");
   const manifest = JSON.parse(read("manifest.json")) as { display?: string; start_url?: string; scope?: string; icons?: { src: string }[] };
   assert.equal(manifest.display, "standalone");
-  assert.equal(manifest.start_url, "/home");
+  assert.equal(manifest.start_url, "/chat");
   assert.equal(manifest.scope, "/");
   assert.ok(manifest.icons?.length);
   for (const icon of manifest.icons ?? []) assert.ok(fs.statSync(path.join(root, icon.src.replace(/^\//, ""))).size > 0, icon.src);

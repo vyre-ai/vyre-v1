@@ -1,6 +1,9 @@
 // Props for ui/Avatar: the one face for a person, an agent, the assistant, an automation or a group, at any size.
 // People get a marble seeded by their name until they add a photo; agents get a DiceBear Notionists face seeded by their name; a Space gets a letter on a tint; the assistant is the Vyre mark.
 
+/** What a face says by itself. */
+export type FaceState = "working" | "waiting" | "done" | "idle";
+
 export type AvatarKind = "person" | "agent" | "assistant" | "automation" | "group" | "space";
 
 export interface AvatarProps {
@@ -17,5 +20,7 @@ export interface AvatarProps {
   running?: boolean;
   /** A small green dot at the bottom left: this person is here. */
   present?: boolean;
+  /** One state language on every face: a moving ring (iris into coral) while it works, an amber ring while it waits on someone, a green dot when it finished, dimmed when it sleeps. */
+  state?: FaceState | undefined;
   testID?: string;
 }

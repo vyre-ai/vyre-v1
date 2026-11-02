@@ -71,7 +71,7 @@ test("Continue here asks the continue capability for the assistant in this Space
 });
 
 test("the sidebar lists the Imported group after Chats only when there are sessions, and folds it when asked", () => {
-  const base = { needs: [], needsTotal: 0, faces: [], workingAgents: new Set<string>(), groups: [], channels: [], filter: "all" as const, closed: new Set<never>() };
+  const base = { personal: true, faces: [], workingAgents: new Set<string>(), groups: [], channels: [], filter: "all" as const, closed: new Set<never>() };
   const none = buildEntries(base);
   assert.equal(none.some((e) => e.key === "h:imported"), false);
   const imported = importedRows([{ conversationId: "isc_a", provider: "codex", title: "A", startedAt: 1 }, { conversationId: "isc_b", provider: "claude_code", title: "B", startedAt: 2 }]);

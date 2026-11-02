@@ -13,8 +13,21 @@ type RecentOut = CapMap["chat.recent"]["out"];
 export type Route =
   /** `focus`: a message to open on and mark (a link from memory `...&m=<messageId>`, a search result or the link a fork starts with). */
   | { view: "chat"; threadId: string | null; focus?: string }
+  /** The first screen: a new chat, with what needs you and what is running under the composer. */
+  | { view: "new" }
+  /** Tasks and one task's page: the routes the Tasks lane fills. */
+  | { view: "tasks" }
+  | { view: "task"; taskId: string }
+  /** The threads you are in. */
+  | { view: "threads" }
+  /** One page to make an agent (null) or change one. */
+  | { view: "agent-form"; agentId: string | null }
   | { view: "search"; q: string; from: string | null }
   | { view: "needs"; taskId: string | null }
+  /** Tasks: the list. */
+  | { view: "tasks" }
+  /** One task's page, in its own tab. */
+  | { view: "task"; taskId: string }
   | { view: "agent"; agentId: string; tab: TabKey | null }
   | { view: "helper"; threadId: string }
   /** An imported coding session: its saved transcript, read-only, with Continue here. */
@@ -38,11 +51,16 @@ export interface Shown {
   layer: Layer | null;
 }
 
-export const START: Shown = { route: { view: "chat", threadId: null }, pane: false, terminalId: null, layer: null };
+export const START: Shown = { route: { view: "new" }, pane: false, terminalId: null, layer: null };
 
 export type Act =
   /** `pane` opens the agent's pane beside the chat (a click on an agent). */
   | { t: "chat"; threadId: string; pane?: boolean; focus?: string }
+  | { t: "new" }
+  | { t: "tasks" }
+  | { t: "task"; taskId: string }
+  | { t: "threads" }
+  | { t: "agent-form"; agentId?: string }
   /** Search every chat. `q` starts the box with those words. */
   | { t: "search"; q?: string }
   | { t: "search-close" }
@@ -50,6 +68,8 @@ export type Act =
   | { t: "imported"; conversationId: string }
   | { t: "ask"; agentId: string; scopeType: string; scopeId: string; bringFrom?: string; draft?: string; first?: string }
   | { t: "needs"; taskId?: string }
+  | { t: "tasks" }
+  | { t: "task"; taskId: string }
   | { t: "agent"; agentId: string; tab?: TabKey }
   | { t: "pane" }
   /** Opens the agent's pane whatever it showed (the message menu's "Show what the agent knew here"). */
@@ -61,13 +81,20 @@ export type Act =
 
 export function step(s: Shown, a: Act): Shown {
   switch (a.t) {
-    case "chat": return a.threadId.startsWith(LOCAL_PREFIX) ? s : { ...s, route: { view: "chat", threadId: a.threadId === "" ? null : a.threadId, ...(a.focus ? { focus: a.focus } : {}) }, ...(a.pane ? { pane: true, terminalId: null } : {}), layer: null };
+    case "chat": return a.threadId.startsWith(LOCAL_PREFIX) ? s : { ...s, route: a.threadId === "" ? { view: "new" } : { view: "chat", threadId: a.threadId, ...(a.focus ? { focus: a.focus } : {}) }, ...(a.pane ? { pane: true, terminalId: null } : {}), layer: null };
+    case "new": return { ...s, route: { view: "new" }, layer: null };
+    case "tasks": return { ...s, route: { view: "tasks" }, layer: null };
+    case "task": return { ...s, route: { view: "task", taskId: a.taskId }, layer: null };
+    case "threads": return { ...s, route: { view: "threads" }, layer: null };
+    case "agent-form": return { ...s, route: { view: "agent-form", agentId: a.agentId ?? null }, layer: null };
     case "search": return { ...s, route: { view: "search", q: a.q ?? "", from: s.route.view === "chat" ? s.route.threadId : s.route.view === "search" ? s.route.from : null }, layer: null };
-    case "search-close": return { ...s, route: { view: "chat", threadId: s.route.view === "search" ? s.route.from : null }, layer: null };
+    case "search-close": { const from = s.route.view === "search" ? s.route.from : null; return { ...s, route: from === null ? { view: "new" } : { view: "chat", threadId: from }, layer: null }; }
     case "helper": return { ...s, route: { view: "helper", threadId: a.threadId }, layer: null };
     case "imported": return { ...s, route: { view: "imported", conversationId: a.conversationId }, layer: null };
     case "ask": return { ...s, route: { view: "ask", agentId: a.agentId, scopeType: a.scopeType, scopeId: a.scopeId, bringFrom: a.bringFrom ?? null, ...(a.draft ? { draft: a.draft } : {}), ...(a.first ? { first: a.first } : {}) }, layer: null };
     case "needs": return { ...s, route: { view: "needs", taskId: a.taskId ?? null }, layer: null };
+    case "tasks": return { ...s, route: { view: "tasks" }, pane: false, terminalId: null, layer: null };
+    case "task": return { ...s, route: { view: "task", taskId: a.taskId }, pane: false, terminalId: null, layer: null };
     case "agent": return { ...s, route: { view: "agent", agentId: a.agentId, tab: a.tab ?? null }, layer: null };
     // One column on the right: the agent's pane or the terminal. The pane button closes whichever is showing, or opens the pane.
     case "pane": return s.terminalId !== null ? { ...s, terminalId: null } : { ...s, pane: !s.pane };
@@ -94,6 +121,10 @@ export const SCREEN = {
   agent: "chats.agent-page",
   helper: "chats.helper-chat",
   needs: "tasks.needs-you",
+  tasks: "tasks.my-work",
+  task: "tasks.page",
+  threads: "chats.threads",
+  agentForm: "chats.agent-form",
   conversation: "chats.conversation",
   ask: "chats.ask",
   computer: "chats.computer-popup",
@@ -121,13 +152,23 @@ export function askAbout(v: string): { type: string; id: string } | null {
   return m ? { type: m[1]!, id: m[2]! } : null;
 }
 
+export const TASKS_HASH = "screen=tasks.my-work";
+
 /** The first `Shown` for a link from another place, or the start when the link is not for this place. */
 export function fromHash(hash: string): Shown {
+  // the route of Tasks: the Chats sidebar links here, and tabKey keeps it one tab of its own
+  if (hash === TASKS_HASH || hash === "tasks") return step(START, { t: "tasks" });
   const p = new URLSearchParams(hash.replace(/^#/, ""));
   const screen = p.get("screen") ?? "";
   const arg = (k: string): string => p.get(k) ?? "";
   const fixed = { x: 8, y: 48 };
+  const subject = /^(thread|chat|channel|task):(.+)$/.exec(arg("subject"));
+  if (subject) return subject[1] === "task" ? step(START, { t: "task", taskId: subject[2]! }) : step(START, { t: "chat", threadId: subject[2]! });
   switch (screen) {
+    case SCREEN.tasks: return step(START, { t: "tasks" });
+    case SCREEN.task: return arg("taskId") === "" ? step(START, { t: "tasks" }) : step(START, { t: "task", taskId: arg("taskId") });
+    case SCREEN.threads: return step(START, { t: "threads" });
+    case SCREEN.agentForm: return step(START, { t: "agent-form", ...(arg("agentId") === "" ? {} : { agentId: arg("agentId") }) });
     case SCREEN.agent: { const tab = arg("tab"); return arg("agentId") === "" ? START : step(START, { t: "agent", agentId: arg("agentId"), ...(isTabKey(tab) ? { tab } : {}) }); }
     case SCREEN.helper: return arg("threadId") === "" ? START : step(START, { t: "helper", threadId: arg("threadId") });
     case SCREEN.needs: return step(START, { t: "needs", ...(arg("taskId") === "" ? {} : { taskId: arg("taskId") }) });

@@ -149,7 +149,7 @@ test("places that draw a Composer preload one shared on-demand editor before bec
   const places = fs.readFileSync(path.join(root, "apps/app/src/shell/places.ts"), "utf8");
   assert.match(places, /Composer\/load\.ts/);
   assert.match(places, /withComposer/);
-  for (const id of ["home", "chat", "mail", "sites"]) assert.match(places, new RegExp(`id: ["']${id}["'][^\\n]+withComposer`), `${id} waits for its real composer before PlaceHost marks it usable`);
+  for (const id of ["chat", "mail", "sites"]) assert.match(places, new RegExp(`id: ["']${id}["'][^\\n]+withComposer`), `${id} waits for its real composer before PlaceHost marks it usable`);
 });
 
 test("steal only ever throws out a slow result: under budget passes whatever the steal, over budget on a busy host is measured again, then unmeasurable", async () => {

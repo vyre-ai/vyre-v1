@@ -15,6 +15,7 @@ import { harness } from "../modules/sites/fixtures/world.ts";
 import { configureDomainEdge, configureRoutes, routeBySlug } from "../modules/sites/handlers/route.ts";
 import { handlers } from "../modules/sites/impl.ts";
 
+// Real Docker and a real Caddy: the images-docker job sets VYRE_HEAVY_DOCKER=1. Anywhere else it is skipped by name, and a skip proves nothing.
 const h = handlers as unknown as Record<string, (ctx: unknown, input: unknown) => Promise<any>>;
 const ID = `${process.pid}a`;
 const COMPUTER = `cmt_${ID}`;
@@ -26,8 +27,8 @@ const HOST = "shop.site-golden.test";
 const docker = (...a: string[]) => spawnSync("docker", a, { encoding: "utf8" });
 const APP_JS = `require("http").createServer((q,s)=>{s.setHeader("content-type","text/plain");s.setHeader("set-cookie","x=1");s.end("hello from the agent's app at "+q.url+" prefix "+(q.headers["x-forwarded-prefix"]||"none")+" cookie "+(q.headers.cookie||"none")+"\\n")}).listen(3000,"0.0.0.0")`;
 
-test("an agent's Node app gets a public address: HTTPS through Caddy on a test hostname, and /p/<slug> through the daemon", async (t) => {
-  const ran = docker("run", "-d", "--rm", "--name", APP, "--network", "bridge", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "node:24-bookworm-slim", "node", "-e", APP_JS);
+test("an agent's Node app gets a public address: HTTPS through Caddy on a test hostname, and /p/<slug> through the daemon", { skip: process.env["VYRE_HEAVY_DOCKER"] === "1" ? false : "needs Docker: runs in the images-docker job, with VYRE_HEAVY_DOCKER=1" }, async (t) => {
+  const ran = docker("run", "-d", "--rm", "--name", APP, "--network", "bridge", "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "node:24-alpine", "node", "-e", APP_JS);
   assert.equal(ran.status, 0, ran.stderr);
   const conf = `/tmp/${CADDY}.json`;
   fs.writeFileSync(conf, JSON.stringify({ admin: { listen: `127.0.0.1:${ADMIN}` } }));

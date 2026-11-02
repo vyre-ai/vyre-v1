@@ -11,6 +11,7 @@ import {createOwnerArchives} from './owner-archives.ts';
 import fs from "node:fs";
 import { formUploadAllowed } from "./forms-authority.ts";
 import { createOwnedExports } from "./owned-exports.ts";
+import { createUnsubscribeRoute } from "../routes/unsubscribe.ts";
 import type http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -402,6 +403,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let portalLinkRoute: ReturnType<typeof createPortalLinkRoute> | null = null;
   let shareRoute: ReturnType<typeof createShareRoute> | null = null;
   let formsPageRoute: ReturnType<typeof createFormsPageRoute> | null = null;
+  // /u/<token>: a person with no account leaving a campaign. Set once the pipeline is up; until then the route says it could not, and the person is still subscribed
+  let leaveCampaign: (token: string) => Promise<boolean> = () => Promise.reject(new Error("the server is starting"));
+  const unsubscribeRoute = createUnsubscribeRoute({ unsubscribe: (token) => leaveCampaign(token) });
   // every public link starts here: the address this Space was given, else the phone name it holds at the relay
   const publicOrigin = (): { origin: string; relay: boolean } | null => {
     let claimed: { name?: string; state?: string } | undefined;
@@ -412,7 +416,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let sitesServing: Partial<PublicPathDeps> = {};
   let refreshDomains: () => Promise<void> = () => Promise.resolve();
   const publicPath = createPublicPathRoute({
-    forms: () => formsPageRoute, origin: () => publicOrigin()?.origin ?? null,
+    forms: () => formsPageRoute, unsubscribe: () => unsubscribeRoute, share: () => shareRoute, origin: () => publicOrigin()?.origin ?? null,
     site: (slug) => sitesServing.site?.(slug) ?? null, artifact: (id, token) => sitesServing.artifact?.(id, token) ?? Promise.resolve(null),
     fetch: (t, r, sink) => sitesServing.fetch ? sitesServing.fetch(t, r, sink) : Promise.resolve(sink.fail("Not available.")), file: (f, rel) => sitesServing.file?.(f, rel) ?? Promise.resolve(null),
   });
@@ -1142,7 +1146,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setSchemaVault: () => sealedVault(),
         setPushPort: () => createPushPort(o.seams?.push),
         // portal invitations and sign-in links go out through mail.send from the service mailbox (P-L8_17)
-        configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: d.publicUrl, owner: () => access.owner() ?? cfg.owner ?? null, warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "portal", attrs }) }),
+        configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: o.seams?.publicUrl ? d.publicUrl : async () => {
+          // a portal link has to reach someone outside and keeps a sign-in, so it needs an address of the Space's own: not loopback, and not /p/, which carries no session
+          const outside = publicOrigin();
+          if (!outside) throw new Error("This Space has no public address yet, so a portal link cannot point at it.");
+          if (outside.relay && !cfg.address) throw new Error("A portal sign-in link needs the Space's own domain. A vyre.run address carries public pages, not sign-ins.");
+          return outside.origin;
+        }, owner: () => access.owner() ?? cfg.owner ?? null, warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "portal", attrs }) }),
         // the updates module: the compiled-in release key, the GitHub Releases feed and the vyre-server installer (P-L7b_17)
         configureUpdates: () => createUpdatesHost(),
         // A Kit is a resource in the access projection (type "kit") so that the capabilities on it can be authorized. The module cannot create resources, so the host does: one
@@ -1180,7 +1190,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         } }),
         // memory's meaning search: a small embedding model on this server, fetched into the data folder the first time it is used and checked against pinned hashes
         setMemoryMeaningHost: () => ({ files: createModelFiles({ root: process.env["VYRE_MODEL_CACHE"] ?? paths.root }), now, log: (msg: string, attrs?: Record<string, unknown>) => sink.log({ space: spaceId, level: 30, msg, place: "memory-meaning", ...(attrs ? { attrs } : {}) }) }),
-        setCampaignsHost: () => ({ get publicBase() { return publicOrigin()?.origin; } }),
+        setCampaignsHost: () => ({ get publicBase() { return publicOrigin()?.origin; }, get publicPath() { return publicOrigin()?.relay; } }),
         // backups: the Space's own files, the owner from the access layer (P-SEC_07: without owner() every export refuses), exports into the blob store, S3 over the seam fetch with keys from the Vault
         setBackupHost: (d) => createBackupHost({
           root: paths.root, space: spaceId, log: spaceLog, owner: () => access.owner() ?? cfg.owner ?? null, system, vault: d.vault, fetch: d.fetch,
@@ -1307,6 +1317,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         configureSpaceAdmin: () => createSpaceAdmin({ access: () => access.snap, owner: () => access.owner() ?? cfg.owner ?? "usr_owner", space: spaceId, db: db!, system, headSeq: () => headSeq,
           address: () => {
             const value = db!.all("SELECT mode, address FROM network_config WHERE id = 1")[0] as {mode?:string;address?:string}|undefined;
+            // a relay Space's own row holds this computer's loopback address: what people outside reach, an invite above all, is its phone name
+            const outside = publicOrigin();
+            if (outside?.relay && value?.mode === "relay") return { mode: "relay", host: new URL(outside.origin).host };
             if(!value?.address)return undefined;
             try{const url=new URL(value.address.includes('://')?value.address:`https://${value.address}`);if(!['http:','https:'].includes(url.protocol)||url.username||url.password)return undefined;return{mode:value.mode==='relay'?'relay':'own_domain',host:url.host};}catch{return undefined;}
           },
@@ -1534,6 +1547,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           trace: { traceId: "0".repeat(32), spanId: "0".repeat(16) }, log: { debug() {}, info() {}, warn() {}, error() {} },
         });
         if (viewOf) {
+          // the visitor has no session to authorize and the token is all they hold, so the host runs this as itself
+          leaveCampaign = async (token) => {
+            const r = await invoke("campaigns.unsubscribe", { token }, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook" }).catch((e: unknown) => {
+              if ((e as { error?: { code?: string } }).error?.code === "auth.invalid_code") return null;
+              throw e;
+            });
+            if (r === null) return false;
+            if (r.status !== "ok") throw new Error("the unsubscribe did not finish");
+            return true;
+          };
           formsPageRoute = createFormsPageRoute({
             // a visitor has no session, so the pipeline could not authorize them: the host runs the three public capabilities as itself and the module is told which visitor (forms.visitorOf)
             call: (cap, input, _caller, trace) => invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...(trace ? { trace } : {}) }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)))),
@@ -1737,7 +1760,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         res.once("finish", () => { setImmediate(requestStop); });
         return;
       }
-      if (publicPath.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
+      if (publicPath.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {

@@ -35,7 +35,7 @@ function ensureRowCss(): void {
 }
 ensureRowCss();
 
-const ROW_S = { display: "flex", flexDirection: "row", alignItems: "center", flexShrink: 0, position: "relative", boxSizing: "border-box", width: "100%", padding: "0 8px", borderRadius: 6 } as const;
+const ROW_S = { display: "flex", flexDirection: "row", alignItems: "center", flexShrink: 0, position: "relative", boxSizing: "border-box", width: "100%", padding: "0 8px", borderRadius: 11 } as const;
 const LEAD_S = { flex: "none", display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "center" } as const;
 const TRAIL_S = { flex: "none", display: "flex", flexDirection: "row", alignItems: "center", marginLeft: 8 } as const;
 const TEXT_S = { flex: "1 1 0%", minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center" } as const;
@@ -127,7 +127,7 @@ const BOLD = { fontWeight: "600" as const };
 const SELECTED = { backgroundColor: "var(--sel)" };
 
 const styles = StyleSheet.create({
-  row: { width: "100%", flexDirection: "row", alignItems: "center", paddingHorizontal: 8, borderRadius: 6 },
+  row: { width: "100%", flexDirection: "row", alignItems: "center", paddingHorizontal: 8, borderRadius: 11 },
   leading: { flexShrink: 0, flexDirection: "row", alignItems: "center", justifyContent: "center" },
   trailing: { flexShrink: 0, flexDirection: "row", alignItems: "center", marginLeft: 8 },
   text: { flex: 1, minWidth: 0, justifyContent: "center" },

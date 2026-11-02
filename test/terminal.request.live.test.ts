@@ -91,7 +91,7 @@ test("terminal live: an agent asks the person to run a command, the card carries
   } finally { await d.stop(); bindHost(null); }
 });
 
-test("terminal live: a local tool follows the person's own mode: Ask holds `ls`, Auto runs it, a red command and a delete outside work/ are still held, a path out of the folder is refused", async () => {
+test("terminal live: a local tool follows the chat's mode: Ask first holds `ls`, Auto runs it, a red command and a delete outside work/ are still held, a path out of the folder is refused", async () => {
   const fake = fakeHost();
   bindHost(fake.host);
   const d = await boot(seededDir());
@@ -99,7 +99,7 @@ test("terminal live: a local tool follows the person's own mode: Ask holds `ls`,
     await connect(d);
     const agent = await newAgent(d, "Keeper");
     const threadId = (await ok(d, "chat.start", { kind: "chat", agentIds: [agent.id] })).thread.threadId as string;
-    await ok(d, "threads.set_mode", { threadId, mode: "auto" });
+    await ok(d, "threads.set_mode", { threadId, mode: "ask" });
     const terminalId = (await ok(d, "terminal.open", { host: "agent_computer", agentId: agent.id })).terminal.terminalId as string;
     let n = 0;
     const run = (command: string, extra: Record<string, unknown> = {}): Promise<unknown> => ok(d, "chat.post", { threadId, body: `TOOL terminal_run ${JSON.stringify({ terminalId, command, idempotencyKey: `tr-run-${++n}`, ...extra })}`, mentions: [{ kind: "agent", id: agent.id }] });
@@ -113,14 +113,14 @@ test("terminal live: a local tool follows the person's own mode: Ask holds `ls`,
       return (await messages(d, threadId)).find((m) => m.author?.kind === "agent" && re.test(m.body ?? ""))?.body ?? null;
     });
 
-    // the default is Ask: even a read-only command waits for a yes, held for the person to answer in the chat
+    // Ask first: even a read-only command waits for a yes, held for the person to answer in the chat
     await run("ls -la");
     const first = await holdFor(1);
     assert.equal(first[0]!.act, "approve");
     assert.ok(!fake.typed.some((t) => /ls -la/.test(t)));
 
-    // Auto, chosen by the person: ls runs at once
-    await ok(d, "settings.set", { key: "security.terminal_mode", value: { base: "auto", spaces: {} } });
+    // the chat goes to Auto: its mode is the one dial, read at act time, so ls runs at once with security.terminal_mode left at Ask
+    await ok(d, "threads.set_mode", { threadId, mode: "auto" });
     await run("ls /work");
     assert.match(await said(/ran: ls \/work/), /TOOL RESULT ok/);
 

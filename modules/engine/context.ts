@@ -189,6 +189,28 @@ export function createContextBuilder(d: ContextDeps) {
     });
   }
 
+  /** What the agent always knows: the text of the files in its `context` folder, beside memory, work and skills. Its instructions stay in AGENT.md. */
+  async function agentContext(agent: Obj, asker: string): Promise<string | undefined> {
+    const folder = str(agent["folderId"]);
+    if (!folder) return undefined;
+    return kept<string>(`ctx:${asker}:${folder}`, async () => {
+      const ls = await read<Obj>("files.list", { section: "space", folder, limit: 50 }, asker);
+      const ctx = arr(ls?.["folders"]).find((x) => str(x["name"]) === "context");
+      const id = str(ctx?.["folderId"]) ?? str(ctx?.["id"]);
+      if (!id) return undefined;
+      const inside = await read<Obj>("files.list", { section: "space", folder: id, limit: 20 }, asker);
+      const parts: string[] = [];
+      for (const f of arr(inside?.["files"]).slice(0, 12)) {
+        const fileId = str(f["fileId"]) ?? str(f["id"]);
+        if (!fileId) continue;
+        const body = await read<Obj>("files.read", { fileId, as: "text", length: 4_000 }, asker);
+        const text = str(body?.["text"]);
+        if (text) parts.push(`${str(f["name"]) ?? "file"}:\n${text}`);
+      }
+      return parts.length > 0 ? parts.join("\n\n") : undefined;
+    });
+  }
+
   async function scopeLine(scopeType: string | undefined, scopeId: string | undefined, asker: string): Promise<string | undefined> {
     if (!scopeType || !scopeId) return undefined;
     const title = await scopeTitle(scopeType, scopeId, asker);
@@ -311,8 +333,9 @@ export function createContextBuilder(d: ContextDeps) {
     const name = str(agent?.["name"]) ?? input.agent.name ?? agentId;
     const role = str(agent?.["role"]) ?? input.agent.role;
     const md = agent ? await agentMd(agent, asker) : undefined;
+    const always = agent ? await agentContext(agent, asker) : undefined;
     // every driver gets this context, so this line reaches Claude, Codex and Grok alike
-    add("identity", true, `You are ${name} (agentId ${agentId}), an agent in Vyre.${role ? ` ${role}` : ""}\nTo show the person anything you made, use artifact_publish: it stays private and opens in a tab. Never leave it as a loose file or send them to localhost.${md ? `\n\nYour AGENT.md:\n${cutTo(md, 6_000)}` : ""}`);
+    add("identity", true, `You are ${name} (agentId ${agentId}), an agent in Vyre.${role ? ` ${role}` : ""}\nTo show the person anything you made, use artifact_publish: it stays private and opens in a tab. Never leave it as a loose file or send them to localhost.${md ? `\n\nYour AGENT.md:\n${cutTo(md, 6_000)}` : ""}${always ? `\n\nWhat you always know (your context folder):\n${cutTo(always, 8_000)}` : ""}`);
     add("rules", true, "You work for the person who asked; their access limits yours. Search Vyre memory before you ask them anything. A secret is used by Vault handle (vault_use), never by value. Anything that leaves the Space goes through the Gate and may come back held: say what is waiting and for whom. Say what you did and what you did not do. " + NAMING);
 
     // where
@@ -323,7 +346,7 @@ export function createContextBuilder(d: ContextDeps) {
     const spaceRow = space?.["space"] as Obj | undefined;
     // the tasks in hand; a crew job or helper thread learns here which task it is doing
     const digest = await read<Obj>("tasks.digest", { agentId, threadId: input.threadId }, asker);
-    const taskId = (str(th?.["scopeType"]) === "task" ? str(th?.["scopeId"]) : undefined) ?? str(digest?.["workerTaskId"]);
+    const taskId = (str(th?.["scopeType"]) === "task" ? str(th?.["scopeId"]) : undefined) ?? str(digest?.["boundTaskId"]);
     if (str(spaceRow?.["name"])) where.push(`Space: ${str(spaceRow?.["name"])}${str(spaceRow?.["kind"]) ? ` (${str(spaceRow?.["kind"])})` : ""}.`);
     const kind = str(th?.["kind"]) ?? "chat";
     const scope = await scopeLine(str(th?.["scopeType"]), str(th?.["scopeId"]), asker);

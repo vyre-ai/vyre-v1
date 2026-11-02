@@ -12,7 +12,7 @@ import { ConsoleShell, skinMenuEntries, SYSTEM_SKIN } from "../shell/ConsoleShel
 import type { ConsoleShellProps } from "../shell/ConsoleShell.tsx";
 import { ConsoleDataProvider } from "../shell/data.tsx";
 import { ago, actionPhrase, activityTitle, money } from "../shell/format.ts";
-import { GROUPS, PAGES, visiblePages } from "../shell/nav.ts";
+import { GROUPS, PAGES, PAGE_NOTE, pageById, visiblePages } from "../shell/nav.ts";
 import { AUDIT, NAMES, SAMPLE_NOW, createSampleConsole } from "../shell/sample.ts";
 import type { SampleConsole } from "../shell/sample.ts";
 
@@ -33,16 +33,15 @@ test("the top bar: Space mark and name, Console, health dot, Search, Assistant, 
   assert.ok(has(html(createSampleConsole(), { assistantOpen: true }), 'data-testid="console-assistant"'));
 });
 
-test("the navigation has the seven groups, Overview first, Audit log and Space last; Access is open and the others are folded", () => {
+test("the navigation: Overview first, the Space defaults open, then the groups, Audit log and Space last", () => {
   const out = html(createSampleConsole());
-  assert.deepEqual([...GROUPS], ["Access", "Agents and actors", "Data", "AI", "Comms", "Integrations", "Infrastructure"]);
+  assert.deepEqual([...GROUPS], ["Space defaults", "Access", "Agents and actors", "Data", "AI", "Comms", "Integrations", "Infrastructure"]);
   for (const g of GROUPS) assert.ok(has(out, `data-testid="navgroup-${g}"`), g);
   const at = (id: string): number => { const i = out.indexOf(`data-testid="${id}"`); assert.ok(i >= 0, id); return i; };
-  assert.ok(at("row-nav-overview") < at("navgroup-Access") && at("navgroup-Access") < at("row-nav-people") && at("row-nav-people") < at("navgroup-Agents and actors"));
+  assert.ok(at("row-nav-overview") < at("navgroup-Space defaults") && at("navgroup-Space defaults") < at("row-nav-def-agents") && at("row-nav-def-agents") < at("navgroup-Access"));
   assert.ok(at("navgroup-Infrastructure") < at("row-nav-audit") && at("row-nav-audit") < at("row-nav-space"));
-  assert.ok(has(out, 'data-testid="row-nav-sessions"'), "Access holds Sessions and devices");
-  assert.ok(!has(out, 'data-testid="row-nav-schema"'), "Data is folded");
-  assert.ok(has(tag(out, "navgroup-Access"), 'aria-expanded="true"') && has(tag(out, "navgroup-Data"), 'aria-expanded="false"'));
+  assert.ok(!has(out, 'data-testid="row-nav-sessions"') && !has(out, 'data-testid="row-nav-schema"'), "the rest are folded");
+  assert.ok(has(tag(out, "navgroup-Space defaults"), 'aria-expanded="true"') && has(tag(out, "navgroup-Data"), 'aria-expanded="false"'));
   assert.match(tag(out, "row-nav-overview"), /var\(--sel\)/);
   assert.doesNotMatch(tag(out, "row-nav-people"), /var\(--sel\)/);
   const data = html(createSampleConsole(), { initialPage: "schema" });
@@ -193,9 +192,25 @@ test("the skin menu lists System, then Dark and Light skins, and checks the open
   const picked: string[] = [];
   const entries = skinMenuEntries("graphite", (id) => picked.push(id));
   const items = entries.filter((e): e is { label: string; checked?: boolean; onSelect?: () => void } => "label" in e);
-  assert.equal(items[0]!.label, "System");
+  assert.equal(items[0]!.label, "Vyre");
   assert.deepEqual(items.filter((i) => i.checked).map((i) => i.label), ["Graphite"]);
   assert.ok(entries.some((e) => "head" in e && e.head === "Dark") && entries.some((e) => "head" in e && e.head === "Light"));
   items[0]!.onSelect?.();
   assert.deepEqual(picked, [SYSTEM_SKIN]);
 });
+
+test("inside the app the Console has no second bar: no skin, no Open the app, and the page still says what it is and how the server is", () => {
+  const out = html(createSampleConsole(), { embedded: true });
+  for (const id of ["console-top", "console-skin", "console-open-app", "console-search"]) assert.ok(!has(out, `data-testid="${id}"`), id);
+  assert.ok(has(out, 'data-testid="console-nav"') && has(out, 'data-testid="console-health"') && has(out, 'data-testid="page-help"'));
+});
+
+test("at its own address there is no app to open", () => {
+  assert.ok(!has(html(createSampleConsole(), { noApp: true }), 'data-testid="console-open-app"'));
+});
+
+test("every Console page says what it is for, and no two pages draw the same thing", () => {
+  for (const p of PAGES) assert.ok(PAGE_NOTE[p.id], p.id);
+  assert.equal(pageById("export"), undefined, "Export lives on Backups");
+});
+
