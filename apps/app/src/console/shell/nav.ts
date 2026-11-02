@@ -126,6 +126,7 @@ export const PAGE_NOTE: Readonly<Record<string, string>> = {
   labels: "What each label protects",
   microsoft: "One connection for everyone",
   models: "Which AI this Space allows",
+  voice: "One key so everyone here can talk",
   network: "Addresses and certificates",
   numbers: "Phone numbers",
   overview: "Checks, recent admin changes, last backup",
