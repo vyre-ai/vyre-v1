@@ -199,15 +199,20 @@ test("only an assistant message carries tool calls", async () => {
   await assert.rejects(sessionsImport(h.ctx, bad), (e: unknown) => /tool calls/.test(JSON.stringify(e)));
 });
 
+type Archive = { conversationId: string; title: string; archived?: boolean };
+const firstId = async (ctx: Parameters<typeof sessionsImport>[0], p: unknown): Promise<string> => ((await sessionsImport(ctx, p as never)) as { sessions: Array<{ conversationId: string }> }).sessions[0]!.conversationId;
+const listed = async (ctx: Parameters<typeof sessionsList>[0]): Promise<Archive[]> => ((await sessionsList(ctx, {})) as { sessions: Archive[] }).sessions;
+const got = async (ctx: Parameters<typeof sessionsGet>[0], conversationId: string) => (await sessionsGet(ctx, { conversationId })) as { session: Archive; messages: unknown[] };
+
 test("sessions.rename changes only the title shown: the transcript and the source title stay, the source title back clears it, and a later import keeps it", async () => {
   const h = harness();
-  const conversationId = (await sessionsImport(h.ctx, payload)).sessions[0].conversationId;
+  const conversationId = await firstId(h.ctx, payload);
   const before = JSON.stringify(h.rows("SELECT * FROM import_message ORDER BY sourceMessageId"));
   h.clear();
   const out = await sessionsRename(h.ctx, { conversationId, title: "  Release\n notes " }) as { session: { title: string } };
   assert.equal(out.session.title, "Release notes", "spaces and line breaks fold");
-  assert.equal((await sessionsList(h.ctx, {})).sessions[0].title, "Release notes");
-  assert.equal((await sessionsGet(h.ctx, { conversationId })).session.title, "Release notes");
+  assert.equal((await listed(h.ctx))[0]!.title, "Release notes");
+  assert.equal((await got(h.ctx, conversationId)).session.title, "Release notes");
   assert.deepEqual(h.rows("SELECT title, shownTitle, immutable FROM import_conversation"), [{ title: "Release work", shownTitle: "Release notes", immutable: 1 }], "the source title is kept");
   assert.equal(JSON.stringify(h.rows("SELECT * FROM import_message ORDER BY sourceMessageId")), before, "the transcript is untouched");
   assert.deepEqual(h.names(), ["sessions.renamed"]);
@@ -215,7 +220,7 @@ test("sessions.rename changes only the title shown: the transcript and the sourc
   await sessionsRename(h.ctx, { conversationId, title: "Release notes" });
   assert.equal(h.names().length, 1, "the same title again changes nothing");
   await sessionsImport(h.ctx, { ...payload, sessions: [{ ...payload.sessions[0]!, title: "Renamed at the source" }] });
-  assert.equal((await sessionsList(h.ctx, {})).sessions[0].title, "Release notes", "a later import never overwrites the name the owner gave");
+  assert.equal((await listed(h.ctx))[0]!.title, "Release notes", "a later import never overwrites the name the owner gave");
   await sessionsRename(h.ctx, { conversationId, title: "Release work" });
   assert.deepEqual(h.rows("SELECT shownTitle FROM import_conversation"), [{ shownTitle: null }], "the source title back clears the owner's own");
   await assert.rejects(sessionsRename(h.ctx, { conversationId, title: " " }), (e) => codeOf(e) === "validation.bad_input");
@@ -225,15 +230,15 @@ test("sessions.rename changes only the title shown: the transcript and the sourc
 
 test("sessions.archive moves a session to the Archived list and back; asking for the state it is in changes nothing", async () => {
   const h = harness();
-  const conversationId = (await sessionsImport(h.ctx, payload)).sessions[0].conversationId;
+  const conversationId = await firstId(h.ctx, payload);
   h.clear();
   assert.deepEqual(await sessionsArchive(h.ctx, { conversationId }), { archived: true });
-  assert.equal((await sessionsList(h.ctx, {})).sessions[0].archived, true, "still listed, marked archived");
-  assert.equal((await sessionsGet(h.ctx, { conversationId })).messages.length, 2, "the transcript still opens");
+  assert.equal((await listed(h.ctx))[0]!.archived, true, "still listed, marked archived");
+  assert.equal((await got(h.ctx, conversationId)).messages.length, 2, "the transcript still opens");
   assert.deepEqual(await sessionsArchive(h.ctx, { conversationId }), { archived: true });
   assert.deepEqual(h.names(), ["sessions.archived"], "archiving twice is one change");
   assert.deepEqual(await sessionsArchive(h.ctx, { conversationId, unarchive: true }), { archived: false });
-  assert.equal("archived" in (await sessionsList(h.ctx, {})).sessions[0], false, "back in the list");
+  assert.equal("archived" in (await listed(h.ctx))[0]!, false, "back in the list");
   assert.deepEqual(h.named("sessions.archived").map((e) => e.payload), [{ conversationId, archived: true }, { conversationId, archived: false }]);
   await assert.rejects(sessionsArchive(h.as({ kind: "person", id: "usr_maya" }), { conversationId }), (e) => codeOf(e) === "validation.not_found", "owner-only");
 });
@@ -241,10 +246,9 @@ test("sessions.archive moves a session to the Archived list and back; asking for
 test("sessions.delete removes the imported copy, keeps the continued chat, never touches the computer, and a later import does not bring it back", async () => {
   const h = harness();
   const withTool = { ...payload, sessions: [{ ...payload.sessions[0]!, messages: [...payload.sessions[0]!.messages, { sourceMessageId: "m3", role: "assistant" as const, text: "Ran it", at: 1_760_000_000_003, tools: [{ id: "t1", name: "Bash", summary: "Run npm test" }] }] }] };
-  const imported = await sessionsImport(h.ctx, withTool);
-  const conversationId = imported.sessions[0].conversationId;
+  const conversationId = await firstId(h.ctx, withTool);
   await sessionsImport(h.ctx, { ...withTool, sessions: [{ ...withTool.sessions[0]!, messages: [{ ...withTool.sessions[0]!.messages[0]!, text: "Changed outside Vyre" }] }] });
-  const continued = await sessionsContinue(h.ctx, { conversationId, destinationSpaceId: h.ctx.space, destinationScope: "personal", agentId: "agt_intake" });
+  const continued = await sessionsContinue(h.ctx, { conversationId, destinationSpaceId: h.ctx.space, destinationScope: "personal", agentId: "agt_intake" }) as { threadId: string };
   await sessionsRename(h.ctx, { conversationId, title: "Mine" });
   await sessionsArchive(h.ctx, { conversationId });
   await assert.rejects(sessionsDelete(h.as({ kind: "person", id: "usr_maya" }), { conversationId }), (e) => codeOf(e) === "validation.not_found", "owner-only");
@@ -256,7 +260,7 @@ test("sessions.delete removes the imported copy, keeps the continued chat, never
   assert.equal(h.rows("SELECT * FROM import_session_conflict").length, 0, "and the conflicts");
   assert.deepEqual(h.rows("SELECT title, shownTitle, continuedThreadId FROM import_conversation"), [{ title: null, shownTitle: null, continuedThreadId: continued.threadId }], "only a tombstone stays");
   assert.deepEqual(h.named("sessions.deleted").map((e) => e.payload), [{ conversationId }]);
-  assert.equal((await sessionsList(h.ctx, {})).sessions.length, 0);
+  assert.equal((await listed(h.ctx)).length, 0);
   await assert.rejects(sessionsGet(h.ctx, { conversationId }), (e) => codeOf(e) === "validation.not_found");
   await assert.rejects(sessionsContinue(h.ctx, { conversationId, destinationSpaceId: h.ctx.space, destinationScope: "personal", agentId: "agt_intake" }), (e) => codeOf(e) === "validation.not_found");
   await assert.rejects(sessionsRename(h.ctx, { conversationId, title: "Again" }), (e) => codeOf(e) === "validation.not_found");
@@ -266,8 +270,8 @@ test("sessions.delete removes the imported copy, keeps the continued chat, never
   const again = await sessionsImport(h.ctx, withTool);
   assert.deepEqual(again, { imported: 0, updated: 0, sessions: [] }, "a later import of the same source session skips it");
   assert.equal(h.rows("SELECT * FROM import_message").length, 0);
-  assert.equal((await sessionsList(h.ctx, {})).sessions.length, 0);
-  const other = await sessionsImport(h.ctx, { ...payload, sessions: [{ ...payload.sessions[0]!, sourceSessionId: "rollout-222" }] });
+  assert.equal((await listed(h.ctx)).length, 0);
+  const other = await sessionsImport(h.ctx, { ...payload, sessions: [{ ...payload.sessions[0]!, sourceSessionId: "rollout-222" }] }) as { imported: number };
   assert.equal(other.imported, 1, "other sessions of the same source still import");
 });
 

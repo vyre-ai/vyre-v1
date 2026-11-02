@@ -136,7 +136,10 @@ export interface SampleSidebar {
   startDelayMs: number;
 }
 
-export function createSampleSidebar(space: SampleSpace = northwind, o: { online?: boolean; startDelayMs?: number } = {}): SampleSidebar {
+/** An imported coding session as sessions.list answers it (the sample's own copy, so rename, archive and delete change it). */
+export interface SampleImported { conversationId: string; provider: "claude_code" | "codex"; title: string; startedAt: number; importedAt: number; continuedThreadId?: string; archived?: boolean }
+
+export function createSampleSidebar(space: SampleSpace = northwind, o: { online?: boolean; startDelayMs?: number; imported?: readonly SampleImported[] } = {}): SampleSidebar {
   const replica = createFakeReplica(space.id);
   const calls: { cap: string; input: unknown }[] = [];
   const opened: string[] = [];
@@ -201,6 +204,15 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     return { items: items.slice(0, input.limit ?? 50), total: Math.max(space.needsTotal, items.length) } as CapMap["tasks.needs_you"]["out"];
   });
 
+  // the imported sessions: listed, renamed, archived and deleted here, every input checked against the contract
+  let imported: SampleImported[] = (o.imported ?? []).map((x) => ({ ...x }));
+  const session = (id: string): SampleImported => {
+    const x = imported.find((r) => r.conversationId === id);
+    if (!x) throw Object.assign(new Error("That imported conversation does not exist."), { code: "validation.not_found" });
+    return x;
+  };
+  const archiveRow = (x: SampleImported) => ({ ...x, sourceKey: `${x.provider}:sample`, sourceSessionId: x.conversationId });
+
   const patch = (id: string, p: Partial<SampleThread>): void => {
     const cur = threads().find((x) => x.threadId === id);
     if (cur) replica.put("threads", [{ id, ...cur, ...p }]);
@@ -230,6 +242,10 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     "threads.restore": (i: { threadId: string }) => { patch(i.threadId, { deleted: false }); return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
     "threads.leave": (i: { threadId: string }) => { patch(i.threadId, { left: true }); return { ok: true }; },
     "tasks.act": (i: { taskId: string }) => { replica.remove("needs", [i.taskId]); return { task: {} }; },
+    "sessions.list": (i: unknown) => { refuse("sessions.list", i); return { sessions: imported.map(archiveRow) }; },
+    "sessions.rename": (i: { conversationId: string; title: string }) => { refuse("sessions.rename", i); const x = session(i.conversationId); x.title = i.title; return { session: archiveRow(x) }; },
+    "sessions.archive": (i: { conversationId: string; unarchive?: boolean }) => { refuse("sessions.archive", i); const x = session(i.conversationId); if (i.unarchive === true) delete x.archived; else x.archived = true; return { archived: i.unarchive !== true }; },
+    "sessions.delete": (i: { conversationId: string }) => { refuse("sessions.delete", i); session(i.conversationId); imported = imported.filter((r) => r.conversationId !== i.conversationId); return { deleted: true }; },
     "access.principals.list": () => ({
       principals: (space.people ?? []).map((p) => ({ id: p.id, kind: "person", name: p.name, status: "active", roles: [], groups: [], createdAt: at(10, 1, 9), ...(p.title ? { title: p.title } : {}) })),
     }),

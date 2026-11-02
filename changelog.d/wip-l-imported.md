@@ -1,0 +1,6 @@
+- The Chats list now highlights the page you are on. Moving to another chat by a tab, a link or Cmd-K moves the highlight with you, and a page with no row in the list highlights nothing.
+- Imported Claude Code and Codex sessions can be renamed, archived and deleted from their row's menu (right-click or the "..." on hover). Renaming changes only the name shown, never the transcript.
+- An archived imported session waits in the Archived section with your archived chats, and Unarchive puts it back.
+- Deleting an imported session removes Vyre's copy only. The original files on your computer stay, a chat you continued from it stays, and importing again does not bring it back.
+- An imported session you continued shows that chat's last day instead of the word Chat.
+- The title of an imported session's page is a button that renames it, as a chat's title is.

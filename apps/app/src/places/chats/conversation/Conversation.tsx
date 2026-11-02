@@ -43,7 +43,7 @@ import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
 import { useConnectVersion } from "../../../shell/connect/context.ts";
 import { windowAround } from "./focus.ts";
 import type { MessageActions } from "./MessageView.tsx";
-import { FaceButton, Glyph, IconButton, TextButton } from "./parts.tsx";
+import { FaceButton, Glyph, IconButton, RenameField, TextButton } from "./parts.tsx";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import { offlineLine } from "../agentpage/model.ts";
 import {
@@ -158,7 +158,7 @@ function ConversationView(): ReactElement {
   const accounts = useAccounts(data, useConnectVersion());
   const [modeOver, setModeOver] = useState<ChatMode | null>(null);
   const [picker, setPicker] = useState<{ id: string; x: number; y: number } | null>(null);
-  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
   const width = useWindowDimensions().width;
   const mobileBack = useMobileBack();
   const narrow = width > 0 && width < 640;
@@ -472,14 +472,13 @@ function ConversationView(): ReactElement {
       {compact ? null : (
       <View testID="conversation-head" accessibilityRole="header" style={st.head}>
         {mobileBack ? <IconButton icon="back" label="Back" size={32} testID="conversation-back" onPress={() => mobileBack()} /> : null}
-        {renaming !== null ? (
-          <TextInput
-            autoFocus selectTextOnFocus testID="conversation-rename" accessibilityLabel="Rename this chat" value={renaming} onChangeText={setRenaming} style={st.rename}
-            onBlur={() => { const v = renaming.trim(); setRenaming(null); if (v !== "" && v !== title) void Promise.resolve(data.call("threads.update", { threadId: thread.threadId, title: v })).catch(fail("Could not rename it.")); }}
-            onKeyPress={(e) => { const k = (e as unknown as { nativeEvent: { key: string }; target?: { blur?: () => void } }); if (k.nativeEvent.key === "Enter") k.target?.blur?.(); else if (k.nativeEvent.key === "Escape") setRenaming(null); }}
+        {renaming ? (
+          <RenameField
+            value={title} testID="conversation-rename" label="Rename this chat" style={st.rename}
+            onDone={(v) => { setRenaming(false); if (v !== null) void Promise.resolve(data.call("threads.update", { threadId: thread.threadId, title: v })).catch(fail("Could not rename it.")); }}
           />
         ) : (
-          <Pressable accessibilityRole="button" accessibilityLabel={`Rename ${title}`} testID="conversation-title-button" {...(Platform.OS === "web" ? ({ title: "Rename" } as object) : {})} onPress={() => { if (thread.kind === "chat" || thread.kind === "channel") setRenaming(title); }} style={({ hovered }: { hovered?: boolean }) => [st.titleBtn, hovered === true && st.titleOver]}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Rename ${title}`} testID="conversation-title-button" {...(Platform.OS === "web" ? ({ title: "Rename" } as object) : {})} onPress={() => { if (thread.kind === "chat" || thread.kind === "channel") setRenaming(true); }} style={({ hovered }: { hovered?: boolean }) => [st.titleBtn, hovered === true && st.titleOver]}>
             <Text numberOfLines={1} testID="conversation-title" style={st.title}>{title}</Text>
           </Pressable>
         )}
