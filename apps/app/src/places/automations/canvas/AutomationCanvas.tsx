@@ -534,7 +534,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
           {renaming !== null ? (
             <TextInput
               accessibilityLabel="Name" testID="rename" autoFocus value={renaming} onChangeText={setRenaming} onBlur={() => void rename(renaming)} onSubmitEditing={() => void rename(renaming)}
-              {...webOnly({ onKeyDown: (e: { key?: string }) => { if (e.key === "Escape") setRenaming(null); } })} style={s.titleInput}
+              onKeyPress={((e: { key?: string }) => { if (e.key === "Escape") setRenaming(null); }) as never} style={s.titleInput}
             />
           ) : (
             <Pressable accessibilityRole="button" accessibilityLabel={`${a.name}. Rename`} testID="title" onPress={() => setRenaming(a.name)} style={pointer}>

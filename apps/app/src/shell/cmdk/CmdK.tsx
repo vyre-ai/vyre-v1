@@ -170,7 +170,7 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
           returnKeyType="go"
           onSubmitEditing={() => { if (Platform.OS !== "web") controller.choose(state.active, false); }}
           style={[styles.input, webOnly({ outlineStyle: "none", outlineWidth: 0 }) as object]}
-          {...webOnly({ onKeyDown: onKey, role: "combobox", "aria-expanded": true, "aria-controls": "cmdk-list" })}
+          onKeyPress={onKey as never} {...webOnly({ role: "combobox", "aria-expanded": true, "aria-controls": "cmdk-list" })}
         />
         <Pressable
           testID="cmdk-filter"

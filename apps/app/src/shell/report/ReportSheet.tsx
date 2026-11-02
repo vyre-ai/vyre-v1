@@ -66,7 +66,7 @@ export function ReportSheet({ controller, online = true, autoFocus = true }: Rep
         onChangeText={(t) => controller.setNote(t)}
         placeholder="What went wrong? (optional)"
                 maxLength={500}
-                {...webOnly({ onKeyDown: onKey })}
+                onKeyPress={onKey as never}
       />
       <Pressable
         testID="report-disclosure"
