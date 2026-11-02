@@ -1177,6 +1177,7 @@ export type AgentsCreateOut = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1223,6 +1224,7 @@ export type AgentsGetOut = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1289,6 +1291,7 @@ export type AgentsListOut = {
   agents: Array<{
       agentId: string;
       name: string;
+      kind?: "assistant" | "teammate" | "agent";
       face: string;
       role?: string;
       status: "awake" | "working" | "asleep" | "paused";
@@ -1339,6 +1342,7 @@ export type AgentsPauseOut = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1379,6 +1383,7 @@ export type AgentsRestoreOut = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1421,6 +1426,7 @@ export type AgentsRestoreVersionOut = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1461,6 +1467,7 @@ export type AgentsResumeOut = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1502,6 +1509,7 @@ export type AgentsRoleLineSetOut = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1661,6 +1669,7 @@ export type AgentsSetOwnerOut = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1851,6 +1860,7 @@ export type AgentsUpdateOut = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -2191,6 +2201,13 @@ export type AutomationsAnalyticsOut = {
       code: string;
       count: number;
     }>;
+};
+export type AutomationsCodeReachIn = {
+  hosts: Array<string>;
+  idempotencyKey: string;
+};
+export type AutomationsCodeReachOut = {
+  ok: boolean;
 };
 export type AutomationsConnectorCardIn = {
   threadId: string;
@@ -3286,6 +3303,22 @@ export type AutomationsReadDocsIn = {
   focus?: string;
 };
 export type AutomationsReadDocsOut = {
+  ok: boolean;
+  reason?: string;
+  finalUrl?: string;
+  kind?: "openapi" | "html" | "text";
+  text?: string;
+  links?: Array<{
+      text: string;
+      url: string;
+    }>;
+  truncated?: boolean;
+};
+export type AutomationsReadLinkIn = {
+  url: string;
+  focus?: string;
+};
+export type AutomationsReadLinkOut = {
   ok: boolean;
   reason?: string;
   finalUrl?: string;
@@ -5832,6 +5865,7 @@ export type ChatEditOut = {
     via?: {
       routineOwner: string;
     };
+    paidBy?: string;
     depth: number;
     attachments: Array<string>;
     reactions: Array<{
@@ -6073,6 +6107,7 @@ export type ChatMessageGetOut = {
     via?: {
       routineOwner: string;
     };
+    paidBy?: string;
     depth: number;
     attachments: Array<string>;
     reactions: Array<{
@@ -6114,6 +6149,7 @@ export type ChatMessagesListOut = {
       via?: {
         routineOwner: string;
       };
+      paidBy?: string;
       depth: number;
       attachments: Array<string>;
       reactions: Array<{
@@ -6212,6 +6248,7 @@ export type ChatPinsListOut = {
       via?: {
         routineOwner: string;
       };
+      paidBy?: string;
       depth: number;
       attachments: Array<string>;
       reactions: Array<{
@@ -6326,6 +6363,7 @@ export type ChatPostOut = {
     via?: {
       routineOwner: string;
     };
+    paidBy?: string;
     depth: number;
     attachments: Array<string>;
     reactions: Array<{
@@ -9253,6 +9291,7 @@ export type EngineAccountResolveOut = {
   reason: "starter" | "steerer" | "step_key" | "backup_key" | "none";
   allowed: boolean;
   itemId?: string;
+  fellBack?: boolean;
 };
 export type EngineAccountsListIn = Record<string, unknown>;
 export type EngineAccountsListOut = {
@@ -9295,7 +9334,7 @@ export type EngineCrewListOut = {
       title: string;
       branch: string;
       base: string;
-      state: "working" | "waiting" | "done" | "failed" | "stopped" | "merged";
+      state: "working" | "waiting" | "paused" | "lost" | "done" | "failed" | "stopped" | "merged";
       startedAt: number;
       endedAt?: number;
       result?: Record<string, unknown>;
@@ -9325,7 +9364,7 @@ export type EngineCrewMergeOut = {
     title: string;
     branch: string;
     base: string;
-    state: "working" | "waiting" | "done" | "failed" | "stopped" | "merged";
+    state: "working" | "waiting" | "paused" | "lost" | "done" | "failed" | "stopped" | "merged";
     startedAt: number;
     endedAt?: number;
     result?: Record<string, unknown>;
@@ -9357,7 +9396,7 @@ export type EngineCrewPushOut = {
     title: string;
     branch: string;
     base: string;
-    state: "working" | "waiting" | "done" | "failed" | "stopped" | "merged";
+    state: "working" | "waiting" | "paused" | "lost" | "done" | "failed" | "stopped" | "merged";
     startedAt: number;
     endedAt?: number;
     result?: Record<string, unknown>;
@@ -9411,7 +9450,7 @@ export type EngineCrewStartOut = {
     title: string;
     branch: string;
     base: string;
-    state: "working" | "waiting" | "done" | "failed" | "stopped" | "merged";
+    state: "working" | "waiting" | "paused" | "lost" | "done" | "failed" | "stopped" | "merged";
     startedAt: number;
     endedAt?: number;
     result?: Record<string, unknown>;
@@ -9432,7 +9471,7 @@ export type EngineCrewStopOut = {
     title: string;
     branch: string;
     base: string;
-    state: "working" | "waiting" | "done" | "failed" | "stopped" | "merged";
+    state: "working" | "waiting" | "paused" | "lost" | "done" | "failed" | "stopped" | "merged";
     startedAt: number;
     endedAt?: number;
     result?: Record<string, unknown>;
@@ -12187,6 +12226,46 @@ export type GateActsListOut = {
       peopleOnly: boolean;
     }>;
 };
+export type GateAllowListIn = Record<string, unknown>;
+export type GateAllowListOut = {
+  rules: Array<{
+      id: string;
+      kind: "standing" | "always";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+      target: string;
+      agentId?: string;
+      threadId?: string;
+      automationId?: string;
+      stepId?: string;
+      expiresAt?: number;
+    }>;
+};
+export type GateAllowRemoveIn = {
+  id: string;
+};
+export type GateAllowRemoveOut = {
+  ok: boolean;
+};
+export type GateAllowSetIn = {
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+  target: string;
+  agentId?: string;
+  threadId?: string;
+  days?: number;
+};
+export type GateAllowSetOut = {
+  rule: {
+    id: string;
+    kind: "standing" | "always";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+    target: string;
+    agentId?: string;
+    threadId?: string;
+    automationId?: string;
+    stepId?: string;
+    expiresAt?: number;
+  };
+};
 export type GateDenyIn = {
   holdId: string;
   taskId: string;
@@ -12224,6 +12303,61 @@ export type GateExpireIn = {
 export type GateExpireOut = {
   outcome: "dropped" | "escalated";
   escalatedTo?: string;
+};
+export type GateGrantsAskIn = {
+  threadId: string;
+  messageId: string;
+  asked: Array<{
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+      target: string;
+    }>;
+  links?: Array<string>;
+};
+export type GateGrantsAskOut = {
+  ok: boolean;
+};
+export type GateGrantsSetIn = {
+  automationId: string;
+  defHash: string;
+  press: "save" | "on";
+  steps: Array<{
+      stepId: string;
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+      targets: Array<string>;
+      computed: boolean;
+      changed: boolean;
+    }>;
+};
+export type GateGrantsSetOut = {
+  grants: Array<{
+      id: string;
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+      target: string;
+      stepId?: string;
+    }>;
+};
+export type GateGrantsTakeIn = {
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+  targets: Array<string>;
+  step?: {
+    automationId: string;
+    nodeId: string;
+    defHash: string;
+    ask?: boolean;
+  };
+  turn?: {
+    person: string;
+    threads: Array<string>;
+  };
+  always?: {
+    person: string;
+    agentId: string;
+    threads: Array<string>;
+    cap: string;
+  };
+};
+export type GateGrantsTakeOut = {
+  granted: boolean;
 };
 export type GateHoldsGetIn = {
   holdId: string;
@@ -12273,6 +12407,13 @@ export type GateHoldsListOut = {
   next?: string;
   total?: number;
 };
+export type GateLinksKnownIn = {
+  url: string;
+  threads: Array<string>;
+};
+export type GateLinksKnownOut = {
+  known: boolean;
+};
 export type GateParkIn = {
   capName: string;
   capVersion: number;
@@ -12287,6 +12428,12 @@ export type GateParkIn = {
   decisionId: string;
   runId?: string;
   threadId?: string;
+  step?: {
+    automationId: string;
+    nodeId: string;
+    defHash: string;
+    ask?: boolean;
+  };
   idempotencyKey: string;
 };
 export type GateParkOut = {
@@ -12353,6 +12500,14 @@ export type GateRulesSetOut = {
     scope: "space" | "floor" | "agent";
     agentId?: string;
   };
+};
+export type GateTaintMarkIn = {
+  threads: Array<string>;
+  source: string;
+  links?: Array<string>;
+};
+export type GateTaintMarkOut = {
+  ok: boolean;
 };
 export type GitBranchIn = {
   folderId: string;
@@ -32853,6 +33008,7 @@ export interface CapMap {
   "automations.alerts.get": { in: AutomationsAlertsGetIn; out: AutomationsAlertsGetOut };
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
   "automations.analytics": { in: AutomationsAnalyticsIn; out: AutomationsAnalyticsOut };
+  "automations.code_reach": { in: AutomationsCodeReachIn; out: AutomationsCodeReachOut };
   "automations.connector_card": { in: AutomationsConnectorCardIn; out: AutomationsConnectorCardOut };
   "automations.connector_levels": { in: AutomationsConnectorLevelsIn; out: AutomationsConnectorLevelsOut };
   "automations.connector_offer.accept": { in: AutomationsConnectorOfferAcceptIn; out: AutomationsConnectorOfferAcceptOut };
@@ -32887,6 +33043,7 @@ export interface CapMap {
   "automations.preview_promote": { in: AutomationsPreviewPromoteIn; out: AutomationsPreviewPromoteOut };
   "automations.promote": { in: AutomationsPromoteIn; out: AutomationsPromoteOut };
   "automations.read_docs": { in: AutomationsReadDocsIn; out: AutomationsReadDocsOut };
+  "automations.read_link": { in: AutomationsReadLinkIn; out: AutomationsReadLinkOut };
   "automations.replay": { in: AutomationsReplayIn; out: AutomationsReplayOut };
   "automations.restore_version": { in: AutomationsRestoreVersionIn; out: AutomationsRestoreVersionOut };
   "automations.retry": { in: AutomationsRetryIn; out: AutomationsRetryOut };
@@ -33409,16 +33566,24 @@ export interface CapMap {
   "forms.unpublish": { in: FormsUnpublishIn; out: FormsUnpublishOut };
   "forms.update": { in: FormsUpdateIn; out: FormsUpdateOut };
   "gate.acts.list": { in: GateActsListIn; out: GateActsListOut };
+  "gate.allow.list": { in: GateAllowListIn; out: GateAllowListOut };
+  "gate.allow.remove": { in: GateAllowRemoveIn; out: GateAllowRemoveOut };
+  "gate.allow.set": { in: GateAllowSetIn; out: GateAllowSetOut };
   "gate.deny": { in: GateDenyIn; out: GateDenyOut };
   "gate.effective_rule": { in: GateEffectiveRuleIn; out: GateEffectiveRuleOut };
   "gate.expire": { in: GateExpireIn; out: GateExpireOut };
+  "gate.grants.ask": { in: GateGrantsAskIn; out: GateGrantsAskOut };
+  "gate.grants.set": { in: GateGrantsSetIn; out: GateGrantsSetOut };
+  "gate.grants.take": { in: GateGrantsTakeIn; out: GateGrantsTakeOut };
   "gate.holds.get": { in: GateHoldsGetIn; out: GateHoldsGetOut };
   "gate.holds.list": { in: GateHoldsListIn; out: GateHoldsListOut };
+  "gate.links.known": { in: GateLinksKnownIn; out: GateLinksKnownOut };
   "gate.park": { in: GateParkIn; out: GateParkOut };
   "gate.release": { in: GateReleaseIn; out: GateReleaseOut };
   "gate.result.take": { in: GateResultTakeIn; out: GateResultTakeOut };
   "gate.rules.list": { in: GateRulesListIn; out: GateRulesListOut };
   "gate.rules.set": { in: GateRulesSetIn; out: GateRulesSetOut };
+  "gate.taint.mark": { in: GateTaintMarkIn; out: GateTaintMarkOut };
   "git.branch": { in: GitBranchIn; out: GitBranchOut };
   "git.commit": { in: GitCommitIn; out: GitCommitOut };
   "git.diff": { in: GitDiffIn; out: GitDiffOut };
@@ -34623,6 +34788,7 @@ export type AgentCreatedPayload = {
 };
 export type AgentDeletedPayload = {
   agentId: string;
+  name?: string;
   by: string;
 };
 export type AgentDisengagedPayload = {
@@ -36366,6 +36532,7 @@ export type MessageReceivedPayload = {
   via?: string;
   actingFor?: string;
   job?: boolean;
+  typed?: boolean;
 };
 export type MessageSentPayload = {
   messageId: string;
@@ -37799,6 +37966,7 @@ export type ThreadUnarchivedPayload = {
 export type ThreadUpdatedPayload = {
   threadId: string;
   fields: Array<string>;
+  starter?: string;
 };
 export type TokenIssuedPayload = {
   tokenId: string;

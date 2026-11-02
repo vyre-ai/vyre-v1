@@ -56,6 +56,7 @@ type Out = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -146,6 +147,7 @@ type Out = {
       "fallbackModel": "example",
       "folderId": "fld_a1b2c3",
       "hasComputer": true,
+      "kind": "assistant",
       "lastActiveAt": 1760000000000,
       "limits": {
         "dayCostMicros": 1,
