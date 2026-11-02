@@ -10,7 +10,7 @@ Now the call waits for that person. They see an approval card, approve it with o
 2. The MCP door (`agent/src/mcp/outside.ts`, `outsideDoor`) sorts the call:
    - `open`: runs as the agent acting for the person, as before. If the pipeline refuses it with `role_lacks_permission`, it is asked like `ask` (`askPerson: "if_refused"`).
    - `ask`: never runs as the agent. The seed says `askPerson: "always"`.
-   - `paste`: `vault_item_put`. Becomes a key request; see Vault below.
+   - `paste`: `vault_item_put` and `vault_request`. A key request for the name only; see Vault below.
    - `off`: the terminal, Vyre computers, local tools and the rest of the Vault. Refused (`not_from_outside`).
 3. The invoke pipeline (`host/src/invoke.ts`) authorizes the agent as usual, then the person alone (`principal` = the person, no `actingFor`). If the person cannot do it either, the call is refused and the answer says an owner or admin has to (`person_lacks_role`). Otherwise it parks.
 4. The Gate parks it as an ask hold (`gate.park` with `ask: { by, what }`). The hold's principal is the person, so the approval token and payload hash are bound to the person, this capability and this exact input. The hold names the agent in `asked_by`. The approver is that person and nobody else; unanswered, it is dropped, never passed to a delegate.
@@ -32,7 +32,7 @@ Person-only reads (`company_status`, `members_sso_list`, `members_invites_list` 
 
 ## Vault
 
-Vault values never reach or leave an outside agent. `vault_item_put` from outside becomes `vault.request` with `handleOnly: true`:
+Vault values never reach or leave an outside agent. `vault_item_put` and `vault_request` from outside both become `vault.request` with `handleOnly: true`:
 
 - the agent sends the key's name and field names; a call with any value is refused, nothing stored or echoed;
 - the managers of the folder (or the Space's owners and admins) get the usual key request card and paste the value in their own app;

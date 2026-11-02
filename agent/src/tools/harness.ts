@@ -25,17 +25,19 @@ export function loadGenerated(): Loaded {
   return cached;
 }
 
-export interface InvokeRecord { askFirst?: boolean | undefined; cap: string; principal: string; actingFor: string | undefined; approval: string | undefined; preAuth: boolean | undefined }
+export interface InvokeRecord { askFirst?: boolean | undefined; askPerson?: "always" | undefined; cap: string; principal: string; actingFor: string | undefined; approval: string | undefined; preAuth: boolean | undefined }
 
 /** Models what the pipeline does with a Gate: an agent's call to a capability that has a real Gate rule is held until an approval token arrives. */
 export function fakeInvoke(caps: ReadonlyMap<string, RegistryCapRow>): { invoke: Invoke; calls: InvokeRecord[] } {
   const calls: InvokeRecord[] = [];
   let n = 0;
   const invoke: Invoke = async (cap, _input, seed) => {
-    calls.push({ cap, principal: seed.principal.id, actingFor: seed.actingFor, approval: seed.approval, preAuth: seed.preAuth, ...(seed.askFirst === true ? { askFirst: true } : {}) });
+    calls.push({ cap, principal: seed.principal.id, actingFor: seed.actingFor, approval: seed.approval, preAuth: seed.preAuth, ...(seed.askFirst === true ? { askFirst: true } : {}), ...(seed.askPerson === "always" ? { askPerson: "always" } : {}) });
     const row = caps.get(cap);
     const gate = row?.gate as { act?: string } | undefined;
     const traceId = seed.trace?.traceId ?? "trace";
+    // the pipeline parks what only a person does for the person the agent acts for (docs/ask-the-person.md)
+    if (seed.askPerson === "always") return { status: "held", taskId: `task_${++n}`, traceId };
     if (gate && gate.act !== "none" && seed.principal.kind === "agent" && seed.approval === undefined) return { status: "held", taskId: `task_${++n}`, traceId };
     return { status: "ok", output: { cap }, traceId };
   };
