@@ -6,3 +6,4 @@
 - Finish setup counts what is really done, not what was skipped, and a new chat shows the top three steps for this device with how many more wait.
 - Runs on offers Automatic first, says where it lands now, and takes a pin off; This computer no longer reads twice.
 - In a Personal Space the Files sidebar says My files, and Recent and its count leave out the files an agent is made with.
+- A new tab no longer says No results before anything is typed.
