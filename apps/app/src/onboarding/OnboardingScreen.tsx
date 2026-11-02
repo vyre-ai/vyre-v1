@@ -159,7 +159,7 @@ function Preview({ flow, steps, progress, current, device, spaceName, body, onOp
   );
 }
 
-/** The summary: every step as a compact row, a Set up on the ones left, and Go to Home always in view. */
+/** The summary: every step as a compact row, a Set up on the ones left, and Open Vyre always in view. */
 function Finished({ flow, steps, progress, device, onOpen, onHome, onChats, two }: { flow: FlowKind; steps: readonly StepDef[]; progress: Progress; device: Device; onOpen(key: string): void; onHome?: () => void; onChats?: () => void; two: boolean }): ReactElement {
   const left = steps.filter((st) => stateOn(progress, st, device) !== "done").length;
   const rows: ReactElement[] = [];
@@ -182,7 +182,7 @@ function Finished({ flow, steps, progress, device, onOpen, onHome, onChats, two 
         <Text style={s.endLead}>{left > 0 ? `${left} left for later` : "All done"}</Text>
         <View style={s.grid}>{rows}</View>
       </ScrollView>
-      <View style={s.endFoot}>{onHome ? <Pressable testID="onboarding-close" accessibilityRole="button" onPress={onHome} style={s.primaryLg}><Text style={s.primaryText}>Go to Home</Text></Pressable> : null}</View>
+      <View style={s.endFoot}>{onHome ? <Pressable testID="onboarding-close" accessibilityRole="button" onPress={onHome} style={s.primaryLg}><Text style={s.primaryText}>Open Vyre</Text></Pressable> : null}</View>
     </View>
   );
 }
