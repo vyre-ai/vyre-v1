@@ -129,6 +129,28 @@ export type Entry =
   | { kind: "done"; key: string; count: number; open: boolean }
   | { kind: "empty"; key: string; text: string };
 
+/** Children in the order they were made: a plan reads top to bottom. */
+export const planOrder = (a: TaskRow, b: TaskRow): number => a.createdAt - b.createdAt || Number(a.key?.split("-")[1] ?? 0) - Number(b.key?.split("-")[1] ?? 0);
+
+/** The lines a chat shows of the work under way in it, before they fold into a count. */
+export const WORK_SHOWN = 6;
+/** What is still open, with whatever is moving first, then in plan order. */
+export function openWork(rows: readonly TaskRow[]): TaskRow[] {
+  const moving = (t: TaskRow): number => (t.state === "doing" ? 0 : t.state === "todo" ? 2 : 1);
+  return rows.filter((t) => t.kind === "work" && isOpenState(t.state)).sort((a, b) => moving(a) - moving(b) || planOrder(a, b));
+}
+
+/** The second half of a work line when no agent is writing: what the task is waiting for. */
+export function workStep(t: Pick<TaskRow, "state" | "blocked" | "dependsOn" | "assigned" | "reviewer" | "approver">, keyOf: (id: string) => string | undefined, nameOf: (id: string) => string): string {
+  const waits = t.blocked ? t.dependsOn.map(keyOf).filter((k): k is string => k !== undefined) : [];
+  if (waits.length > 0) return `Waits on ${waits.slice(0, 3).join(", ")}`;
+  if (t.blocked) return "Waiting";
+  const who = holderOf(t);
+  if (t.state === "in_review") return who ? `With ${nameOf(who.id)} for review` : "In review";
+  if (t.state === "awaiting_approval") return who ? `With ${nameOf(who.id)} to approve` : "Awaiting approval";
+  return t.state === "doing" ? "Doing" : "To do";
+}
+
 /** A board card's height, known before it draws: two lines of title past this many letters, and a line for its project or for an agent at work. */
 const CARD_LINE = 22;
 export function cardHeight(t: Pick<TaskRow, "title" | "state" | "assigned">, hasProject: boolean): number {

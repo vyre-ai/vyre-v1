@@ -28,6 +28,7 @@ type In = {
   scope: "mine" | "given" | "everyone";
   recordId?: string;
   parentTaskId?: string;
+  underThread?: string;
   done?: boolean;
   rev?: string;
 };
@@ -104,7 +105,8 @@ type Out = {
     "parentTaskId": "tsk_a1b2c3",
     "recordId": "rec_a1b2c3",
     "rev": "example",
-    "scope": "mine"
+    "scope": "mine",
+    "underThread": "thr_a1b2c3"
   },
   "output": {
     "doneThisWeek": 1,

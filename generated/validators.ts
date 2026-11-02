@@ -77561,6 +77561,7 @@ if (!("scope" in o4961)) e.push(p + "/scope" + ': required');
 if ("scope" in o4961) lf(o4961["scope"], p + "/scope", e, L717);
 if ("recordId" in o4961) lf(o4961["recordId"], p + "/recordId", e, L30);
 if ("parentTaskId" in o4961) lf(o4961["parentTaskId"], p + "/parentTaskId", e, L53);
+if ("underThread" in o4961) lf(o4961["underThread"], p + "/underThread", e, L17);
 if ("done" in o4961) lf(o4961["done"], p + "/done", e, L7);
 if ("rev" in o4961) lf(o4961["rev"], p + "/rev", e, L2);
 }

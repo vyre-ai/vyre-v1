@@ -110,7 +110,7 @@ export default defineManifest({
       tool: 'tasks', label: 'filter', cli: 'vyre tasks needs-you',
     }),
     read('tasks.index', 'The long list of a scope in one read: a light row per task with its rollup, ordered newest first; pass the last rev and an unchanged list answers nothing', {
-      in: { scope: t.enm('mine', 'given', 'everyone'), recordId: t.opt(id.record), parentTaskId: t.opt(id.task), done: t.opt(t.bool()), rev: t.opt(t.str()) },
+      in: { scope: t.enm('mine', 'given', 'everyone'), recordId: t.opt(id.record), parentTaskId: t.opt(id.task), underThread: t.opt(id.thread), done: t.opt(t.bool()), rev: t.opt(t.str()) },
       out: { rev: t.str(), unchanged: t.bool(), rows: t.arr(indexRow), doneThisWeek: t.int(), total: t.int() }, tool: 'tasks', label: 'filter',
     }),
     read('tasks.rev', 'A short mark that changes whenever any task changes, for a screen that holds a long list', { in: {}, out: { rev: t.str() }, tool: 'tasks', label: 'check' }),

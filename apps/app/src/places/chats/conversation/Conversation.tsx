@@ -514,6 +514,7 @@ function ConversationView(): ReactElement {
               const sending = it.kind === "me" ? pendingState.get(it.message.messageId) : undefined;
               return <MessageView key={key} item={it} actions={actions} meId={data.me.id} stream={stream} sending={sending} mark={markOf(it, matches, activeId)} />;
             })}
+            {data.tail ?? null}
           </View>
         </Feed>
         {atEnd || data.head ? null : (

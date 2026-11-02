@@ -2,7 +2,7 @@
 // The Tasks page as data: sections, grouping, quick add, status marks. Pure, so every rule is checked without a screen.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { barOf, batonMarks, buildEntries, cardHeight, DAY, dueLabel, filterRows, groupRows, holderOf, monthCells, NO_FILTER, QUIET_MS, sectionsOf, sortRows } from "./model.ts";
+import { barOf, batonMarks, buildEntries, cardHeight, DAY, openWork, workStep, dueLabel, filterRows, groupRows, holderOf, monthCells, NO_FILTER, QUIET_MS, sectionsOf, sortRows } from "./model.ts";
 import type { BuildIn, NeedItem, TaskRow } from "./model.ts";
 import { activityOf } from "./activity.ts";
 import { parseQuick } from "./quick.ts";
@@ -121,4 +121,18 @@ test("Activity reads in the order it happened, says where a status went, and lea
 test("a card's height is known before it draws", () => {
   assert.equal(cardHeight({ title: "Short", state: "todo", assigned: { kind: "person", id: "u" } }, false), 75);
   assert.equal(cardHeight({ title: "A title that runs to two lines", state: "doing", assigned: { kind: "agent", id: "a" } }, false), 113);
+});
+
+test("the work under a chat: only what is open, what is moving first, and each line says what it waits for", () => {
+  const rows = [row({ id: "a", state: "done", createdAt: 1 }), row({ id: "b", state: "todo", createdAt: 2 }), row({ id: "c", state: "doing", createdAt: 3 }), row({ id: "d", state: "in_review", createdAt: 4 }), row({ id: "e", state: "canceled", createdAt: 5 }), row({ id: "f", kind: "answer", state: "todo", createdAt: 6 })];
+  assert.deepEqual(openWork(rows).map((r) => r.id), ["c", "d", "b"]);
+  assert.deepEqual(openWork([rows[0]!, rows[4]!]), []);
+  const nameOf = (id: string): string => (id === "agt_r" ? "Rowan" : id);
+  const keyOf = (id: string): string | undefined => (id === "a" ? "VY-1" : undefined);
+  const base = { assigned: { kind: "agent" as const, id: "agt_m" }, dependsOn: [] as string[], blocked: false };
+  assert.equal(workStep({ ...base, state: "todo", blocked: true, dependsOn: ["a"] }, keyOf, nameOf), "Waits on VY-1");
+  assert.equal(workStep({ ...base, state: "todo", blocked: true, dependsOn: ["gone"] }, keyOf, nameOf), "Waiting");
+  assert.equal(workStep({ ...base, state: "in_review", reviewer: { kind: "agent", id: "agt_r" } }, keyOf, nameOf), "With Rowan for review");
+  assert.equal(workStep({ ...base, state: "doing" }, keyOf, nameOf), "Doing");
+  assert.equal(workStep({ ...base, state: "todo" }, keyOf, nameOf), "To do");
 });

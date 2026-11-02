@@ -27,7 +27,7 @@ import { heldMail } from "../needsyou/heldmail.ts";
 import { HeldMailCard } from "../needsyou/HeldMail.tsx";
 import { nameOr } from "../names.ts";
 import { dueEntries, failure, priorityEntries } from "./actions.ts";
-import { dueLabel, holderOf, isOpenState, KIND_TITLE, PRIORITIES } from "./model.ts";
+import { dueLabel, holderOf, isOpenState, KIND_TITLE, planOrder, PRIORITIES } from "./model.ts";
 import type { IndexOut, TaskFull, TaskRow, Who } from "./model.ts";
 import { faceKind, LiveWords, TextMenu, useLiveTurn, webProps } from "./parts.tsx";
 import { activityOf } from "./activity.ts";
@@ -118,8 +118,6 @@ export function TaskDetail({ rt, taskId, conversationFor, openTask, openAgent, o
   </View>;
 }
 const NO_ENTRIES: History["entries"] = [];
-/** Children in the order they were made: the plan reads top to bottom. */
-const planOrder = (a: TaskRow, b: TaskRow): number => a.createdAt - b.createdAt || Number(a.key?.split("-")[1] ?? 0) - Number(b.key?.split("-")[1] ?? 0);
 
 type Menu = ReturnType<typeof useMenu>;
 const pointAt = (e: unknown): { x: number; y: number } => { const t = (e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.(); return { x: t?.left ?? 8, y: (t?.bottom ?? 48) + 4 }; };

@@ -1,0 +1,1 @@
+- A chat shows the work under way in it: the tasks of a plan made there, one line each, live. A press opens the task, and the block goes when nothing is left open.
