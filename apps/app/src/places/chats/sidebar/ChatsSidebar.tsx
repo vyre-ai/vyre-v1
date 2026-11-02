@@ -334,9 +334,9 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
         />
       );
       case "person": return (
-        <Row id={e.key} title={e.name} selected={sel} emphasis={e.unread > 0} onPress={() => open(e)}
+        <Row id={e.key} title={e.name} selected={sel} emphasis={e.unread > 0 && !sel} onPress={() => open(e)}
           leading={<View style={{ marginRight: 9 }}><Face name={e.name} seedId={e.id} kind="person" size={18} /></View>}
-          trailing={e.unread > 0 ? <UnreadDot /> : null} />
+          trailing={e.unread > 0 && !sel ? <UnreadDot /> : null} />
       );
       case "face": return wrap(
         <Row
@@ -351,7 +351,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
           <Row
             id={e.key} title={displayTitle(r, data.clock().offsetMin)} selected={sel} onPress={() => open(e)}
             leading={<View style={{ marginRight: 9 }}>{r.members ? <FaceStack members={r.members} size={16} /> : <Face name={r.who} seedId={r.whoId} kind={r.kind} size={18} pulse={r.working} waiting={r.waiting === true} />}</View>}
-            trailing={r.waiting ? <View style={st.needDot} testID="need-dot" /> : r.unread > 0 ? <UnreadDot /> : null}
+            trailing={r.waiting ? <View style={st.needDot} testID="need-dot" /> : r.unread > 0 && !sel ? <UnreadDot /> : null}
           />,
         );
       }
