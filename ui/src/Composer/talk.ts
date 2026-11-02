@@ -1,6 +1,6 @@
-// Talk's engine: from a press to words. It knows nothing of React. A mic gives 16 kHz PCM and a level, the session names a socket, the provider (lib/voice.ts) reads its messages, and the composer gets the running words.
+// Talk's engine: from a press to words. It knows nothing of React. A mic gives 16 kHz PCM and a level, the session names a socket, the provider (lib/talk.ts) reads its messages, and the composer gets the running words.
 // It never sends and never holds a key: it holds a short-lived token for as long as the socket takes to open. Words are never logged. Every failure is one plain line, and what is already in the field stays.
-import { VOICE_SAMPLE_RATE, voiceProvider } from "../../../lib/voice.ts";
+import { TALK_SAMPLE_RATE, talkProvider } from "../../../lib/talk.ts";
 
 export interface TalkSession { provider: string; url: string; protocols: string[]; source: "own" | "space"; expiresIn: number }
 export interface TalkSocket {
@@ -115,7 +115,7 @@ export function startTalk(deps: TalkDeps, ev: TalkEvents, opts: { warm: boolean 
   };
 
   const openSocket = (info: TalkSession): void => {
-    const provider = voiceProvider(info.provider);
+    const provider = talkProvider(info.provider);
     if (!provider) { fail(LINE.generic); return; }
     closing = provider.closing;
     let s: TalkSocket;
@@ -193,7 +193,7 @@ export function startTalk(deps: TalkDeps, ev: TalkEvents, opts: { warm: boolean 
 /* ---------- the web microphone ---------- */
 
 /** 32-bit samples at the context's rate to 16-bit little-endian at 16 kHz, averaging what is dropped. */
-export function toPcm16(input: ArrayLike<number>, fromRate: number, toRate = VOICE_SAMPLE_RATE): ArrayBuffer {
+export function toPcm16(input: ArrayLike<number>, fromRate: number, toRate = TALK_SAMPLE_RATE): ArrayBuffer {
   const ratio = Math.max(1, fromRate / toRate);
   const n = Math.floor(input.length / ratio);
   const out = new DataView(new ArrayBuffer(n * 2));

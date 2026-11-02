@@ -4,13 +4,13 @@ import assert from "node:assert/strict";
 import { fail } from "../../../host/src/routes/errors.ts";
 import * as h from "../handlers/index.ts";
 import { KEY, agent, person, world } from "../fixtures/harness.ts";
-import type { VoiceCtx } from "../projections.ts";
+import type { TalkCtx } from "../projections.ts";
 
 const fields = (value = KEY) => [{ key: "api_key", value, secret: true }];
 const refusal = (e: unknown): { code?: string; reason?: string; message?: string } => { const x = (e as { error: { code: string; details?: { reason?: string }; message: string } }).error; return { code: x.code, reason: x.details?.reason as string, message: x.message }; };
 const reason = async (p: Promise<unknown>): Promise<string | undefined> => { try { await p; return "no refusal"; } catch (e) { return refusal(e).reason ?? refusal(e).code; } };
-const connect = (ctx: VoiceCtx, id = "k1") => h.connect(ctx, { provider: "deepgram", fields: fields(), idempotencyKey: id });
-const spaceConnect = (ctx: VoiceCtx, id = "s1") => h.spaceConnect(ctx, { provider: "deepgram", fields: fields(), idempotencyKey: id });
+const connect = (ctx: TalkCtx, id = "k1") => h.connect(ctx, { provider: "deepgram", fields: fields(), idempotencyKey: id });
+const spaceConnect = (ctx: TalkCtx, id = "s1") => h.spaceConnect(ctx, { provider: "deepgram", fields: fields(), idempotencyKey: id });
 
 test("what covers a person: nothing, then the Space key, then their own key, which wins; turning the Space off leaves own keys working", async () => {
   const w = world({ admins: ["usr_admin"] });
@@ -70,7 +70,7 @@ test("a key goes to the check and the Vault and nowhere else: no event, log, row
   const out = await connect(mia, "good");
   assert.equal(w.items[0]!.value, KEY);
   assert.equal(w.items[0]!.scope, "mine");
-  const around = JSON.stringify([out, w.events, w.logs, [...w.db.rows.get("voice_prefs")!.values()], [...w.db.rows.get("voice_space")!.values()]]);
+  const around = JSON.stringify([out, w.events, w.logs, [...w.db.rows.get("talk_prefs")!.values()], [...w.db.rows.get("talk_space")!.values()]]);
   assert.ok(!around.includes(KEY));
 });
 
@@ -107,7 +107,7 @@ test("an agent asks for a key by posting the card, naming no value, in the chat 
   await h.askKey(helper, { scope: "space" });
   const post = w.calls.find((c) => c.cap === "chat.post")!.input as { threadId: string; blocks: { type: string; data: unknown }[] };
   assert.equal(post.threadId, "thr_1");
-  assert.deepEqual(post.blocks[0], { type: "voice_key", v: 1, data: { provider: "deepgram", scope: "space" } });
+  assert.deepEqual(post.blocks[0], { type: "talk_key", v: 1, data: { provider: "deepgram", scope: "space" } });
   await assert.rejects(() => h.askKey(w.as(agent("agt_assistant"), { actingFor: "usr_mia" }), {}), (e) => refusal(e).code === "validation.precondition_failed");
 });
 

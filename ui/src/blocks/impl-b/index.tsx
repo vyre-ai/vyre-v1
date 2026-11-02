@@ -7,7 +7,7 @@
 import { createElement, useCallback, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { voiceProvider } from "../../../../lib/voice.ts";
+import { talkProvider } from "../../../../lib/talk.ts";
 import type { ViewStyle } from "react-native";
 import type { Block } from "../../kit/types.ts";
 import { LockedState } from "../../LockedState/index.tsx";
@@ -59,7 +59,7 @@ export interface BlockViewPropsB<T = unknown> {
 }
 
 /** Capabilities of this part that require an idempotencyKey in their input (checked against the registry by the tests). */
-export const IDEMPOTENT_CAPS_B: ReadonlySet<string> = new Set(["vault.item.put", "voice.connect", "voice.space.connect"]);
+export const IDEMPOTENT_CAPS_B: ReadonlySet<string> = new Set(["vault.item.put", "talk.connect", "talk.space.connect"]);
 
 let keyCounter = 0;
 
@@ -373,13 +373,13 @@ export function SecretInputBlock({ block, host }: BlockViewPropsB): ReactElement
   );
 }
 
-/* ---------- voice_key ---------- */
+/* ---------- talk_key ---------- */
 
 /** The Talk key card: the value goes through the same one-call door as the first-press sheet, checked with the provider at once. A person's press, never an agent's. */
-export function VoiceKeyBlock({ block, host }: BlockViewPropsB): ReactElement {
+export function TalkKeyBlock({ block, host }: BlockViewPropsB): ReactElement {
   const d = (block.data ?? {}) as { provider?: string; scope?: string; hint?: string };
   const everyone = d.scope === "space";
-  const name = voiceProvider(d.provider ?? "")?.name ?? "the voice provider";
+  const name = talkProvider(d.provider ?? "")?.name ?? "the voice provider";
   const [value, setValue] = useState("");
   const [phase, setPhase] = useState<"typing" | "saving" | "saved">("typing");
   const [line, setLine] = useState<string | null>(null);
@@ -387,7 +387,7 @@ export function VoiceKeyBlock({ block, host }: BlockViewPropsB): ReactElement {
     if (value.trim() === "") return;
     setPhase("saving"); setLine(null);
     try {
-      await performB(host, "voice_key", everyone ? "save_space" : "save", block, { fields: [{ key: "api_key", value, secret: true }] });
+      await performB(host, "talk_key", everyone ? "save_space" : "save", block, { fields: [{ key: "api_key", value, secret: true }] });
       setValue("");
       setPhase("saved");
     } catch (e) {
@@ -395,21 +395,21 @@ export function VoiceKeyBlock({ block, host }: BlockViewPropsB): ReactElement {
       setPhase("typing");
     }
   }, [host, block, everyone, name, value]);
-  const menu = useCallback(() => baseMenu(host, "voice_key", block, [], () => undefined), [host, block]);
+  const menu = useCallback(() => baseMenu(host, "talk_key", block, [], () => undefined), [host, block]);
   return (
-    <Card type="voice_key" block={block} testID={`blk-voice_key-${block.id}`} menu={menu}>
-      <Head testID={`blk-voice_key-${block.id}`} icon="key" title={`Add your ${name} key`} tag={everyone ? "for everyone" : "just you"} />
+    <Card type="talk_key" block={block} testID={`blk-talk_key-${block.id}`} menu={menu}>
+      <Head testID={`blk-talk_key-${block.id}`} icon="key" title={`Add your ${name} key`} tag={everyone ? "for everyone" : "just you"} />
       <Text style={styles.sub}>{d.hint ? `${SECRET_NOTE} ${d.hint}` : SECRET_NOTE}</Text>
-      {phase === "saved" ? <StatusLine tone="ok" testID={`blk-voice_key-${block.id}-state`} text={everyone ? "Talk is on for everyone. The value did not enter this chat." : "Talk is on. The value did not enter this chat."} /> : (
+      {phase === "saved" ? <StatusLine tone="ok" testID={`blk-talk_key-${block.id}-state`} text={everyone ? "Talk is on for everyone. The value did not enter this chat." : "Talk is on. The value did not enter this chat."} /> : (
         <>
           <View style={styles.secretField}>
             <Text style={styles.fieldKey}>{`${name} key`}</Text>
             <TextInput accessibilityLabel={`${name} key`} placeholder="Paste the value" placeholderTextColor="var(--ink-4)" secureTextEntry autoComplete="off" autoCorrect={false} autoCapitalize="none" spellCheck={false}
-              value={value} onChangeText={setValue} onSubmitEditing={() => void save()} testID={`blk-voice_key-${block.id}-field`} style={[styles.input, styles.secretInput]} {...webProps({ dataSet: { lpignore: "true", "1pIgnore": "true" } })} />
+              value={value} onChangeText={setValue} onSubmitEditing={() => void save()} testID={`blk-talk_key-${block.id}-field`} style={[styles.input, styles.secretInput]} {...webProps({ dataSet: { lpignore: "true", "1pIgnore": "true" } })} />
           </View>
           <View style={styles.acts}>
-            {line !== null ? <Text testID={`blk-voice_key-${block.id}-error`} style={[styles.sub, styles.bad, styles.grow]}>{line}</Text> : <View style={styles.grow} />}
-            <Btn id={`blk-voice_key-${block.id}-save`} label={phase === "saving" ? "Checking" : everyone ? "Turn on for everyone" : "Turn on Talk"} primary disabled={value.trim() === "" || phase === "saving"} onPress={() => void save()} />
+            {line !== null ? <Text testID={`blk-talk_key-${block.id}-error`} style={[styles.sub, styles.bad, styles.grow]}>{line}</Text> : <View style={styles.grow} />}
+            <Btn id={`blk-talk_key-${block.id}-save`} label={phase === "saving" ? "Checking" : everyone ? "Turn on for everyone" : "Turn on Talk"} primary disabled={value.trim() === "" || phase === "saving"} onPress={() => void save()} />
           </View>
         </>
       )}
@@ -565,7 +565,7 @@ export const BLOCK_COMPONENTS_B: Readonly<Record<PartTwoType, (props: BlockViewP
   vault_used: VaultUsedBlock,
   access_request: AccessRequestBlock,
   secret_input: SecretInputBlock,
-  voice_key: VoiceKeyBlock,
+  talk_key: TalkKeyBlock,
   model_switch: ModelSwitchBlock,
   helper: HelperBlock,
   diff_card: DiffCardBlock,

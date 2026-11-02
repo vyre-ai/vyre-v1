@@ -1,13 +1,13 @@
-// The host half of Talk (lib/voice.ts). The module asks; this runs the provider's grant from the server. A key is read at the last moment, put in one header and dropped: it is never logged, stored or returned.
+// The host half of Talk (lib/talk.ts). The module asks; this runs the provider's grant from the server. A key is read at the last moment, put in one header and dropped: it is never logged, stored or returned.
 // Every failure is one plain line with a reason the client can act on, and no provider text: a provider's error can echo what it was sent.
 import { fail } from "../routes/errors.ts";
-import { TOKEN_SECONDS, voiceProvider } from "../../../lib/voice.ts";
-import type { GrantFailure } from "../../../lib/voice.ts";
+import { TOKEN_SECONDS, talkProvider } from "../../../lib/talk.ts";
+import type { GrantFailure } from "../../../lib/talk.ts";
 import type { SeamCtx, SeamFetch, VaultPort } from "./ports.ts";
 
-export interface VoiceHostDeps { vault: Pick<VaultPort, "secret">; fetch: SeamFetch }
-/** Structural: the module's own VoiceHost accepts this (host never imports a module). */
-export interface VoiceHostSeam {
+export interface TalkHostDeps { vault: Pick<VaultPort, "secret">; fetch: SeamFetch }
+/** Structural: the module's own TalkHost accepts this (host never imports a module). */
+export interface TalkHostSeam {
   check(ctx: Pick<SeamCtx, "trace">, p: { provider: string; apiKey: string }): Promise<void>;
   mint(ctx: Pick<SeamCtx, "trace" | "space">, p: { provider: string; handle: string; asker?: string; own: boolean }): Promise<{ token: string; expiresIn: number }>;
 }
@@ -19,9 +19,9 @@ const refused = (trace: string, name: string, why: GrantFailure, stored: { own: 
   throw fail("provider.unavailable", trace, { message: `${name} is not answering. Try again in a moment.` });
 };
 
-export function createVoiceHost(d: VoiceHostDeps): VoiceHostSeam {
+export function createTalkHost(d: TalkHostDeps): TalkHostSeam {
   const grant = async (trace: string, provider: string, apiKey: string, ttl: number, stored: { own: boolean } | null): Promise<{ token: string; expiresIn: number }> => {
-    const p = voiceProvider(provider);
+    const p = talkProvider(provider);
     if (!p) throw fail("validation.bad_input", trace, { message: "That voice provider is not known." });
     const req = p.grant(apiKey, ttl);
     let status: number, body: string;

@@ -1,20 +1,20 @@
 // Talk: speak, and the words land in the composer. This file is the one provider seam: one object per provider says how to check a key, how to mint a short-lived token and how to open and read the
-// live socket. It holds no network and no key; the host seam (host/src/seams/voice.ts) runs the grant, the module picks the provider, the client opens the socket. A new provider is one more object here.
+// live socket. It holds no network and no key; the host seam (host/src/seams/talk.ts) runs the grant, the module picks the provider, the client opens the socket. A new provider is one more object here.
 // DECISION: the host mints a Deepgram temporary token and the page opens the socket to Deepgram itself. The long-lived key never reaches a browser and no audio passes through the Space. A token has to be
 // valid only while the socket opens (Deepgram documents this), so 30 seconds is plenty. It carries usage::write on the core voice APIs and nothing on the Manage APIs.
 // DECISION: audio is 16 kHz mono linear16 from the page, not a MediaRecorder container: Safari records fragmented mp4, Chrome webm, and raw PCM is the one form every webview can make the same way.
 // The key needs the Member role or higher: /v1/auth/grant answers 403 for a lesser key, so the check at setup is the same call Talk makes every time.
 
-export const VOICE_SAMPLE_RATE = 16_000;
+export const TALK_SAMPLE_RATE = 16_000;
 export const TOKEN_SECONDS = 30;
 
-export interface VoiceChoice { id: string; label: string }
+export interface TalkChoice { id: string; label: string }
 export type GrantFailure = "key" | "role" | "busy" | "down";
 export type GrantResult = { ok: true; token: string; expiresIn: number } | { ok: false; why: GrantFailure };
 /** What a socket message means to the composer. The text is the person's words: it never goes to a log. */
-export type VoiceHeard = { kind: "words"; text: string; final: boolean } | { kind: "error" } | null;
+export type TalkHeard = { kind: "words"; text: string; final: boolean } | { kind: "error" } | null;
 
-export interface VoiceProvider {
+export interface TalkProvider {
   key: string;
   name: string;
   /** Where a person gets a key. */
@@ -24,8 +24,8 @@ export interface VoiceProvider {
   spaceKeyName: string;
   /** The field of the item that holds the key. */
   keyField: string;
-  models: readonly VoiceChoice[];
-  languages: readonly VoiceChoice[];
+  models: readonly TalkChoice[];
+  languages: readonly TalkChoice[];
   defaultModel: string;
   defaultLanguage: string;
   grant(apiKey: string, ttlSeconds: number): { url: string; method: string; headers: Record<string, string>; body: string };
@@ -33,10 +33,10 @@ export interface VoiceProvider {
   socket(s: { model: string; language: string; token: string }): { url: string; protocols: string[] };
   /** The text frame that asks the provider for what it still holds, then to close. */
   closing: string;
-  read(message: string): VoiceHeard;
+  read(message: string): TalkHeard;
 }
 
-const DEEPGRAM: VoiceProvider = {
+const DEEPGRAM: TalkProvider = {
   key: "deepgram",
   name: "Deepgram",
   keyUrl: "https://console.deepgram.com/",
@@ -67,7 +67,7 @@ const DEEPGRAM: VoiceProvider = {
     } catch { return { ok: false, why: "down" }; }
   },
   socket({ model, language, token }) {
-    const q = new URLSearchParams({ model, language, encoding: "linear16", sample_rate: String(VOICE_SAMPLE_RATE), channels: "1", interim_results: "true", smart_format: "true", endpointing: "300" });
+    const q = new URLSearchParams({ model, language, encoding: "linear16", sample_rate: String(TALK_SAMPLE_RATE), channels: "1", interim_results: "true", smart_format: "true", endpointing: "300" });
     // a browser socket cannot set a header: Deepgram reads the JWT from the subprotocol pair
     return { url: `wss://api.deepgram.com/v1/listen?${q.toString()}`, protocols: ["bearer", token] };
   },
@@ -82,6 +82,6 @@ const DEEPGRAM: VoiceProvider = {
   },
 };
 
-export const VOICE_PROVIDERS: readonly VoiceProvider[] = [DEEPGRAM];
-export const DEFAULT_VOICE_PROVIDER = DEEPGRAM.key;
-export const voiceProvider = (key: string): VoiceProvider | undefined => VOICE_PROVIDERS.find((p) => p.key === key);
+export const TALK_PROVIDERS: readonly TalkProvider[] = [DEEPGRAM];
+export const DEFAULT_TALK_PROVIDER = DEEPGRAM.key;
+export const talkProvider = (key: string): TalkProvider | undefined => TALK_PROVIDERS.find((p) => p.key === key);

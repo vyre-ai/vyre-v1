@@ -31,7 +31,7 @@ import {
 } from "../impl-b/index.tsx";
 import type { BlockHostB, PartTwoType } from "../impl-b/index.tsx";
 import { accessRequestData, diffCardData, helperData, memorySavedData, modelSwitchData, secretInputData, vaultUsedData } from "../impl-b/data.ts";
-import { SAMPLE_ACCESS_REQUEST, SAMPLE_DIFF_CARD, SAMPLE_HELPER, SAMPLE_MEMORY, SAMPLE_MODEL_SWITCH, SAMPLE_SECRET_INPUT, SAMPLE_VOICE_KEY, SAMPLE_VAULT_USED, sampleBlocksB } from "../impl-b/sample.ts";
+import { SAMPLE_ACCESS_REQUEST, SAMPLE_DIFF_CARD, SAMPLE_HELPER, SAMPLE_MEMORY, SAMPLE_MODEL_SWITCH, SAMPLE_SECRET_INPUT, SAMPLE_TALK_KEY, SAMPLE_VAULT_USED, sampleBlocksB } from "../impl-b/sample.ts";
 import type { Block } from "../../kit/types.ts";
 
 interface RegistryBlock {
@@ -96,7 +96,7 @@ const SAMPLES: Record<PartTwoType, Block> = {
   vault_used: SAMPLE_VAULT_USED,
   access_request: SAMPLE_ACCESS_REQUEST,
   secret_input: SAMPLE_SECRET_INPUT,
-  voice_key: SAMPLE_VOICE_KEY,
+  talk_key: SAMPLE_TALK_KEY,
   model_switch: SAMPLE_MODEL_SWITCH,
   helper: SAMPLE_HELPER,
   diff_card: SAMPLE_DIFF_CARD,
@@ -111,7 +111,7 @@ const COMPONENT_NAME: Record<PartTwoType, string> = {
   vault_used: "ui:BlockVaultUsed",
   access_request: "ui:BlockAccessRequest",
   secret_input: "ui:BlockSecretInput",
-  voice_key: "ui:BlockVoiceKey",
+  talk_key: "ui:BlockTalkKey",
   model_switch: "ui:BlockModelSwitch",
   helper: "ui:BlockHelper",
   diff_card: "ui:BlockDiffCard",
@@ -275,7 +275,7 @@ test("diff_card: title, kind, every change with before and after, Apply and Disc
 const MORE: Partial<Record<PartTwoType, Record<string, unknown>>> = {
   memory_saved: { toLayer: "space" },
   secret_input: { fields: [{ key: "api_key", value: "placeholder", secret: true }] },
-  voice_key: { fields: [{ key: "api_key", value: "placeholder", secret: true }] },
+  talk_key: { fields: [{ key: "api_key", value: "placeholder", secret: true }] },
 };
 
 for (const type of PART_TWO_TYPES) {

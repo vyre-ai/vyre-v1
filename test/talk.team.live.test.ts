@@ -56,27 +56,27 @@ test("Team: one Space key covers everyone, a member cannot read it, an own key w
   const api = as(d);
   try {
     await connect(d);
-    const mia0 = await api("usr_mia", "voice.status");
+    const mia0 = await api("usr_mia", "talk.status");
     assert.equal(mia0.status, 200, JSON.stringify(mia0));
     assert.equal(mia0.data.source, "none");
     assert.equal(mia0.data.mayManage, false);
-    assert.equal((await api("usr_mia", "voice.session")).error.details.reason, "no_key");
+    assert.equal((await api("usr_mia", "talk.session")).error.details.reason, "no_key");
 
     // a member cannot set the Space's key; a key the provider refuses is not stored
-    assert.ok(refusedKinds((await api("usr_mia", "voice.space.connect", { provider: "deepgram", fields: fields(SPACE_KEY), idempotencyKey: "m1" })).status));
-    const bad = await api("usr_olivia", "voice.space.connect", { provider: "deepgram", fields: fields(REVOKED), idempotencyKey: "a0" });
+    assert.ok(refusedKinds((await api("usr_mia", "talk.space.connect", { provider: "deepgram", fields: fields(SPACE_KEY), idempotencyKey: "m1" })).status));
+    const bad = await api("usr_olivia", "talk.space.connect", { provider: "deepgram", fields: fields(REVOKED), idempotencyKey: "a0" });
     assert.equal(bad.status, 502);
     assert.equal(bad.error.message, "Deepgram did not accept that key. Check it and try again.");
-    assert.equal((await api("usr_olivia", "voice.space.status")).data.set, false);
+    assert.equal((await api("usr_olivia", "talk.space.status")).data.set, false);
 
-    const on = await api("usr_olivia", "voice.space.connect", { provider: "deepgram", fields: fields(SPACE_KEY), idempotencyKey: "a1" });
+    const on = await api("usr_olivia", "talk.space.connect", { provider: "deepgram", fields: fields(SPACE_KEY), idempotencyKey: "a1" });
     assert.equal(on.status, 200, JSON.stringify(on));
     assert.equal(on.data.on, true);
     const itemId = on.data.itemId as string;
 
     // with a Space key, the member just talks
-    assert.equal((await api("usr_mia", "voice.status")).data.source, "space");
-    const session = await api("usr_mia", "voice.session");
+    assert.equal((await api("usr_mia", "talk.status")).data.source, "space");
+    const session = await api("usr_mia", "talk.session");
     assert.equal(session.status, 200, JSON.stringify(session));
     assert.equal(session.data.source, "space");
     assert.equal(dg.grants.at(-1), SPACE_KEY);
@@ -88,10 +88,10 @@ test("Team: one Space key covers everyone, a member cannot read it, an own key w
     assert.ok(refusedKinds((await api("usr_mia", "vault.use", { item: itemId })).status), "use");
     assert.ok(refusedKinds((await api("usr_mia", "vault.fill", { handle: `${on.data.handle ?? "#Deepgram_for_this_Space"}.api_key`, target: { kind: "env", ref: "x" }, returnValue: true })).status), "fill");
     assert.ok(!JSON.stringify((await api("usr_mia", "vault.items.list")).data).includes(itemId), "she does not see it listed");
-    assert.ok(refusedKinds((await api("usr_mia", "voice.space.status")).status));
+    assert.ok(refusedKinds((await api("usr_mia", "talk.space.status")).status));
 
     // use is attributed per person in the audit log
-    const audit = await api("usr_olivia", "audit.list", { action: "voice.session", limit: 20 });
+    const audit = await api("usr_olivia", "audit.list", { action: "talk.session", limit: 20 });
     assert.equal(audit.status, 200, JSON.stringify(audit));
     assert.ok(JSON.stringify(audit.data).includes("usr_mia"), `the audit log names who talked: ${JSON.stringify(audit.data).slice(0, 400)}`);
     assert.ok(!JSON.stringify(audit.data).includes(SPACE_KEY));
@@ -99,24 +99,24 @@ test("Team: one Space key covers everyone, a member cannot read it, an own key w
     // an own key wins, for whoever has one (Mine items seal on the person's own node, so this is the owner, on theirs; a member reaching a remote Space gets the plain locked line)
     const unlock = await fetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
     assert.equal(unlock.status, 204);
-    const own = await api("usr_olivia", "voice.connect", { provider: "deepgram", fields: fields(OWN_KEY), idempotencyKey: "o2" });
+    const own = await api("usr_olivia", "talk.connect", { provider: "deepgram", fields: fields(OWN_KEY), idempotencyKey: "o2" });
     assert.equal(own.status, 200, JSON.stringify(own));
     assert.equal(own.data.source, "own");
-    assert.equal((await api("usr_olivia", "voice.session")).data.source, "own");
+    assert.equal((await api("usr_olivia", "talk.session")).data.source, "own");
     assert.equal(dg.grants.at(-1), OWN_KEY);
-    const locked = await api("usr_mia", "voice.connect", { provider: "deepgram", fields: fields(OWN_KEY), idempotencyKey: "m2" });
+    const locked = await api("usr_mia", "talk.connect", { provider: "deepgram", fields: fields(OWN_KEY), idempotencyKey: "m2" });
     assert.equal(locked.error.details.reason, "vault_locked", "a member with no key held here is told why");
-    assert.equal((await api("usr_mia", "voice.status")).data.source, "space", "and is still covered");
+    assert.equal((await api("usr_mia", "talk.status")).data.source, "space", "and is still covered");
 
     // off stops the Space key, for Noah and not for Olivia
-    assert.equal((await api("usr_noah", "voice.session")).data.source, "space");
-    assert.equal((await api("usr_olivia", "voice.space.configure", { on: false })).data.on, false);
-    assert.equal((await api("usr_noah", "voice.session")).error.details.reason, "no_key");
-    assert.equal((await api("usr_olivia", "voice.session")).data.source, "own");
+    assert.equal((await api("usr_noah", "talk.session")).data.source, "space");
+    assert.equal((await api("usr_olivia", "talk.space.configure", { on: false })).data.on, false);
+    assert.equal((await api("usr_noah", "talk.session")).error.details.reason, "no_key");
+    assert.equal((await api("usr_olivia", "talk.session")).data.source, "own");
 
     // a key the provider stopped taking is one plain line
     dg.dead.add(OWN_KEY);
-    const revoked = await api("usr_olivia", "voice.session");
+    const revoked = await api("usr_olivia", "talk.session");
     assert.equal(revoked.error.message, "Deepgram no longer accepts your key. Add a new one in Settings, AI, Voice.");
     dg.dead.delete(OWN_KEY);
 
@@ -134,11 +134,11 @@ test("Personal-style: an agent changes the person's own Talk, posts the card, an
     if (!/talk/.test(input.trigger?.body ?? "")) return;
     seen["found"] = yield* run("tool_search", { query: "switch Talk language voice" });
     yield* run("tool_search", { query: "Talk key card" });
-    seen["configure"] = yield* run("voice_configure", { language: "es" });
-    seen["askKey"] = yield* run("voice_ask_key", {});
+    seen["configure"] = yield* run("talk_configure", { language: "es" });
+    seen["askKey"] = yield* run("talk_ask_key", {});
     yield* run("tool_search", { query: "Talk for everyone in the Space" });
-    seen["space"] = yield* run("voice_space_configure", { on: true });
-    seen["connect"] = yield* run("voice_connect", { provider: "deepgram", fields: fields(SPACE_KEY), idempotencyKey: "agent-connect" });
+    seen["space"] = yield* run("talk_space_configure", { on: true });
+    seen["connect"] = yield* run("talk_connect", { provider: "deepgram", fields: fields(SPACE_KEY), idempotencyKey: "agent-connect" });
     yield { type: "text", text: "done" };
   }), { vault: undefined, seams: { fetch: dg.fetch } });
   const api = (cap: string, input: unknown = {}) => as(d)(d.token, cap, input);
@@ -150,11 +150,11 @@ test("Personal-style: an agent changes the person's own Talk, posts the card, an
     const threadId = th.data.thread.threadId as string;
     await api("chat.post", { threadId, body: "talk in spanish please", mentions: [{ kind: "agent", id: agentId }], idempotencyKey: "v-post" });
     for (let i = 0; i < 200 && !seen["connect"]; i++) { await d.hooks?.pump?.(); await new Promise((r) => setTimeout(r, 100)); }
-    assert.equal((await api("voice.status")).data.language, "es", JSON.stringify(seen["configure"]));
+    assert.equal((await api("talk.status")).data.language, "es", JSON.stringify(seen["configure"]));
     const blocks = ((await api("chat.messages.list", { threadId })).data.messages as { blocks: { type: string }[] }[]).flatMap((m) => m.blocks);
-    assert.ok(blocks.some((b) => b.type === "voice_key"), `the card is in the chat: ${JSON.stringify(seen["askKey"])}`);
+    assert.ok(blocks.some((b) => b.type === "talk_key"), `the card is in the chat: ${JSON.stringify(seen["askKey"])}`);
     assert.equal((seen["connect"] as { ok?: boolean } | undefined)?.ok, false, "there is no tool that takes a key");
-    assert.equal((await api("voice.space.status")).data.set, false, "nor did the agent change the Space");
+    assert.equal((await api("talk.space.status")).data.set, false, "nor did the agent change the Space");
     assert.equal(dg.grants.length, 0, "no key ever reached the provider from an agent");
   } finally {
     await stop(d);

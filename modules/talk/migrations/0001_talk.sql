@@ -1,6 +1,6 @@
--- voice. A person's Talk choices and the Space's one key. Values never live here: only the Vault item's id and handle.
+-- talk. A person's Talk choices and the Space's one key. Values never live here: only the Vault item's id and handle.
 
-CREATE TABLE IF NOT EXISTS voice_prefs (
+CREATE TABLE IF NOT EXISTS talk_prefs (
   "person" TEXT PRIMARY KEY,
   "enabled" INTEGER NOT NULL,
   "provider" TEXT NOT NULL,
@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS voice_prefs (
   "updatedAt" INTEGER NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS voice_space (
+CREATE TABLE IF NOT EXISTS talk_space (
   "id" TEXT PRIMARY KEY,
   "enabled" INTEGER NOT NULL,
   "provider" TEXT NOT NULL,
