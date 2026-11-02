@@ -57380,7 +57380,7 @@
       "blocks": [],
       "cap": "threads.mark_read",
       "deferred": false,
-      "description": "Mark a thread read up to a sequence number",
+      "description": "Mark a thread read up to a sequence number, or unread again (the newest message from someone else counts as new)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57390,6 +57390,9 @@
             ],
             "pattern": "^thr_[a-z0-9]+$",
             "type": "string"
+          },
+          "unread": {
+            "type": "boolean"
           },
           "upto": {
             "type": "integer"
