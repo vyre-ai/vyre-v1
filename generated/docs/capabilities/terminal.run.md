@@ -58,6 +58,7 @@ type Out = {
 - provider.unavailable
 - timeout.deadline
 - validation.bad_input
+- validation.not_found
 
 ## Example
 
