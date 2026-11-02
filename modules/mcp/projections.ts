@@ -48,9 +48,10 @@ export interface Endpoint {
   loopbackUrl: string;
 }
 const DEFAULT_ENDPOINT: Endpoint = { url: "http://127.0.0.1:41800/mcp", loopbackUrl: "http://127.0.0.1:41800/mcp" };
-let endpoint: Endpoint = DEFAULT_ENDPOINT;
-export function bindEndpoint(e: Endpoint | null): void { endpoint = e ?? DEFAULT_ENDPOINT; }
-export const endpointOf = (): Endpoint => endpoint;
+let endpoint: Endpoint | (() => Endpoint) = DEFAULT_ENDPOINT;
+/** A function when the address can change while the host runs: a phone name claimed later is the Space's address from then on. */
+export function bindEndpoint(e: Endpoint | (() => Endpoint) | null): void { endpoint = e ?? DEFAULT_ENDPOINT; }
+export const endpointOf = (): Endpoint => (typeof endpoint === "function" ? endpoint() : endpoint);
 
 let server: McpServer | null = null;
 /** The live server on this host, so closing a session also ends it there. */

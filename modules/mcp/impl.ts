@@ -89,9 +89,7 @@ const formOf = (body: string): Record<string, string | undefined> | null => {
 export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
   const now = o.now ?? Date.now;
   ensure(o.db);
-  const endpoint = (): Endpoint | null => (typeof o.endpoint === "function" ? o.endpoint() : o.endpoint ?? null);
-  const first = endpoint();
-  if (first) bindEndpoint(first);
+  if (o.endpoint) bindEndpoint(o.endpoint);
   const g = loadGenerated();
   const lastSeen = new Map<string, number>();
   const steps = new Map<string, Steps>();
