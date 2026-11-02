@@ -188,7 +188,7 @@ test("a snoozed request returns at its time", async () => {
   assert.equal((await h.call("tasks.snooze", { taskId: work, until: h.now() + HOUR }, { id: alice.id })).task.snoozedUntil, h.now() + HOUR);
   await refused(h.call("tasks.snooze", { taskId: work, until: h.now() + HOUR }, { id: bob.id }), "validation.precondition_failed", "wrong_actor");
   await h.call("tasks.transition", { taskId: work, to: "canceled" }, { id: alice.id });
-  await refused(h.call("tasks.snooze", { taskId: work, until: h.now() + HOUR }, { id: alice.id }), "validation.precondition_failed", "not_a_request");
+  await refused(h.call("tasks.snooze", { taskId: work, until: h.now() + HOUR }, { id: alice.id }), "validation.precondition_failed", "task_closed");
 });
 
 // ---- My work and lists ----

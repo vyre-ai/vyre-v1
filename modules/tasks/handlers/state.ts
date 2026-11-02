@@ -382,7 +382,7 @@ export async function assign(ctx: TasksCtx, input: In): Promise<unknown> {
 
 export async function snooze(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
-  if (!isOpen(t.state)) raise(ctx, "validation.precondition_failed", "Only an open task can be snoozed.", { reason: "not_a_request" });
+  if (!isOpen(t.state)) raise(ctx, "validation.precondition_failed", "Only an open task can be snoozed.", { reason: "task_closed" });
   if (!actionableByMe(ctx, t) && !isTrustedService(ctx.principal)) raise(ctx, "validation.precondition_failed", "Only the person this task is waiting on can snooze it.", { reason: "wrong_actor" });
   const until: number | null = input.until ?? null;
   if (until !== null && until <= ctx.now()) raise(ctx, "validation.precondition_failed", "Pick a time in the future.", { reason: "past_time" });

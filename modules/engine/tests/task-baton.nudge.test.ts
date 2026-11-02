@@ -84,6 +84,15 @@ test("a task waiting on a question it asked is not a silent stop", async () => {
   assert.equal(batonRow(s.h.ctx.db, "tsk_t1")!.turnEndedAt, undefined);
 });
 
+test("a task that waits on another starts no turn and opens no thread until task.ready", async () => {
+  const s = scene(task({ blocked: true }));
+  assert.deepEqual(await s.wake(), []);
+  // nothing was opened, so there is no thread for settle to wait on: the proof is that nothing ran
+  assert.equal(s.provider.specs.length, 0);
+  assert.equal(batonRow(s.h.ctx.db, "tsk_t1"), undefined);
+  assert.equal(nudges(s).length, 0);
+});
+
 test("a failed turn is not nudged, and starts the clock", async () => {
   const s = scene(task(), [{ type: "error", code: "provider.overloaded", message: "busy" }]);
   await s.wake();
