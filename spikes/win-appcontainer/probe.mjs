@@ -24,6 +24,20 @@ try {
       child.on("error", (e) => done({ ok: false, error: `spawn ${e.code}` }));
     });
     s.on("error", (e) => done({ ok: false, error: `listen ${e.code}` }));
+  } else if (mode === "spawn") {
+    // which ways of starting a child work inside the container
+    const { spawnSync } = await import("node:child_process");
+    const cmd = `${process.env.SystemRoot ?? "C:\\Windows"}\\System32\\cmd.exe`;
+    const tries = {
+      nodeSync: () => spawnSync(process.execPath, ["--version"], { encoding: "utf8" }),
+      nodeSyncDetached: () => spawnSync(process.execPath, ["--version"], { encoding: "utf8", detached: true }),
+      cmdSync: () => spawnSync(cmd, ["/c", "echo", "hi"], { encoding: "utf8" }),
+      cmdSyncDetached: () => spawnSync(cmd, ["/c", "echo", "hi"], { encoding: "utf8", detached: true }),
+      nodeSyncHidden: () => spawnSync(process.execPath, ["--version"], { encoding: "utf8", windowsHide: true }),
+    };
+    const r = {};
+    for (const [k, f] of Object.entries(tries)) { try { const x = f(); r[k] = x.error ? `${x.error.code} ${x.error.syscall ?? ""}` : `exit ${x.status} ${String(x.stdout).trim()}`; } catch (e) { r[k] = `threw ${e.code ?? e.message}`; } }
+    done({ ok: true, ...r });
   } else if (mode === "internet") {
     try { const r = await fetch("https://api.anthropic.com/", { signal: AbortSignal.timeout(6000) }); done({ ok: true, status: r.status }); } catch (e) { done({ ok: false, error: String(e.cause?.code ?? e.message) }); }
   } else if (mode === "read") {

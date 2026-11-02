@@ -85,6 +85,7 @@ $port = Get-Content $portFile
 $probes = @(
   @("same-process-loopback", ""),
   @("cross-process-loopback", ""),
+  @("spawn", ""),
   @("host-loopback", $port),
   @("pipe", "\\.\pipe\vyre-spike-node"),
   @("pipe", "\\.\pipe\vyre-spike-acl"),
