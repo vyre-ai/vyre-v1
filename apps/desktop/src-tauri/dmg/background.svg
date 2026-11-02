@@ -2,7 +2,7 @@
   <!-- The window behind the Mac install: the entry sheet on the Vyre Black ground, with the corner of the app icon turned over. Finder draws its labels without looking at this picture, so each label sits on a plate of #76737F, where black and white both read at 4.5:1. The ground runs past the window so a person who enlarges it, or shows hidden files, finds no white edge. Icon centres match bundle.macOS.dmg in tauri.conf.json. -->
   <defs><linearGradient id="fold" x1="1" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#34302C"/><stop offset="1" stop-color="#22201D"/></linearGradient></defs>
   <rect width="900" height="640" fill="#07070A"/>
-  <path d="M48 28H586L632 74V348a20 20 0 0 1-20 20H48a20 20 0 0 1-20-20V48a20 20 0 0 1 20-20Z" fill="#16151D"/>
+  <path d="M48 28H586L632 74V348a20 20 0 0 1-20 20H48a20 20 0 0 1-20-20V48a20 20 0 0 1 20-20Z" fill="#121118"/>
   <path d="M586 28V66a8 8 0 0 0 8 8H632Z" fill="url(#fold)"/>
   <g fill="none" stroke="#625D70" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
     <path d="M272 178H388"/>

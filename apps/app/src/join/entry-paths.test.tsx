@@ -216,3 +216,14 @@ test("the first frame waits for the app to be usable, but only so long", async (
     await whenUsable(5);
   } finally { g.addEventListener = had; }
 });
+
+test("a slow start says so once: the hidden surface under the first frame stays quiet", async () => {
+  installDom();
+  const real = globalThis.setTimeout;
+  (globalThis as { setTimeout: unknown }).setTimeout = (f: () => void, ms: number) => real(f, ms === 4000 ? 5 : ms);
+  try {
+    const root = await mount(createRoot, <><Opening /><FirstFrame /></>);
+    await act(async () => { await sleep(20); });
+    assert.equal(JSON.stringify((root as unknown as { toJSON(): unknown }).toJSON()).match(/Still opening/g)?.length, 1);
+  } finally { (globalThis as { setTimeout: unknown }).setTimeout = real; }
+});

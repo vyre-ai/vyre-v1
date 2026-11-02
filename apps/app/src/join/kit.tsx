@@ -103,10 +103,14 @@ export function Mark({ size = 40, wait, ink = ENTRY.ink }: { size?: number; wait
     createElement("circle", { cx: 18.6, cy: 5.6, r: 2.7, fill: ink === ENTRY.ink ? ENTRY.spark : ink }));
 }
 
-/** The folded mark, the app's own icon: what a person sees while Vyre opens. Its spark breathes twice and rests. */
-export function FoldedMark({ size = 40 }: { size?: number }): ReactElement {
-  if (!web) return <Mark size={size} />;
-  return createElement("svg", { viewBox: "0 0 64 64", width: size, height: size, "aria-hidden": true, "data-icon": "vyre-mark", style: { display: "block", flex: "none" }, dangerouslySetInnerHTML: { __html: FOLDED_MARK } });
+/** The folded mark, the app's own icon: what a person sees while Vyre opens. Its spark breathes twice and rests. It is drawn on a 64 grid, where the dots land on whole pixels, and sits in the 40 px slot of the plain mark with its centre on the same point, so the mark does not move when the next screen arrives. */
+export function FoldedMark(): ReactElement {
+  if (!web) return <Mark />;
+  return (
+    <View style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center", overflow: "visible" }}>
+      {createElement("svg", { viewBox: "0 0 64 64", width: 64, height: 64, "aria-hidden": true, "data-icon": "vyre-mark", style: { display: "block", flex: "none" }, dangerouslySetInnerHTML: { __html: FOLDED_MARK } })}
+    </View>
+  );
 }
 
 /** The Space's own letter, in place of the mark, once the screen is about one Space. */
@@ -604,9 +608,10 @@ export function CodeShown({ code, testID }: { code: string; testID?: string }): 
 const SLOW_MS = 4000;
 
 /** What a person sees while Vyre opens: the sheet and the folded mark, and after a few seconds one quiet line that does not move anything. */
-function OpeningSurface({ testID }: { testID?: string | undefined }): ReactElement {
+function OpeningSurface({ testID, first }: { testID?: string | undefined; first?: boolean }): ReactElement {
   const [slow, setSlow] = useState(false);
-  useEffect(() => { const t = setTimeout(() => setSlow(true), SLOW_MS); return () => clearTimeout(t); }, []);
+  // Under the first frame the same surface is hidden: only the one on top speaks, or a screen reader hears the line twice.
+  useEffect(() => { const t = setTimeout(() => { if (first || !firstFrameUp) setSlow(true); }, SLOW_MS); return () => clearTimeout(t); }, [first]);
   return (
     <JoinFrame>
       <Panel opening>
@@ -620,6 +625,7 @@ function OpeningSurface({ testID }: { testID?: string | undefined }): ReactEleme
 
 // How many plain Openings are on screen. The first frame stays while there is one: nothing else decides how long it lasts, so it can never add a wait.
 let opening = 0;
+let firstFrameUp = false;
 const watchers = new Set<() => void>();
 const held = (by: number): void => { opening += by; for (const w of watchers) w(); };
 
@@ -648,6 +654,7 @@ const NOT_HELD = (): Promise<void> => Promise.resolve();
  */
 export function FirstFrame(): ReactElement | null {
   const [stage, setStage] = useState<"on" | "leaving" | "gone">("on");
+  useEffect(() => { firstFrameUp = stage !== "gone"; return () => { firstFrameUp = false; }; }, [stage]);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     // One screen hands over to the next within a commit: look once that has settled, so a handover is not read as the end.
@@ -664,7 +671,7 @@ export function FirstFrame(): ReactElement | null {
   if (stage === "gone") return null;
   return (
     <View testID="first-frame" accessible={false} {...(web ? { dataSet: { entryFirst: "", ...(stage === "leaving" ? { entryGone: "" } : {}) } } : {})} pointerEvents={stage === "leaving" ? "none" : "auto"} style={{ position: (web ? "fixed" : "absolute") as "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 1000 }}>
-      <OpeningSurface testID="first-frame-surface" />
+      <OpeningSurface testID="first-frame-surface" first />
     </View>
   );
 }
