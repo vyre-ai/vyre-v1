@@ -6767,6 +6767,190 @@ export type CommsSendersSetDefaultOut = {
   channel: "email" | "text";
   senderId: string;
 };
+export type CompanyAccessLogIn = {
+  cursor?: string;
+  limit?: number;
+  mailbox?: string;
+};
+export type CompanyAccessLogOut = {
+  entries: Array<{
+      who: string;
+      onBehalf?: string;
+      mailbox: string;
+      cap: string;
+      at: number;
+    }>;
+  next?: string;
+};
+export type CompanyCheckIn = Record<string, unknown>;
+export type CompanyCheckOut = {
+  ok: boolean;
+  problem?: string;
+  clientId?: string;
+  who?: string;
+  tenantId?: string;
+  credential?: "certificate" | "secret";
+};
+export type CompanyConnectIn = {
+  idempotencyKey: string;
+};
+export type CompanyConnectOut = {
+  connected: number;
+  included: number;
+};
+export type CompanyDisconnectIn = Record<string, unknown>;
+export type CompanyDisconnectOut = {
+  disconnected: boolean;
+};
+export type CompanyPeopleDoneIn = Record<string, unknown>;
+export type CompanyPeopleDoneOut = {
+  started: boolean;
+  providers?: Array<{
+      key: "google" | "microsoft";
+      title: string;
+    }>;
+  provider?: "google" | "microsoft";
+  title?: string;
+  data?: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  doc?: string;
+  steps?: Array<{
+      id: string;
+      title: string;
+      doc: string;
+      done: boolean;
+      optional?: boolean;
+    }>;
+  next?: string;
+  requireSso?: boolean;
+  signInOn?: boolean;
+  signInTried?: boolean;
+  recoveryKey?: boolean;
+  domain?: string;
+  who?: string;
+  probeLine?: string;
+  keyHandle?: string;
+  connected?: boolean;
+  connectedAt?: number;
+  mapped?: number;
+  excluded?: Array<string>;
+  space?: string;
+  redirect?: string;
+  clientId?: string;
+  lastSweep?: string;
+};
+export type CompanyProbeIn = Record<string, unknown>;
+export type CompanyProbeOut = {
+  ok: boolean;
+  line: string;
+  missing?: Array<string>;
+};
+export type CompanyScriptIn = {
+  provider: "google" | "microsoft";
+};
+export type CompanyScriptOut = {
+  shell: string;
+  url: string;
+  script: string;
+};
+export type CompanyStartIn = {
+  provider: "google" | "microsoft";
+  data?: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+};
+export type CompanyStartOut = {
+  started: boolean;
+  providers?: Array<{
+      key: "google" | "microsoft";
+      title: string;
+    }>;
+  provider?: "google" | "microsoft";
+  title?: string;
+  data?: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  doc?: string;
+  steps?: Array<{
+      id: string;
+      title: string;
+      doc: string;
+      done: boolean;
+      optional?: boolean;
+    }>;
+  next?: string;
+  requireSso?: boolean;
+  signInOn?: boolean;
+  signInTried?: boolean;
+  recoveryKey?: boolean;
+  domain?: string;
+  who?: string;
+  probeLine?: string;
+  keyHandle?: string;
+  connected?: boolean;
+  connectedAt?: number;
+  mapped?: number;
+  excluded?: Array<string>;
+  space?: string;
+  redirect?: string;
+  clientId?: string;
+  lastSweep?: string;
+};
+export type CompanyStatusIn = Record<string, unknown>;
+export type CompanyStatusOut = {
+  started: boolean;
+  providers?: Array<{
+      key: "google" | "microsoft";
+      title: string;
+    }>;
+  provider?: "google" | "microsoft";
+  title?: string;
+  data?: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  doc?: string;
+  steps?: Array<{
+      id: string;
+      title: string;
+      doc: string;
+      done: boolean;
+      optional?: boolean;
+    }>;
+  next?: string;
+  requireSso?: boolean;
+  signInOn?: boolean;
+  signInTried?: boolean;
+  recoveryKey?: boolean;
+  domain?: string;
+  who?: string;
+  probeLine?: string;
+  keyHandle?: string;
+  connected?: boolean;
+  connectedAt?: number;
+  mapped?: number;
+  excluded?: Array<string>;
+  space?: string;
+  redirect?: string;
+  clientId?: string;
+  lastSweep?: string;
+};
+export type CompanySweepIn = {
+  confirmed?: boolean;
+};
+export type CompanySweepOut = {
+  checked: number;
+  gone: Array<string>;
+  held?: string;
+};
 export type ComputersChromeActIn = {
   computerId?: string;
   tabId?: string;
@@ -13093,6 +13277,21 @@ export type GithubReposListOut = {
   next?: string;
   total?: number;
 };
+export type GoogleAccessLogIn = {
+  cursor?: string;
+  limit?: number;
+  mailbox?: string;
+};
+export type GoogleAccessLogOut = {
+  entries: Array<{
+      who: string;
+      onBehalf?: string;
+      mailbox: string;
+      cap: string;
+      at: number;
+    }>;
+  next?: string;
+};
 export type GoogleCalendarCreateEventIn = {
   connectionId: string;
   as?: string;
@@ -13334,6 +13533,14 @@ export type GoogleDirectoryListOut = {
       userId?: string;
     }>;
   nextPageToken?: string;
+};
+export type GoogleDirectoryReconcileIn = {
+  confirmed?: boolean;
+};
+export type GoogleDirectoryReconcileOut = {
+  checked: number;
+  gone: Array<string>;
+  held?: string;
 };
 export type GoogleDocsBatchUpdateIn = {
   connectionId: string;
@@ -13658,6 +13865,23 @@ export type GoogleDriveWatchChangesOut = {
   resourceId: string;
   expiration: number;
 };
+export type GoogleDwdCheckKeyIn = {
+  vaultItem: string;
+};
+export type GoogleDwdCheckKeyOut = {
+  ok: boolean;
+  clientId?: string;
+  clientEmail?: string;
+  projectId?: string;
+  problem?: string;
+};
+export type GoogleDwdConnectAllIn = {
+  idempotencyKey: string;
+};
+export type GoogleDwdConnectAllOut = {
+  connected: number;
+  included: number;
+};
 export type GoogleDwdDisableIn = Record<string, unknown>;
 export type GoogleDwdDisableOut = {
   disabled: boolean;
@@ -13691,6 +13915,8 @@ export type GoogleDwdMembersOut = {
 export type GoogleDwdMyAccountIn = Record<string, unknown>;
 export type GoogleDwdMyAccountOut = {
   email?: string;
+  connectionId?: string;
+  files?: boolean;
 };
 export type GoogleDwdProbeIn = {
   as?: string;
@@ -13707,6 +13933,22 @@ export type GoogleDwdScopesOut = {
   clientId?: string;
   adminConsoleUrl: string;
 };
+export type GoogleDwdSetDataIn = {
+  data: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  idempotencyKey: string;
+};
+export type GoogleDwdSetDataOut = {
+  data: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  scopes: Array<string>;
+};
 export type GoogleDwdSetExcludedIn = {
   email: string;
   excluded: boolean;
@@ -13718,6 +13960,12 @@ export type GoogleDwdSetupIn = {
   vaultItem: string;
   adminEmail: string;
   domain?: string;
+  data?: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  hold?: boolean;
   idempotencyKey: string;
 };
 export type GoogleDwdSetupOut = {
@@ -13737,6 +13985,13 @@ export type GoogleDwdStatusOut = {
   mappedMembers: number;
   excluded: Array<string>;
   pushToken?: string;
+  data: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  keyStored: boolean;
+  clientId?: string;
 };
 export type GoogleDwdSyncMembersIn = {
   idempotencyKey: string;
@@ -14963,6 +15218,12 @@ export type IdentitySignOutIn = {
 export type IdentitySignOutOut = {
   ok: boolean;
 };
+export type IdentitySsoLinkIn = {
+  provider: string;
+};
+export type IdentitySsoLinkOut = {
+  start: string;
+};
 export type IdentitySsoSignInIn = {
   provider: string;
   code: string;
@@ -15696,6 +15957,8 @@ export type InvitesAcceptCreateAccountIn = {
         wrapped: string;
       }>;
   };
+  ssoProvider?: string;
+  ssoCode?: string;
 };
 export type InvitesAcceptCreateAccountOut = {
   status: "ok" | "second_factor_required";
@@ -17109,6 +17372,14 @@ export type MailMailboxUpdateOut = {
     lastSyncAt?: number;
   };
 };
+export type MailMemberPauseIn = {
+  provider: "google" | "microsoft";
+  address: string;
+  paused: boolean;
+};
+export type MailMemberPauseOut = {
+  changed: number;
+};
 export type MailMessageEraseIn = {
   messageId: string;
   idempotencyKey: string;
@@ -18174,6 +18445,8 @@ export type MembersSignInPolicyGetOut = {
     newMemberMfaEnrollment: boolean;
     ownerHasSecondFactor: boolean;
     currentHasSecondFactor: boolean;
+    ownerSsoLinked?: boolean;
+    ownerHasRecovery?: boolean;
   };
 };
 export type MembersSignInPolicySetIn = {
@@ -19815,6 +20088,13 @@ export type MemoryVersionsOut = {
       name?: string;
     }>;
 };
+export type MountsAccountPauseIn = {
+  account: string;
+  paused: boolean;
+};
+export type MountsAccountPauseOut = {
+  changed: number;
+};
 export type MountsAddIn = {
   into: string;
   source: {
@@ -19854,6 +20134,10 @@ export type MountsBrowseOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type MountsCompanyDriveIn = Record<string, unknown>;
+export type MountsCompanyDriveOut = {
+  mounted: Array<string>;
 };
 export type MountsDocInsertTextIn = {
   fileId: string;
@@ -20116,6 +20400,21 @@ export type MountsUpdateOut = {
     liveVia?: "push" | "poll";
   };
 };
+export type MsAccessLogIn = {
+  cursor?: string;
+  limit?: number;
+  mailbox?: string;
+};
+export type MsAccessLogOut = {
+  entries: Array<{
+      who: string;
+      onBehalf?: string;
+      mailbox: string;
+      cap: string;
+      at: number;
+    }>;
+  next?: string;
+};
 export type MsCalendarCreateEventIn = {
   connectionId: string;
   as?: string;
@@ -20340,6 +20639,23 @@ export type MsCalendarUpdateEventOut = {
     isCancelled?: boolean;
   };
 };
+export type MsConsentCheckAppIn = {
+  vaultItem: string;
+};
+export type MsConsentCheckAppOut = {
+  ok: boolean;
+  clientId?: string;
+  tenantId?: string;
+  credential?: "certificate" | "secret";
+  problem?: string;
+};
+export type MsConsentConnectAllIn = {
+  idempotencyKey: string;
+};
+export type MsConsentConnectAllOut = {
+  connected: number;
+  included: number;
+};
 export type MsConsentDisableIn = Record<string, unknown>;
 export type MsConsentDisableOut = {
   disabled: boolean;
@@ -20380,12 +20696,31 @@ export type MsConsentMembersOut = {
 export type MsConsentMyAccountIn = Record<string, unknown>;
 export type MsConsentMyAccountOut = {
   email?: string;
+  connectionId?: string;
+  files?: boolean;
 };
 export type MsConsentPolicySnippetIn = Record<string, unknown>;
 export type MsConsentPolicySnippetOut = {
   language: "powershell";
   snippet: string;
   groupName: string;
+};
+export type MsConsentSetDataIn = {
+  data: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  idempotencyKey: string;
+};
+export type MsConsentSetDataOut = {
+  data: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  permissions: Array<string>;
+  exchangeRoles: Array<string>;
 };
 export type MsConsentSetExcludedIn = {
   email: string;
@@ -20398,6 +20733,12 @@ export type MsConsentSetupIn = {
   vaultItem: string;
   tenantId: string;
   domain?: string;
+  data?: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  hold?: boolean;
   idempotencyKey: string;
 };
 export type MsConsentSetupOut = {
@@ -20415,6 +20756,15 @@ export type MsConsentStatusOut = {
   autoConnect: boolean;
   mappedMembers: number;
   excluded: Array<string>;
+  data: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  appStored: boolean;
+  clientId?: string;
+  permissions: Array<string>;
+  exchangeRoles: Array<string>;
 };
 export type MsConsentSyncMembersIn = {
   idempotencyKey: string;
@@ -20430,6 +20780,7 @@ export type MsConsentVerifyIn = {
 export type MsConsentVerifyOut = {
   ok: boolean;
   missingPermissions: Array<string>;
+  unscoped?: Array<string>;
   detail?: string;
 };
 export type MsDirectoryImportIn = {
@@ -20462,6 +20813,14 @@ export type MsDirectoryListOut = {
       userId?: string;
     }>;
   nextSkipToken?: string;
+};
+export type MsDirectoryReconcileIn = {
+  confirmed?: boolean;
+};
+export type MsDirectoryReconcileOut = {
+  checked: number;
+  gone: Array<string>;
+  held?: string;
 };
 export type MsDriveCreateFolderIn = {
   connectionId: string;
@@ -33906,6 +34265,16 @@ export interface CapMap {
   "chat.unpin": { in: ChatUnpinIn; out: ChatUnpinOut };
   "comms.senders.list": { in: CommsSendersListIn; out: CommsSendersListOut };
   "comms.senders.set_default": { in: CommsSendersSetDefaultIn; out: CommsSendersSetDefaultOut };
+  "company.access_log": { in: CompanyAccessLogIn; out: CompanyAccessLogOut };
+  "company.check": { in: CompanyCheckIn; out: CompanyCheckOut };
+  "company.connect": { in: CompanyConnectIn; out: CompanyConnectOut };
+  "company.disconnect": { in: CompanyDisconnectIn; out: CompanyDisconnectOut };
+  "company.people_done": { in: CompanyPeopleDoneIn; out: CompanyPeopleDoneOut };
+  "company.probe": { in: CompanyProbeIn; out: CompanyProbeOut };
+  "company.script": { in: CompanyScriptIn; out: CompanyScriptOut };
+  "company.start": { in: CompanyStartIn; out: CompanyStartOut };
+  "company.status": { in: CompanyStatusIn; out: CompanyStatusOut };
+  "company.sweep": { in: CompanySweepIn; out: CompanySweepOut };
   "computers.chrome.act": { in: ComputersChromeActIn; out: ComputersChromeActOut };
   "computers.chrome.api": { in: ComputersChromeApiIn; out: ComputersChromeApiOut };
   "computers.chrome.batch": { in: ComputersChromeBatchIn; out: ComputersChromeBatchOut };
@@ -34339,6 +34708,7 @@ export interface CapMap {
   "github.receive_webhook": { in: GithubReceiveWebhookIn; out: GithubReceiveWebhookOut };
   "github.repo.get": { in: GithubRepoGetIn; out: GithubRepoGetOut };
   "github.repos.list": { in: GithubReposListIn; out: GithubReposListOut };
+  "google.access_log": { in: GoogleAccessLogIn; out: GoogleAccessLogOut };
   "google.calendar.create_event": { in: GoogleCalendarCreateEventIn; out: GoogleCalendarCreateEventOut };
   "google.calendar.delete_event": { in: GoogleCalendarDeleteEventIn; out: GoogleCalendarDeleteEventOut };
   "google.calendar.free_busy": { in: GoogleCalendarFreeBusyIn; out: GoogleCalendarFreeBusyOut };
@@ -34351,6 +34721,7 @@ export interface CapMap {
   "google.calendar.watch": { in: GoogleCalendarWatchIn; out: GoogleCalendarWatchOut };
   "google.directory.import": { in: GoogleDirectoryImportIn; out: GoogleDirectoryImportOut };
   "google.directory.list": { in: GoogleDirectoryListIn; out: GoogleDirectoryListOut };
+  "google.directory.reconcile": { in: GoogleDirectoryReconcileIn; out: GoogleDirectoryReconcileOut };
   "google.docs.batch_update": { in: GoogleDocsBatchUpdateIn; out: GoogleDocsBatchUpdateOut };
   "google.docs.create_document": { in: GoogleDocsCreateDocumentIn; out: GoogleDocsCreateDocumentOut };
   "google.docs.get_document": { in: GoogleDocsGetDocumentIn; out: GoogleDocsGetDocumentOut };
@@ -34372,12 +34743,15 @@ export interface CapMap {
   "google.drive.trash_file": { in: GoogleDriveTrashFileIn; out: GoogleDriveTrashFileOut };
   "google.drive.upload_file": { in: GoogleDriveUploadFileIn; out: GoogleDriveUploadFileOut };
   "google.drive.watch_changes": { in: GoogleDriveWatchChangesIn; out: GoogleDriveWatchChangesOut };
+  "google.dwd.check_key": { in: GoogleDwdCheckKeyIn; out: GoogleDwdCheckKeyOut };
+  "google.dwd.connect_all": { in: GoogleDwdConnectAllIn; out: GoogleDwdConnectAllOut };
   "google.dwd.disable": { in: GoogleDwdDisableIn; out: GoogleDwdDisableOut };
   "google.dwd.map_member": { in: GoogleDwdMapMemberIn; out: GoogleDwdMapMemberOut };
   "google.dwd.members": { in: GoogleDwdMembersIn; out: GoogleDwdMembersOut };
   "google.dwd.my_account": { in: GoogleDwdMyAccountIn; out: GoogleDwdMyAccountOut };
   "google.dwd.probe": { in: GoogleDwdProbeIn; out: GoogleDwdProbeOut };
   "google.dwd.scopes": { in: GoogleDwdScopesIn; out: GoogleDwdScopesOut };
+  "google.dwd.set_data": { in: GoogleDwdSetDataIn; out: GoogleDwdSetDataOut };
   "google.dwd.set_excluded": { in: GoogleDwdSetExcludedIn; out: GoogleDwdSetExcludedOut };
   "google.dwd.setup": { in: GoogleDwdSetupIn; out: GoogleDwdSetupOut };
   "google.dwd.status": { in: GoogleDwdStatusIn; out: GoogleDwdStatusOut };
@@ -34480,6 +34854,7 @@ export interface CapMap {
   "identity.sign_in": { in: IdentitySignInIn; out: IdentitySignInOut };
   "identity.sign_in_options": { in: IdentitySignInOptionsIn; out: IdentitySignInOptionsOut };
   "identity.sign_out": { in: IdentitySignOutIn; out: IdentitySignOutOut };
+  "identity.sso_link": { in: IdentitySsoLinkIn; out: IdentitySsoLinkOut };
   "identity.sso_sign_in": { in: IdentitySsoSignInIn; out: IdentitySsoSignInOut };
   "identity.totp_begin": { in: IdentityTotpBeginIn; out: IdentityTotpBeginOut };
   "identity.totp_confirm": { in: IdentityTotpConfirmIn; out: IdentityTotpConfirmOut };
@@ -34582,6 +34957,7 @@ export interface CapMap {
   "mail.mailbox.set_privacy": { in: MailMailboxSetPrivacyIn; out: MailMailboxSetPrivacyOut };
   "mail.mailbox.set_sync_state": { in: MailMailboxSetSyncStateIn; out: MailMailboxSetSyncStateOut };
   "mail.mailbox.update": { in: MailMailboxUpdateIn; out: MailMailboxUpdateOut };
+  "mail.member_pause": { in: MailMemberPauseIn; out: MailMemberPauseOut };
   "mail.message.erase": { in: MailMessageEraseIn; out: MailMessageEraseOut };
   "mail.message.get": { in: MailMessageGetIn; out: MailMessageGetOut };
   "mail.message.list": { in: MailMessageListIn; out: MailMessageListOut };
@@ -34714,8 +35090,10 @@ export interface CapMap {
   "memory.upkeep.status": { in: MemoryUpkeepStatusIn; out: MemoryUpkeepStatusOut };
   "memory.used": { in: MemoryUsedIn; out: MemoryUsedOut };
   "memory.versions": { in: MemoryVersionsIn; out: MemoryVersionsOut };
+  "mounts.account_pause": { in: MountsAccountPauseIn; out: MountsAccountPauseOut };
   "mounts.add": { in: MountsAddIn; out: MountsAddOut };
   "mounts.browse": { in: MountsBrowseIn; out: MountsBrowseOut };
+  "mounts.company_drive": { in: MountsCompanyDriveIn; out: MountsCompanyDriveOut };
   "mounts.doc_insert_text": { in: MountsDocInsertTextIn; out: MountsDocInsertTextOut };
   "mounts.doc_replace_text": { in: MountsDocReplaceTextIn; out: MountsDocReplaceTextOut };
   "mounts.editors": { in: MountsEditorsIn; out: MountsEditorsOut };
@@ -34736,6 +35114,7 @@ export interface CapMap {
   "mounts.sheet_write": { in: MountsSheetWriteIn; out: MountsSheetWriteOut };
   "mounts.sync_now": { in: MountsSyncNowIn; out: MountsSyncNowOut };
   "mounts.update": { in: MountsUpdateIn; out: MountsUpdateOut };
+  "ms.access_log": { in: MsAccessLogIn; out: MsAccessLogOut };
   "ms.calendar.create_event": { in: MsCalendarCreateEventIn; out: MsCalendarCreateEventOut };
   "ms.calendar.delete_event": { in: MsCalendarDeleteEventIn; out: MsCalendarDeleteEventOut };
   "ms.calendar.delta": { in: MsCalendarDeltaIn; out: MsCalendarDeltaOut };
@@ -34748,12 +35127,15 @@ export interface CapMap {
   "ms.calendar.subscribe": { in: MsCalendarSubscribeIn; out: MsCalendarSubscribeOut };
   "ms.calendar.unsubscribe": { in: MsCalendarUnsubscribeIn; out: MsCalendarUnsubscribeOut };
   "ms.calendar.update_event": { in: MsCalendarUpdateEventIn; out: MsCalendarUpdateEventOut };
+  "ms.consent.check_app": { in: MsConsentCheckAppIn; out: MsConsentCheckAppOut };
+  "ms.consent.connect_all": { in: MsConsentConnectAllIn; out: MsConsentConnectAllOut };
   "ms.consent.disable": { in: MsConsentDisableIn; out: MsConsentDisableOut };
   "ms.consent.link": { in: MsConsentLinkIn; out: MsConsentLinkOut };
   "ms.consent.map_member": { in: MsConsentMapMemberIn; out: MsConsentMapMemberOut };
   "ms.consent.members": { in: MsConsentMembersIn; out: MsConsentMembersOut };
   "ms.consent.my_account": { in: MsConsentMyAccountIn; out: MsConsentMyAccountOut };
   "ms.consent.policy_snippet": { in: MsConsentPolicySnippetIn; out: MsConsentPolicySnippetOut };
+  "ms.consent.set_data": { in: MsConsentSetDataIn; out: MsConsentSetDataOut };
   "ms.consent.set_excluded": { in: MsConsentSetExcludedIn; out: MsConsentSetExcludedOut };
   "ms.consent.setup": { in: MsConsentSetupIn; out: MsConsentSetupOut };
   "ms.consent.status": { in: MsConsentStatusIn; out: MsConsentStatusOut };
@@ -34761,6 +35143,7 @@ export interface CapMap {
   "ms.consent.verify": { in: MsConsentVerifyIn; out: MsConsentVerifyOut };
   "ms.directory.import": { in: MsDirectoryImportIn; out: MsDirectoryImportOut };
   "ms.directory.list": { in: MsDirectoryListIn; out: MsDirectoryListOut };
+  "ms.directory.reconcile": { in: MsDirectoryReconcileIn; out: MsDirectoryReconcileOut };
   "ms.drive.create_folder": { in: MsDriveCreateFolderIn; out: MsDriveCreateFolderOut };
   "ms.drive.delete_item": { in: MsDriveDeleteItemIn; out: MsDriveDeleteItemOut };
   "ms.drive.delta": { in: MsDriveDeltaIn; out: MsDriveDeltaOut };

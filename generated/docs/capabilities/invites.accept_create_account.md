@@ -41,6 +41,8 @@ type In = {
         wrapped: string;
       }>;
   };
+  ssoProvider?: string;
+  ssoCode?: string;
 };
 ```
 
@@ -103,6 +105,8 @@ type Out = {
       ]
     },
     "password": "example",
+    "ssoCode": "example",
+    "ssoProvider": "example",
     "username": "maya"
   },
   "output": {

@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access, members.
 
-## Capabilities (29)
+## Capabilities (30)
 
 - [identity.change_password](../capabilities/identity.change_password.md): Change my own password; keys are re-wrapped on the device first
 - [identity.claim_owner](../capabilities/identity.claim_owner.md): Claim a fresh Space as its owner with the one-time link: pick a username and password, store the wrapped keys, and sign in
@@ -27,6 +27,7 @@ Requires: access, members.
 - [identity.sign_in](../capabilities/identity.sign_in.md): Sign in with Space, username and password; asks for the second factor when one is set
 - [identity.sign_in_options](../capabilities/identity.sign_in_options.md): What the sign-in page offers for this Space: name, logo, key fingerprint, password, GitHub, SSO providers, second factor floor
 - [identity.sign_out](../capabilities/identity.sign_out.md): End this session; the device keeps nothing it should not
+- [identity.sso_link](../capabilities/identity.sso_link.md): Start proving a provider identity is yours: the address to finish a sign-in at. Whatever comes back is bound to you; a provider id already linked to someone else stays theirs
 - [identity.sso_sign_in](../capabilities/identity.sso_sign_in.md): Finish an OIDC sign-in (Google, Microsoft, Okta) with the one-use ticket the Space leaves in the address after the provider approves (through the sign-in app the firm made in Google or Microsoft, OpenID Connect)
 - [identity.totp_begin](../capabilities/identity.totp_begin.md): Start a TOTP enrolment; returns the shared secret once as a setup URI
 - [identity.totp_confirm](../capabilities/identity.totp_confirm.md): Confirm a TOTP enrolment with the first code

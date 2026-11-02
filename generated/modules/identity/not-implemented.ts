@@ -26,6 +26,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "identity.sign_in": async (ctx) => { throw new VyreErr(notImplemented("identity.sign_in", ctx.trace)); },
   "identity.sign_in_options": async (ctx) => { throw new VyreErr(notImplemented("identity.sign_in_options", ctx.trace)); },
   "identity.sign_out": async (ctx) => { throw new VyreErr(notImplemented("identity.sign_out", ctx.trace)); },
+  "identity.sso_link": async (ctx) => { throw new VyreErr(notImplemented("identity.sso_link", ctx.trace)); },
   "identity.sso_sign_in": async (ctx) => { throw new VyreErr(notImplemented("identity.sso_sign_in", ctx.trace)); },
   "identity.totp_begin": async (ctx) => { throw new VyreErr(notImplemented("identity.totp_begin", ctx.trace)); },
   "identity.totp_confirm": async (ctx) => { throw new VyreErr(notImplemented("identity.totp_confirm", ctx.trace)); },
