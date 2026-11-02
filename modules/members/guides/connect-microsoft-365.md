@@ -75,6 +75,8 @@ Press **Sign in with Microsoft once**. A new window opens. Choose your work acco
 
 This proves the app works, and it ties your Vyre account to your Microsoft account by your tenant and Microsoft's permanent id for you, not by your address. The Space owner has to do this before anyone can require sign-in, so the owner can never be locked out.
 
+It also matches you to that Microsoft account, so your own mail, calendar and files come in. Everyone else is matched the same way the first time they sign in with Microsoft, or by the address their invitation went to. An address already matched to someone else stays theirs.
+
 ## Decide if everyone must use it
 
 This is optional. Turn on **Everyone must use it** and passwords stop working for sign-in.

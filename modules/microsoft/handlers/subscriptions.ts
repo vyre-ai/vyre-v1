@@ -240,6 +240,11 @@ async function pullAndSchedule(ctx: MsCtx, email: string, cause: string): Promis
   const connectionId = delegated ? tenantId! : own?.accountId;
   if (!connectionId) return;
   const now = ctx.now();
+  if (delegated && !pullsItself(ctx, email)) {
+    // a poll a person queued for someone else's mailbox: the host takes the chain over, unless a newer poll is already waiting
+    if (!(num(first(ctx.db.all(`SELECT "nextPollAt" FROM microsoft_mailbox WHERE email = ?`, email)), "nextPollAt") > now)) ctx.db.run(`UPDATE microsoft_mailbox SET "nextPollAt" = ? WHERE email = ?`, HANDED_OFF, email);
+    return;
+  }
   let delay: number;
   try {
     const pull = await pullMailbox(ctx, { connectionId, mailbox: email });
@@ -266,9 +271,7 @@ async function pullAndSchedule(ctx: MsCtx, email: string, cause: string): Promis
   const at = now + delay;
   ensureMailbox(ctx, email, connectionId);
   ctx.db.run(`UPDATE microsoft_mailbox SET "nextPollAt" = ? WHERE email = ?`, at, email);
-  await ctx.schedule(at, "ms.receive_notification", {
-    notificationId: `poll:${email}:${at}`, subscriptionId: "poll", resource: `users/${email}/messages`, changeType: "updated", clientStateOk: true,
-  });
+  await ctx.schedule(at, "ms.receive_notification", pollInput(email, `poll:${email}:${at}`));
 }
 
 // ---- consent (Console > Integrations)
@@ -456,13 +459,47 @@ export async function consentSetup(ctx: MsCtx, input: { vaultItem: string; tenan
   return { configured: true, mappedMembers: mapped.length, connected };
 }
 
+/** A queued call runs as whoever queued it, and only the host reads a mailbox for a named member (subjectFor). So a pull a person queued for someone else's mailbox (the admin pressing Connect) is left due, with no job: the host takes it over within a minute (adoptPolls). */
+const ADOPT_AFTER = 2 * 60_000;
+const HANDED_OFF = 0;
+
+/** Whether this caller can run the pull of this mailbox itself: the host, or the mailbox's own person (a member's own Sync now). */
+function pullsItself(ctx: MsCtx, email: string): boolean {
+  if (isTrustedService(ctx.principal)) return true;
+  const own = strOrNull(first(ctx.db.all(`SELECT email FROM microsoft_member WHERE "userId" = ? AND mapped = ?`, ctx.actingFor ?? ctx.principal.id, 1)), "email");
+  return own === email;
+}
+
+const pollInput = (email: string, id: string) => ({ notificationId: id, subscriptionId: "poll", resource: `users/${email}/messages`, changeType: "updated" as const, clientStateOk: true });
+
 /** Nothing else starts a member's mail: a notification needs a subscription, and a poll needs a pass before it. People are spaced out so a big company does not arrive at Microsoft at once. */
 async function queueFirstPull(ctx: MsCtx, connectionId: string, email: string, wait: number): Promise<void> {
   const at = ctx.now() + 1000 + wait * 2000;
   ensureMailbox(ctx, email, connectionId);
   if (num(first(ctx.db.all(`SELECT "nextPollAt" FROM microsoft_mailbox WHERE email = ?`, email)), "nextPollAt") > ctx.now()) return;   // one chain per mailbox
+  if (!pullsItself(ctx, email)) { ctx.db.run(`UPDATE microsoft_mailbox SET "nextPollAt" = ? WHERE email = ?`, HANDED_OFF, email); return; }
   ctx.db.run(`UPDATE microsoft_mailbox SET "nextPollAt" = ? WHERE email = ?`, at, email);
-  await ctx.schedule(at, "ms.receive_notification", { notificationId: `first:${email}:${at}`, subscriptionId: "poll", resource: `users/${email}/messages`, changeType: "updated", clientStateOk: true });
+  await ctx.schedule(at, "ms.receive_notification", pollInput(email, `first:${email}:${at}`));
+}
+
+/**
+ * Runs as the host every minute: every included member's mailbox whose poll is due and that no queued job will pull (handed off by a person, or a chain that died) gets a pull queued as the host, spaced out.
+ * A chain the host runs moves its own time forward on every pass, so it is never taken over twice.
+ */
+export async function adoptPolls(ctx: MsCtx): Promise<{ adopted: number }> {
+  ensure(ctx);
+  const cfg = config(ctx);
+  if (!cfg || num(cfg, "configured") !== 1 || !strOrNull(cfg, "connectionId") || !isTrustedService(ctx.principal)) return { adopted: 0 };
+  const now = ctx.now();
+  const included = new Set(rowsOf(ctx.db.all(`SELECT email FROM microsoft_member WHERE mapped = ? AND excluded = ?`, 1, 0)).map((r) => str(r, "email")));
+  const due = rowsOf(ctx.db.all(`SELECT email, "nextPollAt" FROM microsoft_mailbox ORDER BY email ASC`))
+    .filter((r) => typeof r.nextPollAt === "number" && r.nextPollAt <= now - ADOPT_AFTER && included.has(str(r, "email")));
+  for (const [i, r] of due.entries()) {
+    const email = str(r, "email"), at = now + 1000 + i * 2000;
+    ctx.db.run(`UPDATE microsoft_mailbox SET "nextPollAt" = ? WHERE email = ?`, at, email);
+    await ctx.schedule(at, "ms.receive_notification", pollInput(email, `adopt:${email}:${at}`));
+  }
+  return { adopted: due.length };
 }
 
 /** One person comes in: their mailbox, their calendar and the first pull, for what the company chose. Their Files come in the first time they open Files, as themselves (mounts.company_drive). */

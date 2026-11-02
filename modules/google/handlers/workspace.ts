@@ -3,6 +3,7 @@
 // connection and one notice for each mapped member through mail.auto_connect_members. Every call acts as a member, is logged per person
 // and never reaches an excluded member.
 import { fail } from "../../../host/src/routes/errors.ts";
+import { isTrustedService } from "../../../lib/trust.ts";
 import {
   ADMIN_CONSOLE_URL, api, apiRaw, bad, bearer, CALENDAR, CONFIG_ID, config, DOCS, DRIVE, EMAIL, enc, ensure, EVENTS, first, forgetTokens, int, list, MEET,
   needHost, newId, normalizeEmail, num, obj, pushToken, refusal, rowsOf, SHEETS, DIRECTORY_SCOPE, dataOf, scopesFor, str, strOrNull, subjectFor, text, codeOf, userAccountByEmail,
@@ -93,13 +94,45 @@ async function connectMember(ctx: GoogleCtx, a: { connectionId: string; userId: 
   return connected;
 }
 
+/** A queued call runs as whoever queued it, and only the host reads a mailbox for a named member (subjectFor). So a pull a person queued for someone else's mailbox (the admin pressing Connect) is left due, with no job: the host takes it over within a minute (adoptPolls). */
+const ADOPT_AFTER = 2 * 60_000;
+const HANDED_OFF = 0;
+
+/** Whether this caller can run the pull of this mailbox itself: the host, or the mailbox's own person (a member's own Sync now). */
+function pullsItself(ctx: GoogleCtx, email: string): boolean {
+  if (isTrustedService(ctx.principal)) return true;
+  const own = strOrNull(first(ctx.db.all(`SELECT email FROM google_member WHERE "userId" = ? AND mapped = ?`, ctx.actingFor ?? ctx.principal.id, 1)), "email");
+  return own === email;
+}
+
 /** Nothing else starts a member's mail: a push needs a watch, and a poll needs a pass before it. People are spaced out so a big company does not arrive at Google at once. */
 async function queueFirstPull(ctx: GoogleCtx, connectionId: string, email: string, wait: number): Promise<void> {
   const at = ctx.now() + 1000 + wait * 2000;
   ensureMailbox(ctx, email, connectionId);
   if (num(first(ctx.db.all(`SELECT "nextPollAt" FROM google_mailbox WHERE email = ?`, email)), "nextPollAt") > ctx.now()) return;   // one chain per mailbox
+  if (!pullsItself(ctx, email)) { ctx.db.run(`UPDATE google_mailbox SET "nextPollAt" = ? WHERE email = ?`, HANDED_OFF, email); return; }
   ctx.db.run(`UPDATE google_mailbox SET "nextPollAt" = ? WHERE email = ?`, at, email);
   await ctx.schedule(at, "google.receive_push", { kind: "gmail", messageId: `first:${email}:${at}`, mailbox: email });
+}
+
+/**
+ * Runs as the host every minute: every included member's mailbox whose poll is due and that no queued job will pull (handed off by a person, or a chain that died) gets a pull queued as the host, spaced out.
+ * A chain the host runs moves its own time forward on every pass, so it is never taken over twice.
+ */
+export async function adoptPolls(ctx: GoogleCtx): Promise<{ adopted: number }> {
+  ensure(ctx);
+  const cfg = config(ctx);
+  if (!cfg || num(cfg, "configured") !== 1 || !strOrNull(cfg, "connectionId") || !isTrustedService(ctx.principal)) return { adopted: 0 };
+  const now = ctx.now();
+  const included = new Set(rowsOf(ctx.db.all(`SELECT email FROM google_member WHERE mapped = ? AND excluded = ?`, 1, 0)).map((r) => str(r, "email")));
+  const due = rowsOf(ctx.db.all(`SELECT email, "nextPollAt" FROM google_mailbox ORDER BY email ASC`))
+    .filter((r) => typeof r.nextPollAt === "number" && r.nextPollAt <= now - ADOPT_AFTER && included.has(str(r, "email")));
+  for (const [i, r] of due.entries()) {
+    const email = str(r, "email"), at = now + 1000 + i * 2000;
+    ctx.db.run(`UPDATE google_mailbox SET "nextPollAt" = ? WHERE email = ?`, at, email);
+    await ctx.schedule(at, "google.receive_push", { kind: "gmail", messageId: `adopt:${email}:${at}`, mailbox: email });
+  }
+  return { adopted: due.length };
 }
 
 /** A person stops: excluded, gone from the directory, or removed from the Space. What is already in Vyre stays theirs; nothing new comes in and nothing goes back to the provider. Each stop is best effort, because the exclusion row is what every call checks. */
@@ -190,18 +223,8 @@ export async function dwdSetup(ctx: GoogleCtx, input: { vaultItem: string; admin
     if (!prior || num(prior, "excluded") === 0) mapped.push({ userId: m.userId, email });
   }
 
-  // The person setting this up is a member too, and the one whose address Vyre was just given: an owner has no invitation email on record, so without this the admin's own mail,
-  // calendar and Meet would be the only ones that never arrive.
-  const self = ctx.actingFor ?? ctx.principal.id;
-  if (/^usr_[a-z0-9]+$/.test(self) && admin.endsWith(`@${domain}`) && !mapped.some((m) => m.userId === self || m.email === admin)) {
-    const known = first(ctx.db.all(`SELECT "userId", excluded FROM google_member WHERE email = ?`, admin));
-    const takenBy = strOrNull(known, "userId");
-    if (!takenBy || takenBy === self) {
-      if (known) ctx.db.run(`UPDATE google_member SET "userId" = ?, mapped = ?, updated_at = ? WHERE email = ?`, self, 1, now, admin);
-      else ctx.db.run(`INSERT INTO google_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, admin, self, 1, 0, null, now);
-      if (num(known, "excluded") !== 1) mapped.push({ userId: self, email: admin });
-    }
-  }
+  // The admin address typed here is only who the setup checks act as. It is often a shared admin account, not the address of the person setting this up, so nobody is matched to it here: the owner
+  // (who has no invitation) is matched to their own address when they sign in with Google once (matchProven), or by hand.
 
   let connected = 0;
   if (autoConnect && mapped.length > 0 && input.hold !== true) {
@@ -451,6 +474,11 @@ async function pullAndSchedule(ctx: GoogleCtx, email: string, cause: string): Pr
   const connectionId = delegated ? workspaceId! : own?.accountId;
   if (!connectionId) return;
   const now = ctx.now();
+  if (delegated && !pullsItself(ctx, email)) {
+    // a poll a person queued for someone else's mailbox: the host takes the chain over, unless a newer poll is already waiting
+    if (!(num(first(ctx.db.all(`SELECT "nextPollAt" FROM google_mailbox WHERE email = ?`, email)), "nextPollAt") > now)) ctx.db.run(`UPDATE google_mailbox SET "nextPollAt" = ? WHERE email = ?`, HANDED_OFF, email);
+    return;
+  }
   let delay: number;
   try {
     const pull = await pullMailbox(ctx, { connectionId, mailbox: email });
