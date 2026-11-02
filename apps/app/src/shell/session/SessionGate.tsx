@@ -12,6 +12,8 @@ import { JoinFlow } from "../../join/JoinFlow.tsx";
 import type { JoinValues } from "../../join/JoinFlow.tsx";
 import { deviceFor, normalizeSpaceAddress } from "../../join/logic.ts";
 import type { JoinInvite } from "../../join/logic.ts";
+import { aiHomeOf } from "../../ai-signin/own-ai.ts";
+import { spaceLabel } from "../spaces/space-label.ts";
 import { Bar, Button, ErrorLine, JoinFrame, Links, Opening, Panel, Step, TextButton, Title } from "../../join/kit.tsx";
 import { NOT_A_SPACE, OFFLINE_SPACE } from "../../join/failure.ts";
 import { Welcome } from "../../join/Welcome.tsx";
@@ -21,8 +23,9 @@ import { SpaceEntry } from "../../join/SpaceEntry.tsx";
 import { FirstLaunch } from "../../onboarding/FirstLaunch.tsx";
 import { deviceOf } from "../../onboarding/doors.ts";
 import { wantTeamNext } from "../../onboarding/doors.ts";
-import { clearLock, consumeBrowserInvite, inviteAppLink, isPhoneAddress, PHONE_ADDRESS_IN_BROWSER, VYRE_DOWNLOADS, entryTarget, isMacShell, readLock } from "./entry.ts";
+import { clearLock, consumeBrowserInvite, desktopEntryRefusal, inviteAppLink, VYRE_DOWNLOADS, entryTarget, isMacShell, readLock } from "./entry.ts";
 import type { EntryTarget, LockedIdentity } from "./entry.ts";
+import { useRelayAddress } from "./use-relay-address.ts";
 import { ensureMacServer, ensurePersonalSpace } from "../../../../../client/src/connection/desktop-link.ts";
 import type { Invoke } from "../../../../../client/src/connection/desktop-link.ts";
 import { mark } from "../../startup/marks.ts";
@@ -33,7 +36,9 @@ import type { DesktopRoute } from "./desktop.ts";
 import type { LoadVoiceDevice } from "./phone.ts";
 import { openRealSession } from "./session.ts";
 import type { OpenSessionOptions, RealSession } from "./session.ts";
-import { clearStored, lockName, phaseForStoredAddress, readStored, readStoredSpace, openVerifiedSession, signInAndVerify, spaceAddress, spaceEndpoint } from "./stored.ts";
+import { clearStored, lockName, phaseForStoredAddress, readStored, readStoredSessions, readStoredSpace, openVerifiedSession, signInAndVerify, spaceAddress, spaceEndpoint } from "./stored.ts";
+import { ContinueAs } from "../../join/ContinueAs.tsx";
+import { carryIdentity, knownIdentity } from "../../join/identity.ts";
 import type { SignInOptions, StoredSession } from "./stored.ts";
 import { SSO_FAILED_LINE, SSO_SECOND_FACTOR_LINE, ssoStartUrl, takeSsoReturn } from "./sso.ts";
 import { GITHUB_FAILED_LINE, GITHUB_SECOND_FACTOR_LINE, githubStartUrl, takeGithubReturn } from "./github.ts";
@@ -69,7 +74,7 @@ export const SIGNED_OUT_LINE = "You were signed out. Sign in again to continue."
 /** `github` is true only for a caller that wires the GitHub button (the sign-in screen below); a bare invite never lists a control with nothing behind it. */
 export function signInInvite(baseUrl: string, options: SignInOptions | null, github = false, sso = false): JoinInvite {
   return {
-    space: options?.name ?? hostOf(baseUrl), host: hostOf(baseUrl), by: "", role: "", ...(options?.fingerprint?{fingerprint:options.fingerprint}:{}),
+    space: spaceLabel(options?.name, baseUrl), host: hostOf(baseUrl), by: "", role: "", ...(options?.fingerprint?{fingerprint:options.fingerprint}:{}),
     sso: sso ? (options?.sso ?? []).map((p) => p.title) : [], github: github && options?.github === true, adminKey: false,   // a provider is offered only to a caller that wires its button, and only when the Space has it on
   };
 }
@@ -251,6 +256,12 @@ function DesktopJoinScreen({ route, open, onSignedIn, onBack, onSignIn, deviceCl
   const [attempt, setAttempt] = useState(0);
   const [ssoStarted, setSsoStarted] = useState<string | null>(null);
   const [sso, setSso] = useState<string | null>(null);
+  // The account this device already has (rc.14): joining uses it unless the person asks for a different one.
+  const [different, setDifferent] = useState(false);
+  const relay = useRelayAddress(route.address, deviceClass === "web");
+  const known = useMemo(() => join ? knownIdentity(readStoredSessions(), { spaceId: join.preview.spaceId, baseUrl: route.address }) : null, [join, route.address]);
+  // where the Space runs, for the words of a refused save on the AI step (ai-signin/own-ai.ts)
+  const home = aiHomeOf(route.address, deviceClass === "desktop");
   useEffect(() => {
     let alive = true;
     setJoin(null);
@@ -266,13 +277,28 @@ function DesktopJoinScreen({ route, open, onSignedIn, onBack, onSignIn, deviceCl
       else onSignedIn(stored);
     } catch (e) { if (e instanceof JoinRefused) throw e; throw new Error("Could not finish joining this Space. Try again."); }
   }, [anonymous, join, onSignedIn, open, route.address, deviceClass, sso]);
-  if (setup) return <Suspense fallback={<Opening title="Connect your AI" />}><JoinProviderSetup stored={setup.stored} ai={setup.ai} onOpen={() => onSignedIn(setup.stored)} onClearSecret={() => setSetup((current) => { if (!current?.ai.key) return current; const { key: _secret, ...ai } = current.ai; return { ...current, ai }; })} /></Suspense>;
+  if (setup) return <Suspense fallback={<Opening title="Connect your AI" />}><JoinProviderSetup stored={setup.stored} ai={setup.ai} home={home} {...(join?.preview.invitedBy ? { invitedBy: join.preview.invitedBy } : {})} onOpen={() => onSignedIn(setup.stored)} onClearSecret={() => setSetup((current) => { if (!current?.ai.key) return current; const { key: _secret, ...ai } = current.ai; return { ...current, ai }; })} /></Suspense>;
   if (failed) return <JoinFrame><Panel below={<Links><TextButton label="Sign in instead" testID="invite-sign-in" onPress={onSignIn}/></Links>} bar={<Bar onBack={onBack} cont={<Button label="Try again" testID="invite-retry" onPress={()=>setAttempt(n=>n+1)}/>}/>}><Step id="invite-error"><Title title="This invite did not open" sub="It may have expired or been used"/></Step></Panel></JoinFrame>;
   if (!join) return <Opening title="Opening your invite" testID="step-invite-loading" />;
   const required = join.preview.ssoRequired ?? [];
   if (required.length > 0 && !sso) return <JoinSso providers={required} started={ssoStarted} onStart={(key) => { void Promise.resolve(anonymous("identity.sso_join_start", { code: route.code, provider: key })).then((out) => { const start = (out as { start?: string }).start; if (start) { (globalThis as { open?: (url: string, target: string) => unknown }).open?.(`${route.address}${start}`, "_blank"); setSsoStarted(key); } }); }} onDone={() => setSso(ssoStarted)} />;
-  const invite: JoinInvite = { space: join.preview.spaceName, host: hostOf(route.address), by: join.preview.invitedBy, role: join.preview.role, fingerprint: join.preview.fingerprint, sso: [], github: false, adminKey: false, deviceName: deviceFor(deviceClass).deviceName };
-  const appLink=deviceClass==='web'?inviteAppLink(route):null;
+  if (known && !different) {
+    const joinAs = async (password: string): Promise<void> => {
+      const crypto = await loadCryptoKeys();
+      const source = createCapCaller({ baseUrl: known.baseUrl, token: () => known.token });
+      const values: JoinValues = { username: known.username, displayName: known.name, password, deviceName: deviceFor(deviceClass).deviceName, trustDevice: true, ai: { choice: "none" } };
+      try {
+        onSignedIn(await acceptDesktopJoin(join, values, { anonymous, deviceClass, ...(sso ? { ssoProvider: sso } : {}), open: (token) => open({ baseUrl: route.address, token }), getSpace: (token) => authenticatedSpace(route.address, token), carry: (spaceId) => carryIdentity({ source, carryBundle: (p, b, id) => crypto.carryBundle(p, b, id) }, password, spaceId) }));
+      } catch (e) {
+        if ((e as { line?: string }).line) throw e;
+        if (e instanceof JoinRefused) throw new Error(`The username ${known.username} is taken in ${join.preview.spaceName}. Use a different account.`);
+        throw new Error("Could not finish joining this Space. Try again.");
+      }
+    };
+    return <ContinueAs prefix="join-as" space={spaceLabel(join.preview.spaceName, route.address)} username={known.username} sub={`Enter your Vyre password to join ${join.preview.spaceName}`} working={`Joining ${join.preview.spaceName}`} onContinue={joinAs} onOther={() => setDifferent(true)} onBack={onBack} />;
+  }
+  const invite: JoinInvite = { space: spaceLabel(join.preview.spaceName, route.address), host: hostOf(route.address), by: join.preview.invitedBy, role: join.preview.role, fingerprint: join.preview.fingerprint, sso: [], github: false, adminKey: false, deviceName: deviceFor(deviceClass).deviceName };
+  const appLink=deviceClass==='web'?inviteAppLink(route,relay):null;
   return <JoinFlow invite={invite} onJoin={onJoin} {...(deviceClass==='desktop'?{initial:{stage:'steps' as const,step:0}}:{onDownload:()=>{(globalThis as {open?:(url:string,target:string,features:string)=>unknown}).open?.(VYRE_DOWNLOADS,'_blank','noopener,noreferrer');}})} {...(appLink?{onOpenApp:()=>{(globalThis as {location?:{assign(url:string):void}}).location?.assign(appLink);}}:{})} />;
 }
 
@@ -323,7 +349,8 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const [desktopRoute, setDesktopRoute] = useState<DesktopRoute | null>(null);
   const [entry, setEntry] = useState(false);
   const [entryStart, setEntryStart] = useState<'choice'|'join'|'team'>('choice');
-  const [personalClaim,setPersonalClaim]=useState<{address:string;token:string;fragment:string}|null>(null);
+  // A claim that runs in this app: the Personal Space or a Mac server (local), or a team Space's owner link pasted here or handed over from a browser (rc.14), which keeps the account this app has.
+  const [personalClaim,setPersonalClaim]=useState<{address:string;token:string;fragment:string;local?:false}|null>(null);
   const [locked, setLocked] = useState<LockedIdentity|null>(null);
   const [returnSession, setReturnSession] = useState<StoredSession|null>(null);
   const [loadedProp, setLoadedProp] = useState<string | null | undefined>("");
@@ -361,6 +388,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     void consumeDesktopBootstrap(bridge, (route) => {
       if (!alive) return;
       // an app asked to join: the Allow screen over whatever the person is doing. Not signed in to that Space here: the normal sign-in first, then the same screen.
+      if (route.kind === "claim") { setEntry(false); setOtherAccount(false); setDesktopRoute(null); setNotice(false); setPersonalClaim({ address: route.address, token: route.token, fragment: route.fragment, local: false }); return; }
       if (route.kind === "allow") {
         setAllow(route);
         if (!readStored(undefined, route.address)) { setEntry(false); setPersonalClaim(null); setDesktopRoute({ kind: "signin", address: route.address }); setPhase({ kind: "signin" }); }
@@ -395,7 +423,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const signedInFromDesktop = useCallback((stored: StoredSession) => {activateAddress(stored,true);consumeBrowserInvite();clearLock();setLocked(null);setEntry(false);setReturnSession(null);setDesktopRoute((route) => consumeDesktopRoute(route)); setPhase({ kind: "shell", stored }); }, []);
 
   const connectSpace = (address: string): void => { setConnectedAddress(address); setDesktopRoute(null); setNotice(false); };
-  const chooseEntry=async(target:EntryTarget):Promise<void>=>{const page=(globalThis as {location?:Location}).location;if(page&&!isPackagedOrigin(page.origin)&&new URL(target.kind==='claim'?target.url:target.address).origin!==page.origin){page.assign(target.kind==='claim'?target.url:new URL('/chat',target.address).href);return;}if(target.kind==='claim'){(globalThis as {location?:{assign(url:string):void}}).location?.assign(target.url);return;}if(bridge&&isPhoneAddress(target.address))throw new Error(PHONE_ADDRESS_IN_BROWSER);if(target.kind==='signin'){const have=readStored(undefined,target.address);if(have){setConnectedAddress(have.baseUrl);signedIn(have);return;}try{await createCapCaller({baseUrl:target.address,token:()=>null})('identity.sign_in_options',{});}catch{throw new Error(OFFLINE_SPACE);}}clearLock();setEntry(false);setLocked(null);setConnectedAddress(target.address);setDesktopRoute(target);setNotice(false);setPhase({kind:'signin'});};
+  const chooseEntry=async(target:EntryTarget):Promise<void>=>{const page=(globalThis as {location?:Location}).location;if(page&&!isPackagedOrigin(page.origin)&&new URL(target.kind==='claim'?target.url:target.address).origin!==page.origin){page.assign(target.kind==='claim'?target.url:new URL('/chat',target.address).href);return;}if(target.kind==='claim'){if(bridge){const link=new URL(target.url);setPersonalClaim({address:target.address,token:link.pathname.slice('/claim/'.length),fragment:link.hash,local:false});setEntry(false);return;}(globalThis as {location?:{assign(url:string):void}}).location?.assign(target.url);return;}if(bridge){const refusal=await desktopEntryRefusal(target);if(refusal)throw new Error(refusal);}if(target.kind==='signin'){const have=readStored(undefined,target.address);if(have){setConnectedAddress(have.baseUrl);signedIn(have);return;}try{await createCapCaller({baseUrl:target.address,token:()=>null})('identity.sign_in_options',{});}catch{throw new Error(OFFLINE_SPACE);}}clearLock();setEntry(false);setLocked(null);setConnectedAddress(target.address);setDesktopRoute(target);setNotice(false);setPhase({kind:'signin'});};
   const invoke=(globalThis as {__TAURI__?:{core?:{invoke?:Invoke}}}).__TAURI__?.core?.invoke;
   const createPersonal=async():Promise<void>=>{if(!invoke)throw new Error('Desktop shell required');const local=await ensurePersonalSpace(invoke);if(local.claimUrl){const link=new URL(local.claimUrl);setPersonalClaim({address:local.address,token:link.pathname.slice('/claim/'.length),fragment:link.hash});setEntry(false);}else {const old=readStoredSpace(local.spaceId);if(old?.def.kind==='personal'&&isLoopbackUrl(old.baseUrl)){const stored=await resumePersonal(local,old,open);setConnectedAddress(local.address);signedIn(stored);}else await chooseEntry({kind:'signin',address:local.address});}};
   const createMacServer=async():Promise<void>=>{if(!invoke)throw new Error('Desktop shell required');const local=await ensureMacServer(invoke);if(local.claimUrl){const link=new URL(local.claimUrl);setPersonalClaim({address:local.address,token:link.pathname.slice('/claim/'.length),fragment:link.hash});setEntry(false);}else await chooseEntry({kind:'signin',address:local.address});};
@@ -405,7 +433,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const getApp=():void=>{(globalThis as {open?:(url:string,target?:string)=>unknown}).open?.(VYRE_DOWNLOADS,'_blank');};
   const emailApp=():void=>{(globalThis as {location?:{assign(url:string):void}}).location?.assign(`mailto:?subject=${encodeURIComponent('Get Vyre')}&body=${encodeURIComponent(VYRE_DOWNLOADS)}`);};
   const firstScreen=<FirstLaunch device={device} existing={connectScreen} {...(device==='web'?{onGetApp:getApp}:{})} onDoor={async door=>{if(door==='invited'){setEntryStart('join');setEntry(true);return;}if(door==='server'){setEntryStart('team');setEntry(true);return;}if(door==='app'){emailApp();return;}wantTeamNext(door==='team');await createPersonal();}} />;
-  if(personalClaim)return <Suspense fallback={<Opening />}><LocalClaim deviceClass="desktop" token={personalClaim.token} address={personalClaim.address} fragment={personalClaim.fragment} onBack={()=>setPersonalClaim(null)} onDone={()=>{const address=personalClaim.address,stored=readStored(undefined,address);setPersonalClaim(null);if(stored){setConnectedAddress(address);signedIn(stored);}else void chooseEntry({kind:'signin',address});}} onSignIn={()=>{const address=personalClaim.address;setPersonalClaim(null);void chooseEntry({kind:'signin',address});}}/></Suspense>;
+  if(personalClaim)return <Suspense fallback={<Opening />}><LocalClaim deviceClass="desktop" local={personalClaim.local!==false} token={personalClaim.token} address={personalClaim.address} fragment={personalClaim.fragment} onBack={()=>setPersonalClaim(null)} onDone={()=>{const address=personalClaim.address,stored=readStored(undefined,address);setPersonalClaim(null);if(stored){setConnectedAddress(address);signedIn(stored);}else void chooseEntry({kind:'signin',address});}} onSignIn={()=>{const address=personalClaim.address;setPersonalClaim(null);void chooseEntry({kind:'signin',address});}}/></Suspense>;
   if(entry)return <SpaceEntry startAt={entryStart} {...(invoke?{onCreatePersonal:createPersonal}:{})} {...(invoke&&isMacShell()?{onCreateMacServer:createMacServer}:{})} onTarget={chooseEntry} onBack={()=>{setEntry(false);setDesktopRoute(null);const previous=returnSession??readStored(undefined,baseUrl??undefined);if(previous){activateAddress(previous,true);setConnectedAddress(previous.baseUrl);consumeBrowserInvite();setDesktopRoute(null);setPhase({kind:'shell',stored:previous});}setReturnSession(null);}}/>;
   if (allow) {
     const present = readStored(undefined, allow.address);

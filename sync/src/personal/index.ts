@@ -23,10 +23,13 @@ export function teamOnlySet(caps: Iterable<CapabilityRow>): ReadonlySet<string> 
   return out;
 }
 
+const SHARE_CAPS: ReadonlySet<string> = new Set(["vault.share", "vault.unshare", "access.share", "access.unshare"]);
+
 export function needsTeamError(cap: string, traceId: string): VyreErr {
   return new VyreErr({
     code: "permission.needs_team",
-    message: `${NEEDS_TEAM_LINE}. ${cap} works in a Team Space; create or join one to use it.`,
+    // plain words for a person: never the capability's name (it stays in details). Same lines as host/src/invoke.ts needsTeamLine
+    message: SHARE_CAPS.has(cap) ? "Sharing with other people needs a Team Space. Create or join one to share this." : `${NEEDS_TEAM_LINE}. Create or join one to use this.`,
     retryable: false, traceId,
     next: [{ kind: "open_settings", label: "Create or join a Team Space" }],
     details: { capability: cap },

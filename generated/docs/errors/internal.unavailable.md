@@ -6,6 +6,7 @@ HTTP 503. Retryable: yes.
 
 ## Raised by
 
+- engine.compact
 - engine.complete
 - engine.step_turn
 - sync_specs.apply

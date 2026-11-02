@@ -18,6 +18,7 @@ import { AppIcon } from "../AppIcon/index.tsx";
 import { Avatar, avatarOf } from "../Avatar/index.tsx";
 import { MenuIcon, menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
+import { DropHost, DropOverlay, useDropRoute, useFileDrop } from "../FileDrop/index.tsx";
 import { Row } from "../Row/index.tsx";
 import { answering, contextRing, deleteToken, effortsFor, modeInfo, nextMode, sendControl, sizeLabel, stripName, tokenRanges } from "./brain.ts";
 import type { ChatMode, ComposerAgent, TokenRange } from "./brain.ts";
@@ -513,6 +514,8 @@ export interface ComposerProps extends ComposerShellProps {
   onCommand?: (name: string) => void;
   onChange?: (text: string) => void;
   onFiles?: (files: ComposerAttachment[]) => void;
+  /** False where what is sent cannot carry files (a request to an agent that reads words only): no Upload, and a dropped or pasted file is not taken. Default true. */
+  takesFiles?: boolean;
   /** Attach from Vyre Files, where the place opens its own picker. Without it (and with `suggest`) From Files searches Files in the # picker. */
   onAttach?: () => void;
   /** Recipients for a composer that sends outside. Mounted above the field. */
@@ -688,7 +691,6 @@ export function Composer(props: ComposerProps): ReactElement {
   const [attachMode, setAttachMode] = useState(false);
   const [found, setFound] = useState<{ key: string; lists: ComposerLists } | null>(null);
   const [previews, setPreviews] = useState<Record<string, ComposerPreview | null | "loading">>({});
-  const [drop, setDrop] = useState(false);
   const [scrollY, setScrollY] = useState(0);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -803,6 +805,11 @@ export function Composer(props: ComposerProps): ReactElement {
     setState((s) => ({ ...s, files: [...s.files, ...files] }));
     props.onFiles?.(files);
   }, [props.onFiles]);
+  // Dropped and pasted files go through the same tray as Upload. Inside a pane that takes drops for it (a chat), the pane is the drop zone; paste is always the field's own.
+  const takeFiles = useCallback((files: readonly FileLike[]) => addFiles(files.map((f) => attachmentOf(f))), [addFiles]);
+  const takesFiles = props.takesFiles !== false;
+  const routed = useDropRoute(takesFiles ? takeFiles : null);
+  const dropZone = useFileDrop(takeFiles, { drop: !routed, enabled: takesFiles });
 
   /** Upload: the system picker on the web; a place's own sheet elsewhere. */
   const upload = useCallback(() => {
@@ -950,8 +957,8 @@ export function Composer(props: ComposerProps): ReactElement {
     plusRows.push(<Row key={id} id={id} title={title} leading={<View style={styles.lead}><IconTile icon={icon} /></View>} {...(trailing ? { trailing } : {})} onPress={onPress} domProps={{ style: { minHeight: 38, borderRadius: 10 } }} />);
   };
   if (plusOpen) {
-    plusRow("plus-upload", "Upload files", I.file, () => { setPlusOpen(false); upload(); }, <Text style={styles.rowNote}>or drop</Text>);
-    if (props.onAttach || (props.suggest && symbols.includes("hash"))) plusRow("plus-files", "From Files", I.folder, fromFiles);
+    if (takesFiles) plusRow("plus-upload", "Upload files", I.file, () => { setPlusOpen(false); upload(); }, <Text style={styles.rowNote}>or drop</Text>);
+    if (takesFiles && (props.onAttach || (props.suggest && symbols.includes("hash")))) plusRow("plus-files", "From Files", I.folder, fromFiles);
     if (symbols.includes("hash")) plusRow("composer-symbol-hash", "Link something", I.hash, () => { setPlusOpen(false); typeSymbol("#"); }, <Kbd k="#" />);
     if (symbols.includes("at")) plusRow("composer-symbol-at", "Mention", I.at, () => { setPlusOpen(false); typeSymbol("@"); }, <Kbd k="@" />);
     if (symbols.includes("slash")) plusRow("composer-symbol-slash", "Commands", I.slash, () => { setPlusOpen(false); typeSymbol("/"); }, <Kbd k="/" />);
@@ -1093,15 +1100,6 @@ export function Composer(props: ComposerProps): ReactElement {
         onBlur={onBlur}
         testID="composer-field"
         style={[styles.field, fieldText, FIELD_STYLE, { height }]}
-        {...webProps({
-          onPaste: (e: { clipboardData?: { files?: ArrayLike<FileLike>; }; preventDefault: () => void }) => {
-            const files = Array.from(e.clipboardData?.files ?? [], (f) => attachmentOf(f, "Pasted image.png"));
-            if (files.length > 0) {
-              e.preventDefault();
-              addFiles(files);
-            }
-          },
-        })}
       />
     </View>
   );
@@ -1112,19 +1110,13 @@ export function Composer(props: ComposerProps): ReactElement {
   ) : null;
 
   return (
+    <DropHost bind={dropZone.bind} testID={`${props.testID ?? "composer"}-drop`}>
     <View
-      style={[styles.box, compact && styles.boxCompact, focused ? FOCUS_SHADOW : BOX_SHADOW, drop && styles.drop]}
+      style={[styles.box, compact && styles.boxCompact, focused ? FOCUS_SHADOW : BOX_SHADOW]}
       testID={props.testID ?? "composer"}
       accessibilityLabel={props.label ?? "Message"}
       {...contextProps}
       {...webProps({
-        onDragOver: (e: { preventDefault: () => void }) => { e.preventDefault(); if (!drop) setDrop(true); },
-        onDragLeave: () => setDrop(false),
-        onDrop: (e: { preventDefault: () => void; dataTransfer?: { files?: ArrayLike<FileLike> } }) => {
-          e.preventDefault();
-          setDrop(false);
-          addFiles(Array.from(e.dataTransfer?.files ?? [], attachmentOf));
-        },
         dataSet: { composer: "true", ...(focused ? { cmpFocus: "1" } : {}) },
       })}
     >
@@ -1186,7 +1178,9 @@ export function Composer(props: ComposerProps): ReactElement {
         },
       }) : null}
       {menu.element}
+      {dropZone.over ? <DropOverlay radius={compact ? 18 : 22} testID={`${props.testID ?? "composer"}-drop-overlay`} /> : null}
     </View>
+    </DropHost>
   );
 }
 
@@ -1196,7 +1190,6 @@ const styles = StyleSheet.create({
   box: { position: "relative", width: "100%", borderRadius: 22, backgroundColor: "var(--raised)" as string },
   boxCompact: { borderRadius: 18 },
   line: { flexDirection: "row", alignItems: "flex-end", gap: 2, padding: 7 },
-  drop: { boxShadow: "0 0 0 2px var(--accent)" } as object,
   recipients: { paddingTop: 10, paddingHorizontal: 14 },
   banner: { paddingTop: 8, paddingHorizontal: 14 },
   tray: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingTop: 10, paddingHorizontal: 12 },

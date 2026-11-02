@@ -34,6 +34,8 @@ export interface FilesNav {
   leaveMemory?(): void;
   /** Upload into a folder (null is the top of Files): the shell opens its picker and sends the bytes through files.upload_url. */
   upload?(folderId: string | null): void;
+  /** Store files dropped or pasted on the list in a folder (null is the top of Files), the same way Upload does. */
+  uploadFiles?(folderId: string | null, files: readonly { name: string; type?: string }[]): void;
   /** Review a change set an agent staged: the shell opens its review surface. */
   reviewChanges?(changesetId: string): void;
   /** Resolve the two edits of a file (the Conflict tag): the shell opens the conflict choice for it. */

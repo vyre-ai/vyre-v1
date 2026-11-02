@@ -214,3 +214,27 @@ test("`vyre doctor` with no reachable server falls back to the local doctor and 
     assert.match(c.out(), /kernel\.events_db/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("a Space with its own domain is checked for its Caddy route: missing is down with the next step, present is healthy, a relay Space has no such check", async () => {
+  const dir = deadServerDir();
+  try {
+    const modules = openDb(path.join(dir, "modules.db"));
+    modules.exec("CREATE TABLE network_config (id INTEGER PRIMARY KEY, address TEXT NOT NULL, mode TEXT NOT NULL, domain TEXT, relay_address TEXT, public_ingress INTEGER NOT NULL, ingress_detail TEXT, reported_at INTEGER NOT NULL)");
+    modules.run("INSERT INTO network_config (id, address, mode, domain, public_ingress, reported_at) VALUES (1, 'mla.example.com', 'own_domain', 'mla.example.com', 1, 1)");
+    modules.close();
+    const caddyWith = (config: unknown): FetchFn => () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve(JSON.stringify(config)) });
+    const before = snapshot(dir);
+    const missing = by(await runDoctor({ dataDir: dir, platform: machine(dir), fetch: caddyWith({ admin: { listen: "127.0.0.1:2019" } }) }), "host.ingress");
+    assert.equal(missing.state, "down");
+    assert.match(missing.detail, /no route for mla\.example\.com/);
+    assert.match(missing.next, /vyre-server restart/);
+    const routed = { apps: { http: { servers: { vyre: { listen: [":443"], routes: [{ "@id": "vyre-route-mla.example.com", match: [{ host: ["mla.example.com"] }], handle: [], terminal: true }] } } } } };
+    assert.equal(by(await runDoctor({ dataDir: dir, platform: machine(dir), fetch: caddyWith(routed) }), "host.ingress").state, "healthy");
+    assert.equal(by(await runDoctor({ dataDir: dir, platform: machine(dir), fetch: caddyDown }), "host.ingress").state, "degraded", "Caddy down is the caddy finding's to call down");
+    assert.equal(snapshot(dir), before, "modules.db was only read");
+    const relay = openDb(path.join(dir, "modules.db"));
+    relay.run("UPDATE network_config SET mode = 'relay', address = 'mla.vyre.run'");
+    relay.close();
+    assert.equal((await runDoctor({ dataDir: dir, platform: machine(dir), fetch: caddyOk })).findings.some((f) => f.key === "host.ingress"), false);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});

@@ -176,7 +176,8 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
     const threads = await w.ok(MEMBER, "inbox.list_by_thread", {});
     assert.ok(JSON.stringify(threads).includes("Can we talk about the deed?"), "the message is in the Inbox thread list");
 
-    // 5 calendar: the poll chain that the sync started made Noah's Google calendar and pulled his event
+    // 5 calendar: setup made Noah's Google calendar, and Calendar's own scheduled pull (run by the server, which a member's private calendar does not refuse) lands his event
+    await w.d.hooks!.runPeriodic("calendar.pull_provider");
     const cals = await w.ok(MEMBER, "calendar.list_calendars", {});
     const gcal = cals.calendars.find((c: { provider: string }) => c.provider === "google");
     assert.ok(gcal, "Noah's Google calendar is in Calendar");

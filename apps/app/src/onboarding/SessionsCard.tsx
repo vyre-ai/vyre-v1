@@ -1,20 +1,31 @@
-// The "Bring your sessions" step on the desktop app: the Claude Code and Codex sessions found on this computer, newest first, as checkable rows with a name, folder and date. Importing copies only
-// the ticked ones, and the person pressing Import is the confirmation; each session is read just before its own import, as in Settings.
-import { useEffect, useState } from "react";
+// The "Bring your sessions" step on the desktop app: the Claude Code and Codex sessions found on this computer, newest first, as checkable rows with a name, folder and date. A quiet
+// "Folder: All" button opens the app's menu to narrow them to one folder (no pill strip), and Select all covers what the filter shows. Importing copies only the ticked ones: in the
+// onboarding screen the bar's main button reads "Import 3" and does it, the card then says where they went, and Continue moves on. Each session is read just before its own import, as in Settings.
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import { desktopSessionImporter } from "../../../../client/src/session-import/desktop.ts";
 import type { SessionSource } from "../../../../client/src/session-import/parse.ts";
 import { confirmedSessionInput } from "../places/settings/session-import-model.ts";
+import { useMenu } from "../../../../ui/src/Menu/index.tsx";
+import type { MenuEntry } from "../../../../ui/src/Menu/index.tsx";
+import { Row } from "../../../../ui/src/Row/index.tsx";
 import { Mark } from "./ProviderLogo.tsx";
-import { folderChoices, folderName, importedNote, modifiedAt, newestFirst, relativeDate, rememberImported, selectState, sessionName } from "./sessions-model.ts";
+import { folderChoices, folderName, folderMenuLabel, importedNote, modifiedAt, newestFirst, relativeDate, rememberImported, selectState, sessionName } from "./sessions-model.ts";
 import { CARD } from "./card-style.ts";
 
 const label = (src: SessionSource): string => `${src.provider === "codex" ? "Codex" : "Claude Code"}`;
-const hover = (text: string): object => ({ title: text });
 
-export function SessionsCard({ call, onDone, gate, onOpenChats }: { call: CapCall; onDone(): void; gate?(save: (() => Promise<boolean>) | null): void; onOpenChats?(): void }): ReactElement {
+/** Where a press happened, so the menu opens under the button. */
+function pointOf(e: unknown): { x: number; y: number } {
+  const ev = e as { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } };
+  const box = ev.currentTarget?.getBoundingClientRect?.();
+  if (box) return { x: box.left, y: box.bottom + 4 };
+  return { x: ev.nativeEvent?.pageX ?? 0, y: ev.nativeEvent?.pageY ?? 0 };
+}
+
+export function SessionsCard({ call, onDone, gate, onOpenChats }: { call: CapCall; onDone(): void; gate?(save: (() => Promise<boolean>) | null, label?: string): void; onOpenChats?(): void }): ReactElement {
   // set once the import is done: the card then says where the sessions are, and Continue (the gate) finishes the step
   const [found, setFound] = useState<SessionSource[] | null>(null);
   const [on, setOn] = useState<ReadonlySet<string>>(new Set());
@@ -22,11 +33,7 @@ export function SessionsCard({ call, onDone, gate, onOpenChats }: { call: CapCal
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [imported, setImported] = useState<number | null>(null);
-  useEffect(() => {
-    if (!gate || imported === null) return undefined;
-    gate(async () => true);
-    return () => gate(null);
-  }, [gate, imported]);
+  const menu = useMenu();
   useEffect(() => {
     let off = false;
     const imp = desktopSessionImporter();
@@ -41,9 +48,10 @@ export function SessionsCard({ call, onDone, gate, onOpenChats }: { call: CapCal
   const toggleAll = (): void => setOn((old) => { const n = new Set(old); for (const k of shownKeys) { if (all === "all") n.delete(k); else n.add(k); } return n; });
   const folders = folderChoices(found ?? []);
   const now = Date.now();
-  const run = async (): Promise<void> => {
+  /** Imports the ticked sessions; true when it went through. */
+  const run = async (): Promise<boolean> => {
     const imp = desktopSessionImporter();
-    if (!imp || busy || on.size === 0) return;
+    if (!imp || busy || on.size === 0) return false;
     setBusy(true); setError("");
     try {
       let count = 0;
@@ -57,86 +65,102 @@ export function SessionsCard({ call, onDone, gate, onOpenChats }: { call: CapCal
       rememberImported(count);
       setImported(count);
       if (!gate) onDone();
-    } catch (e) { setError(e instanceof Error ? e.message : "That did not work. Try again."); } finally { setBusy(false); }
+      return true;
+    } catch (e) { setError(e instanceof Error ? e.message : "That did not work. Try again."); return false; } finally { setBusy(false); }
+  };
+  const runRef = useRef(run);
+  runRef.current = run;
+  // the bar's main button: Import N while some are ticked (it imports and stays, so the card can say where they went), then Continue; with nothing found there is nothing to do, so Continue moves on
+  const count = on.size, nothing = found !== null && found.length === 0;
+  useEffect(() => {
+    if (!gate) return undefined;
+    if (imported !== null || nothing) gate(async () => true);
+    else if (count > 0) gate(async () => { await runRef.current(); return false; }, busy ? "Importing" : `Import ${count}`);
+    else gate(null);
+    return () => gate(null);
+  }, [gate, imported, nothing, count, busy]);
+  const folderMenu = (x: number, y: number): void => {
+    const total = (found ?? []).length;
+    const entries: MenuEntry[] = [{ label: "All folders", checked: folder === "", count: total, onSelect: () => setFolder("") }, { separator: true }];
+    for (const f of folders) entries.push({ label: f.name, checked: folder === f.name, count: f.count, onSelect: () => setFolder(f.name) });
+    menu.show(entries, x, y, "other");
   };
   const rows: ReactElement[] = [];
   for (const src of shown) {
     const ticked = on.has(src.sessionKey);
     const dir = folderName(src.cwd), when = relativeDate(modifiedAt(src.updatedAt), now);
     rows.push(
-      <Pressable key={src.sessionKey} testID={`session-${src.sessionKey}`} accessibilityRole="checkbox" aria-checked={ticked} accessibilityState={{ checked: ticked }} onPress={() => toggle(src.sessionKey)} style={[s.row, ticked && s.rowOn]}>
-        <View style={[s.box, ticked && s.boxOn]}>{ticked ? <Text style={s.tick}>{"✓"}</Text> : null}</View>
-        <View style={s.text}>
-          <Text style={s.name} numberOfLines={1}>{sessionName(src)}</Text>
-          <Text style={s.sub} numberOfLines={1} {...hover(src.cwd ?? "")}>{[dir, when].filter(Boolean).join("  ·  ") || "Local session"}</Text>
-        </View>
-        <View style={s.source}><Mark k={src.provider === "codex" ? "openai" : "claude"} size={14} /><Text style={s.sourceText}>{label(src)}</Text></View>
-      </Pressable>,
+      <Row
+        key={src.sessionKey} id={`session-${src.sessionKey}`} title={sessionName(src)} note={[dir, when].filter(Boolean).join(" \u00b7 ") || "Local session"} selected={ticked}
+        domProps={{ role: "checkbox", "aria-checked": ticked, ...(src.cwd ? { title: src.cwd } : {}) }}
+        leading={<View style={[s.box, ticked && s.boxOn]}>{ticked ? <Text style={s.tick}>{"\u2713"}</Text> : null}</View>}
+        trailing={<View style={s.source}><Mark k={src.provider === "codex" ? "openai" : "claude"} size={14} /><Text style={s.sourceText}>{label(src)}</Text></View>}
+        onPress={() => toggle(src.sessionKey)}
+      />,
     );
   }
   if (imported !== null) {
     return (
       <View testID="sessions-card" style={s.col}>
         <Text testID="sessions-imported" accessibilityRole="text" style={s.name}>{importedNote(imported)}</Text>
-        {onOpenChats ? <Pressable testID="sessions-open-chats" accessibilityRole="link" onPress={onOpenChats} style={s.primary}><Text style={s.primaryText}>Open Chats</Text></Pressable> : null}
+        {onOpenChats ? <Pressable testID="sessions-open-chats" accessibilityRole="link" onPress={onOpenChats} style={s.ghost}><Text style={s.ghostText}>Open Chats</Text></Pressable> : null}
       </View>
     );
   }
+  const any = (found ?? []).length > 0;
   return (
     <View testID="sessions-card" style={s.col}>
       {found === null ? <Text style={s.note}>Looking</Text> : null}
-      {found !== null && found.length === 0 ? <Text testID="sessions-none" style={s.note}>None found</Text> : null}
-      {(found ?? []).length > 0 ? (
+      {nothing ? <Text testID="sessions-none" style={s.note}>No Claude Code or Codex sessions on this computer.</Text> : null}
+      {any ? (
         <View style={s.bar}>
           <Pressable testID="sessions-all" accessibilityRole="checkbox" accessibilityLabel="Select all" aria-checked={all === "all" ? true : all === "some" ? "mixed" : false} accessibilityState={{ checked: all === "all" ? true : all === "some" ? "mixed" : false }} onPress={toggleAll} style={s.allRow}>
-            <View style={[s.box, all !== "none" && s.boxOn]}><Text style={s.tick}>{all === "all" ? "✓" : all === "some" ? "-" : ""}</Text></View>
+            <View style={[s.box, all !== "none" && s.boxOn]}><Text style={s.tick}>{all === "all" ? "\u2713" : all === "some" ? "-" : ""}</Text></View>
             <Text style={s.allText}>Select all</Text>
           </Pressable>
-          <Text testID="sessions-count" style={s.count}>{`${on.size} of ${(found ?? []).length} selected`}</Text>
-        </View>
-      ) : null}
-      {folders.length > 1 ? (
-        <View testID="sessions-folders" style={s.chips}>
-          {/* ui-rows-lint: not a list (folder filter chips in a wrapping strip, not rows) */}
-          {[{ name: "", count: (found ?? []).length }, ...folders.slice(0, 8)].map((f) => (
-            <Pressable key={f.name || "all"} testID={`sessions-folder-${f.name || "all"}`} accessibilityRole="button" accessibilityState={{ selected: folder === f.name }} onPress={() => setFolder(f.name)} style={[s.chip, folder === f.name && s.chipOn]}>
-              <Text style={s.chipText} numberOfLines={1}>{f.name ? `${f.name} ${f.count}` : "All folders"}</Text>
+          {folders.length > 1 ? (
+            <Pressable testID="sessions-folder" accessibilityRole="button" accessibilityLabel={`Filter by folder, ${folderMenuLabel(folder)}`} onPress={(e) => { const p = pointOf(e); folderMenu(p.x, p.y); }} style={({ hovered }: { hovered?: boolean }) => [s.filter, hovered === true && s.filterOver]}>
+              <Text style={[s.filterText, folder !== "" && s.filterLit]} numberOfLines={1}>{folderMenuLabel(folder)}</Text>
+              <Text style={s.chev}>{"\u25be"}</Text>
             </Pressable>
-          ))}
+          ) : null}
+          <View style={s.flex} />
+          <Text testID="sessions-count" style={s.count}>{`${count} of ${(found ?? []).length} selected`}</Text>
         </View>
       ) : null}
-      {rows.length > 0 ? <View style={s.list}>{rows}</View> : null}
+      {rows.length > 0 ? <View testID="sessions-list" style={s.list}>{rows}</View> : null}
       {error ? <Text accessibilityRole="alert" testID="sessions-error" style={s.err}>{error}</Text> : null}
-      {rows.length > 0 ? <Pressable testID="sessions-import" accessibilityRole="button" disabled={busy || on.size === 0} onPress={() => void run()} style={[s.primary, (busy || on.size === 0) && s.off]}><Text style={[s.primaryText, (busy || on.size === 0) && s.offText]}>{busy ? "Importing" : on.size === 0 ? "Import" : `Import ${on.size}`}</Text></Pressable> : null}
+      {!gate && rows.length > 0 ? <Pressable testID="sessions-import" accessibilityRole="button" disabled={busy || count === 0} onPress={() => void run()} style={[s.primary, (busy || count === 0) && s.off]}><Text style={[s.primaryText, (busy || count === 0) && s.offText]}>{busy ? "Importing" : count === 0 ? "Import" : `Import ${count}`}</Text></Pressable> : null}
+      {menu.element}
     </View>
   );
 }
 
 const s = StyleSheet.create({
   col: { gap: 10 },
-  list: { gap: 6, maxHeight: 300, overflow: "scroll" } as object,
-  row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 40, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
-  rowOn: { borderColor: "var(--accent-line)" as string, backgroundColor: "var(--accent-wash)" as string },
-  box: { width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center" },
+  flex: { flex: 1 },
+  list: { maxHeight: 300, overflow: "scroll", borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, padding: 4, backgroundColor: "var(--win)" as string } as object,
+  box: { width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center", marginRight: 10 },
   boxOn: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
   tick: { color: "var(--accent-ink)" as string, fontSize: 12, lineHeight: 14 },
-  text: { flex: 1, minWidth: 0, paddingVertical: 6 },
   name: { fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
-  sub: { fontSize: 12, color: "var(--ink-3)" as string },
   source: { flexDirection: "row", alignItems: "center", gap: 5 },
   sourceText: { fontSize: 12, color: "var(--ink-3)" as string },
-  bar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 2 },
-  allRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  bar: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 2 },
+  allRow: { flexDirection: "row", alignItems: "center", height: 28 },
   allText: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
+  filter: { flexDirection: "row", alignItems: "center", gap: 4, height: 28, paddingHorizontal: 8, borderRadius: 7, maxWidth: 220 },
+  filterOver: { backgroundColor: "var(--hover)" as string },
+  filterText: { fontSize: 13, color: "var(--ink-2)" as string, flexShrink: 1 },
+  filterLit: { color: "var(--accent)" as string },
+  chev: { fontSize: 10, color: "var(--ink-3)" as string },
   count: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  chip: { height: 26, paddingHorizontal: 10, borderRadius: 13, borderWidth: 1, borderColor: "var(--line)" as string, justifyContent: "center", maxWidth: 180 },
-  chipOn: { borderColor: "var(--accent-line)" as string, backgroundColor: "var(--accent-wash)" as string },
-  chipText: { fontSize: 12, color: "var(--ink)" as string },
   note: { flex: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
   err: CARD.err,
   primary: CARD.primary,
   primaryText: CARD.primaryText,
+  ghost: { ...CARD.ghost, alignSelf: "flex-start" },
+  ghostText: CARD.ghostText,
   off: CARD.off,
   offText: CARD.offText,
 });

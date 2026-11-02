@@ -708,6 +708,7 @@ export function createClient(transport: Transport) {
       accounts: {
         list: call("engine.accounts.list", 1),
       },
+      compact: call("engine.compact", 1),
       complete: call("engine.complete", 1),
       crew: {
         list: call("engine.crew.list", 1),

@@ -35,10 +35,10 @@ test("the lock screen has a quiet way out: Forgot password and Sign out; an acco
   assert.match(n, /Continue/);
 });
 
-test("the key is kept in memory only for the session and dropped on sign-out; a foreign address is never handed it", async () => {
+test("the key is kept in memory only for the session and dropped on sign-out; plain http to another machine is never handed it", async () => {
   keepKey(new Uint8Array(32).fill(5));
   assert.equal(keyIsKept(), true);
-  assert.equal(await rehandKey("https://team.example.com", "t"), false);
+  assert.equal(await rehandKey("http://10.0.0.2:7777", "t"), false);
   forgetKey();
   assert.equal(keyIsKept(), false);
 });

@@ -2,6 +2,7 @@ import { liveTurns } from "./bridge.ts";
 // Handler table of the engine module for the capabilities this module implements so far. The rest of engine.* is served by the generated stubs
 // until the packets that own them land (the turn worker's engine.turn.*, the pool P-L2_04, models, policy and review).
 import { complete } from "./complete.ts";
+import { compact } from "./compact.ts";
 import { accountProbe, accountResolve, accountsList } from "./accounts.ts";
 import { incidentAssign, incidentGet, incidentNote, incidentOpen, incidentResolve, incidentsList, dropQueued, interrupt, setMode, setModel, stop, stopAll, switchEngine } from "./control.ts";
 import { extraHandlers } from "./extra/index.ts";
@@ -25,6 +26,7 @@ export const handlers = {
   "engine.set_mode": setMode,
   "engine.set_model": setModel,
   "engine.switch": switchEngine,
+  "engine.compact": compact as never,
   "engine.incidents.list": incidentsList,
   "engine.incident.get": incidentGet,
   "engine.incident.open": incidentOpen,

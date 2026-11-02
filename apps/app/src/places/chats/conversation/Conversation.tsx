@@ -10,6 +10,8 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, 
 import type { ComposerSend, ListItem } from "../../../../../../ui/src/Composer/index.tsx";
 import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/Deferred.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { DropRoute } from "../../../../../../ui/src/FileDrop/index.tsx";
+import type { TransferLike } from "../../../../../../ui/src/FileDrop/index.tsx";
 import { useRunsOn } from "./RunsOn.tsx";
 import { ReactionPicker } from "./ReactionPicker.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -50,6 +52,7 @@ import {
   WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel, swapNeeded,
   threadKindNote, timeline, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
+import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 
 type ThreadOut = CapMap["threads.get"]["out"];
 type MessagesOut = CapMap["chat.messages.list"]["out"];
@@ -211,6 +214,8 @@ function ConversationView(): ReactElement {
   const serverMode = threadQ.status === "loading" ? null : modeOf(threadQ.data.thread);
   // what the server says wins once it changes (a /plan, another device); a local choice holds until then
   useEffect(() => { setModeOver(null); }, [serverMode]);
+  const failed = failureOf(threadQ, messagesQ);
+  if (failed) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
   if (threadQ.status === "loading" || messagesQ.status === "loading") return <ConversationLoading />;
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;
@@ -466,9 +471,12 @@ function ConversationView(): ReactElement {
       fail("Could not share that."),
     );
   };
-  const dropProps = Platform.OS === "web" ? ({ onDragOver: (e: { preventDefault: () => void; dataTransfer?: { types?: ArrayLike<string> } }) => { if (Array.from(e.dataTransfer?.types ?? []).includes("text/plain")) e.preventDefault(); }, onDrop: dropShare } as object) : {};
+  // The whole pane is a drop zone: files dropped anywhere on it go to this chat's composer tray; a mounted folder dragged from Files is shared (above). A react-native View
+  // drops drag props on the web, so the zone is ui/FileDrop's own element.
+  const takeShare = (dt: TransferLike): boolean => { let took = false; dropShare({ preventDefault: () => { took = true; }, dataTransfer: dt as { getData?: (t: string) => string } }); return took; };
   return (
-    <View testID="conversation" accessibilityLabel={`Conversation, ${title}`} style={st.root} {...dropProps}>
+    <DropRoute testID="conversation-drop" style={ROUTE_STYLE} onOther={takeShare}>
+    <View testID="conversation" accessibilityLabel={`Conversation, ${title}`} style={st.root}>
       {compact ? null : (
       <View testID="conversation-head" accessibilityRole="header" style={st.head}>
         {mobileBack ? <IconButton icon="back" label="Back" size={32} testID="conversation-back" onPress={() => mobileBack()} /> : null}
@@ -579,7 +587,7 @@ function ConversationView(): ReactElement {
             {...(place.chip ? { runsChip: place.chip } : {})}
             agents={composerAgents} mode={mode} onMode={chooseChatMode}
             suggest={composerSuggest(data)} preview={(item) => previewOf(data, item)}
-            renderPanel={(agent, close, narrowPanel) => <ChatBrain data={data} thread={thread} agent={agent} accounts={accounts} mode={mode} onMode={chooseChatMode} close={close} narrow={narrowPanel} say={say} {...(place.runs ? { runs: place.runs } : {})} onCompact={(keep, always) => void compactChat(data, keep, always).then(() => say(keep ? `Compacted, keeping ${keep}` : "Compacted"), fail("Could not compact."))} />}
+            renderPanel={(agent, close, narrowPanel) => <ChatBrain data={data} thread={thread} agent={agent} accounts={accounts} mode={mode} onMode={chooseChatMode} close={close} narrow={narrowPanel} say={say} {...(place.runs ? { runs: place.runs } : {})} onCompact={(keep, always) => void compactChat(data, keep, always, agent.id).then((line) => { if (line === null) say(keep ? `Compacted, keeping ${keep}` : "Compacted"); }, fail("Could not compact."))} />}
             {...(lead ? { lead: nameOf(lead.agentId) } : {})} listening={collect(thread.agents.filter((a) => a.mode === "listen"), (a) => nameOf(a.agentId))}
             lists={lists} agentChat={thread.kind !== "channel"} onChange={(t) => { typedRef.current = t; setTyped(t); }} onCommand={(name) => void runSlash(`/${name}`, commandEnv())}
             onSubmit={(p) => submit(p, "queue")} onInterrupt={(p) => submit(p, "interrupt")}
@@ -590,8 +598,11 @@ function ConversationView(): ReactElement {
       {picker ? <ReactionPicker x={picker.x} y={picker.y} onPick={(e) => { actions.react(picker.id, e, false); setPicker(null); }} onClose={() => setPicker(null)} /> : null}
       {menu.element}
     </View>
+    </DropRoute>
   );
 }
+
+const ROUTE_STYLE = { flex: 1, minHeight: 0 };
 
 /**
  * Brings a message the page does not hold into it: reads the window around it, widens the page until the row is mounted, leaves it marked for a few seconds, then lets go.

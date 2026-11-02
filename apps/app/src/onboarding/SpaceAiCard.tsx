@@ -1,39 +1,86 @@
-// Team step 2, AI for the Space: the owner's own account here (with the "use the same account" offer when their Personal Space has a key), or a fresh sign-in or key. Everything
-// lands in the owner's private Mine folder in this Space. A key for everyone (the Space AI key) is set later in Console, Models and providers.
-import { useEffect, useState } from "react";
+// Team step 2, AI for the Space. Two clearly labelled choices: a key for everyone (the Space AI key, drawn by the Console's own SpaceKey component, so the providers, OpenCode Go
+// first, the check with the provider and the wrong-prefix warning are one thing in both places), or your own account (sign in with a Claude, ChatGPT or Grok subscription, or a
+// personal key, with the "use the same account" offer when the Personal Space has one). Nothing sends the person to the Console mid-setup. Continue is live once either is set.
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { Segmented } from "../../../../ui/src/Segmented/index.tsx";
 import type { CapCall } from "../shell/session/caps.ts";
+import { ConsoleDataProvider } from "../console/shell/data.tsx";
+import type { ConsoleData } from "../console/shell/data.tsx";
+import { SpaceKey } from "../console/pages/SpaceKey.tsx";
 import { ConnectAiCard } from "./ConnectAiCard.tsx";
+import type { AiHome } from "../ai-signin/own-ai.ts";
 import { SameAccountOffer } from "./SameAccountOffer.tsx";
 import { copyableAccounts } from "./same-account.ts";
 import type { CopyableAccount } from "./same-account.ts";
 
-/** Where the Space AI key is set, in the Console's own words (apps/app/src/console/shell/nav.ts "Models and providers"; the section is "Space AI key"). */
-export const SPACE_KEY_LATER = "One key for everyone, like OpenCode Go, goes in Console, Models and providers, Space AI key.";
-/** The Console page that holds it, for onGo("console", hash). */
-export const SPACE_KEY_HASH = "screen=console.ai-models";
+export type SpaceAiChoice = "space" | "mine";
 
-export function SpaceAiCard({ team, personal, onConnected, onOpenConsole }: { team: CapCall; /** the Personal Space on this device, when there is one */ personal: CapCall | null; onConnected(providerId: string): void; /** opens Console, Models and providers */ onOpenConsole?: () => void }): ReactElement {
+/** What the Console component needs to draw the Space AI key inside setup: this Space's caller, and names that never show an id. */
+export function setupConsoleData(call: CapCall, me: { id: string; name: string }): ConsoleData {
+  return {
+    call: call as ConsoleData["call"],
+    screens: {} as ConsoleData["screens"],
+    me: { ...me, role: "Owner" },
+    space: { id: "", name: "", address: "" },
+    can: () => true,
+    name: (id) => (id === me.id ? "You" : "An admin"),
+    nav: { openPage: () => undefined, openApp: () => undefined },
+    clock: () => ({ now: Date.now() }),
+  };
+}
+
+export function SpaceAiCard({ team, personal, onConnected, gate, me = { id: "", name: "" }, initial = "space", home = "here" }: {
+  team: CapCall; /** the Personal Space on this device, when there is one */ personal: CapCall | null; onConnected(providerId: string): void;
+  gate?(save: (() => Promise<boolean>) | null): void; me?: { id: string; name: string }; initial?: SpaceAiChoice;
+  /** Where the Space runs, for the words of a refused save (ai-signin/own-ai.ts). */
+  home?: AiHome;
+}): ReactElement {
+  const [choice, setChoice] = useState<SpaceAiChoice>(initial);
   const [accounts, setAccounts] = useState<CopyableAccount[]>([]);
-  const [done, setDone] = useState(false);
+  const [mine, setMine] = useState(false);
   const [different, setDifferent] = useState(false);
+  const [spaceKey, setSpaceKey] = useState(false);
   useEffect(() => {
     if (!personal) return undefined;
     let off = false;
     void copyableAccounts(personal).then((a) => { if (!off) setAccounts(a); }).catch(() => undefined);
     return () => { off = true; };
   }, [personal]);
-  // the offer comes first and alone; the sign-in tiles and the key field appear after "No, add a different one"
-  const offered = !!personal && accounts.length > 0 && !done && !different;
+  useEffect(() => {
+    if (!gate) return undefined;
+    gate(spaceKey || mine ? async () => true : null);
+    return () => gate(null);
+  }, [gate, spaceKey, mine]);
+  const data = useMemo(() => setupConsoleData(team, me), [team, me.id, me.name]);
+  const onState = useCallback((set: boolean) => setSpaceKey(set), []);
+  const connected = (id: string): void => { setMine(true); onConnected(id); };
+  // the offer comes first and alone; the sign-in choices appear after "No, add a different one"
+  const offered = !!personal && accounts.length > 0 && !mine && !different;
   return (
-    <View testID="space-ai" style={{ gap: 14 }}>
-      {offered ? <SameAccountOffer personal={personal!} team={team} accounts={accounts} onCopied={(id) => { setDone(true); onConnected(id); }} onDeclined={() => setDifferent(true)} /> : null}
-      {offered ? null : <ConnectAiCard call={team} connected={done} onConnected={onConnected} />}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-        <Text style={{ fontSize: 12.5, color: "var(--ink-3)" as string }}>{SPACE_KEY_LATER}</Text>
-        {onOpenConsole ? <Pressable accessibilityRole="link" onPress={onOpenConsole} testID="space-ai-console"><Text style={{ fontSize: 12.5, color: "var(--accent)" as string }}>Open it</Text></Pressable> : null}
-      </View>
+    <View testID="space-ai" style={s.col}>
+      <Segmented<SpaceAiChoice>
+        label="Which AI" testID="space-ai-choice" value={choice} onChange={setChoice}
+        options={[{ id: "space", label: "A key for everyone", hint: "One key the whole Space runs on" }, { id: "mine", label: "Your own account", hint: "Only you use it" }]}
+      />
+      {choice === "space" ? (
+        <View testID="space-ai-key" style={s.col}>
+          <ConsoleDataProvider value={data}><SpaceKey onState={onState} /></ConsoleDataProvider>
+        </View>
+      ) : (
+        <View testID="space-ai-mine" style={s.col}>
+          <Text style={s.lead}>Sign in with your Claude, ChatGPT or Grok subscription, or add a personal key. Only you use it.</Text>
+          {offered ? <SameAccountOffer personal={personal!} team={team} accounts={accounts} onCopied={connected} onDeclined={() => setDifferent(true)} /> : null}
+          {offered ? null : <ConnectAiCard home={home} call={team} connected={mine} onConnected={connected} />}
+        </View>
+      )}
+      {spaceKey && choice === "mine" ? <Text testID="space-ai-key-set" style={s.lead}>The Space already has a key for everyone.</Text> : null}
     </View>
   );
 }
+
+const s = StyleSheet.create({
+  col: { gap: 12 },
+  lead: { fontSize: 13, lineHeight: 19, color: "var(--ink-2)" as string },
+});

@@ -1,6 +1,6 @@
 // The "how you work" card: three short questions, answers saved to the person's own memory. The first two are a blank field you start typing in: matching kinds of work (and then tools, with their
 // marks) appear as you type, a pick becomes a chip, and anything typed is accepted. The third is a choice between two. Works without an AI account.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { TextField } from "../../../../ui/src/TextField/index.tsx";
@@ -16,7 +16,7 @@ const ASK = ["What do you do most?", "Which tools do you use?", "How should upda
 const PLACE = ["Start typing, like accountant or designer", "Start typing, like Gmail or Slack"] as const;
 const toolKey = (name: string): string | undefined => TOOLS.find((t) => t[0] === name)?.[1] || undefined;
 
-export function InterviewCard({ call, onSaved }: { call: CapCall; onSaved(count: number): void }): ReactElement {
+export function InterviewCard({ call, onSaved, gate }: { call: CapCall; onSaved(count: number): void; /** in the onboarding screen the bar's main button is Next, then Save */ gate?(save: (() => Promise<boolean>) | null, label?: string): void }): ReactElement {
   const run = useRef(globalThis.crypto?.randomUUID?.() ?? String(Date.now()));
   const [q, setQ] = useState(0);
   const [work, setWork] = useState<string[]>([]);
@@ -53,6 +53,17 @@ export function InterviewCard({ call, onSaved }: { call: CapCall; onSaved(count:
     try { onSaved(await saveInterview(call, { work: work.join(", "), tools: tools.join(", "), style }, run.current)); } catch { setError("Could not save to your memory. Try again."); } finally { setBusy(false); }
   };
 
+  // the bar's main button does what Next and Save do here, so the card has no second primary button
+  useEffect(() => {
+    if (!gate) return undefined;
+    if (!ready) gate(null);
+    else if (q < 2) gate(async () => { setQ(q + 1); setTyped(""); setHi(0); return false; }, "Next");
+    else gate(async () => {
+      setError("");
+      try { await saveInterview(call, { work: work.join(", "), tools: tools.join(", "), style }, run.current); return true; } catch { setError("Could not save to your memory. Try again."); return false; }
+    }, "Save");
+    return () => gate(null);
+  }, [gate, ready, q, work, tools, style, call]);
   const dots: ReactElement[] = [];
   for (let i = 0; i < 3; i++) dots.push(<View key={i} style={[s.dot, i <= q && s.dotOn]} />);
   const chips: ReactElement[] = [];
@@ -107,12 +118,12 @@ export function InterviewCard({ call, onSaved }: { call: CapCall; onSaved(count:
         </>
       ) : <View style={s.sug}>{styleRows}</View>}
       {error ? <Text testID="interview-error" style={s.err}>{error}</Text> : null}
-      <View style={s.actions}>
+      {gate ? (q > 0 ? <Pressable testID="interview-back" accessibilityRole="link" onPress={() => { setQ(q - 1); setTyped(""); setHi(0); }}><Text style={s.prev}>Previous question</Text></Pressable> : null) : <View style={s.actions}>
         {q < 2
           ? <Pressable testID="interview-next" accessibilityRole="button" disabled={!ready} onPress={() => setQ(q + 1)} style={[s.primary, !ready && s.off]}><Text style={[s.primaryText, !ready && s.offText]}>Next</Text></Pressable>
           : <Pressable testID="interview-save" accessibilityRole="button" disabled={busy || !ready} onPress={() => void save()} style={[s.primary, (busy || !ready) && s.off]}><Text style={[s.primaryText, (busy || !ready) && s.offText]}>{busy ? "Saving" : "Save"}</Text></Pressable>}
         {q > 0 ? <Pressable testID="interview-back" accessibilityRole="button" onPress={() => { setQ(q - 1); setTyped(""); setHi(0); }} style={s.ghost}><Text style={s.ghostText}>Back</Text></Pressable> : null}
-      </View>
+      </View>}
     </View>
   );
 }
@@ -139,6 +150,7 @@ const s = StyleSheet.create({
   radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "var(--accent)" as string },
   err: CARD.err,
   actions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  prev: { fontSize: 13, color: "var(--accent)" as string },
   primary: CARD.primary,
   primaryText: CARD.primaryText,
   off: CARD.off,

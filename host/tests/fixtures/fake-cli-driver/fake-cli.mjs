@@ -12,18 +12,34 @@
 //             what the tool said, "mail_send answered: <text>" or "mail_send refused: <text>" (a Gate hold, a refusal) or "mcp error: <message>". Lets a test drive the Gate path end to end.
 //   tool      "tool <name> <json arguments>": calls any tool over the Vyre MCP server and answers "<name> answered: <text>" or "<name> refused: <text>" (or "mcp error: ..."). A model that reads memory through its tools.
 //   anything else answers with the prompt it was given
+// These are picked by the prompt's last line (the person's message comes last, after the turn context and any recent messages a fresh session is given):
+//   resumecheck  "resumed=<the --resume id or none> session=<this session's id>"
+//   rawecho      answers with the whole prompt it was given, turn context included
+//   /compact ... compacts the way Claude Code does: a compact_boundary line (42000 tokens before, 2500 after), then an empty success result
+// Sessions are kept the way the real CLI keeps them: a file per session id under $HOME/.fake-claude/sessions, with the last line of every prompt it was sent. `--resume <id>` of a session with no file
+// says so in the real CLI's words on stderr and exits 1 before reading anything.
 import process from "node:process";
+import fs from "node:fs";
+import path from "node:path";
 import { spawn } from "node:child_process";
 
 const argv = process.argv.slice(2);
 const flag = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
-const session = `fake-${process.pid}`;
+const resumed = flag("--resume");
+// a sandbox has a pid namespace of its own, where pids repeat from one process to the next: a new session's id is the pid and a random part, as unique as the real CLI's
+const session = resumed ?? `fake-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
+const sessionFile = path.join(process.env.HOME ?? "/tmp", ".fake-claude", "sessions", session);
 const out = (o) => process.stdout.write(`${JSON.stringify(o)}\n`);
 const KEYS = ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "CODEX_API_KEY", "XAI_API_KEY"];
 const secret = () => KEYS.map((k) => process.env[k]).find((v) => v !== undefined && v !== "") ?? "";
 let sendSequence = 0;
 
 if (argv.includes("--version")) { process.stdout.write("claude fake 0.0.0\n"); process.exit(0); }
+if (resumed !== undefined && !fs.existsSync(sessionFile)) { process.stderr.write(`No conversation found with session ID: ${resumed}\n`); process.exit(1); }
+/** The session's file in the engine's home, with the last line of a prompt it was sent. */
+function keep(line) {
+  try { fs.mkdirSync(path.dirname(sessionFile), { recursive: true }); fs.appendFileSync(sessionFile, `${line}\n`); } catch { /* a home that cannot be written is the test's to notice */ }
+}
 
 const init = () => out({ type: "system", subtype: "init", session_id: session, mcp_servers: [{ name: "vyre", status: "connected" }] });
 function reply(parts) {
@@ -253,6 +269,15 @@ async function askHold(prompt) {
 
 async function run(raw) {
   const prompt = withoutContext(raw);
+  const lastLine = (prompt.trim().split("\n").at(-1) ?? "").trim();
+  keep(lastLine);
+  if (lastLine === "resumecheck") { reply([`resumed=${resumed ?? "none"} session=${session}`]); return; }
+  if (lastLine === "rawecho") { reply([raw]); return; }
+  if (/^\/compact\b/.test(prompt.trim())) {
+    out({ type: "system", subtype: "compact_boundary", session_id: session, compact_metadata: { trigger: "manual", pre_tokens: 42_000, post_tokens: 2_500 } });
+    out({ type: "result", subtype: "success", is_error: false, result: "", session_id: session, usage: { input_tokens: 42_000, output_tokens: 700 } });
+    return;
+  }
   // a "tool" line is the person's message, which comes last and may follow context or memory the engine put in front of it
   const toolLine = prompt.split("\n").reverse().find((l) => /^tool\s+\S+/.test(l));
   if (toolLine) { await callTool(toolLine); return; }

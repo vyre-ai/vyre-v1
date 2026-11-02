@@ -54,6 +54,7 @@ type Out = {
     resetsAt?: number;
   } | null;
   source: "provider" | "estimate" | "none";
+  keepEvery?: string;
 };
 ```
 
@@ -86,6 +87,7 @@ type Out = {
       "used": 1,
       "window": 1
     },
+    "keepEvery": "example",
     "session": {
       "pct": 1,
       "resetsAt": 1760000000000

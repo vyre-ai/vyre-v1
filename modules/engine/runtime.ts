@@ -18,10 +18,14 @@ import { withChatSettings } from "./chat-settings.ts";
 import { withSpaceKeyTurns } from "./space-key-turns.ts";
 import { createLimitSwitch } from "./switch-on-limit.ts";
 import { checkedOpen, createRunnableAccount } from "./runnable-account.ts";
+import { skipLocked } from "./locked-account.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
 import { configureEngines, engines, enginesRoot } from "./engine-install.ts";
 import { createContextBuilder, diskSkills, takeHandoff, withTurnContext } from "./context.ts";
 import { withTranscript } from "./transcript.ts";
+import { createCompactor, withCompaction } from "./compact.ts";
+import type { Compactor } from "./compact.ts";
+import { keepEvery, keepsSession, resumeId, saveResumeId } from "./cli-sessions.ts";
 import { recordAccountLimits } from "./handlers/usage.ts";
 import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
 import { onTurnEnded, resumeTasks } from "./handlers/task-baton.ts";
@@ -57,6 +61,8 @@ export interface EngineHostSeam {
   nodes?: NodeRelay;
   /** True when the person is on their own computer (a local model on this machine is then reachable). */
   own?: (person: string) => boolean;
+  /** A Space server only: does it hold this person's key now (locked-account.ts). Absent on a person's own computer. */
+  keyHeld?: (person: string) => boolean;
   /** CLI engines: swap a program for a command (a fake CLI in a test), and extra read-only folders the sandbox must expose for it. Default: the real CLI, nothing extra. */
   cli?: { command?: Readonly<Record<string, readonly string[]>>; programRead?: readonly string[]; /** Where programs are looked for (a test's own folders); default: this computer's PATH. */ probe?: NodeCliProbe };
   /** The Space data directory. With it and no `sandbox`, the module builds the default sandbox for this platform on the first CLI turn (sandbox-default.ts). */
@@ -107,7 +113,7 @@ export function setEngineHost(h: EngineHostSeam | null): void {
   building = null;
   const root = h?.engines?.install ? enginesRoot({ dataDir: h.dataDir }) : null;
   configureEngines(root !== null ? { root, ...(h?.log ? { log: h.log } : {}) } : null);
-  if (h === null) { bindEngine(null); bindBridge(null); bindOpener(null); completer = null; bindStepOpen(null); }
+  if (h === null) { bindEngine(null); bindBridge(null); bindOpener(null); completer = null; compactor = null; bindStepOpen(null); }
 }
 
 export function engineHost(): EngineHostSeam | null { return host; }
@@ -134,10 +140,12 @@ export async function resolveOne(h: Pick<EngineHostSeam, "call" | "log">, q: Acc
 
 /** An account whose engine can run on this computer: the pick, or another account of the person when the pick's program is not installed (runnable-account.ts). */
 function runnableAccount(h: EngineHostSeam): (q: AccountQuery) => Promise<ResolvedAccount | null> {
+  // On a Space server a person's own account pays only while the server holds their key (locked-account.ts); the next account answers otherwise, said in the chat.
+  const resolve = skipLocked({ resolve: (q) => resolveOne(h, q), ...(h.keyHeld ? { held: h.keyHeld } : {}), ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) });
   // A host that hands in its own opener (a test's scripted one) starts no program of ours: nothing to check, and one resolve per turn.
-  if (h.openSession) return (q) => resolveOne(h, q);
+  if (h.openSession) return resolve;
   return createRunnableAccount({
-    call: h.call, resolve: (q) => resolveOne(h, q), ...(h.cli?.command ? { command: h.cli.command } : {}), ...(h.cli?.probe ? { probe: h.cli.probe } : {}),
+    call: h.call, resolve, ...(h.cli?.command ? { command: h.cli.command } : {}), ...(h.cli?.probe ? { probe: h.cli.probe } : {}),
     ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}), ...(engines() ? { engines: engines()! } : {}),
   });
 }
@@ -208,6 +216,9 @@ async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: Resolv
 export interface CompleteIn { account: ResolvedAccount; system?: string; prompt: string; model?: string }
 export interface CompleteOut { text: string; tokensIn: number; tokensOut: number }
 let completer: ((i: CompleteIn) => Promise<CompleteOut>) | null = null;
+let compactor: Compactor | null = null;
+/** engine.compact's worker (compact.ts): the chat's engine compacts itself, or Vyre compacts for it. Null before the runtime exists. */
+export const compactorOf = (): Compactor | null => compactor;
 /** One request and one answer on an account, through the same opener the turn engine uses: for jobs that need a model but are not a chat (memory upkeep). Null before the runtime exists. */
 export const completerOf = (): typeof completer => completer;
 
@@ -257,7 +268,14 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   if (building) return building;
   const h = host;
   const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call), call: h.call, plugins: createPluginTools({ call: h.call, runtime: pluginRuntime, ...(h.log ? { log: h.log } : {}) }) }) : undefined;
-  const opener = host.openSession ? null : buildOpener({ ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.cli?.probe ? { cliProbe: host.cli.probe } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
+  const now0 = h.now ?? Date.now;
+  // a CLI engine's own session id, kept per chat, agent and person so a restart or an eviction resumes it; and the chat's "Keep this every time" for the CLI's own compaction
+  const sessions = {
+    resume: (k: { threadId: string; agentId: string; person: string; driver: string; tools?: "none" }) => (keepsSession(k) ? resumeId(ctx.db, k) : null),
+    checkpoint: (k: { threadId: string; agentId: string; person: string; driver: string; tools?: "none" }, id: string | null) => { if (keepsSession(k)) saveResumeId(ctx.db, k, id, now0()); },
+    keep: (threadId: string) => keepEvery(ctx.db, threadId),
+  };
+  const opener = host.openSession ? null : buildOpener({ sessions, ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.cli?.probe ? { cliProbe: host.cli.probe } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
   // a turn whose engine Vyre is installing says so on its live line ("Setting up Codex"); the line is the bridge's, which exists once the runtime is built below
   let setupLine: ((e: StreamEvent) => void) | null = null;
   const installer = engines();
@@ -296,7 +314,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       },
     });
     const engine = createTurnEngine({
-      holder: h.holder, openSession: withChatSettings(withSpaceKeyTurns(withTurnContext(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), turnContext), { call: h.call, db: ctx.db, now }), h.call), now,
+      holder: h.holder, openSession: withChatSettings(withSpaceKeyTurns(withTurnContext(withCompaction(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), ctx.db), turnContext), { call: h.call, db: ctx.db, now }), h.call), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       admit: (q) => admission(h, q),
       lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),
@@ -352,6 +370,10 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     bridge?.attach(engine);
     h.extend?.(engine);
     completer = (i) => oneShot(openSession, i, now);
+    compactor = createCompactor({
+      db: ctx.db, call: h.call, engine: () => running, resolve: (q) => resolveOne(h, q), open: openSession, now,
+      ...(opener ? { dropSessions: (threadId: string) => opener.pool.drop(threadId) } : {}), ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}),
+    });
     bindEngine(engine);
     bindOpener(opener);
     bindStepOpen(openSession);

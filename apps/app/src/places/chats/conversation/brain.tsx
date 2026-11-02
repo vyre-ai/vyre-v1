@@ -81,6 +81,7 @@ interface UsageOut {
   session: { pct: number; resetsAt?: number } | null;
   week: { pct: number; resetsAt?: number } | null;
   source?: string;
+  keepEvery?: string;
 }
 
 /** engine.usage.get reports percent (0 to 100); the panel draws fractions. */
@@ -89,7 +90,7 @@ const frac = (pct: number): number => Math.max(0, Math.min(1, pct / 100));
 export function panelUsage(out: UsageOut | null): PanelUsage | null {
   if (!out) return null;
   const meter = (m: { pct: number; resetsAt?: number } | null): PanelUsage["session"] => (m && Number.isFinite(m.pct) ? { pct: frac(m.pct), ...(m.resetsAt !== undefined ? { resetsAt: m.resetsAt } : {}) } : null);
-  return { context: out.context && out.context.window > 0 ? out.context : null, session: meter(out.session), week: meter(out.week) };
+  return { context: out.context && out.context.window > 0 ? out.context : null, session: meter(out.session), week: meter(out.week), ...(out.keepEvery ? { keepEvery: out.keepEvery } : {}) };
 }
 
 /** "Out of usage until 3:40 PM": a model the provider refused for its usage limit, with when it comes back when the provider said (a later day names the day). */
@@ -297,10 +298,14 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
 
 /* ---------- compact ---------- */
 
-/** Asks the engine to compact this chat, keeping what the person named. Where the server has no such capability yet the chat gets the command itself, which every driver with native compaction runs. */
-export async function compactChat(data: Pick<ConversationData, "call" | "threadId" | "newKey">, keep: string, always: boolean): Promise<void> {
-  await callOr(data, "engine.compact", { threadId: data.threadId, ...(keep ? { keep } : {}), always, idempotencyKey: data.newKey() }, async () => {
+/**
+ * Compacts this chat (engine.compact), keeping what the person named; `always` keeps the words for every compaction of the chat. The chat shows the server's one line; the answer is that line, or
+ * null from a server without the capability, where the chat gets the command itself as before.
+ */
+export async function compactChat(data: Pick<ConversationData, "call" | "threadId" | "newKey">, keep: string, always: boolean, agentId?: string): Promise<string | null> {
+  const out = await callOr<{ line?: string } | null>(data, "engine.compact", { threadId: data.threadId, ...(agentId ? { agentId } : {}), ...(keep ? { keep } : {}), always, idempotencyKey: data.newKey() }, async () => {
     await data.call("chat.post", { threadId: data.threadId, body: keep ? `/compact ${keep}` : "/compact", idempotencyKey: data.newKey() });
     return null;
   });
+  return typeof out?.line === "string" ? out.line : null;
 }

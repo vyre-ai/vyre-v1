@@ -26,7 +26,8 @@ test("turn context: identity, where, skills, what the agent can do here and the 
     assert.match(front, new RegExp(`threadId ${threadId}\\. This is a chat\\.`));
     assert.match(front, /You are talking with Olivia Park \(usr_olivia; /, "the person is named, not only an id");
     assert.match(front, /Working in Vyre \(always loaded\):\n# Working in Vyre/, "the manual is in front of the agent");
-    assert.match(front, /Other skills, by name\. Load one with agents_builtin_skill_get[^\n]*:\n- agent-computer: /);
+    // the index lists every built-in skill by name, sorted: about-vyre (added with the product self-knowledge) now comes first, agent-computer right after it
+    assert.match(front, /Other skills, by name\. Load one with agents_builtin_skill_get[^\n]*:\n- about-vyre: [^\n]*\n- agent-computer: /);
     assert.match(front, /agents_routine_save/);
     assert.match(front, /Vault: no items are set for you/);
     assert.match(front, /\nIt is \w+day, \d+ \w+ 20\d\d, \d\d:\d\d \([A-Za-z/_]+\)\.$/);

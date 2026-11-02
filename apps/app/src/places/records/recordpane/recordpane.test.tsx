@@ -241,8 +241,9 @@ test("dropping files on the Files tab attaches them", async () => {
   const zone = find(root, "files-dropzone")!;
   const file = { name: "Notes.txt", type: "text/plain", arrayBuffer: async () => new ArrayBuffer(2) };
   let prevented = 0;
-  await act(async () => { (zone.props.onDragOver as (e: unknown) => void)({ preventDefault: () => { prevented++; } }); });
-  await act(async () => { (zone.props.onDrop as (e: unknown) => void)({ preventDefault: () => { prevented++; }, dataTransfer: { files: [file] } }); });
+  // a real drag says it holds Files while it is over the zone, and holds the File objects on the drop
+  await act(async () => { (zone.props.onDragOver as (e: unknown) => void)({ preventDefault: () => { prevented++; }, stopPropagation: () => undefined, dataTransfer: { types: ["Files"], files: [] } }); });
+  await act(async () => { (zone.props.onDrop as (e: unknown) => void)({ preventDefault: () => { prevented++; }, stopPropagation: () => undefined, dataTransfer: { types: ["Files"], files: [file] } }); });
   await flush();
   assert.equal(prevented, 2);
   assert.deepEqual(s.attached.map((a) => a.name), ["Notes.txt"]);

@@ -4,10 +4,11 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (78)
+## Capabilities (79)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status
+- [engine.compact](../capabilities/engine.compact.md): Compact a chat: free the context of the agent's engine, keeping what the person names, and say so in one line with the context left. With always, the words are kept for every compaction of this chat
 - [engine.complete](../capabilities/engine.complete.md): One request and one answer on an account the caller can run on, for work that is not a chat (memory upkeep); returns the text and the token counts and posts nothing
 - [engine.crew.list](../capabilities/engine.crew.list.md): The crew of a chat: one row per teammate job, newest first, with what each is on and how it stands
 - [engine.crew.merge](../capabilities/engine.crew.merge.md): Land a teammate's branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. It is local: it leaves this computer only when it is pushed
@@ -85,7 +86,7 @@ Requires: nothing.
 - [engine.use_policy.export](../capabilities/engine.use_policy.export.md): Export the AI use policy (models, providers, label rules, limits, accounts) as a file
 - [engine.warm](../capabilities/engine.warm.md): Hint that a thread was opened or the composer got focus: warm the engine session (drivers pool, prefix cache)
 
-## Events (29)
+## Events (30)
 
 - [agent.blocked](../events/agent.blocked.md): An agent is blocked (login, key, site down) and asks for what would unblock it
 - [agent.limit_hit](../events/agent.limit_hit.md): An agent hit a limit from agent.toml or a Space cap; the turn stopped
@@ -109,6 +110,7 @@ Requires: nothing.
 - [thread.reviewer_changed](../events/thread.reviewer_changed.md): A chat got a reviewer, or lost it
 - [turn.block](../events/turn.block.md): A coalesced chunk of a running turn was persisted
 - [turn.cancelled](../events/turn.cancelled.md): A turn was cancelled by Stop or Interrupt
+- [turn.compacted](../events/turn.compacted.md): A chat was compacted (the quiet line in the thread): by the engine itself or by Vyre's summary, with the context it left
 - [turn.completed](../events/turn.completed.md): A turn finished
 - [turn.engine_switched](../events/turn.engine_switched.md): The engine of a chat changed (the quiet line in the thread)
 - [turn.failed](../events/turn.failed.md): A turn failed; the thread accepts the next message as a fresh turn

@@ -30,10 +30,10 @@ export async function usernameAvailable(ctx: IdentityCtx, input: { username: str
 }
 
 /** After the first factor: a second factor is owed when the person has TOTP set. */
-async function afterFirstFactor(ctx: IdentityCtx, a: Account, dev: Device, method: "password" | "github" | "sso"): Promise<SignInOut> {
+async function afterFirstFactor(ctx: IdentityCtx, a: Account, dev: Device, method: "password" | "github" | "sso", provider?: string): Promise<SignInOut> {
   assertSignInPolicy(ctx,a,method);
   if (a.totp_secret) return { status: "second_factor_required", challengeId: newChallenge(ctx, a.person_id, method) };
-  return await issueSession(ctx, a, dev, method);
+  return await issueSession(ctx, a, dev, method, provider ? { provider } : {});
 }
 
 /** Check a TOTP code and burn its step so it cannot be replayed. */
@@ -134,7 +134,7 @@ export async function ssoSignIn(ctx: IdentityCtx, input: Device & { provider: st
     noteFail(ctx, a, a.username, "locked");
     raise(ctx.trace.traceId, "auth.bad_credentials");
   }
-  return await afterFirstFactor(ctx, a, input, "sso");
+  return await afterFirstFactor(ctx, a, input, "sso", input.provider);
 }
 
 export async function signOut(ctx: IdentityCtx, input: { sessionId?: string }) {

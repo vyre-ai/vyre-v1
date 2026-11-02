@@ -14,8 +14,13 @@ export async function findRecordFolder(call: Call, type: string, recordId: strin
 
 /** Store the files in the record's folder, which the Space makes first when there is none. Resolves with the folder's id. */
 export async function attachToRecord(call: Call, putBlob: ((url: string, bytes: Uint8Array) => Promise<void>) | undefined, files: readonly AttachFile[], target: { type: string; recordId: string }, key: string): Promise<string> {
+  return (await storeOnRecord(call, putBlob, files, target, key)).folderId;
+}
+
+/** The same store, with the new files' ids (a Files field on the record names them). */
+export async function storeOnRecord(call: Call, putBlob: ((url: string, bytes: Uint8Array) => Promise<void>) | undefined, files: readonly AttachFile[], target: { type: string; recordId: string }, key: string): Promise<{ folderId: string; fileIds: string[] }> {
   const folderId = ((await call("projects.files_folder", { type: target.type, recordId: target.recordId })) as Out).folderId;
   if (!folderId) throw new Error("No folder for this record's files");
-  await storeFiles({ call: call as never, ...(putBlob ? { putBlob } : {}) }, folderId, files.map((f) => ({ name: f.name, mime: f.mime, file: f.file })), key);
-  return folderId;
+  const fileIds = await storeFiles({ call: call as never, ...(putBlob ? { putBlob } : {}) }, folderId, files.map((f) => ({ name: f.name, mime: f.mime, file: f.file })), key);
+  return { folderId, fileIds };
 }

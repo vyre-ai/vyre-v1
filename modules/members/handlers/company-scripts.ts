@@ -11,8 +11,9 @@ export function googleScript(d: Data): string {
     'gcloud projects create "$PROJECT" --name="Vyre" || { echo "Google refused the new project. Ask for the Project Creator role, then run this again."; exit 1; }',
     'gcloud config set project "$PROJECT"',
     `gcloud services enable ${apis.join(" ")} || { echo "Google refused to turn on the APIs. Check you can administer project $PROJECT."; exit 1; }`,
-    'gcloud iam service-accounts create vyre --display-name="Vyre"',
-    'ACCOUNT="vyre@$PROJECT.iam.gserviceaccount.com"',
+    // Google wants a service account id of 6 to 30 characters: "vyre" alone is refused, and every step after it failed with "Unknown service account".
+    'gcloud iam service-accounts create vyre-space --display-name="Vyre" || { echo "Google refused the service account. Check you can administer project $PROJECT."; exit 1; }',
+    'ACCOUNT="vyre-space@$PROJECT.iam.gserviceaccount.com"',
     "sleep 10",
     'if gcloud iam service-accounts keys create vyre-key.json --iam-account="$ACCOUNT" 2>key-error.txt; then',
     '  cloudshell download vyre-key.json || cat vyre-key.json',

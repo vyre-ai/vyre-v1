@@ -6,7 +6,6 @@ import { find, installDom, mount, press, textOf, typeInto } from "../../../../..
 import { ConsoleDataProvider } from "../shell/data.tsx";
 import { SpaceKey, keyHeadline, keyProviders, modelsLine } from "../pages/SpaceKey.tsx";
 import { useLine } from "../pages/Spend.tsx";
-import { SPACE_KEY_HASH, SPACE_KEY_LATER } from "../../onboarding/SpaceAiCard.tsx";
 import { dataWith } from "./sheet-helper.tsx";
 
 const KEY = "ocg-live-7a1f-NEVER-ON-A-PAGE-0123456789"; // secret-scan: fake
@@ -94,7 +93,15 @@ test("someone who may not manage it sees what covers everyone and no way to chan
   } finally { restore(); }
 });
 
-test("onboarding names the exact place, and its link opens that Console page", () => {
-  assert.match(SPACE_KEY_LATER, /Console, Models and providers, Space AI key/);
-  assert.equal(SPACE_KEY_HASH, "screen=console.ai-models");
+test("a key pasted under the wrong provider is caught before saving, and one press switches to the right one", async () => {
+  const { root, calls, restore } = await page((cap) => (cap === "providers.space_key.get" ? { set: false, models: [], mayManage: true } : cap === "providers.catalog" ? CATALOG : {}));
+  try {
+    assert.equal(find(root, "space-key-switch"), null);
+    // OpenCode Go is first: an Anthropic key pasted under it is named
+    await typeInto(find(root, "space-key-value"), "sk-ant-api03-0123456789");
+    assert.match(textOf(root), /This looks like an Anthropic key \(it starts with sk-ant-\), not OpenCode Go\./);
+    await press(find(root, "space-key-switch"));
+    assert.ok(!/This looks like/.test(textOf(root)), "switched to Anthropic, the warning goes");
+    assert.equal(calls.filter((c) => c.cap === "providers.space_key.set").length, 0, "nothing was saved by the warning");
+  } finally { restore(); }
 });

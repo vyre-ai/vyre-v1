@@ -6,6 +6,7 @@
 #   vyre-server status                      the containers and their health
 #   vyre-server start | stop | restart      what the systemd unit runs
 #   vyre-server logs [SERVICE]              follow the logs (vyred, caddy)
+#   vyre-server claim-link                  print the one-time link that claims a fresh Space as its owner (valid 24 hours; each start makes a new one)
 #   vyre-server update [--check] [--yes]    read the channel's signed manifest; if it names a newer version: back up the data, switch, check health, roll back on failure
 #   vyre-server rollback                    switch back to the previous release (code only; data written by the newer one stays)
 #   vyre-server backup                      write a backup of the data directory to $VYRE_DIR/backups (the server is stopped for it)
@@ -128,7 +129,7 @@ ver_cmp() {
 # BEGIN release
 # The Vyre release public key (Ed25519). The private half lives only in the `release` GitHub Environment. VYRE_RELEASE_KEY_PEM (a file) is for tests.
 RELEASE_KEY_PEM='-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAKXSdujH7tO/gscXCJZmYCjB+Cv1sVlOfdgLNedMR7FU=
+MCowBQYDK2VwAyEAoh2/Z+k+ZXGNRVKYlkVeE6TLKWt3+HK3rxm6gbCU6Po=
 -----END PUBLIC KEY-----'
 
 # ---- the signed release -------------------------------------------------------------------------------------------------------------
@@ -229,6 +230,17 @@ cmd_start() { dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-1
 cmd_stop() { dc stop; }
 cmd_status() { dc ps; }
 cmd_logs() { dc logs -f --tail 200 "$@"; }
+
+# ---- claim ---------------------------------------------------------------------------------------------------------------------------
+# vyred writes the owner's claim link to logs/claim-link.txt in its data directory (mode 0600) at each start while the Space is unclaimed, and deletes it once the claim
+# succeeds. The link is a credential: this prints it to the terminal that asked, and nowhere else.
+claim_file() { printf '%s/space/logs/claim-link.txt' "$DATA_DIR"; }
+cmd_claim_link() {
+  f=$(claim_file)
+  if [ -r "$f" ]; then cat "$f"; return 0; fi
+  [ ! -e "$f" ] || die "cannot read $f. Run it as root: sudo vyre-server claim-link"
+  die "there is no claim link: the Space is claimed already, or the server has not started yet (vyre-server status)."
+}
 
 # ---- doctor ------------------------------------------------------------------------------------------------------------------------
 FINDINGS=""
@@ -489,7 +501,7 @@ cmd_rollback() {
 
 main() {
   trap cleanup EXIT
-  [ $# -gt 0 ] || { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+  [ $# -gt 0 ] || { sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
   cmd=$1; shift
   case "$cmd" in
     doctor) cmd_doctor "$@" ;;
@@ -498,11 +510,12 @@ main() {
     stop) cmd_stop ;;
     restart) cmd_stop; cmd_start ;;
     logs) cmd_logs "$@" ;;
+    claim-link) cmd_claim_link ;;
     update) cmd_update "$@" ;;
     rollback) cmd_rollback ;;
     backup) cmd_backup ;;
     version|--version) say "$(cur_version)" ;;
-    -h|--help|help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' ;;
+    -h|--help|help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//' ;;
     *) die "unknown command $cmd (try: vyre-server help)" 2 ;;
   esac
 }

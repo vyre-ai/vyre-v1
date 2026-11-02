@@ -1,5 +1,6 @@
 // What this device keeps between launches so the shell paints at once: the Space's address, the session token and the Space's card (name, kind, kit), so the frame can draw before
 // any request returns. The token is the device session of the signed-in person; signing out or a 401 removes it. Web keeps it in localStorage until the secure store lands on native.
+import { spaceLabel } from "../spaces/space-label.ts";
 import type { SpaceDef } from "../spaces/model.ts";
 
 const KEY = "vyre.session.v1";
@@ -41,7 +42,9 @@ const sessions = (store: KeyValueStore | undefined): Record<string, StoredSessio
       if (!isObj(candidate) || typeof candidate["baseUrl"] !== "string" || typeof candidate["token"] !== "string" || typeof candidate["personId"] !== "string" || typeof candidate["marker"] !== "string" || !isObj(candidate["def"])) continue;
       const def = candidate["def"];
       if (typeof def["spaceId"] !== "string" || typeof def["name"] !== "string") continue;
-      valid[candidate["baseUrl"]] = candidate as unknown as StoredSession;
+      // a session kept before its Space learnt its name holds the id as the name: it is read as the address (spaces/space-label.ts)
+      const kept = candidate as unknown as StoredSession;
+      valid[candidate["baseUrl"]] = { ...kept, def: { ...kept.def, name: spaceLabel(kept.def.name, kept.baseUrl) } };
     }
     return valid;
   } catch {

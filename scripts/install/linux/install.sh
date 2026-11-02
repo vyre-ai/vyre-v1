@@ -331,7 +331,7 @@ need_docker() {
 # BEGIN release
 # The Vyre release public key (Ed25519). The private half lives only in the `release` GitHub Environment. VYRE_RELEASE_KEY_PEM (a file) is for tests.
 RELEASE_KEY_PEM='-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAKXSdujH7tO/gscXCJZmYCjB+Cv1sVlOfdgLNedMR7FU=
+MCowBQYDK2VwAyEAoh2/Z+k+ZXGNRVKYlkVeE6TLKWt3+HK3rxm6gbCU6Po=
 -----END PUBLIC KEY-----'
 
 # ---- the signed release -------------------------------------------------------------------------------------------------------------
@@ -549,6 +549,8 @@ finish() {
     elif [ -n "$RELAY" ]; then say "It connects outward to $RELAY; no public port is open on this machine."
     else say "Choose how people reach it: run the installer again with --domain NAME or --relay."
     fi
+    # the link itself is a credential and stays out of this output (it can end up in a provisioning log): the owner asks for it
+    if [ -f "$DATA_DIR/space/logs/claim-link.txt" ]; then say "To claim this Space as its owner, run: sudo vyre-server claim-link and open the link it prints (once, within 24 hours)."; fi
     say "Go back to the Vyre app to finish setting up this server."
     say "Check it any time with: vyre-server doctor"
   fi

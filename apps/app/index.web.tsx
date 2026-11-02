@@ -10,6 +10,10 @@ import registerRootComponent from "expo/build/launch/registerRootComponent";
 import { AppRoot } from "./src/startup/AppRoot.tsx";
 import { webUiStateStore } from "./src/startup/persisted.ts";
 import { resolveLastPlace } from "./src/startup/places.ts";
+import { guardFileDrops } from "../../ui/src/FileDrop/index.tsx";
+
+// Files dropped where no field takes them do nothing, rather than the window opening the file in place of the app (the Mac app's web view does that too).
+guardFileDrops();
 
 // "/" opens the last place (app/index.tsx redirects there in the router); the root draws the same frame for every address, so it is done before the first render
 const loc = (globalThis as { location?: { pathname: string; search: string; hash: string } }).location;

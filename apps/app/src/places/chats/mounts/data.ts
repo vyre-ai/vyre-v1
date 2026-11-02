@@ -375,3 +375,18 @@ export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: Pane
     },
   };
 }
+
+/** A channel id (chn_): Chats shows a channel as its main thread, and the thread capabilities refuse the channel's own id. */
+export const isChannelId = (id: string): boolean => id.startsWith("chn_");
+
+/** The main thread of a channel, or why it cannot be had (in the words a load failure shows). Never throws. */
+export async function channelThread(call: (cap: string, input: unknown) => Promise<unknown>, channelId: string): Promise<{ threadId: string } | { failure: { message: string; code?: string; traceId?: string } }> {
+  try {
+    const out = (await call("channels.get", { channelId })) as { channel?: { mainThreadId?: unknown } } | null;
+    const main = out?.channel?.mainThreadId;
+    return typeof main === "string" && main !== "" ? { threadId: main } : { failure: { message: "That channel has no conversation yet." } };
+  } catch (e) {
+    const err = (e ?? {}) as { message?: unknown; code?: unknown; traceId?: unknown };
+    return { failure: { message: typeof err.message === "string" && err.message !== "" ? err.message : "The channel could not be read.", ...(typeof err.code === "string" ? { code: err.code } : {}), ...(typeof err.traceId === "string" ? { traceId: err.traceId } : {}) } };
+  }
+}

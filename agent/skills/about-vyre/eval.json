@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "world": { "space": "spc_here", "thread": "thr_about1", "secrets": { "Owner_OpenAI": "zq9-about-secret-7731-value" } },
+  "scenarios": [
+    {
+      "id": "owner-what-do-you-think",
+      "said": "What do you think about Vyre?",
+      "prompt": "What do you think about Vyre?",
+      "rules": ["about_loaded", "no_known_wrong", "says_facts", "names_a_limit", "plain_words"],
+      "facts": ["workspace", "Personal Space", "Team Space", "Gate", "Claude Code", "Codex"],
+      "limits": ["no phone app", "only while your computer is on"],
+      "trace": [
+        { "say": "I like it for work that runs long and mixes people with agents. Vyre is a workspace where your agents and your people work together on the AI accounts you bring: your own Claude, ChatGPT or Grok sign-ins, or API keys. Agents run on Claude Code, Codex, Grok or an API key. Everything lives in a Space. A Personal Space runs on your own computer; a Team Space runs on a server your team controls. Anything that leaves the Space, like mail, a payment or a push to a protected branch, goes through the Gate and waits for your yes. The limit I would weigh first: a Personal Space works only while your computer is on." }
+      ]
+    },
+    {
+      "id": "owner-replacement",
+      "said": "I am looking at it as a replacement for my Claude CLI and Codex CLI for long running development sessions and general project management",
+      "prompt": "I am looking at it as a replacement for my Claude CLI and Codex CLI for long running development sessions and general project management",
+      "rules": ["about_loaded", "no_known_wrong", "says_facts", "names_a_limit", "checks_space", "tools_available", "plain_words"],
+      "facts": ["Claude Code", "Codex", "summary", "last 20", "Compact", "Try again", "fork", "Crew", "own branch", "Reviewer", "Approver", "subtasks"],
+      "limits": ["only while your computer is on", "new engine session"],
+      "trace": [
+        { "call": "engine_providers_list", "input": {}, "result": { "ok": true, "data": { "providers": [{ "driver": "claude_code", "kind": "cli", "title": "Claude Code", "connected": true, "allowed": true }, { "driver": "codex", "kind": "cli", "title": "Codex", "connected": true, "allowed": true }, { "driver": "grok", "kind": "cli", "title": "Grok", "connected": false, "allowed": true }] } } },
+        { "say": "Mostly yes, and both of yours are already connected here: Claude Code and Codex run as engines on your own sign-ins.\nLong sessions: the chat keeps its whole transcript, a rolling summary stands in for older turns and the last 20 stay word for word. Compact, in the model panel, has the engine compact and keep what you name. You can fork a chat, bring in your old Claude Code and Codex sessions and continue them, and hand work to a Crew teammate that works on its own branch in its own copy of the repository. If the server restarts, a turn that had not used a tool runs again by itself; one that had stops, and you check it and press Try again.\nProject management: tasks have an Assigned, a Reviewer and an Approver, a parent task can carry subtasks that start when what they wait on is done, and Projects hold a plan, a channel and a folder.\nTwo limits to weigh: a Personal Space works only while your computer is on, and when an engine no longer has a chat's session, the next turn starts a new engine session from the chat's summary." }
+      ]
+    },
+    {
+      "id": "what-is-vyre",
+      "said": "What do you think about Vyre?",
+      "prompt": "What is Vyre?",
+      "rules": ["about_loaded", "no_known_wrong", "says_facts", "plain_words"],
+      "facts": ["workspace", "Space", "Gate", "Chats", "Records", "Files", "Automations", "Vault"],
+      "trace": [
+        { "say": "Vyre is a workspace where people and their agents work together, on the AI accounts the people bring. It all lives in a Space: a Personal Space on your own computer, or a Team Space on a server your team controls. Chats is where you work with agents; Records holds your data in tables; Files holds documents with versions and git; Automations runs flows; the Vault keeps secrets that agents use by name without seeing them. Anything that leaves the Space goes through the Gate and waits for a person's yes." }
+      ]
+    },
+    {
+      "id": "replace-cli",
+      "said": "I am looking at it as a replacement for my Claude CLI and Codex CLI for long running development sessions and general project management",
+      "prompt": "Can Vyre replace my Claude Code and Codex CLI for long sessions?",
+      "rules": ["about_loaded", "no_known_wrong", "says_facts", "names_a_limit", "checks_space", "tools_available", "plain_words"],
+      "facts": ["Claude Code", "Codex", "installs", "summary", "Compact", "Stop and send", "wake"],
+      "limits": ["only while your computer is on", "new engine session"],
+      "trace": [
+        { "call": "engine_accounts_list", "input": {}, "result": { "ok": true, "data": { "accounts": [{ "ref": "acct_claude_irfad", "driver": "claude_code", "kind": "subscription", "title": "Claude", "mine": true, "status": "ok" }, { "ref": "acct_codex_irfad", "driver": "codex", "kind": "subscription", "title": "Codex", "mine": true, "status": "ok" }] } } },
+        { "say": "For most long sessions, yes. Claude Code and Codex are both engines here, and your Claude and ChatGPT sign-ins are connected and working. Vyre installs either program itself if this computer lacks it.\nWhat you gain: the chat keeps a rolling summary and its full transcript, Compact in the model panel trims context and keeps what you name, Stop and send interrupts a turn at once, and an agent can end its turn and wake on an event or a time instead of holding a terminal open.\nWhat to know: a Personal Space works only while your computer is on, and when an engine no longer has a chat's session, the next turn starts a new engine session from the chat's summary." }
+      ]
+    },
+    {
+      "id": "codex-supported",
+      "said": "I am looking at it as a replacement for my Claude CLI and Codex CLI for long running development sessions and general project management",
+      "prompt": "Does Vyre support Codex?",
+      "rules": ["about_loaded", "no_known_wrong", "says_facts", "checks_space", "connect_not_unsupported", "tools_available", "plain_words"],
+      "facts": ["Codex", "Claude Code", "Grok", "Vault", "installs"],
+      "trace": [
+        { "call": "tool_search", "input": { "query": "which AI engines are connected" }, "result": { "ok": true, "data": { "tools": [{ "name": "engine_providers_list" }] } } },
+        { "call": "engine_providers_list", "input": {}, "result": { "ok": true, "data": { "providers": [{ "driver": "claude_code", "kind": "cli", "title": "Claude Code", "connected": true, "allowed": true }, { "driver": "codex", "kind": "cli", "title": "Codex", "connected": false, "allowed": true }] } } },
+        { "say": "Yes. Codex is one of Vyre's command line engines, next to Claude Code and Grok. It is not connected in this Space yet: add your ChatGPT sign-in for Codex in the Vault, and Vyre installs Codex itself if this computer does not have it." }
+      ]
+    },
+    {
+      "id": "long-session-crash",
+      "said": "I am looking at it as a replacement for my Claude CLI and Codex CLI for long running development sessions and general project management",
+      "prompt": "How does Vyre handle a session that runs for hours, or a crash?",
+      "rules": ["about_loaded", "no_known_wrong", "says_facts", "names_a_limit", "plain_words"],
+      "facts": ["rolling summary", "last 20", "80 percent", "Compact", "Try again", "Mac stays awake", "30 days"],
+      "limits": ["new engine session", "only while your computer is on"],
+      "trace": [
+        { "say": "Hours are fine. Every turn goes into the chat's transcript, a rolling summary stands in for older turns, and the last 20 stay word for word, so any exact line can still be searched. An API chat compacts itself at 80 percent of the model's window; Compact in the model panel has the engine compact now and keep what you name. An agent can end its turn and wake on an event or a time, for up to 30 days by default, and while a turn runs a Mac stays awake.\nA crash or restart: queued turns run again. A turn that had not used a tool yet runs again by itself. One that had is never replayed; the chat says the server stopped, and you check it and press Try again. After a restart the next turn resumes the engine's own session. One limit: when the engine no longer has it, the turn starts a new engine session from the chat's summary and recent turns." }
+      ]
+    },
+    {
+      "id": "project-tasks-reviewers",
+      "said": "I am looking at it as a replacement for my Claude CLI and Codex CLI for long running development sessions and general project management",
+      "prompt": "How do I manage a project with tasks and reviewers here?",
+      "rules": ["about_loaded", "no_known_wrong", "says_facts", "plain_words"],
+      "facts": ["Assigned", "Reviewer", "Approver", "numbered fixes", "subtasks", "Needs you", "Timeline", "channel"],
+      "trace": [
+        { "say": "Make a Project: it gets its own channel, folder and plan, and the plan shows as Timeline, Board, List or Calendar. Each task has three seats: Assigned does the work, the Reviewer checks it, the Approver decides, and each seat can be a person, an agent, a group or a role. Handed-in work goes to the Reviewer, then the Approver, then Done; a reviewer sends it back with numbered fixes. Big work becomes a parent with subtasks that start when what they wait on is done. Anything waiting on you shows in Needs you." }
+      ]
+    },
+    {
+      "id": "github-pr",
+      "said": "I am looking at it as a replacement for my Claude CLI and Codex CLI for long running development sessions and general project management",
+      "prompt": "Can it work on my GitHub repo and open a PR?",
+      "rules": ["about_loaded", "no_known_wrong", "says_facts", "names_a_limit", "checks_space", "tools_available", "plain_words"],
+      "facts": ["Crew", "own branch", "Merge", "Push", "GitHub App", "checks"],
+      "limits": ["not open pull requests"],
+      "trace": [
+        { "call": "tool_search", "input": { "query": "project repository and GitHub repositories" }, "result": { "ok": true, "data": { "tools": [{ "name": "projects_list" }, { "name": "engine_crew_repo_get" }, { "name": "github_repos_list" }] } } },
+        { "call": "projects_list", "input": {}, "result": { "ok": true, "data": { "projects": [{ "projectId": "prj_web1", "name": "Website" }] } } },
+        { "call": "engine_crew_repo_get", "input": { "projectId": "prj_web1" }, "result": { "ok": true, "data": { "repo": null } } },
+        { "call": "github_repos_list", "input": {}, "result": { "ok": true, "data": { "repos": [{ "fullName": "acme/website" }] } } },
+        { "say": "Yes, in two parts. Crew: in a project with a code repository, the lead hands work to a teammate, and each teammate works in its own clone on its own branch. Merge lands it in your repository on this computer; Push sends the base branch to GitHub, and an agent pushes only when you asked in that message. Your Website project has no repository set yet, so point it at the folder that holds acme/website first.\nPull requests: the Space's GitHub App reaches acme/website, so agents can open, comment on and merge pull requests, re-run checks, and wake when the checks end. One limit: Crew does not open pull requests itself; opening one goes through the GitHub App." }
+      ]
+    }
+  ]
+}

@@ -74,7 +74,7 @@ test("the vyre scheme and the global shortcut are registered; single instance is
   assert.match(lib, /get_current\(\)/);
   assert.ok(lib.indexOf("tauri_plugin_single_instance") < lib.indexOf("tauri_plugin_shell::init"), "single instance registers first");
   const links = read("src", "links.rs");
-  for (const a of ["join", "open", "pair", "signin"]) assert.ok(links.includes(`"${a}"`), a);
+  for (const a of ["join", "open", "pair", "signin", "claim"]) assert.ok(links.includes(`"${a}"`), a);
   const commands = read("src", "commands.rs");
   assert.match(commands, /deep link \{\} received", link\.action/);
   assert.doesNotMatch(commands, /println!\([^)]*params/, "one-time codes never reach a log");
@@ -177,4 +177,11 @@ test("styles added at runtime keep working in the built app: style-src keeps uns
   assert.ok(style && style.includes("'unsafe-inline'"), "style-src allows inline styles");
   assert.ok(!/'nonce-|'sha(256|384|512)-/.test(style ?? ""), "no nonce or hash of our own in style-src");
   assert.ok(Array.isArray(sec.dangerousDisableAssetCspModification) && (sec.dangerousDisableAssetCspModification as string[]).includes("style-src"), "Tauri leaves style-src alone");
+});
+
+test("files dropped on the window reach the page: the main window has Tauri's own drag and drop off, and the built app is checked for it on the Mac", () => {
+  const main = (JSON.parse(read("tauri.conf.json")) as { app: { windows: { label: string; dragDropEnabled?: unknown }[] } }).app.windows.find((w) => w.label === "main");
+  assert.equal(main?.dragDropEnabled, false, "with it on, the native view keeps every file drop and the composer never sees one");
+  assert.match(read("src", "lib.rs"), /fn the_built_main_window_hands_file_drops_to_the_page\(\)[\s\S]*?!main\.drag_drop_enabled/, "the Rust test reads the compiled config the app is built from");
+  assert.match(read("src", "lib.rs"), /\.build\(context\(\)\)/, "the app is built from that same context");
 });

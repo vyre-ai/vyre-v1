@@ -147,7 +147,7 @@ export function RunChat({ runId, wide = false, retriedIds = NONE, openThoughts =
         <TextInput
           accessibilityLabel="Message in this run" testID="run-input" value={draft} onChangeText={setDraft} multiline
           placeholder="Ask about this run, or tell an agent what to do" placeholderTextColor="var(--ink-4)" style={s.input}
-          {...webOnly({ onKeyDown: (e: KeyEventLike) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault?.(); send(); } } })}
+          onKeyPress={((e: KeyEventLike) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault?.(); send(); } }) as never}
         />
         <Pressable accessibilityRole="button" accessibilityLabel="Send" accessibilityState={{ disabled: !draft.trim() }} testID="run-send" onPress={send} {...webOnly({ title: "Send" })} style={[s.send, !draft.trim() && { opacity: 0.35 }, pointer]}>
           <Glyph name="up" size={15} color="var(--accent-ink)" />

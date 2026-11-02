@@ -169,6 +169,13 @@ export interface TurnInput {
   recall?: readonly RecallLine[];
   /** The ordered turn context (identity, where, skills, what the agent can do here, screen, time ...), built by the engine module as the asker; drivers render it (agent/src/turn-engine/context.ts). */
   context?: TurnContext;
+  /**
+   * Compact the engine's own context instead of answering (engine.compact): an engine with a compact of its own runs it, keeping what `keep` names, and reports a `compacted` block
+   * ({ before?, after? } in tokens, as the engine said them). One without it answers engine.compact_unsupported; one with nothing to compact yet, engine.nothing_to_compact.
+   */
+  compact?: { keep: string };
+  /** What the person asked to keep through every compaction of this chat ("Keep this every time"): an engine that shortens the conversation by itself puts it at the head of what stands for the dropped part. */
+  keep?: string;
 }
 
 export interface ResumedCall { taskId: string; callId: string; toolName: string; approved: boolean; result: ToolResult }

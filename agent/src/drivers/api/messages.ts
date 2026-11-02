@@ -71,7 +71,8 @@ export function fixedTokens(system: readonly SystemBlock[], tools: readonly ApiT
   return promptTokens(system, tools, []);
 }
 
-export type Summarize = (dropped: readonly Msg[]) => Promise<string>;
+/** `keep`: what the person asked to keep through every compaction of the chat; a summarizer writes it into the summary. */
+export type Summarize = (dropped: readonly Msg[], keep?: string) => Promise<string>;
 
 /** One line per dropped user ask or reply: what a switch or a rollover would keep if no cheap model were reachable. */
 export function extractive(dropped: readonly Msg[]): string {
@@ -89,9 +90,9 @@ export interface Compacted { messages: Msg[]; dropped: number }
 
 /**
  * If the prompt is over 80% of the window, replace the oldest messages with a summary and keep the newest ones that fit in 40%.
- * The cut falls on a user message so a tool call is never separated from its results.
+ * The cut falls on a user message so a tool call is never separated from its results. `keep` ("Keep this every time" of the chat) heads the summary, word for word, and goes to the summarizer.
  */
-export async function compact(fixed: number, messages: readonly Msg[], window: number, summarize?: Summarize): Promise<Compacted> {
+export async function compact(fixed: number, messages: readonly Msg[], window: number, summarize?: Summarize, keep?: string): Promise<Compacted> {
   let total = fixed;
   for (const m of messages) total += msgTokens(m);
   if (total <= window * COMPACT_AT) return { messages: [...messages], dropped: 0 };
@@ -112,9 +113,10 @@ export async function compact(fixed: number, messages: readonly Msg[], window: n
   const dropped = messages.slice(0, from);
   if (dropped.length === 0) return { messages: [...messages], dropped: 0 };
   let summary = "";
-  if (summarize) { try { summary = await summarize(dropped); } catch { summary = ""; } }
+  const kept = keep?.trim() ?? "";
+  if (summarize) { try { summary = await summarize(dropped, kept === "" ? undefined : kept); } catch { summary = ""; } }
   if (summary.trim() === "") summary = extractive(dropped);
-  const head: Msg = { role: "user", text: `Earlier in this conversation (shortened to fit the model's window; ${dropped.length} messages):\n${summary}` };
+  const head: Msg = { role: "user", text: `Earlier in this conversation (shortened to fit the model's window; ${dropped.length} messages):\n${kept === "" ? "" : `The person asked to keep this through every compaction: ${kept}\n`}${summary}` };
   // Two user messages in a row are fine on every provider, so the kept tail is not touched.
   return { messages: [head, ...messages.slice(from)], dropped: dropped.length };
 }

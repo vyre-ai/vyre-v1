@@ -15,7 +15,7 @@ import type { DataChoice, MsCtx } from "../projections.ts";
 import { ensureMailbox, pollInterval, pullMailbox } from "./graph.ts";
 import { userSigninLost } from "./personal.ts";
 import { pullTeams } from "./teams.ts";
-import { connectCalendar, syncCalendar } from "./calendar.ts";
+import { connectCalendar } from "./calendar.ts";
 import type { Act } from "./graph.ts";
 import { mintUuid } from "../../../lib/ids.ts";
 
@@ -262,7 +262,6 @@ async function pullAndSchedule(ctx: MsCtx, email: string, cause: string): Promis
   }
   // Teams transcripts ride on the same pass; a Teams failure never fails the mailbox pull. A person's own sign-in carries mail only.
   if (delegated) {
-    await syncCalendar(ctx, { connectionId, email });
     await pullTeams(ctx, { connectionId, mailbox: email }).catch((e: unknown) => ctx.log.warn("microsoft teams pull failed", { mailbox: email, code: codeOf(e) }));
   }
   const box = first(ctx.db.all(`SELECT "nextPollAt" FROM microsoft_mailbox WHERE email = ?`, email));

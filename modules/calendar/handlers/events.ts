@@ -17,6 +17,7 @@ import {
   allow, bad, can, cleanAttendees, codeOf, DAY_MS, DEFAULT_HOURS, ensure, first, freeSlots, googleTime, graphTime, isId, list, mergeSpans, MINUTE_MS, missing,
   newId, normalizeEmail, num, obj, readAttendees, readStrings, refuse, rowsOf, str, strOrNull, text, toCalendar, toEvent, EMAIL,
 } from "../projections.ts";
+import { isTrustedService } from "../../../lib/trust.ts";
 import type { Attendee, CalCtx, CalendarOut, EventOut, Hours, JoinProvider, Json, Response, Row, Span } from "../projections.ts";
 
 const MAX_SPAN = 366 * DAY_MS;
@@ -712,33 +713,61 @@ export async function syncNow(ctx: CalCtx, input: { calendarId: string }): Promi
   ensure(ctx);
   const cal = calendarRow(ctx, input.calendarId, "use");
   const runId = ctx.run && isId("run", ctx.run) ? ctx.run : newId("run", ctx.now());
+  await pullCalendar(ctx, cal);
+  return { runId };
+}
+
+/**
+ * The scheduled pull of every Google and Microsoft calendar an admin connected. It runs as the server (a periodic job), on this module's own tables, and never goes through
+ * calendar.sync_now: that capability answers to a calendar's owner or to someone it was shared with, and a member's connected calendar is private to them, so the server
+ * is not one of those people. Authority came when the admin connected the calendar (calendar.connect_provider needs connectors.manage). The pull reads the provider
+ * as the calendar's account (the `as` the connect step stored), which only the server may do for a named member.
+ */
+export async function pullProviderCalendars(ctx: CalCtx): Promise<{ pulled: number }> {
+  ensure(ctx);
+  if (!isTrustedService(ctx.principal)) bad(ctx, "The scheduled calendar pull is the server's own job.");
+  const due = rowsOf(ctx.db.all(`SELECT * FROM calendar_list WHERE deleted_at IS NULL AND provider != ? AND state != ? ORDER BY id ASC`, "local", "paused"));
+  for (const cal of due) await pullCalendar(ctx, cal);
+  return { pulled: due.length };
+}
+
+/** One pull of one provider calendar, already authorised by its caller: lands the events, keeps the cursor and the calendar's state. A failure marks the calendar and never throws. */
+async function pullCalendar(ctx: CalCtx, cal: Row): Promise<void> {
+  const calendarId = str(cal, "id");
   const provider = str(cal, "provider");
   const now = ctx.now();
   if (provider === "local") {
-    ctx.emit("calendar.synced", `entity/${input.calendarId}`, { calendarId: input.calendarId, upserted: 0, removed: 0 }, { vis: "participants" });
-    return { runId };
+    ctx.emit("calendar.synced", `entity/${calendarId}`, { calendarId, upserted: 0, removed: 0 }, { vis: "participants" });
+    return;
   }
-  if (str(cal, "state") === "paused") return { runId };   // paused means paused: no pull, no failure
+  if (str(cal, "state") === "paused") return;   // paused means paused: no pull, no failure
   const connectionId = strOrNull(cal, "connectionId");
   const remoteId = strOrNull(cal, "remoteId");
-  const sync = first(ctx.db.all(`SELECT * FROM calendar_sync WHERE "calendarId" = ?`, input.calendarId));
-  if (!sync) ctx.db.run(`INSERT INTO calendar_sync ("calendarId", cursor, "lastTryAt", "lastOkAt", "lastError") VALUES (?, ?, ?, ?, ?)`, input.calendarId, null, now, null, null);
-  ctx.db.run(`UPDATE calendar_sync SET "lastTryAt" = ? WHERE "calendarId" = ?`, now, input.calendarId);
+  const sync = first(ctx.db.all(`SELECT * FROM calendar_sync WHERE "calendarId" = ?`, calendarId));
+  // the attempt is recorded whatever happens next: after the connection check on the way through, or in the catch when that check refuses, so nothing is written before a refusal
+  let tried = false;
+  const recordTry = (): void => {
+    if (!sync) ctx.db.run(`INSERT INTO calendar_sync ("calendarId", cursor, "lastTryAt", "lastOkAt", "lastError") VALUES (?, ?, ?, ?, ?)`, calendarId, null, now, null, null);
+    ctx.db.run(`UPDATE calendar_sync SET "lastTryAt" = ? WHERE "calendarId" = ?`, now, calendarId);
+    tried = true;
+  };
   try {
     if (!connectionId || !remoteId) refuse(ctx, "This calendar has no connection to pull from. Reconnect it in Settings, Connections.");
+    recordTry();
     const cursor = strOrNull(sync, "cursor");
-    const account = strOrNull(first(ctx.db.all(`SELECT account FROM calendar_account WHERE "calendarId" = ?`, input.calendarId)), "account") ?? undefined;
-    const pulled = provider === "google" ? await pullGoogle(ctx, input.calendarId, connectionId, remoteId, cursor, account) : await pullGraph(ctx, input.calendarId, connectionId, remoteId, cursor, account);
-    ctx.db.run(`UPDATE calendar_sync SET cursor = ?, "lastOkAt" = ?, "lastError" = ? WHERE "calendarId" = ?`, pulled.cursor, ctx.now(), null, input.calendarId);
-    ctx.db.run(`UPDATE calendar_list SET state = ?, version = ?, updated_at = ? WHERE id = ?`, "syncing", num(cal, "version") + 1, ctx.now(), input.calendarId);
-    ctx.emit("calendar.synced", `entity/${input.calendarId}`, { calendarId: input.calendarId, upserted: pulled.upserted, removed: pulled.removed }, { vis: "participants" });
+    const account = strOrNull(first(ctx.db.all(`SELECT account FROM calendar_account WHERE "calendarId" = ?`, calendarId)), "account") ?? undefined;
+    const pulled = provider === "google" ? await pullGoogle(ctx, calendarId, connectionId, remoteId, cursor, account) : await pullGraph(ctx, calendarId, connectionId, remoteId, cursor, account);
+    ctx.db.run(`UPDATE calendar_sync SET cursor = ?, "lastOkAt" = ?, "lastError" = ? WHERE "calendarId" = ?`, pulled.cursor, ctx.now(), null, calendarId);
+    ctx.db.run(`UPDATE calendar_list SET state = ?, version = ?, updated_at = ? WHERE id = ?`, "syncing", num(cal, "version") + 1, ctx.now(), calendarId);
+    ctx.emit("calendar.synced", `entity/${calendarId}`, { calendarId, upserted: pulled.upserted, removed: pulled.removed }, { vis: "participants" });
   } catch (e) {
     const code = codeOf(e);
-    ctx.db.run(`UPDATE calendar_sync SET "lastError" = ? WHERE "calendarId" = ?`, code || "sync_failed", input.calendarId);
-    ctx.db.run(`UPDATE calendar_list SET state = ?, version = ?, updated_at = ? WHERE id = ?`, "error", num(cal, "version") + 1, ctx.now(), input.calendarId);
-    ctx.log.warn("calendar sync failed", { calendarId: input.calendarId, code, ...(e instanceof Error ? { error: e.message.slice(0, 200) } : {}) });
+    if (!tried) recordTry();
+    ctx.db.run(`UPDATE calendar_sync SET "lastError" = ? WHERE "calendarId" = ?`, code || "sync_failed", calendarId);
+    ctx.db.run(`UPDATE calendar_list SET state = ?, version = ?, updated_at = ? WHERE id = ?`, "error", num(cal, "version") + 1, ctx.now(), calendarId);
+    // the scheduled pull tries again every two minutes: the same failure as last time is already in the log and on the calendar, so it is said once, not on every pass
+    if (strOrNull(sync, "lastError") !== (code || "sync_failed")) ctx.log.warn("calendar sync failed", { calendarId, code, ...(e instanceof Error ? { error: e.message.slice(0, 200) } : {}) });
   }
-  return { runId };
 }
 
 const isoOf = (ts: number): string => new Date(ts).toISOString();

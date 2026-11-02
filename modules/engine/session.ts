@@ -70,6 +70,15 @@ export interface OpenerHost {
   now?: () => number;
   /** Set false to keep installed plugins out of a CLI engine's own config. Default: they are written there. */
   pluginsNative?: boolean;
+  /**
+   * What a chat keeps between engine sessions (modules/engine/cli-sessions.ts): the CLI engine's own session id per chat, agent, person and engine (read when a session opens, written when the engine
+   * names a new one), and the chat's "Keep this every time", written into the work folder's compact instructions. Absent: every session starts new, as before.
+   */
+  sessions?: {
+    resume(k: { threadId: string; agentId: string; person: string; driver: string; tools?: "none" }): string | null;
+    checkpoint(k: { threadId: string; agentId: string; person: string; driver: string; tools?: "none" }, sessionId: string | null): void;
+    keep(threadId: string): string;
+  };
 }
 
 const MEMORY_RULES = "You remember through Vyre memory. Facts recalled for a message come with their source: say where you know a thing from. Quotes are the exact words people wrote in earlier chats and runs: quote them as written, never reword them, and use memory_quote with a ref to read a whole line or to look for words. Look up with memory_search, save what you learn with memory_remember and cite where it came from, and close a fact that is wrong or no longer true with memory_forget. Memory you cannot see is not yours to guess.";
@@ -112,24 +121,33 @@ export function roleBlocks(call: OpenerHost["call"]): (spec: SessionSpec, input?
  * The memory guide of this agent as the person asking may read it (agent layer only), in the CLI's work folder as CLAUDE.md and AGENTS.md. A CLI engine reads one of them from its folder,
  * so it knows it has memory and which tools reach it before its first tool call. The work folder is per person and thread, so nothing here reaches another person.
  */
-export async function writeMemoryGuide(call: OpenerHost["call"], dir: string, spec: { agent: { id: string }; asker: string }, keepExisting = false): Promise<void> {
+export async function writeMemoryGuide(call: OpenerHost["call"], dir: string, spec: { agent: { id: string }; asker: string }, keepExisting = false, keep = ""): Promise<void> {
   let name: string = spec.agent.id;
   let body: string | undefined;
   try { name = ((await call("agents.get", { agentId: spec.agent.id }, spec.asker)) as { agent?: { name?: string } }).agent?.name ?? name; } catch { /* the id names it */ }
   try { body = ((await call("memory.map.get", { agentId: spec.agent.id }, spec.asker)) as { map?: { body?: string } }).map?.body; } catch { /* no map yet, or not this person's to read */ }
-  const text = memoryGuide(name, body);
+  const text = memoryGuide(name, body) + compactInstructions(keep);
   for (const f of GUIDE_FILES) { if (keepExisting && fs.existsSync(path.join(dir, f))) continue; fs.writeFileSync(path.join(dir, f), text, { mode: 0o644 }); }
+}
+
+/**
+ * The chat's "Keep this every time" as compact instructions in the file the CLI reads from its folder: Claude Code reads a "Compact instructions" section of CLAUDE.md when it compacts by itself, and
+ * the file is part of what every engine reads again after a compaction, so what the person asked to keep survives the engine's own automatic compaction too.
+ */
+export function compactInstructions(keep: string): string {
+  const k = keep.replace(/\s+/g, " ").trim();
+  return k === "" ? "" : `\n\n# Compact instructions\n\nWhen this conversation is compacted or summarised, keep this, as the person asked: ${k}\n`;
 }
 
 /**
  * What a session's work folder needs before its first turn: a teammate thread of the crew gets its copy of the project repository on its own branch (made once, left alone after), then the memory guide.
  * The guide never overwrites a file the repository already tracks: the copy would show as changed.
  */
-export async function prepareWorkFolder(call: OpenerHost["call"], dataDir: string, spec: { agent: { id: string }; asker: string; threadId: string }): Promise<void> {
+export async function prepareWorkFolder(call: OpenerHost["call"], dataDir: string, spec: { agent: { id: string }; asker: string; threadId: string }, keep = ""): Promise<void> {
   const dir = workFolder(dataDir, spec.asker, spec.threadId);
   const crew = await crewWorkspaceOf(call, spec);
   if (crew) await ensureWorkspace(dataDir, spec.asker, spec.threadId, crew);
-  await writeMemoryGuide(call, dir, spec, crew !== null);
+  await writeMemoryGuide(call, dir, spec, crew !== null, keep);
 }
 
 type CrewWorkspace = { repo: string; base: string; branch: string; name: string };
@@ -193,7 +211,9 @@ export async function spawnCli(planned: SandboxPlan, spec: LaunchSpec, argv: rea
     try { placed = placeCredentialFiles(planned.dataDir, launch.cwd, files); } catch (e) { throw new LaunchError("engine.account_unavailable", e instanceof Error ? e.message : "The sign-in files could not be put in place."); }
   }
   try {
-    const proc = await createLocalLauncher({ wrap: (o.wrapOf ?? sandboxWrap)(planned, { homeFromScratch: placed !== undefined }), baseEnv: launcherEnv() }).spawn({ ...launch, env, argv });
+    // The engine's home is always the person's scratch home: the CLI keeps its sessions there (Claude Code ~/.claude/projects, Codex ~/.codex/sessions, Grok ~/.grok/sessions), and a chat resumes
+    // them after a restart (cli-sessions.ts). An empty home per process would lose them between Codex and Grok turns. Sign-in files placed there are still removed when the process ends.
+    const proc = await createLocalLauncher({ wrap: (o.wrapOf ?? sandboxWrap)(planned, { homeFromScratch: true }), baseEnv: launcherEnv() }).spawn({ ...launch, env, argv });
     if (placed) { const p = placed; const end = (): void => settleSignin(p, signinBack); void proc.exited.then(end, end); }
     return proc;
   } catch (e) { placed?.release(); throw e; }
@@ -232,6 +252,8 @@ export function buildOpener(h: OpenerHost): SessionOpener {
   };
   const dataDir = h.sandbox?.dataDir ?? h.dataDir;
   const save = h.session.saveSignin?.bind(h.session);
+  const sessions = h.sessions ?? { resume: () => null, checkpoint: () => undefined, keep: () => "" };
+  const keyOf = (spec: SessionSpec) => ({ threadId: spec.threadId, agentId: spec.agent.id, person: spec.asker, driver: spec.account?.driver ?? "", ...(spec.tools === "none" ? { tools: "none" as const } : {}) });
   const opener = createSessionOpener({
     source: h.session.source,
     reportMiss: h.session.reportMiss,
@@ -248,8 +270,16 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     // Behind the wall the engine cannot reach the daemon's loopback: its MCP config starts a stdio shim that talks to a unix socket in the person's scratch folder (ruling 61).
     ...(dataDir ? { mcpBridge: (m: { url: string; token: string }, spec: { asker: string }) => openMcpBridge(m, { scratch: scratchFolder(dataDir, spec.asker) }) } : {}),
     ...(dataDir && h.pluginsNative !== false ? { nativePlugins: (spec: SessionSpec, driver: "claude_code" | "codex") => nativePlugins({ call: h.call }, driver, spec.agent.id, spec.asker, workFolder(dataDir, spec.asker, spec.threadId)) } : {}),
-    ...(dataDir ? { cli: { workFolder: (spec) => workFolder(dataDir, spec.asker, spec.threadId) } } : {}),
-    ...(dataDir ? { prepare: (spec: { agent: { id: string }; asker: string; threadId: string }) => prepareWorkFolder(h.call, dataDir, spec) } : {}),
+    ...(dataDir ? {
+      cli: {
+        workFolder: (spec: SessionSpec) => workFolder(dataDir, spec.asker, spec.threadId),
+        ...(h.sessions ? {
+          resume: (spec: SessionSpec) => (spec.account ? sessions.resume(keyOf(spec)) : null),
+          checkpoint: (spec: SessionSpec, id: string | null) => { if (spec.account) sessions.checkpoint(keyOf(spec), id); },
+        } : {}),
+      },
+    } : {}),
+    ...(dataDir ? { prepare: (spec: { agent: { id: string }; asker: string; threadId: string }) => prepareWorkFolder(h.call, dataDir, spec, h.sessions?.keep(spec.threadId) ?? "") } : {}),
     // A session with tools "none" (an automation's AI step) gets no tools and no agent role: its prompt carries everything it needs.
     apiContext: async (spec, input) => {
       if (spec.tools === "none") return { system: [{ text: "You are completing one step of an automation. Answer with the result only.", stable: true }], tools: [] };

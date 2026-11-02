@@ -39,3 +39,19 @@ test("joining when everyone must use single sign-on takes a sign-in with the inv
  await handlers["invites.accept_create_account"](ctx,{...input,ssoProvider:"google"}).catch(()=>undefined);
  assert.equal(bound.length,1,"the proved identity is bound to the new person");
 });
+test("the identity row's Space name follows the Space at each boot, and an id never replaces a name (real SQLite: the upsert is the point)",async()=>{
+  const {hostCalls}=await import("../impl.ts");
+  const {DatabaseSync}=await import("node:sqlite");
+  const raw=new DatabaseSync(":memory:");
+  const db={run:(sql:string,...a:unknown[])=>raw.prepare(sql).run(...(a as never[]))};
+  const ensure=(name:string)=>hostCalls["identity.ensure_space"]({space:"spc_2a7c98c337e1dfd2e05e1aab",db} as never,{name,github:false});
+  const name=():unknown=>(raw.prepare("SELECT name FROM identity_space").get() as {name:unknown}).name;
+  ensure("spc_2a7c98c337e1dfd2e05e1aab");
+  assert.equal(name(),"spc_2a7c98c337e1dfd2e05e1aab","a Space that never learnt its name");
+  ensure("My Legal Academy");
+  assert.equal(name(),"My Legal Academy","the next boot gives it the name");
+  ensure("MLA Team");
+  assert.equal(name(),"MLA Team","a rename lands at the next boot");
+  ensure("spc_2a7c98c337e1dfd2e05e1aab");
+  assert.equal(name(),"MLA Team","an id never replaces a name");
+});

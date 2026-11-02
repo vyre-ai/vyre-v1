@@ -11,6 +11,9 @@
 **/coverage
 .github
 docs
+# except docs/frozen: the MCP and engine modules read agent-tools.md at start, and the gateway cannot start without it (rc.14 server installs crash-looped)
+!docs/frozen
+!docs/frozen/**
 spikes
 # the app's web export (the release runs scripts/app-export.mjs before the bake): the Space serves it at its own address and join links (host/src/routes/app-files.ts)
 !apps/app/dist

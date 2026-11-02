@@ -15,6 +15,7 @@ import {DEFAULT_SIGN_IN_POLICY,parseSignInPolicy} from "../../../lib/sign-in-pol
 import { pinIssuer } from "../../../lib/oidc-issuer.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/snapshot.ts";
 import type { Keyring } from "./keyring.ts";
+import type { KeyWraps } from "./key-wraps.ts";
 import type { SsoTickets } from "../routes/sso-signin.ts";
 import type { SsoProvider } from "./oidc.ts";
 import type {RecoveryCommit} from "../../../packages/contracts/src/identity-recovery.ts";
@@ -40,6 +41,8 @@ export interface PeopleDeps {
   stale?(principalId: string): boolean;
   /** the person key this node holds (ruling 62, 63); identity clears it at sign-out */
   keyring?: Keyring;
+  /** A Space server's wraps of members' keys (key-wraps.ts): opened by a provider sign-in into the new session's keyring, dropped by a password change, reset or recovery. */
+  wraps?: Pick<KeyWraps, "open" | "drop">;
   /** A Space reached at its phone address (<name>.vyre.run): the key an invite link carries for an invite's code hash, or null where there is no phone address (seams/relay.ts inviteKeyOf). */
   phoneInvite?: { keyFor(codeHash: string): Promise<string | null> };
 }
@@ -253,7 +256,18 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
           return t ? { email: t.email, bind: (person: string) => { if (linkSso(d.db, key, t, person)) matchProvenAddress(d.call, key, t, person); } } : null;
         },
       } } : {}),
-      ...(d.keyring ? { keyring: { clear: (personId: string) => d.keyring!.clear(personId) } } : {}),
+      ...(d.keyring ? { keyring: {
+        clear: (personId: string) => d.keyring!.clear(personId),
+        ...(d.wraps ? {
+          // a provider sign-in that proved who this is: the wrap opens into the keyring for that new session only, and the key is wiped here
+          openWrap: (personId: string, sessionId: string): boolean => {
+            const key = d.wraps!.open(personId);
+            if (!key) return false;
+            try { return d.keyring!.hold(personId, key, sessionId); } finally { key.fill(0); }
+          },
+          dropWrap: (personId: string) => d.wraps!.drop(personId),
+        } : {}),
+      } } : {}),
       invites: {
         peek: (code: string) => d.call("members.invite_peek", { code }),
         accept: (inviteId: string, personId: string) => d.call("members.invite_accept", { inviteId, personId }).then(() => undefined),

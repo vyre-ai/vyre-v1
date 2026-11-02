@@ -15,13 +15,14 @@ import { sq } from "../../../../../../ui/src/SidePane/host.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useResume } from "../../../onboarding/resume-context.ts";
-import { SetupRows } from "../../../onboarding/SetupRows.tsx";
+import { SetupRows, setupNote } from "../../../onboarding/SetupRows.tsx";
 import { useInboxSources } from "../../../shell/rail/inbox-sources.ts";
 import { needsRow } from "../../home/sections-a/model.ts";
 import { useAccounts } from "../conversation/brain.tsx";
 import { NewChatBrain, newChatStrip } from "../conversation/new-chat-brain.tsx";
 import type { NewChoice } from "../conversation/new-chat-brain.tsx";
 import { commandItems } from "../conversation/commands.ts";
+import { postWithFiles, uploadDeps } from "../conversation/actions.ts";
 import { each } from "../../../shell/sidebar/model.ts";
 import { Glyph } from "../sidebar/parts.tsx";
 import { useLive } from "../mounts/live.ts";
@@ -70,16 +71,19 @@ export function Landing(p: LandingProps): ReactElement {
 
   const start = useCallback((payload: ComposerSend): void => {
     const text = payload.text.trim();
-    const slash = text.startsWith("/");
-    const words = text.split(/\s+/).slice(0, 6).join(" ");
+    // files dropped, pasted or picked here go with the first message, the way the chat's own composer sends them
+    const files = payload.files;
+    const slash = text.startsWith("/") && files.length === 0;
+    const words = (text || files[0]?.name || "").split(/\s+/).slice(0, 6).join(" ");
     void realAssistant(rt.assistant.id, (cap, input) => rt.call(cap as never, input as never)).then((assistantId) => {
       if (assistantId === null) throw new Error("no assistant yet");
       return rt.call("chat.start", {
-      kind: "chat", ...startInput(picked, assistantId), ...(slash || text === "" ? {} : { first: text, title: words }), ...(choice.model ? { model: choice.model } : {}), ...(choice.provider ? { provider: choice.provider } : {}), ...(choice.effort ? { effort: choice.effort } : {}), idempotencyKey: p.newKey(),
+      kind: "chat", ...startInput(picked, assistantId), ...(slash || words === "" ? {} : files.length > 0 ? { title: words } : { first: text, title: words }), ...(choice.model ? { model: choice.model } : {}), ...(choice.provider ? { provider: choice.provider } : {}), ...(choice.effort ? { effort: choice.effort } : {}), idempotencyKey: p.newKey(),
       });
     }).then(async (out) => {
       const id = (out as CapMap["chat.start"]["out"]).thread.threadId;
       if (choice.mode !== "auto") await rt.call("threads.set_mode", { threadId: id, mode: choice.mode });
+      if (files.length > 0) await postWithFiles(uploadDeps(rt), id, text, files, `landing:${id}`).catch((e: unknown) => p.say(e instanceof Error && /too large|cannot be read|could not be saved/.test(e.message) ? e.message : "The chat started, but the files did not go. Add them in the chat."));
       if (slash) p.fill(text);
       p.openChat(id);
     }, () => p.say("Could not start the chat. Try again."));
@@ -130,7 +134,7 @@ export function Landing(p: LandingProps): ReactElement {
           </Pressable>
         </View>
         <View testID="landing-below" style={st.below}>
-          {firstDay ? <SetupRows extra={mailRow} render={(row, open) => <SetupLine key={row.key} title={row.title} sub={row.note} done={row.state === "done"} open={open} />} more={(count, open) => <Pressable key="more" role="button" testID="landing-setup-more" onPress={open} style={st.more}><Text style={st.moreText}>{`${count} more to set up`}</Text></Pressable>} /> : (
+          {firstDay ? <SetupRows extra={mailRow} render={(row, open) => <SetupLine key={row.key} testID={`landing-setup-${row.key}`} title={row.title} sub={setupNote(row)} done={row.state === "done"} open={open} />} more={(count, open) => <Pressable key="more" role="button" testID="landing-setup-more" onPress={open} style={st.more}><Text style={st.moreText}>{`${count} more to set up`}</Text></Pressable>} /> : (
             <>
               {each(items, (n) => <NeedRow key={n.task.id} item={n} {...p} />)}
               {moreLine(total, items.length) ? <Pressable role="button" testID="landing-more" onPress={p.openTasks} style={st.more}><Text style={st.moreText}>{moreLine(total, items.length)}</Text></Pressable> : null}

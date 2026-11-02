@@ -20,6 +20,48 @@
       "proto": "join,at:expired,{skin}",
       "waitFor": "[data-testid='claim-sign-in']",
       "note": "A claim link that was already used: one plain line and a Sign in button, no form."
+    },
+    {
+      "id": "P-APP_03-one-claim-known",
+      "route": "/m/P-APP_03?view=known",
+      "proto": "join,at:s2,{skin}",
+      "waitFor": "[data-testid='claim-as-password']",
+      "note": "rc.14: the claim on a device that already has an account. Continue as, the current password only, Use a different account."
+    },
+    {
+      "id": "P-APP_03-one-claim-known-error",
+      "route": "/m/P-APP_03?view=known-error",
+      "proto": "join,at:s2,{skin}",
+      "waitFor": "[data-testid='claim-as-error']",
+      "note": "rc.14: Continue as after a wrong password: one plain line, the field cleared."
+    },
+    {
+      "id": "P-APP_03-one-claim-new",
+      "route": "/m/P-APP_03?view=open-app",
+      "proto": "join,at:s2,{skin}",
+      "waitFor": "[data-testid='claim-open-app']",
+      "note": "rc.14: no account on this device. Today's form says it makes the Vyre account for every Space; a desktop browser offers Open in Vyre."
+    },
+    {
+      "id": "P-APP_03-one-join-known",
+      "route": "/m/P-APP_03?view=join-known",
+      "proto": "join,at:s2,{skin}",
+      "waitFor": "[data-testid='join-as-password']",
+      "note": "rc.14: an invite opened in the app that has an account. Continue as for the join."
+    },
+    {
+      "id": "P-APP_03-one-rotate",
+      "route": "/m/P-APP_03?view=rotate",
+      "proto": "join,at:s2,{skin}",
+      "waitFor": "[data-testid='security-current-password']",
+      "note": "rc.14: Settings, Sign-in, Make a new recovery code. The password first."
+    },
+    {
+      "id": "P-APP_03-one-rotate-code",
+      "route": "/m/P-APP_03?view=rotate-code",
+      "proto": "join,at:s2,{skin}",
+      "waitFor": "[data-testid='recovery-code']",
+      "note": "rc.14: the new code, shown once, with Copy and Save; the old one no longer works."
     }
   ]
 }

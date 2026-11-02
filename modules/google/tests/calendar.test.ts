@@ -43,7 +43,7 @@ test("excluding a member removes their calendar; including them again connects a
   assert.equal(h.calls("calendar.connect_provider").length, n);
 });
 
-test("a Gmail push also asks Calendar to sync that member's calendar, never connects one, and an excluded member's is never synced", async () => {
+test("a Gmail push never asks Calendar to sync (Calendar pulls on its own schedule as the server) and never connects a calendar", async () => {
   const h = harness({ admin: true });
   ensure(h.ctx);
   seedDelegation(h, { members: [{ email: MAYA, userId: "usr_maya01" }, { email: SAM, userId: "usr_sam01", excluded: true }] });
@@ -52,10 +52,10 @@ test("a Gmail push also asks Calendar to sync that member's calendar, never conn
   h.ctx.db.run(`INSERT INTO google_calendar (email, "calendarId") VALUES (?, ?)`, SAM, "cld_sam00001");
   h.on("GET", "https://gmail.googleapis.com/gmail/v1/users/me/history", { body: { history: [], historyId: "1001" } });
   await receivePush(h.ctx, { kind: "gmail", messageId: "p1", mailbox: MAYA, historyId: "1500" });
-  assert.deepEqual(h.calls("calendar.sync_now").map((c) => c.input), [{ calendarId: "cld_maya0001" }]);
+  assert.equal(h.calls("calendar.sync_now").length, 0, "that call answers to the calendar's owner, which the server is not");
   assert.equal(h.calls("calendar.connect_provider").length, 0, "connecting takes an admin, so a mailbox pass never does it");
   await receivePush(h.ctx, { kind: "gmail", messageId: "p2", mailbox: SAM, historyId: "1500" });
-  assert.equal(h.calls("calendar.sync_now").length, 1);
+  assert.equal(h.calls("calendar.sync_now").length, 0);
 });
 
 test("a member who has no calendar connected (they came after setup) has nothing to sync", async () => {

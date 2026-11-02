@@ -1,7 +1,8 @@
 // The onboarding screen, as the owner approved it in the v1 prototype: a step rail with an icon per step, one short line from the Assistant, one framed card that is the thing to do,
 // and a preview that is a Space filling in (a ring, a tile per step). Icons and motion do the talking; there are no paragraphs. It serves a Personal Space, a Team Space owner and a member, with
 // the scripted Assistant (no AI yet) or the live one, on the Mac, Windows, web and phone (journey table D): the phone is one column with a progress bar and the card in a bottom sheet.
-// Every step can be skipped; Finish later leaves, and the Home checklist reopens it. Colours are skin tokens, so light and dark both work.
+// Every step has the same bar: Back (from the second step), Skip for now (until the step is done) and Continue, which does the step's own action when the card hands one over (Import 3)
+// or moves on. Finish later, the X and Escape all leave with progress kept, and the Home checklist or the first Chats screen reopens any step. Colours are skin tokens, so light and dark both work.
 import { createElement, useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -9,9 +10,11 @@ import { Avatar } from "../../../../ui/src/Avatar/index.tsx";
 import { Mark } from "../join/kit.tsx";
 import { injectCss } from "../../../../ui/src/theme/css.ts";
 import type { CardKind, FlowKind, Progress, StepDef, StepState } from "./flow.ts";
+import { readableName } from "./flow.ts";
 import { countsOn, detectDevice, nextOn, resumeOn, stateOn, visibleSteps } from "./device.ts";
 import type { Device } from "./device.ts";
-import { LOCK, saidFor } from "./said.ts";
+import { LOCK, askFor, saidFor, waitFor } from "./said.ts";
+import type { StepAsk } from "./said.ts";
 import { scriptFor } from "./script.ts";
 import { importedNote, rememberedImported } from "./sessions-model.ts";
 import { Glyph, StepTile } from "./StepGlyph.tsx";
@@ -22,8 +25,9 @@ import { stepLook } from "./stepStyle.ts";
 export interface ChatLine { id: string; from: "assistant" | "you"; text: string }
 export interface CardContext {
   step: StepDef; flow: FlowKind; done(): void; later(): void; device: Device;
-  /** a card that saves on Continue hands over its save (true = saved, move on) while it has something to save; null takes it back */
-  gate(save: (() => Promise<boolean>) | null): void;
+  /** a card that saves on Continue hands over its save (true = saved, move on; false = stay, the card says what happened) while it has something to save; null takes it back.
+   * `label` names that action on the button ("Import 3"); without one it reads Continue. */
+  gate(save: (() => Promise<boolean>) | null, label?: string): void;
 }
 
 export interface OnboardingScreenProps {
@@ -36,8 +40,10 @@ export interface OnboardingScreenProps {
   live?: boolean;
   /** the live Assistant's lines for this step; ignored while the scripted words are used */
   lines?: readonly ChatLine[];
-  /** the live conversation, shown under the card once an AI account is connected */
+  /** the live conversation, shown under the card once an AI account is connected, on a step that has something to ask (said.ts ASK); other steps hide it */
   liveChat?: ReactNode;
+  /** the same, drawn for the step on show with what to ask there; wins over `liveChat` */
+  renderLive?(step: StepDef, ask: StepAsk): ReactNode;
   /** the device this runs on; found from the page when not given */
   device?: Device;
   onStep(key: string, state: StepState): void;
@@ -69,11 +75,14 @@ const fade = web ? { dataSet: { vyreOb: "1" } } : {};
 /** The last step of the flow on this device: skipping it ends the walk, even when an earlier step was put off. */
 const isLast0 = (flow: FlowKind, key: string, device: Device): boolean => { const st = visibleSteps(flow, device); return st[st.length - 1]?.key === key; };
 
-/** "Set up N of M" counts what is really done, the same number the Finish setup entry shows: a skipped step moves you on, never the count. */
+/** What the ring in the preview fills to: what is really done, the same number the Finish setup entry shows. */
 const counted = (flow: FlowKind, progress: Progress, device: Device): { done: number; later: number; total: number } => countsOn(flow, progress, device);
 
-function ProgressBar({ done, total }: { done: number; total: number }): ReactElement {
-  return <View style={s.bar} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: total, now: done }}><View style={[s.barFill, { width: `${total === 0 ? 0 : Math.round((done / total) * 100)}%` as `${number}%` }]} /></View>;
+/** "Step N of M": where the person is, so the number and the bar move with every step, skipped or done. */
+export const stepLine = (pos: number, total: number): string => `Step ${pos} of ${total}`;
+
+function ProgressBar({ pos, total }: { pos: number; total: number }): ReactElement {
+  return <View testID="onboarding-bar" style={s.bar} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: total, now: pos }} {...({ "aria-valuemin": 0, "aria-valuemax": total, "aria-valuenow": pos } as object)}><View style={[s.barFill, { width: `${total === 0 ? 0 : Math.round((pos / total) * 100)}%` as `${number}%` }]} /></View>;
 }
 
 /** The segmented bar on a narrow screen: one segment per step, green when done, the step on show in its colour. */
@@ -86,8 +95,8 @@ function Segs({ steps, progress, current, device }: { steps: readonly StepDef[];
   return <View style={s.segs}>{segs}</View>;
 }
 
-function Rail({ flow, steps, progress, current, device, onOpen }: { flow: FlowKind; steps: readonly StepDef[]; progress: Progress; current: string | null; device: Device; onOpen(key: string): void }): ReactElement {
-  const c = counted(flow, progress, device);
+function Rail({ flow, steps, progress, current, device, onOpen, onLeave }: { flow: FlowKind; steps: readonly StepDef[]; progress: Progress; current: string | null; device: Device; onOpen(key: string): void; onLeave?: (() => void) | undefined }): ReactElement {
+  const pos = steps.findIndex((x) => x.key === current) + 1;
   const rows: ReactElement[] = [];
   for (const st of steps) {
     const state = stateOn(progress, st, device);
@@ -112,10 +121,14 @@ function Rail({ flow, steps, progress, current, device, onOpen }: { flow: FlowKi
     <View testID="onboarding-rail" style={s.rail}>
       <View style={s.railHeadRow}>
         <Mark size={28} />
-        <Text style={s.railHead} accessibilityRole="header">{`Set up  ${c.done} of ${c.total}`}</Text>
+        <Text style={s.railHead} accessibilityRole="header">Set up</Text>
+        <View style={s.flex} />
+        <Text testID="onboarding-progress" style={s.railCount}>{stepLine(pos, steps.length)}</Text>
       </View>
-      <ProgressBar done={c.done} total={c.total} />
+      <ProgressBar pos={pos} total={steps.length} />
       <View style={s.steps}>{rows}</View>
+      <View style={s.flex} />
+      {onLeave ? <Pressable testID="onboarding-close" accessibilityRole="link" onPress={onLeave} style={({ hovered }: { hovered?: boolean }) => [s.later, hovered === true && s.laterOver]}><Text style={s.finishLater}>Finish later</Text></Pressable> : null}
     </View>
   );
 }
@@ -151,10 +164,10 @@ function Preview({ flow, steps, progress, current, device, spaceName, body, onOp
     <ScrollView testID="onboarding-preview" style={s.preview} contentContainerStyle={s.previewIn}>
       <View style={s.hero}>
         <View style={s.ringBox}>{ring}<Mark size={56} /></View>
-        <Text style={s.heroName}>{spaceName}</Text>
+        <Text testID="preview-space-name" style={s.heroName} numberOfLines={1}>{readableName(spaceName) || "Your Space"}</Text>
         <View style={s.tiles}>{tiles}</View>
       </View>
-      {body ? <View style={s.pCard}>{body}</View> : null}
+      {body ?? null}
     </ScrollView>
   );
 }
@@ -202,25 +215,26 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
   const def = steps.find((x) => x.key === current);
   const finished = ended || current === null || def === undefined;
   const words = def ? scriptFor(def.card, p.flow) : null;
-  const c = counted(p.flow, p.progress, device);
   useEffect(ensureCss, []);
-  // Esc leaves to the app, the same as the X and Finish later; progress is kept
+  // Esc leaves to the app on every step and on the summary, the same as the X and Finish later; progress is kept
   const leave = p.onClose;
   useEffect(() => {
     if (!web || !leave) return undefined;
-    const onKey = (e: KeyboardEvent): void => { if (e.key === "Escape") leave(); };
+    // a menu, a popup in the composer or a dialog that closes on Escape keeps it (they stop it or mark it handled); everywhere else Escape leaves
+    const onKey = (e: KeyboardEvent): void => { if (e.key === "Escape" && !e.defaultPrevented) leave(); };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [leave]);
   const gateRef = useRef<(() => Promise<boolean>) | null>(null);
   const [armed, setArmed] = useState(false);
+  const [gateLabel, setGateLabel] = useState<string | null>(null);
   const ctx: CardContext | null = def ? {
     step: def, flow: p.flow, device,
-    gate: (save) => { gateRef.current = save; setArmed((was) => (was === (save !== null) ? was : save !== null)); },
+    gate: (save, label) => { gateRef.current = save; setArmed((was) => (was === (save !== null) ? was : save !== null)); const l = save && label ? label : null; setGateLabel((was) => (was === l ? was : l)); },
     done: () => { p.onStep(def.key, "done"); const n = nextOn(p.flow, { ...p.progress, [def.key]: "done" }, def.key, device); if (n) open(n); else setEnded(true); },
     later: () => { p.onStep(def.key, "later"); const n = nextOn(p.flow, { ...p.progress, [def.key]: "later" }, def.key, device); if (n && !isLast0(p.flow, def.key, device)) open(n); else setEnded(true); },
   } : null;
-  // Continue moves on once the step is done; on the last step it reads Done
+  // Continue moves on once the step is done, or does the card's action first; on the last step it reads Done
   const at = def ? steps.findIndex((x) => x.key === def.key) : -1;
   const isLast = at === steps.length - 1;
   const isDone = def ? stateOn(p.progress, def, device) === "done" : false;
@@ -238,8 +252,16 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
     if (isLast) { setEnded(true); return; }
     open(steps[at + 1]!.key);
   };
-  // Skip on a step already done only moves on; on any other it marks the step skipped
-  const skip = (): void => { if (!def || !ctx) return; if (!isDone) { ctx.later(); return; } if (isLast) setEnded(true); else open(steps[at + 1]!.key); };
+  // Skip for now marks the step skipped and moves on; a done step has no Skip, Continue moves on
+  const skip = (): void => { if (!def || !ctx || isDone) return; ctx.later(); };
+  // Back opens the step before, whatever its state; nothing is marked
+  const back = at > 0 ? (): void => open(steps[at - 1]!.key) : null;
+  const nextLabel = !isDone && gateLabel ? gateLabel : isLast ? "Done" : "Continue";
+  // a Continue that waits says why, just above it (and to a screen reader); a phone has the hint only
+  const why = !canNext && !saving && def ? waitFor(def.card) : "";
+  const ask = def ? askFor(def.card) : null;
+  const liveNode = p.live && def && ask ? (p.renderLive ? p.renderLive(def, ask) : p.liveChat ?? null) : null;
+  const liveBox = liveNode ? <View testID="onboarding-live" style={[s.live, phone && s.livePhone]}>{liveNode}</View> : null;
   const said = def ? saidFor(def.card, null) : "";
   const lines: ChatLine[] = def ? [{ id: `${def.key}-0`, from: "assistant", text: said === "" ? words!.lines[0] ?? "" : said }] : [];
   const chat = p.live && p.lines ? [...lines, ...p.lines] : lines;
@@ -255,18 +277,19 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
   ) : null;
   const footBtns = def && ctx ? (
     <>
-      <Pressable testID="step-later" accessibilityRole="button" onPress={skip} style={({ hovered }: { hovered?: boolean }) => [s.ghost, phone && s.btnTall, hovered === true && s.ghostOver]}><Text style={s.ghostText}>Skip</Text></Pressable>
-      <Pressable testID="step-next" accessibilityRole="button" accessibilityState={{ disabled: !canNext }} disabled={!canNext} onPress={next} style={({ hovered }: { hovered?: boolean }) => [s.primary, phone && s.btnTall, phone && s.flexBtn, !canNext && s.off, hovered === true && canNext && s.primaryOver]}><Text style={[s.primaryText, !canNext && s.offText]}>{isLast ? "Done" : "Continue"}</Text></Pressable>
+      {back ? <Pressable testID="step-back" accessibilityRole="button" onPress={back} style={({ hovered }: { hovered?: boolean }) => [s.ghost, phone && s.btnTall, hovered === true && s.ghostOver]}><Text style={s.ghostText}>Back</Text></Pressable> : null}
+      <View style={s.flex} />
+      {isDone ? null : <Pressable testID="step-later" accessibilityRole="button" onPress={skip} style={({ hovered }: { hovered?: boolean }) => [s.quiet, phone && s.btnTall, hovered === true && s.laterOver]}><Text style={s.quietText}>Skip for now</Text></Pressable>}
+      <Pressable testID="step-next" accessibilityRole="button" accessibilityState={{ disabled: !canNext, busy: saving }} {...(why ? { accessibilityHint: why, ...(web ? ({ title: why } as object) : {}) } : {})} disabled={!canNext} onPress={next} style={({ hovered }: { hovered?: boolean }) => [s.primary, phone && s.btnTall, !canNext && s.off, hovered === true && canNext && s.primaryOver]}><Text style={[s.primaryText, !canNext && s.offText]}>{nextLabel}</Text></Pressable>
     </>
   ) : null;
-  const laterBtn = p.onClose && !finished ? <Pressable testID="onboarding-close" accessibilityRole="link" onPress={p.onClose} style={({ hovered }: { hovered?: boolean }) => [s.later, hovered === true && s.laterOver]}><Text style={s.finishLater}>Finish later</Text></Pressable> : null;
   const closeBtn = p.onClose ? <Pressable testID="onboarding-x" accessibilityRole="button" accessibilityLabel="Close" onPress={p.onClose} style={({ hovered }: { hovered?: boolean }) => [s.x, hovered === true && s.laterOver]}><Text style={s.xText}>{"\u00d7"}</Text></Pressable> : null;
   const top = narrow || phone ? (
     <View style={s.narrowHead}>
-      <View style={s.railHeadRow}><Mark size={28} /><Text style={s.railHead} testID="onboarding-progress">{`Set up  ${c.done} of ${c.total}`}</Text></View>
+      <View style={s.railHeadRow}><Mark size={28} /><Text style={s.railHead}>Set up</Text><Text style={s.railCount} testID="onboarding-progress">{stepLine(at + 1, steps.length)}</Text></View>
       <Segs steps={steps} progress={p.progress} current={current} device={device} />
     </View>
-  ) : <Rail flow={p.flow} steps={steps} progress={p.progress} current={current} device={device} onOpen={open} />;
+  ) : <Rail flow={p.flow} steps={steps} progress={p.progress} current={current} device={device} onOpen={open} onLeave={p.onClose} />;
 
   if (finished) {
     return (
@@ -290,22 +313,17 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
       {closeBtn}
       {top}
       <View testID="onboarding-chat" style={s.chat}>
-        {p.live && p.liveChat ? (
-          <View style={[s.flex, s.body, s.liveCol]}>
-            {body}
-            {card ? <View testID="onboarding-card" style={s.card}>{card}</View> : null}
-            <View testID="onboarding-live" style={s.live}>{p.liveChat}</View>
-          </View>
-        ) : phone ? (
+        {phone ? (
           <>
             <ScrollView style={s.flex} contentContainerStyle={[s.body, s.bodyPhone]}>
               {body}
-              {previewBody ? <View style={s.pCard}>{previewBody}</View> : null}
+              {previewBody ?? null}
+              {liveBox}
             </ScrollView>
             <View style={s.sheet} {...fade}>
               <View style={s.grab} />
               <ScrollView style={s.sheetScroll}><View testID="onboarding-card" style={s.sheetCard}>{card}</View></ScrollView>
-              <View style={s.sheetFoot}>{laterBtn}<View style={s.flex} />{footBtns}</View>
+              <View style={s.sheetFoot}>{footBtns}</View>
             </View>
           </>
         ) : (
@@ -313,8 +331,12 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
             <ScrollView style={s.flex} contentContainerStyle={s.body}>
               {body}
               {card ? <View key={def?.key} testID="onboarding-card" style={s.card} {...fade}>{card}</View> : null}
+              {liveBox}
             </ScrollView>
-            <View style={s.footer}><View style={s.actions}>{laterBtn}<View style={s.flex} />{footBtns}</View></View>
+            <View testID="onboarding-footer" style={s.footer}>
+              {why ? <Text testID="step-why" style={s.why}>{why}</Text> : null}
+              <View style={s.actions}>{footBtns}</View>
+            </View>
           </>
         )}
       </View>
@@ -330,9 +352,10 @@ const s = StyleSheet.create({
   page: { flex: 1, width: "100%", maxWidth: 1080, maxHeight: 720, flexDirection: "row", backgroundColor: "var(--win)" as string, borderRadius: 20, overflow: "hidden", boxShadow: "var(--sh-pop)" } as object,
   pageNarrow: { flexDirection: "column", maxWidth: "100%", maxHeight: "100%", borderRadius: 0 } as object,
   flex: { flex: 1, minWidth: 0, minHeight: 0 },
-  rail: { width: 264, paddingTop: 20, paddingBottom: 20, paddingHorizontal: 12, borderRightWidth: 1, borderRightColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
+  rail: { width: 264, flexDirection: "column", paddingTop: 20, paddingBottom: 20, paddingHorizontal: 12, borderRightWidth: 1, borderRightColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
   railHeadRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 8, marginBottom: 12 },
   railHead: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
+  railCount: { marginLeft: "auto", fontSize: 12.5, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] } as object,
   bar: { height: 4, borderRadius: 2, backgroundColor: "var(--line-2)" as string, marginHorizontal: 8, marginBottom: 14, overflow: "hidden" },
   barFill: { height: 4, borderRadius: 2, backgroundColor: "var(--accent)" as string },
   steps: { gap: 2 },
@@ -344,7 +367,7 @@ const s = StyleSheet.create({
   stepTitleQuiet: { color: "var(--ink-2)" as string },
   stepTitleOn: { fontWeight: "600" },
   stepSub: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string },
-  narrowHead: { paddingTop: 14, paddingHorizontal: 20, paddingBottom: 2, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  narrowHead: { paddingTop: 14, paddingLeft: 20, paddingRight: 60, paddingBottom: 2, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   segs: { flexDirection: "row", gap: 4, paddingBottom: 14 },
   seg: { flex: 1, height: 4, borderRadius: 2, backgroundColor: "var(--line-2)" as string },
   segOn: { backgroundColor: "var(--accent)" as string },
@@ -362,14 +385,17 @@ const s = StyleSheet.create({
   sayRow: { minHeight: 24, justifyContent: "center" },
   saidText: { fontSize: 16, lineHeight: 24, color: "var(--ink-2)" as string },
   dim: { fontSize: 12.5, color: "var(--ink-3)" as string, lineHeight: 18 },
-  liveCol: { flex: 1 },
-  live: { flex: 1, minHeight: 240, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
+  live: { height: 300, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden" },
+  livePhone: { height: 340 },
   card: { gap: 14 },
   footer: { borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   actions: { width: "100%", maxWidth: COLUMN, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12, paddingHorizontal: 32 },
   x: { position: "absolute", top: 8, right: 8, zIndex: 5, width: 44, height: 44, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   xText: { fontSize: 22, lineHeight: 24, color: "var(--ink-2)" as string },
-  later: { height: 44, paddingHorizontal: 10, marginLeft: -10, borderRadius: 8, justifyContent: "center" },
+  later: { height: 36, paddingHorizontal: 8, borderRadius: 8, justifyContent: "center", alignSelf: "flex-start" },
+  quiet: { height: 44, paddingHorizontal: 12, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  why: { width: "100%", maxWidth: COLUMN, alignSelf: "center", paddingTop: 10, paddingHorizontal: 32, marginBottom: -4, textAlign: "right", fontSize: 12.5, lineHeight: 16, color: "var(--ink-3)" as string },
+  quietText: { fontSize: 14, fontWeight: "500", color: "var(--ink-2)" as string },
   laterOver: { backgroundColor: "var(--hover)" as string },
   finishLater: { fontSize: 13, fontWeight: "500", color: "var(--ink-3)" as string },
   ghost: { height: 44, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, alignItems: "center", justifyContent: "center" },
@@ -382,7 +408,6 @@ const s = StyleSheet.create({
   off: CARD.off,
   offText: CARD.offText,
   btnTall: { height: 44, borderRadius: 12 },
-  flexBtn: { flex: 1 },
   sheet: { position: "absolute", left: 0, right: 0, bottom: 0, maxHeight: "68%", backgroundColor: "var(--raised)" as string, borderTopLeftRadius: 22, borderTopRightRadius: 22, boxShadow: "0 -1px 0 var(--line-2), 0 -24px 60px -24px rgba(0,0,0,.4)" } as object,
   grab: { width: 36, height: 5, borderRadius: 3, backgroundColor: "var(--line-2)" as string, alignSelf: "center", marginTop: 8 },
   sheetScroll: { flexGrow: 0 },
@@ -397,7 +422,6 @@ const s = StyleSheet.create({
   tile: { borderRadius: 12 },
   tileOn: { boxShadow: "0 0 0 2px var(--accent), 0 0 0 5px var(--accent-wash)" } as object,
   tileLater: { opacity: 0.6 },
-  pCard: { padding: 14, borderRadius: 12, backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
   endWrap: { flex: 1, backgroundColor: "var(--win)" as string },
   endIn: { width: "100%", maxWidth: 680, alignSelf: "center", alignItems: "center", paddingTop: 40, paddingHorizontal: 24, paddingBottom: 28 },
   endTitle: { marginTop: 18, fontSize: 22, lineHeight: 28, fontWeight: "600", letterSpacing: -0.4, color: "var(--ink)" as string },

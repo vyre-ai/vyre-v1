@@ -2,9 +2,12 @@
 import { isAssistantRow } from "../../../../lib/agent-kind.ts";
 import type { CapCall } from "../shell/session/caps.ts";
 import type { CardKind } from "./flow.ts";
+import { folderPathOf, tildePath } from "./folders-model.ts";
 
 export interface PreviewItem { id: string; label: string; note?: string }
-export interface Preview { heading: string; items: PreviewItem[]; /** shown when there are no items */ hint: string }
+export interface Preview { heading: string; items: PreviewItem[]; /** shown when there are no items; empty hides the preview until there is something to show */ hint: string }
+
+const SOURCE: Record<string, string> = { google_drive: "Google Drive", sharepoint: "SharePoint", onedrive: "OneDrive", dropbox: "Dropbox", github: "GitHub", local: "On this computer" };
 
 const safe = async <T>(f: () => Promise<T>, empty: T): Promise<T> => { try { return await f(); } catch { return empty; } };
 
@@ -12,7 +15,13 @@ const providerLine = (p: { name: string; connection: string; scope: string }): s
 
 export async function previewFor(call: CapCall, card: CardKind): Promise<Preview> {
   switch (card) {
-    case "connect_ai": case "space_ai": {
+    case "space_ai": {
+      // the Space's key for everyone first, then the owner's own accounts here; never an id
+      const k = await safe(async () => (await call("providers.space_key.get", {})) as { set: boolean; name?: string }, { set: false });
+      const r = await safe(async () => (await call("providers.list", {})) as { providers: { id: string; name: string; connection: string; scope: string }[] }, { providers: [] });
+      return { heading: "AI for the Space", items: [...(k.set ? [{ id: "space-key", label: `${k.name ?? "A key"} for everyone`, note: "Space AI key" }] : []), ...r.providers.map((p) => ({ id: p.id, label: providerLine(p), note: "Yours" }))], hint: "Not yet. A key for everyone, or your own account, shows here." };
+    }
+    case "connect_ai": {
       const r = await safe(async () => (await call("providers.list", {})) as { providers: { id: string; name: string; connection: string; scope: string }[] }, { providers: [] });
       return { heading: "Your AI account", items: r.providers.map((p) => ({ id: p.id, label: providerLine(p) })), hint: "Not yet. Connect an account and it shows here, kept in your Vault." };
     }
@@ -44,9 +53,14 @@ export async function previewFor(call: CapCall, card: CardKind): Promise<Preview
       const r = await safe(async () => (await call("kits.list", { limit: 50 })) as { kits: { kitId: string; title: string; installed: boolean }[] }, { kits: [] });
       return { heading: "Kit", items: r.kits.filter((k) => k.installed).map((k) => ({ id: k.kitId, label: k.title, note: "installed" })), hint: "Not yet. The Kit you pick for your kind of work shows here." };
     }
-    case "local_folders": case "shared_data": {
+    case "local_folders": {
+      // the folders on this computer, each with where it is ("~/Claude/Orgs/Vyre") when this run added it; nothing shows until one is added
+      const r = await safe(async () => (await call("mounts.list", { kind: "local" })) as { mounts: { mountId: string; name: string; kind: string }[] }, { mounts: [] });
+      return { heading: "Your folders", items: r.mounts.filter((m) => m.kind === "local").map((m) => { const path = folderPathOf(m.mountId); return { id: m.mountId, label: m.name, note: path ? tildePath(path) : SOURCE["local"]! }; }), hint: "" };
+    }
+    case "shared_data": {
       const r = await safe(async () => (await call("mounts.list", {})) as { mounts: { mountId: string; name: string; kind: string }[] }, { mounts: [] });
-      return { heading: "Folders", items: r.mounts.map((m) => ({ id: m.mountId, label: m.name, note: m.kind.replace("_", " ") })), hint: "Not yet. Folders you connect appear here." };
+      return { heading: "Shared folders", items: r.mounts.filter((m) => m.kind !== "local").map((m) => ({ id: m.mountId, label: m.name, note: SOURCE[m.kind] ?? m.kind })), hint: "Not yet. Folders you connect appear here." };
     }
     default:
       return { heading: "Preview", items: [], hint: "Not yet. What this step sets up appears here." };

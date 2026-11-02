@@ -29,3 +29,11 @@ test("the team list grows with people and open invites; agents show without the 
   assert.deepEqual(k.items.map((i) => i.label), ["Studio"]);
   assert.equal((await previewFor(fake({}), "agents")).items.length, 0, "a failed read is an empty preview, not an error");
 });
+
+test("the AI for the Space preview names the key for everyone first, then the owner's own accounts", async () => {
+  const { previewFor } = await import("./preview.ts");
+  const call = (async (cap: string) => (cap === "providers.space_key.get" ? { set: true, name: "OpenCode Go" } : cap === "providers.list" ? { providers: [{ id: "prv_1", name: "Claude", connection: "subscription", scope: "mine" }] } : {})) as never;
+  const p = await previewFor(call, "space_ai");
+  assert.deepEqual(p.items.map((i) => i.label), ["OpenCode Go for everyone", "Claude · subscription · in your Vault"]);
+  assert.ok(!JSON.stringify(p).includes("spc_"));
+});

@@ -10,7 +10,7 @@ import { ProjectPage } from "../../places/records/projectpage/ProjectPage.tsx";
 import { listProjectImports, ProjectPageDataProvider } from "../../places/records/projectpage/data.tsx";
 import type { ImportedSessionTranscript, ProjectPageData } from "../../places/records/projectpage/data.tsx";
 import { capLive, nameLookup } from "./records-live.ts";
-import { attachToRecord, findRecordFolder } from "../../places/records/recordpane/files.ts";
+import { attachToRecord, findRecordFolder, storeOnRecord } from "../../places/records/recordpane/files.ts";
 import { RecordsAssistant } from "./records-ask.tsx";
 import { askRequestFor, putAsk } from "../../places/inbox/contacttab/ask.ts";
 import { AgentRecord } from "./agent-record.tsx";
@@ -66,6 +66,7 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
     files: {
       folderOf: (t) => findRecordFolder(rt.call, t.type, t.recordId),
       attach: (files, t) => attachToRecord(rt.call, rt.putBlob, files, { type: t.type, recordId: t.recordId }, `record-attach:${t.recordId}:${Date.now().toString(36)}`),
+      store: (files, t) => storeOnRecord(rt.call, rt.putBlob, files, { type: t.type, recordId: t.recordId }, `record-attach:${t.recordId}:${Date.now().toString(36)}`).then((r) => r.fileIds),
     },
     nav: {
       openFile: (id) => rt.open({ subject: { type: "file", id } }),

@@ -1,15 +1,19 @@
 // The live Assistant of the onboarding screen: the person's own Ask thread with their private assistant, about this screen. It opens (once per person and flow) as an Ask about the
 // onboarding screen, tells the Ask door where the person is (setScreenContext with the focus skill for this flow), and draws the same conversation component as every other chat.
-// It is drawn only when an AI account is connected; before that the screen speaks the scripted words and the cards still work.
+// It is drawn only when an AI account is connected, and only on a step that has something to ask (said.ts ASK); before that the screen speaks the scripted words and the cards still work.
+// The top of the chat is the step's own line and suggestions (StepAsk), in place of the chat's empty state and kind note, so no placeholder words show.
 import { isAssistantRow } from "../../../../lib/agent-kind.ts";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Text } from "react-native";
 import { conversationData } from "../shell/providers/chats-data.ts";
+import { createComposerFill } from "../places/chats/conversation/data.tsx";
 import type { ShellRuntime } from "../shell/providers/runtime.tsx";
 import { noteThreadKind, setScreenContext } from "../shell/ask/screen.ts";
 import type { FlowKind, Progress } from "./flow.ts";
 import { onboardingScreen } from "./screen-context.ts";
+import type { StepAsk as Ask } from "./said.ts";
+import { StepAsk } from "./StepAsk.tsx";
 
 const ChatsConversation = lazy(() => import("../shell/providers/chats.tsx").then((m) => ({ default: m.ChatsConversation })));
 
@@ -19,10 +23,12 @@ export async function findAssistant(rt: Pick<ShellRuntime, "call">, person: stri
   return out.agents.find((a) => a.ownerId === person && isAssistantRow(a))?.agentId ?? null;
 }
 
-export function AssistantThread({ rt, person, flow, step, progress }: { rt: ShellRuntime; person: string; flow: FlowKind; step: string | null; progress: Progress }): ReactElement {
+export function AssistantThread({ rt, person, flow, step, progress, ask }: { rt: ShellRuntime; person: string; flow: FlowKind; step: string | null; progress: Progress; ask: Ask }): ReactElement {
   const [thread, setThread] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const key = useRef(`onboarding-${person}-${flow}`);
+  // a suggestion lands in the composer; the person sends it
+  const fill = useRef(createComposerFill());
   useEffect(() => {
     let live = true;
     void (async () => {
@@ -38,8 +44,9 @@ export function AssistantThread({ rt, person, flow, step, progress }: { rt: Shel
   const data = useMemo(() => {
     if (!thread) return null;
     const people = rt.principals.getSnapshot();
-    return conversationData(rt, { openThread: (id) => rt.open({ subject: { type: "thread", id } }), togglePane: () => undefined, fillComposer: () => undefined, openAgentChat: (id) => rt.open({ subject: { type: "agent", id } }) }, thread, people.status === "ready" ? people.data : []);
-  }, [rt, thread]);
+    const base = conversationData(rt, { openThread: (id) => rt.open({ subject: { type: "thread", id } }), togglePane: () => undefined, fillComposer: (t: string) => fill.current.set(t), openAgentChat: (id) => rt.open({ subject: { type: "agent", id } }) }, thread, people.status === "ready" ? people.data : [], fill.current);
+    return { ...base, head: <StepAsk ask={ask} onPick={(t) => fill.current.set(t)} />, placeholder: "Ask about this step" };
+  }, [rt, thread, ask]);
   if (error) return <Text testID="assistant-error" style={{ fontSize: 13, color: "var(--ink-3)" as string }}>I could not open the chat. The steps still work.</Text>;
   return data ? <Suspense fallback={null}><ChatsConversation data={data} compact /></Suspense> : <Text style={{ fontSize: 13, color: "var(--ink-3)" as string }}>Opening your assistant</Text>;
 }

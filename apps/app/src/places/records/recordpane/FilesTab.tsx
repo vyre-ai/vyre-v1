@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
+import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
 import { useLive, usePageData } from "../recordpage/data.tsx";
 import type { AttachFile } from "../recordpage/data.tsx";
 import { PaneEmpty } from "./Empty.tsx";
@@ -18,7 +19,6 @@ export function FilesTab({ type, recordId, title, fieldFolder }: { type: string;
   const data = usePageData();
   const [found, setFound] = useState<string | null>(null);
   const [state, setState] = useState<"idle" | "busy" | "failed">("idle");
-  const [over, setOver] = useState(false);
   const input = useRef<unknown>(null);
   const folderId = fieldFolder?.startsWith("fld_") ? fieldFolder : found;
   const target = { type, recordId, title };
@@ -43,7 +43,7 @@ export function FilesTab({ type, recordId, title, fieldFolder }: { type: string;
   const pick = (): void => { (input.current as { click?: () => void } | null)?.click?.(); };
   const body = rows.length ? <ScrollView style={s.list} testID="pane-files-list">{rows}</ScrollView> : <PaneEmpty icon="files" text={state === "failed" ? "Could not attach. Try again" : "No files"} testID="pane-files-empty" />;
   const inner = (
-    <View style={[s.root, over && s.over]} testID="pane-files">
+    <View style={s.root} testID="pane-files">
       <View style={s.bar}>
         {folderId !== null ? (
           <Tooltip text="Open the folder in Files">
@@ -66,21 +66,14 @@ export function FilesTab({ type, recordId, title, fieldFolder }: { type: string;
     </View>
   );
   if (!web || !data.files) return inner;
-  return createElement(
-    "div",
-    {
-      "data-testid": "files-dropzone", style: { display: "flex", flex: 1, minHeight: 0, flexDirection: "column" },
-      onDragOver: (e: { preventDefault(): void }) => { e.preventDefault(); setOver(true); },
-      onDragLeave: () => setOver(false),
-      onDrop: (e: { preventDefault(): void; dataTransfer?: { files?: ArrayLike<Picked> } }) => { e.preventDefault(); setOver(false); attach(asAttach(e.dataTransfer?.files)); },
-    },
-    inner,
-  );
+  // files dropped on the tab, or pasted into it, go to the record's folder through the same path as Attach
+  return <DropZone testID="files-dropzone" style={ZONE} onFiles={(files) => attach(asAttach(files as unknown as Picked[]))}>{inner}</DropZone>;
 }
+
+const ZONE = { flex: 1 };
 
 const s = StyleSheet.create({
   root: { flex: 1, minHeight: 0 },
-  over: { backgroundColor: "var(--accent-wash)" as string },
   bar: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
   attach: { height: 26, paddingHorizontal: 12, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
   attachOver: { opacity: 0.8 },

@@ -10,6 +10,8 @@ import type { ComposerSend } from "../../../../../../ui/src/Composer/index.tsx";
 import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/Deferred.tsx";
 import { useHomeData, useHomeLine, usePrincipals } from "../sections-a/data.tsx";
 import { startAsk } from "./actions.ts";
+import { uploadAttachments, uploadDeps } from "../../chats/conversation/actions.ts";
+import { useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { useExtras } from "./data.tsx";
 import { ASK_LOCKED, ASK_PLACEHOLDER, askText } from "./model.ts";
 import { Icon, QuickButton } from "./parts.tsx";
@@ -18,6 +20,7 @@ export function AskBox(): ReactElement {
   const data = useHomeData();
   const extras = useExtras();
   const line = useHomeLine();
+  const rt = useOptionalShellRuntime();
   const people = usePrincipals();
   const narrow = useWindowDimensions().width < 520;
   const locked = !extras.aiConnected;
@@ -33,14 +36,20 @@ export function AskBox(): ReactElement {
   const picked = agents.find((x) => x.id === pickedId) ?? agents[0] ?? { id: assistant.id, name: assistant.name, assistant: true };
 
   const send = (p: ComposerSend): void => {
-    const text = askText(p.text);
+    const text = askText(p.text) ?? (p.files.length > 0 ? "" : null);
     if (text === null) return;
-    // what the composer holds beyond the words travels with them: @names become mentions and # links become refs, as in Chats. Files cannot be sent from here, so the person is told, never left to think they went.
+    // what the composer holds beyond the words travels with them: @names become mentions, # links become refs, and files (dropped, pasted or picked) are stored the way a chat stores its own.
     const mentions = mentionsIn(p.text, people.list.filter((x) => (x.kind === "person" || x.kind === "agent") && x.id !== data.me.id).map((x) => ({ id: x.id, name: x.name, kind: x.kind as "person" | "agent" })));
     const refs = [...p.refs, ...p.chips.flatMap((c) => (c.id !== undefined ? [{ kind: c.kind.toLowerCase(), id: c.id, title: c.name }] : []))];
-    void startAsk({ call: data.call, note: line.note }, picked.id, text, data.clock().now, { mentions, refs }).then((thread) => {
+    const at = data.clock().now;
+    const fresh = p.files.filter((f) => f.fileId === undefined);
+    const kept = p.files.flatMap((f) => (f.fileId === undefined ? [] : [f.fileId]));
+    const stored = fresh.length > 0 ? uploadAttachments(uploadDeps({ call: data.call, ...(rt?.putBlob ? { putBlob: rt.putBlob.bind(rt) } : {}) }), fresh, `home-ask-files-${at}`) : Promise.resolve([]);
+    void stored.then((ids) => startAsk({ call: data.call, note: line.note }, picked.id, text, at, { mentions, refs, ...(ids.length + kept.length > 0 ? { attachments: [...ids, ...kept] } : {}) }), (e: unknown) => {
+      line.note(e instanceof Error && e.message !== "" ? e.message : "Could not keep those files. Try again.", () => undefined);
+      return null;
+    }).then((thread) => {
       if (thread === null) return;
-      if (p.files.length > 0) line.note("Your files were not sent from Home. Add them in the chat.", () => undefined);
       data.nav.openSubject({ type: "thread", id: thread });
     });
   };

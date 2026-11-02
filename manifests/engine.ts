@@ -158,6 +158,16 @@ export default defineManifest({
       on: ['thread', '/threadId'], level: 'use', emits: ['turn.engine_switched', 'agent.model_changed'], tool: 'meta', mcpName: 'switch_model',
       agent: { planMode: 'blocked', blocks: ['model_switch'] }, errors: ['permission.provider_label', 'permission.limit', 'provider.auth_failed'],
     }),
+    // engine.compact: Claude Code compacts its own session (/compact with the words); for Codex, Grok and API engines Vyre writes a summary that starts with the words and the engine starts again from
+    // it (modules/engine/compact.ts). `always` keeps the words for every compaction of the chat, the engines' automatic ones too; ticked with no words it clears them.
+    write('engine.compact', 'Compact a chat: free the context of the agent\'s engine, keeping what the person names, and say so in one line with the context left. With always, the words are kept for every compaction of this chat', {
+      in: { ...threadT, agentId: t.opt(id.agent), keep: t.opt(t.str({ maxLength: 2000, examples: ['the open questions about the lease'] })), always: t.opt(t.bool()) },
+      out: {
+        engine: t.str({ examples: ['claude_code'] }), how: t.enm('engine', 'vyre'), line: t.str({ examples: ['Compacted. Kept: the open questions about the lease. Context now about 14k of 200k tokens.'] }),
+        context: t.nullable(t.obj({ used: t.int({ minimum: 0 }), window: t.int({ minimum: 1 }) })), keepEvery: t.str(), fellBack: t.bool(),
+      },
+      on: ['thread', '/threadId'], level: 'use', emits: ['turn.compacted'], offline: 'online', idem: 'key', risk: 'low', errors: ['validation.precondition_failed', 'internal.unavailable'],
+    }),
     write('engine.warm', 'Hint that a thread was opened or the composer got focus: warm the engine session (drivers pool, prefix cache)', {
       in: { ...threadT, agentId: t.opt(id.agent) }, out: { warm: t.bool() }, on: ['thread', '/threadId'], level: 'view', offline: 'online', idem: 'none', risk: 'low',
     }),
@@ -267,6 +277,7 @@ export default defineManifest({
         session: t.nullable(t.obj({ pct: t.num({ minimum: 0, maximum: 100 }), resetsAt: t.opt(t.ts()) })),
         week: t.nullable(t.obj({ pct: t.num({ minimum: 0, maximum: 100 }), resetsAt: t.opt(t.ts()) })),
         source: t.enm('provider', 'estimate', 'none'),
+        keepEvery: t.opt(t.str({ description: 'What every compaction of this chat keeps ("Keep this every time"), when set' })),
       },
       on: ['thread', '/threadId'], tool: 'meta', errors: ['validation.not_found'],
     }),
@@ -410,6 +421,9 @@ export default defineManifest({
     }),
     ev('turn.engine_switched', 'The engine of a chat changed (the quiet line in the thread)', {
       p: { threadId: id.thread, agentId: id.agent, from: t.str(), to: t.str(), handoffTurns: t.int(), by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants',
+    }),
+    ev('turn.compacted', 'A chat was compacted (the quiet line in the thread): by the engine itself or by Vyre\'s summary, with the context it left', {
+      p: { threadId: id.thread, agentId: id.agent, engine: t.str(), how: t.enm('engine', 'vyre'), kept: t.bool(), used: t.opt(t.int()), window: t.opt(t.int()), by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants',
     }),
     ev('turn.fallback_used', 'A turn error fell back to another model or the backup key', {
       p: { turnId: id.turn, threadId: id.thread, kind: t.str(), to: t.str() }, subject: ['thread', '/threadId'], vis: 'participants',

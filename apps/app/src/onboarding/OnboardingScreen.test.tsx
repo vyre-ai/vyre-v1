@@ -12,7 +12,7 @@ test("the screen has a rail, a chat and a preview, and opens on the first open s
   for (const id of ["onboarding", "onboarding-rail", "onboarding-chat", "onboarding-preview", "onboarding-card", "step-later"]) assert.ok(out.includes(`data-testid="${id}"`), id);
   for (const st of stepsOf("personal")) assert.ok(out.includes(`data-testid="row-step-${st.key}"`), st.key);
   assert.ok(out.includes("Connect your AI"));
-  assert.ok(out.includes("Set up  0 of 8") || out.includes("Set up&nbsp;&nbsp;0 of 8") || /Set up\s+0 of 8/.test(out));
+  assert.ok(out.includes(">Step 1 of 8<"), "the counter names the step on show");
 });
 
 test("the Assistant says one short sentence per step, and never claims to be live without an AI account", () => {
@@ -38,7 +38,7 @@ test("the steps follow the device: a browser has no sessions or folders, a phone
   assert.ok(!web.includes('row-step-sessions') && !web.includes('row-step-folders') && web.includes("row-step-chrome"));
   const phone = html({ device: "phone" });
   assert.ok(!phone.includes("row-step-chrome") && !phone.includes('data-testid="onboarding-rail"'), "one column, no rail");
-  assert.ok(phone.includes(">Set up  1 of 5<") || /Set up\s+1 of 5/.test(phone), "Your phone counts as done on a phone");
+  assert.ok(phone.includes(">Step 1 of 5<"), "five steps on a phone, and the first is on show");
 });
 
 test("a member and a Team owner get their own steps", () => {
@@ -139,36 +139,53 @@ test("the suite cards draw their first frame with the buttons the owner needs", 
   assert.ok(inv.includes('data-testid="invite-make"') && inv.includes("Nothing is sent until you share it or approve it."));
 });
 
-test("with an AI account the person's own Ask thread replaces the scripted words, and the card stays above it", async () => {
+test("with an AI account the Assistant chat sits under the card on a step with something to ask, keeps the bar, and is hidden where it adds nothing", async () => {
   const { findAssistant } = await import("./AssistantThread.tsx");
-  const out = renderToStaticMarkup(<OnboardingScreen flow="personal" spaceName="Personal" progress={{}} stepKey="interview" live liveChat={<span data-thread="1">thread</span>} onStep={noop} renderCard={() => <span data-card="1">card</span>} />);
+  const out = renderToStaticMarkup(<OnboardingScreen flow="personal" spaceName="Personal" progress={{}} stepKey="folders" device="mac" live liveChat={<span data-thread="1">thread</span>} onStep={noop} onClose={noop} renderCard={() => <span data-card="1">card</span>} />);
   assert.ok(out.includes('data-testid="onboarding-live"') && out.includes('data-thread="1"') && !out.includes("scripted-note") && !out.includes("line-hello"));
   assert.ok(out.indexOf('data-card="1"') < out.indexOf('data-thread="1"'));
+  for (const id of ["step-back", "step-later", "step-next", "onboarding-close"]) assert.ok(out.includes(`data-testid="${id}"`), `live, the bar keeps ${id}`);
+  for (const key of ["ai", "interview", "phone"]) {
+    const quiet = renderToStaticMarkup(<OnboardingScreen flow="personal" spaceName="Personal" progress={{}} stepKey={key} device="mac" live liveChat={<span data-thread="1">thread</span>} onStep={noop} renderCard={() => <span data-card="1">card</span>} />);
+    assert.ok(!quiet.includes('data-testid="onboarding-live"') && quiet.includes('data-testid="step-next"'), `${key}: the card says it all, so no chat`);
+  }
+  const drawn: string[] = [];
+  renderToStaticMarkup(<OnboardingScreen flow="personal" spaceName="Personal" progress={{}} stepKey="sessions" device="mac" live renderLive={(st, ask) => { drawn.push(`${st.key}:${ask.prompt}`); return <span>t</span>; }} onStep={noop} />);
+  assert.deepEqual(drawn, ["sessions:Ask me which sessions to bring in."], "the host draws the chat for the step on show, with its own prompt");
   const rt = { call: async () => ({ agents: [{ agentId: "agt_other", ownerId: "usr_b", role: "assistant" }, { agentId: "agt_mine", ownerId: "usr_a", role: "assistant" }] }) };
   assert.equal(await findAssistant(rt as never, "usr_a"), "agt_mine");
   assert.equal(await findAssistant(rt as never, "usr_zzz"), null);
 });
 
-test("the bottom bar is Skip, Continue (disabled until the step is done, Done on the last step) and a quiet Finish later", () => {
+test("the bottom bar is Back (from the second step), Skip for now, Continue (disabled until there is something to do, Done on the last step), and Finish later in the rail", () => {
   const out = html({ stepKey: "ai", onClose: noop });
-  assert.ok(out.includes(">Skip<") && out.includes('data-testid="step-next"') && out.includes(">Continue<") && out.includes("Finish later"));
+  assert.ok(out.includes(">Skip for now<") && out.includes('data-testid="step-next"') && out.includes(">Continue<") && out.includes("Finish later"));
+  assert.ok(!out.includes('data-testid="step-back"'), "the first step has nothing to go back to");
+  assert.ok(html({ stepKey: "interview", onClose: noop }).includes('data-testid="step-back"'));
   assert.ok(/aria-disabled="true"|disabled=""/.test(out), "not done: Continue is disabled");
-  assert.ok(!/aria-disabled="true"|disabled=""/.test(html({ stepKey: "ai", progress: { ai: "done" }, onClose: noop })), "done: nothing is disabled");
   const done = html({ stepKey: "ai", progress: { ai: "done" }, onClose: noop });
-  assert.ok(done.includes(">Skip<"), "every step keeps the same bar, a done step too");
+  assert.ok(!/aria-disabled="true"|disabled=""/.test(done), "done: nothing is disabled");
+  assert.ok(!done.includes(">Skip for now<"), "a done step has nothing to skip; Continue moves on");
   assert.ok(html({ stepKey: "team", onClose: noop }).includes(">Done<"), "the last step says Done");
+  assert.ok(!/>Skip</.test(out) && !out.includes("Ask pane") && !out.includes("Say something to start"), "no bare Skip and no placeholder labels");
 });
 
-test("the preview pane shows chips, or Not yet with its hint", async () => {
+test("the preview pane shows chips, or Not yet with its hint, and draws nothing when it has nothing to say", async () => {
   const { PreviewView } = await import("./PreviewPane.tsx");
   const full = renderToStaticMarkup(<PreviewView preview={{ heading: "Your AI account", items: [{ id: "1", label: "Claude · subscription · in your Vault" }], hint: "x" }} fallback="f" />);
   assert.ok(full.includes('data-testid="preview-item"') && full.includes("in your Vault"));
   const empty = renderToStaticMarkup(<PreviewView preview={{ heading: "h", items: [], hint: "Not yet. Something appears here." }} fallback="f" />);
   assert.ok(empty.includes('data-testid="preview-empty"') && empty.includes("Not yet."));
+  assert.equal(renderToStaticMarkup(<PreviewView preview={{ heading: "Your folders", items: [], hint: "" }} fallback="" />), "", "no folder yet: no frame at all");
+  const folders = renderToStaticMarkup(<PreviewView preview={{ heading: "Your folders", items: [{ id: "m", label: "Vyre", note: "~/Claude/Orgs/Vyre" }], hint: "" }} fallback="" />);
+  assert.ok(folders.includes(">Vyre<") && folders.includes("~/Claude/Orgs/Vyre") && !folders.includes(">local<"));
 });
 
-test("Team AI shows only the offer first, and the sign-in tiles after No", async () => {
+test("Team AI offers a key for everyone first and your own account as a separate, labelled choice, with no trip to the Console", async () => {
   const { SpaceAiCard } = await import("./SpaceAiCard.tsx");
   const call = (async () => ({ providers: [] })) as never;
-  assert.ok(renderToStaticMarkup(<SpaceAiCard team={call} personal={null} onConnected={noop} />).includes('data-testid="ai-tiles"'), "no Personal key to copy: the tiles are the card");
+  const first = renderToStaticMarkup(<SpaceAiCard team={call} personal={null} onConnected={noop} />);
+  assert.ok(first.includes('data-testid="space-ai-key"') && first.includes("A key for everyone") && first.includes("Your own account") && !first.includes("Open it") && !first.includes("Console"));
+  const mine = renderToStaticMarkup(<SpaceAiCard team={call} personal={null} onConnected={noop} initial="mine" />);
+  assert.ok(mine.includes('data-testid="ai-tiles"') && mine.includes("Claude, ChatGPT or Grok subscription"), "no Personal key to copy: the sign-ins are the choice");
 });

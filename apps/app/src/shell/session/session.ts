@@ -17,7 +17,10 @@ import { withVaultGate } from "./vault-gate.ts";
 import { attemptKey } from "../providers/files-review.ts";
 import { loadCryptoKeys } from "../../../../../client/src/crypto/load.ts";
 import { keepKey, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
-import { holdKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
+import { holdKeyOnOwnNode, serverKeyState, setServerKeyKept } from "../../../../../client/src/gateway/local-key.ts";
+import { shellDesktopLinkBridge } from "../../../../../client/src/connection/desktop-link.ts";
+import { aiHomeOf } from "../../ai-signin/own-ai.ts";
+import { spaceLabel } from "../spaces/space-label.ts";
 import { createDeferred } from "../../../../../client/src/runtime/deferred.ts";
 import { createLiveLink } from "./live.ts";
 import { createTurnStreams } from "./turn-streams.ts";
@@ -29,6 +32,7 @@ import type { Dial, Scheduler } from "../../../../../client/src/connection/index
 import { PLACE_QUERIES, WARM_ORDER } from "./prefetch.ts";
 import { createRemoteScreenHooks } from "./remote-hooks.ts";
 import type { RemoteHooks } from "./remote-hooks.ts";
+import { onRetryLoads } from "../../../../../ui/src/States/retry.ts";
 import { speed } from "../../speed/recorder.ts";
 
 export interface OpenSessionOptions {
@@ -102,6 +106,8 @@ const CONSOLE_ROLES = ["owner", "admin", "developer"] as const;
 const PLAIN_ROLES = ["member", "guest"] as const;
 export const roleOpensConsole = (roles: readonly string[]): boolean => holdsRole(roles, ...CONSOLE_ROLES);
 export const roleAsksServer = (roles: readonly string[]): boolean => !roleOpensConsole(roles) && roles.some((r) => !holdsRole([r], ...PLAIN_ROLES));
+/** Only the built-in Member or Guest roles, in a Team Space: no console.access, connectors.manage or schema.manage, so the UI asks for none of them (ShellRuntime.plainRole). */
+export const plainRoleOnly = (roles: readonly string[], kind: string): boolean => kind === "team" && roles.length > 0 && roles.every((r) => holdsRole([r], ...PLAIN_ROLES));
 
 const RAIL_PLACES: readonly PlaceId[] = ["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings", "console"];
 const railPlace = (p: string): PlaceId | null => (RAIL_PLACES as readonly string[]).includes(p) ? (p as PlaceId) : null;
@@ -183,6 +189,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const page = (globalThis as { document?: { addEventListener?(t: string, l: () => void): void; removeEventListener?(t: string, l: () => void): void } }).document;
   const shown = (): void => { if (!hidden() && refreshTimer !== null) reread(); };
   page?.addEventListener?.("visibilitychange", shown);
+  // Retry on a failed or stalled load (ui/States Loads and Quiet) re-reads what is on screen
+  const offRetry = onRetryLoads(() => { if (!closed) hooks.invalidate(); });
   // A read changes nothing, so it does not re-read the screen. Re-reading after every read made a loop: a screen that reads on render re-rendered on the re-read and read again, every two
   // seconds, whole screens at a time (about 15 reads a second from an idle Mac). Until the route table has loaded, every call re-reads, as before.
   let reads: ReadonlySet<string> | null = null;
@@ -193,7 +201,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     let opened: Awaited<ReturnType<typeof openBundle>>;
     try { opened = await openBundle(password, { ...got.keys, personKeyByRecovery: got.keys.personKeyByRecovery ?? "" }); } catch { throw new Error("That password does not open your vault."); }
     try {
-      if (!(await holdKeyOnOwnNode(o.baseUrl, token ?? "", opened.personKey))) throw new Error("Your Mine vault opens on the computer your Space runs on, not from here.");
+      if (!(await holdKeyOnOwnNode(o.baseUrl, token ?? "", opened.personKey))) throw new Error("Your Vault could not be opened. Sign in again to open it.");
       keepKey(opened.personKey);
     } finally { wipe(opened.personKey); wipe(opened.privateKey); }
   };
@@ -203,8 +211,11 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     if (!reads?.has(cap)) refresh();
     return r;
   };
-  // a locked vault key asks for the password in place (one prompt for every call that meets it) and tries again; it never ends the session
-  const gated: CapCall = withVaultGate(once, unlockVault, () => rehandKey(o.baseUrl, token ?? ""));
+  // where the Space runs (ai-signin/own-ai.ts): only a Space on this computer takes the key from this app (the local key route), so only there does a locked key ask for the password
+  const aiHome = aiHomeOf(o.baseUrl, shellDesktopLinkBridge() !== null);
+  // a locked vault key asks for the password in place (one prompt for every call that meets it) and tries again; it never ends the session. On a Space that runs elsewhere signing in opens
+  // the key (no separate prompt), so the refusal passes through untouched and the screen says so in plain words, instead of a prompt that could never open anything there.
+  const gated: CapCall = withVaultGate(once, aiHome === "here" ? unlockVault : undefined, () => rehandKey(o.baseUrl, token ?? ""));
   // one idempotency key per logical call: the gate's retry after the password, and any other send of the same call, carries the same opts and so the same key
   const call: CapCall = (cap, input, given) => gated(cap, input, given?.idempotencyKey ? given : { ...given, idempotencyKey: attemptKey() });
 
@@ -291,9 +302,11 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     if (place && o.navigate) o.navigate(place, targetHash(t), t.background === true);
   };
 
+  // a Space that never learnt its name answers its id: it is called by its address instead (spaces/space-label.ts)
+  const shownName = spaceLabel(space.name, o.baseUrl);
   const def: SpaceDef = {
     spaceId: space.id,
-    name: space.name,
+    name: shownName,
     kind: space.kind,
     address: o.baseUrl.replace(/^https?:\/\//, ""),
     role: switcher?.role ?? "Member",
@@ -331,7 +344,10 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       const r = await send(new URL(path, o.baseUrl).toString(), { method: "PUT", headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream" }, body: bytes as unknown as BodyInit });
       if (!r.ok) throw new Error(r.status === 413 ? "The file is over the size limit" : "The upload did not go through");
     },
-    unlockVault,
+    ...(aiHome === "here" ? { unlockVault } : {}),
+    aiHome,
+    // a Space server keeps a wrap of the person's key for their Google or GitHub sign-ins: the Vault shows it, with Forget on this server
+    serverKey: { state: () => serverKeyState(o.baseUrl, token ?? ""), keep: (keep: boolean) => setServerKeyKept(o.baseUrl, token ?? "", keep) },
     connection: {
       get: () => (reachable && !(everLive && live === "offline") ? "online" : "offline"),
       subscribe: (l) => { listeners.add(l); return () => { listeners.delete(l); }; },
@@ -340,12 +356,13 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     recordTitle: () => undefined,
     me,
     clock: () => ({ now: (o.now ?? Date.now)(), offsetMin: -new Date().getTimezoneOffset() }),
-    space: { id: space.id, kind: space.kind, name: space.name },
+    space: { id: space.id, kind: space.kind, name: shownName },
     baseUrl: o.baseUrl,
     ...(o.spaceCards?{knownSpaces:o.spaceCards}:{}),
     get assistant() { return assistant(); },
     get aiConnected() { return connected(AI_CONNECTORS); },
     get calendarConnected() { return connected(CALENDAR_CONNECTORS); },
+    plainRole: plainRoleOnly(who.roles, space.kind),
     deferredModules: deferred.deferredModules,
     isDeferred: deferred.isDeferred,
     open,
@@ -370,6 +387,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       for (const t of warmTimers) clearTimeout(t);
       if (refreshTimer !== null) clearTimeout(refreshTimer);
       page?.removeEventListener?.("visibilitychange", shown);
+      offRetry();
       link.stop();
       turns.dispose();
       for (const off of keep) off();

@@ -76,6 +76,8 @@ export function vaultData(rt: ShellRuntime, browsers: VaultBrowsers | undefined 
     },
     clock: () => ({ now: rt.clock().now }),
     ...(browsers ? { browsers } : {}),
+    ...(rt.serverKey ? { serverKey: rt.serverKey } : {}),
+    ...(rt.aiHome ? { aiHome: rt.aiHome } : {}),
   };
 }
 

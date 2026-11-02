@@ -317,7 +317,7 @@ pub fn run() {
             if macserver::profile_exists(&handle) { sidecar::start(&handle, &state.server, 0); }
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context())
         .expect("error while building vyre");
 
     app.run(move |_app, event| {
@@ -327,4 +327,21 @@ pub fn run() {
             sidecar::stop(&server_exit);
         }
     });
+}
+
+/// The app's compiled config and web build. The main window has dragDropEnabled off: a file dropped on the window then reaches the page as an ordinary drop with
+/// its File objects (a Finder file, the screenshot thumbnail, an image from a browser), so the composer and every other field can take it. With Tauri's own drag
+/// and drop on, the native view keeps the drop and the page never sees it.
+fn context() -> tauri::Context<tauri::Wry> {
+    tauri::generate_context!()
+}
+
+#[cfg(test)]
+mod drop_tests {
+    #[test]
+    fn the_built_main_window_hands_file_drops_to_the_page() {
+        let ctx = super::context();
+        let main = ctx.config().app.windows.iter().find(|w| w.label == "main").expect("the main window is in the compiled config");
+        assert!(!main.drag_drop_enabled, "the main window must have dragDropEnabled false, or files dropped on the app never reach the page");
+    }
 }

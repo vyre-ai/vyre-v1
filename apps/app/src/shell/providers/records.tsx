@@ -36,7 +36,7 @@ export function useCanEditSchema(rt: ShellRuntime | null): boolean {
   const [can, setCan] = useState(false);
   const personal = rt?.space.kind === "personal";
   useEffect(() => {
-    if (!rt || personal) return;
+    if (!rt || personal || rt.plainRole === true) return;   // a Member or Guest holds no schema.manage: nothing to ask
     let live = true;
     void rt.call("console.nav", {}).then((out) => { if (live) setCan((out as { groups: Array<{ pages: Array<{ key: string }> }> }).groups.some((g) => g.pages.some((pg) => pg.key === SCHEMA_PAGE))); }, () => { if (live) setCan(false); });
     return () => { live = false; };
@@ -48,7 +48,7 @@ export function useCanEditSchema(rt: ShellRuntime | null): boolean {
 export function useCanManageSync(rt: ShellRuntime | null): boolean {
   const [can, setCan] = useState(false);
   useEffect(() => {
-    if (!rt) return;
+    if (!rt || rt.plainRole === true) return;   // a Member or Guest holds no connectors.manage: nothing to ask
     let live = true;
     void rt.call("connectors.list", { limit: 1 }).then(() => { if (live) setCan(true); }, () => { if (live) setCan(false); });
     return () => { live = false; };

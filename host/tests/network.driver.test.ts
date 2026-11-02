@@ -18,7 +18,7 @@ test('relay requires this Space active endpoint and unavailable compute operatio
  await assert.rejects(port.disconnect('srv_fixture'),/no server connection manager/);
 });
 test('certificate renewal observes actual certificate and does not invent issuance',async()=>{
- const ingress:string[]=[];let issued=false;const port=managedNetworkPort({adminUrl:'http://127.0.0.1:2019',space:'spc_fixture',upstream:()=> '127.0.0.1:8420',ingressHost:()=> 'fixture.example.com',relayReady:()=>false,router:{setIngress:async(host)=>{ingress.push(host);},certInfo:async()=>issued?{issued:true,expiresAt:9000}:{issued:false,why:'Fixture ACME pending'}}});
+ const ingress:string[]=[];let issued=false;const port=managedNetworkPort({adminUrl:'http://127.0.0.1:2019',space:'spc_fixture',upstream:()=> '127.0.0.1:8420',ingressHost:()=> 'fixture.example.com',relayReady:()=>false,router:{setIngress:async(host)=>{ingress.push(host);},hosts:async()=>[],certInfo:async()=>issued?{issued:true,expiresAt:9000}:{issued:false,why:'Fixture ACME pending'}}});
  assert.deepEqual(await port.renew('fixture.example.com'),{expiresAt:null,reason:'Fixture ACME pending'});issued=true;
  assert.deepEqual(await port.renew('fixture.example.com'),{expiresAt:9000});assert.equal(ingress.length,2);await assert.rejects(port.renew('private-site.example.com'),/Only the current Space ingress/);assert.equal(ingress.length,2,'renewal never overwrites unrelated route authentication or upstream');
 });

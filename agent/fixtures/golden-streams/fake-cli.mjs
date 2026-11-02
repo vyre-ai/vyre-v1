@@ -10,7 +10,9 @@
 //   slow [ms]       waits, then replays text (a turn that takes a while)
 //   hang            starts, says nothing more, never ends
 //   die             writes to stderr and exits 3 with no result
+//   /compact [keep] (claude only) compacts: a compact_boundary line with the tokens before and after, then an empty success result
 //   anything else   answers with the prompt it was given
+// A session id to resume that starts with "gone-" is one the CLI no longer has: it says so on stderr in the CLI's own words and exits 1 before reading anything.
 // Claude Code and Grok read their MCP server from --mcp-config (JSON, the token expanded from the environment); Codex from -c mcp_servers.vyre.* overrides.
 import fs from "node:fs";
 import path from "node:path";
@@ -26,6 +28,11 @@ const out = (line) => process.stdout.write(`${line}\n`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 if (argv.includes("--version")) { out(`${bin} fake 0.0.0`); process.exit(0); }
+if (resume !== undefined && resume.startsWith("gone-")) {
+  const words = { claude: `No conversation found with session ID: ${resume}`, codex: `Error: No saved session found with ID ${resume}`, grok: "Error: Session does not exist" };
+  process.stderr.write(`${words[bin] ?? words.claude}\n`);
+  process.exit(1);
+}
 
 function mcpTarget() {
   const token = process.env.VYRE_MCP_TOKEN ?? "";
@@ -123,6 +130,10 @@ async function run(prompt) {
       break;
     case "die": process.stderr.write("boom: the engine crashed\n"); process.exit(3); break;
     case "plugins": say(pluginsSeen()); break;
+    case "/compact":
+      out(JSON.stringify({ type: "system", subtype: "compact_boundary", session_id: session, compact_metadata: { trigger: "manual", pre_tokens: 50_000, post_tokens: 3_000 } }));
+      out(JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "", session_id: session, usage: { input_tokens: 50_000, output_tokens: 900 } }));
+      break;
     case "env": say(Object.keys(process.env).sort().join(",")); break;
     default: say(prompt);
   }
