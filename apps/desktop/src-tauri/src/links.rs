@@ -1,6 +1,6 @@
 // Deep links: vyre://<action>?<params>. The page decides what to do with one; the shell only checks
 // that it is ours, bounded and well formed, and hands it over. Actions (spec 3.13): join (an invite),
-// open (a Space by address), pair (a pairing code), signin.
+// open (a Space by address), pair (a pairing code), signin, claim (an owner claim link handed over from a browser, rc.14).
 
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -10,7 +10,7 @@ pub const MAX_LEN: usize = 4096;
 pub const MAX_PARAMS: usize = 16;
 pub const MAX_PARAM_KEY_LEN: usize = 64;
 pub const MAX_PARAM_VALUE_LEN: usize = 2048;
-pub const ACTIONS: [&str; 4] = ["join", "open", "pair", "signin"];
+pub const ACTIONS: [&str; 5] = ["join", "open", "pair", "signin", "claim"];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DeepLink {
@@ -108,6 +108,15 @@ mod tests {
         assert_eq!(l.params["address"], "acme.vyre.run");
         assert_eq!(l.params["code"], "ab12+cd");
         assert_eq!(l.params["fp"], "9f3c");
+    }
+
+    #[test]
+    fn claim_link_carries_address_token_and_space() {
+        let l = parse("vyre://claim?address=https%3A%2F%2Fmla.vyre.run&token=clm_abcdefgh&s=spc_mla&fp=9f3c&n=MLA").unwrap();
+        assert_eq!(l.action, "claim");
+        assert_eq!(l.params["address"], "https://mla.vyre.run");
+        assert_eq!(l.params["token"], "clm_abcdefgh");
+        assert_eq!(l.params["s"], "spc_mla");
     }
 
     #[test]

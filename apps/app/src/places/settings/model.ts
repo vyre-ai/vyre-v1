@@ -290,6 +290,7 @@ export const HIT_HELP: Readonly<Record<string, { sub?: string; words?: string }>
 /** Rows a page draws itself that Cmd-F still finds. */
 export const DRAWN_ROWS: readonly { key: string; page: PageKey; title: string; sub: string; words: string }[] = [
   { key: "signin.password", page: "signin", title: "Password", sub: "Change your password", words: "sign in login" },
+  { key: "signin.recovery", page: "signin", title: "Recovery code", sub: "Make a new recovery code", words: "recovery code lost forgot reset new" },
   { key: "signin.github", page: "signin", title: "GitHub", sub: "Sign in with one click", words: "sign in login" },
   { key: "signin.totp", page: "signin", title: "Authenticator app", sub: "One-time codes on your phone", words: "second factor 2fa totp" },
   { key: "signin.passkey", page: "signin", title: "Passkeys", sub: "Touch ID and security keys", words: "second factor biometric" },

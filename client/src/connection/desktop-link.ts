@@ -1,7 +1,7 @@
 // The narrow, validated page contract for a packaged desktop shell. It has no
 // desktop-app dependency so any client can consume the typed bootstrap safely.
 export type DesktopDeepLink = {
-  action: "join" | "open" | "pair" | "signin";
+  action: "join" | "open" | "pair" | "signin" | "claim";
   params: Record<string, string>;
 };
 
@@ -28,7 +28,7 @@ export interface DesktopLinkBridge {
   listenLinks(listener: (link: DesktopDeepLink) => void): Promise<Unlisten>;
 }
 
-const deepLinkActions = new Set<DesktopDeepLink["action"]>(["join", "open", "pair", "signin"]);
+const deepLinkActions = new Set<DesktopDeepLink["action"]>(["join", "open", "pair", "signin", "claim"]);
 const sidecarPhases = new Set<DesktopInfo["sidecar"]["phase"]>(["starting", "ready", "restarting", "failed", "stopped"]);
 const maxLinkParams = 16;
 const maxLinkParamKeyLength = 64;
