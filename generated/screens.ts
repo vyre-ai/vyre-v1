@@ -1662,22 +1662,13 @@ export const screens: ScreenIndexEntry[] = [
     "builtin": "ui:ConnectOutsideAgent",
     "caller": "principal",
     "queries": {
-      "channel": {
-        "cap": "channels.get",
-        "input": {
-          "channelId": "/state/channelId"
-        },
+      "link": {
+        "cap": "mcp.connected.link",
+        "input": {},
         "live": true
       }
     },
-    "actions": {
-      "connect": {
-        "cap": "channels.connect_outside_agent",
-        "input": {
-          "channelId": "/state/channelId"
-        }
-      }
-    },
+    "actions": {},
     "needs": [],
     "perf": {
       "firstPaintMs": 50,
@@ -2912,13 +2903,6 @@ export const screens: ScreenIndexEntry[] = [
         "input": {
           "actorId": "/state/actorId",
           "enabled": "/draft/enabled"
-        }
-      },
-      "scopes": {
-        "cap": "mcp.scopes.set",
-        "input": {
-          "actorId": "/state/actorId",
-          "scopes": "/draft/scopes"
         }
       },
       "revoke": {
@@ -7989,7 +7973,7 @@ export const screens: ScreenIndexEntry[] = [
   {
     "id": "tasks.my-work",
     "module": "tasks",
-    "place": "home",
+    "place": "chats",
     "slot": "main",
     "builtin": "ui:MyWork",
     "caller": "principal",
@@ -7998,6 +7982,18 @@ export const screens: ScreenIndexEntry[] = [
         "cap": "tasks.my_work",
         "input": {
           "section": "/state/section"
+        },
+        "live": true
+      },
+      "rev": {
+        "cap": "tasks.rev",
+        "input": {},
+        "live": true
+      },
+      "needs": {
+        "cap": "tasks.needs_you",
+        "input": {
+          "limit": "/state/limit"
         },
         "live": true
       }
@@ -8104,7 +8100,7 @@ export const screens: ScreenIndexEntry[] = [
   {
     "id": "tasks.page",
     "module": "tasks",
-    "place": "home",
+    "place": "chats",
     "slot": "tab",
     "builtin": "ui:TaskPage",
     "caller": "principal",

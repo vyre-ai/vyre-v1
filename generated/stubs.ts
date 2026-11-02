@@ -114,6 +114,13 @@ export function stubs(ctx: CallCtx) {
       memory_key: {
         get: call("agents.memory_key.get"),
       },
+      next: call("agents.next"),
+      outside: {
+        connect: call("agents.outside.connect"),
+        enqueue: call("agents.outside.enqueue"),
+        seen: call("agents.outside.seen"),
+        usable: call("agents.outside.usable"),
+      },
       pause: call("agents.pause"),
       restore: call("agents.restore"),
       restore_version: call("agents.restore_version"),
@@ -337,7 +344,6 @@ export function stubs(ctx: CallCtx) {
         remove: call("channels.agents.remove"),
       },
       archive: call("channels.archive"),
-      connect_outside_agent: call("channels.connect_outside_agent"),
       create: call("channels.create"),
       erase: call("channels.erase"),
       get: call("channels.get"),
@@ -1390,22 +1396,27 @@ export function stubs(ctx: CallCtx) {
       send_email: call("mailgun.send_email"),
     },
     mcp: {
+      activity: {
+        list: call("mcp.activity.list"),
+      },
+      connected: {
+        link: call("mcp.connected.link"),
+        list: call("mcp.connected.list"),
+        remove: call("mcp.connected.remove"),
+      },
       health: call("mcp.health"),
-      scopes: {
-        set: call("mcp.scopes.set"),
+      oauth: {
+        allow: call("mcp.oauth.allow"),
+        decline: call("mcp.oauth.decline"),
+        replayed: call("mcp.oauth.replayed"),
+        request: call("mcp.oauth.request"),
       },
       session: {
         close: call("mcp.session.close"),
         mint: call("mcp.session.mint"),
-        open: call("mcp.session.open"),
       },
       sessions: {
         list: call("mcp.sessions.list"),
-      },
-      token: {
-        issue: call("mcp.token.issue"),
-        log_reveal: call("mcp.token.log_reveal"),
-        register: call("mcp.token.register"),
       },
       tool: {
         describe: call("mcp.tool.describe"),
@@ -2272,14 +2283,17 @@ export function stubs(ctx: CallCtx) {
       ask: call("tasks.ask"),
       assign: call("tasks.assign"),
       block: call("tasks.block"),
+      by_key: call("tasks.by_key"),
       count_needs_you: call("tasks.count_needs_you"),
       create: call("tasks.create"),
       decide: call("tasks.decide"),
       delegate: call("tasks.delegate"),
+      delete: call("tasks.delete"),
       dependencies: {
         add: call("tasks.dependencies.add"),
         remove: call("tasks.dependencies.remove"),
       },
+      digest: call("tasks.digest"),
       escalate: call("tasks.escalate"),
       followers: {
         add: call("tasks.followers.add"),
@@ -2287,6 +2301,7 @@ export function stubs(ctx: CallCtx) {
       },
       get: call("tasks.get"),
       history: call("tasks.history"),
+      index: call("tasks.index"),
       links: {
         add: call("tasks.links.add"),
         remove: call("tasks.links.remove"),
@@ -2294,7 +2309,10 @@ export function stubs(ctx: CallCtx) {
       list: call("tasks.list"),
       my_work: call("tasks.my_work"),
       needs_you: call("tasks.needs_you"),
+      plan: call("tasks.plan"),
       release: call("tasks.release"),
+      restore: call("tasks.restore"),
+      rev: call("tasks.rev"),
       review: call("tasks.review"),
       snooze: call("tasks.snooze"),
       submit: call("tasks.submit"),
