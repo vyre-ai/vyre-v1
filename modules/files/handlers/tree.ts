@@ -460,13 +460,19 @@ function ensureSpaceRoots(ctx: Ctx): void {
   }
 }
 
+/** Whose Personal root a call means: an agent acting for a person means that person's, never an empty one of its own. */
+export function personalHolder(ctx: Ctx): string {
+  return ctx.principal.kind === "agent" && ctx.actingFor?.startsWith("usr_") ? ctx.actingFor : ctx.principal.id;
+}
+
 function ensurePersonal(ctx: Ctx): Row {
-  const key = `personal:${ctx.principal.id}`;
+  const holder = personalHolder(ctx);
+  const key = `personal:${holder}`;
   const existing = one(ctx, "SELECT * FROM files_folder WHERE root_key = ?", key);
   if (existing) return existing;
   const id = nid(ctx, "fld");
   insertFolder(ctx, {
-    id, parentId: null, name: "Personal", path: "Personal", scope: "personal", owner: ctx.principal.id,
+    id, parentId: null, name: "Personal", path: "Personal", scope: "personal", owner: holder,
     label: 0, git: 0, review: 0, rootKey: key, systemKey: null,
   });
   return mustFolder(ctx, id);

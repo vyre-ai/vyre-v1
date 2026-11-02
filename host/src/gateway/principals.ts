@@ -18,7 +18,20 @@ export const AGENT_ROLE_LOW = "rol_guest";
 export type SpaceLevel = "edit" | "view" | "none";
 
 /** Contract-valid, deterministic ids for grants synthesized from an agent birth. */
-export const agentGrantId = (agentId: string, purpose: "space" | "home" | "owner" | "grown"): string => `gnt_${agentId.slice(4)}${purpose}`;
+export const agentGrantId = (agentId: string, purpose: "space" | "home" | "owner" | "grown" | "own"): string => `gnt_${agentId.slice(4)}${purpose}`;
+
+/**
+ * Local changes just happen: a person's Assistant holds Edit on that person's own Files, in any Space, and in a Personal Space so does every agent the person made there. A Team Space agent keeps its Can reach grants.
+ * The grant is the agent's reach, so a call still stops at what the asker has (ARCH 4.5 rule 5), and it is granted by the owner of the folder. The event id is made from the agent and the folder, so a boot pass
+ * repeats nothing and a grant the person revoked stays revoked.
+ */
+export function ownPlaceGrant(a: { agentId: string; ownerId: string; agentKind: string; spaceKind: "personal" | "team"; rootId: string }): { eventId: string; grantId: string; payload: Record<string, unknown> } | null {
+  if (!/^agt_[a-z0-9]+$/.test(a.agentId) || !/^usr_[a-z0-9]+$/.test(a.ownerId) || !/^fld_[a-z0-9]+$/.test(a.rootId)) return null;
+  if (a.agentKind === "outside") return null;
+  if (a.agentKind !== "assistant" && a.spaceKind !== "personal") return null;
+  const grantId = agentGrantId(a.agentId, "own");
+  return { eventId: `evt_agent_own_place_${a.agentId}_${a.rootId}`, grantId, payload: { id: grantId, subject_kind: "actor", subject_id: a.agentId, resource_type: "folder", resource_id: a.rootId, level: "edit", by: a.ownerId } };
+}
 
 type EventLike = Pick<EventEnvelope, "type" | "payload">;
 const recordOf = (value: unknown): Record<string, unknown> => {

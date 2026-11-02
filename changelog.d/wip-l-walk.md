@@ -1,2 +1,3 @@
 - Agents on Claude, Codex and Grok can now call any tool they find with search. Before, a tool outside the common list was found and then refused with "No such tool", so an agent could not create a file.
 - Model names read properly in the picker: Claude Opus 5.5, not Claude Opus 5 5.
+- Your Assistant can now change your own Files without being given access, in any Space. In a Personal Space so can every agent you made there. A Team Space agent keeps the access you gave it.

@@ -137,7 +137,7 @@ import { bootstrapSpace, mintOwner } from "./bootstrap.ts";
 import { createAccess, isAccessEvent, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
 import { createResourceRegistrar, missingAgentResources } from "../gateway/resources.ts";
-import { createPrincipalRegistrar, lowAgentUpgradeEvents, missingAgentPrincipalEvents } from "../gateway/principals.ts";
+import { createPrincipalRegistrar, lowAgentUpgradeEvents, missingAgentPrincipalEvents, ownPlaceGrant } from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
 import { createRecordsVaultHost } from "../seams/records-vault.ts";
@@ -593,6 +593,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       }
       headSeq = (await log.currentHead()).seq;
 
+      let grantOwnPlaces: ((owner: string) => Promise<void>) | null = null;
       const reg = registry as unknown as RegistryLike;
       const loaded = await loadHost({ registry: reg, modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")), routes, importer: fileImporter(codeRoot), seamImporter: fileSeamImporter(codeRoot), exportsImporter: fileExportsImporter(codeRoot), db, ...(o.http ? { fetch: o.http } : {}) });
       const telemetry = createTelemetryRecorder({ space, db, module: loaded.moduleExports.get("logs"), now, secrets: () => [token], capabilities: registry.capabilities.map(cap => cap.name) });
@@ -890,6 +891,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           for (const s of stored) { access.fold(s); if (isAccessEvent(s.type)) accessPending.push(toAccessEvent(s)); }
           headSeq = Math.max(headSeq, ...out.map((e) => e.seq));
           if (stored.some((s) => touchesAccess(s.type))) await syncAccess(true);
+          for (const e of b.events) if (e.type === "agent.created") await grantOwnPlaces?.((e.payload as { ownerId?: string }).ownerId ?? "");
           if (b.audit) recordAudit(b.audit);
           return out;
         }),
@@ -1066,6 +1068,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }
         return p;
       };
+      // Local changes just happen: the agents a person holds get Edit on that person's Personal root, see ownPlaceGrant. It runs when a root first appears, when an agent is made, and on every boot for the agents made before this.
+      grantOwnPlaces = async (owner) => {
+        const root = (db!.all("SELECT id FROM files_folder WHERE root_key = ? AND deleted_at IS NULL", `personal:${owner}`)[0] as { id: string } | undefined)?.id;
+        if (!root) return;
+        for (const agent of db!.all(`SELECT "id", "kind", "runtime" FROM agents_agent WHERE "ownerId" = ? AND "deletedAt" IS NULL`, owner) as { id: string; kind: string; runtime: string | null }[]) {
+          const grant = ownPlaceGrant({ agentId: agent.id, ownerId: owner, agentKind: agent.runtime === "outside" ? "outside" : agent.kind, spaceKind: cfg.spaceKind ?? "team", rootId: root });
+          if (!grant) continue;
+          const made = await spaceLog.appendResult({ id: grant.eventId, type: "grant.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "grant", entity_id: grant.grantId, payload: grant.payload });
+          if (!made.ok) throw new Error(`could not grant an agent its person's folder: ${made.message}`);
+          if (!made.duplicate) { access.fold(made.event); accessPending.push(toAccessEvent(made.event)); headSeq = Math.max(headSeq, made.event.seq); await syncAccess(); }
+        }
+      };
       const ensureFileRoot = async (f: { id: string; type: "folder"; parentId: string | null; ownerId?: string; privateRoot?: boolean }): Promise<void> => {
         const old = access.snap.resource(f.id);
         let privateOwner: string | undefined;
@@ -1073,7 +1087,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const row = db!.all("SELECT root_key, owner, parent_id FROM files_folder WHERE id = ?", f.id)[0] as { root_key: string; owner: string; parent_id: string | null } | undefined;
           if (!row || row.root_key !== `personal:${row.owner}` || row.parent_id !== null) throw new Error("Only a canonical Personal root may stop Space inheritance.");
           privateOwner = row.owner;
-          if (old?.parent_id === null) return;
+          if (old?.parent_id === null) { await grantOwnPlaces?.(privateOwner); return; }
         }
         if (!privateOwner && old) return;
         const result = await spaceLog.appendResult({
@@ -1082,6 +1096,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         });
         if (!result.ok) throw new Error(`could not register the folder: ${result.message}`);
         if (!result.duplicate) { access.fold(result.event); accessPending.push(toAccessEvent(result.event)); headSeq = Math.max(headSeq, result.event.seq); await syncAccess(); }
+        if (privateOwner) await grantOwnPlaces?.(privateOwner);
       };
       // A Vault folder is a resource in access (vault_folder under the Space). One resource.created per folder, with an id made from the folder's own, so a reboot repeats the same event.
       const registerVaultFolder = async (id: string, owner: string | null): Promise<void> => {
