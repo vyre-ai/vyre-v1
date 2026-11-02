@@ -38,6 +38,10 @@ try {
     const r = {};
     for (const [k, f] of Object.entries(tries)) { try { const x = f(); r[k] = x.error ? `${x.error.code} ${x.error.syscall ?? ""}` : `exit ${x.status} ${String(x.stdout).trim()}`; } catch (e) { r[k] = `threw ${e.code ?? e.message}`; } }
     done({ ok: true, ...r });
+  } else if (mode === "listen") {
+    // stays up, answering "hi"; writes its port to `out`
+    const s = net.createServer((c) => c.end("hi")).listen(0, "127.0.0.1", () => fs.writeFileSync(out, String(s.address().port)));
+    setTimeout(() => process.exit(0), 120_000);
   } else if (mode === "internet") {
     try { const r = await fetch("https://api.anthropic.com/", { signal: AbortSignal.timeout(6000) }); done({ ok: true, status: r.status }); } catch (e) { done({ ok: false, error: String(e.cause?.code ?? e.message) }); }
   } else if (mode === "read") {

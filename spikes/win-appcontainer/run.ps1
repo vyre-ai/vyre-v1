@@ -34,6 +34,21 @@ public static class Ac {
   }
   public static string Sid(string name) { IntPtr s; ConvertSidToStringSid(SidPtr(name), out s); return Marshal.PtrToStringUni(s); }
 
+  // Starts a contained process and returns at once (its handle, to stop it later).
+  public static IntPtr Start(string name, string cmd, string cwd) {
+    var caps = new SECURITY_CAPABILITIES { AppContainerSid = SidPtr(name) };
+    IntPtr capsPtr = Marshal.AllocHGlobal(Marshal.SizeOf(caps)); Marshal.StructureToPtr(caps, capsPtr, false);
+    IntPtr size = IntPtr.Zero; InitializeProcThreadAttributeList(IntPtr.Zero, 1, 0, ref size);
+    IntPtr list = Marshal.AllocHGlobal(size);
+    if (!InitializeProcThreadAttributeList(list, 1, 0, ref size)) throw new Win32Exception();
+    if (!UpdateProcThreadAttribute(list, 0, (IntPtr)0x00020009, capsPtr, (IntPtr)Marshal.SizeOf(caps), IntPtr.Zero, IntPtr.Zero)) throw new Win32Exception();
+    var si = new STARTUPINFOEX(); si.StartupInfo.cb = Marshal.SizeOf(si); si.lpAttributeList = list;
+    PROCESS_INFORMATION pi;
+    if (!CreateProcess(null, cmd, IntPtr.Zero, IntPtr.Zero, false, 0x00080000 | 0x08000000, IntPtr.Zero, cwd, ref si, out pi)) throw new Win32Exception();
+    return pi.hProcess;
+  }
+  public static void Stop(IntPtr h) { TerminateProcess(h, 0); }
+
   public static int Run(string name, string cmd, string cwd, uint ms) {
     var caps = new SECURITY_CAPABILITIES { AppContainerSid = SidPtr(name) };
     IntPtr capsPtr = Marshal.AllocHGlobal(Marshal.SizeOf(caps)); Marshal.StructureToPtr(caps, capsPtr, false);
@@ -117,5 +132,19 @@ foreach ($p in $probes) {
   $code = [Ac]::Run($name, $line, $w, 30000)
   if (Test-Path $out) { "probe $($p[0]) $($p[1]): $(Get-Content $out -Raw)".Trim() } else { "probe $($p[0]) $($p[1]): no answer (exit $code) $(if (Test-Path $err) { (Get-Content $err -Raw) })" }
 }
+# Two processes in the SAME container: one listens on 127.0.0.1, the other connects. Started separately by this (outside) process, so no contained spawn is needed.
+$portIn = Join-Path $w "inner-port.txt"
+$lsn = '"' + $node + '" --preserve-symlinks --preserve-symlinks-main "' + $w + '\probe.mjs" listen "' + $portIn + '" ""'
+$hl = [Ac]::Start($name, $lsn, $w)
+for ($i = 0; $i -lt 50 -and -not (Test-Path $portIn); $i++) { Start-Sleep -Milliseconds 200 }
+if (Test-Path $portIn) {
+  $ip = (Get-Content $portIn -Raw).Trim()
+  $out = Join-Path $w "out-inner.json"; $err = Join-Path $w "err-inner.txt"
+  $line = '"' + $cmd + '" /c ""' + $node + '" --preserve-symlinks --preserve-symlinks-main "' + $w + '\probe.mjs" host-loopback "' + $out + '" "' + $ip + '" > "' + $err + '" 2>&1"'
+  [void][Ac]::Run($name, $line, $w, 30000)
+  "probe same-container-other-process-loopback ${ip}: $(if (Test-Path $out) { Get-Content $out -Raw } else { Get-Content $err -Raw })".Trim()
+  "probe host-to-container-loopback ${ip}: $(try { $c = New-Object System.Net.Sockets.TcpClient; $c.Connect('127.0.0.1', [int]$ip); 'connected' } catch { $_.Exception.InnerException.Message })"
+} else { "probe same-container-other-process-loopback: the listener did not start" }
+[Ac]::Stop($hl)
 Stop-Process -Id $host1.Id -Force -ErrorAction SilentlyContinue
 [void][Ac]::DeleteAppContainerProfile($name)
