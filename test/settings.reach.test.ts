@@ -2,20 +2,20 @@
 // from. Before this, gate_policy, tasks_policy, automations_policy and scheduler_api_policy had no writer, so these settings changed nothing.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { harness as settingsHarness } from "../../modules/settings/fixtures/db.ts";
-import { handlers } from "../../modules/settings/impl.ts";
-import { harness as gateHarness } from "../../modules/gate/fixtures/db.ts";
-import { consumers as gate } from "../../modules/gate/impl.ts";
-import { readPolicy as gatePolicy } from "../../modules/gate/projections.ts";
-import { harness as tasksHarness } from "../../modules/tasks/fixtures/db.ts";
-import { consumers as tasks } from "../../modules/tasks/impl.ts";
-import { readPolicy as tasksPolicy } from "../../modules/tasks/projections.ts";
-import { harness as autoHarness } from "../../modules/automations/fixtures/db.ts";
-import { consumers as automations } from "../../modules/automations/impl.ts";
-import { readPolicy as autoPolicy } from "../../modules/automations/projections.ts";
-import { harness as schedHarness } from "../../modules/scheduler-api/fixtures/db.ts";
-import { consumers as scheduler } from "../../modules/scheduler-api/impl.ts";
-import { readPolicy as schedPolicy } from "../../modules/scheduler-api/projections.ts";
+import { harness as settingsHarness } from "../modules/settings/fixtures/db.ts";
+import { handlers } from "../modules/settings/impl.ts";
+import { harness as gateHarness } from "../modules/gate/fixtures/db.ts";
+import { consumers as gate } from "../modules/gate/impl.ts";
+import { readPolicy as gatePolicy } from "../modules/gate/projections.ts";
+import { harness as tasksHarness } from "../modules/tasks/fixtures/db.ts";
+import { consumers as tasks } from "../modules/tasks/impl.ts";
+import { readPolicy as tasksPolicy } from "../modules/tasks/projections.ts";
+import { harness as autoHarness } from "../modules/automations/fixtures/db.ts";
+import { consumers as automations } from "../modules/automations/impl.ts";
+import { readPolicy as autoPolicy } from "../modules/automations/projections.ts";
+import { harness as schedHarness } from "../modules/scheduler-api/fixtures/db.ts";
+import { consumers as scheduler } from "../modules/scheduler-api/impl.ts";
+import { readPolicy as schedPolicy } from "../modules/scheduler-api/projections.ts";
 
 async function changed(key: string, value: unknown): Promise<Record<string, unknown>> {
   const h = settingsHarness();
