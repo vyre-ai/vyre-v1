@@ -44,6 +44,7 @@ type Out = {
       importedAt: number;
       projectId?: string;
       continuedThreadId?: string;
+      archived?: boolean;
     }>;
   next?: string;
 };
@@ -70,6 +71,7 @@ type Out = {
     "next": "example",
     "sessions": [
       {
+        "archived": true,
         "continuedThreadId": "thr_a1b2c3",
         "conversationId": "isc_a1b2c3",
         "importedAt": 1760000000000,

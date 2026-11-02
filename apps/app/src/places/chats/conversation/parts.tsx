@@ -1,8 +1,9 @@
 // Small pieces of the conversation: stroke icons, the header's icon buttons (each one opens its menu under itself, never at the pointer), the faces with their mode marks, and the
 // quiet pieces a message is made of. Colours are skin tokens, so a skin switch repaints with no re-render.
-import { createElement, useState } from "react";
+import { createElement, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import type { StyleProp, TextStyle } from "react-native";
 import { Face } from "../needsyou/parts.tsx";
 
 const PATHS = {
@@ -95,6 +96,21 @@ export function FaceButton({ name, seedId, mode, working, onPress, title, testID
       </View>
       {label !== undefined ? <Text numberOfLines={1} style={s.chipText}>{label}</Text> : null}
     </Pressable>
+  );
+}
+
+/** The inline title edit: a chat's header, an imported session's row and its page. Enter or leaving the field keeps the new name, Escape drops it. `onDone` is called once, with the
+ * trimmed name, or null when it is empty or unchanged. */
+export function RenameField({ value, label, testID, style, onDone }: { value: string; label: string; testID?: string; style?: StyleProp<TextStyle>; onDone: (title: string | null) => void }): ReactElement {
+  const [text, setText] = useState(value);
+  const done = useRef(false);
+  const finish = (v: string | null): void => { if (done.current) return; done.current = true; onDone(v); };
+  return (
+    <TextInput
+      autoFocus selectTextOnFocus testID={testID} accessibilityLabel={label} value={text} onChangeText={setText} style={style}
+      onBlur={() => { const v = text.trim(); finish(v !== "" && v !== value ? v : null); }}
+      onKeyPress={(e) => { const k = (e as unknown as { nativeEvent: { key: string }; target?: { blur?: () => void } }); if (k.nativeEvent.key === "Enter") k.target?.blur?.(); else if (k.nativeEvent.key === "Escape") finish(null); }}
+    />
   );
 }
 

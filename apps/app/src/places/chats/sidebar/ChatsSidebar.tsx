@@ -18,9 +18,9 @@ import { createSidebarApi } from "./actions.ts";
 import type { SidebarApi } from "./actions.ts";
 import { ChatsSidebarDataProvider, useOnline, useOptionalSidebarData, useScreenQuery, useSidebarData } from "./data.tsx";
 import type { ChatsSidebarData } from "./data.tsx";
-import { chatMenuEntries } from "./chat-menu.ts";
+import { chatMenuEntries, importedDeleteConfirm, importedMenuEntries } from "./chat-menu.ts";
 import {
-  FILTERS, NEW_CHAT_MS, buildEntries, faceForDigit, filterCounts, archivedRows, groupRecent, matchesFilter, matchesQuery, refetch, selectable, stepKey, waitingAgents,
+  FILTERS, NEW_CHAT_MS, buildEntries, faceForDigit, filterCounts, archivedRows, groupRecent, matchesFilter, matchesQuery, openEntry, refetch, selectable, stepKey, waitingAgents,
 } from "./model.ts";
 import type { Agent, ChatRow, Entry, Group, NeedsItem, RecentOut, SectionError, SectionKey, SideFilter } from "./model.ts";
 import { REPORT_PROBLEM_EVENT } from "../../../../../../ui/src/States/index.tsx";
@@ -32,6 +32,8 @@ import { nameOr } from "../names.ts";
 import { Mark } from "../../../onboarding/ProviderLogo.tsx";
 import { dayLabel, importedRows, importedStartsOpen, providerMark, providerName } from "../imported/model.ts";
 import type { ImportedRow } from "../imported/model.ts";
+import { importedChanged, onImportedChange } from "../imported/changes.ts";
+import { RenameField } from "../conversation/parts.tsx";
 import { ChannelSheets } from "../channels/Sheets.tsx";
 import { onChannelRequest, takeChannelRequest } from "../channels/request.ts";
 import type { ChannelSheetKind } from "../channels/request.ts";
@@ -51,7 +53,7 @@ type NeedsOut = CapMap["tasks.needs_you"]["out"];
 export const UNDO_MS = 8_000;
 const EMPTY_RECENT: RecentOut = { starred: [], today: [], yesterday: [], earlier: [], archived: [], nextUnread: null };
 
-/** Rows that react to the pointer: tools and times appear on hover or selection. */
+/** Rows that react to the pointer: the row's "..." appears on hover. */
 function Hot({ children }: { children: (over: boolean) => ReactElement }): ReactElement {
   const [over, setOver] = useState(false);
   return <View style={{ height: ROW_H }} {...{ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) }}>{children(over)}</View>;
@@ -63,19 +65,21 @@ export function useSidebarApi(onLocal: (row: ChatRow) => void, onSettled: (local
 }
 
 /** The Chats sidebar's content, drawn into the shell's shared place sidebar (title, collapse and search field are the slot's). `window` pins which entries are drawn (tests and
- * screenshots draw them all); the shell leaves it out and the list windows by scroll. `query` is the slot's search field; `slot` lets the phone leave the list for the chat. */
-export function ChatsSidebar({ data, window, query = "", slot }: { data?: ChatsSidebarData; window?: VirtualWindow; query?: string; slot?: SidebarSlotApi | undefined }): ReactElement {
+ * screenshots draw them all); the shell leaves it out and the list windows by scroll. `query` is the slot's search field; `slot` lets the phone leave the list for the chat.
+ * `open` is what the place's middle shows (`openKeyOf` in mounts/route.ts): its row is the one drawn selected, whatever opened it (a click here, a tab, a link, Cmd-K), and no row is when
+ * the page has none. Left out (a sidebar drawn alone, with no page beside it), the row last pressed is the selected one. */
+export function ChatsSidebar({ data, window, query = "", slot, open }: { data?: ChatsSidebarData; window?: VirtualWindow; query?: string; slot?: SidebarSlotApi | undefined; open?: string | null }): ReactElement {
   const ctx = useOptionalSidebarData();
   const value = data ?? ctx;
   if (!value) return <ChatsSidebarLoading />;
-  return <ChatsSidebarDataProvider value={value}><Sidebar query={query} slot={slot} {...(window ? { window } : {})} /></ChatsSidebarDataProvider>;
+  return <ChatsSidebarDataProvider value={value}><Sidebar query={query} slot={slot} {...(window ? { window } : {})} {...(open !== undefined ? { open } : {})} /></ChatsSidebarDataProvider>;
 }
 
 /** Put this inside the Chats place: it registers the Chats sidebar in the shell's shared slot, so it collapses, searches and lands on the phone like every place. */
-export function ChatsSidebarSlot({ data, window }: { data?: ChatsSidebarData; window?: VirtualWindow }): ReactElement {
+export function ChatsSidebarSlot({ data, window, open }: { data?: ChatsSidebarData; window?: VirtualWindow; open?: string | null }): ReactElement {
   return (
     <SidebarContent title="Chats" noSearch>
-      {(query, slot) => <ChatsSidebar query={query} slot={slot} {...(data ? { data } : {})} {...(window ? { window } : {})} />}
+      {(query, slot) => <ChatsSidebar query={query} slot={slot} {...(data ? { data } : {})} {...(window ? { window } : {})} {...(open !== undefined ? { open } : {})} />}
     </SidebarContent>
   );
 }
@@ -85,7 +89,7 @@ export function ChatsSidebarLoading(): ReactElement {
   return <View testID="chats-sidebar-loading" accessibilityLabel="Loading" style={st.root} />;
 }
 
-function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: string; slot: SidebarSlotApi | undefined }): ReactElement {
+function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow; query: string; slot: SidebarSlotApi | undefined; open?: string | null }): ReactElement {
   const data = useSidebarData();
   const online = useOnline();
   const menu = useMenu();
@@ -100,7 +104,11 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   const [importedOpen, setImportedOpen] = useState<boolean | null>(null);
   // The Archived section starts collapsed (a count on its head); a press opens it.
   const [archivedOpen, setArchivedOpen] = useState(false);
+  // The keyboard's place in the list: the arrows move it and Enter opens it. It is not the selection: the selected row is the page that is open (`shown`), and the cursor goes back to it
+  // whenever that page changes.
   const [cursor, setCursor] = useState<string | null>(null);
+  // An imported session whose title is being edited in its row.
+  const [renaming, setRenaming] = useState<string | null>(null);
   // The New channel and Browse channels sheets: opened from this sidebar, or by a request from Cmd-K or the new menu (one waiting before this mounted is taken now). A Personal Space has none.
   const personal = data.space.personal === true;
   const [sheet, setSheet] = useState<ChannelSheetKind | null>(null);
@@ -121,12 +129,17 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   const needsQ = useScreenQuery<NeedsOut>(NEEDS_SCREEN, "items", {});
   const workQ = useScreenQuery<{ tasks: readonly unknown[] }>(WORK_SCREEN, "list", { section: "open" });
   const peopleQ = useMemo(() => data.people ?? [], [data.people]);
+  // read again after a rename, archive or delete here or on the transcript page
+  const [reread, setReread] = useState(0);
+  useEffect(() => onImportedChange(() => setReread((n) => n + 1)), []);
   useEffect(() => {
     let off = false;
     void (Promise.resolve().then(() => data.call("sessions.list", {})) as Promise<{ sessions?: Partial<ImportedRow>[] } | undefined>).then((r) => { if (!off) setArchive(importedRows(r?.sessions)); }, () => { if (!off) setArchive([]); });
     return () => { off = true; };
-  }, [data.call, recentQ]);
-  const imported = useMemo(() => archive.filter((r) => matchesQuery(query, r.title, providerName(r.provider))), [archive, query]);
+  }, [data.call, recentQ, reread]);
+  const imported = useMemo(() => archive.filter((r) => r.archived !== true && matchesQuery(query, r.title, providerName(r.provider))), [archive, query]);
+  const archivedImported = useMemo(() => archive.filter((r) => r.archived === true && matchesQuery(query, r.title, providerName(r.provider))), [archive, query]);
+  const liveImported = useMemo(() => archive.filter((r) => r.archived !== true).length, [archive]);
   const allNeedsQ = needsQ;
   const waiting = useMemo(() => waitingAgents(allNeedsQ.status === "ready" ? allNeedsQ.data.items : [], data.space.assistant.agentId), [allNeedsQ]);
 
@@ -163,6 +176,12 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
     () => allGroups.map((g) => ({ ...g, rows: g.rows.filter((r) => matchesFilter(r, filter) && matchesQuery(query, r.title, r.who)) })).filter((g) => g.rows.length),
     [allGroups, filter, query],
   );
+  // when each chat was last active, for an imported session continued in one: its row says that day, as a chat row would
+  const lastAt = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const g of [recent.starred, recent.today, recent.yesterday, recent.earlier, recent.archived ?? []]) for (const i of g) m.set(i.threadId, i.lastAt);
+    return m;
+  }, [recent]);
   const archivedChats: ChatRow[] = useMemo(() => archivedRows(recent, agentName).filter((r) => matchesFilter(r, filter) && matchesQuery(query, r.title, r.who)), [recent, agentName, filter, query]);
   const working = useMemo(() => {
     const set = new Set<string>();
@@ -173,17 +192,22 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   }, [groups, agents]);
 
   const entries = useMemo(
-    () => buildEntries({ tasksCount, waitingThreads, assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name }, people: peopleQ.filter((p) => matchesQuery(query, p.name)), moreRecent: more.recent === true, morePeople: more.people === true, moreAgents: more.faces === true, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(archive.length)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, personal, searching: query.trim() !== "" }),
-    [personal, query, tasksCount, waitingThreads, peopleQ, more, data.space.assistant.agentId, data.space.assistant.name, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, imported, importedOpen, archive.length, archivedChats, archivedOpen],
+    () => buildEntries({ tasksCount, waitingThreads, assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name }, people: peopleQ.filter((p) => matchesQuery(query, p.name)), moreRecent: more.recent === true, morePeople: more.people === true, moreAgents: more.faces === true, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(liveImported)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, archivedImported, personal, searching: query.trim() !== "" }),
+    [personal, query, tasksCount, waitingThreads, peopleQ, more, data.space.assistant.agentId, data.space.assistant.name, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, imported, archivedImported, importedOpen, liveImported, archivedChats, archivedOpen],
   );
   const order = useMemo(() => selectable(entries), [entries]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
+  // The selected row is the page that is open. A sidebar drawn alone (no page beside it) keeps the row last pressed.
+  const follows = shown !== undefined;
+  const openRow = useMemo(() => (follows ? openEntry(entries, shown ?? null) : null), [follows, entries, shown]);
+  const selected = follows ? openRow : cursor;
+  useEffect(() => { if (follows) setCursor(openRow); }, [follows, openRow]);
 
   // Choosing a thing takes the phone from the list to the page (the slot's openBody); on a computer it does nothing.
   const leave = (): void => slot?.openBody();
   const toggle = (s: SectionKey): void => {
     if (s === "archived") { setArchivedOpen((o) => !o); return; }
-    if (s === "imported") { setImportedOpen(!(importedOpen ?? importedStartsOpen(archive.length))); return; }
+    if (s === "imported") { setImportedOpen(!(importedOpen ?? importedStartsOpen(liveImported))); return; }
     toggleClosed(s);
   };
   const toggleClosed = (s: SectionKey): void => setClosed((c) => { const n = new Set(c); if (n.has(s)) n.delete(s); else n.add(s); return n; });
@@ -205,6 +229,22 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
     setUndo(null);
     if (gone) again(api.restoreChat(gone.threadId));
   };
+
+  // An imported session: rename, archive and delete change the row here at once and ask behind it; a failure reads the list again, so the row shows what the server kept.
+  const importedWrite = (cap: string, input: Record<string, unknown>, local: (rows: ImportedRow[]) => ImportedRow[], after?: () => void): void => {
+    setArchive(local);
+    void Promise.resolve().then(() => data.call(cap, input)).then(() => { after?.(); importedChanged(); }, () => importedChanged());
+  };
+  const renameImported = (r: ImportedRow, title: string | null): void => {
+    setRenaming(null);
+    if (title === null) return;
+    importedWrite("sessions.rename", { conversationId: r.conversationId, title }, (rows) => rows.map((x) => (x.conversationId === r.conversationId ? { ...x, title } : x)));
+  };
+  const archiveImported = (r: ImportedRow, on: boolean): void =>
+    importedWrite("sessions.archive", on ? { conversationId: r.conversationId } : { conversationId: r.conversationId, unarchive: true }, (rows) => rows.map((x) => (x.conversationId === r.conversationId ? { ...x, archived: on } : x)));
+  // the transcript open in the middle goes with it: the place shows a new chat
+  const deleteImported = (r: ImportedRow): void =>
+    importedWrite("sessions.delete", { conversationId: r.conversationId }, (rows) => rows.filter((x) => x.conversationId !== r.conversationId), () => { if (shown === `i:${r.conversationId}`) data.nav.openNew?.(); });
 
   // ----- menus: each entry changes real state or opens the thing
   const filterMenu = (x: number, y: number): void => {
@@ -247,6 +287,14 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
     ];
   };
 
+  const importedMenu = (e: Extract<Entry, { type: "imported" }>, x: number, y: number): MenuEntry[] => importedMenuEntries(e.row, {
+    open: () => open(e),
+    rename: () => setRenaming(e.row.conversationId),
+    archive: () => archiveImported(e.row, true),
+    unarchive: () => archiveImported(e.row, false),
+    deleteSession: () => menu.show(importedDeleteConfirm(e.row, () => deleteImported(e.row)), x, y, "other"),
+  });
+
   const open = (e: Entry): void => {
     setCursor(e.key);
     if (e.type === "chat") data.nav.openChat(e.row.threadId);
@@ -260,8 +308,12 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
     else if (e.type === "head") { toggle(e.section); return; }
     leave();
   };
-  const menuFor = (e: Entry): MenuEntry[] | null =>
-    e.type === "chat" ? chatMenu(e.row) : e.type === "face" ? faceMenu(e.agent) : e.type === "channel" ? channelMenu(e.channel) : null;
+  const menuFor = (e: Entry, x: number, y: number): MenuEntry[] | null =>
+    e.type === "chat" ? chatMenu(e.row) : e.type === "face" ? faceMenu(e.agent) : e.type === "channel" ? channelMenu(e.channel) : e.type === "imported" ? importedMenu(e, x, y) : null;
+  /** A row's "...", drawn while the pointer is on it: the same menu as a right-click. */
+  const moreTool = (e: Entry, label: string): ReactElement => (
+    <Tool icon="more" label={`More for ${label}`} onPress={(x, y) => { const m = menuFor(e, x, y); if (m) menu.show(m, x, y, "context", { label: e.key }); }} testID={`more-${e.key}`} />
+  );
 
   // ----- keyboard: arrows move, Enter opens, Cmd-1..9 jump to a starred face
   const onKeyDown = (ev: { key?: string; preventDefault?: () => void }): void => {
@@ -287,10 +339,12 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   }, [data, slot]);
 
   const renderEntry = (e: Entry): ReactElement => {
-    const sel = cursor === e.key;
+    const sel = selected === e.key;
+    // the keyboard cursor on a row that is not the open one: drawn as a hover, never as the selection
+    const lit = follows && cursor === e.key && !sel;
     const wrap = (child: ReactElement): ReactElement => {
-      const m = menuFor(e);
-      return m ? <View style={{ height: ROW_H }} {...menuTrigger((x, y) => menu.show(m, x, y, "context", { label: e.key }))}>{child}</View> : child;
+      const m = menuFor(e, 0, 0);
+      return m ? <View style={{ height: ROW_H }} {...menuTrigger((x, y) => { const at = menuFor(e, x, y); if (at) menu.show(at, x, y, "context", { label: e.key }); })}>{child}</View> : child;
     };
     switch (e.type) {
       case "head": {
@@ -304,7 +358,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
       }
       case "group": return <GroupLabel label={e.label} />;
       case "action": return (
-        <Row id={e.key} title={e.label} selected={sel} onPress={() => open(e)} leading={<LeadGlyph name="plus" />} />
+        <Row id={e.key} title={e.label} selected={sel} hovered={lit} onPress={() => open(e)} leading={<LeadGlyph name="plus" />} />
       );
       case "error": {
         const items = errorMenu(e);
@@ -329,42 +383,57 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
       );
       case "nav": return (
         <Row
-          id={e.key} title={e.label} selected={sel} onPress={() => open(e)} leading={<LeadGlyph name={e.to === "tasks" ? "task" : "reply"} />}
+          id={e.key} title={e.label} selected={sel} hovered={lit} onPress={() => open(e)} leading={<LeadGlyph name={e.to === "tasks" ? "task" : "reply"} />}
           trailing={e.count > 0 ? <Text testID={`count-${e.to}`} style={st.navCount}>{e.count}</Text> : e.dot ? <UnreadDot /> : null}
         />
       );
       case "person": return (
-        <Row id={e.key} title={e.name} selected={sel} emphasis={e.unread > 0 && !sel} onPress={() => open(e)}
+        <Row id={e.key} title={e.name} selected={sel} hovered={lit} emphasis={e.unread > 0 && !sel} onPress={() => open(e)}
           leading={<View style={{ marginRight: 9 }}><Face name={e.name} seedId={e.id} kind="person" size={18} /></View>}
           trailing={e.unread > 0 && !sel ? <UnreadDot /> : null} />
       );
       case "face": return wrap(
         <Row
-          id={e.key} title={e.assistant ? data.space.assistant.name : e.agent.name} selected={sel} onPress={() => open(e)}
+          id={e.key} title={e.assistant ? data.space.assistant.name : e.agent.name} selected={sel} hovered={lit} onPress={() => open(e)}
           leading={<View testID={e.agent.runtime === "outside" && e.agent.status === "asleep" ? "outside-offline-row" : undefined} accessibilityLabel={e.agent.runtime === "outside" && e.agent.status === "asleep" ? `${e.agent.name} is offline` : undefined} style={{ marginRight: 9, opacity: e.agent.runtime === "outside" && e.agent.status === "asleep" ? 0.5 : 1 }}><Face name={e.assistant ? data.space.assistant.name : e.agent.name} seedId={e.agent.agentId} kind="agent" size={18} pulse={e.working} waiting={e.waiting} /></View>}
         />,
       );
       case "more": return <Pressable accessibilityRole="button" accessibilityLabel={e.label} testID={`row-${e.key}`} onPress={() => open(e)} style={st.more}><Text style={st.moreText}>{e.label}</Text></Pressable>;
       case "chat": {
         const r = e.row;
+        const title = displayTitle(r, data.clock().offsetMin);
         return wrap(
-          <Row
-            id={e.key} title={displayTitle(r, data.clock().offsetMin)} selected={sel} onPress={() => open(e)}
-            leading={<View style={{ marginRight: 9 }}>{r.members ? <FaceStack members={r.members} size={16} /> : <Face name={r.who} seedId={r.whoId} kind={r.kind} size={18} pulse={r.working} waiting={r.waiting === true} />}</View>}
-            trailing={r.waiting ? <View style={st.needDot} testID="need-dot" /> : r.unread > 0 && !sel ? <UnreadDot /> : null}
-          />,
+          <Hot>{(over) => (
+            <Row
+              id={e.key} title={title} selected={sel} hovered={lit} onPress={() => open(e)}
+              leading={<View style={{ marginRight: 9 }}>{r.members ? <FaceStack members={r.members} size={16} /> : <Face name={r.who} seedId={r.whoId} kind={r.kind} size={18} pulse={r.working} waiting={r.waiting === true} />}</View>}
+              trailing={over ? moreTool(e, title) : r.waiting ? <View style={st.needDot} testID="need-dot" /> : r.unread > 0 && !sel ? <UnreadDot /> : null}
+            />
+          )}</Hot>,
         );
       }
       case "imported": {
         const r = e.row, c = data.clock();
-        return (
+        const mark = <View style={{ marginRight: 6 }} accessibilityLabel={providerName(r.provider)}><Mark k={providerMark(r.provider)} size={16} /></View>;
+        if (renaming === r.conversationId) {
+          return (
+            <View style={st.renameRow} testID={`imported-row-${r.conversationId}`}>
+              {mark}
+              <RenameField value={r.title} label={`Rename ${r.title}`} testID={`imported-rename-${r.conversationId}`} style={st.renameInput} onDone={(v) => renameImported(r, v)} />
+            </View>
+          );
+        }
+        // a session continued in a chat reads as that chat's last day, like a chat row; else the day it started
+        const day = dayLabel((r.continuedThreadId ? lastAt.get(r.continuedThreadId) : undefined) ?? (r.startedAt || r.importedAt), c.now, c.offsetMin);
+        return wrap(
           <View style={{ height: ROW_H }} testID={`imported-row-${r.conversationId}`}>
-            <Row
-              id={e.key} title={r.title} selected={sel} onPress={() => open(e)}
-              leading={<View style={{ marginRight: 6 }} accessibilityLabel={providerName(r.provider)}><Mark k={providerMark(r.provider)} size={16} /></View>}
-              trailing={<Text style={st.time}>{r.continuedThreadId ? "Chat" : dayLabel(r.startedAt || r.importedAt, c.now, c.offsetMin)}</Text>}
-            />
-          </View>
+            <Hot>{(over) => (
+              <Row
+                id={e.key} title={r.title} selected={sel} hovered={lit} onPress={() => open(e)} leading={mark}
+                trailing={over ? moreTool(e, r.title) : <Text testID={`imported-day-${r.conversationId}`} style={st.time}>{day}</Text>}
+              />
+            )}</Hot>
+          </View>,
         );
       }
       case "channel": {
@@ -373,7 +442,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
         return wrap(
           <View style={{ height: ROW_H, opacity: c.unread > 0 ? 1 : 0.72 }} testID={c.unread > 0 ? `channel-unread-${c.channelId}` : `channel-read-${c.channelId}`}>
             <Row
-              id={e.key} title={c.name} selected={sel} emphasis={c.unread > 0} onPress={() => open(e)}
+              id={e.key} title={c.name} selected={sel} hovered={lit} emphasis={c.unread > 0} onPress={() => open(e)}
               leading={<LeadGlyph name={e.project ? "project" : c.visibility === "invite" ? "lock" : "hash"} />}
               trailing={c.unread > 0 ? <Badge n={c.unread} testID={`unread-${c.channelId}`} /> : null}
             />
@@ -407,7 +476,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
         </View>
       ) : null}
       {inHeader ? portalInto(slot?.actionsOutlet, <>{newChatButton}{newButton}</>) : null}
-      {data.nav.openArtifacts ? <View style={{ height: ROW_H }}><Row id="artifacts" testID="chats-artifacts" title="Artifacts" selected={cursor === "artifacts"} leading={<LeadGlyph name="project" />} onPress={() => { setCursor("artifacts"); data.nav.openArtifacts?.(); leave(); }} /></View> : null}
+      {data.nav.openArtifacts ? <View style={{ height: ROW_H }}><Row id="artifacts" testID="chats-artifacts" title="Artifacts" selected={selected === "artifacts"} hovered={follows && cursor === "artifacts" && selected !== "artifacts"} leading={<LeadGlyph name="project" />} onPress={() => { setCursor("artifacts"); data.nav.openArtifacts?.(); leave(); }} /></View> : null}
       <View style={st.list}>
         {loading ? <ChatsSidebarLoading /> : (
           <VirtualList data={entries} rowHeight={ROW_H} keyOf={(e) => e.key} renderItem={(e) => renderEntry(e)} {...(window ? { window } : {})} />
@@ -443,6 +512,8 @@ const st = StyleSheet.create({
   list: { flex: 1, minHeight: 0 },
   tools: { flexDirection: "row", alignItems: "center", gap: 6 },
   time: { fontSize: 11, color: "var(--ink-3)" as string },
+  renameRow: { height: ROW_H, flexDirection: "row", alignItems: "center", paddingHorizontal: 8 },
+  renameInput: { flex: 1, minWidth: 0, height: 24, borderRadius: 6, borderWidth: 1, borderColor: "var(--accent)" as string, paddingHorizontal: 6, fontSize: 13, color: "var(--ink)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   digit: { fontSize: 11, color: "var(--ink-4)" as string },
   waiting: { fontSize: 11.5, color: "var(--accent)" as string },
   quiet: { fontSize: 11.5, color: "var(--ink-3)" as string },

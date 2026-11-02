@@ -16,7 +16,10 @@ Area: chats. Risk: low. Applies to: space.
 
 - chat.fork
 - chat.start
+- sessions.archive
 - sessions.continue
+- sessions.delete
 - sessions.get
 - sessions.import
 - sessions.list
+- sessions.rename

@@ -85,7 +85,9 @@ export function Tool({ icon, label, onPress, active = false, testID }: { icon: I
     <Pressable
       accessibilityRole="button" accessibilityLabel={label} testID={testID}
       onPress={(e) => {
-        const ev = e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } }; nativeEvent?: { pageX?: number; pageY?: number } };
+        const ev = e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } }; nativeEvent?: { pageX?: number; pageY?: number }; stopPropagation?: () => void };
+        // a tool inside a row (its "...") is not a press on the row
+        ev.stopPropagation?.();
         const box = ev.currentTarget?.getBoundingClientRect?.();
         onPress(box ? box.left : ev.nativeEvent?.pageX ?? 0, box ? box.bottom + 4 : ev.nativeEvent?.pageY ?? 0);
       }}

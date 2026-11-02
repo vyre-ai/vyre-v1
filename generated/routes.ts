@@ -27072,6 +27072,24 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/sessions/archive",
+    "cap": "sessions.archive",
+    "v": 1,
+    "module": "import",
+    "effects": "write",
+    "permission": "chats.private",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/sessions/continue",
     "cap": "sessions.continue",
     "v": 1,
@@ -27085,6 +27103,24 @@ const routes4: Route[] = [
     "idempotency": "natural",
     "risk": "medium",
     "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/sessions/delete",
+    "cap": "sessions.delete",
+    "v": 1,
+    "module": "import",
+    "effects": "write",
+    "permission": "chats.private",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
     "teamOnly": false,
     "gate": null
   },
@@ -27139,6 +27175,24 @@ const routes4: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/sessions/rename",
+    "cap": "sessions.rename",
+    "v": 1,
+    "module": "import",
+    "effects": "write",
+    "permission": "chats.private",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
     "teamOnly": false,
     "gate": null
   },
@@ -27585,7 +27639,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sites/build",
@@ -27643,10 +27700,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "delete"
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sites/deploy",
@@ -33118,7 +33172,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/vault/policy/get",
@@ -33172,10 +33229,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/vault/request",

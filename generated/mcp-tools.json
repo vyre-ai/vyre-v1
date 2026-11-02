@@ -45772,6 +45772,35 @@
     },
     {
       "blocks": [],
+      "cap": "sessions.archive",
+      "deferred": false,
+      "description": "Move an imported session to the owner Archived list, or back out of it with unarchive",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "conversationId": {
+            "examples": [
+              "isc_a1b2c3"
+            ],
+            "pattern": "^isc_[a-z0-9]+$",
+            "type": "string"
+          },
+          "unarchive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "conversationId"
+        ],
+        "type": "object"
+      },
+      "name": "sessions_archive",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sessions.continue",
       "deferred": false,
       "description": "Start a separate live Vyre chat linked to an immutable imported conversation; it never writes back to the local provider store",
@@ -46052,6 +46081,38 @@
       },
       "name": "sessions_list",
       "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sessions.rename",
+      "deferred": false,
+      "description": "Give an imported session a new title in Vyre. Only the title shown changes: the copied transcript and its source provenance stay as they were",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "conversationId": {
+            "examples": [
+              "isc_a1b2c3"
+            ],
+            "pattern": "^isc_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "conversationId",
+          "title"
+        ],
+        "type": "object"
+      },
+      "name": "sessions_rename",
+      "planMode": "blocked",
       "toolset": "chats",
       "v": 1
     },
