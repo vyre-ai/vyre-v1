@@ -15,8 +15,8 @@ const rail = (space: typeof NORTHWIND, active: "home" | "chats" = "chats") => ra
 const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string => renderToStaticMarkup(node).replaceAll("<!-- -->", "");
 const labels = (entries: readonly MenuEntry[]): string[] => entries.filter(isItem).map((e) => e.label);
 
-test("each Space's Kit draws its own rail, and the Console has no button: its pages are in Settings", () => {
-  assert.deepEqual(railPlaces(rail(NORTHWIND)), ["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings"]);
+test("each Space's Kit draws its own rail", () => {
+  assert.deepEqual(railPlaces(rail(NORTHWIND)), ["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "console", "settings"]);
   assert.deepEqual(railPlaces(rail(HARBOR)), ["home", "chats", "inbox", "files", "apps", "vault", "settings"]);
   assert.ok(!railPlaces(rail(PERSONAL)).includes("console"));
   assert.ok(!railPlaces(rail(PERSONAL)).includes("apps"), "a Personal Space hides Apps: forms, campaigns and sending domains are for a team");
@@ -113,3 +113,10 @@ test("a Team Space's menu has a Chats run on switch: This computer or The Space,
   const personal = SEED_DEFS.find((s) => s.kind === "personal")!;
   assert.ok(!entries(personal.spaceId, "device").some((e) => e.head === "Chats run on"), "this Space is this computer: nothing to choose");
 });
+
+test("the Console sits in the bottom group of a Team Space for a person with access, and for nobody else", () => {
+  for (const kit of ["northwind", "studio"]) assert.ok(railFor({ kit: kitById(kit), console: true, counts: {}, dots: {}, active: "chats" }).bottom.some((e) => e.place === "console"), kit);
+  for (const kit of ["northwind", "studio", "personal"]) assert.ok(!railPlaces(railFor({ kit: kitById(kit), console: false, counts: {}, dots: {}, active: "chats" })).includes("console"), kit);
+  assert.ok(!railPlaces(railFor({ kit: kitById("personal"), console: true, counts: {}, dots: {}, active: "chats" })).includes("console"), "a Personal Space has no Console");
+});
+

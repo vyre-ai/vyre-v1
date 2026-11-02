@@ -35,14 +35,14 @@ export const KITS: Readonly<Record<string, KitDef>> = {
     id: "northwind",
     name: "Team",
     top: ["home", "chats", "inbox", "records", "files"],
-    bottom: ["apps", "automations", "vault", "settings"],
+    bottom: ["apps", "automations", "vault", "console", "settings"],
     start: "chats",
   },
   studio: {
     id: "studio",
     name: "Studio",
     top: ["home", "chats", "inbox", "files"],
-    bottom: ["apps", "vault", "settings"],
+    bottom: ["apps", "vault", "console", "settings"],
     start: "chats",
   },
   personal: {
