@@ -84,7 +84,7 @@ export default defineManifest({
       level: 'use', perm: 'terminal.use', emits: ['terminal.opened', 'terminal.command_finished'], tool: 'terminal', mcpName: 'terminal_run',
       gate: { act: 'approve', when: 'terminal.is_danger(input.command)' },
       agent: { planMode: 'blocked', blocks: ['terminal'] }, idem: 'key', audit: 'sensitive', risk: 'high', offline: 'online',
-      errors: ['permission.needs_approval', 'timeout.deadline', 'provider.unavailable'],
+      errors: ['permission.needs_approval', 'timeout.deadline', 'provider.unavailable', 'validation.not_found'],
     }),
     write('terminal.request', 'Ask the person to run a command themselves (sudo, a login, an interactive install): the chat shows the command, why and its risk, and the person runs it in their terminal, copies it or declines; what it printed comes back to you', {
       in: { threadId: id.thread, command: t.str(), why: t.str(), host: t.opt(host) },
