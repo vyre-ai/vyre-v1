@@ -50,7 +50,7 @@ function setup(w: World = {}) {
       switch (cap) {
         case "mail.mailbox.list": { const p = page(w.boxes ?? [], body); return { mailboxes: p.rows, total: (w.boxes ?? []).length, ...(p.next ? { next: p.next } : {}) }; }
         case "mail.domain.list": { const p = page(w.domains ?? [], body); return { domains: p.rows.map((d) => ({ ...d, spf: "pass", dkim: "pass", dmarc: "pass", isDefault: true })), total: 1 }; }
-        case "telephony.number.list": { const p = page(w.numbers ?? [], body); return { numbers: p.rows, total: (w.numbers ?? []).length, ...(p.next ? { next: p.next } : {}) }; }
+        case "telephony.number.mine": return { numbers: (w.numbers ?? []).filter((x) => !(w.denied ?? []).includes(`number:${x.id}`)) };   // the numbers this person is on
         case "settings.get": {
           const key = String(body.key);
           if (key === "mail.provider") return { row: { key, value: w.provider ?? "resend" } };
@@ -173,7 +173,7 @@ test("a source that is down does not hide the others: the domain list failing le
   assert.equal(byId(r.senders, "mbx_maya").usable, true);
   assert.equal(byId(r.senders, "mbx_imap").usable, false);
   assert.equal(byId(r.senders, "num_line").usable, true);
-  const noText = setup({ boxes: [GMAIL], numbers: [LINE], down: ["telephony.number.list"] });
+  const noText = setup({ boxes: [GMAIL], numbers: [LINE], down: ["telephony.number.mine"] });
   assert.deepEqual((await sendersList(noText.ctx, {})).senders.map((s) => s.id), ["mbx_maya"]);
 });
 
