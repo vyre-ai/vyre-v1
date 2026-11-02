@@ -67,7 +67,7 @@ flowchart LR
       M4[inbox, mail, calendar, telephony]
       M5[automations, journeys, tasks, runs]
       M6[vault, identity, join]
-      M7[sites, forms, campaigns, esign, kits]
+      M7[sites, forms, esign, kits]
       M8[health, logs, backup, updates]
     end
     subgraph KERNEL[Kernel]
@@ -241,11 +241,11 @@ modules/records/
 `comms`: `inbox`, `mail`, `calendar`, `telephony`, `meetings`, `contacts-link` (matching, preferences, suppression).
 `automate`: `automations`, `journeys`, `steps-core`, `scheduler-api`.
 `vault`: `vault`, `vault-requests`.
-`apps`: `sites`, `forms`, `campaigns`, `email-builder-api`, `templates`, `kits`, `esign`, `portal` (site end-user accounts).
+`apps`: `sites`, `forms`, `email-builder-api`, `templates`, `kits`, `esign`, `portal` (site end-user accounts).
 `console`: `console-assistant`, `console-views` (aggregate read capabilities for Overview, Usage).
 `integrations`: `google`, `microsoft`, `github`, `zoom`, `stripe`, `twilio`, `resend`, `mailgun` (each a connector module with `kind: 'connector'`).
 
-Seventy-two modules. Names used in section 7 that are not folders are folded: `stars`, `onboarding` into `spaces`; `merge` into `records`; `forms-core`, `bookings` into `forms`; `deployer` into `sites`; `send` into `mail`; `warmup` (client of the opt-in pool service) into `campaigns`; `models`, `spend`, `incidents` into `engine`; `connections` into `connectors`; `join`, `sso`, `second-factor` into `members`; `labels`, `actors` into `access`; `retention`, `holds`, `erase` into `governance`; `services` into `health`. Each module has exactly one owner lane (12.3 table is generated from `manifest.owner` and checked against this list by `scripts/lanes-check.ts`).
+Seventy-one modules. Names used in section 7 that are not folders are folded: `stars`, `onboarding` into `spaces`; `merge` into `records`; `forms-core`, `bookings` into `forms`; `deployer` into `sites`; `send` into `mail`; `models`, `spend`, `incidents` into `engine`; `connections` into `connectors`; `join`, `sso`, `second-factor` into `members`; `labels`, `actors` into `access`; `retention`, `holds`, `erase` into `governance`; `services` into `health`. Each module has exactly one owner lane (12.3 table is generated from `manifest.owner` and checked against this list by `scripts/lanes-check.ts`).
 
 ---
 
@@ -273,7 +273,7 @@ export type PlaceId = 'home' | 'chats' | 'inbox' | 'records' | 'files' | 'apps' 
 export type ResourceType =
   | 'space' | 'record_type' | 'record' | 'project' | 'folder' | 'file' | 'channel' | 'thread' | 'inbox' | 'mailbox'
   | 'vault_folder' | 'vault_item' | 'automation_group' | 'automation' | 'agent' | 'connector' | 'connection'
-  | 'site' | 'form' | 'campaign' | 'kit' | 'terminal' | 'computer' | 'task' | 'run' | 'number' | 'domain';
+  | 'site' | 'form' | 'kit' | 'terminal' | 'computer' | 'task' | 'run' | 'number' | 'domain';
 
 export interface Manifest {
   manifest: 1;
@@ -476,7 +476,7 @@ export interface SavedViewDef { key: string; kind: string; title: string; config
 ### 3.4 Steps, triggers, connectors, agent tools
 
 ```ts
-export interface StepDef {             // an Automation / Journey / Campaign step kind
+export interface StepDef {             // an Automation / Journey step kind
   key: string;                         // 'records.update', 'send_email', 'ai', 'wait_stage'
   title: string; category: 'data' | 'send' | 'ai' | 'control' | 'wait' | 'code' | 'sheet' | 'sign' | 'journey';
   kind: 'capability' | 'ai' | 'control' | 'wait' | 'code';
@@ -607,18 +607,18 @@ export interface HealthCheckDef {
   intervalSec: number; timeoutMs: number;
   states: { degradedWhen?: string; downWhen?: string };        // Expr over result/latency
   dependsOn?: string[];
-  pauses?: ('automations' | 'sync' | 'sends' | 'campaigns')[]; // visible reason shown on the paused thing
+  pauses?: ('automations' | 'sync' | 'sends')[]; // visible reason shown on the paused thing
   next: string;                        // plain next step shown when not healthy
 }
 
 export interface GateActKindDef {
-  key: string;                         // 'send', 'post', 'pay', 'delete', 'push_protected', 'campaign_launch', 'secret_export',
+  key: string;                         // 'send', 'post', 'pay', 'delete', 'push_protected', 'secret_export',
                                        // 'site_promote', 'signature_send', 'spend_raise', 'transfer', 'enroll_node'
   title: string; risk: Risk;
   preview: { blocks: { type: string; from: string /* template over input */ }[] };    // exact preview
   approvers: { default: string /* 'role:admin' | 'owner' | 'asker' */; peopleOnly: boolean; agentOkFor?: Risk };
   timeout: { afterHours: number; onTimeout: 'drop' | 'escalate'; escalateTo: 'delegate' | 'role'; emailBackstopHours: number };
-  appliesTo: { actors: ('agent' | 'automation' | 'campaign')[]; humanToo: boolean };   // humanToo: launches, promotes, protected pushes, exports
+  appliesTo: { actors: ('agent' | 'automation')[]; humanToo: boolean };   // humanToo: promotes, protected pushes, exports
   sendsOnApprove: CapName;             // re-invoked with an approval token bound to the payload hash
 }
 
@@ -978,7 +978,7 @@ Task (one primitive; record type `task` marked `system`, `status` field `writeOn
 
 Blocked is derived: `EXISTS open Unblock child OR EXISTS unmet dependency`. Needs you query (`tasks.needs_you`): my tasks where Ready (not blocked, state doing/todo for kinds Approve, Review, Answer, Unblock) OR due today or overdue OR blocking another person/agent/Run. All tasks visible to participants and to anyone who sees the parent record. Delegation never widens access: `tasks.delegate` evaluates `authorize` for the delegate on the source item and walks the chain (delegate, next delegate, role) until one passes.
 
-Run (one model for automation runs, routines, campaign sends, deployments, runbook runs, agent background waits, terminal sessions).
+Run (one model for automation runs, routines, deployments, runbook runs, agent background waits, terminal sessions).
 
 ```
 queued -> running -> succeeded
@@ -1048,7 +1048,7 @@ Holds block expiry and erase; "erase a person" produces tombstones (`tombstones`
 
 ### 4.12 Folders and sharing (spec 2.4, 4.9, 2.23)
 
-Spec 2.4 gives every list of things (sites, forms, campaigns, automations, agents, record types, vault items, channels, runbooks, terminals, files) one organisation: Personal, Shared with me, Space; folders with counts; one share sheet; a folder's sharing covers everything in it. This is one mechanism in module `access`, not per-module code.
+Spec 2.4 gives every list of things (sites, forms, automations, agents, record types, vault items, channels, runbooks, terminals, files) one organisation: Personal, Shared with me, Space; folders with counts; one share sheet; a folder's sharing covers everything in it. This is one mechanism in module `access`, not per-module code.
 
 ```sql
 -- events.db (access module projections)
@@ -1276,7 +1276,7 @@ Phone searches only what its replica holds and says so (spec 3.0).
 
 ### 5.13 Personal Space hosting (lead ruling Q2)
 
-A Personal Space is a `--role space` daemon on one of the person's desktop devices, its host device: the same event log, projections, sync endpoints and vault service as a Team Space, with the Personal Space matrix (spec 2.1) turned on as a policy set (`space.kind = 'personal'` disables the capabilities whose manifest says `teamOnly: true`: public ingress, campaign sending, agent computers, webhooks triggers, always-on runs; their screens show the one-line "Needs a Team Space" state from `ui/NeedsTeamSpace`). The person's phone, browsers and other computers connect like to any Space through the connection manager, with the host device's relay endpoint in the endpoint list, and keep their own encrypted partial replica (profiles `phone` and `web`, 5.11) for offline use. While the host device is off they read from the replica, queue ops in the outbox and show the Offline state with "Your computer is off"; ops apply on return and merge by 5.4. Agent runs in a Personal Space run on the host device only; a phone chat there waits with "Your computer is off, turn it on to continue". Optional encrypted backup uses the `backup` module. Revocation, epochs and purge behave exactly as 5.7. Test: golden flow 15 (10.3).
+A Personal Space is a `--role space` daemon on one of the person's desktop devices, its host device: the same event log, projections, sync endpoints and vault service as a Team Space, with the Personal Space matrix (spec 2.1) turned on as a policy set (`space.kind = 'personal'` disables the capabilities whose manifest says `teamOnly: true`: public ingress, agent computers, webhooks triggers, always-on runs; their screens show the one-line "Needs a Team Space" state from `ui/NeedsTeamSpace`). The person's phone, browsers and other computers connect like to any Space through the connection manager, with the host device's relay endpoint in the endpoint list, and keep their own encrypted partial replica (profiles `phone` and `web`, 5.11) for offline use. While the host device is off they read from the replica, queue ops in the outbox and show the Offline state with "Your computer is off"; ops apply on return and merge by 5.4. Agent runs in a Personal Space run on the host device only; a phone chat there waits with "Your computer is off, turn it on to continue". Optional encrypted backup uses the `backup` module. Revocation, epochs and purge behave exactly as 5.7. Test: golden flow 15 (10.3).
 
 ### 5.12 What is not sync
 
@@ -1353,7 +1353,7 @@ Failed thread accepts the next message as a fresh turn (fixes 0.6 weak point): `
 ```
 placeTurn(thread, item):
    if thread.kind in (channel, group chat with >1 person, run chat, ask on shared record) or item.kind == 'wake' for non-private
-        or trigger is routine/automation/journey/campaign or agent has computer:      -> HOST
+        or trigger is routine/automation/journey or agent has computer:      -> HOST
    if private chat (one person + agents):
         if asker has an online device-role daemon with the engine allowed and 'local runs' on:   -> that DEVICE
         else if asker enabled "Let the Space continue my chats when my computer is off":        -> HOST using runtime-wrapped key
@@ -1531,7 +1531,7 @@ Notation: S = server modules, C = client screens/components, P = Personal Space 
 - S: `inbox` (conversation model, matching, views, following, drafts), `mail` (mailbox connections, Gmail/Graph/IMAP sync, send via Resend/Mailgun, inbound routes), `calendar`, `telephony` (Twilio), `meetings`, `contacts-link` (match rule, preferences, suppression, owner), `send` (the single send API, in `mail`), `google`, `microsoft`, `resend`, `mailgun`, `twilio`, `zoom`.
 - Data: entities `mail_message` (provider ids, thread, direction, inbox, enc for private mailboxes? mailbox privacy is access, not E2E), `conversation` (per contact), `call`, `sms`, `calendar_event`, `meeting` as record type, `mailbox`, `number`, `suppression`. A contact is a record type `contact`; `conversation` rows join messages to contacts by match.
 - K: `inbox.list_by_contact`, `inbox.thread`, `inbox.match`, `inbox.unmatch`, `mail.send` (single send API: caps, windows, throttling, suppression; Gate when agent), `mail.draft`, `mail.sync_now`, `calendar.create_event`, `calendar.find_time`, `telephony.dial`, `telephony.transfer`, `telephony.record`, `meetings.attach_recording`.
-- C: `inbox/Sidebar`, `inbox/ContactList` (By contact, By thread, Calls only; header menu; filter menu with checkmarks), `inbox/ContactTab` (collapsed quotes, bubbles, call player, campaign lines, record chips, Email/Text composer with inbox picker, templates, snippets, Draft with Gate line), `inbox/Calendar` (Day, Week, Month; drag in 15 minute steps; availability stripes; Find a time), `ui/Recipients`, `ui/Softphone` (Twilio Voice JS SDK; Cmd-Shift-K), `inbox/Unmatched`.
+- C: `inbox/Sidebar`, `inbox/ContactList` (By contact, By thread, Calls only; header menu; filter menu with checkmarks), `inbox/ContactTab` (collapsed quotes, bubbles, call player, record chips, Email/Text composer with inbox picker, templates, snippets, Draft with Gate line), `inbox/Calendar` (Day, Week, Month; drag in 15 minute steps; availability stripes; Find a time), `ui/Recipients`, `ui/Softphone` (Twilio Voice JS SDK; Cmd-Shift-K), `inbox/Unmatched`.
 - Flow: inbound mail (Gmail history/Graph delta/push notices or `/hooks/mail` from Resend/Mailgun) lands in `mail.ingest` (dedupe on provider id, one record for the same message across inboxes, match by address/number, sure matches link, unsure go to Needs you). Calendar and Zoom meeting merge on time plus attendees.
 - P: own mailboxes and calendars only (poll, no push notices without public ingress), no shared inboxes, no Twilio inbound (needs public address) except via the relay tunnel if enabled.
 
@@ -1556,7 +1556,7 @@ Notation: S = server modules, C = client screens/components, P = Personal Space 
 - P: Personal Space folder plus folders added; mounts of local folders and GitHub; no server copy.
 
 ### 7.6 Apps (spec 3.6, 2.11, 2.19, 2.20, 2.21)
-Sites, Forms, Campaigns, Templates; email builder; Kits builder (by asking an agent).
+Sites, Forms, Templates; email builder; Kits builder (by asking an agent).
 
 Sites (`sites` module + `deployer`):
 - S: `sites`, `portal`, `esign`, with Docker and Caddy drivers (`host/src/caddy.ts` uses the admin API at localhost:2019, config as JSON with per-site routes and automatic ACME; `lib/acme` for the relay/DNS-01 path).
@@ -1566,13 +1566,12 @@ Sites (`sites` module + `deployer`):
 Forms (`forms` module; may land after the window):
 - S: `forms`, `bookings`; public endpoints `/f/<slug>` and `/book/<slug>` served by the Gateway on the public listener with rate limits, captcha toggle, consent text; answers write through `forms.submit` as principal `svc_form_<id>` with source "link holder"; one-use links are signed (`forms.link_create`); attribution capture (UTMs, click ids, ad cookies, referrer, landing page, device, location, consent-aware) in `forms.submit`; First/Latest source field group.
 - C: `apps/Forms` (list with settings pane, field Ask/Show/Hide, layout, theme, CSS, multi-step, logic, thank-you), public form renderer is a small separate web bundle `apps/forms-embed` served by the host (no app code).
-Campaigns (`campaigns` module; may land after the window):
-- S: `campaigns` (one-time, sequence, triggered; audience from a record view; steps email/wait/branch/SMS/task/call task; A/B; send windows by recipient zone; throttle per domain; stop on reply; unsubscribe), built as a Journey-style Run on the automations engine; sending through `mail.send`/`telephony.send_sms` (single send API); warmup via the `warmup` client (Warmbly fork; the opt-in shared pool is the service `warmup.vyre.run` run by us beside the relay, lead ruling Q5; a Space that opts out warms up with its own seed inboxes only); the pool service package is `relay/warmup`, built by lane L8 together with Campaigns (may land after the window).
-- C: `apps/Campaigns`, `apps/CampaignBuilder`, `apps/SendingDomains`, `ui/EmailBuilder` (block editor, HTML mode, plain text, focus mode, previews, test send, Ask Vyre pane with diffs accepted per change; autosave versions).
+Email to contacts: regular email is an Automation (spec 2.19): the `send_email` step goes through `mail.send`, which writes the unsubscribe link (`mail_unsub`, `mail.unsubscribe`, `/u/<token>`, `/p/u/<token>`).
+- C: `apps/SendingDomains`, `ui/EmailBuilder` (block editor, HTML mode, plain text, focus mode, previews, test send, Ask Vyre pane with diffs accepted per change; autosave versions).
 Templates and Kits (`templates`, `kits`):
 - A Template is one item in Kit format; Kit = folder with `manifest.ts`, `layouts/`, `words.json`, `tokens.json`, record types, Journeys, Automations, agents, forms, runbooks, optional sandboxed scripts. `kits.install` shows the install sheet (tools, record types, network domains, vault names), requires `kits.install`; versions via semver per channel; preview before apply; rollback one click; publish runs the Kit's tests against the seeded fixture Space (section 10.4) and blocks on failure while the last good stays live. Sandboxed scripts: run in a `node:vm` realm inside a worker with only `api.call(cap, input)` (no net, no fs, no secrets); denials emit `sandbox.denied` with the trace id and appear in Kit health and Console.
 - C: `apps/Templates` (gallery, preview what it adds, install), `settings/Kit` (choose), `apps/KitBuilder` (agent-driven with preview before publish).
-- P: Apps shows "Needs a Team Space" for public sites, forms, campaign sending; Templates and Kit choice work.
+- P: Apps shows "Needs a Team Space" for public sites and forms; Templates and Kit choice work.
 
 ### 7.7 Automations (spec 3.7, 2.12, 2.13)
 - S: `automations` (definitions, versions, Groups, promote), `journeys` (stages, tasks, Start rule, Subject, migrate), `runs` engine (durable step log, retries with backoff, idempotency keys, test mode, replay), `steps-core` (control steps and sheet steps), `scheduler-api`.
@@ -1675,7 +1674,7 @@ Common pipeline for inbound events (`sources`): `/hooks/<source>` on the public 
 
 ### 8.2 Sending
 
-DND screening (lead ruling 22, owner standing rule) blocks adds only: `contacts-link.dnd_screen` runs when a contact is added to an audience, campaign, Journey enrolment or import and never removes, unsubscribes or deletes anything already present; test: a screening run over a seeded audience changes zero existing memberships and refuses only the new adds. Single send API `mail.send` / `telephony.send_sms`: enforces caps per sender, send windows, throttling per domain/mailbox, suppression list lookup (`suppression`), consent flags, "Drafted by an agent" footer line when the actor is an agent, Gate when actor is agent/automation/campaign, trace id header. Provider chosen per Space (Resend or Mailgun) for Space sending; member mail replies go out through the member's own Gmail/Graph mailbox ("replies go out from the inbox the thread came in on"). Bounce/complaint webhooks write suppression and emit `message.bounced`/`message.complained`.
+DND screening (lead ruling 22, owner standing rule) blocks adds only: `contacts-link.dnd_screen` runs when a contact is added to an audience, Journey enrolment or import and never removes, unsubscribes or deletes anything already present; test: a screening run over a seeded audience changes zero existing memberships and refuses only the new adds. Single send API `mail.send` / `telephony.send_sms`: enforces caps per sender, send windows, throttling per domain/mailbox, suppression list lookup (`suppression`), consent flags, "Drafted by an agent" footer line when the actor is an agent, Gate when actor is agent/automation, trace id header. Provider chosen per Space (Resend or Mailgun) for Space sending; member mail replies go out through the member's own Gmail/Graph mailbox ("replies go out from the inbox the thread came in on"). Bounce/complaint webhooks write suppression and emit `message.bounced`/`message.complained`.
 
 ### 8.3 Meetings
 
@@ -1764,7 +1763,7 @@ Golden flows, each a file in `golden/` using `createTestSpace` and fake provider
 2. a person joining (invite, accept, keys, first Home checklist, groups defaults)
 3. agent changes reviewed and pushed (changeset, approve, protected-branch Gate)
 4. offline edit and conflict (two replicas, LWW loser kept, protected field to assistant, Undo)
-5. lead to campaign to reply to call (campaign launch Gate, send API, reply lands, softphone log)
+5. lead to Automation email to reply to call (send Gate, send API, unsubscribe link, reply lands, softphone log)
 6. site deploy and rollback (staging password, Promote Gate, rollback)
 7. Gate approval and expiry (timeout escalation, email backstop)
 8. memory promotion (person layer fact, promotion task, project layer)
@@ -2027,7 +2026,7 @@ Each lane owns directories and modules; `manifest.owner` must name the lane and 
 | L6 Automate | `modules/{automations,journeys,steps-core,scheduler-api,tasks,runs,gate,notifications,home,events}` | every manifest (steps are capability calls) | run engine tests (flows golden-replay ported), golden 1, 7, 9 | `tasks` state machine, `runs`, `gate` hold and approve, notification kinds |
 | L7a Access, vault, join | `modules/{access,identity,members,devices,spaces,settings,vault,vault-requests,audit,governance}` | `records`, `files` | permission matrix, folder and sharing property test, golden 2, 9, 11, 12, perf `authorize` | roles and grants projections, `access.share`, folders, `access.request` |
 | L7b Server and Console | `modules/{backup,updates,network,health,logs,reports-client,console-views,console-assistant}`, `apps/console`, `host/src/` outside the frozen files (daemon, scheduler, supervisor, device role, caddy, cli, diskcheck, platform), `images/vyred` | `access`, `audit`, every manifest's health checks | doctor and disk check tests, health tests, Console screen tests | logs sink and trace view, health runner, Console shell |
-| L8 Apps | `modules/{sites,forms,campaigns,templates,kits,esign,portal,email-builder-api}`, `images/{site-builders,documenso}`, `kits/*`, `apps/forms-embed`, `relay/warmup` | `records`, `files`, `mail`, `automations`, `gate` | golden 1 (form), 5, 6, Kit publish tests (Forms and Campaigns may finish after the window) | sites on Docker and Caddy, Kit format and install sheet |
+| L8 Apps | `modules/{sites,forms,templates,kits,esign,portal,email-builder-api}`, `images/{site-builders,documenso}`, `kits/*`, `apps/forms-embed` | `records`, `files`, `mail`, `automations`, `gate` | golden 1 (form), 5, 6, Kit publish tests (Forms may finish after the window) | sites on Docker and Caddy, Kit format and install sheet |
 | L9a UI and shell | `ui/`, `apps/app/` root config and routes, `apps/app/src/shell`, `apps/app/src/mobile` | generated client only | screen tests, perf `startup`, `navigate`, `scroll`, `space_switch`, `layout_shift` | fill the placeholders from F9 in the order the place lanes need them (Composer, Row, VirtualList, Menu first) |
 | L9b Home and Chats | `apps/app/src/places/{home,chats}` | generated client, `ui` props | place screen tests, perf `chat_open` | Chats list and conversation over fake data |
 | L9c Inbox and Calendar | `apps/app/src/places/inbox` | same | same | contact list and tab |
@@ -2043,7 +2042,7 @@ Sharing `ui/` and `lib/`: a component folder (or a `lib/` helper file) has one o
 
 1. A module whose `impl.ts` is not finished stays `status:'stub'`: the host serves its generated example answers, so every consumer's contract and integration tests pass against it. The module's own contract tests run against its real handlers only when `status:'live'`; flipping to live is the owning lane's commit and requires its generated contract tests to pass against the real handlers (the same tests that passed against the stub).
 2. Each golden flow declares `needs: [module ids]`. While any needed module is `stub` the flow is `pending`: it runs against stubs for shape only, reports `PENDING (n modules)` in the check summary and does not fail. `scripts/golden-ready.ts` prints, per flow, the stub modules still blocking it.
-3. Deadlines enforced by the lead through that report, not by meetings: hour 6, flows 1, 4, 14 have no stub in `needs`; hour 9, all flows except those needing Forms or Campaigns; hour 11, zero pending.
+3. Deadlines enforced by the lead through that report, not by meetings: hour 6, flows 1, 4, 14 have no stub in `needs`; hour 9, all flows except those needing Forms; hour 11, zero pending.
 4. No lane imports another lane's code (boundary B1), so a lane that is late costs only the golden flows that need it.
 
 ### 12.5 Ordering inside the window
@@ -2052,7 +2051,7 @@ Hours 0 to 2: each lane implements handlers for its read capabilities and projec
 Hours 2 to 6: write paths, Gate hooks, agent turn engine on fake providers then real, sync with permission filter, first golden flows (1, 4, 14) green on the `core` seed (F6).
 Hours 6 to 10: connectors, Docker services (sites, computers, Documenso), Console pages, Chrome extension, mobile build, remaining golden flows. The `small` and `perf` seeds are rebuilt once from all lanes' `fixtures/seed.ts` at hour 6 and cached.
 Hours 10 to 12: perf pass against budgets, full golden set, real-install walkthrough, tag dry run (release practice run on the train), triage.
-Forms and Campaigns land after the window if behind (their stubs keep every other flow green); nothing else in lanes is deferred without a lead decision.
+Forms land after the window if behind (their stubs keep every other flow green); nothing else in lanes is deferred without a lead decision.
 
 ---
 
@@ -2076,11 +2075,10 @@ Which spikes MUST finish in prep (F7): S0 (node:sqlite capabilities), S1 to S4 (
 | R12 | Google DWD / Graph application access policy complexity | S11: end-to-end on a test Workspace and a test M365 tenant: mint, read mailbox as member, calendar watch, Drive changes |
 | R13 | Tauri system-webview + OPFS + sqlite3mc stability (WKWebView, WebView2, WebKitGTK); sidecar packaging of `vyred`; signing | S12: Tauri shell loads the web build on mac and win (linux best effort), encrypted OPFS replica persists across restarts, deep link and global shortcut work, `vyred` sidecar starts and the UI reaches it; an ad-hoc mac build runs; fail on a platform = sidecar replica fallback (5.10) |
 | R14 | Embeddings model size/latency in WASM | S13: 384-dim model embeds 100 chunks/s on a mid laptop; brute-force cosine over 200k vectors under 60 ms; if not, optional `sqlite-vec` binary per platform |
-| R15 | The spec is very large for 12 hours | mitigated by F11 (all manifests, clients and contract tests generated first), lanes without shared files, Forms and Campaigns as the only deferrable items |
+| R15 | The spec is very large for 12 hours | mitigated by F11 (all manifests, clients and contract tests generated first), lanes without shared files, Forms as the only deferrable item |
 | R16 | CI budget drift | `ci-report` publishes stage times each run; nightly fails on p90 over target by 20 percent |
 | R17 | Clock skew in LWW | clamp rule (5.1); property test with skewed clocks |
 | R18 | Colima on a Mac host: bind mounts, port forwarding to Caddy, VM memory for agent computers (lead ruling Q3) | S14: on a Mac, `vyre-server` install brings up Colima, a site container and an agent computer, Caddy reaches both, reboot restarts everything, disk and CPU use at idle recorded |
-| R19 | Opt-in warmup pool service `warmup.vyre.run` (lead ruling Q5) | built with Campaigns in L8; contract: `POST /v1/pool/join`, `/v1/pool/exchange` signed by the Space key; nothing else in v1 depends on it |
 
 ---
 
@@ -2096,7 +2094,7 @@ F-B. Apple-dependent artifacts. The owner ruled on 21 Oct that nothing may depen
 
 ## Appendix A. Spec coverage notes
 
-Everything in V1-SPEC.md maps to a section above except the items in Appendix B; Appendix C is the row-by-row matrix with a test per row. Mapping of spec sections: 1 to 2 (primitives): 2.1 spaces (7.0, 7.13), 2.2 and 2.3 access (4.5, 7.10), 2.4 folders and sharing (4.12, 7.5), 2.5 chat (6, 7.2), 2.6 agent (6, 7.2), 2.7 computer/terminal (6.6, 7.2), 2.8 task (4.7), 2.9 records (4.3, 7.4), 2.10 sources (7.4, 8), 2.11 forms (7.6), 2.12 automations/journeys (7.7), 2.13 run (4.7), 2.14 gate (4.6), 2.15 memory (6.10), 2.16 files (7.5), 2.17 vault (7.8, 6.11), 2.18 inbox (7.3, 8), 2.19 campaign (7.6), 2.20 site (7.6), 2.21 kit (7.6, 10.4), 2.22 event (4.2), 2.23 star/follow (7.0), 2.24 notification (3.5 kinds, 7.0, 7.11), 2.25 audit (4.1, 7.10), 2.26 retention (4.11). 3.x places: section 7. 4.x cross-cutting: 4.5 History (3.7 rule, 4.7), 4.8 Ask (4.13), 4.9 folders and sharing (4.12), 4.11 offline and conflicts (5), 4.12 (4.5), 4.14 own inference (6.4), 4.17 security modes (6.6 local prompts, 4.6), 4.18 errors/health/diagnostics (4.8, 4.9, 4.10, 3.5 health). 5 platform: b5 to b9 (5, 6, 4.4), b10 (4.2), b11 (6.9, 5.10), b12 (2), b13 releases (10.7), b14 (10), b15 (7.0). Speed (9). Native environment (6.7, 6.8). UI rows (ui `Row`).
+Everything in V1-SPEC.md maps to a section above except the items in Appendix B; Appendix C is the row-by-row matrix with a test per row. Mapping of spec sections: 1 to 2 (primitives): 2.1 spaces (7.0, 7.13), 2.2 and 2.3 access (4.5, 7.10), 2.4 folders and sharing (4.12, 7.5), 2.5 chat (6, 7.2), 2.6 agent (6, 7.2), 2.7 computer/terminal (6.6, 7.2), 2.8 task (4.7), 2.9 records (4.3, 7.4), 2.10 sources (7.4, 8), 2.11 forms (7.6), 2.12 automations/journeys (7.7), 2.13 run (4.7), 2.14 gate (4.6), 2.15 memory (6.10), 2.16 files (7.5), 2.17 vault (7.8, 6.11), 2.18 inbox (7.3, 8), 2.19 email to contacts (8.2), 2.20 site (7.6), 2.21 kit (7.6, 10.4), 2.22 event (4.2), 2.23 star/follow (7.0), 2.24 notification (3.5 kinds, 7.0, 7.11), 2.25 audit (4.1, 7.10), 2.26 retention (4.11). 3.x places: section 7. 4.x cross-cutting: 4.5 History (3.7 rule, 4.7), 4.8 Ask (4.13), 4.9 folders and sharing (4.12), 4.11 offline and conflicts (5), 4.12 (4.5), 4.14 own inference (6.4), 4.17 security modes (6.6 local prompts, 4.6), 4.18 errors/health/diagnostics (4.8, 4.9, 4.10, 3.5 health). 5 platform: b5 to b9 (5, 6, 4.4), b10 (4.2), b11 (6.9, 5.10), b12 (2), b13 releases (10.7), b14 (10), b15 (7.0). Speed (9). Native environment (6.7, 6.8). UI rows (ui `Row`).
 
 ## Appendix B. Parts of V1-SPEC.md not fully fitted
 
@@ -2105,17 +2103,16 @@ After the lead rulings, nothing in the spec is unfitted except these deliberate 
 2. Windows CLI engines run in WSL2 or on the Space server; no native Windows sandbox (lead ruling Q6).
 3. Apple signing, notarization and TestFlight: used only when the secrets exist (fork F-B).
 4. Voice agents, meeting bot, billing, Lumen and Mac/Windows control, native client portal: excluded by spec section 6.
-5. Forms and Campaigns (and the warmup pool service) may finish after the 12-hour window; their stubs keep every other flow green.
-Resolved since the first draft: warmup pool (service `warmup.vyre.run`), server at-rest encryption (installer disk check plus `kernel/seal`), Personal Space on phone and web (5.13).
+5. Forms may finish after the 12-hour window; their stubs keep every other flow green.
+Resolved since the first draft: server at-rest encryption (installer disk check plus `kernel/seal`), Personal Space on phone and web (5.13).
 
 ## Appendix: lead rulings on the open questions (24 Oct)
 - Q1 Server at-rest encryption: the installer requires full-disk or volume encryption (LUKS on Linux, FileVault on Mac; doctor fails without it), plus app-layer encryption (kernel/seal) for sealed fields, Restricted labels, vault values and end-to-end rows. No native SQLite cipher dependency.
 - Q2 Personal Space on phone and web: a Personal Space lives on one of your desktop devices, which acts as its server; your phone and browsers connect to it through the relay when it is online and keep their own encrypted partial copy for offline; optional encrypted backup.
 - Q3 Docker on a Mac host: Colima (Lima-based, free, scriptable) installed by the Mac server installer; Docker Desktop used if already present.
 - Q4 Desktop shell: Tauri 2 (small, fast, Mac, Windows, Linux), loading the web build; native bits (keychain, notifications, deep links, file pick) through Tauri plugins.
-- Q5 Warmup pool: an opt-in shared pool service run by us (warmup.vyre.run, beside the relay); Spaces that opt out warm up with their own seed inboxes only.
 - Q6 Windows CLI sandbox: in v1 CLI engines on Windows run inside WSL2 or on the Space server; no native Windows sandbox.
-- Native AutoFill providers (phone) and passkeys: out of v1 (owner, 24 Oct). Everything else except Forms and Campaigns is first tier.
+- Native AutoFill providers (phone) and passkeys: out of v1 (owner, 24 Oct). Everything else except Forms is first tier.
 
 ---
 
@@ -2145,7 +2142,7 @@ Reviewed 24 Oct against V1-SPEC.md (all of sections 2, 3, 4, 5, the binding bloc
 | 2.16 Files, versions, mounts, changesets, viewer, markup | 7.5, 8.5 | golden 3; binary conflict in golden 4 |
 | 2.17 Vault, handles, requests | 7.8, 6.11 | scrub property test over encodings; golden 13; `vault.scrub_miss` test |
 | 2.18 Inbox, mailboxes, numbers, meetings, DWD, auto-connect, contact preferences | 7.3, 8.1 to 8.3 | golden 5; S11; DND adds-only test (gap ruling 22) in `contacts-link` |
-| 2.19 Campaigns, warmup | 7.6, 8.2, `relay/warmup` | golden 5 (after window allowed) |
+| 2.19 Email to contacts | 8.2 | golden 5 |
 | 2.20 Sites, staging, promote, rollback, portal | 7.6, 8.4 | golden 6; S10 |
 | 2.21 Kits and Templates | 7.6, 10.4 | `kits.yml` |
 | 2.22 Events | 3.3, 4.2 | event contract tests |
@@ -2180,7 +2177,7 @@ Reviewed 24 Oct against V1-SPEC.md (all of sections 2, 3, 4, 5, the binding bloc
 | Gap rulings 1 to 55 (appendix C of the spec) | 1 to 7.0; 2 to 6.5; 3 to 7.0 and 7.4; 4, 5, 6 to 4.7; 7 to 7.0 and 6; 8 to 4.5, 7.8, 7.7; 9 to 7.6 and 5; 10 to 7.0 and 7.3; 11 to 7.6; 12 to 7.7 and 7.4; 13 to 7.9; 14 to 5 and 6.10; 15 to 6.10; 16 to 7.10; 17 to 6.4 and 7.7; 18 to 7.3 and 8.1; 19 to 4.5 and 7.2; 20 to 4.6; 21 to 5.9 and 7.10; 22 to 7.3 and 7.6; 23 to 3.3; 24 to 4.5; 25 to 4.7; 26 to 7.7; 27 to 7.7 and 7.4; 28 to 7.4; 29 to 7.7; 30 to 4.7 and 7.7; 31 to 7.7; 32 to 6.5; 33 to 4.12 and 7.4; 34 to 6.5, 4.7, 7.2; 35 to 6.5; 36 to 4.7 and 6.4; 37 to 4.13; 38 to 7.0; 39 to 5; 40 to 7.5; 41 to 7.6; 42 and 43 to 7.4; 44 to 4.11; 45 to 7.6; 46 to 7.3; 47 and 48 to 7.3; 49 to 7.6; 50 to 7.3 and 8.3; 51 to 7.3 and 7.6; 52 to 7.6 and 4.5; 53 to 4.5 and 7.6; 54 and 55 to 7.5 | tests as the target section |
 | Lead gap rulings 18, 20, 22, 35, 50, 53, 62 | 8.1 (auto-connect on), 4.6 (human sends skip Gate), contacts-link (adds only), 6.5, 8.3, 8.4 and `portal`, 5.13 | auto-connect notice test; Gate human-send test; DND test; listener cost test; golden 15 |
 | Owner points (appendix D): 25 recipes and recording; 48, 49, 51, 53 design bar and shared components; 54 native pages; 56, 57 reply field and pane toggle; 62 helper chats; 66, 67 mobile; 74, 75 popup and Record; 76, 77 viewer and markup; 82 role line; 88 arrow-out marks and templates; 91, 92 record page; 99 routine label; 105 assistant scope; 110 SSO and TOTP; 120 email builder; 123 site Code mode; 46 portal and e-signature | 7.12 and 7.2; `ui` component list (7) and lint (10.1); 7.13; `CommentReply`, `Pane` toggle (7); 7.2 HelperChat; 7.11; 7.2 ComputerPopup; 7.5; 7.2 added bullets; 7.4; 7.4; 7.2 added bullets; 7.2 added bullets; 7.13 (passkey: fork F-A); 7.6; 7.6; 8.4 and `portal` | screen tests and shots; lints; the added bullet tests |
-| Lead rulings on Q1 to Q6 | 5.10 and 7.13; 5.13; 7.13; Tauri sections; 7.6; 6.6 | doctor disk test; golden 15; S14; S12; warmup contract; WSL2 path in device checklist |
+| Lead rulings on Q1 to Q6 | 5.10 and 7.13; 5.13; 7.13; Tauri sections; 7.6; 6.6 | doctor disk test; golden 15; S14; S12; WSL2 path in device checklist |
 
 ---
 
@@ -2208,7 +2205,6 @@ Type: F = fix of a contradiction or false claim, A = addition of something unmap
 | 16 | F | 12.3 | Every directory and all 72 modules have one lane (previously `ui/`, `host/`, `apps/app` root, `lib/`, `search`, `scheduler-api`, `email-builder-api`, `stripe` had none); L7 split into L7a/L7b and L9 into L9a to L9f; frozen paths listed | lanes could not run without shared files |
 | 17 | F | 12.4, 10.3, 12.5 | Golden flows run on the frozen `core` seed, are `pending` (not red) while a needed module is a stub, with hour 6, 9, 11 deadlines | golden flows depended on other lanes' seed data and code |
 | 18 | F | 13 | Spikes classified: S0 to S6 and S12 in prep, others in lane hours 0 to 2 with fallbacks | spikes that decide the replica engine cannot run in the window |
-| 19 | F | 7.6, R19 | Warmup pool is the opt-in service `warmup.vyre.run` (`relay/warmup`, lane L8) | lead ruling Q5 |
 | 20 | F | 14, Appendix B | Q1 to Q6 closed; two real forks remain (F-A passkey sign-in, F-B Apple artifacts); Appendix B rewritten | rulings applied |
 | 21 | F | 5.10 / R5 | S5 iPhone build is a personal-team sideload build | no Apple membership |
 | 22 | A | 4.12 (new), 3.1, 3.5 | Folders and sharing as one mechanism: `folders`, `placement`, synced `my_access`, `access.share`, `ListDef`, share sheet, link grants | spec 2.4 and 4.9 mapped only to Files |

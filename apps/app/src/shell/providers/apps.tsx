@@ -10,7 +10,7 @@ import { useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
 const NEW_SITE_PROMPT = "I want a new site. Ask me what it is for, then build it, run it on a computer and give it an address.";
-const SCREEN: Readonly<Record<string, string>> = { artifacts: "apps.artifacts", sites: "apps.site-editor", forms: "apps.form-settings", campaigns: "apps.campaign-builder", templates: "apps.templates", domains: "apps.sending-domains" };
+const SCREEN: Readonly<Record<string, string>> = { artifacts: "apps.artifacts", sites: "apps.site-editor", forms: "apps.form-settings", templates: "apps.templates", domains: "apps.sending-domains" };
 
 export { appsRoute } from "../../places/apps/shell/routes.ts";
 import { appsRoute } from "../../places/apps/shell/routes.ts";

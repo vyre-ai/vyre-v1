@@ -39,6 +39,7 @@ const OLD_CAMPAIGNS = `
   INSERT INTO campaigns_campaign VALUES ('cmp_spring', 'Spring');
   INSERT INTO campaigns_unsub VALUES ('hash_open', 'cmp_spring', 'mem_1', 'dana@fox.test', NULL), ('hash_used', 'cmp_spring', 'mem_2', 'lee@acme.test', 7);
 `;
+const all = (db: ReturnType<typeof openDb>, sql: string): unknown[] => JSON.parse(JSON.stringify(db.all(sql))) as unknown[];
 const tables = (db: ReturnType<typeof openDb>, like: string): string[] => (db.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ?", like) as { name: string }[]).map((r) => r.name);
 const columns = (db: ReturnType<typeof openDb>, t: string): string[] => (db.all(`PRAGMA table_info(${t})`) as { name: string }[]).map((c) => c.name);
 
@@ -57,16 +58,16 @@ test("a Space that ran Campaigns keeps its links, drops the tables, and open wor
     const ran = migrate(db, ROOT, () => 2).map((m) => `${m.module}/${m.file}`);
     assert.ok(ran.includes("mail/0004_campaigns_removed.sql"), ran.join(", "));
     assert.deepEqual(tables(db, "campaigns_%"), []);
-    assert.deepEqual(db.all("SELECT token_hash, address, used_at FROM mail_unsub ORDER BY token_hash"), [
+    assert.deepEqual(all(db, "SELECT token_hash, address, used_at FROM mail_unsub ORDER BY token_hash"), [
       { token_hash: "hash_open", address: "dana@fox.test", used_at: null }, { token_hash: "hash_used", address: "lee@acme.test", used_at: 7 },
     ], "every link sent keeps working, and a used one stays used");
     assert.equal(tables(db, "mail_send_log").length, 0);
     assert.ok(!columns(db, "mail_message").includes("campaignId"));
     assert.ok(!columns(db, "inbox_item").includes("campaignId") && !columns(db, "inbox_conversation").includes("campaignId") && !columns(db, "telephony_sms").includes("campaignId"));
-    assert.deepEqual(db.all("SELECT id, subject FROM mail_message"), [{ id: "eml_1", subject: "Hello" }], "the mail itself stays");
-    assert.deepEqual(db.all("SELECT state FROM gate_holds"), [{ state: "expired" }]);
-    assert.deepEqual(db.all("SELECT id, status FROM runs_items ORDER BY id"), [{ id: "run_done", status: "succeeded" }, { id: "run_open", status: "stopped" }]);
-    assert.deepEqual(db.all("SELECT id FROM notifications_items"), [{ id: "ntf_2" }]);
+    assert.deepEqual(all(db, "SELECT id, subject FROM mail_message"), [{ id: "eml_1", subject: "Hello" }], "the mail itself stays");
+    assert.deepEqual(all(db, "SELECT state FROM gate_holds"), [{ state: "expired" }]);
+    assert.deepEqual(all(db, "SELECT id, status FROM runs_items ORDER BY id"), [{ id: "run_done", status: "succeeded" }, { id: "run_open", status: "stopped" }]);
+    assert.deepEqual(all(db, "SELECT id FROM notifications_items"), [{ id: "ntf_2" }]);
     assert.deepEqual(migrate(db, ROOT, () => 3), [], "the next boot runs nothing");
   } finally { db.close(); }
 });

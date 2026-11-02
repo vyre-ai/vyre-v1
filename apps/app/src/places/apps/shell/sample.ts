@@ -1,5 +1,5 @@
 // The sample behind the Apps place tests and screenshots: Northwind's sites, forms, templates and sending domains (from the prototype), answered by a fake replica through the live screen
-// queries (apps.sites, apps.forms, apps.templates). Every write the place makes changes the rows, so each menu really works; launching a campaign and publishing a form are held for a yes
+// queries (apps.sites, apps.forms, apps.templates). Every write the place makes changes the rows, so each menu really works; publishing a form is held for a yes
 // when `gate` is set, the way Gate parks them. The values are made up.
 import { createFakeReplica, createScreenHooks } from "../../../../../../client/src/index.ts";
 import type { Row } from "../../../../../../client/src/index.ts";
