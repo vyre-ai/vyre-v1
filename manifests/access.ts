@@ -60,7 +60,7 @@ const reviewRow = t.obj({
   id: t.id('rvw'), state: t.enm('open', 'closed'), openedAt: t.ts(), closedAt: t.opt(t.ts()), items: t.int({ minimum: 0 }), decided: t.int({ minimum: 0 }),
 });
 const requestRow = t.obj({
-  id: t.id('arq'), requester: id.user, resource: resourceRef, level, note: t.opt(t.str()),
+  id: t.id('arq'), requester: t.str(), resource: resourceRef, level, note: t.opt(t.str()),
   state: t.enm('waiting', 'granted', 'declined'), taskId: id.task, at: t.ts(),
 });
 
@@ -84,9 +84,9 @@ export default defineManifest({
     ev('folder.shared', 'A folder was shared or unshared; everything in it follows', { p: { folderId: id.folder, subject: subjectRef, level: t.opt(level), removed: t.bool() }, subject: ['folder', '/folderId'], retention: 'audit' }),
     // a folder is a Files folder (fld_) or a Vault folder (vfd_): both kinds move items on this one event
     ev('item.moved', 'An item moved into or out of a folder', { p: { resource: resourceRef, fromFolderId: t.opt(t.union(id.folder, id.vaultFolder)), toFolderId: t.opt(t.union(id.folder, id.vaultFolder)) }, subject: ['entity', '/resource/id'] }),
-    ev('access.requested', 'Someone asked for access to a resource', { p: { requestId: t.id('arq'), resource: resourceRef, level, requester: id.user, taskId: id.task }, subject: ['entity', '/requestId'], notify: 'access.requested', trigger: { title: 'Someone asks for access' } }),
-    ev('access.granted', 'An access request was approved', { p: { requestId: t.id('arq'), resource: resourceRef, level, requester: id.user, grantId: id.grant, threadId: t.opt(id.thread), agentId: t.opt(id.agent) }, subject: ['entity', '/requestId'], notify: 'access.decided', retention: 'audit' }),
-    ev('access.declined', 'An access request was declined; the note goes back to the requester', { p: { requestId: t.id('arq'), resource: resourceRef, requester: id.user, note: t.opt(t.str()), threadId: t.opt(id.thread), agentId: t.opt(id.agent) }, subject: ['entity', '/requestId'], notify: 'access.decided' }),
+    ev('access.requested', 'Someone asked for access to a resource', { p: { requestId: t.id('arq'), resource: resourceRef, level, requester: t.str(), taskId: id.task }, subject: ['entity', '/requestId'], notify: 'access.requested', trigger: { title: 'Someone asks for access' } }),
+    ev('access.granted', 'An access request was approved', { p: { requestId: t.id('arq'), resource: resourceRef, level, requester: t.str(), grantId: id.grant, threadId: t.opt(id.thread), agentId: t.opt(id.agent) }, subject: ['entity', '/requestId'], notify: 'access.decided', retention: 'audit' }),
+    ev('access.declined', 'An access request was declined; the note goes back to the requester', { p: { requestId: t.id('arq'), resource: resourceRef, requester: t.str(), note: t.opt(t.str()), threadId: t.opt(id.thread), agentId: t.opt(id.agent) }, subject: ['entity', '/requestId'], notify: 'access.decided' }),
     ev('access_review.opened', 'A quarterly access review opened and made its tasks', { p: { reviewId: t.id('rvw'), items: t.int() }, subject: ['entity', '/reviewId'] }),
     ev('access_review.closed', 'An access review closed', { p: { reviewId: t.id('rvw'), kept: t.int(), removed: t.int() }, subject: ['entity', '/reviewId'], retention: 'audit' }),
     ev('view_as.started', 'An admin previewed what another person sees (audited)', { p: { target: pid, expiresAt: t.ts() }, subject: ['entity', '/target'], retention: 'audit' }),
@@ -220,7 +220,7 @@ export default defineManifest({
   ],
 
   blocks: [
-    block('access_request', { requestId: t.id('arq'), requester: id.user, resource: resourceRef, resourceTitle: t.str(), level, note: t.opt(t.str()), state: t.enm('waiting', 'granted', 'declined') },
+    block('access_request', { requestId: t.id('arq'), requester: t.str(), resource: resourceRef, resourceTitle: t.str(), level, note: t.opt(t.str()), state: t.enm('waiting', 'granted', 'declined') },
       'Access request: {{requester}} asks for {{level}} on {{resourceTitle}}. {{note}}', {
         actions: [
           { key: 'approve', label: 'Approve', cap: 'access.requests.approve', input: { requestId: '/requestId', level: '/level' } },

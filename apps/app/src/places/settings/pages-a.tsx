@@ -115,6 +115,9 @@ function AssistantLook(): ReactElement {
 // ---------------------------------------------------------------- Notifications
 
 type KindsOut = CapMap["notifications.kinds.list"]["out"];
+const WORD: Readonly<Record<string, string>> = { from: "Someone", agent: "An agent", name: "Something", where: "a chat", device: "a device", service: "A service", space: "the Space", level: "more", title: "something", state: "down", reason: "a reason", decision: "decided", message: "an error" };
+/** A notification kind's title is the template of the notice; here it names the kind, so the blanks read as words, never as {{from}}. */
+export const kindLabel = (title: string): string => title.replace(/:\s*\{\{\w+\}\}$/, "").replace(/\{\{(\w+)\}\}/g, (_, w: string) => WORD[w] ?? "something");
 type MutesOut = CapMap["notifications.mute.list"]["out"];
 
 export function NotificationsPage({ rows, found }: PageProps): ReactElement {
@@ -133,7 +136,7 @@ export function NotificationsPage({ rows, found }: PageProps): ReactElement {
   const list: ReactElement[] = [];
   (kinds?.kinds ?? []).forEach((k, i) => {
     const level = levels[k.key] ?? k.level;
-    list.push(<SettingsRow key={k.key} id={`kind.${k.key}`} label={k.title} first={i === 0} help="Interrupt rings your desktop and phone. Badge only adds a dot. Digest waits for your next summary." control={<Choice value={level} options={LEVELS} label={k.title} testID={`kind-${k.key}`} onChange={(v) => setLevel(k.key, level, v)} />} />);
+    list.push(<SettingsRow key={k.key} id={`kind.${k.key}`} label={kindLabel(k.title)} first={i === 0} help="Interrupt rings your desktop and phone. Badge only adds a dot. Digest waits for your next summary." control={<Choice value={level} options={LEVELS} label={k.title} testID={`kind-${k.key}`} onChange={(v) => setLevel(k.key, level, v)} />} />);
   });
   const muteRows: ReactElement[] = [];
   if (mutes.status === "ready") {

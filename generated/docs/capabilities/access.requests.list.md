@@ -80,7 +80,7 @@ type Out = {
         "id": "arq_a1b2c3",
         "level": "view",
         "note": "example",
-        "requester": "usr_a1b2c3",
+        "requester": "example",
         "resource": {
           "id": "rec_a1b2c3",
           "type": "space"

@@ -44,3 +44,10 @@ test("a task's short key in chat is a link to it; a word that only looks like on
   assert.ok(out.includes("ISO-9001") && !out.includes("[ISO-9001]"));
   assert.ok(out.endsWith("`VY-142`"));
 });
+
+test("a real file id is a link, and a task key written where the name goes reads plainly", () => {
+  assert.deepEqual(idsIn("see fil_01a19ad8256c4afc"), [{ id: "fil_01a19ad8256c4afc", kind: "file" }]);
+  assert.match(withNames("[[notes.md|fil_01a19ad8256c4afc]]", new Map()), /^\[notes\.md\]\(https:\/\/ref\.vyre\.invalid\/file\/fil_01a19ad8256c4afc\)$/);
+  assert.equal(withKeys("[[PE-4|First step]]", new Map()), "PE-4 First step");
+  assert.equal(withKeys("`[[PE-4|First step]]`", new Map()), "`[[PE-4|First step]]`");
+});

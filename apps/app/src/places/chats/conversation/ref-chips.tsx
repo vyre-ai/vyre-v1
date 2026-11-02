@@ -12,12 +12,12 @@ import type { ConversationData } from "./model.ts";
 type Data = Pick<ConversationData, "call" | "nav">;
 
 /** The id prefixes agents are given, and the kind each one is. */
-const KIND_OF: Record<string, string> = { rec: "record", file: "file", task: "task", tsk: "task", thr: "chat", chn: "channel", ch: "channel" };
-const ID = /\b(rec|file|task|tsk|thr|chn|ch)_[0-9A-Za-z]{8,}\b/g;
+const KIND_OF: Record<string, string> = { rec: "record", file: "file", fil: "file", task: "task", tsk: "task", thr: "chat", chn: "channel", ch: "channel" };
+const ID = /\b(rec|file|fil|task|tsk|thr|chn|ch)_[0-9A-Za-z]{8,}\b/g;
 const NAME_OF: Record<string, string> = { record: "a record", file: "a file", task: "a task", chat: "a chat", channel: "a channel" };
 const HOST = "https://ref.vyre.invalid/";
 /** The form agents are told to write: [[Rivera Holdings|rec_01...]], the name, a bar, the id. The name is shown and the id never. */
-const NAMED = /\[\[([^\]|\n]+)\|((?:rec|file|task|tsk|thr|chn|ch)_[0-9A-Za-z]{8,})\]\]/g;
+const NAMED = /\[\[([^\]|\n]+)\|((?:rec|file|fil|task|tsk|thr|chn|ch)_[0-9A-Za-z]{8,})\]\]/g;
 
 /** A task's short key, as people and agents write it in chat and commits: VY-142. Only a key the Space knows, that the reader may see, becomes a link. */
 const KEY = /\b[A-Z]{2,6}-\d{1,6}\b/g;
@@ -30,7 +30,9 @@ export function keysIn(text: string): string[] {
 }
 
 /** The text with each known key written as a link to its task. A word that only looks like a key stays as it is. */
-export function withKeys(text: string, known: ReadonlyMap<string, string>): string {
+export function withKeys(raw: string, known: ReadonlyMap<string, string>): string {
+  // a model that writes the key where the name goes, [[VY-142|Title]], still reads as the key and the title
+  const text = raw.split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/g).map((p, i) => (i % 2 === 1 ? p : p.replace(/\[\[([A-Z]{2,6}-\d{1,6})\|([^\]\n]+)\]\]/g, "$1 $2"))).join("");
   if (known.size === 0) return text;
   return text.split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/g).map((p, i) => (i % 2 === 1 ? p : p.replace(KEY, (key) => { const id = known.get(key); return id ? `[${key}](${HOST}task/${id})` : key; }))).join("");
 }

@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { AccessSnapshot, authorize } from "../../../kernel/src/authorize/index.ts";
 import { foldEvent } from "../daemon/access.ts";
-import { createPrincipalRegistrar, missingAgentPrincipalEvents } from "./principals.ts";
+import { createPrincipalRegistrar, missingAgentPrincipalEvents, ownPlaceGrant } from "./principals.ts";
 import type { SpaceLevel } from "./principals.ts";
 
 const created = (agentId: string, ownerId = "usr_a") => [{ type: "agent.created", payload: { agentId, name: "Helper", ownerId } }];
@@ -117,4 +117,17 @@ test("a deleted Space automation suspends its service and a restore reactivates 
   assert.deepEqual(r.register({ events: [ev("automation.restored", "aut_abc1")], space: "s", maker: "usr_a" }),
     [{ type: "principal.reactivated", entity: "principal", id: "svc_abc1", payload: { principalId: "svc_abc1" } }]);
   assert.deepEqual(r.register({ events: [ev("automation.deleted", "aut_other"), ev("automation.deleted", "not-an-id")], space: "s", maker: "usr_a" }), []);
+});
+
+test("own place: the Assistant gets its person's folder in any Space, a made agent only in a Personal Space, an outside agent never", () => {
+  const base = { agentId: "agt_a1", ownerId: "usr_a1", rootId: "fld_a1" };
+  assert.equal(ownPlaceGrant({ ...base, agentKind: "assistant", spaceKind: "team" })?.payload["level"], "edit");
+  assert.equal(ownPlaceGrant({ ...base, agentKind: "assistant", spaceKind: "team" })?.payload["by"], "usr_a1");
+  assert.ok(ownPlaceGrant({ ...base, agentKind: "agent", spaceKind: "personal" }));
+  assert.equal(ownPlaceGrant({ ...base, agentKind: "agent", spaceKind: "team" }), null);
+  assert.equal(ownPlaceGrant({ ...base, agentKind: "outside", spaceKind: "personal" }), null);
+  assert.equal(ownPlaceGrant({ ...base, ownerId: "svc_host", agentKind: "assistant", spaceKind: "team" }), null);
+  const long = ownPlaceGrant({ agentId: `agt_${"a".repeat(32)}`, ownerId: "usr_a1", rootId: `fld_${"b".repeat(32)}`, agentKind: "assistant", spaceKind: "team" });
+  assert.ok(long !== null && long.eventId.length <= 80, "the log takes event ids of 8 to 80 characters");
+  assert.equal(ownPlaceGrant({ ...base, agentKind: "assistant", spaceKind: "team" })?.eventId, ownPlaceGrant({ ...base, agentKind: "assistant", spaceKind: "team" })?.eventId, "the same grant is one event, so a revoked one stays revoked");
 });

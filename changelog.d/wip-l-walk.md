@@ -1,0 +1,10 @@
+- Agents on Claude, Codex and Grok can now call any tool they find with search. Before, a tool outside the common list was found and then refused with "No such tool", so an agent could not create a file.
+- Model names read properly in the picker: Claude Opus 5.5, not Claude Opus 5 5.
+- Your Assistant can now change your own Files without being given access, in any Space. In a Personal Space so can every agent you made there. A Team Space agent keeps the access you gave it.
+- When a Team Space agent is refused a folder, it can ask for it and the person gets one press in Needs you to share that folder with the agent.
+- Agents now know how to make a new file from the first turn.
+- File links an agent writes in chat are links now, not raw [[name|id]] text.
+- Artifacts open in a Personal Space. Before, the card led to a Needs a Team Space page.
+- The Add button at the top of the Vault list works. The Hide the sidebar button no longer sits on top of it.
+- An access request has an Approve button on its task page, and it names "this folder", not an id.
+- Notification settings read as words, not {{title}} templates.
