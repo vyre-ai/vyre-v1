@@ -26969,6 +26969,45 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/sites/artifact_open",
+    "cap": "sites.artifact_open",
+    "v": 1,
+    "module": "sites",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "site",
+      "id": "/artifactId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/sites/artifact_publish",
+    "cap": "sites.artifact_publish",
+    "v": 1,
+    "module": "sites",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "site",
+      "create": true,
+      "parent": "/folderId"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/sites/build",
     "cap": "sites.build",
     "v": 1,
@@ -27003,7 +27042,7 @@ const routes4: Route[] = [
     "idempotency": "key",
     "risk": "medium",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": null
   },
   {
@@ -27048,6 +27087,44 @@ const routes4: Route[] = [
     "method": "POST",
     "path": "/v1/sites/deployments",
     "cap": "sites.deployments",
+    "v": 1,
+    "module": "sites",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "site",
+      "id": "/siteId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/sites/domain_add",
+    "cap": "sites.domain_add",
+    "v": 1,
+    "module": "sites",
+    "effects": "write",
+    "permission": "sites.domains",
+    "level": "edit",
+    "resource": {
+      "type": "site",
+      "id": "/siteId"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/sites/domain_check",
+    "cap": "sites.domain_check",
     "v": 1,
     "module": "sites",
     "effects": "read",
@@ -27151,6 +27228,24 @@ const routes4: Route[] = [
     "resource": {
       "type": "site",
       "id": "/siteId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/sites/host",
+    "cap": "sites.host",
+    "v": 1,
+    "module": "sites",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -27268,8 +27363,27 @@ const routes4: Route[] = [
     "idempotency": "key",
     "risk": "high",
     "offline": null,
-    "teamOnly": true,
+    "teamOnly": false,
     "gate": "site_promote"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/sites/publish",
+    "cap": "sites.publish",
+    "v": 1,
+    "module": "sites",
+    "effects": "write",
+    "permission": "sites.deploy",
+    "level": "edit",
+    "resource": {
+      "type": "site",
+      "id": "/siteId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
   },
   {
     "method": "POST",
@@ -27313,6 +27427,44 @@ const routes4: Route[] = [
     "method": "POST",
     "path": "/v1/sites/staging_password_set",
     "cap": "sites.staging_password_set",
+    "v": 1,
+    "module": "sites",
+    "effects": "write",
+    "permission": "sites.deploy",
+    "level": "edit",
+    "resource": {
+      "type": "site",
+      "id": "/siteId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/sites/status",
+    "cap": "sites.status",
+    "v": 1,
+    "module": "sites",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "site",
+      "id": "/siteId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/sites/stop",
+    "cap": "sites.stop",
     "v": 1,
     "module": "sites",
     "effects": "write",
@@ -27529,7 +27681,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sources/create",
@@ -27673,10 +27828,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sources/link/match",
@@ -33036,7 +33188,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/zoom/recordings/get",
@@ -33111,4 +33266,4 @@ const routes5: Route[] = [
   }
 ];
 
-export const routes: Route[] = [...routes0, ...routes1, ...routes2, ...routes3, ...routes4, ...routes5];
+export const routes: Route[] = [...routes0, ...routes1, ...routes2, ...routes3, ...routes4, ...routes5, ...routes6];

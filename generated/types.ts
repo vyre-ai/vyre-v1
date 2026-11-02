@@ -25310,6 +25310,30 @@ export type SheetsUpsertRowOut = {
   created: boolean;
   versionId?: string;
 };
+export type SitesArtifactOpenIn = {
+  artifactId: string;
+};
+export type SitesArtifactOpenOut = {
+  path: string;
+  url?: string;
+  expiresAt: number;
+};
+export type SitesArtifactPublishIn = {
+  title: string;
+  html?: string;
+  fileId?: string;
+  folderId?: string;
+  path?: string;
+  port?: number;
+  computerId?: string;
+  artifactId?: string;
+  idempotencyKey: string;
+};
+export type SitesArtifactPublishOut = {
+  artifactId: string;
+  url?: string;
+  updated: boolean;
+};
 export type SitesBuildIn = {
   siteId: string;
   branch?: string;
@@ -25320,9 +25344,13 @@ export type SitesBuildOut = {
 };
 export type SitesCreateIn = {
   name: string;
-  kind: "site" | "app" | "api" | "worker" | "artifact";
+  kind?: "site" | "app" | "api" | "worker" | "artifact";
   repoUrl?: string;
   templateKit?: string;
+  slug?: string;
+  access?: "public" | "password" | "space" | "private";
+  computerId?: string;
+  port?: number;
   folderId?: string;
   idempotencyKey: string;
 };
@@ -25336,6 +25364,15 @@ export type SitesCreateOut = {
     stagingUrl?: string;
     productionUrl?: string;
     state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
+    url?: string;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
   };
 };
 export type SitesDeleteIn = {
@@ -25378,6 +25415,33 @@ export type SitesDeploymentsOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type SitesDomainAddIn = {
+  siteId: string;
+  domain: string;
+  idempotencyKey: string;
+};
+export type SitesDomainAddOut = {
+  domain: string;
+  records: Array<{
+      type: "CNAME" | "A";
+      name: string;
+      value: string;
+    }>;
+  state: "waiting_dns" | "issuing" | "live";
+};
+export type SitesDomainCheckIn = {
+  siteId: string;
+  domain: string;
+};
+export type SitesDomainCheckOut = {
+  domain: string;
+  records: Array<{
+      type: "CNAME" | "A";
+      name: string;
+      value: string;
+    }>;
+  state: "waiting_dns" | "issuing" | "live";
 };
 export type SitesDomainSetIn = {
   siteId: string;
@@ -25430,11 +25494,29 @@ export type SitesGetOut = {
     stagingUrl?: string;
     productionUrl?: string;
     state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
+    url?: string;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
   };
+};
+export type SitesHostIn = Record<string, unknown>;
+export type SitesHostOut = {
+  origin?: string;
+  relay: boolean;
+  computers: boolean;
+  domains: boolean;
+  domainsNeed?: string;
 };
 export type SitesListIn = {
   section?: "personal" | "shared" | "space";
   folderId?: string;
+  kind?: "site" | "artifact";
   cursor?: string;
   limit?: number;
 };
@@ -25448,6 +25530,15 @@ export type SitesListOut = {
       stagingUrl?: string;
       productionUrl?: string;
       state: "queued" | "building" | "ready" | "failed" | "stopped";
+      slug?: string;
+      url?: string;
+      computerId?: string;
+      port?: number;
+      folderId?: string;
+      access?: "public" | "password" | "space" | "private";
+      live?: boolean;
+      blocked?: boolean;
+      updatedAt?: number;
     }>;
   next?: string;
   total?: number;
@@ -25500,19 +25591,51 @@ export type SitesPreviewsOut = {
 };
 export type SitesPromoteIn = {
   siteId: string;
-  deploymentId: string;
   idempotencyKey: string;
 };
 export type SitesPromoteOut = {
-  deployment: {
-    deploymentId: string;
+  site: {
     siteId: string;
-    env: "staging" | "preview" | "production";
+    name: string;
+    kind: "site" | "app" | "api" | "worker" | "artifact";
+    owner: string;
+    repoFolderId?: string;
+    stagingUrl?: string;
+    productionUrl?: string;
     state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
     url?: string;
-    branch?: string;
-    commit?: string;
-    at: number;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
+  };
+};
+export type SitesPublishIn = {
+  siteId: string;
+};
+export type SitesPublishOut = {
+  site: {
+    siteId: string;
+    name: string;
+    kind: "site" | "app" | "api" | "worker" | "artifact";
+    owner: string;
+    repoFolderId?: string;
+    stagingUrl?: string;
+    productionUrl?: string;
+    state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
+    url?: string;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
   };
 };
 export type SitesRollbackIn = {
@@ -25549,6 +25672,40 @@ export type SitesStagingPasswordSetIn = {
 export type SitesStagingPasswordSetOut = {
   ok: boolean;
 };
+export type SitesStatusIn = {
+  siteId: string;
+};
+export type SitesStatusOut = {
+  answering: boolean;
+  detail?: string;
+  url?: string;
+  live: boolean;
+  blocked: boolean;
+};
+export type SitesStopIn = {
+  siteId: string;
+};
+export type SitesStopOut = {
+  site: {
+    siteId: string;
+    name: string;
+    kind: "site" | "app" | "api" | "worker" | "artifact";
+    owner: string;
+    repoFolderId?: string;
+    stagingUrl?: string;
+    productionUrl?: string;
+    state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
+    url?: string;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
+  };
+};
 export type SitesTableCreateIn = {
   siteId: string;
   key: string;
@@ -25582,6 +25739,10 @@ export type SitesUpdateIn = {
   siteId: string;
   name?: string;
   settings?: Record<string, unknown>;
+  access?: "public" | "password" | "space" | "private";
+  computerId?: string;
+  port?: number;
+  folderId?: string;
 };
 export type SitesUpdateOut = {
   site: {
@@ -25593,6 +25754,15 @@ export type SitesUpdateOut = {
     stagingUrl?: string;
     productionUrl?: string;
     state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
+    url?: string;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
   };
 };
 export type SkillsAddIn = {
@@ -34204,25 +34374,33 @@ export interface CapMap {
   "sheets.read_rows": { in: SheetsReadRowsIn; out: SheetsReadRowsOut };
   "sheets.update_row": { in: SheetsUpdateRowIn; out: SheetsUpdateRowOut };
   "sheets.upsert_row": { in: SheetsUpsertRowIn; out: SheetsUpsertRowOut };
+  "sites.artifact_open": { in: SitesArtifactOpenIn; out: SitesArtifactOpenOut };
+  "sites.artifact_publish": { in: SitesArtifactPublishIn; out: SitesArtifactPublishOut };
   "sites.build": { in: SitesBuildIn; out: SitesBuildOut };
   "sites.create": { in: SitesCreateIn; out: SitesCreateOut };
   "sites.delete": { in: SitesDeleteIn; out: SitesDeleteOut };
   "sites.deploy": { in: SitesDeployIn; out: SitesDeployOut };
   "sites.deployments": { in: SitesDeploymentsIn; out: SitesDeploymentsOut };
+  "sites.domain_add": { in: SitesDomainAddIn; out: SitesDomainAddOut };
+  "sites.domain_check": { in: SitesDomainCheckIn; out: SitesDomainCheckOut };
   "sites.domain_set": { in: SitesDomainSetIn; out: SitesDomainSetOut };
   "sites.domains_get": { in: SitesDomainsGetIn; out: SitesDomainsGetOut };
   "sites.env_list": { in: SitesEnvListIn; out: SitesEnvListOut };
   "sites.env_set": { in: SitesEnvSetIn; out: SitesEnvSetOut };
   "sites.get": { in: SitesGetIn; out: SitesGetOut };
+  "sites.host": { in: SitesHostIn; out: SitesHostOut };
   "sites.list": { in: SitesListIn; out: SitesListOut };
   "sites.logs": { in: SitesLogsIn; out: SitesLogsOut };
   "sites.preview_rebuild": { in: SitesPreviewRebuildIn; out: SitesPreviewRebuildOut };
   "sites.preview_remove": { in: SitesPreviewRemoveIn; out: SitesPreviewRemoveOut };
   "sites.previews": { in: SitesPreviewsIn; out: SitesPreviewsOut };
   "sites.promote": { in: SitesPromoteIn; out: SitesPromoteOut };
+  "sites.publish": { in: SitesPublishIn; out: SitesPublishOut };
   "sites.rollback": { in: SitesRollbackIn; out: SitesRollbackOut };
   "sites.service_identity": { in: SitesServiceIdentityIn; out: SitesServiceIdentityOut };
   "sites.staging_password_set": { in: SitesStagingPasswordSetIn; out: SitesStagingPasswordSetOut };
+  "sites.status": { in: SitesStatusIn; out: SitesStatusOut };
+  "sites.stop": { in: SitesStopIn; out: SitesStopOut };
   "sites.table_create": { in: SitesTableCreateIn; out: SitesTableCreateOut };
   "sites.table_promote": { in: SitesTablePromoteIn; out: SitesTablePromoteOut };
   "sites.tables": { in: SitesTablesIn; out: SitesTablesOut };
@@ -37258,6 +37436,7 @@ export type SiteBuildFailedPayload = {
 export type SiteCreatedPayload = {
   siteId: string;
   name: string;
+  private?: boolean;
 };
 export type SiteDeployedPayload = {
   siteId: string;
@@ -37281,9 +37460,17 @@ export type SitePromotedPayload = {
   siteId: string;
   deploymentId: string;
 };
+export type SitePublishedPayload = {
+  siteId: string;
+  url?: string;
+  access: "public" | "password" | "space" | "private";
+};
 export type SiteRolledBackPayload = {
   siteId: string;
   toDeploymentId: string;
+};
+export type SiteStoppedPayload = {
+  siteId: string;
 };
 export type SiteTableCreatedPayload = {
   siteId: string;
@@ -38643,7 +38830,9 @@ export interface EventMap {
   "site.preview_created": SitePreviewCreatedPayload;
   "site.preview_removed": SitePreviewRemovedPayload;
   "site.promoted": SitePromotedPayload;
+  "site.published": SitePublishedPayload;
   "site.rolled_back": SiteRolledBackPayload;
+  "site.stopped": SiteStoppedPayload;
   "site.table_created": SiteTableCreatedPayload;
   "site.table_promoted": SiteTablePromotedPayload;
   "skill.added": SkillAddedPayload;

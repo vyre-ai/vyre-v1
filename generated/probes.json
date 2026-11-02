@@ -115,13 +115,6 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
-      "id": "screen.apps.site-settings",
-      "place": "apps",
-      "screen": "apps.site-settings"
-    },
-    {
-      "completeMs": 100,
-      "firstPaintMs": 50,
       "id": "screen.apps.sites",
       "place": "apps",
       "screen": "apps.sites"
