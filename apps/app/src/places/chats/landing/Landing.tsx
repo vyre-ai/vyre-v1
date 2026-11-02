@@ -2,7 +2,7 @@
 // answer something without going anywhere. With nothing waiting it shows only the composer and what is running; on a first day the setup checklist takes the list's place. Home's Needs you model and actions are
 // reused as they are, so a thing decided here is decided everywhere.
 import { useCallback, useMemo, useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import type { ComposerSend } from "../../../../../../ui/src/Composer/index.tsx";
@@ -42,6 +42,8 @@ export interface LandingProps {
   fill(text: string): void;
   newKey(): string;
   say(text: string): void;
+  /** The phone has no sidebar sheet: its list of chats sits under the first screen. */
+  list?: ReactNode;
 }
 
 const isAssistant = (rt: ShellRuntime, id: string): boolean => id === rt.assistant.id;
@@ -138,6 +140,7 @@ export function Landing(p: LandingProps): ReactElement {
             </Pressable>
           ))}
         </View>
+        {p.list ? <View testID="landing-list" style={st.list}>{p.list}</View> : null}
       </View>
       {menu.element}
     </ScrollView>
@@ -190,6 +193,7 @@ const st = StyleSheet.create({
   hero: { alignItems: "center", marginBottom: 34 },
   title: { marginTop: 18, fontSize: 25, lineHeight: 32, fontWeight: "600", letterSpacing: -0.4, color: "var(--ink)" as string, textAlign: "center" },
   composer: { zIndex: 10 },
+  list: { height: 520, marginTop: 18, marginHorizontal: -8 },
   with: { flexDirection: "row", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 6, marginTop: 12 },
   withWord: { fontSize: 13, color: "var(--ink-3)" as string, marginRight: 2 },
   chip: { flexDirection: "row", alignItems: "center", gap: 6, height: 30, paddingLeft: 6, paddingRight: 10, borderRadius: 15, backgroundColor: "var(--sunk)" as string, maxWidth: 160 },

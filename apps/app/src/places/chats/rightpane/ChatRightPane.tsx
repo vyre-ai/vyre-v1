@@ -122,7 +122,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
     pick: (key) => { setOwn(key); onTab?.(key); },
   });
   /** The pane's top row: the open item as a tab, the agent with its face and a close x, as the prototype draws it above the agent's header. */
-  const openTab = { key: "open", title: data.agent.name, lead: <Face name={data.agent.name} size={16} /> };
+  const openTab = { key: "open", title: data.agent.name, lead: <Face name={data.agent.name} seedId={data.agent.agentId} size={16} /> };
   const moreMenu = (x: number, y: number): void => {
     menu.show([
       { label: `Open ${data.agent.name}'s Page`, onSelect: () => data.nav.openAgentPage(data.agent.agentId) },

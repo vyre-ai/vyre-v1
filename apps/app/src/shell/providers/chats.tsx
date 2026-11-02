@@ -8,6 +8,7 @@ import { ChatsSidebarLoading } from "../../places/chats/sidebar/ChatsSidebar.tsx
 import { ConversationLoading } from "../../places/chats/conversation/Conversation.tsx";
 import { ChatsMounted, PANE_W, SIDEBAR_W } from "../../places/chats/mounts/ChatsMounted.tsx";
 import { usePlaceHash } from "../hash/context.tsx";
+import { formatHash } from "../hash/hash.ts";
 import { useHubState, useOptionalHub } from "../spaces/context.tsx";
 import type { ShellHub } from "../spaces/hub.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
@@ -29,7 +30,13 @@ export default function ChatsPlace(): ReactElement {
   const rt = useOptionalShellRuntime();
   const hub = useOptionalHub();
   if (!rt) return <ChatsLoading />;
-  return hub ? <ChatsLinked rt={rt} hub={hub} /> : <ChatsMounted rt={rt} hash="" />;
+  return hub ? <ChatsLinked rt={rt} hub={hub} /> : <ChatsOnPhone rt={rt} />;
+}
+
+// The phone has no hub: its own history holds the screens, and a chat opened from the list goes on top of it.
+function ChatsOnPhone({ rt }: { rt: NonNullable<ReturnType<typeof useOptionalShellRuntime>> }): ReactElement {
+  const { target, opened } = usePlaceHash();
+  return <ChatsMounted rt={rt} hash={formatHash(target)} opened={opened} stacked />;
 }
 
 // The shell keys the place by the Space and the place, not the link, so a link that arrives while Chats is open comes through here.

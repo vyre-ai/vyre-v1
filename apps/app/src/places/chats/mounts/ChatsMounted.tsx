@@ -25,7 +25,7 @@ import type { ComposerFill } from "../conversation/data.tsx";
 import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { NeedsYou } from "../needsyou/NeedsYou.tsx";
 import { AgentPane } from "../AgentPane.tsx";
-import { ChatsSidebarSlot } from "../sidebar/ChatsSidebar.tsx";
+import { ChatsSidebar, ChatsSidebarSlot } from "../sidebar/ChatsSidebar.tsx";
 import { TerminalList } from "../terminal/TerminalList.tsx";
 import { TerminalRules } from "../terminal/TerminalRules.tsx";
 import { TerminalTab } from "../terminal/TerminalTab.tsx";
@@ -79,9 +79,11 @@ export interface ChatsMountedProps {
   opened?: (target: { subject?: { type: string; id: string }; screen?: string }) => void;
   /** The middle is about to change: the shell keeps a still copy on screen until the next view is ready. */
   onSwitch?: () => void;
+  /** A phone: what opens from the first screen goes on top of its history, so Back returns here. */
+  stacked?: boolean;
 }
 
-export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch }: ChatsMountedProps): ReactElement {
+export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch, stacked = false }: ChatsMountedProps): ReactElement {
   const [shown, setShown] = useState<Shown>(() => initial ?? (hash === "" ? START : fromHash(hash)));
   const [line, setLineState] = useState<{ text: string; action?: LineAction } | null>(null);
   const setLine = useCallback((text: string, action?: LineAction): void => setLineState(action ? { text, action } : { text }), []);
@@ -100,7 +102,13 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch 
     return () => clearTimeout(t);
   }, [line]);
 
-  const act = useCallback((a: Act): void => { if (a.t === "chat" || a.t === "new" || a.t === "tasks" || a.t === "task" || a.t === "threads" || a.t === "agent" || a.t === "needs") onSwitch?.(); setShown((s) => step(s, a)); }, [onSwitch]);
+  const routeNow = useRef(shown.route.view);
+  routeNow.current = shown.route.view;
+  const act = useCallback((a: Act): void => {
+    if (stacked && a.t === "chat" && routeNow.current === "new" && a.threadId !== "") { opened?.({ subject: { type: "thread", id: a.threadId } }); return; }
+    if (a.t === "chat" || a.t === "new" || a.t === "tasks" || a.t === "task" || a.t === "threads" || a.t === "agent" || a.t === "needs") onSwitch?.();
+    setShown((s) => step(s, a));
+  }, [onSwitch, stacked, opened]);
   // a link from another place, a notification or the Space menu while Chats is already open
   const linked = useRef(hash);
   useEffect(() => {
@@ -226,7 +234,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch 
   else if (route.view === "new") {
     const agentRows = list.filter((p) => p.kind === "agent").map((p) => ({ id: p.id, name: p.name }));
     const people = list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name }));
-    main = <Landing rt={rt} nameOf={nameOf} kindOf={(id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person")} agents={agentRows} people={people} openChat={go.chat} openTasks={() => act({ t: "tasks" })} openNeed={(id) => go.needs(id)} openProfile={profile} fill={(t) => fill.set(t)} newKey={newKey} say={setLine} />;
+    main = <Landing rt={rt} nameOf={nameOf} kindOf={(id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person")} agents={agentRows} people={people} openChat={go.chat} openTasks={() => act({ t: "tasks" })} openNeed={(id) => go.needs(id)} openProfile={profile} fill={(t) => fill.set(t)} newKey={newKey} say={setLine} {...(stacked ? { list: <ChatsSidebar data={side} {...(window ? { window } : {})} /> } : {})} />;
   }
   else if (conv) {
     const work = thread.status === "ready" ? workOf(thread.data.thread) : null;
