@@ -77,11 +77,11 @@ export function seedSent(h: Harness, o: SentOpts): void {
     `INSERT INTO mail_message (
       id, "mailboxId", "inboxIds", "providerId", "rfcMessageId", "threadId", direction, status,
       "fromAddress", "toAddresses", "ccAddresses", subject, snippet, body, "sentAt", "contactId",
-      "isPrivate", "campaignId", attachments, "draftedByAgent", "traceId", version, updated_at, deleted_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      "isPrivate", attachments, "draftedByAgent", "traceId", version, updated_at, deleted_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     o.id, o.mailboxId, JSON.stringify([o.mailboxId]), o.providerId, `<${o.id}@vyre.test>`, o.id, "out", o.status ?? "sent",
     o.from ?? "hello@vyre.test", party(o.to ?? ["pat@acme.test"]), party(o.cc ?? []), "Hello", "Hello", "Hello", NOW, null,
-    0, null, "[]", null, h.ctx.trace.traceId, 1, NOW, null,
+    0, "[]", null, h.ctx.trace.traceId, 1, NOW, null,
   );
   h.ctx.db.run(
     `INSERT INTO mail_body ("messageId", text, html, "fromName", bcc, headers) VALUES (?, ?, ?, ?, ?, ?)`,

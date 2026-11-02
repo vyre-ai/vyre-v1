@@ -1,4 +1,4 @@
-// resend (lane L5): Resend connector, one of the two `send.email` backends for Space sending (campaigns, automations,
+// resend (lane L5): Resend connector, one of the two `send.email` backends for Space sending (automations,
 // agents, shared inboxes). Domains with SPF/DKIM/DMARC records, delivery webhooks, inbound routes. ARCHITECTURE 8 table, 8.2.
 // DECISION: mail.send is the only door for sending. resend.send_email has no MCP tool; people and agents call mail.send,
 // which applies caps, windows, throttling, suppression and the Gate before it reaches this backend.

@@ -32,11 +32,6 @@
       "status": "live"
     },
     {
-      "id": "campaigns",
-      "owner": "L8",
-      "status": "live"
-    },
-    {
       "id": "chat",
       "owner": "L2",
       "status": "live"

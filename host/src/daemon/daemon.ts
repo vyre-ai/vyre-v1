@@ -408,9 +408,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let portalLinkRoute: ReturnType<typeof createPortalLinkRoute> | null = null;
   let shareRoute: ReturnType<typeof createShareRoute> | null = null;
   let formsPageRoute: ReturnType<typeof createFormsPageRoute> | null = null;
-  // /u/<token>: a person with no account leaving a campaign. Set once the pipeline is up; until then the route says it could not, and the person is still subscribed
-  let leaveCampaign: (token: string) => Promise<boolean> = () => Promise.reject(new Error("the server is starting"));
-  const unsubscribeRoute = createUnsubscribeRoute({ unsubscribe: (token) => leaveCampaign(token) });
+  // /u/<token>: a person with no account leaving a mailing. Set once the pipeline is up; until then the route says it could not, and the person is still subscribed
+  let leaveMailing: (token: string) => Promise<boolean> = () => Promise.reject(new Error("the server is starting"));
+  const unsubscribeRoute = createUnsubscribeRoute({ unsubscribe: (token) => leaveMailing(token) });
   // every public link starts here: the address this Space was given, else the phone name it holds at the relay
   const publicOrigin = (): { origin: string; relay: boolean } | null => {
     let claimed: { name?: string; state?: string } | undefined;
@@ -1185,7 +1185,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             },
           },
         }),
-        // forms and campaigns build their public links from the address people reach this Space at; unset, the links stay relative
+        // forms build their public links from the address people reach this Space at; unset, the links stay relative
         setFormsHost: () => ({ choiceSource: createChoiceSource({
           as: (person, cap, input) => invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "forms-public" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)))),
           people: () => [...access.snap.allPrincipals()].filter((p) => p.kind === "person" && p.status === "active").map((p) => ({ id: p.id, name: p.name ?? p.id })),
@@ -1194,7 +1194,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         } }),
         // memory's meaning search: a small embedding model on this server, fetched into the data folder the first time it is used and checked against pinned hashes
         setMemoryMeaningHost: () => ({ files: createModelFiles({ root: process.env["VYRE_MODEL_CACHE"] ?? paths.root }), now, log: (msg: string, attrs?: Record<string, unknown>) => sink.log({ space: spaceId, level: 30, msg, place: "memory-meaning", ...(attrs ? { attrs } : {}) }) }),
-        setCampaignsHost: () => ({ get publicBase() { return publicOrigin()?.origin; }, get publicPath() { return publicOrigin()?.relay; } }),
+        // the unsubscribe link in an Automations email is built from the same address; with none the email goes out without one
+        setMailLinksHost: () => ({ get publicBase() { return publicOrigin()?.origin; }, get publicPath() { return publicOrigin()?.relay; } }),
         // backups: the Space's own files, the owner from the access layer (P-SEC_07: without owner() every export refuses), exports into the blob store, S3 over the seam fetch with keys from the Vault
         setBackupHost: (d) => createBackupHost({
           root: paths.root, space: spaceId, log: spaceLog, owner: () => access.owner() ?? cfg.owner ?? null, system, vault: d.vault, fetch: d.fetch,
@@ -1548,8 +1549,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         });
         if (viewOf) {
           // the visitor has no session to authorize and the token is all they hold, so the host runs this as itself
-          leaveCampaign = async (token) => {
-            const r = await invoke("campaigns.unsubscribe", { token }, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook" }).catch((e: unknown) => {
+          leaveMailing = async (token) => {
+            const r = await invoke("mail.unsubscribe", { token }, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook" }).catch((e: unknown) => {
               if ((e as { error?: { code?: string } }).error?.code === "auth.invalid_code") return null;
               throw e;
             });

@@ -29,7 +29,7 @@ const mailboxRow = t.obj({
 const messageRow = t.obj({
   id: emlId, mailboxId: id.mailbox, inboxIds: t.arr(id.mailbox), threadId: t.str(), direction: t.enm('in', 'out'), status: msgStatus,
   from: recipient, to: t.arr(recipient), cc: t.arr(recipient), subject: t.str(), snippet: t.str(), sentAt: t.ts(), contactId: t.opt(id.record),
-  isPrivate: t.bool(), campaignId: t.opt(id.campaign), draftedByAgent: t.opt(id.agent),
+  isPrivate: t.bool(), draftedByAgent: t.opt(id.agent),
 });
 const messageDetail = t.obj({
   message: messageRow, text: t.opt(t.str()), html: t.opt(t.str()),
@@ -42,7 +42,7 @@ const routeRow = t.obj({ id: rteId, domainId: id.domain, localPart: t.str({ exam
 const composed = {
   to: t.arr(recipient, { minItems: 1 }), cc: t.opt(t.arr(recipient)), bcc: t.opt(t.arr(recipient)), subject: t.str(),
   text: t.opt(t.str()), html: t.opt(t.str()), attachments: t.opt(t.arr(id.file)),
-  replyToMessageId: t.opt(emlId), contactId: t.opt(id.record), campaignId: t.opt(id.campaign), draftId: t.opt(emlId),
+  replyToMessageId: t.opt(emlId), contactId: t.opt(id.record), draftId: t.opt(emlId),
 };
 const healthOut = { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) };
 
@@ -58,7 +58,7 @@ const manifest = defineManifest({
     entity('mail_message', 'mail_message', 'eml_', {
       mailboxId: 'text', inboxIds: 'text', providerId: 'text', rfcMessageId: 'text', threadId: 'text', direction: 'choice', status: 'status',
       fromAddress: 'email', toAddresses: 'text', ccAddresses: 'text', subject: 'text', snippet: 'text',
-      body: { type: 'longtext', label: 'confidential' }, sentAt: 'datetime', contactId: 'text', isPrivate: 'checkbox', campaignId: 'text',
+      body: { type: 'longtext', label: 'confidential' }, sentAt: 'datetime', contactId: 'text', isPrivate: 'checkbox',
       attachments: 'files', draftedByAgent: 'text', traceId: 'text',
     }, 'mailbox', {
       parent: { entity: 'mailbox', field: 'mailboxId' }, parentField: 'inboxIds', multi: true, fts: ['subject', 'snippet', 'body'],
@@ -75,11 +75,11 @@ const manifest = defineManifest({
     // ---- erase and purge (P-CC_39): governance removes data through these; each hard-deletes inside its own store
     ev('mail.message_erased', 'A mail message was erased for good: body, attachments and search entries (ids only)', { p: { messageId: t.id('eml') }, subject: ['entity', '/messageId'], retention: 'audit' }),
     ev('mail.received', 'An email arrived in a mailbox (deduped across inboxes)', {
-      p: { messageId: emlId, mailboxId: id.mailbox, from: email, subject: t.str(), contactId: t.opt(id.record), campaignId: t.opt(id.campaign) },
-      subject: ['mailbox', '/mailboxId'], label: 'subject', redact: ['/subject'], trigger: { title: 'An email arrives', fields: ['/mailboxId', '/from', '/campaignId'] },
+      p: { messageId: emlId, mailboxId: id.mailbox, from: email, subject: t.str(), contactId: t.opt(id.record) },
+      subject: ['mailbox', '/mailboxId'], label: 'subject', redact: ['/subject'], trigger: { title: 'An email arrives', fields: ['/mailboxId', '/from'] },
     }),
     ev('message.sent', 'A message left the Space (email or text)', {
-      p: { messageId: t.str(), channel: t.enm('email', 'sms'), mailboxId: t.opt(id.mailbox), contactId: t.opt(id.record), campaignId: t.opt(id.campaign) },
+      p: { messageId: t.str(), channel: t.enm('email', 'sms'), mailboxId: t.opt(id.mailbox), contactId: t.opt(id.record) },
       subject: ['entity', '/messageId'], label: 'subject', replay: 'stub',
     }),
     ev('message.delivered', 'The provider reports delivery', { p: { messageId: t.str(), channel: t.enm('email', 'sms') }, subject: ['entity', '/messageId'], replay: 'stub' }),
@@ -92,7 +92,7 @@ const manifest = defineManifest({
     ev('message.clicked', 'A recipient clicked a link in an email', { p: { messageId: t.str(), url: t.opt(t.str()) }, subject: ['entity', '/messageId'], replay: 'stub' }),
     ev('message.failed', 'A send failed before reaching the provider', { p: { messageId: t.str(), channel: t.enm('email', 'sms'), reason: t.str() }, subject: ['entity', '/messageId'], replay: 'stub' }),
     ev('message.suppressed', 'A send was refused for a suppressed address or missing consent', {
-      p: { channel: t.enm('email', 'sms'), address: t.str(), reason: t.str(), campaignId: t.opt(id.campaign) }, subject: ['entity', '/address'],
+      p: { channel: t.enm('email', 'sms'), address: t.str(), reason: t.str() }, subject: ['entity', '/address'],
     }),
     ev('mail_draft.saved', 'A draft was created or changed (an agent draft carries a Gate line)', {
       p: { draftId: emlId, mailboxId: id.mailbox, byAgent: t.opt(id.agent), contactId: t.opt(id.record) }, subject: ['entity', '/draftId'], label: 'subject',
@@ -177,21 +177,22 @@ const manifest = defineManifest({
       in: { messageId: emlId, attachmentId: t.str(), folderId: t.opt(id.folder) }, out: { fileId: id.file }, tool: 'inbox', idem: 'key',
     }),
     // ---- the single send API
-    read('mail.send_preview', 'Dry run of a send: suppressed recipients, window, caps and throttle, without sending (campaign launch preview uses it)', {
-      in: { mailboxId: id.mailbox, senderId: t.opt(t.str({ description: 'An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time', examples: ['mbx_a1b2c3'] })), channel: t.opt(t.enm('email')), to: t.arr(recipient, { minItems: 1 }), campaignId: t.opt(id.campaign) },
+    read('mail.send_preview', 'Dry run of a send: who would be reached and who is suppressed, without sending', {
+      in: { mailboxId: id.mailbox, senderId: t.opt(t.str({ description: 'An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time', examples: ['mbx_a1b2c3'] })), channel: t.opt(t.enm('email')), to: t.arr(recipient, { minItems: 1 }) },
       out: {
-        allowed: t.arr(email), suppressed: t.arr(t.obj({ address: email, reason: t.str() })), outsideWindow: t.arr(email),
-        capRemainingToday: t.opt(t.int()), nextWindowAt: t.opt(t.ts()), providerRoute: t.enm('mailbox', 'space_domain'),
+        allowed: t.arr(email), suppressed: t.arr(t.obj({ address: email, reason: t.str() })),
+        providerRoute: t.enm('mailbox', 'space_domain'),
       },
       on: ['mailbox', '/mailboxId'], level: 'use', tool: 'inbox',
     }),
-    outward('mail.send', 'Send an email through the single send API: caps per sender, send windows, throttling, suppression, consent, trace id header, agent footer line', {
+    outward('mail.send', 'Send an email through the single send API: suppression, consent, trace id header, agent footer line, an unsubscribe link when asked', {
       in: {
         mailboxId: id.mailbox, senderId: t.opt(t.str({ description: 'An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time', examples: ['mbx_a1b2c3'] })), route: t.opt(t.enm('mailbox', 'space_domain')), ...composed, sendAt: t.opt(t.ts()),
+        unsubscribe: t.opt(t.bool({ description: 'Carry an unsubscribe link and the List-Unsubscribe headers. Regular email to contacts sets it; every Automations email does' })),
       },
       out: { messageId: t.opt(emlId), status: t.enm('queued', 'sent', 'held', 'suppressed'), taskId: t.opt(id.task), suppressed: t.arr(email) },
       on: ['mailbox', '/mailboxId'], level: 'use', gate: 'send', emits: ['message.sent', 'message.suppressed', 'message.failed'], tool: 'inbox', offline: 'queue', cli: 'vyre mail send',
-      errors: ['permission.needs_approval', 'validation.precondition_failed', 'rate_limit.exceeded', 'provider.auth_failed', 'provider.rate_limited', 'permission.above_clearance'],
+      errors: ['permission.needs_approval', 'validation.precondition_failed', 'provider.auth_failed', 'provider.rate_limited', 'permission.above_clearance'],
       ex: { input: { idempotencyKey: 'idem_1', mailboxId: 'mbx_a1b2c3', to: [{ address: 'maya@example.com' }], subject: 'Hello', text: 'Hi Maya' }, output: { messageId: 'eml_a1b2c3', status: 'queued', suppressed: [] } },
     }),
     // DECISION: shared-inbox sends need comms.shared_send and agent sends need comms.agent_send; the handler checks the key
@@ -227,6 +228,9 @@ const manifest = defineManifest({
       },
       out: { messageId: t.opt(emlId), suppressed: t.bool() },
       emits: ['message.delivered', 'message.bounced', 'message.complained', 'message.opened', 'message.clicked', 'message.failed'], idem: 'natural',
+    }),
+    write('mail.unsubscribe', 'Inbound: a person pressed the unsubscribe link in an email; writes the Suppression list', {
+      in: { token: t.str() }, out: { ok: t.bool() }, http: { method: 'POST', path: '/hooks/unsubscribe' },
     }),
     // ---- sending domains and inbound routes
     read('mail.domain.list', 'List sending domains with SPF, DKIM and DMARC state', { in: { ...pageIn }, out: { domains: t.arr(domainRow), ...pageOut }, tool: 'inbox' }),
@@ -287,10 +291,6 @@ const manifest = defineManifest({
   ],
   settings: [
     setting('mail.provider', 'space', 'comms', 'Space sending provider', t.enm('resend', 'mailgun'), 'resend'),
-    // DECISION: the spec names caps, windows and throttling but no numbers; these are plain starting values an admin can change.
-    setting('mail.sender_caps', 'space', 'comms', 'Sends per mailbox', t.obj({ perHour: t.int({ minimum: 1 }), perDay: t.int({ minimum: 1 }) }), { perHour: 30, perDay: 150 }),
-    setting('mail.send_window', 'space', 'comms', 'Send window', t.obj({ days: t.arr(t.int({ minimum: 1, maximum: 7 })), startHour: t.int({ minimum: 0, maximum: 23 }), endHour: t.int({ minimum: 1, maximum: 24 }), zone: t.enm('recipient', 'space') }), { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 18, zone: 'recipient' }),
-    setting('mail.throttle', 'space', 'comms', 'Throttle per sending domain', t.obj({ perMinute: t.int({ minimum: 1 }) }), { perMinute: 60 }),
   ],
 });
 

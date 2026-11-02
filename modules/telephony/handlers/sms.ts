@@ -1,10 +1,10 @@
 // Texts (spec 2.18 Sending, Single send API; 2.19 sending side; ARCH 8.2): telephony.send_sms is the SMS half of the single send API, and telephony.sms.list reads the texts of a number or contact.
-// One door for every outgoing text, checked the way mail.send checks mail: the suppression list, SMS consent, send windows, caps per number, then Twilio. The Gate (spec 2.14) runs in the invoke
-// pipeline before this code: an agent, an automation or a campaign is held for approval, a person typing a text is not.
-// DECISION: windows and caps apply to every non-person actor, as in mail.send. A person who texts is not made to wait for a window; suppression and consent still apply.
+// One door for every outgoing text, the suppression list, SMS consent, send windows, caps per number, then Twilio. The Gate (spec 2.14) runs in the invoke
+// pipeline before this code: an agent or an automation is held for approval, a person typing a text is not.
+// DECISION: windows and caps apply to every non-person actor. A person who texts is not made to wait for a window; suppression and consent still apply.
 // DECISION: Space setting contacts.sms_requires_consent (default on) means a text needs smsConsent `granted` on the contact. A reply to a text the person sent us (replyToId) counts as consent for that
 // conversation. A number with no contact has no consent on file, so with the setting on it is refused as `no_consent`. STOP and UNSUBSCRIBE (telephony.ingest_sms) suppress the sender.
-// DECISION: the window and caps are the mail ones (mail.send_window, mail.sender_caps); the recipient's zone is not known in v1 data, so the sender's profile.timezone applies.
+// DECISION: the window and caps are telephony.send_window and telephony.sender_caps; the recipient's zone is not known in v1 data, so the sender's profile.timezone applies.
 // DECISION: a refusal that depends on the person (suppressed, no consent, do not contact) is a status `suppressed` and a message.suppressed event, not an error. Over the cap is an error
 // (rate_limit.exceeded): waiting a day silently is worse than telling the sender. Outside the window the text is queued and sent by a scheduled call.
 // DECISION: pictures (mediaFileIds) need a public address for each file, which the Space does not give Twilio yet, so a text with pictures is refused with a plain message rather than sent without them.
@@ -115,7 +115,7 @@ function capCheck(ctx: TelCtx, numberId: string, caps: Caps, now: number): void 
 }
 
 interface SendIn {
-  numberId: string; senderId?: string; to: string; body: string; mediaFileIds?: string[]; contactId?: string; replyToId?: string; campaignId?: string; sendAt?: number; idempotencyKey: string;
+  numberId: string; senderId?: string; to: string; body: string; mediaFileIds?: string[]; contactId?: string; replyToId?: string; sendAt?: number; idempotencyKey: string;
 }
 interface SendOut { smsId?: string; status: "queued" | "sent" | "held" | "suppressed"; taskId?: string }
 
@@ -132,7 +132,6 @@ function check(ctx: TelCtx, input: SendIn): void {
   if (input.mediaFileIds !== undefined && (!Array.isArray(input.mediaFileIds) || input.mediaFileIds.some((f) => !isId("fil", f)))) bad(ctx, "Picture ids are not valid.");
   if (input.contactId !== undefined && !isId("rec", input.contactId)) bad(ctx, "Contact id is not valid.");
   if (input.replyToId !== undefined && !isId("sms", input.replyToId)) bad(ctx, "Reply target id is not valid.");
-  if (input.campaignId !== undefined && !isId("cmp", input.campaignId)) bad(ctx, "Campaign id is not valid.");
   if (input.sendAt !== undefined && !isInt(input.sendAt)) bad(ctx, "Send time is not valid.");
 }
 
@@ -156,7 +155,7 @@ export async function sendSms(ctx: TelCtx, input: SendIn): Promise<SendOut> {
   const contactId = await contactOf(ctx, input.to, input.contactId ?? strOrUndef(strOrNull(due, "contactId")));
   const why = await refusalFor(ctx, input.to, contactId, replyTo);
   if (why !== null) {
-    ctx.emit("message.suppressed", `address/${input.to}`, { channel: "sms", address: input.to, reason: why, ...(input.campaignId ? { campaignId: input.campaignId } : {}) });
+    ctx.emit("message.suppressed", `address/${input.to}`, { channel: "sms", address: input.to, reason: why });
     if (due) patch(ctx, "telephony_sms", str(due, "id"), { status: "failed" });
     return { status: "suppressed" };
   }
@@ -165,12 +164,12 @@ export async function sendSms(ctx: TelCtx, input: SendIn): Promise<SendOut> {
   const wanted = Math.max(now, input.sendAt ?? now);
   let when = wanted;
   if (bulk) {
-    const win = await setting<Window>(ctx, "mail.send_window", DEFAULT_WINDOW, windowOk);
+    const win = await setting<Window>(ctx, "telephony.send_window", DEFAULT_WINDOW, windowOk);
     const zone = await setting<string>(ctx, "profile.timezone", "UTC", zoneOk);
     const open = nextWindowStart(wanted, zone, win);
     if (open === null) return refuse(ctx, "The send window has no open time in the next week. Change the send window in Console, Comms.");
     when = open;
-    capCheck(ctx, input.numberId, await setting<Caps>(ctx, "mail.sender_caps", DEFAULT_CAPS, capsOk), now);
+    capCheck(ctx, input.numberId, await setting<Caps>(ctx, "telephony.sender_caps", DEFAULT_CAPS, capsOk), now);
   }
 
   if (when > now) {
@@ -201,9 +200,9 @@ export async function sendSms(ctx: TelCtx, input: SendIn): Promise<SendOut> {
   const status = text(sent.status) === "queued" || text(sent.status) === "accepted" ? "queued" : "sent";
   patch(ctx, "telephony_sms", id, { status: status === "queued" ? "queued" : "sent", twilioSid: sid, at: now });
   if (bulk) ctx.db.run(`INSERT INTO telephony_send_log ("id", "numberId", "at") VALUES (?, ?, ?)`, newId("tsl", now), input.numberId, now);
-  ctx.emit("message.sent", `entity/${id}`, { messageId: id, channel: "sms", ...(contactId ? { contactId } : {}), ...(input.campaignId ? { campaignId: input.campaignId } : {}) });
+  ctx.emit("message.sent", `entity/${id}`, { messageId: id, channel: "sms", ...(contactId ? { contactId } : {}) });
   await ctx.call("inbox.link_message", {
-    channel: "sms", ref: { kind: "sms", id }, address: input.to, direction: "out", at: now, numberId: input.numberId, ...(input.campaignId ? { campaignId: input.campaignId } : {}), preview: input.body.slice(0, 140),
+    channel: "sms", ref: { kind: "sms", id }, address: input.to, direction: "out", at: now, numberId: input.numberId, preview: input.body.slice(0, 140),
   });
   return { smsId: id, status: status === "queued" ? "queued" : "sent" };
 }
@@ -212,10 +211,10 @@ function stripUndefined(input: SendIn): Record<string, unknown> {
   return Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
 }
 
-export function insertSms(ctx: TelCtx, id: string, o: { n: Row; input: Pick<SendIn, "to" | "body" | "campaignId">; contactId: string | undefined; status: string; at: number; direction: "in" | "out" }): void {
+export function insertSms(ctx: TelCtx, id: string, o: { n: Row; input: Pick<SendIn, "to" | "body">; contactId: string | undefined; status: string; at: number; direction: "in" | "out" }): void {
   ctx.db.run(
-    `INSERT INTO telephony_sms ("id", "numberId", "direction", "from", "to", "body", "status", "contactId", "mediaFileIds", "campaignId", "at", "traceId", "version", "updated_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, str(o.n, "id"), o.direction, str(o.n, "e164"), o.input.to, o.input.body, o.status, o.contactId ?? null, "[]", o.input.campaignId ?? null, o.at, ctx.trace.traceId, 0, ctx.now(),
+    `INSERT INTO telephony_sms ("id", "numberId", "direction", "from", "to", "body", "status", "contactId", "mediaFileIds", "at", "traceId", "version", "updated_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, str(o.n, "id"), o.direction, str(o.n, "e164"), o.input.to, o.input.body, o.status, o.contactId ?? null, "[]", o.at, ctx.trace.traceId, 0, ctx.now(),
   );
 }
 

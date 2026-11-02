@@ -3,7 +3,7 @@
 import { canonical } from "./canonical.ts";
 
 /** Another person or the public sees it. Everything else an agent does stays inside Vyre, your computer or its computer. */
-export const OUTWARD_ACTS: ReadonlySet<string> = new Set(["send", "post", "pay", "push_protected", "campaign_launch", "site_promote", "signature_send"]);
+export const OUTWARD_ACTS: ReadonlySet<string> = new Set(["send", "post", "pay", "push_protected", "site_promote", "signature_send"]);
 
 /** The target of a row that covers whatever its step reaches: a person wrote that step, so what it computes is theirs. Also the row of a step that has no target to name. */
 export const ANY_TARGET = "*";

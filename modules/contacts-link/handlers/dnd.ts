@@ -1,7 +1,7 @@
 // contacts.dnd_screen (spec 2.18 Contact preferences and suppression; ARCH 8.2, lead ruling 22, the owner's standing rule):
 // "Do-not-contact screening blocks adds only; it never removes or deletes a record or a person."
 //
-// This handler only READS. It answers which of the candidates being added to an audience, a campaign, a Journey enrolment or an import may be
+// This handler only READS. It answers which of the candidates being added to an audience, a Journey enrolment or an import may be
 // added and which may not. It writes nothing: no membership, no preference, no record, no list row. `removed` is always 0, so a screening run
 // over a seeded audience changes zero existing memberships. A candidate is refused when its contact is marked Do-not-contact, or when its
 // email or number is on the suppression list; every other candidate is allowed.
@@ -24,13 +24,13 @@ export interface Screened {
   removed: 0;
 }
 
-const CONTEXTS = ["audience", "campaign", "journey_enrol", `import`];
+const CONTEXTS = ["audience", "journey_enrol", `import`];
 const MAX_CANDIDATES = 20_000;
 const BATCH = 200;
 
 export async function dndScreen(ctx: ContactsCtx, input: { context: string; contextId?: string; candidates: Candidate[] }): Promise<Screened> {
   ensure(ctx);
-  if (!CONTEXTS.includes(input.context)) bad(ctx, "Context must be audience, campaign, journey_enrol or import.");
+  if (!CONTEXTS.includes(input.context)) bad(ctx, "Context must be audience, journey_enrol or import.");
   if (input.contextId !== undefined && (typeof input.contextId !== "string" || input.contextId.length > 200)) bad(ctx, "Context id must be text up to 200 characters.");
   if (!Array.isArray(input.candidates) || input.candidates.length === 0 || input.candidates.length > MAX_CANDIDATES) bad(ctx, `Candidates must be a list of 1 to ${MAX_CANDIDATES}.`);
   const refs = new Set<string>();

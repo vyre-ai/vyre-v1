@@ -16,7 +16,7 @@ export interface TelCtx {
   principal: { kind: "person" | "agent" | "actor" | "service"; id: string };
   actingFor?: string | undefined;
   trace: { traceId: string };
-  /** where the call came from: 'user' for a person at a screen, anything else for automations, campaigns and other engines */
+  /** where the call came from: 'user' for a person at a screen, anything else for automations and other engines */
   origin?: string;
   authorize?(action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): { effect: string };
   now(): number;
@@ -164,11 +164,10 @@ export async function setting<T>(ctx: TelCtx, key: string, fallback: T, ok: (v: 
 
 // ---- who is acting (the same rule as the single send API)
 
-export type Actor = "person" | "agent" | "automation" | "campaign";
+export type Actor = "person" | "agent" | "automation";
 export function actorOf(ctx: Pick<TelCtx, "principal" | "origin">): Actor {
   if (ctx.principal.kind === "agent") return "agent";
   const from = ctx.origin ?? "user";
-  if (from.startsWith("campaign")) return "campaign";
   if (from !== "user" || ctx.principal.kind === "service" || ctx.principal.kind === "actor") return "automation";
   return "person";
 }
@@ -269,7 +268,6 @@ export function smsOut(r: Row): Json {
     mediaFileIds: parseJson<string[]>(r["mediaFileIds"], []), at: num(r, "at"),
   };
   if (strOrNull(r, "contactId")) out.contactId = str(r, "contactId");
-  if (strOrNull(r, "campaignId")) out.campaignId = str(r, "campaignId");
   return out;
 }
 

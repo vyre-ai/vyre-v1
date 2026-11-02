@@ -33,7 +33,7 @@ const callRow = t.obj({
 });
 const smsRow = t.obj({
   id: smsId, numberId: id.number, direction: t.enm('in', 'out'), from: t.str(), to: t.str(), body: t.str(), status: t.enm('queued', 'sent', 'delivered', 'undelivered', 'failed', 'received'),
-  contactId: t.opt(id.record), mediaFileIds: t.arr(id.file), campaignId: t.opt(id.campaign), at: t.ts(),
+  contactId: t.opt(id.record), mediaFileIds: t.arr(id.file), at: t.ts(),
 });
 const registrationFields = {
   legalName: t.str(), ein: t.opt(t.str()), website: t.opt(t.str()), address: t.opt(t.obj({ line1: t.str(), city: t.str(), region: t.str(), postal: t.str(), country: t.str() })),
@@ -59,7 +59,7 @@ export default defineManifest({
       handledBy: 'text', recordingFileId: 'text', transcript: { type: 'longtext', label: 'confidential' }, summary: 'longtext', consentLogged: 'checkbox', twilioSid: 'text', traceId: 'text',
     }, 'number', { parent: { entity: 'number', field: 'numberId' }, parentField: 'numberId', fts: ['transcript', 'summary'], sync: { profile: { desktop: 'window', phone: 'window', web: 'window' }, window: { days: 90, recentCount: 300 }, maxLabel: 'confidential' } }),
     entity('sms', 'telephony_sms', 'sms_', {
-      numberId: 'text', direction: 'choice', from: 'text', to: 'text', body: { type: 'longtext', label: 'confidential' }, status: 'status', contactId: 'text', mediaFileIds: 'files', campaignId: 'text', at: 'datetime', twilioSid: 'text', traceId: 'text',
+      numberId: 'text', direction: 'choice', from: 'text', to: 'text', body: { type: 'longtext', label: 'confidential' }, status: 'status', contactId: 'text', mediaFileIds: 'files', at: 'datetime', twilioSid: 'text', traceId: 'text',
     }, 'number', { parent: { entity: 'number', field: 'numberId' }, parentField: 'numberId', fts: ['body'], sync: { profile: { desktop: 'window', phone: 'window', web: 'window' }, window: { days: 90, recentCount: 500 }, maxLabel: 'confidential' } }),
     entity('texting_registration', 'telephony_registration', 'reg_', {
       legalName: 'text', ein: 'text', website: 'url', address: 'address', contactName: 'text', contactEmail: 'email', useCase: 'text', sampleMessages: 'longtext', optInDescription: 'longtext',
@@ -242,6 +242,9 @@ export default defineManifest({
     }),
   ],
   settings: [
+    // quiet hours and caps for texts an agent or an automation sends
+    setting('telephony.sender_caps', 'space', 'comms', 'Texts per number', t.obj({ perHour: t.int({ minimum: 1 }), perDay: t.int({ minimum: 1 }) }), { perHour: 30, perDay: 150 }),
+    setting('telephony.send_window', 'space', 'comms', 'Text send window', t.obj({ days: t.arr(t.int({ minimum: 1, maximum: 7 })), startHour: t.int({ minimum: 0, maximum: 23 }), endHour: t.int({ minimum: 1, maximum: 24 }), zone: t.enm('recipient', 'space') }), { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 18, zone: 'recipient' }),
     setting('telephony.recording_default', 'space', 'comms', 'Default recording policy for new numbers', recordingPolicy, 'off'),
   ],
 });

@@ -116,23 +116,17 @@ export async function deliverability(
   return out;
 }
 
-// ---- contacts.route_owner (spec 2.18: unowned replies go to the campaign owner, then the shared inbox)
+// ---- contacts.route_owner (spec 2.18: unowned replies go to the shared inbox)
 
 export async function routeOwner(
-  ctx: ContactsCtx, input: { contactId?: string; campaignId?: string; mailboxId?: string },
-): Promise<{ ownerId?: string; via: "owner" | "campaign_owner" | "shared_inbox"; mailboxId?: string }> {
+  ctx: ContactsCtx, input: { contactId?: string; mailboxId?: string },
+): Promise<{ ownerId?: string; via: "owner" | "shared_inbox"; mailboxId?: string }> {
   if (input.contactId !== undefined && !isId("rec", input.contactId)) bad(ctx, "Contact id is not valid.");
-  if (input.campaignId !== undefined && !isId("cmp", input.campaignId)) bad(ctx, "Campaign id is not valid.");
   if (input.mailboxId !== undefined && !isId("mbx", input.mailboxId)) bad(ctx, "Mailbox id is not valid.");
   if (input.contactId) {
     const rec = await getRecord(ctx, "contact", input.contactId);
     const owner = text(rec?.fields.owner);
     if (owner) return { ownerId: owner, via: "owner" };
-  }
-  if (input.campaignId) {
-    const campaign = obj(obj(await ctx.call("campaigns.get", { campaignId: input.campaignId })).campaign);
-    const owner = text(campaign.owner);
-    if (owner) return { ownerId: owner, via: "campaign_owner" };
   }
   const out: { via: "shared_inbox"; mailboxId?: string } = { via: "shared_inbox" };
   if (input.mailboxId) out.mailboxId = input.mailboxId;

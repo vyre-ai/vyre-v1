@@ -468,6 +468,8 @@ const ADAPTERS: Record<string, Adapter> = {
       return {
         mailboxId, to: people(i.to), ...(i.cc ? { cc: people(i.cc) } : {}), subject: i.subject, ...(looksHtml(body) ? { html: body } : { text: body }),
         ...(Array.isArray(i.fileIds) ? { attachments: i.fileIds } : {}), ...(i.recordId ? { contactId: i.recordId } : {}), idempotencyKey: call.key,
+        // regular email from a flow always carries a way out; a draft becomes a person's own message
+        ...(i.draftOnly === true ? {} : { unsubscribe: true }),
       };
     },
     output: (o) => ({ messageId: o?.messageId ?? o?.draftId, ...(o?.threadId ? { threadId: o.threadId } : {}) }),

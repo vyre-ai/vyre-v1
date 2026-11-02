@@ -129,14 +129,13 @@ export interface MessageRow {
   sentAt: number;
   contactId?: string;
   isPrivate: boolean;
-  campaignId?: string;
   draftedByAgent?: string;
 }
 
 /** Every mail_message column except the body, which can be large and which the list shapes never return. */
 export const MESSAGE_COLUMNS = [
   "id", "mailboxId", "inboxIds", "providerId", "rfcMessageId", "threadId", "direction", "status", "fromAddress", "toAddresses", "ccAddresses",
-  "subject", "snippet", "sentAt", "contactId", "isPrivate", "campaignId", "attachments", "draftedByAgent", "traceId", "version", "updated_at",
+  "subject", "snippet", "sentAt", "contactId", "isPrivate", "attachments", "draftedByAgent", "traceId", "version", "updated_at",
 ].map((c) => `"${c}"`).join(", ");
 
 export function messageRow(ctx: MailCtx, row: Row): MessageRow {
@@ -161,10 +160,8 @@ export function messageRow(ctx: MailCtx, row: Row): MessageRow {
     isPrivate: num(row, "isPrivate") === 1,
   };
   const contactId = strOrNull(row, "contactId");
-  const campaignId = strOrNull(row, "campaignId");
   const agent = strOrNull(row, "draftedByAgent");
   if (contactId) out.contactId = contactId;
-  if (campaignId) out.campaignId = campaignId;
   if (agent) out.draftedByAgent = agent;
   return out;
 }

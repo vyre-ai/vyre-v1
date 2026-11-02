@@ -156,7 +156,7 @@ export async function analytics(ctx: AutoCtx, input: In): Promise<unknown> {
 
 const KIND_OF: Record<string, string> = {
   aut: "automation", jrn: "journey", con: "connection", mbx: "mailbox", num: "number", frm: "form", chn: "channel", rec: "record",
-  fil: "file", fld: "folder", prj: "project", sit: "site", kit: "kit", cmp: "campaign", usr: "person", grp: "group", agt: "agent",
+  fil: "file", fld: "folder", prj: "project", sit: "site", kit: "kit", usr: "person", grp: "group", agt: "agent",
 };
 const REF = /^([a-z]{3})_[a-z0-9]+$/;
 

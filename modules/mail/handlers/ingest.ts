@@ -183,13 +183,12 @@ export async function ingest(ctx: MailCtx, input: IngestIn): Promise<IngestOut> 
   ctx.db.run(`INSERT INTO mail_seen (source, "providerId", "messageId") VALUES (?, ?, ?)`, parsed.source, parsed.providerId, messageId);
   ctx.db.run(`INSERT INTO mail_rfc ("rfcMessageId", "messageId") VALUES (?, ?)`, parsed.rfc, messageId);
   notePull(ctx, box, parsed);
-  const link = await settleLink(ctx, messageId, parsed, box, reply.campaignId);
+  const link = await settleLink(ctx, messageId, parsed, box);
   if (parsed.direction === "in") {
-    const payload: { messageId: string; mailboxId: string; from: string; subject: string; contactId?: string; campaignId?: string } = {
+    const payload: { messageId: string; mailboxId: string; from: string; subject: string; contactId?: string } = {
       messageId, mailboxId, from: parsed.from.address, subject: parsed.subject,
     };
     if (link?.contactId) payload.contactId = link.contactId;
-    if (reply.campaignId) payload.campaignId = reply.campaignId;
     // Mail kept in the mailbox view is announced to the mailbox owner only.
     if (filingBlocked(box) || str(box, "privacy") === "private") ctx.emit("mail.received", `mailbox/${mailboxId}`, payload, { vis: "owner" });
     else ctx.emit("mail.received", `mailbox/${mailboxId}`, payload);
@@ -278,21 +277,18 @@ function knownMessage(ctx: MailCtx, p: Parsed): string | null {
 
 interface ReplyContext {
   threadId?: string;
-  campaignId?: string;
 }
 
-/** A reply keeps the thread and the campaign of the message it answers (In-Reply-To, then the last References entry). */
+/** A reply keeps the thread of the message it answers (In-Reply-To, then the last References entry). */
 function replyContext(ctx: MailCtx, p: Parsed): ReplyContext {
   const out: ReplyContext = {};
   const refs = (p.headers?.references ?? "").split(/\s+/).filter(Boolean);
   const candidates = [p.headers?.["in-reply-to"], refs[refs.length - 1]].filter((v): v is string => !!v).map(normalizeRfc);
   for (const rfc of candidates) {
-    const parent = first(ctx.db.all(`SELECT "threadId", "campaignId" FROM mail_message WHERE "rfcMessageId" = ? AND deleted_at IS NULL`, rfc));
+    const parent = first(ctx.db.all(`SELECT "threadId" FROM mail_message WHERE "rfcMessageId" = ? AND deleted_at IS NULL`, rfc));
     if (!parent) continue;
     const thread = strOrNull(parent, "threadId");
-    const campaign = strOrNull(parent, "campaignId");
     if (thread) out.threadId = thread;
-    if (campaign) out.campaignId = campaign;
     break;
   }
   return out;
@@ -304,15 +300,15 @@ function insertMessage(ctx: MailCtx, messageId: string, p: Parsed, box: Row, rep
     `INSERT INTO mail_message (
       id, "mailboxId", "inboxIds", "providerId", "rfcMessageId", "threadId", direction, status,
       "fromAddress", "toAddresses", "ccAddresses", subject, snippet, body, "sentAt", "contactId",
-      "isPrivate", "campaignId", attachments, "draftedByAgent", "traceId", version, updated_at, deleted_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      "isPrivate", attachments, "draftedByAgent", "traceId", version, updated_at, deleted_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     messageId, mailboxId, JSON.stringify([mailboxId]), p.providerId, p.rfc,
     p.threadKey ?? reply.threadId ?? p.rfc,
     p.direction, p.direction === "out" ? "sent" : "received",
     p.from.address, partyJson(p.to), partyJson(p.cc), p.subject, snippetOf(p.text, p.subject), p.text ?? p.html ?? "", p.receivedAt,
     null,
     str(box, "privacy") === "private" ? 1 : 0,   // mail in a private mailbox is private-marked: it never leaves the mailbox view
-    reply.campaignId ?? null, JSON.stringify(p.attachments), null, ctx.trace.traceId, 1, ctx.now(), null,
+    JSON.stringify(p.attachments), null, ctx.trace.traceId, 1, ctx.now(), null,
   );
   ctx.db.run(
     `INSERT INTO mail_body ("messageId", text, html, "fromName", bcc, headers) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -350,7 +346,7 @@ interface Link {
 }
 
 /** Run the linking step once per message, only for mailboxes that may file. Returns what the message is linked to so far. */
-async function settleLink(ctx: MailCtx, messageId: string, p: Parsed, box: Row, campaignId?: string): Promise<Link | null> {
+async function settleLink(ctx: MailCtx, messageId: string, p: Parsed, box: Row): Promise<Link | null> {
   const stored = readLink(ctx, messageId);
   if (stored) return stored;
   if (filingBlocked(box)) return null;   // paused or disconnected: stored, not linked
@@ -372,7 +368,6 @@ async function settleLink(ctx: MailCtx, messageId: string, p: Parsed, box: Row, 
     };
     const threadId = strOrNull(first(ctx.db.all(`SELECT "threadId" FROM mail_message WHERE id = ?`, messageId)), "threadId");
     if (threadId) input.threadId = threadId;
-    if (campaignId) input.campaignId = campaignId;
     if (own) { input.private = true; input.ownerId = own; }   // a private mailbox's mail is linked into a conversation of its owner's own, never to a record
     answer = parseLink(await ctx.call("inbox.link_message", input));
   } catch (e) {

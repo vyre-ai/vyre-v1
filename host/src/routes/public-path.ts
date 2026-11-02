@@ -1,7 +1,7 @@
 // The public path, /p/* (owner, 2 Nov): what a visitor with no session reaches on a phone address, name.vyre.run. The relay carries nothing else to this daemon in the clear.
 //   /p/forms/<slug>        a form; its calls go to the same address with ?op=
 //   /p/forms/book/<slug>   a booking page
-//   /p/u/<token>           an unsubscribe link from a campaign email
+//   /p/u/<token>           an unsubscribe link from an email
 //   /p/share/project/<token>  a read-only project link for a client
 //   /p/<site>/...          a public site: forwarded, whole path, to a port on a computer, or served from a folder in Files
 //   /a/<id>/k/<token>/...  an artifact: the token is one person's short-lived address, and their access is checked on every request

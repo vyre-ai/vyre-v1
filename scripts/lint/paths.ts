@@ -25,7 +25,6 @@ export function isMenuImplementation(file: string): boolean {
 const LIST_TYPES = new Set([
   "sites",
   "forms",
-  "campaigns",
   "automations",
   "agents",
   "records",

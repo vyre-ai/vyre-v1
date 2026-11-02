@@ -3,7 +3,7 @@
 // Calendars are the 'calendar' ResourceType (owner rule covers local Personal calendars with no connection); event
 // capabilities bind to the calendar_event row, whose ACL comes from its calendar.
 // DECISION: create, update, delete and respond are plain writes (the provider sends invitations when the outbox syncs).
-// For agents, automations and campaigns they are held by the Gate act 'send' when the event has attendees.
+// For agents and automations they are held by the Gate act 'send' when the event has attendees.
 import { bindInputs, defineManifest, entity, ev, health, read, screen, step, t, write } from '../packages/contracts/src/index.ts';
 import { email, id, pageIn, pageOut } from './_common.ts';
 

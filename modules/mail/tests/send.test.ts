@@ -27,7 +27,7 @@ function seedParent(r: Rig, id: string, o: { inboxes: string[]; rfc: string; thr
     `INSERT INTO mail_message (
       id, "mailboxId", "inboxIds", "providerId", "rfcMessageId", "threadId", direction, status,
       "fromAddress", "toAddresses", "ccAddresses", subject, snippet, body, "sentAt", "contactId",
-      "isPrivate", "campaignId", attachments, "draftedByAgent", "traceId", version, updated_at, deleted_at
+      "isPrivate", attachments, "draftedByAgent", "traceId", version, updated_at, deleted_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, o.inboxes[0] ?? "", JSON.stringify(o.inboxes), "pid_parent", o.rfc, o.thread, "in", "received",
     "pat@acme.test", JSON.stringify([{ address: "hello@vyre.test" }]), "[]", "Question", "Question", "Question", NOW, null,
@@ -39,7 +39,7 @@ function seedParent(r: Rig, id: string, o: { inboxes: string[]; rfc: string; thr
 
 test("a Space send goes out through the Resend domain with the trace header, a stored row and a message.sent event", async () => {
   const r = rig();
-  const input = sendIn({ campaignId: "cmp_spring", contactId: "rec_pat01", to: [{ address: "Pat@Acme.test", name: "Pat Lee" }] });
+  const input = sendIn({ contactId: "rec_pat01", to: [{ address: "Pat@Acme.test", name: "Pat Lee" }] });
   assert.deepEqual(contractErrors("mail.send", "in", input), []);
   const out = await send(r.ctx, input);
   assert.equal(out.status, "sent");
@@ -55,11 +55,11 @@ test("a Space send goes out through the Resend domain with the trace header, a s
   assert.equal(body.replyTo, undefined);
   assert.equal(body.fromName, undefined);
   assert.deepEqual(body.headers, { [TRACE_HEADER]: TRACE, "Message-ID": `<${id}@vyre.test>` });
-  assert.deepEqual(body.tags, [{ name: "message_id", value: id }, { name: "campaign_id", value: "cmp_spring" }]);
+  assert.deepEqual(body.tags, [{ name: "message_id", value: id }]);
 
   const m = row(r, id)!;
   assert.deepEqual([m.status, m.direction, m.providerId, m.rfcMessageId, m.traceId, m.fromAddress, m.version], ["sent", "out", "resend_1", `<${id}@vyre.test>`, TRACE, "hello@vyre.test", 2]);
-  assert.deepEqual([m.contactId, m.campaignId, m.threadId], ["rec_pat01", "cmp_spring", id]);
+  assert.deepEqual([m.contactId, m.threadId], ["rec_pat01", id]);
   assert.deepEqual(JSON.parse(String(m.toAddresses)), [{ address: "pat@acme.test", name: "Pat Lee", contactId: "rec_pat01" }]);
   assert.equal(body.idempotencyKey, id);   // the provider capability's own key: one delivery per message
   assert.equal(r.h.rows(`SELECT * FROM mail_body WHERE "messageId" = ?`, id)[0]!.text, "Hi Pat");
@@ -67,19 +67,19 @@ test("a Space send goes out through the Resend domain with the trace header, a s
   assert.equal(r.h.rows(`SELECT * FROM mail_seen WHERE "messageId" = ?`, id)[0]!.source, "resend");
   assert.deepEqual(rows(r, "mail_send_log").map((l) => [l.mailboxId, l.throttleKey, l.address]), [["mbx_hello", "domain:vyre.test", "pat@acme.test"]]);
   assert.deepEqual(r.h.named("message.sent").map((e) => [e.subject, e.payload]), [
-    [`mail_message/${id}`, { messageId: id, channel: "email", mailboxId: "mbx_hello", contactId: "rec_pat01", campaignId: "cmp_spring" }],
+    [`mail_message/${id}`, { messageId: id, channel: "email", mailboxId: "mbx_hello", contactId: "rec_pat01" }],
   ]);
 });
 
 test("the Mailgun provider setting sends through Mailgun on a Mailgun domain, with the mailbox as reply-to", async () => {
   const r = rig({ settings: { "mail.provider": "mailgun" } });
-  const out = await send(r.ctx, sendIn({ campaignId: "cmp_spring" }));
+  const out = await send(r.ctx, sendIn());
   assert.equal(out.status, "sent");
   assert.equal(r.calls("resend.send_email").length, 0);
   const body = r.calls("mailgun.send_email")[0]!.input;
   // the shared inbox address is on vyre.test, which only has a Resend domain; the Mailgun domain carries the mail and hello@ stays reply-to
   assert.deepEqual([body.domain, body.from, body.replyTo], ["mail.other.test", "hello@mail.other.test", "hello@vyre.test"]);
-  assert.deepEqual(body.tags, [`message_id:${out.messageId}`, "campaign_id:cmp_spring"]);
+  assert.deepEqual(body.tags, [`message_id:${out.messageId}`]);
   assert.equal(r.h.rows(`SELECT * FROM mail_seen WHERE "messageId" = ?`, out.messageId ?? "")[0]!.source, "mailgun");
   assert.equal(row(r, out.messageId ?? "")!.providerId, "mailgun_1");
 });
@@ -158,9 +158,9 @@ test("a suppressed address is left out, named in the answer and raises message.s
   assert.deepEqual(r.calls("contacts.suppression.check")[0]!.input, { channel: "email", addresses: ["pat@acme.test", "bounced@acme.test", "lee@acme.test"] });
 });
 
-test("when every recipient is suppressed nothing is sent or stored, and the campaign is named on the event", async () => {
+test("when every recipient is suppressed nothing is sent or stored", async () => {
   const r = rig({ suppressed: { "bounced@acme.test": "bounce_hard", "gone@acme.test": "unsubscribe" } });
-  const input = sendIn({ campaignId: "cmp_spring", to: [{ address: "bounced@acme.test" }, { address: "gone@acme.test" }] });
+  const input = sendIn({ to: [{ address: "bounced@acme.test" }, { address: "gone@acme.test" }] });
   const out = await send(r.ctx, input);
   assert.deepEqual(out, { status: "suppressed", suppressed: ["bounced@acme.test", "gone@acme.test"] });
   assert.deepEqual(contractErrors("mail.send", "out", out), []);
@@ -168,8 +168,8 @@ test("when every recipient is suppressed nothing is sent or stored, and the camp
   assert.equal(rows(r, "mail_message").length, 0);
   assert.equal(rows(r, "mail_send_log").length, 0);
   assert.deepEqual(r.h.named("message.suppressed").map((e) => e.payload), [
-    { channel: "email", address: "bounced@acme.test", reason: "bounce_hard", campaignId: "cmp_spring" },
-    { channel: "email", address: "gone@acme.test", reason: "unsubscribe", campaignId: "cmp_spring" },
+    { channel: "email", address: "bounced@acme.test", reason: "bounce_hard" },
+    { channel: "email", address: "gone@acme.test", reason: "unsubscribe" },
   ]);
   assert.deepEqual(await send(r.ctx, input), out);   // a replay answers the same and raises nothing more
   assert.equal(r.h.named("message.suppressed").length, 2);
@@ -333,7 +333,6 @@ test("bad input is refused before anything is read or sent", async () => {
   await refused(send(r.ctx, sendIn({ idempotencyKey: "" })), "validation.bad_input");
   await refused(send(r.ctx, sendIn({ attachments: ["file-1"] })), "validation.bad_input");
   await refused(send(r.ctx, sendIn({ contactId: "pat" })), "validation.bad_input");
-  await refused(send(r.ctx, sendIn({ campaignId: "spring" })), "validation.bad_input");
   await refused(send(r.ctx, sendIn({ sendAt: 1.5 })), "validation.bad_input");
   await refused(send(r.ctx, { ...sendIn(), route: "bogus" as unknown as Route }), "validation.bad_input");
   await refused(send(r.ctx, { ...sendIn(), text: undefined } as unknown as SendIn), "validation.bad_input");   // no body at all
@@ -356,7 +355,7 @@ test("a message that was already sent cannot be sent again as a draft, and a dra
 
 test("the preview names who would be sent to, who is suppressed and the route, and changes nothing", async () => {
   const r = rig({ suppressed: { "bounced@acme.test": "complaint" } });
-  const input = { mailboxId: "mbx_hello", to: [{ address: "pat@acme.test" }, { address: "bounced@acme.test" }], campaignId: "cmp_spring" };
+  const input = { mailboxId: "mbx_hello", to: [{ address: "pat@acme.test" }, { address: "bounced@acme.test" }] };
   assert.deepEqual(contractErrors("mail.send_preview", "in", input), []);
   const out = await sendPreview(r.ctx, input);
   assert.deepEqual(out, {

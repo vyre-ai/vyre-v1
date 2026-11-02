@@ -15,7 +15,7 @@ export interface MeetCtx {
   space: string;
   principal: { kind: "person" | "agent" | "actor" | "service"; id: string };
   trace: { traceId: string };
-  /** where the call came from: 'user' for a person at a screen, anything else for automations, campaigns and other engines */
+  /** where the call came from: 'user' for a person at a screen, anything else for automations and other engines */
   origin?: string;
   now(): number;
   db: MeetDb;

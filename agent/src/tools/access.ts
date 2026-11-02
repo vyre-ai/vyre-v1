@@ -34,7 +34,7 @@ export function allowedAtLevel(level: Level, t: ToolDef): boolean {
 }
 
 /** The objects an Ask can be pinned to: the pane changes that one thing and nothing else. A folder, a project or a place holds many things, so its Ask is bounded by the level alone. */
-const ONE_OBJECT: ReadonlySet<string> = new Set(["record", "file", "task", "run", "site", "form", "campaign", "automation", "agent"]);
+const ONE_OBJECT: ReadonlySet<string> = new Set(["record", "file", "task", "run", "site", "form", "automation", "agent"]);
 /** Writes that change nothing outside the pane: a drafted change for the editors, asking for access or a key. */
 const ASK_ANYWHERE: ReadonlySet<string> = new Set([...ASK_VIEW_EXTRAS, "access.request", "vault.request"]);
 

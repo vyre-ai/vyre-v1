@@ -702,7 +702,7 @@ export function webhookSecretMatches(ctx: AutoCtx, automationId: string, secret:
 // ---- Promote and the Personal copy ----
 
 const HANDLE = /#[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)?/g;
-const RESOURCE_PREFIX: Record<string, string> = { rec: "record", fil: "file", fld: "folder", chn: "channel", prj: "project", frm: "form", sit: "site", kit: "kit", cmp: "campaign", mbx: "mailbox", num: "number" };
+const RESOURCE_PREFIX: Record<string, string> = { rec: "record", fil: "file", fld: "folder", chn: "channel", prj: "project", frm: "form", sit: "site", kit: "kit", mbx: "mailbox", num: "number" };
 const LEVELS = ["view", "use", "edit", "manage"] as const;
 
 function walk(v: unknown, f: (s: string) => void): void {

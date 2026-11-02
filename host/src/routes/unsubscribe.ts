@@ -1,5 +1,5 @@
-// The unsubscribe link in a campaign email (spec 2.19): /u/<token> on a Space's own address, /p/u/<token> on a phone address, where the relay carries only /p/*.
-// A person with no account lands here from their mail client, so nothing is signed in and nothing about the Space is shown: not its name, not their address, not the campaign.
+// The unsubscribe link in an Automations email (spec 2.18): /u/<token> on a Space's own address, /p/u/<token> on a phone address, where the relay carries only /p/*.
+// A person with no account lands here from their mail client, so nothing is signed in and nothing about the Space is shown: not its name, not their address, not the flow.
 // GET changes nothing. Mail security scanners fetch every link in an email, so a GET that unsubscribed would remove people who never clicked. The page sends itself once a browser opens it, so a person still
 // has one click to make; a reader with no scripts gets the button. POST does the work, and also serves a mail client's own one-click unsubscribe. A link used twice answers the same way.
 import type http from "node:http";
