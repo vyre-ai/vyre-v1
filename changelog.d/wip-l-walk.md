@@ -12,3 +12,4 @@
 - The A/B test button is gone from the email step.
 - The Test button on an Automation works.
 - A notice on the Automation canvas no longer covers the zoom control.
+- A member at the Console address gets one plain line: Console is for admins and owners.
