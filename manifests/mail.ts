@@ -188,7 +188,7 @@ const manifest = defineManifest({
     outward('mail.send', 'Send an email through the single send API: suppression, consent, trace id header, agent footer line, an unsubscribe link when asked', {
       in: {
         mailboxId: id.mailbox, senderId: t.opt(t.str({ description: 'An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time', examples: ['mbx_a1b2c3'] })), route: t.opt(t.enm('mailbox', 'space_domain')), ...composed, sendAt: t.opt(t.ts()),
-        unsubscribe: t.opt(t.bool({ description: 'Carry an unsubscribe link and the List-Unsubscribe headers. Regular email to contacts sets it; every Automations email does' })),
+        unsubscribe: t.opt(t.bool()),   // carry an unsubscribe link and the List-Unsubscribe headers: every Automations email does
       },
       out: { messageId: t.opt(emlId), status: t.enm('queued', 'sent', 'held', 'suppressed'), taskId: t.opt(id.task), suppressed: t.arr(email) },
       on: ['mailbox', '/mailboxId'], level: 'use', gate: 'send', emits: ['message.sent', 'message.suppressed', 'message.failed'], tool: 'inbox', offline: 'queue', cli: 'vyre mail send',
