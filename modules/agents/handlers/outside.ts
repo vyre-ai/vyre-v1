@@ -4,7 +4,7 @@
 //   enqueue   a mention or a task for it (the engine and the task baton call this as the server). From the owner only.
 //   next      the one call that takes work: the agent's own tool. The chat it names is where its work shows from then on.
 //   seen      a tool call happened: Working for a minute, Awake for two, then Offline.
-import { isSystemCall } from "../../../lib/trust.ts";
+import { isHostService, isSystemCall } from "../../../lib/trust.ts";
 import { MAX_NAME, NAME_BAD, agentBy, agentByName, ensure, mintId, nameKey, raise, tolerant } from "../projections.ts";
 import type { AgentRec, AgentsCtx } from "../projections.ts";
 
@@ -29,8 +29,6 @@ export async function outsideName(ctx: AgentsCtx, clientName: string): Promise<s
 
 /** A face from the avatar library: its seed. A client has no say in it. */
 export const outsideFace = (ctx: AgentsCtx): string => `outside-${mintId("f", ctx.now()).slice(-10)}`;
-
-const owner = (ctx: AgentsCtx): string => ctx.actingFor ?? ctx.principal.id;
 
 export interface OutsideJob { jobId: string; kind: "mention" | "task" | "answer"; threadId?: string; taskId?: string; messageId?: string; from: string; title: string; text: string; queuedAt: number }
 function jobOf(r: Row): OutsideJob {
@@ -76,6 +74,13 @@ export function next(ctx: AgentsCtx, _input: Record<string, never>) {
   return { job, waiting: left };
 }
 
+/** Only the person who allowed an outside agent can give it work. The answer says no more than that. */
+export function usable(ctx: AgentsCtx, input: { agentId: string }) {
+  ensure(ctx.db);
+  const a = agentBy(ctx.db, input.agentId);
+  return { usable: !a || !isOutside(a) || isHostService(ctx.principal) || a.ownerId === (ctx.actingFor ?? ctx.principal.id) };
+}
+
 export function seen(ctx: AgentsCtx, input: { agentId: string }) {
   if (!isSystemCall(ctx)) raise(ctx, "permission.no_grant", "Only the server says that.");
   ensure(ctx.db);
@@ -86,5 +91,3 @@ export function seen(ctx: AgentsCtx, input: { agentId: string }) {
   ctx.emit("agent.seen", a.id, { agentId: a.id, at });
   return { ok: true };
 }
-
-export { owner as outsideOwner };

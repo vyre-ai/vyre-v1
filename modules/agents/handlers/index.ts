@@ -9,13 +9,14 @@ import {
   agentTemplateUse, agentTemplates, allowList, allowSet, browse, commandRender, commandsList, configSet, connectionAdd, connectionRemove, connectionsList, hooksList, install, marketplaceAdd, marketplaceRefresh, marketplaceRemove,
   marketplacesList, mcpServers, pluginFiles, pluginGet, pluginsList, setEnabled, uninstall,
 } from "./plugins.ts";
-import { enqueue, next, seen } from "./outside.ts";
+import { enqueue, next, seen, usable } from "./outside.ts";
 import { skillsAdd, skillsList, skillsLoad, skillsRemove, skillsSetEnabled } from "./skills.ts";
 
 export const handlers = {
   "agents.outside.connect": connectOutside,
   "agents.outside.enqueue": enqueue,
   "agents.outside.seen": seen,
+  "agents.outside.usable": usable,
   "agents.next": next,
   "plugins.marketplaces.list": marketplacesList,
   "plugins.browse": browse,

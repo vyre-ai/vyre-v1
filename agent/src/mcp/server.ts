@@ -86,7 +86,12 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
   function newSession(caller: McpCaller, tokenKey: string, clientName: string | undefined): Session {
     const asker = caller.actingFor ?? caller.principal.id;
     // The pipeline sees the real principal and the real origin.
-    const invoke: Invoke = (cap, input, seed) => deps.invoke(cap, input, { ...seed, principal: caller.principal, origin: "mcp", space: caller.space });
+    // An outside agent that has not taken a job works in no chat, so its calls name none, and every call it makes is on the audit log, whatever the capability.
+    const invoke: Invoke = (cap, input, seed) => {
+      const outsideCall = caller.kind === "outside";
+      const { thread, ...rest } = seed;
+      return deps.invoke(cap, input, { ...rest, principal: caller.principal, origin: "mcp", space: caller.space, ...(thread !== undefined && (!outsideCall || thread.startsWith("thr_")) ? { thread } : {}), ...(outsideCall ? { auditAll: true } : {}) });
+    };
     const tools = createToolSession({
       catalog: deps.catalog, defaults: deps.defaults, invoke,
       levelFor: () => caller.askLevel ?? null,

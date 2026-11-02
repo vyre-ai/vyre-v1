@@ -137,6 +137,9 @@ export default defineManifest({
       in: { agentId: id.agent, kind: t.enm('mention', 'task', 'answer'), threadId: t.opt(id.thread), taskId: t.opt(id.task), messageId: t.opt(id.message), asker: t.str(), title: t.opt(t.str()), text: t.opt(t.str()) },
       out: { queued: t.bool() }, emits: ['agent.job_queued'], idem: 'none', risk: 'low',
     }),
+    read('agents.outside.usable', 'May the person asking give this agent work? An outside agent takes work from its owner only; every other agent says yes', {
+      in: target, out: { usable: t.bool() }, level: 'member',
+    }),
     write('agents.outside.seen', 'System: an outside agent called a tool: its status follows', { in: { agentId: id.agent }, out: { ok: t.bool() }, emits: ['agent.seen'], idem: 'none', risk: 'low' }),
     write('agents.next', 'Take your next job: a mention or a task. It names the chat to work in; what you do afterwards shows there. Nothing waiting answers job null. Only an outside agent has a queue', {
       out: { job: t.nullable(outsideJob), waiting: t.int({ minimum: 0 }) }, level: 'member', emits: ['agent.job_taken'], tool: 'agents', mcpName: 'agents_next', agent: { planMode: 'allowed' }, idem: 'none', risk: 'low',

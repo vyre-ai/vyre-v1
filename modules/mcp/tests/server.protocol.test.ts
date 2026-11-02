@@ -272,7 +272,7 @@ test("a call is one invoke, as the agent acting for the person who allowed it", 
   await r2.callTool("out", "records_query", { type: "lead" });
   await r2.callTool("drv", "records_query", { type: "lead" });
   assert.deepEqual(seeds, [
-    { kind: "agent", origin: "mcp", thread: "ses_out", run: undefined },
+    { kind: "agent", origin: "mcp", thread: undefined, run: undefined },
     { kind: "agent", origin: "mcp", thread: "thr_1", run: "run_1" },
   ]);
 });
