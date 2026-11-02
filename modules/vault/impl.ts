@@ -76,6 +76,11 @@ export const handlers: Record<string, Handler> = {
 
 export const projections = { inline: {}, consumers: {} };
 
+/** Sign-ins of one account saved twice (before a sign-in named its account) are folded into one row: once at start, then now and then for rows that learn their account later (signins.ts). */
+export const periodic = {
+  "vault.tidy_signins": { everyMs: 15 * 60_000, immediate: true, run: (ctx: Ctx) => pr.tidy(ctx as unknown as Parameters<typeof pr.tidy>[0]) },
+};
+
 /** What the host gives the module at boot (ruling 31/32): the filler's key (32 bytes, kept in the data directory) and the places a value may be filled into. */
 export const hostSeams: SeamSetters = {
   setVaultKeyPort: (port: KeyPort | null) => setKeyPort(port),
@@ -95,6 +100,8 @@ export const hostCalls = {
     vault_mine: kept(rows(ctx, `SELECT "id", "name" FROM vault_meta WHERE "owner" = ? AND "scope" = 'mine' AND "deleted_at" IS NULL`, i.person), "vault_item", "name"),
   }),
   /** Mine items are exportable by their owner for 30 days after removal and stay sealed under the owner's own key meanwhile (export keeps them); delete puts them in the trash. */
+  /** Sign-in files a CLI refreshed during a turn, saved back to their item (providers.ts signinRefreshed). The host's own call only: consumers.ts refuses every other caller. */
+  "vault.signin_refreshed": (ctx: Ctx, i: { ticket: string; itemId: string; asker: string }) => pr.signinRefreshed(ctx as unknown as Parameters<typeof pr.signinRefreshed>[0], i),
   "vault.reassign_owned": (ctx: Ctx, i: { person: string; kind: string; action: string }): number => {
     if (i.kind !== "vault_mine" || i.action !== "delete") return 0;
     try { return ctx.db.run(`UPDATE vault_meta SET "deleted_at" = ?, "updated_at" = ? WHERE "owner" = ? AND "scope" = 'mine' AND "deleted_at" IS NULL`, ctx.now(), ctx.now(), i.person).changes; } catch { return 0; }

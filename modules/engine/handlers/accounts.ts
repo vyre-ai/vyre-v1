@@ -10,6 +10,12 @@ import type { AccountRow, AccountStatus, ProbeResult } from "../../../agent/src/
 interface ProviderRow {
   id: string; providerKey: string; name: string; connection: "subscription" | "api_key" | "local_model"; scope: "mine" | "shared"; handle?: string; itemId: string;
   engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing"; address?: string; keyless?: boolean; itemName?: string; spaceKey?: boolean;
+  /** A sign-in's name: the one the person gave it, else the provider and its account. */
+  displayName?: string;
+  /** Handles of sign-ins of the same account folded into this row. */
+  aliases?: string[];
+  /** An older sign-in of the same provider whose account cannot be read: the provider id of the row it is listed under. */
+  olderOf?: string;
 }
 interface ThreadOut { thread: { starter: string; agents: Array<{ agentId: string; accountRef?: string; provider?: string; model?: string }> } }
 interface AgentOut { agent: { accountPolicy: "asker" | "key"; accountKey?: string; accountFallback?: string[]; model?: string } }
@@ -27,7 +33,22 @@ function driverOf(p: ProviderRow): string {
   return DRIVERS.has(p.providerKey) ? p.providerKey : "openrouter";
 }
 
-export async function load(ctx: Pick<Ctx, "actingFor" | "principal" | "call">): Promise<{ rows: AccountRow[]; idByRef: Map<string, string>; itemByRef: Map<string, string>; where: Map<string, { base?: string; keyless?: boolean }>; names: Map<string, string> }> {
+export interface Loaded {
+  rows: AccountRow[]; idByRef: Map<string, string>; itemByRef: Map<string, string>; where: Map<string, { base?: string; keyless?: boolean }>; names: Map<string, string>;
+  /** A folded handle to the ref of the row that kept the account. */
+  aliasOf: Map<string, string>;
+  /** An older sign-in's ref to the ref of the row it is listed under. */
+  underOf: Map<string, string>;
+}
+
+/** The ref that pays for a pin: a handle that was folded into another row of the same account names that row. */
+export function canonical(l: Pick<Loaded, "aliasOf">, ref: string): string {
+  const [handle = "", ...field] = ref.split(".");
+  const to = l.aliasOf.get(ref) ?? l.aliasOf.get(handle);
+  return to === undefined ? ref : [to, ...field].join(".");
+}
+
+export async function load(ctx: Pick<Ctx, "actingFor" | "principal" | "call">): Promise<Loaded> {
   const me = ctx.actingFor ?? ctx.principal.id;
   const out = (await ctx.call("providers.list", {})) as { providers: ProviderRow[] };
   const rows: AccountRow[] = [];
@@ -35,29 +56,43 @@ export async function load(ctx: Pick<Ctx, "actingFor" | "principal" | "call">): 
   const itemByRef = new Map<string, string>();
   const where = new Map<string, { base?: string; keyless?: boolean }>();
   const names = new Map<string, string>();
+  const aliasOf = new Map<string, string>();
+  const underOf = new Map<string, string>();
+  const refById = new Map(out.providers.map((p) => [p.id, p.handle ?? p.itemId] as const));
   for (const p of out.providers) {
     const ref = p.handle ?? p.itemId;
     idByRef.set(ref, p.id);
     itemByRef.set(ref, p.itemId);
-    if (p.itemName && p.spaceKey !== true) names.set(ref, p.itemName);   // the Space AI key reads as its provider, like any other
+    for (const a of p.aliases ?? []) aliasOf.set(a, ref);
+    const under = p.olderOf ? refById.get(p.olderOf) : undefined;
+    if (under) underOf.set(ref, under);
+    // a sign-in reads by the name the person gave it or its account, never "Claude Code 4"; the Space AI key reads as its provider, like any other
+    const name = p.displayName ?? p.itemName;
+    if (name && p.spaceKey !== true) names.set(ref, name);
     if (p.address || p.keyless) where.set(ref, { ...(p.address ? { base: p.address } : {}), ...(p.keyless ? { keyless: true } : {}) });
     rows.push({
       ref, driver: driverOf(p), provider: p.providerKey, kind: p.connection === "subscription" ? "subscription" : "api_key", title: p.name,
       mine: p.scope === "mine", ownerId: p.scope === "mine" ? me : null, status: STATUS[p.state], lastProbeAt: null, spaceMayUse: p.spaceMayUse,
-      ...(p.spaceKey === true ? { spaceKey: true } : {}),
+      ...(p.spaceKey === true ? { spaceKey: true } : {}), ...(under ? { older: true } : {}),
     });
   }
-  return { rows, idByRef, itemByRef, where, names };
+  return { rows, idByRef, itemByRef, where, names, aliasOf, underOf };
 }
 
+/** One entry per account: older sign-ins of a provider whose account cannot be read are listed under the row they show as (and can be removed there), and a pin to a folded handle or an older sign-in shows that row. */
 export async function accountsList(ctx: Ctx, _input: Record<string, never>) {
-  const { rows, where, names } = await load(ctx);
+  const { rows, where, names, idByRef, aliasOf, underOf } = await load(ctx);
   return {
-    accounts: rows.map((r) => ({
-      ...where.get(r.ref),
-      ref: r.ref, driver: r.driver, kind: r.kind, title: r.title, ...(names.has(r.ref) ? { name: names.get(r.ref) } : {}), mine: r.mine, ...(r.ownerId ? { ownerId: r.ownerId } : {}), status: r.status,
-      ...(r.lastProbeAt !== null ? { lastProbeAt: r.lastProbeAt } : {}), ...(r.spaceKey === true ? { spaceKey: true } : {}),
-    })),
+    accounts: rows.filter((r) => !underOf.has(r.ref)).map((r) => {
+      const older = rows.filter((o) => underOf.get(o.ref) === r.ref).map((o) => ({ ref: o.ref, providerId: idByRef.get(o.ref)!, name: names.get(o.ref) ?? o.title }));
+      const aliases = [...[...aliasOf].filter(([, to]) => to === r.ref).map(([from]) => from), ...older.map((o) => o.ref)];
+      return {
+        ...where.get(r.ref),
+        ref: r.ref, driver: r.driver, kind: r.kind, title: r.title, ...(names.has(r.ref) ? { name: names.get(r.ref) } : {}), mine: r.mine, ...(r.ownerId ? { ownerId: r.ownerId } : {}), status: r.status,
+        ...(r.lastProbeAt !== null ? { lastProbeAt: r.lastProbeAt } : {}), ...(r.spaceKey === true ? { spaceKey: true } : {}),
+        ...(aliases.length > 0 ? { aliases } : {}), ...(older.length > 0 ? { older } : {}),
+      };
+    }),
   };
 }
 
@@ -71,6 +106,8 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
     load(ctx),
   ]);
   const member = t.thread.agents.find((x) => x.agentId === input.agentId);
+  // a pin, a key or a fallback that names a handle folded into another row of the same account pays with that row
+  const c = (ref: string): string => canonical(accounts, ref);
   const provider = member?.provider ?? providerOfModel(member?.model ?? a.agent.model);
   // a Personal Space runs on the person's own computer, so a turn on its host is a turn on their computer: their sign-in needs no "the Space may use it" switch there
   const personal = await (ctx.call("spaces.get", {}) as Promise<{ space?: { kind?: string } }>).then((r) => r.space?.kind === "personal", () => false);
@@ -78,14 +115,14 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
     starter: t.thread.starter,
     ...(input.askerId ? { steerer: input.askerId } : {}),
     trigger: input.stepKey ? "task" : "message",
-    ...(member?.accountRef ? { threadAccountRef: member.accountRef } : {}),
-    agent: { accountPolicy: a.agent.accountPolicy, ...(a.agent.accountKey ? { accountKey: a.agent.accountKey } : {}), ...(a.agent.accountFallback?.length ? { accountFallback: a.agent.accountFallback } : {}), ...(provider ? { provider } : {}) },
-    ...(input.stepKey ? { stepKey: input.stepKey } : {}),
-    backupRefs: defaults.fallback.flatMap((f) => (f.accountRef ? [f.accountRef] : [])),
+    ...(member?.accountRef ? { threadAccountRef: c(member.accountRef) } : {}),
+    agent: { accountPolicy: a.agent.accountPolicy, ...(a.agent.accountKey ? { accountKey: c(a.agent.accountKey) } : {}), ...(a.agent.accountFallback?.length ? { accountFallback: a.agent.accountFallback.map(c) } : {}), ...(provider ? { provider } : {}) },
+    ...(input.stepKey ? { stepKey: c(input.stepKey) } : {}),
+    backupRefs: defaults.fallback.flatMap((f) => (f.accountRef ? [c(f.accountRef)] : [])),
     policy: policy.allowedAccounts,
     accounts: accounts.rows,
     onServer: placement.placement !== "device" && !personal,
-    ...(input.unavailable?.length ? { unavailable: input.unavailable } : {}),
+    ...(input.unavailable?.length ? { unavailable: input.unavailable.map(c) } : {}),
   });
   // the Vault item behind the account, so the turn worker can meter usage against it (record_usage itemId)
   const itemId = res.accountRef ? accounts.itemByRef.get(res.accountRef) : undefined;
@@ -95,7 +132,9 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
 }
 
 export async function accountProbe(ctx: Ctx, input: { accountRef: string }) {
-  const { rows, idByRef } = await load(ctx);
+  const loaded = await load(ctx);
+  const { rows, idByRef } = loaded;
+  input = { ...input, accountRef: canonical(loaded, input.accountRef) };
   const result = await probeAccount({
     find: (ref) => rows.find((r) => r.ref === ref),
     run: async (row): Promise<ProbeResult> => {

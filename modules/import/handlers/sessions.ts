@@ -114,7 +114,9 @@ export async function sessionsImport(ctx: ImportCtx, raw: In): Promise<unknown> 
   const out: Array<{ conversationId: string; provider: Provider; destination: Destination }> = [];
   let imported = 0, updated = 0;
   for (const source of sessions) {
-    const existing = ctx.db.all("SELECT conversationId, projectId, destinationKind FROM import_conversation WHERE spaceId = ? AND owner = ? AND destinationScope = ? AND sourceKey = ? AND sourceSessionId = ?", target.spaceId, owner, scope, sourceKey, source.sourceSessionId) as Array<Record<string, unknown>>;
+    const existing = ctx.db.all("SELECT conversationId, projectId, destinationKind, deletedAt FROM import_conversation WHERE spaceId = ? AND owner = ? AND destinationScope = ? AND sourceKey = ? AND sourceSessionId = ?", target.spaceId, owner, scope, sourceKey, source.sourceSessionId) as Array<Record<string, unknown>>;
+    // the owner deleted this session in Vyre: a later import of the same source session leaves it gone
+    if (existing[0]?.["deletedAt"] != null) continue;
     if (existing[0]) {
       const row = existing[0];
       const conversationId = String(row["conversationId"]);
@@ -127,7 +129,8 @@ export async function sessionsImport(ctx: ImportCtx, raw: In): Promise<unknown> 
     ctx.db.run("INSERT OR IGNORE INTO import_conversation (conversationId, spaceId, sourceKey, sourceSessionId, provider, owner, destinationScope, projectId, destinationKind, identityKey, title, startedAt, importedAt, immutable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)", conversationId, target.spaceId, sourceKey, source.sourceSessionId, provider, owner, scope, bound.destination.kind === "project" ? bound.destination.projectId : null, bound.destination.kind, bound.identityKey ?? null, source.title ?? null, source.startedAt, ctx.now());
     // Project creation yields to another confirmed import. The unique source tuple
     // chooses one archive atomically; append to its winner instead of throwing.
-    const winner = (ctx.db.all("SELECT conversationId, projectId, destinationKind FROM import_conversation WHERE spaceId = ? AND owner = ? AND destinationScope = ? AND sourceKey = ? AND sourceSessionId = ?", target.spaceId, owner, scope, sourceKey, source.sourceSessionId) as Array<Record<string, unknown>>)[0]!;
+    const winner = (ctx.db.all("SELECT conversationId, projectId, destinationKind, deletedAt FROM import_conversation WHERE spaceId = ? AND owner = ? AND destinationScope = ? AND sourceKey = ? AND sourceSessionId = ?", target.spaceId, owner, scope, sourceKey, source.sourceSessionId) as Array<Record<string, unknown>>)[0]!;
+    if (winner["deletedAt"] != null) continue;
     const winnerId = String(winner["conversationId"]);
     const added = appendMessages(ctx, winnerId, sourceKey, provider, source.messages);
     if (winnerId !== conversationId) {
@@ -146,7 +149,7 @@ export async function sessionsContinue(ctx: ImportCtx, input: In): Promise<unkno
   await personal(ctx);
   if (typeof input.destinationSpaceId !== "string" || input.destinationSpaceId === "") raise(ctx, "validation.bad_input", "Choose the destination Space that owns this imported conversation.");
   if (input.destinationScope !== "personal" || input.destinationSpaceId !== ctx.space) raise(ctx, "validation.not_found", "That imported conversation does not exist.");
-  const row = (ctx.db.all("SELECT conversationId, projectId, continuedThreadId FROM import_conversation WHERE conversationId = ? AND owner = ? AND spaceId = ? AND destinationScope = ?", input.conversationId, me(ctx), ctx.space, "personal") as Array<Record<string, unknown>>)[0];
+  const row = (ctx.db.all("SELECT conversationId, projectId, continuedThreadId FROM import_conversation WHERE conversationId = ? AND owner = ? AND spaceId = ? AND destinationScope = ? AND deletedAt IS NULL", input.conversationId, me(ctx), ctx.space, "personal") as Array<Record<string, unknown>>)[0];
   if (!row) raise(ctx, "validation.not_found", "That imported conversation does not exist.");
   const fileInProject = async (threadId: string): Promise<void> => {
     if (row["projectId"]) await call(ctx, "projects.file_chat", { projectId: String(row["projectId"]), threadId });
@@ -172,10 +175,12 @@ export async function sessionsContinue(ctx: ImportCtx, input: In): Promise<unkno
 }
 
 
+/** One archive row as the owner sees it: the title they gave it in Vyre, else the source title; `archived` only when it is in their Archived list. */
 function archiveRow(row: Record<string, unknown>): Record<string, unknown> {
   return clean({ conversationId: row.conversationId, provider: row.provider, sourceKey: row.sourceKey,
-    sourceSessionId: row.sourceSessionId, title: row.title ?? "Imported session", startedAt: row.startedAt,
-    importedAt: row.importedAt, projectId: row.projectId ?? undefined, continuedThreadId: row.continuedThreadId ?? undefined });
+    sourceSessionId: row.sourceSessionId, title: row.shownTitle ?? row.title ?? "Imported session", startedAt: row.startedAt,
+    importedAt: row.importedAt, projectId: row.projectId ?? undefined, continuedThreadId: row.continuedThreadId ?? undefined,
+    archived: row.archivedAt != null ? true : undefined });
 }
 
 export async function sessionsList(ctx: ImportCtx, input: In): Promise<unknown> {
@@ -184,15 +189,15 @@ export async function sessionsList(ctx: ImportCtx, input: In): Promise<unknown> 
   const limit = Math.min(100, Math.max(1, Number(input.limit) || 50));
   const offset = Number(input.cursor ?? 0);
   if (!Number.isSafeInteger(offset) || offset < 0) raise(ctx, "validation.bad_input", "That page cursor is not valid.");
-  const rows = ctx.db.all("SELECT * FROM import_conversation WHERE spaceId = ? AND owner = ? AND destinationScope = ? ORDER BY importedAt DESC, conversationId LIMIT ? OFFSET ?", ctx.space, me(ctx), "personal", limit + 1, offset) as Array<Record<string, unknown>>;
+  const rows = ctx.db.all("SELECT * FROM import_conversation WHERE spaceId = ? AND owner = ? AND destinationScope = ? AND deletedAt IS NULL ORDER BY importedAt DESC, conversationId LIMIT ? OFFSET ?", ctx.space, me(ctx), "personal", limit + 1, offset) as Array<Record<string, unknown>>;
   return clean({ sessions: rows.slice(0, limit).map(archiveRow), next: rows.length > limit ? String(offset + limit) : undefined });
 }
 
 export async function sessionsGet(ctx: ImportCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
   await personal(ctx);
-  const row = (ctx.db.all("SELECT * FROM import_conversation WHERE conversationId = ? AND owner = ? AND spaceId = ? AND destinationScope = ?", input.conversationId, me(ctx), ctx.space, "personal") as Array<Record<string, unknown>>)[0];
-  if (!row) raise(ctx, "validation.not_found", "That imported conversation does not exist.");
+  const row = owned(ctx, input.conversationId);
+  if (!row || row["deletedAt"] != null) raise(ctx, "validation.not_found", "That imported conversation does not exist.");
   const rows = ctx.db.all("SELECT messageId, sourceMessageId, role, text, at FROM import_message WHERE conversationId = ? ORDER BY at, rowid", input.conversationId) as Array<Record<string, unknown>>;
   const messages = rows.map(({ messageId, ...m }) => {
     const tools = (ctx.db.all("SELECT toolId, name, summary, ok, output FROM import_message_tool WHERE messageId = ? ORDER BY ord", messageId) as Array<Record<string, unknown>>)
@@ -200,4 +205,63 @@ export async function sessionsGet(ctx: ImportCtx, input: In): Promise<unknown> {
     return tools.length > 0 ? { ...m, tools } : m;
   });
   return { session: archiveRow(row), messages };
+}
+
+/** The signed-in owner's imported session in this Space, a deleted one's tombstone included; undefined when there is none. */
+function owned(ctx: ImportCtx, conversationId: unknown): Record<string, unknown> | undefined {
+  return (ctx.db.all("SELECT * FROM import_conversation WHERE conversationId = ? AND owner = ? AND spaceId = ? AND destinationScope = ?", conversationId, me(ctx), ctx.space, "personal") as Array<Record<string, unknown>>)[0];
+}
+
+/** The owner's session that is still in Vyre, or not_found. */
+function present(ctx: ImportCtx, conversationId: unknown): Record<string, unknown> {
+  const row = owned(ctx, conversationId);
+  if (!row || row["deletedAt"] != null) raise(ctx, "validation.not_found", "That imported conversation does not exist.");
+  return row;
+}
+
+/** A new title shown in Vyre. The copied transcript and the source title stay; giving it the source title back clears the owner's own. Asking for the title it has changes nothing. */
+export async function sessionsRename(ctx: ImportCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  await personal(ctx);
+  const title = typeof input.title === "string" ? input.title.replace(/\s+/g, " ").trim() : "";
+  if (title === "" || title.length > 200) raise(ctx, "validation.bad_input", "Give the session a title of up to 200 characters.");
+  const row = present(ctx, input.conversationId);
+  const shown = title === row["title"] ? null : title;
+  if ((row["shownTitle"] ?? null) !== shown) {
+    ctx.db.run("UPDATE import_conversation SET shownTitle = ? WHERE conversationId = ?", shown, row["conversationId"]);
+    ctx.emit("sessions.renamed", String(row["conversationId"]), { conversationId: row["conversationId"] });
+  }
+  return { session: archiveRow({ ...row, shownTitle: shown }) };
+}
+
+/** Into the owner's Archived list, or back out with `unarchive`. Asking for the state it is in changes nothing. */
+export async function sessionsArchive(ctx: ImportCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  await personal(ctx);
+  const row = present(ctx, input.conversationId);
+  const archived = input.unarchive !== true;
+  if ((row["archivedAt"] != null) !== archived) {
+    ctx.db.run("UPDATE import_conversation SET archivedAt = ? WHERE conversationId = ?", archived ? ctx.now() : null, row["conversationId"]);
+    ctx.emit("sessions.archived", String(row["conversationId"]), { conversationId: row["conversationId"], archived });
+  }
+  return { archived };
+}
+
+/**
+ * Remove the imported copy from Vyre: its messages, tool calls and conflicts go, and a tombstone keeps the source ids so a later import of the same session skips it. Nothing on the
+ * person's computer is read or written, and a chat continued from it is a separate live chat that stays. A second delete answers the same.
+ */
+export async function sessionsDelete(ctx: ImportCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  await personal(ctx);
+  const row = owned(ctx, input.conversationId);
+  if (!row) raise(ctx, "validation.not_found", "That imported conversation does not exist.");
+  if (row["deletedAt"] != null) return { deleted: true };
+  const id = String(row["conversationId"]);
+  for (const m of ctx.db.all("SELECT messageId FROM import_message WHERE conversationId = ?", id) as Array<{ messageId: string }>) ctx.db.run("DELETE FROM import_message_tool WHERE messageId = ?", m.messageId);
+  ctx.db.run("DELETE FROM import_message WHERE conversationId = ?", id);
+  ctx.db.run("DELETE FROM import_session_conflict WHERE conversationId = ?", id);
+  ctx.db.run("UPDATE import_conversation SET deletedAt = ?, title = NULL, shownTitle = NULL, archivedAt = NULL WHERE conversationId = ?", ctx.now(), id);
+  ctx.emit("sessions.deleted", id, { conversationId: id });
+  return { deleted: true };
 }

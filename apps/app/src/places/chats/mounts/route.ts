@@ -110,6 +110,22 @@ export function step(s: Shown, a: Act): Shown {
   }
 }
 
+/**
+ * What the middle shows, as the key the Chats sidebar selects its row by: `t:<thread>` a chat or a channel, `i:<conversation>` an imported transcript, `a:<agent>` an agent's page or its
+ * form, and `tasks`, `threads`, `artifacts`. Null for a page that has no row (a new chat, one task, search, Needs you, a helper). A tab switch, a link and Cmd-K all arrive as a route, so
+ * the selection follows each of them.
+ */
+export function openKeyOf(r: Route): string | null {
+  switch (r.view) {
+    case "chat": return r.threadId ? `t:${r.threadId}` : null;
+    case "tasks": case "threads": case "artifacts": return r.view;
+    case "imported": return `i:${r.conversationId}`;
+    case "agent": return `a:${r.agentId}`;
+    case "agent-form": return r.agentId ? `a:${r.agentId}` : null;
+    default: return null;
+  }
+}
+
 /** The newest chat or channel the Space has, in the order the sidebar lists them. */
 export function newestThread(recent: RecentOut | undefined): string | null {
   if (!recent) return null;

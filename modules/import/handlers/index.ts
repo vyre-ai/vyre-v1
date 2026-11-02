@@ -1,10 +1,10 @@
-// Handler table of the import module: all 12 capabilities of manifests/import.ts. The five parsers and suggest_mapping are in parse.ts, preview in preview.ts, commit in commit.ts and the
-// reads, discard and the CSV template in session.ts.
+// Handler table of the import module: all 19 capabilities of manifests/import.ts. The five parsers and suggest_mapping are in parse.ts, preview in preview.ts, commit in commit.ts and the
+// reads, discard and the CSV template in session.ts; the local coding sessions (import, list, read, continue, rename, archive, delete) in sessions.ts.
 import { commit } from "./commit.ts";
 import { parseAirtable, parseCsv, parseExcel, parseGoogleSheets, parseNotion, suggestMapping } from "./parse.ts";
 import { preview } from "./preview.ts";
 import { discard, get, list, template } from "./session.ts";
-import { sessionsContinue, sessionsImport, sessionsList, sessionsGet } from "./sessions.ts";
+import { sessionsArchive, sessionsContinue, sessionsDelete, sessionsGet, sessionsImport, sessionsList, sessionsRename } from "./sessions.ts";
 
 export const handlers = {
   "import.commit": commit,
@@ -23,4 +23,7 @@ export const handlers = {
   "sessions.get": sessionsGet,
   "sessions.import": sessionsImport,
   "sessions.continue": sessionsContinue,
+  "sessions.rename": sessionsRename,
+  "sessions.archive": sessionsArchive,
+  "sessions.delete": sessionsDelete,
 };

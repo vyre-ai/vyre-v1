@@ -17,8 +17,11 @@ export const handlers: Handlers<HandlerCtx> = {
   "import.preview": async (ctx) => { throw new VyreErr(notImplemented("import.preview", ctx.trace)); },
   "import.suggest_mapping": async (ctx) => { throw new VyreErr(notImplemented("import.suggest_mapping", ctx.trace)); },
   "import.template": async (ctx) => { throw new VyreErr(notImplemented("import.template", ctx.trace)); },
+  "sessions.archive": async (ctx) => { throw new VyreErr(notImplemented("sessions.archive", ctx.trace)); },
   "sessions.continue": async (ctx) => { throw new VyreErr(notImplemented("sessions.continue", ctx.trace)); },
+  "sessions.delete": async (ctx) => { throw new VyreErr(notImplemented("sessions.delete", ctx.trace)); },
   "sessions.get": async (ctx) => { throw new VyreErr(notImplemented("sessions.get", ctx.trace)); },
   "sessions.import": async (ctx) => { throw new VyreErr(notImplemented("sessions.import", ctx.trace)); },
   "sessions.list": async (ctx) => { throw new VyreErr(notImplemented("sessions.list", ctx.trace)); },
+  "sessions.rename": async (ctx) => { throw new VyreErr(notImplemented("sessions.rename", ctx.trace)); },
 };

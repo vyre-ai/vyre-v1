@@ -11,6 +11,8 @@ import type { Label, Policy } from "./config.ts";
 interface ProviderRow {
   id: string; providerKey: string; name: string; connection: "subscription" | "api_key" | "local_model"; scope: "mine" | "shared"; handle?: string; itemId: string;
   engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing"; spaceKey?: boolean;
+  /** Handles of sign-ins of the same account folded into this row. */
+  aliases?: string[];
 }
 
 export const DRIVERS = ["anthropic", "openai", "openrouter", "google", "xai", "opencode_go", "local", "custom", "claude_code", "codex", "grok"] as const;
@@ -60,7 +62,8 @@ interface ModelInfo {
 export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; threadId?: string; recordLabel?: Label }): Promise<{ models: ModelInfo[] }> {
   const [all, policy, tl] = await Promise.all([myProviders(ctx), readPolicy(ctx), threadLabel(ctx, input.threadId)]);
   const label = input.recordLabel ?? tl;
-  const chosen = input.accountRef === undefined ? all : all.filter((p) => (p.handle ?? p.itemId) === input.accountRef);
+  // a pin that still names a folded handle reads the row that kept the account
+  const chosen = input.accountRef === undefined ? all : all.filter((p) => (p.handle ?? p.itemId) === input.accountRef || (p.aliases ?? []).includes(input.accountRef as string));
   if (input.accountRef !== undefined && chosen.length === 0) raise(ctx, "validation.not_found", "There is no such account.", { accountRef: input.accountRef });
   const found = await Promise.all(chosen.map(async (p) => {
     // A provider that is not signed in cannot list its models; it is shown as one greyed row so the person sees what to reconnect.

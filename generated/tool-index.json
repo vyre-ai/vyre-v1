@@ -6890,6 +6890,12 @@
     },
     {
       "deferred": false,
+      "name": "sessions_archive",
+      "summary": "Move an imported session to the owner Archived list, or back out of it with unarchive",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "sessions_continue",
       "summary": "Start a separate live Vyre chat linked to an immutable imported conversation; it never writes back to the local provider store",
       "toolset": "chats"
@@ -6910,6 +6916,12 @@
       "deferred": false,
       "name": "sessions_list",
       "summary": "List the current owner private imported session archive in this Personal Space",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "sessions_rename",
+      "summary": "Give an imported session a new title in Vyre. Only the title shown changes: the copied transcript and its source provenance stay as they were",
       "toolset": "chats"
     },
     {

@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CRED_FILES_ENV, CredentialFilesError, engineHome, parseCredentialFiles, placeCredentialFiles, takeCredentialFiles } from "../credential-files.ts";
-import { spawnCli } from "../session.ts";
+import { signinsSettled, spawnCli } from "../session.ts";
 import { workFolder } from "../sandbox.ts";
 import type { SandboxPlan } from "../sandbox.ts";
 import { cliCredential } from "../../../agent/src/drivers/open/credentials.ts";
@@ -114,5 +114,147 @@ test("a process that fails to start leaves no file behind", async () => {
   const w = plan();
   await assert.rejects(() => spawnCli(w.plan, { argv: ["codex"], env: { [CRED_FILES_ENV]: CODEX_FILES }, cwd: w.cwd }, ["codex"], { wrapOf: () => () => ["/nonexistent/program"] }));
   assert.equal(fs.existsSync(path.join(engineHome(w.dir, w.cwd), ".codex", "auth.json")), false);
+  fs.rmSync(w.dir, { recursive: true, force: true });
+});
+
+// ---- a sign-in the CLI refreshed during its turn is read back before the files are removed
+
+const OLD_AT = "2026-10-01T10:00:00.000Z";
+const codexAt = (access: string, at: string, account = "acct-1"): string => JSON.stringify({ ".codex/auth.json": JSON.stringify({ OPENAI_API_KEY: null, tokens: { id_token: idTok(account), access_token: access, refresh_token: `rt-${access}` }, last_refresh: at }) });
+const idTok = (account: string): string => `${Buffer.from('{"alg":"none"}').toString("base64url")}.${Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: account, chatgpt_user_id: "u-1" } })).toString("base64url")}.sig`;
+/** What the stand-in refreshes the access token to on "authrefresh r1": the old one with the tag after it. */
+const NEW = `${ACCESS}-r1`;
+
+/** One turn of a stand-in CLI with its sign-in files, collecting what it hands back; settles every save before it answers. */
+async function turnBack(cli: "codex" | "grok", files: string, prompt: string, back?: (f: Readonly<Record<string, string | null>>) => Promise<void>): Promise<{ handed: Readonly<Record<string, string | null>>[]; text: string; code: number | null; w: ReturnType<typeof plan>; file: string }> {
+  const w = plan();
+  const handed: Readonly<Record<string, string | null>>[] = [];
+  const proc = await spawnCli(w.plan, { argv: [cli], env: { [CRED_FILES_ENV]: files }, cwd: w.cwd, signinBack: async (f) => { handed.push(f); await back?.(f); } }, [cli], { wrapOf });
+  proc.write(prompt);
+  proc.endInput();
+  let text = "";
+  for await (const c of proc.stdout) text += typeof c === "string" ? c : Buffer.from(c).toString("utf8");
+  const exit = await proc.exited;
+  await signinsSettled();
+  return { handed, text, code: exit.code, w, file: path.join(engineHome(w.dir, w.cwd), cli === "codex" ? ".codex/auth.json" : ".grok/auth.json") };
+}
+
+test("a Codex turn that refreshes its token hands the refreshed file back before it is removed", async () => {
+  const filled = codexAt(ACCESS, OLD_AT);
+  const r = await turnBack("codex", filled, "authrefresh r1");
+  assert.match(r.text, new RegExp(`codex refreshed to ${NEW.length}:${NEW.slice(-4)}`));
+  assert.equal(r.handed.length, 1, "handed back once");
+  const auth = JSON.parse(r.handed[0]![".codex/auth.json"]!) as { tokens: { access_token: string; refresh_token: string; id_token: string }; last_refresh: string };
+  assert.equal(auth.tokens.access_token, NEW);
+  assert.equal(auth.tokens.refresh_token, `rt-${NEW}`);
+  assert.equal(auth.tokens.id_token, idTok("acct-1"), "the account is unchanged");
+  assert.ok(Date.parse(auth.last_refresh) > Date.parse(OLD_AT));
+  assert.equal(r.text.includes(NEW), false, "the token is never in the output");
+  assert.equal(fs.existsSync(r.file), false, "removed after the save settled");
+  fs.rmSync(r.w.dir, { recursive: true, force: true });
+});
+
+test("a Grok turn that refreshes hands its file back too", async () => {
+  const r = await turnBack("grok", GROK_FILES, "authrefresh r1");
+  assert.equal(r.handed.length, 1);
+  assert.equal((JSON.parse(r.handed[0]![".grok/auth.json"]!) as { token: string }).token, `${GROK}-r1`);
+  assert.equal(fs.existsSync(r.file), false);
+  fs.rmSync(r.w.dir, { recursive: true, force: true });
+});
+
+test("a turn that leaves the files as they were hands nothing back", async () => {
+  const r = await turnBack("codex", codexAt(ACCESS, OLD_AT), "authcheck");
+  assert.match(r.text, /codex signed in as/);
+  assert.deepEqual(r.handed, []);
+  assert.equal(fs.existsSync(r.file), false);
+  fs.rmSync(r.w.dir, { recursive: true, force: true });
+});
+
+test("a CLI that refreshes and then crashes mid-turn still hands its refreshed file back", async () => {
+  const r = await turnBack("codex", codexAt(ACCESS, OLD_AT), "authcrash r1");
+  assert.equal(r.code, 3, "the stand-in died");
+  assert.equal(r.handed.length, 1);
+  assert.equal((JSON.parse(r.handed[0]![".codex/auth.json"]!) as { tokens: { access_token: string } }).tokens.access_token, NEW);
+  assert.equal(fs.existsSync(r.file), false);
+  fs.rmSync(r.w.dir, { recursive: true, force: true });
+});
+
+test("a sign-out reads back as a file that is gone; the host decides what to do with it", async () => {
+  const r = await turnBack("codex", codexAt(ACCESS, OLD_AT), "authlogout");
+  assert.deepEqual(r.handed, [{ ".codex/auth.json": null }]);
+  fs.rmSync(r.w.dir, { recursive: true, force: true });
+});
+
+test("the files stay in place until the save has settled, then go", async () => {
+  const w = plan();
+  const f = path.join(engineHome(w.dir, w.cwd), ".codex", "auth.json");
+  let during = false;
+  const proc = await spawnCli(w.plan, { argv: ["codex"], env: { [CRED_FILES_ENV]: codexAt(ACCESS, OLD_AT) }, cwd: w.cwd, signinBack: async () => { await new Promise((ok) => setTimeout(ok, 30)); during = fs.existsSync(f); } }, ["codex"], { wrapOf });
+  proc.write("authrefresh r1");
+  proc.endInput();
+  for await (const _ of proc.stdout) { /* drain */ }
+  await proc.exited;
+  await signinsSettled();
+  assert.equal(during, true, "still there while the save ran");
+  assert.equal(fs.existsSync(f), false, "gone once it settled");
+  fs.rmSync(w.dir, { recursive: true, force: true });
+});
+
+test("two turns of one account at once: the second keeps the newer file the first refreshed, and the file stays until the last one ends", () => {
+  const w = plan();
+  const filled = codexAt(ACCESS, OLD_AT);
+  const a = placeCredentialFiles(w.dir, w.cwd, filled);
+  const f = path.join(a.home, ".codex", "auth.json");
+  // the first turn's CLI refreshes (the Vault still holds the old sign-in)
+  const refreshed = JSON.parse(codexAt(NEW, "2026-10-01T11:00:00.000Z"))[".codex/auth.json"] as string;
+  fs.writeFileSync(f, refreshed);
+  const b = placeCredentialFiles(w.dir, w.cwd, filled);
+  assert.equal(fs.readFileSync(f, "utf8"), refreshed, "the second turn did not overwrite the newer sign-in with the Vault's older one");
+  assert.equal((fs.statSync(f).mode & 0o777).toString(8), "600");
+  assert.deepEqual(a.changed(), { ".codex/auth.json": refreshed });
+  a.release();
+  assert.equal(fs.readFileSync(f, "utf8"), refreshed, "the first to end leaves the file the second still runs on");
+  assert.deepEqual(b.changed(), { ".codex/auth.json": refreshed }, "the second hands back the newer file too, though it did not write it");
+  b.release();
+  assert.equal(fs.existsSync(f), false, "removed when the last one ends");
+  // an older file, or another account's, is overwritten with what the Vault holds
+  for (const disk of [codexAt(NEW, "2026-09-01T00:00:00.000Z"), codexAt(NEW, "2026-10-02T00:00:00.000Z", "acct-other")]) {
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.writeFileSync(f, JSON.parse(disk)[".codex/auth.json"] as string);
+    const c = placeCredentialFiles(w.dir, w.cwd, filled);
+    assert.equal(fs.readFileSync(f, "utf8"), JSON.parse(filled)[".codex/auth.json"]);
+    assert.equal(c.changed(), null);
+    c.release();
+  }
+  fs.rmSync(w.dir, { recursive: true, force: true });
+});
+
+test("a newer sign-in a daemon left behind when it died mid-turn is kept and handed back at the end of the next turn", () => {
+  const w = plan();
+  const home = engineHome(w.dir, w.cwd);
+  const f = path.join(home, ".codex", "auth.json");
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  const left = JSON.parse(codexAt(NEW, "2026-10-01T11:00:00.000Z"))[".codex/auth.json"] as string;
+  fs.writeFileSync(f, left, { mode: 0o644 });
+  const p = placeCredentialFiles(w.dir, w.cwd, codexAt(ACCESS, OLD_AT));
+  assert.equal(fs.readFileSync(f, "utf8"), left);
+  assert.equal((fs.statSync(f).mode & 0o777).toString(8), "600");
+  assert.deepEqual(p.changed(), { ".codex/auth.json": left });
+  p.release();
+  fs.rmSync(w.dir, { recursive: true, force: true });
+});
+
+test("a link left where a sign-in file was is removed, never followed: the file it points at is neither read back nor wiped", () => {
+  const w = plan();
+  const target = path.join(w.dir, "daemon-file.db");
+  fs.writeFileSync(target, "precious");
+  const p = placeCredentialFiles(w.dir, w.cwd, codexAt(ACCESS, OLD_AT));
+  const f = path.join(p.home, ".codex", "auth.json");
+  fs.unlinkSync(f);
+  fs.symlinkSync(target, f);
+  assert.deepEqual(p.changed(), { ".codex/auth.json": null }, "a link reads as no file");
+  p.release();
+  assert.equal(fs.readFileSync(target, "utf8"), "precious", "the target is untouched");
+  assert.throws(() => fs.lstatSync(f), "the link is gone");
   fs.rmSync(w.dir, { recursive: true, force: true });
 });

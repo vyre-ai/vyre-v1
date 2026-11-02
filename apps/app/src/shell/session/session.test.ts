@@ -287,6 +287,56 @@ test("session: a place's screen query reads the Space, and a successful call re-
   s.close();
 });
 
+test("session: a read changes nothing, so a successful read call does not re-read the screen; a write does", async () => {
+  let reads = 0;
+  const gw = sessionGateway({
+    "GET /v1/files/list": () => { reads++; return { body: { data: { items: [] } } }; },
+    "POST /v1/files/rename": () => ({ body: { data: { ok: true } } }),
+  });
+  const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => ROUTES, screens: async () => SCREENS, dial: fakeServer().dial, pollMs: 1_000_000 });
+  const q = s.runtime.screens.query("files.list", "items", { folder: "root" });
+  q.subscribe(() => undefined);
+  await wait(20);
+  const before = reads;
+  // files.list is a read in the route table: a screen that reads it on render would otherwise re-read itself every time it rendered
+  for (let i = 0; i < 3; i++) await s.runtime.call("files.list", { folder: "other" });
+  await wait(250);
+  assert.equal(reads - before, 3, "only the three calls themselves, no re-read of the screen");
+  await s.runtime.call("files.rename", { id: "f1", name: "b.docx" });
+  await wait(250);
+  assert.equal(reads - before, 4, "a write re-reads the screen once");
+  s.close();
+});
+
+test("session: while the window is hidden a change waits, and showing the window re-reads at once", async () => {
+  let reads = 0;
+  const listeners = new Map<string, () => void>();
+  const doc = { visibilityState: "hidden", addEventListener: (t: string, l: () => void) => { listeners.set(t, l); }, removeEventListener: (t: string) => { listeners.delete(t); } };
+  const g = globalThis as { document?: unknown };
+  const was = g.document;
+  g.document = doc;
+  try {
+    const gw = sessionGateway({
+      "GET /v1/files/list": () => { reads++; return { body: { data: { items: [] } } }; },
+      "POST /v1/files/rename": () => ({ body: { data: { ok: true } } }),
+    });
+    const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => ROUTES, screens: async () => SCREENS, dial: fakeServer().dial, pollMs: 1_000_000 });
+    const q = s.runtime.screens.query("files.list", "items", { folder: "root" });
+    q.subscribe(() => undefined);
+    await wait(20);
+    const before = reads;
+    await s.runtime.call("files.rename", { id: "f1", name: "b.docx" });
+    await wait(250);
+    assert.equal(reads, before, "hidden: the re-read waits");
+    doc.visibilityState = "visible";
+    listeners.get("visibilitychange")!();
+    await wait(20);
+    assert.equal(reads, before + 1, "shown: it happens now");
+    s.close();
+    assert.equal(listeners.has("visibilitychange"), false, "closing the session stops listening");
+  } finally { g.document = was; }
+});
+
 test("session: a 401 on any call ends the session and tells the shell once", async () => {
   let out = 0;
   const gw = sessionGateway({ "POST /v1/files/rename": () => ({ status: 401, body: { error: { code: "auth.unauthenticated", message: "Sign in.", traceId: "t" } } }) });

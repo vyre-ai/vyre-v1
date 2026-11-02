@@ -11,8 +11,8 @@ import { CSV, MAPPING, makeXlsx, run, stage } from "../fixtures/seed.ts";
 
 const mine = registry.capabilities.filter((c) => c.module === "import");
 
-test("the handler table covers exactly the 16 capabilities of the import manifest", () => {
-  assert.equal(mine.length, 16);
+test("the handler table covers exactly the 19 capabilities of the import manifest", () => {
+  assert.equal(mine.length, 19);
   assert.deepEqual(Object.keys(handlers).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof handlers[c.name], "function", c.name);
 });
@@ -30,6 +30,7 @@ const localSession = {
   provider: "codex", sourceKey: "codex:contract", consent: { previewedAt: 1_760_000_000_000, confirmedAt: 1_760_000_000_001 },
   sessions: [{ sourceSessionId: "contract", title: "Contract", startedAt: 1_760_000_000_000, repo: { remote: "git@github.com:vyre-ai/vyre-v1.git", root: "/work/vyre-v1" }, messages: [{ sourceMessageId: "m1", role: "user", text: "Hello", at: 1_760_000_000_000 }] }],
 };
+const imported = async (hn: Harness): Promise<string> => (await run(hn, "sessions.import", localSession)).sessions[0].conversationId;
 const airtable = (hn: Harness, status = 200): void => {
   hn.world.secrets.set(TOKEN, "k");
   hn.world.routes.push(
@@ -71,6 +72,14 @@ const scenarios: Scenario[] = [
   { cap: "sessions.import", run: (hn) => run(hn, "sessions.import", { ...localSession, consent: { previewedAt: 1 } }), expect: "validation.precondition_failed" },
   { cap: "sessions.continue", setup: async (hn) => (await run(hn, "sessions.import", localSession)).sessions[0].conversationId, run: (hn, conversationId) => run(hn, "sessions.continue", { conversationId, destinationSpaceId: "spc_importtest", destinationScope: "personal", agentId: "agt_intake" }) },
   { cap: "sessions.continue", run: (hn) => run(hn, "sessions.continue", { conversationId: "isc_none", destinationSpaceId: "spc_importtest", destinationScope: "personal", agentId: "agt_intake" }), expect: "validation.not_found" },
+  { cap: "sessions.rename", setup: imported, run: (hn, conversationId) => run(hn, "sessions.rename", { conversationId, title: "Release notes" }) },
+  { cap: "sessions.rename", setup: imported, run: (hn, conversationId) => run(hn, "sessions.rename", { conversationId, title: "   " }), expect: "validation.bad_input" },
+  { cap: "sessions.rename", run: (hn) => run(hn, "sessions.rename", { conversationId: "isc_none", title: "x" }), expect: "validation.not_found" },
+  { cap: "sessions.archive", setup: imported, run: (hn, conversationId) => run(hn, "sessions.archive", { conversationId }) },
+  { cap: "sessions.archive", setup: imported, run: (hn, conversationId) => run(hn, "sessions.archive", { conversationId, unarchive: true }) },
+  { cap: "sessions.archive", run: (hn) => run(hn, "sessions.archive", { conversationId: "isc_none" }), expect: "validation.not_found" },
+  { cap: "sessions.delete", setup: imported, run: (hn, conversationId) => run(hn, "sessions.delete", { conversationId }) },
+  { cap: "sessions.delete", run: (hn) => run(hn, "sessions.delete", { conversationId: "isc_none" }), expect: "validation.not_found" },
 ];
 
 test("every path through every capability: answers match the schema, errors are declared, events are declared and match their schemas", async () => {

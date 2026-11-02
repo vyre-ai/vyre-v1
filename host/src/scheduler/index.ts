@@ -46,6 +46,8 @@ interface Job {
   lastStartedAt: number | null;
   lastMs: number | null;
   lastError: string | null;
+  /** the error of the failure streak this job is in, null while it succeeds */
+  failing: string | null;
 }
 
 /** The first moment after `after` that is `hour:minute` (local time, or UTC). */
@@ -79,7 +81,7 @@ export class Scheduler {
     if ("everyMs" in s && !(s.everyMs >= 1)) throw new Error(`job ${spec.name}: everyMs must be at least 1`);
     const t = this.now();
     const nextAt = "everyMs" in s ? (s.immediate ? t : t + s.everyMs) : nextDaily(t, s.daily.hour, s.daily.minute, s.utc ?? false);
-    this.jobs.set(spec.name, { spec, nextAt, running: false, runs: 0, failures: 0, skipped: 0, lastStartedAt: null, lastMs: null, lastError: null });
+    this.jobs.set(spec.name, { spec, nextAt, running: false, runs: 0, failures: 0, skipped: 0, lastStartedAt: null, lastMs: null, lastError: null, failing: null });
   }
 
   remove(name: string): boolean { return this.jobs.delete(name); }
@@ -147,6 +149,9 @@ export class Scheduler {
     j.runs++;
     j.lastMs = this.now() - t0;
     this.onRun({ job: j.spec.name, ok, ms: j.lastMs, ...(ok ? {} : { error: j.lastError ?? "failed" }) });
-    if (!ok) this.log?.error("scheduler.job_failed", { job: j.spec.name, error: j.lastError });
+    // a job that fails the same way every second is logged once per streak; onRun still sees, and counts, every run
+    const repeat = !ok && j.failing === j.lastError;
+    j.failing = ok ? null : j.lastError;
+    if (!ok && !repeat) this.log?.error("scheduler.job_failed", { job: j.spec.name, error: j.lastError });
   }
 }

@@ -6,6 +6,17 @@ import type { Logger } from "../../../packages/contracts/src/ctx.ts";
 import type { SpanRow, SpanSink } from "../trace/index.ts";
 
 export const LEVELS = { debug: 10, info: 20, warn: 30, error: 40 } as const;
+/** logs.db keeps a week of rows and at most this many bytes; the oldest go first, while the daemon runs. */
+export const LOG_KEEP_MS = 7 * 86_400_000;
+export const LOG_MAX_BYTES = 64 * 1024 * 1024;
+/** A routine success (a poll that ran, a read that answered) is counted, and each key leaves one row per window. */
+export const ROLLUP_MS = 3_600_000;
+/** A run or a read that took this long is not routine: it is stored as it happened. */
+export const SLOW_MS = 1_000;
+/** How often a flush looks at the caps, how many rows one prune transaction removes, and how many of those one look may run. */
+const PRUNE_EVERY_MS = 60_000;
+const PRUNE_BATCH = 2_000;
+const PRUNE_ROUNDS = 20;
 /** Keys that carry content. A lint forbids them in attrs; the sink drops them as a second line. */
 export const CONTENT_KEYS: readonly string[] = Object.freeze(["body", "text", "subject", "value", "secret", "password", "token", "content", "message"]);
 const CONTENT_RE = new RegExp(`^(${CONTENT_KEYS.join("|")})$`, "i");
@@ -42,6 +53,7 @@ export interface StoredLog extends LogContext { id: number; at: number; level: n
 const COLS = ["trace_id", "span_id", "actor", "on_behalf", "run_id", "thread_id", "device", "place", "cap", "entity", "entity_id", "result", "dur_ms", "label", "app_version", "server_version", "machine"] as const;
 
 export interface LogSinkOptions {
+  /** An open handle; with `path` too, it is that file and gets the file's pragmas. A handle the caller passed is not closed when opening fails. */
   db?: DatabaseSync;
   path?: string;
   /** Batch window, default 250 ms. 0 writes at once (tests). */
@@ -49,7 +61,14 @@ export interface LogSinkOptions {
   now?: () => number;
   /** Strings that must never reach a row (the process's current secrets). */
   secrets?: () => readonly string[];
+  /** Age and size caps, LOG_KEEP_MS and LOG_MAX_BYTES by default. */
+  keepMs?: number;
+  maxBytes?: number;
+  /** The rollup window for count(), ROLLUP_MS by default. */
+  rollupMs?: number;
 }
+
+interface Tally { row: LogRow; since: number; count: number; ms: number; max: number }
 
 export class LogSink implements SpanSink {
   readonly db: DatabaseSync;
@@ -63,19 +82,125 @@ export class LogSink implements SpanSink {
   private batchMs: number;
   private now: () => number;
   private secrets: () => readonly string[];
+  private keepMs: number;
+  private maxBytes: number;
+  private rollupMs: number;
+  private tallies = new Map<string, Tally>();
+  private prunedAt = 0;
+  /** Over the size cap: pruning goes on until the rows take three quarters of it. */
+  private over = false;
 
   constructor(o: LogSinkOptions = {}) {
+    const own = !o.db;
     this.db = o.db ?? new DatabaseSync(o.path ?? ":memory:");
+    this.batchMs = o.batchMs ?? 250;
+    this.now = o.now ?? Date.now;
+    this.secrets = o.secrets ?? (() => []);
+    this.keepMs = o.keepMs ?? LOG_KEEP_MS;
+    this.maxBytes = o.maxBytes ?? LOG_MAX_BYTES;
+    this.rollupMs = o.rollupMs ?? ROLLUP_MS;
+    try { this.sourceId = this.open(o.path !== undefined && o.path !== ":memory:"); }
+    catch (e) { if (own) try { this.db.close(); } catch { /* already closed */ } throw e; }
+  }
+
+  /**
+   * Open a logs.db file. When it cannot be opened, `aside` runs (to move the file and its journals away) before the failed handle is closed, because closing removes the -wal and -shm beside
+   * the path: that would lose them, or, with a fresh file already there, hit its journals. Then the error is thrown.
+   */
+  static openFile(o: LogSinkOptions & { path: string }, aside: () => void): LogSink {
+    const db = new DatabaseSync(o.path);
+    try { return new LogSink({ ...o, db }); }
+    catch (e) {
+      try { aside(); } catch { /* the caller sees the files where they are */ }
+      try { db.close(); } catch { /* already closed */ }
+      throw e;
+    }
+  }
+
+  /**
+   * A file is made with incremental vacuum, so pruning gives the space back, and kept in WAL with synchronous NORMAL: a crash or a forced restart loses at most the last batch, never the file.
+   * A file made before that is pruned to the caps and vacuumed once, which is when SQLite takes the new vacuum mode. Then the caps are applied in full.
+   */
+  private open(file: boolean): string {
+    if (file) {
+      this.db.exec("PRAGMA auto_vacuum = INCREMENTAL");
+      this.db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA journal_size_limit = 4194304; PRAGMA busy_timeout = 2000");
+    }
     this.db.exec(LOGS_SCHEMA);
     const columns = this.db.prepare('PRAGMA table_info(log_source)').all();
     if (!columns.some(column => column['name'] === 'row_seq')) this.db.exec('ALTER TABLE log_source ADD COLUMN row_seq INTEGER NOT NULL DEFAULT 0');
     if (!columns.some(column => column['name'] === 'span_seq')) this.db.exec('ALTER TABLE log_source ADD COLUMN span_seq INTEGER NOT NULL DEFAULT 0');
-    this.sourceId = String(this.db.prepare('SELECT id FROM log_source LIMIT 1').get()?.id ?? globalThis.crypto.randomUUID());
-    this.db.prepare('INSERT OR IGNORE INTO log_source (id) VALUES (?)').run(this.sourceId);
-    this.db.prepare('UPDATE log_source SET row_seq = MAX(row_seq, (SELECT COALESCE(MAX(id), 0) FROM logs)), span_seq = MAX(span_seq, (SELECT COALESCE(MAX(rowid), 0) FROM spans)) WHERE id = ?').run(this.sourceId);
-    this.batchMs = o.batchMs ?? 250;
-    this.now = o.now ?? Date.now;
-    this.secrets = o.secrets ?? (() => []);
+    const sourceId = String(this.db.prepare('SELECT id FROM log_source LIMIT 1').get()?.id ?? globalThis.crypto.randomUUID());
+    this.db.prepare('INSERT OR IGNORE INTO log_source (id) VALUES (?)').run(sourceId);
+    this.db.prepare('UPDATE log_source SET row_seq = MAX(row_seq, (SELECT COALESCE(MAX(id), 0) FROM logs)), span_seq = MAX(span_seq, (SELECT COALESCE(MAX(rowid), 0) FROM spans)) WHERE id = ?').run(sourceId);
+    if (file && Number(this.db.prepare("PRAGMA auto_vacuum").get()?.["auto_vacuum"]) !== 2) {
+      while (this.pruneRound()) { /* a file from before the caps: down to them first, so the one full vacuum is small */ }
+      this.db.exec("PRAGMA auto_vacuum = INCREMENTAL");
+      this.db.exec("VACUUM");
+    }
+    this.prune(Infinity);
+    return sourceId;
+  }
+
+  /** Bytes the rows take, and bytes the file holds free. */
+  private pages(): { used: number; free: number } {
+    const size = Number(this.db.prepare("PRAGMA page_size").get()?.["page_size"]);
+    const count = Number(this.db.prepare("PRAGMA page_count").get()?.["page_count"]);
+    const free = Number(this.db.prepare("PRAGMA freelist_count").get()?.["freelist_count"]);
+    return { used: (count - free) * size, free: free * size };
+  }
+
+  /**
+   * One small transaction: rows older than the age cap go, oldest first; when none are that old and the rows take more than the size cap, the oldest batch goes anyway, until they take three
+   * quarters of it (so a full file is not pruned on every flush). Ids only grow, so the first row young enough to keep bounds the scan. Tombstones and the source row are never pruned, and the
+   * row and span sequences live in log_source, so a pruned id is never handed out again and the telemetry observer's position stays good.
+   */
+  private pruneRound(): number {
+    const cutoff = this.now() - this.keepMs;
+    let removed = 0;
+    this.db.exec("BEGIN");
+    try {
+      const del = (table: "logs" | "spans", key: "id" | "rowid", below: number | null, limit = PRUNE_BATCH): number => {
+        if (below === null) return 0;
+        return Number(this.db.prepare(`DELETE FROM ${table} WHERE ${key} IN (SELECT ${key} FROM ${table} WHERE ${key} < ? ORDER BY ${key} LIMIT ?)`).run(below, limit).changes);
+      };
+      const edge = (table: "logs" | "spans", key: "id" | "rowid"): number | null => {
+        const kept = this.db.prepare(`SELECT ${key} AS k FROM ${table} WHERE at >= ? ORDER BY ${key} LIMIT 1`).get(cutoff)?.["k"];
+        if (kept !== undefined) return Number(kept);
+        const last = this.db.prepare(`SELECT MAX(${key}) AS k FROM ${table}`).get()?.["k"];
+        return last === null || last === undefined ? null : Number(last) + 1;
+      };
+      removed += del("logs", "id", edge("logs", "id")) + del("spans", "rowid", edge("spans", "rowid"));
+      removed += Number(this.db.prepare("DELETE FROM health_samples WHERE rowid IN (SELECT rowid FROM health_samples WHERE at < ? LIMIT ?)").run(cutoff, PRUNE_BATCH).changes);
+      if (!removed && this.pages().used > this.maxBytes) this.over = true;
+      if (!removed && this.over) {
+        // whichever of logs and spans holds the older first row gives up a batch, so what is left covers the same stretch of time in both
+        const head = (table: "logs" | "spans", key: "id" | "rowid"): number => Number(this.db.prepare(`SELECT at FROM ${table} ORDER BY ${key} LIMIT 1`).get()?.["at"] ?? Infinity);
+        // a batch sized to the excess (ids run nearly unbroken, so their span counts the rows), so a small cap is not overshot
+        const batch = (table: "logs" | "spans", key: "id" | "rowid"): number => {
+          const r = this.db.prepare(`SELECT MIN(${key}) AS lo, MAX(${key}) AS hi FROM ${table}`).get();
+          const rows = Number(r?.["hi"] ?? 0) - Number(r?.["lo"] ?? 0) + 1, used = this.pages().used;
+          return Math.max(1, Math.min(PRUNE_BATCH, Math.ceil(rows * (used - this.maxBytes * 0.75) / used / 4)));
+        };
+        removed += head("logs", "id") <= head("spans", "rowid") ? del("logs", "id", Number.MAX_SAFE_INTEGER, batch("logs", "id")) : del("spans", "rowid", Number.MAX_SAFE_INTEGER, batch("spans", "rowid"));
+        if (!removed || this.pages().used <= this.maxBytes * 0.75) this.over = false;
+      }
+      this.db.exec("COMMIT");
+    } catch (e) { this.db.exec("ROLLBACK"); throw e; }
+    return removed;
+  }
+
+  /** Apply the caps: up to `rounds` small transactions, then give the free pages back to the disk once they add up. Runs at open, and from a flush once a minute. */
+  prune(rounds = PRUNE_ROUNDS): number {
+    this.prunedAt = this.now();
+    let removed = 0;
+    for (let round = 0; round < rounds; round++) {
+      const n = this.pruneRound();
+      removed += n;
+      if (!n) break;
+    }
+    if (this.pages().free >= Math.min(this.maxBytes / 16, 4 * 1024 * 1024)) this.db.exec("PRAGMA incremental_vacuum");
+    return removed;
   }
 
   /** Attach the internal metadata writer after module initialization. */
@@ -117,6 +242,37 @@ export class LogSink implements SpanSink {
     this.spans.push(row);
     this.schedule();
   }
+
+  /**
+   * A routine success (a poll that ran, a read that answered fast): not a row of its own. It is counted under `key`, and the window ends in one row, `row` with attrs.count (how many), attrs.ms
+   * (their total time) and dur_ms (the slowest). With `keepFirst` the first one of each window is not counted and true comes back, so the caller stores that one in full and a trace of it can
+   * still be found. Failures, slow runs and changes of state are not routine: log() them.
+   */
+  count(key: string, row: LogRow, ms: number, o: { keepFirst?: boolean } = {}): boolean {
+    if (this.closed) return false;
+    const at = this.now();
+    if (this.rollDue(at)) this.schedule();
+    const t = this.tallies.get(key);
+    if (!t) {
+      this.tallies.set(key, { row, since: at, count: o.keepFirst ? 0 : 1, ms: o.keepFirst ? 0 : ms, max: o.keepFirst ? 0 : ms });
+      return o.keepFirst === true;
+    }
+    t.count++; t.ms += ms; t.max = Math.max(t.max, ms);
+    return false;
+  }
+
+  /** Windows that have run their time (all of them at close) become their one row each; true when that queued a row. */
+  private rollDue(at: number, all = false): boolean {
+    let wrote = false;
+    for (const [key, t] of this.tallies) {
+      if (!all && at - t.since < this.rollupMs) continue;
+      this.tallies.delete(key);
+      if (!t.count) continue;
+      this.rows.push({ at, row: { ...t.row, dur_ms: t.max, attrs: { ...t.row.attrs, count: t.count, ms: Math.round(t.ms) } } });
+      wrote = true;
+    }
+    return wrote;
+  }
   private schedule(): void {
     if (this.batchMs <= 0) { this.flush(); return; }
     if (!this.timer) { this.timer = setTimeout(() => { try { this.flush(); } catch { this.schedule(); } }, this.batchMs); this.timer.unref(); }
@@ -126,6 +282,7 @@ export class LogSink implements SpanSink {
   flush(): void {
     if (this.closed) return;
     if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+    this.rollDue(this.now());
     if (!this.rows.length && !this.spans.length) { if (this.observe()) this.schedule(); return; }
     const rows = this.rows.splice(0, 1000), spans = this.spans.splice(0, 1000);
     const insLog = this.db.prepare(`INSERT INTO logs (id, at, level, space, ${COLS.join(", ")}, msg, attrs) VALUES (?, ?, ?, ?, ${COLS.map(() => "?").join(", ")}, ?, ?)`);
@@ -142,6 +299,9 @@ export class LogSink implements SpanSink {
       this.db.prepare('UPDATE log_source SET row_seq = ?, span_seq = ? WHERE id = ?').run(rowSeq, spanSeq, this.sourceId);
       this.db.exec("COMMIT");
     } catch (e) { this.db.exec("ROLLBACK"); this.rows.unshift(...rows); this.spans.unshift(...spans); throw e; }
+    if (this.now() - this.prunedAt >= PRUNE_EVERY_MS) {
+      try { this.prune(); } catch (e) { this.rows.push({ at: this.now(), row: { space: "-", level: LEVELS.error, msg: "logs.prune_failed", place: "logsink", attrs: { error: e instanceof Error ? e.message : String(e) } } }); }
+    }
     const more = this.observe();
     if (this.rows.length || this.spans.length || more) this.schedule();
   }
@@ -184,8 +344,93 @@ export class LogSink implements SpanSink {
   close(): void {
     if (this.closed) return;
     this.observer = undefined;
+    this.rollDue(this.now(), true);
     this.drain();
     this.closed = true;
     this.db.close();
   }
+}
+
+/** One finished scheduler job, as the scheduler's onRun reports it. */
+export interface JobRun { job: string; ok: boolean; ms: number; error?: string | undefined }
+
+/**
+ * What a scheduler run leaves in logs.db. A job's first run, a recovery, a new failure and a slow run are rows of their own; a routine success and a failure that repeats the last one are
+ * counted, one rolled-up `job.ran` row per job per window. Polls that run every second used to write a row each.
+ */
+export function jobRanLog(sink: LogSink, space: () => string): (r: JobRun) => void {
+  const last = new Map<string, { ok: boolean; error: string | undefined }>();
+  return (r) => {
+    const was = last.get(r.job);
+    last.set(r.job, { ok: r.ok, error: r.error });
+    const row = { space: space(), msg: "job.ran", place: "scheduler", entity: "job", entity_id: r.job };
+    if (r.ok) {
+      if (was?.ok === true && r.ms < SLOW_MS) { sink.count(`job:${r.job}:ok`, { ...row, level: LEVELS.debug, result: "ok" }, r.ms); return; }
+      sink.log({ ...row, level: was === undefined && r.ms < SLOW_MS ? LEVELS.debug : LEVELS.info, dur_ms: r.ms, result: "ok", ...(r.ms >= SLOW_MS ? { attrs: { slow: true } } : {}) });
+      return;
+    }
+    if (was && !was.ok && was.error === r.error) { sink.count(`job:${r.job}:error`, { ...row, level: LEVELS.error, result: "error", ...(r.error ? { attrs: { error: r.error } } : {}) }, r.ms); return; }
+    sink.log({ ...row, level: LEVELS.error, dur_ms: r.ms, result: "error", ...(r.error ? { attrs: { error: r.error } } : {}) });
+  };
+}
+
+/** One finished invoke, as the pipeline reports it (host/src/invoke.ts SpanRecord). */
+export interface InvokeSpan {
+  traceId: string; spanId: string; parent?: string | undefined; name: string; cap: string; startedAt: number; ms: number; status: "ok" | "held" | "denied" | "error"; code?: string | undefined;
+  principal?: string | undefined;
+}
+
+/** What the invoke pipeline writes into logs.db: its span hook and the Logger it logs `invoke` and `handler threw` rows with. */
+export interface InvokeLogs { onSpan(s: InvokeSpan): void; log: Logger }
+
+/**
+ * Invoke spans and rows into logs.db.
+ * - A fast success of a routine capability (a read, the host's own periodic work and calls) is counted: the first per capability and caller in each window is kept, so the trace of a call
+ *   someone just made still opens, and the rest leave one `invoke.reads` row per window.
+ * - A fast read that fails is a streak per capability and caller: its first failure and any change of error keep their span and rows; a repeat of the same error is counted on one `invoke`
+ *   row per window (result is the error code), and its span and rows are not written. The next success is a row of its own, `invoke.recovered`.
+ * - Writes, refusals, holds and slow calls keep every span and row.
+ */
+export function invokeLogs(sink: LogSink, space: string, kinds: { routine(cap: string): boolean; read(cap: string): boolean }): InvokeLogs {
+  const failing = new Map<string, string>();
+  // traces whose failure was counted: the pipeline logs them right after the span, and those rows are dropped
+  const quiet = new Set<string>();
+  const onSpan = (s: InvokeSpan): void => {
+    const key = `${s.cap}:${s.principal ?? ""}`;
+    const row: SpanRow = { trace_id: s.traceId, span_id: s.spanId, parent: s.parent ?? null, name: s.name, at: s.startedAt, dur_us: s.ms * 1000, attrs: { cap: s.cap, status: s.status } };
+    const fast = s.ms < SLOW_MS;
+    if (s.status === "error" && fast && kinds.read(s.cap)) {
+      const code = s.code ?? "error";
+      if (failing.get(key) === code) {
+        if (quiet.size >= 1_000) quiet.clear();
+        quiet.add(s.traceId);
+        sink.count(`invoke:${key}:failed`, { space, level: LEVELS.info, msg: "invoke", place: "invoke", cap: s.cap, actor: s.principal, result: code, attrs: { status: code } }, s.ms);
+        return;
+      }
+      failing.set(key, code);
+      sink.span(row);
+      return;
+    }
+    if (s.status === "ok" && failing.delete(key)) {
+      sink.span(row);
+      sink.log({ space, level: LEVELS.info, msg: "invoke.recovered", place: "invoke", trace_id: s.traceId, cap: s.cap, actor: s.principal, result: "ok" });
+      return;
+    }
+    if (s.status !== "ok" || !fast || !kinds.routine(s.cap)) { sink.span(row); return; }
+    const first = sink.count(`invoke:${key}`, { space, level: LEVELS.debug, msg: "invoke.reads", place: "invoke", cap: s.cap, actor: s.principal, result: "ok" }, s.ms, { keepFirst: true });
+    if (first) sink.span(row);
+  };
+  const base = sink.invokeLogger(space);
+  const counted = (msg: string, attrs: Record<string, unknown> | undefined): boolean => {
+    const t = attrs?.["traceId"];
+    if (typeof t !== "string" || !quiet.has(t)) return false;
+    if (msg === "invoke") quiet.delete(t);
+    return msg === "invoke" || msg === "handler threw";
+  };
+  const log: Logger = {
+    debug: base.debug, warn: base.warn,
+    info: (msg, attrs) => { if (!counted(msg, attrs)) base.info(msg, attrs); },
+    error: (msg, attrs) => { if (!counted(msg, attrs)) base.error(msg, attrs); },
+  };
+  return { onSpan, log };
 }

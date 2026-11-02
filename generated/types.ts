@@ -9363,6 +9363,12 @@ export type EngineAccountsListOut = {
       base?: string;
       keyless?: boolean;
       spaceKey?: boolean;
+      aliases?: Array<string>;
+      older?: Array<{
+          ref: string;
+          providerId: string;
+          name: string;
+        }>;
     }>;
 };
 export type EngineCompleteIn = {
@@ -22810,6 +22816,10 @@ export type ProvidersAddOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    identity?: string;
+    displayName?: string;
+    aliases?: Array<string>;
+    olderOf?: string;
   };
 };
 export type ProvidersCatalogIn = Record<string, unknown>;
@@ -22866,6 +22876,10 @@ export type ProvidersCustomAddOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    identity?: string;
+    displayName?: string;
+    aliases?: Array<string>;
+    olderOf?: string;
   };
 };
 export type ProvidersCustomListIn = Record<string, unknown>;
@@ -22910,6 +22924,10 @@ export type ProvidersListOut = {
       address?: string;
       keyless?: boolean;
       spaceKey?: boolean;
+      identity?: string;
+      displayName?: string;
+      aliases?: Array<string>;
+      olderOf?: string;
     }>;
 };
 export type ProvidersRemoveIn = {
@@ -22946,6 +22964,10 @@ export type ProvidersSetSpaceUseOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    identity?: string;
+    displayName?: string;
+    aliases?: Array<string>;
+    olderOf?: string;
   };
 };
 export type ProvidersSpaceKeyGetIn = {
@@ -23028,6 +23050,10 @@ export type ProvidersSubscriptionCompleteOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    identity?: string;
+    displayName?: string;
+    aliases?: Array<string>;
+    olderOf?: string;
   };
   waiting?: boolean;
 };
@@ -25350,6 +25376,13 @@ export type SearchResolveOut = {
     updatedAt?: number;
   };
 };
+export type SessionsArchiveIn = {
+  conversationId: string;
+  unarchive?: boolean;
+};
+export type SessionsArchiveOut = {
+  archived: boolean;
+};
 export type SessionsContinueIn = {
   conversationId: string;
   destinationSpaceId: string;
@@ -25360,6 +25393,12 @@ export type SessionsContinueIn = {
 export type SessionsContinueOut = {
   threadId: string;
   linkedFrom: string;
+};
+export type SessionsDeleteIn = {
+  conversationId: string;
+};
+export type SessionsDeleteOut = {
+  deleted: boolean;
 };
 export type SessionsGetIn = {
   conversationId: string;
@@ -25375,6 +25414,7 @@ export type SessionsGetOut = {
     importedAt: number;
     projectId?: string;
     continuedThreadId?: string;
+    archived?: boolean;
   };
   messages: Array<{
       sourceMessageId: string;
@@ -25453,8 +25493,27 @@ export type SessionsListOut = {
       importedAt: number;
       projectId?: string;
       continuedThreadId?: string;
+      archived?: boolean;
     }>;
   next?: string;
+};
+export type SessionsRenameIn = {
+  conversationId: string;
+  title: string;
+};
+export type SessionsRenameOut = {
+  session: {
+    conversationId: string;
+    provider: "codex" | "claude_code";
+    sourceKey: string;
+    sourceSessionId: string;
+    title: string;
+    startedAt: number;
+    importedAt: number;
+    projectId?: string;
+    continuedThreadId?: string;
+    archived?: boolean;
+  };
 };
 export type SettingsCopyProfileIn = {
   fields: Array<"photo" | "name" | "handle" | "timezone" | "hours" | "contact">;
@@ -35347,10 +35406,13 @@ export interface CapMap {
   "search.recent.record": { in: SearchRecentRecordIn; out: SearchRecentRecordOut };
   "search.related": { in: SearchRelatedIn; out: SearchRelatedOut };
   "search.resolve": { in: SearchResolveIn; out: SearchResolveOut };
+  "sessions.archive": { in: SessionsArchiveIn; out: SessionsArchiveOut };
   "sessions.continue": { in: SessionsContinueIn; out: SessionsContinueOut };
+  "sessions.delete": { in: SessionsDeleteIn; out: SessionsDeleteOut };
   "sessions.get": { in: SessionsGetIn; out: SessionsGetOut };
   "sessions.import": { in: SessionsImportIn; out: SessionsImportOut };
   "sessions.list": { in: SessionsListIn; out: SessionsListOut };
+  "sessions.rename": { in: SessionsRenameIn; out: SessionsRenameOut };
   "settings.copy_profile": { in: SettingsCopyProfileIn; out: SettingsCopyProfileOut };
   "settings.copy_source": { in: SettingsCopySourceIn; out: SettingsCopySourceOut };
   "settings.floor_set": { in: SettingsFloorSetIn; out: SettingsFloorSetOut };
@@ -38364,9 +38426,16 @@ export type SessionStartedPayload = {
   person: string;
   deviceId: string;
 };
+export type SessionsArchivedPayload = {
+  conversationId: string;
+  archived: boolean;
+};
 export type SessionsContinuedPayload = {
   conversationId: string;
   threadId: string;
+};
+export type SessionsDeletedPayload = {
+  conversationId: string;
 };
 export type SessionsImportedPayload = {
   conversationId: string;
@@ -38376,6 +38445,9 @@ export type SessionsImportedPayload = {
   scope: "personal";
   spaceId: string;
   messages: number;
+};
+export type SessionsRenamedPayload = {
+  conversationId: string;
 };
 export type SettingsChangedPayload = {
   key: string;
@@ -39804,8 +39876,11 @@ export interface EventMap {
   "service.restarted": ServiceRestartedPayload;
   "session.revoked": SessionRevokedPayload;
   "session.started": SessionStartedPayload;
+  "sessions.archived": SessionsArchivedPayload;
   "sessions.continued": SessionsContinuedPayload;
+  "sessions.deleted": SessionsDeletedPayload;
   "sessions.imported": SessionsImportedPayload;
+  "sessions.renamed": SessionsRenamedPayload;
   "settings.changed": SettingsChangedPayload;
   "settings.floor_changed": SettingsFloorChangedPayload;
   "sheet.row_appended": SheetRowAppendedPayload;

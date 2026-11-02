@@ -39,7 +39,7 @@ import { copy, agentPageData, askWith, chatOpening, chatWith, createCapture, cre
 import type { CaptureCounter, Go, LineAction } from "./data.ts";
 import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
-import { START, fromHash, step, workOf } from "./route.ts";
+import { START, fromHash, openKeyOf, step, workOf } from "./route.ts";
 import { Landing } from "../landing/Landing.tsx";
 import { ThreadsPage } from "./ThreadsPage.tsx";
 import { ArtifactsPage } from "./ArtifactsPage.tsx";
@@ -177,6 +177,8 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     setRightTabs((t) => t.filter((x) => x.key !== key));
   }, [rightTabs]);
   const route = shown.route;
+  // the sidebar draws the row of what the middle shows, however it was opened (a row, a tab, a link, Cmd-K)
+  const openKey = openKeyOf(route);
   // Cmd/Ctrl+Shift+F searches every chat, from anywhere in the place
   useEffect(() => {
     const g = globalThis as unknown as { addEventListener?: (t: string, f: (e: { key: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; preventDefault: () => void }) => void) => void; removeEventListener?: (t: string, f: unknown) => void };
@@ -256,7 +258,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   else if (route.view === "new") {
     const agentRows = list.filter((p) => p.kind === "agent").map((p) => ({ id: p.id, name: p.name }));
     const people = list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name }));
-    main = <Landing rt={rt} nameOf={nameOf} kindOf={(id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person")} agents={agentRows} people={people} openChat={go.chat} openTasks={() => act({ t: "tasks" })} openNeed={(id) => go.needs(id)} openProfile={profile} fill={(t) => fill.set(t)} newKey={newKey} say={setLine} {...(stacked ? { list: <ChatsSidebar data={side} {...(window ? { window } : {})} /> } : {})} />;
+    main = <Landing rt={rt} nameOf={nameOf} kindOf={(id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person")} agents={agentRows} people={people} openChat={go.chat} openTasks={() => act({ t: "tasks" })} openNeed={(id) => go.needs(id)} openProfile={profile} fill={(t) => fill.set(t)} newKey={newKey} say={setLine} {...(stacked ? { list: <ChatsSidebar data={side} open={openKey} {...(window ? { window } : {})} /> } : {})} />;
   }
   else if (conv) {
     const work = thread.status === "ready" ? workOf(thread.data.thread) : null;
@@ -303,7 +305,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   const showMain = !(narrow && right !== null);
   return (
     <View testID="chats-place" style={st.row}>
-      <ChatsSidebarSlot data={side} {...(window ? { window } : {})} />
+      <ChatsSidebarSlot data={side} open={openKey} {...(window ? { window } : {})} />
       {showMain ? (
         <View testID="chats-main" style={st.main}>
           <View style={st.fill}>{main}</View>

@@ -36,7 +36,7 @@ async function ownerWrap(ctx: VaultCtx, owner: string): Promise<Buffer> {
   const theirs = (ctx.principal.id === owner && ctx.principal.kind === "person") || ctx.actingFor === owner;
   if (!theirs) return denied(ctx, "A Mine item belongs to one person. Only they can read or change it.");
   const key = await currentKeyPort()?.personKey(owner);
-  if (!key) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your vault key is locked. Sign in again to open your Mine items.", details: { reason: "vault_locked" } });
+  if (!key) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your vault key is locked on this computer. Unlock it to open your Mine items.", details: { reason: "vault_locked" } });
   return wrapKeyFromPersonKey(key);
 }
 
@@ -53,6 +53,30 @@ function storeSealed(ctx: VaultCtx, itemId: string, s: SealedFields): void {
   const have = first(ctx.db.all(`SELECT * FROM vault_secret WHERE "itemId" = ?`, itemId));
   if (have) ctx.db.run(`UPDATE vault_secret SET "enc" = ?, "keyId" = ?, "wrapped" = ?, "box" = ?, "rev" = ? WHERE "itemId" = ?`, s.enc, s.keyId, s.wrapped ? JSON.stringify(s.wrapped) : null, JSON.stringify(s.box), s.rev, itemId);
   else ctx.db.run(`INSERT INTO vault_secret ("itemId", "enc", "keyId", "wrapped", "box", "rev") VALUES (?, ?, ?, ?, ?, ?)`, itemId, s.enc, s.keyId, s.wrapped ? JSON.stringify(s.wrapped) : null, JSON.stringify(s.box), s.rev);
+}
+
+/** The wrap key of a Mine item's owner as this node holds it, with no principal check: for the host's save of a refreshed sign-in only, whose caller has checked the item and its owner. */
+async function heldWrap(ctx: VaultCtx, owner: string): Promise<Buffer> {
+  const key = await currentKeyPort()?.personKey(owner);
+  if (!key) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "The owner's vault key is locked on this computer.", details: { reason: "vault_locked" } });
+  return wrapKeyFromPersonKey(key);
+}
+
+/**
+ * A sign-in a CLI refreshed during its owner's turn (providers.ts signinRefreshed, run only by the host's own call): open the owner's Mine item and seal its fields again under their key, the one the
+ * turn's fill opened it with. `next` sees the fields as they are and answers the new ones, or null to leave the item alone. Answers whether it saved. No access check of its own.
+ */
+export async function resealOwn(ctx: VaultCtx, r: Row, next: (fields: Field[]) => Field[] | null): Promise<boolean> {
+  if (str(r, "scope") !== "mine") return false;
+  const id = str(r, "id"), owner = str(r, "owner");
+  const sealed = sealedOf(ctx, id);
+  if (sealed.enc !== ENC_MINE) return false;
+  const wrap = await heldWrap(ctx, owner);
+  const fields = next(openMine(id, sealed, wrap));
+  if (fields === null) return false;
+  storeSealed(ctx, id, sealMine(id, fields, wrap, sealed.rev + 1));
+  ctx.db.run(`UPDATE vault_item_x SET "lastRotatedAt" = ? WHERE "itemId" = ?`, ctx.now(), id);
+  return true;
 }
 
 export async function openFields(ctx: VaultCtx, item: Row): Promise<Field[]> {
@@ -214,7 +238,7 @@ function nameTaken(ctx: VaultCtx, folderId: string, name: string, except?: strin
   return rowsOf(ctx.db.all(`SELECT * FROM vault_meta WHERE "folderId" = ?`, folderId)).some((r) => live(r) && str(r, "id") !== except && str(r, "name").toLowerCase() === name.toLowerCase());
 }
 
-function uniqueHandle(ctx: VaultCtx, name: string, except?: string): string {
+export function uniqueHandle(ctx: Pick<VaultCtx, "db">, name: string, except?: string): string {
   const base = handleOf(name);
   const taken = new Set(rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => str(r, "id") !== except).map((r) => str(r, "handle").toLowerCase()));
   let h = base;

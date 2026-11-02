@@ -42,24 +42,11 @@ export function enginePath(env: { PATH?: string | undefined }, home: string, pla
   const nvm = path.join(home, ".nvm", "versions", "node");
   let versions: string[] = [];
   try { versions = exists(nvm) ? list(nvm).filter((v) => /^v\d+/.test(v)).sort((a, b) => b.localeCompare(a, undefined, { numeric: true })).map((v) => path.join(nvm, v, "bin")) : []; } catch { /* no nvm */ }
-  return last([path.join(home, ".local", "bin"), "/opt/homebrew/bin", "/usr/local/bin", path.join(home, ".claude", "local"), path.join(home, ".bun", "bin"), path.join(home, ".volta", "bin"), ...versions, ...appBundledClis(home, exists, list), ...owned]);
+  return last([path.join(home, ".local", "bin"), "/opt/homebrew/bin", "/usr/local/bin", path.join(home, ".claude", "local"), path.join(home, ".bun", "bin"), path.join(home, ".volta", "bin"), ...versions, ...owned]);
 }
 
-/**
- * The CLIs a desktop app carries inside itself, last so a person's own install wins. ChatGPT (and the older Codex app) ship `codex` in Resources/codex-cli/bin; the Claude app keeps Claude Code
- * per version under Application Support, newest first. A person signed in to Codex through the ChatGPT app has no other `codex`, and without this their turn fell back to another account.
- */
-function appBundledClis(home: string, exists: (p: string) => boolean, list: (p: string) => string[]): string[] {
-  const apps = ["/Applications", path.join(home, "Applications")];
-  const codex = apps.flatMap((a) => ["ChatGPT.app", "Codex.app"].map((app) => path.join(a, app, "Contents", "Resources", "codex-cli", "bin")));
-  const root = path.join(home, "Library", "Application Support", "Claude", "claude-code");
-  let claude: string[] = [];
-  try {
-    const versions = exists(root) ? list(root).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort((a, b) => b.localeCompare(a, undefined, { numeric: true })) : [];
-    claude = versions.flatMap((v) => list(path.join(root, v)).map((build) => path.join(root, v, build, "claude.app", "Contents", "MacOS")));
-  } catch { /* no Claude app */ }
-  return [...codex, ...claude];
-}
+// The CLIs a desktop app carries inside itself (the codex in ChatGPT.app, Claude Code under the Claude app) are not looked in: they are builds tied to their app, and the ChatGPT
+// app's codex refused every turn outside it ("workspace routing discovery failed"). Vyre installs its own pinned copy instead (engine-install.ts), last on the PATH above.
 
 /**
  * Where the installed CLI engines live, so Seatbelt can let them read their own program. A CLI installed with npm under nvm (`~/.nvm/versions/node/v24/bin/claude`), bun, volta or Claude Code's

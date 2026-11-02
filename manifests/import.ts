@@ -19,7 +19,7 @@ const importedSession = t.obj({
 const sessionDestination = t.obj({ kind: t.enm('personal') });
 const importedConversation = t.obj({ conversationId: t.id('isc'), provider: sessionProvider, destination: t.obj({ kind: t.enm('project', 'imported_sessions'), projectId: t.opt(id.project), scope: t.enm('personal'), spaceId: id.space }) });
 
-const archiveSession = t.obj({ conversationId: t.id('isc'), provider: sessionProvider, sourceKey: t.str(), sourceSessionId: t.str(), title: t.str(), startedAt: t.ts(), importedAt: t.ts(), projectId: t.opt(id.project), continuedThreadId: t.opt(id.thread) });
+const archiveSession = t.obj({ conversationId: t.id('isc'), provider: sessionProvider, sourceKey: t.str(), sourceSessionId: t.str(), title: t.str({ description: 'The title shown: the name the owner gave it in Vyre, else the source title' }), startedAt: t.ts(), importedAt: t.ts(), projectId: t.opt(id.project), continuedThreadId: t.opt(id.thread), archived: t.opt(t.bool()) });
 
 const column = t.obj({ name: t.str(), inferred: t.str({ description: 'Field type key the column looks like', examples: ['email'] }), sample: t.arr(t.str()), distinct: t.int({ minimum: 0 }), empty: t.int({ minimum: 0 }) });
 const table = t.obj({ name: t.str(), rowCount: t.int({ minimum: 0 }), columns: t.arr(column) });
@@ -53,6 +53,9 @@ export default defineManifest({
     ev('import.failed', 'An import stopped on an error; rows already written stay and the Run can be undone', { p: { importId, runId: id.run, type: id.recordType, error: t.str() }, subject: ['entity', '/importId'], notify: 'run.failed' }),
     ev('sessions.imported', 'A local Codex or Claude Code session was copied into an immutable provenance-marked archive', { p: { conversationId: t.id('isc'), provider: sessionProvider, sourceKey: t.str(), projectId: t.opt(id.project), scope: t.enm('personal'), spaceId: id.space, messages: t.int() }, subject: ['entity', '/conversationId'] }),
     ev('sessions.continued', 'An imported archival session was continued in a separate live Vyre chat', { p: { conversationId: t.id('isc'), threadId: id.thread }, subject: ['entity', '/conversationId'] }),
+    ev('sessions.renamed', 'An imported session was given a new title in Vyre; its copied transcript is unchanged', { p: { conversationId: t.id('isc') }, subject: ['entity', '/conversationId'] }),
+    ev('sessions.archived', 'An imported session moved to the owner Archived list, or back out of it', { p: { conversationId: t.id('isc'), archived: t.bool() }, subject: ['entity', '/conversationId'] }),
+    ev('sessions.deleted', 'An imported session was removed from Vyre; the original local files and any chat continued from it stay', { p: { conversationId: t.id('isc') }, subject: ['entity', '/conversationId'] }),
   ],
   capabilities: [
     read('import.parse_csv', 'Stage a CSV or pasted CSV text and report its columns with inferred field types', {
@@ -112,6 +115,15 @@ export default defineManifest({
     }),
     write('sessions.continue', 'Start a separate live Vyre chat linked to an immutable imported conversation; it never writes back to the local provider store', {
       in: { conversationId: t.id('isc'), destinationSpaceId: id.space, destinationScope: t.enm('personal'), agentId: id.agent, first: t.opt(t.str()) }, out: { threadId: id.thread, linkedFrom: t.id('isc') }, perm: 'chats.private', emits: ['sessions.continued'], tool: 'chats', errors: ['validation.not_found', 'validation.bad_input'],
+    }),
+    write('sessions.rename', 'Give an imported session a new title in Vyre. Only the title shown changes: the copied transcript and its source provenance stay as they were', {
+      in: { conversationId: t.id('isc'), title: t.str({ minLength: 1, maxLength: 200 }) }, out: { session: archiveSession }, perm: 'chats.private', idem: 'natural', risk: 'low', emits: ['sessions.renamed'], tool: 'chats', offline: 'online', errors: ['validation.not_found', 'validation.bad_input'],
+    }),
+    write('sessions.archive', 'Move an imported session to the owner Archived list, or back out of it with unarchive', {
+      in: { conversationId: t.id('isc'), unarchive: t.opt(t.bool()) }, out: { archived: t.bool() }, perm: 'chats.private', idem: 'natural', risk: 'low', emits: ['sessions.archived'], tool: 'chats', offline: 'online', errors: ['validation.not_found', 'validation.bad_input'],
+    }),
+    write('sessions.delete', 'Remove an imported session from Vyre: its copied transcript is dropped and a later import of the same source session skips it. The original Claude Code or Codex files on the computer are never touched, and a chat continued from it stays and keeps working', {
+      in: { conversationId: t.id('isc') }, out: { deleted: t.bool() }, perm: 'chats.private', idem: 'natural', risk: 'medium', audit: 'always', emits: ['sessions.deleted'], offline: 'online', agent: false, errors: ['validation.not_found', 'validation.bad_input'],
     }),
   ],
   screens: [

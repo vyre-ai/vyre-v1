@@ -6,6 +6,7 @@ import type { Invoke } from "../invoke.ts";
 import { createEngineSessionHost } from "./engine-session.ts";
 import type { EngineSessionHost } from "./engine-session.ts";
 import type { VaultPort } from "./ports.ts";
+import type { SigninRefresh } from "./signin-refresh.ts";
 
 /** Run one capability through the invoke pipeline. `as` is the person it runs for; omitted, the host's own service principal (used for the pipeline's own bookkeeping). */
 export type EngineInvoke = (cap: string, input: unknown, as?: string) => Promise<unknown>;
@@ -60,6 +61,8 @@ export interface EngineHostSeam {
   own?: (person: string) => boolean;
   /** The computers that joined the Space, for a turn pinned to one of them: start the engine process there over its live socket. Absent: no turn runs on a node. */
   nodes?: EngineNodes;
+  /** The module calls it at shutdown with the promise of its close (sessions ended, refreshed sign-ins saved), so the daemon waits before the databases close. */
+  closing?: (done: Promise<void>) => void;
 }
 
 /** Start a process on a node (host/src/routes/compute-stream.ts spawnProc), structural here. A rejection carries an engine.* `code`. */
@@ -95,6 +98,10 @@ export interface EngineHostDeps {
   /** See EngineHostSeam.mcpFetch and pluginLaunch (modules/engine/runtime.ts). */
   mcpFetch?: unknown;
   pluginLaunch?: unknown;
+  /** The host's save of sign-in files a CLI refreshed during a turn (signin-refresh.ts), handed to the session opener's ports. */
+  saveSignin?: SigninRefresh["save"];
+  /** Told at shutdown when the engine has closed its sessions and saved what their CLIs refreshed, so the daemon waits for it before the databases close. */
+  closing?: (done: Promise<void>) => void;
 }
 
 /** A backstop only: the answer is also dropped the moment an event says a member or a grant went away (forgetReaders). */
@@ -139,6 +146,6 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
     const onlyAsker = kind === "thinking" ? e.asker ?? "" : null;
     pub({ t: "turn", turn: turnId, delta: { kind, ...rest } }, (person) => (onlyAsker !== null ? person === onlyAsker : mayRead(e.threadId, person)));
   };
-  const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space, ...(d.log ? { log: d.log } : {}) }) : undefined;
-  return { holder: `host:${d.space}`, call, postAs, ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.engineInstall ? { engines: { install: true } } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), ...(d.nodes ? { nodes: d.nodes } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
+  const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space, ...(d.log ? { log: d.log } : {}), ...(d.saveSignin ? { saveSignin: d.saveSignin } : {}) }) : undefined;
+  return { ...(d.closing ? { closing: d.closing } : {}), holder: `host:${d.space}`, call, postAs, ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.engineInstall ? { engines: { install: true } } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), ...(d.nodes ? { nodes: d.nodes } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
 }

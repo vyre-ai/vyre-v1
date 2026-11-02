@@ -13,16 +13,22 @@
     "import.preview@1": "d2203d72c019bcbeea73d5d7313f00444da3c66b383d01870a7aeab3e107aa96",
     "import.suggest_mapping@1": "6774d1c3ac7e7de427250535f90e6f41394915005fc1e7ba1960e13f2bd9d66d",
     "import.template@1": "74ffe14070cc47625f1ea780e600f2e6c6792a5496c7ceeae1205b98a8a8aa94",
+    "sessions.archive@1": "f454f1deed9a5e11c9e12d1cac73005725df85ed1276490a478939e01ec0e38e",
     "sessions.continue@1": "2e11d13df52b4be6f26ecd14941012f1f4bc2c05087d1acc84d8a97e48990356",
-    "sessions.get@1": "aab0d6e1750864c048af7fccaa40b31cee0f058cd4ea849d8a4319b6047bb8a0",
+    "sessions.delete@1": "019c9a8430417161a84238be712a1bdad7eec147c83564635221bb1df12ab7c0",
+    "sessions.get@1": "73e7e2ba055ecd64d6220cef2ab0309a8acf7276dcca890b44327682327b604a",
     "sessions.import@1": "f4a0585c3604d30f87b18bfa2cf213c9758dc095486355daf0d958cc34136e77",
-    "sessions.list@1": "bc12db086e9ee40936ae9e7548ed882986b7838aadad41d6cea088a30fb4a0f7"
+    "sessions.list@1": "61c170b65e1b4325483489bc7b4db978eaab551bc454cbb359aa86257c84735d",
+    "sessions.rename@1": "966c3f6b156f43e5f6338b2076b93ca3a427a9a6dd4594bd4b5c670e9a2b6f7c"
   },
   "events": {
     "import.completed": "af8f528fad05968638bc0cc2a531eba090429492ff7c7b64011f2846bb4106ec",
     "import.failed": "0be0450781d78e5af76fbd2656465dbb277bac5bc3bdf5c1244bdbc8d8b284b4",
     "import.started": "5a58c346ec4149f4d358469f101a43e75709bd24eae96e1ad204d255ac56726b",
+    "sessions.archived": "c4d64584ee2f6ebf1774555b370311bbf5e6057fa258956283ce2721b476af56",
     "sessions.continued": "cca8ee893a592b7f18903f78e276dd09d5afe288f7b244f6d470ba7844ad3cac",
-    "sessions.imported": "c7746e6c1f3ebfead9342d34400429bfdf0016b23bc82f47c50ab42ae884b834"
+    "sessions.deleted": "a0ba119c89afafea5f0f6efd92cde2d4b3684f364960b56b8cd72dd73afa0634",
+    "sessions.imported": "c7746e6c1f3ebfead9342d34400429bfdf0016b23bc82f47c50ab42ae884b834",
+    "sessions.renamed": "6eda2aad20acd10ea82fcbb1265a1192d30d7b56913a1bf11df09f4838e96133"
   }
 }

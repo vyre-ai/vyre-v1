@@ -211,6 +211,8 @@ export interface SidebarInput {
   archivedOpen?: boolean;
   /** The imported sessions, newest first, already narrowed by the search box. The group is left out when there are none. */
   imported?: readonly ImportedRow[];
+  /** The imported sessions I archived: they sit in the Archived section after the chats, newest first. */
+  archivedImported?: readonly ImportedRow[];
   /** A Personal Space has no channels: the section and its entry points are left out. */
   personal?: boolean;
   /** The search box has text: a Channels section with no match is left out, not offered as empty. */
@@ -301,15 +303,40 @@ export function buildEntries(i: SidebarInput): Entry[] {
       if (hidden <= 0 && (i.facesMore ?? 0) > 0) out.push({ key: "m:agents", type: "more", label: `All agents (${(i.facesMore ?? 0) + i.faces.length})`, to: "agents" });
     }
   }
-  if (i.archived?.length) {
-    out.push({ key: "h:archived", type: "head", section: "archived", label: "Archived", count: i.archived.length, open: i.archivedOpen === true });
-    if (i.archivedOpen === true) for (const r of i.archived) out.push({ key: `c:${r.threadId}`, type: "chat", row: r });
+  const archivedCount = (i.archived?.length ?? 0) + (i.archivedImported?.length ?? 0);
+  if (archivedCount > 0) {
+    out.push({ key: "h:archived", type: "head", section: "archived", label: "Archived", count: archivedCount, open: i.archivedOpen === true });
+    if (i.archivedOpen === true) {
+      for (const r of i.archived ?? []) out.push({ key: `c:${r.threadId}`, type: "chat", row: r });
+      for (const r of i.archivedImported ?? []) out.push({ key: `i:${r.conversationId}`, type: "imported", row: r });
+    }
   }
   if (i.imported?.length) {
     out.push({ key: "h:imported", type: "head", section: "imported", label: "Imported", count: i.imported.length, open: open("imported") });
     if (open("imported")) for (const r of i.imported) out.push({ key: `i:${r.conversationId}`, type: "imported", row: r });
   }
   return out;
+}
+
+/**
+ * The row of what the middle shows (`openKeyOf` in mounts/route.ts), or null when it has none on screen: a chat is its row, else the channel whose thread it is, else the imported session that
+ * was continued in it; an imported transcript, an agent's page, Tasks and Threads are their rows; Artifacts is the row above the list. Nothing else is ever drawn selected.
+ */
+export function openEntry(entries: readonly Entry[], open: string | null): string | null {
+  if (!open) return null;
+  const has = (k: string): string | null => (entries.some((e) => e.key === k) ? k : null);
+  if (open === "artifacts") return "artifacts";
+  if (open === "tasks" || open === "threads") return has(`nav:${open}`);
+  if (open.startsWith("i:")) return has(open);
+  if (open.startsWith("a:")) return has(`f:${open.slice(2)}`);
+  if (open.startsWith("t:")) {
+    const id = open.slice(2);
+    return has(`c:${id}`)
+      ?? entries.find((e) => e.type === "channel" && e.channel.mainThreadId === id)?.key
+      ?? entries.find((e) => e.type === "imported" && e.row.continuedThreadId === id)?.key
+      ?? null;
+  }
+  return null;
 }
 
 /** Entries a person can land on with the arrow keys, in order. */

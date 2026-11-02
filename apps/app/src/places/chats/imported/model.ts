@@ -10,6 +10,8 @@ export interface ImportedRow {
   startedAt: number;
   importedAt: number;
   continuedThreadId?: string | undefined;
+  /** In my Archived section: the row menu offers Unarchive. */
+  archived?: boolean | undefined;
 }
 
 export interface ImportedTool { id?: string; name: string; summary: string; ok?: boolean | undefined }
@@ -41,6 +43,7 @@ export function importedRows(list: readonly Partial<ImportedRow>[] | undefined):
       title: typeof r.title === "string" && r.title.trim() !== "" ? r.title.trim() : "Imported session",
       startedAt: Number(r.startedAt) || 0, importedAt: Number(r.importedAt) || 0,
       ...(typeof r.continuedThreadId === "string" && r.continuedThreadId !== "" ? { continuedThreadId: r.continuedThreadId } : {}),
+      ...(r.archived === true ? { archived: true } : {}),
     });
   }
   return out.sort((a, b) => (b.startedAt || b.importedAt) - (a.startedAt || a.importedAt) || a.conversationId.localeCompare(b.conversationId));
