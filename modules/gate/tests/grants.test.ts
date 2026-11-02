@@ -83,6 +83,14 @@ test("a grant follows the request into a Job under the chat, not into another ch
   assert.equal(await granted(take(h, ["lee@acme.test"], ["thr_job", "thr_chat"])), true);
 });
 
+test("a grant waits through a wake and a plan approval: a day of nothing said, and the Job under the chat still takes it", async () => {
+  const h = harness();
+  await ask(h, "msg_1", [{ act: "send", target: "lee@acme.test" }]);
+  h.advance(23 * HOUR);
+  assert.equal(await granted(take(h, ["lee@acme.test"], ["thr_job", "thr_chat"])), true);
+  assert.equal(await granted(take(h, ["lee@acme.test"], ["thr_job", "thr_chat"])), false, "and it is spent once");
+});
+
 test("a new message ends what the last one left unused; a grant also expires", async () => {
   const h = harness();
   await ask(h, "msg_1", [{ act: "send", target: "lee@acme.test" }]);

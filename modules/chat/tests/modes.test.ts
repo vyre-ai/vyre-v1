@@ -78,6 +78,32 @@ test("approving a plan ends Plan and returns the chat to Auto", async () => {
   assert.equal((await h["threads.get"]!(hn.ctx, { threadId: id })).thread.mode, "auto");
 });
 
+test("approving a plan posts nothing, so the request behind the plan keeps its grant", async () => {
+  const hn = harness();
+  const id = await chatOf(hn);
+  await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "plan" });
+  const seeded = hn.seedPlan(id);
+  hn.clear();
+  await h["chat.approve_plan"]!(hn.ctx, { threadId: id, planId: seeded.planId });
+  assert.deepEqual(hn.named("message.received"), [], "only a person's typed message ends what the last one left unused");
+});
+
+test("only a person typing at the top of a call marks a message typed", async () => {
+  const hn = harness();
+  const id = await chatOf(hn);
+  const typed = async (ctx: Harness["ctx"]): Promise<unknown> => {
+    hn.clear();
+    await h["chat.post"]!(ctx, { threadId: id, body: "send it", idempotencyKey: `p${++n}` });
+    return hn.named("message.received")[0]?.payload["typed"];
+  };
+  const person = { ...hn.ctx, depth: 0 };
+  assert.equal(await typed({ ...person, origin: "user" } as Harness["ctx"]), true);
+  assert.equal(await typed({ ...person, origin: "sync" } as Harness["ctx"]), true, "a message typed on another device");
+  assert.equal(await typed({ ...person, origin: "module" } as Harness["ctx"]), undefined, "a line a module posted in the person's name");
+  assert.equal(await typed({ ...person, origin: "user", depth: 1 } as Harness["ctx"]), undefined, "a call made inside another call");
+  assert.equal(await typed({ ...hn.agent(), origin: "user", depth: 0 } as Harness["ctx"]), undefined, "an agent");
+});
+
 test("a fork keeps the mode of the chat it came from", async () => {
   const hn = harness();
   const id = await chatOf(hn);
