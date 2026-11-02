@@ -40,6 +40,13 @@ type Out = {
   mappedMembers: number;
   excluded: Array<string>;
   pushToken?: string;
+  data: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  keyStored: boolean;
+  clientId?: string;
 };
 ```
 
@@ -60,11 +67,18 @@ type Out = {
   "output": {
     "adminEmail": "maya@example.com",
     "autoConnect": true,
+    "clientId": "example",
     "configured": true,
+    "data": {
+      "calendar": true,
+      "files": true,
+      "mail": true
+    },
     "domain": "example",
     "excluded": [
       "maya@example.com"
     ],
+    "keyStored": true,
     "lastProbeAt": 1760000000000,
     "lastProbeOk": true,
     "mappedMembers": 1,

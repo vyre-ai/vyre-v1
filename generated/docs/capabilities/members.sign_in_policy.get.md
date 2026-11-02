@@ -44,6 +44,8 @@ type Out = {
     newMemberMfaEnrollment: boolean;
     ownerHasSecondFactor: boolean;
     currentHasSecondFactor: boolean;
+    ownerSsoLinked?: boolean;
+    ownerHasRecovery?: boolean;
   };
 };
 ```
@@ -68,7 +70,9 @@ type Out = {
       "currentHasSecondFactor": true,
       "github": true,
       "newMemberMfaEnrollment": true,
+      "ownerHasRecovery": true,
       "ownerHasSecondFactor": true,
+      "ownerSsoLinked": true,
       "password": true,
       "sso": [
         "example"

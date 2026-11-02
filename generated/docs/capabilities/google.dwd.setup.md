@@ -28,6 +28,12 @@ type In = {
   vaultItem: string;
   adminEmail: string;
   domain?: string;
+  data?: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  hold?: boolean;
   idempotencyKey: string;
 };
 ```
@@ -61,7 +67,13 @@ type Out = {
   "name": "example",
   "input": {
     "adminEmail": "maya@example.com",
+    "data": {
+      "calendar": true,
+      "files": true,
+      "mail": true
+    },
     "domain": "example",
+    "hold": true,
     "idempotencyKey": "idem_1",
     "vaultItem": "#Dana_Lawmatics"
   },
