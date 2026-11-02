@@ -146,7 +146,7 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
 
   // Share: the people and agents of the Space who do not have it yet, one press each, at Use (who can change it is set on their row after)
   const holders = new Set((shares ?? []).map((x) => x.subject.id));
-  const shareEntries: MenuEntry[] = (item as { scope?: string }).scope === "mine" ? [{ head: "A Mine item is yours alone. Move it to a Shared folder to share it." } as MenuEntry] : [
+  const shareEntries: MenuEntry[] = (item as { scope?: string }).scope === "mine" ? [{ head: "A Mine item is yours alone. Move it to a Shared folder to share it." } as MenuEntry, { label: "OK", onSelect: () => undefined }] : [
     { head: "Share with" } as MenuEntry,
     ...names.all.filter((p) => (p.kind === "person" || p.kind === "agent") && p.id !== data.me.id && !holders.has(p.id)).slice(0, 30)
       .map((p): MenuEntry => ({ label: p.name, onSelect: () => void setLevel({ subject: { kind: p.kind as "person" | "agent", id: p.id }, level: "use" } as Share, "use") })),

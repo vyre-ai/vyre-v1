@@ -33,3 +33,4 @@
 - An Automation shows the line Sends from on its page whenever a step sends, not only while it needs something.
 - New blank automation under Space makes a Space Automation.
 - The Share sheet of an artifact says it is an artifact and what sharing it does.
+- The message on a Mine item's Share closes with Escape or OK.
