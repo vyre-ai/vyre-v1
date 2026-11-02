@@ -1,7 +1,0 @@
-- Inbox > Calendar: each row under Calendars is named for its calendar. A connected Google or Outlook calendar takes the address of the account it is read as, never "Google Calendar", and carries the provider's mark. A calendar connected under the old name takes its account's name the next time it is connected; a name you gave it stays.
-- A click on a calendar row shows or hides that calendar in the view. Its dot fills in the calendar's colour when shown and is hollow when hidden. Your own calendars are shown by default.
-- Right-click a calendar row, or press the "..." that shows on hover, for Show only this calendar, Colour, Sync now, Open in Google Calendar (or Outlook) and Calendar settings, which opens Settings > Email and calendar. Sync now is offered on your own calendars; a member may sync their own connected calendar.
-- A calendar's name takes the row's width. Its provider mark and lock sit at the right end, and the "..." takes their place on hover.
-- The Colour menu shows a swatch beside each colour's name.
-- A newly connected Google or Outlook calendar says "Syncing…" under its row until its first pull lands, and while a Sync now runs. One whose last pull failed says "Couldn't sync" with Retry. Hovering a row, and the top of its menu, say when it last synced ("Synced 2 min ago"). calendar.list_calendars now carries lastSyncAt, set when a pull from the provider works.
-- On a focused calendar row, Up and Down move between rows, Space shows or hides it and Enter shows only it.
