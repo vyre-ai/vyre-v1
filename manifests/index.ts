@@ -72,6 +72,7 @@ import m_twilio from './twilio.ts';
 import m_updates from './updates.ts';
 import m_vault_requests from './vault-requests.ts';
 import m_vault from './vault.ts';
+import m_voice from './voice.ts';
 import m_zoom from './zoom.ts';
 import m_documenso from './connectors/documenso.ts';
 import m_docusign from './connectors/docusign.ts';
@@ -155,6 +156,7 @@ export const all: Manifest[] = [
   m_updates,
   m_vault_requests,
   m_vault,
+  m_voice,
   m_zoom,
   m_documenso,
   m_docusign,
