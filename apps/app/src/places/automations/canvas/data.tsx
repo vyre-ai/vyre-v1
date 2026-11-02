@@ -79,19 +79,6 @@ export function useScreenQuery<T>(screenId: string, name: string, state: Record<
   return useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
 }
 
-const NO_SUB = (): (() => void) => () => undefined;
-const LOADING_STATE = { status: "loading" } as const;
-const LOADING = (): typeof LOADING_STATE => LOADING_STATE;
-/** A screen query where the host serves it live, else the same answer by one plain call: a query the registry marks not live is read, never asked live (which crashes the place). */
-export function useScreenOrRead<T>(screenId: string, name: string, state: Record<string, unknown>, cap: string, input: Record<string, unknown>): QueryState<T> {
-  const { screens } = useAutomationsData();
-  const key = JSON.stringify(state);
-  const q = useMemo(() => { try { return screens.query(screenId, name, withRoute(JSON.parse(key) as Record<string, unknown>)) as LiveQuery<T>; } catch { return null; } }, [screens, screenId, name, key]);
-  const live = useSyncExternalStore(q?.subscribe ?? NO_SUB, (q?.getSnapshot ?? LOADING) as () => QueryState<T>, (q?.getSnapshot ?? LOADING) as () => QueryState<T>);
-  const read = useRead<T>(cap, input, 0, q === null);
-  return q ? live : read;
-}
-
 /**
  * One read of a capability, again when `refreshKey` changes. For the screen queries the registry marks `live: false` (versions, previews), which the shell's live hooks refuse by design:
  * asking them through useScreenQuery crashes the place ("query ... is not live"). A person reads them with a plain call, as the Ask before sending toggle does.
