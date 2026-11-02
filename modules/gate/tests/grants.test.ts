@@ -214,3 +214,10 @@ test("a yes spent by a call refused before it went out comes back once, and a se
   assert.equal((await take(h, ["pat@acme.test"]) as { granted: boolean }).granted, false, "and the yes is spent again");
   await assert.rejects(h.call("gate.grants.give_back", { ids: first.spent }, as(bot)), (e) => codeOf(e) === "permission.role_lacks_permission");
 });
+
+test("an outside agent working as its person under the setup grant has pressed nothing: its save writes no row and clears what was there (docs/ask-the-person.md)", async () => {
+  const h = harness();
+  await set(h, alice);
+  assert.equal((await set(h, { ...alice, origin: "mcp" })).grants.length, 0);
+  assert.equal(await granted(stepTake(h, ["lee@acme.test"])), false, "its sends still stop for a person at run time");
+});

@@ -2,7 +2,7 @@
 // tool calls as the agent acting for the person, what stays with people, the Gate, and every way a request can be wrong.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createMcpServer, MAX_RESULT_CHARS, isPersonOnly, outsideAllows, outsideDoor, setupCovers } from "../../../agent/src/mcp/index.ts";
+import { createMcpServer, MAX_RESULT_CHARS, isPersonOnly, outsideAllows, outsideDoor, setupCovers, setupRefusal } from "../../../agent/src/mcp/index.ts";
 import type { McpCaller, McpServerDeps } from "../../../agent/src/mcp/index.ts";
 import { fakeInvoke, loadGenerated } from "../../../agent/src/tools/harness.ts";
 import type { Invoke } from "../../../host/src/invoke.ts";
@@ -454,7 +454,9 @@ test("the setup grant's scope: setting the Space up, never what goes out, never 
   }
   for (const t of g.catalog.all) {
     if (t.effects === "outward") assert.equal(setupCovers(t), false, `${t.cap} goes out`);
-    if (/^(access|gate|agents|mcp|devices|network|spaces|identity)\./.test(t.cap)) assert.equal(setupCovers(t), false, `${t.cap} could widen an agent or a sign-in`);
+    // groups and roles of people are in scope, each subject checked (setupRefusal); reading them, removing someone and deleting a group only narrow. The Space's name and logo are in scope.
+    const peopleOnly = /^access\.(groups\.(create|update|add_member|remove_member|delete|list|get)|roles\.(assign|unassign|list|get))$|^spaces\.(update|get)$/;
+    if (/^(access|gate|agents|mcp|devices|network|spaces|identity)\./.test(t.cap) && !peopleOnly.test(t.cap)) assert.equal(setupCovers(t), false, `${t.cap} could widen an agent or a sign-in`);
     if (/^vault\.(item\.reveal|share|unshare|export|items\.export|use|fill|inject)/.test(t.cap)) assert.equal(setupCovers(t), false, `${t.cap} reads or shares a secret`);
   }
 });
@@ -476,4 +478,20 @@ test("with the setup grant, an outside agent's person-only call goes to the pipe
   granted = false;
   await call("members_sso_set");
   assert.deepEqual(seen.at(-1), { cap: "members.sso.set", askPerson: "always", setupGrant: undefined }, "taken back: an ask again");
+});
+
+test("loading up a Space is in the setup scope; groups and roles go to people only; nothing that widens an agent or goes out", () => {
+  const has = (cap: string): boolean => { const t = g.catalog.all.find((x) => x.cap === cap); assert.ok(t, cap); return setupCovers(t); };
+  for (const cap of ["spaces.update", "telephony.number.import", "telephony.number.assign", "schema.apply", "schema.set_label", "schema.layout.set", "import.commit", "access.groups.create", "access.groups.add_member", "access.roles.assign", "journeys.create", "automations.create", "automations.promote", "automations.set_enabled", "skills.add", "channels.create", "channels.members.add", "projects.create", "calendar.connect_provider", "calendar.sync_now"]) assert.equal(has(cap), true, cap);
+  for (const cap of ["telephony.dial", "telephony.send_sms", "telephony.number.buy", "telephony.answer", "spaces.transfer_ownership", "spaces.delete", "access.roles.update", "access.roles.create", "access.groups.defaults_set", "access.share", "channels.agents.add", "projects.teammates.create", "projects.share_out", "automations.run", "automations.test", "automations.connector_share", "agents.update"]) {
+    const t = g.catalog.all.find((x) => x.cap === cap);
+    if (t) assert.equal(setupCovers(t), false, cap);
+  }
+  const groupCreate = { cap: "access.groups.create" }, addMember = { cap: "access.groups.add_member" }, assign = { cap: "access.roles.assign" };
+  assert.equal(setupRefusal(groupCreate, { name: "Intake", members: [{ kind: "person", id: "usr_a" }, { kind: "person", id: "usr_b" }] }), null);
+  assert.match(setupRefusal(groupCreate, { name: "Intake", members: [{ kind: "person", id: "usr_a" }, { kind: "agent", id: "agt_x" }] }) ?? "", /people only/);
+  assert.match(setupRefusal(addMember, { groupId: "grp_1", member: { kind: "actor", id: "act_x" } }) ?? "", /people only/);
+  assert.match(setupRefusal(assign, { subject: { kind: "service", id: "svc_x" }, roleId: "rol_admin" }) ?? "", /people only/);
+  assert.match(setupRefusal(assign, { subject: { kind: "group", id: "grp_1" }, roleId: "rol_admin" }) ?? "", /people only/);
+  assert.equal(setupRefusal(assign, { subject: { kind: "person", id: "usr_a" }, roleId: "rol_admin" }), null);
 });

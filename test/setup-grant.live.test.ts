@@ -96,3 +96,43 @@ withSpace("without the grant the same calls are cards; a member cannot give the 
   assert.equal((await tool(c, "members_sso_set", { provider: google({ clientId: "after-admin" }) })).structuredContent.held, true);
   assert.equal((await s.call("mcp.connected.list", noah, { all: true })).status >= 400, true, "a member sees only their own");
 });
+
+withSpace("load up a Space under the setup grant: rename, a group of two people, a record type with a sealed field, a Twilio test with a fake key, a journey; each has its audit row, and no agent gets a group or a role", async (s, owner) => {
+  const c = new Client(`${s.d.url}/mcp`, {}, "Simba (Claude Code)");
+  const { agentId } = await signIn(s, c, owner, { setup: true });
+  await c.rpc("initialize", INIT);
+  const done = (r: Json, what: string): void => { assert.equal(r.isError, false, `${what}: ${JSON.stringify(r).slice(0, 400)}`); assert.equal(r.structuredContent?.held, undefined, `${what} is no card`); };
+
+  done(await tool(c, "spaces_update", { name: "Northwind Law", legalName: "Northwind Law LLP", logoFileId: null }), "rename");
+  assert.equal(expectStatus(await s.call("spaces.get", owner, {}), 200, "spaces.get").space.name, "Northwind Law");
+
+  const group = await tool(c, "access_groups_create", { name: "Intake team", members: [{ kind: "person", id: "usr_noah" }, { kind: "person", id: "usr_sana" }], idempotencyKey: "sg-group" });
+  done(group, "a group of two people");
+  const groupId = group.structuredContent.data.group.id as string;
+  const agentIn = await tool(c, "access_groups_add_member", { groupId, member: { kind: "agent", id: agentId } });
+  assert.equal(agentIn.isError, true);
+  assert.equal(agentIn.structuredContent.error.details.reason, "setup_people_only", JSON.stringify(agentIn.structuredContent));
+  const agentRole = await tool(c, "access_roles_assign", { subject: { kind: "agent", id: agentId }, roleId: "admin" });
+  assert.equal(agentRole.structuredContent.error.details.reason, "setup_people_only", "and no role for an agent");
+  const groupRole = await tool(c, "access_roles_assign", { subject: { kind: "group", id: groupId }, roleId: "admin" });
+  assert.equal(groupRole.structuredContent.error.details.reason, "setup_people_only", "nor for a group, whose members may be agents");
+
+  done(await tool(c, "schema_apply", { ops: [{ op: "type.create", type: "client", def: { title: "Client", plural: "Clients", icon: "table", label: "internal", titleField: "name", fields: [{ key: "name", type: "text", title: "Name", required: true }, { key: "ssn", type: "sealed", title: "Tax ID" }] } }], idempotencyKey: "sg-type", reason: "Load up the Space" }), "a record type with a sealed field");
+
+  const folder = expectStatus(await s.call("vault.folders.create", owner, { idempotencyKey: "sg-tw", name: "Phones", scope: "shared" }), 200, "vault.folders.create").folder.id as string;
+  for (const [name, value] of [["Twilio_Account", `AC${"0".repeat(32)}`], ["Twilio_Auth", "fake-auth-token"]] as const) done(await tool(c, "vault_item_put", { folderId: folder, name, kind: "login", fields: [{ key: "value", value, secret: true }], idempotencyKey: `sg-${name}` }), name);
+  const twilio = await tool(c, "telephony_number_import", { idempotencyKey: "sg-import" });
+  assert.equal(twilio.structuredContent?.held, undefined, "the Twilio test runs, as her, with no card");
+  assert.equal(JSON.stringify(twilio).includes("fake-auth-token"), false);
+
+  const STAGES = [{ key: "client", title: "Client", order: 0, exit: { requireTasks: false }, tasks: [], automations: [], makesProject: true }, { key: "done", title: "Done", order: 1, exit: { requireTasks: false }, tasks: [], automations: [], final: true }];
+  done(await tool(c, "journeys_create", { name: "Client onboarding", subjectType: "client", stages: STAGES, idempotencyKey: "sg-journey" }), "a journey");
+  assert.equal(await holds(s, owner), 0, "no card for any of it");
+
+  const audit = expectStatus(await s.call("audit.list", owner, { limit: 500 }), 200, "audit.list").rows as Json[];
+  for (const cap of ["spaces.update", "access.groups.create", "schema.apply", "telephony.number.import", "journeys.create"]) {
+    assert.ok(audit.some((r) => r.action === cap && r.actor?.id === agentId && r.onBehalfOf?.id === "usr_olivia"), `${cap}: the agent's row, for her`);
+  }
+  for (const cap of ["spaces.update", "access.groups.create", "schema.apply"]) assert.ok(audit.some((r) => r.action === cap && r.after?.reason === "setup_grant"), `${cap}: under the setup grant`);
+  assert.equal(audit.some((r) => r.action === "access.groups.add_member" && r.actor?.id === "usr_olivia"), false, "the agent never went into the group");
+});

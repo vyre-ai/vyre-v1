@@ -50,6 +50,8 @@ export interface AutoCtx {
   actingFor?: string;
   /** the thread a tool call came from, when an agent made it in one */
   thread?: string;
+  /** where the call came from; "mcp" for an outside agent's call, even one run as its person under the setup grant */
+  origin?: string;
   trace: { traceId: string };
   now(): number;
   db: Db;

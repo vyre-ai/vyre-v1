@@ -13,7 +13,7 @@ import type { Invoke } from "../../../host/src/invoke.ts";
 import { makeError } from "../../../host/src/routes/errors.ts";
 import { INTERNAL_ERROR, INVALID_PARAMS, INVALID_REQUEST, METHOD_NOT_FOUND, PARSE_ERROR, err, isRequest, ok } from "./jsonrpc.ts";
 import type { Id, Request, Response } from "./jsonrpc.ts";
-import { outsideAllows, outsideDoor, setupCovers } from "./outside.ts";
+import { outsideAllows, outsideDoor, setupCovers, setupRefusal } from "./outside.ts";
 import { searchTools } from "../tools/access.ts";
 import { HostError } from "../../../host/src/routes/errors.ts";
 import { heldCard, workCardOf } from "../tools/work-cards.ts";
@@ -104,7 +104,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       const outsideCall = caller.kind === "outside";
       // the setup grant: a call in its scope that the agent may not make runs as its person (host/src/invoke.ts), read now so a grant taken back counts at once
       const t = outsideCall ? deps.catalog.all.find((x) => x.cap === cap) : undefined;
-      const setup = t !== undefined && setupCovers(t) && deps.setupGrant?.(caller) === true;
+      const setup = t !== undefined && setupCovers(t) && setupRefusal(t, input) === null && deps.setupGrant?.(caller) === true;
       const { thread, ...rest } = seed;
       // An outside agent stopped at a role its person holds asks that person (docs/ask-the-person.md); the door says 'always' for what only a person does.
       return deps.invoke(cap, input, { ...rest, principal: caller.principal, origin: "mcp", space: caller.space, ...(thread !== undefined && (!outsideCall || thread.startsWith("thr_")) ? { thread } : {}), ...(outsideCall ? { auditAll: true, askPerson: seed.askPerson ?? "if_refused", ...(setup ? { setupGrant: true } : {}) } : {}) });
@@ -183,7 +183,15 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     if (!allowed(s, t)) {
       const door = outsideDoor(t);
       // with the setup grant, what is in its scope runs as the person, values included; what is not stays where it was
-      if (door !== "open" && setupCovers(t) && deps.setupGrant?.(s.caller) === true) return askThePerson(s, t, args, traceId);
+      if (door !== "open" && setupCovers(t) && deps.setupGrant?.(s.caller) === true) {
+        const no = setupRefusal(t, args);
+        if (no !== null) {
+          const error = makeError("permission.role_lacks_permission", traceId, { message: no, details: { tool: t.name, reason: "setup_people_only" } });
+          deps.onCall?.(s.caller, t.name, "error", { cap: t.cap, threadId: s.ctx.thread.threadId });
+          return { result: textResult({ error }, true, { error }) };
+        }
+        return askThePerson(s, t, args, traceId);
+      }
       if (door === "ask") return askThePerson(s, t, args, traceId);
       if (door === "paste") return pasteKey(s, t, args, traceId);
       const message = t.toolset === "vault"

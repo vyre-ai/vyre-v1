@@ -52,12 +52,37 @@ export function outsideAllows(t: Pick<ToolDef, "cap" | "toolset" | "effects" | "
  * and putting keys in the Vault. Outside it, and for anything that goes out (sends, posts, payments), nothing changes. Never here: access, the Gate's rules, agents, MCP sign-ins, devices, the network,
  * reading a secret back, sharing a Vault item: an agent cannot give itself or another agent more than it has.
  */
-const SETUP_FAMILIES = /^(members|company|settings|connections|connectors)\.|^(google|ms|microsoft)\.(dwd|tenant|connect|directory)(\.|_|$)/;
+const SETUP_FAMILIES = /^(members|company|settings|connections|connectors|import)\.|^(google|ms|microsoft)\.(dwd|tenant|connect|directory)(\.|_|$)/;
+/** Loading up a company Space (lead review, 3 Nov): the Space itself, numbers, record types, groups and roles of people, journeys and automations, skills, channels, projects, members' calendars. */
+const SETUP_PREFIXED = /^(telephony\.number\.(import|assign|list|get|search|set_hours|set_recording|set_route)|telephony\.registration\.(get|save|refresh)|schema\.(apply|layout\.set|set_label|gap_rules\.set|restore_field|describe|diff|infer|types\.|layout\.get|field_types|view_kinds|map|changes\.list|gap_rules\.list|trash\.list|sensitivity\.scan)|journeys\.(create|design|rename|rules\.set|start|move_stage|get|list|versions|stage_counts|preview_migrate|migrate)|automations\.(create|update|promote|preview_promote|set_enabled|validate|get|list|versions|steps\.list|triggers\.list|templates\.|groups\.|dependencies)|skills\.(add|remove|set_enabled|list)|channels\.(create|update|members\.|get|list|archive|unarchive)|projects\.(create|members\.set|members\.list|get|list|stages\.set|templates\.list|overview)|calendar\.(connect_provider|sync_now|list_calendars))/;
 const SETUP_CAPS: ReadonlySet<string> = new Set([
   "vault.item.put", "vault.item.update", "vault.folders.create", "vault.folders.update", "vault.folders.list", "vault.items.list", "vault.request",
   "providers.add", "providers.list", "providers.catalog", "providers.test", "providers.set_space_use", "providers.remove",
+  "spaces.update", "spaces.get",
+  // groups and roles, for people only: every subject is checked by setupRefusal
+  "access.groups.create", "access.groups.update", "access.groups.add_member", "access.groups.remove_member", "access.groups.delete", "access.groups.list", "access.groups.get",
+  "access.roles.assign", "access.roles.unassign", "access.roles.list", "access.roles.get",
 ]);
+/** Within the scope, what never is: a step that hands an agent something, or reads one back. */
+const SETUP_NEVER = /^(connectors\.(run|publish)|connections\.set_secret|automations\.(connector_share|connector_offer)|members\.sign_in_github\.get)/;
 export function setupCovers(t: Pick<ToolDef, "cap" | "effects" | "local">): boolean {
-  if (t.effects === "outward" || t.local !== "none") return false;
-  return SETUP_CAPS.has(t.cap) || SETUP_FAMILIES.test(t.cap);
+  if (t.effects === "outward" || t.local !== "none" || SETUP_NEVER.test(t.cap)) return false;
+  return SETUP_CAPS.has(t.cap) || SETUP_FAMILIES.test(t.cap) || SETUP_PREFIXED.test(t.cap);
+}
+
+/** The calls whose subjects are checked: a group or a role goes to people only under the setup grant. */
+const PEOPLE_ONLY: ReadonlySet<string> = new Set(["access.groups.create", "access.groups.update", "access.groups.add_member", "access.roles.assign"]);
+const subjectsOf = (input: unknown): Array<{ kind?: unknown; id?: unknown }> => {
+  const i = (input ?? {}) as Record<string, unknown>;
+  const list = (v: unknown): Array<{ kind?: unknown; id?: unknown }> => (Array.isArray(v) ? v : v !== undefined ? [v] : []) as Array<{ kind?: unknown; id?: unknown }>;
+  return [...list(i["members"]), ...list(i["managers"]), ...list(i["member"]), ...list(i["subject"])];
+};
+/**
+ * Why the setup grant does not cover this call, in a plain line, or null when it does. Groups and roles go to people only: a subject that is an agent, an actor, a service or a group (whose members may be
+ * agents) is refused, so the grant can never widen an agent's own access. Checked where the call is classified, at the MCP door.
+ */
+export function setupRefusal(t: Pick<ToolDef, "cap">, input: unknown): string | null {
+  if (!PEOPLE_ONLY.has(t.cap)) return null;
+  const bad = subjectsOf(input).find((s) => s === null || typeof s !== "object" || s.kind !== "person");
+  return bad === undefined ? null : "The setup grant gives groups and roles to people only. Putting an agent, actor, service or group in a group or a role stays with a person.";
 }
