@@ -119,7 +119,7 @@ test("a chat opened mid-turn takes the text so far and follows from there, with 
   assert.equal(s.turnsOf("thr_a").length, 2);
 });
 
-test("a long piece from the provider is shown a few words at a time, and the turn's end paces out the rest in a moment instead of dropping it in one jump", () => {
+test("a long piece from the provider is shown a few words at a time, and everything waiting is shown when the turn ends", () => {
   const t = timers();
   const pushes: string[] = [];
   let ended = false;
@@ -134,6 +134,22 @@ test("a long piece from the provider is shown a few words at a time, and the tur
   assert.ok(sizes[0]! >= 1 && sizes[0]! < 30, `the first beat shows a few words, not the sentence: ${JSON.stringify(sizes)}`);
   assert.ok(sizes.every((n, i) => i === 0 || n > sizes[i - 1]!) && sizes.at(-1)! < 30, `and each beat adds more: ${JSON.stringify(sizes)}`);
   s.onFrame(f("trn_p", { kind: "end", state: "done" }));
+  assert.equal(pushes.join(""), words.join(" "), "the turn ended: every word is there, once, in order");
+  assert.ok(ended);
+});
+
+test("while a row watches, the turn's end paces out the rest in a moment instead of dropping it in one jump", () => {
+  const t = timers();
+  const pushes: string[] = [];
+  let ended = false;
+  const store = { push: (x: string) => { pushes.push(x); }, end: () => { ended = true; }, getSnapshot: () => ({ blocks: [], closedCount: 0, done: ended, version: 0 }), subscribe: () => () => undefined, reset: () => undefined, stats: () => ({}) } as never;
+  const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear, makeStore: () => store });
+  s.onFrame(f("trn_p", { kind: "start" }));
+  s.streamOf(turnRowId("trn_p"))!.subscribe(() => undefined);
+  const words = Array.from({ length: 30 }, (_, i) => `w${i + 1}`);
+  s.onFrame(f("trn_p", { kind: "delta", text: words.join(" "), at: 0 }));
+  t.fire(45);
+  s.onFrame(f("trn_p", { kind: "end", state: "done" }));
   assert.notEqual(pushes.join(""), words.join(" "), "the end does not drop what waits on the screen in one jump");
   assert.equal(ended, false, "the store stays open for the last words");
   let beats = 0;
@@ -143,6 +159,23 @@ test("a long piece from the provider is shown a few words at a time, and the tur
   assert.ok(ended);
 });
 
+test("words already received show at once when a row first looks, so a remount never blanks what was seen; only what arrives after is paced", () => {
+  const t = timers();
+  const pushes: string[] = [];
+  const store = { push: (x: string) => { pushes.push(x); }, end: () => undefined, getSnapshot: () => ({ blocks: [], closedCount: 0, done: false, version: 0 }), subscribe: () => () => undefined, reset: () => undefined, stats: () => ({}) } as never;
+  const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear, makeStore: () => store });
+  s.onFrame(f("trn_r", { kind: "start" }));
+  s.onFrame(f("trn_r", { kind: "delta", text: "one two three four five six", at: 0 }));
+  t.fire(45);
+  const off = s.streamOf(turnRowId("trn_r"))!.subscribe(() => undefined);
+  assert.equal(pushes.join(""), "one two three four five six", "the first look shows everything received");
+  s.onFrame(f("trn_r", { kind: "delta", text: " seven eight nine ten eleven twelve", at: 27 }));
+  assert.equal(pushes.join(""), "one two three four five six", "what arrives while watched waits for its beats");
+  off();
+  s.streamOf(turnRowId("trn_r"))!.subscribe(() => undefined);
+  assert.equal(pushes.join(""), "one two three four five six seven eight nine ten eleven twelve", "a remount shows it all at once");
+});
+
 test("a whole reply that lands with the turn's end is still paced, and the saved row reads the store until the last word", () => {
   const t = timers();
   const pushes: string[] = [];
@@ -150,6 +183,7 @@ test("a whole reply that lands with the turn's end is still paced, and the saved
   const store = { push: (x: string) => { pushes.push(x); }, end: () => { ended = true; }, getSnapshot: () => ({ blocks: [], closedCount: 0, done: ended, version: 0 }), subscribe: () => () => undefined, reset: () => undefined, stats: () => ({}) } as never;
   const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear, makeStore: () => store });
   s.onFrame(f("trn_w", { kind: "start" }));
+  s.streamOf(turnRowId("trn_w"))!.subscribe(() => undefined);
   const words = Array.from({ length: 60 }, (_, i) => `w${i + 1}`);
   s.onFrame(f("trn_w", { kind: "delta", text: words.join(" "), at: 0 }));
   s.onFrame(f("trn_w", { kind: "end", state: "done" }));

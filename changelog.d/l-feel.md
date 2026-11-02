@@ -12,3 +12,4 @@
 - The session token no longer goes in the live socket's address, so it cannot reach a console error or a log: each connection trades it for a one-time ticket that lasts seconds.
 - Switch skin in Cmd-K changes the window where you are, and lists Vyre, the default.
 - A developer gets the Console button in the rail, as anyone who can open the Console by its address does.
+- Words a reply has already received show at once when its row first draws, after a remount or a reload too; only words that arrive while you watch are paced.

@@ -96,13 +96,16 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
   const have = new Map<string, number>();                  // turnId -> characters held in its store
   const held = new Map<string, Array<{ at: number; text: string }>>();   // pieces that arrived before the text so far
   // What a provider sends in a piece may be a whole sentence (a fast model answers in three or four chunks, a short reply in one); the screen shows it word by word, a few words each beat, faster the more
-  // is waiting. A turn that ends with words still waiting does not drop them on the screen in one jump: they finish at the same pace, inside TAIL_MS, so the finished text is held back by a moment at most.
+  // is waiting. Pacing is only for words arriving while someone watches. Words already received show at once the moment a row first looks at its store (a first render, a remount, a reload), so text a
+  // person saw is never blanked; and a turn that ends while nobody watches shows everything at once. A watched turn that ends with words still waiting finishes them at the same pace, inside TAIL_MS.
   const waiting = new Map<string, string[]>();               // turnId -> words received and not yet shown
   const beats = new Map<string, unknown>();
   const PACE_MS = 45;
   const TAIL_MS = 1_500;
   const ending = new Map<string, number>();                  // turnId -> the most words a beat must show now the turn is over; its store ends with the last word
   const settled = new Set<string>();                         // turns whose saved row is on screen and is only waiting for the last words
+  const watchers = new Map<string, number>();                // turnId -> rows looking at its store now
+  const watched = (turnId: string): boolean => (watchers.get(turnId) ?? 0) > 0;
   const beat = (turnId: string): void => {
     beats.delete(turnId);
     const t = turns.get(turnId), q = waiting.get(turnId);
@@ -129,10 +132,19 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
     waiting.delete(t.turnId);
     if (q && q.length > 0) t.store.push(q.join(""));
   };
-  /** The turn is over: end its store, now when nothing waits, else with the last paced word. */
+  /** Show at once everything received and not yet shown; a turn already over ends with it. */
+  const catchUp = (turnId: string): void => {
+    const t = turns.get(turnId);
+    if (!t) return;
+    showAll(t);
+    if (!ending.delete(turnId)) return;
+    t.store.end();
+    if (settled.delete(turnId)) drop(turnId);
+  };
+  /** The turn is over: end its store, now when nothing waits or nobody watches, else with the last paced word. */
   const finish = (t: LiveTurn): void => {
     const q = waiting.get(t.turnId);
-    if (!q || q.length <= 3) { showAll(t); t.store.end(); return; }   // a last word or two has nothing to pace
+    if (!q || q.length <= 3 || !watched(t.turnId)) { showAll(t); t.store.end(); return; }   // a last word or two has nothing to pace, and nobody watching sees no pace
     ending.set(t.turnId, Math.ceil(q.length / Math.floor(TAIL_MS / PACE_MS)));
   };
   const add = (t: LiveTurn, at: number | undefined, text: string, instant = false): boolean => {
@@ -161,14 +173,26 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
     if (h !== undefined) clearT(h);
     timers.delete(turnId);
     if (!t) return;
-    { const bh = beats.get(turnId); if (bh !== undefined) clearT(bh); beats.delete(turnId); waiting.delete(turnId); ending.delete(turnId); settled.delete(turnId); }
+    { const bh = beats.get(turnId); if (bh !== undefined) clearT(bh); beats.delete(turnId); waiting.delete(turnId); ending.delete(turnId); settled.delete(turnId); watchers.delete(turnId); }
     turns.delete(turnId); have.delete(turnId); held.delete(turnId); acts.delete(turnId);
     tell(t.threadId);
   }
+  /** The store as rows see it: the first row to look shows what was already received, at once. */
+  const lookedAt = (turnId: string, store: StreamStore): StreamStore => ({
+    push: (d) => store.push(d), end: () => store.end(), reset: () => store.reset(), getSnapshot: () => store.getSnapshot(), stats: () => store.stats(),
+    subscribe(l) {
+      const n = (watchers.get(turnId) ?? 0) + 1;
+      watchers.set(turnId, n);
+      if (n === 1) catchUp(turnId);
+      const off = store.subscribe(l);
+      let on = true;
+      return () => { if (!on) return; on = false; off(); if (watchers.has(turnId)) watchers.set(turnId, Math.max(0, (watchers.get(turnId) ?? 1) - 1)); };
+    },
+  });
   const ensure = (turnId: string, threadId: string, agentId: string): LiveTurn => {
     const have = turns.get(turnId);
     if (have) return have;
-    const t: LiveTurn = { turnId, threadId, agentId, store: makeStore(), state: "writing", startedAt: now() };
+    const t: LiveTurn = { turnId, threadId, agentId, store: lookedAt(turnId, makeStore()), state: "writing", startedAt: now() };
     turns.set(turnId, t);
     return t;
   };
@@ -281,11 +305,11 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
       const threads = new Set([...turns.values()].map((t) => t.threadId));
       for (const id of ids) { const h = timers.get(id); if (h !== undefined) clearT(h); timers.delete(id); }
       for (const h of beats.values()) clearT(h);
-      beats.clear(); waiting.clear(); ending.clear(); settled.clear(); acts.clear();
+      beats.clear(); waiting.clear(); ending.clear(); settled.clear(); watchers.clear(); acts.clear();
       turns.clear(); have.clear(); held.clear();
       for (const th of threads) rebuild(th);
       if (ids.length) for (const l of [...listeners]) l();
     },
-    dispose() { for (const h of [...timers.values(), ...beats.values()]) clearT(h); beats.clear(); waiting.clear(); ending.clear(); settled.clear(); timers.clear(); turns.clear(); byThread.clear(); listeners.clear(); gapListeners.clear(); },
+    dispose() { for (const h of [...timers.values(), ...beats.values()]) clearT(h); beats.clear(); waiting.clear(); ending.clear(); settled.clear(); watchers.clear(); timers.clear(); turns.clear(); byThread.clear(); listeners.clear(); gapListeners.clear(); },
   };
 }
