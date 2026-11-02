@@ -1,4 +1,4 @@
-// The menus of a row in the Chats list. A chat row: Open, Star, Mark as Read, then what the person can do with the chat itself. An imported session's row: importedMenuEntries below. Pure: the sidebar gives it what each item does.
+// The menus of a row in the Chats list. A chat row: Open, Star, Mark as Read (or Mark as Unread), then what the person can do with the chat itself. An imported session's row: importedMenuEntries below. Pure: the sidebar gives it what each item does.
 //   Archive / Unarchive  my list only
 //   Leave chat           a chat with other people (a direct message): I stop being in it, they keep it
 //   Delete chat          a chat only I am in (me and agents): hidden at once, with an Undo; never offered for a channel (channels have their own menu) or a row the server does not know yet
@@ -6,14 +6,14 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { ChatRow } from "./model.ts";
 import type { ImportedRow } from "../imported/model.ts";
 
-export interface ChatMenuDo { open(): void; star(): void; markRead(): void; archive(): void; unarchive(): void; leaveChat(): void; deleteChat(): void }
+export interface ChatMenuDo { open(): void; star(): void; markRead(): void; markUnread(): void; archive(): void; unarchive(): void; leaveChat(): void; deleteChat(): void }
 
 export function chatMenuEntries(r: ChatRow, d: ChatMenuDo): MenuEntry[] {
   const items: MenuEntry[] = [
     { label: "Open", onSelect: d.open },
     { separator: true },
     { label: r.starred ? "Remove Star" : "Star", onSelect: d.star },
-    ...(r.unread > 0 ? [{ label: "Mark as Read", onSelect: d.markRead }] : []),
+    ...(r.unread > 0 ? [{ label: "Mark as Read", onSelect: d.markRead }] : r.local ? [] : [{ label: "Mark as Unread", onSelect: d.markUnread }]),
     { separator: true },
     r.archived ? { label: "Unarchive", onSelect: d.unarchive } : { label: "Archive", onSelect: d.archive },
   ];

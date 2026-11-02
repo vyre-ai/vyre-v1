@@ -744,18 +744,25 @@ async function pullCalendar(ctx: CalCtx, cal: Row): Promise<void> {
   const connectionId = strOrNull(cal, "connectionId");
   const remoteId = strOrNull(cal, "remoteId");
   const sync = first(ctx.db.all(`SELECT * FROM calendar_sync WHERE "calendarId" = ?`, calendarId));
-  if (!sync) ctx.db.run(`INSERT INTO calendar_sync ("calendarId", cursor, "lastTryAt", "lastOkAt", "lastError") VALUES (?, ?, ?, ?, ?)`, calendarId, null, now, null, null);
-  ctx.db.run(`UPDATE calendar_sync SET "lastTryAt" = ? WHERE "calendarId" = ?`, now, calendarId);
+  // the attempt is recorded whatever happens next: after the connection check on the way through, or in the catch when that check refuses, so nothing is written before a refusal
+  let tried = false;
+  const recordTry = (): void => {
+    if (!sync) ctx.db.run(`INSERT INTO calendar_sync ("calendarId", cursor, "lastTryAt", "lastOkAt", "lastError") VALUES (?, ?, ?, ?, ?)`, calendarId, null, now, null, null);
+    ctx.db.run(`UPDATE calendar_sync SET "lastTryAt" = ? WHERE "calendarId" = ?`, now, calendarId);
+    tried = true;
+  };
   try {
     if (!connectionId || !remoteId) refuse(ctx, "This calendar has no connection to pull from. Reconnect it in Settings, Connections.");
+    recordTry();
     const cursor = strOrNull(sync, "cursor");
     const account = strOrNull(first(ctx.db.all(`SELECT account FROM calendar_account WHERE "calendarId" = ?`, calendarId)), "account") ?? undefined;
     const pulled = provider === "google" ? await pullGoogle(ctx, calendarId, connectionId, remoteId, cursor, account) : await pullGraph(ctx, calendarId, connectionId, remoteId, cursor, account);
     ctx.db.run(`UPDATE calendar_sync SET cursor = ?, "lastOkAt" = ?, "lastError" = ? WHERE "calendarId" = ?`, pulled.cursor, ctx.now(), null, calendarId);
-    ctx.db.run(`UPDATE calendar_list SET state = ?, version = ?, updated_at = ? WHERE id = ?`, "syncing", num(cal, "version") + 1, ctx.now(), calendarId);
+    ctx.db.run(`UPDATE calendar_list SET state = ?, "lastSyncAt" = ?, version = ?, updated_at = ? WHERE id = ?`, "syncing", ctx.now(), num(cal, "version") + 1, ctx.now(), calendarId);
     ctx.emit("calendar.synced", `entity/${calendarId}`, { calendarId, upserted: pulled.upserted, removed: pulled.removed }, { vis: "participants" });
   } catch (e) {
     const code = codeOf(e);
+    if (!tried) recordTry();
     ctx.db.run(`UPDATE calendar_sync SET "lastError" = ? WHERE "calendarId" = ?`, code || "sync_failed", calendarId);
     ctx.db.run(`UPDATE calendar_list SET state = ?, version = ?, updated_at = ? WHERE id = ?`, "error", num(cal, "version") + 1, ctx.now(), calendarId);
     // the scheduled pull tries again every two minutes: the same failure as last time is already in the log and on the calendar, so it is said once, not on every pass
@@ -854,6 +861,9 @@ function ageOf(ms: number): string {
 
 // ---- provider calendars (calendar.connect_provider)
 
+/** What a provider calendar was called before it was named for its account. */
+const GENERIC_TITLES: ReadonlySet<string> = new Set(["Google Calendar", "Outlook Calendar"]);
+
 export interface ConnectProviderIn { provider: "google" | "microsoft"; ownerId: string; account: string; connectionId: string; remoteId?: string; title?: string; connected?: boolean }
 
 /**
@@ -883,13 +893,17 @@ export async function connectProvider(ctx: CalCtx, input: ConnectProviderIn): Pr
     ctx.db.run(`DELETE FROM calendar_sync WHERE "calendarId" = ?`, id);
     return { calendarId: id, created: false };
   }
+  // a calendar is named for the account it is read as (maya@firm.test), not "Google Calendar": a member with two connected accounts can tell them apart
+  const given = clean(ctx, input.title, "The title", 100, false);
   if (have) {
     if (first(ctx.db.all(`SELECT "calendarId" FROM calendar_account WHERE "calendarId" = ?`, str(have, "id")))) ctx.db.run(`UPDATE calendar_account SET account = ? WHERE "calendarId" = ?`, account, str(have, "id"));
     else ctx.db.run(`INSERT INTO calendar_account ("calendarId", account) VALUES (?, ?)`, str(have, "id"), account);
+    // one connected before it was named for its account takes the account's name the next time it is connected (a title the person gave it stays)
+    if (!given && GENERIC_TITLES.has(str(have, "title"))) ctx.db.run(`UPDATE calendar_list SET title = ?, version = ?, updated_at = ? WHERE id = ?`, account, num(have, "version") + 1, now, str(have, "id"));
     return { calendarId: str(have, "id"), created: false };
   }
   const id = newId("cld", now);
-  const title = clean(ctx, input.title, "The title", 100, false) || (input.provider === "google" ? "Google Calendar" : "Outlook Calendar");
+  const title = given || account;
   const color = COLORS[rowsOf(ctx.db.all(`SELECT id FROM calendar_list WHERE "ownerId" = ?`, input.ownerId)).length % COLORS.length] ?? "#4f6bed";
   ctx.db.run(
     `INSERT INTO calendar_list (id, title, color, provider, "connectionId", "remoteId", "ownerId", personal, state, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

@@ -14,6 +14,8 @@ const joinProvider = t.enm('zoom', 'meet', 'teams', 'none');
 const calendarRow = t.obj({
   id: calId, title: t.str(), color: t.str({ examples: ['#4f6bed'] }), provider: t.enm('google', 'microsoft', 'local'), connectionId: t.opt(id.connection),
   ownerId: id.user, personal: t.bool(), state: t.enm('syncing', 'paused', 'error'),
+  // when the last pull from Google or Microsoft worked; absent until the first one has (the sidebar says Syncing until then)
+  lastSyncAt: t.opt(t.ts()),
 });
 const eventRow = t.obj({
   id: cevId, calendarId: calId, title: t.str(), startsAt: t.ts(), endsAt: t.ts(), allDay: t.bool(), location: t.opt(t.str()), joinUrl: t.opt(t.str()), joinProvider,
@@ -32,7 +34,7 @@ const manifest = defineManifest({
   title: 'Calendar',
   owner: 'L5',
   entities: [
-    entity('calendar', 'calendar_list', 'cld_', { title: 'text', color: 'text', provider: 'choice', connectionId: 'text', remoteId: 'text', ownerId: 'person', personal: 'checkbox', state: 'status' }, 'calendar', {
+    entity('calendar', 'calendar_list', 'cld_', { title: 'text', color: 'text', provider: 'choice', connectionId: 'text', remoteId: 'text', ownerId: 'person', personal: 'checkbox', state: 'status', lastSyncAt: 'datetime' }, 'calendar', {
       parentField: 'connectionId', ownerField: 'ownerId',
     }),
     entity('calendar_event', 'calendar_event', 'cev_', {

@@ -8,7 +8,8 @@ import { makeRecoveryCode } from "../join/JoinFlow.tsx";
 import { createCapCaller } from "../shell/session/caps.ts";
 import { openRealSession } from "../shell/session/session.ts";
 import { readStoredSessions, readStoredSpace, spaceAddress, writeStored } from "../shell/session/stored.ts";
-import { claimAppLink, isPhoneAddress } from "../shell/session/entry.ts";
+import { claimAppLink } from "../shell/session/entry.ts";
+import { useRelayAddress } from "../shell/session/use-relay-address.ts";
 import { carryIdentity, knownIdentity } from "../join/identity.ts";
 import type { KnownIdentity } from "../join/identity.ts";
 import { claimOwner } from "./claim.ts";
@@ -36,6 +37,7 @@ export function ClaimRoute({ token, onDone, onSignIn, onBack, address, fragment,
   // Read once: the claim below stores its own session just before it finishes, and that must not turn this screen into "already used".
   const [spent] = useState(() => !!spaceId && readStoredSpace(spaceId) !== null);
   const [known] = useState(() => identity !== undefined ? identity : knownIdentity(readStoredSessions(), { spaceId, baseUrl }));
+  const relay = useRelayAddress(baseUrl, deviceClass === "web" && !local);
 
   if (!call || !baseUrl) return null;
   // A link without the Space id (#s=) is not the link the server printed.
@@ -73,7 +75,7 @@ export function ClaimRoute({ token, onDone, onSignIn, onBack, address, fragment,
     await finish(claimed, known.username);
     onDone();
   } : undefined;
-  const appLink = deviceClass === "web" && !local && onComputer() && !isPhoneAddress(baseUrl) ? claimAppLink(baseUrl, token, hash) : null;
+  const appLink = deviceClass === "web" && !local && onComputer() ? claimAppLink(baseUrl, token, hash, relay) : null;
   return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={claim} onSignIn={onSignIn} {...(onBack ? { onBack } : {})} fingerprint={local ? null : fingerprintOf(hash)} prefill={prefillFor(baseUrl)}
     {...(known && claimAs ? { known: { username: known.username, name: known.name }, onClaimAs: claimAs } : {})}
     {...(appLink ? { onOpenApp: () => { (globalThis as { location?: { assign(url: string): void } }).location?.assign(appLink); } } : {})} />;

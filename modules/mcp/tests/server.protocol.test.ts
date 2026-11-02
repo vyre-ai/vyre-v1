@@ -2,7 +2,7 @@
 // tool calls as the agent acting for the person, what stays with people, the Gate, and every way a request can be wrong.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createMcpServer, MAX_RESULT_CHARS, isPersonOnly, outsideAllows } from "../../../agent/src/mcp/index.ts";
+import { createMcpServer, MAX_RESULT_CHARS, isPersonOnly, outsideAllows, outsideDoor, setupCovers, setupRefusal } from "../../../agent/src/mcp/index.ts";
 import type { McpCaller, McpServerDeps } from "../../../agent/src/mcp/index.ts";
 import { fakeInvoke, loadGenerated } from "../../../agent/src/tools/harness.ts";
 import type { Invoke } from "../../../host/src/invoke.ts";
@@ -253,14 +253,20 @@ test("a deferred tool must be found with tool_search before it can be called, an
   assert.equal(r.fake.calls.at(-1)?.cap, deferred.cap);
 });
 
-test("tool_search for an outside agent never returns what stays with people, and needs a query", async () => {
+test("tool_search for an outside agent finds what it may run, and marks what asks the person; never what is off from outside; and needs a query", async () => {
   const r = rig();
-  const found = await r.callTool("out", "tool_search", { query: "vault secret terminal run command chat post delete" });
-  const tools = found.result.structuredContent.data.tools as Array<{ name: string; toolset: string }>;
+  const found = await r.callTool("out", "tool_search", { query: "vault secret terminal run command chat post delete sso sign in" });
+  const tools = found.result.structuredContent.data.tools as Array<{ name: string; toolset: string; asksPerson?: boolean }>;
   for (const t of tools) {
-    assert.ok(!["vault", "terminal", "computer", "engineer"].includes(t.toolset), `${t.name} (${t.toolset}) leaked to an outside tool`);
-    assert.equal(outsideAllows(g.catalog.byName(t.name)!), true, `${t.name} stays with people`);
+    const door = outsideDoor(g.catalog.byName(t.name)!);
+    assert.notEqual(door, "off", `${t.name} (${t.toolset}) is off from outside`);
+    if (t.asksPerson) assert.ok(door === "ask" || door === "paste", `${t.name} is marked as asking the person`);
+    else {
+      assert.equal(outsideAllows(g.catalog.byName(t.name)!), true, `${t.name} stays with people`);
+      assert.ok(!["vault", "terminal", "computer", "engineer"].includes(t.toolset), `${t.name} (${t.toolset}) leaked to an outside tool`);
+    }
   }
+  assert.ok(tools.some((t) => t.asksPerson === true), "what only a person does is found, marked");
   const noQuery = await r.callTool("out", "tool_search", {});
   assert.equal(noQuery.result.isError, true);
   assert.equal(noQuery.result.structuredContent.error.code, "validation.bad_input");
@@ -342,20 +348,48 @@ test("tools/call with a missing name, bad arguments or an unknown tool is invali
 
 // ---- outside agents
 
-test("an outside agent has no scope list: it can write, and what stays with people is refused before anything runs", async () => {
+test("an outside agent has no scope list: it can write; what is off from outside is refused before anything runs; what only a person does asks that person", async () => {
   const r = rig();
   const names = new Set((await r.list("out")).map((t) => t.name));
   assert.ok(names.has("records_query") && names.has("chat_post") && names.has("records_create") && names.has("use_tool") && names.has("agents_next"), [...names].join(" "));
+  for (const n of ["members_sso_set", "access_share", "terminal_run", "vault_item_reveal"]) assert.equal(names.has(n), false, `${n} is not listed as the agent's own`);
   assert.equal((await r.callTool("out", "chat_post", { threadId: "thr_1", body: "hi" })).result.isError, false);
-  for (const tool of ["terminal_run", "vault_item_reveal", "access_share", "members_invites_create", "connections_create", "gate_rules_set"]) {
-    const def = g.catalog.byName(tool);
-    if (!def) continue;
+  for (const tool of ["terminal_run", "vault_item_reveal", "vault_folders_list"]) {
+    if (!g.catalog.byName(tool)) continue;
     const before = r.fake.calls.length;
     const refused = await r.callTool("out", "use_tool", { name: tool, arguments: {} });
     assert.equal(refused.result.isError, true, tool);
-    assert.equal(refused.result.structuredContent.error.details.reason, "person_only", tool);
+    assert.equal(refused.result.structuredContent.error.details.reason, "not_from_outside", tool);
     assert.equal(r.fake.calls.length, before, `${tool} reached the pipeline`);
   }
+  for (const tool of ["access_share", "members_invites_create", "members_sso_set", "connections_create", "gate_rules_set", "company_status"]) {
+    const def = g.catalog.byName(tool);
+    if (!def) continue;
+    const asked = await r.callTool("out", "use_tool", { name: tool, arguments: { a: 1 } });
+    assert.equal(asked.result.isError, true, `${tool}: not an answer yet`);
+    assert.deepEqual([asked.result.structuredContent.held, asked.result.structuredContent.asksPerson], [true, true], `${tool}: ${JSON.stringify(asked.result)}`);
+    assert.deepEqual(r.fake.calls.at(-1), { cap: def.cap, principal: "agt_cc", actingFor: "usr_dana", approval: undefined, preAuth: undefined, askPerson: "always" }, `${tool} goes to the pipeline as the agent asking its person, never as the agent's own call`);
+    assert.deepEqual(r.calls.at(-1), { tool, outcome: "held" });
+  }
+});
+
+test("a key from outside is a paste request: names only, never a value, and the agent gets the handle", async () => {
+  const r = rig();
+  const before = r.fake.calls.length;
+  const withValue = await r.callTool("out", "use_tool", { name: "vault_item_put", arguments: { name: "Google_Client_Secret", folderId: "vfd_x", kind: "api_key", fields: [{ key: "value", value: "GOCSPX-abc", secret: true }] } });
+  assert.equal(withValue.result.isError, true);
+  assert.equal(withValue.result.structuredContent.error.details.reason, "value_sent");
+  assert.equal(JSON.stringify(withValue).includes("GOCSPX-abc"), false, "the value is not echoed");
+  assert.equal(r.fake.calls.length, before, "nothing reached the pipeline");
+  let seen: unknown = null;
+  const spy: Invoke = async (cap, input, seed) => { seen = { cap, input, principal: seed.principal.id, actingFor: seed.actingFor }; return { status: "ok", output: { request: { id: "vrq_1", taskId: "tsk_1", name: "Google_Client_Secret" } }, traceId: "t" }; };
+  const r2 = rig({ invoke: spy });
+  const asked = await r2.callTool("out", "use_tool", { name: "vault_item_put", arguments: { name: "Google_Client_Secret", folderId: "vfd_x", fields: [{ key: "value" }] } });
+  assert.equal(asked.result.isError, true, "not an answer yet");
+  assert.deepEqual([asked.result.structuredContent.held, asked.result.structuredContent.requestId, asked.result.structuredContent.handle], [true, "vrq_1", "#Google_Client_Secret"]);
+  const s = seen as { cap: string; input: Record<string, unknown>; principal: string; actingFor: string };
+  assert.equal(s.cap, "vault.request");
+  assert.deepEqual([s.input["name"], s.input["fields"], s.input["folderId"], s.input["handleOnly"], s.principal, s.actingFor], ["Google_Client_Secret", ["value"], "vfd_x", true, "agt_cc", "usr_dana"]);
 });
 
 test("use_tool calls what tool_search found, for a client that lists once", async () => {
@@ -411,4 +445,53 @@ test("a session that ends fails the call in flight at once", async () => {
   assert.equal(out.result.isError, true);
   assert.equal(out.result.structuredContent.error.code, "permission.revoked");
   release();
+});
+
+test("the setup grant's scope: setting the Space up, never what goes out, never anything that gives an agent more", () => {
+  for (const cap of ["members.sso.set", "members.invites.create", "company.connect", "settings.set_space", "providers.add", "vault.item.put", "connections.create"]) {
+    const t = g.catalog.all.find((x) => x.cap === cap);
+    if (t) assert.equal(setupCovers(t), true, cap);
+  }
+  for (const t of g.catalog.all) {
+    if (t.effects === "outward") assert.equal(setupCovers(t), false, `${t.cap} goes out`);
+    // groups and roles of people are in scope, each subject checked (setupRefusal); reading them, removing someone and deleting a group only narrow. The Space's name and logo are in scope.
+    const peopleOnly = /^access\.(groups\.(create|update|add_member|remove_member|delete|list|get)|roles\.(assign|unassign|list|get))$|^spaces\.(update|get)$/;
+    if (/^(access|gate|agents|mcp|devices|network|spaces|identity)\./.test(t.cap) && !peopleOnly.test(t.cap)) assert.equal(setupCovers(t), false, `${t.cap} could widen an agent or a sign-in`);
+    if (/^vault\.(item\.reveal|share|unshare|export|items\.export|use|fill|inject)/.test(t.cap)) assert.equal(setupCovers(t), false, `${t.cap} reads or shares a secret`);
+  }
+});
+
+test("with the setup grant, an outside agent's person-only call goes to the pipeline as the agent with setupGrant; without it, as an ask", async () => {
+  const seen: Array<{ cap: string; askPerson?: string | undefined; setupGrant?: boolean | undefined }> = [];
+  const spy: Invoke = async (cap, _input, seed) => { seen.push({ cap, askPerson: seed.askPerson, setupGrant: seed.setupGrant }); return { status: "ok", output: { ok: true }, traceId: "t" }; };
+  let granted = true;
+  const server = createMcpServer({ catalog: g.catalog, defaults: g.defaults, invoke: spy, open: async () => outside(), setupGrant: () => granted });
+  const call = async (name: string) => JSON.parse((await server.handle({ method: "POST", headers: { authorization: "Bearer out" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "use_tool", arguments: { name, arguments: { a: 1 } } } }) })).body).result;
+  const ran = await call("members_sso_set");
+  assert.equal(ran.isError, false);
+  assert.deepEqual(seen.at(-1), { cap: "members.sso.set", askPerson: "always", setupGrant: true });
+  await call("vault_item_put");
+  assert.deepEqual(seen.at(-1), { cap: "vault.item.put", askPerson: "always", setupGrant: true }, "a key goes in as the person, not as a paste request");
+  const before = seen.length;
+  assert.equal((await call("vault_item_reveal")).isError, true, "reading back stays off");
+  assert.equal(seen.length, before);
+  granted = false;
+  await call("members_sso_set");
+  assert.deepEqual(seen.at(-1), { cap: "members.sso.set", askPerson: "always", setupGrant: undefined }, "taken back: an ask again");
+});
+
+test("loading up a Space is in the setup scope; groups and roles go to people only; nothing that widens an agent or goes out", () => {
+  const has = (cap: string): boolean => { const t = g.catalog.all.find((x) => x.cap === cap); assert.ok(t, cap); return setupCovers(t); };
+  for (const cap of ["spaces.update", "telephony.number.import", "telephony.number.assign", "schema.apply", "schema.set_label", "schema.layout.set", "import.commit", "access.groups.create", "access.groups.add_member", "access.roles.assign", "journeys.create", "automations.create", "automations.promote", "automations.set_enabled", "skills.add", "channels.create", "channels.members.add", "projects.create", "calendar.connect_provider", "calendar.sync_now"]) assert.equal(has(cap), true, cap);
+  for (const cap of ["telephony.dial", "telephony.send_sms", "telephony.number.buy", "telephony.answer", "spaces.transfer_ownership", "spaces.delete", "access.roles.update", "access.roles.create", "access.groups.defaults_set", "access.share", "channels.agents.add", "projects.teammates.create", "projects.share_out", "automations.run", "automations.test", "automations.connector_share", "agents.update"]) {
+    const t = g.catalog.all.find((x) => x.cap === cap);
+    if (t) assert.equal(setupCovers(t), false, cap);
+  }
+  const groupCreate = { cap: "access.groups.create" }, addMember = { cap: "access.groups.add_member" }, assign = { cap: "access.roles.assign" };
+  assert.equal(setupRefusal(groupCreate, { name: "Intake", members: [{ kind: "person", id: "usr_a" }, { kind: "person", id: "usr_b" }] }), null);
+  assert.match(setupRefusal(groupCreate, { name: "Intake", members: [{ kind: "person", id: "usr_a" }, { kind: "agent", id: "agt_x" }] }) ?? "", /people only/);
+  assert.match(setupRefusal(addMember, { groupId: "grp_1", member: { kind: "actor", id: "act_x" } }) ?? "", /people only/);
+  assert.match(setupRefusal(assign, { subject: { kind: "service", id: "svc_x" }, roleId: "rol_admin" }) ?? "", /people only/);
+  assert.match(setupRefusal(assign, { subject: { kind: "group", id: "grp_1" }, roleId: "rol_admin" }) ?? "", /people only/);
+  assert.equal(setupRefusal(assign, { subject: { kind: "person", id: "usr_a" }, roleId: "rol_admin" }), null);
 });

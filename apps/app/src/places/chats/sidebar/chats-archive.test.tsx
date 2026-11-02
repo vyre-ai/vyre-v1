@@ -14,12 +14,12 @@ import { createSampleSidebar, northwind } from "./sample.ts";
 
 const row = (o: Partial<ChatRow> = {}): ChatRow => ({ threadId: "thr_1", title: "Rivera intake", who: "Intake", kind: "agent", unread: 0, working: false, starred: false, lastAt: 1, local: false, ...o });
 const labels = (r: ChatRow): string[] => chatMenuEntries(r, noop).flatMap((e) => ("label" in e ? [e.label] : []));
-const noop = { open() {}, star() {}, markRead() {}, archive() {}, unarchive() {}, leaveChat() {}, deleteChat() {} };
+const noop = { open() {}, star() {}, markRead() {}, markUnread() {}, archive() {}, unarchive() {}, leaveChat() {}, deleteChat() {} };
 
 test("the menu: Archive for a chat in my list, Unarchive for an archived one; Delete chat for a chat with agents, Leave chat for one with people, neither for a row the server does not know yet", () => {
-  assert.deepEqual(labels(row()), ["Open", "Star", "Archive", "Delete chat"]);
+  assert.deepEqual(labels(row()), ["Open", "Star", "Mark as Unread", "Archive", "Delete chat"]);
   assert.deepEqual(labels(row({ unread: 2, starred: true, archived: true })), ["Open", "Remove Star", "Mark as Read", "Unarchive", "Delete chat"]);
-  assert.deepEqual(labels(row({ withPeople: true })), ["Open", "Star", "Archive", "Leave chat"]);
+  assert.deepEqual(labels(row({ withPeople: true })), ["Open", "Star", "Mark as Unread", "Archive", "Leave chat"]);
   assert.deepEqual(labels(row({ local: true })), ["Open", "Star", "Archive"], "a local row has no chat on the server to delete");
   const danger = chatMenuEntries(row(), noop).filter((e) => "danger" in e && e.danger === true).map((e) => ("label" in e ? e.label : ""));
   assert.deepEqual(danger, ["Delete chat"]);

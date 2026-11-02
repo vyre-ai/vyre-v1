@@ -250,7 +250,7 @@ function ConversationView(): ReactElement {
     if (data.head) setSentOnPage((n) => n + 1);
     const key = data.newKey();
     const mentions = mentionsIn(payload.text, data.directory);
-    const refs = [...payload.refs, ...payload.chips.flatMap((c) => (c.id !== undefined ? [{ kind: c.kind.toLowerCase(), id: c.id, title: c.name }] : []))];
+    const refs = act.sendRefs(payload);
     const files = payload.files.map((f) => ({ name: f.name, ...(f.file !== undefined ? { file: f.file } : {}), ...(f.size !== undefined ? { size: f.size } : {}), ...(f.mime ? { mime: f.mime } : {}), ...(f.fileId !== undefined ? { fileId: f.fileId } : {}) }));
     const p: Pending = { key, body: payload.text, at: data.clock().now, state: "sending", kind: sendKind(kind, isWorking), mentions, working: isWorking, ...(files.length > 0 ? { files } : {}), ...(refs.length > 0 ? { refs } : {}) };
     setPending((cur) => [...cur, p]);

@@ -42,3 +42,35 @@ test("the web route reads one well-formed request id", () => {
   assert.equal(requestFrom("?request=../x"), null);
   assert.equal(requestFrom(""), null);
 });
+
+import { createRoot } from "test-renderer";
+import { find, flush, installDom, mount, press, textOf } from "../../../../ui/src/testing/dom.ts";
+import { ASK_LINE, SETUP_LINE, SETUP_TITLE } from "./AllowScreen.tsx";
+
+test("an owner or admin chooses what it may do: Act for me, including setup is the default and says what it means in one line; Ask me first sends no grant; a member sees no choice", async () => {
+  installDom();
+  const request = (canSetup: boolean) => ({ request: { requestId: "oar_1", clientName: "Claude Code", spaceName: "Northwind", match: "4821", expiresAt: 1, rejoins: false, ...(canSetup ? { canSetup: true } : {}) } });
+  const calls: { cap: string; input: unknown }[] = [];
+  const fake = (canSetup: boolean) => async (cap: string, input: unknown) => { calls.push({ cap, input }); return cap === "mcp.oauth.request" ? request(canSetup) : { agentId: "agt_1", name: "Claude Code" }; };
+  const owner = await mount(createRoot, <AllowScreen call={fake(true)} requestId="oar_1" me="Olivia" />);
+  await flush();
+  assert.match(textOf(owner), new RegExp(SETUP_TITLE));
+  assert.match(textOf(find(owner, "allow-mode-line")), new RegExp(SETUP_LINE.slice(0, 40)));
+  await press(find(owner, "allow-allow"));
+  await flush();
+  assert.deepEqual(calls.find((c) => c.cap === "mcp.oauth.allow")?.input, { requestId: "oar_1", setup: true });
+
+  calls.length = 0;
+  const chooser = await mount(createRoot, <AllowScreen call={fake(true)} requestId="oar_1" me="Olivia" />);
+  await flush();
+  await press(find(chooser, "allow-mode-ask"));
+  assert.match(textOf(find(chooser, "allow-mode-line")), new RegExp(ASK_LINE.slice(0, 30)));
+  await press(find(chooser, "allow-allow"));
+  await flush();
+  assert.deepEqual(calls.find((c) => c.cap === "mcp.oauth.allow")?.input, { requestId: "oar_1" });
+
+  const member = await mount(createRoot, <AllowScreen call={fake(false)} requestId="oar_1" me="Noah" />);
+  await flush();
+  assert.equal(find(member, "allow-mode-setup"), null, "no choice for a member");
+  assert.equal(find(member, "allow-mode-line"), null);
+});

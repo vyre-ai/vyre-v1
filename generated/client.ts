@@ -1424,6 +1424,9 @@ export function createClient(transport: Transport) {
       sessions: {
         list: call("mcp.sessions.list", 1),
       },
+      setup: {
+        set: call("mcp.setup.set", 1),
+      },
       tool: {
         describe: call("mcp.tool.describe", 1),
         search: call("mcp.tool.search", 1),

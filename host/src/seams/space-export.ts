@@ -191,7 +191,13 @@ export async function collectSpaceExport(o: ExportReader): Promise<{
             let offset = 0, size = -1;
             const chunks: Uint8Array[] = [];
             do {
-                const result = await read('files.read', { fileId: id, versionId, as: 'base64', offset, length: CHUNK });
+                // files.read refuses a Google-native file that holds no export (validation.unsupported, "open it in Google Docs"): for the archive that is a missing snapshot, said as one
+                const result = await read('files.read', { fileId: id, versionId, as: 'base64', offset, length: CHUNK }).catch((e: unknown) => {
+                    const code = (e as { error?: { code?: string }; code?: string } | null)?.error?.code ?? (e as { code?: string } | null)?.code;
+                    if (file.kind === 'google_native' && code === 'validation.unsupported')
+                        throw new SpaceExportError(`Required provider-native snapshot bytes are missing for ${id}.`);
+                    throw e;
+                });
                 if (typeof result.base64 !== 'string' || result.version !== version.n || !Number.isSafeInteger(result.size) || result.size < 0)
                     throw new SpaceExportError(`Required snapshot bytes are unavailable for ${id}.`);
                 if (size < 0)

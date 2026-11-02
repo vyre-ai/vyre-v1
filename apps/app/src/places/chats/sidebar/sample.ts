@@ -229,11 +229,13 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
       if (i.resource.type === "agent") { const a = replica.rows("agents").find((r) => r.id === i.resource.id); if (a) replica.put("agents", [{ ...a, starred: i.on }]); }
       return { starred: i.on, following: false };
     },
-    "threads.mark_read": (i: { threadId: string }) => {
-      patch(i.threadId, { unread: 0 });
+    "threads.mark_read": (i: { threadId: string; unread?: boolean }) => {
+      // Mark as Unread makes the newest message new again: one unread
+      const n = i.unread === true ? 1 : 0;
+      patch(i.threadId, { unread: n });
       const ch = (replica.rows("channels") as unknown as SampleSpace["channels"]).find((c) => `th_${c.channelId}` === i.threadId);
-      if (ch) replica.put("channels", [{ id: ch.channelId, ...ch, unread: 0 }]);
-      return { unread: 0 };
+      if (ch) replica.put("channels", [{ id: ch.channelId, ...ch, unread: n }]);
+      return { unread: n };
     },
     // my list only: archive and unarchive mark the chat for me, delete hides it until Undo (restore), leave takes me out of a chat with people
     "threads.archive": (i: { threadId: string }) => { patch(i.threadId, { archived: true }); return { archived: true }; },

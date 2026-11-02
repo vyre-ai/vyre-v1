@@ -17,6 +17,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "mcp.session.close": Handler<"mcp.session.close", X>;
   "mcp.session.mint": Handler<"mcp.session.mint", X>;
   "mcp.sessions.list": Handler<"mcp.sessions.list", X>;
+  "mcp.setup.set": Handler<"mcp.setup.set", X>;
   "mcp.tool.describe": Handler<"mcp.tool.describe", X>;
   "mcp.tool.search": Handler<"mcp.tool.search", X>;
   "mcp.tools.list": Handler<"mcp.tools.list", X>;

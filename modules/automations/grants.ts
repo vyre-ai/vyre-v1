@@ -3,6 +3,7 @@
 import { definitionHash, targetIsComputed, targetsOf } from "../../lib/grants.ts";
 import { registry } from "../../generated/registry.ts";
 import { allAutomations } from "./projections.ts";
+import { isPersonPress } from "../../lib/trust.ts";
 import type { AutoCtx, Automation, Definition, Node } from "./projections.ts";
 
 const STEPS = new Map((registry.steps as unknown as { key: string; effects?: string; cap?: string }[]).map((s) => [s.key, s] as const));
@@ -54,7 +55,7 @@ export function sendersOf(def: Definition): Named[] {
  * owner's own access.
  */
 export async function shareSenders(ctx: AutoCtx, a: Automation, press: "save" | "on", before?: Definition): Promise<void> {
-  if (a.kind !== "space" || ctx.principal.kind !== "person" || !ctx.call) return;
+  if (a.kind !== "space" || !isPersonPress(ctx) || !ctx.call) return;
   const all = sendersOf(a.definition);
   const was = new Map((before?.nodes ?? []).map((n) => [n.id, n] as const));
   const written = new Set(a.definition.nodes.filter((n) => !sameStep(n, was.get(n.id))).map((n) => n.id));

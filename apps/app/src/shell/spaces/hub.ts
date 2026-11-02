@@ -115,6 +115,8 @@ export interface ShellHub {
   retitle(key: string, title: string): void;
   /** The count on a place of the open Space, from what it counts live (the rail reads it, and only redraws when it changes). */
   count(place: PlaceId, n: number): void;
+  /** The quiet dot on a place of the open Space: something new, no number (Chats: an unread chat, channel or thread). Only a change redraws. */
+  dot(place: PlaceId, on: boolean): void;
   /** Whether this person has something flowing into Inbox in the open Space (rail/inbox-sources.ts). Only a change redraws. With `reveal`, Inbox joining the rail comes in as a fresh place. */
   setInbox(has: boolean, reveal?: { tip: string | null }): void;
   /** The fresh place has been seen (its tip dismissed or timed out). */
@@ -314,6 +316,12 @@ export function createShellHub(options: HubOptions): ShellHub {
       const s = open();
       if ((s.def.counts[place] ?? 0) === n) return;
       s.def = { ...s.def, counts: { ...s.def.counts, [place]: n } };
+      emit();
+    },
+    dot(place, on) {
+      const s = open();
+      if ((s.def.dots[place] === true) === on) return;
+      s.def = { ...s.def, dots: { ...s.def.dots, [place]: on } };
       emit();
     },
     setInbox(has, reveal) {

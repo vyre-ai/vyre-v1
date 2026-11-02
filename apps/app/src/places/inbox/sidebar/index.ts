@@ -4,4 +4,6 @@ export { InboxDataProvider, useCanSend, useInboxData, useOnline, useOptionalInbo
 export type { Connection, InboxData, InboxNav, NumberInfo, RowExtras } from "./data.tsx";
 export { InboxStateProvider, useInboxState } from "./state.tsx";
 export * from "./model.ts";
+export * from "./calendars.ts";
+export { CalendarRows } from "./CalendarRows.tsx";
 export { Face, Ghost, Glyph } from "./parts.tsx";

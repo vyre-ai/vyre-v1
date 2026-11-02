@@ -58,14 +58,21 @@ export interface ChatRow {
   withPeople?: boolean;
 }
 
-/** Who a recent item is with. The chat capability lists agents by id; a chat with no agent is with a person (its title is their name). */
-export function rowOf(item: RecentItem, agentName: (id: string) => string): ChatRow {
+/** The one person a direct message is with: a chat with no agent and exactly one other person. Null for anything else (an older server that names nobody, too). */
+export function dmPerson(item: Pick<RecentItem, "kind" | "agents"> & { people?: readonly string[] | undefined }): string | null {
+  return item.kind === "chat" && item.agents.length === 0 && item.people?.length === 1 ? item.people[0]! : null;
+}
+
+/** Who a recent item is with. The chat capability lists agents by id; a chat with no agent is with a person: a direct message goes by that person's name (`personName`), unless someone titled it. */
+export function rowOf(item: RecentItem, agentName: (id: string) => string, personName?: (id: string) => string): ChatRow {
   const agent = item.agents[0];
+  const person = dmPerson(item);
+  const name = person !== null && personName ? personName(person) : null;
   return {
     threadId: item.threadId,
-    title: item.title,
-    who: agent !== undefined ? agentName(agent) : item.title,
-    ...(agent !== undefined ? { whoId: agent } : {}),
+    title: name !== null && (item.title === "" || item.title === "New chat") ? name : item.title,
+    who: agent !== undefined ? agentName(agent) : name ?? item.title,
+    ...(agent !== undefined ? { whoId: agent } : person !== null ? { whoId: person } : {}),
     kind: agent !== undefined ? "agent" : "person",
     ...(item.agents.length > 1 ? { members: item.agents.slice(0, 3).map((id) => ({ id, name: agentName(id) })) } : {}),
     unread: item.unread,
@@ -80,10 +87,10 @@ export function rowOf(item: RecentItem, agentName: (id: string) => string): Chat
 export interface Group { key: GroupKey; label: string; rows: ChatRow[] }
 
 /** The four groups in order, empty ones left out. A local row sits first in Today. */
-export function groupRecent(recent: RecentOut, local: readonly ChatRow[], agentName: (id: string) => string): Group[] {
+export function groupRecent(recent: RecentOut, local: readonly ChatRow[], agentName: (id: string) => string, personName?: (id: string) => string): Group[] {
   const out: Group[] = [];
   for (const g of GROUPS) {
-    const rows = recent[g.key].filter((i) => i.kind === "chat").map((i) => rowOf(i, agentName));
+    const rows = recent[g.key].filter((i) => i.kind === "chat").map((i) => rowOf(i, agentName, personName));
     if (g.key === "today") rows.unshift(...local);
     if (rows.length) out.push({ key: g.key, label: g.label, rows });
   }
@@ -91,8 +98,54 @@ export function groupRecent(recent: RecentOut, local: readonly ChatRow[], agentN
 }
 
 /** The chats I archived, newest first as the server sent them: the Archived section at the foot. An older server that sends none has none. */
-export function archivedRows(recent: RecentOut, agentName: (id: string) => string): ChatRow[] {
-  return (recent.archived ?? []).filter((i) => i.kind === "chat").map((i) => ({ ...rowOf(i, agentName), archived: true }));
+export function archivedRows(recent: RecentOut, agentName: (id: string) => string, personName?: (id: string) => string): ChatRow[] {
+  return (recent.archived ?? []).filter((i) => i.kind === "chat").map((i) => ({ ...rowOf(i, agentName, personName), archived: true }));
+}
+
+// ---------------------------------------------------------------- unread, everywhere a conversation shows
+
+/** The chats of the day groups once each (an archived chat is quiet: it counts nowhere until it comes back). */
+function liveItems(recent: RecentOut): RecentItem[] {
+  const seen = new Set<string>();
+  const out: RecentItem[] = [];
+  for (const g of GROUPS) for (const i of recent[g.key]) if (!seen.has(i.threadId)) { seen.add(i.threadId); out.push(i); }
+  return out;
+}
+
+/** Unread in my direct message with each person, by person id: the People rows' dot. */
+export function personUnread(recent: RecentOut): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const i of liveItems(recent)) { const p = dmPerson(i); if (p !== null && i.unread > 0) m.set(p, (m.get(p) ?? 0) + i.unread); }
+  return m;
+}
+
+/** My direct message with each person, by person id: what their row's menu marks read or unread. */
+export function dmThreads(recent: RecentOut): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const i of liveItems(recent)) { const p = dmPerson(i); if (p !== null && !m.has(p)) m.set(p, i.threadId); }
+  return m;
+}
+
+/** Unread in my chats with each agent alone (no other person, no second agent), by agent id: the Agents rows' dot. */
+export function agentUnread(recent: RecentOut): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const i of liveItems(recent)) {
+    const a = i.agents[0];
+    if (i.kind === "chat" && a !== undefined && i.agents.length === 1 && !((i as { people?: readonly string[] }).people?.length) && i.unread > 0) m.set(a, (m.get(a) ?? 0) + i.unread);
+  }
+  return m;
+}
+
+/** The People list with each person's unread, the ones with something new first (so "N more" never hides one); otherwise the Space's order. */
+export function peopleWithUnread<P extends { id: string; name: string }>(people: readonly P[], unread: ReadonlyMap<string, number>): (P & { unread: number })[] {
+  const all = people.map((p) => ({ ...p, unread: unread.get(p.id) ?? 0 }));
+  return [...all.filter((p) => p.unread > 0), ...all.filter((p) => p.unread === 0)];
+}
+
+/** Is anything new for me in Chats: a chat, a channel, or a thread I am in. The rail's Chats dot. */
+export function anyUnread(recent: RecentOut | null, channels: readonly Pick<Channel, "unread">[]): boolean {
+  if (recent && (liveItems(recent).some((i) => i.unread > 0) || ((recent as { threadsUnread?: number }).threadsUnread ?? 0) > 0)) return true;
+  return channels.some((c) => c.unread > 0);
 }
 
 /** The server filters; this is the same rule for rows already on the device (a local row with no agent counts as People). */
@@ -154,7 +207,7 @@ export function needsKind(item: NeedsItem): { label: string; tone: "accent" | "w
 
 export type Entry =
   | { key: string; type: "head"; section: SectionKey; label: string; count?: number; open: boolean }
-  | { key: string; type: "face"; agent: Agent; digit?: number; working: boolean; waiting: boolean; assistant?: boolean }
+  | { key: string; type: "face"; agent: Agent; digit?: number; working: boolean; waiting: boolean; assistant?: boolean; unread?: number }
   | { key: string; type: "more"; label: string; to: "agents" | "unread" | "recent" | "people" | "faces" }
   /** The two rows at the top: Tasks and Threads. */
   | { key: string; type: "nav"; to: "tasks" | "threads"; label: string; count: number; dot?: boolean }
@@ -189,6 +242,8 @@ export interface SidebarInput {
   /** What you owe, on the Tasks row. */
   tasksCount?: number;
   threadsDot?: boolean;
+  /** Unread in my chats with each agent alone, by agent id: the face's dot. */
+  agentUnread?: ReadonlyMap<string, number>;
   /** Chats with something waiting on you: they rise to Now. */
   waitingThreads?: ReadonlySet<string>;
   people?: readonly { id: string; name: string; unread?: number }[];
@@ -291,12 +346,13 @@ export function buildEntries(i: SidebarInput): Entry[] {
     if (showFaces) out.push({ key: "h:faces", type: "head", section: "faces", label: "Agents", count: i.faces.length + (i.assistant ? 1 : 0) + (i.facesMore ?? 0), open: open("faces") });
     if (showFaces && open("faces")) {
       out.push(...err("faces"));
-      if (i.assistant) out.push({ key: `f:${i.assistant.agentId}`, type: "face", agent: i.assistant as Agent, working: false, waiting: false, assistant: true });
+      const unreadOf = (id: string): { unread?: number } => { const n = i.agentUnread?.get(id) ?? 0; return n > 0 ? { unread: n } : {}; };
+      if (i.assistant) out.push({ key: `f:${i.assistant.agentId}`, type: "face", agent: i.assistant as Agent, working: false, waiting: false, assistant: true, ...unreadOf(i.assistant.agentId) });
       const digits = faceDigits(i.faces);
       const shown = i.moreAgents === true || i.searching ? i.faces : i.faces.slice(0, LIST_SHOWN);
       for (const a of shown) {
         const d = digits.get(a.agentId);
-        out.push({ key: `f:${a.agentId}`, type: "face", agent: a, ...(d !== undefined ? { digit: d } : {}), working: i.workingAgents.has(a.agentId), waiting: i.waitingAgents?.has(a.agentId) === true });
+        out.push({ key: `f:${a.agentId}`, type: "face", agent: a, ...(d !== undefined ? { digit: d } : {}), working: i.workingAgents.has(a.agentId), waiting: i.waitingAgents?.has(a.agentId) === true, ...unreadOf(a.agentId) });
       }
       const hidden = i.faces.length - shown.length;
       if (hidden > 0) out.push({ key: "m:faces", type: "more", label: `${hidden} more`, to: "faces" });

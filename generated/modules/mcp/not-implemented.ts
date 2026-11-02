@@ -17,6 +17,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "mcp.session.close": async (ctx) => { throw new VyreErr(notImplemented("mcp.session.close", ctx.trace)); },
   "mcp.session.mint": async (ctx) => { throw new VyreErr(notImplemented("mcp.session.mint", ctx.trace)); },
   "mcp.sessions.list": async (ctx) => { throw new VyreErr(notImplemented("mcp.sessions.list", ctx.trace)); },
+  "mcp.setup.set": async (ctx) => { throw new VyreErr(notImplemented("mcp.setup.set", ctx.trace)); },
   "mcp.tool.describe": async (ctx) => { throw new VyreErr(notImplemented("mcp.tool.describe", ctx.trace)); },
   "mcp.tool.search": async (ctx) => { throw new VyreErr(notImplemented("mcp.tool.search", ctx.trace)); },
   "mcp.tools.list": async (ctx) => { throw new VyreErr(notImplemented("mcp.tools.list", ctx.trace)); },

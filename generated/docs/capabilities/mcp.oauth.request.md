@@ -41,6 +41,7 @@ type Out = {
     match: string;
     expiresAt: number;
     rejoins: boolean;
+    canSetup?: boolean;
   };
 };
 ```

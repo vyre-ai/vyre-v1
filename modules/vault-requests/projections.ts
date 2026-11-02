@@ -30,7 +30,9 @@ export interface VaultReqCtx {
 export interface RequestRow {
   id: string; name: string; fields_json: string; reason: string; requester_kind: PKind; requester_id: string; for_run: string | null; folder_id: string | null; state: State;
   item_id: string | null; note: string | null; idem_key: string; managers_json: string; task_ids_json: string; at: number; decided_by: string | null; decided_at: number | null;
-  /** the person an agent asked on behalf of (migrations/0002_asker.sql); null when a person asked for themselves */
+  /** 1: the requester gets the key's name only, never Use on it (an outside agent, docs/ask-the-person.md). */
+  handle_only?: number | null;
+  /** the person an agent asked on behalf of (migrations/0003_asker.sql); null when a person asked for themselves */
   asker_id?: string | null;
 }
 

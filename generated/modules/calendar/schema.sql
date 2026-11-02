@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS "calendar_list" (
   "ownerId" TEXT,
   "personal" INTEGER,
   "state" TEXT,
+  "lastSyncAt" INTEGER,
   "version" INTEGER NOT NULL DEFAULT 0,
   "updated_at" INTEGER,
   "deleted_at" INTEGER
