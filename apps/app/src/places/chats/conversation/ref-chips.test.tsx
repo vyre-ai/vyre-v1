@@ -51,3 +51,7 @@ test("a real file id is a link, and a task key written where the name goes reads
   assert.equal(withKeys("[[PE-4|First step]]", new Map()), "PE-4 First step");
   assert.equal(withKeys("`[[PE-4|First step]]`", new Map()), "`[[PE-4|First step]]`");
 });
+
+test("a link to a kind the chat cannot open shows its name, never the raw form", () => {
+  assert.equal(withKeys("sent [[Asked plainly|eml_01a19b0aa7524816]]", new Map()), "sent Asked plainly");
+});

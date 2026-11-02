@@ -32,7 +32,7 @@ export function keysIn(text: string): string[] {
 /** The text with each known key written as a link to its task. A word that only looks like a key stays as it is. */
 export function withKeys(raw: string, known: ReadonlyMap<string, string>): string {
   // a model that writes the key where the name goes, [[VY-142|Title]], still reads as the key and the title
-  const text = raw.split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/g).map((p, i) => (i % 2 === 1 ? p : p.replace(/\[\[([A-Z]{2,6}-\d{1,6})\|([^\]\n]+)\]\]/g, "$1 $2"))).join("");
+  const text = raw.split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/g).map((p, i) => (i % 2 === 1 ? p : p.replace(/\[\[([A-Z]{2,6}-\d{1,6})\|([^\]\n]+)\]\]/g, "$1 $2").replace(/\[\[([^\]|\n]+)\|[a-z]{2,5}_[0-9A-Za-z]{8,}\]\]/g, "$1"))).join("");
   if (known.size === 0) return text;
   return text.split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/g).map((p, i) => (i % 2 === 1 ? p : p.replace(KEY, (key) => { const id = known.get(key); return id ? `[${key}](${HOST}task/${id})` : key; }))).join("");
 }
