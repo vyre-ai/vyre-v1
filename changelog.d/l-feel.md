@@ -7,3 +7,4 @@
 - Runs on offers Automatic first, says where it lands now, and takes a pin off; This computer no longer reads twice.
 - In a Personal Space the Files sidebar says My files, and Recent and its count leave out the files an agent is made with.
 - A new tab no longer says No results before anything is typed.
+- The lock screen greets you by your first name, not your username.
