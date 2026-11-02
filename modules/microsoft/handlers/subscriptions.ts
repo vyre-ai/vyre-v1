@@ -520,7 +520,6 @@ export async function consentVerify(ctx: MsCtx, input: { as?: string; policyConf
   const missing = roles === null ? [] : permissionsFor(data).filter((p) => !roles.includes(p));
   const unscoped = roles === null ? [] : UNSCOPED.filter((p) => roles.includes(p));
   const objectId = objectIdOf(token);
-  if (objectId) ctx.db.run(`UPDATE microsoft_config SET "servicePrincipalId" = ? WHERE id = ?`, objectId, CONFIG_ID);
   const details: string[] = [];
   const orgOk = org.status < 300;
   if (!orgOk) details.push("Microsoft refused the organization check. Open the consent link as a tenant admin.");
@@ -540,6 +539,7 @@ export async function consentVerify(ctx: MsCtx, input: { as?: string; policyConf
     probeOk = p.status < 300;
     if (!probeOk) details.push(`The app cannot reach ${probe}. Run the Exchange snippet, then verify again. Microsoft can take up to 2 hours to apply it.`);
   }
+  if (objectId) ctx.db.run(`UPDATE microsoft_config SET "servicePrincipalId" = ? WHERE id = ?`, objectId, CONFIG_ID);
   const consentGiven = orgOk && missing.length === 0;
   const ok = consentGiven && probeOk;
   const policy = input.policyConfirmed === true || (probe !== null && probeOk);
