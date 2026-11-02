@@ -49,3 +49,38 @@ test("an agent sends from a mailbox or number its person may use, with no grant 
   }
   assert.ok(worlds >= 20, `worlds exercised: ${worlds}`);
 });
+
+test("a Mine Vault folder is its person's alone: their own agent uses it for them, another person's agent is refused, a Space-wide agent grant passes nothing into it", () => {
+  let worlds = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    const { snap } = buildWorld(seed);
+    if (snap.info("p1")?.p.status !== "active" || snap.info(AGENT)?.p.status !== "active") continue;
+    worlds++;
+    snap.putResource({ id: "vfd_mine_p1", type: "vault_folder", parent_id: null, label: 0, owner_id: "p1", holds: 0 });
+    snap.putResource({ id: "vit_key_p1", type: "vault_item", parent_id: "vfd_mine_p1", label: 0, owner_id: "p1", holds: 0 });
+    snap.putGrant({ id: "gr_agent_root", subject_kind: "actor", subject_id: AGENT, resource_type: "folder", resource_id: "root", level: "edit", conditions: {}, expires_at: null } as never);
+    const as = (acting: string, level: "use" | "edit") => authorize(snap, { principal: AGENT, actingFor: acting, action: act(level), resource: { type: "vault_item", id: "vit_key_p1" }, now: NOW }).effect;
+    assert.equal(as("p1", "use"), "allow", `seed ${seed}: its own person's agent uses the key for them`);
+    assert.equal(as("p1", "edit"), "deny", `seed ${seed}: up to Use only`);
+    assert.equal(as("p2", "use"), "deny", `seed ${seed}: another person's agent is refused a Mine item`);
+    assert.equal(as("p3", "use"), "deny", `seed ${seed}: so is any other`);
+  }
+  assert.ok(worlds >= 20, `worlds exercised: ${worlds}`);
+});
+
+test("an agent builds definitions its person may build, never more", () => {
+  let worlds = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    const { snap } = buildWorld(seed);
+    if (snap.info("p1")?.p.status !== "active" || snap.info("p2")?.p.status !== "active" || snap.info(AGENT)?.p.status !== "active") continue;
+    worlds++;
+    snap.putRole({ id: "builder", clearance: 3, perms: ["journeys.manage", "schema.manage"], name: "Builder" });
+    snap.addPrincipalRole({ holder: "p1", role: "builder" });
+    const build = (acting: string) => authorize(snap, { principal: AGENT, actingFor: acting, action: { perm: "journeys.manage", level: "view" }, resource: { type: "folder", id: "root" }, now: NOW }).effect;
+    const person = (who: string) => authorize(snap, { principal: who, action: { perm: "journeys.manage", level: "view" }, resource: { type: "folder", id: "root" }, now: NOW }).effect;
+    if (person("p1") === "allow" && authorize(snap, { principal: AGENT, actingFor: "p1", action: act("view"), resource: { type: "folder", id: "root" }, now: NOW }).effect === "allow") assert.equal(build("p1"), "allow", `seed ${seed}: the person's role is the ceiling`);
+    if (person("p2") === "deny") assert.equal(build("p2"), "deny", `seed ${seed}: never above the person`);
+    assert.equal(authorize(snap, { principal: AGENT, actingFor: "p1", action: { perm: "records.export", level: "view" }, resource: { type: "folder", id: "root" }, now: NOW }).effect === "allow" ? person("p1") : "deny", person("p1") === "allow" ? "allow" : "deny");
+  }
+  assert.ok(worlds >= 20, `worlds exercised: ${worlds}`);
+});

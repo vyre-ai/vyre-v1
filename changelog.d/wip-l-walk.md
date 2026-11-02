@@ -19,3 +19,6 @@
 - A thread shows the message it hangs off at the top.
 - A first message sent right after creating your account waits for your Assistant and goes through.
 - Add an agent offers the agents you may add, never another person's Assistant, and one you just made.
+- A Mine Vault folder is yours alone: another person's agent can never reach it, and Who can use it shows only real access.
+- A plain-word yes is spent only when the act goes out. A send refused before it left keeps the yes for a corrected retry in the same turn.
+- An agent acting for you can build Journeys, Automations and record types you may build. They still hold no access until a person turns them on.

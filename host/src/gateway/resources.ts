@@ -145,7 +145,8 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
         // a birth event that names its owner (agent.created names ownerId) says whose the object is; otherwise the person the call acts for
         const named = OWNER_NAMED.has(s.type) ? pointer(ev.payload, OWNER_NAMED.get(s.type)!) : undefined;
         // a calendar, mailbox or site that says it is private (a member's own Google or Outlook calendar or mail, a Personal calendar, an artifact) does not inherit the Space's access: the owner has it, and anyone they share it with
-        const privateRoot = (s.type === "calendar" || s.type === "mailbox" || s.type === "site") && pointer(ev.payload, "/private") === true;
+        // a Vault folder that is someone's Mine is theirs alone: it never passes the Space's access, or any agent's grant on the Space, to what is in it
+        const privateRoot = ((s.type === "calendar" || s.type === "mailbox" || s.type === "site") && pointer(ev.payload, "/private") === true) || (s.type === "vault_folder" && pointer(ev.payload, "/scope") === "mine");
         out.push({ id, type: s.type, parent_id: s.type === "space" || privateRoot ? null : container, label: 0, owner_id: typeof named === "string" && /^usr_[a-z0-9]+$/.test(named) ? named : a.owner, holds: 0 });
       }
       return out;

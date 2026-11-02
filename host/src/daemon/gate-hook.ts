@@ -87,7 +87,15 @@ export function createGateHook(d: GateHookDeps): GateHook {
   const conditions = { evaluators: { ...d.evaluators, "links.is_composed": composed } } as Pick<GateHookDeps, "evaluators">;
   const always = (cap: CapabilityDef, seed: CtxSeed): { person: string; agentId: string; threads: string[]; cap: string } | undefined =>
     (seed.actingFor?.startsWith("usr_") && seed.principal.kind === "agent" ? { person: seed.actingFor, agentId: seed.principal.id, threads: seed.thread ? threads(seed.thread) : [], cap: cap.name } : undefined);
+  /** The turn grants a call let through spent, by its input, until the call ends: a call refused before it goes out hands them back. */
+  const spentBy = new WeakMap<object, string[]>();
   return {
+    async giveBack(input) {
+      const ids = input !== null && typeof input === "object" ? spentBy.get(input) : undefined;
+      if (!ids) return;
+      spentBy.delete(input as object);
+      await d.call("gate.grants.give_back", { ids });
+    },
     mode: (thread) => d.mode?.(thread),
     async allowed(cap, input, seed) {
       const a = always(cap, seed);
@@ -127,8 +135,8 @@ export function createGateHook(d: GateHookDeps): GateHook {
         const turn = seed.chatMode === "auto" && act !== "pay" && OUTWARD_ACTS.has(act) && seed.actingFor?.startsWith("usr_") && seed.thread ? { person: seed.actingFor, threads: threads(seed.thread) } : undefined;
         const rule = always(cap, seed);
         if (turn || rule) {
-          const g = (await d.call("gate.grants.take", { act, targets, ...(turn ? { turn } : {}), ...(rule ? { always: rule } : {}) })) as { granted?: unknown } | null;
-          if (g?.granted === true) return null;
+          const g = (await d.call("gate.grants.take", { act, targets, ...(turn ? { turn } : {}), ...(rule ? { always: rule } : {}) })) as { granted?: unknown; spent?: unknown } | null;
+          if (g?.granted === true) { if (Array.isArray(g.spent) && g.spent.length > 0 && input !== null && typeof input === "object") spentBy.set(input, g.spent as string[]); return null; }
         }
       }
       return { act };

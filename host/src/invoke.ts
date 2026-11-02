@@ -99,6 +99,8 @@ export interface SpanRecord {
 export interface GateHook {
   /** Does a Gate apply to this call (capability `gate` with its `when`)? Null lets the call through. */
   applies(cap: CapabilityDef, input: unknown, seed: CtxSeed): { act: string } | null | Promise<{ act: string } | null>;
+  /** A call the Gate let through on a person's yes failed before it went out: the yes goes back for a corrected retry. */
+  giveBack?(input: unknown): Promise<void>;
   /** Park the call as an approval task (4.6) and return its ids. */
   park(a: { cap: CapabilityDef; input: unknown; seed: CtxSeed; act: string; decisionId: string; traceId: string }): Promise<{ taskId: string; runId?: string }>;
   /**
@@ -373,6 +375,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     try {
       output = await h(ctx, input);   // a throw here is mapped by the outer catch: VyreErr and HostError keep their code, anything else is internal.unexpected
     } catch (e) {
+      // refused before it went out: a person's yes this call spent is handed back, so the corrected retry is still asked for (one successful send per yes)
+      await deps.gate?.giveBack?.(input).catch(() => undefined);
       // events the handler marked afterFailure (a refused sign-in's signin.failed) are written on their own, then the error goes on; nothing else the call buffered is
       const keep = events.filter((ev) => survivors.has(ev));
       if (keep.length) {

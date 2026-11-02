@@ -1103,11 +1103,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if (privateOwner) await grantOwnPlaces?.(privateOwner);
       };
       // A Vault folder is a resource in access (vault_folder under the Space). One resource.created per folder, with an id made from the folder's own, so a reboot repeats the same event.
-      const registerVaultFolder = async (id: string, owner: string | null): Promise<void> => {
-        if (access.snap.resource(id)) return;
+      const registerVaultFolder = async (id: string, owner: string | null, mine = false): Promise<void> => {
+        const old = access.snap.resource(id);
+        // a Mine folder is a private root: one registered under the Space before this is moved out once, with its own event id, so the repair is not repeated
+        if (old && !(mine && old.parent_id !== null && owner)) return;
         const made = await spaceLog.appendResult({
-          id: `evt_res_${id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: id,
-          payload: { id, type: "vault_folder", parent_id: spaceId, label: 0, owner_id: owner ?? access.owner() ?? cfg.owner ?? "usr_owner", holds: 0 },
+          id: old ? `evt_private_vault_${id}` : `evt_res_${id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: id,
+          payload: { id, type: "vault_folder", parent_id: mine && owner ? null : spaceId, label: old?.label ?? 0, owner_id: (mine ? owner : null) ?? old?.owner_id ?? owner ?? access.owner() ?? cfg.owner ?? "usr_owner", holds: old?.holds ?? 0 },
         });
         if (made.ok && !made.duplicate) { access.fold(made.event); accessPending.push(toAccessEvent(made.event)); headSeq = Math.max(headSeq, made.event.seq); await syncAccess(); }
       };
@@ -1413,7 +1415,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // A Vault folder the AI provider flows made quietly (before they declared it) has rows in the Vault but no resource in access, so putting an item into it answered "not found" to its own owner.
       // Register each one that is missing, owned by the person the row names. A folder that is already registered is left alone.
       try {
-        for (const row of db!.all("SELECT id, owner FROM vault_folder WHERE deleted_at IS NULL") as { id: string; owner: string | null }[]) await registerVaultFolder(row.id, row.owner);
+        for (const row of db!.all("SELECT id, owner, scope FROM vault_folder WHERE deleted_at IS NULL") as { id: string; owner: string | null; scope: string | null }[]) await registerVaultFolder(row.id, row.owner, row.scope === "mine");
       } catch { /* a Space without a Vault has no table to repair */ }
 
       // Conversations opened before their births registered them (an older Space): make each nameable, as a new one is. Mail messages are registered the first time a call names one.

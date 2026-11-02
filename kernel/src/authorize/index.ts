@@ -62,6 +62,8 @@ function collect(list: readonly GrantRec[], s: SubjectInfo, need: number, req: R
     if (g.rank > max) max = g.rank;
   }
 }
+/** Permissions to build definitions: an agent acting for a person holds them when that person does. */
+const DEFINE_PERMS: ReadonlySet<string> = new Set(["journeys.manage", "schema.manage", "automations.personal", "automations.space"]);
 /** Permissions a grant can carry on its own (a person is given them on one thing without a role change). */
 const GRANT_PERMS: ReadonlySet<string> = new Set(["records.export"]);
 const ownerScope = (clearance: number): Scope => ({ level: "manage", rowFilter: null, hiddenFields: NO_FIELDS, labelCeiling: clearance });
@@ -77,7 +79,10 @@ function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: Resour
   // owning the thing is owning it; for a create (no id yet) it is owning the container or any container above it: the Space owner can create anywhere in the Space, a member in a record they own
   // an owner's assistant acts with its owner's access to what the owner owns, up to Use: "summarize my inbox" works for the person whose mailbox it is, for no one else's. Manage stays with the person.
   // Only mailboxes so far; another kind of private thing joins here when its owner's assistant is decided.
-  const viaOwner = p.kind === "agent" && res.type === "mailbox" && res.id !== "" && req.actingFor !== undefined && res.owner_id === req.actingFor && rankOf(req.action.level) <= rankOf("use");
+  // A Mine Vault folder is its person's alone (a private root): an agent reaches what is in it only when it acts for that person, up to Use, which is how a chat reads that person's own AI account.
+  const root = chain[chain.length - 1];
+  const viaMine = p.kind === "agent" && (res.type === "vault_item" || res.type === "vault_folder") && res.id !== "" && req.actingFor !== undefined && root !== undefined && root.type === "vault_folder" && root.parent_id === null && root.owner_id === req.actingFor && rankOf(req.action.level) <= rankOf("use");
+  const viaOwner = (p.kind === "agent" && res.type === "mailbox" && res.id !== "" && req.actingFor !== undefined && res.owner_id === req.actingFor && rankOf(req.action.level) <= rankOf("use")) || viaMine;
   const isOwner = res.id === "" ? chain.some((r) => r.owner_id === p.id) : res.owner_id === p.id || viaOwner;
   // rule 2: grants on the resource, an ancestor, or the whole type
   const need = rankOf(req.action.level);
@@ -180,7 +185,9 @@ export function authorize(snap: AccessSnapshot, req: Req): Decision {
   let label = res.label;
   if (req.fields) for (const f of req.fields) { const fl = snap.fieldLabel(res.type, f); if (fl > label) label = fl; }
 
-  const first = evalSubject(snap, me, req, res, chain, label, steps);
+  let first = evalSubject(snap, me, req, res, chain, label, steps);
+  // an agent acting for a person builds what that person may build (Journeys, Automations, record types): the person's role is the ceiling in place of the agent's. What it builds holds no grant until a person turns it on.
+  if (first === "role_lacks_permission" && kind === "agent" && others !== null && req.action.perm !== null && DEFINE_PERMS.has(req.action.perm)) first = evalSubject(snap, me, { ...req, action: { ...req.action, perm: null } }, res, chain, label, steps);
   // an agent acting for a person may send from whatever that person may send from: on a mailbox or a number, at Use (the level a send asks for, reading stays as it is), the person's access is the ceiling in place of a grant of the agent's own
   const sendsAs = kind === "agent" && others !== null && (res.type === "mailbox" || res.type === "number") && res.id !== "" && req.action.level === "use" && first === "no_grant";
   if (typeof first === "string" && !sendsAs) return denied(snap, first, name, steps);
