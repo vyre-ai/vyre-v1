@@ -62,6 +62,13 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
   const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await ctx.newPage();
+  // The skin is chosen in Cmd-K: the window changes at once and the page under it stays as it is, so a step can shoot the same screen in another skin and carry on.
+  const pickSkin = async (name: string): Promise<void> => {
+    await page.keyboard.press("ControlOrMeta+k");
+    await page.getByTestId("cmdk-input").fill("> skin");
+    await page.getByTestId("cmdk-list").getByText(name, { exact: true }).click();
+    await page.getByTestId("cmdk").waitFor({ state: "detached" });
+  };
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   // What the app asked the Space and what it answered: a step that times out shows these, so a failure names its cause (a refused call, a console error, the text on screen).
@@ -471,15 +478,13 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.getByText("Group details changed", {exact:true}).first().waitFor();
         await page.getByText("Role assigned", {exact:true}).waitFor();
         await page.screenshot({path:"shots-evidence/console/groups-activity.png"});
-        await page.getByTestId("title-skin").click();
-        await page.getByText("Obsidian",{exact:true}).click();
+        await pickSkin("Obsidian");
         await page.screenshot({path:"shots-evidence/console/groups-dark.png"});
         await page.setViewportSize({width:390,height:844});
         await page.screenshot({path:"shots-evidence/console/groups-phone.png"});
         assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"phone Console does not overflow horizontally");
         await page.setViewportSize({width:1280,height:800});
-        await page.getByTestId("title-skin").click();
-        await page.getByTestId("menu-item-System").click();
+        await pickSkin("Vyre");
         await page.getByRole("tab", {name:/^Members/}).click();
         await page.getByRole("button", {name:"Remove…", exact:true}).click();
         await page.getByTestId("group-member-remove-confirm").click();
@@ -543,10 +548,10 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         const from=new Date(Date.now()-60000).toISOString().slice(0,16).replace("T"," "),to=new Date(Date.now()+86400000).toISOString().slice(0,16).replace("T"," ");
         await page.getByTestId("grant-window-from").fill(from);await page.getByTestId("grant-window-to").fill(to);
         await page.screenshot({path:"shots-evidence/console/grant-conditions.png",fullPage:true});
-        await page.getByTestId("title-skin").click();await page.getByText("Obsidian",{exact:true}).click();
+        await pickSkin("Obsidian");
         await page.getByTestId("grant-window-to").scrollIntoViewIfNeeded();await page.screenshot({path:"shots-evidence/console/grant-conditions-dark.png"});
         await page.setViewportSize({width:390,height:844});await page.getByTestId("grant-window-to").scrollIntoViewIfNeeded();await page.screenshot({path:"shots-evidence/console/grant-conditions-phone.png"});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"Grant conditions fit the phone viewport");
-        await page.setViewportSize({width:1280,height:800});await page.getByTestId("title-skin").click();await page.getByTestId("menu-item-System").click();
+        await page.setViewportSize({width:1280,height:800});await pickSkin("Vyre");
         await page.getByTestId("grant-add").click();await page.getByTestId("grant-save-confirm").click();await page.getByText("Access granted",{exact:true}).waitFor({timeout:5000}).catch(async error=>{console.log("grant conditions save: "+(await page.locator("body").innerText()).slice(-1800));throw error;});
         const conditionReadback=await api("access.grants.list",{resource:{type:"record_type",id:"grant_conditions"}}) as {grants:{id:string;conditions:{rowFilter:unknown;hiddenFields:string[];labelCeiling:string;window:{from:number;to:number}}}[]};
         const bounded=conditionReadback.grants[0]!;assert.deepEqual(bounded.conditions.rowFilter,{field:"name",op:"eq",value:"Allowed"});assert.deepEqual(bounded.conditions.hiddenFields,["secret"]);assert.equal(bounded.conditions.labelCeiling,"public");assert.equal(bounded.conditions.window.from,Date.parse(from.replace(" ","T")+":00Z"));
@@ -564,8 +569,8 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.reload();await page.getByTestId("console-agent-template").waitFor();await page.getByTestId("row-template-file-RELEASE.md").waitFor();
         await page.getByRole("button",{name:"Target agent",exact:true}).click();await page.getByTestId("menu-item-Template proof assistant").click();await page.getByTestId("template-preview").click();await page.getByRole("button",{name:"Apply template",exact:true}).waitFor();
         await page.screenshot({path:"shots-evidence/console/template-files-preview.png"});
-        await page.getByTestId("title-skin").click();await page.getByText("Obsidian",{exact:true}).click();await page.getByTestId("template-preview").scrollIntoViewIfNeeded();await page.screenshot({path:"shots-evidence/console/template-files-dark.png"});
-        await page.setViewportSize({width:390,height:844});await page.getByTestId("template-preview").scrollIntoViewIfNeeded();await page.screenshot({path:"shots-evidence/console/template-files-phone.png"});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"Template editor fits the phone viewport");await page.setViewportSize({width:1280,height:800});await page.getByTestId("title-skin").click();await page.getByTestId("menu-item-System").click();
+        await pickSkin("Obsidian");await page.getByTestId("template-preview").scrollIntoViewIfNeeded();await page.screenshot({path:"shots-evidence/console/template-files-dark.png"});
+        await page.setViewportSize({width:390,height:844});await page.getByTestId("template-preview").scrollIntoViewIfNeeded();await page.screenshot({path:"shots-evidence/console/template-files-phone.png"});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"Template editor fits the phone viewport");await page.setViewportSize({width:1280,height:800});await pickSkin("Vyre");
         await page.getByRole("button",{name:"Apply template",exact:true}).click();await page.getByText("Template applied",{exact:true}).waitFor();
         const appliedFiles=await api("files.list",{section:"space",folder:templateAgent.agent.folderId}) as {files:{fileId:string;name:string}[]};const appliedFile=appliedFiles.files.find(file=>file.name==="RELEASE.md")!;assert.ok(appliedFile,"one-agent apply creates the actual template file in the target agent home");assert.match((await api("files.read",{fileId:appliedFile.fileId,as:"text"}) as {text:string}).text,/record the release evidence/);
         await openConsole("console.agent-computers");const hostHealth=await api("computers.health",{}) as {state:string;runtime?:string};const hostState=hostHealth.state;const hostLabel=hostHealth.runtime==="missing"&&hostState==="healthy"?"No container runtime":hostState==="down"?"Host unavailable":hostState==="degraded"?"Host needs attention":"Host ready";await page.getByText(hostLabel,{exact:true}).waitFor();await page.getByTestId("computer-new").click();const provisionSheet=page.getByTestId("computer-new-sheet");await provisionSheet.waitFor();await page.getByTestId(`row-provision-agent-${templateAgent.agent.agentId}`).click();if(hostState==="down")assert.equal(await provisionSheet.getByRole("button",{name:"Provision",exact:true}).isDisabled(),true,"a down host cannot pretend to provision an agent computer");await page.screenshot({path:"shots-evidence/console/computer-host-unavailable.png"});await provisionSheet.getByRole("button",{name:"Cancel",exact:true}).click();await provisionSheet.waitFor({state:"detached"});
@@ -626,13 +631,13 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.keyboard.press("Escape");
         await page.getByTestId("object-sheet-close").click();
         await page.screenshot({path:"shots-evidence/console/policies-signin.png"});
-        await page.getByTestId("title-skin").click();await page.getByText("Obsidian",{exact:true}).click();
+        await pickSkin("Obsidian");
         await page.screenshot({path:"shots-evidence/console/policies-dark.png"});
         await page.setViewportSize({width:390,height:844});await page.reload();await page.getByTestId("policy-object").waitFor();
         assert.equal(await page.getByTestId("console").count(),1,"fresh phone Console has one frame");
         await page.screenshot({path:"shots-evidence/console/policies-phone.png"});
         assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"phone Policies does not overflow");
-        await page.setViewportSize({width:1280,height:800});await page.getByTestId("title-skin").click();await page.getByTestId("menu-item-System").click();
+        await page.setViewportSize({width:1280,height:800});await pickSkin("Vyre");
 
         await openConsole("access.checker");
         await page.getByTestId("checker-resource-picker-search").fill("Console access proof");
