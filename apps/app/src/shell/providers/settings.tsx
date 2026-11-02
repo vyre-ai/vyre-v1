@@ -94,7 +94,7 @@ export default function SettingsShellPlace(_props: { place: string }): ReactElem
   // may this person open the Console? The same read the Console itself makes
   const [pages, setPages] = useState<ReadonlySet<string> | null>(null);
   useEffect(() => {
-    if (!rt || rt.space.kind === "personal") return undefined;
+    if (!rt || rt.space.kind === "personal" || rt.plainRole === true) return undefined;   // a Member or Guest has no Console to open
     let live = true;
     void rt.call("console.nav", {}).then((out) => { if (live) setPages(adminPages(out as Parameters<typeof adminPages>[0])); }, () => undefined);
     return () => { live = false; };

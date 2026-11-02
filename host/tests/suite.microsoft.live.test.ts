@@ -159,6 +159,8 @@ test("Microsoft 365: setup, consent, check, then mail, calendar, Teams and OneDr
     assert.ok(JSON.stringify(threads).includes("Can we talk about the deed?"), "the message is in the Inbox thread list");
 
     // 5 calendar
+    // Calendar's own scheduled pull (run by the server) lands Noah's event; the mailbox pass no longer asks for it
+    await w.d.hooks!.runPeriodic("calendar.pull_provider");
     const cals = await w.ok(MEMBER, "calendar.list_calendars", {});
     const mcal = cals.calendars.find((c: { provider: string }) => c.provider === "microsoft");
     assert.ok(mcal, "Noah's Outlook calendar is in Calendar");

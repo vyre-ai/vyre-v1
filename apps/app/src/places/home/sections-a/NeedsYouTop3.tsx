@@ -71,7 +71,7 @@ export function NeedsYouTop3(): ReactElement {
       <SectionHeader id="needs" title="Needs you" count={q.status === "ready" && total > 0 ? total : undefined}>
         {total > 0 ? <LinkButton label={`All ${total} in Needs you`} onPress={() => data.nav.openNeedsYou()} testID="needs-all" /> : null}
       </SectionHeader>
-      {q.status === "loading" ? <Skeleton rows={3} id="needs" /> : rows.length ? <View accessibilityRole="list">{rows}</View> : <EmptyLine id="needs" text="Nothing needs you" />}
+      {q.status === "loading" ? <Skeleton rows={3} id="needs" failure={q.status === "loading" ? q.error : undefined} /> : rows.length ? <View accessibilityRole="list">{rows}</View> : <EmptyLine id="needs" text="Nothing needs you" />}
       {menu.element}
     </Section>
   );

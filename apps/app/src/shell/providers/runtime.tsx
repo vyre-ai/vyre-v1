@@ -32,6 +32,11 @@ export interface ShellRuntime extends Omit<HomeData, "nav"> {
   assistant: { id: string; name: string };
   /** Without an AI account the assistant is locked (the Ask box says so). Read at render, so a connection made in Settings shows at once. */
   readonly aiConnected: boolean;
+  /**
+   * True when the person holds only the built-in Member or Guest roles here. Those roles hold no console.access, connectors.manage or schema.manage (manifests/permissions.ts), so the UI
+   * never asks the server for what it would refuse (console.nav, connectors.list): it already knows the answer. Absent: unknown, ask.
+   */
+  readonly plainRole?: boolean;
   /** A Personal Space draws Today only when a calendar is connected on this computer. */
   calendarConnected: boolean;
   /** The modules the server defers whole (ruling 60); a place of one hides itself. Empty until the server says. */

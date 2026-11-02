@@ -76,7 +76,7 @@ export function AwayDigest(): ReactElement {
         {shown.show ? <LinkButton label="See all" onPress={() => data.nav.openActivity()} testID="away-all" /> : null}
         {shown.show && digest ? <LinkButton label="Mark seen" onPress={() => void actions.markDigestSeen(digest.id)} testID="away-seen" /> : null}
       </SectionHeader>
-      {q.status === "loading" ? <Skeleton rows={3} id="away" /> : shown.show ? (
+      {q.status === "loading" ? <Skeleton rows={3} id="away" failure={q.status === "loading" ? q.error : undefined} /> : shown.show ? (
         <View>
           {chips.length ? <Tooltip text={shown.headline.join("\n")}><View style={local.chips} testID="away-summary">{chips}</View></Tooltip> : null}
           <View accessibilityRole="list">{rows}</View>

@@ -63,7 +63,7 @@ export function Today(): ReactElement | null {
   return (
     <Section id="s-today">
       <SectionHeader id="today" title="Today" count={q.status === "ready" ? todayCount(list) : undefined} />
-      {q.status === "loading" ? <Skeleton rows={2} id="today" /> : rows.length ? <View accessibilityRole="list">{rows}</View> : <EmptyLine id="today" text="Nothing on your calendar today" />}
+      {q.status === "loading" ? <Skeleton rows={2} id="today" failure={q.status === "loading" ? q.error : undefined} /> : rows.length ? <View accessibilityRole="list">{rows}</View> : <EmptyLine id="today" text="Nothing on your calendar today" />}
       {menu.element}
     </Section>
   );

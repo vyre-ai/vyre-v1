@@ -15,6 +15,7 @@ import type { Capture, Intent, Recording } from "./model.ts";
 import { LiveScreen } from "./LiveScreen.tsx";
 import { Desk, Icon, RailButton, SheetButton } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
+import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 
 type ComputerOut = CapMap["computers.get"]["out"];
 
@@ -100,6 +101,8 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
     return () => doc.removeEventListener("keydown", onKey);
   }, [close, forwarder, state, sheet]);
 
+  const failed = failureOf(q);
+  if (failed) return <LoadFailed what="this computer" failure={failed} testID="popup-failed" />;
   if (q.status === "loading") return <ComputerPopupLoading />;
   const c = q.data.computer;
   const view = popupView(c, name, recSecs);

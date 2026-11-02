@@ -18,3 +18,14 @@ test("whoever holds console.access gets the rail button: a developer does, a pla
   assert.equal(roleAsksServer(["rol_owner", "rol_billing"]), false, "already yes");
   assert.equal(roleAsksServer(["rol_member", "rol_billing"]), true);
 });
+
+test("a plain Member or Guest in a Team Space is known to hold no Console, connector or schema rights, so nothing asks for them; any other role, or a Personal Space, is not", async () => {
+  const { plainRoleOnly } = await import("./session.ts");
+  assert.equal(plainRoleOnly(["rol_member"], "team"), true);
+  assert.equal(plainRoleOnly(["Guest"], "team"), true);
+  assert.equal(plainRoleOnly(["rol_member", "rol_guest"], "team"), true);
+  assert.equal(plainRoleOnly(["rol_member", "rol_billing"], "team"), false, "a role the Space made is the server's to answer");
+  assert.equal(plainRoleOnly(["rol_owner"], "team"), false);
+  assert.equal(plainRoleOnly([], "team"), false, "unknown roles ask");
+  assert.equal(plainRoleOnly(["rol_member"], "personal"), false);
+});

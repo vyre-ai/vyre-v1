@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { AccessSnapshot, authorize } from "../../../kernel/src/authorize/index.ts";
 import { foldEvent } from "../daemon/access.ts";
-import { createPrincipalRegistrar, missingAgentPrincipalEvents, ownPlaceGrant } from "./principals.ts";
+import { createPrincipalRegistrar, missingAgentHomeEvents, missingAgentPrincipalEvents, ownPlaceGrant } from "./principals.ts";
 import type { SpaceLevel } from "./principals.ts";
 
 const created = (agentId: string, ownerId = "usr_a") => [{ type: "agent.created", payload: { agentId, name: "Helper", ownerId } }];
@@ -130,4 +130,20 @@ test("own place: the Assistant gets its person's folder in any Space, a made age
   const long = ownPlaceGrant({ agentId: `agt_${"a".repeat(32)}`, ownerId: "usr_a1", rootId: `fld_${"b".repeat(32)}`, agentKind: "assistant", spaceKind: "team" });
   assert.ok(long !== null && long.eventId.length <= 80, "the log takes event ids of 8 to 80 characters");
   assert.equal(ownPlaceGrant({ ...base, agentKind: "assistant", spaceKind: "team" })?.eventId, ownPlaceGrant({ ...base, agentKind: "assistant", spaceKind: "team" })?.eventId, "the same grant is one event, so a revoked one stays revoked");
+});
+
+test("the home repair writes the two ruling 99 grants only for an agent whose home lacks them, granted by its owner, and never one a person revoked", () => {
+  const agents = [{ id: "agt_old", ownerId: "usr_a", folderId: "fld_oldhome" }, { id: "agt_new", ownerId: "usr_b", folderId: "fld_newhome" }];
+  // agt_new was born with both (the gateway wrote them at agent.created); agt_old was born before that
+  const born = createPrincipalRegistrar({ exists: () => false, levelOf: () => "edit" }).register({ events: [{ type: "agent.created", payload: { agentId: "agt_new", name: "New", ownerId: "usr_b", folderId: "fld_newhome" } }], space: "spc_x", maker: "usr_b" })
+    .filter((e) => e.type === "grant.created").map((e) => ({ type: e.type, payload: e.payload }));
+  const out = missingAgentHomeEvents({ events: born, agents });
+  assert.deepEqual(out.map((e) => [e.payload["subject_id"], e.payload["resource_id"], e.payload["level"], e.payload["by"]]), [["agt_old", "fld_oldhome", "edit", "usr_a"], ["usr_a", "fld_oldhome", "manage", "usr_a"]]);
+  // a repair that ran is not written again, and a grant a person revoked on purpose stays revoked
+  const applied = out.map((e) => ({ type: e.type, payload: e.payload }));
+  assert.deepEqual(missingAgentHomeEvents({ events: [...born, ...applied], agents }), []);
+  const revoked = [...born, ...applied, { type: "grant.revoked", payload: { grantId: out[0]!.id } }];
+  assert.deepEqual(missingAgentHomeEvents({ events: revoked, agents }), [], "the agent's grant removed by a person is not put back");
+  // an agent with no folder, or an owner that is not a person, is left alone
+  assert.deepEqual(missingAgentHomeEvents({ events: [], agents: [{ id: "agt_x", ownerId: "usr_a", folderId: null }, { id: "agt_y", ownerId: "svc_host", folderId: "fld_y" }] }), []);
 });
