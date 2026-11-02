@@ -1,0 +1,4 @@
+- In a Personal Space, adding a key from an agent's key request card works again: the key is saved and the agent that asked can use it on its next turn. It used to fail with "Needs a Team Space. vault.share works in a Team Space".
+- In a Personal Space you can give your own agents and automations Use on your own Vault items (an agent's Can use list, a key request). Sharing with other people still needs a Team Space.
+- A Team Space refusal now reads in plain words ("Sharing with other people needs a Team Space. Create or join one to share this.") and never names a capability.
+- An agent's Can use list no longer fails to save when it includes a Mine item; the agent already reaches its person's Mine items on its own turns, so no grant is made for them.
