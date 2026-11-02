@@ -6,6 +6,7 @@
 // against either unchanged.
 //
 //   <name>.vyre.run/p/*                     a visitor with no session, carried to the box over its control socket (phone.js onPublic, RouteRelay.onPublic)
+//   <name>.vyre.run/mcp, /oauth/*           the door for outside agents, the same way (phone.js onDoor)
 //   GET /v1/box?route=<id>                  the box's control socket, after a signed challenge
 //   GET /v1/box?route=<id>&c=<conn>&t=<ticket>   the box's data socket for one device connection
 //   GET /v1/device?route=<id>               a device; the relay tells the box, then pipes frames
@@ -702,7 +703,7 @@ export class RouteRelay {
       const flow = new TransformStream();
       const writer = flow.writable.getWriter();
       const entry = { resolve, writer, readable: flow.readable, answered: false, size: 0, timer: /** @type {any} */ (null) };
-      entry.timer = setTimeout(() => this.publicEnd(id, 504), PUBLIC.timeoutMs);
+      entry.timer = setTimeout(() => this.publicEnd(id, 504), head.door === true ? PUBLIC.doorTimeoutMs : PUBLIC.timeoutMs);
       this.publicOpen.set(id, entry);
       this.json(control, { t: "p.req", id, ...head, more: body.length > 0 });
       for (let at = 0; at < body.length; at += PUBLIC.chunk) {

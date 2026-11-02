@@ -47,7 +47,7 @@ export default defineManifest({
     }),
     read('mcp.connected.list', 'The outside agents you connected', { out: { agents: t.arr(connectedRow) }, level: 'member' }),
     read('mcp.connected.link', 'The address to paste into an MCP app, and the one line for Claude Code', {
-      out: { url: t.str({ pattern: '^https?://', examples: ['https://northwind.vyre.run/mcp'] }), claudeCode: t.str({ examples: ['claude mcp add --transport http vyre https://northwind.vyre.run/mcp'] }) }, level: 'member',
+      out: { url: t.str({ pattern: '^https?://', examples: ['https://northwind.vyre.run/mcp'] }), claudeCode: t.str({ examples: ['claude mcp add --transport http vyre https://northwind.vyre.run/mcp'] }) }, level: 'member', tool: 'meta', agent: { planMode: 'allowed' },
     }),
     write('mcp.connected.remove', 'Remove an outside agent: its tokens end at once, a call in flight fails, and the agent goes to Trash', {
       in: { agentId: id.agent }, out: { removed: t.bool() }, level: 'member', emits: ['mcp.client_removed'], audit: 'always', risk: 'high', idem: 'natural', offline: 'online', errors: ['validation.not_found', 'permission.no_grant'],

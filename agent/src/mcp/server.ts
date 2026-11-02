@@ -159,7 +159,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     const traceId = s.ctx.trace?.traceId ?? hex(16);
 
     if (!allowed(s, t)) {
-      const error = makeError("permission.role_lacks_permission", traceId, { message: "This connection is not allowed to use that tool.", details: { tool: t.name, reason: "scope" } });
+      const error = makeError("permission.role_lacks_permission", traceId, { message: "Only a person can do that here. Ask the person you act for.", details: { tool: t.name, reason: "person_only" } });
       deps.onCall?.(s.caller, t.name, "error", { cap: t.cap, threadId: s.ctx.thread.threadId });
       return { result: textResult({ error }, true, { error }) };
     }
@@ -178,7 +178,8 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
 
     // the session can end while the call runs (Remove on the agent's profile): it fails here at once, whatever the call is still waiting on
     if (s.caller.kind === "outside" && !deps.defaults.has(t.name)) s.tools.preload(s.ctx.thread.threadId, [t.name]);
-    const out = await Promise.race([s.tools.call(s.ctx, t.name, args), s.gone]);
+    const run = s.tools.call(s.ctx, t.name, args);
+    const out = s.caller.kind === "outside" ? await Promise.race([run, s.gone]) : await run;
     if (out === "gone") {
       const error = makeError("permission.revoked", traceId, { message: "This connection was removed." });
       return { result: textResult({ error }, true, { error }) };

@@ -1,10 +1,10 @@
 // What an outside agent may call. There is no scope list: it can use what the person who allowed it can, and the invoke pipeline makes that true on every call (agent and person must both allow, ARCH 4.5 rule 5). This file
 // narrows only what the MCP door must never offer, and it never widens anything.
-//   Off here   the terminal, Vyre computers and every tool that runs on a machine of ours (it has its own machine), and the Vault toolset (a value never leaves, and a handle is no use outside a Vyre turn).
+//   Off here   the terminal, Vyre computers and every tool that runs on a machine of ours (it has its own machine), the Vault toolset (a value never leaves, and a handle is no use outside a Vyre turn), and the engineer toolset.
 //   A person's own   signing in, devices, members, access, the rules of the Gate, and the company's connections stay with people. An agent cannot allow another client, cannot widen what it was given, and cannot change who gets in.
 import type { ToolDef } from "../tools/types.ts";
 
-const OFF_TOOLSETS: ReadonlySet<string> = new Set(["vault", "terminal", "computer"]);
+const OFF_TOOLSETS: ReadonlySet<string> = new Set(["vault", "terminal", "computer", "engineer"]);
 
 /** Families of capability only a person changes. Reading them stays open when the person may read them. */
 const PERSON_ONLY: ReadonlySet<string> = new Set(["mcp", "identity", "members", "devices", "access", "gate", "connections", "connectors", "dropbox", "network", "spaces", "updates", "backup", "governance", "billing"]);
