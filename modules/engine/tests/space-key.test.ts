@@ -150,30 +150,48 @@ test("a model out of usage is greyed with when it comes back, its meter is full,
   assert.deepEqual([...modelLimits(h.db, "#OpenCode_Go_for_everyone", NOW + MODEL_REST_MS + 1).keys()], ["glm-5.3"], "an unknown time rests MODEL_REST_MS, a known one until it");
 });
 
-test("a turn on the Space AI key runs a model the key serves; a refusal for usage marks that model, the next answer clears it", async () => {
+test("a turn on the Space AI key runs a model the key serves; a model out of usage moves the turn to the next one, and the next answer clears it", async () => {
   const { h } = ctxWith({});
   assert.equal(fitModel("claude-sonnet-5-5", ["glm-5.3", "kimi-k3"]), "glm-5.3");
   assert.equal(fitModel("kimi-k3", ["glm-5.3", "kimi-k3"]), "kimi-k3");
+  assert.equal(fitModel("kimi-k3", ["glm-5.3", "kimi-k3"], new Set(["kimi-k3"])), "glm-5.3", "a chosen model that is out gives way to one that is not");
+  assert.equal(fitModel("kimi-k3", ["glm-5.3", "kimi-k3"], new Set(["glm-5.3", "kimi-k3"])), "kimi-k3", "all out: the chosen one, and its refusal goes to the next account");
   assert.equal(fitModel("claude-sonnet-5-5", []), "claude-sonnet-5-5", "no list known: the turn keeps its model");
-  const opened: SessionSpec[] = [];
-  let script: DriverEvent[] = [];
+  const opened: string[] = [];
+  const script: Record<string, DriverEvent[]> = {};
   const open = async (spec: SessionSpec): Promise<EngineSession> => {
-    opened.push(spec);
-    return { warm: false, async *send() { for (const e of script) yield e; }, sendToolResult() {}, inject() {}, async cancel() {}, async close() {} };
+    const model = spec.agent.model ?? "";
+    opened.push(model);
+    return { warm: false, async *send() { for (const e of script[model] ?? []) yield e; }, sendToolResult() {}, inject() {}, async cancel() {}, async close() {} };
   };
   const call = async (cap: string): Promise<unknown> => { assert.equal(cap, "providers.space_key.get"); return { set: true, models: ["glm-5.3", "kimi-k3"], mayManage: false }; };
   const wrapped = withSpaceKeyTurns(open, { call, db: h.db, now: () => NOW });
   const account = { ref: "#OpenCode_Go_for_everyone", driver: "opencode_go", provider: "opencode_go", kind: "api_key" as const, payer: "usr_mia", reason: "starter" as const, spaceKey: true, shared: true };
   const spec: SessionSpec = { threadId: "thr_1", agent: { id: "agt_1", mode: "lead", model: "claude-sonnet-5-5" }, asker: "usr_mia", turnId: "trn_1", traceId: "a".repeat(32), account };
-  script = [{ type: "error", code: "provider.rate_limited", message: "out of usage", resetsAt: NOW + 600_000 }];
-  for await (const _ of (await wrapped(spec)).send({} as never)) { /* drain */ }
-  assert.equal(opened[0]!.agent.model, "glm-5.3", "a Claude model cannot run on OpenCode Go: the first model the key serves");
-  assert.deepEqual([...modelLimits(h.db, account.ref, NOW)], [["glm-5.3", { resetsAt: NOW + 600_000 }]]);
-  script = [{ type: "text", text: "hi" }, { type: "done" }];
-  for await (const _ of (await wrapped(spec)).send({} as never)) { /* drain */ }
-  assert.equal(modelLimits(h.db, account.ref, NOW).size, 0, "it answered: the model is back");
+  const drain = async (s: EngineSession): Promise<DriverEvent[]> => { const got: DriverEvent[] = []; for await (const e of s.send({} as never)) got.push(e); return got; };
+  script["glm-5.3"] = [{ type: "error", code: "provider.rate_limited", message: "out of usage", resetsAt: NOW + 600_000 }];
+  script["kimi-k3"] = [{ type: "text", text: "hi" }, { type: "done" }];
+  const first = await drain(await wrapped(spec));
+  assert.deepEqual(opened, ["glm-5.3", "kimi-k3"], "a Claude model cannot run on OpenCode Go: the first model the key serves, then the next when it is out");
+  assert.deepEqual(first.map((e) => e.type), ["text", "done"], "the turn did not fail: the person got an answer");
+  assert.deepEqual([...modelLimits(h.db, account.ref, NOW)], [["glm-5.3", { resetsAt: NOW + 600_000 }]], "the out model stays greyed with its time");
+  opened.length = 0;
+  await drain(await wrapped({ ...spec, agent: { ...spec.agent, model: "glm-5.3" } }));
+  assert.deepEqual(opened, ["kimi-k3"], "while it is out, a turn that chose it starts on one that is not");
+  // every model out: the refusal reaches the turn engine (it tries the next account), nothing loops
+  script["kimi-k3"] = [{ type: "error", code: "provider.rate_limited", message: "out of usage" }];
+  opened.length = 0;
+  const all = await drain(await wrapped(spec));
+  assert.deepEqual(all.map((e) => e.type), ["error"]);
+  assert.ok(opened.length <= 2);
+  // every model is out, so a turn that chose kimi-k3 tries it; it answers, and that clears it at once
+  assert.equal(modelLimits(h.db, account.ref, NOW).has("kimi-k3"), true);
+  script["kimi-k3"] = [{ type: "text", text: "back" }, { type: "done" }];
+  await drain(await wrapped({ ...spec, agent: { ...spec.agent, model: "kimi-k3" } }));
+  assert.equal(modelLimits(h.db, account.ref, NOW).has("kimi-k3"), false);
   // someone's own account is left alone
+  opened.length = 0;
   const own = { ...spec, account: { ...account, ref: "#Dana_Anthropic", driver: "anthropic", provider: "anthropic", spaceKey: false } };
   await wrapped(own);
-  assert.equal(opened.at(-1)!.agent.model, "claude-sonnet-5-5");
+  assert.deepEqual(opened, ["claude-sonnet-5-5"]);
 });

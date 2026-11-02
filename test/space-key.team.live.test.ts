@@ -1,7 +1,7 @@
 // The Space AI key on a booted Team Space daemon, end to end with the real Vault, the real account resolution and the real API driver: only the model vendor is a stub, an OpenAI-compatible
 // server on this machine (there is no real OpenCode Go key here; it is registered as a custom OpenAI-compatible endpoint, the same driver code OpenCode Go uses). The owner sets the key in one
 // checked step; two members with no AI account of their own each get a reply on it, the stub sees the Space key on every request, usage lands on each member, and no member can read or use the key
-// by name. The key is in no reply, no host log and no file of the data directory in the clear.
+// by name. A model that runs out of usage moves the turn to the next model and shows greyed with its time. The key is in no reply, no host log and no file of the data directory in the clear.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -21,7 +21,7 @@ const WHO = ["usr_olivia", "usr_adam", ...MEMBERS];
 interface Seen { url: string; auth: string; model?: string }
 
 /** Chat Completions on loopback: lists one model for either key and answers "<who> on the space key" (who is the last user line), with usage, for the Space key only. */
-async function vendor(seen: Seen[]): Promise<{ base: string; close(): Promise<void> }> {
+async function vendor(seen: Seen[], out: Set<string> = new Set()): Promise<{ base: string; close(): Promise<void> }> {
   const server = http.createServer((req, res) => {
     let raw = "";
     req.on("data", (c) => { raw += String(c); });
@@ -32,6 +32,8 @@ async function vendor(seen: Seen[]): Promise<{ base: string; close(): Promise<vo
       if (auth !== `Bearer ${SPACE_KEY}` && auth !== `Bearer ${OWNER_KEY}`) { res.writeHead(401, { "content-type": "application/json" }); res.end('{"error":"bad key"}'); return; }
       if (req.method === "GET" && req.url === "/v1/models") { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ data: [{ id: "glm-test" }, { id: "kimi-test" }] })); return; }
       if (req.method === "POST" && req.url === "/v1/chat/completions") {
+        // a model out of its usage on the plan: 429 with when it comes back, the way a plan with a quota answers
+        if (body.model && out.has(body.model)) { res.writeHead(429, { "content-type": "application/json", "retry-after": "900" }); res.end('{"error":{"message":"usage limit reached for this model"}}'); return; }
         const last = [...(body.messages ?? [])].reverse().find((m) => m.role === "user");
         const said = typeof last?.content === "string" ? last.content : JSON.stringify(last?.content ?? "");
         const who = /from (\w+)/.exec(said)?.[1] ?? "someone";
@@ -69,7 +71,8 @@ function filesHolding(dir: string, needle: string): string[] {
 
 test("Team: the owner sets a Space AI key; members with no account each get a reply on it, usage is theirs, and nobody can read it", async () => {
   const seen: Seen[] = [];
-  const stub = await vendor(seen);
+  const out = new Set<string>();
+  const stub = await vendor(seen, out);
   const dir = seededDir();
   const owner = { v: "" };
   const d = await boot(dir, undefined as never, {
@@ -140,6 +143,22 @@ test("Team: the owner sets a Space AI key; members with no account each get a re
       return u.rows.length === MEMBERS.length ? u : null;
     }, 20_000, () => hostLog(d));
     assert.deepEqual(usage.rows.map((r) => [r.key, r.totals.turns, r.totals.tokensIn]).sort(), MEMBERS.map((m) => [m, 1, 40]).sort());
+
+    // glm-test runs out of usage: Mia's next turn still gets an answer (on the next model the key serves), and the picker shows glm-test greyed with when it comes back
+    out.add("glm-test");
+    const mia = (await api("usr_mia", "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: "sk-mia-out-s" })).data.thread.threadId as string;
+    await api("usr_mia", "chat.post", { threadId: mia, body: "hello from mia again", mentions: [{ kind: "agent", id: agentId }], idempotencyKey: "sk-mia-out-p" });
+    const again = await waitFor(async () => {
+      await d.hooks?.pump?.();
+      const ms = (await api("usr_mia", "chat.messages.list", { threadId: mia })).data.messages as Array<{ author?: { kind?: string }; body?: string }> | undefined;
+      return ms?.find((m) => m.author?.kind === "agent" && (m.body ?? "") !== "")?.body ?? null;
+    }, 40_000, () => hostLog(d));
+    assert.equal(again, "mia on the space key", "the turn did not fail cold");
+    assert.deepEqual(seen.filter((x) => x.url === "/v1/chat/completions").slice(-2).map((x) => x.model), ["glm-test", "kimi-test"]);
+    const handle = ((await api("usr_mia", "engine.accounts.list", {})).data.accounts as Array<{ ref: string }>)[0]!.ref;
+    const greyed = ((await api("usr_mia", "engine.models.list", { accountRef: handle })).data.models as Array<{ model: string; allowed: boolean; reason?: string; resetsAt?: number }>).find((m) => m.model === "glm-test");
+    assert.deepEqual([greyed?.allowed, greyed?.reason], [false, "usage_limit"]);
+    assert.ok(greyed?.resetsAt !== undefined && greyed.resetsAt > Date.now() + 800_000, `comes back in about 15 minutes: ${JSON.stringify(greyed)}`);
 
     // removing it: the next member turn has nothing to run on and says so; nobody's own setup changed
     const gone = await api("usr_olivia", "providers.space_key.remove", {});
