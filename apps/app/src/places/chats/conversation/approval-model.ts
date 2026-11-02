@@ -5,12 +5,25 @@ type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const text = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
 
-export interface Held { cap: string; act: string; input: Obj }
+export interface Held { cap: string; act: string; input: Obj; /** An outside agent asked the person (docs/ask-the-person.md): what happens, in the capability's own words. */ what?: string }
 
 /** The capability and input a hold's task carries in its first block, or an empty hold when it carries none. */
 export function heldOf(blocks: readonly { type: string; data: unknown }[]): Held {
   const d = obj(blocks[0]?.data);
-  return { cap: text(d["cap"]), act: text(d["act"]), input: obj(d["input"]) };
+  const what = text(obj(d["ask"])["what"]);
+  return { cap: text(d["cap"]), act: text(d["act"]), input: obj(d["input"]), ...(what ? { what } : {}) };
+}
+
+/** The first line of an ask: who asks and what happens, in the capability's own words. */
+export function askLine(agent: string, what: string): string {
+  return `${agent} asks you to: ${what.charAt(0).toLowerCase()}${what.slice(1)}`;
+}
+
+/** The lines of an ask: that it runs as you, once, then every input exactly as the card in Needs you shows it (secrets are handles by then). */
+export function askRows(blocks: readonly { type: string; data: unknown }[]): Array<{ label: string; text: string }> {
+  const table = obj(blocks.find((b) => b.type === "table")?.data);
+  const inputs = Array.isArray(table["rows"]) ? (table["rows"] as unknown[]).map((r) => (Array.isArray(r) ? r.map(text) : [])).filter((r) => r.length >= 2) : [];
+  return [{ label: "Runs as", text: "You, once, exactly as shown" }, ...inputs.map((r) => ({ label: label(r[0]!), text: r[1]! }))];
 }
 
 const WANTS: Record<string, string> = {

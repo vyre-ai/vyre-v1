@@ -40,6 +40,7 @@ test("an ask parks as the person's own call: assigned to them only, named for th
   assert.equal(task.title, "Simba (Claude Code) asks: Add or change an OIDC provider");
   const [about, inputs] = task.blocks;
   assert.equal(about.type, "pairs");
+  assert.deepEqual([about.data.act, about.data.cap, about.data.input, about.data.ask], ["signin_change", "members.sso.set", SSO, { what: "Add or change an OIDC provider", by: "Simba (Claude Code)" }], "the chat card reads the hold like any other, and the ask's own line");
   assert.deepEqual(about.data.pairs, [["What happens", "Add or change an OIDC provider"], ["Asked by", "Simba (Claude Code)"], ["Runs as", "You, once, exactly as shown"], ["Tool", "members.sso.set"]]);
   assert.equal(inputs.type, "table");
   assert.deepEqual(inputs.data.rows, [["provider", JSON.stringify(SSO.provider)]], "the exact input, the secret as its handle");

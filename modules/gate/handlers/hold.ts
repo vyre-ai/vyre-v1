@@ -84,7 +84,7 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   try {
     const r = (await ctx.call("tasks.create", clean({
       kind: "approve", title: ask ? cut(`${agentName} asks: ${ask.what}`, 120) : `Approve: ${a.title}`, summary, why: ask ? "Only you can do this here. Approve runs it as you, once, exactly as shown." : rule.reason, assigned: approver,
-      blocks: ask ? askBlocks({ what: ask.what, agentName, capName: input.capName, input: input.input }) : previewBlocks(a, input.capName, input.input),
+      blocks: ask ? askBlocks({ act: a.key, what: ask.what, agentName, capName: input.capName, input: input.input }) : previewBlocks(a, input.capName, input.input),
       source: { kind: "gate", id }, expiresAt, idempotencyKey: `gate:${id}`,
     }))) as { task: { id: string } };
     taskId = r.task.id;

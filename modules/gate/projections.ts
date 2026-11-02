@@ -357,10 +357,11 @@ const shown = (v: unknown): string => (typeof v === "string" ? v : v === undefin
  * The card of an ask: what will happen, which agent asked, that it runs as you, and every input exactly, one row each (nested values as JSON). Secrets are handles by then (rawSecretIn refused
  * anything else), so nothing on it is a secret. Drawn by the app as key/value pairs.
  */
-export function askBlocks(o: { what: string; agentName: string; capName: string; input: unknown }): { type: string; v: number; data: unknown }[] {
+export function askBlocks(o: { act: string; what: string; agentName: string; capName: string; input: unknown }): { type: string; v: number; data: unknown }[] {
   const rows: [string, string][] = [["What happens", o.what], ["Asked by", o.agentName], ["Runs as", "You, once, exactly as shown"], ["Tool", o.capName]];
   const inputs: [string, string][] = isObj(o.input) ? Object.entries(o.input).filter(([k]) => k !== "idempotencyKey").map(([k, v]) => [k, cut(shown(v), 400)]) : [["input", cut(shown(o.input), 400)]];
-  return [{ type: "pairs", v: 1, data: { pairs: rows } }, { type: "table", v: 1, data: { columns: ["Input", "Value"], rows: inputs } }];
+  // the first block also carries { act, cap, input } like every hold's preview, so the chat's approval card reads it the same way, plus `ask` for its own first line
+  return [{ type: "pairs", v: 1, data: { pairs: rows, act: o.act, cap: o.capName, input: o.input, ask: { what: o.what, by: o.agentName } } }, { type: "table", v: 1, data: { columns: ["Input", "Value"], rows: inputs } }];
 }
 
 /** Who approves: the strictest rule names a role or the owner, or the asker (the person the agent works for, else the agent's owner). */
