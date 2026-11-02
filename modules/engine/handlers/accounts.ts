@@ -9,7 +9,7 @@ import type { AccountRow, AccountStatus, ProbeResult } from "../../../agent/src/
 
 interface ProviderRow {
   id: string; providerKey: string; name: string; connection: "subscription" | "api_key" | "local_model"; scope: "mine" | "shared"; handle?: string; itemId: string;
-  engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing"; address?: string; keyless?: boolean; itemName?: string;
+  engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing"; address?: string; keyless?: boolean; itemName?: string; spaceKey?: boolean;
 }
 interface ThreadOut { thread: { starter: string; agents: Array<{ agentId: string; accountRef?: string; provider?: string; model?: string }> } }
 interface AgentOut { agent: { accountPolicy: "asker" | "key"; accountKey?: string; accountFallback?: string[]; model?: string } }
@@ -39,11 +39,12 @@ export async function load(ctx: Pick<Ctx, "actingFor" | "principal" | "call">): 
     const ref = p.handle ?? p.itemId;
     idByRef.set(ref, p.id);
     itemByRef.set(ref, p.itemId);
-    if (p.itemName) names.set(ref, p.itemName);
+    if (p.itemName && p.spaceKey !== true) names.set(ref, p.itemName);   // the Space AI key reads as its provider, like any other
     if (p.address || p.keyless) where.set(ref, { ...(p.address ? { base: p.address } : {}), ...(p.keyless ? { keyless: true } : {}) });
     rows.push({
       ref, driver: driverOf(p), provider: p.providerKey, kind: p.connection === "subscription" ? "subscription" : "api_key", title: p.name,
       mine: p.scope === "mine", ownerId: p.scope === "mine" ? me : null, status: STATUS[p.state], lastProbeAt: null, spaceMayUse: p.spaceMayUse,
+      ...(p.spaceKey === true ? { spaceKey: true } : {}),
     });
   }
   return { rows, idByRef, itemByRef, where, names };
@@ -55,7 +56,7 @@ export async function accountsList(ctx: Ctx, _input: Record<string, never>) {
     accounts: rows.map((r) => ({
       ...where.get(r.ref),
       ref: r.ref, driver: r.driver, kind: r.kind, title: r.title, ...(names.has(r.ref) ? { name: names.get(r.ref) } : {}), mine: r.mine, ...(r.ownerId ? { ownerId: r.ownerId } : {}), status: r.status,
-      ...(r.lastProbeAt !== null ? { lastProbeAt: r.lastProbeAt } : {}),
+      ...(r.lastProbeAt !== null ? { lastProbeAt: r.lastProbeAt } : {}), ...(r.spaceKey === true ? { spaceKey: true } : {}),
     })),
   };
 }

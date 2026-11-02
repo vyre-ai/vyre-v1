@@ -33,12 +33,14 @@ const accountRef = t.str({ description: 'Vault handle or subscription account re
 const errShape = t.obj({ code: t.str(), message: t.str(), next: t.arr(t.obj({ kind: t.str(), label: t.str() })), traceId: id.trace });
 const modelInfo = t.obj({
   provider: t.str({ examples: ['anthropic'] }), model: t.str({ examples: ['claude-sonnet-5-5'] }), title: t.str(), driver: driverId, contextTokens: t.opt(t.int()),
-  allowed: t.bool(), reason: t.opt(t.enm('label_provider', 'policy_model', 'not_connected')),
+  allowed: t.bool(), reason: t.opt(t.enm('label_provider', 'policy_model', 'not_connected', 'usage_limit')),
+  resetsAt: t.opt(t.ts()),
 });
 const accountRow = t.obj({
   ref: accountRef, driver: driverId, kind: t.enm('api_key', 'subscription'), title: t.str(), name: t.opt(t.str({ description: 'The name the person gave this account in the Vault; title is the provider', examples: ['Dana Claude Max'] })), mine: t.bool(), ownerId: t.opt(id.user),
   status: t.enm('ok', 'expired', 'failed', 'untested'), lastProbeAt: t.opt(t.ts()),
   base: t.opt(t.str({ description: 'The address of a local or custom OpenAI-compatible endpoint' })), keyless: t.opt(t.bool()),
+  spaceKey: t.opt(t.bool()),
 });
 const turnRow = t.obj({
   turnId: id.turn, threadId: id.thread, agentId: id.agent, asker: t.str(), accountRef: t.opt(accountRef), engine: t.str(), model: t.str(), state: turnState,

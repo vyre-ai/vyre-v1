@@ -1,5 +1,6 @@
 // resolveAccount (ARCH 6.4). Who pays: the steerer for the turn their message causes, the starter for everything else (wake-ups included), a routine's setter for a routine.
-// Which account: the thread pin, the agent's team key, the payer's own, then the backups. A task uses the step key, then a backup, else it waits in Needs you.
+// Which account: the thread pin, the agent's team key, the payer's own, then the Space AI key, then the backups. A task uses the step key, then the Space AI key, then a backup, else it waits in Needs you.
+// DECISION: the Space AI key comes after everything that is the person's or the agent's own (own wins) and before the fallback lists, so a member with no account of their own runs on it with no setup.
 import { sameProviderFamily } from "./provider.ts";
 import type { AccountRow, Attempt, NeedsYou, ResolveReason, ResolveRequest, Resolution, SkipWhy } from "./types.ts";
 
@@ -32,6 +33,7 @@ function candidates(req: ResolveRequest, payerReason: "starter" | "steerer", pay
   };
   if (req.trigger === "task") {
     add(req.stepKey, "step_key");
+    for (const a of req.accounts) if (a.spaceKey === true && !a.mine) add(a.ref, payerReason);
   } else {
     add(req.threadAccountRef, payerReason);
     if (req.agent.accountPolicy === "key") add(req.agent.accountKey, payerReason);
@@ -40,6 +42,8 @@ function candidates(req: ResolveRequest, payerReason: "starter" | "steerer", pay
       const own = req.accounts.filter((a) => a.mine && a.ownerId === payer && (req.agent.provider === undefined || sameProviderFamily(a.provider, req.agent.provider)));
       for (const a of [...own.filter((a) => a.kind === "subscription"), ...own.filter((a) => a.kind === "api_key")]) add(a.ref, payerReason);
     }
+    // the Space AI key: usage is the payer's (whose turn it is), so the reason stays theirs
+    for (const a of req.accounts) if (a.spaceKey === true && !a.mine) add(a.ref, payerReason);
   }
   // The agent's own ordered fallback list comes before the Space's backups; a task keeps to its step key and the Space backups.
   if (req.trigger !== "task") for (const f of req.agent.accountFallback ?? []) add(f, "backup_key");

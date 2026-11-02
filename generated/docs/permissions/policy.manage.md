@@ -48,6 +48,8 @@ Area: space. Risk: high. Applies to: space.
 - members.sso.set
 - members.sso.test
 - memory.notes.erase
+- providers.space_key.remove
+- providers.space_key.set
 - records.purge
 - records.purge_trashed
 - reports.policy_get

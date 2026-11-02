@@ -1,6 +1,6 @@
 // The first screen is a new chat (no Home): the mark and "What are we working on?", the composer, who it starts with, then what needs you (top 3, "N more in Tasks") and what is running. Start typing or
 // answer something without going anywhere. With nothing waiting it shows only the composer and what is running; on a first day the setup checklist takes the list's place. Home's Needs you model and actions are
-// reused as they are, so a thing decided here is decided everywhere.
+// reused as they are, so a thing decided here is decided everywhere. Until mail, a calendar or a number flows in, the checklist carries an Email and calendar row that opens where they connect.
 import { useCallback, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -16,6 +16,7 @@ import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useResume } from "../../../onboarding/resume-context.ts";
 import { SetupRows } from "../../../onboarding/SetupRows.tsx";
+import { useInboxSources } from "../../../shell/rail/inbox-sources.ts";
 import { needsRow } from "../../home/sections-a/model.ts";
 import { useAccounts } from "../conversation/brain.tsx";
 import { NewChatBrain, newChatStrip } from "../conversation/new-chat-brain.tsx";
@@ -64,6 +65,8 @@ export function Landing(p: LandingProps): ReactElement {
   const total = needs.status === "ready" ? needs.data.total : 0;
   const working = workingChats(recent.status === "ready" ? recent.data : undefined);
   const firstDay = resume !== null && needs.status === "ready" && total === 0 && working.length === 0;
+  const hasInbox = useInboxSources(rt.screens, rt.me.id);
+  const mailRow = hasInbox === false ? <SetupLine key="mail" testID="landing-setup-mail" title="Email and calendar" sub="Gmail, Outlook or a number" done={false} open={() => rt.open({ screen: "settings.page", args: { page: "mail" } })} /> : null;
 
   const start = useCallback((payload: ComposerSend): void => {
     const text = payload.text.trim();
@@ -127,7 +130,7 @@ export function Landing(p: LandingProps): ReactElement {
           </Pressable>
         </View>
         <View testID="landing-below" style={st.below}>
-          {firstDay ? <SetupRows render={(row, open) => <SetupLine key={row.key} title={row.title} sub={row.note} done={row.state === "done"} open={open} />} more={(count, open) => <Pressable key="more" role="button" testID="landing-setup-more" onPress={open} style={st.more}><Text style={st.moreText}>{`${count} more to set up`}</Text></Pressable>} /> : (
+          {firstDay ? <SetupRows extra={mailRow} render={(row, open) => <SetupLine key={row.key} title={row.title} sub={row.note} done={row.state === "done"} open={open} />} more={(count, open) => <Pressable key="more" role="button" testID="landing-setup-more" onPress={open} style={st.more}><Text style={st.moreText}>{`${count} more to set up`}</Text></Pressable>} /> : (
             <>
               {each(items, (n) => <NeedRow key={n.task.id} item={n} {...p} />)}
               {moreLine(total, items.length) ? <Pressable role="button" testID="landing-more" onPress={p.openTasks} style={st.more}><Text style={st.moreText}>{moreLine(total, items.length)}</Text></Pressable> : null}
@@ -175,9 +178,9 @@ function NeedRow({ item, rt, nameOf, kindOf, openNeed, openProfile, say }: { ite
   );
 }
 
-function SetupLine({ title, sub, done, open }: { title: string; sub?: string | undefined; done: boolean; open: () => void }): ReactElement {
+function SetupLine({ title, sub, done, open, testID }: { title: string; sub?: string | undefined; done: boolean; open: () => void; testID?: string }): ReactElement {
   return (
-    <Pressable role="button" aria-label={title} onPress={open} style={({ hovered }: { hovered?: boolean }) => [st.need, hovered === true && st.hover]}>
+    <Pressable role="button" aria-label={title} {...(testID ? { testID } : {})} onPress={open} style={({ hovered }: { hovered?: boolean }) => [st.need, hovered === true && st.hover]}>
       <View style={[st.check, done && st.checkOn]}>{done ? <Glyph name="check" size={11} color="var(--accent-ink)" /> : null}</View>
       <View style={st.needText}>
         <Text numberOfLines={1} style={st.needTitle}>{title}</Text>

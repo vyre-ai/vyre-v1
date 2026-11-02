@@ -1,6 +1,7 @@
 // Inbox in the shell (spec 3.3): the sidebar (inboxes, numbers, channels, calendars) on the left; in the middle the contact list, a contact's conversation once one is opened, or the
 // Calendar when the sidebar asks for it. The Inbox's own UI state (view, scope, filters, selection) is one reducer shared by the sidebar and the list. Before the Space's runtime
-// exists the place draws its loading frame.
+// exists the place draws its loading frame. Inbox is off the rail until something flows in; a saved tab or a link that still opens it with nothing connected shows the connect
+// tiles of Settings > Email and calendar instead of an empty Inbox.
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
 import { NotFound } from "../hash/NotFound.tsx";
@@ -23,6 +24,7 @@ import { MobileBackContext } from "../../mobile/shell/back.ts";
 import { InboxPhoneDock } from "../../places/inbox/softphone/phone.tsx";
 import { CallTitlePill } from "../../places/inbox/softphone/pill.tsx";
 import { inboxData } from "./inbox-data.ts";
+import { useInboxSources } from "../rail/inbox-sources.ts";
 import { capLive } from "./records-live.ts";
 import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
 import { SIDEBAR_DEFAULT } from "../sidebar/index.ts";
@@ -131,6 +133,12 @@ function InboxView({ rt }: { rt: ShellRuntime }): ReactElement {
   const [picked, setOpenId] = useState<string | null>(null);
   const openId = picked ?? hashed;
   const data = useMemo(() => inboxData(rt, (id) => { setOpenId(id); opened({ subject: { type: "conversation", id } }); }), [rt, opened]);
+  const has = useInboxSources(rt.screens, rt.me.id);
+  const { target } = usePlaceHash();
+  // nothing flows in and no item was asked for: the connect screen, not an empty Inbox (an item from a link or an agent still opens)
+  if (has === false && !openId && !target.args["contactId"] && target.screen !== "inbox.unmatched") {
+    return <InboxDataProvider value={data}><View testID="inbox-place" style={st.row}><ConnectChannel /></View></InboxDataProvider>;
+  }
   return (
     <InboxDataProvider value={data}>
       <InboxStateProvider>

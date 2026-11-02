@@ -63,7 +63,7 @@ test("search finds rows by words in any order, ranks a title that starts with th
 
 test("the page list in a Team Space is You, then one way to the Console, and no Space pages", () => {
   const out = html(createSampleSettings(northwind));
-  assert.deepEqual(PAGES.filter((p) => p.group === "you").map((p) => p.title), ["Profile", "Notifications", "Appearance", "AI", "Connected", "Sign-in and devices", "This computer"]);
+  assert.deepEqual(PAGES.filter((p) => p.group === "you").map((p) => p.title), ["Profile", "Notifications", "Appearance", "AI", "Connected", "Email and calendar", "Sign-in and devices", "This computer"]);
   assert.deepEqual(PAGES.filter((p) => p.group === "space").map((p) => p.title), ["Space", "People and access", "Agents and rules", "Data", "Connected apps", "Advanced"]);
   for (const p of PAGES) assert.equal(has(out, `data-testid="row-page-${p.key}"`), p.group === "you", p.key);
   const at = (t: string): number => { const i = out.indexOf(`>${t}<`); assert.ok(i >= 0, t); return i; };
@@ -159,13 +159,33 @@ test("AI: defaults, how agents work with you, usage with bars, the accounts and 
   assert.equal(moneyLabel(48_200_000), "$48.20");
 });
 
-test("Connected lists mailboxes with their state and a way to pause", () => {
-  const out = html(createSampleSettings(northwind), { initialPage: "connected" });
+test("Email and calendar lists mailboxes with their state and a way to pause, calendars, your numbers, and the connect tiles to add another", () => {
+  const out = html(createSampleSettings(northwind), { initialPage: "mail" });
   assert.ok(has(out, "irfad@northwind.example") && has(out, "Google, private to you") && has(out, "Syncing") && has(out, "Pause"));
   assert.ok(has(out, "irfad.imtiaz@outlook.example") && has(out, "Paused") && has(out, "Resume"));
-  assert.ok(has(out, "Connect a mailbox") && has(out, "Connect a calendar"));
+  assert.ok(has(out, 'data-testid="mailbox-remove-mbx_1"') && has(out, 'data-testid="calendar-remove-cld_work"'), "a source of your own can be removed here");
+  assert.ok(has(out, "Numbers assigned to you") && has(out, "Main line") && !has(out, "Intake"), "only the numbers assigned to you");
+  assert.ok(has(out, 'data-testid="mail-add"') && has(out, 'data-testid="connect-gmail"') && has(out, 'data-testid="connect-outlook"') && has(out, 'data-testid="connect-imap"'), "the Inbox's own mail tiles, to add another");
+  assert.ok(!has(out, 'data-testid="connect-twilio"'), "numbers are set up in the Console and assigned, not connected here");
   assert.ok(has(out, "Through your Space") && has(out, "Google Workspace") && has(out, "Microsoft 365") && has(out, "Connected by your admin"), "what the admin connected for this person, by suite");
-  assert.ok(has(html(createSampleSettings(harbor), { initialPage: "connected" }), "Connect a mailbox"), "an empty list still offers the connect rows");
+  const empty = html(createSampleSettings(harbor), { initialPage: "mail" });
+  assert.ok(has(empty, 'data-testid="mail-empty"') && has(empty, 'data-testid="connect-gmail"') && has(empty, 'data-testid="connect-outlook"') && has(empty, 'data-testid="connect-imap"'), "nothing connected: the connect tiles");
+  assert.ok(!has(empty, 'data-testid="mail-sources"') && !has(empty, ">Connect a channel<"), "no empty lists and no second heading");
+  assert.ok(!has(empty, 'data-testid="connect-twilio"') && !has(empty, "Numbers assigned to you"), "no Twilio tile, and no numbers section without numbers");
+  assert.ok(!has(empty, "Through your Space") && !has(empty, "Ask your admin"), "nothing comes through the Space: no section at all");
+  const conn = html(createSampleSettings(northwind), { initialPage: "connected" });
+  assert.ok(!has(conn, "irfad@northwind.example") && !has(conn, "Through your Space"), "mail and calendars live on their own page now");
+});
+
+test("removing the last source empties Email and calendar back to the connect tiles", async () => {
+  const s = createSampleSettings(northwind);
+  await s.data.call("mail.mailbox.disconnect", { mailboxId: "mbx_1" });
+  await s.data.call("mail.mailbox.disconnect", { mailboxId: "mbx_2" });
+  await s.data.call("calendar.delete_calendar", { calendarId: "cld_work" });
+  assert.ok(has(html(s, { initialPage: "mail" }), 'data-testid="mail-sources"'), "a number assigned to you still flows in");
+  s.replica.remove("numbers", ["num_main"]);
+  const out = html(s, { initialPage: "mail" });
+  assert.ok(has(out, 'data-testid="mail-empty"') && has(out, 'data-testid="connect-gmail"'));
 });
 
 test("Sign-in and devices: this device first, the others with Sign out, a signed-out device goes from the list", async () => {
@@ -327,8 +347,10 @@ const personalSpace = { ...northwind, id: "northwind" as const, name: "Personal"
 test("a Personal Space has no Console, shows its own Space rows here, and no team-only rows or suite section", () => {
   const s = createSampleSettings({ ...personalSpace, id: "harbor" as const });
   const conn = html(s, { initialPage: "connected" });
-  assert.ok(!has(conn, "Through your Space"), "the admin's suites need a team");
-  assert.ok(has(conn, "Connect a mailbox"));
+  assert.ok(!has(html(s, { initialPage: "mail" }), "Through your Space") && !has(html(s, { initialPage: "mail" }), "Ask your admin"), "a Personal Space has no admin and no suites");
+  const mine = html(createSampleSettings(personalSpace), { initialPage: "mail" });
+  assert.ok(has(mine, "irfad@northwind.example") && !has(mine, "Through your Space"), "a Personal Space with its own Google mail still has no suite section");
+  assert.ok(has(html(s, { initialPage: "mail" }), 'data-testid="connect-gmail"'));
   assert.ok(has(conn, 'data-testid="space-group"'), "its Space rows have nowhere else to live");
   assert.ok(!has(conn, 'data-testid="row-open-console"') && has(conn, 'data-testid="row-page-data"') && !has(conn, 'data-testid="row-page-people"'));
   const ai = html(s, { initialPage: "ai" });

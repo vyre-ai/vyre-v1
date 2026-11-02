@@ -1,5 +1,22 @@
 # Changelog
 
+- An owner or admin sets one Space AI key in Console, Models and providers: pick the provider (OpenCode Go first), paste the key, and Vyre checks it and shows the models it unlocks.
+- Every member and agent runs on the Space AI key after their own accounts, with no setup. Own accounts win; with Company accounts only, everyone runs on it.
+- OpenCode Go shows in the model picker for everyone like any other provider, with its live model list.
+- A model that runs out of usage shows greyed with when it comes back, and its meter shows full. The next account takes the turn when there is one.
+- Settings, AI says "Using the Space's OpenCode Go key" when that is what covers you, with Add my own.
+- Console, Spend and limits shows the Space AI key's use by person.
+- The key sits in a Restricted folder: no member, agent or tool can read, fill or export it. Only the engine puts it in the provider request.
+- Inbox is on the rail only for a person with something flowing in: a mailbox, a calendar or a number assigned to them, in Personal and Team Spaces. It is read when the Space opens and on the change events of those reads, and the last answer is kept on the device so the rail does not jump while it loads.
+- When the first source connects, Inbox opens into its place on the rail with the island's calm reveal and a one-time tip, "Your mail and calendar are here". It leaves the rail when the last source is removed.
+- Settings has a new Email and calendar page under Connected: the Inbox's mail tiles (Gmail, Outlook, Other email) while nothing is connected, then each mailbox and calendar with Pause, Resume or Remove, the numbers assigned to you when there are any, and the tiles to add another. Twilio is not offered here: numbers are set up in the Console and assigned. Through your Space shows only when a company Google or Microsoft connection gives this person something, and never in a Personal Space.
+- An Inbox tab, link or agent that opens Inbox with nothing connected shows the connect tiles instead of an empty Inbox; an item still opens.
+- The first screen's setup checklist has an Email and calendar row while nothing is connected. Cmd-K finds Inbox and Connect email, and both open the connect page until something flows in.
+- Agents in a Personal chat can run terminal commands. An agent's terminal_run with no terminal and no host runs where the chat runs: on your computer, or on the agent's own computer when the chat runs there. It used to aim at an agent computer the Space did not have, and the Space refused a command that named no terminal before it was looked at.
+- The daemon now runs terminals on the computer it is: in tmux when it is installed, and in a plain shell when it is not, as on a Mac. The command shows in the agent's own session under Terminals and in the chat's Terminal tab, where you can watch it and type.
+- Your terminal rules, Ask first, Auto and the Gate apply as before. A command starts with a small environment of its own, not the app's.
+- A Team Space still runs an agent's commands on its own computer first. An agent with no computer there is told to use its own shell or ask you with terminal_request.
+- Agents are no longer told "You have no computer". Their instructions say they can run commands on the computer the chat runs on, and the skill evals check that they never say they cannot.
 - A Codex signed in through the ChatGPT app now runs your turns. Vyre finds the codex inside ChatGPT (and Claude Code inside the Claude app) instead of saying it is not installed and answering with another account.
 - The live line under a reply that is being written shows its words in the Mac app again ("Thinking", "Reading", ...). The shimmer made them transparent in WebKit; the working mark is larger too.
 - A terminal opens on this computer from the Mac app. Signing in with a password in the app registered it as a "Web browser", so the New terminal menu offered only an old, offline "Vyre desktop".

@@ -3,6 +3,8 @@
 // survives its tab and an agent command shows as one step with Open terminal attaching the same session.
 // DECISION: a terminal is bound to the Space resource at open time (the host may be a computer or a device); afterwards every capability
 //   is bound to the terminal resource. Opening on an agent computer needs a Team Space; the handler refuses it in a Personal Space.
+// DECISION: terminal.run is bound to the Space, like terminal.open: with no terminalId it runs in the agent's own session where the turn runs (opened on first use), and a terminalId it
+//   names is checked by the handler at Use on that terminal, as the pipeline checked it before (owner 2 Nov: an agent's terminal_run with no terminal was refused before it reached the handler).
 // DECISION: allow, ask and deny rules are per person per Space; an Ask rule parks the turn (turn.waiting) with a request in Needs you.
 //   Ask, Allow and Auto never loosen the Gate.
 // DECISION: Starred terminals are `stars` rows owned by module spaces; terminal.status gives Home the live status it shows.
@@ -79,10 +81,10 @@ export default defineManifest({
         timeoutSec: t.opt(t.int({ minimum: 1, maximum: 3600 })), env: t.opt(t.rec(t.str({ description: 'Literal or a #Handle.field reference' }))),
       },
       out: { terminalId: id.terminal, exitCode: t.nullable(t.int()), output: t.str(), truncated: t.bool(), durationMs: t.int() },
-      on: ['terminal', '/terminalId'], level: 'use', perm: 'terminal.use', emits: ['terminal.opened', 'terminal.command_finished'], tool: 'terminal', mcpName: 'terminal_run',
+      level: 'use', perm: 'terminal.use', emits: ['terminal.opened', 'terminal.command_finished'], tool: 'terminal', mcpName: 'terminal_run',
       gate: { act: 'approve', when: 'terminal.is_danger(input.command)' },
       agent: { planMode: 'blocked', blocks: ['terminal'] }, idem: 'key', audit: 'sensitive', risk: 'high', offline: 'online',
-      errors: ['permission.needs_approval', 'timeout.deadline', 'provider.unavailable'],
+      errors: ['permission.needs_approval', 'timeout.deadline', 'provider.unavailable', 'validation.not_found'],
     }),
     write('terminal.request', 'Ask the person to run a command themselves (sudo, a login, an interactive install): the chat shows the command, why and its risk, and the person runs it in their terminal, copies it or declines; what it printed comes back to you', {
       in: { threadId: id.thread, command: t.str(), why: t.str(), host: t.opt(host) },

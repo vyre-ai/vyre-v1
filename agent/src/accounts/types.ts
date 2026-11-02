@@ -21,6 +21,8 @@ export interface AccountRow {
   lastProbeAt: number | null;
   /** The standing switch "Let the Space run work on my subscription" (subscriptions only). */
   spaceMayUse: boolean;
+  /** The Space AI key: one shared API key an owner or admin set for everyone. Any member's turn falls back to it after their own accounts. */
+  spaceKey?: boolean;
 }
 
 export interface AgentAccountConfig {

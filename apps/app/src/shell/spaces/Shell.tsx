@@ -277,6 +277,8 @@ export function Shell(props: ShellProps): ReactElement {
             active={state.place}
             onSelect={(place) => hub.go(place)}
             {...(props.onPrefetchPlace === undefined ? {} : { onPrefetch: props.onPrefetchPlace })}
+            fresh={state.fresh}
+            onSettle={hub.settle}
             header={spaceTile}
             {...(props.me ? { foot: <MeFace me={props.me} {...(props.onOpenMe ? { onPress: props.onOpenMe } : {})} /> } : {})}
           />}

@@ -4,8 +4,8 @@
 // is read back with capture-pane. Live frames come from a tmux control-mode client (`%output` lines, decoded here).
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { bindHost, bindKit, bindTeam, bindValues, boundHost, redeemTicket, scrubberFor, spellingsFor } from "./projections.ts";
-import type { Db, TermState, TerminalHost } from "./projections.ts";
+import { bindHost, bindKit, bindMachineHost, bindMachinePlace, bindPlace, bindTeam, bindValues, boundHost, redeemTicket, scrubberFor, spellingsFor } from "./projections.ts";
+import type { Db, PlaceOf, Target, TermState, TerminalHost } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 export { fetchesOutside, isDangerCall, outwardOf } from "./handlers/index.ts";
@@ -205,5 +205,193 @@ export function partialSpellingAt(text: string, spellings: readonly string[]): n
   return 0;
 }
 
-export { bindHost, bindKit, bindTeam, bindValues };
+// ---- a computer without tmux -------------------------------------------------------------------------------------------------------------------------------
+
+/** Run one command line in a shell on this machine. `onData` gets what it prints (both streams) as it prints it; aborting `signal` stops it (Ctrl-C). */
+export type ShellRun = (a: { command: string; cwd: string; env: Readonly<Record<string, string>>; onData(text: string): void; signal: AbortSignal }) => Promise<{ exitCode: number | null }>;
+
+export interface ShellOptions {
+  run: ShellRun;
+  /** The folder a session starts in when none is named. */
+  home: string;
+  now?: () => number;
+  /** Output kept from a command, from the end. Default 100,000 characters. */
+  maxOutput?: number;
+  /** Lines a session keeps for its screen. Default 5000. */
+  scrollback?: number;
+}
+
+interface ShellSession { cwd: string; lines: string[]; partial: string; typed: string; running: AbortController | null; exitCode: number | null; listeners: Set<(text: string) => void> }
+
+/**
+ * A session on a computer that has no tmux (a Mac does not ship it): each command runs in its own shell in the session's folder, and the session keeps a screen of what ran and what it printed, so
+ * "Open terminal" shows the agent's commands and a person can type a line and press Enter. It is not a full terminal: a program that needs a keyboard of its own (an editor, a pager) cannot run here.
+ */
+export function createShellHost(o: ShellOptions): TerminalHost {
+  const now = o.now ?? Date.now;
+  const maxOutput = o.maxOutput ?? 100_000;
+  const scrollback = o.scrollback ?? 5000;
+  const sessions = new Map<string, ShellSession>();
+  const must = (id: string): ShellSession => {
+    const s = sessions.get(id);
+    if (!s) throw new Error("there is no such session on this computer");
+    return s;
+  };
+  const screen = (s: ShellSession): string[] => (s.partial === "" ? s.lines : [...s.lines, s.partial]);
+  /** Put text on the session's screen and send it to whoever watches, with the line ends a terminal expects. */
+  const show = (s: ShellSession, text: string): void => {
+    if (text === "") return;
+    const parts = (s.partial + text.replace(/\r\n/g, "\n")).split("\n");
+    s.partial = parts.pop() ?? "";
+    s.lines.push(...parts);
+    if (s.lines.length > scrollback) s.lines.splice(0, s.lines.length - scrollback);
+    const frame = text.replace(/\r?\n/g, "\r\n");
+    for (const f of s.listeners) f(frame);
+  };
+  const tidy = (text: string): string => text.replace(/\s+$/u, "");
+
+  /** `typed`: the person typed the line, so it is on the screen already. */
+  async function exec(s: ShellSession, r: { command: string; cwd?: string; env: Readonly<Record<string, string>>; timeoutMs: number }, typed = false): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number }> {
+    if (s.running) throw new Error("a command is still running in this session");
+    for (const k of Object.keys(r.env)) if (!ENV_NAME.test(k)) throw new Error(`${k} is not a name an environment variable can have`);
+    if (!typed) {
+      if (s.partial !== "") show(s, "\n");
+      show(s, `$ ${r.command}\n`);
+    }
+    const ac = new AbortController();
+    s.running = ac;
+    let out = "";
+    let timedOut = false;
+    const t0 = now();
+    const timer = setTimeout(() => { timedOut = true; ac.abort(); }, r.timeoutMs);
+    let res: { exitCode: number | null };
+    try { res = await o.run({ command: r.command, cwd: r.cwd ?? s.cwd, env: r.env, signal: ac.signal, onData: (t) => { out += t; if (out.length > maxOutput * 2) out = out.slice(out.length - maxOutput); show(s, t); } }); }
+    finally { clearTimeout(timer); s.running = null; }
+    if (s.partial !== "") show(s, "\n");
+    s.exitCode = res.exitCode;
+    if (timedOut) throw Object.assign(new Error("the command did not finish in time"), { code: "timeout" });
+    let output = tidy(out);
+    let truncated = false;
+    if (output.length > maxOutput) { output = output.slice(output.length - maxOutput); truncated = true; }
+    return { exitCode: res.exitCode, output, truncated, durationMs: now() - t0 };
+  }
+
+  return {
+    async open(a) {
+      const cwd = a.cwd ?? o.home;
+      sessions.set(a.terminalId, { cwd, lines: [], partial: "", typed: "", running: null, exitCode: null, listeners: new Set() });
+      return { cwd };
+    },
+    // A person typing: the line is kept until Enter, then run like a command of their own. Backspace takes back a character; Ctrl-C stops what runs.
+    async input(terminalId, data) {
+      const s = must(terminalId);
+      for (const ch of data) {
+        if (ch === "\x03") { s.running?.abort(); s.typed = ""; show(s, "^C\n"); continue; }
+        if (ch === "\r" || ch === "\n") {
+          const line = s.typed;
+          s.typed = "";
+          show(s, "\n");
+          if (line.trim() !== "" && !s.running) void exec(s, { command: line, env: {}, timeoutMs: 3_600_000 }, true).catch((e: unknown) => show(s, `${e instanceof Error ? e.message : "the command failed"}\n`));
+          continue;
+        }
+        if (ch === "\x7f" || ch === "\b") { if (s.typed !== "") { s.typed = s.typed.slice(0, -1); s.partial = s.partial.slice(0, -1); for (const f of s.listeners) f("\b \b"); } continue; }
+        if (s.typed === "" && s.partial === "") show(s, "$ ");
+        s.typed += ch;
+        show(s, ch);
+      }
+    },
+    async interrupt(terminalId) { const s = must(terminalId); s.running?.abort(); show(s, "^C\n"); },
+    async resize(terminalId) { must(terminalId); },
+    async read(terminalId, r) {
+      const all = screen(must(terminalId));
+      const text = r.since === undefined ? all.slice(-r.lines) : all.slice(r.since);
+      return { text: text.join("\n"), next: all.length };
+    },
+    run: async (terminalId, r) => exec(must(terminalId), r),
+    async status(ids) {
+      return ids.map((terminalId) => {
+        const s = sessions.get(terminalId);
+        if (!s) return { terminalId, state: "exited" as const, exitCode: null };
+        const last = screen(s).filter((l) => l.trim() !== "").pop();
+        return { terminalId, state: s.running ? ("running" as const) : ("idle" as const), ...(last === undefined ? {} : { lastLine: last.slice(0, 300) }), exitCode: s.exitCode };
+      });
+    },
+    stream(terminalId, onFrame) {
+      const s = sessions.get(terminalId);
+      if (!s) return () => undefined;
+      s.listeners.add(onFrame);
+      return () => { s.listeners.delete(onFrame); };
+    },
+    async close(terminalId) {
+      const s = sessions.get(terminalId);
+      if (!s) return;
+      s.running?.abort();
+      s.listeners.clear();
+      sessions.delete(terminalId);
+    },
+    async health() { return { ok: true, detail: "Commands run in a shell on this computer. Install tmux for full terminals.", sessions: sessions.size }; },
+  };
+}
+
+// ---- this machine ---------------------------------------------------------------------------------------------------------------------------------------------
+
+/** What the daemon hands over (setTerminalHost): this machine's way of running tmux and a plain shell, which sessions live here, and where a person's turn runs. */
+export interface TerminalHostSeam {
+  exec: Exec;
+  control?: TmuxOptions["control"];
+  shell: ShellRun;
+  /** The folder a session starts in when none is named: the person's home folder on this computer. */
+  home: string;
+  /** A session for this target lives on this machine. Anything else is another machine, which this one cannot reach. */
+  runsHere(target: Target): boolean;
+  place?: PlaceOf;
+}
+
+/** The sessions of this machine: tmux when it is installed, else a plain shell. A target on another machine is refused at open. */
+export function createLocalHost(o: Omit<TerminalHostSeam, "place">): TerminalHost {
+  const tmux = createTmuxHost({ exec: o.exec, ...(o.control ? { control: o.control } : {}) });
+  const plain = createShellHost({ run: o.shell, home: o.home });
+  let tmuxKnown: boolean | null = null;
+  let probe: Promise<boolean> | null = null;
+  const hasTmux = (): Promise<boolean> => (probe ??= o.exec(["tmux", "-V"]).then((r) => r.code === 0, () => false).then((v) => { tmuxKnown = v; return v; }));
+  const owner = new Map<string, TerminalHost>();
+  /** Sessions opened before a restart are tmux ones when tmux is here: they outlive the daemon. */
+  const of = async (id: string): Promise<TerminalHost> => owner.get(id) ?? ((await hasTmux()) ? tmux : plain);
+  return {
+    async open(a) {
+      if (!o.runsHere(a.target)) throw new Error("that computer is not this one, and this one cannot reach it");
+      const h = (await hasTmux()) ? tmux : plain;
+      const r = await h.open(a);
+      owner.set(a.terminalId, h);
+      return r;
+    },
+    input: async (id, data) => (await of(id)).input(id, data),
+    interrupt: async (id) => (await of(id)).interrupt(id),
+    resize: async (id, cols, rows) => (await of(id)).resize(id, cols, rows),
+    read: async (id, r) => (await of(id)).read(id, r),
+    run: async (id, r) => (await of(id)).run(id, r),
+    async status(ids) {
+      const out: Awaited<ReturnType<TerminalHost["status"]>> = [];
+      for (const id of ids) out.push(...(await (await of(id)).status([id])));
+      return out;
+    },
+    stream(id, onFrame) {
+      const h = owner.get(id) ?? (tmuxKnown === true ? tmux : plain);
+      return h.stream ? h.stream(id, onFrame) : () => undefined;
+    },
+    async close(id) { await (await of(id)).close(id); owner.delete(id); },
+    health: async () => ((await hasTmux()) ? tmux.health() : plain.health()),
+  };
+}
+
+/** The daemon's half: this machine's sessions and where turns run. Null on shutdown. */
+export function setTerminalHost(seam: TerminalHostSeam | null): void {
+  bindMachineHost(seam === null ? null : createLocalHost(seam));
+  bindMachinePlace(seam?.place ?? null);
+}
+
+// Only the setter the daemon wires is a host seam.
+export const hostSeams = { setTerminalHost };
+
+export { bindHost, bindKit, bindPlace, bindTeam, bindValues };
 export { commandsOf, judge, redeemTicket, rulesOf } from "./projections.ts";

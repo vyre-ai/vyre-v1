@@ -5,6 +5,7 @@
 // setGoogleHost and setImapSecretResolver from the module files it already imports for the loader, a test passes fakes. A setter that is not given (the Microsoft module is not in the
 // tree yet) leaves that seam "absent"; it is reported in the result, not a boot failure.
 import { createComputersHost } from "./computers-host.ts";
+import type { TerminalHostSeamShape } from "./terminal-host.ts";
 import type { ComputersHostDeps, ComputersHostSeam } from "./computers-host.ts";
 import { createDropboxHost } from "./dropbox.ts";
 import type { DropboxHostSeam } from "./dropbox.ts";
@@ -48,6 +49,8 @@ export interface SeamSetters {
   setEngineHost?: ((h: EngineHostSeam | null) => void) | undefined;
   /** the agent computers' machine: Docker socket, image and the agents' Files folders */
   setComputerHost?: ((h: ComputersHostSeam | null) => void) | undefined;
+  /** this machine's terminals (tmux, or a plain shell where it is missing) and where a person's turn runs */
+  setTerminalHost?: ((h: TerminalHostSeamShape | null) => void) | undefined;
   setGoogleHost?: ((h: GoogleHostSeam | null) => void) | undefined;
   setMsHost?: ((h: MsHostSeam | null) => void) | undefined;
   setImapSecretResolver?: ((fn: ImapSecretResolver | null) => void) | undefined;

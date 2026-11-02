@@ -10,7 +10,7 @@ Run a command in a session and wait for it (the terminal_run tool); secrets only
 | Permission | terminal.use |
 | Grant level | use |
 | Risk | high |
-| Resource | terminal (/terminalId) |
+| Resource | space |
 | Gate | approve when terminal.is_danger(input.command) |
 | Idempotency | key |
 | Offline | online |

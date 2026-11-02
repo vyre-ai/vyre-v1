@@ -1,0 +1,39 @@
+{
+  "targets": [
+    {
+      "id": "INBOXRAIL_01-rail-before",
+      "route": "/m/INBOXRAIL_01?view=before",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='shell-place']",
+      "note": "Nothing connected yet: the rail has no Inbox (Chats, Records, Files, Automations, then the foot island). Connecting lives in Settings > Email and calendar."
+    },
+    {
+      "id": "INBOXRAIL_01-rail-after",
+      "route": "/m/INBOXRAIL_01?view=after",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='rail-tip-inbox']",
+      "note": "The first mailbox connected: Inbox opened into its Kit slot under Chats with the island's height-and-fade, and its one-time tip beside it. No badge, nothing blinks."
+    },
+    {
+      "id": "INBOXRAIL_01-inbox-tab-empty",
+      "route": "/m/INBOXRAIL_01?view=inbox",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid='inbox-connect-channel']",
+      "note": "A saved Inbox tab with nothing connected: the connect tiles in place of an empty Inbox; the rail still has no Inbox."
+    },
+    {
+      "id": "INBOXRAIL_01-settings-empty",
+      "route": "/m/INBOXRAIL_01?view=settings&space=harbor",
+      "proto": "settings,{skin}",
+      "waitFor": "[data-testid='mail-empty']",
+      "note": "Settings > Email and calendar with nothing connected: the Inbox's own connect tiles, under Connected in the page list."
+    },
+    {
+      "id": "INBOXRAIL_01-settings-sources",
+      "route": "/m/INBOXRAIL_01?view=settings",
+      "proto": "settings,{skin}",
+      "waitFor": "[data-testid='mail-sources']",
+      "note": "Settings > Email and calendar with mail, a calendar and a number: each with its state and Remove, the tiles under them to add another."
+    }
+  ]
+}

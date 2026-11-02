@@ -6,7 +6,7 @@ import { ModelPanel } from "../../../../../../ui/src/Composer/ModelPanel.tsx";
 import type { PanelAccount, PanelModel, PanelScope } from "../../../../../../ui/src/Composer/ModelPanel.tsx";
 import type { ChatMode, ComposerAgent, Effort } from "../../../../../../ui/src/Composer/brain.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
-import { prettyModel } from "./brain.tsx";
+import { modelReason, prettyModel } from "./brain.tsx";
 
 export interface NewChoice { mode: ChatMode; model?: string; modelTitle?: string; provider?: string; accountRef?: string; effort?: Effort }
 
@@ -31,8 +31,8 @@ export function NewChatBrain({ data, agent, accounts, choice, onChoice, close, n
     setModels(null);
     void Promise.resolve(data.call("engine.models.list", { ...(shownRef ? { accountRef: shownRef } : {}) })).then((out) => {
       if (!live) return;
-      const list = (out as { models?: { model: string; title: string; contextTokens?: number; allowed: boolean; reason?: string }[] } | undefined)?.models ?? [];
-      setModels(list.map((m) => ({ id: m.model, title: m.title, allowed: m.allowed, ...(m.contextTokens ? { window: m.contextTokens } : {}), ...(m.reason ? { reason: m.reason === "not_connected" ? "Not connected" : "Not allowed here" } : {}), ...(m.model === "auto" ? { note: "Picks per message" } : {}) })));
+      const list = (out as { models?: { model: string; title: string; contextTokens?: number; allowed: boolean; reason?: string; resetsAt?: number }[] } | undefined)?.models ?? [];
+      setModels(list.map((m) => { const why = modelReason(m); return { id: m.model, title: m.title, allowed: m.allowed, ...(m.contextTokens ? { window: m.contextTokens } : {}), ...(why ? { reason: why } : {}), ...(m.model === "auto" ? { note: "Picks per message" } : {}) }; }));
     }, () => { if (live) setModels([]); });
     return () => { live = false; };
   }, [data, shownRef]);

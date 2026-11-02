@@ -5,11 +5,12 @@ import { windowFor } from "../../../../agent/src/transcript/windows.ts";
 import { raise } from "../../projections.ts";
 import type { EngineCtx } from "../../projections.ts";
 import { blockedBy, readPolicy } from "./config.ts";
+import { modelLimits } from "../usage.ts";
 import type { Label, Policy } from "./config.ts";
 
 interface ProviderRow {
   id: string; providerKey: string; name: string; connection: "subscription" | "api_key" | "local_model"; scope: "mine" | "shared"; handle?: string; itemId: string;
-  engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing";
+  engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing"; spaceKey?: boolean;
 }
 
 export const DRIVERS = ["anthropic", "openai", "openrouter", "google", "xai", "opencode_go", "local", "custom", "claude_code", "codex", "grok"] as const;
@@ -53,7 +54,7 @@ function prettyModel(model: string): string {
 }
 
 interface ModelInfo {
-  provider: string; model: string; title: string; driver: Driver; contextTokens?: number; allowed: boolean; reason?: "label_provider" | "policy_model" | "not_connected";
+  provider: string; model: string; title: string; driver: Driver; contextTokens?: number; allowed: boolean; reason?: "label_provider" | "policy_model" | "not_connected" | "usage_limit"; resetsAt?: number;
 }
 
 export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; threadId?: string; recordLabel?: Label }): Promise<{ models: ModelInfo[] }> {
@@ -65,6 +66,8 @@ export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; t
     // A provider that is not signed in cannot list its models; it is shown as one greyed row so the person sees what to reconnect.
     if (p.state !== "ok") return { p, models: [] as string[] };
     try {
+      // the Space AI key: no member may test it, so its models are the list the Vault keeps (asked again from the provider when it is old)
+      if (p.spaceKey === true) return { p, models: ((await ctx.call("providers.space_key.get", {})) as { models?: string[] }).models ?? [] };
       const r = (await ctx.call("providers.test", { providerId: p.id })) as { ok: boolean; models: string[] };
       return { p, models: r.ok ? r.models : [] };
     } catch (e) {
@@ -74,9 +77,15 @@ export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; t
   }));
   const byKey = new Map<string, ModelInfo>();
   for (const { p, models } of found) {
+    // a model this account ran out of is listed greyed, with when it comes back when the provider said (engine.usage.get shows its meter full)
+    const out = modelLimits(ctx.db, p.handle ?? p.itemId, ctx.now());
     for (const model of models) {
       const why = blockedBy(policy, { provider: p.providerKey, model, ...(label === undefined ? {} : { label }) });
-      const row: ModelInfo = { provider: p.providerKey, model, title: prettyModel(model), driver: driverOf(p), contextTokens: windowFor(model, p.providerKey), allowed: why === null, ...(why === null ? {} : { reason: why }) };
+      const spent = why === null ? out.get(model) : undefined;
+      const row: ModelInfo = {
+        provider: p.providerKey, model, title: prettyModel(model), driver: driverOf(p), contextTokens: windowFor(model, p.providerKey), allowed: why === null && spent === undefined,
+        ...(why !== null ? { reason: why } : spent ? { reason: "usage_limit" as const, ...(spent.resetsAt !== undefined ? { resetsAt: spent.resetsAt } : {}) } : {}),
+      };
       const key = `${row.provider}/${row.model}`;
       const had = byKey.get(key);
       if (!had || (!had.allowed && row.allowed)) byKey.set(key, row);

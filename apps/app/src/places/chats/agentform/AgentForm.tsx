@@ -65,7 +65,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
   useEffect(() => {
     let live = true;
     void Promise.resolve(call("vault.items.list", {})).then((o) => { if (live) setItems((o as CapMap["vault.items.list"]["out"]).items); }, () => undefined);
-    void Promise.resolve(call("engine.models.list", {})).then((o) => { if (live) setModels(((o as { models?: { model: string; title: string; allowed: boolean }[] }).models ?? []).filter((m) => m.allowed)); }, () => undefined);
+    void Promise.resolve(call("engine.models.list", {})).then((o) => { if (live) setModels(((o as { models?: { model: string; title: string; allowed: boolean; reason?: string }[] }).models ?? []).filter((m) => m.allowed || m.reason === "usage_limit")); }, () => undefined);
     if (agentId === null) return () => { live = false; };
     void Promise.resolve(call("agents.get", { agentId })).then(async (o) => {
       const a = (o as CapMap["agents.get"]["out"]).agent;

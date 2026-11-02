@@ -89,6 +89,7 @@ import { withGateNesting } from "./gate-nesting.ts";
 import { createComputersFillHost, createFillRoute } from "../seams/computers.ts";
 import { homeCallAllowed, homeScopeOf } from "./home-confine.ts";
 import { createComputersHost } from "../seams/computers-host.ts";
+import { createTerminalHostSeam } from "../seams/terminal-host.ts";
 import { READER_LOSS, createEngineHost } from "../seams/engine.ts";
 import { createEmailAskDriver, createFormAskDriver } from "../seams/email-ask.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
@@ -1303,6 +1304,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           putBytes: (url, bytes) => putToSlot(url, bytes),
           log: (level, msg, attrs) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "computers", ...(attrs ? { attrs } : {}) }),
           ...(o.computersHomeIntervalMs !== undefined ? { homeIntervalMs: o.computersHomeIntervalMs } : {}),
+        }),
+        // terminals on this machine: the person's own computer when this daemon is it (the desktop app's daemon), and where a person's turn runs, read as that person
+        setTerminalHost: () => createTerminalHostSeam({
+          roles: cfg.roles, team: cfg.spaceKind !== "personal",
+          readAs: async (person, cap, input) => { const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "terminal" }); return r.status === "ok" ? r.output : null; },
+          computerOf: (person) => (db!.all("SELECT id FROM devices_device WHERE person = ? AND revokedAt IS NULL AND deleted_at IS NULL AND class IN ('desktop', 'daemon', 'web') ORDER BY CASE WHEN class = 'web' THEN 1 ELSE 0 END, lastSeenAt DESC, id DESC LIMIT 1", person)[0] as { id?: string } | undefined)?.id,
         }),
         // the Vault channel of agent computers (P-L2_21): agentd posts one #Handle.field at a time to /computers/fill with its own token; without a Vault the channel is not offered
         setComputersFill: (d) => d.vault ? createComputersFillHost({

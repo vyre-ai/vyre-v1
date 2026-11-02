@@ -134,7 +134,8 @@ export type DriverEvent =
   /** A subscription limit window as the engine reported it (percent used 0 to 100, reset time in epoch ms). Kept per account; shown only when reported. */
   | { type: "limits"; window: "session" | "week"; pct: number; resetsAt?: number }
   | { type: "done"; mentions?: readonly RouteMention[] }
-  | { type: "error"; code: string; message: string };
+  /** resetsAt: a limit refusal that said when the account or model is usable again (epoch ms). */
+  | { type: "error"; code: string; message: string; resetsAt?: number };
 
 export interface ToolResult { ok: boolean; content: unknown }
 
@@ -193,6 +194,8 @@ export interface ResolvedAccount { ref: string; driver: string; provider: string
   fellBack?: boolean;
   /** A key of the Space, not the person's own: `payer` is only whose turn it was. */
   shared?: boolean;
+  /** The Space AI key everyone falls back to: the turn runs on one of the models it unlocks. */
+  spaceKey?: boolean;
   /** An OpenAI-compatible endpoint names its own address (custom, local); `keyless` is a local server with no key. */
   base?: string; keyless?: boolean }
 export interface AccountQuery { threadId: string; agentId: string; askerId: string; stepKey?: string; /** Accounts that already failed this turn: the answer skips them and follows the agent's order. */ unavailable?: readonly string[] }

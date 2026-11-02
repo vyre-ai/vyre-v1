@@ -9362,6 +9362,7 @@ export type EngineAccountsListOut = {
       lastProbeAt?: number;
       base?: string;
       keyless?: boolean;
+      spaceKey?: boolean;
     }>;
 };
 export type EngineCompleteIn = {
@@ -9857,7 +9858,8 @@ export type EngineModelsListOut = {
       driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "custom" | "claude_code" | "codex" | "grok";
       contextTokens?: number;
       allowed: boolean;
-      reason?: "label_provider" | "policy_model" | "not_connected";
+      reason?: "label_provider" | "policy_model" | "not_connected" | "usage_limit";
+      resetsAt?: number;
     }>;
 };
 export type EnginePlacementDecideIn = {
@@ -22807,6 +22809,7 @@ export type ProvidersAddOut = {
     state: "ok" | "needs_sign_in" | "failing";
     address?: string;
     keyless?: boolean;
+    spaceKey?: boolean;
   };
 };
 export type ProvidersCatalogIn = Record<string, unknown>;
@@ -22862,6 +22865,7 @@ export type ProvidersCustomAddOut = {
     state: "ok" | "needs_sign_in" | "failing";
     address?: string;
     keyless?: boolean;
+    spaceKey?: boolean;
   };
 };
 export type ProvidersCustomListIn = Record<string, unknown>;
@@ -22905,6 +22909,7 @@ export type ProvidersListOut = {
       state: "ok" | "needs_sign_in" | "failing";
       address?: string;
       keyless?: boolean;
+      spaceKey?: boolean;
     }>;
 };
 export type ProvidersRemoveIn = {
@@ -22940,7 +22945,60 @@ export type ProvidersSetSpaceUseOut = {
     state: "ok" | "needs_sign_in" | "failing";
     address?: string;
     keyless?: boolean;
+    spaceKey?: boolean;
   };
+};
+export type ProvidersSpaceKeyGetIn = {
+  refresh?: boolean;
+};
+export type ProvidersSpaceKeyGetOut = {
+  set: boolean;
+  providerKey?: string;
+  name?: string;
+  providerId?: string;
+  models: Array<string>;
+  state?: "ok" | "failing";
+  setBy?: string;
+  setAt?: number;
+  checkedAt?: number;
+  mayManage: boolean;
+};
+export type ProvidersSpaceKeyRemoveIn = Record<string, unknown>;
+export type ProvidersSpaceKeyRemoveOut = {
+  set: boolean;
+  providerKey?: string;
+  name?: string;
+  providerId?: string;
+  models: Array<string>;
+  state?: "ok" | "failing";
+  setBy?: string;
+  setAt?: number;
+  checkedAt?: number;
+  mayManage: boolean;
+};
+export type ProvidersSpaceKeySetIn = {
+  providerKey: string;
+  apiKey: string;
+  idempotencyKey: string;
+};
+export type ProvidersSpaceKeySetOut = {
+  set: boolean;
+  providerKey?: string;
+  name?: string;
+  providerId?: string;
+  models: Array<string>;
+  state?: "ok" | "failing";
+  setBy?: string;
+  setAt?: number;
+  checkedAt?: number;
+  mayManage: boolean;
+};
+export type ProvidersSpaceKeyUseIn = {
+  handle: string;
+};
+export type ProvidersSpaceKeyUseOut = {
+  handle: string;
+  itemId: string;
 };
 export type ProvidersSubscriptionCompleteIn = {
   flowId: string;
@@ -22969,6 +23027,7 @@ export type ProvidersSubscriptionCompleteOut = {
     state: "ok" | "needs_sign_in" | "failing";
     address?: string;
     keyless?: boolean;
+    spaceKey?: boolean;
   };
   waiting?: boolean;
 };
@@ -35149,6 +35208,10 @@ export interface CapMap {
   "providers.list": { in: ProvidersListIn; out: ProvidersListOut };
   "providers.remove": { in: ProvidersRemoveIn; out: ProvidersRemoveOut };
   "providers.set_space_use": { in: ProvidersSetSpaceUseIn; out: ProvidersSetSpaceUseOut };
+  "providers.space_key.get": { in: ProvidersSpaceKeyGetIn; out: ProvidersSpaceKeyGetOut };
+  "providers.space_key.remove": { in: ProvidersSpaceKeyRemoveIn; out: ProvidersSpaceKeyRemoveOut };
+  "providers.space_key.set": { in: ProvidersSpaceKeySetIn; out: ProvidersSpaceKeySetOut };
+  "providers.space_key.use": { in: ProvidersSpaceKeyUseIn; out: ProvidersSpaceKeyUseOut };
   "providers.subscription_complete": { in: ProvidersSubscriptionCompleteIn; out: ProvidersSubscriptionCompleteOut };
   "providers.subscription_start": { in: ProvidersSubscriptionStartIn; out: ProvidersSubscriptionStartOut };
   "providers.test": { in: ProvidersTestIn; out: ProvidersTestOut };
