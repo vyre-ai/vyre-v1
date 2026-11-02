@@ -2,6 +2,7 @@
 // a Team Space adds its server and agent computers; nothing that does not exist is listed, and nothing says "needs a Team Space". An offline computer is listed but cannot be chosen.
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { TerminalHostChoice } from "../../../../../../ui/src/Terminal/index.tsx";
+import { desktopBridge } from "../../../shell/session/desktop.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
 type Device = CapMap["devices.mine"]["out"]["devices"][number];
@@ -17,9 +18,14 @@ export interface HostChoice extends TerminalHostChoice {
 /** A computer that was seen in the last five minutes is on; this one always is. */
 export const ONLINE_MS = 5 * 60_000;
 
-export function deviceHosts(devices: readonly Device[], now: number): HostChoice[] {
-  const mine = devices.filter((d) => d.revokedAt === undefined && (d.class === "desktop" || d.class === "daemon"));
-  const here = mine.find((d) => d.current === true);
+/**
+ * `desktop`: this app is the desktop app, so the device it signed in as is this computer whatever class it was registered with (sign-in in the desktop app once registered as "Web browser").
+ * `live`: the devices that still have a session; a computer whose every session ended (signed out, or replaced by a later sign-in) is gone, not offline, and is not listed.
+ */
+export function deviceHosts(devices: readonly Device[], now: number, o: { desktop?: boolean; live?: ReadonlySet<string> } = {}): HostChoice[] {
+  const computer = (d: Device): boolean => d.class === "desktop" || d.class === "daemon";
+  const here = devices.find((d) => d.revokedAt === undefined && d.current === true && (computer(d) || o.desktop === true));
+  const mine = devices.filter((d) => d.revokedAt === undefined && computer(d) && (d === here || o.live === undefined || o.live.has(d.id)));
   const out: HostChoice[] = [];
   if (here) out.push({ key: `device:${here.id}`, label: "This computer", kind: "device", online: true, deviceId: here.id });
   for (const d of mine) {
@@ -38,9 +44,10 @@ export function agentHosts(computers: readonly Computer[], nameOf: (agentId: str
 }
 
 /** The hosts of this Space. The server and the agent computers are read only in a Team Space; a read that fails leaves its part out. */
-export async function loadHosts(call: Call, o: { team: boolean; now: number; nameOf(agentId: string): string }): Promise<HostChoice[]> {
-  const devices = await (call("devices.mine", {}) as Promise<CapMap["devices.mine"]["out"]>).then((r) => r.devices ?? [], () => [] as Device[]);
-  const out = deviceHosts(devices, o.now);
+export async function loadHosts(call: Call, o: { team: boolean; now: number; nameOf(agentId: string): string; desktop?: boolean }): Promise<HostChoice[]> {
+  const read = await (call("devices.mine", {}) as Promise<CapMap["devices.mine"]["out"]>).then((r) => r, () => ({ devices: [] as Device[], sessions: undefined }));
+  const live = read.sessions ? new Set(read.sessions.flatMap((s) => (s.deviceId ? [s.deviceId] : []))) : undefined;
+  const out = deviceHosts(read.devices ?? [], o.now, { desktop: o.desktop ?? desktopBridge() !== null, ...(live ? { live } : {}) });
   if (o.team) {
     out.push({ key: "server", label: "Space server", kind: "server", online: true });
     const computers = await (call("computers.list", {}) as Promise<CapMap["computers.list"]["out"]>).then((r) => r.computers, () => [] as Computer[]);
@@ -53,7 +60,8 @@ export async function loadHosts(call: Call, o: { team: boolean; now: number; nam
 export async function thisDeviceId(call: Call): Promise<string | undefined> {
   const devices = await (call("devices.mine", {}) as Promise<CapMap["devices.mine"]["out"]>).then((r) => r.devices ?? [], () => [] as Device[]);
   const mine = devices.filter((d) => d.revokedAt === undefined && (d.class === "desktop" || d.class === "daemon"));
-  return (mine.find((d) => d.current === true) ?? (mine.length === 1 ? mine[0] : undefined))?.id;
+  const here = devices.find((d) => d.revokedAt === undefined && d.current === true && (mine.includes(d) || desktopBridge() !== null));
+  return (here ?? (mine.length === 1 ? mine[0] : undefined))?.id;
 }
 
 /** The call that opens a session on one host. */

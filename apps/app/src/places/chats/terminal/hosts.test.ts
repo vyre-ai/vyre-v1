@@ -11,6 +11,13 @@ test("this computer is named so and is on; other computers are on when seen in t
   assert.deepEqual(hosts.map((h) => [h.label, h.online, h.why]), [["This computer", true, undefined], ["home-box", true, undefined], ["old", false, "Offline"]]);
 });
 
+test("in the desktop app the device it signed in as is this computer even when it was registered as a browser; a computer with no live session is gone, not offline", () => {
+  const devices = [dev({ id: "dev_w", name: "Web browser", class: "web", current: true }), dev({ id: "dev_old", name: "Vyre desktop", lastSeenAt: NOW - 3_600_000 }), dev({ id: "dev_b", name: "home-box", class: "daemon", lastSeenAt: NOW - 60_000 })];
+  const live = new Set(["dev_w", "dev_b"]);
+  assert.deepEqual(deviceHosts(devices, NOW, { desktop: true, live }).map((h) => [h.key, h.label, h.online]), [["device:dev_w", "This computer", true], ["device:dev_b", "home-box", true]]);
+  assert.deepEqual(deviceHosts(devices, NOW, { desktop: false, live }).map((h) => h.key), ["device:dev_b"], "a browser is never a terminal host");
+});
+
 test("agent computers are listed by their agent; one that is starting or failing is not choosable", () => {
   const hosts = agentHosts([{ computerId: "cmp_1", agentId: "agt_a", state: "working" }, { computerId: "cmp_2", agentId: "agt_b", state: "error" }, { computerId: "cmp_3", agentId: "agt_c", state: "asleep" }] as never, (id) => ({ agt_a: "Intake", agt_b: "Docs", agt_c: "Scout" })[id] ?? id);
   assert.deepEqual(hosts.map((h) => [h.label, h.online, h.why]), [["Intake's computer", true, undefined], ["Docs's computer", false, "Not working"], ["Scout's computer", true, undefined]]);

@@ -112,7 +112,7 @@ function SignInScreen({ baseUrl, open, onSignedIn, notice, onBack, unlock }: { b
       baseUrl,
       discover: async () => options ?? (await anonymous("identity.sign_in_options", {}) as SignInOptions),
       signIn: async () => {
-        const out = (await anonymous("identity.github_sign_in", { code: back.code, deviceName: "Web browser", deviceClass: desktopBridge() ? "desktop" : "web" })) as { status: "ok" | "second_factor_required"; session?: { token: string } };
+        const out = (await anonymous("identity.github_sign_in", { code: back.code, ...signInDevice() })) as { status: "ok" | "second_factor_required"; session?: { token: string } };
         token = out.session?.token ?? null;
         return out;
       },
@@ -138,7 +138,7 @@ function SignInScreen({ baseUrl, open, onSignedIn, notice, onBack, unlock }: { b
       baseUrl,
       discover: async () => options ?? (await anonymous("identity.sign_in_options", {}) as SignInOptions),
       signIn: async () => {
-        const out = (await anonymous("identity.sso_sign_in", { provider: back.provider, code: back.code, state: "-", deviceName: "Web browser", deviceClass: desktopBridge() ? "desktop" : "web" })) as { status: "ok" | "second_factor_required"; session?: { token: string } };
+        const out = (await anonymous("identity.sso_sign_in", { provider: back.provider, code: back.code, state: "-", ...signInDevice() })) as { status: "ok" | "second_factor_required"; session?: { token: string } };
         token = out.session?.token ?? null;
         return out;
       },
@@ -170,7 +170,7 @@ function SignInScreen({ baseUrl, open, onSignedIn, notice, onBack, unlock }: { b
       discover: async () => options ?? (await anonymous("identity.sign_in_options", {}) as SignInOptions),
       signIn: async () => {
         const out = (await anonymous("identity.sign_in", {
-          username: v.username, password: v.password, deviceName: "Web browser", deviceClass: "web", ...(v.code ? { totp: v.code } : {}),
+          username: v.username, password: v.password, ...signInDevice(), ...(v.code ? { totp: v.code } : {}),
         })) as { status: "ok" | "second_factor_required"; session?: { token: string }; keys?: typeof keys };
         token = out.session?.token ?? null;
         keys = out.keys;
@@ -295,6 +295,9 @@ function StartFailed({ onRetry, onSignIn }: { onRetry: () => void; onSignIn: () 
 export function withinStart<T>(work:Promise<T>,limit=60_000):Promise<T>{return new Promise((done,fail)=>{const t=setTimeout(()=>fail(new Error('Personal Space did not start')),limit);work.then(v=>{clearTimeout(t);done(v);},e=>{clearTimeout(t);fail(e);});});}
 
 async function resumePersonal(local:{address:string;spaceId:string},old:StoredSession,open:NonNullable<SessionGateProps['open']>):Promise<StoredSession>{const stored=await openVerifiedSession({baseUrl:local.address,token:old.token,...(old.username?{username:old.username}:{}),continuity:{id:local.spaceId,marker:old.marker},open:()=>open({baseUrl:local.address,token:old.token}),getSpace:()=>authenticatedSpace(local.address,old.token)});if(old.baseUrl!==local.address)clearStored(undefined,old.baseUrl);return stored;}
+
+/** The device a sign-in registers: the desktop app is "Vyre desktop", a computer that can run terminals and chats; a browser is "Web browser". */
+const signInDevice = (): { deviceName: string; deviceClass: "desktop" | "web" } => (desktopBridge() ? { deviceName: "Vyre desktop", deviceClass: "desktop" } : { deviceName: "Web browser", deviceClass: "web" });
 
 export function SessionGate(props: SessionGateProps): ReactElement {
   // What the first-launch screen reads about this window (the desktop app, the Mac, the width) is known only in the browser: the static page is drawn without it, so the first client
