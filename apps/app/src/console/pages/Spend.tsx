@@ -17,6 +17,29 @@ export function mergeSpendAgents(first: readonly SpendAgent[], second: readonly 
   return [...rows.values()];
 }
 type Limit = "run" | "day" | "month" | "turns" | "time";
+type ProviderRow = CapMap["providers.list"]["out"]["providers"][number];
+type UsageOut = CapMap["engine.usage.query"]["out"];
+
+/** "12 turns · 48k tokens": a key on a plan has no price per turn, so it reads as use. */
+export function useLine(t: UsageOut["totals"]): string {
+  const tokens = t.tokensIn + t.tokensOut;
+  return `${t.turns} turn${t.turns === 1 ? "" : "s"} · ${tokens >= 1000 ? `${Math.round(tokens / 1000)}k` : tokens} tokens`;
+}
+
+/** The Space AI key this month, by person: every member's turns on it are theirs. */
+function SpaceKeyUsage({ now }: { now: number }): ReactElement | null {
+  const providers = useRead<CapMap["providers.list"]["out"]>("providers.list", {}, { direct: true });
+  const key: ProviderRow | undefined = providers.data?.providers.find((p) => p.spaceKey === true);
+  const from = Date.UTC(new Date(now).getUTCFullYear(), new Date(now).getUTCMonth(), 1);
+  const usage = useRead<UsageOut>("engine.usage.query", { by: "person", from, ...(key ? { itemId: key.itemId } : {}) }, { direct: true, enabled: key !== undefined });
+  if (!key) return null;
+  return <Section title="Space AI key this month"><Group testID="space-key-usage">
+    {!usage.data ? <ReadState error={usage.error} retry={usage.refresh} /> : usage.data.rows.length === 0 ? <Row title={key.name} note="Nobody has used it yet" /> : <>
+      <Row title={key.name} note={useLine(usage.data.totals)} />
+      {usage.data.rows.map((row) => <Row key={row.key} title={row.title} note={useLine(row.totals)} />)}
+    </>}
+  </Group></Section>;
+}
 type UsageBy = "day" | "person" | "agent" | "model";
 
 export function Spend(): ReactElement {
@@ -32,7 +55,7 @@ export function Spend(): ReactElement {
   const agentNext = agentPage.loaded ? agentPage.next : agents.data.next;
   const changeScope = (next: Scope): void => { setScope(next); setScopeId(next === "person" ? data.me.id : next === "agent" ? agents.data!.agents[0]?.agentId ?? "" : ""); };
   const peopleOptions = [...people.data.principals.map((person) => ({ key: person.id, title: person.name })), ...(people.data.principals.some((person) => person.id === data.me.id) ? [] : [{ key: data.me.id, title: data.me.name }])];
-  return <View testID="console-ai-spend"><Section title="Scope"><Group><Choice label="Limits for" value={scope} options={[{ key: "space", title: "This Space" }, { key: "person", title: "A person" }, { key: "agent", title: "An agent" }]} onChange={(value) => changeScope(value as Scope)} />{scope === "person" ? <Choice label="Person" value={scopeId} options={peopleOptions} onChange={setScopeId} /> : scope === "agent" ? <><Choice label="Agent" value={scopeId} options={agentRows.map((agent) => ({ key: agent.agentId, title: agent.name }))} onChange={setScopeId} />{agentNext ? <Button label={agentPage.busy ? "Loading agents…" : "Load more agents"} disabled={agentPage.busy} onPress={() => { if (agentPage.busy) return; setAgentPage((current) => ({ ...current, busy: true })); void data.call("agents.list", { section: "space", cursor: agentNext, limit: 100 }).then((out) => { const page = out as CapMap["agents.list"]["out"]; setMoreAgents((current) => mergeSpendAgents(current, page.agents)); setAgentPage({ loaded: true, ...(page.next ? { next: page.next } : {}), busy: false }); }, () => setAgentPage((current) => ({ ...current, busy: false }))); }} /> : null}</> : null}</Group></Section>{scope === "space" || scopeId ? <SpendScope key={`${scope}:${scopeId}`} scope={scope} {...(scope === "space" ? {} : { scopeId })} /> : <Note>Choose the {scope} whose limits you want to review.</Note>}</View>;
+  return <View testID="console-ai-spend"><Section title="Scope"><Group><Choice label="Limits for" value={scope} options={[{ key: "space", title: "This Space" }, { key: "person", title: "A person" }, { key: "agent", title: "An agent" }]} onChange={(value) => changeScope(value as Scope)} />{scope === "person" ? <Choice label="Person" value={scopeId} options={peopleOptions} onChange={setScopeId} /> : scope === "agent" ? <><Choice label="Agent" value={scopeId} options={agentRows.map((agent) => ({ key: agent.agentId, title: agent.name }))} onChange={setScopeId} />{agentNext ? <Button label={agentPage.busy ? "Loading agents…" : "Load more agents"} disabled={agentPage.busy} onPress={() => { if (agentPage.busy) return; setAgentPage((current) => ({ ...current, busy: true })); void data.call("agents.list", { section: "space", cursor: agentNext, limit: 100 }).then((out) => { const page = out as CapMap["agents.list"]["out"]; setMoreAgents((current) => mergeSpendAgents(current, page.agents)); setAgentPage({ loaded: true, ...(page.next ? { next: page.next } : {}), busy: false }); }, () => setAgentPage((current) => ({ ...current, busy: false }))); }} /> : null}</> : null}</Group></Section>{scope === "space" || scopeId ? <SpendScope key={`${scope}:${scopeId}`} scope={scope} {...(scope === "space" ? {} : { scopeId })} /> : <Note>Choose the {scope} whose limits you want to review.</Note>}{scope === "space" ? <SpaceKeyUsage now={data.clock().now} /> : null}</View>;
 }
 
 function SpendScope({ scope, scopeId }: { scope: Scope; scopeId?: string }): ReactElement {

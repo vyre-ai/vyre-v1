@@ -132,7 +132,8 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
         const text = scrub((await res.text().catch(() => "")).slice(0, 2_000), secrets);
         if (await retryOrFail(res.status, text, res)) continue;
         const c = classify(res.status, text);
-        yield { type: "error", status: res.status, code: c.code, message: `The provider answered ${res.status}: ${text.slice(0, 200)}` };
+        const after = c.code === "provider.rate_limited" ? retryAfterMs(res.headers.get("retry-after"), deps.clock.now()) : undefined;
+        yield { type: "error", status: res.status, code: c.code, message: `The provider answered ${res.status}: ${text.slice(0, 200)}`, ...(after !== undefined ? { retryAfterMs: after } : {}) };
         return;
       }
       if (!res.body) { signal.removeEventListener("abort", relay); yield { type: "error", status: 200, code: "provider.bad_response", message: "The provider sent no stream." }; return; }
@@ -212,7 +213,7 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
           else if (d.type === "tool_call") { pending.push(d.call); yield { type: "tool_call", id: d.call.id, name: d.call.name, input: d.call.input }; }
           else if (d.type === "usage") Object.assign(u, d.usage);
           else if (d.type === "stop") stop = d.reason;
-          else { yield { type: "error", code: d.code ?? "provider.error", message: d.message }; return; }
+          else { yield { type: "error", code: d.code ?? "provider.error", message: d.message, ...(d.retryAfterMs !== undefined ? { resetsAt: deps.clock.now() + d.retryAfterMs } : {}) }; return; }
         }
         if (ac.signal.aborted) return;
         const inTokens = deps.adapter.inputIncludesCache ? u.inputTokens : u.inputTokens + u.cacheReadTokens + u.cacheWriteTokens;

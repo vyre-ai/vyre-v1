@@ -1875,6 +1875,12 @@ export function createClient(transport: Transport) {
       list: call("providers.list", 1),
       remove: call("providers.remove", 1),
       set_space_use: call("providers.set_space_use", 1),
+      space_key: {
+        get: call("providers.space_key.get", 1),
+        remove: call("providers.space_key.remove", 1),
+        set: call("providers.space_key.set", 1),
+        use: call("providers.space_key.use", 1),
+      },
       subscription_complete: call("providers.subscription_complete", 1),
       subscription_start: call("providers.subscription_start", 1),
       test: call("providers.test", 1),

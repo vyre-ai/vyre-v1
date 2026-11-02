@@ -138,7 +138,7 @@ function itemBy(ctx: VaultCtx, ref: string, forTurn = false): Row {
 const keysOf = (r: Row): string[] => parseJson<string[]>(r["fieldKeys"], []);
 const viaOf = (r: Row): "device" | "host" => (str(r, "scope") === "mine" ? "device" : "host");
 
-function touch(ctx: VaultCtx, r: Row, o: { field?: string; purpose?: string }): void {
+export function touch(ctx: VaultCtx, r: Row, o: { field?: string; purpose?: string }): void {
   const id = str(r, "id");
   record(ctx, id, "used", { ...(o.field ? { field: o.field } : {}), ...(o.purpose ? { detail: o.purpose.slice(0, 200) } : {}) });
   patchMeta(ctx, id, { lastUsedAt: ctx.now() });

@@ -17,7 +17,7 @@ import { TeamBridgeCard } from "./TeamBridgeCard.tsx";
 import { OPEN_TARGETS, OpenCard } from "./OpenCard.tsx";
 import { PairPhoneCard } from "./PairPhoneCard.tsx";
 import { KitPickCard } from "./KitPickCard.tsx";
-import { SpaceAiCard } from "./SpaceAiCard.tsx";
+import { SPACE_KEY_HASH, SpaceAiCard } from "./SpaceAiCard.tsx";
 import { AssistantThread } from "./AssistantThread.tsx";
 import { PreviewPane } from "./PreviewPane.tsx";
 import type { ShellRuntime } from "../shell/providers/runtime.tsx";
@@ -112,7 +112,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
     if (card === "first_win" && call) return <FirstWinCard call={call} hasAi={hasAi || aiProvider !== null || progress["ai"] === "done"} gate={ctx.gate} onConnectAi={() => setStep("ai")} />;
     const target = OPEN_TARGETS[card];
     if (target && onGo) return <OpenCard step={{ flow: ctx.flow, key: ctx.step.key }} text={target.text} action={target.action} onOpen={() => { setShown(false); setStep(null); onGo(target.place); }} onDone={() => ctx.done()} />;
-    if (card === "space_ai" && call) return <SpaceAiCard team={call} personal={personalCall} onConnected={() => ctx.done()} />;
+    if (card === "space_ai" && call) return <SpaceAiCard team={call} personal={personalCall} onConnected={() => ctx.done()} {...(onGo ? { onOpenConsole: () => { setShown(false); setStep(null); onGo("console", SPACE_KEY_HASH); } } : {})} />;
     if (call && onGo) {
       const toConsole = (): void => { setShown(false); setStep(null); onGo("console"); };
       if (card === "google_microsoft") return <WorkspaceCard call={call} onOpenConsole={toConsole} onDone={() => ctx.done()} />;

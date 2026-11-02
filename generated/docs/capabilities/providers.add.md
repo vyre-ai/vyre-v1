@@ -62,6 +62,7 @@ type Out = {
     state: "ok" | "needs_sign_in" | "failing";
     address?: string;
     keyless?: boolean;
+    spaceKey?: boolean;
   };
 };
 ```
@@ -107,6 +108,7 @@ type Out = {
       "name": "example",
       "providerKey": "anthropic",
       "scope": "mine",
+      "spaceKey": true,
       "spaceMayUse": true,
       "state": "ok",
       "usage": {

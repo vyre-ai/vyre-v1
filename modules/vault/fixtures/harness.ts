@@ -4,6 +4,7 @@ import { registry } from "../../../generated/registry.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 import { Filler, setFiller, setKeyPort } from "../handlers/crypto.ts";
+import { foldersCreate, itemPut } from "../handlers/items.ts";
 import { LADDER } from "../projections.ts";
 import type { Level, VaultCtx } from "../projections.ts";
 import { memoryDb } from "./memory-db.ts";
@@ -37,6 +38,7 @@ export function harness() {
     return { rows, totals };
   };
   const locked = new Set<string>();                 // people whose person key the session did not unlock
+  const labels = new Map<string, string>();         // `${type}/${id}` -> the label access.labels.set was asked for
   const filler = new Filler(FILLER_KEY);
   setFiller(filler);
 
@@ -66,6 +68,10 @@ export function harness() {
       if (cap === "access.share") return { grant: { id: "gnt_vault0001", subject: body["subject"], resource: body["resource"], level: body["level"], conditions: {}, by: ctx.principal.id, createdAt: clock } };
       if (cap === "access.unshare") return { revoked: 1 };
       if (cap === "engine.usage.query") return usage(body);
+      if (cap === "access.labels.set") { const r = body["resource"] as { type: string; id: string }; labels.set(`${r.type}/${r.id}`, String(body["label"])); return { ok: true }; }
+      // the vault's own capabilities a handler calls through the host (so the new folder and item are resources before they are labelled) run the vault's handlers as the same caller
+      if (cap === "vault.folders.create") return foldersCreate(ctx, body as never);
+      if (cap === "vault.item.put") return itemPut(ctx, body as never);
       throw new Error(`unscripted capability ${cap}`);
     },
     authorize(action, resource) {
@@ -85,7 +91,7 @@ export function harness() {
   setKeyPort({ async personKey(personId) { return personId === ctx.principal.id && !locked.has(personId) ? keyOfPerson(personId) : null; } });
 
   return {
-    ctx, emitted, called, logs, filler,
+    ctx, emitted, called, logs, filler, labels,
     grant(principal: string, resourceId: string, level: Level) { levels.set(`${principal}|${resourceId}`, level); },
     allow(principal: string, perm: string) { perms.add(`${principal}|${perm}`); },
     lock(personId: string) { locked.add(personId); },

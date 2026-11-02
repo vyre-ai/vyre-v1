@@ -21,7 +21,8 @@ export function createFillAuthorizer(d: FillAuthorizerDeps): Authorizer {
     const got: { headers?: Record<string, string> } = {};
     const run = await runWithVault(
       { source: d.source, reportMiss: d.reportMiss },
-      { tool: "engine_authorize", args: { headers: API_AUTH[provider](account.ref) }, traceId: d.who.traceId, agentId: d.who.agentId, asker: d.who.asker, where: d.who.where },
+      // account: this is the turn's own key going into the provider request, the one place the Space AI key may be filled
+      { tool: "engine_authorize", args: { headers: API_AUTH[provider](account.ref) }, traceId: d.who.traceId, agentId: d.who.agentId, asker: d.who.asker, where: d.who.where, account: true },
       async (args) => {
         // Kept for the caller only. What the executor returns goes through the scrubber, so it returns nothing.
         got.headers = (args as { headers: Record<string, string> }).headers;

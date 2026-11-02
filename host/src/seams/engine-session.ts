@@ -15,7 +15,7 @@ export type VaultLookup =
   | { kind: "denied"; reason: "no_access" | "provider_label" | "other" };
 
 export interface EngineSessionHost {
-  source: { lookup(handle: string, who: { agentId: string; asker: string; where: "host" | "device" | "computer" }): Promise<VaultLookup> };
+  source: { lookup(handle: string, who: { agentId: string; asker: string; where: "host" | "device" | "computer"; account?: boolean }): Promise<VaultLookup> };
   reportMiss(r: { itemId: string; place: "terminal" | "http" | "browser" | "file" | "chat"; traceId: string }): Promise<void>;
   mcp: {
     mint(i: { principal: string; actingFor: string; threadId: string; traceId: string }): Promise<{ sessionId: string; sessionToken: string; url: string; expiresAt: number }>;
@@ -77,7 +77,37 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
   /** An engine trace id is 32 hex; one that is not (a test double) is left out and the pipeline starts its own. */
   const traceOf = (id: string): Pick<CtxSeed, "trace"> => (TRACE_ID.test(id) ? { trace: { traceId: id, spanId: "0".repeat(16) } } : {});
 
-  const lookupOnce = async (handle: string, who: { agentId: string; asker: string; where: "host" | "device" | "computer" }): Promise<VaultLookup> => {
+  type Who = { agentId: string; asker: string; where: "host" | "device" | "computer"; account?: boolean };
+  /** Who asks the Vault: the agent acting for the person in a chat; the person, or a Space automation's own service, for an AI step that names no agent. */
+  const seedOf = (who: Who) => {
+    const agentic = who.agentId !== STEP_AGENT;
+    const service = !agentic && who.asker.startsWith("svc_");
+    return agentic
+      ? { space: d.space, principal: { kind: "agent" as const, id: who.agentId }, actingFor: who.asker, origin: "engine" }
+      : { space: d.space, principal: { kind: service ? "service" as const : "person" as const, id: who.asker }, origin: "engine", ...(service ? { preAuth: true } : {}) };
+  };
+
+  /**
+   * The Space AI key, for the turn's own account only (who.account: the driver's authorizer, never a tool call). Its item is Restricted, so vault.use refuses every member; providers.space_key.use
+   * checks the handle is the Space AI key and leaves the audit row for the person, and the value is read here, Shared only, straight into the provider request. Null: not the Space AI key.
+   */
+  const spaceKeyOnce = async (handle: string, who: Who): Promise<VaultLookup | null> => {
+    try {
+      const r = await d.invoke("providers.space_key.use", { handle }, seedOf(who));
+      const itemId = r.status === "ok" ? (r.output as { itemId?: unknown } | null)?.itemId : undefined;
+      if (typeof itemId !== "string") return null;
+      const value = await d.vault.secret(handle, d.space);
+      return { kind: "value", itemId, value, spaceOnly: false, injectIntoDeployments: false };
+    } catch { return null; }
+  };
+
+  const lookupOnce = async (handle: string, who: Who): Promise<VaultLookup> => {
+    const got = await useOnce(handle, who);
+    if (got.kind !== "value" && who.account === true && HANDLE.test(handle)) return (await spaceKeyOnce(handle, who)) ?? got;
+    return got;
+  };
+
+  const useOnce = async (handle: string, who: Who): Promise<VaultLookup> => {
         // Only a Vault handle is looked up; a sealed record field or a hashtag the model wrote is not one.
         if (!HANDLE.test(handle)) return { kind: "unknown" };
         const [item = "", field] = handle.slice(1).split(".");

@@ -12,6 +12,7 @@ import { currentKeyPort } from "./crypto.ts";
 import type { SigninPort } from "./use.ts";
 import { readFileSync } from "node:fs";
 import { addressProblem, builtinDefs } from "./provider-defs.ts";
+import { forget as forgetSpaceKey, spaceKeyProviderId } from "./space-key.ts";
 import type { CatalogEntry } from "./provider-defs.ts";
 
 export type { CatalogEntry } from "./provider-defs.ts";
@@ -27,7 +28,7 @@ function customDefs(ctx: VaultCtx): CatalogEntry[] {
   }));
 }
 /** The definition for a key: a built-in file, else a custom endpoint of this Space. */
-const entry = (ctx: VaultCtx, key: unknown): CatalogEntry | undefined => CATALOG.find((c) => c.key === key) ?? customDefs(ctx).find((c) => c.key === key);
+export const entry = (ctx: VaultCtx, key: unknown): CatalogEntry | undefined => CATALOG.find((c) => c.key === key) ?? customDefs(ctx).find((c) => c.key === key);
 
 /** What the host does with a key to see whether the provider takes it (omitted: the module cannot say). */
 export interface ProviderProbe { (p: { providerKey: string; connection: string; caller: string; apiKey?: string; address?: string; engine?: string }): Promise<{ ok: boolean; models: string[]; detail?: string }> }
@@ -35,7 +36,7 @@ export interface ProviderProbe { (p: { providerKey: string; connection: string; 
 const providersSql = readFileSync(new URL("../migrations/0003_providers.sql", import.meta.url), "utf8");
 const defsSql = readFileSync(new URL("../migrations/0004_provider_defs.sql", import.meta.url), "utf8");
 const ready = new WeakSet<object>();
-function ensureProviders(ctx: VaultCtx): void {
+export function ensureProviders(ctx: VaultCtx): void {
   ensure(ctx);
   if (ready.has(ctx.db)) return;
   try { ctx.db.all(`SELECT "id" FROM vault_provider WHERE "id" = ?`, "probe"); } catch { for (const s of statements(providersSql)) ctx.db.run(s); }
@@ -57,7 +58,7 @@ function viaOf(connection: string, scope: string): string {
   return `${connection === "subscription" ? "Subscription" : "API key"}, ${scope === "mine" ? "yours" : "shared"}`;
 }
 
-function rowOut(ctx: VaultCtx, p: Row, used?: { tokens: number; costCents: number }): Record<string, unknown> {
+function rowOut(ctx: VaultCtx, p: Row, used?: { tokens: number; costCents: number }, spaceKey = spaceKeyProviderId(ctx)): Record<string, unknown> {
   const c = entry(ctx, str(p, "providerKey"));
   const item = itemOf(ctx, str(p, "itemId"));
   const address = first(ctx.db.all(`SELECT "address" FROM vault_provider_extra WHERE "providerId" = ?`, str(p, "id")));
@@ -69,6 +70,7 @@ function rowOut(ctx: VaultCtx, p: Row, used?: { tokens: number; costCents: numbe
     usage: { tokens: used?.tokens ?? 0, costCents: used?.costCents ?? 0, periodStart: monthStart(ctx.now()) }, engine: c?.engine ?? str(p, "providerKey"),
     spaceMayUse: num(p, "spaceMayUse") === 1, state: str(p, "state"),
     ...(address ? { address: str(address, "address") } : {}), ...(c?.keyless || str(p, "connection") === "local_model" ? { keyless: true } : {}),
+    ...(spaceKey !== null && spaceKey === str(p, "id") ? { spaceKey: true } : {}),
   };
 }
 
@@ -106,11 +108,13 @@ async function usageThisMonth(ctx: VaultCtx, itemId: string): Promise<{ tokens: 
 export async function list(ctx: VaultCtx, _input: Record<string, never>) {
   ensureProviders(ctx);
   const out: Record<string, unknown>[] = [];
+  // the Space AI key is every member's to run on, though its item is Restricted: listed for all (a handle and a name, never a value)
+  const spaceKey = spaceKeyProviderId(ctx);
   for (const p of rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter(live).sort((a, b) => num(a, "createdAt") - num(b, "createdAt") || str(a, "id").localeCompare(str(b, "id")))) {
     if (!itemOf(ctx, str(p, "itemId"))) continue;
     if (str(p, "scope") === "mine") { if (str(p, "owner") !== me(ctx)) continue; }
-    else if (str(p, "owner") !== me(ctx) && !atLeast(levelOn(ctx, "vault_item", str(p, "itemId")), "use")) continue;
-    out.push(rowOut(ctx, p, await usageThisMonth(ctx, str(p, "itemId"))));
+    else if (str(p, "owner") !== me(ctx) && str(p, "id") !== spaceKey && !atLeast(levelOn(ctx, "vault_item", str(p, "itemId")), "use")) continue;
+    out.push(rowOut(ctx, p, await usageThisMonth(ctx, str(p, "itemId")), spaceKey));
   }
   return { providers: out };
 }
@@ -174,6 +178,7 @@ export async function remove(ctx: VaultCtx, input: { providerId: string }) {
   mayAct(ctx, p, "manage");
   if (itemOf(ctx, str(p, "itemId"))) await itemDelete(ctx, { itemId: str(p, "itemId") });
   ctx.db.run(`UPDATE vault_provider SET "deleted_at" = ? WHERE "id" = ?`, ctx.now(), str(p, "id"));
+  forgetSpaceKey(ctx, str(p, "id"));
   ctx.emit("provider.removed", `entity/${str(p, "id")}`, { providerId: str(p, "id") }, { vis: "participants" });
   return { ok: true };
 }

@@ -13,8 +13,11 @@ export type Lookup =
   | { kind: "denied"; reason: "no_access" | "provider_label" | "other" };
 
 export interface ValueSource {
-  /** Resolve a handle for the agent acting for the asker, in the process that will use it. The value stays in this process. */
-  lookup(handle: string, who: { agentId: string; asker: string; where: Where }): Promise<Lookup>;
+  /**
+   * Resolve a handle for the agent acting for the asker, in the process that will use it. The value stays in this process. `account`: the turn's own account key going into the provider request
+   * (the driver's authorizer), the only place the Space AI key may be filled. A tool call never sets it.
+   */
+  lookup(handle: string, who: { agentId: string; asker: string; where: Where; account?: boolean }): Promise<Lookup>;
 }
 
 export interface VaultRunDeps {
@@ -23,7 +26,7 @@ export interface VaultRunDeps {
   reportMiss(r: { itemId: string; place: Place; traceId: string }): void | Promise<void>;
 }
 
-export interface VaultCall { tool: string; args: unknown; traceId: string; agentId: string; asker: string; where: Where }
+export interface VaultCall { tool: string; args: unknown; traceId: string; agentId: string; asker: string; where: Where; /** The driver's account key, never a tool call (see ValueSource). */ account?: boolean }
 
 export interface Used { handle: string; itemId: string }
 
@@ -51,7 +54,7 @@ export async function runWithVault(deps: VaultRunDeps, call: VaultCall, exec: Ex
   const used: Used[] = [];
 
   for (const h of named) {
-    const r = await deps.source.lookup(h, { agentId: call.agentId, asker: call.asker, where: call.where });
+    const r = await deps.source.lookup(h, { agentId: call.agentId, asker: call.asker, where: call.where, ...(call.account === true ? { account: true } : {}) });
     if (r.kind === "unknown") continue;   // not a Vault handle after all (a hashtag, a color): leave the text alone
     if (r.kind === "denied") {
       const code = r.reason === "provider_label" ? "permission.provider_label" : "permission.no_grant";
