@@ -98,22 +98,17 @@ const joinConsumers = {
   },
 };
 
-<<<<<<< HEAD
-const consumersAll = {
-  ...consumers, ...joinConsumers,
-  /** A person left or was removed: their delegated mail, calendar and files stop being read. */
-  "microsoft.person_left": { on: ["member.removed"], run: (ctx: Parameters<typeof h.personLeft>[0], event: Parameters<typeof h.personLeft>[1]) => h.personLeft(ctx, event) },
-};
-=======
 /** Leaving a Space ends a person's own sign-ins as the removal wizard does: spaces.leave has only this event. */
 const personLeft = {
   "ms.person_left": {
     on: ["member.removed"],
-    run: (ctx: Ctx, event: { payload: { personId?: unknown } }): Promise<number> => (typeof event.payload.personId === "string" ? h.dropAccountsOf(ctx as never, event.payload.personId) : Promise.resolve(0)),
+    run: async (ctx: Ctx, event: { payload: { personId?: unknown } }): Promise<number> => {
+      await h.personLeft(ctx as never, event as never);   // their delegated mail, calendar and files stop being read
+      return (typeof event.payload.personId === "string" ? h.dropAccountsOf(ctx as never, event.payload.personId) : Promise.resolve(0));
+    },
   },
 };
 const consumersAll = { ...consumers, ...joinConsumers, ...personLeft };
->>>>>>> origin/polish/launch
 export const projections = { inline, consumers: consumersAll };
 export { codecs, inline };
 export { consumersAll as consumers };

@@ -42,7 +42,7 @@ export function desktopUpdater(invoke: Invoke | undefined = (globalThis as { __T
 export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["manageSecurity"], security?: SettingsData["security"], consoleAllowed = false): SettingsData {
   return {
     ...(security ? { security } : {}),
-    ...(consoleAllowed ? { openConsole: () => rt.open({ screen: "console.overview" }) } : {}),
+    ...(consoleAllowed ? { openConsole: () => rt.open({ screen: "console.overview" }), openCompany: () => rt.open({ screen: "company.setup" }) } : {}),
     screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name, ...(rt.me.username ? { username: rt.me.username } : {}) }, space: { id: rt.space.id, name: rt.space.name },
     spaces: rt.knownSpaces?.map(space=>({id:space.spaceId,name:space.name,addr:space.address,kind:space.kind,role:space.role,needsYou:space.needsYou?1:0,current:space.spaceId===rt.space.id}))??[{ id: rt.space.id, name: rt.space.name, addr: "", kind: rt.space.kind, role: "", needsYou: 0, current: true }],
     name: nameOf(rt),

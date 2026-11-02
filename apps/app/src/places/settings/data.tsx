@@ -38,6 +38,8 @@ export interface DesktopUpdater {
 export interface SettingsData {
   /** Opens the Console, for a person who may. */
   openConsole?(): void;
+  /** Opens Connect your company, for a person who may change the company's connection. */
+  openCompany?(): void;
   sessionImporter?: import("../../../../../client/src/session-import/desktop.ts").SessionImporter | undefined;
   /** Update this desktop app (This computer). Absent in a browser. */
   desktopUpdater?: DesktopUpdater | undefined;
