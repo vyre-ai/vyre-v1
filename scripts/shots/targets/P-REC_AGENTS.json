@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "P-REC_AGENTS-list",
+      "route": "/m/P-REC_AGENTS",
+      "proto": "records,table,{skin}",
+      "waitFor": "[data-testid='records-agents']",
+      "note": "Records, Agents: the agents themselves from agents.list, each opening its own page, then any old row with no agent behind it, marked not set up."
+    }
+  ]
+}

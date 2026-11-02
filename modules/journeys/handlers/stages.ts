@@ -7,8 +7,8 @@
 // DECISION: the Journey record's folder comes with the record type's Projects template; start makes the record and its channel.
 import { registry } from "../../../generated/registry.ts";
 import {
-  HOUR, allJourneys, breachOf, byOrder, clean, countInFlight, emitJ, findBySubject, findByKey, findJourney, getJourney, getRecord, inFlight, listVersions, markDeleted, me, newId, out, page,
-  allTaskLinks, findRecord, raise, saveBreach, saveJourney, saveRecord, saveTaskLink, saveVersion, stagesOf, taskLinks,
+  HOUR, allJourneys, allVersionStages, breachOf, byOrder, clean, countInFlight, emitJ, findBySubject, findByKey, findJourney, getJourney, getRecord, inFlight, listVersions, markDeleted, me, newId, out, page,
+  allTaskLinks, findRecord, raise, recordTypeTaken, saveBreach, saveJourney, saveRecord, saveTaskLink, saveVersion, stagesOf, taskLinks,
 } from "../projections.ts";
 import type { Journey, JourneysCtx, JRecord, Stage, StartRule } from "../projections.ts";
 
@@ -127,7 +127,8 @@ export async function create(ctx: JourneysCtx, input: In): Promise<unknown> {
   const now = ctx.now();
   const id = newId("jrn", now);
   let recordType = `journey_${slug(name)}`;
-  if (allJourneys(ctx.db).some((j) => j.recordType === recordType)) recordType = `${recordType}_${id.slice(-4)}`;
+  // a deleted Journey's record type stays with its records, so it counts too
+  if (recordTypeTaken(ctx.db, recordType)) recordType = `${recordType}_${id.slice(-4)}`;
   if (!ctx.call) raise(ctx, "internal.unavailable", "Records are not available right now.");
   // the record type is made through a controlled path: only journeys.manage is needed, not schema rights
   await ctx.call("schema.apply", { ops: [{ op: "type.create", type: recordType, def: typeDef(recordType, name, input.subjectType, stages) }], reason: `Journey ${name}`, idempotencyKey: `jrn-type:${id}` });
@@ -142,6 +143,18 @@ export async function create(ctx: JourneysCtx, input: In): Promise<unknown> {
   return { journey: out(j, 0) };
 }
 
+/**
+ * The record type's stage field has to allow every stage a record can be in: this design's, and those of the older versions records stay on. Without this a stage added to the design could never be entered: the record refuses the value.
+ * Written before the design is saved, so a refusal leaves the Journey as it was.
+ */
+async function syncStageField(ctx: JourneysCtx, j: Journey): Promise<void> {
+  if (!ctx.call) raise(ctx, "internal.unavailable", "Records are not available right now.");
+  const seen = new Map<string, string>(byOrder(j.stages).map((s) => [s.key, s.title]));   // the design first and in its order: the board draws its lanes from this list
+  for (const s of allVersionStages(ctx.db, j.id)) if (!seen.has(s.key)) seen.set(s.key, s.title);
+  const stages = [...seen].map(([key, title]) => ({ key, title }));
+  await ctx.call("schema.apply", { ops: [{ op: "field.update", type: j.recordType, field: "stage", def: { options: { stages } } }], reason: `Journey ${j.name} version ${j.version}`, idempotencyKey: `jrn-stages:${j.id}:${j.version}` });
+}
+
 /** Save a new design. Stages that records are in cannot be dropped; the rest is a new version. */
 async function redesign(ctx: JourneysCtx, j: Journey, stages: Stage[], startRule: StartRule | null | undefined, note: string | undefined): Promise<{ j: Journey; changed: boolean }> {
   checkStages(ctx, stages);
@@ -154,6 +167,7 @@ async function redesign(ctx: JourneysCtx, j: Journey, stages: Stage[], startRule
   if (nextRule) j.startRule = nextRule; else delete j.startRule;
   j.version += 1;
   j.updatedAt = ctx.now();
+  await syncStageField(ctx, j);
   const aid = await syncStartRule(ctx, j);
   if (aid) j.startAutomationId = aid;
   saveJourney(ctx.db, j);

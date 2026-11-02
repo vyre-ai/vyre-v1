@@ -6,6 +6,7 @@ import { countNeedsYou } from "./handlers/state.ts";
 import { resumeRunOf, settleFromSource } from "./handlers/resume.ts";
 import { syncPolicy } from "./projections.ts";
 import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
+import { onCrewMerged, onRunStopped, onTaskChanged } from "./handlers/schedule.ts";
 import type { TasksCtx } from "./projections.ts";
 export { findStuck, mintApprovalToken, readApprovalToken, ACT_KEYS } from "./handlers/act.ts";
 export { applyMove, checkMove, commitMove, planMove, submitTarget, afterReview } from "./handlers/state.ts";
@@ -24,6 +25,10 @@ export const consumers = {
     on: ["settings.changed"],
     async run(ctx: TasksCtx, event: { payload: Record<string, unknown> }): Promise<string[]> { return syncPolicy(ctx.db, event.payload) ? [String(event.payload["key"])] : []; },
   },
+  /** Finishing a task starts what waited on it and tells a parent only what it has to hear (handlers/schedule.ts). */
+  "tasks.schedule": { on: ["task.transitioned", "task.withdrawn", "task.deleted", "task.created"], run: (ctx: TasksCtx, event: Parameters<typeof onTaskChanged>[1]) => onTaskChanged(ctx, event) },
+  "tasks.crew_merged": { on: ["crew.job_merged"], run: (ctx: TasksCtx, event: Parameters<typeof onCrewMerged>[1]) => onCrewMerged(ctx, event) },
+  "tasks.run_stopped": { on: ["run.stopped", "run.failed"], run: (ctx: TasksCtx, event: Parameters<typeof onRunStopped>[1]) => onRunStopped(ctx, event) },
   "tasks.run_resume": { on: ["task.transitioned"], run: (ctx: TasksCtx, event: Parameters<typeof resumeRunOf>[1]) => resumeRunOf(ctx, event) },
   /** The source decided (a card in the chat, the access or key card): its tasks close, for everyone they were addressed to (handlers/resume.ts). */
   "tasks.source_settle": {
