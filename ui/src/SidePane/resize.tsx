@@ -168,7 +168,7 @@ export function ResizableColumn(p: ResizableColumnProps): ReactElement | null {
     const right = p.grow === "left";
     return <>{intoSheet(target, (
       <View style={[rel, { width: r.width, minWidth: 0, flexShrink: 0 }, right ? { marginLeft: SHEET_GAP } : null, right && overlay ? RAIL_OVERLAY : null]} testID={p.testID} {...a11y} {...(right && Platform.OS === "web" ? { dataSet: { panelIn: "1" } } : {})}>
-        <View style={[SHEET, p.style, SHEET_RESET]} {...sq("sheet")}>{p.children}{right ? null : host.hide}</View>
+        <View style={[SHEET, p.style, SHEET_RESET]} {...sq("sheet")}>{p.children}{p.paneKey === "place-sidebar" ? host.hide : null}</View>
         {right && overlay ? null : handle}
       </View>
     ))}</>;

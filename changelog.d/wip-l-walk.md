@@ -5,3 +5,4 @@
 - Agents now know how to make a new file from the first turn.
 - File links an agent writes in chat are links now, not raw [[name|id]] text.
 - Artifacts open in a Personal Space. Before, the card led to a Needs a Team Space page.
+- The Add button at the top of the Vault list works. The Hide the sidebar button no longer sits on top of it.
