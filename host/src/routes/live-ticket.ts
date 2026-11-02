@@ -1,12 +1,12 @@
 // POST /sync/v1/ticket: the session token for a one-time ticket to the live socket. A browser's WebSocket cannot carry a header and its address lands in console errors and logs, so the token never goes
 // in the address (client/src/gateway/live-ticket.ts). A ticket opens one socket, within seconds, and only while the session behind it still holds: the token is identified again when it is spent. Tickets live
 // in this process's memory, stored by their hash, and a restart simply makes the client ask again.
-import crypto from "node:crypto";
 import type http from "node:http";
+import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 
 export const LIVE_TICKET_TTL_MS = 30_000;
 const MOST_WAITING = 1024;
-const hash = (t: string): string => crypto.createHash("sha256").update(t).digest("base64url");
+const fresh = (): string => `lvt_${Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(24))).toString("base64url")}`;
 
 export interface LiveTickets {
   mint(token: string): string;
@@ -22,12 +22,12 @@ export function createLiveTickets(o: { now: () => number; ttlMs?: number }): Liv
       const now = o.now();
       for (const [k, v] of waiting) if (v.until <= now) waiting.delete(k);
       while (waiting.size >= MOST_WAITING) waiting.delete(waiting.keys().next().value as string);   // the oldest goes first: the client whose ticket it was asks again
-      const ticket = `lvt_${crypto.randomBytes(24).toString("base64url")}`;
-      waiting.set(hash(ticket), { token, until: now + ttl });
+      const ticket = fresh();
+      waiting.set(sha256Hex(ticket), { token, until: now + ttl });
       return ticket;
     },
     spend(ticket) {
-      const key = hash(ticket), got = waiting.get(key);
+      const key = sha256Hex(ticket), got = waiting.get(key);
       if (!got) return null;
       waiting.delete(key);
       return got.until > o.now() ? got.token : null;
