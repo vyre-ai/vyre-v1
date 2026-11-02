@@ -76,6 +76,7 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
     openChannel: a.openThread,
     openNeedsYou: (taskId) => rt.open({ screen: "tasks.needs-you", ...(taskId ? { args: { taskId } } : {}) }),
     openAllAgents: () => rt.open({ screen: "chats.all-agents" }),
+    openArtifacts: () => rt.open({ screen: "apps.artifacts" }),
     openSearch: () => rt.open({ screen: "shell.cmdk" }),
     openSpaceSwitcher: () => rt.open({ screen: "spaces.switcher" }),
     openNewChannel: () => requestChannelSheet("new"),
@@ -143,7 +144,7 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
     openThread: a.openThread,
     togglePane: a.togglePane,
-    openBeside: (kind, id) => rt.open({ subject: { type: kind, id } }),
+    openBeside: (kind, id) => (kind === "artifact" ? rt.open({ screen: "apps.artifacts", args: { selected: id } }) : rt.open({ subject: { type: kind, id } })),
     openAiSetup: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),   // the same page the Needs you sign-in opens
     ...(rt.unlockVault ? { unlockVault: () => askVaultUnlock(rt.unlockVault!) } : {}),
   };

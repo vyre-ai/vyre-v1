@@ -26,7 +26,8 @@ export type { AppsData, AppsNav } from "./data.tsx";
 
 export type AppsRoute =
   | { kind: "list"; group?: GroupKey | undefined }
-  | { kind: "detail"; group: Exclude<GroupKey, "sites">; id: string }
+  | { kind: "detail"; group: GroupKey; id: string }
+  | { kind: "artifacts"; group: "sites"; id?: string }
   | { kind: "create"; group: "forms" | "campaigns" | "templates" | "domains" }
   | { kind: "email"; group: "campaigns"; id?: string };
 
@@ -57,7 +58,7 @@ function useLists(): Lists {
     const dom: AppRow[] = [];
     for (const x of domains ?? []) dom.push(domainRow(x));
     return {
-      sites: rows(sites, (o: CapMap["sites.list"]["out"]) => [...o.sites], siteRow), forms: rows(forms, (o: CapMap["forms.list"]["out"]) => [...o.forms], formRow),
+      sites: rows(sites, (o: CapMap["sites.list"]["out"]) => o.sites.filter((x) => x.kind !== "artifact"), siteRow), forms: rows(forms, (o: CapMap["forms.list"]["out"]) => [...o.forms], formRow),
       campaigns: rows(campaigns, (o: CapMap["campaigns.list"]["out"]) => [...o.campaigns], campaignRow), templates: rows(templates, (o: CapMap["templates.list"]["out"]) => [...o.templates], templateRow),
       domains: { rows: dom, ready: domains !== null, ...(domainError ? { error: domainError } : {}) },
     };
@@ -100,6 +101,7 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
   const newMenu = (x: number, y: number, only?: GroupKey): void => {
     const entries: MenuEntry[] = [];
     if (only === undefined || only === "templates") entries.push({ label: "Save as template", onSelect: () => d.nav.create("templates") });
+    if ((only === undefined || only === "sites") && groups.some((g) => g.key === "sites") && d.nav.newSite) entries.push({ label: "New site", onSelect: () => d.nav.newSite?.() });
     for (const g of groups) if ((only === undefined || only === g.key) && (g.key === "forms" || g.key === "campaigns" || g.key === "domains")) entries.push({ label: g.key === "domains" ? "Add sending domain" : `New ${g.one}`, onSelect: () => d.nav.create(g.key) });
     if ((only === undefined || only === "campaigns") && d.nav.openEmailDesign) entries.push({ label: "New email design", onSelect: () => d.nav.openEmailDesign?.() });
     if (only === undefined || only === "templates") entries.push({ separator: true }, { label: "Build a Kit with an agent", onSelect: () => void openKitBuilder(d).catch((e: unknown) => setNote({ text: e instanceof Error ? e.message : "That did not work." })) });
@@ -165,6 +167,7 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
         <Text style={s.mc}>{rows.length}</Text>
         <View style={s.grow} />
         {group === "templates" ? <Pressable accessibilityRole="button" testID="apps-kit" onPress={() => void openKitBuilder(d).catch((e: unknown) => setNote({ text: e instanceof Error ? e.message : "That did not work." }))} style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={s.btnText}>Build a Kit</Text></Pressable> : null}
+        {group === "sites" && d.nav.newSite ? <Pressable accessibilityRole="button" accessibilityLabel="New site" testID="apps-new-site" onPress={() => d.nav.newSite?.()} style={(state) => [s.btn, s.btnPrimary, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={[s.btnText, s.btnPrimaryText]}>New site</Text></Pressable> : null}
         {group === "forms" || group === "campaigns" || group === "domains" ? <Pressable accessibilityRole="button" accessibilityLabel={group === "domains" ? "Add sending domain" : `New ${g.one}`} testID="apps-new-group" onPress={(e) => { const p = pointOf(e); newMenu(p.x, p.y, group); }} style={(state) => [s.btn, s.btnPrimary, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={[s.btnText, s.btnPrimaryText]}>{group === "domains" ? "Add domain" : `New ${g.one}`}</Text></Pressable> : null}
       </View>
       {cur.error ? <States kind="error" message={cur.error} /> : !cur.ready ? <View testID="apps-loading" style={s.skeleton}>{skeleton()}</View> : rows.length === 0 ? (
@@ -228,6 +231,8 @@ export default function AppsLayout({ data, start, route }: { data?: AppsData | u
   const provided = useOptionalAppsData();
   const v = data ?? provided;
   if (!v) return <AppsLoading />;
+  // artifacts need no team and no server: they are a person's own
+  if (route?.kind === "artifacts") return <AppsDataProvider value={v}><View style={s.page}><AppsSurface route={route} /></View></AppsDataProvider>;
   if (!v.team) return <View style={s.page} testID="apps-needs-team"><View style={s.center}><NeedsTeamSpace density="regular" what="Forms and campaigns" onAction={v.nav.joinTeam} /></View></View>;
   return <AppsDataProvider value={v}><Page initial={start} route={route} /></AppsDataProvider>;
 }

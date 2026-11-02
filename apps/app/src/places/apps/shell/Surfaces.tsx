@@ -7,10 +7,14 @@ import { CampaignEditor } from "./CampaignEditor.tsx";
 import { TemplateEditor } from "./TemplateEditor.tsx";
 import { DomainEditor } from "./DomainEditor.tsx";
 import { EmailDesigner } from "./EmailDesigner.tsx";
+import { SiteDetail } from "./SiteDetail.tsx";
+import { ArtifactsList, ArtifactView } from "./Artifacts.tsx";
 export function AppsSurface({ route }: { route: Exclude<AppsRoute, { kind: "list" }> }): ReactElement {
   const d = useAppsData();
   const back = (): void => d.nav.show(route.group);
   if (route.kind === "email") return <EmailDesigner id={route.id} back={back} />;
+  if (route.kind === "artifacts") return route.id ? <ArtifactView id={route.id} back={() => d.nav.show("artifacts")} /> : <ArtifactsList back={() => d.nav.show("sites")} />;
+  if (route.group === "sites") return route.kind === "detail" ? <SiteDetail id={route.id} back={back} /> : <ArtifactsList back={back} />;
   const target = { group: route.group, ...(route.kind === "detail" ? { id: route.id } : { create: true }) };
   switch (route.group) {
     case "forms": return <FormEditor route={target} back={back} />;

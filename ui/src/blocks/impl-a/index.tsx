@@ -487,6 +487,17 @@ export function DeployBlock({ block, host }: BlockViewProps): ReactElement {
 
 /* ---------- mount ---------- */
 
+/** Something a model made to show: one line that opens it. */
+export function ArtifactBlock({ block, host }: BlockViewProps): ReactElement {
+  const title = typeof (block.data as { title?: unknown } | null)?.title === "string" ? (block.data as { title: string }).title : "Artifact";
+  const menu = useCallback(() => baseMenu(host, "artifact", block, [], () => undefined), [host, block]);
+  return (
+    <Card type="artifact" block={block} testID={`blk-artifact-${block.id}`} menu={menu}>
+      <Head testID={`blk-artifact-${block.id}`} title={title} onPress={() => void openTab(host, "artifact", block.data)} />
+    </Card>
+  );
+}
+
 export function MountBlock({ block, host }: BlockViewProps): ReactElement {
   const d = mountData(block.data);
   const [syncing, setSyncing] = useState(false);
@@ -566,6 +577,7 @@ export const BLOCK_COMPONENTS_A: Readonly<Record<PartOneType, (props: BlockViewP
   deploy: DeployBlock,
   mount: MountBlock,
   record_card: RecordCardBlock,
+  artifact: ArtifactBlock,
 };
 
 export function isPartOneType(type: string): type is PartOneType {

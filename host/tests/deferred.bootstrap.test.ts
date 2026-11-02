@@ -14,7 +14,7 @@ import { startDaemon } from "../src/daemon/daemon.ts";
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 const OWNER_TOKEN = "tok-usr_olivia";
 
-test("whoami lists the deferred capabilities, so the client can hide Sites", async () => {
+test("whoami lists the deferred capabilities, so the client can hide what is dormant", async () => {
   const core = bootCore();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-deferred-"));
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
@@ -47,12 +47,12 @@ test("whoami lists the deferred capabilities, so the client can hide Sites", asy
     assert.equal(res.status, 200, await res.clone().text());
     const body = (await res.json()) as { data?: { deferred?: string[]; deferredModules?: string[] } };
     const deferred = body.data?.deferred ?? [];
-    assert.ok(deferred.includes("sites.create"), `sites.create is deferred: ${JSON.stringify(deferred).slice(0, 200)}`);
+    assert.ok(deferred.includes("sites.build"), `sites.build is deferred: ${JSON.stringify(deferred).slice(0, 200)}`);
     assert.ok(deferred.includes("vault.import"), "an action of a live module is listed too");
     assert.ok(!deferred.includes("files.read"), "a real capability is not listed");
-    // a place is deferred whole when every one of its capabilities is: Sites yes, Vault (one deferred action) no. The client turns these lists into rt.deferredModules (client/src/runtime/deferred.test.ts).
+    // a place is deferred whole when every one of its capabilities is: Sites and Vault each have real ones, so neither is. The client turns these lists into rt.deferredModules (client/src/runtime/deferred.test.ts).
     const modules = body.data?.deferredModules ?? [];
-    assert.ok(modules.includes("sites"), `sites is a deferred module: ${JSON.stringify(modules)}`);
+    assert.ok(!modules.includes("sites"), `sites has real capabilities: ${JSON.stringify(modules)}`);
     assert.ok(!modules.includes("vault"), "vault has real capabilities, so it is not deferred whole");
     // no token, no list
     assert.equal((await post(null, "/v1/identity/whoami")).status, 401);

@@ -74,6 +74,7 @@ export default defineManifest({
   ],
   screens: [
     screen('apps.sites', 'apps', 'ui:SitesList', { q: { sites: ['sites.list', { section: '/section', folderId: '/folder' }] }, a: { promote: ['sites.promote', { siteId: '/selected' }, 'Put this site on the public internet?'] }, empty: 'No sites yet', primary: 'New site', needs: ['sites.deploy'] }),
+    screen('apps.artifacts', 'apps', 'ui:Artifacts', { q: { artifacts: ['sites.list', { kind: '/kind' }] }, empty: 'Nothing made yet' }),
     screen('apps.site-editor', 'apps', 'ui:SiteEditor', { slot: 'main', q: { site: ['sites.get', { siteId: '/selected' }], status: ['sites.status', { siteId: '/selected' }], domains: ['sites.domains_get', { siteId: '/selected' }] }, a: { stop: ['sites.stop', { siteId: '/selected' }, 'Stop serving this site?'] }, ask: { suggestions: { view: ['Explain this site'], edit: ['Change the hero text', 'Add a contact form'], manage: ['Put this site live'] } } }),
   ],
 });

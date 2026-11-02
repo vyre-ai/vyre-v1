@@ -35,7 +35,7 @@ export interface BlockSpecA {
   opens?: BlockOpensSpec;
 }
 
-export const PART_ONE_TYPES = ["terminal", "changeset", "question", "plan", "deploy", "mount", "record_card"] as const;
+export const PART_ONE_TYPES = ["terminal", "changeset", "question", "plan", "deploy", "mount", "record_card", "artifact"] as const;
 export type PartOneType = (typeof PART_ONE_TYPES)[number];
 
 /** The actions and tab each block declares in the manifests. A test compares this table with generated/registry.json. */
@@ -72,11 +72,12 @@ export const BLOCK_SPECS_A: Readonly<Record<PartOneType, BlockSpecA>> = {
   deploy: {
     type: "deploy",
     actions: [
-      { key: "promote", label: "Promote", cap: "sites.promote", input: { siteId: "/siteId", deploymentId: "/deploymentId" } },
+      { key: "promote", label: "Promote", cap: "sites.promote", input: { siteId: "/siteId" } },
       { key: "rollback", label: "Roll back", cap: "sites.rollback", input: { siteId: "/siteId" } },
     ],
     opens: { tab: "site", input: { siteId: "/siteId" } },
   },
+  artifact: { type: "artifact", actions: [], opens: { tab: "artifact", input: { artifactId: "/artifactId" } } },
   mount: {
     type: "mount",
     actions: [{ key: "sync", label: "Sync now", cap: "mounts.sync_now", input: { mountId: "/mountId" } }],

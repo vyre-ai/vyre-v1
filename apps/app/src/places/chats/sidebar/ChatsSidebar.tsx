@@ -460,6 +460,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
         </View>
       ) : null}
       {inHeader ? portalInto(slot?.actionsOutlet, <>{newButton}{newChatButton}</>) : null}
+      {data.nav.openArtifacts ? <View style={{ height: ROW_H }}><Row id="artifacts" testID="chats-artifacts" title="Artifacts" onPress={() => { data.nav.openArtifacts?.(); leave(); }} /></View> : null}
       <View style={st.list}>
         {loading ? <ChatsSidebarLoading /> : (
           <VirtualList data={entries} rowHeight={ROW_H} keyOf={(e) => e.key} renderItem={(e) => renderEntry(e)} {...(window ? { window } : {})} />

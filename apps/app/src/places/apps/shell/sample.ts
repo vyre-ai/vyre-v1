@@ -11,8 +11,8 @@ import type { CampaignRow, DomainRow, FormRow, SiteRow, TemplateRow } from "./mo
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 
 const SITES: SiteRow[] = [
-  { siteId: "st_book", name: "Booking widget", kind: "app", owner: "usr_maya", stagingUrl: "https://book-staging.northwind.example", productionUrl: "https://book.northwind.example", state: "ready" },
-  { siteId: "st_north", name: "Northwind site", kind: "site", owner: "usr_irfad", stagingUrl: "https://staging.northwind.example", state: "ready" },
+  { siteId: "st_book", name: "Booking widget", kind: "app", owner: "usr_maya", stagingUrl: "https://book-staging.northwind.example", productionUrl: "https://book.northwind.example", state: "ready", live: true, url: "https://book.northwind.example", access: "public" },
+  { siteId: "st_north", name: "Northwind site", kind: "site", owner: "usr_irfad", stagingUrl: "https://staging.northwind.example", state: "stopped", live: false, access: "public" },
 ];
 const FORMS: FormRow[] = [
   { formId: "fm_intake", name: "Client intake form", recordType: "clients", kind: "public", state: "published", slug: "intake", submissions: 14 },
@@ -107,6 +107,7 @@ export function createSampleApps(o: { team?: boolean; gate?: boolean; deferred?:
     team: o.team !== false,
     deferred: o.deferred ?? ["sites"],
     nav: {
+      newSite: () => undefined,
       open: (g, id) => void went.push(`open:${g}:${id}`), create: (g, k) => void went.push(`create:${g}${k ? `:${k}` : ""}`), joinTeam: () => void went.push("join"),
       show: (g) => void went.push(`show:${g}`),
       openTask: (id) => void went.push(`task:${id}`), openThread: (id) => void went.push(`thread:${id}`),
