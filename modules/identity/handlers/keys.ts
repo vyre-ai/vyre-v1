@@ -4,7 +4,7 @@ import {assertNewMemberPolicy,assertSignInPolicy} from "../policy.ts";
 import type { Device, IdentityCtx, KeyBundle, SignInOut } from "../projections.ts";
 import {
   MIN_SECRET, RESET_TTL_MS, USERNAME, nid, provisionAccount, randomBytes, validBundle, accountById, accountByName, bundleOf, burnVerify, checkVerifier, issueSession, lockedFor, makeVerifier, me, mustAccount, noteFail, raise,
-  currentSessionId, revokeSessions, setKeys, peekCode, spendCode, putCode, clearFails, LOCK_AFTER,
+  currentSessionId, revokeSessions, setKeys, sha, peekCode, spendCode, putCode, clearFails, LOCK_AFTER,
 } from "../projections.ts";
 
 const ok = { ok: true } as const;
@@ -119,8 +119,21 @@ export async function resetComplete(ctx: IdentityCtx, input: Device & { resetCod
 }
 
 
+/** What a sign-in for this invitation is held under: never the code itself. */
+const joinOffer = (code: string): string => `invite:${sha(code)}`;
+
+/** Someone invited, with everyone required to use single sign-on: the address to prove the invitation's email at. It works in any browser, and what it proves waits here for them to accept. */
+export async function ssoJoinStart(ctx: IdentityCtx, input: { code: string; provider: string }): Promise<{ start: string }> {
+  const tid = ctx.trace.traceId;
+  if (!ctx.invites || !ctx.sso?.offer || !ctx.sso.providers().some((p) => p.key === input.provider)) raise(tid, "validation.unsupported", "That sign-in is not set up for this Space");
+  const invite = await ctx.invites.peek(input.code.trim());
+  if (invite === "invalid") raise(tid, "auth.invalid_code");
+  if (invite === "expired") raise(tid, "auth.expired");
+  return { start: `/auth/sso/${encodeURIComponent(input.provider)}/start?link=${encodeURIComponent(ctx.sso.offer(joinOffer(input.code.trim())))}` };
+}
+
 export async function acceptCreateAccount(
-  ctx: IdentityCtx, input: Device & { code: string; username: string; displayName?: string; password: string; keys: KeyBundle; ssoProvider?: string; ssoCode?: string },
+  ctx: IdentityCtx, input: Device & { code: string; username: string; displayName?: string; password: string; keys: KeyBundle; ssoProvider?: string },
 ): Promise<SignInOut> {
   const tid = ctx.trace.traceId;
   if (!ctx.invites) raise(tid, "internal.not_implemented", "invites are not wired into this host");
@@ -134,8 +147,8 @@ export async function acceptCreateAccount(
   if (!validBundle(input.keys)) raise(tid, "validation.bad_input", "keys must be base64 ciphertext");
   const personId = nid("usr");
   // when everyone must use single sign-on, the invitation's address is proved at the provider; the password only wraps the person's keys and never signs them in
-  const proved = input.ssoProvider && input.ssoCode ? ctx.sso?.prove?.(input.ssoProvider, input.ssoCode) ?? null : null;
-  if (input.ssoCode && (!proved || !invite.email || proved.email.toLowerCase() !== invite.email.toLowerCase())) raise(tid, "auth.bad_credentials");
+  const proved = input.ssoProvider ? ctx.sso?.prove?.(input.ssoProvider, joinOffer(input.code.trim())) ?? null : null;
+  if (input.ssoProvider && (!proved || !invite.email || proved.email.toLowerCase() !== invite.email.toLowerCase())) raise(tid, "auth.bad_credentials");
   assertNewMemberPolicy(ctx, proved !== null);
   await provisionAccount(ctx, { personId, username, name: input.displayName?.trim() || username, secret: input.password });
   setKeys(ctx, personId, input.keys, "first_device");

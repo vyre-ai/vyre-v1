@@ -23,7 +23,7 @@ function secretOf(setupUri: string): string {
 const stepNow = (ms: number) => Math.floor(ms / 30_000);
 
 test("every identity capability has a handler and the migration tables exist", () => {
-  assert.equal(Object.keys(handlers).length, 30);   // 28 with identity.recovery_fetch (sealed one-use recovery challenge), 29 with identity.security.get, 30 with identity.sso_link
+  assert.equal(Object.keys(handlers).length, 31);   // 28 with identity.recovery_fetch (sealed one-use recovery challenge), 29 with identity.security.get, 30 with identity.sso_link, 31 with identity.sso_join_start
   const sql = readFileSync(new URL("../migrations/0001_identity.sql", import.meta.url), "utf8");
   for (const t of ["identity_space", "identity_accounts", "identity_sessions", "identity_challenges", "identity_codes", "identity_enrolments"]) {
     assert.match(sql, new RegExp(`CREATE TABLE IF NOT EXISTS "${t}"`));

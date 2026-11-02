@@ -2,6 +2,7 @@
 // The link is the Space address, a one-time code and the Space key fingerprint (as a fragment, so the server never sees it). The code is stored as a hash.
 // The accept is the pre-auth path: members.accept checks the invite, asks identity to make the account (ruling 23, identity emits member.joined and principal.created once),
 // then runs the join effects. The same effects run from the seam identity calls when a host drives identity directly, so they never depend on which door the person used.
+import { currentPolicy, enabledProviders } from "./policy.ts";
 import type { MembersCtx, InviteRow, SeamInvite } from "../projections.ts";
 import {
   DAY_MS, DEFAULT_EXPIRY_DAYS, EVERYONE, OWNER_ROLE, hashCode, inviteById, inviteByCode, inviteView, invitesAll, listOf, mustInvite, newCode, nid, normCode, page, raise, stateOf,
@@ -126,9 +127,10 @@ export async function invitesPreview(ctx: MembersCtx, input: { code: string }) {
   } catch { /* the join page shows the id when the directory cannot be read before sign-in */ }
   let role = r.role;
   try { role = await roleName(ctx, r.role); } catch { /* same */ }
-  const out: { spaceId: string; spaceName: string; logoFileId?: string; invitedBy: string; role: string; expiresAt: number; fingerprint: string } = {
+  const out: { spaceId: string; spaceName: string; logoFileId?: string; invitedBy: string; role: string; expiresAt: number; fingerprint: string; ssoRequired?: { key: string; title: string }[] } = {
     spaceId: info.id, spaceName: info.name, invitedBy, role, expiresAt: r.expires_at, fingerprint: info.fingerprint,
   };
+  if (currentPolicy(ctx).requireSso) out.ssoRequired = enabledProviders(ctx);
   if (info.logoFileId) out.logoFileId = info.logoFileId;
   return out;
 }
@@ -214,7 +216,7 @@ export function invitesSeam(ctx: MembersCtx): { peek(code: string): SeamInvite |
 }
 
 export async function accept(ctx: MembersCtx, input: {
-  code: string; username: string; displayName?: string; password: string; deviceName: string; deviceClass?: Dev; keys: unknown;
+  code: string; username: string; displayName?: string; password: string; deviceName: string; deviceClass?: Dev; keys: unknown; ssoProvider?: string;
 }) {
   const tid = ctx.trace.traceId;
   const r = inviteByCode(ctx, input.code);
@@ -222,7 +224,7 @@ export async function accept(ctx: MembersCtx, input: {
   if (r.expires_at <= ctx.now()) raise(tid, "auth.expired");
   const out = (await ctx.call("invites.accept_create_account", {
     code: input.code.trim(), username: input.username, ...(input.displayName ? { displayName: input.displayName } : {}), password: input.password,
-    deviceName: input.deviceName, deviceClass: input.deviceClass ?? "web", keys: input.keys,
+    deviceName: input.deviceName, deviceClass: input.deviceClass ?? "web", keys: input.keys, ...(input.ssoProvider ? { ssoProvider: input.ssoProvider } : {}),
   })) as { status: string; session?: { sessionId: string; token: string; epoch: number } };
   const after = mustInvite(ctx, r.id);
   if (out.status !== "ok" || !out.session || after.state !== "accepted" || !after.accepted_by) {

@@ -59,10 +59,10 @@ export default defineManifest({
     write('members.invites.extend', 'Give an open invite a new expiry', { ...V, in: { inviteId: id.invite, expiresInDays: t.int({ minimum: 1, maximum: 90 }) }, out: { invite: inviteRow }, perm: 'members.invite', tool: 'meta', team: true }),
     write('members.invites.revoke', 'Revoke an open invite', { ...V, in: { inviteId: id.invite }, out: ok, perm: 'members.invite', emits: ['member.invite_revoked'], audit: 'always', tool: 'meta', team: true }),
     read('members.invites.preview', 'Join page: the public Space routing id, name and logo, who invited, expiry and display fingerprint for a code', {
-      ...V, caller: 'pending', in: { code: t.str() }, out: { spaceId: id.space, spaceName: t.str(), logoFileId: t.opt(id.file), invitedBy: t.str(), role: t.str(), expiresAt: t.ts(), fingerprint: t.str({ examples: ['ab12 cd34 ef56 7890'] }) }, errors: ['auth.invalid_code', 'auth.expired'],
+      ...V, caller: 'pending', in: { code: t.str() }, out: { spaceId: id.space, spaceName: t.str(), logoFileId: t.opt(id.file), invitedBy: t.str(), role: t.str(), expiresAt: t.ts(), fingerprint: t.str({ examples: ['ab12 cd34 ef56 7890'] }), ssoRequired: t.opt(t.arr(t.obj({ key: t.str(), title: t.str() }))) }, errors: ['auth.invalid_code', 'auth.expired'],
     }),
     write('members.accept', 'Accept an invite: pick a username and password, the device makes its keys; the person becomes active', {
-      ...V, caller: 'pending', in: { code: t.str(), username: t.str({ pattern: '^[a-z0-9_.-]{2,32}$', examples: ['maya'] }), displayName: t.opt(t.str()), password: t.str(), deviceName: t.str(), deviceClass, keys: keyBundle },
+      ...V, caller: 'pending', in: { code: t.str(), username: t.str({ pattern: '^[a-z0-9_.-]{2,32}$', examples: ['maya'] }), displayName: t.opt(t.str()), password: t.str(), deviceName: t.str(), deviceClass, keys: keyBundle, ssoProvider: t.opt(t.str()) },
       out: { personId: id.user, sessionId: id.session, token: t.str({ description: 'Session credential, returned once' }), epoch: t.int({ minimum: 0 }) },
       emits: ['member.joined', 'principal.created'], audit: 'always', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.invalid_code', 'auth.expired', 'validation.duplicate'], team: true,
     }),

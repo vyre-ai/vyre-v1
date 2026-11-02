@@ -67,6 +67,9 @@ export default defineManifest({
     write('identity.sso_link', 'Start proving a provider identity is yours: the address to finish a sign-in at. Whatever comes back is bound to you; a provider id already linked to someone else stays theirs', {
       ...V, in: { provider: t.str({ examples: ['google'] }) }, out: { start: t.str() }, audit: 'always', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'principal' },
     }),
+    write('identity.sso_join_start', 'Invited to a Space where everyone must use single sign-on: the address to prove the invitation\'s email at. Any browser works', {
+      ...V, caller: 'anonymous', in: { code: t.str(), provider: t.str({ examples: ['google'] }) }, out: { start: t.str() }, audit: 'sensitive', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'principal' }, errors: ['auth.invalid_code', 'auth.expired'],
+    }),
     write('identity.sign_out', 'End this session; the device keeps nothing it should not', { ...V, in: { sessionId: t.opt(id.session) }, out: ok, offline: 'online', tool: 'meta' }),
     read('identity.whoami', 'Who the caller is here: person, roles, clearance, device, epoch', {
       ...V, out: { principal: principalRef, name: t.str(), roles: t.arr(id.role), groups: t.arr(id.group), deviceId: t.opt(id.device), epoch: t.int({ minimum: 0 }), spaceId: id.space, deferred: t.opt(t.arr(t.str())) }, tool: 'meta',
@@ -108,7 +111,7 @@ export default defineManifest({
     // Ruling 23: the pre-auth half of joining by invite. The person does not exist yet, so the caller is anonymous (no principal), rate limited
     // per Space and audited. It lives in this manifest because the invites module list is frozen; members.accept stays for a caller already holding a pending join session.
     write('invites.accept_create_account', 'Join by invite with no account yet: creates the person, sets the password, stores the wrapped keys and joins the Space with the invite\'s role and groups', {
-      ...V, caller: 'anonymous', in: { code: t.str(), username: t.str({ pattern: '^[a-z0-9_.-]{2,32}$', examples: ['maya'] }), displayName: t.opt(t.str()), password: t.str(), ...deviceIn, keys: keyBundle, ssoProvider: t.opt(t.str()), ssoCode: t.opt(t.str()) }, out: signInOut,
+      ...V, caller: 'anonymous', in: { code: t.str(), username: t.str({ pattern: '^[a-z0-9_.-]{2,32}$', examples: ['maya'] }), displayName: t.opt(t.str()), password: t.str(), ...deviceIn, keys: keyBundle, ssoProvider: t.opt(t.str()) }, out: signInOut,
       emits: ['member.joined', 'principal.created', 'keys.stored', 'signin.succeeded'], audit: 'always', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'principal' }, errors: ['auth.invalid_code', 'auth.expired', 'validation.duplicate'],
     }),
     // Ruling 71: the first owner of a fresh Space. The host makes the Space and the owner's principal at first start and prints a one-time claim link; the owner's client builds the key

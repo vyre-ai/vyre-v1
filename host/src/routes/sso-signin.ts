@@ -23,11 +23,24 @@ export interface SsoTickets {
   /** A signed-in person is about to prove a provider identity is theirs: a one-use id for the start address, so the sign-in that comes back is bound to them, in a browser or the desktop app alike. */
   offer(person: string): string;
   claim(id: string): string | null;
+  /** Someone joining by invitation finished a sign-in: what it proved waits here, under the invitation, until they accept. */
+  hold(invite: string, key: string, who: { email: string; link: SsoLink }): void;
+  held(invite: string, key: string): { email: string; link: SsoLink } | null;
 }
 export function createSsoTickets(now: () => number = Date.now): SsoTickets {
   const open = new Map<string, { key: string; email: string; link?: SsoLink; exp: number }>();
   const offers = new Map<string, { person: string; exp: number }>();
+  const proofs = new Map<string, { key: string; who: { email: string; link: SsoLink }; exp: number }>();
   return {
+    hold(invite, key, who) {
+      for (const [k, v] of proofs) if (v.exp < now()) proofs.delete(k);
+      proofs.set(invite, { key, who, exp: now() + STATE_MS });
+    },
+    held(invite, key) {
+      const v = proofs.get(invite);
+      proofs.delete(invite);
+      return v && v.key === key && v.exp >= now() ? v.who : null;
+    },
     offer(person) {
       for (const [k, v] of offers) if (v.exp < now()) offers.delete(k);
       const id = Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(24))).toString("base64url");
@@ -123,6 +136,10 @@ export function createSsoSignInRoute(deps: SsoSignInRouteDeps): { handle(req: ht
     try {
       const idToken = await exchangeCode(fetch, rec.disc, { clientId: provider.clientId, clientSecret: await deps.secret(provider.clientSecretHandle), code, redirect, verifier: rec.verifier });
       const who = await verifyIdToken(fetch, rec.disc, idToken, { clientId: provider.clientId, nonce: rec.nonce, domain: provider.domainHint, now: now(), jwks, ...(key === "microsoft" ? { tenant: tenantOf(provider.issuer) ?? "-" } : {}), ...(key === "google" ? { hostedDomain: true } : {}) });
+      if (rec.person?.startsWith("invite:")) {
+        deps.tickets.hold(rec.person, key, { email: who.email, link: who.link });
+        return page(res, 200, `Signed in with ${provider.title}. Go back to your invitation.`, { "set-cookie": clear });
+      }
       if (rec.person) {
         const bound = deps.bind?.(key, { email: who.email, link: who.link }, rec.person) === true;
         return page(res, bound ? 200 : 409, bound ? `Signed in with ${provider.title}. Go back to Vyre.` : `That ${provider.title} account belongs to someone else in this Space. Go back to Vyre and use your own.`, { "set-cookie": clear });

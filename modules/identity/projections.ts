@@ -19,7 +19,7 @@ export interface Sso {
   /** A signed-in person is about to prove a provider identity is theirs: a one-use id for the start address. */
   offer?(person: string): string;
   /** The address a finished sign-in proved, for joining by invitation when everyone must use it. */
-  prove?(key: string, ticket: string): { email: string; bind(person: string): void } | null;
+  prove?(key: string, invite: string): { email: string; bind(person: string): void } | null;
 }
 export interface Github { resolve(code: string): Promise<{ id: string; login: string }> }
 export interface IdentityCtx {

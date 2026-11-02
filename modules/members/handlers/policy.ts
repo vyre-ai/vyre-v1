@@ -22,6 +22,9 @@ function providers(ctx: MembersCtx): Sso[] {
   return out;
 }
 
+/** What a person can sign in with when everyone must use single sign-on: names only, for the join page. */
+export const enabledProviders = (ctx: MembersCtx): { key: string; title: string }[] => providers(ctx).filter((p) => p.enabled).map((p) => ({ key: p.key, title: p.title }));
+
 async function isOwner(ctx: MembersCtx, personId: string): Promise<boolean> {
   if(ctx.spaceOwner)return ctx.principal?.kind === "person" && ctx.spaceOwner() === personId;
   const out = (await ctx.call("access.principals.get", { principal: { kind: "person", id: personId } })) as { principal: { roles: string[] } };
