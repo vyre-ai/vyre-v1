@@ -32,6 +32,8 @@ const USE_TOOL = "use_tool";
 const USE_TOOL_VIEW = { name: USE_TOOL, description: "Call a tool that tool_search found, by name.", inputSchema: { type: "object", properties: { name: { type: "string" }, arguments: { type: "object" } }, required: ["name"] }, annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true } };
 /** Listed for an outside agent from the start, so it can get work and answer without a search. */
 const OUTSIDE_PRELOAD: readonly string[] = ["agents_next"];
+/** Listed for a CLI engine from the start: "make me a file" is a first-hour ask, and it needs a new file and a place to put it. */
+const ENGINE_PRELOAD: readonly string[] = ["files_tree", "files_create", "files_folder_create"];
 
 interface Session {
   caller: McpCaller;
@@ -101,7 +103,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     });
     const threadId = caller.threadId ?? caller.sessionId;
     if (caller.preload) tools.preload(threadId, caller.preload);
-    if (caller.kind === "outside") tools.preload(threadId, OUTSIDE_PRELOAD);
+    tools.preload(threadId, caller.kind === "outside" ? OUTSIDE_PRELOAD : ENGINE_PRELOAD);
     const ctx: ToolCtx = {
       space: caller.space, agentId: caller.principal.id, asker,
       thread: { threadId, kind: caller.threadKind ?? "chat", planMode: caller.planMode === true || caller.mode === "plan", ...(caller.mode !== undefined ? { mode: caller.mode } : {}), ...(caller.scope ? { scope: caller.scope } : {}) },

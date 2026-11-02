@@ -2,3 +2,4 @@
 - Model names read properly in the picker: Claude Opus 5.5, not Claude Opus 5 5.
 - Your Assistant can now change your own Files without being given access, in any Space. In a Personal Space so can every agent you made there. A Team Space agent keeps the access you gave it.
 - When a Team Space agent is refused a folder, it can ask for it and the person gets one press in Needs you to share that folder with the agent.
+- Agents now know how to make a new file from the first turn.
