@@ -51,7 +51,7 @@ test("the line under the box says how the search ran and what it left out", () =
   assert.equal(statusLine(out({ hits: [hit()] }), false, "rivera"), "1 result by words");
   assert.equal(statusLine(out({ hits: [hit(), hit({ messageId: "m2" })], meaning: true }), false, "rivera"), "2 results by words and meaning");
   assert.equal(statusLine(out({}), false, "rivera"), "Nothing found by words");
-  assert.equal(statusLine(out({ hits: [hit()], sealedChats: 2 }), false, "rivera"), "1 result by words. 2 end-to-end chats are not searched here.");
+  assert.equal(statusLine(out({ hits: [hit()], sealedChats: 2 }), false, "rivera"), "1 result by words. 2 sealed chats are not searched here.");
   assert.equal(whenLine(Date.UTC(2026, 9, 29, 15, 30), clock), "Yesterday, 15:30");
 });
 
