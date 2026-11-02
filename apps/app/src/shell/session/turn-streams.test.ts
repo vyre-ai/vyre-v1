@@ -119,7 +119,7 @@ test("a chat opened mid-turn takes the text so far and follows from there, with 
   assert.equal(s.turnsOf("thr_a").length, 2);
 });
 
-test("a long piece from the provider is shown a few words at a time, and everything waiting is shown when the turn ends", () => {
+test("a long piece from the provider is shown a few words at a time, and the turn's end paces out the rest in a moment instead of dropping it in one jump", () => {
   const t = timers();
   const pushes: string[] = [];
   let ended = false;
@@ -134,7 +134,47 @@ test("a long piece from the provider is shown a few words at a time, and everyth
   assert.ok(sizes[0]! >= 1 && sizes[0]! < 30, `the first beat shows a few words, not the sentence: ${JSON.stringify(sizes)}`);
   assert.ok(sizes.every((n, i) => i === 0 || n > sizes[i - 1]!) && sizes.at(-1)! < 30, `and each beat adds more: ${JSON.stringify(sizes)}`);
   s.onFrame(f("trn_p", { kind: "end", state: "done" }));
-  assert.equal(pushes.join(""), words.join(" "), "the turn ended: every word is there, once, in order");
+  assert.notEqual(pushes.join(""), words.join(" "), "the end does not drop what waits on the screen in one jump");
+  assert.equal(ended, false, "the store stays open for the last words");
+  let beats = 0;
+  while (!ended && beats < 40) { t.fire(45); beats++; }
+  assert.ok(beats <= 34, `the tail takes a moment at most: ${beats} beats`);
+  assert.equal(pushes.join(""), words.join(" "), "every word is there, once, in order");
+  assert.ok(ended);
+});
+
+test("a whole reply that lands with the turn's end is still paced, and the saved row reads the store until the last word", () => {
+  const t = timers();
+  const pushes: string[] = [];
+  let ended = false;
+  const store = { push: (x: string) => { pushes.push(x); }, end: () => { ended = true; }, getSnapshot: () => ({ blocks: [], closedCount: 0, done: ended, version: 0 }), subscribe: () => () => undefined, reset: () => undefined, stats: () => ({}) } as never;
+  const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear, makeStore: () => store });
+  s.onFrame(f("trn_w", { kind: "start" }));
+  const words = Array.from({ length: 60 }, (_, i) => `w${i + 1}`);
+  s.onFrame(f("trn_w", { kind: "delta", text: words.join(" "), at: 0 }));
+  s.onFrame(f("trn_w", { kind: "end", state: "done" }));
+  s.onFrame(f("trn_w", { kind: "final", messageId: "msg_w" }));
+  t.fire(45);
+  assert.ok(pushes.join("").split(/\s+/).filter(Boolean).length < 60, "one beat shows a part");
+  s.settle("msg_w");
+  assert.ok(s.streamOf("msg_w") !== undefined, "the row is on screen, and it keeps the store while words remain");
+  let beats = 0;
+  while (!ended && beats < 40) { t.fire(45); beats++; }
+  assert.ok(ended);
+  assert.equal(pushes.join(""), words.join(" "));
+  assert.equal(s.streamOf("msg_w"), undefined, "then the turn goes");
+});
+
+test("a stopped reply shows what it has at once", () => {
+  const t = timers();
+  const pushes: string[] = [];
+  let ended = false;
+  const store = { push: (x: string) => { pushes.push(x); }, end: () => { ended = true; }, getSnapshot: () => ({ blocks: [], closedCount: 0, done: ended, version: 0 }), subscribe: () => () => undefined, reset: () => undefined, stats: () => ({}) } as never;
+  const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear, makeStore: () => store });
+  s.onFrame(f("trn_c", { kind: "start" }));
+  s.onFrame(f("trn_c", { kind: "delta", text: "one two three", at: 0 }));
+  s.onFrame(f("trn_c", { kind: "end", state: "cancelled" }));
+  assert.equal(pushes.join(""), "one two three");
   assert.ok(ended);
 });
 

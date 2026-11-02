@@ -331,14 +331,14 @@ test("placePicker flips above the button near the bottom edge and never leaves t
   assert.ok(tight.top >= 8 && tight.top + tight.height <= 200, "short window: stays inside it");
 });
 
-test("the Assistant row reads the assistant's real name when the agent list has it", () => {
+test("the Assistant row is the real agent when the list has it, under the one name a person sees", () => {
   const stand: AskAgent = { id: "assistant", name: "Assistant", assistant: true };
   const real: AskAgent = { id: "agt_9", name: "Irfad\u2019s Assistant" };
   const out = withRealAssistant([stand, real, BILLING]);
-  assert.deepEqual(out.map((a) => a.name), ["Irfad\u2019s Assistant", "Billing"]);
+  assert.deepEqual(out.map((a) => [a.id, a.name]), [["agt_9", "Assistant"], [BILLING.id, "Billing"]]);
   assert.equal(out[0]?.assistant, true);
   const entries = pickerEntries({ agents: out, current: null, suggested: null, recents: [] });
-  assert.deepEqual(names(entries), ["# Assistant", "Irfad\u2019s Assistant", "# Agents", "Billing"]);
+  assert.deepEqual(names(entries), ["# Assistant", "Assistant", "# Agents", "Billing"]);
   assert.equal(withRealAssistant(AGENTS), AGENTS, "nothing to fix: the same list");
   const two = [stand, real, { id: "x", name: "Ann's Assistant" }];
   assert.equal(withRealAssistant(two), two, "ambiguous: left alone");

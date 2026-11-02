@@ -1,6 +1,6 @@
 # engine.placement.set
 
-Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers. The next turn goes there; a teammate's machine is never a choice
+Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers, or auto to take the pin off. The next turn goes there; a teammate's machine is never a choice
 
 | | |
 |---|---|
@@ -26,7 +26,7 @@ Pin a private chat to where it runs: this computer, the Space (Team Space), or o
 ```ts
 type In = {
   threadId: string;
-  target: "device" | "space" | "server";
+  target: "auto" | "device" | "space" | "server";
   serverId?: string;
 };
 ```
@@ -35,7 +35,7 @@ type In = {
 
 ```ts
 type Out = {
-  target: "device" | "space" | "server";
+  target: "auto" | "device" | "space" | "server";
   serverId?: string;
 };
 ```
@@ -56,12 +56,12 @@ type Out = {
   "name": "example",
   "input": {
     "serverId": "example",
-    "target": "device",
+    "target": "auto",
     "threadId": "thr_a1b2c3"
   },
   "output": {
     "serverId": "example",
-    "target": "device"
+    "target": "auto"
   }
 }
 ```

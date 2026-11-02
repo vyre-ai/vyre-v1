@@ -9877,6 +9877,7 @@ export type EnginePlacementOptionsIn = {
 };
 export type EnginePlacementOptionsOut = {
   private: boolean;
+  pinned: boolean;
   effective: {
     target: "device" | "space" | "server";
     serverId?: string;
@@ -9891,11 +9892,11 @@ export type EnginePlacementOptionsOut = {
 };
 export type EnginePlacementSetIn = {
   threadId: string;
-  target: "device" | "space" | "server";
+  target: "auto" | "device" | "space" | "server";
   serverId?: string;
 };
 export type EnginePlacementSetOut = {
-  target: "device" | "space" | "server";
+  target: "auto" | "device" | "space" | "server";
   serverId?: string;
 };
 export type EnginePolicyGetIn = Record<string, unknown>;
@@ -10315,6 +10316,7 @@ export type EngineTurnRecordIn = {
   tokensOut?: number;
   costMicros?: number;
   code?: string;
+  message?: string;
 };
 export type EngineTurnRecordOut = {
   turn: {

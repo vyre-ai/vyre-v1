@@ -155,7 +155,7 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
   const listMax = inline ? undefined : ((Platform.OS === "web" ? "min(380px, calc(100vh - 220px))" : 380) as unknown as number);
   return (
     <View testID="cmdk" style={[styles.card, inline ? styles.cardInline : null]} accessibilityLabel={inline ? "Open anything" : "Command palette"} {...webOnly({ role: inline ? "search" : "dialog" })}>
-      <View style={styles.head}>
+      <View style={[styles.head, rowNodes.length === 0 ? styles.headAlone : null]}>
         <TextInput
           ref={input as never}
           testID="cmdk-input"
@@ -191,9 +191,11 @@ export function CmdKBody({ controller, placeholder = "Search agents, chats, peop
         ) : null}
       </View>
       {line ? <View testID="cmdk-scope" style={styles.scopes}><Text style={styles.scopesText} numberOfLines={2}>{line}</Text></View> : null}
-      <ScrollView nativeID="cmdk-list" testID="cmdk-list" style={[styles.list, listMax ? { maxHeight: listMax } : null]} keyboardShouldPersistTaps="handled" {...webOnly({ role: "listbox" })}>
-        {rowNodes}
-      </ScrollView>
+      {rowNodes.length === 0 ? null : (
+        <ScrollView nativeID="cmdk-list" testID="cmdk-list" style={[styles.list, listMax ? { maxHeight: listMax } : null]} keyboardShouldPersistTaps="handled" {...webOnly({ role: "listbox" })}>
+          {rowNodes}
+        </ScrollView>
+      )}
       {!inline && Platform.OS === "web" ? (
         <View style={styles.foot}>
           <Text style={styles.footText}>{"↑↓ to move"}</Text>
@@ -278,6 +280,7 @@ const styles = StyleSheet.create({
   cardInline: { width: "100%", maxWidth: 640, alignSelf: "center", borderRadius: 14, boxShadow: "none", borderWidth: 1, borderColor: "var(--line)" } as object,
   newtab: { flex: 1, width: "100%", alignItems: "center", paddingTop: 40, paddingHorizontal: 16 },
   head: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: "var(--line)" },
+  headAlone: { borderBottomWidth: 0 },
   input: { flex: 1, height: 52, paddingHorizontal: 18, fontSize: 16, color: "var(--ink)", backgroundColor: "transparent" },
   closeBtn: { width: 26, height: 26, marginRight: 12, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   filterBtn: { height: 26, paddingHorizontal: 9, marginRight: 12, borderRadius: 6, justifyContent: "center" },

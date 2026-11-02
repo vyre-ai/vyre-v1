@@ -1,6 +1,6 @@
 # engine.placement.options
 
-What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; and where the chat runs now
+What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now, and whether the person pinned it (not pinned is Automatic)
 
 | | |
 |---|---|
@@ -35,6 +35,7 @@ type In = {
 ```ts
 type Out = {
   private: boolean;
+  pinned: boolean;
   effective: {
     target: "device" | "space" | "server";
     serverId?: string;
@@ -80,6 +81,7 @@ type Out = {
         "target": "device"
       }
     ],
+    "pinned": true,
     "private": true
   }
 }

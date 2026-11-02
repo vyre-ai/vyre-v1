@@ -65,6 +65,9 @@ const whoami = async (d: Daemon, token: string | null, extra: Record<string, str
   return { status: r.status, device: data.device, person: data.person };
 };
 
+/** The one-time ticket a browser dials the live socket with. */
+const ticket = async (d: Daemon, token: string): Promise<string> => ((await (await fetch(`${d.url}/sync/v1/ticket`, { method: "POST", headers: { authorization: `Bearer ${token}` } })).json()) as { data: { ticket: string } }).data.ticket;
+
 /** Open the live socket the way a device does and report the HTTP status of the handshake: 101 when it upgrades, else the refusal. */
 function live(d: Daemon, query: string, token?: string): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -125,14 +128,19 @@ test("session: a token is its device; a forged header is ignored; revoking a dev
     assert.deepEqual(await whoami(d, tokA, { "x-vyre-device": B.device }), { status: 200, device: A.device, person }, "a forged x-vyre-device header is ignored");
     assert.deepEqual(await whoami(d, tokB, { "x-vyre-device": A.device }), { status: 200, device: B.device, person });
     assert.equal(await live(d, `device=${B.device}`, tokA), 101, "A's live socket opens, and ?device= is not what names it");
-    assert.equal(await live(d, `token=${tokB}`), 101, "B's live socket opens with the token in the query");
+    assert.equal(await live(d, `ticket=${await ticket(d, tokB)}`), 101, "B's live socket opens with a one-time ticket");
+    assert.equal(await live(d, `token=${tokB}`), 401, "a token in a socket address opens nothing: it would land in logs");
+    const spent = await ticket(d, tokB);
+    assert.equal(await live(d, `ticket=${spent}`), 101);
+    assert.equal(await live(d, `ticket=${spent}`), 401, "a ticket opens one socket");
+    const heldByA = await ticket(d, tokA);
 
     // refusals: no token, an unknown token, a token for a session that does not exist, and the device id offered as the token
     assert.equal((await whoami(d, null)).status, 401);
     assert.equal((await whoami(d, "vst_" + "0".repeat(64))).status, 401, "an unknown token is refused");
     assert.equal((await whoami(d, issueSessionToken(d.db!, "ses_missing"))).status, 401, "a token whose session row is gone is refused");
     assert.equal((await whoami(d, A.device)).status, 401, "a device id is not a credential");
-    assert.equal(await live(d, `token=${"vst_" + "0".repeat(64)}`), 401, "the live socket refuses an unknown token");
+    assert.equal(await live(d, `ticket=${"lvt_" + "0".repeat(32)}`), 401, "the live socket refuses an unknown ticket");
     assert.equal(await live(d, `device=${A.device}`), 401, "the live socket refuses a caller with a device name and no token");
 
     // NOTE for the contract steward: a member can call POST /v1/sync/epoch/bump directly today (200), because "grant only, edit" lets a member through. Not asserted here; reported on the packet.
@@ -147,14 +155,14 @@ test("session: a token is its device; a forged header is ignored; revoking a dev
     assert.equal((await whoami(d, tokA, { "x-vyre-device": B.device })).status, 401, "and forging B's header does not help");
     assert.equal((await call(d, "/v1/devices/revoke", tokA, { deviceId: B.device })).status, 401, "A cannot revoke B");
     assert.equal(await live(d, `device=${A.device}`, tokA), 401, "A's live socket gets 401");
-    assert.equal(await live(d, `token=${tokA}`), 401, "also with the token in the query");
+    assert.equal(await live(d, `ticket=${heldByA}`), 401, "and a ticket minted before the revoke dies with the session");
     const rowOf = (sql: string, ...a: unknown[]) => d.db!.all(sql, ...a)[0] as Record<string, unknown>;
     assert.notEqual(rowOf("SELECT revokedAt FROM devices_device WHERE id = ?", A.device)["revokedAt"], null);
     assert.notEqual(rowOf("SELECT revoked_at FROM devices_session WHERE id = ?", A.session)["revoked_at"], null);
 
     // B keeps working
     assert.deepEqual(await whoami(d, tokB), { status: 200, device: B.device, person });
-    assert.equal(await live(d, `token=${tokB}`), 101, "B's live socket still opens");
+    assert.equal(await live(d, `ticket=${await ticket(d, tokB)}`), 101, "B's live socket still opens");
     assert.equal(rowOf("SELECT revokedAt FROM devices_device WHERE id = ?", B.device)["revokedAt"], null);
 
     // sync: devices.revoke called sync.epoch.bump once, for A, with device_revoked

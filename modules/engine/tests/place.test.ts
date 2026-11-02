@@ -171,3 +171,13 @@ test("a crew teammate's thread runs on the host even with the asker's computer o
   c.ctx.db.run("INSERT INTO engine_crew_job (job_id, thread_id, lead_thread_id, project_id, agent_id, asker, title, branch, base_branch, repo_path, state, started_at) VALUES ('crw_1', 'thr_mate', 'thr_lead', 'prj_1', 'agt_1', 'usr_dana', 'T', 'crew/a-1', 'main', '/r', 'working', 1)");
   assert.deepEqual(await placementDecide(c.ctx, { threadId: "thr_mate", agentId: "agt_1", kind: "message" }), { placement: "host", reason: "crew" });
 });
+
+test("Automatic takes the pin off, the rules decide again, and the options say whether it is pinned", async () => {
+  const ctx = pinCtx();
+  assert.equal((await placementOptions(ctx, { threadId: "thr_1" })).pinned, false, "a chat starts on Automatic");
+  await placementSet(ctx, { threadId: "thr_1", target: "server", serverId: "srv_home" });
+  assert.equal((await placementOptions(ctx, { threadId: "thr_1" })).pinned, true);
+  assert.deepEqual(await placementSet(ctx, { threadId: "thr_1", target: "auto" }), { target: "auto" });
+  assert.equal((await placementOptions(ctx, { threadId: "thr_1" })).pinned, false);
+  assert.notEqual((await decide(ctx)).reason, "chosen_server", "the next turn goes by the rules");
+});

@@ -59,6 +59,9 @@ export function readStoredSessions(store:KeyValueStore|undefined=browserStore())
  try{const url=new URL(candidate.baseUrl),def=candidate.def;return!url.username&&!url.password&&spaceEndpoint(candidate.baseUrl)===candidate.baseUrl&&!!candidate.token&&!!candidate.personId&&(def.kind==='personal'||def.kind==='team')&&typeof def.kit==='string'&&typeof def.skinDefault==='string'&&Array.isArray(def.tint)&&def.tint.length===2&&def.tint.every(value=>typeof value==='string')&&!!def.counts&&!!def.dots;}catch{return false;}
 });}
 
+/** Who the lock screen greets: the first name of the display name. The username is only a stand-in for a session saved before the display name was kept. */
+export const lockName = (s: Pick<StoredSession, "displayName" | "username">): string => (s.displayName?.trim().split(/\s+/)[0] || s.username) ?? "";
+
 /** A managed Personal profile keeps its Space identity when its loopback port changes. */
 export function readStoredSpace(spaceId:string,store:KeyValueStore|undefined=browserStore()):StoredSession|null{return Object.values(sessions(store)).find(s=>s.def.spaceId===spaceId)??null;}
 

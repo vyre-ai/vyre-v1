@@ -235,7 +235,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   const agentRow = agentQ.status === "ready" && agentId !== "" ? agentQ.data.agent : null;
   const agentComputer = computerOf(agentId);
   const agentPage = useMemo(
-    () => agentPageData(rt, go, { agent: { agentId, name: agentRow?.name ?? nameOf(agentId), ...(agentComputer ? { computerId: agentComputer } : {}) }, canEdit: agentRow !== null && agentRow.ownerId === rt.me.id, nameOf, fill }),
+    () => agentPageData(rt, go, { agent: { agentId, name: agentId === rt.assistant.id ? rt.assistant.name : agentRow?.name ?? nameOf(agentId), ...(agentComputer ? { computerId: agentComputer } : {}) }, canEdit: agentRow !== null && agentRow.ownerId === rt.me.id, nameOf, fill }),
     [rt, go, agentId, agentRow, agentComputer, nameOf, fill],
   );
 

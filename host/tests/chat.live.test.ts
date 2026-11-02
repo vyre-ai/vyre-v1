@@ -108,7 +108,7 @@ test("chat live: a person's message to an agent on a booted daemon gets a stream
     assert.equal(pool.status, 200, JSON.stringify(pool.data));
     // the person's own live socket, open before the message: the words of the reply must arrive on it as they are written
     const frames: Array<Record<string, any>> = [];   // eslint-disable-line @typescript-eslint/no-explicit-any
-    const ws = new WebSocket(`${d.url.replace(/^http/, "ws")}/sync/v1/ws?token=${d.token}`);
+    const ws = new WebSocket(`${d.url.replace(/^http/, "ws")}/sync/v1/ws`, { headers: { authorization: `Bearer ${d.token}` } } as never);
     ws.addEventListener("message", (m) => { try { frames.push(JSON.parse(String(m.data)) as Record<string, any>); } catch { /* not json */ } });   // eslint-disable-line @typescript-eslint/no-explicit-any
     await new Promise<void>((resolve, reject) => { ws.addEventListener("open", () => resolve()); ws.addEventListener("error", () => reject(new Error("the live socket did not open"))); });
     ws.send(JSON.stringify({ t: "hello", hello: { deviceId: "dev_stream", deviceClass: "desktop", appVersion: "1.2.3", registryHash: "unknown", cursor: 0, epoch: 0, replica: { entities: {} } } }));

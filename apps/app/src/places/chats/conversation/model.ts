@@ -100,7 +100,7 @@ export const isErrorBlock = (b: MessageBlock): boolean => b.type === "error";
 /** Blocks that are data for the page, not a card: the links of a message (drawn inside its text) and the line a fork starts with (drawn as a link). */
 const QUIET_BLOCKS = new Set(["refs", "fork_origin"]);
 export const isCard = (b: MessageBlock): boolean => !isStep(b) && !isToolStep(b) && !isErrorBlock(b) && !isTurnStatus(b) && !QUIET_BLOCKS.has(b.type);
-export { isTurnStatus, statusView } from "./status.ts";
+export { isTurnStatus, statusView, withoutAnswered } from "./status.ts";
 export type { StatusView } from "./status.ts";
 
 export interface StepLine { id: string; title: string; sub: string; state: MessageBlock["state"] }

@@ -11,6 +11,7 @@ import { MenuIcon } from "../Menu/index.tsx";
 import { TabStrip } from "../TabStrip/index.tsx";
 import type { TabMenuExtra } from "../TabStrip/index.tsx";
 import { RAIL_OVERLAY, SHEET, SHEET_GAP, intoSheet, sq, useRailOverlay, useSheetHost } from "./host.tsx";
+import { useEdgeDrag } from "./drag.ts";
 import { PANE_HEADER_ORDER, SIDE_PANE_MAX, SIDE_PANE_MIN, paneToggleLabel, sidePaneMax, sidePaneMin } from "./props.ts";
 import type { PaneProps, PaneTab, SidePaneProps } from "./props.ts";
 
@@ -254,29 +255,29 @@ export function SidePane(props: SidePaneViewProps): ReactElement | null {
     if (onWidthChange) onWidthChange(clampPaneWidth(first, windowRef.current, min, maxFraction));
   }, [paneKey, first, min, maxFraction, onWidthChange]);
 
+  const begin = (): void => { startWidth.current = widthRef.current; setDragging(true); };
+  const finish = (dx: number): void => {
+    setDragging(false);
+    if (Math.abs(dx) < 2) {
+      const now = Date.now();
+      if (now - lastTap.current < 450) {
+        lastTap.current = 0;
+        reset();
+      } else {
+        lastTap.current = now;
+      }
+      return;
+    }
+    apply(startWidth.current - dx, true);
+  };
+  const edgeRef = useEdgeDrag({ onStart: begin, onMove: (dx) => apply(startWidth.current - dx, false), onEnd: finish, onCancel: () => setDragging(false) });
   const responder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => {
-      startWidth.current = widthRef.current;
-      setDragging(true);
-    },
+    onPanResponderGrant: begin,
     onPanResponderMove: (_event, gesture) => apply(startWidth.current - gesture.dx, false),
-    onPanResponderRelease: (_event, gesture) => {
-      setDragging(false);
-      if (Math.abs(gesture.dx) < 2) {
-        const now = Date.now();
-        if (now - lastTap.current < 450) {
-          lastTap.current = 0;
-          reset();
-        } else {
-          lastTap.current = now;
-        }
-        return;
-      }
-      apply(startWidth.current - gesture.dx, true);
-    },
+    onPanResponderRelease: (_event, gesture) => finish(gesture.dx),
     onPanResponderTerminate: () => setDragging(false),
-  }), [apply, reset]);
+  }), [apply, reset]); // eslint-disable-line react-hooks/exhaustive-deps -- begin and finish read only refs and these
 
   if (!toggle.open) return null;
 
@@ -290,7 +291,8 @@ export function SidePane(props: SidePaneViewProps): ReactElement | null {
 
   const edge = (
     <View
-      {...responder.panHandlers}
+      ref={edgeRef as never}
+      {...(Platform.OS === "web" ? {} : responder.panHandlers)}
       role="separator"
       aria-orientation="vertical"
       aria-label="Resize the side pane"
@@ -344,6 +346,6 @@ const styles = StyleSheet.create({
   onSheet: { position: "relative", height: "100%", minWidth: 0, flexShrink: 0 },
   side: { height: "100%", minWidth: 0, minHeight: 0, backgroundColor: "var(--side)" as string, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, overflow: "visible" },
   body: { flex: 1, minHeight: 0 },
-  edge: { position: "absolute", top: 0, bottom: 0, left: -4, width: 7, zIndex: 6, alignItems: "center", cursor: COL_RESIZE },
+  edge: { position: "absolute", top: 0, bottom: 0, left: -4, width: 7, zIndex: 6, alignItems: "center", cursor: COL_RESIZE, ...(Platform.OS === "web" ? ({ userSelect: "none", touchAction: "none" } as object) : {}) },
   edgeLine: { height: "100%", width: 1, backgroundColor: "transparent" },
 });

@@ -106,7 +106,7 @@ test("the hub keeps a confirmation for a moment, undo takes the action back, off
 
 test("unfinished setup is a pill in the title bar, not a floating chip over the rail: it sits in the bar's flow and never takes a position", () => {
   const pill = <ResumeChip flow="personal" progress={{ ai: "done" }} device="mac" compact={false} onOpen={() => undefined} />;
-  const withSetup = renderToStaticMarkup(<ResumeContext.Provider value={{ handled: 1, total: 6, open: () => undefined, pill }}><TitleBar {...props()} /></ResumeContext.Provider>).replaceAll("<!-- -->", "");
+  const withSetup = renderToStaticMarkup(<ResumeContext.Provider value={{ done: 1, total: 6, open: () => undefined, pill }}><TitleBar {...props()} /></ResumeContext.Provider>).replaceAll("<!-- -->", "");
   assert.ok(withSetup.includes('data-testid="title-setup"') && withSetup.includes("Finish setup, 1 of"), "the bar carries the entry");
   const bar = withSetup.slice(withSetup.indexOf('data-testid="shell-titlebar"'));
   assert.ok(bar.indexOf('data-testid="title-setup"') < bar.indexOf('data-testid="title-search"'), "it sits left of the search, inside the bar");

@@ -38,6 +38,7 @@ type In = {
   tokensOut?: number;
   costMicros?: number;
   code?: string;
+  message?: string;
 };
 ```
 
@@ -94,6 +95,7 @@ type Out = {
     "code": "example",
     "costMicros": 1,
     "engine": "example",
+    "message": "example",
     "model": "example",
     "phase": "started",
     "qseq": 1,

@@ -109,7 +109,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
       const space = ((await s.call("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space;
       return { id: space.id, marker: space.fingerprint };
     } })
-      .then((s) => { if (off) { s.close("superseded before it opened"); return; } opened = s; writeStored({...stored,def:s.def,personId:s.me.id});setSession(s); })
+      .then((s) => { if (off) { s.close("superseded before it opened"); return; } opened = s; writeStored({...stored,def:s.def,personId:s.me.id,...(s.me.name?{displayName:s.me.name}:{})});setSession(s); })
       .catch((e: unknown) => {
         if (off) return;
         if ((e instanceof CapError && e.status === 401) || (e instanceof Error && /no longer matches/i.test(e.message))) { signedOutRef.current(); return; }

@@ -1,5 +1,6 @@
 // @nocache  (these tests start real processes and read fixture files that are not imports, so a pass is never reused from the cache)
 // A persistent CLI session (Claude Code): the same process answers every turn, a dead process is replaced by one that resumes the engine's session, steering is written at once and read at the engine's next step, and is the next turn of the same send, and every way a turn can fail is an event with a code, never a hang. Real processes (agent/fixtures/golden-streams/fake-cli.mjs), no mocks of the driver.
+import { missingProgram } from "../src/drivers/cli/errors.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CLI_ADAPTERS, LaunchError, createCliDriver } from "../src/drivers/cli/index.ts";
@@ -237,4 +238,11 @@ test("a hint opens the process ahead of the first message, so the first acquire 
   assert.equal(spy.launches.length, 1);
   await pool.release(lease);
   await pool.close();
+});
+
+test("a sandbox that cannot find the program is a missing engine, named, not a bare failure", () => {
+  assert.equal(missingProgram("bwrap: execvp claude: No such file or directory"), "claude");
+  assert.equal(missingProgram("bwrap: execvp /opt/vyre/bin/codex: No such file or directory"), "codex");
+  assert.equal(missingProgram("sandbox-exec: execvp() of 'grok' failed: No such file or directory"), "grok");
+  assert.equal(missingProgram("Something went wrong inside the engine"), null);
 });

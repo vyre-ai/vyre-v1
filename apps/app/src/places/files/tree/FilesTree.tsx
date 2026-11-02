@@ -244,7 +244,7 @@ function Tree({ query, slot }: { query: string; slot?: SidebarSlotApi | undefine
           return <NavRow key={r.id} id={r.id} title={r.title} glyph={row.glyph as IconName} selected={data.memoryView != null && rowOf(data.memoryView) === r.id} count={knowCount(r.id)} onPress={() => { data.nav.openKnow(row.route); slot?.openBody(); }} />;
         }) : null}
         {knowQuiet ? <NavRow id="know" title="Knowledge" glyph="bulb" selected={data.memoryView != null} onPress={() => { data.nav.openKnow(KNOW_ROWS[0]!.route); slot?.openBody(); }} hint="What Vyre has learned about your people, clients and projects. It fills in as you work." /> : null}
-        <SectionHead id="space" label="Space" open={q.length > 0 || !isShut("space")} onToggle={() => flip("space")} onAdd={() => data.nav.newFolder("space", null)} />
+        <SectionHead id="space" label={data.personal === true ? "My files" : "Space"} open={q.length > 0 || !isShut("space")} onToggle={() => flip("space")} onAdd={() => data.nav.newFolder("space", null)} />
         {q.length > 0 || !isShut("space") ? (
           <View testID="files-space">
             {allFiles ? (

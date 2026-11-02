@@ -42,8 +42,8 @@ Requires: nothing.
 - [engine.mcp.tools](../capabilities/engine.mcp.tools.md): The MCP servers a chat with this agent connects to and the tools each offers (starts the server in the sandbox if it is not running)
 - [engine.models.list](../capabilities/engine.models.list.md): Models the account can reach; models that the open labels or policy forbid are listed greyed with the reason
 - [engine.placement.decide](../capabilities/engine.placement.decide.md): Decide where a turn runs: host or the asker device (private chat rules, computers, routines, phone and web askers)
-- [engine.placement.options](../capabilities/engine.placement.options.md): What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; and where the chat runs now
-- [engine.placement.set](../capabilities/engine.placement.set.md): Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers. The next turn goes there; a teammate's machine is never a choice
+- [engine.placement.options](../capabilities/engine.placement.options.md): What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now, and whether the person pinned it (not pinned is Automatic)
+- [engine.placement.set](../capabilities/engine.placement.set.md): Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers, or auto to take the pin off. The next turn goes there; a teammate's machine is never a choice
 - [engine.policy.get](../capabilities/engine.policy.get.md): AI policies: allowed accounts, allowed models and providers, and which providers each label may reach
 - [engine.policy.set](../capabilities/engine.policy.set.md): Change AI policies (models and providers, per label provider rules, allowed accounts)
 - [engine.pool.status](../capabilities/engine.pool.status.md): Warm engine pool: sessions per driver, warm hits, evictions

@@ -2553,13 +2553,13 @@
     {
       "deferred": false,
       "name": "engine_placement_options",
-      "summary": "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; and where the chat runs now",
+      "summary": "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now, and whether the person pinned it (not pinned is Automatic)",
       "toolset": "chats"
     },
     {
       "deferred": false,
       "name": "engine_placement_set",
-      "summary": "Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers. The next turn goes there; a teammate's machine is never a choice",
+      "summary": "Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers, or auto to take the pin off. The next turn goes there; a teammate's machine is never a choice",
       "toolset": "chats"
     },
     {

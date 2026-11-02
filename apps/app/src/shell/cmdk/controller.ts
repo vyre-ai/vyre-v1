@@ -127,7 +127,9 @@ export class CmdKController {
       const shown = kinds ? merged.filter((h) => kinds.includes(h.kind)) : merged;
       rows = groupRows(shown, parsed.prefix || filter.length ? 20 : 6);
     }
-    if (!rows.length) rows = [{ type: "empty", key: "empty", title: "No results" }];
+    // Nothing typed and nothing recent is not a search with no results: the field stands alone until there is something to say.
+    const asked = parsed.prefix !== null || parsed.text !== "" || filter.length > 0;
+    if (!rows.length && asked) rows = [{ type: "empty", key: "empty", title: "No results" }];
     const keep = prevKey ? rows.findIndex((r) => r.key === prevKey) : -1;
     const active = keep >= 0 ? keep : stepActive(rows, -1, "first");
     this.set({ rows, active, counts });

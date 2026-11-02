@@ -119,6 +119,21 @@ export async function setPlanMode(data: ConversationData, planMode: boolean): Pr
   await data.call("threads.set_plan_mode", { threadId: data.threadId, planMode } satisfies CapMap["threads.set_plan_mode"]["in"]);
 }
 
+/** What Details shows on a failed turn: what the engine said and where it ran, from the turn itself (engine.turn.get). */
+export async function turnDetail(data: ConversationData, turnId: string): Promise<[string, string][]> {
+  const { what } = (await data.call("engine.turn.get", { turnId } satisfies CapMap["engine.turn.get"]["in"])) as CapMap["engine.turn.get"]["out"];
+  const t = what.turn;
+  const secs = t.endedAt === undefined ? null : Math.max(0, Math.round((t.endedAt - t.startedAt) / 1000));
+  const rows: Array<[string, string]> = [];
+  if (t.error?.message) rows.push(["Reason", t.error.message]);
+  if (t.model !== "") rows.push(["Model", t.model]);
+  rows.push(["Ran on", what.machine === "device" ? "This computer" : "This Space"]);
+  if (secs !== null) rows.push(["Took", `${secs} s`]);
+  if (t.error?.code) rows.push(["Code", t.error.code]);
+  rows.push(["Trace", t.traceId]);
+  return rows;
+}
+
 export async function retryTurn(data: ConversationData, turnId: string): Promise<void> {
   await data.call("engine.turn.retry", { turnId } satisfies CapMap["engine.turn.retry"]["in"]);
 }

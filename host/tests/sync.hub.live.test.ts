@@ -61,7 +61,7 @@ async function world(): Promise<World> {
 
 /** A device over Node's WebSocket, signed in with a real session token: frames are kept in order and can be waited for. */
 async function socket(d: Daemon, token: string, deviceId: string, hash = REGISTRY_HASH, cursor = 0, epoch = 0) {
-  const ws = new WebSocket(`${d.url.replace("http", "ws")}/sync/v1/ws?token=${encodeURIComponent(token)}&deviceClass=desktop`);
+  const ws = new WebSocket(`${d.url.replace("http", "ws")}/sync/v1/ws?deviceClass=desktop`, { headers: { authorization: `Bearer ${token}` } } as never);
   const frames: Record<string, any>[] = [];   // eslint-disable-line @typescript-eslint/no-explicit-any
   let closed = false;
   ws.addEventListener("message", (m) => { frames.push(JSON.parse(String(m.data)) as Record<string, unknown>); });
