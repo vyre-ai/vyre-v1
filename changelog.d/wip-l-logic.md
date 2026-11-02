@@ -14,3 +14,4 @@
 - When one lane of a parallel step ended early, the step after the parallel ran inside the other lane, without waiting and even when the parallel failed. It now runs after the lanes, once.
 - Someone who can only see an agent no longer reads which keys pay for it, which Vault handles it holds, or its limits. Owners, editors and the agent itself still do, and a turn is built whole whoever asked.
 - A reply on a shared key no longer says it was on the account of the person who asked. A person who joins a group that no agent could answer them in is named in one line of that chat.
+- A stage added to a Journey can now be entered, and a Journey can be made again under a deleted Journey's name. Finishing a task that is not the stage's own, such as a time limit alert, no longer moves the record.
