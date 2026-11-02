@@ -11173,6 +11173,10 @@ export type FilesFolderSettingsIn = {
   folderId: string;
   reviewChanges?: boolean;
   label?: "public" | "internal" | "confidential" | "restricted";
+  source?: {
+    mountId: string;
+    provider: string;
+  } | null;
 };
 export type FilesFolderSettingsOut = {
   folder: {

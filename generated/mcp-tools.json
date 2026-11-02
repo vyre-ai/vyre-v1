@@ -19458,7 +19458,7 @@
       "blocks": [],
       "cap": "files.folder.settings",
       "deferred": false,
-      "description": "Change Review changes, sensitivity label or the working-folder flags of a folder",
+      "description": "Change Review changes, sensitivity label or the working-folder flags of a folder; the mounts module marks a mounted folder with its source (null takes the mark off)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -19480,6 +19480,32 @@
           },
           "reviewChanges": {
             "type": "boolean"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "properties": {
+                  "mountId": {
+                    "examples": [
+                      "mnt_a1b2c3"
+                    ],
+                    "pattern": "^mnt_[a-z0-9]+$",
+                    "type": "string"
+                  },
+                  "provider": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "mountId",
+                  "provider"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [

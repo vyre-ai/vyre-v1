@@ -106,6 +106,8 @@ export interface ShellHub {
   retry(): void;
   /** Navigate: open a place (or an item in it) as a tab and show it. */
   go(place: PlaceId, hash?: string, background?: boolean): void;
+  /** The person went somewhere inside the place on screen: the selected tab follows, no tab opens (tabs/store.ts moveTab). */
+  move(place: PlaceId, hash?: string): void;
   /** The view is about to change: whoever draws the frame keeps a still copy until the next one is ready. */
   hold(): void;
   setHolder(fn: (() => void) | null): void;
@@ -345,6 +347,18 @@ export function createShellHub(options: HubOptions): ShellHub {
       if (!background) {
         s.place = place;
         s.hash = hash ?? "";
+      }
+      emit();
+    },
+    move(place, hash) {
+      const s = open();
+      if (place !== s.place || (hash ?? "") !== s.hash) holder?.();
+      s.tabs.move(livePlace(place), hash, screenTitle(hash));
+      const now = s.tabs.state();
+      const t = now.tabs.find((x) => x.key === now.active);
+      if (t !== undefined) {
+        s.place = t.place;
+        s.hash = t.hash ?? "";
       }
       emit();
     },

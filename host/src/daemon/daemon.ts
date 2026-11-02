@@ -120,6 +120,7 @@ import { createLocalKeyRoute } from "../routes/local-key.ts";
 import { createMcpRoute } from "../routes/mcp.ts";
 import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
+import { WRAP_POLICY, createKeyWraps } from "../seams/key-wraps.ts";
 import { createGithubSignInRoute } from "../routes/github-signin.ts";
 import { createSsoSignInRoute, createSsoTickets } from "../routes/sso-signin.ts";
 import { createPeopleExtras, githubOAuthFromEnv, linkSso, matchProvenAddress, ssoProvidersIn } from "../seams/people.ts";
@@ -491,8 +492,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     bind: (key, who, person) => { const bound = db ? linkSso(db, key, who, person) : false; if (bound) matchProven(key, who, person); return bound; },
     log: (why, attrs) => sink.log({ space: space ?? "-", level: 30, msg: why, place: "sso", attrs }),
   });
+  // A Space server keeps a wrap of a member's key that opens after their Google, Microsoft or GitHub sign-in (host/src/seams/key-wraps.ts), unless an owner turned the policy off. Never on a person's own computer.
+  const wrapsOn = (): boolean => {
+    try {
+      const r = db?.all(`SELECT value FROM access_policies WHERE key = ? AND scope = 'space'`, WRAP_POLICY)[0] as { value?: string } | undefined;
+      return r?.value === undefined || JSON.parse(r.value) !== false;
+    } catch { return true; }
+  };
+  const keyWraps = cfg.roles.includes("device") ? null : createKeyWraps({ db: () => db, space: () => space ?? "-", secret: () => Buffer.from(sealKeyFile(path.join(paths.root, "person-wrap.key")), "hex"), enabled: wrapsOn });
   const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: (p, sessionId) => ownNode(p) || (sessionId !== undefined && sessionAlive(sessionId)),
-    log: (msg, attrs) => sink.log({ space: space ?? "-", level: 30, msg, place: "vault", attrs }) });
+    log: (msg, attrs) => sink.log({ space: space ?? "-", level: 30, msg, place: "vault", attrs }),
+    ...(keyWraps ? { handed: (p: string, key: Uint8Array) => { if (keyWraps.make(p, key)) sink.log({ space: space ?? "-", level: 30, msg: "vault.wrap_made", place: "vault", attrs: { person: p } }); }, wraps: keyWraps } : {}) });
   let headSeq = 0;
   let sawSpace = false, hostMadeSpace = false;
   let claimIssue: () => Promise<{ code: string; expiresAt: number } | null> = async () => null;
@@ -1044,7 +1054,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
       const spaceLog = log;
       matchProven = (key, who, person) => matchProvenAddress((n, i) => hookRunner.call(n, i), key, who, person);
-      peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, recoveryCommit:createRecoveryCommit({db:db!,now}),call: (n, i, as) => hookRunner.call(n, i, as), keyring, sso: { tickets: ssoTickets }, github: githubNow,
+      peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, recoveryCommit:createRecoveryCommit({db:db!,now}),call: (n, i, as) => hookRunner.call(n, i, as), keyring, ...(keyWraps ? { wraps: keyWraps } : {}), sso: { tickets: ssoTickets }, github: githubNow,
         // an invite on a Space reached at its phone address carries an invite key, never the box key (seams/relay.ts)
         phoneInvite: { keyFor: async (codeHash) => (phoneClaimed() ? (await inviteKeyOf(loadRelayKeys(paths.root).boxPriv, codeHash)).pub : null) },
         githubApp: {
@@ -1826,7 +1836,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const fast = o.intervals?.fast ?? 15_000, slow = o.intervals?.slow ?? 60_000;
   const group = (names: ProbeName[]): ProbeName[] => names.filter((n) => relevant.includes(n));
   // a signed-out person's key leaves memory within the interval, not whenever someone next reads it
-  scheduler.add({ name: "keyring.sweep", schedule: { everyMs: o.intervals?.sweep ?? 30_000 }, run: () => { keyring.sweep(); } });
+  scheduler.add({ name: "keyring.sweep", schedule: { everyMs: o.intervals?.sweep ?? 30_000 }, run: () => {
+    keyring.sweep();
+    // an owner turned "Members' AI sign-ins open after Google or GitHub sign-in" off: every wrap goes
+    const n = keyWraps?.enforce() ?? 0;
+    if (n > 0) sink.log({ space: space ?? "-", level: 30, msg: "vault.wraps_dropped", place: "vault", attrs: { count: n } });
+  } });
   scheduler.add({ name: "probes.fast", schedule: { everyMs: fast }, run: async () => { await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"]), false); } });
   scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"]), false); reportNetwork(); await ensureIngress(false); await refreshNetworkCertificate(); } });
   scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"]), false); } });

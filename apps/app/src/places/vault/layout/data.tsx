@@ -70,6 +70,8 @@ export interface VaultData {
   pickFile?(accept: string): Promise<string | null>;
   /** Install Vyre for Chrome from this app (desktop only). Without it the Advanced page has no row for it. */
   browsers?: VaultBrowsers;
+  /** A Space server's sealed copy of the person's key for Google or GitHub sign-ins, and Forget on this server (ServerKeyLine). Absent: no such row. */
+  serverKey?: { state(): Promise<{ held: boolean; remembered: boolean; forgotten: boolean } | null>; keep(keep: boolean): Promise<boolean> };
   /** Where the Space runs (ai-signin/own-ai.ts), for the words of a refused save: "here" may unlock in place; elsewhere signing in opens the key. Absent: as "here". */
   aiHome?: AiHome;
 }

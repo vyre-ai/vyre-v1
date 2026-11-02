@@ -8,7 +8,7 @@
 // @reads ../migrations/0001_files_tree.sql
 
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import { KINDS, ensureReady, fail, fileOut, folderOut, isNull, many, num, one, optStr, pageArgs, rec, slicePage } from "./tree.ts";
+import { KINDS, ensureReady, fail, fileOutC, folderOut, isNull, many, num, one, optStr, pageArgs, rec, slicePage } from "./tree.ts";
 import type { FileOut, FolderOut } from "./tree.ts";
 
 type Row = Record<string, unknown>;
@@ -108,7 +108,7 @@ async function sharedWithMe(ctx: Ctx, input: unknown): Promise<ListOut> {
 
   const paged = slicePage(items, offset, limit);
   const out: ListOut = {
-    files: paged.rows.filter((i) => i.kind === "file").map((i) => fileOut(i.row)),
+    files: paged.rows.filter((i) => i.kind === "file").map((i) => fileOutC(ctx, i.row)),
     folders: paged.rows.filter((i) => i.kind === "folder").map((i) => folderOut(ctx, i.row)),
     total: paged.total,
   };
@@ -141,7 +141,7 @@ async function knowledge(ctx: Ctx, input: unknown): Promise<KnowledgeOut> {
   const notes = (await ctx.call("memory.notes.list", { layer: "space", limit: 1 })) as { total?: number; notes?: unknown[] };
   const graph = (await ctx.call("memory.graph", { scope: "space" })) as { nodes?: unknown[] };
   const out: KnowledgeOut = {
-    files: paged.rows.filter((i) => i.kind === "file").map((i) => fileOut(i.row)),
+    files: paged.rows.filter((i) => i.kind === "file").map((i) => fileOutC(ctx, i.row)),
     folders: paged.rows.filter((i) => i.kind === "folder").map((i) => folderOut(ctx, i.row)),
     views: [
       { key: "memory", title: "Memory", count: notes.total ?? notes.notes?.length ?? 0 },

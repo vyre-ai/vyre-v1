@@ -9,7 +9,7 @@
 // @reads ../migrations/0004_viewer.sql
 
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-import { fail, many, num, one, isNull, optInt, optStr, rec } from "./tree.ts";
+import { contentMime, fail, many, num, one, isNull, optInt, optStr, rec } from "./tree.ts";
 
 type Row = Record<string, unknown>;
 type Obj = Record<string, unknown>;
@@ -88,7 +88,17 @@ async function viewerData(ctx: Ctx, input: unknown): Promise<Obj> {
   const versionId = optStr(ctx, o, "versionId");
   liveFileRow(ctx, fileId);
   versionOf(ctx, fileId, versionId);
-  const file = ((await ctx.call("files.get", { fileId })) as { file: Obj }).file;
+  let file = ((await ctx.call("files.get", { fileId })) as { file: Obj }).file;
+  // Opening a file of a connected folder asks the provider what it holds now (mounts.open), so the viewer shows the current content: a live placeholder is fetched the first time,
+  // a Google-native file is exported. Opening never makes a file; the provider stays the source. A file Vyre holds itself answers "not mounted" at once.
+  if (versionId === undefined && (isObj(file.source) || num(file.size) === 0)) {
+    try {
+      await ctx.call("mounts.open", { fileId });
+      file = ((await ctx.call("files.get", { fileId })) as { file: Obj }).file;
+    } catch (e) {
+      ctx.log.warn("files: the viewer could not open the file at its provider", { fileId, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
   const kind = str(file.kind);
   const at = versionId !== undefined ? { fileId, versionId } : { fileId };
   const out: Obj = { file };
@@ -115,11 +125,33 @@ async function viewerData(ctx: Ctx, input: unknown): Promise<Obj> {
     const s = await tryCall<{ sheets?: unknown[] }>(ctx, "sheets.info", { fileId });
     if (Array.isArray(s?.sheets)) out.sheets = s.sheets;
   }
-  // a Google-native file is read from an export snapshot; editing it goes through the provider when the file came from one
-  if (kind === "google_native") out.snapshot = { exportedAt: num(file.updatedAt), editVia: isObj(file.source) ? "provider_api" : "open_in_provider" };
-
+  // a Google-native file is read from its export: a Doc's Markdown and a Sheet's CSV as text, Slides as the pages and text of a PDF, a Drawing as a picture. Editing it goes through the
+  // provider (Open in Google Docs, or an agent through the provider's API), never by saving the export over it.
   const native = kind === "google_native";
-  out.canEdit = allowed(ctx, "edit", fileId, "files.write") && (!native || isObj(file.source));
+  if (native) {
+    const row = liveFileRow(ctx, fileId);
+    const blobId = versionId !== undefined ? str(one(ctx, "SELECT * FROM files_file_version WHERE id = ?", versionId)?.blob) : str(row.blob);
+    const held = contentMime(ctx, row, blobId);
+    if (held.startsWith("text/")) {
+      const r = await tryCall<{ text?: string }>(ctx, "files.read", { ...at, as: "text" });
+      if (typeof r?.text === "string") out.text = r.text;
+    } else if (held.startsWith("image/")) {
+      const p = await tryCall<{ ready?: boolean; url?: string }>(ctx, "previews.get", at);
+      const u = p?.ready && typeof p.url === "string" ? p.url : (await tryCall<{ url?: string }>(ctx, "files.read", { ...at, as: "url" }))?.url;
+      if (typeof u === "string") out.previewUrl = u;
+    } else if (held !== "") {
+      const t = await tryCall<{ text?: string; pages?: number }>(ctx, "previews.text", at);
+      if (typeof t?.text === "string" && t.text.trim() !== "") out.text = t.text;
+      if (typeof t?.pages === "number") out.pages = t.pages;
+      // only a drawn page: the export's own address is a PDF, not a picture
+      const p = await tryCall<{ ready?: boolean; url?: string; pages?: number }>(ctx, "previews.get", at);
+      if (p?.ready && typeof p.url === "string") out.previewUrl = p.url;
+      if (typeof p?.pages === "number" && out.pages === undefined) out.pages = p.pages;
+    }
+    out.snapshot = { exportedAt: num(file.updatedAt), editVia: isObj(file.source) ? "provider_api" : "open_in_provider" };
+  }
+
+  out.canEdit = allowed(ctx, "edit", fileId, "files.write") && !native;
   out.canMark = allowed(ctx, "edit", fileId) && MARKABLE_KINDS.has(kind);
   out.canComment = allowed(ctx, "use", fileId);
   out.pins = many(ctx, "SELECT * FROM files_comment WHERE file_id = ?", fileId).filter((r) => isNull(r.deleted_at) && !num(r.resolved) && !isNull(r.pin)).length;
