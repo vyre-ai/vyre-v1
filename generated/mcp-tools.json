@@ -6112,6 +6112,32 @@
     },
     {
       "blocks": [],
+      "cap": "automations.senders",
+      "deferred": false,
+      "description": "What this Automation sends from: the mailboxes and numbers its steps name, and whether each can send now",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "automationId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_senders",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.set_enabled",
       "deferred": false,
       "description": "Turn an Automation on or off",
@@ -56144,6 +56170,9 @@
             ],
             "pattern": "^\\+[1-9][0-9]{6,14}$",
             "type": "string"
+          },
+          "transactional": {
+            "type": "boolean"
           }
         },
         "required": [

@@ -21,6 +21,7 @@ export function createClient(transport: Transport) {
         update: call("access.actors.update", 1),
       },
       audience_set: call("access.audience_set", 1),
+      automation_senders: call("access.automation_senders", 1),
       check: call("access.check", 1),
       connector_builder: {
         grant: call("access.connector_builder.grant", 1),
@@ -227,6 +228,7 @@ export function createClient(transport: Transport) {
       retry: call("automations.retry", 1),
       run: call("automations.run", 1),
       schedule_choose: call("automations.schedule_choose", 1),
+      senders: call("automations.senders", 1),
       set_enabled: call("automations.set_enabled", 1),
       steps: {
         list: call("automations.steps.list", 1),

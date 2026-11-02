@@ -372,6 +372,24 @@ const routes0: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/access/automation_senders",
+    "cap": "access.automation_senders",
+    "v": 1,
+    "module": "access",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/access/check",
     "cap": "access.check",
     "v": 1,
@@ -2946,6 +2964,25 @@ const routes0: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/automations/senders",
+    "cap": "automations.senders",
+    "v": 1,
+    "module": "automations",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "automation",
+      "id": "/automationId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/automations/set_enabled",
     "cap": "automations.set_enabled",
     "v": 1,
@@ -5513,7 +5550,10 @@ const routes0: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": "post"
-  },
+  }
+];
+
+const routes1: Route[] = [
   {
     "method": "POST",
     "path": "/v1/computers/chrome/batch",
@@ -5551,10 +5591,7 @@ const routes0: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes1: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/computers/chrome/console",
@@ -11041,7 +11078,10 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes2: Route[] = [
   {
     "method": "POST",
     "path": "/v1/files/external_links",
@@ -11080,10 +11120,7 @@ const routes1: Route[] = [
     "offline": "queue",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes2: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/files/folder/delete",
@@ -16577,7 +16614,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/inbox/list_by_contact",
@@ -16613,10 +16653,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/inbox/mark_read",
@@ -18503,7 +18540,8 @@ const routes3: Route[] = [
     "permission": null,
     "level": "use",
     "resource": {
-      "type": "space"
+      "type": "mailbox",
+      "id": "/mailboxId"
     },
     "idempotency": "key",
     "risk": "high",
@@ -22085,7 +22123,10 @@ const routes3: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/ms/user/list",
@@ -22121,10 +22162,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/ms/user/send_message",
@@ -25432,7 +25470,8 @@ const routes4: Route[] = [
     "permission": null,
     "level": "use",
     "resource": {
-      "type": "space"
+      "type": "mailbox",
+      "id": "/mailboxId"
     },
     "idempotency": "key",
     "risk": "high",
@@ -27615,7 +27654,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sites/preview_rebuild",
@@ -27653,10 +27695,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sites/previews",
@@ -32210,7 +32249,8 @@ const routes5: Route[] = [
     "permission": null,
     "level": "use",
     "resource": {
-      "type": "space"
+      "type": "number",
+      "id": "/numberId"
     },
     "idempotency": "key",
     "risk": "high",
@@ -33138,7 +33178,10 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/views/delete",
@@ -33174,10 +33217,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/views/list",
