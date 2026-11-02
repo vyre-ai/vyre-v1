@@ -12,8 +12,7 @@ import { createPublicPathRoute } from "../host/src/routes/public-path.ts";
 import { createDomainEdge, createSitesHost } from "../host/src/seams/sites-host.ts";
 import { unixSocketHttp } from "../sandbox/src/docker.ts";
 import { harness } from "../modules/sites/fixtures/world.ts";
-import { configureDomainEdge } from "../modules/sites/handlers/route-domains.ts";
-import { configureRoutes, routeBySlug } from "../modules/sites/handlers/route.ts";
+import { configureDomainEdge, configureRoutes, routeBySlug } from "../modules/sites/handlers/route.ts";
 import { handlers } from "../modules/sites/impl.ts";
 
 const h = handlers as unknown as Record<string, (ctx: unknown, input: unknown) => Promise<any>>;

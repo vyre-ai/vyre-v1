@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { registry } from "../../../generated/registry.ts";
 import { configureRoutes, routeBySlug, routeByTicket } from "../handlers/route.ts";
-import { configureDomainEdge } from "../handlers/route-domains.ts";
+import { configureDomainEdge } from "../handlers/route.ts";
 import { handlers } from "../impl.ts";
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
@@ -93,12 +93,17 @@ test("custom domains: the records are exact, an apex takes an A, the three state
     const a = await h["sites.domain_add"]!(w.ctx, { siteId, domain: "shop.example.org" });
     assert.deepEqual(a.records, [{ type: "CNAME", name: "shop.example.org", value: "team.example.com" }]);
     assert.equal(a.state, "waiting_dns");
+    assert.deepEqual(routes, [], "a domain waits for the site to go live: adding one never goes around the Gate");
+    await h["sites.promote"]!(w.ctx, { siteId });
     assert.deepEqual(routes, ["shop.example.org:3000"]);
     assert.deepEqual((await h["sites.domain_add"]!(w.ctx, { siteId, domain: "example.org" })).records, [{ type: "A", name: "example.org", value: "203.0.113.5" }]);
     dns = true;
     assert.equal((await h["sites.domain_check"]!(w.ctx, { siteId, domain: "shop.example.org" })).state, "issuing");
     cert = true;
     assert.equal((await h["sites.domain_check"]!(w.ctx, { siteId, domain: "shop.example.org" })).state, "live");
+    const closed = await h["sites.create"]!(w.ctx, { name: "Closed", access: "space", port: 3000 });
+    await assert.rejects(() => h["sites.domain_add"]!(w.ctx, { siteId: closed.site.siteId, domain: "closed.example.org" }), /A custom domain is public/);
+    await assert.rejects(() => h["sites.update"]!(w.ctx, { siteId, access: "password" }), /not in this version/);
     configureDomainEdge({ public: async () => null, dnsOk: async () => false, certIssued: async () => false, setRoute: async () => undefined, removeRoute: async () => undefined });
     await assert.rejects(() => h["sites.domain_add"]!(w.ctx, { siteId, domain: "other.example.org" }), /needs a server with a public address/);
   } finally { configureRoutes(null); configureDomainEdge(null); }
@@ -118,5 +123,18 @@ test("a ticket opens one artifact, for its person, until it ends", async () => {
     assert.equal(await routeByTicket(w.ctx, made.site.siteId, "0".repeat(48), now), null);
     assert.equal(await routeByTicket(w.ctx, made.site.siteId, token, open.expiresAt + 1), null, "until it ends");
     await assert.rejects(() => h["sites.artifact_open"]!({ ...w.ctx, principal: { kind: "agent", id: "agt_x" } }, { artifactId: made.site.siteId }), /Only a person/);
+  } finally { configureRoutes(null); }
+});
+
+test("a site cannot point at what its maker could not use: the server reads for it, so the caller is asked first", async () => {
+  const w = harness();
+  configureRoutes(host() as never);
+  const ctx = { ...w.ctx, authorize: () => ({ effect: "deny", reason: "no_grant", decisionId: "d" }) };
+  try {
+    await assert.rejects(() => h["sites.create"]!(ctx, { name: "Leak", folderId: "fld_private" }), /cannot read that folder/);
+    await assert.rejects(() => h["sites.create"]!(ctx, { name: "Leak", computerId: "cmt_other", port: 3000 }), /cannot use that computer/);
+    await assert.rejects(() => h["sites.artifact_publish"]!(ctx, { title: "Leak", folderId: "fld_private" }), /cannot read that folder/);
+    const made = await h["sites.create"]!(w.ctx, { name: "Mine", port: 3000 });
+    await assert.rejects(() => h["sites.update"]!(ctx, { siteId: made.site.siteId, folderId: "fld_private" }), /cannot read that folder/);
   } finally { configureRoutes(null); }
 });

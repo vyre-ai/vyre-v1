@@ -27,7 +27,7 @@ export function appsData(rt: ShellRuntime): AppsData {
       openUrl: (url) => rt.openUrl(url),
       openComputers: () => rt.open({ screen: "settings.page", args: { page: "computers" } }),
       create: (group, kind) => rt.open({ screen: group === "forms" ? "apps.forms" : group === "campaigns" ? "apps.campaigns" : group === "domains" ? "apps.sending-domains" : SCREEN[group] ?? "apps.forms", args: { create: true, ...(kind ? { kind } : {}) } }),
-      show: (group) => rt.open({ screen: group === "artifacts" ? "apps.artifacts" : group === "sites" ? "apps.sites" : group === "forms" ? "apps.forms" : group === "campaigns" ? "apps.campaigns" : group === "domains" ? "apps.sending-domains" : SCREEN[group] ?? "apps.forms" }),
+      show: (group) => rt.open({ screen: group === "chats" ? "chats.conversation" : group === "artifacts" ? "apps.artifacts" : group === "sites" ? "apps.sites" : group === "forms" ? "apps.forms" : group === "campaigns" ? "apps.campaigns" : group === "domains" ? "apps.sending-domains" : SCREEN[group] ?? "apps.forms" }),
       openEmailDesign: (emailId) => rt.open({ screen: "apps.email-builder", ...(emailId ? { args: { emailId } } : {}) }),
       joinTeam: () => rt.open({ screen: "settings.page", args: { page: "spaces" } }),
       openTask: (taskId) => rt.open({ subject: { type: "task", id: taskId } }),

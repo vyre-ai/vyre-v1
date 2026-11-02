@@ -14,5 +14,4 @@ Area: sites. Risk: high. Applies to: site.
 
 ## Capabilities that need it
 
-- sites.promote
 - sites.rollback

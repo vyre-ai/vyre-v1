@@ -7,8 +7,8 @@ Put a site on the public internet at its address. Held for approval unless the p
 | Module | sites |
 | Version | 1 (since 1.0.0) |
 | Effects | outward |
-| Permission | sites.promote |
-| Grant level | manage |
+| Permission | sites.deploy |
+| Grant level | edit |
 | Risk | high |
 | Resource | site (/siteId) |
 | Gate | site_promote when actor.kind != 'person' |

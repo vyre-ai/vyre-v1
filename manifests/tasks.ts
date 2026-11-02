@@ -113,7 +113,7 @@ export default defineManifest({
       in: { scope: t.enm('mine', 'given', 'everyone'), recordId: t.opt(id.record), parentTaskId: t.opt(id.task), done: t.opt(t.bool()), rev: t.opt(t.str()) },
       out: { rev: t.str(), unchanged: t.bool(), rows: t.arr(indexRow), doneThisWeek: t.int(), total: t.int() }, tool: 'tasks', label: 'filter',
     }),
-    read('tasks.rev', 'A short mark that changes whenever any task changes, for a screen that holds a long list', { in: {}, out: { rev: t.str() } }),
+    read('tasks.rev', 'A short mark that changes whenever any task changes, for a screen that holds a long list', { in: {}, out: { rev: t.str() }, tool: 'tasks', label: 'check' }),
     read('tasks.by_key', 'Find a task by its short key, such as VY-123', { in: { key: t.str({ minLength: 3, examples: ['VY-123'] }) }, out: { taskId: t.nullable(id.task) }, tool: 'tasks', label: 'check' }),
     read('tasks.digest', 'What an agent should keep in mind: the task bound to this thread, its parent and siblings in a line each, then its own open tasks, the top five and a count. About 300 tokens; detail stays one tasks_get away', {
       in: { agentId: id.agent, threadId: t.opt(id.thread) }, out: { text: t.str(), hash: t.str(), boundTaskId: t.opt(id.task) }, label: 'check',

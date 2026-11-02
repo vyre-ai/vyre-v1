@@ -528,3 +528,15 @@ test("a body that is not a JSON object is refused before any capability runs", a
     assert.equal(ran, 0);
   } finally { await s.close(); }
 });
+
+test("on a phone address a form's link lives under /p/forms, whole; on an own domain it stays where it was", async () => {
+  const { configureForms, publicUrl } = await import("../projections.ts");
+  try {
+    configureForms({ publicBase: "https://harbor.vyre.run", publicPath: true });
+    assert.equal(publicUrl({ kind: "public", slug: "quote" }), "https://harbor.vyre.run/p/forms/quote");
+    assert.equal(publicUrl({ kind: "booking", slug: "meet" }), "https://harbor.vyre.run/p/forms/book/meet");
+    configureForms({ publicBase: "https://team.example.com" });
+    assert.equal(publicUrl({ kind: "public", slug: "quote" }), "https://team.example.com/f/quote");
+    assert.equal(publicUrl({ kind: "booking", slug: "meet" }), "https://team.example.com/book/meet");
+  } finally { configureForms(null); }
+});
