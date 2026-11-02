@@ -1,5 +1,0 @@
-- Agents in a Personal chat can run terminal commands. An agent's terminal_run with no terminal and no host runs where the chat runs: on your computer, or on the agent's own computer when the chat runs there. It used to aim at an agent computer the Space did not have, and the Space refused a command that named no terminal before it was looked at.
-- The daemon now runs terminals on the computer it is: in tmux when it is installed, and in a plain shell when it is not, as on a Mac. The command shows in the agent's own session under Terminals and in the chat's Terminal tab, where you can watch it and type.
-- Your terminal rules, Ask first, Auto and the Gate apply as before. A command starts with a small environment of its own, not the app's.
-- A Team Space still runs an agent's commands on its own computer first. An agent with no computer there is told to use its own shell or ask you with terminal_request.
-- Agents are no longer told "You have no computer". Their instructions say they can run commands on the computer the chat runs on, and the skill evals check that they never say they cannot.
