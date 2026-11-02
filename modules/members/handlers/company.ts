@@ -1,15 +1,13 @@
-// Connect your company: one flow for Google Workspace or Microsoft 365. The connectors, the sign-in policy and the Vault already hold the truth, so this holds only where the flow stands (migrations/0001_company.sql) and reads
+// Connect your company (company.*): one flow for Google Workspace or Microsoft 365. It lives in members because sign-in and the directory are what it starts from. The connectors, the sign-in policy and the Vault already hold the truth, so this holds only where the flow stands (migrations/0001_company.sql) and reads
 // the rest live. That is why it survives a restart and never asks for what it knows. Every change goes through the capability that owns it; the two that change the company declare connection_change, so a person with the
 // right role decides. Secrets never come here: the person's own screen puts them in the Vault, and this module only ever names a handle.
-import { COMPANY_INTENT, DOC_PAGE, FLOW_STEPS, PROVIDER_TITLE, nextStep } from "../../../lib/company-flow.ts";
+import { DOC_PAGE, FLOW_STEPS, PROVIDER_TITLE, nextStep } from "../../../lib/company-flow.ts";
 import type { CompanyProvider, StepId } from "../../../lib/company-flow.ts";
 import { GOOGLE_KEY_HANDLE, MICROSOFT_KEY_HANDLE } from "../../../lib/company-keys.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
-import { googleScript, microsoftScript } from "../scripts.ts";
-import type { Data } from "../scripts.ts";
+import { googleScript, microsoftScript } from "./company-scripts.ts";
+import type { Data } from "./company-scripts.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
-
-export { COMPANY_INTENT };
 
 type Row = Record<string, unknown>;
 const FLOW = "company";
@@ -19,7 +17,7 @@ const SWEEP_EVERY = 6 * HOUR;
 const obj = (v: unknown): Row => (v && typeof v === "object" && !Array.isArray(v) ? (v as Row) : {});
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const str = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
-const flowOf = (ctx: Ctx): Row | null => (ctx.db.all(`SELECT * FROM company_flow WHERE id = ?`, FLOW)[0] as Row | undefined) ?? null;
+const flowOf = (ctx: Ctx): Row | null => (ctx.db.all(`SELECT * FROM members_company_flow WHERE id = ?`, FLOW)[0] as Row | undefined) ?? null;
 const dataOf = (f: Row | null): Data => ({ mail: !f || f["dataMail"] === 1, calendar: !f || f["dataCalendar"] === 1, files: !f || f["dataFiles"] === 1 });
 const bad = (ctx: Ctx, message: string): never => { throw fail("validation.precondition_failed", ctx.trace.traceId, { message }); };
 const quiet = async (ctx: Ctx, cap: string, input: unknown): Promise<Row | null> => { try { return obj(await ctx.call(cap as never, input)); } catch { return null; } };
@@ -29,10 +27,8 @@ async function facts(ctx: Ctx, provider: CompanyProvider) {
   const conn = await quiet(ctx, provider === "google" ? "google.dwd.status" : "ms.consent.status", {});
   const sso = await quiet(ctx, "members.sso.list", {});
   const policy = await quiet(ctx, "members.sign_in_policy.get", {});
-  const person = ctx.actingFor ?? ctx.principal.id;
-  const me = await quiet(ctx, "identity.whoami", {});
   const providerRow = arr(sso?.["providers"]).map(obj).find((p) => p["key"] === provider) ?? null;
-  return { conn, sso: providerRow, policy: obj(policy?.["policy"]), caps: obj(policy?.["capabilities"]), person, me };
+  return { conn, sso: providerRow, policy: obj(policy?.["policy"]), caps: obj(policy?.["capabilities"]) };
 }
 
 async function statusOf(ctx: Ctx) {
@@ -78,8 +74,8 @@ export async function companyStart(ctx: Ctx, input: { provider: CompanyProvider;
   const data = input.data ?? dataOf(f);
   if (!data.mail && !data.calendar && !data.files) bad(ctx, "Choose at least one of Mail, Calendar and Files.");
   if (f && typeof f["connectedAt"] === "number" && f["provider"] !== input.provider) bad(ctx, `${PROVIDER_TITLE[f["provider"] as CompanyProvider]} is connected. Disconnect it first.`);
-  if (f) ctx.db.run(`UPDATE company_flow SET provider = ?, "dataMail" = ?, "dataCalendar" = ?, "dataFiles" = ? WHERE id = ?`, input.provider, data.mail ? 1 : 0, data.calendar ? 1 : 0, data.files ? 1 : 0, FLOW);
-  else ctx.db.run(`INSERT INTO company_flow (id, provider, "dataMail", "dataCalendar", "dataFiles", "startedBy", "startedAt") VALUES (?, ?, ?, ?, ?, ?, ?)`, FLOW, input.provider, data.mail ? 1 : 0, data.calendar ? 1 : 0, data.files ? 1 : 0, ctx.actingFor ?? ctx.principal.id, ctx.now());
+  if (f) ctx.db.run(`UPDATE members_company_flow SET provider = ?, "dataMail" = ?, "dataCalendar" = ?, "dataFiles" = ? WHERE id = ?`, input.provider, data.mail ? 1 : 0, data.calendar ? 1 : 0, data.files ? 1 : 0, FLOW);
+  else ctx.db.run(`INSERT INTO members_company_flow (id, provider, "dataMail", "dataCalendar", "dataFiles", "startedBy", "startedAt") VALUES (?, ?, ?, ?, ?, ?, ?)`, FLOW, input.provider, data.mail ? 1 : 0, data.calendar ? 1 : 0, data.files ? 1 : 0, ctx.actingFor ?? ctx.principal.id, ctx.now());
   return statusOf(ctx);
 }
 
@@ -117,7 +113,7 @@ export async function companyConnect(ctx: Ctx, input: { idempotencyKey: string }
   if (status["configured"] !== true) return bad(ctx, `${PROVIDER_TITLE[f["provider"] as CompanyProvider]} is not set up yet. Finish the steps above.`);
   const made = obj(await ctx.call((google ? "google.dwd.connect_all" : "ms.consent.connect_all") as never, { idempotencyKey: `${input.idempotencyKey}:all` }));
   const now = ctx.now(), at = now + SWEEP_EVERY;
-  ctx.db.run(`UPDATE company_flow SET "connectedAt" = ?, "nextSweepAt" = ? WHERE id = ?`, now, at, FLOW);
+  ctx.db.run(`UPDATE members_company_flow SET "connectedAt" = ?, "nextSweepAt" = ? WHERE id = ?`, now, at, FLOW);
   await ctx.schedule(at, "company.sweep" as never, {});
   return { connected: typeof made["connected"] === "number" ? made["connected"] : 0, included: typeof made["included"] === "number" ? made["included"] : 0 };
 }
@@ -127,7 +123,7 @@ export async function companyDisconnect(ctx: Ctx) {
   const f = flowOf(ctx);
   if (!f) return { disconnected: false };
   await ctx.call((f["provider"] === "google" ? "google.dwd.disable" : "ms.consent.disable") as never, {});
-  ctx.db.run(`UPDATE company_flow SET "connectedAt" = NULL, "nextSweepAt" = NULL WHERE id = ?`, FLOW);
+  ctx.db.run(`UPDATE members_company_flow SET "connectedAt" = NULL, "nextSweepAt" = NULL WHERE id = ?`, FLOW);
   return { disconnected: true };
 }
 
@@ -146,11 +142,11 @@ export async function companySweep(ctx: Ctx, input: { confirmed?: boolean }) {
     line = "The directory could not be read, so nobody was changed. It will be tried again.";
     ctx.log.warn("company sweep failed", { error: e instanceof Error ? e.name : "unknown" });
   }
-  ctx.db.run(`UPDATE company_flow SET "lastSweepAt" = ?, "lastSweepLine" = ? WHERE id = ?`, now, line, FLOW);
+  ctx.db.run(`UPDATE members_company_flow SET "lastSweepAt" = ?, "lastSweepLine" = ? WHERE id = ?`, now, line, FLOW);
   const planned = typeof f["nextSweepAt"] === "number" ? f["nextSweepAt"] : 0;
   if (planned <= now) {
     const at = now + SWEEP_EVERY;
-    ctx.db.run(`UPDATE company_flow SET "nextSweepAt" = ? WHERE id = ?`, at, FLOW);
+    ctx.db.run(`UPDATE members_company_flow SET "nextSweepAt" = ? WHERE id = ?`, at, FLOW);
     await ctx.schedule(at, "company.sweep" as never, {});
   }
   return { checked: typeof out["checked"] === "number" ? out["checked"] : 0, gone: arr(out["gone"]).filter((x): x is string => typeof x === "string"), ...(str(out["held"]) ? { held: out["held"] } : {}) };
@@ -163,7 +159,7 @@ export async function companyAccessLog(ctx: Ctx, input: { cursor?: string; limit
   return obj(await ctx.call((f["provider"] === "google" ? "google.access_log" : "ms.access_log") as never, input));
 }
 
-export const handlers = {
+export const companyHandlers = {
   "company.status": (ctx: Ctx) => companyStatus(ctx),
   "company.start": (ctx: Ctx, i: Parameters<typeof companyStart>[1]) => companyStart(ctx, i),
   "company.script": (ctx: Ctx, i: Parameters<typeof companyScript>[1]) => companyScript(ctx, i),

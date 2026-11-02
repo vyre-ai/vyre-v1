@@ -96,11 +96,11 @@ test("setup refuses a bad handle, address or domain and a Vault item that is not
 test("status and scopes tell the wizard what is set and what to paste into the Admin console", async () => {
   const h = admin();
   const before = await dwdStatus(h.ctx);
-  assert.deepEqual(before, { configured: false, autoConnect: true, mappedMembers: 0, excluded: [] });
+  assert.deepEqual(before, { configured: false, data: { mail: true, calendar: true, files: true }, keyStored: false, autoConnect: true, mappedMembers: 0, excluded: [] });
   await dwdSetup(h.ctx, setupInput);
   await dwdSetExcluded(h.ctx, { email: SAM, excluded: true });
   const after = await dwdStatus(h.ctx);
-  assert.deepEqual(after, { configured: true, adminEmail: "admin@vyre.test", domain: "vyre.test", lastProbeAt: NOW, lastProbeOk: true, autoConnect: true, mappedMembers: 2, excluded: [SAM], pushToken: pushToken(h.ctx) });
+  assert.deepEqual(after, { configured: true, data: { mail: true, calendar: true, files: true }, keyStored: true, clientId: "1234567890", adminEmail: "admin@vyre.test", domain: "vyre.test", lastProbeAt: NOW, lastProbeOk: true, autoConnect: true, mappedMembers: 2, excluded: [SAM], pushToken: pushToken(h.ctx) });
   assert.match(after.pushToken!, /^[0-9a-f]{64}$/, "the secret for the Pub/Sub push address is made with the setup");
   check("google.dwd.status", before);
   check("google.dwd.status", after);
@@ -123,7 +123,7 @@ test("a probe names the scopes the Admin console is missing and proves the profi
   h.refuseScope(SCOPES[2]!);
   h.refuseScope(SCOPES[5]!);
   const before = h.hits(PROFILE).length;
-  const bad = await dwdProbe(h.ctx, { as: SAM });
+  const bad = await dwdProbe(h.ctx, {});
   assert.deepEqual([bad.ok, bad.scopesMissing, bad.email], [false, [SCOPES[2], SCOPES[5]], undefined]);
   assert.match(bad.detail ?? "", /Admin console/);
   assert.equal(h.hits(PROFILE).length, before);   // no mailbox was touched when the scopes are not there
@@ -145,10 +145,11 @@ test("members list in pages; an exclusion stops every call for that member; turn
   await assert.rejects(() => dwdMembers(h.ctx, { limit: 0 }), (e) => codeOf(e) === "validation.bad_input");
   await assert.rejects(() => dwdMembers(h.ctx, { cursor: "x" }), (e) => codeOf(e) === "validation.bad_input");
 
+  const host = { ...h.ctx, principal: { kind: "service" as const, id: "svc_google" } };
   assert.deepEqual(await dwdSetExcluded(h.ctx, { email: "Sam@Vyre.test", excluded: true }), { excluded: [SAM] });
-  await assert.rejects(() => getProfile(h.ctx, { ...act, as: SAM }), (e) => codeOf(e) === "permission.no_grant");
+  await assert.rejects(() => getProfile(host, { ...act, as: SAM }), (e) => (e as { error?: { message?: string } }).error?.message === "That member is excluded from Google delegation.");
   assert.deepEqual(await dwdSetExcluded(h.ctx, { email: SAM, excluded: false }), { excluded: [] });
-  await getProfile(h.ctx, { ...act, as: SAM });
+  await getProfile(host, { ...act, as: SAM });
   assert.deepEqual(await dwdSetExcluded(h.ctx, { email: "new@vyre.test", excluded: true }), { excluded: ["new@vyre.test"] });   // an address not yet mapped can be excluded ahead of time
   await assert.rejects(() => dwdSetExcluded(h.ctx, { email: "nope", excluded: true }), (e) => codeOf(e) === "validation.bad_input");
 
@@ -162,7 +163,7 @@ test("members list in pages; an exclusion stops every call for that member; turn
 
 // ---- who a call acts as
 
-test("a call acts as the caller's mapped address; another address needs an admin; a service may act for a mapped member", async () => {
+test("a call acts as the caller's mapped address; a role never reaches a teammate; a service may act for a mapped member", async () => {
   const h = harness({ members });
   seedDelegation(h, { members: [{ email: MAYA, userId: "usr_maya01" }, { email: SAM, userId: "usr_sam01" }] });
   h.on("GET", PROFILE, { body: { emailAddress: MAYA, historyId: "1" } });
@@ -173,9 +174,9 @@ test("a call acts as the caller's mapped address; another address needs an admin
   const boss = harness({ admin: true });
   seedDelegation(boss, { members: [{ email: MAYA, userId: "usr_maya01" }, { email: SAM, userId: "usr_sam01" }] });
   boss.on("GET", PROFILE, { body: { emailAddress: SAM, historyId: "1" } });
-  await getProfile(boss.ctx, { ...act, as: "SAM@vyre.test" });
-  assert.equal(boss.minted.at(-1)?.sub, SAM);
-  await assert.rejects(() => getProfile(boss.ctx, { ...act, as: "stranger@vyre.test" }), (e) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(() => getProfile(boss.ctx, { ...act, as: "SAM@vyre.test" }), (e) => codeOf(e) === "permission.no_grant");
+  await assert.rejects(() => getProfile(boss.ctx, { ...act, as: "stranger@vyre.test" }), (e) => codeOf(e) === "permission.no_grant");
+  assert.equal(boss.minted.length, 0, "no token is made for a teammate");
 
   const svc = harness({ principal: { kind: "service", id: "svc_google" } });
   seedDelegation(svc, { members: [{ email: MAYA, userId: "usr_maya01" }] });
@@ -190,21 +191,21 @@ test("a call acts as the caller's mapped address; another address needs an admin
   const agent = harness({ principal: { kind: "agent", id: "agt_scout01" }, actingFor: "usr_maya01" });
   seedDelegation(agent);
   agent.on("GET", PROFILE, { body: { emailAddress: MAYA, historyId: "1" } });
-  await getProfile(agent.ctx, act);   // an agent acts for the person it works for, and the log says who
-  assert.deepEqual(agent.rows(`SELECT subject, actor FROM google_read_log`), [{ subject: MAYA, actor: "usr_maya01" }]);
+  await getProfile(agent.ctx, act);   // an agent acts for the person it works for, and the log says who, for whom, which mailbox
+  assert.deepEqual(agent.rows(`SELECT subject, actor, "onBehalf" FROM google_read_log`), [{ subject: MAYA, actor: "agt_scout01", onBehalf: "usr_maya01" }]);
 });
 
 test("my_account names the address the caller is matched to, and nothing for a stranger or an excluded member", async () => {
   const h = harness({ members });
   seedDelegation(h, { members: [{ email: MAYA, userId: "usr_maya01" }, { email: SAM, userId: "usr_sam01" }] });
-  assert.deepEqual(await dwdMyAccount(h.ctx), { email: MAYA });
+  assert.deepEqual(await dwdMyAccount(h.ctx), { email: MAYA, connectionId: CONN, files: true });
   check("google.dwd.my_account", await dwdMyAccount(h.ctx));
   const stranger = harness({ principal: { kind: "person", id: "usr_nobody" } });
   seedDelegation(stranger);
   assert.deepEqual(await dwdMyAccount(stranger.ctx), {});
   const agent = harness({ principal: { kind: "agent", id: "agt_scout01" }, actingFor: "usr_sam01" });
   seedDelegation(agent, { members: [{ email: MAYA, userId: "usr_maya01" }, { email: SAM, userId: "usr_sam01" }] });
-  assert.deepEqual(await dwdMyAccount(agent.ctx), { email: SAM }, "an agent gets the address of the person it works for");
+  assert.deepEqual(await dwdMyAccount(agent.ctx), { email: SAM, connectionId: CONN, files: true }, "an agent gets the address of the person it works for");
   h.ctx.db.run(`UPDATE google_member SET excluded = ? WHERE email = ?`, 1, MAYA);
   assert.deepEqual(await dwdMyAccount(h.ctx), {}, "an excluded member has no account to act as");
 });
@@ -214,10 +215,13 @@ test("a person's own calls are logged under that person; a second member's under
   seedDelegation(h, { members: [{ email: MAYA, userId: "usr_maya01" }, { email: SAM, userId: "usr_sam01" }] });
   h.on("GET", PROFILE, { body: { emailAddress: MAYA, historyId: "1" } });
   await getProfile(h.ctx, act);
-  await getProfile(h.ctx, { ...act, as: SAM });
-  await getProfile(h.ctx, { ...act, as: SAM });
-  const log = h.rows(`SELECT subject, actor, cap, bulk, at FROM google_read_log`);
-  assert.deepEqual(log.map((r) => [r.subject, r.actor, r.cap]), [[MAYA, "usr_maya01", "google.gmail.get_profile"], [SAM, "usr_maya01", "google.gmail.get_profile"], [SAM, "usr_maya01", "google.gmail.get_profile"]]);
+  const sam = harness({ principal: { kind: "person", id: "usr_sam01" } });
+  seedDelegation(sam, { members: [{ email: MAYA, userId: "usr_maya01" }, { email: SAM, userId: "usr_sam01" }] });
+  sam.on("GET", PROFILE, { body: { emailAddress: SAM, historyId: "1" } });
+  await getProfile(sam.ctx, act);
+  await getProfile(sam.ctx, act);
+  const log = [...h.rows(`SELECT subject, actor, cap, bulk, at FROM google_read_log`), ...sam.rows(`SELECT subject, actor, cap, bulk, at FROM google_read_log`)];
+  assert.deepEqual(log.map((r) => [r.subject, r.actor, r.cap]), [[MAYA, "usr_maya01", "google.gmail.get_profile"], [SAM, "usr_sam01", "google.gmail.get_profile"], [SAM, "usr_sam01", "google.gmail.get_profile"]]);
   assert.ok(log.every((r) => r.at === NOW && r.bulk === 0));
 });
 
@@ -272,7 +276,7 @@ test("a push for an excluded or unmapped member, or after delegation is off, pul
   await dwdDisable(h.ctx);
   await receivePush(h.ctx, push("p3"));
   assert.equal(h.requests.length, 0);
-  assert.equal(h.scheduled.length, 0);
+  assert.deepEqual(h.scheduled.filter((s) => !String(s.input.messageId).startsWith("first:")), [], "being included again queues their first pull, and no push queues anything");
   assert.equal(h.named("google.push_received").length, 3);
 });
 

@@ -6,8 +6,8 @@
 // DECISION: lists use the same decision as authorize (every row is probed along the vault ladder), so a list can never show what get would refuse. Sections: personal is my own Mine and Shared items, shared is
 // Shared items other people own, space is every Shared item I can see; starred and following belong to spaces and come back empty here.
 // DECISION: a Mine item cannot be shared; to share it, move it into a Shared folder (that re-encrypts it under the filler). A subscription sign-in (kind ai_subscription) stays Mine for ever.
-// DECISION: Trash keeps the sealed row; restore brings it back whole. Deleting a folder, Space policy, export and import { isCompanyKey } from "../../../lib/company-keys.ts";
-import are other packets.
+// DECISION: Trash keeps the sealed row; restore brings it back whole. Deleting a folder, Space policy, export and import are other packets.
+import { isCompanyKey } from "../../../lib/company-keys.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import { ENC_MINE, ENC_SHARED, currentFiller, currentKeyPort, openMine, sealMine, wrapKeyFromPersonKey } from "./crypto.ts";
 import type { Field, SealedFields } from "./crypto.ts";

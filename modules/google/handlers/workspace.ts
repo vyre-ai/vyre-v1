@@ -97,6 +97,7 @@ async function connectMember(ctx: GoogleCtx, a: { connectionId: string; userId: 
 async function queueFirstPull(ctx: GoogleCtx, connectionId: string, email: string, wait: number): Promise<void> {
   const at = ctx.now() + 1000 + wait * 2000;
   ensureMailbox(ctx, email, connectionId);
+  if (num(first(ctx.db.all(`SELECT "nextPollAt" FROM google_mailbox WHERE email = ?`, email)), "nextPollAt") > ctx.now()) return;   // one chain per mailbox
   ctx.db.run(`UPDATE google_mailbox SET "nextPollAt" = ? WHERE email = ?`, at, email);
   await ctx.schedule(at, "google.receive_push", { kind: "gmail", messageId: `first:${email}:${at}`, mailbox: email });
 }
@@ -144,7 +145,7 @@ export async function dwdSetup(ctx: GoogleCtx, input: { vaultItem: string; admin
   let connectionId = strOrNull(cfg, "connectionId");
   if (!connectionId) {
     const made = obj(obj(await ctx.call("connections.create", {
-      connector: "google", title: "Google Workspace", ownerKind: "space", secrets: { Google_DWD: input.vaultItem }, scopes: [...SCOPES],
+      connector: "google", title: "Google Workspace", ownerKind: "space", secrets: { Google_DWD: input.vaultItem }, scopes: scopesFor(input.data ?? dataOf(cfg)),
       idempotencyKey: `${input.idempotencyKey}:connection`,
     })).connection);
     connectionId = text(made.connectionId) ?? null;

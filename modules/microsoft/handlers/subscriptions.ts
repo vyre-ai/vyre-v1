@@ -110,7 +110,9 @@ export async function unsubscribe(ctx: MsCtx, a: Act & { subscriptionId: string 
   const row = first(ctx.db.all(`SELECT * FROM microsoft_subscription WHERE id = ?`, a.subscriptionId));
   if (!row) throw fail("validation.not_found", ctx.trace.traceId, { message: "No such subscription." });
   const owner = strOrNull(row, "mailbox");
-  const sub = resolveSubject(ctx, { connectionId: a.connectionId, ...(a.as ? { as: a.as } : {}) });
+  // a subscription is the tenant's, not a mailbox's content: removing one reaches no one, so an admin may, without acting as the person it watches
+  const person = isTrustedService(ctx.principal) ? null : (ctx.actingFor ?? ctx.principal.id);
+  const sub = person ? strOrNull(first(ctx.db.all(`SELECT email FROM microsoft_member WHERE "userId" = ? AND mapped = ?`, person, 1)), "email") : null;
   if ((owner === null || owner !== sub) && !isTrustedService(ctx.principal) &&
     ctx.authorize({ perm: "connectors.manage", level: "manage" }, { type: "connection", id: a.connectionId }).effect !== "allow") {
     throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only the member it watches or an admin can remove this subscription." });
@@ -458,6 +460,7 @@ export async function consentSetup(ctx: MsCtx, input: { vaultItem: string; tenan
 async function queueFirstPull(ctx: MsCtx, connectionId: string, email: string, wait: number): Promise<void> {
   const at = ctx.now() + 1000 + wait * 2000;
   ensureMailbox(ctx, email, connectionId);
+  if (num(first(ctx.db.all(`SELECT "nextPollAt" FROM microsoft_mailbox WHERE email = ?`, email)), "nextPollAt") > ctx.now()) return;   // one chain per mailbox
   ctx.db.run(`UPDATE microsoft_mailbox SET "nextPollAt" = ? WHERE email = ?`, at, email);
   await ctx.schedule(at, "ms.receive_notification", { notificationId: `first:${email}:${at}`, subscriptionId: "poll", resource: `users/${email}/messages`, changeType: "updated", clientStateOk: true });
 }
@@ -535,7 +538,7 @@ export async function consentVerify(ctx: MsCtx, input: { as?: string; policyConf
     if (!included.some((m) => str(m, "email") === probe)) throw fail("permission.no_grant", ctx.trace.traceId, { message: "That address is not an included member." });
     const p = await apiRaw(ctx, { cap: "ms.consent.verify", connectionId, as: probe, open: true, url: userUrl(probe, "/mailFolders/inbox"), query: { $select: "id" } });
     probeOk = p.status < 300;
-    if (!probeOk) details.push(`The app cannot reach ${probe}. Run the access policy snippet, then verify again.`);
+    if (!probeOk) details.push(`The app cannot reach ${probe}. Run the Exchange snippet, then verify again. Microsoft can take up to 2 hours to apply it.`);
   }
   const consentGiven = orgOk && missing.length === 0;
   const ok = consentGiven && probeOk;
