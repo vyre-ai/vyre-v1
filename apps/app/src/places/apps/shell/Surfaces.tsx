@@ -13,7 +13,7 @@ export function AppsSurface({ route }: { route: Exclude<AppsRoute, { kind: "list
   const d = useAppsData();
   const back = (): void => d.nav.show(route.group);
   if (route.kind === "email") return <EmailDesigner id={route.id} back={back} />;
-  if (route.kind === "artifacts") return route.id ? <ArtifactView id={route.id} back={() => d.nav.show("artifacts")} /> : <ArtifactsList back={() => d.nav.show("sites")} />;
+  if (route.kind === "artifacts") return route.id ? <ArtifactView id={route.id} back={() => d.nav.show("artifacts")} /> : <ArtifactsList back={() => d.nav.show("chats")} />;
   if (route.group === "sites") return route.kind === "detail" ? <SiteDetail id={route.id} back={back} /> : <ArtifactsList back={back} />;
   const target = { group: route.group, ...(route.kind === "detail" ? { id: route.id } : { create: true }) };
   switch (route.group) {

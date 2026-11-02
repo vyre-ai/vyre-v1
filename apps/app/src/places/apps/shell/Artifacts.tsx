@@ -26,7 +26,7 @@ export function ArtifactsList({ back }: { back(): void }): ReactElement {
   const d = useAppsData();
   const list = useRead<CapMap["sites.list"]["out"]>("sites.list", { kind: "artifact" }, "sites");
   const rows = list.data?.sites ?? [];
-  return <Frame testID="artifacts-list" title="Artifacts" back={back} error={list.error} loading={list.loading} retry={list.refresh}>
+  return <Frame testID="artifacts-list" title="Artifacts" backTitle="Back to Chats" back={back} error={list.error} loading={list.loading} retry={list.refresh}>
     {rows.length === 0 ? <View testID="artifacts-empty"><States kind="empty" title="Nothing made yet" subtitle="When an agent makes something to show you, it lands here." icon="doc" /></View> : rows.map((a: Artifact) => (
       <Row key={a.siteId} id={a.siteId} title={a.name} note={`${a.owner === d.me?.id ? "You" : "Shared with you"} · ${when(a.updatedAt, d.clock().now)}`} onPress={() => d.nav.open("artifacts", a.siteId)} />
     ))}
@@ -44,7 +44,7 @@ export function ArtifactView({ id, back }: { id: string; back(): void }): ReactE
   }, [d, id]);
   const name = site.data?.site.name ?? "Artifact";
   const remove = (): void => { void d.call("sites.delete", { siteId: id }).then(back, (e: unknown) => setError(errorMessage(e))); };
-  return <Frame testID="artifact-view" title={name} back={back} offline={!online} error={error ?? site.error} loading={site.loading} retry={site.refresh}>
+  return <Frame testID="artifact-view" title={name} backTitle="Back to Artifacts" back={back} offline={!online} error={error ?? site.error} loading={site.loading} retry={site.refresh}>
     <View style={ui.actions}>
       {src ? <Button title="Open in browser" testID="artifact-browser" onPress={() => d.nav.openUrl?.(src)} /> : null}
       {d.renderShare ? <Button title="Share" testID="artifact-share" onPress={() => setSharing(true)} /> : null}

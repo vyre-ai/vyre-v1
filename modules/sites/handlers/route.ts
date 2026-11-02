@@ -1,7 +1,7 @@
 // A site is a route (owner, 2 Nov): a name, an address, where it runs, and who may reach it. Vyre does not build or run sites. An agent builds and runs anything on a computer it already has, and Vyre gives it an
 // address pointing at a port, or at a folder in Files, which needs no server at all. Site code never runs in vyred, and the Docker socket is never involved.
-//   public    /p/<slug>, or a custom domain. Going public is an outward act: sites.promote, Gate act site_promote.
-//   password  a custom domain only: Caddy holds the password. /p/ strips Authorization and cookies, so it cannot ask for one.
+//   public    /p/<slug>, and any custom domain. Going public is an outward act: sites.promote, Gate act site_promote. A custom domain is public, so only a public site has one, and its route exists only while the site is live.
+//   password  not in this version: /p/ strips Authorization and cookies, and Caddy has no password to ask for yet, so it is refused rather than left open.
 //   space     /a/<id>: anyone signed in to this Space.
 //   private   /a/<id>: the owner, and whoever it is shared with through the same grants as Files and the Vault.
 // An artifact is a private site made by a model (sites.artifact_publish), kept in the Artifacts folder so it follows Files rules.
@@ -49,6 +49,20 @@ let host: SitesHost | null = null;
 export function configureRoutes(h: SitesHost | null): void { host = h; }
 export const routesHost = (): SitesHost | null => host;
 
+/** Where a custom domain's traffic has to land, and what the machine there can say about it. The host builds this from the machine that runs the site. */
+export interface DomainEdge {
+  /** the machine's public names: a host name for a CNAME, an address for an apex. Null when it has no public address. */
+  public(target: RouteTarget): Promise<{ hostname?: string; ip?: string } | null>;
+  /** does the domain point at it? */
+  dnsOk(domain: string, to: { hostname?: string; ip?: string }): Promise<boolean>;
+  setRoute(target: RouteTarget, domain: string, port: number): Promise<void>;
+  removeRoute(target: RouteTarget, domain: string): Promise<void>;
+  certIssued(target: RouteTarget, domain: string): Promise<boolean>;
+}
+let edge: DomainEdge | null = null;
+export function configureDomainEdge(e: DomainEdge | null): void { edge = e; }
+export const domainEdge = (): DomainEdge | null => edge;
+
 // ---- shapes
 
 export function urlOf(r: Row): string | undefined {
@@ -69,7 +83,7 @@ function siteOut(ctx: Ctx, r: Row): Record<string, unknown> {
   };
 }
 
-const targetOf = (r: Row): RouteTarget => ({ ...(isNull(r.computer_id) ? {} : { computerId: str(r.computer_id) }), ...(isNull(r.port) ? {} : { port: num(r.port) }), ...(isNull(r.target_folder) ? {} : { folderId: str(r.target_folder) }) });
+export const targetOfRow = (r: Row): RouteTarget => ({ ...(isNull(r.computer_id) ? {} : { computerId: str(r.computer_id) }), ...(isNull(r.port) ? {} : { port: num(r.port) }), ...(isNull(r.target_folder) ? {} : { folderId: str(r.target_folder) }) });
 
 // ---- input
 
@@ -108,7 +122,9 @@ function cleanPort(ctx: Ctx, port: number | undefined): number | undefined {
 
 function accessOf(ctx: Ctx, raw: string | undefined, fallback: Access): Access {
   if (raw === undefined) return fallback;
-  if (!ACCESS.includes(raw)) fail(ctx, "validation.bad_input", "Access is public, password, space or private.", { field: "access" });
+  if (!ACCESS.includes(raw)) fail(ctx, "validation.bad_input", "Access is public, space or private.", { field: "access" });
+  // Caddy has no password to ask for yet, and a site must never be open while it says it is not
+  if (raw === "password") fail(ctx, "validation.precondition_failed", "A site password is not in this version yet. Use space or private.", { field: "access" });
   return raw as Access;
 }
 
@@ -180,6 +196,8 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
   const folderId = optStr(ctx, o, "folderId");
   // becoming public is an outward act: it comes down here and goes back up through sites.promote and the Gate
   const live = flag(site.live) && !(access === "public" && site.access !== "public");
+  // and a site that stops being public takes its custom domains down with it
+  if (site.access === "public" && access !== "public") await routeDomains(ctx, site, false);
   ctx.db.run(
     "UPDATE sites_site SET name = ?, access = ?, port = ?, computer_id = ?, target_folder = ?, live = ?, updated_at = ? WHERE id = ?",
     name === undefined ? site.name : cleanName(ctx, name), access, port ?? site.port ?? null, computerId ?? site.computer_id ?? null, folderId ?? site.target_folder ?? null, live ? 1 : 0, ctx.now(), site.id,
@@ -190,6 +208,7 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
 async function sitesDelete(ctx: Ctx, input: unknown): Promise<{ deleted: boolean }> {
   const site = mustSite(ctx, reqStr(ctx, rec(ctx, input), "siteId"));
   const now = ctx.now();
+  await routeDomains(ctx, site, false);
   ctx.db.run("DELETE FROM sites_domain WHERE site_id = ?", site.id);
   ctx.db.run("DELETE FROM sites_ticket WHERE site_id = ?", site.id);
   ctx.db.run("UPDATE sites_site SET state = ?, live = ?, slug = ?, deleted_at = ?, updated_at = ? WHERE id = ?", "stopped", 0, null, now, now, site.id);
@@ -211,6 +230,18 @@ function goLive(ctx: Ctx, site: Row): { site: unknown } {
   return { site: siteOut(ctx, fresh) };
 }
 
+/** A site's custom domains follow it: up when it goes live, down when it stops or stops being public. The record stays, so publishing again brings them back. */
+async function routeDomains(ctx: Ctx, site: Row, up: boolean): Promise<void> {
+  if (!edge) return;
+  const target = targetOfRow(site);
+  for (const d of many(ctx, "SELECT * FROM sites_domain WHERE site_id = ?", site.id)) {
+    try {
+      if (up && target.port !== undefined) await edge.setRoute(target, str(d.domain), target.port);
+      else await edge.removeRoute(target, str(d.domain));
+    } catch (e) { ctx.log.warn("sites: a domain route did not change", { domain: str(d.domain), error: e instanceof Error ? e.message : String(e) }); }
+  }
+}
+
 /** A computer that serves a site stays awake. One the caller cannot configure keeps its idle time, and the skill says so. */
 async function keepAwake(ctx: Ctx, site: Row): Promise<void> {
   if (isNull(site.computer_id)) return;
@@ -223,7 +254,9 @@ async function sitesPromote(ctx: Ctx, input: unknown): Promise<{ site: unknown }
   const site = mustSite(ctx, reqStr(ctx, rec(ctx, input), "siteId"));
   if (site.access !== "public") fail(ctx, "validation.precondition_failed", "This site is not public. Change its access to public first, or use sites_publish.");
   await keepAwake(ctx, site);
-  return goLive(ctx, site);
+  const out = goLive(ctx, site);
+  await routeDomains(ctx, site, true);
+  return out;
 }
 
 async function sitesPublish(ctx: Ctx, input: unknown): Promise<{ site: unknown }> {
@@ -238,6 +271,7 @@ async function sitesStop(ctx: Ctx, input: unknown): Promise<{ site: unknown }> {
   const id = str(site.id);
   const now = ctx.now();
   ctx.db.run("UPDATE sites_site SET live = ?, state = ?, updated_at = ? WHERE id = ?", 0, "stopped", now, id);
+  await routeDomains(ctx, site, false);
   touchActivity(ctx.db, id, "site.stopped", now);
   ctx.emit("site.stopped", `site/${id}`, { siteId: id });
   return { site: siteOut(ctx, mustSite(ctx, id)) };
@@ -250,7 +284,7 @@ async function sitesStatus(ctx: Ctx, input: unknown): Promise<{ answering: boole
   if (!isNull(site.target_folder)) return { ...base, answering: true };
   if (isNull(site.port)) return { ...base, answering: false, detail: "It has no port yet." };
   if (!host) return { ...base, answering: false, detail: "This server cannot reach computers yet." };
-  const p = await host.probe(targetOf(site));
+  const p = await host.probe(targetOfRow(site));
   return { ...base, answering: p.answering, ...(p.detail ? { detail: p.detail } : {}) };
 }
 
@@ -268,7 +302,7 @@ async function sitesLogs(ctx: Ctx, input: unknown): Promise<{ lines: string[] }>
   const tail = optInt(ctx, o, "tail") ?? 200;
   if (tail < 1 || tail > 1000) fail(ctx, "validation.bad_input", "Tail is between 1 and 1000 lines.", { field: "tail" });
   if (!host?.logs || isNull(site.computer_id)) return { lines: [] };
-  try { return { lines: await host.logs(targetOf(site), str(site.slug) || hexOf(str(site.id)), tail) }; } catch (e) {
+  try { return { lines: await host.logs(targetOfRow(site), str(site.slug) || hexOf(str(site.id)), tail) }; } catch (e) {
     ctx.log.warn("sites: logs unavailable", { error: e instanceof Error ? e.message : String(e) });
     return { lines: [] };
   }
@@ -367,7 +401,7 @@ async function artifactOpen(ctx: Ctx, input: unknown): Promise<{ path: string; u
 // ---- what the gateway asks
 
 export interface ServedRoute { siteId: string; slug: string; access: Access; live: boolean; blocked: boolean; target: RouteTarget }
-const served = (r: Row): ServedRoute => ({ siteId: str(r.id), slug: str(r.slug), access: str(r.access) as Access, live: flag(r.live), blocked: flag(r.blocked), target: targetOf(r) });
+const served = (r: Row): ServedRoute => ({ siteId: str(r.id), slug: str(r.slug), access: str(r.access) as Access, live: flag(r.live), blocked: flag(r.blocked), target: targetOfRow(r) });
 
 /** The route behind /p/<slug>. Host call, not a capability: a visitor has no session. */
 export function routeBySlug(ctx: Pick<Ctx, "db">, slug: string): ServedRoute | null {

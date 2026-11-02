@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { registry } from "../../../generated/registry.ts";
 import { configureRoutes, routeBySlug, routeByTicket } from "../handlers/route.ts";
-import { configureDomainEdge } from "../handlers/route-domains.ts";
+import { configureDomainEdge } from "../handlers/route.ts";
 import { handlers } from "../impl.ts";
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
@@ -93,12 +93,17 @@ test("custom domains: the records are exact, an apex takes an A, the three state
     const a = await h["sites.domain_add"]!(w.ctx, { siteId, domain: "shop.example.org" });
     assert.deepEqual(a.records, [{ type: "CNAME", name: "shop.example.org", value: "team.example.com" }]);
     assert.equal(a.state, "waiting_dns");
+    assert.deepEqual(routes, [], "a domain waits for the site to go live: adding one never goes around the Gate");
+    await h["sites.promote"]!(w.ctx, { siteId });
     assert.deepEqual(routes, ["shop.example.org:3000"]);
     assert.deepEqual((await h["sites.domain_add"]!(w.ctx, { siteId, domain: "example.org" })).records, [{ type: "A", name: "example.org", value: "203.0.113.5" }]);
     dns = true;
     assert.equal((await h["sites.domain_check"]!(w.ctx, { siteId, domain: "shop.example.org" })).state, "issuing");
     cert = true;
     assert.equal((await h["sites.domain_check"]!(w.ctx, { siteId, domain: "shop.example.org" })).state, "live");
+    const closed = await h["sites.create"]!(w.ctx, { name: "Closed", access: "space", port: 3000 });
+    await assert.rejects(() => h["sites.domain_add"]!(w.ctx, { siteId: closed.site.siteId, domain: "closed.example.org" }), /A custom domain is public/);
+    await assert.rejects(() => h["sites.update"]!(w.ctx, { siteId, access: "password" }), /not in this version/);
     configureDomainEdge({ public: async () => null, dnsOk: async () => false, certIssued: async () => false, setRoute: async () => undefined, removeRoute: async () => undefined });
     await assert.rejects(() => h["sites.domain_add"]!(w.ctx, { siteId, domain: "other.example.org" }), /needs a server with a public address/);
   } finally { configureRoutes(null); configureDomainEdge(null); }
