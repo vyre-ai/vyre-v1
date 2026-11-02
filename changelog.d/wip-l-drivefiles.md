@@ -1,8 +1,0 @@
-- A Google Doc, Sheet or Slides deck from a connected Drive opens with its content. Files keeps Google's own type and an export of the file: a Doc as Markdown, a Sheet as CSV, Slides as PDF, a Drawing as PNG. The viewer shows the Doc's words, the Sheet as a table, the deck's words and pages. Before, the viewer said "This file is empty".
-- Opening a file from a connected folder asks the provider what it holds now and fetches it then. Opening never makes a file, and the provider stays the source.
-- Agents reading a Google file with files.read get the export's text, without the pictures' data. A Google Form or Site has no export: the viewer offers Open in Google Forms, and a read says where the file opens.
-- "Open in Google Docs" (and Sheets, Slides, Drawings, Forms) is in the viewer's header for every file from a connected folder.
-- Files from a provider carry its mark: Google Docs, Sheets, Slides, Drawings and Forms tiles on their rows and in the viewer's header, and the Google Drive, OneDrive, SharePoint, Dropbox or GitHub mark on the corner of every other file and folder from a connected folder. The top of a connected folder shows the full mark in the tree.
-- When Drive holds several items with one name in a folder, each gets the next free name ("Plan (Google Drive)", "Plan (Google Drive 2)") before it is made. Three or more no longer stop the sync.
-- My Drive is synced by its real id, so a change at its top is applied instead of being read as a move out. A My Drive folder connected earlier scans once more to pick this up.
-- Opening a conversation in Inbox or a chat in Chats moves that tab. Inbox and Chats each appear once in the tab strip, and opening a place that is already open selects its tab.
