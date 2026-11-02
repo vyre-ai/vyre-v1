@@ -1,6 +1,7 @@
 // Turn engine (ARCH 6.2): at most one turn runs per thread; everything else waits in thread_queue, in order.
 // A message is routed with lib/route.ts (the same function the composer uses), each responder is queued, and a worker holding the thread lease runs them one at a time.
-// A message that arrives while the same agent is working is steering: injected at the next step boundary, never a second concurrent turn.
+// A message from the person whose turn it is, while the same agent is working, is steering: injected at the next step boundary, never a second concurrent turn. Anyone else's waits for its own turn: the running session
+// holds that person's access, so another's words must not act on it.
 // An interrupt cancels the running turn now and runs first. runTurn catches everything: a failed thread accepts the next message as a fresh turn.
 // A tool call held at the Gate parks the turn (turn.waiting { task }, state waiting); resume() queues the wake that continues it once the task is answered.
 // Messages and waits sit behind MessageStore and WaitStore, so a second host that takes the thread over (recover) replays the same bodies.
@@ -97,7 +98,7 @@ async function* guarded<T>(src: AsyncIterable<T>, stop: Promise<never>): AsyncGe
 const ACCOUNT_FAILURE: ReadonlySet<string> = new Set(["provider.auth_failed", "auth.expired", "provider.rate_limited"]);
 const MAX_FALLBACKS = 8;
 
-interface Running { turnId: string; agentId: string; qseq: number; session: EngineSession | null; cancelled: boolean; lostLease: boolean }
+interface Running { turnId: string; agentId: string; asker: string; qseq: number; session: EngineSession | null; cancelled: boolean; lostLease: boolean }
 interface ThreadState { thread: OpenThread; messages: StoredMessage[]; running: Running | null; worker: Promise<void> | null; active: boolean }
 
 const defaultSchedule = (fn: () => void, ms: number): (() => void) => {
@@ -191,7 +192,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   function enqueue(st: ThreadState, row: { kind: QueueItem["kind"]; agentId: string; from: string; messageId: string | null; priority: number; routine: boolean }): QueueItem {
-    const steer = row.kind === "message" && st.running !== null && st.running.agentId === row.agentId;
+    const steer = row.kind === "message" && st.running !== null && st.running.agentId === row.agentId && st.running.asker === row.from;
     const item = queue.enqueue({ threadId: st.thread.id, kind: row.kind, messageId: row.messageId, agentId: row.agentId, from: row.from, priority: row.priority, enqueuedAt: now(), routine: row.routine, steer });
     enqueuedHr.set(`${item.threadId}:${item.qseq}`, hr());
     emit({ type: "turn.queued", threadId: item.threadId, qseq: item.qseq, agentId: item.agentId, kind: item.kind, priority: item.priority, routine: item.routine, steer: item.steer });
@@ -309,7 +310,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       tokensIn: 0, tokensOut: 0, error: null, firstTokenOverheadMs: null, injected: 0,
     };
     turnRows.push(turn);
-    const run: Running = { turnId: turn.id, agentId: item.agentId, qseq: item.qseq, session: null, cancelled: false, lostLease: false };
+    const run: Running = { turnId: turn.id, agentId: item.agentId, asker, qseq: item.qseq, session: null, cancelled: false, lostLease: false };
     st.running = run;
     leases.setTurn(st.thread.id, opts.holder, turn.id);
     emit({ type: "turn.started", threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, qseq: item.qseq, asker });

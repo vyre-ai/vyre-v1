@@ -17,6 +17,8 @@ export interface LiveTurn {
   startedAt: number;
   /** The message that started the turn (the host says so with the first frame): the reply is placed after it. */
   triggerId?: string;
+  /** The person the turn runs for, from the same frame: only they steer it. */
+  asker?: string;
 }
 
 /** What a turn is doing right now, from the host's step and thinking frames: for the live line under a reply being written. Never persisted, never logged. */
@@ -187,6 +189,7 @@ export function createTurnStreams(o: TurnStreamOptions = {}): TurnStreams {
         const fresh = !turns.has(turnId);
         const t = ensure(turnId, threadId, agentId);
         if (kind === "start" && typeof d["triggerId"] === "string" && t.triggerId === undefined) t.triggerId = d["triggerId"];
+        if (kind === "start" && typeof d["asker"] === "string") t.asker = d["asker"];
         if (kind === "delta") {
           const text = str(d["text"]);
           const at = typeof d["at"] === "number" ? (d["at"] as number) : undefined;

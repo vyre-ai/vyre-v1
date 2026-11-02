@@ -203,6 +203,27 @@ test("a driver that throws is a failed turn, not a stuck thread", async () => {
   assert.ok(engine.events("T").some((e) => e.type === "turn.failed"));
 });
 
+test("steering: only the person whose turn it is steers; anyone else, or another agent, waits for a turn of their own on their own access", async () => {
+  const hold = gate();
+  const p = scriptedProvider({
+    script: [{ type: "tool_call", id: "c1", name: "files.read", input: {} }, { type: "text", text: "done" }, { type: "done" }],
+    beforeEvent: async (i) => { if (i === 0) await hold.wait; },
+  });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, callTool: async () => ({ ok: true, content: "x" }) });
+  engine.openThread(thread("T", { starter: "dana" }));
+  engine.receive({ threadId: "T", author: person("dana"), body: "start" });
+  await until(() => p.sessions.length === 1);
+  const sam = engine.receive({ threadId: "T", author: person("sam"), body: "from sam" });
+  const mine = engine.receive({ threadId: "T", author: person("dana"), body: "from dana" });
+  const steerOf = (q: number | undefined): boolean | undefined => engine.queue("T").find((r) => r.qseq === q)?.steer;
+  assert.deepEqual([steerOf(sam.qseqs[0]), steerOf(mine.qseqs[0])], [false, true]);
+  hold.open();
+  await engine.idle("T");
+  assert.deepEqual(p.sessions[0]?.injected.map((m) => m.body), ["from dana"], "the running session read only its owner's words");
+  assert.deepEqual(engine.turns("T").map((t) => [t.asker, t.payerReason]), [["dana", "starter"], ["sam", "steerer"]]);
+  assert.equal(p.sessions.length, 2, "the other person's turn opened a session of its own");
+});
+
 test("account: a Job's line wakes the lead that wrote it, stays the agent's words, and the person who started the Job pays", async () => {
   const p = scriptedProvider({ script: ok });
   const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });

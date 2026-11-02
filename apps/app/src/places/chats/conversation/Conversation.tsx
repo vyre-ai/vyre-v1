@@ -246,7 +246,10 @@ function ConversationView(): ReactElement {
   const queued = queuedCount(timelineMessages, data.me.id, isWorking);
   const queuedIdsNow = queuedIds(timelineMessages, data.me.id, isWorking);
   const leadDriver = accounts?.find((a) => a.ref === leadNow?.accountRef)?.provider;
-  const canSteer = !(leadDriver !== undefined && act.CANNOT_STEER.has(leadDriver));   // a chat on Codex or Grok keeps its message queued: they read nothing mid-turn
+  // only the person whose turn it is steers it; anyone else's message goes in after it (the engine holds to this; a turn picked up mid-way names nobody until its next start)
+  const runningFor = liveTurns.find((t) => t.state === "writing" && t.agentId === leadNow?.agentId)?.asker;
+  const ownTurn = runningFor === undefined || runningFor === data.me.id;
+  const canSteer = ownTurn && !(leadDriver !== undefined && act.CANNOT_STEER.has(leadDriver));   // a chat on Codex or Grok keeps its message queued: they read nothing mid-turn
   const helpers = (helpersQ.status === "loading" ? [] : helpersQ.data.helpers).filter((h) => h.status === "running");
 
   /* ---------- menus: all open under the button that asked ---------- */
@@ -416,7 +419,7 @@ function ConversationView(): ReactElement {
   const closed = isClosed(thread);
   const note = threadKindNote(thread, nameOf);
   const title = titleOf(thread, nameOf);
-  const q = queueNote(queued, lead ? nameOf(lead.agentId) : "", canSteer);
+  const q = queueNote(queued, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn);
 
   // A mounted folder or file dragged from Files is shared with this chat's agents (desktop); the line says so and can take it back
   const dropShare = (e: { preventDefault: () => void; dataTransfer?: { getData?: (t: string) => string } }): void => {

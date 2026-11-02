@@ -1,0 +1,1 @@
+- Only the person whose turn it is steers a running agent. Anyone else's message waits and says "After this", then runs as a turn of its own on that person's access.
