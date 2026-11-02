@@ -1491,7 +1491,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       await reloadSpaceGithub().catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "github.signin_reload_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
       if (loaded.serving.get("identity") === "live") {
         const made = (await spaceLog.read({ after: 0, limit: 200 })).find((e) => e.type === "space.created");
-        const name = made ? ((JSON.parse(new TextDecoder().decode(made.payload)) as { name?: string }).name ?? spaceId) : spaceId;
+        // the name as it is now (the spaces profile, after any rename), else the one the Space was made with; sign-in options show it before anyone signs in, so it is never left an id
+        let current = "";
+        try { current = String((db?.all("SELECT name FROM spaces_profile WHERE id = ?", spaceId)[0] as { name?: unknown } | undefined)?.name ?? "").trim(); } catch { /* the profile table is made by the spaces module */ }
+        const name = current || (made ? ((JSON.parse(new TextDecoder().decode(made.payload)) as { name?: string }).name ?? spaceId) : spaceId);
         await hookRunner.call("identity.ensure_space", { name, github: githubNow() !== null }).catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "identity.space_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
       }
       if (loaded.serving.get("spaces") === "live") {

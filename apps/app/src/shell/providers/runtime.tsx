@@ -1,3 +1,4 @@
+import type { AiHome } from "../../ai-signin/own-ai.ts";
 import type{SpaceDef}from'../spaces/model.ts';
 import type {RecordsPreviewTicket,RecordsPreviewReader} from "../../../../../client/src/gateway/records-preview.ts";
 // What the shell hands every place: one runtime per open Space. It carries the client replica's screen hooks (every list a place draws is a live query over the kept copy),
@@ -49,6 +50,8 @@ export interface ShellRuntime extends Omit<HomeData, "nav"> {
   putBlob?(path: string, bytes: Uint8Array): Promise<void>;
   /** Open the person's own Mine vault key on this computer with their password, in place (no sign-out). Absent where there is no live Space. Rejects with a sentence the page can show. */
   unlockVault?(password: string): Promise<void>;
+  /** Where the Space runs (ai-signin/own-ai.ts): "here" unlocks a locked key in place; elsewhere signing in opens it. For the words of a refused save. Absent: as "here". */
+  aiHome?: AiHome;
 }
 
 const Ctx = createContext<ShellRuntime | null>(null);

@@ -1,5 +1,7 @@
 // Signing in to an AI subscription from the app: press Sign in, the server starts the provider's own sign-in and answers its link, the person approves in their browser, and the account is saved.
 // Claude shows a code on its page that is pasted back; ChatGPT and Grok show a code to type there and finish on their own, which the app finds by asking every few seconds. The credential never comes to the app.
+import { ownAiRefusal } from "./own-ai.ts";
+import type { AiHome } from "./own-ai.ts";
 export interface Flow { flowId: string; instruction: string; url?: string; userCode?: string; needsCode: boolean }
 export type Check = { state: "waiting" } | { state: "done"; provider: { id: string } & Record<string, unknown> };
 export type Call = (cap: string, input?: unknown) => Promise<unknown>;
@@ -21,22 +23,24 @@ const words = (e: unknown, fallback: string): string => {
   return m !== "" && m.length < 240 && !/^[a-z_.]+$/.test(m) ? m : fallback;
 };
 
-export async function startFlow(call: Call, providerKey: string, idempotencyKey: string): Promise<Flow> {
+export async function startFlow(call: Call, providerKey: string, idempotencyKey: string, home: AiHome = "here"): Promise<Flow> {
   try {
     const out = await call("providers.subscription_start", { providerKey, idempotencyKey }) as { flowId: string; instruction: string; url?: string; userCode?: string; needsCode?: boolean };
     return { flowId: out.flowId, instruction: out.instruction, ...(out.url ? { url: out.url } : {}), ...(out.userCode ? { userCode: out.userCode } : {}), needsCode: out.needsCode === true };
-  } catch (e) { throw new Error(words(e, "The sign-in could not start. Check the connection and try again.")); }
+  } catch (e) { throw new Error(ownAiRefusal(e, home) ?? words(e, "The sign-in could not start. Check the connection and try again.")); }
 }
 
-/** One look at the sign-in. A code the person pasted goes with it. Rejects with a plain line when the provider refused or the sign-in is over. */
-export async function checkFlow(call: Call, flowId: string, code?: string): Promise<Check> {
+/** One look at the sign-in. A code the person pasted goes with it. Rejects with a plain line when the provider refused or the sign-in is over. `home` says where the person's own key
+ * can be kept from here (own-ai.ts), so a refusal says "locked" only where it can be unlocked. */
+export async function checkFlow(call: Call, flowId: string, code?: string, home: AiHome = "here"): Promise<Check> {
   try {
     const out = await call("providers.subscription_complete", { flowId, ...(code ? { code } : {}) }) as { provider?: { id: string } & Record<string, unknown>; waiting?: boolean };
     return out.provider ? { state: "done", provider: out.provider } : { state: "waiting" };
   } catch (e) {
     const c = (e as { code?: string }).code;
     if (c === "validation.precondition_failed") return { state: "waiting" };
-    if (c === "auth.unauthenticated") throw new Error("Your Mine Vault is locked on this device. Unlock it, then try again.");
+    const refused = ownAiRefusal(e, home);
+    if (refused) throw new Error(refused);
     throw new Error(words(e, "The sign-in did not finish. Start again."));
   }
 }

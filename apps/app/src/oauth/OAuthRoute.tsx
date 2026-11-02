@@ -1,6 +1,8 @@
 import { useCallback, useMemo } from "react";
 import type { ReactElement } from "react";
 import { OAuthCallback } from "./OAuthCallback.tsx";
+import { aiHomeOf } from "../ai-signin/own-ai.ts";
+import { shellDesktopLinkBridge } from "../../../../client/src/connection/desktop-link.ts";
 import { createCapCaller } from "../shell/session/caps.ts";
 import { readStored, spaceAddress } from "../shell/session/stored.ts";
 
@@ -13,5 +15,5 @@ export function OAuthRoute(): ReactElement {
   const stored = useMemo(() => (baseUrl ? readStored(undefined, baseUrl) : null), [baseUrl]);
   const call = useMemo(() => (stored && baseUrl ? createCapCaller({ baseUrl, token: () => stored.token }) : null), [stored, baseUrl]);
   const scrub = useCallback(() => { try { globalThis.history?.replaceState(null, "", "/oauth/callback"); } catch { /* the address stays as it is */ } }, []);
-  return <OAuthCallback call={call} search={search} scrub={scrub} go={(path) => location?.assign(path)} {...(stored?.def.kind === "personal" ? { back: { path: "/chat", label: "Back to Vyre" } } : {})} />;
+  return <OAuthCallback call={call} search={search} home={baseUrl ? aiHomeOf(baseUrl, shellDesktopLinkBridge() !== null) : "here"} scrub={scrub} go={(path) => location?.assign(path)} {...(stored?.def.kind === "personal" ? { back: { path: "/chat", label: "Back to Vyre" } } : {})} />;
 }

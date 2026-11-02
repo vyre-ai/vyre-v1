@@ -18,6 +18,9 @@ import { attemptKey } from "../providers/files-review.ts";
 import { loadCryptoKeys } from "../../../../../client/src/crypto/load.ts";
 import { keepKey, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { holdKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
+import { shellDesktopLinkBridge } from "../../../../../client/src/connection/desktop-link.ts";
+import { aiHomeOf } from "../../ai-signin/own-ai.ts";
+import { spaceLabel } from "../spaces/space-label.ts";
 import { createDeferred } from "../../../../../client/src/runtime/deferred.ts";
 import { createLiveLink } from "./live.ts";
 import { createTurnStreams } from "./turn-streams.ts";
@@ -203,8 +206,11 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     if (!reads?.has(cap)) refresh();
     return r;
   };
-  // a locked vault key asks for the password in place (one prompt for every call that meets it) and tries again; it never ends the session
-  const gated: CapCall = withVaultGate(once, unlockVault, () => rehandKey(o.baseUrl, token ?? ""));
+  // where the Space runs (ai-signin/own-ai.ts): only a Space on this computer takes the key from this app (the local key route), so only there does a locked key ask for the password
+  const aiHome = aiHomeOf(o.baseUrl, shellDesktopLinkBridge() !== null);
+  // a locked vault key asks for the password in place (one prompt for every call that meets it) and tries again; it never ends the session. On a Space that runs elsewhere signing in opens
+  // the key (no separate prompt), so the refusal passes through untouched and the screen says so in plain words, instead of a prompt that could never open anything there.
+  const gated: CapCall = withVaultGate(once, aiHome === "here" ? unlockVault : undefined, () => rehandKey(o.baseUrl, token ?? ""));
   // one idempotency key per logical call: the gate's retry after the password, and any other send of the same call, carries the same opts and so the same key
   const call: CapCall = (cap, input, given) => gated(cap, input, given?.idempotencyKey ? given : { ...given, idempotencyKey: attemptKey() });
 
@@ -291,9 +297,11 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     if (place && o.navigate) o.navigate(place, targetHash(t), t.background === true);
   };
 
+  // a Space that never learnt its name answers its id: it is called by its address instead (spaces/space-label.ts)
+  const shownName = spaceLabel(space.name, o.baseUrl);
   const def: SpaceDef = {
     spaceId: space.id,
-    name: space.name,
+    name: shownName,
     kind: space.kind,
     address: o.baseUrl.replace(/^https?:\/\//, ""),
     role: switcher?.role ?? "Member",
@@ -331,7 +339,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       const r = await send(new URL(path, o.baseUrl).toString(), { method: "PUT", headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream" }, body: bytes as unknown as BodyInit });
       if (!r.ok) throw new Error(r.status === 413 ? "The file is over the size limit" : "The upload did not go through");
     },
-    unlockVault,
+    ...(aiHome === "here" ? { unlockVault } : {}),
+    aiHome,
     connection: {
       get: () => (reachable && !(everLive && live === "offline") ? "online" : "offline"),
       subscribe: (l) => { listeners.add(l); return () => { listeners.delete(l); }; },
@@ -340,7 +349,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     recordTitle: () => undefined,
     me,
     clock: () => ({ now: (o.now ?? Date.now)(), offsetMin: -new Date().getTimezoneOffset() }),
-    space: { id: space.id, kind: space.kind, name: space.name },
+    space: { id: space.id, kind: space.kind, name: shownName },
     baseUrl: o.baseUrl,
     ...(o.spaceCards?{knownSpaces:o.spaceCards}:{}),
     get assistant() { return assistant(); },
