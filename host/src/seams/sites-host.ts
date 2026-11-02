@@ -1,5 +1,6 @@
 // What the sites module needs of the machine (a site is a route): where a target is, whether its port answers, and its log. A computer on a node is reached over the node's own socket; one on this machine by its
 // container address. With no computer, a port is on this machine, which is allowed only where the daemon runs on the person's own computer: in a container (a server) that would be vyred's own network.
+import dns from "node:dns/promises";
 import fs from "node:fs";
 import path from "node:path";
 import { dialPort } from "./port-fetch.ts";
@@ -26,6 +27,59 @@ const MIME: Readonly<Record<string, string>> = { ".html": "text/html", ".htm": "
 export const mimeOf = (name: string): string => MIME[path.extname(name).toLowerCase()] ?? "application/octet-stream";
 const LOCAL_MAX = 25 * 1024 * 1024;
 const LOCAL_FILES = 200;
+
+/** SiteDns, a plain lookup: does the name reach this machine, by its CNAME or by the address it resolves to? */
+export async function dnsPointsAt(domain: string, to: { hostname?: string; ip?: string }, lookup: Pick<typeof dns, "resolveCname" | "resolve4"> = dns): Promise<boolean> {
+  if (to.hostname) {
+    try { if ((await lookup.resolveCname(domain)).some((c) => c.toLowerCase().replace(/\.$/, "") === (to.hostname as string).toLowerCase())) return true; } catch { /* no CNAME: an address may still match */ }
+  }
+  let mine: string[] = to.ip ? [to.ip] : [];
+  if (to.hostname) { try { mine = [...mine, ...(await lookup.resolve4(to.hostname))]; } catch { /* the name has no address */ } }
+  if (mine.length === 0) return false;
+  try { return (await lookup.resolve4(domain)).some((a) => mine.includes(a)); } catch { return false; }
+}
+
+/** Is this address reachable from the internet? A node behind NAT shows a private peer address, and that says it has no public one. */
+export const publicIp = (a: string | null | undefined): string | null => {
+  const ip = (a ?? "").replace(/^::ffff:/, "");
+  return /^\d+\.\d+\.\d+\.\d+$/.test(ip) && !/^(10\.|127\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip) ? ip : null;
+};
+
+export interface EdgeRouter { setRoute(a: { host: string; upstream: string; auth: null }): Promise<void>; removeRoute(host: string): Promise<void>; certState(host: string): Promise<"pending" | "issued" | "failed"> }
+
+/**
+ * Custom domains: Caddy on the machine that runs the site. On this machine that is the Space's own Caddy; on a node the question goes over its socket. Container addresses change when a computer restarts, so
+ * the daemon writes these routes again on a timer.
+ */
+export function createDomainEdge(d: SitesHostDeps & { router: EdgeRouter | null; peerAddress(nodeId: string): string | null }) {
+  const local = (t: SiteTarget): boolean => t.computerId === undefined || d.nodeOf(t.computerId) === null;
+  const upstream = async (t: SiteTarget, port: number): Promise<string> => {
+    const address = t.computerId ? await d.localAddress(t.computerId) : "host.docker.internal";
+    if (!address) throw new Error("The computer it runs on is asleep.");
+    return `${address}:${port}`;
+  };
+  return {
+    public: async (t: SiteTarget): Promise<{ hostname?: string; ip?: string } | null> => {
+      if (!local(t)) { const ip = publicIp(d.peerAddress(d.nodeOf(t.computerId as string) as string)); return ip ? { ip } : null; }
+      const o = d.origin();
+      if (!o || o.relay || !d.router) return null;
+      return { hostname: new URL(o.origin).hostname };
+    },
+    dnsOk: (domain: string, to: { hostname?: string; ip?: string }) => dnsPointsAt(domain, to),
+    setRoute: async (t: SiteTarget, domain: string, port: number): Promise<void> => {
+      if (local(t)) { if (!d.router) throw new Error("This server has no Caddy."); await d.router.setRoute({ host: domain, upstream: await upstream(t, port), auth: null }); return; }
+      await d.stream.ask(d.nodeOf(t.computerId as string) as string, "edge", { op: "set", computerId: t.computerId, domain, port });
+    },
+    removeRoute: async (t: SiteTarget, domain: string): Promise<void> => {
+      if (local(t)) { await d.router?.removeRoute(domain); return; }
+      await d.stream.ask(d.nodeOf(t.computerId as string) as string, "edge", { op: "remove", domain });
+    },
+    certIssued: async (t: SiteTarget, domain: string): Promise<boolean> => {
+      if (local(t)) return (await d.router?.certState(domain)) === "issued";
+      return (await d.stream.ask(d.nodeOf(t.computerId as string) as string, "edge", { op: "cert", domain })) === "issued";
+    },
+  };
+}
 
 export function createSitesHost(d: SitesHostDeps) {
   async function fetchTarget(t: SiteTarget, request: PortRequest, sink: PortSink): Promise<void> {

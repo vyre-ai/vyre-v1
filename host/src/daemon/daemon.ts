@@ -37,7 +37,8 @@ import type { SharedView } from "../routes/share.ts";
 import { createFormsPageRoute } from "../routes/forms-page.ts";
 import { createPublicPathRoute } from "../routes/public-path.ts";
 import type { PublicPathDeps, ServedSite } from "../routes/public-path.ts";
-import { createSitesHost, mimeOf } from "../seams/sites-host.ts";
+import { createDomainEdge, createSitesHost, mimeOf } from "../seams/sites-host.ts";
+import { CaddyAdmin, CaddyRouter } from "../caddy/index.ts";
 import type { PublicFormView } from "../routes/forms-page.ts";
 import { deferredCaps, deferredModules } from "../routes/deferred.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
@@ -665,18 +666,19 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const readFolderFile = async (folderId: string, rel: string): Promise<{ bytes: Uint8Array; mime: string } | null> => {
         const parts = rel.split("/").filter((p) => p !== "");
         if (!dispatchSystem || parts.length === 0 || parts.some((p) => p === "." || p === "..")) return null;
-        const listOf = async (folder: string): Promise<{ files?: { fileId: string; name: string }[]; folders?: { folderId: string; name: string }[] }> => (await dispatchSystem!("files.list", { folder })) as never;
+        const fileIn = (folder: string, name: string): { id: string; name: string } | undefined => db!.all("SELECT id, name FROM files_file WHERE folder_id = ? AND name = ? AND deleted_at IS NULL", folder, name)[0] as { id: string; name: string } | undefined;
         let at = folderId;
-        let found = (await listOf(at)).files?.find((f) => f.name === parts.join("__"));
-        if (!found) {
+        let hit = fileIn(at, parts.join("__"));
+        if (!hit) {
           for (const dir of parts.slice(0, -1)) {
-            const next = (await listOf(at)).folders?.find((f) => f.name === dir);
+            const next = db!.all("SELECT id FROM files_folder WHERE parent_id = ? AND name = ? AND deleted_at IS NULL", at, dir)[0] as { id: string } | undefined;
             if (!next) return null;
-            at = next.folderId;
+            at = next.id;
           }
-          found = (await listOf(at)).files?.find((f) => f.name === parts[parts.length - 1]);
+          hit = fileIn(at, parts[parts.length - 1] as string);
         }
-        if (!found) return null;
+        if (!hit) return null;
+        const found = { fileId: hit.id, name: hit.name };
         const f = (await dispatchSystem("files.read", { fileId: found.fileId, as: "base64" })) as { base64?: string; mime?: string };
         return typeof f.base64 === "string" ? { bytes: new Uint8Array(Buffer.from(f.base64, "base64")), mime: f.mime ?? mimeOf(found.name) } : null;
       };
@@ -1190,6 +1192,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             file: (folderId, rel) => readFolderFile(folderId, rel),
           };
           return made.host;
+        },
+        configureDomainEdge: () => {
+          const computers = loaded.moduleExports.get("computers") as { localComputerAddress?: (id: string) => Promise<string | null> } | undefined;
+          return createDomainEdge({
+            origin: publicOrigin, contained: fs.existsSync("/.dockerenv"),
+            nodeOf: (id) => (db!.all("SELECT node_id FROM computers_computers WHERE computer_id = ?", id)[0] as { node_id?: string | null } | undefined)?.node_id ?? null,
+            localAddress: (id) => computers?.localComputerAddress?.(id) ?? Promise.resolve(null), localLogs: () => Promise.resolve([]),
+            stream: { portFetch: (n, a, sink) => computeStream.portFetch(n, a, sink), ask: (n, k, i) => computeStream.ask(n, k, i), connected: (n) => computeStream.connected(n) },
+            peerAddress: (n) => computeStream.peerAddress(n),
+            router: cfg.caddyAdmin ? new CaddyRouter({ admin: new CaddyAdmin({ baseUrl: cfg.caddyAdmin, ...(o.fetch ? { fetch: o.fetch as never } : {}) }), space: spaceId, base: process.env["VYRE_CADDY_CA"] === "internal" ? { acme: { ca: "internal" } } : {} }) : null,
+          });
         },
         setComputerHost: () => createComputersHost({
           dataDir: paths.root,

@@ -140,7 +140,7 @@ async function sitesCreate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
     id, name, kind, ctx.actingFor ?? ctx.principal.id, optStr(ctx, o, "repoUrl") ?? null, null, optStr(ctx, o, "templateKit") ?? null, "stopped", "{}", null, `svc_site_${hexOf(id)}`, now, now, null, slug, computerId ?? null, port ?? null, optStr(ctx, o, "folderId") ?? null, access, 0, 0,
   );
   touchActivity(ctx.db, id, "site.created", now);
-  ctx.emit("site.created", `site/${id}`, { siteId: id, name });
+  ctx.emit("site.created", `site/${id}`, { siteId: id, name, ...(access === "private" ? { private: true } : {}) });
   return { site: siteOut(ctx, mustSite(ctx, id)) };
 }
 
@@ -327,7 +327,7 @@ async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: 
       "INSERT INTO sites_site (id, name, kind, owner, repo_url, repo_folder_id, template_kit, state, settings, staging_secret, service_principal, created_at, updated_at, deleted_at, slug, computer_id, port, target_folder, access, live, blocked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       id, title, "artifact", me, null, null, null, "stopped", "{}", null, `svc_site_${hexOf(id)}`, now, now, null, null, null, null, null, "private", 0, 0,
     );
-    ctx.emit("site.created", `site/${id}`, { siteId: id, name: title });
+    ctx.emit("site.created", `site/${id}`, { siteId: id, name: title, private: true });
     row = mustSite(ctx, id);
   }
   let folderId: string | null = folderIn ?? null;

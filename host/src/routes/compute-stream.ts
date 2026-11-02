@@ -110,10 +110,12 @@ export interface ComputeStream {
   portFetch(nodeId: string, a: { computerId: string; port: number; request: PortRequest }, sink: PortSink): void;
   /** One question for the machine: its answer, or a rejection when it cannot say. */
   ask(nodeId: string, kind: string, input: unknown): Promise<unknown>;
+  /** The address this node's socket came from. */
+  peerAddress(nodeId: string): string | null;
   close(): void;
 }
 
-interface NodeConn { nodeId: string; credential: string; peer: Peer; views: Set<string>; procs: Set<string>; lastSeen: number; secure: boolean }
+interface NodeConn { nodeId: string; credential: string; peer: Peer; views: Set<string>; procs: Set<string>; lastSeen: number; secure: boolean; address: string }
 interface ProcState {
   id: string; nodeId: string; started(pid: number | undefined): void; failed(e: RelayError): void; out(bytes: Buffer, err: boolean): void; exit(x: RelayExit): void;
 }
@@ -193,7 +195,7 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       if (!who) { refuseUpgrade(socket, "401 Unauthorized"); return; }
       const peer = accept(req, socket, head, MAX_NODE_FRAME);
       if (!peer) return;
-      const conn: NodeConn = { nodeId: who.serverId, credential, peer, views: new Set(), procs: new Set(), lastSeen: now(), secure: (deps.secure ?? linkIsSecure)(req) };
+      const conn: NodeConn = { nodeId: who.serverId, credential, peer, views: new Set(), procs: new Set(), lastSeen: now(), secure: (deps.secure ?? linkIsSecure)(req), address: sourceFor(req) };
       const old = nodes.get(conn.nodeId);
       if (old) dropNode(old, 4000);
       nodes.set(conn.nodeId, conn);
@@ -421,6 +423,7 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       ports.set(id, { nodeId, sink, timer });
       n.peer.send(JSON.stringify({ t: "port_req", id, computerId: a.computerId, port: a.port, method: a.request.method, path: a.request.path, headers: a.request.headers, ...(a.request.body?.length ? { body: Buffer.from(a.request.body).toString("base64") } : {}) }));
     },
+    peerAddress(nodeId) { return nodes.get(nodeId)?.address ?? null; },
     ask(nodeId, kind, input) {
       return new Promise((ok, no) => {
         const n = nodes.get(nodeId);

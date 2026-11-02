@@ -19,7 +19,7 @@ export default defineManifest({
   title: 'Sites',
   owner: 'L8',
   events: [
-    ev('site.created', 'A site was created', { p: { siteId: id.site, name: t.str() }, subject: ['site', '/siteId'] }),
+    ev('site.created', 'A site was created', { p: { siteId: id.site, name: t.str(), private: t.opt(t.bool()) }, subject: ['site', '/siteId'] }),
     ev('site.published', 'A site or artifact went live at its address', { p: { siteId: id.site, url: t.opt(t.str()), access }, subject: ['site', '/siteId'] }),
     ev('site.stopped', 'A site or artifact stopped being served', { p: { siteId: id.site }, subject: ['site', '/siteId'] }),
     ev('site.build_failed', 'A build failed', { p: { siteId: id.site, deploymentId: t.id('dpl'), reason: t.str() }, subject: ['site', '/siteId'], notify: 'run.failed' }),
@@ -35,7 +35,7 @@ export default defineManifest({
   blocks: [
     block('deploy', { siteId: id.site, deploymentId: t.id('dpl'), env: t.enm('staging', 'preview', 'production'), state, url: t.opt(t.str()), checks: t.arr(t.obj({ name: t.str(), ok: t.bool() })), canPromote: t.bool() },
       'Deploy {{env}} is {{state}}: {{url}}',
-      { actions: [{ key: 'promote', label: 'Promote', cap: 'sites.promote', input: { siteId: '/siteId', deploymentId: '/deploymentId' } }, { key: 'rollback', label: 'Roll back', cap: 'sites.rollback', input: { siteId: '/siteId' } }], opens: { tab: 'site', input: { siteId: '/siteId' } } }),
+      { actions: [{ key: 'promote', label: 'Promote', cap: 'sites.promote', input: { siteId: '/siteId' } }, { key: 'rollback', label: 'Roll back', cap: 'sites.rollback', input: { siteId: '/siteId' } }], opens: { tab: 'site', input: { siteId: '/siteId' } } }),
     block('artifact', { artifactId: id.site, title: t.str() }, 'Artifact: {{title}}', { opens: { tab: 'artifact', input: { artifactId: '/artifactId' } } }),
   ],
   lists: [list('site', 'Site', 'Sites', 'sites.list')],
@@ -55,7 +55,7 @@ export default defineManifest({
     read('sites.previews', 'List previews (one per branch and pull request, on their own staging address)', { in: deployTarget, out: { previews: t.arr(dep) }, on: ['site', '/siteId'], tool: 'sites' }),
     write('sites.preview_rebuild', 'Rebuild a preview or bring back a removed one', { in: { siteId: id.site, branch: t.str() }, out: { deployment: dep }, on: ['site', '/siteId'], perm: 'sites.deploy', emits: ['site.preview_created'], tool: 'sites', team: true }),
     write('sites.preview_remove', 'Remove a preview', { in: { siteId: id.site, branch: t.str() }, out: { removed: t.bool() }, on: ['site', '/siteId'], perm: 'sites.deploy', emits: ['site.preview_removed'], tool: 'sites' }),
-    outward('sites.promote', 'Put a site on the public internet at its address. Held for approval unless the person asked for it this turn', { in: { siteId: id.site }, out: { site: siteRow }, on: ['site', '/siteId'], perm: 'sites.promote', level: 'manage', gate: 'site_promote', emits: ['site.published'], tool: 'sites', errors: ['validation.precondition_failed'] }),
+    outward('sites.promote', 'Put a site on the public internet at its address. Held for approval unless the person asked for it this turn', { in: { siteId: id.site }, out: { site: siteRow }, on: ['site', '/siteId'], perm: 'sites.promote', level: 'manage', gate: { act: 'site_promote', when: "actor.kind != 'person'" }, emits: ['site.published'], tool: 'sites', errors: ['validation.precondition_failed'] }),
     outward('sites.rollback', 'Roll production back to an earlier build', { in: { siteId: id.site, toDeploymentId: t.opt(t.id('dpl')) }, out: { deployment: dep }, on: ['site', '/siteId'], perm: 'sites.promote', level: 'manage', gate: { act: 'none', reason: 'restores a build that was already approved at promote time' }, emits: ['site.rolled_back'], tool: 'sites', team: true }),
     create('sites.table_create', 'Create a site table (a site-scoped record type); no schema permission needed for people who can edit the site', { in: { siteId: id.site, key: t.str(), fields: t.arr(t.obj({ key: t.str(), type: t.str(), title: t.str() })) }, out: { type: t.str() }, on: ['site', '/siteId'], emits: ['site.table_created'], tool: 'sites', level: 'edit' }),
     read('sites.tables', 'List site tables of a site', { in: deployTarget, out: { tables: t.arr(t.obj({ type: t.str(), rows: t.int() })) }, on: ['site', '/siteId'], tool: 'sites' }),
