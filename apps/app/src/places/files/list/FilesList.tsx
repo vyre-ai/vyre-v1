@@ -25,6 +25,8 @@ import { DragWrap, dragAttrs, useDragDelegation } from "./DragWrap.tsx";
 import type { DragHandlers, DragRegistry } from "./DragWrap.tsx";
 import { StagedBanner } from "./StagedBanner.tsx";
 import { QuickLook } from "./QuickLook.tsx";
+import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
+import type { DroppedFile } from "../../../../../../ui/src/FileDrop/index.tsx";
 
 const DOUBLE_MS = 450;
 const lineKey = (l: Line): string => l.key;
@@ -282,7 +284,10 @@ function List(): ReactElement {
   ], x, y);
   const ql = state.quickLook !== null ? byKey.get(state.quickLook) : undefined;
 
+  // files dropped on the list, or pasted while it has focus, upload into the open folder; where the list is not a folder (Recent, Trash) a drop does nothing
+  const dropInto = here !== undefined && data.nav.uploadFiles ? (files: readonly DroppedFile[]): void => { data.nav.uploadFiles?.(here, files); } : undefined;
   return (
+    <DropZone testID="files-drop" onFiles={(files) => dropInto?.(files)} enabled={dropInto !== undefined} label="Drop to upload" style={ZONE} radius={0}>
     <View style={styles.main} testID="files-list" accessibilityLabel={title}>
       <Toolbar
         crumbs={trail}
@@ -319,8 +324,11 @@ function List(): ReactElement {
       )}
       {menu.element}
     </View>
+    </DropZone>
   );
 }
+
+const ZONE = { flex: 1, minWidth: 0 };
 
 export function FilesList(): ReactElement {
   const data = useOptionalFilesData();

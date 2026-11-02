@@ -25,7 +25,7 @@ export function dismissChecklist(d: ActionDeps): Promise<boolean> {
 }
 
 let seq = 0;
-export interface AskExtras { mentions?: readonly { kind: "person" | "agent"; id: string }[]; refs?: readonly { kind: string; id: string; title: string }[] }
+export interface AskExtras { mentions?: readonly { kind: "person" | "agent"; id: string }[]; refs?: readonly { kind: string; id: string; title: string }[]; attachments?: readonly string[] }
 
 /**
  * Start a chat with the assistant from the Ask box. Returns the thread to open, or null when it failed. A plain question is the first message of the new chat. When the person @mentioned someone or
@@ -35,7 +35,7 @@ export async function startAsk(d: ActionDeps, assistantId: string, text: string,
   const key = `home-ask-${at}-${++seq}`;
   // the question goes the way a chat's message goes, with the screen it was asked from: the first message of a chat carries none
   const screen = currentScreen();
-  const rich = screen !== null || (extras.mentions?.length ?? 0) > 0 || (extras.refs?.length ?? 0) > 0;
+  const rich = screen !== null || (extras.mentions?.length ?? 0) > 0 || (extras.refs?.length ?? 0) > 0 || (extras.attachments?.length ?? 0) > 0;
   let thread: string | null = null;
   const ok = await attempt(d, "start that chat", async () => {
     const out = (await d.call("chat.start", { kind: "chat", agentIds: [assistantId], ...(rich ? {} : { first: text }), idempotencyKey: key })) as { thread: { threadId: string } };
@@ -44,6 +44,7 @@ export async function startAsk(d: ActionDeps, assistantId: string, text: string,
       await d.call("chat.post", {
         threadId: thread, body: text, idempotencyKey: `${key}-post`, ...(screen ? { screen } : {}),
         ...((extras.mentions?.length ?? 0) > 0 ? { mentions: extras.mentions!.map((m) => ({ kind: m.kind, id: m.id })) } : {}),
+        ...((extras.attachments?.length ?? 0) > 0 ? { attachments: [...extras.attachments!] } : {}),
         ...((extras.refs?.length ?? 0) > 0 ? { blocks: [{ type: "refs", v: 1, data: { refs: extras.refs!.map((r) => ({ kind: r.kind, id: r.id, title: r.title })) } }] } : {}),
       });
     }

@@ -41,7 +41,7 @@ export interface MemoryView { view: KnowRoute | null; open(v: KnowRoute | null):
 export interface MountDoor { connect(into: string | null): void; live?(): void; liveView?: boolean }
 
 /** What the place does for the doors that need its own screen: ask for a name, then make the change. */
-export interface FilesActs { newFolder(scope: "personal" | "space", parentId: string | null): void; rename(kind: "file" | "folder", id: string, current: string): void; upload(folderId: string | null): void; share?(folderId: string): void }
+export interface FilesActs { newFolder(scope: "personal" | "space", parentId: string | null): void; rename(kind: "file" | "folder", id: string, current: string): void; upload(folderId: string | null): void; uploadFiles?(folderId: string | null, files: readonly { name: string; type?: string }[]): void; share?(folderId: string): void }
 
 export function filesData(rt: ShellRuntime, memory?: MemoryView, mounts?: MountDoor, acts?: FilesActs): FilesData {
   return {
@@ -63,6 +63,7 @@ export function filesData(rt: ShellRuntime, memory?: MemoryView, mounts?: MountD
       ...(mounts?.live ? { openLive: () => mounts.live?.() } : {}),
       newFolder: (scope, parentId) => acts?.newFolder(scope, parentId),
       ...(acts ? { upload: (folderId: string | null) => acts.upload(folderId) } : {}),
+      ...(acts?.uploadFiles ? { uploadFiles: (folderId: string | null, files: readonly { name: string; type?: string }[]) => acts.uploadFiles?.(folderId, files) } : {}),
       openMemory: () => (memory ? memory.open({ v: "learned" }) : rt.open({ screen: "files.memory-proposed" })),
       openGraph: () => (memory ? memory.open({ v: "graph" }) : rt.open({ screen: "files.memory-graph" })),
       openKnow: (route) => (memory ? memory.open(route) : rt.open({ screen: "files.knowledge", args: routeToArgs(route) })),

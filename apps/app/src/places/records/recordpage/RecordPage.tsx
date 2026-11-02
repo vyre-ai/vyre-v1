@@ -34,6 +34,8 @@ import { channelFieldToAdd, findContact } from "./askfor.ts";
 import { ActivityTab, ChatTab, CommentsTab, EverythingTab, FilesTab } from "../recordpane/index.ts";
 import type { FieldDef, PaneKey, RecordRow, RelNode, Section, TypeDef, Undo } from "./model.ts";
 import { SealedField } from "./SealedField.tsx";
+import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
+import type { DroppedFile } from "../../../../../../ui/src/FileDrop/index.tsx";
 
 export interface RecordPageStart {
   /** The relationship map open. */
@@ -111,6 +113,7 @@ interface FieldProps {
 
 function FieldRow(q: FieldProps): ReactElement {
   const data = usePageData();
+  const [dropNote, setDropNote] = useState("");
   const { field: f, row } = q;
   const v = row.fields[f.key];
   const kind = q.readOnly === true ? "none" : editKind(f);
@@ -162,6 +165,16 @@ function FieldRow(q: FieldProps): ReactElement {
       : f.type === "person" ? <View style={p.person}><Face name={data.nameOf(String(v))} size={18} /><Text numberOfLines={1} style={p.value}>{data.nameOf(String(v))}</Text></View>
       : <Text style={p.value}>{text}</Text>;
     body = <Pressable accessibilityRole={kind === "none" ? "text" : "button"} accessibilityLabel={`${f.title}: ${text}`} testID={`field-${f.key}`} onPress={(e) => { if (kind === "choice") { const pt = pointOf(e); chooseFrom(f, q, pt.x, pt.y); } else if (kind !== "none") q.onEdit(f); }}>{shown}</Pressable>;
+  }
+  // a Files field takes files dropped on it, or pasted while it has focus: they are stored in the record's folder (the Attach path) and named in the field
+  const store = data.files?.store;
+  if (f.type === "files" && store && q.readOnly !== true) {
+    const had = Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === "string") : [];
+    const take = (files: readonly DroppedFile[]): void => {
+      setDropNote(files.length === 1 ? `Attaching ${files[0]!.name}` : `Attaching ${files.length} files`);
+      void store(files.map((x) => ({ name: x.name, mime: x.type ?? "", file: x as never })), { type: q.type, recordId: row.id, title: row.id }).then((ids) => { setDropNote(""); q.onValue(f, [...had, ...ids]); }, () => setDropNote("Could not attach that. Try again"));
+    };
+    body = <DropZone testID={`drop-${f.key}`} onFiles={take} radius={6}>{body}{dropNote ? <Text style={p.empty} testID={`drop-note-${f.key}`} accessibilityLiveRegion="polite">{dropNote}</Text> : null}</DropZone>;
   }
   const synced = q.sync?.state.fields.find((x) => x.key === f.key);
   const mark = synced && q.sync?.state.app ? markOf(synced, q.sync.state.app.title, q.sync.now) : undefined;

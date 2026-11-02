@@ -241,6 +241,12 @@ export function createSamplePage(space: PageSpace = northwind, o: { fail?: strin
         }
         return folderId;
       },
+      // the same store with the new files' ids, for a Files field
+      store: async (files, t) => {
+        const before = attached.length;
+        await data.files!.attach(files, t);
+        return attached.slice(before).map((_, i) => `fil_${before + i + 1}`);
+      },
     },
     nav: { openFile: (id) => void opened.push(`file:${id}`), openRecord: (t, id) => void opened.push(`record:${t}:${id}`), openChat: (t, id) => void opened.push(`chat:${t}:${id}`), askFor: (x) => void opened.push(`ask:${x.type}:${x.recordId}:${x.contact.contactId}:${x.missing.map((m) => m.field).join(",")}`), openFiles: (t, id) => void opened.push(`files:${t}:${id}`), openSource: (l) => void opened.push(`source:${l}`) },
   };
