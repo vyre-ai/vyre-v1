@@ -3,6 +3,7 @@
 import { handlers } from "./handlers/index.ts";
 import { rejectAllOf, recover } from "./handlers/hold.ts";
 import { sweep } from "./handlers/approve.ts";
+import { syncPolicy } from "./projections.ts";
 import type { GateCtx } from "./projections.ts";
 
 export { handlers, recover, rejectAllOf, sweep };
@@ -10,6 +11,11 @@ export { ACTS, effectiveRule, summaryLine } from "./projections.ts";
 
 /** Async consumers by name: the events each one reads and what it does with one. */
 export const consumers = {
+  /** The Space's gate.* settings, copied here from settings.changed: a module reads only its own tables. */
+  "gate.settings_sync": {
+    on: ["settings.changed"],
+    async run(ctx: GateCtx, event: { payload: Record<string, unknown> }): Promise<string[]> { return syncPolicy(ctx.db, event.payload) ? [String(event.payload["key"])] : []; },
+  },
   "gate.member_removed": {
     on: ["member.removed"],
     async run(ctx: GateCtx, event: { payload: { personId: string; reason?: string } }): Promise<string[]> {

@@ -10,7 +10,7 @@
 // DECISION: files tool names are computer_files_* so they never collide with the Files module tools (files_*).
 // DECISION: tab limit and idle sleep defaults are unspecified in the spec; 8 tabs and 10 minutes are the plainest choices.
 // NOT EXPRESSIBLE: the executor (host agentd or device bridge) is not a capability field; see module agents for AgentToolDef.local.
-import { block, create, defineManifest, ev, health, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
+import { block, create, defineManifest, ev, health, outward, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import type { CapOpts } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut } from './_common.ts';
 
@@ -281,10 +281,6 @@ export default defineManifest({
   ],
   health: [
     health('computers', 'Agent computers', 'computers.health', 'Check that Docker (Colima on a Mac) is running on the host, then restart agentd'),
-  ],
-  settings: [
-    setting('computers.default_tab_limit', 'space', 'Policies', 'Default tab limit for agent computers', t.int({ minimum: 1, maximum: 50 }), 8),
-    setting('computers.idle_sleep_minutes', 'space', 'Policies', 'Minutes idle before an agent computer sleeps', t.int({ minimum: 1, maximum: 1440 }), 10),
   ],
   screens: [
     screen('chats.computer-popup', 'chats', 'ui:ComputerPopup', {

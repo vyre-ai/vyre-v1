@@ -25111,7 +25111,7 @@ export type SettingsPagesOut = {
   pages: Array<{
       key: string;
       title: string;
-      group: "space" | "everywhere";
+      group: "you" | "space";
       rows: number;
     }>;
 };

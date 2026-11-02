@@ -230,7 +230,7 @@ export const NAV: readonly NavGroup[] = [
   ] },
   { key: "ai", title: "AI", pages: [
     { key: "console.ai-models", title: "Models and providers", perm: "ai.models" }, { key: "gate.rules", title: "Gate rules", perm: "policy.manage" },
-    { key: "console.ai-spend", title: "Spend and limits", perm: "ai.spend" }, { key: "console.logging", title: "Logging", perm: "server.logs" },
+    { key: "console.ai-spend", title: "Spend and limits", perm: "ai.spend" },
     { key: "console.ai-review", title: "Review sampling", perm: "ai.incidents" }, { key: "console.ai-incidents", title: "Incidents", perm: "ai.incidents" },
   ] },
   { key: "comms", title: "Comms", pages: [

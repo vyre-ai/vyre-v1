@@ -4,7 +4,7 @@
 // DECISION: the HTTP routes of 5.2 to 5.8 are pinned with `http` so the wire paths stay exactly as written in the architecture.
 // DECISION: doc subscribe and update check `authorize(view|edit)` against the document's owning row inside the handler, so the
 //   capability is bound to the Space resource; the owning row is not a top-level input pointer.
-import { defineManifest, ev, health, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
+import { defineManifest, ev, health, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut } from './_common.ts';
 
 const hlc = t.str({ pattern: '^[0-9a-f]+-[0-9a-f]+-[a-z0-9_]+$', examples: ['18f3a1b2c3d-0001-dev_a1b2c3'], description: 'Hybrid logical clock: ms-hex, counter-hex, device id' });
@@ -142,10 +142,6 @@ export default defineManifest({
   ],
   health: [
     health('sync', 'Sync', 'sync.health', 'Open Console > Infrastructure > Health, then restart the sync service', { pauses: ['sync'] }),
-  ],
-  settings: [
-    setting('sync.phone_label_ceiling', 'space', 'Policies', 'Highest label mirrored to phones', t.enm('public', 'internal', 'confidential'), 'confidential', { floorable: true }),
-    setting('sync.blob_cache_mb', 'person', 'This computer', 'File cache size on this computer (MB)', t.int({ minimum: 100, maximum: 100000 }), 2048),
   ],
   screens: [
     screen('shell.sync-status', 'shell', 'ui:SyncStatus', {

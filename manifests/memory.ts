@@ -393,7 +393,6 @@ export default defineManifest({
     }),
   ],
   settings: [
-    setting('memory.weekly_nudge', 'person', 'Memory and privacy', 'Weekly reminder about proposed facts', t.bool(), true),
     setting('memory.auto_merge_kinds', 'space', 'Policies', 'Fact kinds that merge without review', t.arr(t.str()), ['preference']),
     setting('memory.require_review', 'space', 'Policies', 'Require review for shared memory', t.bool(), false),
     setting('memory.review_projects', 'space', 'Policies', 'Projects whose memory needs review (project ids)', t.arr(t.str()), []),

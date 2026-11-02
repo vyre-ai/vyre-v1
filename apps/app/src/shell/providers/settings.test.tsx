@@ -1,3 +1,4 @@
+import { adminPages, adminTarget } from "./settings-admin.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -22,13 +23,15 @@ test("without a runtime Settings draws its loading frame", () => {
   assert.ok(renderToStaticMarkup(<SettingsShellPlace place="settings" />).includes("settings-loading"));
 });
 
-test("Settings leaves for the Vault and the Console through the shell's door", () => {
+test("Settings leaves for the Vault through the shell's door, and a Console address opens inside Settings", () => {
   const s = createSampleSettings();
   const opened: string[] = [];
   const d = settingsData(sampleRuntime({ screens: s.data.screens, call: s.data.call, opened }));
   d.nav.openVault();
-  d.nav.openConsole();
-  assert.deepEqual(opened, ["vault.layout", "console.overview"]);
+  assert.deepEqual(opened, ["vault.layout"]);
+  assert.deepEqual(adminTarget("console.backups"), { screen: "settings.page", args: { page: "data", admin: "backups" } });
+  assert.deepEqual(adminTarget("console.schema", { type: "contact" }), { screen: "settings.page", args: { page: "data", admin: "schema", type: "contact" } });
+  assert.deepEqual([...adminPages({ groups: [{ pages: [{ key: "gate.rules" }, { key: "console.backups" }] }] })].sort(), ["backups", "export", "gate"], "Export shares the Backups screen");
   assert.equal(d.space.name, "Northwind");
 });
 
