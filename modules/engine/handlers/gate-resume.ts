@@ -4,12 +4,14 @@ import { boundEngine } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 import { openFor } from "../runtime.ts";
 
-interface GateEvent { name: string; payload: { holdId: string; taskId: string; note?: string } }
+interface GateEvent { name: string; payload: { holdId: string; taskId: string; note?: string; askedBy?: unknown } }
 
 export const gateResumeConsumers = {
   "engine.gate_resume": {
     on: ["gate.approved", "gate.denied", "gate.expired"],
     run: async (ctx: EngineCtx, event: GateEvent): Promise<{ skipped?: string; queued?: number | null }> => {
+      // an outside agent asked its person (docs/ask-the-person.md): no turn here waits on it, and its answer is the outside agent's to take (modules/mcp)
+      if (event.payload.askedBy !== undefined) return { skipped: "outside_ask" };
       let engine;
       try { engine = boundEngine(ctx); } catch { return { skipped: "engine_not_running" }; }
       const approved = event.name === "gate.approved";

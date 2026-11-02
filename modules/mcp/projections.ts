@@ -65,13 +65,30 @@ const schemaOf = (file: string): string[] => readFileSync(new URL(`./migrations/
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const SCHEMA = [...schemaOf("0001_init.sql"), ...schemaOf("0002_oauth.sql")];
+const SETUP_SCHEMA = schemaOf("0003_setup_grants.sql");
 const ready = new WeakSet<object>();
 
 /** Make sure the mcp tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
   try { db.all("SELECT session_id FROM mcp_oauth_grants WHERE grant_id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  try { db.all("SELECT agent_id FROM mcp_setup_grants WHERE agent_id = ?", "probe"); } catch { for (const stmt of SETUP_SCHEMA) db.run(stmt); }
   ready.add(db);
+}
+
+// ---- the setup grant (owner ruling 3 Nov) -----------------------------------------------------------------------------------------------------------------
+
+/** Does this outside agent act for this person including setup? Read on every call, so taking it back counts at the next one. */
+export function hasSetup(db: Db, agentId: string, person: string): boolean {
+  ensure(db);
+  const r = (db.all("SELECT setup FROM mcp_setup_grants WHERE agent_id = ? AND person = ?", agentId, person) as Record<string, unknown>[])[0];
+  return Number(r?.["setup"] ?? 0) === 1;
+}
+
+export function putSetup(db: Db, agentId: string, person: string, setup: boolean, by: string, at: number): void {
+  ensure(db);
+  db.run("DELETE FROM mcp_setup_grants WHERE agent_id = ?", agentId);
+  db.run("INSERT INTO mcp_setup_grants (agent_id, person, setup, set_by, set_at) VALUES (?, ?, ?, ?, ?)", agentId, person, setup ? 1 : 0, by, at);
 }
 
 // ---- ids and secrets ----------------------------------------------------------------------------------------------------------------------------------

@@ -23,5 +23,9 @@ type Payload = {
   taskId: string;
   by: string;
   forPerson?: string;
+  askedBy?: {
+    kind: "person" | "agent" | "actor" | "service";
+    id: string;
+  };
 };
 ```

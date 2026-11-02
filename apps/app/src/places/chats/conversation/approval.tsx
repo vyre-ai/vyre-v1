@@ -9,7 +9,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
 import { Glyph, TextButton } from "./parts.tsx";
 import { collect } from "./model.ts";
-import { denyNote, diffLines, doneLine, excerptLines, heldOf, outcomeOf, wantsLine } from "./approval-model.ts";
+import { askLine, askRows, denyNote, diffLines, doneLine, excerptLines, heldOf, outcomeOf, wantsLine } from "./approval-model.ts";
 import type { DiffLine } from "./approval-model.ts";
 import { Face } from "../needsyou/parts.tsx";
 import { useFollow } from "./use-follow.ts";
@@ -92,12 +92,14 @@ export function ApprovalCard({ taskId, agent, agentId, data }: { taskId: string;
       () => { setBusy(false); setLine("Could not keep that rule. Try Allow."); },
     );
   };
-  const rows = excerptLines(held.input, 5, held.cap);
+  // an outside agent asking its person: what happens, that it runs as them, and every input
+  const rows = held.what ? askRows(task.blocks) : excerptLines(held.input, 5, held.cap);
+  const headline = held.what ? askLine(agent, held.what) : wantsLine(agent, held.cap, subject, held.input);
   return (
-    <View testID={`approval-${taskId}`} style={st.card} accessibilityRole="summary" accessibilityLabel={wantsLine(agent, held.cap, subject, held.input)}>
+    <View testID={`approval-${taskId}`} style={st.card} accessibilityRole="summary" accessibilityLabel={headline}>
       <View style={st.head}>
         <Face name={agent} seedId={agentId} kind="agent" size={20} />
-        <Text style={st.title}>{wantsLine(agent, held.cap, subject, held.input)}</Text>
+        <Text style={st.title}>{headline}</Text>
       </View>
       {diff && diff.lines.length > 0 ? (
         <View testID={`approval-diff-${taskId}`} style={st.excerpt}>

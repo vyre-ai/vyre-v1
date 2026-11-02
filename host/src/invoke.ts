@@ -80,6 +80,17 @@ export interface CtxSeed {
   mustAsk?: boolean | undefined;
   /** Every call of this caller goes on the audit log, whatever the capability says. Set only by the MCP door for an outside agent; it follows no nested call. */
   auditAll?: boolean | undefined;
+  /**
+   * Ask the person (docs/ask-the-person.md). Set only by the MCP door for an outside agent; it follows no nested call. A call the agent may not make itself is parked for the person it acts for, when that
+   * person's own access allows it, and on their yes runs as them, once, with exactly this input. 'always': a person-only tool, never run as the agent. 'if_refused': only when the agent's own role lacks it.
+   * Nothing is widened: the agent gets no role and no grant, and the person's access is checked again when the call runs.
+   */
+  askPerson?: "always" | "if_refused" | undefined;
+  /**
+   * The setup grant (owner ruling 3 Nov): the person gave this outside agent "Act for me, including setup", and the MCP door found the capability in its scope. Where an ask would park, the call runs as
+   * that person instead, without a card: their own access decides, now; an audit row says which agent did it for whom under the grant. Never for an outward act. Set only by the MCP door, with askPerson.
+   */
+  setupGrant?: boolean | undefined;
 }
 
 export interface AuditRow {
@@ -103,8 +114,8 @@ export interface GateHook {
   applies(cap: CapabilityDef, input: unknown, seed: CtxSeed): { act: string } | null | Promise<{ act: string } | null>;
   /** A call the Gate let through on a person's yes failed before it went out: the yes goes back for a corrected retry. */
   giveBack?(input: unknown): Promise<void>;
-  /** Park the call as an approval task (4.6) and return its ids. */
-  park(a: { cap: CapabilityDef; input: unknown; seed: CtxSeed; act: string; decisionId: string; traceId: string }): Promise<{ taskId: string; runId?: string }>;
+  /** Park the call as an approval task (4.6) and return its ids. `runAs: "person"`: an agent asked the person it acts for (CtxSeed.askPerson); the hold runs as that person, and only they approve it. */
+  park(a: { cap: CapabilityDef; input: unknown; seed: CtxSeed; act: string; decisionId: string; traceId: string; runAs?: "person" | undefined }): Promise<{ taskId: string; runId?: string }>;
   /**
    * Who a resumed call runs as: exactly the ask-time caller, whom it acted for, and its run and thread, read from the held row the token names. Never the approver's. Null refuses the resume.
    * Without this method a call carrying onBehalfOf is refused.
@@ -180,6 +191,8 @@ export type InvokeResult =
 
 const defaultHex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 const DESTRUCTIVE = /(^|[._])(delete|remove|purge|erase|destroy)([._]|$)/;
+/** Reasons that stop an ask: the asking agent itself is not live here, or a policy on the caller refuses it. */
+const ASK_STOPS: ReadonlySet<string> = new Set(["not_a_member", "suspended", "agent_needs_actor", "provider_label", "limit"]);
 const SCOPED_RECORD_READS=new Set(["records.get","records.query","records.search","records.history","records.activity"]);
 const noop = (): void => {};
 const nullLogger: Logger = { debug: noop, info: noop, warn: noop, error: noop };
@@ -371,6 +384,32 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         class: cls, cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: d.decisionId, reason,
         resource, traceId, spanId: trace.spanId, at: t, risk: c.risk,
       });
+      // Ask the person: an outside agent stopped at what only a person does, or at a role its person holds, asks that person instead of hitting a wall. The person's own access decides, alone,
+      // as it will again when the call runs on their yes; nothing here lets the agent itself past anything.
+      const mustAsk = seed.askPerson === "always" && depth === 0 && seed.approval === undefined;
+      // the agent itself must still be a live member that may act for this person: a suspended or removed agent, or a policy on the caller (provider label, spend), stops here as before
+      const agentLive = !(d.effect === "deny" && ASK_STOPS.has(d.reason));
+      const asks = seed.askPerson !== undefined && seed.principal.kind === "agent" && seed.actingFor !== undefined && seed.actingFor.startsWith("usr_") && depth === 0 && !approved && seed.approval === undefined && agentLive
+        && (seed.askPerson === "always" || (d.effect === "deny" && d.reason === "role_lacks_permission"));
+      // fail closed: what the door says only a person does never runs as the agent, whatever authorize said
+      if (mustAsk && !asks) {
+        await deps.audit?.(audit("deny", d.effect === "deny" ? d.reason : "person_only"));
+        throw fail(d.effect === "deny" ? codeForReason(d.reason) : "permission.role_lacks_permission", traceId, { message: "Only a person can do that here.", details: { cap: c.name, reason: "person_only" } });
+      }
+      if (asks) {
+        const pd = deps.authorize({ ...req, principal: seed.actingFor!, actingFor: undefined, approved: false });
+        if (pd.effect === "deny") {
+          await deps.audit?.(audit("deny", `asks_person:${pd.reason}`));
+          throw fail(codeForReason(pd.reason), traceId, { message: "The person you act for cannot do this either. Someone whose role allows it, an owner or an admin of this Space, has to do it or give them that role.", details: { cap: c.name, reason: "person_lacks_role", personReason: pd.reason, steps: pd.steps.map((x) => x.text) } });
+        }
+        // the setup grant: the person said yes ahead of time for this kind of call, so it runs as them now. Sends, posts and payments are never in it: they keep the Gate and the chat's rules.
+        if (seed.setupGrant === true && c.effects !== "outward") {
+          await deps.audit?.(audit("allow", "setup_grant"));
+          const asPerson: CtxSeed = { ...seed, principal: { kind: "person", id: seed.actingFor! }, actingFor: undefined, askPerson: undefined, setupGrant: undefined, askFirst: undefined, askable: undefined, chatMode: undefined, auditAll: true };
+          return stepsFour(c, input, asPerson, trace, depth, true);
+        }
+        return park(c, input, seed, traceId, pd.decisionId, c.gate?.act && c.gate.act !== "none" ? c.gate.act : "approve", audit("hold", "asks_person"), "person");
+      }
       if (d.effect === "deny") {
         await deps.audit?.(audit("deny", d.reason));
         const code = codeForReason(d.reason);
@@ -456,10 +495,10 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     return { status: "ok", output:finishOutput?await finishOutput():output, traceId };
   }
 
-  async function park(c: CapabilityDef, input: unknown, seed: CtxSeed, traceId: string, decisionId: string, act: string, row: AuditRow | null): Promise<InvokeResult> {
+  async function park(c: CapabilityDef, input: unknown, seed: CtxSeed, traceId: string, decisionId: string, act: string, row: AuditRow | null, runAs?: "person"): Promise<InvokeResult> {
     if (!deps.gate) throw fail("internal.unavailable", traceId, { message: "Approvals are not available right now.", details: { cap: c.name } });
     if (row) await deps.audit?.(row);
-    const p = await deps.gate.park({ cap: c, input, seed, act, decisionId, traceId });
+    const p = await deps.gate.park({ cap: c, input, seed, act, decisionId, traceId, ...(runAs ? { runAs } : {}) });
     return { status: "held", taskId: p.taskId, runId: p.runId, traceId };
   }
 

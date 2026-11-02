@@ -22,3 +22,9 @@ export const isTrustedService = (p: PrincipalLike | null | undefined): boolean =
  * carries zero. The host (svc_host) may call them directly.
  */
 export const isSystemCall = (ctx: { depth?: number; principal?: PrincipalLike | undefined }): boolean => isHostService(ctx.principal) || (ctx.depth ?? 0) > 0;
+
+/**
+ * A person's own press: a person, and not a call that came through the MCP door. Under the setup grant (owner ruling 3 Nov) an outside agent's call runs as its person, but it is still the agent's act:
+ * it never writes what only a press may write, such as an automation's standing permission to send (docs/ask-the-person.md).
+ */
+export const isPersonPress = (ctx: { principal?: PrincipalLike | undefined; origin?: string | undefined }): boolean => !!ctx.principal && ctx.principal.kind === "person" && ctx.origin !== "mcp";

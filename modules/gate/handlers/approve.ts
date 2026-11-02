@@ -48,7 +48,7 @@ function settle(ctx: GateCtx, h: Hold, state: "approved" | "denied" | "expired",
   saveHold(ctx.db, h);
 }
 
-const payloadOf = (h: Hold, extra: Record<string, unknown>): Record<string, unknown> => ({ holdId: h.id, act: h.act, taskId: h.taskId, ...extra });
+const payloadOf = (h: Hold, extra: Record<string, unknown>): Record<string, unknown> => ({ holdId: h.id, act: h.act, taskId: h.taskId, ...(h.askedBy ? { askedBy: h.askedBy } : {}), ...extra });
 const emitGate = (ctx: GateCtx, name: string, h: Hold, extra: Record<string, unknown>): void => {
   const clean: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(payloadOf(h, extra))) if (v !== undefined) clean[k] = v;
@@ -72,8 +72,12 @@ export async function release(ctx: GateCtx, input: In): Promise<unknown> {
   if (claims.by !== ctx.principal.id) raise(ctx, "validation.precondition_failed", "That approval was given by someone else.", { reason: "token_mismatch" });
   if (claims.device !== null && claims.device !== ctx.device) raise(ctx, "validation.precondition_failed", "Approve from the device you started on.", { reason: "device_mismatch" });
   if (ctx.principal.kind !== "person" && h.rule.peopleOnly) raise(ctx, "validation.precondition_failed", "Only a person can approve this.", { reason: "people_only" });
+  // Ask the person: it runs as them, so only their own press, from their own session, releases it. An agent acting for them, a delegate or an admin cannot.
+  if (h.askedBy && (claims.by !== h.principal.id || claims.forPerson !== null || ctx.principal.kind !== "person")) {
+    raise(ctx, "validation.precondition_failed", "Only the person this runs as can approve it.", { reason: "not_the_person" });
+  }
   // a step of an automation is the automation's act, not the person's request: the person it runs as may approve it
-  if (h.principal.kind === "person" && h.principal.id === claims.by && h.rule.approvers !== "asker" && !h.step) {
+  if (!h.askedBy && h.principal.kind === "person" && h.principal.id === claims.by && h.rule.approvers !== "asker" && !h.step) {
     raise(ctx, "validation.precondition_failed", "Someone else has to approve what you asked for.", { reason: "self_approval" });
   }
   if ((await sha(h.input)) !== h.inputHash) raise(ctx, "internal.unexpected", "The held act changed after it was parked.", { reason: "tampered" });
@@ -95,8 +99,8 @@ export async function release(ctx: GateCtx, input: In): Promise<unknown> {
   }
   delete h.error;
   const kept = result === undefined || result === null ? undefined : JSON.stringify(result);
-  // only a chat turn waits for the answer, and a secret is never kept: vault.* calls resume the turn with "approved" only
-  if (kept !== undefined && h.threadId !== undefined && !h.capName.startsWith("vault.")) h.result = kept.length <= 100_000 ? result : { truncated: true };
+  // only a chat turn, or an agent that asked its person, waits for the answer, and a secret is never kept: vault.* calls resume the turn with "approved" only
+  if (kept !== undefined && (h.threadId !== undefined || h.askedBy !== undefined) && !h.capName.startsWith("vault.")) h.result = kept.length <= 100_000 ? result : { truncated: true };
   settle(ctx, h, "approved", claims.by);
   addStepTargets(ctx, h);
   await cancelSchedules(ctx, h);
