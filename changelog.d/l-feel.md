@@ -8,3 +8,4 @@
 - In a Personal Space the Files sidebar says My files, and Recent and its count leave out the files an agent is made with.
 - A new tab no longer says No results before anything is typed.
 - The lock screen greets you by your first name, not your username.
+- A fast reply no longer lands in one jump: words still waiting when the turn ends finish at the same pace, in about a second and a half at most.
