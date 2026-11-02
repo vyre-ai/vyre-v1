@@ -195,16 +195,18 @@ export interface TileProps {
   width: number;
   selected: boolean;
   hovered?: boolean;
+  /** In place of the kind's icon: a Google app's tile, or the icon with a provider's mark (marks.tsx). */
+  art?: ReactNode;
   onPress(): void;
 }
 
 /** One tile of the grid: the thumbnail box with the kind's icon large, the name, and when and how big. Hover and selection paint the whole tile. */
-export function Tile({ id, name, meta, icon, folder, width, selected, hovered = false, onPress }: TileProps): ReactElement {
+export function Tile({ id, name, meta, icon, folder, width, selected, hovered = false, art, onPress }: TileProps): ReactElement {
   const thumb = Math.round(((width - 16) * 3) / 4);
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={name} accessibilityState={{ selected }} testID={`tile-${id}`} onPress={onPress}
       style={({ hovered: h }: { hovered?: boolean }) => [styles.tile, { width }, (hovered || h === true) && HOVER, selected && TILE_SEL]}>
-      <View style={[styles.thumb, { height: thumb }]}><Glyph name={icon} size={folder ? 54 : 40} color={folder ? "var(--accent)" : "var(--ink-3)"} width={1} /></View>
+      <View style={[styles.thumb, { height: thumb }]}>{art ?? <Glyph name={icon} size={folder ? 54 : 40} color={folder ? "var(--accent)" : "var(--ink-3)"} width={1} />}</View>
       <Text numberOfLines={1} style={styles.gname}>{name}</Text>
       <Text numberOfLines={1} style={styles.gmeta}>{meta}</Text>
     </Pressable>

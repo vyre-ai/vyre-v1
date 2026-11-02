@@ -1,0 +1,10 @@
+{
+  "targets": [
+    { "id": "DRIVEFILES_01-list", "route": "/m/DRIVEFILES_01?view=list", "proto": "files,{skin}", "waitFor": "[data-testid='google-tile-gdocs']", "note": "A connected Google Drive in Files: the Drive mark on My Drive in the tree and a corner mark on its subfolder, Google Docs, Sheets, Slides and Forms tiles on their rows, the Drive mark on the corner of the PDF row." },
+    { "id": "DRIVEFILES_01-doc", "route": "/m/DRIVEFILES_01?view=doc", "proto": "files,viewer-md,{skin}", "waitFor": "[data-testid='vw-doc']", "note": "The Salvo Law Google Doc open: its words (headings, the table as rows, the list), the Google Docs tile in the header in place of FILE, Open in Google Docs, no Edit switch." },
+    { "id": "DRIVEFILES_01-sheet", "route": "/m/DRIVEFILES_01?view=sheet", "proto": "files,viewer-csv,{skin}", "waitFor": "[data-testid='vw-sheet']", "note": "A Google Sheet open as a table from its CSV export, with Open in Google Sheets." },
+    { "id": "DRIVEFILES_01-form", "route": "/m/DRIVEFILES_01?view=form", "proto": "files,{skin}", "waitFor": "[data-testid='vw-other']", "note": "A Google Form has no export: the quiet no-preview line names Open in Google Forms, never This file is empty." },
+    { "id": "DRIVEFILES_01-live", "route": "/m/DRIVEFILES_01?view=live", "proto": "files,{skin}", "waitFor": "[data-testid='live-folders']", "note": "Live folders: My Drive, OneDrive and a GitHub repository, each with its provider's mark." },
+    { "id": "DRIVEFILES_01-tabs", "route": "/m/DRIVEFILES_01?view=tabs", "proto": "chat,{skin}", "waitFor": "[data-testid='tab-inbox-selected']", "note": "After opening three conversations in Inbox, a file in Files and two chats in Chats: one tab each, Inbox selected." }
+  ]
+}

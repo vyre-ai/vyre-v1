@@ -4,7 +4,7 @@
 // and take highlight-and-comment. The Ask control is the shared AskButton. Colours are skin tokens (CSS variables on web).
 
 import { createElement, useMemo, useRef, useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AskButton } from "../AskButton/index.tsx";
 import type { AskButtonProps } from "../AskButton/index.tsx";
@@ -247,6 +247,8 @@ export interface ViewerViewProps extends ViewerProps {
   initialCell?: { r: number; c: number };
   /** The file's tile letters ("PNG", "CSV"), and the line under its name (path and when it changed). */
   kindLabel?: string;
+  /** In place of the tile letters: the file's own mark (a Google Docs tile), or the tile with a provider's mark on its corner. */
+  kindMark?: ReactNode;
   subtitle?: string;
   /** The agent that reads the markup: the markup bar offers "Ask <agent>" once something is marked. */
   agentName?: string;
@@ -257,6 +259,8 @@ export interface ViewerViewProps extends ViewerProps {
   onSibling?: (id: string) => void;
   /** CSV and plan: View or Edit, and the saved version shown beside it. */
   edit?: boolean;
+  /** No View and Edit switch: the file is edited somewhere else (a Google Doc opens in Google Docs). */
+  readOnly?: boolean;
   saved?: number;
   onEditMode?: (edit: boolean) => void;
   onInfo?: () => void;
@@ -342,7 +346,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   );
   const bar = (
     <View style={s.bar} testID="vw-bar">
-      {props.kindLabel !== undefined ? <View style={s.tile} testID="vw-tile"><Text style={s.tileText}>{props.kindLabel}</Text></View> : null}
+      {props.kindMark !== undefined ? <View testID="vw-mark">{props.kindMark}</View> : props.kindLabel !== undefined ? <View style={s.tile} testID="vw-tile"><Text style={s.tileText}>{props.kindLabel}</Text></View> : null}
       <View style={s.titleCol}>
         <Text style={s.title} numberOfLines={1}>{viewerLabel(props)}</Text>
         {props.subtitle !== undefined ? <Text style={s.sub} numberOfLines={1} testID="vw-sub">{props.subtitle}</Text> : null}
@@ -369,7 +373,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
           <Pressable accessibilityRole="button" accessibilityLabel="Zoom in" testID="vw-zoom-in" onPress={() => setZ(stepZoom(zoom, 1))}><Text style={s.zoomText}>{"+"}</Text></Pressable>
         </View>
       ) : null}
-      {props.kind === "csv" || (props.kind === "document" && blocks.some((b) => b.tag !== "code")) ? (
+      {props.readOnly !== true && (props.kind === "csv" || (props.kind === "document" && blocks.some((b) => b.tag !== "code"))) ? (
         <View style={s.modeRow} testID="vw-mode">
           {props.saved !== undefined ? <Text style={s.saved} testID="vw-saved">{`✓ v${props.saved}`}</Text> : null}
           <View style={s.seg} accessibilityRole="tablist">
@@ -570,7 +574,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const body = props.kind === "image" ? image
     : props.kind === "csv" ? table
     : props.kind === "document" || props.kind === "plan" ? docBody
-    : <View style={s.emptyBox} testID="vw-other"><Text style={s.empty}>No preview for this file. Open it in its own app.</Text></View>;
+    : <View style={s.emptyBox} testID="vw-other"><Text style={s.empty}>{props.openIn !== undefined ? `No preview of this file here. ${props.openIn.label} to see it.` : "No preview for this file. Open it in its own app."}</Text></View>;
 
   return (
     <View accessibilityLabel={viewerLabel(props)} style={s.root} testID="viewer"
