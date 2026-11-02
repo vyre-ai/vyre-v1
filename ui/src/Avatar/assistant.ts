@@ -62,7 +62,7 @@ export const assistantId = (): string => state.id;
 export const assistantLook = (): string => state.look;
 export function subscribeAssistant(l: () => void): () => void { listeners.add(l); return () => { listeners.delete(l); }; }
 /** Test seam: forget the assistant and its look. */
-export function resetAssistant(): void { state = { id: "", look: "" }; picked = new Map(); emit(); }
+export function resetAssistant(): void { state = { id: "", look: "", name: "" }; picked = new Map(); emit(); }
 
 export const isAssistantId = (id: string | undefined): boolean => id !== undefined && id !== "" && id === state.id;
 
