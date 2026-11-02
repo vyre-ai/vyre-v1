@@ -11,6 +11,7 @@ type Obj = Record<string, unknown>;
 
 import { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL } from "../../lib/connector-chat.ts";
 import { COMPANY_INTENT } from "../../lib/company-flow.ts";
+import { ABOUT_VYRE_INTENT, ABOUT_VYRE_SKILL } from "../../lib/about-vyre.ts";
 
 /** The titles of the chats the Vault (Add to Automations) and the step picker (Build a connector) start, and the skill they run on. */
 /** How to name a record, file, task or chat in a reply: by link, never by id. */
@@ -398,6 +399,12 @@ export function createContextBuilder(d: ContextDeps) {
       if (focusName && idx.some((s) => s.name === focusName)) {
         const f = await d.skills.load(focusName, agentId, asker).catch(() => null);
         if (f) add("focus", false, `${f.name}\n${cutTo(f.body.trim(), 8_000)}`);
+      }
+      // a question about Vyre itself (what it is, what it supports, whether it can replace a tool): the product facts ride along with whatever the place's focus is, for this turn
+      const asked = input.trigger?.author.kind === "person" ? input.trigger.body : "";
+      if (focusName !== ABOUT_VYRE_SKILL && (ABOUT_VYRE_INTENT.test(asked) || ABOUT_VYRE_INTENT.test(str(th?.["title"]) ?? "")) && idx.some((s) => s.name === ABOUT_VYRE_SKILL)) {
+        const about = await d.skills.load(ABOUT_VYRE_SKILL, agentId, asker).catch(() => null);
+        if (about && about.body.trim() !== "") sections.push({ id: "about", stable: false, once: true, text: cutTo(about.body.trim(), 12_000) });
       }
     }
 

@@ -115,6 +115,27 @@ test("the screen is read as the asker for the message that caused the turn, and 
   assert.ok(!none.sections.some((s) => s.id === "screen" || s.id === "focus"), "a message sent without a screen has none");
 });
 
+test("a message that asks about Vyre itself loads about-vyre beside the place's focus, for that turn only; the Vyre skill on disk is the one loaded", async () => {
+  const withAbout: SkillsPort = {
+    async index() { return [...(await skills.index("agt_intake", "usr_maya")), { name: "about-vyre", description: "Load when someone asks about Vyre itself.", tier: "builtin" }]; },
+    async load(name, agentId, asker) { return name === "about-vyre" ? diskSkills().load(name, agentId, asker) : skills.load(name, agentId, asker); },
+  };
+  const screen = { place: "records", title: "Contacts" };
+  const f = fake({ ...FULL, "chat.screen.get": { screen } });
+  const build = (body: string, kind: "person" | "agent" = "person") => createContextBuilder({ call: f.call, skills: withAbout, now: () => at }).build(input({ trigger: msg("m3", kind === "person" ? "usr_maya" : "agt_docs", kind, body) }));
+  for (const asked of ["What do you think about Vyre?", "I am looking at it as a replacement for my Claude CLI and Codex CLI for long running development sessions and general project management", "Does Vyre support Codex?"]) {
+    const ctx = await build(asked);
+    const about = ctx.sections.find((s) => s.id === "about");
+    assert.ok(about, asked);
+    assert.match(about.text, /^# About Vyre/);
+    assert.match(about.text, /Claude Code, Codex and Grok/);
+    assert.deepEqual([about.stable, about.once], [false, true], "kept out of the cached prefix, and sent to a resumed CLI session once until it changes");
+    assert.equal(ctx.sections.find((s) => s.id === "focus")?.text, "focus-records\nDescribe the type first.", "the place's focus stays");
+  }
+  assert.equal((await build("how many contacts came in this week?")).sections.some((s) => s.id === "about"), false, "an ordinary ask does not load it");
+  assert.equal((await build("What do you think about Vyre?", "agent")).sections.some((s) => s.id === "about"), false, "an agent's message does not load it");
+});
+
 test("a turn woken without a message asks for the newest screen of the thread", async () => {
   const f = fake({ ...FULL, "chat.screen.get": { screen: { place: "files", title: "Policies" }, messageId: "m1" } });
   const ctx = await createContextBuilder({ call: f.call, skills, now: () => at }).build(input({ trigger: null }));
@@ -160,7 +181,7 @@ test("the built-in skills on disk are indexed and one loads by name", async () =
   const port = diskSkills();
   const idx = await port.index("agt_x", "usr_x");
   const names = idx.map((s) => s.name);
-  for (const n of ["working-in-vyre", "focus-records", "focus-files", "focus-automations", "focus-vault", "focus-inbox", "focus-apps", "focus-console", "agent-loops", "agent-computer"]) assert.ok(names.includes(n), n);
+  for (const n of ["working-in-vyre", "focus-records", "focus-files", "focus-automations", "focus-vault", "focus-inbox", "focus-apps", "focus-console", "agent-loops", "agent-computer", "about-vyre"]) assert.ok(names.includes(n), n);
   assert.ok(idx.every((s) => s.description.length > 20 && s.tier === "builtin"));
   const loaded = await port.load("focus-vault", "agt_x", "usr_x");
   assert.match(loaded!.body, /You never see a value/);
