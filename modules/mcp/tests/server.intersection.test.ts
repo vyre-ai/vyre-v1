@@ -7,8 +7,8 @@ import { AccessSnapshot, authorize, LEVEL_RANK } from "../../../kernel/src/autho
 import type { Level } from "../../../kernel/src/authorize/index.ts";
 import { codeForReason, fail } from "../../../host/src/routes/errors.ts";
 import type { Invoke } from "../../../host/src/invoke.ts";
-import { createMcpServer } from "../../../agent/src/mcp/index.ts";
-import type { McpCaller, Scopes } from "../../../agent/src/mcp/index.ts";
+import { createMcpServer, isPersonOnly, outsideAllows } from "../../../agent/src/mcp/index.ts";
+import type { McpCaller } from "../../../agent/src/mcp/index.ts";
 import { loadGenerated } from "../../../agent/src/tools/harness.ts";
 import type { ErrorCode } from "../../../packages/contracts/src/types.ts";
 
@@ -16,10 +16,9 @@ const g = loadGenerated();
 const NOW = 1_000;
 const PERSON = "per_dana";
 const AGENT = "agt_intake";
-const ACTOR = "act_cc";
+const ACTOR = "agt_outside";
 const LEVELS: Array<Level | null> = [null, "view", "use", "edit", "manage"];
 const rank = (l: Level | null): number => (l === null ? 0 : LEVEL_RANK[l]);
-const FULL: Scopes = { read: true, post: true, readChangesets: true, writeBranch: true };
 
 function world(levels: { person: Level | null; agent: Level | null; actor: Level | null }): AccessSnapshot {
   const snap = new AccessSnapshot();
@@ -52,7 +51,7 @@ function pipeline(snap: AccessSnapshot, calls: string[]): Invoke {
 
 const callerOf = (kind: "outside" | "driver", withPerson = true): McpCaller =>
   kind === "outside"
-    ? { kind, sessionId: "ses_o", space: "spc_1", principal: { kind: "actor", id: ACTOR }, ...(withPerson ? { actingFor: PERSON } : {}), scopes: FULL }
+    ? { kind, sessionId: "ses_o", space: "spc_1", principal: { kind: "agent", id: ACTOR }, ...(withPerson ? { actingFor: PERSON } : {}) }
     : { kind, sessionId: "ses_d", space: "spc_1", principal: { kind: "agent", id: AGENT }, ...(withPerson ? { actingFor: PERSON } : {}), threadId: "thr_1" };
 
 function serverFor(snap: AccessSnapshot, caller: McpCaller, calls: string[]) {
@@ -84,7 +83,7 @@ test("a CLI engine's agent acting for a person is allowed exactly when both hold
   assert.ok(allowed > 100 && refused > 100, `both outcomes are exercised (${allowed} allowed, ${refused} refused)`);
 });
 
-test("an outside tool acting for the person who connected it never gets more than the tool or the person has (25 combinations, all scopes on)", async () => {
+test("an outside agent acting for the person who allowed it never gets more than it or the person has (25 combinations)", async () => {
   let allowed = 0;
   for (const person of LEVELS) for (const actor of LEVELS) {
     const calls: string[] = [];
@@ -126,17 +125,16 @@ test("the person being suspended or removed stops the connection at once, with t
   assert.equal(r.code, "permission.suspended");
 });
 
-test("scopes narrow on top of access: with every level at manage, a read-only connection still cannot write, post or touch the vault", async () => {
+test("what stays with people stays there: with every level at manage, an outside agent still cannot touch the Vault, the terminal, sign-in or access", async () => {
   const snap = world({ person: "manage", agent: null, actor: "manage" });
   const calls: string[] = [];
-  const readOnly: McpCaller = { ...callerOf("outside"), scopes: { read: true, post: false, readChangesets: false, writeBranch: false } };
-  const call = serverFor(snap, readOnly, calls);
+  const call = serverFor(snap, callerOf("outside"), calls);
   for (const t of g.catalog.all.filter((x) => g.defaults.has(x.name) && x.name !== "tool_search")) {
     const r = await call(t.name);
-    if (r.allowed) assert.equal(t.effects, "read", `${t.name} is not a read tool but ran on a read-only scope`);
-    else if (t.effects === "read" && t.local === "none" && !["vault", "terminal", "computer", "engineer"].includes(t.toolset)) assert.fail(`${t.name} is a plain read tool and was refused: ${r.code}`);
+    if (r.allowed) assert.equal(outsideAllows(t), true, `${t.name} ran for an outside agent`);
+    else if (!outsideAllows(t)) assert.equal(r.code, "permission.role_lacks_permission", t.name);
   }
-  for (const c of calls) assert.equal(g.caps.get(c)!.effects, "read", `${c} reached the pipeline on a read-only scope`);
+  for (const c of calls) assert.equal(isPersonOnly(c, g.caps.get(c)!.effects), false, `${c} reached the pipeline from outside`);
 });
 
 test("the kernel's reason reaches the model as the error code", async () => {

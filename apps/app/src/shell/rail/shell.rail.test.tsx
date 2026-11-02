@@ -21,7 +21,7 @@ test("each Space's Kit draws its own rail and the Console shows only with access
   assert.ok(!railPlaces(rail(PERSONAL)).includes("console"));
   for (const k of [NORTHWIND, HARBOR, PERSONAL]) assert.ok(!railPlaces(rail(k)).includes("home"), "Home is gone");
   for (const k of ["northwind", "studio", "personal"]) assert.equal(kitById(k).start, "chats", "Chats is the first screen");
-  assert.ok(!railPlaces(rail(PERSONAL)).includes("apps"), "a Personal Space hides Apps: forms, campaigns and sending domains are for a team");
+  assert.ok(!railPlaces(rail(PERSONAL)).includes("apps"), "a Personal Space hides Apps: forms and sending domains are for a team");
   const noAccess = railFor({ kit: kitById("northwind"), console: false, counts: {}, dots: {}, active: "home" });
   assert.ok(!railPlaces(noAccess).includes("console"), "no console.access, no Console button");
   assert.equal(kitById("nope").id, "northwind", "an unknown Kit falls back to the default");

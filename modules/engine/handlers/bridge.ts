@@ -62,6 +62,9 @@ export interface BridgeOptions {
   addressAsker?: (threadId: string, agentId: string) => boolean;
 }
 
+/** Does this agent run outside Vyre? Read as the server: an outside agent is hidden from everyone but its owner, and a teammate's message must not start a turn for it. */
+const runsOutside = (ctx: EngineCtx, agentId: string): Promise<boolean> => ctx.call("agents.get", { agentId }).then((r) => (r as { agent?: { runtime?: string } } | null)?.agent?.runtime === "outside", () => false);
+
 export interface BridgeEvent { name: string; subject?: string; payload: Record<string, unknown> }
 
 export interface Bridge {
@@ -340,7 +343,9 @@ export function createBridge(o: BridgeOptions): Bridge {
     if (got.thread.agents.length === 0) return false;   // nobody to run; the thread opens on the first message after an agent joins
     // a chat pins no model unless the person picked one for the thread: the agent's own model is then the one the turn runs and is metered on
     const own = new Map<string, string>();
+    const outside = new Set<string>();
     for (const a of got.thread.agents) {
+      if (await runsOutside(ctx, a.agentId)) { outside.add(a.agentId); continue; }
       if (a.model) continue;
       try {
         const m = ((await read("agents.get", { agentId: a.agentId })) as { agent?: { model?: string } } | null)?.agent?.model;
@@ -348,7 +353,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       } catch { /* an agent that cannot be read runs on the account's default */ }
     }
     const agents: EngineAgent[] = got.thread.agents.map((a) => ({
-      id: a.agentId, mode: a.mode, ...(a.model || own.get(a.agentId) ? { model: a.model ?? own.get(a.agentId) as string } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watching: true } : {}),
+      id: a.agentId, mode: a.mode, ...(a.model || own.get(a.agentId) ? { model: a.model ?? own.get(a.agentId) as string } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watching: true } : {}), ...(outside.has(a.agentId) ? { outside: true } : {}),
     }));
     const store = sqlMessages(ctx.db, ctx.now);
     if (store.recent(threadId, 1).length === 0) {
@@ -409,7 +414,10 @@ export function createBridge(o: BridgeOptions): Bridge {
       if (named.some((id) => !known.has(id))) {
         try {
           const now = (await reader(ctx, authorId, threadId)("threads.get", { threadId })) as ThreadGet;
-          for (const a of now.thread.agents) if (named.includes(a.agentId) && !known.has(a.agentId)) eng.engage(threadId, { id: a.agentId, mode: a.mode, ...(a.model ? { model: a.model } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}) });
+          for (const a of now.thread.agents) {
+            if (!named.includes(a.agentId) || known.has(a.agentId)) continue;
+            eng.engage(threadId, { id: a.agentId, mode: a.mode, ...(a.model ? { model: a.model } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...((await runsOutside(ctx, a.agentId)) ? { outside: true } : {}) });
+          }
         } catch (e) { ctx.log.warn("the bridge could not read who joined the chat", { traceId: ctx.trace.traceId, threadId, error: e instanceof Error ? e.message : String(e) }); }
       }
     }

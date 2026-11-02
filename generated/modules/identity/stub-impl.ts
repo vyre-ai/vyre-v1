@@ -25,6 +25,8 @@ export const handlers: Handlers<HandlerCtx> = {
   "identity.sign_in": async () => ({"challengeId":"chl_a1b2c3","keys":{"personKeyByPassword":"d3JhcHBlZA==","personKeyByRecovery":"d3JhcHBlZA==","privateKeyWrapped":"d3JhcHBlZA==","publicKey":"cHVibGlj","spaceKeys":[{"epoch":1,"wrapped":"d3JhcHBlZA=="}]},"session":{"deviceId":"dev_a1b2c3","epoch":1,"expiresAt":1760000000000,"sessionId":"ses_a1b2c3","token":"example"},"status":"ok"} as unknown) as never,
   "identity.sign_in_options": async () => ({"fingerprint":"ab12 cd34 ef56 7890","github":true,"logoFileId":"fil_a1b2c3","name":"example","password":true,"secondFactorRequired":true,"sso":[{"key":"example","title":"example"}]} as unknown) as never,
   "identity.sign_out": async () => ({"ok":true} as unknown) as never,
+  "identity.sso_join_start": async () => ({"start":"example"} as unknown) as never,
+  "identity.sso_link": async () => ({"start":"example"} as unknown) as never,
   "identity.sso_sign_in": async () => ({"challengeId":"chl_a1b2c3","keys":{"personKeyByPassword":"d3JhcHBlZA==","personKeyByRecovery":"d3JhcHBlZA==","privateKeyWrapped":"d3JhcHBlZA==","publicKey":"cHVibGlj","spaceKeys":[{"epoch":1,"wrapped":"d3JhcHBlZA=="}]},"session":{"deviceId":"dev_a1b2c3","epoch":1,"expiresAt":1760000000000,"sessionId":"ses_a1b2c3","token":"example"},"status":"ok"} as unknown) as never,
   "identity.totp_begin": async () => ({"enrolmentId":"enr_a1b2c3","setupUri":"otpauth://totp/Vyre:maya?secret=ABC"} as unknown) as never,
   "identity.totp_confirm": async () => ({"ok":true} as unknown) as never,

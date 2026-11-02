@@ -20,7 +20,7 @@ A schedule was missed while the server was down and handled by its if-missed rul
 type Payload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "campaign" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
     id: string;
   };
   scheduledFor: number;

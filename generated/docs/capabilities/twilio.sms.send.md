@@ -10,7 +10,7 @@ Send a text (the transport behind telephony.send_sms)
 | Permission | grant only |
 | Grant level | use |
 | Risk | high |
-| Resource | space |
+| Resource | number (/numberId) |
 | Gate | send |
 | Idempotency | key |
 | Offline | online |
@@ -25,6 +25,7 @@ Send a text (the transport behind telephony.send_sms)
 
 ```ts
 type In = {
+  numberId: string;
   from: string;
   to: string;
   body: string;
@@ -53,6 +54,7 @@ type Out = {
 - provider.rate_limited
 - provider.unavailable
 - validation.bad_input
+- validation.not_found
 
 ## Example
 
@@ -66,6 +68,7 @@ type Out = {
     "mediaUrls": [
       "example"
     ],
+    "numberId": "num_a1b2c3",
     "statusCallback": "example",
     "to": "+14155550123"
   },

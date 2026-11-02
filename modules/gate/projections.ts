@@ -6,7 +6,7 @@ import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { canonical } from "../../lib/canonical.ts";
 
-export type ActKey = "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+export type ActKey = "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
 export type Risk = "low" | "medium" | "high";
 export type Mode = "hold" | "allow";
 export type Scope = "space" | "floor" | "agent";
@@ -17,9 +17,11 @@ export interface Assignee { kind: "person" | "agent" | "group" | "role" | "autom
 export interface ActDef {
   key: ActKey; title: string; risk: Risk; block: string; approvers: string; peopleOnly: boolean; agentOkFor?: Risk; afterHours: number; onTimeout: "drop" | "escalate";
   escalateTo: "delegate" | "role"; emailBackstopHours: number; humanToo: boolean;
+  /** Stops for a person with the right role however it was reached: no rule, grant, mode or automation lifts it. A person pressing it themselves is let through by the capability's own `when`, before this. */
+  alwaysStops: boolean;
 }
 const act = (key: ActKey, title: string, risk: Risk, block: string, approvers: string, o: Partial<ActDef> = {}): ActDef => ({
-  key, title, risk, block, approvers, peopleOnly: true, afterHours: 24, onTimeout: "escalate", escalateTo: "delegate", emailBackstopHours: 4, humanToo: false, ...o,
+  key, title, risk, block, approvers, peopleOnly: true, afterHours: 24, onTimeout: "escalate", escalateTo: "delegate", emailBackstopHours: 4, humanToo: false, alwaysStops: false, ...o,
 });
 export const ACTS: readonly ActDef[] = [
   act("send", "Send a message", "medium", "doc_excerpt", "asker", { agentOkFor: "low" }),
@@ -28,14 +30,13 @@ export const ACTS: readonly ActDef[] = [
   act("delete", "Delete", "high", "record_card", "asker"),
   act("transfer", "Hand over ownership", "high", "record_card", "asker"),
   act("enroll_node", "Admit a computer to the Space", "high", "record_card", "asker"),
-  act("connection_change", "Change a company-wide connection", "high", "table", "asker"),
+  act("connection_change", "Change a company-wide connection", "high", "table", "role:admin", { alwaysStops: true }),
   act("push_protected", "Push to a protected branch", "high", "diff", "role:admin", { humanToo: true }),
-  act("campaign_launch", "Launch a campaign", "high", "table", "role:admin", { humanToo: true }),
   act("secret_export", "Export secrets", "high", "table", "role:admin", { humanToo: true }),
   act("site_promote", "Promote a site to production", "high", "deploy", "role:admin", { humanToo: true }),
   act("signature_send", "Send a document for signature", "high", "file", "role:admin"),
   act("spend_raise", "Raise a spend cap", "medium", "table", "role:admin"),
-  act("signin_change", "Change how people sign in to the Space", "high", "record_card", "asker"),
+  act("signin_change", "Change how people sign in to the Space", "high", "record_card", "role:admin", { alwaysStops: true }),
   act("approve", "Allow this step", "medium", "doc_excerpt", "asker"),
 ];
 export const actOf = (k: string): ActDef => ACTS.find((a) => a.key === k) ?? ACTS[0]!;
@@ -174,10 +175,11 @@ export function effectiveRule(db: Db, p: PrincipalRef, actKey: string, policy: P
   const sSpace: Mode = space?.mode ?? "hold";
   const sources: Effective["sources"] = { space: sSpace, ...(floor ? { floor: floor.mode } : {}), ...(agent ? { agent: agent.mode } : {}) };
   // adminOnly: the default rule (no row) does not ask; only a rule an admin or the owner wrote does
-  const wants = (sSpace === "hold" && (!adminOnly || space !== undefined)) || floor?.mode === "hold" || agent?.mode === "hold";
-  const applies = p.kind !== "person" || a.humanToo;
+  const wants = a.alwaysStops || (sSpace === "hold" && (!adminOnly || space !== undefined)) || floor?.mode === "hold" || agent?.mode === "hold";
+  const applies = a.alwaysStops || p.kind !== "person" || a.humanToo;
   const hold = wants && applies;
   const reason = !applies ? "A person's own act does not wait for approval."
+    : a.alwaysStops ? "A person with the right role always decides this."
     : !wants ? "The Space rule lets this through."
     : floor?.mode === "hold" ? "The owner always asks first."
     : agent?.mode === "hold" && sSpace === "allow" ? "This agent's own rule holds it."
@@ -187,7 +189,7 @@ export function effectiveRule(db: Db, p: PrincipalRef, actKey: string, policy: P
   const approvers = named.reduce((best, x) => (APPROVER_RANK(x) > APPROVER_RANK(best) ? x : best), a.approvers);
   // agents may approve only up to the risk the Space names; an agent's own rule can only lower it
   const base = space?.agentOkFor ?? a.agentOkFor;
-  const okFor = minRisk(base, agent?.agentOkFor);
+  const okFor = a.alwaysStops ? undefined : minRisk(base, agent?.agentOkFor);
   const peopleOnly = okFor === undefined || RISK_RANK[okFor] < RISK_RANK[a.risk];
   // timing: the Space sets it; the floor and the agent can only shorten
   const spaceHours = space?.afterHours ?? policy.timeoutHours;
@@ -196,7 +198,7 @@ export function effectiveRule(db: Db, p: PrincipalRef, actKey: string, policy: P
   const e: Effective = {
     hold, reason, approvers, peopleOnly, afterHours, onTimeout: dropped ? "drop" : "escalate",
     escalateTo: space?.escalateTo ?? agent?.escalateTo ?? a.escalateTo, emailBackstopHours: Math.min(policy.emailBackstopHours, a.emailBackstopHours), sources,
-    adminRule: space?.mode === "hold" || floor?.mode === "hold" || agent?.mode === "hold",
+    adminRule: a.alwaysStops || space?.mode === "hold" || floor?.mode === "hold" || agent?.mode === "hold",
   };
   if (okFor !== undefined) e.agentOkFor = okFor;
   return e;

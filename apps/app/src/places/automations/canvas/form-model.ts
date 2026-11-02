@@ -215,7 +215,6 @@ export const TRIGGER_SPECS: Record<string, TriggerSpec> = {
   meeting_transcript_ready: { fields: [f("source", "Meeting source", { help: "Leave empty for any source." })] },
   journey_stage_entered: { fields: [f("journeyId", "Journey", { kind: "pick", from: "journeys", help: "Leave empty for any Journey." }), f("stage", "Stage", { help: "Leave empty for any stage." })] },
   journey_stage_left: { fields: [f("journeyId", "Journey", { kind: "pick", from: "journeys", help: "Leave empty for any Journey." }), f("stage", "Stage", { help: "Leave empty for any stage." })] },
-  campaign_reply: { fields: [f("campaignId", "Campaign", { placeholder: "cmp_...", help: "Leave empty for any campaign." })] },
   button: { fields: [], note: "Starts when someone presses its button. Give it a name so people know what it does." },
   manual: { fields: [], note: "Starts when you press Run now at the top of the page." },
 };
@@ -327,7 +326,6 @@ export function triggerSummary(t: TriggerLike, names: RefNames = {}, zone?: stri
       const verb = t.key === "journey_stage_entered" ? "enters" : "leaves";
       return { text: `${j ? `${names.journey?.(j) ?? j}: ` : ""}A record ${verb} ${stage ? stage : "a stage"}`, ok: true };
     }
-    case "campaign_reply": return { text: str(flt["campaignId"]) ? `A reply to ${str(flt["campaignId"])}` : "Any campaign reply", ok: true };
     default: return { text: "Starts a run", ok: true };
   }
 }

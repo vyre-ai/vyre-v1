@@ -15,3 +15,4 @@ Area: agents. Risk: medium. Applies to: space.
 ## Capabilities that need it
 
 - agents.create
+- agents.outside.connect

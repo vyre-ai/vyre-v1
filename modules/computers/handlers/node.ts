@@ -26,7 +26,7 @@ export async function nodeResult(ctx: CompCtx, input: { nodeId: string; jobId: s
 export async function nodeHomeCheck(ctx: CompCtx, input: { nodeId: string; token: string; computerId: string; cap: string }): Promise<{ agentId: string } | null> {
   ensure(ctx.db);
   if (!HOME_CAPS.has(String(input.cap))) return null;
-  const job = await jobForToken(ctx.db, String(input.nodeId), String(input.token), String(input.computerId), ctx.now());
+  const job = await jobForToken(ctx.db, String(input.nodeId), String(input.token), String(input.computerId));
   if (!job || !HOME_JOBS.has(job.kind)) return null;
   return { agentId: job.agentId };
 }
@@ -54,6 +54,6 @@ export async function nodeStreamInput(ctx: CompCtx, input: { computerId: string;
 /** Is this token a live saveRecording job of this node for this computer? The only job whose video may go up the recording route. */
 export async function nodeRecordingCheck(ctx: CompCtx, input: { nodeId: string; token: string; computerId: string }): Promise<boolean> {
   ensure(ctx.db);
-  const job = await jobForToken(ctx.db, String(input.nodeId), String(input.token), String(input.computerId), ctx.now());
+  const job = await jobForToken(ctx.db, String(input.nodeId), String(input.token), String(input.computerId));
   return job?.kind === "saveRecording";
 }

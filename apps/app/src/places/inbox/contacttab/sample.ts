@@ -1,5 +1,5 @@
 // The sample conversations behind the contact tab tests and screenshots, on top of the Inbox sample (../contactlist/sample.ts). Elena Rivera is the full thread: emails with folded quotes and
-// attachments, text bubbles, a call with a recording and transcript, a campaign step, record chips and an agent's draft with its Gate line. The resolvers honour the inputs the screen
+// attachments, text bubbles, a call with a recording and transcript, record chips and an agent's draft with its Gate line. The resolvers honour the inputs the screen
 // passes and the writes change the rows, so a send shows up in the thread the way the real replica would show it.
 import type { Row } from "../../../../../../client/src/index.ts";
 import type { InboxData } from "../sidebar/data.tsx";
@@ -27,7 +27,6 @@ export const threads: Record<string, ThreadItem[]> = {
     { kind: "email", id: "m_intake", at: ago(4320), direction: "in", title: "Client intake form", preview: "Hi Irfad, I filled out your intake form this morning.", ref: {
       subject: "Client intake form", body: "Hi Irfad,\n\nI filled out your intake form this morning. Let me know if you need anything else from me before Thursday.\n\nElena", via: "hello@",
       attachments: [{ name: "Intake-Elena-Rivera.pdf", size: "182 KB" }], chips: [{ title: "Elena Rivera", recordId: "rec_elena" }, { title: "Lease renewal", recordId: "rec_lease" }] } },
-    { kind: "campaign_step", id: "s_welcome", at: ago(4200), title: "Welcome series, step 1 sent", campaignId: "cmp_welcome" },
     { kind: "email", id: "m_reply", at: ago(4100), direction: "out", title: "Re: Client intake form", preview: "Thanks Elena, got it.", ref: {
       subject: "Re: Client intake form", body: "Thanks Elena, got it. I will go through it tonight and send the lease draft tomorrow.\n\nIrfad", via: "Work Gmail", status: "delivered",
       quoted: "On Fri, Oct 20 at 9:12 AM Elena Rivera wrote:\n> Hi Irfad,\n> I filled out your intake form this morning." } },
@@ -51,9 +50,8 @@ export const threads: Record<string, ThreadItem[]> = {
     { kind: "sms", id: "mt2", at: ago(18), direction: "in", preview: "Can you resend invoice 1041? I can't find it.", ref: { body: "Can you resend invoice 1041? I can't find it.", via: NW_BILL, address: "+1 415 555 0188" } },
   ],
   priya: [
-    { kind: "campaign_step", id: "ps1", at: ago(4400), title: "Spring check-in, email 1 sent", campaignId: "cmp_spring" },
     { kind: "email", id: "pm1", at: ago(70), direction: "in", title: "Re: Spring check-in", preview: "Yes, we would like to book a review for next week.", ref: {
-      subject: "Re: Spring check-in", body: "Yes, we would like to book a review for next week. Tuesday morning works best.", via: "intake@", campaign: "Spring check-in", quoted: "On Mon, Oct 20 Intake wrote:\n> Do you want to book a review this spring?" } },
+      subject: "Re: Spring check-in", body: "Yes, we would like to book a review for next week. Tuesday morning works best.", via: "intake@", quoted: "On Mon, Oct 20 Intake wrote:\n> Do you want to book a review this spring?" } },
   ],
   clara: [
     { kind: "email", id: "cv1", at: ago(55), direction: "in", title: "Studio session for the autumn range", preview: "Hi, we need a two day shoot for the autumn range.", ref: { subject: "Studio session for the autumn range", body: "Hi, we need a two day shoot for the autumn range. Do you have a slot in the first week of November?\n\nClara", via: "Studio Gmail" } },
@@ -110,7 +108,6 @@ export function createContactTabSample(space: SampleSpace = northwind, o: { onli
     const conversation: Conversation = {
       id: c.id, ...(c.contactId ? { contactId: c.contactId } : {}), address: PHONES[c.id] && !c.contactId ? (PHONES[c.id] as string) : c.address, displayName: c.displayName, lastMessageAt: c.lastMessageAt,
       lastChannel: c.lastChannel, lastPreview: c.lastPreview, unreadCount: c.unreadCount, needsMatch: c.needsMatch, mailboxIds: c.mailboxIds, followed: c.followed, alertOnReplies: c.alertOnReplies,
-      ...(c.campaignId ? { campaignId: c.campaignId } : {}),
     };
     return { conversation, items, total: items.length } satisfies ThreadOut;
   });

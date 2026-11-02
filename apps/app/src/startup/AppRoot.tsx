@@ -16,6 +16,7 @@ registerShellPlaces();
 
 /** /claim/<token>: the first screen on a fresh install (ruling 71). Loaded only when that address is opened. */
 const OAuthRoute = lazy(() => import("../oauth/OAuthRoute.tsx").then((m) => ({ default: m.OAuthRoute })));
+const AllowRoute = lazy(() => import("../oauth/AllowRoute.tsx").then((m) => ({ default: m.AllowRoute })));
 const ClaimRoute = lazy(() => import("../claim/ClaimRoute.tsx").then((m) => ({ default: m.ClaimRoute })));
 
 const currentPath = (): string => (globalThis as { location?: { pathname?: string } }).location?.pathname ?? "/";
@@ -51,6 +52,8 @@ function AppRoute(): ReactElement {
   const home = (): void => { replacePath("/chat"); setPath("/chat"); };
   // /oauth/callback: where an app sends a person back after approving a connection; it finishes the sign-in as the signed-in person
   if (path === "/oauth/callback") return <Suspense fallback={null}><OAuthRoute /></Suspense>;
+  // /oauth/allow: an app outside Vyre asked to join; the normal sign-in, then the one press
+  if (path === "/oauth/allow") return <Suspense fallback={null}><AllowRoute /></Suspense>;
   if (token) {
     return (
       <Suspense fallback={null}>

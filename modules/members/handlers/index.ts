@@ -2,6 +2,7 @@
 import { accept, invitesCreate, invitesExtend, invitesList, invitesPreview, invitesRevoke } from "./invite.ts";
 import { githubClear, githubGet, githubSet } from "./github.ts";
 import { policyGetH, policySet, secondFactorReport, ssoList, ssoRemove, ssoSet, ssoTest } from "./policy.ts";
+import { companyHandlers } from "./company.ts";
 import { reactivate, remove, removePreview, suspend } from "./remove.ts";
 
 export const handlers = {
@@ -25,4 +26,5 @@ export const handlers = {
   "members.sso.set": ssoSet,
   "members.sso.test": ssoTest,
   "members.suspend": suspend,
+  ...companyHandlers,
 };

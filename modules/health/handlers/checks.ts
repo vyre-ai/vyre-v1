@@ -15,8 +15,8 @@ import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 export type HealthCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "call"> & { exports?: { support(body: SupportExportContent): Promise<string> } };
 
 export type State = "healthy" | "degraded" | "down";
-export type Area = "automations" | "sync" | "sends" | "campaigns";
-const AREAS: readonly Area[] = ["automations", "sync", "sends", "campaigns"];
+export type Area = "automations" | "sync" | "sends";
+const AREAS: readonly Area[] = ["automations", "sync", "sends"];
 const RANK: Record<State, number> = { healthy: 0, degraded: 1, down: 2 };
 
 export const DAY_MS = 86_400_000;

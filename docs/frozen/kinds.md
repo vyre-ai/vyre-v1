@@ -47,7 +47,7 @@ Spec 2.14 is the gate act table. Spec 2.24 is the three notification levels. Spe
 1. Each table in Counts is non-empty, and the `generated/kinds.ts` exports are the registry arrays.
 2. Each kind's `module` is a module id in the registry.
 3. Each kind has the example named above. A setting default may be null or empty. Every other text example is non-blank, and every array example has at least one entry.
-4. Gate acts are the ten keys below, all from module `gate`. Each sends on `gate.release`. The timeout is 24 hours, then escalate to the delegate, with an email backstop at 4 hours. Approvers are people. `humanToo` is set on campaign launch, protected push, secret export and site promote.
+4. Gate acts are the ten keys below, all from module `gate`. Each sends on `gate.release`. The timeout is 24 hours, then escalate to the delegate, with an email backstop at 4 hours. Approvers are people. `humanToo` is set on protected push, secret export and site promote.
 5. Notification levels are `interrupt`, `badge` or `digest`, all declared by module `notifications`. An interrupt carries a push title and does not wait for working hours. `approval.requested` and `agent.blocked` use place `chats`. `approval.requested` emails once after 4 hours.
 6. Each health check names a capability, a positive interval and timeout, and a next step. The logs retention default is `30d`, declared by `governance`.
 7. Task kinds are the six keys below, all from module `tasks`. Retention classes are the ten keys below, all from module `governance`.
@@ -64,8 +64,7 @@ Example: `send`.
   "appliesTo": {
     "actors": [
       "agent",
-      "automation",
-      "campaign"
+      "automation"
     ],
     "humanToo": false
   },
@@ -98,7 +97,6 @@ Example: `send`.
 
 | Key | Title | Risk | Human too | Example preview |
 |---|---|---|---|---|
-| campaign_launch | Launch a campaign | high | yes | table |
 | connection_change | Change a company-wide connection | high | no | table |
 | delete | Delete | high | no | record_card |
 | enroll_node | Admit a computer to the Space | high | no | record_card |
@@ -217,7 +215,6 @@ Example: `approval.requested`.
 | approval.backstop | interrupt | chats | Still waiting on you: {{title}} |
 | approval.requested | interrupt | chats | Approval needed: {{title}} |
 | call.incoming | interrupt | inbox | Incoming call from {{from}} |
-| campaign.reply | badge | apps | Reply from {{from}} to {{campaign}} |
 | conflict.needs_you | badge | records | Two edits conflict on {{title}} |
 | digest.away | digest | home | While you were away |
 | dm | interrupt | chats | Message from {{from}} |
@@ -457,7 +454,7 @@ Example: `mail.send_window`.
 
 ## Steps
 
-ARCH 3.4. Module `steps-core` declares the step kinds an Automation, Journey or Campaign can use. The sample output is the example. Input and output schemas stay on the registry row. A step that names `gateAct` uses one of the ten gate acts.
+ARCH 3.4. Module `steps-core` declares the step kinds an Automation or Journey can use. The sample output is the example. Input and output schemas stay on the registry row. A step that names `gateAct` uses one of the ten gate acts.
 
 Example: `send_email`.
 
@@ -557,10 +554,9 @@ Example: `record_change`.
 | Key | Title | Personal | Example sample |
 |---|---|---|---|
 | button | A button is pressed | yes | {"label":"example","pressedBy":"example","recordId":"rec_a1b2c3","type":"contact"} |
-| campaign_reply | A campaign gets a reply | yes | {"campaignId":"cmp_a1b2c3","messageId":"msg_a1b2c3","recordId":"rec_a1b2c3"} |
 | chat_message | A chat message is posted | yes | {"author":{"id":"example","kind":"example"},"depth":1,"kind":"example","messageId":"msg_a1b2c3","threadId":"thr_a1b2c3","threadSeq":1} |
 | ci_check | A CI check finishes | yes | {"branch":"example","conclusion":"success","name":"example","repo":"example","sha":"example","url":"example"} |
-| email_received | An email is received | yes | {"campaignId":"cmp_a1b2c3","contactId":"rec_a1b2c3","from":"example","mailboxId":"mbx_a1b2c3","messageId":"example","subject":"example"} |
+| email_received | An email is received | yes | {"contactId":"rec_a1b2c3","from":"example","mailboxId":"mbx_a1b2c3","messageId":"example","subject":"example"} |
 | form_submit | A form is submitted | yes | {"formId":"frm_a1b2c3","matched":true,"recordId":"rec_a1b2c3","type":"contact"} |
 | journey_stage_entered | A Journey record enters a stage | yes | {"journeyId":"jrn_a1b2c3","manual":true,"previousStage":"example","recordId":"rec_a1b2c3","stage":"example"} |
 | journey_stage_left | A Journey record leaves a stage | yes | {"journeyId":"jrn_a1b2c3","recordId":"rec_a1b2c3","stage":"example","toStage":"example"} |
@@ -722,7 +718,6 @@ Example: `file`.
 |---|---|---|---|
 | agent | agents | Agent | agents.list |
 | automation | automations | Automation | automations.list |
-| campaign | campaigns | Campaign | campaigns.list |
 | channel | chat | Channel | channels.list |
 | file | files | File | files.list |
 | form | forms | Form | forms.list |

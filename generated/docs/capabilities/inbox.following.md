@@ -1,6 +1,6 @@
 # inbox.following
 
-Contacts that reach your Inbox and why: owner, project, follow, campaign or shared inbox
+Contacts that reach your Inbox and why: owner, project, follow or shared inbox
 
 | | |
 |---|---|
@@ -36,7 +36,7 @@ type In = {
 type Out = {
   rows: Array<{
       contactId: string;
-      reasons: Array<"owner" | "project" | "follow" | "campaign" | "shared_inbox">;
+      reasons: Array<"owner" | "project" | "follow" | "shared_inbox">;
       alertOnReplies: boolean;
     }>;
   next?: string;

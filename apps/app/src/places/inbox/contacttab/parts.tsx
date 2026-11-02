@@ -1,5 +1,5 @@
 // The pieces of the conversation feed (spec 2.18, 3.3), drawn from the prototype's Inbox: an email (the quoted text folded, attachments, record chips), a run of text bubbles, a call with its
-// player, summary and transcript, a campaign step as a quiet line, an agent's draft with its Gate line. Colours are skin tokens, so a skin switch repaints with no re-render.
+// player, summary and transcript, an agent's draft with its Gate line. Colours are skin tokens, so a skin switch repaints with no re-render.
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -41,7 +41,6 @@ export function EmailItem({ e, who, offsetMin, quoteOpen, onQuote, onAttachment,
       <View style={s.eh}>
         <Icon name="mail" size={14} />
         <Text style={[s.ehName, out && s.ehOut]}>{name}</Text>
-        {r.campaign && !out ? <View style={s.camptag}><Icon name="flag" size={11} color="var(--accent)" /><Text style={s.camptext}>{r.campaign}</Text></View> : null}
         <View style={s.grow} />
         <Via name={r.via} />
         <Text style={s.time}>{clockTime(e.item.at, offsetMin)}</Text>
@@ -187,7 +186,7 @@ export function CallLine({ c, offsetMin, open, onTranscript }: { c: CallEntry; o
   );
 }
 
-/** A campaign step, a record link or a note: one quiet centred line. */
+/** A record link or a note: one quiet centred line. */
 export function QuietLine({ text, testID }: { text: string; testID: string }): ReactElement {
   return (
     <View style={s.ev} testID={testID}><View style={s.evdot} /><Text style={s.evText}>{text}</Text></View>
@@ -239,8 +238,6 @@ const s = StyleSheet.create({
   eh: { flexDirection: "row", alignItems: "center", gap: 9 },
   ehName: { fontSize: 13, fontWeight: "600", color: ink("--ink") },
   ehOut: { color: ink("--accent") },
-  camptag: { flexDirection: "row", alignItems: "center", gap: 4 },
-  camptext: { fontSize: 11.5, fontWeight: "500", color: ink("--accent") },
   sj: { marginTop: 6, marginBottom: 4, marginLeft: 23, fontSize: 14.5, fontWeight: "600", letterSpacing: -0.07, color: ink("--ink") },
   bd: { marginLeft: 23, fontSize: 14, lineHeight: 22, color: ink("--ink") },
   bad: { marginTop: 4, marginLeft: 23, fontSize: 12, fontWeight: "500", color: ink("--danger") },

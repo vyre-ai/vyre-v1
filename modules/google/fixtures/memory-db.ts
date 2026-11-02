@@ -7,6 +7,8 @@ type Row = Record<string, Val>;
 interface Table {
   pk: string[];
   rows: Row[];
+  /** columns an ALTER TABLE added, with their default */
+  added?: Row;
 }
 
 export function memoryDb(): MailDb {
@@ -16,6 +18,7 @@ export function memoryDb(): MailDb {
     const s = sql.trim().replace(/;+\s*$/, "");
     const head = s.slice(0, 24).toLowerCase();
     if (head.startsWith("create table")) return createTable(tables, s);
+    if (head.startsWith("alter table")) return alterTable(tables, s);
     if (head.startsWith("create index") || head.startsWith("create unique index")) return { changes: 0 };
     if (head.startsWith("insert")) return insert(tables, s, args);
     if (head.startsWith("update")) return update(tables, s, args);
@@ -59,6 +62,16 @@ function createTable(tables: Map<string, Table>, sql: string): { changes: number
   return { changes: 0 };
 }
 
+function alterTable(tables: Map<string, Table>, sql: string): { changes: number } {
+  const m = /^alter\s+table\s+(\S+)\s+add\s+column\s+(\S+)[^]*?(?:default\s+(\S+))?\s*$/i.exec(sql);
+  if (!m) throw new Error(`bad alter: ${sql}`);
+  const table = must(tables, ident(m[1] ?? ""));
+  const value = m[3] === undefined || /^null$/i.test(m[3]) ? null : Number(m[3]);
+  table.added = { ...table.added, [ident(m[2] ?? "")]: value };
+  for (const row of table.rows) row[ident(m[2] ?? "")] = value;
+  return { changes: 0 };
+}
+
 function insert(tables: Map<string, Table>, sql: string, args: unknown[]): { changes: number } {
   const m = /^insert\s+(or\s+ignore\s+)?into\s+(\S+)\s*\(([\s\S]+)\)\s*values\s*\(([\s\S]+)\)\s*$/i.exec(sql);
   if (!m) throw new Error(`bad insert: ${sql}`);
@@ -67,7 +80,7 @@ function insert(tables: Map<string, Table>, sql: string, args: unknown[]): { cha
   const cols = splitCommas(m[3] ?? "").map((c) => ident(c));
   const marks = splitCommas(m[4] ?? "").map((v) => v.trim());
   if (marks.some((v) => v !== "?") || marks.length !== args.length || cols.length !== args.length) throw new Error(`insert arity: ${sql}`);
-  const row: Row = {};
+  const row: Row = { ...table.added };
   cols.forEach((col, i) => { row[col] = norm(args[i]); });
   if (table.pk.length) {
     const clash = table.rows.some((have) => table.pk.every((col) => have[col] === row[col]));
@@ -112,6 +125,13 @@ function remove(tables: Map<string, Table>, sql: string, args: unknown[]): { cha
 function select(tables: Map<string, Table>, sql: string, args: unknown[]): Row[] {
   let order: { col: string; dir: number } | null = null;
   let body = sql.trim();
+  let page: { limit: number; offset: number } | null = null;
+  const pm = /\s+limit\s+\?\s+offset\s+\?\s*$/i.exec(body);
+  if (pm) {
+    page = { offset: Number(args[args.length - 1]), limit: Number(args[args.length - 2]) };
+    args = args.slice(0, -2);
+    body = body.slice(0, pm.index).replace(/,\s*id\s+(asc|desc)\s*$/i, "");
+  }
   const om = /\s+order\s+by\s+(\S+)\s+(asc|desc)\s*$/i.exec(body);
   if (om) {
     order = { col: ident(om[1] ?? ""), dir: (om[2] ?? "").toLowerCase() === "asc" ? 1 : -1 };
@@ -133,6 +153,7 @@ function select(tables: Map<string, Table>, sql: string, args: unknown[]): Row[]
       return av < bv ? -dir : dir;
     });
   }
+  if (page) rows = rows.slice(page.offset, page.offset + page.limit);
   const list = (m[1] ?? "").trim();
   if (list === "*") return rows.map((row) => ({ ...row }));
   const count = /^count\(\*\)\s+as\s+(\S+)$/i.exec(list);

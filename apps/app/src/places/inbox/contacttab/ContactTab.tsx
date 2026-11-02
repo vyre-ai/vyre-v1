@@ -1,5 +1,5 @@
 // Inbox > a contact's tab (spec 3.3, 2.18, 2.14): the whole history of one person across email, text and calls, newest at the foot next to the composer. Emails keep their quoted text folded;
-// texts are bubbles; calls carry a player, a summary and a transcript; campaign steps are quiet lines; record chips link to the record. The header has the record link, Email, Text, Call, Follow
+// texts are bubbles; calls carry a player, a summary and a transcript; record chips link to the record. The header has the record link, Email, Text, Call, Follow
 // and Ask. The composer switches Email and Text and picks the sending inbox (a reply goes out from the inbox the thread came in on); an agent's draft shows its Gate line with Send, Edit and
 // Discard. Everything reads from the local copy and works offline: a send queues and the foot says so.
 import { useOpenConnect } from "../../../shell/connect/context.ts";
@@ -298,7 +298,6 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             case "email": return <EmailItem key={f.key} e={f} who={conv.displayName} offsetMin={clock.offsetMin} quoteOpen={quotes.includes(f.key)} onQuote={() => setQuotes((q) => toggled(q, f.key))} {...(props.onOpenAttachment ? { onAttachment: props.onOpenAttachment } : {})} onChip={(title, recordId) => props.onOpenRecord?.(conv.contactId ?? "", recordId ?? title)} />;
             case "texts": return <Bubbles key={f.key} t={f} offsetMin={clock.offsetMin} />;
             case "call": return <CallLine key={f.key} c={f} offsetMin={clock.offsetMin} open={transcripts.includes(f.key)} onTranscript={() => setTranscripts((t) => toggled(t, f.key))} />;
-            case "step": return <QuietLine key={f.key} text={f.item.title ?? "Campaign step"} testID={`step:${f.item.id}`} />;
             case "chip": return <QuietLine key={f.key} text={f.item.title ?? "Record"} testID={`chip-line:${f.item.id}`} />;
             case "note": return <QuietLine key={f.key} text={f.item.title ?? f.item.preview ?? ""} testID={`note:${f.item.id}`} />;
           }

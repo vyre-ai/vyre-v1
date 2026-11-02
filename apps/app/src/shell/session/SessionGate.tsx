@@ -43,6 +43,7 @@ const ResetAccount = lazy(() => import("../../join/ResetAccount.tsx").then(m=>({
 const LocalClaim = lazy(() => import("../../claim/ClaimRoute.tsx").then(m=>({default:m.ClaimRoute})));
 const JoinProviderSetup = lazy(() => import("./JoinProviderSetup.tsx").then((m) => ({ default: m.JoinProviderSetup })));
 const SignedInShell = lazy(() => import("./ShellHost.tsx").then((m) => ({ default: m.ShellHost })));
+const AllowScreen = lazy(() => import("../../oauth/AllowScreen.tsx").then((m) => ({ default: m.AllowScreen })));
 
 export interface SessionGateProps {
   baseUrl?: string | null;
@@ -248,6 +249,8 @@ function DesktopJoinScreen({ route, open, onSignedIn, onBack, onSignIn, deviceCl
   const [setup, setSetup] = useState<{ stored: StoredSession; ai: JoinValues["ai"] } | null>(null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [ssoStarted, setSsoStarted] = useState<string | null>(null);
+  const [sso, setSso] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
     setJoin(null);
@@ -258,17 +261,24 @@ function DesktopJoinScreen({ route, open, onSignedIn, onBack, onSignIn, deviceCl
   const onJoin = useCallback(async (values: JoinValues): Promise<void> => {
     if (!join) throw new Error("This invite is unavailable. Ask for a new one.");
     try {
-      const stored = await acceptDesktopJoin(join, values, { anonymous, deviceClass, open: (token) => open({ baseUrl: route.address, token }), getSpace: (token) => authenticatedSpace(route.address, token) });
+      const stored = await acceptDesktopJoin(join, values, { anonymous, deviceClass, ...(sso ? { ssoProvider: sso } : {}), open: (token) => open({ baseUrl: route.address, token }), getSpace: (token) => authenticatedSpace(route.address, token) });
       if (values.ai.choice === "key" || values.ai.choice === "sub") setSetup({ stored, ai: values.ai });
       else onSignedIn(stored);
     } catch (e) { if (e instanceof JoinRefused) throw e; throw new Error("Could not finish joining this Space. Try again."); }
-  }, [anonymous, join, onSignedIn, open, route.address, deviceClass]);
+  }, [anonymous, join, onSignedIn, open, route.address, deviceClass, sso]);
   if (setup) return <Suspense fallback={<Opening title="Connect your AI" />}><JoinProviderSetup stored={setup.stored} ai={setup.ai} onOpen={() => onSignedIn(setup.stored)} onClearSecret={() => setSetup((current) => { if (!current?.ai.key) return current; const { key: _secret, ...ai } = current.ai; return { ...current, ai }; })} /></Suspense>;
   if (failed) return <JoinFrame><Panel below={<Links><TextButton label="Sign in instead" testID="invite-sign-in" onPress={onSignIn}/></Links>} bar={<Bar onBack={onBack} cont={<Button label="Try again" testID="invite-retry" onPress={()=>setAttempt(n=>n+1)}/>}/>}><Step id="invite-error"><Title title="This invite did not open" sub="It may have expired or been used"/></Step></Panel></JoinFrame>;
   if (!join) return <Opening title="Opening your invite" testID="step-invite-loading" />;
+  const required = join.preview.ssoRequired ?? [];
+  if (required.length > 0 && !sso) return <JoinSso providers={required} started={ssoStarted} onStart={(key) => { void Promise.resolve(anonymous("identity.sso_join_start", { code: route.code, provider: key })).then((out) => { const start = (out as { start?: string }).start; if (start) { (globalThis as { open?: (url: string, target: string) => unknown }).open?.(`${route.address}${start}`, "_blank"); setSsoStarted(key); } }); }} onDone={() => setSso(ssoStarted)} />;
   const invite: JoinInvite = { space: join.preview.spaceName, host: hostOf(route.address), by: join.preview.invitedBy, role: join.preview.role, fingerprint: join.preview.fingerprint, sso: [], github: false, adminKey: false };
   const appLink=deviceClass==='web'?inviteAppLink(route):null;
   return <JoinFlow invite={invite} onJoin={onJoin} {...(deviceClass==='desktop'?{initial:{stage:'steps' as const,step:0}}:{onDownload:()=>{(globalThis as {open?:(url:string,target:string,features:string)=>unknown}).open?.(VYRE_DOWNLOADS,'_blank','noopener,noreferrer');}})} {...(appLink?{onOpenApp:()=>{(globalThis as {location?:{assign(url:string):void}}).location?.assign(appLink);}}:{})} />;
+}
+
+/** Everyone in this Space must use its single sign-on: a new person proves the invitation's address first, in a browser window, and then chooses their name and the password that wraps their keys. */
+function JoinSso({ providers, started, onStart, onDone }: { providers: readonly { key: string; title: string }[]; started: string | null; onStart: (key: string) => void; onDone: () => void }): ReactElement {
+  return <JoinFrame><Panel bar={<Bar cont={started ? <Button label="I signed in" testID="join-sso-done" onPress={onDone} /> : <Button label={`Continue with ${providers[0]!.title}`} testID="join-sso" onPress={() => onStart(providers[0]!.key)} />} />}><Step id="join-sso-step"><Title title={started ? "Finish in the window that opened" : "This Space uses your work sign-in"} /></Step></Panel></JoinFrame>;
 }
 
 /** A link into a Space this device is already signed in to: open it, or use another account. Never a second account by accident. */
@@ -314,6 +324,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const [startTry, setStartTry] = useState(0);
   const [forgot, setForgot] = useState(false);
   const [otherAccount, setOtherAccount] = useState(false);
+  const [allow, setAllow] = useState<Extract<DesktopRoute, { kind: "allow" }> | null>(null);
   const bridge = useMemo(() => desktopBridge(), []);
 
   useEffect(() => {
@@ -343,6 +354,12 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     let unlisten: (() => void) | undefined;
     void consumeDesktopBootstrap(bridge, (route) => {
       if (!alive) return;
+      // an app asked to join: the Allow screen over whatever the person is doing. Not signed in to that Space here: the normal sign-in first, then the same screen.
+      if (route.kind === "allow") {
+        setAllow(route);
+        if (!readStored(undefined, route.address)) { setEntry(false); setPersonalClaim(null); setDesktopRoute({ kind: "signin", address: route.address }); setPhase({ kind: "signin" }); }
+        return;
+      }
       // a link opens its own screen from wherever the person is: the doors, a half-filled entry, a Personal claim
       setEntry(false);
       setPersonalClaim(null);
@@ -384,6 +401,10 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const firstScreen=<FirstLaunch device={device} existing={connectScreen} {...(device==='web'?{onGetApp:getApp}:{})} onDoor={async door=>{if(door==='invited'){setEntryStart('join');setEntry(true);return;}if(door==='server'){setEntryStart('team');setEntry(true);return;}if(door==='app'){emailApp();return;}wantTeamNext(door==='team');await createPersonal();}} />;
   if(personalClaim)return <Suspense fallback={<Opening />}><LocalClaim deviceClass="desktop" token={personalClaim.token} address={personalClaim.address} fragment={personalClaim.fragment} onBack={()=>setPersonalClaim(null)} onDone={()=>{const address=personalClaim.address,stored=readStored(undefined,address);setPersonalClaim(null);if(stored){setConnectedAddress(address);signedIn(stored);}else void chooseEntry({kind:'signin',address});}} onSignIn={()=>{const address=personalClaim.address;setPersonalClaim(null);void chooseEntry({kind:'signin',address});}}/></Suspense>;
   if(entry)return <SpaceEntry startAt={entryStart} {...(invoke?{onCreatePersonal:createPersonal}:{})} {...(invoke&&isMacShell()?{onCreateMacServer:createMacServer}:{})} onTarget={chooseEntry} onBack={()=>{setEntry(false);setDesktopRoute(null);const previous=returnSession??readStored(undefined,baseUrl??undefined);if(previous){activateAddress(previous,true);setConnectedAddress(previous.baseUrl);consumeBrowserInvite();setDesktopRoute(null);setPhase({kind:'shell',stored:previous});}setReturnSession(null);}}/>;
+  if (allow) {
+    const present = readStored(undefined, allow.address);
+    if (present) return <Suspense fallback={<Opening />}><AllowScreen call={createCapCaller({ baseUrl: allow.address, token: () => present.token })} requestId={allow.request} me={present.username ?? "you"} onDone={() => setAllow(null)} /></Suspense>;
+  }
   // the first frame of every path: the mark on the sheet, the same in the static page, the first client render and the moment before a stored session is read, so no screen shows for one frame and swaps
   if (loadedAddress !== baseUrl || !ready || loadedProp !== props.baseUrl) return <Opening />;
   if(phase.kind==='opening-personal')return <Opening title="Opening your Space" testID="opening-personal" />;

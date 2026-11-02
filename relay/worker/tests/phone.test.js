@@ -328,3 +328,38 @@ test("/a/: a plain artifact address opens the app; an address with its token goe
   await call(rt, "https://harbor.vyre.run/a/sit_abc/k/short/");
   assert.equal(asked.length, 1, "a token of the wrong shape never reaches the box");
 });
+
+test("the door: /mcp carries its token to the box and nowhere else, sign-in answers keep their headers, and nothing else on the host gets through", async t => {
+  const rt = world(t);
+  const b = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 401, { "www-authenticate": 'Bearer resource_metadata="https://harbor.vyre.run/.well-known/oauth-protected-resource/mcp"', "mcp-session-id": "ses_1", "set-cookie": "a=b", "content-type": "application/json" }, "{}"));
+  const mcp = await call(rt, "https://harbor.vyre.run/mcp", { method: "POST", headers: { authorization: "Bearer vya_token", cookie: "x=y", "content-type": "application/json", "mcp-protocol-version": "2025-06-18" }, body: "{}" });
+  assert.equal(mcp.status, 401);
+  assert.match(mcp.headers.get("www-authenticate") || "", /resource_metadata/);
+  assert.equal(mcp.headers.get("mcp-session-id"), "ses_1");
+  assert.equal(mcp.headers.get("set-cookie"), null);
+  assert.equal(mcp.headers.get("content-security-policy"), null, "the sandbox of /p/ would stop the tab polling its own origin");
+  assert.equal(b.asked[0].headers.authorization, "Bearer vya_token");
+  assert.equal(b.asked[0].headers.cookie, undefined);
+  assert.equal(b.asked[0].door, true);
+  b.asked.length = 0;
+  for (const path of ["/oauth/token", "/oauth/register", "/oauth/wait"]) await call(rt, `https://harbor.vyre.run${path}`, { method: "POST", headers: { authorization: "Bearer vya_token", cookie: "x=y" }, body: "a=1" });
+  assert.equal(b.asked.length, 3);
+  for (const m of b.asked) { assert.equal(m.headers.authorization, undefined, m.path); assert.equal(m.headers.cookie, undefined, m.path); }
+  b.asked.length = 0;
+  for (const path of ["/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-authorization-server", "/oauth/authorize?client_id=x"]) assert.equal((await call(rt, `https://harbor.vyre.run${path}`)).status, 401);
+  assert.equal(b.asked.length, 4);
+  b.asked.length = 0;
+  const shell = await call(rt, "https://harbor.vyre.run/oauth/other");
+  assert.match(await shell.text(), /<script/, "only the named addresses are the door");
+  assert.equal((await call(rt, "https://harbor.vyre.run/oauth/token", { method: "PUT", body: "x" })).status, 405);
+  assert.equal(b.asked.length, 0);
+  // what a client is told when the door is shut
+  b.box.ws.close();
+  await new Promise((r) => setTimeout(r, 20));
+  const off = await call(rt, "https://harbor.vyre.run/mcp", { method: "POST", body: "{}" });
+  assert.equal(off.status, 503);
+  assert.equal((await off.json()).error, "temporarily_unavailable");
+  const tab = await call(rt, "https://harbor.vyre.run/oauth/authorize?client_id=x");
+  assert.equal(tab.status, 503);
+  assert.match(await tab.text(), /asleep/);
+});

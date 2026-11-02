@@ -9,6 +9,7 @@ import type { Handler } from "../../host/src/invoke.ts";
 import { connect, draft, draftsDiscard, draftsList, ingest, messageErase, send, sendAs, sendPreview, syncNow } from "./handlers/index.ts";
 import { extraHandlers } from "./handlers/extra/index.ts";
 import { setDefaultImapSession } from "./handlers/ingest.ts";
+import { setMailLinksHost, unsubscribe } from "./handlers/unsubscribe.ts";
 import type { ImapConfig, ImapMessage, ImapSession, ImapSessionFactory } from "./handlers/ingest.ts";
 import type { MailCtx, Party } from "./projections.ts";
 import { codecs, consumers, inline } from "./projections.ts";
@@ -23,6 +24,7 @@ export const handlers: Record<string, Handler> = {
   "mail.send": (ctx, input) => send(ctx, input),
   "mail.send_as": (ctx, input) => sendAs(ctx, input),
   "mail.send_preview": (ctx, input) => sendPreview(ctx, input),
+  "mail.unsubscribe": (ctx, input) => unsubscribe(ctx, input as { token?: unknown }),
   "mail.message.erase": (ctx, input) => messageErase(ctx, input),
   // mailbox admin, message reads, attachment save, health, status updates, auto-connect, sending domains and routes (P-L5_01c)
   ...extraHandlers,
@@ -234,7 +236,7 @@ export function createLiveImapFactory(deps: LiveImapDeps = defaultDeps): ImapSes
 setDefaultImapSession(createLiveImapFactory());
 
 /** Where the host registers the IMAP secret resolver at boot (ruling 31): the loader reads this export. */
-export const hostSeams: import("../../host/src/seams/index.ts").SeamSetters = { setImapSecretResolver };
+export const hostSeams: import("../../host/src/seams/index.ts").SeamSetters = { setImapSecretResolver, setMailLinksHost };
 
 /**
  * Host calls for the removal wizard (members.owned, host/src/seams/people.ts): what a person owns here and what happens to it (P-L7_21). The host runs them with this module's ctx, so no other module

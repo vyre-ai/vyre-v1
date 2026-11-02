@@ -4,10 +4,12 @@ Lane L4. Kind module. Version 0.1.0.
 
 Requires: files.
 
-## Capabilities (22)
+## Capabilities (24)
 
+- [mounts.account_pause](../capabilities/mounts.account_pause.md): The connector stops or restarts everything that syncs as one address; the folders stay
 - [mounts.add](../capabilities/mounts.add.md): Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run
 - [mounts.browse](../capabilities/mounts.browse.md): Browse a drive, library, Dropbox folder or repository search to pick what to mount
+- [mounts.company_drive](../capabilities/mounts.company_drive.md): Bring the person's own Drive or OneDrive into their Personal folder, with nothing to sign in to, once the company connected Files. Runs as the person; nothing for anyone excluded
 - [mounts.doc_insert_text](../capabilities/mounts.doc_insert_text.md): Insert text into a mounted Google Doc after or before some existing text, or at its start or end; refuses if the Doc changed meanwhile
 - [mounts.doc_replace_text](../capabilities/mounts.doc_replace_text.md): Replace text in a mounted Google Doc, in the Doc itself; the change shows in its Google version history
 - [mounts.editors](../capabilities/mounts.editors.md): Who last edited each file at the provider, for the rows of a file list (files outside a mount are left out)

@@ -344,81 +344,6 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
-    "id": "apps.campaign-builder",
-    "module": "campaigns",
-    "place": "apps",
-    "slot": "main",
-    "builtin": "ui:CampaignBuilder",
-    "caller": "principal",
-    "queries": {
-      "campaign": {
-        "cap": "campaigns.get",
-        "input": {
-          "campaignId": "/selected"
-        },
-        "live": true
-      },
-      "preview": {
-        "cap": "campaigns.preview",
-        "input": {
-          "campaignId": "/selected"
-        },
-        "live": true
-      }
-    },
-    "actions": {
-      "launch": {
-        "cap": "campaigns.launch",
-        "input": {
-          "campaignId": "/selected"
-        },
-        "confirm": "Launch this campaign?"
-      },
-      "steps": {
-        "cap": "campaigns.steps_set",
-        "input": {
-          "campaignId": "/selected"
-        }
-      }
-    },
-    "needs": [],
-    "perf": {
-      "firstPaintMs": 50,
-      "completeMs": 100
-    }
-  },
-  {
-    "id": "apps.campaigns",
-    "module": "campaigns",
-    "place": "apps",
-    "slot": "main",
-    "builtin": "ui:CampaignsList",
-    "caller": "principal",
-    "queries": {
-      "campaigns": {
-        "cap": "campaigns.list",
-        "input": {
-          "section": "/section",
-          "folderId": "/folder"
-        },
-        "live": true
-      }
-    },
-    "actions": {
-      "create": {
-        "cap": "campaigns.create",
-        "input": {}
-      }
-    },
-    "needs": [
-      "automations.space"
-    ],
-    "perf": {
-      "firstPaintMs": 50,
-      "completeMs": 100
-    }
-  },
-  {
     "id": "apps.email-builder",
     "module": "email-builder-api",
     "place": "apps",
@@ -575,36 +500,6 @@ export const screens: ScreenIndexEntry[] = [
     },
     "needs": [
       "kits.publish"
-    ],
-    "perf": {
-      "firstPaintMs": 50,
-      "completeMs": 100
-    }
-  },
-  {
-    "id": "apps.sending-domains",
-    "module": "campaigns",
-    "place": "apps",
-    "slot": "main",
-    "builtin": "ui:SendingDomains",
-    "caller": "principal",
-    "queries": {
-      "warmup": {
-        "cap": "warmup.status",
-        "input": {},
-        "live": true
-      }
-    },
-    "actions": {
-      "start": {
-        "cap": "warmup.start",
-        "input": {
-          "mailboxId": "/selected"
-        }
-      }
-    },
-    "needs": [
-      "comms.domains"
     ],
     "perf": {
       "firstPaintMs": 50,
@@ -1662,22 +1557,13 @@ export const screens: ScreenIndexEntry[] = [
     "builtin": "ui:ConnectOutsideAgent",
     "caller": "principal",
     "queries": {
-      "channel": {
-        "cap": "channels.get",
-        "input": {
-          "channelId": "/state/channelId"
-        },
+      "link": {
+        "cap": "mcp.connected.link",
+        "input": {},
         "live": true
       }
     },
-    "actions": {
-      "connect": {
-        "cap": "channels.connect_outside_agent",
-        "input": {
-          "channelId": "/state/channelId"
-        }
-      }
-    },
+    "actions": {},
     "needs": [],
     "perf": {
       "firstPaintMs": 50,
@@ -2088,6 +1974,54 @@ export const screens: ScreenIndexEntry[] = [
     },
     "needs": [
       "terminal.use"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "company.setup",
+    "module": "members",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConnectCompany",
+    "caller": "principal",
+    "queries": {
+      "status": {
+        "cap": "company.status",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "start": {
+        "cap": "company.start",
+        "input": {
+          "provider": "/state/provider"
+        }
+      },
+      "check": {
+        "cap": "company.check",
+        "input": {}
+      },
+      "probe": {
+        "cap": "company.probe",
+        "input": {}
+      },
+      "connect": {
+        "cap": "company.connect",
+        "input": {},
+        "confirm": "Bring everyone included in?"
+      },
+      "disconnect": {
+        "cap": "company.disconnect",
+        "input": {},
+        "confirm": "Stop every member sync?"
+      }
+    },
+    "needs": [
+      "connectors.manage"
     ],
     "perf": {
       "firstPaintMs": 50,
@@ -2912,13 +2846,6 @@ export const screens: ScreenIndexEntry[] = [
         "input": {
           "actorId": "/state/actorId",
           "enabled": "/draft/enabled"
-        }
-      },
-      "scopes": {
-        "cap": "mcp.scopes.set",
-        "input": {
-          "actorId": "/state/actorId",
-          "scopes": "/draft/scopes"
         }
       },
       "revoke": {

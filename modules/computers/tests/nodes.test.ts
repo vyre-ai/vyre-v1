@@ -6,7 +6,7 @@ import { configure, provision, remove, sleep, wake } from "../handlers/lifecycle
 import { screenshot } from "../handlers/record.ts";
 import { nodeHomeCheck, nodeJobs, nodeResult, nodeStreamInput, nodeStreamOpen } from "../handlers/node.ts";
 import { mintTicket } from "../projections.ts";
-import { claimJobs, enqueueJob, LEASE_MS, submitJob } from "../jobs.ts";
+import { claimJobs, enqueueJob, LEASE_MS, submitJob, sweepJobs } from "../jobs.ts";
 import { nodeRun } from "../remote.ts";
 import { codeOf, harness, INTAKE, NOW, OMAR } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -96,6 +96,41 @@ test("a job whose lease runs out twice fails; it is not handed to another node",
   assert.equal(h.rows("SELECT state FROM computers_job WHERE job_id = ?", id)[0]?.["state"], "failed");
   assert.equal((await claimJobs(h.db, "srv_other", NOW + 2 * LEASE_MS + 3)).length, 0, "another node never gets it");
   assert.equal(submitJob(h.db, "srv_other", id, { ok: true, result: {} }, NOW), "unknown");
+});
+
+test("a node that was only late keeps its job and its token: nothing is delivered twice, and its next call into the home still works", async () => {
+  const h = withNode();
+  h.db.run("INSERT INTO computers_computers (computer_id, agent_id, state, tabs, tab_limit, idle_sleep_minutes, host, node_id, created_at) VALUES (?, ?, 'asleep', 0, 8, 10, 'server', ?, ?)", "cmt_a", "agt_a", NODE, NOW);
+  const id = enqueueJob(h.db, { nodeId: NODE, computerId: "cmt_a", agentId: "agt_a", kind: "start", input: {}, timeoutMs: 100 * LEASE_MS, now: NOW });
+  const job = (await claimJobs(h.db, NODE, NOW))[0]!;
+  const row = () => h.rows("SELECT state, attempts FROM computers_job WHERE job_id = ?", id).map((r) => [r["state"], r["attempts"]])[0];
+  const ask = () => nodeHomeCheck(h.ctx, { nodeId: NODE, token: job.token, computerId: "cmt_a", cap: "files.list" });
+
+  // the Space's own wait swept the job back to the queue before the late poll landed
+  sweepJobs(h.db, NOW + LEASE_MS + 1);
+  assert.deepEqual(row(), ["queued", 1]);
+  assert.deepEqual(await ask(), { agentId: "agt_a" }, "a call the node made in that gap is not refused");
+  assert.deepEqual(await claimJobs(h.db, NODE, NOW + LEASE_MS + 2, { running: [id] }), [], "the node says it is still on it: not delivered again");
+  assert.deepEqual(row(), ["running", 1], "and no attempt was spent");
+  assert.deepEqual(await ask(), { agentId: "agt_a" });
+
+  // it can be late as often as it is late, and the answer still lands
+  for (let i = 2; i < 6; i++) { sweepJobs(h.db, NOW + i * LEASE_MS + 10); await claimJobs(h.db, NODE, NOW + i * LEASE_MS + 11, { running: [id] }); }
+  assert.deepEqual(row(), ["running", 1]);
+  assert.equal(submitJob(h.db, NODE, id, { ok: true, result: {} }, NOW + 6 * LEASE_MS), "stored");
+  assert.equal(await ask(), null, "dead when its job ends");
+
+  // a node that says nothing is delivered the job again, the old token dies, and a late claim on the finished job does nothing
+  const quiet = enqueueJob(h.db, { nodeId: NODE, computerId: "cmt_a", agentId: "agt_a", kind: "start", input: {}, timeoutMs: 100 * LEASE_MS, now: NOW });
+  const first = (await claimJobs(h.db, NODE, NOW))[0]!;
+  const again = (await claimJobs(h.db, NODE, NOW + LEASE_MS + 1))[0]!;
+  assert.equal(again.jobId, quiet);
+  assert.equal(await nodeHomeCheck(h.ctx, { nodeId: NODE, token: first.token, computerId: "cmt_a", cap: "files.list" }), null, "a new delivery replaces the old token");
+  assert.deepEqual(await nodeHomeCheck(h.ctx, { nodeId: NODE, token: again.token, computerId: "cmt_a", cap: "files.list" }), { agentId: "agt_a" });
+  // another node cannot take a job back by naming it
+  sweepJobs(h.db, NOW + 2 * LEASE_MS + 2);
+  await claimJobs(h.db, "srv_other", NOW + 2 * LEASE_MS + 3, { running: [quiet] });
+  assert.equal(h.rows("SELECT node_id FROM computers_job WHERE job_id = ?", quiet)[0]?.["node_id"], NODE);
 });
 
 test("a job token reaches the home of its own computer, for the length of its job, as that agent, and for nothing else", async () => {

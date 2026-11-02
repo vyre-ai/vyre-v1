@@ -43,12 +43,6 @@ type Out = {
       threadId?: string;
       runId?: string;
       name?: string;
-      scopes?: {
-        read: boolean;
-        post: boolean;
-        readChangesets: boolean;
-        writeBranch: boolean;
-      };
       startedAt: number;
       lastCallAt?: number;
       calls: number;
@@ -90,12 +84,6 @@ type Out = {
         "name": "example",
         "principal": "example",
         "runId": "run_a1b2c3",
-        "scopes": {
-          "post": true,
-          "read": true,
-          "readChangesets": true,
-          "writeBranch": true
-        },
         "sessionId": "ses_a1b2c3",
         "startedAt": 1760000000000,
         "threadId": "thr_a1b2c3"

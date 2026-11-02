@@ -9,7 +9,6 @@ HTTP 502. Retryable: yes.
 - automations.code_reach
 - automations.http_send
 - backup.run
-- campaigns.launch
 - computers.chrome.act
 - computers.chrome.api
 - computers.chrome.batch
@@ -31,3 +30,4 @@ HTTP 502. Retryable: yes.
 - computers.chrome.stop
 - computers.chrome.tabs
 - computers.chrome.type
+- computers.chrome.wait

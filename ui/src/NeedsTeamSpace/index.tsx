@@ -17,7 +17,7 @@ export interface NeedsTeamSpaceViewProps extends NeedsTeamSpaceProps {
   testID?: string;
 }
 
-/** The sentence as a screen reader reads it: "Needs a Team Space. Sites, forms and campaigns." */
+/** The sentence as a screen reader reads it: "Needs a Team Space. Sites and forms." */
 export function needsTeamSentence(what: string): string {
   const w = what.trim().replace(/[.\s]+$/, "");
   return w.length > 0 ? `${NEEDS_TEAM_SPACE_LABEL}. ${w}.` : `${NEEDS_TEAM_SPACE_LABEL}.`;

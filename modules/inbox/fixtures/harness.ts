@@ -46,7 +46,6 @@ export function harness(opts: HarnessOptions = {}) {
   const emitted: Emitted[] = [];
   const called: Called[] = [];
   const contacts = new Map<string, Contact>((opts.contacts ?? []).map((c) => [c.id, { ...c, emails: [...c.emails], phones: [...c.phones] }]));
-  const campaigns = new Map<string, string>();   // campaign id -> owner
   const mailboxOwners = new Map<string, string>();
   const mail = new Map<string, Mail>((opts.mail ?? []).map((m) => [m.id, m]));
   const added = new Map<string, { contactId: string; value: string }>();
@@ -105,8 +104,6 @@ export function harness(opts: HarnessOptions = {}) {
         case "contacts.route_owner": {
           const c = typeof body.contactId === "string" ? contacts.get(body.contactId) : undefined;
           if (c?.owner) return { ownerId: c.owner, via: "owner" };
-          const campaignOwner = typeof body.campaignId === "string" ? campaigns.get(body.campaignId) : undefined;
-          if (campaignOwner) return { ownerId: campaignOwner, via: "campaign_owner" };
           const boxOwner = typeof body.mailboxId === "string" ? mailboxOwners.get(body.mailboxId) : undefined;
           return boxOwner ? { ownerId: boxOwner, via: "shared_inbox", mailboxId: body.mailboxId } : { via: "shared_inbox" };
         }
@@ -187,7 +184,7 @@ export function harness(opts: HarnessOptions = {}) {
   ensure(ctx);
 
   return {
-    ctx, emitted, called, contacts, campaigns, mailboxOwners, mail, denied, meetings, groups, state,
+    ctx, emitted, called, contacts, mailboxOwners, mail, denied, meetings, groups, state,
     advance(ms: number) { clock += ms; },
     setMailboxes(m: Mailbox[]) { mailboxes = m; },
     setNumbers(n: NonNullable<HarnessOptions["numbers"]>) { numbers = n; },
@@ -214,7 +211,6 @@ export interface Link {
   id?: string;
   mailboxId?: string;
   numberId?: string;
-  campaignId?: string;
   preview?: string;
 }
 let seq = 0;
@@ -225,7 +221,7 @@ export function link(o: Link) {
   const prefix = channel === "email" ? "eml" : channel === "sms" ? "sms" : "cal";
   return {
     channel, ref: { kind: channel === "email" ? ("mail_message" as const) : channel, id: o.id ?? `${prefix}_t${n}` }, address: o.address, direction: o.direction ?? ("in" as const), at: o.at ?? NOW + n * 1000,
-    ...(o.mailboxId ? { mailboxId: o.mailboxId } : {}), ...(o.numberId ? { numberId: o.numberId } : {}), ...(o.campaignId ? { campaignId: o.campaignId } : {}), ...(o.preview !== undefined ? { preview: o.preview } : {}),
+    ...(o.mailboxId ? { mailboxId: o.mailboxId } : {}), ...(o.numberId ? { numberId: o.numberId } : {}), ...(o.preview !== undefined ? { preview: o.preview } : {}),
   };
 }
 

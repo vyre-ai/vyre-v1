@@ -48,7 +48,7 @@ async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: n
 }
 
 
-test("Apps editors create and read real forms, campaigns and email designs through the gateway", async () => {
+test("Apps editors create and read real forms and email designs through the gateway", async () => {
   const dir = seededDir();
   const d = await boot(dir);
   try {
@@ -63,16 +63,6 @@ test("Apps editors create and read real forms, campaigns and email designs throu
     assert.equal(saved.status, 200, JSON.stringify(saved.data));
     assert.equal(saved.data.settings.consentText, "I agree");
     assert.equal(saved.data.fields[1].step, 1);
-    const campaign = await call(d, "campaigns.create", { name: "Fixture follow-up", kind: "one_time", idempotencyKey: "editor-campaign" });
-    assert.equal(campaign.status, 200, JSON.stringify(campaign.data));
-    const campaignId = campaign.data.campaign.campaignId;
-    const plan = await call(d, "campaigns.steps_set", { campaignId, steps: [{ key: "message", type: "email", config: { mailboxId: "mbx_fixture", subject: "Fixture preview", text: "Hello" } }] });
-    assert.equal(plan.status, 200, JSON.stringify(plan.data));
-    const schedule = await call(d, "campaigns.schedule_set", { campaignId, windows: { days: [1,2,3,4,5], from: "09:00", to: "17:00", tz: "UTC" }, throttlePerHour: 25, stopOnReply: true });
-    assert.equal(schedule.status, 200, JSON.stringify(schedule.data));
-    const preview = await call(d, "campaigns.preview", { campaignId });
-    assert.equal(preview.status, 200, JSON.stringify(preview.data));
-    assert.equal(preview.data.counts.audience, 0);
     const email = await call(d, "email_builder.create", { name: "Fixture email", mode: "blocks", idempotencyKey: "editor-email" });
     assert.equal(email.status, 200, JSON.stringify(email.data));
     const emailId = email.data.email.emailId;

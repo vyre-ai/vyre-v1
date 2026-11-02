@@ -17,10 +17,10 @@ const quiet = (what: string) => ({ act: 'none', reason: what });
 const capabilities = [
   outward('mailgun.send_email', 'Send one email through Mailgun (the send.email backend behind mail.send)', {
     in: {
-      domain: t.str(), from: email, fromName: t.opt(t.str()), to: t.arr(email, { minItems: 1 }), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), replyTo: t.opt(email), subject: t.str(),
+      mailboxId: id.mailbox, domain: t.str(), from: email, fromName: t.opt(t.str()), to: t.arr(email, { minItems: 1 }), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), replyTo: t.opt(email), subject: t.str(),
       text: t.opt(t.str()), html: t.opt(t.str()), attachments: t.opt(t.arr(t.obj({ name: t.str(), fileId: id.file }))), headers: t.opt(t.rec(t.str())), tags: t.opt(t.arr(t.str())),
     },
-    out: { providerId: t.str() }, gate: 'send', errors: ['provider.auth_failed', 'provider.rate_limited', 'provider.bad_response'],
+    out: { providerId: t.str() }, on: ['mailbox', '/mailboxId'], level: 'use', gate: 'send', errors: ['provider.auth_failed', 'provider.rate_limited', 'provider.bad_response'],
   }),
   read('mailgun.events.list', 'List delivery events for a domain, optionally for one message', {
     in: { domain: t.str(), providerId: t.opt(t.str()), event: t.opt(eventType), since: t.opt(t.ts()), pageToken: t.opt(t.str()) },

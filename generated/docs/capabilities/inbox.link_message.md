@@ -1,6 +1,6 @@
 # inbox.link_message
 
-Shared linking step for a stored message, text or call: sure matches link, unsure go to Needs you, unowned replies route to the campaign owner then the shared inbox
+Shared linking step for a stored message, text or call: sure matches link, unsure go to Needs you, unowned replies route to the shared inbox
 
 | | |
 |---|---|
@@ -19,7 +19,7 @@ Shared linking step for a stored message, text or call: sure matches link, unsur
 | HTTP | POST /v1/inbox/link_message |
 | MCP tool | none |
 | CLI | none |
-| Emits | conversation.created, conversation.matched, conversation.needs_match, conversation.reply_received, conversation.campaign_reply |
+| Emits | conversation.created, conversation.matched, conversation.needs_match, conversation.reply_received |
 
 ## Input
 
@@ -35,7 +35,6 @@ type In = {
   at: number;
   mailboxId?: string;
   numberId?: string;
-  campaignId?: string;
   preview?: string;
   threadId?: string;
   subject?: string;
@@ -71,7 +70,6 @@ type Out = {
   "input": {
     "address": "example",
     "at": 1760000000000,
-    "campaignId": "cmp_a1b2c3",
     "channel": "email",
     "direction": "in",
     "mailboxId": "mbx_a1b2c3",

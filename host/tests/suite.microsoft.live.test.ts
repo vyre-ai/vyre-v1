@@ -14,7 +14,7 @@ const TENANT = "tenant-guid-1234";
 const CLIENT_ID = "11111111-2222-3333-4444-555555555555";
 const CLIENT_SECRET = "s3cr3t-value~abcdef";
 const APP_JSON = JSON.stringify({ tenantId: TENANT, clientId: CLIENT_ID, clientSecret: CLIENT_SECRET });
-const ALL_ROLES = ["Mail.ReadWrite", "Mail.Send", "Calendars.ReadWrite", "Files.ReadWrite.All", "User.Read.All", "OnlineMeetingRecording.Read.All", "OnlineMeetingTranscript.Read.All"];
+const ALL_ROLES = ["Files.ReadWrite.All", "User.Read.All", "OnlineMeetingRecording.Read.All", "OnlineMeetingTranscript.Read.All"];
 const GRAPH = "https://graph.microsoft.com/v1.0";
 
 const OID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";

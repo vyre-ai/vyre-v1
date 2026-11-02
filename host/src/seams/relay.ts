@@ -287,25 +287,33 @@ function cleanHeaders(h: unknown): Record<string, string> {
 /** Bytes of a response body in one control-socket message; base64 of this stays under the relay's frame limit. */
 const PUBLIC_CHUNK = 384 * 1024;
 const PUBLIC_MS = 30_000;
+const DOOR_MS = 120_000;
 const PUBLIC_METHODS = new Set(["GET", "HEAD", "POST"]);
+const DOOR_METHODS = new Set(["GET", "HEAD", "POST", "DELETE", "OPTIONS"]);
+/** The door for outside agents: /mcp and the addresses an MCP client signs in through (relay/worker/phone.js DOOR). The same list on both sides of the relay. */
+const DOOR = /^\/(?:mcp|oauth\/(?:authorize|register|token|wait)|\.well-known\/oauth-(?:protected-resource(?:\/mcp)?|authorization-server))(?:\?|$)/;
 
-/** Only the public path, in plain form, ever leaves this function for the gateway: never a session, and never another address on the daemon. */
+export const doorPath = (p: string): boolean => DOOR.test(p) && p.length <= 4096;
+
+/** Only the public path and the door for outside agents, in plain form, ever leave this function for the gateway: never a session, and never another address on the daemon. */
 export function publicPathOk(p: string): boolean {
+  if (doorPath(p)) return true;
   if (!/^\/(p(\/|$)|a\/[a-z0-9_]{1,80}\/k\/[0-9a-f]{48}(\/|$))/.test(p) || p.length > 4096) return false;
   const bare = p.split("?")[0] as string;
   return !/(^|\/)(\.|%2e){1,2}(\/|$)/i.test(bare) && !/%2f|%5c|\\/i.test(bare);
 }
 
-/** One visitor request: to the daemon's own gateway on loopback, with no Cookie and no Authorization whatever the relay sent, and the answer back over the control socket. */
+/** One visitor request: to the daemon's own gateway on loopback, with no Cookie and no Authorization whatever the relay sent (an outside agent's token on /mcp alone is the exception: it is that request's whole point), and the answer back over the control socket. */
 export function servePublic(send: (m: unknown) => void, m: { id: string; method: string; path: string; ip: string; headers: unknown }, body: Uint8Array, localPort: number): void {
   const fail = (status: number): void => { send({ t: "p.res", id: m.id, status, headers: {} }); send({ t: "p.end", id: m.id }); };
-  if (!PUBLIC_METHODS.has(m.method) || !publicPathOk(m.path)) { fail(400); return; }
+  const door = doorPath(m.path);
+  if (!(door ? DOOR_METHODS : PUBLIC_METHODS).has(m.method) || !publicPathOk(m.path)) { fail(400); return; }
   const headers = cleanHeaders(m.headers);
   delete headers["cookie"];
-  delete headers["authorization"];
+  if (m.path.split("?")[0] !== "/mcp") delete headers["authorization"];
   headers["x-vyre-visitor"] = m.ip.slice(0, 64);
   if (body.length) headers["content-length"] = String(body.length);
-  const req = http.request({ host: "127.0.0.1", port: localPort, method: m.method, path: m.path, headers, timeout: PUBLIC_MS }, (res) => {
+  const req = http.request({ host: "127.0.0.1", port: localPort, method: m.method, path: m.path, headers, timeout: door ? DOOR_MS : PUBLIC_MS }, (res) => {
     const out: Record<string, string> = {};
     for (const [k, v] of Object.entries(res.headers)) if (typeof v === "string") out[k] = v;
     send({ t: "p.res", id: m.id, status: res.statusCode ?? 502, headers: out });

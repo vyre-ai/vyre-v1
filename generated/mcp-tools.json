@@ -229,7 +229,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -373,7 +372,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -442,7 +440,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -517,7 +514,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -870,7 +866,6 @@
                         "connection",
                         "site",
                         "form",
-                        "campaign",
                         "kit",
                         "terminal",
                         "computer",
@@ -1156,7 +1151,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -1241,7 +1235,6 @@
               "connection",
               "site",
               "form",
-              "campaign",
               "kit",
               "terminal",
               "computer",
@@ -1536,7 +1529,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -1650,7 +1642,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -1943,7 +1934,6 @@
                 "connection",
                 "site",
                 "form",
-                "campaign",
                 "kit",
                 "terminal",
                 "computer",
@@ -2434,7 +2424,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -2535,7 +2524,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -2609,7 +2597,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -3050,6 +3037,21 @@
         "type": "object"
       },
       "name": "agents_list",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.next",
+      "deferred": false,
+      "description": "Take your next job: a mention or a task. It names the chat to work in; what you do afterwards shows there. Nothing waiting answers job null. Only an outside agent has a queue",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "agents_next",
       "planMode": "allowed",
       "toolset": "agents",
       "v": 1
@@ -4147,7 +4149,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -4336,7 +4337,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -6122,6 +6122,32 @@
       },
       "name": "automations_schedule_choose",
       "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.senders",
+      "deferred": false,
+      "description": "What this Automation sends from: the mailboxes and numbers its steps name, and whether each can send now",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "automationId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_senders",
+      "planMode": "allowed",
       "toolset": "automations",
       "v": 1
     },
@@ -8330,606 +8356,6 @@
     },
     {
       "blocks": [],
-      "cap": "campaigns.audience_set",
-      "deferred": false,
-      "description": "Set the audience from a record view; adds go through DND screening (adds only)",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "campaignId": {
-            "examples": [
-              "cmp_a1b2c3"
-            ],
-            "pattern": "^cmp_[a-z0-9]+$",
-            "type": "string"
-          },
-          "filter": {
-            "description": "Any JSON value"
-          },
-          "type": {
-            "examples": [
-              "contact"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          },
-          "viewId": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "campaignId",
-          "type"
-        ],
-        "type": "object"
-      },
-      "name": "campaigns_audience_set",
-      "planMode": "blocked",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "campaigns.create",
-      "deferred": false,
-      "description": "Create a campaign (one-time, sequence or triggered)",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "folderId": {
-            "examples": [
-              "fld_a1b2c3"
-            ],
-            "pattern": "^fld_[a-z0-9]+$",
-            "type": "string"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "one_time",
-              "sequence",
-              "triggered"
-            ],
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "kind",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "campaigns_create",
-      "planMode": "blocked",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "campaigns.delete",
-      "deferred": false,
-      "description": "Delete a draft campaign",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "campaignId": {
-            "examples": [
-              "cmp_a1b2c3"
-            ],
-            "pattern": "^cmp_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "campaignId"
-        ],
-        "type": "object"
-      },
-      "name": "campaigns_delete",
-      "planMode": "blocked",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "campaigns.get",
-      "deferred": false,
-      "description": "Read a campaign with steps, audience, windows, throttle and A/B variants",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "campaignId": {
-            "examples": [
-              "cmp_a1b2c3"
-            ],
-            "pattern": "^cmp_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "campaignId"
-        ],
-        "type": "object"
-      },
-      "name": "campaigns_get",
-      "planMode": "allowed",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "campaigns.launch",
-      "deferred": false,
-      "description": "Launch a campaign (Gate act for agents, automations and humans alike)",
-      "effects": "outward",
-      "inputSchema": {
-        "properties": {
-          "campaignId": {
-            "examples": [
-              "cmp_a1b2c3"
-            ],
-            "pattern": "^cmp_[a-z0-9]+$",
-            "type": "string"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "required": [
-          "campaignId",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "campaigns_launch",
-      "planMode": "blocked",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "campaigns.link_build",
-      "deferred": false,
-      "description": "Campaign link builder: UTM and click-id parameters for a destination",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "campaign": {
-            "type": "string"
-          },
-          "medium": {
-            "type": "string"
-          },
-          "source": {
-            "type": "string"
-          },
-          "url": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "url",
-          "source",
-          "medium",
-          "campaign"
-        ],
-        "type": "object"
-      },
-      "name": "campaigns_link_build",
-      "planMode": "allowed",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "campaigns.list",
-      "deferred": false,
-      "description": "List campaigns by section and folder",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "cursor": {
-            "type": "string"
-          },
-          "folderId": {
-            "examples": [
-              "fld_a1b2c3"
-            ],
-            "pattern": "^fld_[a-z0-9]+$",
-            "type": "string"
-          },
-          "limit": {
-            "maximum": 500,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "section": {
-            "enum": [
-              "personal",
-              "shared",
-              "space"
-            ],
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "name": "campaigns_list",
-      "planMode": "allowed",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "campaigns.pause",
-      "deferred": false,
-      "description": "Pause a running campaign",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "campaignId": {
-            "examples": [
-              "cmp_a1b2c3"
-            ],
-            "pattern": "^cmp_[a-z0-9]+$",
-            "type": "string"
-          },
-          "reason": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "campaignId"
-        ],
-        "type": "object"
-      },
-      "name": "campaigns_pause",
-      "planMode": "blocked",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "campaigns.preview",
-      "deferred": false,
-      "description": "Launch preview: a sample message, counts and exclusions",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "campaignId": {
-            "examples": [
-              "cmp_a1b2c3"
-            ],
-            "pattern": "^cmp_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "campaignId"
-        ],
-        "type": "object"
-      },
-      "name": "campaigns_preview",
-      "planMode": "allowed",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "campaigns.replies",
-      "deferred": false,
-      "description": "Replies that landed in owners Inboxes, marked with the campaign",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "campaignId": {
-            "examples": [
-              "cmp_a1b2c3"
-            ],
-            "pattern": "^cmp_[a-z0-9]+$",
-            "type": "string"
-          },
-          "cursor": {
-            "type": "string"
-          },
-          "limit": {
-            "maximum": 500,
-            "minimum": 1,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "campaignId"
-        ],
-        "type": "object"
-      },
-      "name": "campaigns_replies",
-      "planMode": "allowed",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "campaigns.resume",
-      "deferred": false,
-      "description": "Resume a paused campaign",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "campaignId": {
-            "examples": [
-              "cmp_a1b2c3"
-            ],
-            "pattern": "^cmp_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "campaignId"
-        ],
-        "type": "object"
-      },
-      "name": "campaigns_resume",
-      "planMode": "blocked",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "campaigns.schedule_set",
-      "deferred": false,
-      "description": "Set send windows per recipient time zone, throttling per sending domain and stop on reply",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "campaignId": {
-            "examples": [
-              "cmp_a1b2c3"
-            ],
-            "pattern": "^cmp_[a-z0-9]+$",
-            "type": "string"
-          },
-          "stopOnReply": {
-            "type": "boolean"
-          },
-          "throttlePerHour": {
-            "type": "integer"
-          },
-          "windows": {
-            "description": "Any JSON value"
-          }
-        },
-        "required": [
-          "campaignId",
-          "windows",
-          "stopOnReply"
-        ],
-        "type": "object"
-      },
-      "name": "campaigns_schedule_set",
-      "planMode": "blocked",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "campaigns.stats",
-      "deferred": false,
-      "description": "Sent, delivered, bounced, complained, replied, unsubscribed",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "campaignId": {
-            "examples": [
-              "cmp_a1b2c3"
-            ],
-            "pattern": "^cmp_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "campaignId"
-        ],
-        "type": "object"
-      },
-      "name": "campaigns_stats",
-      "planMode": "allowed",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "campaigns.steps_set",
-      "deferred": false,
-      "description": "Replace the steps: email, wait, branch on reply/open/click, SMS, task, call task",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "campaignId": {
-            "examples": [
-              "cmp_a1b2c3"
-            ],
-            "pattern": "^cmp_[a-z0-9]+$",
-            "type": "string"
-          },
-          "steps": {
-            "items": {
-              "properties": {
-                "config": {
-                  "additionalProperties": true,
-                  "type": "object"
-                },
-                "key": {
-                  "type": "string"
-                },
-                "next": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "type": {
-                  "enum": [
-                    "email",
-                    "wait",
-                    "branch",
-                    "sms",
-                    "task",
-                    "call_task"
-                  ],
-                  "type": "string"
-                }
-              },
-              "required": [
-                "key",
-                "type",
-                "config"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "campaignId",
-          "steps"
-        ],
-        "type": "object"
-      },
-      "name": "campaigns_steps_set",
-      "planMode": "blocked",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "campaigns.stop",
-      "deferred": false,
-      "description": "Stop a campaign for good",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "campaignId": {
-            "examples": [
-              "cmp_a1b2c3"
-            ],
-            "pattern": "^cmp_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "campaignId"
-        ],
-        "type": "object"
-      },
-      "name": "campaigns_stop",
-      "planMode": "blocked",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "campaigns.update",
-      "deferred": false,
-      "description": "Rename or change settings",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "campaignId": {
-            "examples": [
-              "cmp_a1b2c3"
-            ],
-            "pattern": "^cmp_[a-z0-9]+$",
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "settings": {
-            "additionalProperties": true,
-            "type": "object"
-          }
-        },
-        "required": [
-          "campaignId"
-        ],
-        "type": "object"
-      },
-      "name": "campaigns_update",
-      "planMode": "blocked",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "campaigns.variants_set",
-      "deferred": false,
-      "description": "Set A/B variants",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "campaignId": {
-            "examples": [
-              "cmp_a1b2c3"
-            ],
-            "pattern": "^cmp_[a-z0-9]+$",
-            "type": "string"
-          },
-          "variants": {
-            "items": {
-              "properties": {
-                "config": {
-                  "additionalProperties": true,
-                  "type": "object"
-                },
-                "key": {
-                  "type": "string"
-                },
-                "stepKey": {
-                  "type": "string"
-                },
-                "weight": {
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "key",
-                "weight",
-                "stepKey",
-                "config"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "campaignId",
-          "variants"
-        ],
-        "type": "object"
-      },
-      "name": "campaigns_variants_set",
-      "planMode": "blocked",
-      "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "changesets.approve",
       "deferred": false,
       "description": "Approve and commit a changeset: 3-way merge on the recorded base, conflicts go to the reviewer; optionally push",
@@ -9523,70 +8949,6 @@
         "type": "object"
       },
       "name": "channels_archive",
-      "planMode": "blocked",
-      "toolset": "chats",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "channels.connect_outside_agent",
-      "deferred": false,
-      "description": "Connect an outside agent (Claude Code, Codex) to a channel: returns the MCP address, a one-time token (once, 10 minutes) and the run command",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "channelId": {
-            "examples": [
-              "chn_a1b2c3"
-            ],
-            "pattern": "^chn_[a-z0-9]+$",
-            "type": "string"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "name": {
-            "examples": [
-              "Claude Code"
-            ],
-            "type": "string"
-          },
-          "scopes": {
-            "properties": {
-              "post": {
-                "type": "boolean"
-              },
-              "read": {
-                "type": "boolean"
-              },
-              "readChangesets": {
-                "type": "boolean"
-              },
-              "writeBranch": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "read",
-              "post",
-              "readChangesets",
-              "writeBranch"
-            ],
-            "type": "object"
-          }
-        },
-        "required": [
-          "channelId",
-          "name",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "channels_connect_outside_agent",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1
@@ -12393,6 +11755,257 @@
     },
     {
       "blocks": [],
+      "cap": "company.access_log",
+      "deferred": false,
+      "description": "Who reached whose mail, calendar or files: who made the call, the person an agent worked for, which mailbox, when",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "mailbox": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "company_access_log",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.check",
+      "deferred": false,
+      "description": "Prove the key now in the Vault works, with no person involved. Answers what is wrong in plain words, or who it is; never the key. A key that works is remembered",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "company_check",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.connect",
+      "deferred": false,
+      "description": "The one confirmation: everyone included comes in, and the directory is watched from here on",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "company_connect",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.disconnect",
+      "deferred": false,
+      "description": "Undo: every member sync stops at once; what already came in stays with its owner",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "company_disconnect",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.guide",
+      "deferred": false,
+      "description": "The guide for a step of Connect your company, or all of it: the doc page itself",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "provider": {
+            "enum": [
+              "google",
+              "microsoft"
+            ],
+            "type": "string"
+          },
+          "section": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "type": "object"
+      },
+      "name": "company_guide",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.people_done",
+      "deferred": false,
+      "description": "A person has looked at who is in; the flow moves on to the one confirmation",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "company_people_done",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.probe",
+      "deferred": false,
+      "description": "The read-only check of what the company allowed, as one line a person can act on",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "company_probe",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.script",
+      "deferred": false,
+      "description": "The one paste that does the provider's side: which shell to open and the script. It holds no secret; the admin runs it under their own account",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "provider": {
+            "enum": [
+              "google",
+              "microsoft"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "type": "object"
+      },
+      "name": "company_script",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.start",
+      "deferred": false,
+      "description": "Start Connect your company for Google Workspace or Microsoft 365 and choose Mail, Calendar and Files, or pick it up where it stands",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "data": {
+            "properties": {
+              "calendar": {
+                "type": "boolean"
+              },
+              "files": {
+                "type": "boolean"
+              },
+              "mail": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "mail",
+              "calendar",
+              "files"
+            ],
+            "type": "object"
+          },
+          "provider": {
+            "enum": [
+              "google",
+              "microsoft"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "type": "object"
+      },
+      "name": "company_start",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.status",
+      "deferred": false,
+      "description": "Where Connect your company stands: the provider, each step and whether it is done, the next step, and which doc section explains it. Read this first; it never asks twice",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "company_status",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.sweep",
+      "deferred": false,
+      "description": "Check the directory: a person gone from it stops and loses access. Runs on a schedule; a person confirms a change large enough to be held",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "confirmed": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "company_sweep",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "computers.files.delete",
       "deferred": false,
       "description": "Delete a file from the agent Files folder; always asks outside work/",
@@ -15074,7 +14687,7 @@
       "blocks": [],
       "cap": "contacts.dnd_screen",
       "deferred": false,
-      "description": "Screen candidates before they are ADDED to an audience, campaign, Journey enrolment or import. Adds only: it never removes, unsubscribes or deletes anyone already present",
+      "description": "Screen candidates before they are ADDED to an audience, Journey enrolment or import. Adds only: it never removes, unsubscribes or deletes anyone already present",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -15113,7 +14726,6 @@
           "context": {
             "enum": [
               "audience",
-              "campaign",
               "journey_enrol",
               "import"
             ],
@@ -16711,7 +16323,7 @@
       "blocks": [],
       "cap": "email_builder.list",
       "deferred": false,
-      "description": "List email designs (campaigns, inbox templates, automation steps share them)",
+      "description": "List email designs (inbox templates and automation steps share them)",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -18965,7 +18577,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -20915,7 +20526,6 @@
               "connection",
               "site",
               "form",
-              "campaign",
               "kit",
               "terminal",
               "computer",
@@ -21002,7 +20612,6 @@
               "connection",
               "site",
               "form",
-              "campaign",
               "kit",
               "terminal",
               "computer",
@@ -21110,7 +20719,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -21208,7 +20816,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -21267,7 +20874,6 @@
               "connection",
               "site",
               "form",
-              "campaign",
               "kit",
               "terminal",
               "computer",
@@ -21327,7 +20933,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -22046,7 +21651,6 @@
               "enroll_node",
               "connection_change",
               "push_protected",
-              "campaign_launch",
               "secret_export",
               "site_promote",
               "signature_send",
@@ -22139,7 +21743,6 @@
               "enroll_node",
               "connection_change",
               "push_protected",
-              "campaign_launch",
               "secret_export",
               "site_promote",
               "signature_send",
@@ -22233,7 +21836,6 @@
               "enroll_node",
               "connection_change",
               "push_protected",
-              "campaign_launch",
               "secret_export",
               "site_promote",
               "signature_send",
@@ -23830,6 +23432,37 @@
     },
     {
       "blocks": [],
+      "cap": "google.access_log",
+      "deferred": false,
+      "description": "Who reached whose Google data: who made the call, the person an agent worked for, which mailbox, which capability, when",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "mailbox": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "google_access_log",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "google.calendar.create_event",
       "deferred": true,
       "description": "Create an event; Google invites the attendees",
@@ -24397,6 +24030,25 @@
       },
       "name": "google_directory_list",
       "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "google.directory.reconcile",
+      "deferred": false,
+      "description": "Compare the directory with who is matched: a person gone or suspended stops, and the Space suspends them. Every page must read, and a large change waits for a person",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "confirmed": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "google_directory_reconcile",
+      "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
     },
@@ -25222,6 +24874,58 @@
     },
     {
       "blocks": [],
+      "cap": "google.dwd.check_key",
+      "deferred": false,
+      "description": "Prove the service-account key in the Vault works, with no person involved: its shape, its signature, and that Google still knows it. Answers what is wrong in plain words; never the key",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "vaultItem": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vaultItem"
+        ],
+        "type": "object"
+      },
+      "name": "google_dwd_check_key",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "google.dwd.connect_all",
+      "deferred": false,
+      "description": "Everyone included comes in: mail, calendar and the first pull, for what the company chose. Repeating it adds nobody twice",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "google_dwd_connect_all",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "google.dwd.disable",
       "deferred": false,
       "description": "Turn delegation off and stop every member sync",
@@ -25340,6 +25044,52 @@
     },
     {
       "blocks": [],
+      "cap": "google.dwd.set_data",
+      "deferred": false,
+      "description": "Choose Mail, Calendar and Files separately after setup. What is turned off stops for everyone; what is turned on comes in for everyone included",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "data": {
+            "properties": {
+              "calendar": {
+                "type": "boolean"
+              },
+              "files": {
+                "type": "boolean"
+              },
+              "mail": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "mail",
+              "calendar",
+              "files"
+            ],
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "google_dwd_set_data",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "google.dwd.set_excluded",
       "deferred": false,
       "description": "Exclude a member from delegation, or include them again (excluded members never get a connection)",
@@ -25383,8 +25133,30 @@
             "pattern": "^[^@\\s]+@[^@\\s]+$",
             "type": "string"
           },
+          "data": {
+            "properties": {
+              "calendar": {
+                "type": "boolean"
+              },
+              "files": {
+                "type": "boolean"
+              },
+              "mail": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "mail",
+              "calendar",
+              "files"
+            ],
+            "type": "object"
+          },
           "domain": {
             "type": "string"
+          },
+          "hold": {
+            "type": "boolean"
           },
           "idempotencyKey": {
             "examples": [
@@ -27929,7 +27701,7 @@
       "blocks": [],
       "cap": "inbox.following",
       "deferred": false,
-      "description": "Contacts that reach your Inbox and why: owner, project, follow, campaign or shared inbox",
+      "description": "Contacts that reach your Inbox and why: owner, project, follow or shared inbox",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -28301,7 +28073,7 @@
       "blocks": [],
       "cap": "inbox.thread",
       "deferred": false,
-      "description": "The whole history of one contact: emails, texts, calls, meetings, campaign lines and record chips",
+      "description": "The whole history of one contact: emails, texts, calls, meetings and record chips",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -30693,13 +30465,6 @@
             },
             "type": "array"
           },
-          "campaignId": {
-            "examples": [
-              "cmp_a1b2c3"
-            ],
-            "pattern": "^cmp_[a-z0-9]+$",
-            "type": "string"
-          },
           "cc": {
             "items": {
               "properties": {
@@ -31479,7 +31244,7 @@
       "blocks": [],
       "cap": "mail.send",
       "deferred": false,
-      "description": "Send an email through the single send API: caps per sender, send windows, throttling, suppression, consent, trace id header, agent footer line",
+      "description": "Send an email through the single send API: suppression, consent, trace id header, agent footer line, an unsubscribe link when asked",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -31520,13 +31285,6 @@
               "type": "object"
             },
             "type": "array"
-          },
-          "campaignId": {
-            "examples": [
-              "cmp_a1b2c3"
-            ],
-            "pattern": "^cmp_[a-z0-9]+$",
-            "type": "string"
           },
           "cc": {
             "items": {
@@ -31650,6 +31408,9 @@
             },
             "minItems": 1,
             "type": "array"
+          },
+          "unsubscribe": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -31669,17 +31430,10 @@
       "blocks": [],
       "cap": "mail.send_preview",
       "deferred": false,
-      "description": "Dry run of a send: suppressed recipients, window, caps and throttle, without sending (campaign launch preview uses it)",
+      "description": "Dry run of a send: who would be reached and who is suppressed, without sending",
       "effects": "read",
       "inputSchema": {
         "properties": {
-          "campaignId": {
-            "examples": [
-              "cmp_a1b2c3"
-            ],
-            "pattern": "^cmp_[a-z0-9]+$",
-            "type": "string"
-          },
           "channel": {
             "enum": [
               "email"
@@ -31769,52 +31523,51 @@
     },
     {
       "blocks": [],
-      "cap": "mcp.scopes.set",
+      "cap": "mcp.activity.list",
       "deferred": false,
-      "description": "Change the scopes of an outside actor (read, post in threads, read changesets, write on a branch with approval)",
-      "effects": "write",
+      "description": "What an outside agent did: the tool, how it ended and where, never an input or an answer",
+      "effects": "read",
       "inputSchema": {
         "properties": {
-          "actorId": {
+          "agentId": {
             "examples": [
-              "act_a1b2c3"
+              "agt_a1b2c3"
             ],
-            "pattern": "^act_[a-z0-9]+$",
+            "pattern": "^agt_[a-z0-9]+$",
             "type": "string"
           },
-          "scopes": {
-            "properties": {
-              "post": {
-                "type": "boolean"
-              },
-              "read": {
-                "type": "boolean"
-              },
-              "readChangesets": {
-                "type": "boolean"
-              },
-              "writeBranch": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "read",
-              "post",
-              "readChangesets",
-              "writeBranch"
-            ],
-            "type": "object"
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
           }
         },
         "required": [
-          "actorId",
-          "scopes"
+          "agentId"
         ],
         "type": "object"
       },
-      "name": "mcp_scopes_set",
-      "planMode": "blocked",
-      "toolset": "engineer",
+      "name": "mcp_activity_list",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mcp.connected.link",
+      "deferred": false,
+      "description": "The address to paste into an MCP app, and the one line for Claude Code",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "mcp_connected_link",
+      "planMode": "allowed",
+      "toolset": "meta",
       "v": 1
     },
     {
@@ -31871,112 +31624,6 @@
       },
       "name": "mcp_sessions_list",
       "planMode": "allowed",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mcp.token.issue",
-      "deferred": false,
-      "description": "Issue a one-time registration token for an outside agent: works once, within 10 minutes; reveal and copy are logged",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "channelId": {
-            "examples": [
-              "chn_a1b2c3"
-            ],
-            "pattern": "^chn_[a-z0-9]+$",
-            "type": "string"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "claude_code",
-              "codex",
-              "other"
-            ],
-            "type": "string"
-          },
-          "name": {
-            "examples": [
-              "Claude Code"
-            ],
-            "type": "string"
-          },
-          "scopes": {
-            "properties": {
-              "post": {
-                "type": "boolean"
-              },
-              "read": {
-                "type": "boolean"
-              },
-              "readChangesets": {
-                "type": "boolean"
-              },
-              "writeBranch": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "read",
-              "post",
-              "readChangesets",
-              "writeBranch"
-            ],
-            "type": "object"
-          }
-        },
-        "required": [
-          "name",
-          "kind",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "mcp_token_issue",
-      "planMode": "blocked",
-      "toolset": "meta",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mcp.token.log_reveal",
-      "deferred": false,
-      "description": "Log that a one-time token was revealed or copied in the connect sheet",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "action": {
-            "enum": [
-              "reveal",
-              "copy"
-            ],
-            "type": "string"
-          },
-          "tokenId": {
-            "examples": [
-              "tok_a1b2c3"
-            ],
-            "pattern": "^tok_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "tokenId",
-          "action"
-        ],
-        "type": "object"
-      },
-      "name": "mcp_token_log_reveal",
-      "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
     },
@@ -35981,6 +35628,37 @@
     },
     {
       "blocks": [],
+      "cap": "ms.access_log",
+      "deferred": false,
+      "description": "Who reached whose Microsoft data: who made the call, the person an agent worked for, which mailbox, which capability, when",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "mailbox": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "ms_access_log",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "ms.calendar.create_event",
       "deferred": true,
       "description": "Create an event; Exchange invites the attendees",
@@ -36485,6 +36163,58 @@
     },
     {
       "blocks": [],
+      "cap": "ms.consent.check_app",
+      "deferred": false,
+      "description": "Prove the app registration in the Vault signs in to its tenant, with no person involved. Answers what is wrong in plain words; never the secret",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "vaultItem": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vaultItem"
+        ],
+        "type": "object"
+      },
+      "name": "ms_consent_check_app",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ms.consent.connect_all",
+      "deferred": false,
+      "description": "Everyone included comes in: mail, calendar and the first pull, for what the company chose. Repeating it adds nobody twice",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "ms_consent_connect_all",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "ms.consent.disable",
       "deferred": false,
       "description": "Turn the Microsoft connection off and stop every member sync",
@@ -36599,6 +36329,52 @@
     },
     {
       "blocks": [],
+      "cap": "ms.consent.set_data",
+      "deferred": false,
+      "description": "Choose Mail, Calendar and Files separately after setup. What is turned off stops for everyone; what is turned on comes in for everyone included",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "data": {
+            "properties": {
+              "calendar": {
+                "type": "boolean"
+              },
+              "files": {
+                "type": "boolean"
+              },
+              "mail": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "mail",
+              "calendar",
+              "files"
+            ],
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "ms_consent_set_data",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "ms.consent.set_excluded",
       "deferred": false,
       "description": "Exclude a member from the connection, or include them again (excluded members never get a connection)",
@@ -36635,8 +36411,30 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "data": {
+            "properties": {
+              "calendar": {
+                "type": "boolean"
+              },
+              "files": {
+                "type": "boolean"
+              },
+              "mail": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "mail",
+              "calendar",
+              "files"
+            ],
+            "type": "object"
+          },
           "domain": {
             "type": "string"
+          },
+          "hold": {
+            "type": "boolean"
           },
           "idempotencyKey": {
             "examples": [
@@ -36809,6 +36607,25 @@
       },
       "name": "ms_directory_list",
       "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ms.directory.reconcile",
+      "deferred": false,
+      "description": "Compare the directory with who is matched: a person gone or turned off stops, and the Space suspends them. Every page must read, and a large change waits for a person",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "confirmed": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "ms_directory_reconcile",
+      "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
     },
@@ -38558,7 +38375,6 @@
               "task.assigned",
               "reply.followed",
               "agent.task_finished",
-              "campaign.reply",
               "digest.away",
               "mention.thread",
               "run.failed",
@@ -39018,7 +38834,6 @@
               "task.assigned",
               "reply.followed",
               "agent.task_finished",
-              "campaign.reply",
               "digest.away",
               "mention.thread",
               "run.failed",
@@ -39070,7 +38885,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -43928,7 +43742,6 @@
                 "journey",
                 "journey_migrate",
                 "routine",
-                "campaign",
                 "deployment",
                 "connector_sync",
                 "connector_build",
@@ -44011,7 +43824,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -44342,7 +44154,6 @@
                   "automation",
                   "journey",
                   "agent_routine",
-                  "campaign",
                   "gate",
                   "task",
                   "system"
@@ -44638,7 +44449,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -49287,7 +49097,6 @@
               "connection",
               "site",
               "form",
-              "campaign",
               "kit",
               "terminal",
               "computer",
@@ -49350,7 +49159,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -56154,13 +55962,6 @@
           "body": {
             "type": "string"
           },
-          "campaignId": {
-            "examples": [
-              "cmp_a1b2c3"
-            ],
-            "pattern": "^cmp_[a-z0-9]+$",
-            "type": "string"
-          },
           "contactId": {
             "examples": [
               "rec_a1b2c3"
@@ -56220,6 +56021,9 @@
             ],
             "pattern": "^\\+[1-9][0-9]{6,14}$",
             "type": "string"
+          },
+          "transactional": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -59995,7 +59799,6 @@
                   "connection",
                   "site",
                   "form",
-                  "campaign",
                   "kit",
                   "terminal",
                   "computer",
@@ -60037,69 +59840,6 @@
       "name": "wait_for",
       "planMode": "allowed",
       "toolset": "automations",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "warmup.pool_optin_set",
-      "deferred": false,
-      "description": "Opt the Space in or out of the shared warmup pool (out: own seed inboxes only)",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "optIn": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "optIn"
-        ],
-        "type": "object"
-      },
-      "name": "warmup_pool_optin_set",
-      "planMode": "blocked",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "warmup.start",
-      "deferred": false,
-      "description": "Start warming a new domain or mailbox",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "mailboxId": {
-            "examples": [
-              "mbx_a1b2c3"
-            ],
-            "pattern": "^mbx_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "mailboxId"
-        ],
-        "type": "object"
-      },
-      "name": "warmup_start",
-      "planMode": "blocked",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "warmup.status",
-      "deferred": false,
-      "description": "Warmup state and health per mailbox: bounce, spam placement, reply",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {},
-        "type": "object"
-      },
-      "name": "warmup_status",
-      "planMode": "allowed",
-      "toolset": "inbox",
       "v": 1
     },
     {

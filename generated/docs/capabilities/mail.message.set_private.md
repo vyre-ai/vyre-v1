@@ -61,7 +61,6 @@ type Out = {
     sentAt: number;
     contactId?: string;
     isPrivate: boolean;
-    campaignId?: string;
     draftedByAgent?: string;
   };
 };
@@ -85,7 +84,6 @@ type Out = {
   },
   "output": {
     "message": {
-      "campaignId": "cmp_a1b2c3",
       "cc": [
         {
           "address": "maya@example.com",

@@ -468,6 +468,8 @@ const ADAPTERS: Record<string, Adapter> = {
       return {
         mailboxId, to: people(i.to), ...(i.cc ? { cc: people(i.cc) } : {}), subject: i.subject, ...(looksHtml(body) ? { html: body } : { text: body }),
         ...(Array.isArray(i.fileIds) ? { attachments: i.fileIds } : {}), ...(i.recordId ? { contactId: i.recordId } : {}), idempotencyKey: call.key,
+        // regular email from a flow always carries a way out; a draft becomes a person's own message
+        ...(i.draftOnly === true ? {} : { unsubscribe: true }),
       };
     },
     output: (o) => ({ messageId: o?.messageId ?? o?.draftId, ...(o?.threadId ? { threadId: o.threadId } : {}) }),
@@ -500,7 +502,9 @@ const ADAPTERS: Record<string, Adapter> = {
       const numberId = i.numberId;
       if (!numberId) throw stepError("validation.precondition_failed", "Send a text needs a number. Pick one in the step.", false);
       const media = Array.isArray(i.mediaFileIds) ? i.mediaFileIds.filter((id) => typeof id === "string" && id.length > 0) : [];
-      return { numberId, to: i.to, body: i.body, ...(media.length > 0 ? { mediaFileIds: media } : {}), ...(i.recordId ? { contactId: i.recordId } : {}), idempotencyKey: call.key };
+      return { numberId, to: i.to, body: i.body, ...(media.length > 0 ? { mediaFileIds: media } : {}), ...(i.recordId ? { contactId: i.recordId } : {}), idempotencyKey: call.key,
+        // one text to one person about an appointment does not wait for the send window: the person who built the step said so, or a booking started this Run
+        ...(i.sendAtOnce === true || (call.trigger as { booking?: unknown } | null | undefined)?.booking === true ? { transactional: true } : {}) };
     },
     output: (o) => ({ messageId: o?.smsId ?? o?.messageId }),
   },

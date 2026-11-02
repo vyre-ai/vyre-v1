@@ -5,15 +5,18 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "mcp.activity.list": async (ctx) => { throw new VyreErr(notImplemented("mcp.activity.list", ctx.trace)); },
+  "mcp.connected.link": async (ctx) => { throw new VyreErr(notImplemented("mcp.connected.link", ctx.trace)); },
+  "mcp.connected.list": async (ctx) => { throw new VyreErr(notImplemented("mcp.connected.list", ctx.trace)); },
+  "mcp.connected.remove": async (ctx) => { throw new VyreErr(notImplemented("mcp.connected.remove", ctx.trace)); },
   "mcp.health": async (ctx) => { throw new VyreErr(notImplemented("mcp.health", ctx.trace)); },
-  "mcp.scopes.set": async (ctx) => { throw new VyreErr(notImplemented("mcp.scopes.set", ctx.trace)); },
+  "mcp.oauth.allow": async (ctx) => { throw new VyreErr(notImplemented("mcp.oauth.allow", ctx.trace)); },
+  "mcp.oauth.decline": async (ctx) => { throw new VyreErr(notImplemented("mcp.oauth.decline", ctx.trace)); },
+  "mcp.oauth.replayed": async (ctx) => { throw new VyreErr(notImplemented("mcp.oauth.replayed", ctx.trace)); },
+  "mcp.oauth.request": async (ctx) => { throw new VyreErr(notImplemented("mcp.oauth.request", ctx.trace)); },
   "mcp.session.close": async (ctx) => { throw new VyreErr(notImplemented("mcp.session.close", ctx.trace)); },
   "mcp.session.mint": async (ctx) => { throw new VyreErr(notImplemented("mcp.session.mint", ctx.trace)); },
-  "mcp.session.open": async (ctx) => { throw new VyreErr(notImplemented("mcp.session.open", ctx.trace)); },
   "mcp.sessions.list": async (ctx) => { throw new VyreErr(notImplemented("mcp.sessions.list", ctx.trace)); },
-  "mcp.token.issue": async (ctx) => { throw new VyreErr(notImplemented("mcp.token.issue", ctx.trace)); },
-  "mcp.token.log_reveal": async (ctx) => { throw new VyreErr(notImplemented("mcp.token.log_reveal", ctx.trace)); },
-  "mcp.token.register": async (ctx) => { throw new VyreErr(notImplemented("mcp.token.register", ctx.trace)); },
   "mcp.tool.describe": async (ctx) => { throw new VyreErr(notImplemented("mcp.tool.describe", ctx.trace)); },
   "mcp.tool.search": async (ctx) => { throw new VyreErr(notImplemented("mcp.tool.search", ctx.trace)); },
   "mcp.tools.list": async (ctx) => { throw new VyreErr(notImplemented("mcp.tools.list", ctx.trace)); },

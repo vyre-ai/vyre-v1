@@ -1,8 +1,10 @@
 {
   "module": "mounts",
   "capabilities": {
+    "mounts.account_pause@1": "3d9793c01264048581dad79de55fa2ceb86608b440a6e92bf9f97d8f209c9638",
     "mounts.add@1": "0cc45cabec9e4ea4f7000cbd51dfacc0a8e36edf777f9dc8fa9dddb1a19e0158",
     "mounts.browse@1": "0424fe47d02b4fee9607126bea7e45d2404d785d37df0fcdbb9031310d9ed0bc",
+    "mounts.company_drive@1": "0b088948e3d6a096030a259ccdb00b27d72aade6a11a9f73bbc79de2d0f0fc3d",
     "mounts.doc_insert_text@1": "d5d3eef8246171b39ebcc1a9b3c39f0642c14f9c28c4805932d6215f455e3dd7",
     "mounts.doc_replace_text@1": "1c4f58662c093b5b3e61903689cfaab603d46510f37d1b1017c8cadc92d541a9",
     "mounts.editors@1": "ed25c48941c9ed07320fbdb7cf6ce95f5e5c1866d3668adf55ecd34b87b7e464",

@@ -78,6 +78,8 @@ export interface CtxSeed {
   askable?: boolean | undefined;
   /** A local tool's hard rule asked (a delete outside work/): no Always allow lets this through. */
   mustAsk?: boolean | undefined;
+  /** Every call of this caller goes on the audit log, whatever the capability says. Set only by the MCP door for an outside agent; it follows no nested call. */
+  auditAll?: boolean | undefined;
 }
 
 export interface AuditRow {
@@ -395,8 +397,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
 
     // 7 commit: events, inline projections and the audit row land together
     const finishOutput=SCOPED_RECORD_READS.has(c.name)&&!(seed.preAuth&&isHostService(seed.principal))?await deps.recordAccess?.project(c.name,input,seed,output,traceId):undefined;
-    const targets = shouldAudit(c) ? auditTargets(c.name, input, output) : undefined;
-    const auditRow: AuditRow | null = shouldAudit(c)
+    const audited = shouldAudit(c) || seed.auditAll === true;
+    const targets = audited ? auditTargets(c.name, input, output) : undefined;
+    const auditRow: AuditRow | null = audited
       ? { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: did(), reason: "ok", resource, traceId, spanId: trace.spanId, at: t, risk: c.risk, ...(targets ? { targets } : {}) }
       : null;
     let stored = events;

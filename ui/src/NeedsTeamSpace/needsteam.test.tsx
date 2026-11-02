@@ -9,7 +9,7 @@ test("the sentence and the action never vary", () => {
   assert.equal(NEEDS_TEAM_SPACE_ACTION, "Create or join a Team Space");
   const html = renderToStaticMarkup(<NeedsTeamSpace {...frozenNeedsTeamSpaceProps} />);
   assert.match(html, /Needs a Team Space/);
-  assert.match(html, /Sites, forms and campaigns/);
+  assert.match(html, /Sites and forms/);
   assert.match(html, /Create or join a Team Space/);
   assert.match(html, /data-testid="needs-team-space-action"/);
 });

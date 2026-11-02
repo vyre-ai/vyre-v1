@@ -184,17 +184,13 @@ test("mail from the Sent folder is stored as sent, linked by its recipient and n
   assert.equal(h.calls("inbox.link_message")[0]!.input.direction, "out");
 });
 
-test("a reply keeps the thread and the campaign of the message it answers", async () => {
+test("a reply keeps the thread of the message it answers", async () => {
   const h = harness({ contacts: LEE });
   const mbx = await mailbox(h, "maya@vyre.test");
-  const sent = await ingest(h.ctx, letter("maya@vyre.test", "<Campaign-1@vyre.test>", "g-c1", { mailboxId: mbx, direction: "out", to: [{ address: "lee@acme.test" }], threadKey: "thread-9" }));
-  h.ctx.db.run(`UPDATE mail_message SET "campaignId" = ? WHERE id = ?`, "cmp_spring", sent.messageId);
-  const reply = await ingest(h.ctx, letter("lee@acme.test", "<reply-1@acme.test>", "g-r1", { mailboxId: mbx, headers: { "In-Reply-To": "<campaign-1@vyre.test>" } }));
-  const row = h.rows(`SELECT "threadId", "campaignId" FROM mail_message WHERE id = ?`, reply.messageId)[0]!;
+  const sent = await ingest(h.ctx, letter("maya@vyre.test", "<Letter-1@vyre.test>", "g-c1", { mailboxId: mbx, direction: "out", to: [{ address: "lee@acme.test" }], threadKey: "thread-9" }));
+  const reply = await ingest(h.ctx, letter("lee@acme.test", "<reply-1@acme.test>", "g-r1", { mailboxId: mbx, headers: { "In-Reply-To": "<letter-1@vyre.test>" } }));
+  const row = h.rows(`SELECT "threadId" FROM mail_message WHERE id = ?`, reply.messageId)[0]!;
   assert.equal(row.threadId, "thread-9");
-  assert.equal(row.campaignId, "cmp_spring");
-  assert.equal(h.named("mail.received")[0]?.payload.campaignId, "cmp_spring");
-  assert.equal(h.calls("inbox.link_message")[1]!.input.campaignId, "cmp_spring");
 });
 
 test("when the linking step is down the message is kept and linked on the next delivery", async () => {

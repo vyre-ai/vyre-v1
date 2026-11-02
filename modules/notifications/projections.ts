@@ -8,7 +8,7 @@ export type Level = "interrupt" | "badge" | "digest";
 export type Place = "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
 export type KindKey =
   | "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed"
-  | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided"
+  | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided"
   | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
 export type Action = { label: string; cap: string };
 export interface KindDef {
@@ -32,7 +32,6 @@ export const KINDS: readonly KindDef[] = [
   kind("task.assigned", "badge", "home", "{{from}} gave you a task: {{title}}", { actions: [a("Start", "tasks.transition")] }),
   kind("reply.followed", "badge", "inbox", "New reply on {{where}}"),
   kind("agent.task_finished", "badge", "chats", "{{agent}} finished: {{title}}", { agentRateKey: "agent_interrupt" }),
-  kind("campaign.reply", "badge", "apps", "Reply from {{from}} to {{campaign}}"),
   kind("digest.away", "digest", "home", "While you were away"),
   kind("mention.thread", "badge", "chats", "Mentioned in a thread: {{where}}", { actions: [a("Reply", "chat.post")] }),
   kind("run.failed", "badge", "automations", "{{name}} failed: {{message}}", { actions: [a("Retry", "runs.retry")] }),

@@ -100,7 +100,7 @@ export function scopeFor(snap: AccessSnapshot, q: ScopeForReq): ScopeResult {
     if (!a || a.p.kind !== "person") return empty("agent_needs_actor");
     subjects.push(a);
   } else {
-    if (me.p.kind === "svc") { const o = me.p.owner ? snap.info(me.p.owner) : null; if (!o) return empty("not_a_member"); subjects.push(o); }
+    if (me.p.kind === "svc" || (me.p.kind === "actor" && me.p.owner)) { const o = me.p.owner ? snap.info(me.p.owner) : null; if (!o) return empty("not_a_member"); subjects.push(o); }
     if (q.actingFor && q.actingFor !== q.principal) { const a = snap.info(q.actingFor); if (!a) return empty("not_a_member"); if (!subjects.includes(a)) subjects.push(a); }
   }
   const preds = subjects.map((s) => subjectPred(snap, s, q));

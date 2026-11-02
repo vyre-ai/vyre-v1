@@ -30,6 +30,8 @@ export interface EngineAgent {
   accountRef?: string;
   /** "Watches this channel": acts without an @mention, logged as a routine. */
   watching?: boolean;
+  /** It runs outside Vyre: no turn runs for it here. A message for it goes to its queue instead (agent.outside_asked). */
+  outside?: boolean;
 }
 
 export interface OpenThread {
@@ -108,6 +110,8 @@ export interface SpendRow { agentId: string; turnId: string; payer: string; toke
 
 export type EngineEvent =
   | { type: "message.received"; threadId: string; messageId: string; threadSeq: number; authorId: string }
+  /** A message is for an outside agent. Nothing runs here; it picks the message up when it next asks. */
+  | { type: "agent.outside_asked"; threadId: string; messageId: string; agentId: string; asker: string; body: string }
   | { type: "turn.queued"; threadId: string; qseq: number; agentId: string; kind: QueueKind; priority: number; routine: boolean; steer: boolean }
   | { type: "turn.started"; threadId: string; turnId: string; agentId: string; qseq: number; asker: string }
   | { type: "turn.block"; threadId: string; turnId: string; idx: number; kind: string }

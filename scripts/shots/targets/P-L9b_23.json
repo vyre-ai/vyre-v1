@@ -49,7 +49,7 @@
       "protoClick": "[data-os-connect]",
       "protoSettleMs": 2500,
       "waitFor": "[data-testid='connect-outside-agent']",
-      "note": "Connect an outside agent, from the channel menu: the tool, then what it may do. The prototype side presses its Connect button on the Rivera channel and shows the sheet with the token already made; the real sheet makes it on Create connection."
+      "note": "Connect an outside agent, from the channel menu: one link to copy and the line for Claude Code. The prototype side presses its Connect button on the Rivera channel; the design for this sheet is the Outside agents stage of the main prototype."
     },
     {
       "id": "P-L9b_23-all-agents",

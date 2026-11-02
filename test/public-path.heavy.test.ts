@@ -1,5 +1,6 @@
 // The public path end to end in a real browser, with a hostile page: Chromium, an HTTP front, the relay Worker (on the fake Workers runtime), the real relay box on its control socket, the daemon's public route and the real form page.
 // The app and /p/ share an origin. What must hold: a page under /p/ has an opaque origin, reads none of the app's storage, sends no session to anything, and a Vyre form still submits.
+// It runs in the chrome-real job, which installs Chromium and sets VYRE_REQUIRE_CHROME=1, so there a missing browser is a failure. A fast shard has no Chromium and skips it by name; a skip there proves nothing.
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import http from "node:http";
@@ -8,12 +9,22 @@ import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import type { TestContext } from "node:test";
 import worker, * as W from "../relay/worker/index.js";
 import { createRuntime } from "../relay/worker/fake-cf.js";
 import { forgetUnclaimed } from "../relay/worker/phone.js";
 import { startRelayBox } from "../host/src/seams/relay.ts";
 import { createPublicPathRoute } from "../host/src/routes/public-path.ts";
 import { createFormsPageRoute } from "../host/src/routes/forms-page.ts";
+
+/** Chromium, resolved before anything starts. Null skips the test by name; under VYRE_REQUIRE_CHROME a missing browser fails it. */
+function browserOr(t: TestContext): ((args: readonly string[]) => Promise<any>) | null {
+  if (process.env["VYRE_REQUIRE_CHROME"] !== "1") { t.skip("needs Chromium: runs in the chrome-real job, with VYRE_REQUIRE_CHROME=1"); return null; }
+  const { chromium } = createRequire(path.join(process.cwd(), "package.json"))("playwright-core") as { chromium: { launch(o: unknown): Promise<any>; executablePath(): string } };
+  const exe = process.env["CHROME_BIN"] || chromium.executablePath();
+  assert.ok(fs.existsSync(exe), `Chromium is required at ${exe}`);
+  return (args) => chromium.launch({ executablePath: exe, args: ["--no-sandbox", ...args] });
+}
 
 const HOSTILE = `<!doctype html><title>page</title><script>
 (async () => {
@@ -32,6 +43,11 @@ const HOSTILE = `<!doctype html><title>page</title><script>
 </script>`;
 
 test("a hostile page under /p/ reads nothing of the app and acts as nobody; a real form still submits", async (t) => {
+  const launch = browserOr(t);
+  if (!launch) return;
+  // what started is stopped whatever fails after it: a test that throws must not leave a socket holding the process open
+  const closers: (() => unknown)[] = [];
+  t.after(async () => { for (const c of closers.reverse()) await c(); });
   forgetUnclaimed();
   const rt = createRuntime({
     worker, Class: W.RouteRelay, classes: { TICKETS: W.PairTicket, CODES: W.CodeSlot, SIGNIN: W.SigninSlot, HOSTS: W.HostSlot },
@@ -59,8 +75,11 @@ test("a hostile page under /p/ reads nothing of the app and acts as nobody; a re
     if (!route.handle(req, res)) { res.writeHead(599); res.end("the app's own routes, which a visitor must never reach"); }
   });
   await new Promise<void>((r) => gateway.listen(0, "127.0.0.1", r));
+  closers.push(() => { gateway.closeAllConnections(); gateway.close(); });
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-p-"));
+  closers.push(() => fs.rmSync(dataDir, { recursive: true, force: true }));
   const box = startRelayBox({ relayUrl: "http://relay.test", dataDir, localPort: () => (gateway.address() as AddressInfo).port, onState: () => {}, WebSocket: rt.WebSocket });
+  closers.push(async () => { box.stop(); await rt.settle(); });
   await box.ready;
   assert.equal((await box.host.claim("harbor", "Harbor")).status, "claimed");
   // the browser's side: this address stands for https://harbor.vyre.run
@@ -76,11 +95,10 @@ test("a hostile page under /p/ reads nothing of the app and acts as nobody; a re
     res.end(Buffer.from(await r.arrayBuffer()));
   });
   await new Promise<void>((r) => front.listen(0, "127.0.0.1", r));
+  closers.push(() => { front.closeAllConnections(); front.close(); });
   const port = (front.address() as AddressInfo).port;
-  const req = createRequire(path.join(process.cwd(), "package.json"));
-  const { chromium } = req("playwright-core") as { chromium: { launch(o: unknown): Promise<any> } };
-  const browser = await chromium.launch({ args: ["--no-sandbox", `--host-resolver-rules=MAP harbor.vyre.run 127.0.0.1:${port}`] });
-  t.after(async () => { await browser.close(); box.stop(); front.closeAllConnections(); front.close(); gateway.closeAllConnections(); gateway.close(); fs.rmSync(dataDir, { recursive: true, force: true }); await rt.settle(); });
+  const browser = await launch([`--host-resolver-rules=MAP harbor.vyre.run 127.0.0.1:${port}`]);
+  closers.push(() => browser.close());
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   const app = "http://harbor.vyre.run";
@@ -119,6 +137,8 @@ test("a hostile page under /p/ reads nothing of the app and acts as nobody; a re
 });
 
 test("a hostile artifact in the app's frame reads nothing, and its parent cannot be reached", async (t) => {
+  const launch = browserOr(t);
+  if (!launch) return;
   // an artifact opens in a sandboxed frame inside the app: the same policy, plus the frame's own sandbox
   const hostile = `<!doctype html><script>const out={origin:self.origin};try{out.ls=localStorage.length}catch(e){out.ls="blocked"}try{out.parent=parent.document.title}catch(e){out.parent="blocked"}try{out.cookie=document.cookie}catch(e){out.cookie="blocked"}parent.postMessage(out,"*")</script>`;
   const s = http.createServer((req, res) => {
@@ -126,10 +146,9 @@ test("a hostile artifact in the app's frame reads nothing, and its parent cannot
     res.writeHead(200, { "content-type": "text/html", "content-security-policy": "sandbox allow-scripts allow-forms allow-popups allow-downloads" }); res.end(hostile);
   });
   await new Promise<void>((r) => s.listen(0, "127.0.0.1", r));
-  const req = createRequire(path.join(process.cwd(), "package.json"));
-  const { chromium } = req("playwright-core") as { chromium: { launch(o: unknown): Promise<any> } };
-  const browser = await chromium.launch({ args: ["--no-sandbox"] });
-  t.after(async () => { await browser.close(); s.closeAllConnections(); s.close(); });
+  t.after(() => { s.closeAllConnections(); s.close(); });
+  const browser = await launch([]);
+  t.after(() => browser.close());
   const page = await browser.newPage();
   await page.goto(`http://127.0.0.1:${(s.address() as AddressInfo).port}/app`);
   await page.waitForFunction(() => document.documentElement.dataset.out, undefined, { timeout: 10_000 });

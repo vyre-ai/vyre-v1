@@ -11,7 +11,7 @@ const level = t.enm('interrupt', 'badge', 'digest');
 const place = t.enm('home', 'chats', 'inbox', 'records', 'files', 'apps', 'automations', 'vault', 'settings', 'console');
 const kindKey = t.enm(
   'approval.requested', 'answer.requested', 'unblock.requested', 'approval.backstop', 'dm', 'mention', 'call.incoming', 'agent.blocked', 'incident.owned', 'task.assigned', 'reply.followed',
-  'agent.task_finished', 'campaign.reply', 'digest.away', 'mention.thread', 'run.failed', 'conflict.needs_you', 'access.requested', 'access.decided',
+  'agent.task_finished', 'digest.away', 'mention.thread', 'run.failed', 'conflict.needs_you', 'access.requested', 'access.decided',
   'sync.attention', 'health.degraded', 'problem.report', 'member.joined', 'limit.hit', 'vault.rotation_due',
 );
 const notificationRow = t.obj({
@@ -54,7 +54,6 @@ export default defineManifest({
     notif('task.assigned', 'badge', 'home', '{{from}} gave you a task: {{title}}', { actions: [{ label: 'Start', cap: 'tasks.transition' }] }),
     notif('reply.followed', 'badge', 'inbox', 'New reply on {{where}}'),
     notif('agent.task_finished', 'badge', 'chats', '{{agent}} finished: {{title}}', { agentRateKey: 'agent_interrupt' }),
-    notif('campaign.reply', 'badge', 'apps', 'Reply from {{from}} to {{campaign}}'),
     notif('digest.away', 'digest', 'home', 'While you were away'),
     notif('mention.thread', 'badge', 'chats', 'Mentioned in a thread: {{where}}', { actions: [{ label: 'Reply', cap: 'chat.post' }] }),
     notif('run.failed', 'badge', 'automations', '{{name}} failed: {{message}}', { actions: [{ label: 'Retry', cap: 'runs.retry' }] }),

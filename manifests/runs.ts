@@ -1,4 +1,4 @@
-// runs (lane L6): the one Run model (spec 2.13, 4.3; architecture 4.7): automation runs, routines, campaign sends, deployments,
+// runs (lane L6): the one Run model (spec 2.13, 4.3; architecture 4.7): automation runs, routines, deployments,
 // runbook runs, agent background waits, terminal sessions. Owns the durable step log and `runs.undo`.
 // DECISION: stop and retry need Manage on the run (the owner has it implicitly); admins hold it through the `runs.manage` role permission in the handler.
 // DECISION: `runs.replay` is the sandbox replay of section b9 (outward capabilities stubbed, needs `server.logs`); `automations.replay` re-runs for real.
@@ -6,7 +6,7 @@
 import { defineManifest, entity, ev, health, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id, ok, pageIn, pageOut, purgeOut, resourceRef, runStarted } from './_common.ts';
 
-const runKind = t.enm('automation', 'automation_test', 'journey', 'journey_migrate', 'routine', 'campaign', 'deployment', 'connector_sync', 'connector_build', 'import', 'runbook', 'wait', 'terminal', 'replay', 'other');
+const runKind = t.enm('automation', 'automation_test', 'journey', 'journey_migrate', 'routine', 'deployment', 'connector_sync', 'connector_build', 'import', 'runbook', 'wait', 'terminal', 'replay', 'other');
 const runStatus = t.enm('queued', 'running', 'waiting', 'succeeded', 'failed', 'stopped');
 const waitReason = t.enm('approval', 'background', 'key');
 const stepState = t.enm('pending', 'running', 'succeeded', 'failed', 'skipped', 'waiting', 'stopped');

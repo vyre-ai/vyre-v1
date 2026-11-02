@@ -21,6 +21,7 @@ export function createClient(transport: Transport) {
         update: call("access.actors.update", 1),
       },
       audience_set: call("access.audience_set", 1),
+      automation_senders: call("access.automation_senders", 1),
       check: call("access.check", 1),
       connector_builder: {
         grant: call("access.connector_builder.grant", 1),
@@ -113,6 +114,13 @@ export function createClient(transport: Transport) {
       list: call("agents.list", 1),
       memory_key: {
         get: call("agents.memory_key.get", 1),
+      },
+      next: call("agents.next", 1),
+      outside: {
+        connect: call("agents.outside.connect", 1),
+        enqueue: call("agents.outside.enqueue", 1),
+        seen: call("agents.outside.seen", 1),
+        usable: call("agents.outside.usable", 1),
       },
       pause: call("agents.pause", 1),
       restore: call("agents.restore", 1),
@@ -227,6 +235,7 @@ export function createClient(transport: Transport) {
       retry: call("automations.retry", 1),
       run: call("automations.run", 1),
       schedule_choose: call("automations.schedule_choose", 1),
+      senders: call("automations.senders", 1),
       set_enabled: call("automations.set_enabled", 1),
       steps: {
         list: call("automations.steps.list", 1),
@@ -293,26 +302,6 @@ export function createClient(transport: Transport) {
       update_calendar: call("calendar.update_calendar", 1),
       update_event: call("calendar.update_event", 1),
     },
-    campaigns: {
-      audience_set: call("campaigns.audience_set", 1),
-      create: call("campaigns.create", 1),
-      delete: call("campaigns.delete", 1),
-      get: call("campaigns.get", 1),
-      launch: call("campaigns.launch", 1),
-      link_build: call("campaigns.link_build", 1),
-      list: call("campaigns.list", 1),
-      pause: call("campaigns.pause", 1),
-      preview: call("campaigns.preview", 1),
-      replies: call("campaigns.replies", 1),
-      resume: call("campaigns.resume", 1),
-      schedule_set: call("campaigns.schedule_set", 1),
-      stats: call("campaigns.stats", 1),
-      steps_set: call("campaigns.steps_set", 1),
-      stop: call("campaigns.stop", 1),
-      unsubscribe: call("campaigns.unsubscribe", 1),
-      update: call("campaigns.update", 1),
-      variants_set: call("campaigns.variants_set", 1),
-    },
     changesets: {
       approve: call("changesets.approve", 1),
       comments: {
@@ -337,7 +326,6 @@ export function createClient(transport: Transport) {
         remove: call("channels.agents.remove", 1),
       },
       archive: call("channels.archive", 1),
-      connect_outside_agent: call("channels.connect_outside_agent", 1),
       create: call("channels.create", 1),
       erase: call("channels.erase", 1),
       get: call("channels.get", 1),
@@ -430,6 +418,19 @@ export function createClient(transport: Transport) {
         list: call("comms.senders.list", 1),
         set_default: call("comms.senders.set_default", 1),
       },
+    },
+    company: {
+      access_log: call("company.access_log", 1),
+      check: call("company.check", 1),
+      connect: call("company.connect", 1),
+      disconnect: call("company.disconnect", 1),
+      guide: call("company.guide", 1),
+      people_done: call("company.people_done", 1),
+      probe: call("company.probe", 1),
+      script: call("company.script", 1),
+      start: call("company.start", 1),
+      status: call("company.status", 1),
+      sweep: call("company.sweep", 1),
     },
     computers: {
       chrome: {
@@ -1041,6 +1042,7 @@ export function createClient(transport: Transport) {
       },
     },
     google: {
+      access_log: call("google.access_log", 1),
       calendar: {
         create_event: call("google.calendar.create_event", 1),
         delete_event: call("google.calendar.delete_event", 1),
@@ -1056,6 +1058,7 @@ export function createClient(transport: Transport) {
       directory: {
         import: call("google.directory.import", 1),
         list: call("google.directory.list", 1),
+        reconcile: call("google.directory.reconcile", 1),
       },
       docs: {
         batch_update: call("google.docs.batch_update", 1),
@@ -1083,12 +1086,15 @@ export function createClient(transport: Transport) {
         watch_changes: call("google.drive.watch_changes", 1),
       },
       dwd: {
+        check_key: call("google.dwd.check_key", 1),
+        connect_all: call("google.dwd.connect_all", 1),
         disable: call("google.dwd.disable", 1),
         map_member: call("google.dwd.map_member", 1),
         members: call("google.dwd.members", 1),
         my_account: call("google.dwd.my_account", 1),
         probe: call("google.dwd.probe", 1),
         scopes: call("google.dwd.scopes", 1),
+        set_data: call("google.dwd.set_data", 1),
         set_excluded: call("google.dwd.set_excluded", 1),
         setup: call("google.dwd.setup", 1),
         status: call("google.dwd.status", 1),
@@ -1222,6 +1228,8 @@ export function createClient(transport: Transport) {
       sign_in: call("identity.sign_in", 1),
       sign_in_options: call("identity.sign_in_options", 1),
       sign_out: call("identity.sign_out", 1),
+      sso_join_start: call("identity.sso_join_start", 1),
+      sso_link: call("identity.sso_link", 1),
       sso_sign_in: call("identity.sso_sign_in", 1),
       totp_begin: call("identity.totp_begin", 1),
       totp_confirm: call("identity.totp_confirm", 1),
@@ -1350,6 +1358,7 @@ export function createClient(transport: Transport) {
         set_sync_state: call("mail.mailbox.set_sync_state", 1),
         update: call("mail.mailbox.update", 1),
       },
+      member_pause: call("mail.member_pause", 1),
       message: {
         erase: call("mail.message.erase", 1),
         get: call("mail.message.get", 1),
@@ -1367,6 +1376,7 @@ export function createClient(transport: Transport) {
       send_preview: call("mail.send_preview", 1),
       status_update: call("mail.status_update", 1),
       sync_now: call("mail.sync_now", 1),
+      unsubscribe: call("mail.unsubscribe", 1),
     },
     mailgun: {
       domains: {
@@ -1390,22 +1400,27 @@ export function createClient(transport: Transport) {
       send_email: call("mailgun.send_email", 1),
     },
     mcp: {
+      activity: {
+        list: call("mcp.activity.list", 1),
+      },
+      connected: {
+        link: call("mcp.connected.link", 1),
+        list: call("mcp.connected.list", 1),
+        remove: call("mcp.connected.remove", 1),
+      },
       health: call("mcp.health", 1),
-      scopes: {
-        set: call("mcp.scopes.set", 1),
+      oauth: {
+        allow: call("mcp.oauth.allow", 1),
+        decline: call("mcp.oauth.decline", 1),
+        replayed: call("mcp.oauth.replayed", 1),
+        request: call("mcp.oauth.request", 1),
       },
       session: {
         close: call("mcp.session.close", 1),
         mint: call("mcp.session.mint", 1),
-        open: call("mcp.session.open", 1),
       },
       sessions: {
         list: call("mcp.sessions.list", 1),
-      },
-      token: {
-        issue: call("mcp.token.issue", 1),
-        log_reveal: call("mcp.token.log_reveal", 1),
-        register: call("mcp.token.register", 1),
       },
       tool: {
         describe: call("mcp.tool.describe", 1),
@@ -1562,8 +1577,10 @@ export function createClient(transport: Transport) {
       versions: call("memory.versions", 1),
     },
     mounts: {
+      account_pause: call("mounts.account_pause", 1),
       add: call("mounts.add", 1),
       browse: call("mounts.browse", 1),
+      company_drive: call("mounts.company_drive", 1),
       doc_insert_text: call("mounts.doc_insert_text", 1),
       doc_replace_text: call("mounts.doc_replace_text", 1),
       editors: call("mounts.editors", 1),
@@ -1586,6 +1603,7 @@ export function createClient(transport: Transport) {
       update: call("mounts.update", 1),
     },
     ms: {
+      access_log: call("ms.access_log", 1),
       calendar: {
         create_event: call("ms.calendar.create_event", 1),
         delete_event: call("ms.calendar.delete_event", 1),
@@ -1601,12 +1619,15 @@ export function createClient(transport: Transport) {
         update_event: call("ms.calendar.update_event", 1),
       },
       consent: {
+        check_app: call("ms.consent.check_app", 1),
+        connect_all: call("ms.consent.connect_all", 1),
         disable: call("ms.consent.disable", 1),
         link: call("ms.consent.link", 1),
         map_member: call("ms.consent.map_member", 1),
         members: call("ms.consent.members", 1),
         my_account: call("ms.consent.my_account", 1),
         policy_snippet: call("ms.consent.policy_snippet", 1),
+        set_data: call("ms.consent.set_data", 1),
         set_excluded: call("ms.consent.set_excluded", 1),
         setup: call("ms.consent.setup", 1),
         status: call("ms.consent.status", 1),
@@ -1616,6 +1637,7 @@ export function createClient(transport: Transport) {
       directory: {
         import: call("ms.directory.import", 1),
         list: call("ms.directory.list", 1),
+        reconcile: call("ms.directory.reconcile", 1),
       },
       drive: {
         create_folder: call("ms.drive.create_folder", 1),
@@ -2523,11 +2545,6 @@ export function createClient(transport: Transport) {
       publish: call("views.publish", 1),
       save: call("views.save", 1),
       share_external: call("views.share_external", 1),
-    },
-    warmup: {
-      pool_optin_set: call("warmup.pool_optin_set", 1),
-      start: call("warmup.start", 1),
-      status: call("warmup.status", 1),
     },
     webhooks: {
       create: call("webhooks.create", 1),

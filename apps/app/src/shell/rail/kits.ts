@@ -1,5 +1,5 @@
 // The rail is Kit-defined (spec 2.1 "the rail (Kit-defined)", 3.0): each Space's Kit says which places sit in the top group and which in the bottom group,
-// and which place opens first. The Console shows only for a person who holds console.access in that Space. A Personal Space hides Apps (forms, campaigns, sending domains
+// and which place opens first. The Console shows only for a person who holds console.access in that Space. A Personal Space hides Apps (forms, sending domains
 // are for a team): team-only places stay off its rail (the rc.5 polish rules).
 import type { PlaceId } from "../../../../../ui/src/theme/theme.ts";
 

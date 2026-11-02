@@ -15,15 +15,43 @@ const PATH = "/auth/sso";
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 /** One-use tickets from a finished sign-in. Shared by the route (which makes them) and identity (which spends them). */
-/** Who the provider says this is, beyond the address: the tenant and immutable user id (Microsoft). */
+/** Who the provider says this is, beyond the address: the organization and the identifier that never changes when an address does. */
 export interface SsoLink { tenant: string; subject: string }
 export interface SsoTickets {
   make(key: string, email: string, link?: SsoLink): string;
   take(key: string, ticket: string): { email: string; link?: SsoLink } | null;
+  /** A signed-in person is about to prove a provider identity is theirs: a one-use id for the start address, so the sign-in that comes back is bound to them, in a browser or the desktop app alike. */
+  offer(person: string): string;
+  claim(id: string): string | null;
+  /** Someone joining by invitation finished a sign-in: what it proved waits here, under the invitation, until they accept. */
+  hold(invite: string, key: string, who: { email: string; link: SsoLink }): void;
+  held(invite: string, key: string): { email: string; link: SsoLink } | null;
 }
 export function createSsoTickets(now: () => number = Date.now): SsoTickets {
   const open = new Map<string, { key: string; email: string; link?: SsoLink; exp: number }>();
+  const offers = new Map<string, { person: string; exp: number }>();
+  const proofs = new Map<string, { key: string; who: { email: string; link: SsoLink }; exp: number }>();
   return {
+    hold(invite, key, who) {
+      for (const [k, v] of proofs) if (v.exp < now()) proofs.delete(k);
+      proofs.set(invite, { key, who, exp: now() + STATE_MS });
+    },
+    held(invite, key) {
+      const v = proofs.get(invite);
+      proofs.delete(invite);
+      return v && v.key === key && v.exp >= now() ? v.who : null;
+    },
+    offer(person) {
+      for (const [k, v] of offers) if (v.exp < now()) offers.delete(k);
+      const id = Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(24))).toString("base64url");
+      offers.set(id, { person, exp: now() + STATE_MS });
+      return id;
+    },
+    claim(id) {
+      const v = offers.get(id);
+      offers.delete(id);
+      return v && v.exp >= now() ? v.person : null;
+    },
     make(key, email, link) {
       for (const [k, v] of open) if (v.exp < now()) open.delete(k);
       if (open.size > 500) open.clear();
@@ -49,8 +77,16 @@ export interface SsoSignInRouteDeps {
   resolve?: (host: string) => Promise<string[]>;
   tickets: SsoTickets;
   now?: () => number;
+  /** bind a provider identity to a signed-in person who started from Connect your company; false when it is someone else's */
+  bind?: (key: string, who: { email: string; link: SsoLink }, person: string) => boolean;
   /** a refusal the person did not cause, for the server's log (never the token) */
   log?: (why: string, attrs: Record<string, unknown>) => void;
+}
+
+/** The Vault item may be the bare secret, or the whole Microsoft app registration, which is both the data connection and the sign-in app. */
+function signInSecret(value: string): string {
+  if (!value.startsWith("{")) return value;
+  try { const secret = (JSON.parse(value) as { clientSecret?: unknown }).clientSecret; return typeof secret === "string" ? secret : value; } catch { return value; }
 }
 
 const same = (a: string, b: string): boolean => { let d = a.length ^ b.length; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ (b.charCodeAt(i) || 0); return d === 0; };
@@ -60,7 +96,7 @@ const page = (res: http.ServerResponse, status: number, text: string, headers: R
 export function createSsoSignInRoute(deps: SsoSignInRouteDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } {
   const now = deps.now ?? Date.now;
   const jwks = createJwksCache();
-  const states = new Map<string, { key: string; ret: string; nonce: string; verifier: string; disc: Discovery; exp: number }>();
+  const states = new Map<string, { key: string; ret: string; nonce: string; verifier: string; disc: Discovery; exp: number; person?: string }>();
   const origin = (req: http.IncomingMessage): string => {
     const proto = String(req.headers["x-forwarded-proto"] ?? "").split(",")[0]?.trim() || ((req.socket as { encrypted?: boolean }).encrypted ? "https" : "http");
     return `${proto === "https" ? "https" : "http"}://${req.headers.host ?? "localhost"}`;
@@ -79,13 +115,16 @@ export function createSsoSignInRoute(deps: SsoSignInRouteDeps): { handle(req: ht
     const redirect = `${own}${PATH}/${key}/callback`;
     for (const [k, v] of states) if (v.exp < now()) states.delete(k);
     if (leg === "start") {
-      const ret = allowedReturn(own, url.searchParams.get("return") ?? "");
+      const offered = url.searchParams.get("link");
+      const person = offered ? deps.tickets.claim(offered) : null;
+      if (offered && !person) return page(res, 400, "This link has been used or has expired. Go back to Vyre and try again.");
+      const ret = person ? own : allowedReturn(own, url.searchParams.get("return") ?? "");
       if (!ret) return page(res, 400, "That return address is not one this Space sends people back to.");
       if (states.size > 500) return page(res, 429, "Too many tries; wait a minute.");
       let disc: Discovery;
       try { disc = await discover(fetch, provider.issuer); } catch (e) { deps.log?.("sso discovery failed", { key, why: (e as Error).message }); return page(res, 502, "The sign-in provider did not answer."); }
       const state = token(), nonce = token(), pk = await pkce();
-      states.set(state, { key, ret, nonce, verifier: pk.verifier, disc, exp: now() + STATE_MS });
+      states.set(state, { key, ret, nonce, verifier: pk.verifier, disc, exp: now() + STATE_MS, ...(person ? { person } : {}) });
       const secure = own.startsWith("https:") ? "; Secure" : "";
       res.writeHead(302, { location: authorizeUrl(disc, { clientId: provider.clientId, redirect, state, nonce, challenge: pk.challenge, domainHint: provider.domainHint }), "cache-control": "no-store", "referrer-policy": "no-referrer", "set-cookie": `${COOKIE}=${state}; Max-Age=600; Path=${PATH}; HttpOnly; SameSite=Lax${secure}` });
       return void res.end();
@@ -101,9 +140,17 @@ export function createSsoSignInRoute(deps: SsoSignInRouteDeps): { handle(req: ht
     const code = url.searchParams.get("code") ?? "";
     if (url.searchParams.get("error") || !code || code.length > 2000) return back("sso_error=denied");
     try {
-      const idToken = await exchangeCode(fetch, rec.disc, { clientId: provider.clientId, clientSecret: await deps.secret(provider.clientSecretHandle), code, redirect, verifier: rec.verifier });
-      const who = await verifyIdToken(fetch, rec.disc, idToken, { clientId: provider.clientId, nonce: rec.nonce, domain: provider.domainHint, now: now(), jwks, ...(key === "microsoft" ? { tenant: tenantOf(provider.issuer) ?? "-" } : {}) });
-      back(`sso_code=${encodeURIComponent(deps.tickets.make(key, who.email, who.tenant !== undefined && who.oid !== undefined ? { tenant: who.tenant, subject: who.oid } : undefined))}&sso_provider=${encodeURIComponent(key)}`);
+      const idToken = await exchangeCode(fetch, rec.disc, { clientId: provider.clientId, clientSecret: signInSecret(await deps.secret(provider.clientSecretHandle)), code, redirect, verifier: rec.verifier });
+      const who = await verifyIdToken(fetch, rec.disc, idToken, { clientId: provider.clientId, nonce: rec.nonce, domain: provider.domainHint, now: now(), jwks, ...(key === "microsoft" ? { tenant: tenantOf(provider.issuer) ?? "-" } : {}), ...(key === "google" ? { hostedDomain: true } : {}) });
+      if (rec.person?.startsWith("invite:")) {
+        deps.tickets.hold(rec.person, key, { email: who.email, link: who.link });
+        return page(res, 200, `Signed in with ${provider.title}. Go back to your invitation.`, { "set-cookie": clear });
+      }
+      if (rec.person) {
+        const bound = deps.bind?.(key, { email: who.email, link: who.link }, rec.person) === true;
+        return page(res, bound ? 200 : 409, bound ? `Signed in with ${provider.title}. Go back to Vyre.` : `That ${provider.title} account belongs to someone else in this Space. Go back to Vyre and use your own.`, { "set-cookie": clear });
+      }
+      back(`sso_code=${encodeURIComponent(deps.tickets.make(key, who.email, who.link))}&sso_provider=${encodeURIComponent(key)}`);
     } catch (e) {
       deps.log?.("sso sign-in refused", { key, why: (e as Error).message });
       back("sso_error=refused");

@@ -154,6 +154,15 @@ function checkAssignee(ctx: TasksCtx, a: Assignee | undefined, what: string): vo
   if (a && !nonEmpty(a.id)) raise(ctx, "validation.precondition_failed", `The ${what} needs an id.`, { reason: "bad_assignee" });
 }
 
+/** An outside agent runs on its owner's machine on its owner's access: only that person gives it work. A teammate's task is refused here, in words, instead of sitting with nobody on it. */
+export async function checkOutside(ctx: TasksCtx, who: ReadonlyArray<Assignee | undefined>): Promise<void> {
+  for (const a of who) {
+    if (a?.kind !== "agent" || !ctx.call) continue;
+    const r = await ctx.call("agents.outside.usable", { agentId: a.id }).catch(() => null) as { usable?: boolean } | null;
+    if (r?.usable === false) raise(ctx, "validation.precondition_failed", "Only the person who connected this outside agent can give it work.", { reason: "outside_agent" });
+  }
+}
+
 export function checkSlots(ctx: TasksCtx, kind: TaskKind, s: { assigned: Assignee; reviewer?: Assignee | undefined; approver?: Assignee | undefined }, policy: Policy): void {
   checkAssignee(ctx, s.assigned, "assignee"); checkAssignee(ctx, s.reviewer, "reviewer"); checkAssignee(ctx, s.approver, "approver");
   if (kind === "work" && !policy.allowSelfReview && (sameAssignee(s.reviewer, s.assigned) || sameAssignee(s.approver, s.assigned))) {
@@ -203,6 +212,8 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (kind === "approve" && !approver) approver = assigned;
   if (kind === "review" && !reviewer) reviewer = assigned;
   checkSlots(ctx, kind, { assigned, reviewer, approver }, policy);
+  const resp = await responsibleFor(ctx, assigned);
+  await checkOutside(ctx, [assigned, reviewer, approver]);
 
   const known = new Set(KIND_ACTIONS[kind].map((a) => a.key));
   const actions: ActionDef[] = (input.actions as ActionDef[] | undefined) ?? KIND_ACTIONS[kind].map((a) => ({ ...a }));
@@ -242,7 +253,6 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (isRequest(kind) && t.source?.kind === "chat") t.threadId = t.source.id;
   else if (ctx.call) await ensureThread(ctx, t, ctx.thread);
   if (t.threadId === undefined && ctx.thread) t.threadId = ctx.thread;
-  const resp = await responsibleFor(ctx, assigned);
   if (resp !== undefined) t.responsible = resp;
   touch(ctx, ctx.db, t);
 
@@ -366,6 +376,7 @@ export async function assign(ctx: TasksCtx, input: In): Promise<unknown> {
   }
   const next = { assigned: t.assigned, reviewer: t.reviewer, approver: t.approver, [slot]: to ?? undefined } as { assigned: Assignee; reviewer?: Assignee | undefined; approver?: Assignee | undefined };
   checkSlots(ctx, t.kind, next, readPolicy(ctx.db));
+  await checkOutside(ctx, [to ?? undefined]);
   const from = t[slot] ?? null;
   if (sameAssignee(from ?? undefined, to ?? undefined)) return { task: out(ctx, t) };
   if (to === null) delete (t as unknown as Record<string, unknown>)[slot]; else t[slot] = to;

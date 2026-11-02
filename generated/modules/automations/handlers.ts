@@ -50,6 +50,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.retry": Handler<"automations.retry", X>;
   "automations.run": Handler<"automations.run", X>;
   "automations.schedule_choose": Handler<"automations.schedule_choose", X>;
+  "automations.senders": Handler<"automations.senders", X>;
   "automations.set_enabled": Handler<"automations.set_enabled", X>;
   "automations.steps.list": Handler<"automations.steps.list", X>;
   "automations.stop": Handler<"automations.stop", X>;

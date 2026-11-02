@@ -66,20 +66,6 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
-      "id": "screen.apps.campaign-builder",
-      "place": "apps",
-      "screen": "apps.campaign-builder"
-    },
-    {
-      "completeMs": 100,
-      "firstPaintMs": 50,
-      "id": "screen.apps.campaigns",
-      "place": "apps",
-      "screen": "apps.campaigns"
-    },
-    {
-      "completeMs": 100,
-      "firstPaintMs": 50,
       "id": "screen.apps.email-builder",
       "place": "apps",
       "screen": "apps.email-builder"
@@ -104,13 +90,6 @@
       "id": "screen.apps.kit-builder",
       "place": "apps",
       "screen": "apps.kit-builder"
-    },
-    {
-      "completeMs": 100,
-      "firstPaintMs": 50,
-      "id": "screen.apps.sending-domains",
-      "place": "apps",
-      "screen": "apps.sending-domains"
     },
     {
       "completeMs": 100,
@@ -293,6 +272,13 @@
       "id": "screen.chats.terminal-tab",
       "place": "chats",
       "screen": "chats.terminal-tab"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.company.setup",
+      "place": "console",
+      "screen": "company.setup"
     },
     {
       "completeMs": 100,

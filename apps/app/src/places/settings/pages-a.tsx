@@ -10,6 +10,7 @@ import { Bar, RegistrySections, useRead } from "./blocks.tsx";
 import { CopyFromSpace } from "./CopyFromSpace.tsx";
 import { MemoryKeys } from "./MemoryKeys.tsx";
 import { SignInApps } from "./SignInApps.tsx";
+import { OutsideAgents } from "./OutsideAgents.tsx";
 import { CONNECTIONS, MODELS, NOTIFICATIONS, useIsPersonal, useSettingsData, useScreenQuery } from "./data.tsx";
 import { ROW_HELP, clock, labelOf, moneyLabel, rowHelp, sectionsFor } from "./model.ts";
 import type { SettingRow } from "./model.ts";
@@ -318,6 +319,7 @@ export function ConnectedPage({ rows, found }: PageProps): ReactElement {
         <SettingsRow id="connect-calendar" label="Connect a calendar" lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("calendar")} control={<Glyph name="chevR" size={13} />} />
         <SettingsRow id="connect-twilio" label="Connect Twilio" lead={<Glyph name="plus" size={15} />} onPress={() => (openConnect ? void openConnect({ kind: "number" }) : data.nav.connect("twilio"))} control={<Glyph name="chevR" size={13} />} />
       </Section>
+      <OutsideAgents />
       <Section title="App hubs"><AppHubsCard call={data.call} /></Section>
       <SignInApps />
       <RegistrySections page="connected" rows={rows} found={found} />

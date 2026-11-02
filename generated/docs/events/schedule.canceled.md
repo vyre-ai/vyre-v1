@@ -20,7 +20,7 @@ A schedule was canceled
 type Payload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "campaign" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
     id: string;
   };
   by: string;

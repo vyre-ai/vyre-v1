@@ -224,6 +224,23 @@ export async function mailboxDisconnect(ctx: MailCtx, input: { mailboxId: string
   return { disconnected: true };
 }
 
+// ---- mail.member_pause
+
+/** The connector stops a member's mailbox (excluded, gone from the directory, or the company turned Mail off), or starts it again. What is already here stays theirs. Asked by the connector, which decided; a person pauses their own with mail.mailbox.pause. */
+export async function memberPause(ctx: MailCtx, input: { provider: "google" | "microsoft"; address: string; paused: boolean }): Promise<{ changed: number }> {
+  ensureAll(ctx);
+  const address = normalizeEmail(input.address ?? "");
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM mail_mailbox WHERE address = ? AND provider = ? AND "connectionId" IS NULL AND deleted_at IS NULL`, address, input.provider));
+  let changed = 0;
+  for (const row of rows) {
+    if ((num(row, "paused") === 1) === input.paused) continue;
+    bump(ctx, row, { paused: input.paused ? 1 : 0, state: input.paused ? "paused" : "pending" });
+    ctx.emit(input.paused ? "mailbox.paused" : "mailbox.resumed", `mailbox/${str(row, "id")}`, { mailboxId: str(row, "id") }, { vis: "participants" });
+    changed += 1;
+  }
+  return { changed };
+}
+
 // ---- mail.auto_connect_members
 
 export interface AutoConnectIn {
@@ -264,10 +281,11 @@ export async function autoConnectMembers(ctx: MailCtx, input: AutoConnectIn): Pr
       `INSERT INTO mail_mailbox (
         id, kind, address, title, "ownerId", "agentId", provider, privacy, state, "connectionId", "lastSyncAt", paused, version, updated_at, deleted_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      id, "personal", address, address.split("@")[0] || address, m.userId, null, input.provider, "space", "pending", null, null, 0, 1, now, null,
+      id, "personal", address, address.split("@")[0] || address, m.userId, null, input.provider, "private", "pending", null, null, 0, 1, now, null,
     );
     out.created += 1;
-    ctx.emit("mailbox.connected", `mailbox/${id}`, { mailboxId: id, memberId: m.userId, provider: input.provider, auto: true }, { vis: "participants" });
+    // `private` decides who can reach the mailbox: it is what keeps a member's own mail from inheriting the Space's access (host/src/gateway/resources.ts). The row's `privacy` decides only whether its mail files to records.
+    ctx.emit("mailbox.connected", `mailbox/${id}`, { mailboxId: id, memberId: m.userId, provider: input.provider, auto: true, private: true }, { vis: "participants" });
     out.notified += 1;
   }
   rememberIdem(ctx, input.idempotencyKey, "autoconnect", JSON.stringify(out));

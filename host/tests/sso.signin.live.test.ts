@@ -53,7 +53,7 @@ test("sign in with the firm's own app: the right person gets a session, and ever
       return { url: to.toString(), state: to.searchParams.get("state")!, cookie };
     };
     const fragment = (r: Response): URLSearchParams => new URLSearchParams(new URL(r.headers.get("location")!).hash.slice(1));
-    const claims = { email: NOAH, email_verified: true, hd: DOMAIN };
+    const claims = { sub: "noah-google-id", email: NOAH, email_verified: true, hd: DOMAIN };
 
     // a good sign-in
     const a = await begin();
@@ -94,8 +94,29 @@ test("sign in with the firm's own app: the right person gets a session, and ever
 
     // an address that belongs to no one signs nobody in
     const k = await begin();
-    const stranger = fragment(await callback(k.state, idp.approve(k.url, { email: `stranger@${DOMAIN}`, email_verified: true, hd: DOMAIN }), k.cookie));
+    const stranger = fragment(await callback(k.state, idp.approve(k.url, { sub: "stranger-id", email: `stranger@${DOMAIN}`, email_verified: true, hd: DOMAIN }), k.cookie));
     assert.equal((await w.call("", "identity.sso_sign_in", { provider: "google", code: stranger.get("sso_code"), state: "-", ...device })).status, 401, "no one has that address");
+
+    // Noah's address given to a new hire signs nobody in: Noah is known by his provider id now
+    const m = await begin();
+    const moved = fragment(await callback(m.state, idp.approve(m.url, { ...claims, sub: "new-hire-id" }), m.cookie));
+    assert.equal((await w.call("", "identity.sso_sign_in", { provider: "google", code: moved.get("sso_code"), state: "-", ...device })).status, 401, "an address moved at the provider takes over nobody");
+    // Noah under a new address is still Noah
+    const r2 = await begin();
+    const renamed = fragment(await callback(r2.state, idp.approve(r2.url, { ...claims, email: `noah.new@${DOMAIN}` }), r2.cookie));
+    assert.equal((await w.call("", "identity.sso_sign_in", { provider: "google", code: renamed.get("sso_code"), state: "-", ...device })).status, 200);
+
+    // the owner proves their own identity from Connect your company, with no address on any invitation; it binds to them, once, and needs no session in that browser
+    assert.equal((await w.ok(OWNER, "members.sign_in_policy.get", {})).capabilities.ownerSsoLinked, false);
+    const link = await w.ok(OWNER, "identity.sso_link", { provider: "google" });
+    const opened = await fetch(`${own}${link.start}`, { redirect: "manual" });
+    assert.equal(opened.status, 302);
+    const to = new URL(opened.headers.get("location")!);
+    const proved = await callback(to.searchParams.get("state")!, idp.approve(to.toString(), { sub: "olivia-google-id", email: `olivia@${DOMAIN}`, email_verified: true, hd: DOMAIN }), opened.headers.get("set-cookie")!.split(";")[0]!);
+    assert.equal(proved.status, 200);
+    assert.match(await proved.text(), /Go back to Vyre/);
+    assert.equal((await w.ok(OWNER, "members.sign_in_policy.get", {})).capabilities.ownerSsoLinked, true);
+    assert.equal((await fetch(`${own}${link.start}`, { redirect: "manual" })).status, 400, "the link is one use");
 
     // a provider that is not on, a bad return address, a made-up ticket
     assert.equal((await start("microsoft")).status, 503);

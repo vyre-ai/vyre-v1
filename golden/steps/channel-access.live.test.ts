@@ -38,7 +38,6 @@ test("invite-only channel: a member of the Space who is not in it can do nothing
     await refused("members.add", "threads.members.add", { threadId: T, personId: "usr_noah" });
     await refused("add_agent", "threads.add_agent", { threadId: T, agentId: agent });
     await refused("channels.update", "channels.update", { channelId: secret.channelId, visibility: "public" });
-    await refused("outside agent", "channels.connect_outside_agent", { channelId: secret.channelId, name: "claude code" });
     await refused("join", "channels.join", { channelId: secret.channelId });
     // lists and search
     const names = (body: any): string[] => ((body.data?.channels ?? []) as Array<{ name: string }>).map((c) => c.name);

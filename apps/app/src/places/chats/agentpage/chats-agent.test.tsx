@@ -10,7 +10,7 @@ import { acceptSuggestion, dismissSuggestion, moveToTrash, pause, resume, saveRo
 import type { PageDeps } from "./actions.ts";
 import {
   AGENT_MD_LIMIT, LOCKED_NOTE, ROLE_MAX, TABS, accountLine, moveRef, chatsOf, dollars, instructionsLine, isTabKey, limitRows, mineOnly, roleToSave, routineLabel, routineNote, spendLine, spendRatio, statusLine,
-  stripOf, suggestionTitle,
+  stripOf, suggestionTitle, OUTCOME_WORDS, OUTSIDE_LINE, OUTSIDE_TABS, offlineLine, toolWords,
 } from "./model.ts";
 import type { AgentRow, Routine, Summary, TabKey, Thread } from "./model.ts";
 import { SAMPLE_NOW, createSample } from "./sample.ts";
@@ -267,4 +267,19 @@ test("Settings > AI accounts: the chat key, the ordered fallback list and the me
   const viewer = html(createSample("viewer"), "settings");
   assert.ok(has(viewer, "Chat key") && has(viewer, "Memory key"));
   assert.ok(!has(viewer, 'data-testid="pick-chat-key"') && !has(viewer, 'data-testid="pick-fallback"') && !has(viewer, 'data-testid="pick-memory-key"'));
+});
+
+test("an outside agent reads as what it is: Offline, not Asleep; what it did comes first; and it says so where a person might wait", () => {
+  const a = { status: "asleep", runtime: "outside" } as Parameters<typeof statusLine>[0];
+  assert.equal(statusLine(a, (x) => x), "Offline");
+  assert.equal(statusLine({ ...a, status: "awake" }, (x) => x), "Online");
+  assert.equal(statusLine({ ...a, status: "working" }, (x) => x), "Working");
+  assert.equal(statusLine({ ...a, runtime: undefined } as never, (x) => x), "Asleep");
+  assert.equal(OUTSIDE_TABS[0]?.key, "activity");
+  assert.ok(!OUTSIDE_TABS.some((t) => t.key === "settings" || t.key === "computer"), "no computer and no settings of ours");
+  assert.equal(isTabKey("activity"), true);
+  assert.match(offlineLine("Claude Code"), /^Claude Code is offline\. It will see new tasks and mentions the next time it checks in\.$/);
+  assert.match(OUTSIDE_LINE, /Only you can use it/);
+  assert.equal(toolWords("records_query"), "records query");
+  assert.equal(OUTCOME_WORDS.held, "Waiting for your yes");
 });

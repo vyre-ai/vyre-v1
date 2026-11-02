@@ -119,7 +119,7 @@ import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
 import { createGithubSignInRoute } from "../routes/github-signin.ts";
 import { createSsoSignInRoute, createSsoTickets } from "../routes/sso-signin.ts";
-import { createPeopleExtras, githubOAuthFromEnv, ssoProvidersIn } from "../seams/people.ts";
+import { createPeopleExtras, githubOAuthFromEnv, linkSso, ssoProvidersIn } from "../seams/people.ts";
 import {createRecoveryCommit} from "../seams/recovery.ts";
 import type { GithubOAuth } from "../seams/people.ts";
 import { createSpaceAdmin } from "../seams/spaceadmin.ts";
@@ -189,11 +189,6 @@ export const repairEventMatches = (stored: { id: string; type: string; sv: numbe
   stored.entity === intended.entity && stored.entity_id === intended.entity_id && stored.on_behalf === intended.on_behalf && stored.device === intended.device && stored.run_id === intended.run_id &&
   stored.cause === intended.cause && stored.origin === intended.origin && stored.depth === (intended.depth ?? 0) && stableJson(stored.fields) === stableJson(intended.fields) &&
   stored.label === (intended.label ?? 0) && stored.enc === (intended.enc ?? 0) && stored.key_id === intended.key_id && stored.nonce === intended.nonce && stableJson(repairPayload(stored.payload)) === stableJson(intended.payload);
-
-/** Outside MCP actors get Engineer tools only through the live Access decision used by every other surface. */
-export const mayUseEngineerMcp = (snap: AccessSnapshot, actorId: string, spaceId: string, now: number): boolean => authorize(snap, {
-  principal: actorId, action: { perm: "engineer.mcp", level: "use" }, resource: { type: "space", id: spaceId }, now,
-}).effect === "allow";
 
 const refusingVault: VaultPort = {
   secret: () => Promise.reject(new Error("The Vault is not live on this server.")),
@@ -408,9 +403,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let portalLinkRoute: ReturnType<typeof createPortalLinkRoute> | null = null;
   let shareRoute: ReturnType<typeof createShareRoute> | null = null;
   let formsPageRoute: ReturnType<typeof createFormsPageRoute> | null = null;
-  // /u/<token>: a person with no account leaving a campaign. Set once the pipeline is up; until then the route says it could not, and the person is still subscribed
-  let leaveCampaign: (token: string) => Promise<boolean> = () => Promise.reject(new Error("the server is starting"));
-  const unsubscribeRoute = createUnsubscribeRoute({ unsubscribe: (token) => leaveCampaign(token) });
+  // /u/<token>: a person with no account leaving a mailing. Set once the pipeline is up; until then the route says it could not, and the person is still subscribed
+  let leaveMailing: (token: string) => Promise<boolean> = () => Promise.reject(new Error("the server is starting"));
+  const unsubscribeRoute = createUnsubscribeRoute({ unsubscribe: (token) => leaveMailing(token) });
   // every public link starts here: the address this Space was given, else the phone name it holds at the relay
   const publicOrigin = (): { origin: string; relay: boolean } | null => {
     let claimed: { name?: string; state?: string } | undefined;
@@ -461,6 +456,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let ssoSecret: (handle: string) => Promise<string> = () => Promise.reject(new Error("The Vault is not live on this server."));
   const ssoSignInRoute = createSsoSignInRoute({
     providers: async () => (db ? ssoProvidersIn(db) : []), secret: (h) => ssoSecret(h), fetch: o.seams?.fetch ?? defaultFetch, tickets: ssoTickets,
+    bind: (key, who, person) => (db ? linkSso(db, key, who, person) : false),
     log: (why, attrs) => sink.log({ space: space ?? "-", level: 30, msg: why, place: "sso", attrs }),
   });
   const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: ownNode });
@@ -928,21 +924,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (typeof makeMcp === "function") {
         const unbindServer = mcpExports?.["bindServer"];
         const unbindEndpoint = mcpExports?.["bindEndpoint"];
-        const unbindEngineerCheck = mcpExports?.["bindEngineerCheck"];
         stopMcpRuntime = () => {
           mcpRuntime = null;
           if (typeof unbindServer === "function") unbindServer(null);
           if (typeof unbindEndpoint === "function") unbindEndpoint(null);
-          if (typeof unbindEngineerCheck === "function") unbindEngineerCheck(null);
         };
         startMcpRuntime = (port) => {
           stopMcpRuntime?.();
           const local = `http://127.0.0.1:${port}/mcp`;
-          const address = cfg.address ? (/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`) : `http://${cfg.host}:${port}`;
           mcpRuntime = (makeMcp as (o: Record<string, unknown>) => McpRuntime)({
             db, space: spaceId, invoke: invokeRef, now,
-            endpoint: { url: `${address.replace(/\/$/, "")}/mcp`, loopbackUrl: local },
-            engineerCheck: (actorId: string) => mayUseEngineerMcp(access.snap, actorId, spaceId, now()),
+            // the address outside tools use: the Space's public one, which a claimed phone name can change while the daemon runs, else this computer
+            endpoint: () => ({ url: `${publicOrigin()?.origin ?? `http://127.0.0.1:${port}`}/mcp`, loopbackUrl: local }),
+            active: (agentId: string, person: string) => access.snap.principal(agentId)?.status === "active" && access.snap.principal(person)?.status === "active",
+            spaceName: async () => ((await dispatchSystem?.("spaces.get", {})) as { space?: { name?: string } } | undefined)?.space?.name ?? cfg.spaceName ?? "this Space",
+            system: (cap: string, input: unknown) => (dispatchSystem ? dispatchSystem(cap, input) : Promise.reject(new Error("the server is starting"))),
+            ...(process.env["VYRE_WEB_APP"] ? { webApp: process.env["VYRE_WEB_APP"] } : {}),
           });
         };
         closers.push(() => stopMcpRuntime?.());
@@ -1185,7 +1182,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             },
           },
         }),
-        // forms and campaigns build their public links from the address people reach this Space at; unset, the links stay relative
+        // forms build their public links from the address people reach this Space at; unset, the links stay relative
         setFormsHost: () => ({ choiceSource: createChoiceSource({
           as: (person, cap, input) => invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "forms-public" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)))),
           people: () => [...access.snap.allPrincipals()].filter((p) => p.kind === "person" && p.status === "active").map((p) => ({ id: p.id, name: p.name ?? p.id })),
@@ -1194,7 +1191,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         } }),
         // memory's meaning search: a small embedding model on this server, fetched into the data folder the first time it is used and checked against pinned hashes
         setMemoryMeaningHost: () => ({ files: createModelFiles({ root: process.env["VYRE_MODEL_CACHE"] ?? paths.root }), now, log: (msg: string, attrs?: Record<string, unknown>) => sink.log({ space: spaceId, level: 30, msg, place: "memory-meaning", ...(attrs ? { attrs } : {}) }) }),
-        setCampaignsHost: () => ({ get publicBase() { return publicOrigin()?.origin; }, get publicPath() { return publicOrigin()?.relay; } }),
+        // the unsubscribe link in an Automations email is built from the same address; with none the email goes out without one
+        setMailLinksHost: () => ({ get publicBase() { return publicOrigin()?.origin; }, get publicPath() { return publicOrigin()?.relay; } }),
         // backups: the Space's own files, the owner from the access layer (P-SEC_07: without owner() every export refuses), exports into the blob store, S3 over the seam fetch with keys from the Vault
         setBackupHost: (d) => createBackupHost({
           root: paths.root, space: spaceId, log: spaceLog, owner: () => access.owner() ?? cfg.owner ?? null, system, vault: d.vault, fetch: d.fetch,
@@ -1478,8 +1476,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // an outside tool's long-lived credential (issued by access.actors.redeem): the active actor holding it, only while the access snapshot still has that actor active
         return (async (): Promise<(SessionInfo & { device: string }) | null> => {
           const found = (await hookRunner.call("access.actor_by_credential", { credential: token }).catch(() => null)) as { actorId: string } | null;
-          if (!found || access.snap.principal(found.actorId)?.status !== "active") return null;
-          return { space: spaceId, principal: { kind: "actor", id: found.actorId }, device: "outside-actor" };
+          const actor = found ? access.snap.principal(found.actorId) : undefined;
+          if (!found || actor?.status !== "active") return null;
+          // the person who made the actor is its ceiling on this door too: a call runs as the actor for that person, and an actor whose person has gone does not get in
+          const owner = actor.owner ? access.snap.principal(actor.owner) : undefined;
+          if (!owner || owner.kind !== "person" || owner.status !== "active") return null;
+          return { space: spaceId, principal: { kind: "actor", id: found.actorId }, actingFor: owner.id, device: "outside-actor" };
         })();
       });
       ownerOfSpace = () => access.owner() ?? cfg.owner ?? null;
@@ -1548,8 +1550,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         });
         if (viewOf) {
           // the visitor has no session to authorize and the token is all they hold, so the host runs this as itself
-          leaveCampaign = async (token) => {
-            const r = await invoke("campaigns.unsubscribe", { token }, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook" }).catch((e: unknown) => {
+          leaveMailing = async (token) => {
+            const r = await invoke("mail.unsubscribe", { token }, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook" }).catch((e: unknown) => {
               if ((e as { error?: { code?: string } }).error?.code === "auth.invalid_code") return null;
               throw e;
             });
@@ -1732,7 +1734,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
     });
-    const mcpRoute = createMcpRoute(() => mcpRuntime);
+    // The address a request reached. A token is bound to it, so it never comes from the Host header alone: only a connection from this computer that names this computer is the loopback address; everything else, the relay included, is the public one.
+    const mcpOrigin = (req: http.IncomingMessage): string | null => {
+      const host = String(req.headers.host ?? "").toLowerCase();
+      if (req.headers["x-vyre-via"] !== "relay" && loopback(req.socket.remoteAddress) && /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(host)) return `http://${host}`;
+      return publicOrigin()?.origin ?? null;
+    };
+    const mcpRoute = createMcpRoute({ runtime: () => mcpRuntime, origin: mcpOrigin });
     server.on("request", (req, res) => {
       if(desktopCors(req,res))return;
       if (bearer(req.headers.authorization)?.startsWith("vas_")) {

@@ -7,6 +7,7 @@
 //   HostSlot      one Durable Object per name (`hn:<name>`): the route that holds it, the box's nickname, and a tombstone once released (only the same route can take it back).
 //   hostControl   what a box's control socket may say about its name: host.claim, host.release, host.status. Called from RouteRelay.onTicket.
 //   onHost        the gateway: the shell for a claimed name, "is asleep" when its box is offline, the old redirect for a name nobody claimed here.
+//   onDoor        `/mcp` and the OAuth addresses of a claimed name: the door for outside agents, the one path that carries a credential.
 //   onPublic      `/p/*` and an artifact's `/a/<id>/k/<token>/` of a claimed name, the one thing that is not the shell: visitors with no session reach the Space's forms and sites through the box's control socket, in an opaque origin.
 // No dependencies; WebCrypto and the runtime only.
 
@@ -33,6 +34,8 @@ export const PUBLIC = Object.freeze({
   maxResponse: 32 << 20,
   /** bytes of body in one control-socket message; base64 of this stays under the relay's frame limit */
   chunk: 384 << 10,
+  /** a tool call can run longer than a page: the box holds the same line (host/src/seams/relay.ts) */
+  doorTimeoutMs: 120_000,
   perMinute: 600,
   ipPerMinute: 120,
   concurrent: 32,
@@ -41,6 +44,15 @@ export const PUBLIC = Object.freeze({
 });
 const REQUEST_KEEP = new Set(["accept", "accept-language", "content-type", "if-modified-since", "if-none-match", "range", "user-agent", "x-file-name"]);
 const RESPONSE_KEEP = new Set(["accept-ranges", "cache-control", "content-disposition", "content-encoding", "content-language", "content-length", "content-range", "content-security-policy", "content-type", "etag", "expires", "last-modified", "retry-after", "vary"]);
+
+/**
+ * The door for outside agents: an MCP client talks to `/mcp` and signs in at the OAuth addresses, as plain HTTPS, because that is what every MCP client speaks. This is the one path where the relay carries a credential: the access
+ * token in Authorization crosses this Worker in the clear, in memory only, never logged, on `/mcp` and nowhere else. An outside agent's token is short lived and bound to this address. Everything else here stays as it is on `/p/`:
+ * no Cookie, no Set-Cookie, and only the paths below. A browser's sign-in to Vyre never comes this way: the page on this door takes no password.
+ */
+export const DOOR = /^\/(?:mcp|oauth\/(?:authorize|register|token|wait)|\.well-known\/oauth-(?:protected-resource(?:\/mcp)?|authorization-server))$/;
+const DOOR_KEEP = new Set([...REQUEST_KEEP, "mcp-session-id", "mcp-protocol-version", "origin", "last-event-id"]);
+const DOOR_BACK = new Set([...RESPONSE_KEEP, "www-authenticate", "mcp-session-id", "location", "allow", "x-frame-options", "x-content-type-options", "x-robots-tag", "referrer-policy", "cross-origin-opener-policy", "access-control-allow-origin", "access-control-allow-methods", "access-control-allow-headers", "access-control-max-age"]);
 
 /** An artifact's address for one person: `/a/<id>/k/<token>/...`. The box checks the token and their access on every request. `/a/<id>` alone is the app, which opens it for whoever is signed in. */
 export const ARTIFACT = /^\/a\/[a-z0-9_]{1,80}\/k\/[0-9a-f]{48}(\/|$)/;
@@ -301,6 +313,49 @@ async function onPublic(request, env, name, info, online) {
   return done(new Response(request.method === "HEAD" ? null : res.body, { status: res.status, headers: publicHeaders(res.headers, url) }));
 }
 
+/** What the box may see of a request on the door. @param {Request} request @param {URL} url */
+export function doorHead(request, url) {
+  /** @type {Record<string, string>} */
+  const headers = {};
+  for (const [k, v] of request.headers) if (DOOR_KEEP.has(k.toLowerCase())) headers[k.toLowerCase()] = v;
+  const auth = request.headers.get("authorization");
+  if (auth && url.pathname === "/mcp") headers["authorization"] = auth;
+  return { method: request.method, path: `${url.pathname}${url.search}`, ip: request.headers.get("cf-connecting-ip") || "", headers, door: true };
+}
+
+/** The headers a door answer leaves with: the box's own policy on a page stays, and nothing that sets state in a browser leaves. @param {Headers} from */
+export function doorHeaders(from) {
+  const h = new Headers();
+  for (const [k, v] of from) if (DOOR_BACK.has(k.toLowerCase())) h.append(k, v);
+  h.set("x-content-type-options", "nosniff");
+  h.set("cache-control", "no-store");
+  return h;
+}
+
+/**
+ * `<name>.vyre.run/mcp` and the OAuth addresses: GET, HEAD, POST, DELETE and OPTIONS go to the Space over its control socket. The hostname and status are logged; no path, no query, no body.
+ * @param {Request} request @param {any} env @param {string} name @param {{ route: string, label?: string }} info @param {() => Promise<boolean>} online
+ */
+async function onDoor(request, env, name, info, online) {
+  const url = new URL(request.url);
+  const done = (/** @type {Response} */ res) => { console.log(JSON.stringify({ door: url.hostname, status: res.status })); return res; };
+  if (publicBlocked(env, name, "")) return done(new Response(null, { status: 451 }));
+  if (!["GET", "HEAD", "POST", "DELETE", "OPTIONS"].includes(request.method)) return done(new Response(null, { status: 405, headers: { allow: "GET, HEAD, POST, DELETE, OPTIONS" } }));
+  if (Number(request.headers.get("content-length") || 0) > PUBLIC.maxBody) return done(new Response(null, { status: 413 }));
+  const body = request.method === "POST" ? new Uint8Array(await request.arrayBuffer()) : new Uint8Array(0);
+  if (body.length > PUBLIC.maxBody) return done(new Response(null, { status: 413 }));
+  const asleep = () => (url.pathname === "/oauth/authorize"
+    ? new Response(asleepPage(info.label, name), { status: 503, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "retry-after": "20" } })
+    : json(503, { error: "temporarily_unavailable", error_description: "The computer this Space runs on is off or not connected." }, { "retry-after": "20" }));
+  if (!(await online())) return done(asleep());
+  let res;
+  try {
+    res = await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/p", { method: "POST", headers: { "x-vyre-p": JSON.stringify(doorHead(request, url)) }, body });
+  } catch { return done(asleep()); }
+  if (res.status === 599) return done(asleep());
+  return done(new Response(request.method === "HEAD" ? null : res.body, { status: res.status, headers: doorHeaders(res.headers) }));
+}
+
 /** Names seen unclaimed a moment ago, per isolate, so the hosts under the wildcard that are not phone names cost one lookup a minute, not one per request. */
 const NEGATIVE_MS = 10_000;
 const negative = new Map();
@@ -347,6 +402,7 @@ export async function onHost(request, env, name) {
     try { return Boolean(((await (await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/online")).json())).online); } catch { return false; }
   };
   if (url.pathname === "/p" || url.pathname.startsWith("/p/") || ARTIFACT.test(url.pathname)) return onPublic(request, env, name, info, online);
+  if (DOOR.test(url.pathname)) return onDoor(request, env, name, info, online);
   // an artifact's plain address: the app opens it for whoever is signed in
   const plain = /^\/a\/([a-z0-9_]{1,80})\/?$/.exec(url.pathname);
   if (plain && request.method === "GET") return new Response(null, { status: 302, headers: { location: `/#screen=apps.artifacts&selected=${plain[1]}`, "cache-control": "no-store" } });

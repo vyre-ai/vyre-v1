@@ -47,7 +47,6 @@ type Out = {
       status: "queued" | "sent" | "delivered" | "undelivered" | "failed" | "received";
       contactId?: string;
       mediaFileIds: Array<string>;
-      campaignId?: string;
       at: number;
     }>;
   next?: string;
@@ -79,7 +78,6 @@ type Out = {
       {
         "at": 1760000000000,
         "body": "example",
-        "campaignId": "cmp_a1b2c3",
         "contactId": "rec_a1b2c3",
         "direction": "in",
         "from": "example",

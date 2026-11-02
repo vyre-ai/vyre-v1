@@ -50,11 +50,10 @@ export async function candidatesFor(ctx: InboxCtx, address: string, name?: strin
   return { sure: read(res.sure), unsure: read(res.unsure) };
 }
 
-/** Who gets an unowned reply: the contact owner, then the campaign owner, then the shared inbox's owner. Never blocks linking. */
-async function ownerFor(ctx: InboxCtx, a: { contactId?: string | null | undefined; campaignId?: string | null | undefined; mailboxId?: string | undefined }): Promise<string | null> {
+/** Who gets an unowned reply: the contact owner, then the shared inbox's owner. Never blocks linking. */
+async function ownerFor(ctx: InboxCtx, a: { contactId?: string | null | undefined; mailboxId?: string | undefined }): Promise<string | null> {
   const q: Json = {};
   if (a.contactId) q.contactId = a.contactId;
-  if (a.campaignId) q.campaignId = a.campaignId;
   if (a.mailboxId) q.mailboxId = a.mailboxId;
   try {
     const owner = text(obj(await ctx.call("contacts.route_owner", q)).ownerId);
@@ -76,10 +75,9 @@ export function refresh(ctx: InboxCtx, id: string): void {
   if (!latest) return;
   const mailboxIds = items.map((i) => strOrNull(i, "mailboxId")).filter((v): v is string => v !== null);
   const numberIds = items.map((i) => strOrNull(i, "numberId")).filter((v): v is string => v !== null);
-  const campaign = strOrNull(conv, "campaignId") ?? items.map((i) => strOrNull(i, "campaignId")).find((v) => v !== null) ?? null;
   ctx.db.run(
-    `UPDATE inbox_conversation SET "lastMessageAt" = ?, "lastChannel" = ?, "lastPreview" = ?, "unreadCount" = ?, "mailboxIds" = ?, "numberIds" = ?, "campaignId" = ?, version = ?, updated_at = ? WHERE id = ?`,
-    num(latest, "at"), str(latest, "kind"), str(latest, "preview"), items.filter((i) => num(i, "unread") === 1).length, toJson(mailboxIds), toJson(numberIds), campaign,
+    `UPDATE inbox_conversation SET "lastMessageAt" = ?, "lastChannel" = ?, "lastPreview" = ?, "unreadCount" = ?, "mailboxIds" = ?, "numberIds" = ?, version = ?, updated_at = ? WHERE id = ?`,
+    num(latest, "at"), str(latest, "kind"), str(latest, "preview"), items.filter((i) => num(i, "unread") === 1).length, toJson(mailboxIds), toJson(numberIds),
     nextVersion(conv), ctx.now(), id,
   );
 }
@@ -95,12 +93,12 @@ function itemIdsOf(ctx: InboxCtx, conversationId: string): string[] {
   return rowsOf(ctx.db.all(`SELECT id FROM inbox_item WHERE "conversationId" = ?`, conversationId)).map((r) => str(r, "id"));
 }
 
-function insertConversation(ctx: InboxCtx, c: { contactId: string | null; address: string; displayName: string; at: number; channel: Channel; preview: string; needsMatch: boolean; ownerId: string | null; campaignId: string | null }): Row {
+function insertConversation(ctx: InboxCtx, c: { contactId: string | null; address: string; displayName: string; at: number; channel: Channel; preview: string; needsMatch: boolean; ownerId: string | null }): Row {
   const id = newId("cnv", ctx.now());
   ctx.db.run(
-    `INSERT INTO inbox_conversation (id, "contactId", address, "displayName", "lastMessageAt", "lastChannel", "lastPreview", "unreadCount", "needsMatch", "ownerId", "mailboxIds", "numberIds", "campaignId", version, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, c.contactId, c.address, c.displayName, c.at, c.channel, c.preview, 0, c.needsMatch ? 1 : 0, c.ownerId, "[]", "[]", c.campaignId, 1, ctx.now(), null,
+    `INSERT INTO inbox_conversation (id, "contactId", address, "displayName", "lastMessageAt", "lastChannel", "lastPreview", "unreadCount", "needsMatch", "ownerId", "mailboxIds", "numberIds", version, updated_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, c.contactId, c.address, c.displayName, c.at, c.channel, c.preview, 0, c.needsMatch ? 1 : 0, c.ownerId, "[]", "[]", 1, ctx.now(), null,
   );
   return getConversation(ctx, id) as Row;
 }
@@ -127,7 +125,7 @@ async function attach(ctx: InboxCtx, source: Row, rec: RecordLite, by: "rule" | 
     );
   } else {
     survivor = sourceId;
-    const owner = strOrNull(source, "ownerId") ?? (await ownerFor(ctx, { contactId: rec.id, campaignId: strOrNull(source, "campaignId") }));
+    const owner = strOrNull(source, "ownerId") ?? (await ownerFor(ctx, { contactId: rec.id }));
     ctx.db.run(
       `UPDATE inbox_conversation SET "contactId" = ?, "displayName" = ?, "needsMatch" = ?, "ownerId" = ?, version = ?, updated_at = ? WHERE id = ?`,
       rec.id, nameOf(rec), 0, owner, nextVersion(source), ctx.now(), sourceId,
@@ -152,7 +150,6 @@ export interface LinkIn {
   at: number;
   mailboxId?: string;
   numberId?: string;
-  campaignId?: string;
   preview?: string;
   /** what mail already knows of an email: its thread key, subject and the people on it */
   threadId?: string;
@@ -182,7 +179,7 @@ async function linkPrivate(ctx: InboxCtx, input: LinkIn, address: string, itemId
   const mine = privateIds(ctx);
   let conv = rowsOf(ctx.db.all(`SELECT * FROM inbox_conversation WHERE address = ? AND "contactId" IS NULL AND "ownerId" = ? AND deleted_at IS NULL`, address, owner)).find((r) => mine.has(str(r, "id"))) ?? null;
   if (!conv) {
-    conv = insertConversation(ctx, { contactId: null, address, displayName: address, at: input.at, channel: input.channel, preview: input.preview ?? "", needsMatch: false, ownerId: owner, campaignId: null });
+    conv = insertConversation(ctx, { contactId: null, address, displayName: address, at: input.at, channel: input.channel, preview: input.preview ?? "", needsMatch: false, ownerId: owner });
     ctx.db.run(`INSERT INTO inbox_private ("conversationId") VALUES (?)`, str(conv, "id"));
     ctx.emit("conversation.created", `entity/${str(conv, "id")}`, { conversationId: str(conv, "id"), channel: input.channel });
   }
@@ -191,9 +188,9 @@ async function linkPrivate(ctx: InboxCtx, input: LinkIn, address: string, itemId
     ? { threadId: input.threadId, subject: input.subject, participants: Array.isArray(input.participants) && input.participants.length ? input.participants.map((p) => String(p).toLowerCase()) : [address] }
     : { threadId: `${input.channel}:private:${address}`, subject: "", participants: [address] };
   ctx.db.run(
-    `INSERT INTO inbox_item (id, "conversationId", kind, "refId", address, direction, at, "mailboxId", "numberId", "campaignId", "threadId", subject, preview, participants, unread)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    itemId, id, input.channel, input.ref.id, address, input.direction, input.at, input.mailboxId ?? null, null, null, given.threadId, given.subject,
+    `INSERT INTO inbox_item (id, "conversationId", kind, "refId", address, direction, at, "mailboxId", "numberId", "threadId", subject, preview, participants, unread)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    itemId, id, input.channel, input.ref.id, address, input.direction, input.at, input.mailboxId ?? null, null, given.threadId, given.subject,
     input.preview ?? given.subject, JSON.stringify(given.participants), input.direction === "in" ? 1 : 0,
   );
   refresh(ctx, id);
@@ -238,10 +235,9 @@ export async function linkMessage(
         conv = ofAddress;
         ruleMatched = { id: sure.recordId, type: sure.type, fields: { name: sure.name } };
       } else {
-        const owner = await ownerFor(ctx, { contactId: sure.recordId, campaignId: input.campaignId, mailboxId: input.mailboxId });
+        const owner = await ownerFor(ctx, { contactId: sure.recordId, mailboxId: input.mailboxId });
         conv = insertConversation(ctx, {
           contactId: sure.recordId, address, displayName: sure.name || address, at: input.at, channel: input.channel, preview: input.preview ?? "", needsMatch: false, ownerId: owner,
-          campaignId: input.campaignId ?? null,
         });
         created = true;
       }
@@ -254,8 +250,7 @@ export async function linkMessage(
     conv = ofAddress;
     if (!conv) {
       conv = insertConversation(ctx, {
-        contactId: null, address, displayName: address, at: input.at, channel: input.channel, preview: input.preview ?? "", needsMatch: false, ownerId: await ownerFor(ctx, { campaignId: input.campaignId, mailboxId: input.mailboxId }),
-        campaignId: input.campaignId ?? null,
+        contactId: null, address, displayName: address, at: input.at, channel: input.channel, preview: input.preview ?? "", needsMatch: false, ownerId: await ownerFor(ctx, { mailboxId: input.mailboxId }),
       });
       created = true;
     }
@@ -275,9 +270,9 @@ export async function linkMessage(
     : { threadId: `${input.channel}:${input.numberId ?? "-"}:${address}`, subject: "", participants: [address] };
   const priorOut = first(ctx.db.all(`SELECT id FROM inbox_item WHERE "conversationId" = ? AND direction = ?`, id, "out")) !== null;
   ctx.db.run(
-    `INSERT INTO inbox_item (id, "conversationId", kind, "refId", address, direction, at, "mailboxId", "numberId", "campaignId", "threadId", subject, preview, participants, unread)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    itemId, id, input.channel, input.ref.id, address, input.direction, input.at, input.mailboxId ?? null, input.numberId ?? null, input.campaignId ?? null, facts.threadId, facts.subject,
+    `INSERT INTO inbox_item (id, "conversationId", kind, "refId", address, direction, at, "mailboxId", "numberId", "threadId", subject, preview, participants, unread)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    itemId, id, input.channel, input.ref.id, address, input.direction, input.at, input.mailboxId ?? null, input.numberId ?? null, facts.threadId, facts.subject,
     input.preview ?? facts.subject, JSON.stringify(facts.participants), input.direction === "in" ? 1 : 0,
   );
 
@@ -290,7 +285,7 @@ export async function linkMessage(
 
   // an unowned conversation goes to the right person
   if (!strOrNull(conv, "ownerId")) {
-    const owner = await ownerFor(ctx, { contactId: strOrNull(conv, "contactId"), campaignId: input.campaignId ?? strOrNull(conv, "campaignId"), mailboxId: input.mailboxId });
+    const owner = await ownerFor(ctx, { contactId: strOrNull(conv, "contactId"), mailboxId: input.mailboxId });
     if (owner) ctx.db.run(`UPDATE inbox_conversation SET "ownerId" = ?, version = ?, updated_at = ? WHERE id = ?`, owner, nextVersion(conv), ctx.now(), id);
   }
 
@@ -301,15 +296,13 @@ export async function linkMessage(
   }
   const taskId = await ensureTask(ctx, id);
 
-  // replies reach the people who follow, and the campaign owner
+  // replies reach the people who follow
   conv = getConversation(ctx, id) as Row;
   const cid = strOrNull(conv, "contactId");
   if (cid && input.direction === "in") {
     if (first(ctx.db.all(`SELECT id FROM inbox_follow WHERE "contactId" = ? AND deleted_at IS NULL`, cid))) {
       ctx.emit("conversation.reply_received", `record/${cid}`, { conversationId: id, contactId: cid, channel: input.channel }, { vis: "participants" });
     }
-    const campaign = input.campaignId ?? strOrNull(conv, "campaignId");
-    if (campaign) ctx.emit("conversation.campaign_reply", `record/${cid}`, { conversationId: id, contactId: cid, campaignId: campaign, channel: input.channel }, { vis: "participants" });
   }
   return answer(ctx, conv, taskId);
 }

@@ -229,6 +229,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       routine = responders.length > 0;
     }
     const kind = interrupt ? "interrupt" : "message";
+    // an agent that runs outside Vyre gets the message in its own queue, whoever else answers here
+    const outside = new Set(st.thread.agents.filter((a) => a.outside === true).map((a) => a.id));
+    for (const agentId of responders) if (outside.has(agentId)) emit({ type: "agent.outside_asked", threadId: st.thread.id, messageId: msg.id, agentId, asker: msg.author.id, body: msg.body });
+    responders = responders.filter((id) => !outside.has(id));
     const qseqs = responders.map((agentId) => enqueue(st, { kind, agentId, from: job ?? msg.author.id, messageId: msg.id, priority: interrupt ? PRIORITY_INTERRUPT : 0, routine }).qseq);
     if (interrupt && st.running) void cancelRunning(st);
     if (qseqs.length > 0) kick(st);

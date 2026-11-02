@@ -1,10 +1,10 @@
 // One handler per identity capability (26 including invites.accept_create_account). Passkeys answer internal.not_implemented until 1.1.0; SSO answers validation.unsupported until a Space has an SSO config.
 import {
-  githubLink, githubSignIn, githubUnlink, pairCreate, pairRedeem, passkeyRegister, passkeyRemove, signIn, signInOptions, signOut, ssoSignIn, totpBegin, totpConfirm,
+  githubLink, githubSignIn, githubUnlink, pairCreate, pairRedeem, passkeyRegister, passkeyRemove, signIn, signInOptions, signOut, ssoLink, ssoSignIn, totpBegin, totpConfirm,
   totpRemove, usernameAvailable, verifySecondFactor, whoami, securityGet,
 } from "./signin.ts";
 import { claimOwner } from "./claim.ts";
-import { acceptCreateAccount, changePassword, keysGet, keysPut, recoveryFetch, recoveryRestore, recoverySave, resetComplete, resetPreview, resetStart } from "./keys.ts";
+import { acceptCreateAccount, ssoJoinStart, changePassword, keysGet, keysPut, recoveryFetch, recoveryRestore, recoverySave, resetComplete, resetPreview, resetStart } from "./keys.ts";
 
 export const handlers = {
   "identity.recovery_fetch":recoveryFetch,
@@ -30,6 +30,8 @@ export const handlers = {
   "identity.sign_in_options": signInOptions,
   "identity.sign_out": signOut,
   "identity.sso_sign_in": ssoSignIn,
+  "identity.sso_link": ssoLink,
+  "identity.sso_join_start": ssoJoinStart,
   "identity.totp_begin": totpBegin,
   "identity.totp_confirm": totpConfirm,
   "identity.totp_remove": totpRemove,

@@ -84,10 +84,11 @@ test("a Calendar failure never fails the setup or the mailbox pass", async () =>
   h.ctx.call = async (cap, input) => { if (cap.startsWith("calendar.")) throw new Error("calendar is down"); return real(cap, input); };
   const out = await dwdSetup(h.ctx, { vaultItem: "#Google_DWD", adminEmail: "admin@vyre.test", idempotencyKey: "s1" });
   assert.equal(out.configured, true);
-  h.ctx.db.run(`INSERT INTO google_mailbox (email, "connectionId", "historyId", "lastPolledAt", "lastActivityAt", "watchExpiresAt", "pubsubTopic", "nextPollAt") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, MAYA, CONN, "1000", null, null, null, null, null);
+  h.ctx.db.run(`UPDATE google_mailbox SET "historyId" = ?, "nextPollAt" = ? WHERE email = ?`, "1000", null, MAYA);
+  const first = h.scheduled.length;
   h.on("GET", "https://gmail.googleapis.com/gmail/v1/users/me/history", { body: { history: [], historyId: "1001" } });
   assert.deepEqual(await receivePush(h.ctx, { kind: "gmail", messageId: "p3", mailbox: MAYA, historyId: "1" }), { accepted: true });
-  assert.equal(h.scheduled.length, 1);
+  assert.equal(h.scheduled.length, first + 1);
 });
 
 test("the admin who sets up is matched to the admin address even though no invitation holds it, and never taken over another person's address", async () => {

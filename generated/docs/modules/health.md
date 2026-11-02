@@ -15,7 +15,7 @@ Requires: nothing.
 - [health.history](../capabilities/health.history.md): Samples of a health check over time
 - [health.index_db](../capabilities/health.index_db.md): Probe: search index lag behind the log head
 - [health.machine](../capabilities/health.machine.md): Probe: CPU load, memory and disk of the server as the host last reported them (Console Overview tiles)
-- [health.paused_reasons](../capabilities/health.paused_reasons.md): What is paused and why (shown on the paused automation, sync or campaign)
+- [health.paused_reasons](../capabilities/health.paused_reasons.md): What is paused and why (shown on the paused automation or sync)
 - [health.run](../capabilities/health.run.md): Run one health check or all of them now
 - [health.scheduler](../capabilities/health.scheduler.md): Probe: the scheduler ticked in the last minute
 - [health.service_restart](../capabilities/health.service_restart.md): Restart a server service
@@ -27,7 +27,7 @@ Requires: nothing.
 ## Events (5)
 
 - [health.changed](../events/health.changed.md): A health check changed state
-- [health.paused](../events/health.paused.md): An unhealthy dependency paused automations, sync, sends or campaigns
+- [health.paused](../events/health.paused.md): An unhealthy dependency paused automations, sync or sends
 - [health.resumed](../events/health.resumed.md): A paused area resumed after its dependency recovered
 - [service.restarted](../events/service.restarted.md): A server service was restarted
 - [support_bundle.created](../events/support_bundle.created.md): A support bundle was made (ids and metadata only, no content)

@@ -1,4 +1,4 @@
-// The Apps place in the shell (spec 3.6): sites, forms, campaigns, templates and sending domains over the Space's data. The runtime's screens, calls and door become the place's AppsData;
+// The Apps place in the shell (spec 3.6): sites, forms, templates and sending domains over the Space's data. The runtime's screens, calls and door become the place's AppsData;
 // where a click leaves the place it goes out through the shell. A Personal Space has no Apps (spec 2.1), so the place says it needs a Team Space. Before the runtime exists the place draws its frame.
 import { useMemo } from "react";
 import type { ReactElement } from "react";
@@ -10,7 +10,7 @@ import { useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
 const NEW_SITE_PROMPT = "I want a new site. Ask me what it is for, then build it, run it on a computer and give it an address.";
-const SCREEN: Readonly<Record<string, string>> = { artifacts: "apps.artifacts", sites: "apps.site-editor", forms: "apps.form-settings", campaigns: "apps.campaign-builder", templates: "apps.templates", domains: "apps.sending-domains" };
+const SCREEN: Readonly<Record<string, string>> = { artifacts: "apps.artifacts", sites: "apps.site-editor", forms: "apps.form-settings", templates: "apps.templates", domains: "apps.sending-domains" };
 
 export { appsRoute } from "../../places/apps/shell/routes.ts";
 import { appsRoute } from "../../places/apps/shell/routes.ts";
@@ -26,8 +26,8 @@ export function appsData(rt: ShellRuntime): AppsData {
       newSite: () => rt.open({ screen: "chats.conversation", args: { with: rt.assistant.id, first: NEW_SITE_PROMPT } }),
       openUrl: (url) => rt.openUrl(url),
       openComputers: () => rt.open({ screen: "settings.page", args: { page: "computers" } }),
-      create: (group, kind) => rt.open({ screen: group === "forms" ? "apps.forms" : group === "campaigns" ? "apps.campaigns" : group === "domains" ? "apps.sending-domains" : SCREEN[group] ?? "apps.forms", args: { create: true, ...(kind ? { kind } : {}) } }),
-      show: (group) => rt.open({ screen: group === "chats" ? "chats.conversation" : group === "artifacts" ? "apps.artifacts" : group === "sites" ? "apps.sites" : group === "forms" ? "apps.forms" : group === "campaigns" ? "apps.campaigns" : group === "domains" ? "apps.sending-domains" : SCREEN[group] ?? "apps.forms" }),
+      create: (group, kind) => rt.open({ screen: group === "forms" ? "apps.forms" : group === "domains" ? "apps.sending-domains" : SCREEN[group] ?? "apps.forms", args: { create: true, ...(kind ? { kind } : {}) } }),
+      show: (group) => rt.open({ screen: group === "chats" ? "chats.conversation" : group === "artifacts" ? "apps.artifacts" : group === "sites" ? "apps.sites" : group === "forms" ? "apps.forms" : group === "domains" ? "apps.sending-domains" : SCREEN[group] ?? "apps.forms" }),
       openEmailDesign: (emailId) => rt.open({ screen: "apps.email-builder", ...(emailId ? { args: { emailId } } : {}) }),
       joinTeam: () => rt.open({ screen: "settings.page", args: { page: "spaces" } }),
       openTask: (taskId) => rt.open({ subject: { type: "task", id: taskId } }),

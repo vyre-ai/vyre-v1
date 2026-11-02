@@ -1,4 +1,4 @@
-// Ask Vyre in the Campaign email editor, in Chromium against the production export and a fresh claimed daemon. The Ask is a real agent turn (chat, agents, engine, the OpenAI driver, the Vault key);
+// Ask Vyre in the email editor, in Chromium against the production export and a fresh claimed daemon. The Ask is a real agent turn (chat, agents, engine, the OpenAI driver, the Vault key);
 // only the model vendor is a local stand-in that api.openai.com requests are sent to inside the daemon process. Per-change review, failure and Cancel are driven through the real screen.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -12,7 +12,7 @@ import { vendor } from "../../../fixtures/model-vendor.ts";
 const PRELOAD = fileURLToPath(new URL("../../../fixtures/model-vendor-preload.mjs", import.meta.url));
 const KEY = "sk-test-fixture-0123456789abcdef"; // secret-scan: fake
 
-test("production Apps: Ask Vyre in the campaign email editor proposes per-change diffs, fails in words and cancels", async (t) => {
+test("production Apps: Ask Vyre in the email editor proposes per-change diffs, fails in words and cancels", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required"); t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
   const { chromium } = await import("playwright-core");
@@ -48,17 +48,12 @@ test("production Apps: Ask Vyre in the campaign email editor proposes per-change
     await api("agents.create", { name: "Designer", role: "You edit email designs.", model: "gpt-4o-mini", idempotencyKey: "ask-agent" });
 
     await page.goto(`${web.origin}/sites`, { waitUntil: "load" });
-    await page.getByTestId("apps-head-campaigns").click();
-    await page.getByTestId("apps-new-group").click();
-    await page.getByRole("menuitem", { name: "New campaign", exact: true }).click();
-    await page.getByLabel("Campaign name", { exact: true }).fill("Ask campaign"); await page.getByTestId("apps-save-campaign").click();
-    await page.getByTestId("apps-campaign-detail").waitFor({ timeout: 20_000 });
-    await page.getByRole("button", { name: "Add step", exact: true }).click();
-    await page.getByTestId("menu-item-email").dispatchEvent("click");
+    await page.getByLabel("New", { exact: true }).click();
+    await page.getByRole("menuitem", { name: "New email design", exact: true }).click();
     await page.getByTestId("email-builder").waitFor({ timeout: 20_000 });
     await page.getByTestId("em-subject").fill("Welcome aboard");
-    await page.waitForTimeout(1500);   // a background refresh of the campaign must not take the editor away or empty the subject just typed
-    assert.equal(await page.getByTestId("em-subject").inputValue(), "Welcome aboard", "typing survives a background refresh of the campaign");
+    await page.waitForTimeout(1500);   // a background refresh must not take the editor away or empty the subject just typed
+    assert.equal(await page.getByTestId("em-subject").inputValue(), "Welcome aboard", "typing survives a background refresh");
     await page.getByTestId("em-pane").getByText("Ask", { exact: true }).first().click();
     await page.getByTestId("em-ask").waitFor();
     const ask = async (text: string): Promise<void> => { await page.getByTestId("composer-field").fill(text); await page.getByTestId("composer-field").press("Enter"); };

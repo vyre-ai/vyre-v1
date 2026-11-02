@@ -9,7 +9,6 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "channels.agents.add": Handler<"channels.agents.add", X>;
   "channels.agents.remove": Handler<"channels.agents.remove", X>;
   "channels.archive": Handler<"channels.archive", X>;
-  "channels.connect_outside_agent": Handler<"channels.connect_outside_agent", X>;
   "channels.create": Handler<"channels.create", X>;
   "channels.erase": Handler<"channels.erase", X>;
   "channels.get": Handler<"channels.get", X>;
