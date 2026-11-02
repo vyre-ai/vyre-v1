@@ -32,6 +32,7 @@ import { TerminalRules } from "../terminal/TerminalRules.tsx";
 import { TerminalTab } from "../terminal/TerminalTab.tsx";
 import { AllAgents } from "./AllAgents.tsx";
 import { ConnectOutsideAgent } from "./ConnectOutsideAgent.tsx";
+import type { ConnectProps } from "./ConnectOutsideAgent.tsx";
 import { SearchPage } from "../search/SearchPage.tsx";
 import type { SearchData } from "../search/SearchPage.tsx";
 import { TextButton } from "../conversation/parts.tsx";
@@ -231,7 +232,7 @@ function Layer({ shown, rt, go, nameOf, list, counter, terminal, window }: {
   switch (l.kind) {
     case "computer": return <ComputerLayer key={l.computerId} rt={rt} go={go} nameOf={nameOf} list={list} counter={counter} computerId={l.computerId} chat={l.chat} />;
     case "recording": return <RecordingLayer key={l.recordingId} rt={rt} go={go} nameOf={nameOf} list={list} counter={counter} recordingId={l.recordingId} />;
-    case "connect": return <ConnectOutsideAgent screens={rt.screens} call={rt.call} newKey={newKey} clock={rt.clock} channelId={l.channelId} onClose={go.closeLayer} say={go.say} />;
+    case "connect": return <ConnectOutsideAgent call={rt.call as ConnectProps["call"]} onClose={go.closeLayer} say={go.say} />;
     case "all-agents":
       return (
         <AllAgents

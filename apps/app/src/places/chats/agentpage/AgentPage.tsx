@@ -14,7 +14,7 @@ import { ComputerTab } from "../rightpane/ComputerTab.tsx";
 import { FilesTab } from "../rightpane/FilesTab.tsx";
 import { MemoryTab } from "../rightpane/MemoryTab.tsx";
 import { Face, Notice, TextButton, Tool } from "../rightpane/parts.tsx";
-import { pause, resume, saveRoleLine, startChat } from "./actions.ts";
+import { pause, removeOutside, resume, saveRoleLine, startChat } from "./actions.ts";
 import type { PageDeps } from "./actions.ts";
 import { AgentPageDataProvider, paneDataOf, useAgentPageData, useOnline, useOptionalAgentPageData, useScreenQuery } from "./data.tsx";
 import type { AgentPageData } from "./data.tsx";
@@ -23,7 +23,8 @@ import { TabMeasure, useFittedTabs, useTitleWidths } from "../rightpane/fit.tsx"
 import { RoleLine } from "./RoleLine.tsx";
 import { WorkingOn } from "./WorkingOn.tsx";
 import { SettingsTab } from "./SettingsTab.tsx";
-import { DEFAULT_TAB, TABS, collect, spendRatio, statusLine, stripOf } from "./model.ts";
+import { ActivityTab } from "./ActivityTab.tsx";
+import { DEFAULT_TAB, OUTSIDE_LINE, OUTSIDE_TABS, TABS, collect, isOutside, offlineLine, spendRatio, statusLine, stripOf } from "./model.ts";
 import type { TabKey } from "./model.ts";
 
 type AgentOut = CapMap["agents.get"]["out"];
@@ -73,9 +74,14 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   const narrow = win.width > 0 && win.width < NARROW;
   // no capable host, no agent computers: no Computer tab, and the page opens on Chats
   const noComputers = !hasComputers(data.space);
-  const [own, setOwn] = useState<TabKey>(initialTab ?? (noComputers ? "chats" : DEFAULT_TAB));
-  const tab = noComputers && (controlled ?? own) === "computer" ? "chats" : controlled ?? own;
-  const tabList = useMemo(() => TABS.filter((t) => !(noComputers && t.key === "computer")), [noComputers]);
+  const agentId = data.agent.agentId;
+  const agentQ = useScreenQuery<AgentOut>("agent", { agentId });
+  const outside = agentQ.status !== "loading" && isOutside(agentQ.data.agent);
+  const [own, setOwn] = useState<TabKey | null>(initialTab ?? null);
+  const asked = controlled ?? own ?? (outside ? "activity" : noComputers ? "chats" : DEFAULT_TAB);
+  // a tab an agent of this kind does not have opens the one it starts on
+  const tab: TabKey = outside ? (OUTSIDE_TABS.some((t) => t.key === asked) ? asked : "activity") : noComputers && asked === "computer" ? "chats" : asked === "activity" ? DEFAULT_TAB : asked;
+  const tabList = useMemo(() => (outside ? OUTSIDE_TABS : TABS.filter((t) => !(noComputers && t.key === "computer"))), [noComputers, outside]);
   const [colW, setColW] = useState(0);
   const titles = useTitleWidths();
   const [notice, setNotice] = useState<{ text: string; undo?: () => Promise<void> | void } | null>(null);
@@ -97,8 +103,6 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
     pick: (key) => { setOwn(key); onTab?.(key); },
   });
 
-  const agentId = data.agent.agentId;
-  const agentQ = useScreenQuery<AgentOut>("agent", { agentId });
   const summaryQ = useScreenQuery<SummaryOut>("summary", { agentId });
   if (agentQ.status === "loading") return <AgentPageLoading />;
   const agent = agentQ.data.agent;
@@ -107,17 +111,18 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   const paused = agent.status === "paused";
 
   const chat = (): void => { void startChat(deps, agentId, name).then((id) => { if (id !== null) data.nav.openChat(id); }); };
+  const remove = (): void => { void removeOutside(deps, agentId, name, () => undefined); };
   const moreMenu = (x: number, y: number): void => {
     menu.show([
       { label: "Chat", onSelect: chat },
       { label: "Automation Runs", onSelect: () => data.nav.openAutomationRuns(agentId) },
       { label: "Open Folder", onSelect: () => data.nav.openFolder(agent.folderId) },
       ...(!noComputers && agent.hasComputer && data.agent.computerId ? [{ label: "Open Computer", onSelect: () => data.nav.openComputer(data.agent.computerId ?? "") }] : []),
-      ...(data.canEdit ? [{ separator: true as const }, paused ? { label: "Resume", onSelect: () => void resume(deps, agentId, name) } : { label: "Pause", onSelect: () => void pause(deps, agentId, name, "Paused from the agent page") }] : []),
+      ...(outside ? [{ separator: true as const }, { label: "Remove", onSelect: remove }] : data.canEdit ? [{ separator: true as const }, paused ? { label: "Resume", onSelect: () => void resume(deps, agentId, name) } : { label: "Pause", onSelect: () => void pause(deps, agentId, name, "Paused from the agent page") }] : []),
     ], x, y, "other", { label: `${name}'s page` });
   };
 
-  const stats = summary ? stripOf(summary) : [];
+  const stats = summary ? stripOf(summary).filter((x) => !outside || x.key === "chats" || x.key === "tasks") : [];
   const ratio = summary ? spendRatio(summary) : 0;
   return (
     <View testID="agent-page" accessibilityLabel={`${name}, agent page`} style={st.root}>
@@ -132,17 +137,18 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
                 <Text numberOfLines={1} style={st.statusText}>{statusLine(agent, data.nameOf)}</Text>
               </View>
             </View>
-            <RoleLine value={agent.role ?? ""} canEdit={data.canEdit} onSave={(next) => void saveRoleLine(deps, agentId, next, agent.role ?? "")} />
+            {outside ? <Text testID="agent-outside-line" style={st.outsideLine}>{OUTSIDE_LINE}</Text> : <RoleLine value={agent.role ?? ""} canEdit={data.canEdit} onSave={(next) => void saveRoleLine(deps, agentId, next, agent.role ?? "")} />}
           </View>
           <View style={[st.actions, narrow && st.actionsNarrow]}>
             <TextButton label="Chat" primary testID="chat-button" onPress={chat} />
-            <TextButton label="Automation runs" testID="runs-button" onPress={() => data.nav.openAutomationRuns(agentId)} />
+            {outside ? <TextButton label="Remove" testID="remove-button" onPress={remove} /> : <TextButton label="Automation runs" testID="runs-button" onPress={() => data.nav.openAutomationRuns(agentId)} />}
             <Tool icon="folder" label="Open folder" testID="folder-button" onPress={() => data.nav.openFolder(agent.folderId)} />
             {!noComputers && agent.hasComputer && data.agent.computerId ? <Tool icon="watch" label="Computer" testID="computer-button" onPress={() => data.nav.openComputer(data.agent.computerId ?? "")} /> : null}
             <Tool icon="more" label="More" testID="more-button" onPress={moreMenu} />
           </View>
         </View>
         {online ? null : <Text testID="agent-offline" style={st.offline}>Offline. Showing what this device keeps.</Text>}
+        {outside && agent.status === "asleep" ? <Text testID="agent-outside-offline" style={st.note}>{offlineLine(name)}</Text> : null}
         {summary ? (
           <View testID="agent-strip" accessibilityRole="summary" style={st.strip}>
             {collect(stats, (s) => (
@@ -159,6 +165,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
         <TabStrip tabs={strip} active={tab} onSelect={select} label={`${name}'s page`} />
         <View testID={`page-body-${tab}`} style={st.body}>
           <RightPaneDataProvider value={paneDataOf(data)}>
+            {tab === "activity" ? <ActivityTab agentId={agentId} call={data.call} clock={data.clock()} openChat={data.nav.openChat} /> : null}
             {tab === "chats" ? (summary ? <ChatsTab summary={summary} {...(window ? { window } : {})} /> : <View testID="chats-loading" accessibilityLabel="Loading" style={st.skStrip} />) : null}
             {tab === "memory" ? <MemoryTab deps={deps} spaceName={data.space.name} {...(window ? { window } : {})} /> : null}
             {tab === "files" ? <FilesTab deps={deps} folderId={agent.folderId} {...(window ? { window } : {})} /> : null}
@@ -173,7 +180,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   );
 }
 
-const TAB_TITLES: readonly string[] = TABS.map((x) => x.title);
+const TAB_TITLES: readonly string[] = [...TABS, OUTSIDE_TABS[0]!].map((x) => x.title);
 
 const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, alignItems: "center", backgroundColor: "var(--win)" as string },
@@ -194,6 +201,8 @@ const st = StyleSheet.create({
   actions: { flexDirection: "row", alignItems: "center", gap: 6 },
   actionsNarrow: { width: "100%" },
   offline: { paddingBottom: 6, fontSize: 11.5, color: "var(--ink-3)" as string },
+  note: { marginBottom: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string, backgroundColor: "var(--sunk)" as string },
+  outsideLine: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
   strip: { flexDirection: "row", flexWrap: "wrap", gap: 18, paddingVertical: 10, marginBottom: 6, borderTopWidth: 1, borderBottomWidth: 1, borderColor: "var(--line)" as string },
   stat: { minWidth: 92, gap: 1 },
   statValue: { fontSize: 18, lineHeight: 24, fontWeight: "600", color: "var(--ink)" as string },

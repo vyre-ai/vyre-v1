@@ -19,7 +19,8 @@ import { SidebarContent } from "../src/shell/sidebar/index.ts";
 import type { SidebarSlotApi } from "../src/shell/sidebar/index.ts";
 import { AllAgents, pickAgents } from "../src/places/chats/mounts/AllAgents.tsx";
 import type { AgentRow } from "../src/places/chats/mounts/AllAgents.tsx";
-import { ConnectOutsideAgent, DEFAULT_SCOPES, SCOPE_ROWS, createConnection, maskCommand, maskToken, minutesLeft } from "../src/places/chats/mounts/ConnectOutsideAgent.tsx";
+import { CONNECT_SUB, ConnectOutsideAgent, LOGIN_LINE, UNPROVEN } from "../src/places/chats/mounts/ConnectOutsideAgent.tsx";
+import type { ConnectProps } from "../src/places/chats/mounts/ConnectOutsideAgent.tsx";
 import { createGo, newKey, terminalData, wireConversation, wirePane, wireSidebar } from "../src/places/chats/mounts/data.ts";
 import { START, fromHash, step } from "../src/places/chats/mounts/route.ts";
 import type { Act, Shown } from "../src/places/chats/mounts/route.ts";
@@ -130,7 +131,7 @@ test("the channel menu: Connect an Outside Agent is on a channel's menu only, an
   const { openConnectOutsideAgent: _gone, ...bare } = nav;
   assert.deepEqual(connectEntries({ kind: "channel", channelId: CHANNEL, threadId: "t_rivera" }, bare), [], "nor where the shell has no sheet");
   const out = html(s, shown());
-  assert.ok(has(out, 'data-testid="connect-outside-agent"') && has(out, "rivera-matter") && has(out, "Create connection"));
+  assert.ok(has(out, 'data-testid="connect-outside-agent"') && has(out, CONNECT_SUB));
 });
 
 test("the Computer chip: the chip is in the composer bar and opens the agent's computer popup over the chat", async () => {
@@ -225,23 +226,17 @@ test("Waiting on: an agent that waits on background work says so in the thread a
   assert.deepEqual(waitsOf(runs).map((r) => r.id), ["d", "a"], "only waits that have not ended, newest first");
 });
 
-test("Connect an outside agent: the tool and what it may do, then the address, a masked one-time token and the command", async () => {
+test("Connect an outside agent: one link to copy, a line for Claude Code, and nothing to fill in", async () => {
   const s = createMountSample();
-  const sheet = clean(renderToStaticMarkup(<ConnectOutsideAgent screens={s.rt.screens} call={s.rt.call} newKey={() => "k1"} clock={s.rt.clock} channelId={CHANNEL} onClose={() => undefined} />));
-  assert.ok(has(sheet, 'role="dialog"') && has(sheet, "Connect an outside agent") && has(sheet, "#rivera-matter"));
-  for (const k of ["claude", "codex", "other"]) assert.ok(has(sheet, `data-testid="connect-kind-${k}"`), k);
-  assert.ok(has(sheet, 'role="radiogroup"') && has(sheet, 'aria-checked="true"'), "a tool is chosen");
-  assert.ok(has(sheet, "Never. Agents see handles, not values."), "the Vault is never offered");
-  assert.deepEqual(SCOPE_ROWS.map((r) => [r.key, r.lock]), [["read", "on"], ["post", "on"], ["readChangesets", "on"], ["writeBranch", "free"], ["vault", "off"]]);
-  assert.ok(has(sheet, 'data-testid="connect-create"') && !has(sheet, 'data-testid="connect-made"'), "nothing is made until Create connection");
-  const made = await createConnection(s.rt.call, { channelId: CHANNEL, kind: "codex", scopes: { ...DEFAULT_SCOPES, writeBranch: true }, key: "k1" });
-  assert.deepEqual(s.calls.map((c) => c.input), [{ channelId: CHANNEL, name: "Codex", scopes: { read: true, post: true, readChangesets: true, writeBranch: true }, idempotencyKey: "k1:codex:w" }]);
+  const sheet = clean(renderToStaticMarkup(<ConnectOutsideAgent call={s.rt.call as ConnectProps["call"]} onClose={() => undefined} />));
+  assert.ok(has(sheet, 'role="dialog"') && has(sheet, "Connect an outside agent") && has(sheet, CONNECT_SUB));
+  assert.ok(!has(sheet, "token") && !has(sheet, "Reveal") && !has(sheet, "scope"), "no token and no scope list");
+  assert.ok(has(sheet, 'data-testid="connect-done"'));
+  const link = await s.rt.call("mcp.connected.link", {}) as { url: string; claudeCode: string };
+  assert.match(link.claudeCode, /^claude mcp add --transport http vyre https?:\/\/\S+\/mcp$/, "the line the CLI test proves");
   assert.deepEqual(contractErrors(s, () => true), []);
-  assert.ok(made.runCommand.startsWith("codex mcp add vyre ") && made.runCommand.includes(made.oneTimeToken));
-  assert.equal(maskToken(made.oneTimeToken), `vyre_ot_${"•".repeat(24)}`);
-  assert.ok(!maskCommand(made.runCommand, made.oneTimeToken).includes(made.oneTimeToken), "the command hides the token until Reveal");
-  assert.equal(minutesLeft(s.rt.clock().now, made.expiresAt), 10);
-  assert.equal(minutesLeft(made.expiresAt + 1, made.expiresAt), 0);
+  assert.match(UNPROVEN, /have not been tested yet/);
+  assert.equal(LOGIN_LINE, "claude mcp login vyre");
 });
 
 /* ---------- the terminal ---------- */

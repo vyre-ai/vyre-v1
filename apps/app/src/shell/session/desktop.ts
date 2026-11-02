@@ -13,6 +13,8 @@ export type { DesktopDeepLink } from "../../../../../client/src/connection/deskt
 
 export type DesktopRoute =
   | { kind: "signin"; address: string }
+  /** An app outside Vyre asked to join a Space this computer is signed in to: the Allow sheet. Never a sign-in to an address a link named. */
+  | { kind: "allow"; address: string; request: string }
   | { kind: "pair"; address: string; code: string; /** a phone opened the pairing link in its browser */ phone?: true }
   | { kind: "join"; address: string; code: string; fingerprint: string };
 
@@ -107,6 +109,8 @@ async function verifyAndPersist(baseUrl: string, answer: unknown, expectedSpaceI
 /** Converts a validated native payload into a constrained existing session flow. */
 export function routeDesktopLink(link: DesktopDeepLink): DesktopRoute | null {
   const space = address(link.params["address"]);
+  const request = link.params["allow"];
+  if (link.action === "open" && space && typeof request === "string" && /^oar_[a-z0-9]{1,64}$/.test(request)) return { kind: "allow", address: space, request };
   if (link.action === "open" || link.action === "signin") return space ? { kind: "signin", address: space } : null;
   if (link.action === "pair") {
     const code = link.params["code"];
