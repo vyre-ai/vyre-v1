@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { fail } from "../../../host/src/routes/errors.ts";
 import { bad, denied, first, newId, num, parseJson, patchMeta, record, rowsOf, statements, str } from "../projections.ts";
 import type { Row, VaultCtx } from "../projections.ts";
-import { itemPut, live, openFields } from "./items.ts";
+import { live, openFields } from "./items.ts";
 import { ensureProviders, entry } from "./providers.ts";
 import type { CatalogEntry } from "./providers.ts";
 import { hostOf, touch } from "./use.ts";
@@ -111,11 +111,11 @@ function dropProvider(ctx: VaultCtx, providerId: string): void {
   ctx.emit("provider.removed", `entity/${providerId}`, { providerId }, { vis: "participants" });
 }
 
-const label = (ctx: VaultCtx, type: "vault_folder", id: string): Promise<unknown> => ctx.call("access.labels.set", { resource: { type, id }, label: "restricted" });
+const label = (ctx: VaultCtx, type: "vault_folder" | "vault_item", id: string): Promise<unknown> => ctx.call("access.labels.set", { resource: { type, id }, label: "restricted" });
 
 /**
  * The Restricted Shared folder the key lives in: the one it was kept in before, else a new one, made through the host so it is a resource at once and can be labelled. The label is set before the
- * value goes in, and the item inherits it.
+ * value goes in, and again on the item.
  */
 async function folderFor(ctx: VaultCtx, idem: string): Promise<string> {
   const was = first(ctx.db.all(`SELECT "folderId" FROM vault_space_key WHERE "id" = ?`, ROW));
@@ -145,11 +145,12 @@ export async function set(ctx: VaultCtx, input: { providerKey: string; apiKey: s
   const folderId = await folderFor(ctx, input.idempotencyKey);
   // the old item goes first, so the new one takes its name; the probe above already passed, so the put below is not expected to fail
   if (was) dropItem(ctx, str(was.item, "id"));
-  // put in this module, as providers.add does, so the value never travels through another call's input; the item is a resource of the Restricted folder when this call commits
-  const put = (await itemPut(ctx, {
+  // put through the host, as Talk's Space key is, so the item is a resource at once and takes its own Restricted label (a label on the folder alone does not keep a member's role out of it)
+  const put = (await ctx.call("vault.item.put", {
     folderId, name: `${def.name} for everyone`, kind: "api_key", fields: [{ key: "api_key", value, secret: true }], spaceOnly: true, idempotencyKey: `${input.idempotencyKey}:item`,
-  })) as unknown as { item: { id: string } };
+  })) as { item: { id: string } };
   const itemId = String(put.item.id);
+  await label(ctx, "vault_item", itemId);
   const providerId = newId("prv", ctx.now());
   ctx.db.run(`INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     providerId, def.key, "api_key", "shared", ctx.principal.id, itemId, 1, "ok", ctx.now(), null);

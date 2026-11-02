@@ -31,6 +31,8 @@ function space(): { h: Harness; probes: Json[] } {
   return { h, probes };
 }
 const done = (h: Harness): void => { u.configureVault(null); h.cleanup(); };
+/** Everything the module wrote down or sent, but the one put that hands the value to the Vault (vault.item.put, which seals it). */
+const outsideThePut = (h: Harness): string => JSON.stringify([(h.ctx.db as unknown as { dump(): string }).dump(), h.emitted, h.called.filter((c) => c.cap !== "vault.item.put"), h.logs]);
 
 test("an admin sets OpenCode Go for everyone: checked first, kept Restricted, and the models it unlocks are shown", async () => {
   const { h, probes } = space();
@@ -42,8 +44,8 @@ test("an admin sets OpenCode Go for everyone: checked first, kept Restricted, an
   const item = h.rows(`SELECT * FROM vault_meta WHERE "folderId" = ?`, folder.id)[0]!;
   assert.deepEqual([folder.scope, item.scope, item.kind, item.spaceOnly], ["shared", "shared", "api_key", 1]);
   assert.equal(h.labels.get(`vault_folder/${String(folder.id)}`), "restricted");
-  assert.equal(h.calls("vault.item.put").length, 0, "the value is put in this module, never passed through another call");
-  assert.ok(!h.everything().includes(KEY), "the key is sealed in the item, nowhere else: no row, event, call or log");
+  assert.equal(h.labels.get(`vault_item/${String(item.id)}`), "restricted");
+  assert.ok(!outsideThePut(h).includes(KEY), "the key is sealed in the item, nowhere else: no row, event, other call or log");
   done(h);
 });
 
@@ -113,7 +115,7 @@ test("the engine's use answers the handle, never the value, and leaves an audit 
   assert.match(String(ev.payload.purpose), new RegExp(MAYA));
   assert.equal(await refusedWith(sk.use(h.ctx, { handle: "#Some_Other_Key" })), "validation.not_found", "only the Space AI key goes this way");
   Object.assign(h.ctx, { actingFor: undefined });
-  assert.ok(!h.everything().includes(KEY));
+  assert.ok(!outsideThePut(h).includes(KEY));
   done(h);
 });
 
