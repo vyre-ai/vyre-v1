@@ -36,7 +36,12 @@ const providerRow = t.obj({
   usage: t.obj({ tokens: t.int({ minimum: 0 }), costCents: t.int({ minimum: 0 }), periodStart: t.ts() }),
   engine: t.str({ examples: ['claude-code'] }), spaceMayUse: t.bool(), state: t.enm('ok', 'needs_sign_in', 'failing'),
   address: t.opt(t.str({ description: 'The address a local model or custom endpoint is reached at' })), keyless: t.opt(t.bool()),
+  spaceKey: t.opt(t.bool()),
 });
+const spaceKeyRow = {
+  set: t.bool(), providerKey: t.opt(t.str({ examples: ['opencode-go'] })), name: t.opt(t.str({ examples: ['OpenCode Go'] })), providerId: t.opt(t.id('prv')),
+  models: t.arr(t.str({ examples: ['glm-5.3'] })), state: t.opt(t.enm('ok', 'failing')), setBy: t.opt(id.user), setAt: t.opt(t.ts()), checkedAt: t.opt(t.ts()), mayManage: t.bool(),
+};
 const customEndpoint = t.obj({ key: t.str({ examples: ['custom-acme-gateway'] }), name: t.str(), base: t.str(), keyless: t.bool(), models: t.arr(t.str()), connected: t.int({ minimum: 0 }) });
 const exportRow = t.obj({ id: t.id('vex'), folderId: id.vaultFolder, by: id.user, expiresAt: t.ts(), pulled: t.bool() });
 const exportPolicy = t.obj({ exportRoles: t.arr(t.str()), pullExpiryMax: t.enm('1h', '1d', '7d'), blockRestrictedExport: t.lit(true), revealNeedsReason: t.bool() });
@@ -205,6 +210,20 @@ export default defineManifest({
     read('providers.custom_list', 'The custom OpenAI-compatible endpoints this Space registered', { ...V, in: {}, out: { endpoints: t.arr(customEndpoint) }, tool: 'vault' }),
     write('providers.custom_remove', 'Remove a custom endpoint I registered, and my connections to it', {
       ...V, in: { key: t.str() }, out: ok, emits: ['provider.removed', 'vault.item_deleted'], audit: 'always', gate: { act: 'delete', when: "actor.kind != 'person'" }, tool: 'vault', offline: 'online', errors: ['validation.precondition_failed'],
+    }),
+    // ---- the Space AI key: one API key an owner or admin sets for everyone. It sits in a Restricted Shared folder, so no member, agent or process can read, fill or export it; the engine alone uses it for turns.
+    read('providers.space_key.get', 'The Space AI key for the Space: whether one is set, its provider and the models it unlocks (read live from the provider and kept for a while). Never the key', {
+      in: { refresh: t.opt(t.bool()) }, out: spaceKeyRow, level: 'member', offline: 'online',
+    }),
+    write('providers.space_key.set', 'An owner or admin sets or replaces the Space AI key: it is checked with the provider at once (its model list), then kept in a Restricted Shared folder. A person does this, never an agent', {
+      idem: 'key', in: { providerKey: t.str({ examples: ['opencode-go'] }), apiKey: t.str() }, out: spaceKeyRow, perm: 'policy.manage', agent: false, audit: 'always', offline: 'online',
+      emits: ['provider.added', 'provider.removed', 'vault.item_created', 'vault.item_deleted', 'vault.folder_created'], errors: ['provider.auth_failed', 'provider.unavailable'],
+    }),
+    write('providers.space_key.remove', 'Remove the Space AI key; people with their own accounts keep working', {
+      in: {}, out: spaceKeyRow, perm: 'policy.manage', gate: { act: 'delete', when: "actor.kind != 'person'" }, audit: 'always', offline: 'online', emits: ['provider.removed', 'vault.item_deleted'],
+    }),
+    write('providers.space_key.use', 'System: the engine asks to run one turn on the Space AI key for the person it acts for. Answers the handle, never the value; each use is an audit row', {
+      in: { handle: handleField }, out: { handle: id.handle, itemId: id.vaultItem }, level: 'member', audit: 'sensitive', offline: 'online', emits: ['vault.used'], errors: ['validation.not_found'],
     }),
     write('providers.remove', 'Remove a provider and its key or sign-in', { ...V, in: { providerId: t.id('prv') }, out: ok, emits: ['provider.removed', 'vault.item_deleted'], audit: 'always', gate: { act: 'delete', when: "actor.kind != 'person'" }, tool: 'vault', offline: 'online' }),
 
