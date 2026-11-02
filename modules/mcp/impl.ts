@@ -4,6 +4,7 @@
 import { CONNECTOR_CHAT, CONNECTOR_TOOLS, CREW_TOOLS, CRM_CHAT, CRM_TOOLS } from "../../lib/connector-chat.ts";
 import { createMcpServer } from "../../agent/src/mcp/server.ts";
 import { modePair } from "../../agent/src/tools/local.ts";
+import { recordWork, sessionWorkKey } from "../../agent/src/tools/work-cards.ts";
 import type { McpCaller, McpServer, McpServerDeps } from "../../agent/src/mcp/types.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
@@ -173,6 +174,8 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
       touchSession(o.db, caller.sessionId, now());
       // the call is done and on the audit log: a row that cannot be written must not turn its answer into an error
       if (caller.kind === "outside" && detail) { try { noteOutside(caller, tool, outcome, detail); } catch { /* the activity list misses one row */ } }
+      // a CLI engine's work shows under its reply as cards, as it does on an API driver: a task, a file, and a send waiting on a yes
+      else if (detail?.card && detail.threadId) recordWork(sessionWorkKey(detail.threadId, caller.principal.id), detail.card);
     },
     async bindThread(caller, threadId) {
       const read = await withChatMode(o, { ...caller, kind: "driver", threadId });

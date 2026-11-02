@@ -15,3 +15,4 @@
 - A member at the Console address gets one plain line: Console is for admins and owners.
 - Joining a Space names your device for you, so Continue is never stuck on an empty field.
 - A mention keeps the agent's whole name.
+- An agent on Claude, Codex or Grok now shows its work as cards under its reply, and a send waiting on a yes shows its Approve card in the chat.

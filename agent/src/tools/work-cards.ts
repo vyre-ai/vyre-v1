@@ -78,6 +78,8 @@ export function takeWork(turnId: string): WorkCard[] {
   WORK.delete(turnId);
   return turn ? [...turn.values()] : [];
 }
+/** A CLI engine calls tools through one long MCP session, which knows the chat and the agent and not the turn: its cards wait under this key for that agent's turn to end. */
+export const sessionWorkKey = (threadId: string, agentId: string): string => `session:${threadId}:${agentId}`;
 /** The link_card blocks for a turn's cards (the key stays out of the block). */
 export function workBlocks(turnId: string): { type: string; v: number; data: unknown }[] {
   return takeWork(turnId).slice(0, 12).map(({ key: _k, ...card }) => ({ type: "link_card", v: 1, data: card }));
