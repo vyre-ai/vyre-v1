@@ -133,3 +133,26 @@ test("the open tab keeps its width and the others give up room evenly, down to a
   assert.ok(eight < 200 && eight >= 112 && 200 + 7 * (eight + 2) <= 1000, `${eight}`);
   assert.equal(tabCap(600, 20), 112, "past that the strip scrolls, it never crushes a title");
 });
+
+test("a tab keeps its hover while the pointer is on its close button: hover is enter and leave of the tab, so moving onto the x does not end it", async () => {
+  const { installDom, mount, find } = await import("../testing/dom.ts");
+  const { createRoot } = await import("test-renderer");
+  const { act } = await import("react");
+  const restore = installDom();
+  try {
+    const root = await mount(createRoot, <TabStrip tabs={TABS} active="a" onClose={() => undefined} />);
+    const tab = find(root, "tab-b")!;
+    const close = (): { opacity?: number } => {
+      const s = find(root, "tab-close-b")!.props.style as unknown;
+      return Object.assign({}, ...([s].flat(Infinity) as object[]).filter(Boolean)) as { opacity?: number };
+    };
+    assert.equal(close().opacity, 0, "the x is hidden until the tab is hovered");
+    assert.equal(tab.props.onHoverOut, undefined, "no hover-out that a move onto the x would fire");
+    await act(async () => { (tab.props.onPointerEnter as () => void)(); });
+    assert.notEqual(close().opacity, 0, "hovering the tab shows its x");
+    await act(async () => { (find(root, "tab-close-b")!.props.onPointerEnter as (() => void) | undefined)?.(); });
+    assert.notEqual(close().opacity, 0, "still shown with the pointer on the x");
+    await act(async () => { (find(root, "tab-b")!.props.onPointerLeave as () => void)(); });
+    assert.equal(close().opacity, 0, "leaving the tab hides it again");
+  } finally { restore(); }
+});

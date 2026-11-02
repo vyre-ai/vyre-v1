@@ -378,8 +378,9 @@ function TabItem({ tab, on, tight, widest, dropTarget, canClose, only, nodeRef, 
       aria-label={name}
       testID={on ? `tab-${tab.key}-selected` : `tab-${tab.key}`}
       onPress={press}
-      onHoverIn={() => setOver(true)}
-      onHoverOut={() => setOver(false)}
+      // on the web the hover is pointerenter/pointerleave on the tab itself: react-native-web's hover ends when the pointer moves onto the nested close button, so the tab lost its hover
+      // (and the x hid itself) right as you reached for it; enter and leave do not fire for a move into a child
+      {...(Platform.OS === "web" ? {} : { onHoverIn: () => setOver(true), onHoverOut: () => setOver(false) })}
       onLayout={(event) => onLayout(event.nativeEvent.layout.x, event.nativeEvent.layout.width)}
       style={[styles.tab, { maxWidth: widest }, pinned ? styles.tabPinned : null, pinned && tight ? styles.tabTight : null, over && !on ? HOVER : null, on ? ACTIVE : null, dropTarget ? DROP : null]}
       {...trigger}
@@ -388,7 +389,8 @@ function TabItem({ tab, on, tight, widest, dropTarget, canClose, only, nodeRef, 
         tabIndex: on ? 0 : -1,
         onKeyDown: (event: EventLike) => { onKeyDown(event); (trigger["onKeyDown"] as ((e: unknown) => void) | undefined)?.(event); },
         onPointerDown: (event: EventLike) => { if (event.button === undefined || event.button === 0) onDragStart(); },
-        onPointerEnter: onDragOver,
+        onPointerEnter: () => { setOver(true); onDragOver(); },
+        onPointerLeave: () => setOver(false),
         onPointerUp: onDragEnd,
         onAuxClick: (event: EventLike) => {
           if (event.button === 1 && !pinned && canClose) {
