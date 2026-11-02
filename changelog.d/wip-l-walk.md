@@ -1,0 +1,1 @@
+- Agents on Claude, Codex and Grok can now call any tool they find with search. Before, a tool outside the common list was found and then refused with "No such tool", so an agent could not create a file.

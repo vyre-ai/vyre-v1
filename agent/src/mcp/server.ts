@@ -25,8 +25,8 @@ const SEARCH_LIMIT = 8;
 
 const INSTRUCTIONS =
   "Vyre tools. The list shows the common ones. Call tool_search with what you want to do to find the rest; the tools it returns can then be called. " +
-  "Every call runs as you acting for the person who connected you, with the access you both have and no more. Some actions wait for a person to approve them.";
-const OUTSIDE_INSTRUCTIONS = `${INSTRUCTIONS} You are a member of this Space. Call agents_next to take the next mention or task; it tells you the chat to work in, and what you do there shows in that chat. Call a tool that is not in your list with use_tool.`;
+  "Every call runs as you acting for the person who connected you, with the access you both have and no more. Some actions wait for a person to approve them. Call a tool that is not in your list with use_tool.";
+const OUTSIDE_INSTRUCTIONS = `${INSTRUCTIONS} You are a member of this Space. Call agents_next to take the next mention or task; it tells you the chat to work in, and what you do there shows in that chat.`;
 /** The tool a client that lists once uses for everything tool_search found: most MCP clients never list again in a session. */
 const USE_TOOL = "use_tool";
 const USE_TOOL_VIEW = { name: USE_TOOL, description: "Call a tool that tool_search found, by name.", inputSchema: { type: "object", properties: { name: { type: "string" }, arguments: { type: "object" } }, required: ["name"] }, annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true } };
@@ -143,7 +143,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     const out = [...set.listed, ...set.searchable.filter((t) => loaded.has(t.name))];
     return out.filter((t) => allowed(s, t));
   }
-  const toolViews = (s: Session): unknown[] => [...listTools(s).map(toolView), ...(s.caller.kind === "outside" ? [USE_TOOL_VIEW] : [])];
+  const toolViews = (s: Session): unknown[] => [...listTools(s).map(toolView), ...(s.caller.kind === "outside" || !s.ctx.thread.planMode ? [USE_TOOL_VIEW] : [])];
 
   /** The text a model reads. The same data also travels as structuredContent unless it had to be cut: a cut answer is never sent twice. */
   const textResult = (value: unknown, isError: boolean, structured?: unknown): Record<string, unknown> => {
@@ -158,7 +158,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     if (!p || typeof p.name !== "string" || p.name === "") return { invalid: "tools/call needs a tool name" };
     if (p.arguments !== undefined && (p.arguments === null || typeof p.arguments !== "object" || Array.isArray(p.arguments))) return { invalid: "arguments must be an object" };
     const args = (p.arguments ?? {}) as Record<string, unknown>;
-    if (p.name === USE_TOOL && s.caller.kind === "outside") return callTool(s, { name: args["name"], arguments: args["arguments"] ?? {} });
+    if (p.name === USE_TOOL) return callTool(s, { name: args["name"], arguments: args["arguments"] ?? {} });
     const t = deps.catalog.byName(p.name);
     if (!t) return { invalid: `Unknown tool: ${p.name}` };
     const traceId = s.ctx.trace?.traceId ?? hex(16);
