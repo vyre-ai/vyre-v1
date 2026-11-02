@@ -10,6 +10,8 @@ export interface StoredSession {
   marker: string;
   /** The username typed at sign-in or claim, kept so Settings can start the handle from it. Optional: other ways in (GitHub, single sign-on, a pair code) do not type one. */
   username?: string;
+  /** The person's name as they wrote it, kept so the lock screen can greet them with no Space to ask. */
+  displayName?: string;
   /** The sync epoch this device agreed with the server; absent until the first live hello. */
   syncEpoch?: number;
 }
@@ -18,7 +20,7 @@ export interface KeyValueStore { getItem(k: string): string | null; setItem(k: s
 export interface VerifiedSpace { id: string; marker: string }
 /** Optional continuity checks from local state; these are mismatch signals, not trust anchors. */
 export interface SpaceContinuityHint { id?: string; marker?: string }
-interface OpenedSession { def: Pick<SpaceDef, "spaceId">; me: { id: string }; close(): void }
+interface OpenedSession { def: Pick<SpaceDef, "spaceId">; me: { id: string; name?: string }; close(): void }
 
 /** `fingerprint` is the current anonymous display marker returned by the contract, never used to authenticate a Space. */
 export interface SignInOptions { name: string; fingerprint: string; password: boolean; github: boolean; sso: Array<{ key: string; title: string }>; secondFactorRequired: boolean }
@@ -87,7 +89,7 @@ export async function openVerifiedSession<T extends OpenedSession>({ baseUrl, to
   try {
     const actual = await getSpace();
     if (real.def.spaceId !== actual.id || (continuity?.id !== undefined && actual.id !== continuity.id) || (continuity?.marker !== undefined && actual.marker !== continuity.marker)) throw new Error("This Space no longer matches the session for this address. Check the address and try again.");
-    const stored: StoredSession = { baseUrl, token, def: real.def as SpaceDef, personId: real.me.id, marker: actual.marker, ...(username ? { username } : {}) };
+    const stored: StoredSession = { baseUrl, token, def: real.def as SpaceDef, personId: real.me.id, marker: actual.marker, ...(username ? { username } : {}), ...(real.me.name ? { displayName: real.me.name } : {}) };
     persist(stored);
     return stored;
   } finally {

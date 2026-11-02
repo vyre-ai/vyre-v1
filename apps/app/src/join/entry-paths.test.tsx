@@ -2,7 +2,8 @@
 // back to where it can be fixed, a failure is never raw text, and the first frame is the same quiet sheet for every path.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { act } from "react";
+import { act, useState } from "react";
+import type React from "react";
 import { renderToStaticMarkup, renderToString } from "react-dom/server";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../onboarding/test-dom.ts";
@@ -12,7 +13,10 @@ import { LockScreen, passwordKeyState, unlockWithPassword } from "../shell/sessi
 import { SessionGate } from "../shell/session/SessionGate.tsx";
 import { MANY_TRIES, OFFLINE_SPACE, TOO_MANY, WRONG_SIGN_IN, isMiss, signInLine } from "./failure.ts";
 import { readFileSync } from "node:fs";
-import { Button, JoinFrame, Opening } from "./kit.tsx";
+import { Button, FirstFrame, JoinFrame, Opening } from "./kit.tsx";
+import { withinStart } from "../shell/session/SessionGate.tsx";
+import { whenUsable } from "../startup/marks.ts";
+import { openVerifiedSession } from "../shell/session/stored.ts";
 import { initialState, reduce, valid } from "./logic.ts";
 import { JoinFlow } from "./JoinFlow.tsx";
 import type { JoinInvite } from "./logic.ts";
@@ -139,4 +143,105 @@ test("a control that is not ready yet is the quiet neutral everywhere, never a f
   const read = (f: string): string => readFileSync(new URL(f, import.meta.url), "utf8");
   assert.match(read("../onboarding/card-style.ts"), /off: \{ backgroundColor: "var\(--field\)"/);
   for (const f of ["OnboardingScreen", "ChromeCard", "ConnectAiCard", "FoldersCard", "InterviewCard", "PairPhoneCard", "SameAccountOffer", "SessionsCard"]) assert.match(read(`../onboarding/${f}.tsx`), /off: CARD\.off,\n\s+offText: CARD\.offText/, f);
+});
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+test("the first frame stays while something is opening and leaves as soon as nothing is, with no minimum: it can never add a wait", async () => {
+  installDom();
+  const show = { opening: true };
+  let set: (v: boolean) => void = () => undefined;
+  const Gate = (): React.ReactElement => { const [on, setOn] = useState(show.opening); set = setOn; return on ? <Opening /> : <span />; };
+  const root = await mount(createRoot, <><Gate /><FirstFrame /></>);
+  await act(async () => { await sleep(5); });
+  assert.ok(find(root as never, "first-frame"), "up while opening");
+  const left = Date.now();
+  await act(async () => { set(false); });
+  await act(async () => { await sleep(5); });
+  assert.ok(find(root as never, "first-frame"), "still there for the crossfade");
+  await act(async () => { await sleep(260); });
+  assert.equal(find(root as never, "first-frame"), null, "gone once the crossfade is done");
+  assert.ok(Date.now() - left < 700, "nothing waited for a timer of its own");
+});
+
+test("a page with nothing opening has no first frame to wait for", async () => {
+  installDom();
+  const root = await mount(createRoot, <><span /><FirstFrame /></>);
+  await act(async () => { await sleep(280); });
+  assert.equal(find(root as never, "first-frame"), null);
+});
+
+test("one screen handing over to the next inside the launch does not end the first frame", async () => {
+  installDom();
+  let set: (v: number) => void = () => undefined;
+  const Gate = (): React.ReactElement => { const [n, setN] = useState(0); set = setN; return <Opening key={n} testID={`opening-${n}`} />; };
+  const root = await mount(createRoot, <><Gate /><FirstFrame /></>);
+  await act(async () => { set(1); });
+  await act(async () => { await sleep(280); });
+  assert.ok(find(root as never, "first-frame"), "two Openings in a row are one wait");
+});
+
+test("the launch is the ground and one clean mark: no sheet, no tile, no halftone, no bar and no heading; only the Spark moves", () => {
+  const first = renderToStaticMarkup(<Opening />);
+  for (const gone of [/data-testid="join-panel"/, /data-testid="entry-run"/, /role="heading"/, /<rect/, /clipPath/]) assert.doesNotMatch(first, gone);
+  assert.equal(first.match(/<circle/g)?.length, 2, "the Spark and its halo, not a field of dots");
+  assert.equal(first.match(/<path/g)?.length, 1, "one V");
+  assert.match(first, /<circle[^>]*data-entry-halo/, "only the halo carries the animation; the V and the Spark are still");
+  assert.equal(first.match(/data-entry-halo/g)?.length, 1);
+  assert.ok(first.indexOf("data-entry-halo") < first.indexOf("<path"), "the halo is behind the V");
+  assert.match(first, /width="64"/);
+  const kit = readFileSync(new URL("./kit.tsx", import.meta.url), "utf8");
+  assert.match(kit, /\[data-entry-halo\]\{[^}]*animation:vyre-entry-bloom 2800ms ease-in-out 2\}/, "it blooms twice and rests");
+  assert.match(kit, /FIRST_LEAVE_MS = 220/);
+  assert.match(kit, /prefers-reduced-motion[^"]*\[data-entry-halo\][^"]*\[data-entry-glide\]\{transition:none/, "less motion means no bloom and no glide");
+});
+
+test("the lock sheet hugs what is on it, with no gap kept for a line that is not there", () => {
+  const empty = renderToStaticMarkup(<LockScreen name="Dana Wills" onUnlock={async () => undefined} onForgot={() => undefined} onSignOut={() => undefined} />);
+  assert.match(empty, /Welcome back, Dana Wills/);
+  assert.doesNotMatch(empty, /min-height:416px/);
+  assert.doesNotMatch(empty, /data-testid="lock-error"/);
+  assert.match(renderToStaticMarkup(<LockScreen name="" notice="Nope." onUnlock={async () => undefined} />), /data-testid="lock-error"/);
+});
+
+test("a session keeps the name as the person wrote it, for the lock screen", async () => {
+  const kept: unknown[] = [];
+  const open = async () => ({ def: { spaceId: "s" }, me: { id: "p", name: "Dana Wills" }, close: () => undefined });
+  const stored = await openVerifiedSession({ baseUrl: "http://x", token: "t", username: "dana", open, getSpace: async () => ({ id: "s", marker: "m" }), persist: (s) => kept.push(s) });
+  assert.equal(stored.displayName, "Dana Wills");
+  assert.equal(stored.username, "dana");
+});
+
+test("a Personal Space that never answers fails, so the launch lands on Try again; one that answers is not cut off", async () => {
+  await assert.rejects(withinStart(new Promise(() => undefined), 10), /did not start/);
+  assert.equal(await withinStart(Promise.resolve("up"), 10), "up");
+  await assert.rejects(withinStart(Promise.reject(new Error("no port")), 10), /no port/);
+});
+
+test("the first frame waits for the app to be usable, but only so long", async () => {
+  const g = globalThis as unknown as { addEventListener?: unknown };
+  const had = g.addEventListener;
+  const on = new Map<string, () => void>();
+  g.addEventListener = (t: string, f: () => void) => on.set(t, f);
+  try {
+    let done = false;
+    void whenUsable(10_000).then(() => { done = true; });
+    await sleep(1);
+    assert.equal(done, false);
+    on.get("vyre:usable")!();
+    await sleep(1);
+    assert.equal(done, true);
+    await whenUsable(5);
+  } finally { g.addEventListener = had; }
+});
+
+test("a slow start says so once: the hidden surface under the first frame stays quiet", async () => {
+  installDom();
+  const real = globalThis.setTimeout;
+  (globalThis as { setTimeout: unknown }).setTimeout = (f: () => void, ms: number) => real(f, ms === 4000 ? 5 : ms);
+  try {
+    const root = await mount(createRoot, <><Opening /><FirstFrame /></>);
+    await act(async () => { await sleep(20); });
+    assert.equal(JSON.stringify((root as unknown as { toJSON(): unknown }).toJSON()).match(/Still opening/g)?.length, 1);
+  } finally { (globalThis as { setTimeout: unknown }).setTimeout = real; }
 });
