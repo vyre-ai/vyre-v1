@@ -37,6 +37,20 @@ export const PROVIDER_TITLE: Readonly<Record<CompanyProvider, string>> = { googl
 /** Words that start this flow in chat. Tested against what people type; a miss only means Assistant reads the skill a turn later. */
 export const COMPANY_INTENT = /\b(connect|set ?up|hook ?up|link|add|turn on)\b.{0,40}\b(google workspace|workspace|microsoft 365|office 365|m365|o365|entra|azure ad|company|our (mail|email|calendar|drive|onedrive|sharepoint)|sso|single sign[- ]on|company login|space[- ]wide login)\b|\bsign in with (google|microsoft)\b/i;
 
+const slug = (heading: string): string => heading.toLowerCase().replace(/[^a-z0-9 -]/g, "").trim().replace(/\s+/g, "-");
+
+/** One section of a guide, ready for the chat's markdown: a table reads as lines, because that renderer has no tables. Null when the section is not there. */
+export function docSection(page: string, section: string): string | null {
+  const parts = page.split(/^(?=## )/m);
+  const hit = parts.find((p) => p.startsWith("## ") && slug(p.split("\n", 1)[0]!.slice(3)) === section);
+  if (!hit) return null;
+  return hit.split("\n").slice(1).flatMap((line) => {
+    if (/^\|[\s:|-]+\|$/.test(line)) return [];
+    if (!line.startsWith("|")) return [line];
+    return [`- ${line.split("|").slice(1, -1).map((c) => c.trim()).filter(Boolean).join(": ")}`];
+  }).join("\n").trim();
+}
+
 /** The one next thing, as the server reports it: the first step not done. */
 export function nextStep(provider: CompanyProvider, done: ReadonlySet<StepId>): FlowStep | null {
   return FLOW_STEPS[provider].find((s) => !done.has(s.id) && s.optional !== true) ?? null;

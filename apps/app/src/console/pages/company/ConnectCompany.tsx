@@ -1,14 +1,13 @@
 // Connect your company: one screen that leads, a step at a time, for Google Workspace or Microsoft 365. It shows only what to do now, with a link to the right page at the provider, copy buttons and the section of the guide
 // that explains it. A key goes straight from here to the Vault, is checked at once, and the next step waits for the check. company.status holds where this stands, so it resumes wherever it is opened; Assistant runs the same
 // steps through the same capabilities.
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { CSSProperties, ReactElement, ReactNode } from "react";
 import { createElement } from "react";
 import { Linking, Platform, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { MarkdownBlocks, parseChunk } from "../../../../../../ui/src/stream/index.ts";
-import { DOC_PAGE } from "../../../../../../lib/company-flow.ts";
 import type { StepId } from "../../../../../../lib/company-flow.ts";
 import { useConsoleData } from "../../shell/data.tsx";
 import { Group, Section } from "../../shell/ui.tsx";
@@ -18,7 +17,7 @@ import { GOOGLE_HANDLE, GOOGLE_LINKS, MICROSOFT_HANDLE, MICROSOFT_LINKS, looksLi
 import { Banner, Bullets, CodeBlock, CopyRow, Directory, Members, OpenLink, Para, PasteBox, Step, StepsCard } from "../suite/parts.tsx";
 import type { DirPerson, Invited, StepState } from "../suite/parts.tsx";
 import { memberToggle, storeInVault } from "../suite/flow.ts";
-import { connectLine, dataLine, docSection, readPasted } from "./flow.ts";
+import { connectLine, dataLine, readPasted } from "./flow.ts";
 import type { Provider } from "./flow.ts";
 
 type Status = CapMap["company.status"]["out"];
@@ -29,17 +28,14 @@ const OAUTH_CLIENT = "https://console.cloud.google.com/auth/clients/create";
 const withProject = (url: string, who: string | undefined): string => { const p = /@([^.]+)\.iam\.gserviceaccount\.com$/.exec(who ?? "")?.[1]; return p ? `${url}?project=${p}` : url; };
 
 /** The guide for this step, opened in place. The words are the shipped doc itself, so the two cannot differ. */
-function Guide({ page, section }: { page: string; section: string }): ReactElement {
-  const [text, setText] = useState<string | null>(null);
+function Guide({ provider, section }: { provider: Provider; section: string }): ReactElement {
   const [open, setOpen] = useState(false);
-  useEffect(() => {
-    if (!open || text !== null) return;
-    void fetch(`/docs/${page}.md`).then((r) => (r.ok ? r.text() : Promise.reject(new Error("no doc")))).then((t) => setText(docSection(t, section) ?? ""), () => setText(""));
-  }, [open, text, page, section]);
+  const guide = useRead<CapMap["company.guide"]["out"]>("company.guide", { provider, section }, { enabled: open });
+  const text = guide.data?.text;
   return <View style={{ marginTop: 4 }}>
     <Text accessibilityRole="button" testID={`guide-${section}`} onPress={() => setOpen((v) => !v)} style={{ fontSize: 13, color: "var(--accent)" as string }}>{open ? "Hide the guide" : "Read the guide for this step"}</Text>
     {open && text ? <View style={{ marginTop: 8 }}><MarkdownBlocks blocks={parseChunk(text, 0)} /></View> : null}
-    {open && text === "" ? <Note>The guide could not be opened. It is also in the docs folder of the release.</Note> : null}
+    {open && guide.error ? <Note>The guide could not be opened. It is also in the docs folder of the release.</Note> : null}
   </View>;
 }
 
@@ -65,11 +61,12 @@ export function ConnectCompanyPage(): ReactElement {
   return <View testID="company-page">
     <Banner summary={s.connected ? { tone: "ok", title: `${s.title} is connected`, line: s.lastSweep ?? connectLine(s.mapped ?? 0, s.excluded?.length ?? 0, s.data!) } : { tone: "ok", title: `Connecting ${s.title}`, line: now ? `Next: ${now.title}.` : "Everything is ready." }} right={s.connected ? <Button label="Disconnect" danger disabled={act.busy} testID="company-disconnect" onPress={() => { void act.run("company.disconnect", {}, "Every sync has stopped. What already came in stays with its owner."); }} /> : undefined} />
     <StepsCard>
+      {/* ui-rows-lint: not a list (numbered steps of one flow, each holding a form, not rows of things to open) */}
       {steps.map((step, i) => {
         const state = stateOf(step.id);
         const open = state === "next" || (step.id === "signin_require" && state !== "done" && steps.find((x) => x.id === "signin_try")?.done === true);
         return <Step key={step.id} n={i + 1} title={step.title} state={state} testID={`company-step-${step.id}`}>
-          {open ? <><Body id={step.id as StepId} s={s} provider={provider} refresh={status.refresh} /><Guide page={DOC_PAGE[provider]} section={step.doc} /></> : null}
+          {open ? <><Body id={step.id as StepId} s={s} provider={provider} refresh={status.refresh} /><Guide provider={provider} section={step.doc} /></> : null}
         </Step>;
       })}
     </StepsCard>

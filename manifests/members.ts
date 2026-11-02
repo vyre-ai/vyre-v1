@@ -96,6 +96,9 @@ export default defineManifest({
       read('company.script', 'The one paste that does the provider\'s side: which shell to open and the script. It holds no secret; the admin runs it under their own account', {
         in: { provider: companyProvider }, out: { shell: t.str(), url: t.str(), script: t.str() }, perm: 'connectors.manage', tool: 'engineer',
       }),
+      read('company.guide', 'The guide for a step of Connect your company, or all of it: the doc page itself', {
+        in: { provider: companyProvider, section: t.opt(t.str()) }, out: { text: t.str() }, perm: 'connectors.manage', tool: 'engineer', errors: ['validation.not_found'],
+      }),
       write('company.check', 'Prove the key now in the Vault works, with no person involved. Answers what is wrong in plain words, or who it is; never the key. A key that works is remembered', {
         in: {}, out: { ok: t.bool(), problem: t.opt(t.str()), clientId: t.opt(t.str()), who: t.opt(t.str()), tenantId: t.opt(t.str()), credential: t.opt(t.enm('certificate', 'secret')) }, perm: 'connectors.manage', audit: 'always', tool: 'engineer', errors: ['validation.precondition_failed'],
       }),

@@ -121,6 +121,15 @@ test("a key is proved the moment it is in the Vault: what is wrong is said, what
   assert.equal(later.clientId, "1234567890", "the client ID to paste survives a restart");
 });
 
+test("the guide comes from the doc page, a section at a time", async () => {
+  const h = world();
+  const out = await companyHandlers["company.guide"](h.ctx, { provider: "google", section: "run-the-read-only-check" });
+  assert.match(out.text, /Press \*\*Run the check\*\*/);
+  contract("company.guide", out);
+  await assert.rejects(companyHandlers["company.guide"](h.ctx, { provider: "google", section: "nope" }), /no such section/);
+  assert.match((await companyHandlers["company.guide"](h.ctx, { provider: "microsoft" })).text, /^# Connect Microsoft 365/);
+});
+
 test("the probe answers in one line a person can act on", async () => {
   const h = world({ ...google, "google.dwd.probe": { ok: false, scopesMissing: ["https://www.googleapis.com/auth/calendar"] } });
   await companyHandlers["company.start"](h.ctx, { provider: "google" });
@@ -132,7 +141,7 @@ test("the probe answers in one line a person can act on", async () => {
 
 test("the capabilities declare what the rules need, and none takes a secret", () => {
   const caps = registry.capabilities.filter((c) => c.name.startsWith("company."));
-  assert.equal(caps.length, 10);
+  assert.equal(caps.length, 11);
   for (const c of caps) assert.ok(!/secret|password|private_key/i.test(JSON.stringify(c.input)), c.name);
   for (const name of ["company.connect", "company.disconnect"]) assert.equal(caps.find((c) => c.name === name)?.gate?.act, "connection_change");
 });

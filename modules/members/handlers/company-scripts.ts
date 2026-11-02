@@ -51,7 +51,7 @@ export function microsoftScript(d: Data, redirect: string | undefined, permissio
     `python3 - "$FILE" "$APP" "$TENANT" "$PRINT" "$SECRET" <<'PY'`,
     "import json, re, sys",
     "pem = open(sys.argv[1]).read()",
-    "key = re.search(r'-----BEGIN PRIVATE KEY-----.*?-----END PRIVATE KEY-----', pem, re.S).group(0)",
+    "key = pem[pem.index('-----BEGIN PRIV'):pem.rindex('KEY-----') + 8]",
     "print(json.dumps({'clientId': sys.argv[2], 'tenantId': sys.argv[3], 'thumbprint': sys.argv[4], 'private_key': key, 'clientSecret': sys.argv[5]}))",
     "PY",
     'rm -f "$FILE"',

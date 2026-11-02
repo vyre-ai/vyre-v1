@@ -2,9 +2,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { DOC_PAGE, FLOW_STEPS } from "../lib/company-flow.ts";
+import { DOC_PAGE, FLOW_STEPS, docSection } from "../lib/company-flow.ts";
 import type { CompanyProvider } from "../lib/company-flow.ts";
-import { docSection } from "../apps/app/src/console/pages/company/flow.ts";
 import { DATA_SCOPES, DIRECTORY_SCOPE } from "../modules/google/projections.ts";
 import { DATA_PERMISSIONS, EXCHANGE_ROLES } from "../modules/microsoft/projections.ts";
 
@@ -26,7 +25,7 @@ for (const provider of ["google", "microsoft"] as CompanyProvider[]) {
     }
   });
 
-  test(`${provider}: the copy that ships in the app is the doc`, () => assert.equal(read(`apps/app/public/docs/${page}.md`), doc));
+  test(`${provider}: the copy that ships with the Space is the doc`, () => assert.equal(read(`modules/members/guides/${page}.md`), doc));
 
   test(`${provider}: the guide has no em dash and no section sign`, () => { assert.ok(!doc.includes("—")); assert.ok(!doc.includes("§")); });
 }

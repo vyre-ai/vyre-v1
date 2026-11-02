@@ -22,20 +22,6 @@ export function readPasted(provider: Provider, text: string, hand: { tenantId: s
   return made.ok ? { ok: true, value: { kind: "microsoft", text: made.value, clientId: hand.clientId.trim(), tenantId: hand.tenantId.trim() } } : made;
 }
 
-const slug = (heading: string): string => heading.toLowerCase().replace(/[^a-z0-9 -]/g, "").trim().replace(/\s+/g, "-");
-
-/** One section of a guide, ready for the chat's markdown: a table reads as lines, because that renderer has no tables. Null when the section is not there. */
-export function docSection(page: string, section: string): string | null {
-  const parts = page.split(/^(?=## )/m);
-  const hit = parts.find((p) => p.startsWith("## ") && slug(p.split("\n", 1)[0]!.slice(3)) === section);
-  if (!hit) return null;
-  return hit.split("\n").slice(1).flatMap((line) => {
-    if (/^\|[\s:|-]+\|$/.test(line)) return [];
-    if (!line.startsWith("|")) return [line];
-    return [`- ${line.split("|").slice(1, -1).map((c) => c.trim()).filter(Boolean).join(": ")}`];
-  }).join("\n").trim();
-}
-
 export const dataLine = (d: { mail: boolean; calendar: boolean; files: boolean }): string => {
   const on = [d.mail ? "Mail" : "", d.calendar ? "Calendar" : "", d.files ? "Files" : ""].filter(Boolean);
   return on.length === 3 ? "Mail, Calendar and Files" : on.join(" and ");

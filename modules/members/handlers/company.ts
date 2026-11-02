@@ -1,7 +1,8 @@
 // Connect your company (company.*): one flow for Google Workspace or Microsoft 365. It lives in members because sign-in and the directory are what it starts from. The connectors, the sign-in policy and the Vault already hold the truth, so this holds only where the flow stands (migrations/0001_company.sql) and reads
 // the rest live. That is why it survives a restart and never asks for what it knows. Every change goes through the capability that owns it; the two that change the company declare connection_change, so a person with the
 // right role decides. Secrets never come here: the person's own screen puts them in the Vault, and this module only ever names a handle.
-import { DOC_PAGE, FLOW_STEPS, PROVIDER_TITLE, nextStep } from "../../../lib/company-flow.ts";
+import { readFileSync } from "node:fs";
+import { DOC_PAGE, FLOW_STEPS, PROVIDER_TITLE, docSection, nextStep } from "../../../lib/company-flow.ts";
 import type { CompanyProvider, StepId } from "../../../lib/company-flow.ts";
 import { GOOGLE_KEY_HANDLE, MICROSOFT_KEY_HANDLE } from "../../../lib/company-keys.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
@@ -85,6 +86,14 @@ export async function companyStart(ctx: Ctx, input: { provider: CompanyProvider;
   if (f) ctx.db.run(`UPDATE members_company_flow SET provider = ?, "dataMail" = ?, "dataCalendar" = ?, "dataFiles" = ? WHERE id = ?`, input.provider, data.mail ? 1 : 0, data.calendar ? 1 : 0, data.files ? 1 : 0, FLOW);
   else ctx.db.run(`INSERT INTO members_company_flow (id, provider, "dataMail", "dataCalendar", "dataFiles", "startedBy", "startedAt") VALUES (?, ?, ?, ?, ?, ?, ?)`, FLOW, input.provider, data.mail ? 1 : 0, data.calendar ? 1 : 0, data.files ? 1 : 0, ctx.actingFor ?? ctx.principal.id, ctx.now());
   return statusOf(ctx);
+}
+
+/** The guide for a step, or all of it: the doc page itself, so the screen, Assistant and the docs say the same thing. */
+export async function companyGuide(ctx: Ctx, input: { provider: CompanyProvider; section?: string }) {
+  const page = readFileSync(new URL(`../guides/${DOC_PAGE[input.provider]}.md`, import.meta.url), "utf8");
+  const text = input.section === undefined ? page : docSection(page, input.section);
+  if (text === null) throw fail("validation.not_found", ctx.trace.traceId, { message: "There is no such section in the guide." });
+  return { text };
 }
 
 export async function companyScript(ctx: Ctx, input: { provider: CompanyProvider }) {
@@ -193,6 +202,7 @@ export const companyHandlers = {
   "company.status": (ctx: Ctx) => companyStatus(ctx),
   "company.start": (ctx: Ctx, i: Parameters<typeof companyStart>[1]) => companyStart(ctx, i),
   "company.script": (ctx: Ctx, i: Parameters<typeof companyScript>[1]) => companyScript(ctx, i),
+  "company.guide": (ctx: Ctx, i: Parameters<typeof companyGuide>[1]) => companyGuide(ctx, i),
   "company.check": (ctx: Ctx) => companyCheck(ctx),
   "company.people_done": (ctx: Ctx) => companyPeopleDone(ctx),
   "company.probe": (ctx: Ctx) => companyProbe(ctx),

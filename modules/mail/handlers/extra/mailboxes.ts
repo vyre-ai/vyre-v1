@@ -284,7 +284,7 @@ export async function autoConnectMembers(ctx: MailCtx, input: AutoConnectIn): Pr
       id, "personal", address, address.split("@")[0] || address, m.userId, null, input.provider, "private", "pending", null, null, 0, 1, now, null,
     );
     out.created += 1;
-    ctx.emit("mailbox.connected", `mailbox/${id}`, { mailboxId: id, memberId: m.userId, provider: input.provider, auto: true }, { vis: "participants" });
+    ctx.emit("mailbox.connected", `mailbox/${id}`, { mailboxId: id, memberId: m.userId, provider: input.provider, auto: true, private: true }, { vis: "participants" });   // a person's own mailbox: only they reach it, and a delegated connection never widens that
     out.notified += 1;
   }
   rememberIdem(ctx, input.idempotencyKey, "autoconnect", JSON.stringify(out));

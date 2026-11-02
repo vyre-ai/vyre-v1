@@ -1,11 +1,11 @@
 // The Gate hook against the real rule: connection_change and signin_change stop from a chat in Auto, an agent with an Always allow, a task, and a step of an automation that runs as its owner. A person pressing the button is the one thing that goes.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createGateHook } from "../src/daemon/gate-hook.ts";
-import { harness } from "../../modules/gate/fixtures/db.ts";
-import { effectiveRule } from "../../modules/gate/impl.ts";
-import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
-import { registry } from "../../generated/registry.ts";
+import { createGateHook } from "../host/src/daemon/gate-hook.ts";
+import { harness } from "../modules/gate/fixtures/db.ts";
+import { effectiveRule } from "../modules/gate/impl.ts";
+import type { CapabilityDef } from "../packages/contracts/src/types.ts";
+import { registry } from "../generated/registry.ts";
 
 const gated = (act: string) => ({ name: "x.change", v: 1, gate: { act, when: "actor.kind != 'person'" } }) as unknown as CapabilityDef;
 const step = { automationId: "aut_1", nodeId: "n", defHash: "h" };
