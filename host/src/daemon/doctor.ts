@@ -1,8 +1,9 @@
-// `vyre-server doctor` (ARCH 7.10): works with the gateway down. It reads the data directory and nothing else: events.db opened read-only (hash chain re-verified), logs.db opened read-only,
+// `vyre-server doctor` (ARCH 7.10): works with the gateway down. It reads the data directory and nothing else: events.db opened read-only (hash chain re-verified), logs.db opened read-only, modules.db read-only for the Space's own domain (its Caddy route is checked),
 // the pid file, the disk and the machine. It never starts, signals or writes anything, so it is safe to run on a broken server. Keys and next steps match the health module's checks
 // (health.doctor answers the same findings from inside the gateway).
 import fs from "node:fs";
 import { genesis, hashOf } from "../../../kernel/src/log/index.ts";
+import { hostOf, ingressHostOf, routesOf } from "../caddy/routes.ts";
 import type { Envelope } from "../../../kernel/src/log/index.ts";
 import { nodePlatform } from "../platform/index.ts";
 import type { Platform } from "../platform/index.ts";
@@ -33,6 +34,7 @@ const NEXT = {
   events: "Restore from the last backup (Console, Data, Backups), then run vyre-server doctor again.",
   docker: "Start Docker or Colima; sites and agent computers need it.",
   caddy: "Restart Caddy in Console, Infrastructure, Services.",
+  ingress: "vyred writes the route within a minute of starting once Caddy answers. If it stays missing, run vyre-server restart and read vyre-server logs vyred.",
   logs: "Read them with vyre logs --level error.",
 } as const;
 
@@ -94,6 +96,38 @@ function logsFinding(file: string, now: number): Finding {
   }
 }
 
+/** The own-domain address the Space recorded in modules.db (network_config), or null for a relay Space, a Space with no address, or no modules.db yet. Read-only, like the rest. */
+function ownDomain(file: string): string | null {
+  if (!fs.existsSync(file)) return null;
+  try {
+    const db = openDb(file, fs.existsSync(`${file}-wal`) ? { readOnly: true } : { immutable: true });
+    try {
+      const row = db.all("SELECT address, mode FROM network_config WHERE id = 1")[0] as { address?: string; mode?: string } | undefined;
+      return row?.mode === "own_domain" ? ingressHostOf(row.address) : null;
+    } finally { db.close(); }
+  } catch { return null; }   // no network table yet: nothing to check
+}
+
+/** A Space with its own domain needs its route in Caddy, or https://<domain>/ refuses connections (the claim link included). */
+async function ingressFinding(host: string, f: FetchFn | null, adminUrl: string): Promise<Finding> {
+  const key = "host.ingress";
+  if (!f) return { key, state: "degraded", detail: `Could not check the route for ${host}: no HTTP client to reach the Caddy admin API.`, next: NEXT.ingress };
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 3000);
+    timer.unref();
+    const r = await f(`${adminUrl.replace(/\/$/, "")}/config/`, { signal: ctl.signal, headers: { origin: new URL(adminUrl).origin } }).finally(() => clearTimeout(timer));
+    if (!r.ok) return { key, state: "degraded", detail: `Could not check the route for ${host}: Caddy admin answered ${r.status}.`, next: NEXT.caddy };
+    const text = (await r.text()).trim();
+    const config = text && text !== "null" ? (JSON.parse(text) as Record<string, unknown>) : undefined;
+    return routesOf(config).map(hostOf).includes(host)
+      ? { key, state: "healthy", detail: `Caddy routes ${host} to vyred.`, next: OK }
+      : { key, state: "down", detail: `Caddy has no route for ${host}, so https://${host}/ refuses connections.`, next: NEXT.ingress };
+  } catch {
+    return { key, state: "degraded", detail: `Could not check the route for ${host}: the Caddy admin API does not answer.`, next: NEXT.caddy };
+  }
+}
+
 export async function runDoctor(o: DoctorOptions): Promise<DoctorReport> {
   const platform = o.platform ?? nodePlatform();
   const now = o.now ?? Date.now;
@@ -112,6 +146,8 @@ export async function runDoctor(o: DoctorOptions): Promise<DoctorReport> {
     findings.push(finding("host.docker", await probes.docker(platform), NEXT.docker));
     const f = o.fetch === undefined ? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null) : o.fetch;
     findings.push(finding("host.caddy", f ? await probes.caddy(f, o.caddyAdmin ?? "http://127.0.0.1:2019", now) : { state: "down", detail: "No HTTP client to reach the Caddy admin API." }, NEXT.caddy));
+    const domain = ownDomain(paths.modules);
+    if (domain) findings.push(await ingressFinding(domain, f, o.caddyAdmin ?? "http://127.0.0.1:2019"));
   }
   findings.push(logsFinding(paths.logs, now()));
   return { ok: findings.every((x) => x.state === "healthy"), dataDir: o.dataDir, findings };

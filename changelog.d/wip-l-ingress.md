@@ -1,0 +1,4 @@
+- A server installed with `--domain` answers at its address. The Space never wrote its own route into Caddy unless someone changed the address in Console, so https://<domain>/ and the owner's claim link refused connections. vyred now writes the route at start, and puts it back within a minute if it goes missing. If Caddy is not up yet, vyred tries again a minute later.
+- `vyre doctor` reports a Space whose own domain has no route in Caddy, and says what to do next.
+- `vyre-server claim-link` prints the one-time link that claims a fresh Space. When the Space is still unclaimed, the installer's last lines tell the owner to run it. The link itself never goes into the installer's output.
+- Tests guard both rc.14 install failures. The first checks that each installer pins the v1 release key. The second checks that the server image's build context keeps every file the code reads, which the image lost when docs/ was excluded.

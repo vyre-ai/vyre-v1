@@ -1,5 +1,6 @@
 // @reads /modules/mcp/migrations/0001_init.sql
 // @reads /modules/mcp/migrations/0002_oauth.sql
+// @reads /docs/frozen/agent-tools.md
 // Durable rows of the mcp module (sessions), the ports the host binds at boot, and the generated tool catalog the handlers read. Sign-in lives in oauth.ts.
 // Every statement names an mcp_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
 import { readFileSync } from "node:fs";

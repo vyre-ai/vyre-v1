@@ -565,6 +565,8 @@ finish() {
     fi
     case ":$PATH:" in *":$BIN_DIR:"*) ;; *) say "Add $BIN_DIR to your PATH to use the vyre-server command (for example: echo 'export PATH=\"$BIN_DIR:\$PATH\"' >> ~/.zshrc)." ;; esac
     say "The server starts when you log in, and Docker has to be open. A Mac that goes to sleep stops serving: in System Settings > Battery (or Energy), keep it awake when plugged in."
+    # the link itself is a credential and stays out of this output (it can end up in a provisioning log): the owner asks for it
+    if [ -f "$DATA_DIR/space/logs/claim-link.txt" ]; then say "To claim this Space as its owner, run: vyre-server claim-link and open the link it prints (once, within 24 hours)."; fi
     say "Go back to the Vyre app to finish setting up this server."
     say "Check it any time with: vyre-server doctor"
   fi
