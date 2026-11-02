@@ -17,24 +17,31 @@ export function ThreadsPage({ rt, nameOf, openChat }: { rt: ShellRuntime; nameOf
     return () => { live = false; };
   }, [rt]);
   return (
-    <ScrollView testID="threads-page" style={st.root} contentContainerStyle={st.content}>
-      <View style={st.col}>
-        <Text accessibilityRole="header" aria-level={1} style={st.title}>Threads</Text>
-        {rows !== null && rows.length === 0 ? <Text style={st.empty}>Threads you reply in or are mentioned in show here.</Text> : null}
+    <ScrollView testID="threads-page" style={LIST_PAGE.root} contentContainerStyle={LIST_PAGE.content}>
+      <View style={LIST_PAGE.col}>
+        <Text accessibilityRole="header" aria-level={1} style={LIST_PAGE.title}>Threads</Text>
+        <View style={LIST_PAGE.rows}>
+        {rows !== null && rows.length === 0 ? <Text style={LIST_PAGE.empty}>Threads you reply in or are mentioned in show here.</Text> : null}
         {(rows ?? []).map((t) => {
           const who = t.agents[0]?.agentId;
           return <Row key={t.threadId} id={`thread-${t.threadId}`} title={t.title ?? "Thread"} {...(t.replyCount !== undefined ? { note: `${t.replyCount} ${t.replyCount === 1 ? "reply" : "replies"}` } : {})} leading={who ? <View style={st.lead}><Avatar name={nameOf(who)} seedId={who} kind="agent" size={28} /></View> : null} onPress={() => openChat(t.threadId)} />;
         })}
+        </View>
       </View>
     </ScrollView>
   );
 }
 
-const st = StyleSheet.create({
+/** The pages at the top of Chats (Threads, Artifacts) sit in the column Tasks uses: 700 wide, the title 26 in and 34 down, the rows 16 in, so the three read as one family. */
+export const LIST_PAGE = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   content: { alignItems: "center", paddingHorizontal: 24, paddingTop: 34, paddingBottom: 40 },
-  col: { width: "100%", maxWidth: 660 },
-  title: { fontSize: 28, lineHeight: 34, fontWeight: "600", letterSpacing: -0.5, color: "var(--ink)" as string, marginBottom: 12 },
+  col: { width: "100%", maxWidth: 700 },
+  title: { fontSize: 28, lineHeight: 34, fontWeight: "600", letterSpacing: -0.5, color: "var(--ink)" as string, paddingHorizontal: 26, marginBottom: 14 },
+  rows: { paddingHorizontal: 16 },
+  empty: { fontSize: 14, color: "var(--ink-3)" as string, paddingHorizontal: 10 },
+});
+
+const st = StyleSheet.create({
   lead: { marginRight: 12 },
-  empty: { fontSize: 14, color: "var(--ink-3)" as string },
 });
