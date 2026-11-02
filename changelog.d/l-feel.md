@@ -1,1 +1,2 @@
 - Dragging a rail no longer selects the page, and the rail follows the pointer exactly, over an iframe or a terminal too.
+- A failed reply's card leaves once a retry works and the reply takes its own time; a retry that fails shows one card; Details shows what the engine said; a missing engine is named with the command that installs it.

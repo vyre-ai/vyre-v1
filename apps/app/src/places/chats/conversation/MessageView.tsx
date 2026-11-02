@@ -67,6 +67,8 @@ export interface MessageActions {
   answer(blockId: string, answer: unknown): void;
   approvePlan(planId: string): void;
   retryTurn(turnId: string): void;
+  /** The rows of Details on a failed turn, read from the turn when it opens. */
+  turnDetail?(turnId: string): Promise<[string, string][]>;
   errorNext(key: string, turnId?: string): void;
   /** True once the person has a working AI account (read after "Connect your AI"). Left out where the chat cannot tell. */
   accountReady?(): Promise<boolean>;
@@ -495,6 +497,14 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
 function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; actions: MessageActions }): ReactElement {
   const e = errorRow(block);
   const [open, setOpen] = useState(false);
+  const [detail, setDetail] = useState<[string, string][] | null>(null);
+  const [retried, setRetried] = useState(false);
+  useEffect(() => {
+    if (!open || detail !== null || e.turnId === "" || !actions.turnDetail) return undefined;
+    let live = true;
+    void actions.turnDetail(e.turnId).then((rows) => { if (live) setDetail(rows); }, () => undefined);
+    return () => { live = false; };
+  }, [open, detail, e.turnId, actions]);
   // A reply that could not start for lack of an AI account: once the person has used "Connect your AI" and an account works, a quiet line offers to send it again (one retry of that turn, the message is not posted twice).
   const noAccount = e.code === "no_account" && e.turnId !== "" && actions.accountReady !== undefined;
   const [asked, setAsked] = useState(false);
@@ -514,9 +524,9 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
       {e.cause ? <Text style={st.errCause}>{e.cause}</Text> : null}
       <View style={st.errActions}>
         {collect(e.next, (n) => <TextButton link key={n.key} label={n.label} testID={`err-next-${n.key}`} onPress={() => { if (n.key === "connect_ai") setAsked(true); actions.errorNext(n.key, e.turnId); }} />)}
-        {e.retryable && e.turnId ? <TextButton link label="Retry" testID="err-retry" onPress={() => actions.retryTurn(e.turnId)} /> : null}
+        {e.retryable && e.turnId && !retried ? <TextButton link label="Retry" testID="err-retry" onPress={() => { setRetried(true); actions.retryTurn(e.turnId); }} /> : null}
         <TextButton link label="Details" testID="err-what" onPress={() => setOpen((o) => !o)} />
-        <TextButton link label="Copy id" testID="err-trace" onPress={() => actions.copy(e.traceId)} />
+        <TextButton link label="Copy id" testID="err-trace" onPress={() => actions.copy(e.traceId || e.turnId)} />
         <TextButton link label="Report" testID="err-report" onPress={() => reportProblem({ label: reportLabel(e.message, e.traceId) })} />
       </View>
       {noAccount && ready && !resent ? (
@@ -527,7 +537,7 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
       ) : null}
       {open ? (
         <View testID="err-steps" style={st.errSteps}>
-          {collect(e.steps, ([k, v]) => <View key={k} style={st.kv}><Text style={st.kvK}>{k}</Text><Text style={st.kvV}>{v}</Text></View>)}
+          {collect(detail ?? e.steps, ([k, v]) => <View key={k} style={st.kv}><Text style={st.kvK}>{k}</Text><Text style={st.kvV}>{v}</Text></View>)}
         </View>
       ) : null}
     </View>

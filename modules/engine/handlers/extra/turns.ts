@@ -225,7 +225,7 @@ export async function turnFinish(
  */
 export async function turnRecord(
   ctx: EngineCtx,
-  input: { threadId: string; turnId: string; agentId: string; phase: "started" | "completed" | "failed" | "cancelled"; qseq: number; asker?: string; engine?: string; model?: string; accountRef?: string; tokensIn?: number; tokensOut?: number; costMicros?: number; code?: string },
+  input: { threadId: string; turnId: string; agentId: string; phase: "started" | "completed" | "failed" | "cancelled"; qseq: number; asker?: string; engine?: string; model?: string; accountRef?: string; tokensIn?: number; tokensOut?: number; costMicros?: number; code?: string; message?: string },
 ): Promise<{ turn: TurnOut }> {
   ensureExtra(ctx.db);
   for (const [field, v] of [["tokensIn", input.tokensIn], ["tokensOut", input.tokensOut], ["costMicros", input.costMicros]] as const) {
@@ -255,7 +255,7 @@ export async function turnRecord(
   if (input.phase === "started" || !isOpen(str(row["state"]))) return { turn: turnOf(row) };
 
   const tokensIn = input.tokensIn ?? num(row["tokens_in"]), tokensOut = input.tokensOut ?? num(row["tokens_out"]), costMicros = input.costMicros ?? num(row["cost_micros"]);
-  const error: ErrShape | undefined = input.phase === "failed" ? { code: input.code ?? "unknown", message: "The turn failed.", next: [], traceId: str(row["trace_id"]) } : undefined;
+  const error: ErrShape | undefined = input.phase === "failed" ? { code: input.code ?? "unknown", message: input.message ?? "The turn failed.", next: [], traceId: str(row["trace_id"]) } : undefined;
   ctx.db.run(
     "UPDATE engine_turns SET state = ?, ended_at = ?, tokens_in = ?, tokens_out = ?, cost_micros = ?, error = ?, engine = COALESCE(?, engine), model = COALESCE(?, model), account_ref = COALESCE(?, account_ref) WHERE turn_id = ?",
     input.phase, now, tokensIn, tokensOut, costMicros, error === undefined ? null : JSON.stringify(error), input.engine ?? null, input.model ?? null, input.accountRef ?? null, input.turnId,
@@ -270,7 +270,7 @@ export async function turnRecord(
       ctx.db.run("INSERT OR IGNORE INTO engine_review (turn_id, thread_id, agent_id, sampled_at, state) VALUES (?, ?, ?, ?, 'waiting')", input.turnId, threadId, agentId, now);
     }
   } else if (input.phase === "failed") {
-    ctx.emit("turn.failed", threadId, { turnId: input.turnId, threadId, agentId, code: input.code ?? "unknown", message: "The turn failed." });
+    ctx.emit("turn.failed", threadId, { turnId: input.turnId, threadId, agentId, code: input.code ?? "unknown", message: error?.message ?? "The turn failed." });
   } else {
     ctx.emit("turn.cancelled", threadId, { turnId: input.turnId, threadId, agentId, by: actorOf(ctx) });
   }
