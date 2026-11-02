@@ -31,7 +31,7 @@ const WORDS: Record<string, (who: string) => string> = {
 const BORN_MS = 2000;
 
 /** The history of a task as event lines of its thread. Fine detail (notes, followers, field edits) stays in the record's history. */
-export function activityOf(entries: readonly Entry[], threadId: string, nameOf: (id: string) => string): Message[] {
+export function activityOf(entries: readonly Entry[], threadId: string, nameOf: (id: string) => string, assigned?: string): Message[] {
   const out: Message[] = [];
   let madeAt = -BORN_MS;
   // tasks.history is newest first; two lines from one moment read in the order they happened
@@ -42,7 +42,9 @@ export function activityOf(entries: readonly Entry[], threadId: string, nameOf: 
     if (e.type === "assigned" && e.at - madeAt < BORN_MS) continue;
     const say = WORDS[e.type.replace(/^task\./, "").replace(/^transitioned:/, "")];
     if (!say) continue;
-    const body = `${say(nameOf(e.by))}${e.note ? `: ${e.note}` : ""}`;
+    // the host marks work as started when it wakes the one assigned: it is their start
+    const by = assigned && e.by.startsWith("svc_") && e.type === "transitioned:doing" ? assigned : e.by;
+    const body = `${say(nameOf(by))}${e.note ? `: ${e.note}` : ""}`;
     out.push({ messageId: `act:${e.eventId}`, threadId, threadSeq: 0, kind: "quiet", body, blocks: [], createdAt: e.at, author: { kind: "person", id: e.by } } as unknown as Message);
   }
   return out;

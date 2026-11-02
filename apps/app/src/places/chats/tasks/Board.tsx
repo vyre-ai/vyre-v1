@@ -26,7 +26,7 @@ const Card = memo(function Card({ row, env, drag }: { row: TaskRow; env: RowEnv;
     <View style={{ flex: 1 }} />
     <View style={st.foot}>
       <BatonMarks row={row} />
-      {row.key ? <Text numberOfLines={1} style={st.key}>{row.key}</Text> : null}
+      {row.key && !row.reviewer && !row.approver ? <Text numberOfLines={1} style={st.key}>{row.key}</Text> : null}
       <View style={{ flex: 1 }} />
       {due.text ? <Text numberOfLines={1} style={[st.due, due.late && st.late]}>{due.text}</Text> : null}
       <FaceButton who={h} name={env.nameOf(h.id)} size={20} onPress={() => env.openProfile(h)} />

@@ -90,6 +90,9 @@ export function useSidebarSlot(): SidebarSlotApi {
   return v;
 }
 
+/** The same, for a place that also mounts without the shell (a test, a sample mount). */
+export function useOptionalSidebarSlot(): SidebarSlotApi | null { return useContext(Ctx); }
+
 /** The place's side: put it inside the place. The shell draws it in the slot. */
 export function SidebarContent(props: { title: string; searchPlaceholder?: string; children: (query: string, slot: SidebarSlotApi) => ReactNode }): ReactElement | null {
   const reg = useContext(Reg);

@@ -41,6 +41,7 @@ import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
 import { START, fromHash, newestThread, step, workOf } from "./route.ts";
 import { WORKSPACE_MIN_W, Workspace } from "./Workspace.tsx";
+import { useOptionalSidebarSlot } from "../../../shell/sidebar/SidebarSlot.tsx";
 import { TasksPage } from "../tasks/TasksPage.tsx";
 import { TaskDetail } from "../tasks/TaskDetail.tsx";
 import type { Act, Shown } from "./route.ts";
@@ -103,6 +104,13 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
     // back on the Chats tab from Tasks or a task: the chat that was open
     else setShown((s) => (s.route.view === "tasks" || s.route.view === "task" ? lastChat.current : s));
   }, [hash]);
+  // a link to Tasks or a task on a phone goes to the page, not to the list before it
+  const sidebar = useOptionalSidebarSlot();
+  const slot = useRef(sidebar);
+  slot.current = sidebar;
+  const taskRoute = shown.route.view === "task" ? shown.route.taskId : shown.route.view === "tasks" ? "tasks" : "";
+  // after the effects of this commit: the slot resets its phone view in its own, which run after this one on a first mount. Only a new route opens it, so Back stays on the list.
+  useEffect(() => { if (taskRoute !== "") queueMicrotask(() => slot.current?.openBody()); }, [taskRoute]);
   const lastChat = useRef<Shown>(START);
   if (shown.route.view !== "tasks" && shown.route.view !== "task") lastChat.current = shown;
   // An Ask link names an agent and an object; the thread it opens is found or made, then shown as a chat.

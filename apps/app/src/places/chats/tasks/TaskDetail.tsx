@@ -98,7 +98,8 @@ export function TaskDetail({ rt, taskId, conversationFor, openTask, openAgent, o
 
   const conv = useMemo(() => (threadId ? conversationFor(threadId) : null), [conversationFor, threadId]);
   const entries = history.status === "ready" ? history.data.entries : NO_ENTRIES;
-  const events = useMemo((): readonly Message[] => (threadId ? activityOf(entries, threadId, nameOf) : []), [entries, threadId, nameOf]);
+  const assignedId = shown?.assigned.id;
+  const events = useMemo((): readonly Message[] => (threadId ? activityOf(entries, threadId, nameOf, assignedId) : []), [entries, threadId, nameOf, assignedId]);
 
   if (!shown) {
     const failed = q.status === "loading" ? q.error : undefined;
@@ -262,7 +263,7 @@ function Block({ title, right, children }: { title?: string; right?: string; chi
 /** Blocks by kind and source. */
 function TaskBody({ task, rt, nameOf, run, kids, openTask, openAgent, onKids }: { task: TaskFull; rt: ShellRuntime; nameOf(id: string): string; run(cap: string, input: Record<string, unknown>): Promise<boolean>; kids: readonly TaskRow[]; openTask(id: string): void; openAgent(id: string): void; onKids(): void }): ReactElement {
   const brief = task.workingNotes["brief"] ?? task.why ?? task.summary;
-  const body = brief ? <Block><Text style={st.body}>{brief.replace(/^## .+$/gm, "").replace(/\n{3,}/g, "\n\n").trim()}</Text></Block> : null;
+  const body = task.kind === "work" ? <Brief text={brief} run={run} /> : brief ? <Block><Text style={st.body}>{tidyBrief(brief)}</Text></Block> : null;
   const blocks: ReactElement[] = [];
   const held = heldMail(task as never);
   if (held) blocks.push(<HeldMailCard key="mail" mail={held} call={rt.call} onOpenRecord={(id) => rt.open({ subject: { type: "record", id } })} />);
@@ -272,6 +273,20 @@ function TaskBody({ task, rt, nameOf, run, kids, openTask, openAgent, onKids }: 
   if (task.kind === "unblock") return <>{body}{blocks.length ? <Block>{blocks}</Block> : null}<Block><ActionButtons task={task} run={run} /></Block></>;
   if (task.kind === "review") return <>{body}<DoneMeans task={task} run={run} />{blocks.length ? <Block title="Outputs">{blocks}</Block> : null}<Outputs task={task} rt={rt} /><Block><ActionButtons task={task} run={run} /></Block></>;
   return <>{body}<Fixes task={task} /><Tree task={task} rt={rt} nameOf={nameOf} kids={kids} openTask={openTask} openAgent={openAgent} onKids={onKids} /><DoneMeans task={task} run={run} /><Outputs task={task} rt={rt} />{blocks.length ? <Block>{blocks}</Block> : null}</>;
+}
+
+const tidyBrief = (text: string): string => text.replace(/^## .+$/gm, "").replace(/\n{3,}/g, "\n\n").trim();
+
+/** What the work is, in words anyone on it can change. */
+function Brief({ text, run }: { text: string | undefined; run(cap: string, input: Record<string, unknown>): Promise<boolean> }): ReactElement {
+  const [draft, setDraft] = useState<string | null>(null);
+  if (draft !== null) {
+    const save = (): void => { const v = draft.trim(); setDraft(null); if (v !== (text ?? "").trim()) void run("tasks.working_notes.set", { key: "brief", value: v }); };
+    return <Block><TextInput autoFocus multiline accessibilityLabel="What this is" testID="task-brief-edit" placeholder="What this is" placeholderTextColor="var(--ink-3)" value={draft} onChangeText={setDraft} onBlur={save} style={[st.body, st.briefEdit]} /></Block>;
+  }
+  return <Block><Pressable accessibilityRole="button" accessibilityLabel={text ? "Change what this is" : "Add what this is"} testID="task-brief" onPress={() => setDraft(text ?? "")}>
+    {text ? <Text style={st.body}>{tidyBrief(text)}</Text> : <Text style={st.briefAdd}>Add what this is</Text>}
+  </Pressable></Block>;
 }
 
 /** The buttons a request carries, from the task itself. */
@@ -308,14 +323,16 @@ function AnswerBlock({ task, run, nameOf }: { task: TaskFull; run(cap: string, i
 
 function DoneMeans({ task, run }: { task: TaskFull; run(cap: string, input: Record<string, unknown>): Promise<boolean> }): ReactElement | null {
   const items = parseList(task.workingNotes["done_means"]);
-  if (items.length === 0) return null;
+  const [more, setMore] = useState("");
+  const add = (): void => { const v = more.trim(); if (v === "") return; setMore(""); void run("tasks.working_notes.set", { key: "done_means", value: JSON.stringify([...items, v]) }); };
+  if (task.kind !== "work" && items.length === 0) return null;
   const ticks = new Set(parseTicks(task.workingNotes["done_ticks"]));
   const toggle = (i: number): void => { const n = new Set(ticks); if (n.has(i)) n.delete(i); else n.add(i); void run("tasks.working_notes.set", { key: "done_ticks", value: JSON.stringify([...n]) }); };
   const rows: ReactElement[] = [];
   for (const [i, m] of items.entries()) rows.push(<Pressable key={m} accessibilityRole="checkbox" accessibilityLabel={m} accessibilityState={{ checked: ticks.has(i) }} testID={`task-means-${i}`} onPress={() => toggle(i)} style={st.check}>
     <View style={[st.tick, ticks.has(i) && st.tickOn]}>{ticks.has(i) ? <Glyph name="check" size={9} color="var(--accent-ink)" /> : null}</View><Text style={st.checkText}>{m}</Text>
   </Pressable>);
-  return <Block title="Done means">{rows}</Block>;
+  return <Block {...(items.length ? { title: "Done means" } : {})}>{rows}<View style={st.addKid}><View style={st.addDot} /><TextInput accessibilityLabel="Add what done means" testID="task-add-means" placeholder="Add what done means" placeholderTextColor="var(--ink-3)" value={more} onChangeText={setMore} onSubmitEditing={add} style={st.inline} /></View></Block>;
 }
 
 function Outputs({ task, rt }: { task: TaskFull; rt: ShellRuntime }): ReactElement | null {
@@ -391,8 +408,26 @@ function Rail({ task, rt, nameOf, run, menu, list, openTask, kidsCount }: { task
     try { rows = ((await rt.call("tasks.index", { scope: "everyone" })) as IndexOut).rows.filter((r) => r.id !== task.id); } catch { rows = []; }
     menu.show(rows.slice(0, 200).map((r) => ({ label: `${r.key ?? ""} ${r.title}`.trim(), onSelect: () => void (cap === "parent" ? run("tasks.update", { parentTaskId: r.id }) : run("tasks.dependencies.add", { dependsOnId: r.id })) })), at.x, at.y, "other", { label: "Pick a task" }, { search: "Find a task" });
   };
+  const pickProject = async (e: unknown): Promise<void> => {
+    const at = pointAt(e);
+    let rows: Array<{ recordId: string; title: string }> = [];
+    try { rows = ((await rt.call("projects.list", {})) as { projects: Array<{ recordId: string; title: string }> }).projects; } catch { rows = []; }
+    menu.show(rows.length === 0 ? [{ head: "No projects yet." }] : rows.map((p) => ({ label: p.title, onSelect: () => void run("tasks.links.add", { recordId: p.recordId }) })), at.x, at.y, "other", { label: "Move to a project" }, { search: "Find a project" });
+  };
   const [estimate, setEstimate] = useState(task.effort === undefined ? "" : String(task.effort));
   useEffect(() => setEstimate(task.effort === undefined ? "" : String(task.effort)), [task.effort]);
+  const parent = useLive<TaskOut>(rt.screens, "tasks.page", "task", task.parentTaskId ? { route: { taskId: task.parentTaskId } } : null);
+  const parentKey = parent.status === "ready" ? parent.data.task.key : undefined;
+  const [waits, setWaits] = useState<ReadonlyArray<{ id: string; key?: string; title: string }>>([]);
+  const waitIds = task.dependsOn.join(",");
+  useEffect(() => {
+    let live = true;
+    const ids = waitIds === "" ? [] : waitIds.split(",").slice(0, 6);
+    void Promise.all(ids.map((id) => rt.call("tasks.get", { taskId: id }).then((o) => { const t = (o as TaskOut).task; return { id, title: t.title, ...(t.key ? { key: t.key } : {}) }; }, () => ({ id, title: "A task" })))).then((rows) => { if (live) setWaits(rows); });
+    return () => { live = false; };
+  }, [rt, waitIds]);
+  const followerFaces: ReactElement[] = [];
+  for (const id of task.followers.slice(0, 4)) followerFaces.push(<Avatar key={id} name={nameOf(id)} seedId={id} kind={id.startsWith("agt_") ? "agent" : "person"} size={18} />);
   const [labelText, setLabelText] = useState((task.labels ?? []).join(" "));
   useEffect(() => setLabelText((task.labels ?? []).join(" ")), [task.labels]);
   const notes = Object.entries(task.workingNotes).filter(([k]) => !OWN_NOTE.test(k));
@@ -405,7 +440,7 @@ function Rail({ task, rt, nameOf, run, menu, list, openTask, kidsCount }: { task
   const customRows: ReactElement[] = [];
   for (const f of fieldsQ) {
     const v = task.fields?.[f.key];
-    customRows.push(<KV key={f.key} label={f.title} testID={`rail-field-${f.key}`} onPress={() => undefined}><TextInput accessibilityLabel={f.title} placeholder="Add" placeholderTextColor="var(--ink-4)" defaultValue={v === undefined ? "" : String(v)} onEndEditing={(e) => { const t = e.nativeEvent.text.trim(); if (t !== String(v ?? "")) void run("tasks.update", { fields: { [f.key]: t === "" ? null : t } }); }} style={st.kvInput} /></KV>);
+    customRows.push(<KV key={f.key} label={f.title} testID={`rail-field-${f.key}`}><TextInput accessibilityLabel={f.title} placeholder="Add" placeholderTextColor="var(--ink-4)" defaultValue={v === undefined ? "" : String(v)} onEndEditing={(e) => { const t = e.nativeEvent.text.trim(); if (t !== String(v ?? "")) void run("tasks.update", { fields: { [f.key]: t === "" ? null : t } }); }} style={st.kvInput} /></KV>);
   }
   return <ScrollView testID="task-rail" contentContainerStyle={st.rail}>
     <KV label="Status" testID="rail-status" onPress={(e) => { const at = pointAt(e); menu.show(statusEntries(task, run), at.x, at.y, "other", { label: "Status" }); }}><View style={st.kvFace}><StatusDot state={task.state as TaskState} size={13} /><Text style={st.kvVal}>{stateTitle(task.state as TaskState)}</Text></View></KV>
@@ -415,12 +450,13 @@ function Rail({ task, rt, nameOf, run, menu, list, openTask, kidsCount }: { task
     <KV label="Due" testID="rail-due" onPress={(e) => { const at = pointAt(e); menu.show(dueEntries(act, (when) => void run("tasks.update", { due: when })), at.x, at.y, "other", { label: "Due" }); }}>{due.text ? <Text style={[st.kvVal, due.late && { color: "var(--danger)" as string }]}>{due.text}</Text> : <Text style={st.kvAdd}>Add</Text>}</KV>
     <KV label="Priority" testID="rail-priority" onPress={(e) => { const at = pointAt(e); menu.show(priorityEntries(task.priority, (k) => void run("tasks.update", { priority: k })), at.x, at.y, "other", { label: "Priority" }); }}><Text style={st.kvVal}>{PRIORITIES.find((p) => p.key === (task.priority ?? "normal"))?.title}</Text></KV>
     <View style={{ height: 12 }} />
-    <KV label="Project" testID="rail-project" onPress={() => { if (task.recordId) rt.open({ subject: { type: "record", id: task.recordId } }); }}>{task.recordId ? <ProjectName rt={rt} recordId={task.recordId} /> : <Text style={st.kvAdd}>None</Text>}</KV>
-    <KV label="Parent" testID="rail-parent" onPress={(e) => { if (task.parentTaskId) openTask(task.parentTaskId); else void pick(e, "parent"); }}>{task.parentTaskId ? <Text style={st.kvVal}>Open</Text> : <Text style={st.kvAdd}>Add</Text>}</KV>
-    <KV label="Waits on" testID="rail-waits" onPress={(e) => void pick(e, "tasks.dependencies.add")}>{task.dependsOn.length ? <Text style={st.kvVal}>{`${task.dependsOn.length} ${task.dependsOn.length === 1 ? "task" : "tasks"}`}</Text> : <Text style={st.kvAdd}>Add</Text>}</KV>
-    <KV label="Labels" testID="rail-labels" onPress={() => undefined}><TextInput accessibilityLabel="Labels" placeholder="Add" placeholderTextColor="var(--ink-4)" value={labelText} onChangeText={setLabelText} onBlur={() => { const next = [...new Set(labelText.split(/[\s,]+/).map((l) => l.replace(/^#/, "").trim().toLowerCase()).filter(Boolean))]; if (next.join() !== (task.labels ?? []).join()) void run("tasks.update", { labels: next }); }} style={st.kvInput} /></KV>
-    <KV label="Following" testID="rail-following" onPress={() => void run(task.followers.includes(rt.me.id) ? "tasks.followers.remove" : "tasks.followers.add", { follower: rt.me.id })}><Text style={st.kvVal}>{task.followers.includes(rt.me.id) ? "You" : task.followers.length ? `${task.followers.length}` : "Follow"}</Text></KV>
-    <KV label="Estimate" testID="rail-estimate" onPress={() => undefined}><TextInput accessibilityLabel="Estimate in minutes" placeholder="Add" placeholderTextColor="var(--ink-4)" value={estimate} onChangeText={setEstimate} onBlur={() => { const t = estimate.trim(); const n = t === "" ? null : Number(t); if (n === null || (Number.isInteger(n) && n >= 0)) { if ((n ?? undefined) !== task.effort) void run("tasks.update", { effort: n }); } else setEstimate(task.effort === undefined ? "" : String(task.effort)); }} style={st.kvInput} /></KV>
+    <KV label="Project" testID="rail-project" onPress={(e) => { if (task.recordId) rt.open({ subject: { type: "record", id: task.recordId } }); else void pickProject(e); }}>{task.recordId ? <ProjectName rt={rt} recordId={task.recordId} /> : <Text style={st.kvAdd}>Add</Text>}</KV>
+    <KV label="Parent" testID="rail-parent" onPress={(e) => { if (task.parentTaskId) openTask(task.parentTaskId); else void pick(e, "parent"); }}>{task.parentTaskId ? <Text style={st.kvVal}>{parentKey ?? "Open"}</Text> : <Text style={st.kvAdd}>Add</Text>}</KV>
+    <KV label="Waits on" testID="rail-waits" onPress={(e) => { if (task.dependsOn.length === 0) { void pick(e, "tasks.dependencies.add"); return; } const at = pointAt(e); menu.show([...waits.map((w): MenuEntry => ({ label: `Stop waiting on ${w.key ?? w.title}`, onSelect: () => void run("tasks.dependencies.remove", { dependsOnId: w.id }) })), { separator: true }, { label: "Wait on another task", onSelect: () => void pick(e, "tasks.dependencies.add") }], at.x, at.y, "other", { label: "Waits on" }); }}>{task.dependsOn.length ? <Text numberOfLines={1} style={st.kvVal}>{waits.length ? waits.map((w) => w.key ?? w.title).join(", ") : `${task.dependsOn.length} ${task.dependsOn.length === 1 ? "task" : "tasks"}`}</Text> : <Text style={st.kvAdd}>Add</Text>}</KV>
+    <KV label="Labels" testID="rail-labels"><TextInput accessibilityLabel="Labels" placeholder="Add" placeholderTextColor="var(--ink-4)" value={labelText} onChangeText={setLabelText} onBlur={() => { const next = [...new Set(labelText.split(/[\s,]+/).map((l) => l.replace(/^#/, "").trim().toLowerCase()).filter(Boolean))]; if (next.join() !== (task.labels ?? []).join()) void run("tasks.update", { labels: next }); }} style={st.kvInput} /></KV>
+    <KV label="Repeats" testID="rail-repeat" onPress={(e) => { const at = pointAt(e); const on = task.recur?.every; menu.show([{ label: "Does not repeat", checked: !on, onSelect: () => void run("tasks.update", { recur: null }) }, { label: "Every day", checked: on === "day", onSelect: () => void run("tasks.update", { recur: { every: "day" } }) }, { label: "Every week", checked: on === "week", onSelect: () => void run("tasks.update", { recur: { every: "week" } }) }, { label: "Every month", checked: on === "month", onSelect: () => void run("tasks.update", { recur: { every: "month" } }) }], at.x, at.y, "other", { label: "Repeats" }); }}>{task.recur ? <Text style={st.kvVal}>{`Every ${task.recur.every}`}</Text> : <Text style={st.kvAdd}>Add</Text>}</KV>
+    <KV label="Following" testID="rail-following" onPress={() => void run(task.followers.includes(rt.me.id) ? "tasks.followers.remove" : "tasks.followers.add", { follower: rt.me.id })}>{task.followers.length ? <View style={st.kvFace}>{followerFaces}</View> : <Text style={st.kvVal}>Follow</Text>}</KV>
+    <KV label="Estimate" testID="rail-estimate"><TextInput accessibilityLabel="Estimate in minutes" placeholder="Add" placeholderTextColor="var(--ink-4)" value={estimate} onChangeText={setEstimate} onBlur={() => { const t = estimate.trim(); const n = t === "" ? null : Number(t); if (n === null || (Number.isInteger(n) && n >= 0)) { if ((n ?? undefined) !== task.effort) void run("tasks.update", { effort: n }); } else setEstimate(task.effort === undefined ? "" : String(task.effort)); }} style={st.kvInput} /></KV>
     {customRows}
     <View style={{ height: 12 }} />
     <RailLink label="Add a field" testID="rail-add-field" onPress={() => rt.open({ screen: "records.types", args: { type: "task", edit: "fields" } })} />
@@ -450,7 +486,9 @@ function useTypeFields(rt: ShellRuntime): ReadonlyArray<{ key: string; title: st
 }
 const BUILT_IN = new Set(["title", "summary", "why", "kind", "status", "project", "stage", "assigned", "reviewer", "approver", "start", "due", "effort", "milestone", "parent", "depends_on", "order", "source", "thread", "attachments", "notes", "priority", "labels", "estimate"]);
 
-function KV({ label, onPress, testID, children }: { label: string; onPress(e: unknown): void; testID: string; children: ReactNode }): ReactElement {
+function KV({ label, onPress, testID, children }: { label: string; onPress?(e: unknown): void; testID: string; children: ReactNode }): ReactElement {
+  // a field typed into has no press of its own
+  if (!onPress) return <View testID={testID} style={st.kv}><Text style={st.kvKey}>{label}</Text><View style={st.kvRight}>{children}</View></View>;
   return <Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} onPress={onPress} style={({ hovered }: { hovered?: boolean }) => [st.kv, hovered === true && { backgroundColor: "var(--hover)" as string }]}><Text style={st.kvKey}>{label}</Text><View style={st.kvRight}>{children}</View></Pressable>;
 }
 function RailLink({ label, onPress, testID }: { label: string; onPress(e: unknown): void; testID: string }): ReactElement {
@@ -490,6 +528,8 @@ const st = StyleSheet.create({
   blockTitle: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string },
   blockRight: { fontSize: 12.5, color: "var(--ink-3)" as string },
   body: { fontSize: 15, lineHeight: 23, color: "var(--ink-2)" as string },
+  briefEdit: { minHeight: 70, outlineStyle: "none", outlineWidth: 0 } as object,
+  briefAdd: { fontSize: 14, color: "var(--ink-3)" as string },
   doneLine: { paddingTop: 6, fontSize: 14, color: "var(--ok)" as string },
   option: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 40, paddingHorizontal: 10, borderRadius: 10 },
   optionText: { fontSize: 14.5, color: "var(--ink)" as string },

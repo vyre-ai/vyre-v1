@@ -277,8 +277,8 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
   }, [act, addTask, currentRow?.id, env, quick, quietOpen, rt.assistant, selected, toggleDone]);
 
   const body = snap.status === "failed" && snap.rows.length === 0 ? <States kind="error" message="Couldn't load your tasks" cause={snap.error ?? ""} retryable onRetry={() => store.refresh()} />
-    : view === "board" ? <Board rows={sortedBy(snap.rows, filter)} doneRows={sortedBy(boardDone, filter)} env={env} onDrop={(row, to) => void setStatus(act, row, to)} {...(window ? { window } : {})} />
-    : view === "timeline" ? <Timeline rows={sortedBy(snap.rows, filter)} env={env} {...(window ? { window } : {})} />
+    : view === "board" ? <Board rows={workOnly(sortedBy(snap.rows, filter))} doneRows={sortedBy(boardDone, filter)} env={env} onDrop={(row, to) => void setStatus(act, row, to)} {...(window ? { window } : {})} />
+    : view === "timeline" ? <Timeline rows={workOnly(sortedBy(snap.rows, filter))} env={env} {...(window ? { window } : {})} />
     : view === "calendar" ? <CalendarView rows={sortedBy(snap.rows, filter)} env={env} />
     : <View testID="tasks-list" style={{ flex: 1, minHeight: 0 }}>
       {/* ui-rows-lint: not a list (the items are heads, TaskLine and NeedLine rows; each has a status control, a selection box and its own presses) */}
@@ -296,8 +296,9 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
     </View>
     {isFiltered(filter) ? <View style={st.showing}><Text style={st.showingText}>{`Showing ${filter.query ? `"${filter.query}"` : filter.waiting ? "what is waiting" : filter.label ? `#${filter.label}` : filter.person ? nameOf(filter.person) : "a filter"}`}</Text><Pressable accessibilityRole="button" accessibilityLabel="Show all" onPress={() => setFilter(NO_FILTER)}><Text style={st.showAll}>Show all</Text></Pressable></View> : null}
     {saving !== null ? <View style={st.showing}><TextInput autoFocus testID="tasks-save-name" accessibilityLabel="Name this view" placeholder="Name this view" placeholderTextColor="var(--ink-3)" value={saving} onChangeText={setSaving} onSubmitEditing={() => saveView(saving)} onBlur={() => setSaving(null)} style={st.search} /></View> : null}
-    <View style={{ flex: 1, minHeight: 0 }}>{body}</View>
+    <View style={{ flex: 1, minHeight: 0 }}>{body}
     {selected.size > 0 ? <BulkBar ids={[...selected]} act={act} onStatus={(at) => { const ids = [...selected]; const items: MenuEntry[] = []; for (const s of TASK_STATES) items.push({ label: s.title, leading: <StatusDot state={s.key as TaskState} size={14} />, onSelect: () => void bulkStatus(act, ids, s.key).then(() => setSelected(new Set())) }); menu.show(items, at.x, at.y, "other", { label: "Status" }); }} onAssign={(at) => assignMenu([...selected], at)} onDue={(at) => dueMenu([...selected], at)} onLabels={(at) => labelMenu([...selected], at)} onMove={(at) => moveMenu([...selected], at)} onDelete={() => { void bulkDelete(act, [...selected]); setSelected(new Set()); }} onClear={() => setSelected(new Set())} /> : null}
+    </View>
     {line ? <View accessibilityLiveRegion="polite" testID="tasks-line" style={st.lineBox}><Text style={st.lineText}>{line.text}</Text>{line.undo ? <Pressable accessibilityRole="button" accessibilityLabel="Undo" testID="tasks-undo" onPress={() => { line.undo?.(); setLine(null); }}><Text style={st.undo}>Undo</Text></Pressable> : null}</View> : null}
     <View style={st.composer}><Composer testID="tasks-composer" whoWillAnswer={rt.assistant.name} placeholder={`Ask ${rt.assistant.name}, or type /`} hideWho symbols={["slash"]} onSubmit={(p) => openChat(p.text)} /></View>
     {menu.element}
@@ -306,6 +307,8 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
 
 /** The board and the dated views show every open row the filter lets through. */
 const sortedBy = (rows: readonly TaskRow[], f: Filter): readonly TaskRow[] => filterRows(rows, f);
+/** A request is answered, not dragged through statuses: boards and timelines hold work. */
+const workOnly = (rows: readonly TaskRow[]): readonly TaskRow[] => rows.filter((r) => r.kind === "work");
 
 function BulkBar({ ids, onStatus, onAssign, onDue, onLabels, onMove, onDelete, onClear }: { ids: readonly string[]; act: ActEnv; onStatus(at: { x: number; y: number }): void; onAssign(at: { x: number; y: number }): void; onDue(at: { x: number; y: number }): void; onLabels(at: { x: number; y: number }): void; onMove(at: { x: number; y: number }): void; onDelete(): void; onClear(): void }): ReactElement {
   return <View testID="tasks-bulk" accessibilityRole="toolbar" style={st.bulk}>
@@ -364,7 +367,7 @@ const st = StyleSheet.create({
   quietBtn: { height: 30, justifyContent: "center", paddingHorizontal: 11, borderRadius: 9 },
   quietOver: { backgroundColor: "var(--hover)" as string },
   quietBtnText: { fontSize: 13, color: "var(--ink)" as string },
-  bulk: { position: "absolute", bottom: 86, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 2, paddingVertical: 5, paddingLeft: 14, paddingRight: 7, borderRadius: 14, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" } as object,
+  bulk: { position: "absolute", bottom: 10, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 2, paddingVertical: 5, paddingLeft: 14, paddingRight: 7, borderRadius: 14, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)" } as object,
   bulkCount: { marginRight: 8, fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   bulkBtn: { height: 28, justifyContent: "center", paddingHorizontal: 9, borderRadius: 9 },
   bulkText: { fontSize: 13, color: "var(--ink-3)" as string },

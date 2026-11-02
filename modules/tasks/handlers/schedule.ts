@@ -3,7 +3,7 @@
 // Every event here can be delivered twice: task.children_settled carries what happened, and the baton wakes once per reason and child.
 import { allTasks, emitTask, findTask, isOpen, openIndex } from "../projections.ts";
 import type { Task, TasksCtx } from "../projections.ts";
-import { afterReview, applyMove, submitTarget, withdraw } from "./state.ts";
+import { afterReview, applyMove, commitMove, planMove, submitTarget, withdraw } from "./state.ts";
 
 type Ev = { name: string; payload: { taskId?: unknown; to?: unknown; runId?: unknown; jobId?: unknown } };
 const DAY = 86_400_000;
@@ -55,7 +55,10 @@ function startParent(ctx: TasksCtx, t: Task): string[] {
   if (t.kind !== "work" || !t.parentTaskId) return [];
   const parent = findTask(ctx.db, t.parentTaskId);
   if (!parent || parent.kind !== "work" || parent.state !== "todo") return [];
-  applyMove(ctx, parent, "doing");
+  // the system moves it, whoever started the child: the child's agent does not hold the parent
+  const plan = planMove(parent, "doing");
+  if (!plan.ok) return [];
+  commitMove(ctx, parent, "doing", { move: plan.move, note: undefined });
   return [parent.id];
 }
 
