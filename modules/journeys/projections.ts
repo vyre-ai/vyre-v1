@@ -115,6 +115,12 @@ export function stagesOf(db: Db, j: Pick<Journey, "id" | "version" | "stages">, 
   const r = (db.all("SELECT stages FROM journeys_versions WHERE journey_id = ? AND n = ?", j.id, version) as Raw[])[0];
   return r ? json<Stage[]>(r.stages, []) : undefined;
 }
+/** Every stage of every saved version of a Journey, oldest first. */
+export function allVersionStages(db: Db, id: string): Stage[] {
+  return (db.all("SELECT stages FROM journeys_versions WHERE journey_id = ? ORDER BY n ASC", id) as Raw[]).flatMap((r) => json<Stage[]>(r.stages, []));
+}
+/** A record type some Journey uses or used: a deleted Journey keeps its type, with its records in it. */
+export const recordTypeTaken = (db: Db, recordType: string): boolean => (db.all("SELECT 1 AS hit FROM journeys_defs WHERE record_type = ? LIMIT 1", recordType) as Raw[]).length > 0;
 export const byOrder = (stages: readonly Stage[]): Stage[] => [...stages].sort((a, b) => a.order - b.order);
 
 export function out(j: Journey, inFlight: number): Record<string, unknown> {

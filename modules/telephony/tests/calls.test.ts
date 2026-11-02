@@ -421,3 +421,39 @@ test("the softphone token is for people", async () => {
   t.actAs("agent", AGENT);
   assert.equal(await refusedWith(h.voiceToken(t.ctx, {})), "validation.precondition_failed");
 });
+
+test("Stop stops a recording that started with the call: Twilio is told, not only the app", async () => {
+  const t = harness();
+  const numberId = await number(t, "announce");
+  const placed = await h.dial(t.ctx, { numberId, to: "+14155550111", record: true, idempotencyKey: "rec-dial" });
+  await h.ingestStatus(t.ctx, { sid: CALL_SID, kind: "call", status: "in-progress", at: 1_760_000_000_500 });
+  const stopped = await h.record(t.ctx, { callId: String(out(placed).callId), action: "stop" });
+  assert.equal(stopped.recording, false);
+  const asked = t.calls("twilio.recording.stop");
+  assert.equal(asked.length, 1, "a stop that never reaches Twilio leaves the call recording");
+  assert.deepEqual([asked[0]?.input.callSid, asked[0]?.input.recordingSid], [CALL_SID, "Twilio.CURRENT"]);
+});
+
+test("a transferred call rings the person it went to, not the number's route; so does a call coming back from hold", async () => {
+  const t = harness();
+  await number(t);
+  t.owned.push({ sid: NUM_SID, e164: NUM_E164, capabilities: ["voice", "sms"], voiceUrl: VOICE_URL });
+  const id = String(out(await ring(t)).callId);
+  await h.answer(t.ctx, { callId: id });
+  await h.transfer(t.ctx, { callId: id, to: { kind: "person", id: ROB }, mode: "cold" });
+  const after = await h.ingestVoice(t.ctx, { callSid: CALL_SID, from: CALLER, to: NUM_E164, status: "in-progress" });
+  assert.deepEqual(out(after.instruction).targets, [{ kind: "person", id: ROB }], "Twilio asks the voice address again after a redirect");
+  assert.equal(out(after.instruction).action, "ring");
+  await h.transfer(t.ctx, { callId: id, to: { kind: "agent", id: AGENT }, mode: "cold" });
+  assert.equal(out((await h.ingestVoice(t.ctx, { callSid: CALL_SID, from: CALLER, to: NUM_E164, status: "in-progress" })).instruction).action, "agent");
+});
+
+test("decline: someone a call is not ringing for cannot send it to voicemail", async () => {
+  const t = harness();
+  await number(t);
+  const id = String(out(await ring(t)).callId);
+  t.actAs("person", ROB);
+  assert.equal(await refusedWith(h.decline(t.ctx, { callId: id, toVoicemail: true })), "permission.no_grant");
+  assert.equal(row(t, id)["state"], "ringing", "the people it rings can still answer");
+});
+

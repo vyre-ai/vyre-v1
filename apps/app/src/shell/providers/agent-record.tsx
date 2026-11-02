@@ -4,23 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { States } from "../../../../../ui/src/States/index.tsx";
-import { NOT_SET_UP, SET_UP, agentFor } from "../../places/records/recordpage/agentlink.ts";
+import { NOT_SET_UP, SET_UP, agentFor, listAgents } from "../../places/records/recordpage/agentlink.ts";
 import type { AgentLite } from "../../places/records/recordpage/agentlink.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 type Call = ShellRuntime["call"];
-
-/** Every agent the person can see, teammates included, across pages. */
-export async function listAgents(call: Call): Promise<AgentLite[]> {
-  const out: AgentLite[] = [];
-  let cursor: string | undefined;
-  do {
-    const r = await call("agents.list", { teammates: "include", ...(cursor ? { cursor } : {}) }) as { agents: AgentLite[]; next?: string };
-    out.push(...r.agents);
-    cursor = r.next;
-  } while (cursor);
-  return out;
-}
 
 /** The agent behind an Agents row, or the name it has when none is. */
 export async function agentOfRecord(call: Call, recordId: string): Promise<{ agent: AgentLite } | { missing: string }> {

@@ -10,5 +10,28 @@ export function agentFor(name: string, agents: readonly AgentLite[]): AgentLite 
   return k === "" ? null : agents.find((a) => nameKey(a.name) === k) ?? null;
 }
 
+/** Every agent the person can see, teammates included, across pages. */
+export async function listAgents(call: (cap: string, input: unknown) => Promise<unknown>): Promise<AgentLite[]> {
+  const out: AgentLite[] = [];
+  let cursor: string | undefined;
+  do {
+    const r = await call("agents.list", { teammates: "include", ...(cursor ? { cursor } : {}) }) as { agents: AgentLite[]; next?: string };
+    out.push(...r.agents);
+    cursor = r.next;
+  } while (cursor);
+  return out;
+}
+
+export type AgentsRow = { kind: "agent"; agent: AgentLite } | { kind: "old"; recordId: string; name: string };
+
+/** The agents, then the rows no agent stands behind. */
+export function agentsRows(agents: readonly AgentLite[], rows: readonly { id: string; fields: Record<string, unknown> }[], titleField: string): AgentsRow[] {
+  const old = rows.flatMap((r): AgentsRow[] => {
+    const name = String(r.fields[titleField] ?? "").trim();
+    return name === "" || agentFor(name, agents) ? [] : [{ kind: "old", recordId: r.id, name }];
+  });
+  return [...agents.map((agent): AgentsRow => ({ kind: "agent", agent })), ...old];
+}
+
 export const NOT_SET_UP = "This agent was not set up.";
 export const SET_UP = "Set it up";

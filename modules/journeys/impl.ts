@@ -1,7 +1,7 @@
 // Journeys module (lane L6). The host loads these handlers once the manifest status is live (ARCH 12.4).
 // `compileStartRule` is what the designer shows as "this Journey starts when ..."; `planMigration` is shared by the preview and the migration.
 import { handlers } from "./handlers/index.ts";
-import { taskOfRun } from "./projections.ts";
+import { findRecord, taskLinks, taskOfRun } from "./projections.ts";
 import type { JourneysCtx } from "./projections.ts";
 
 export { handlers };
@@ -33,6 +33,9 @@ async function doneByRun(ctx: JourneysCtx, ev: Ev): Promise<string[]> {
 async function advanceOnTask(ctx: JourneysCtx, ev: Ev): Promise<string[]> {
   const source = ev.payload["source"] as { kind?: unknown; id?: unknown } | undefined;
   if (source?.kind !== "journey" || typeof source.id !== "string" || !ctx.call) return [];
+  // only the work of the stage the record is in moves it: not a time limit alert or an unblock raised on it, not a task of a stage it left, not the same event twice
+  const rec = findRecord(ctx.db, source.id);
+  if (!rec || !taskLinks(ctx.db, rec.recordId, rec.stage, rec.enteredAt).some((l) => l.taskId === ev.payload["taskId"])) return [];
   await ctx.call("journeys.advance", { recordId: source.id });
   return [source.id];
 }

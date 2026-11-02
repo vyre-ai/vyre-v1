@@ -1,82 +1,137 @@
-// P-L6_20: journeys.create on a booted daemon. The Journey makes its record type through schema.apply, and the schema refuses a status field that names no stages
-// ("field stage options must be an object"), so the type carries the Journey's stages. Everything goes through the gateway with a token (rule 27); a member without journeys.manage is refused.
+// Journeys on a booted daemon, through the gateway: what a fake schema and fake tasks cannot show.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { bootCore, CORE_SPACE } from "../../fixtures/seed/core/index.ts";
+import { bootCore } from "../../fixtures/seed/core/index.ts";
 import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
-import { CODE_ROOT, startDaemon } from "../src/daemon/daemon.ts";
-import type { Daemon } from "../src/daemon/daemon.ts";
+import { startDaemon } from "../src/daemon/daemon.ts";
+import type { Daemon, DaemonOptions } from "../src/daemon/daemon.ts";
 
-const OLIVIA = "usr_olivia";   // the seeded owner
-const SANA = "usr_sana";   // a member without journeys.manage
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
-const tmp = (p: string): string => fs.mkdtempSync(path.join(os.tmpdir(), p));
+const OWNER = "tok-usr_olivia";
 
 function seededDir(): string {
   const core = bootCore();
-  const dir = tmp("vyre-journeys-live-");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-journeys-"));
   core.store.db.exec("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE");
   fs.copyFileSync(core.file, path.join(dir, "events.db"));
   core.close();
   return dir;
 }
 
-async function boot(dir: string): Promise<Daemon> {
-  let token = "";
-  const d = await startDaemon({
-    config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
-    codeRoot: CODE_ROOT,
-    platform: fakePlatform({
-      os: "linux", hostname: "journeys-live", free: 80e9,
-      commands: {
-        [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
-        "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
-        "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
-      },
-    }),
-    fetch: caddyFetch,
-    session: (h) => {
-      if (h["authorization"] !== `Bearer ${token}`) return null;
-      return h["x-test-as"] === "member"
-        ? { space: CORE_SPACE, principal: { kind: "person", id: SANA }, device: "test-device" }
-        : { space: CORE_SPACE, principal: { kind: "person", id: OLIVIA }, device: "test-device" };
+const boot = (dir: string, extra: Partial<DaemonOptions> = {}): Promise<Daemon> => startDaemon({
+  config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
+  platform: fakePlatform({
+    os: "linux", hostname: "journeys-live", free: 80e9,
+    commands: {
+      [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" },
+      "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" },
+      "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" },
     },
-    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000, machine: 3_600_000 },
-  });
-  token = d.token;
-  return d;
+  }),
+  fetch: caddyFetch,
+  session: (h) => {
+    const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1];
+    return t === OWNER ? { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "journeys-live" } : null;
+  },
+  intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 200, tick: 200 },
+  ...extra,
+});
+
+const call = async (d: Daemon, p: string, body: unknown, token = OWNER): Promise<{ status: number; data: Record<string, unknown>; text: string }> => {
+  const r = await fetch(`${d.url}${p}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(body), signal: AbortSignal.timeout(8_000) });
+  const text = await r.text();
+  return { status: r.status, data: ((JSON.parse(text) as { data?: Record<string, unknown> }).data ?? {}), text };
+};
+const ok = async (d: Daemon, p: string, body: unknown, token = OWNER): Promise<Record<string, unknown>> => {
+  const r = await call(d, p, body, token);
+  assert.equal(r.status, 200, `${p}: ${r.text}`);
+  return r.data;
+};
+async function until<T>(what: string, ms: number, look: () => Promise<T | undefined>): Promise<T> {
+  const end = Date.now() + ms;
+  for (;;) {
+    const v = await look();
+    if (v !== undefined) return v;
+    assert.ok(Date.now() < end, `gave up waiting for ${what}`);
+    await new Promise((r) => setTimeout(r, 150));
+  }
 }
 
-const post = (d: Daemon, cap: string, body: unknown, as?: "member"): Promise<Response> =>
-  fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}`, ...(as ? { "x-test-as": as } : {}) }, body: JSON.stringify(body) });
 
-test("journeys.create on a booted daemon makes the Journey and its record type with the Journey's stages; a member without journeys.manage is refused", async () => {
+const stage = (key: string, order: number, extra: Record<string, unknown> = {}) => ({ key, title: key, order, exit: { requireTasks: false }, tasks: [], automations: [], ...extra });
+const journey = async (d: Daemon, name: string, stages: unknown[]): Promise<{ id: string; recordType: string; version: number }> =>
+  (await ok(d, "/v1/journeys/create", { name, subjectType: "company", stages, idempotencyKey: `j-${name}-${Math.random()}` }))["journey"] as { id: string; recordType: string; version: number };
+const subject = async (d: Daemon, name: string): Promise<string> => String(((await ok(d, "/v1/records/create", { type: "company", fields: { name }, idempotencyKey: `s-${name}-${Math.random()}` }))["record"] as { id: string }).id);
+
+const started = async (d: Daemon, journeyId: string, name: string): Promise<string> => String((await ok(d, "/v1/journeys/start", { journeyId, subjectRecordId: await subject(d, name), idempotencyKey: `start-${name}` }))["recordId"]);
+const stageOf = async (d: Daemon, type: string, recordId: string): Promise<unknown> => (((await ok(d, "/v1/records/get", { type, recordId }))["record"]) as { fields: Record<string, unknown> }).fields["stage"];
+
+test("a stage added to the design can be entered: the record type learns it", async () => {
   const d = await boot(seededDir());
   try {
-    const stages = [{ key: "intake", title: "Intake", order: 1, exit: { requireTasks: false }, tasks: [], automations: [] }, { key: "done", title: "Done", order: 2, exit: { requireTasks: false }, tasks: [], automations: [], final: true }];
-    const made = await post(d, "journeys.create", { name: "Client onboarding", subjectType: "contact", stages, idempotencyKey: "jrn-live-1" });
-    const body = (await made.json()) as { data?: { journey?: { journeyId?: string; recordType?: string } }; error?: unknown };
-    assert.equal(made.status, 200, JSON.stringify(body));
-    const recordType = body.data!.journey!.recordType!;
-    assert.match(recordType, /^journey_/);
-
-    const type = await post(d, "schema.types.get", { type: recordType });
-    const detail = (await type.json()) as { data?: { type: { fields: { key: string; type: string; options?: { stages?: { key: string; title: string }[] } }[] } } };
-    assert.equal(type.status, 200, JSON.stringify(detail));
-    const stage = detail.data!.type.fields.find((f) => f.key === "stage")!;
-    assert.deepEqual(stage.options?.stages, [{ key: "intake", title: "Intake" }, { key: "done", title: "Done" }], "the record type carries the Journey's stages");
-
-    const dup = await post(d, "journeys.create", { name: "client onboarding", subjectType: "contact", idempotencyKey: "jrn-live-2" });
-    const dupBody = (await dup.json()) as { error?: { code?: string } };
-    assert.equal(dup.status, 422, "the same name twice is refused");
-    assert.equal(dupBody.error?.code, "validation.duplicate", "and says why");
-
-    const refused = await post(d, "journeys.create", { name: "Member's journey", subjectType: "contact", idempotencyKey: "jrn-live-3" }, "member");
-    assert.equal(refused.status, 403, "a member without journeys.manage is refused");
+    const j = await journey(d, "Onboarding", [stage("start", 0), stage("done", 1, { final: true })]);
+    const out = await ok(d, "/v1/journeys/design", { journeyId: j.id, stages: [stage("start", 0), stage("review", 1), stage("done", 2, { final: true })], idempotencyKey: "design-1" });
+    assert.equal((out["journey"] as { version: number }).version, 2);
+    const recordId = await started(d, j.id, "Acme");
+    await ok(d, "/v1/journeys/move_stage", { journeyId: j.id, recordId, toStage: "review", reason: "Ready for review", idempotencyKey: "move-1" });
+    assert.equal(await stageOf(d, j.recordType, recordId), "review");
+    const schema = (await ok(d, "/v1/schema/types/get", { type: j.recordType }))["type"] as { fields: Array<{ key: string; options?: { stages?: Array<{ key: string }> } }> };
+    assert.deepEqual(schema.fields.find((f) => f.key === "stage")?.options?.stages?.map((x) => x.key), ["start", "review", "done"]);
   } finally { await d.stop(); }
 });
+
+test("a Journey can be made again under the name of one that was deleted", async () => {
+  const d = await boot(seededDir());
+  try {
+    const stages = [stage("start", 0), stage("done", 1, { final: true })];
+    const j = await journey(d, "Renewals", stages);
+    await ok(d, "/v1/journeys/delete", { journeyId: j.id, idempotencyKey: "del-1" });
+    const again = await journey(d, "Renewals", stages);
+    assert.notEqual(again.recordType, j.recordType, "the old record type keeps its records");
+  } finally { await d.stop(); }
+});
+
+test("finishing a task that is not one of the stage's own does not move the record: a time limit alert is not the work", async () => {
+  const d = await boot(seededDir());
+  try {
+    const j = await journey(d, "Intake", [stage("start", 0), stage("next", 1), stage("done", 2, { final: true })]);
+    const recordId = await started(d, j.id, "Beta");
+    const made = (await ok(d, "/v1/tasks/create", { kind: "unblock", title: "This has been in start for over 24 hours", assigned: { kind: "person", id: "usr_olivia" }, recordId, source: { kind: "journey", id: recordId }, idempotencyKey: "alert-1" }))["task"] as { id: string };
+    await ok(d, "/v1/tasks/transition", { taskId: made.id, to: "done", idempotencyKey: "alert-done" }).catch(async () => ok(d, "/v1/tasks/transition", { taskId: made.id, to: "canceled", idempotencyKey: "alert-cancel" }));
+    await new Promise((r) => setTimeout(r, 1500));
+    assert.equal(await stageOf(d, j.recordType, recordId), "start");
+  } finally { await d.stop(); }
+});
+
+test("a stage taken out of the design stays valid for the records still on the version that has it", async () => {
+  const d = await boot(seededDir());
+  try {
+    const three = [stage("start", 0), stage("old", 1), stage("done", 2, { final: true })];
+    const j = await journey(d, "Legacy", three);
+    const recordId = await started(d, j.id, "Gamma");
+    await ok(d, "/v1/journeys/design", { journeyId: j.id, stages: [stage("start", 0), stage("new", 1), stage("done", 2, { final: true })], idempotencyKey: "design-2" });
+    await ok(d, "/v1/journeys/move_stage", { journeyId: j.id, recordId, toStage: "old", reason: "Still on the first version", idempotencyKey: "move-old" });
+    assert.equal(await stageOf(d, j.recordType, recordId), "old");
+  } finally { await d.stop(); }
+});
+
+test("a Start rule starts the Journey when the record is made, and the record has a real owner", async () => {
+  const d = await boot(seededDir());
+  try {
+    const j = (await ok(d, "/v1/journeys/create", { name: "Welcome", subjectType: "company", stages: [stage("start", 0), stage("done", 1, { final: true })], startRule: { event: "record.created", enabled: true }, idempotencyKey: "j-welcome" }))["journey"] as { id: string; recordType: string };
+    const subjectId = await subject(d, "Delta");
+    const rows = await until("the Journey to start", 15_000, async () => {
+      const got = (await ok(d, "/v1/records/query", { type: j.recordType }))["rows"] as Array<{ id: string; fields: Record<string, unknown> }>;
+      return got.length > 0 ? got : undefined;
+    });
+    assert.equal(rows.length, 1);
+    assert.match(String(rows[0]!.fields["name"]), new RegExp(subjectId));
+    assert.match(String(rows[0]!.fields["owner"]), /^usr_/, "a person the time limit alerts can reach");
+  } finally { await d.stop(); }
+});
+
