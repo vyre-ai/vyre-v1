@@ -11,7 +11,7 @@ import type { AskInvoke } from "../../../../../ui/src/LockedState/index.tsx";
 import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
-import { skins } from "../../../../../ui/src/tokens/skins.ts";
+import { skins, system } from "../../../../../ui/src/tokens/skins.ts";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Audit } from "../pages/audit/Audit.tsx";
 import type { AuditFilter } from "../pages/audit/model.ts";
@@ -49,7 +49,7 @@ export interface ConsoleShellProps {
 }
 
 export function skinMenuEntries(current: string, onSkin: (id: string) => void): MenuEntry[] {
-  const out: MenuEntry[] = [{ label: "System", checked: current === SYSTEM_SKIN, onSelect: () => onSkin(SYSTEM_SKIN) }];
+  const out: MenuEntry[] = [{ label: system.name, checked: current === SYSTEM_SKIN, onSelect: () => onSkin(SYSTEM_SKIN) }];
   for (const base of ["dark", "light"] as const) {
     out.push({ head: base === "dark" ? "Dark" : "Light" });
     for (const k of skins) if (k.base === base) out.push({ label: k.name, checked: k.id === current, onSelect: () => onSkin(k.id) });
@@ -58,7 +58,7 @@ export function skinMenuEntries(current: string, onSkin: (id: string) => void): 
 }
 
 export function skinLabel(id: string): string {
-  return id === SYSTEM_SKIN ? "System" : skins.find((k) => k.id === id)?.name ?? "System";
+  return id === SYSTEM_SKIN ? system.name : skins.find((k) => k.id === id)?.name ?? system.name;
 }
 
 export function ConsoleShell(props: ConsoleShellProps): ReactElement {

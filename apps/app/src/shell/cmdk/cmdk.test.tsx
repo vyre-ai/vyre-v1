@@ -183,7 +183,7 @@ test("Switch skin previews each skin as you arrow through; Esc restores yours; E
   c.hover(at);
   c.choose(at);
   assert.equal(c.getState().raw, "> skin ");
-  assert.equal(c.getState().rows.filter((r) => r.type === "skin").length, 13);
+  assert.equal(c.getState().rows.filter((r) => r.type === "skin").length, 15);
   const firstSkin = c.getState().rows[c.getState().active];
   assert.equal(firstSkin?.type, "skin");
   assert.equal(calls.previews.at(-1), firstSkin?.type === "skin" ? firstSkin.id : "");

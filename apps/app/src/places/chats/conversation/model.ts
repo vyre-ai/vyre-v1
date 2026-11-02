@@ -1,5 +1,5 @@
 // The conversation's logic, with no renderer (spec 3.2 Chats, 2.5 Chat, 4.13 Agents lead and listen): which messages are on the page (the last 50, older ones stream in),
-// how they group into a timeline, how an agent's work folds into "Worked for 14s, 3 steps", who leads and who listens, what a send does while an agent works (queue it, or
+// how they group into a timeline, how an agent's work folds into "Worked 14s · 3 steps", who leads and who listens, what a send does while an agent works (queue it, or
 // interrupt), and the optimistic message that shows in the same frame as the send.
 import { stepLabel } from "./activity.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -110,9 +110,16 @@ export function stepLine(b: MessageBlock): StepLine {
   return { id: b.id, title: str(d.title) || b.type.replaceAll("_", " "), sub: str(d.sub), state: b.state };
 }
 
-export interface Work { steps: StepLine[]; secs: number; live: boolean; summary: string; now: string }
+export interface Work { steps: StepLine[]; secs: number; live: boolean; summary: string; now: string; /** Quick work: under 30 s and under 5 steps. It stays out of the way until you hover the message. */ short: boolean }
 
-/** "Worked for 14s, 3 steps" once done; "Working, 2 steps so far" while a step is live. */
+/** How long, in words: "14s", "4m", "1h 12m". */
+export function workTime(secs: number): string {
+  if (secs < 60) return `${secs}s`;
+  if (secs < 3600) return `${Math.floor(secs / 60)}m`;
+  return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`;
+}
+
+/** "Worked 14s · 3 steps" once done; "Working, 2 steps so far" while a step is live. */
 export function workOf(m: Message): Work | null {
   const tools = m.blocks.filter(isToolStep);
   const steps = [...m.blocks.filter(isStep), ...tools.filter((b) => b.type === "tool_call" || b.type === "tool_steps")];
@@ -124,9 +131,9 @@ export function workOf(m: Message): Work | null {
   const secs = Math.max(steps.reduce((n, b) => n + num(dataOf(b).secs), 0), steps.reduce((n, b) => Math.max(n, num(dataOf(b).turnSecs)), 0));
   const n = lines.length;
   const count = `${n} ${n === 1 ? "step" : "steps"}`;
-  const summary = live ? `Working, ${count} so far` : secs > 0 ? `Worked for ${secs}s, ${count}` : `Worked ${count}`;
+  const summary = live ? `Working, ${count} so far` : secs > 0 ? `Worked ${workTime(secs)} · ${count}` : `Worked ${count}`;
   const current = [...lines].reverse().find((l) => l.state === "live");
-  return { steps: lines, secs, live, summary, now: current ? current.title : "" };
+  return { steps: lines, secs, live, summary, now: current ? current.title : "", short: !live && secs < 30 && n < 5 };
 }
 
 export interface CardLine { id: string; type: string; v: number; title: string; sub: string; state: MessageBlock["state"]; data: Record<string, unknown> }

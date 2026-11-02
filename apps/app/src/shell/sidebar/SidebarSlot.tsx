@@ -13,8 +13,9 @@ import { collapseKey, phoneView, readCollapsed, writeCollapsed } from "./model.t
 import type { PhoneView, SidebarStorage } from "./model.ts";
 import { portalInto } from "./portal.ts";
 import { ResizeHandle, useResizable } from "../../../../../ui/src/SidePane/resize.tsx";
+import { SHEET, sq } from "../../../../../ui/src/SidePane/host.tsx";
 
-export interface SidebarEntry { title: string; searchPlaceholder: string }
+export interface SidebarEntry { title: string; searchPlaceholder: string; noSearch?: boolean }
 
 export interface SidebarSlotApi {
   /** The search field's text. */
@@ -37,6 +38,8 @@ export interface SidebarSlotApi {
 const Ctx = createContext<SidebarSlotApi | null>(null);
 const Reg = createContext<{ register(e: SidebarEntry | null): void; outlet: unknown } | null>(null);
 
+export const SIDEBAR_DEFAULT = 244;
+
 export interface SidebarSlotProviderProps {
   deviceId: string;
   personId: string;
@@ -54,8 +57,8 @@ export interface SidebarSlotProviderProps {
 }
 
 export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
-  const key = collapseKey(p.deviceId, p.personId, p.spaceId, p.place);
-  const read = (): boolean => { try { return readCollapsed(p.storage?.getItem(key) ?? null); } catch { return false; } };
+  const key = collapseKey(p.deviceId, p.personId);
+  const read = (): boolean => { try { return readCollapsed((p.storage ?? deviceStorage())?.getItem(key) ?? null); } catch { return false; } };
   const [collapsed, setCollapsedState] = useState<boolean>(read);
   const [entry, setEntry] = useState<SidebarEntry | null>(p.initialEntry ?? null);
   const [query, setQuery] = useState("");
@@ -65,7 +68,7 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
   useEffect(() => { setCollapsedState(read()); setQuery(""); setBodyOpen(false); }, [key, p.epoch]);
   const setCollapsed = useCallback((v: boolean) => {
     setCollapsedState(v);
-    try { p.storage?.setItem(key, writeCollapsed(v)); } catch { /* a full or blocked store keeps the choice for this session only */ }
+    try { (p.storage ?? deviceStorage())?.setItem(key, writeCollapsed(v)); } catch { /* a full or blocked store keeps the choice for this session only */ }
   }, [key, p.storage]);
   const hasSidebar = entry !== null;
   const api = useMemo<SidebarSlotApi>(() => ({
@@ -90,18 +93,15 @@ export function useSidebarSlot(): SidebarSlotApi {
   return v;
 }
 
-/** The same, for a place that also mounts without the shell (a test, a sample mount). */
-export function useOptionalSidebarSlot(): SidebarSlotApi | null { return useContext(Ctx); }
-
 /** The place's side: put it inside the place. The shell draws it in the slot. */
-export function SidebarContent(props: { title: string; searchPlaceholder?: string; children: (query: string, slot: SidebarSlotApi) => ReactNode }): ReactElement | null {
+export function SidebarContent(props: { title: string; searchPlaceholder?: string; /** The place has no search of its own: ⌘K is the one search (Chats). */ noSearch?: boolean; children: (query: string, slot: SidebarSlotApi) => ReactNode }): ReactElement | null {
   const reg = useContext(Reg);
   const slot = useContext(Ctx);
   const search = props.searchPlaceholder ?? "Search";
   useEffect(() => {
-    reg?.register({ title: props.title, searchPlaceholder: search });
+    reg?.register({ title: props.title, searchPlaceholder: search, ...(props.noSearch === true ? { noSearch: true } : {}) });
     return () => reg?.register(null);
-  }, [reg?.register, props.title, search]);
+  }, [reg?.register, props.title, search, props.noSearch]);
   if (reg === null || slot === null) return null;
   return <>{portalInto(reg.outlet, props.children(slot.query, slot))}</>;
 }
@@ -110,43 +110,68 @@ export function SidebarContent(props: { title: string; searchPlaceholder?: strin
 export function SidebarSlot(): ReactElement | null {
   const slot = useSidebarSlot();
   const o = useContext(OutletContext);
-  const resize = useResizable({ paneKey: "place-sidebar", defaultWidth: 248, grow: "right", min: 200, maxFraction: 0.5 });
+  const resize = useResizable({ paneKey: "place-sidebar", defaultWidth: SIDEBAR_DEFAULT, grow: "right", min: 200, maxFraction: 0.5, maxWidth: 380 });
   if (o === null || o.entry === null) return null;
-  if (slot.collapsed && !slot.compact) return null;
   const full = slot.compact;
   // On the phone an opened body replaces the list. The slot stays mounted (display none) because the place's sidebar content is portalled into its outlet.
   const away = slot.compact && slot.view === "body";
-  return (
-    <View style={[s.slot, full ? s.full : s.side, full ? null : { width: resize.width, minWidth: 0 }, away && s.away]} testID="place-sidebar" accessibilityLabel={`${o.entry.title} sidebar`} aria-hidden={away}>
+  const inner = (
+    <>
       <View style={s.head}>
         <Text style={s.title} accessibilityRole="header" numberOfLines={1}>{o.entry.title}</Text>
         <View style={s.actions} testID="sidebar-actions" ref={(n) => { if (n !== null) o.setActionsOutlet(n); }} />
         {full ? null : (
-          <Pressable accessibilityRole="button" accessibilityLabel="Collapse sidebar" testID="sidebar-collapse" onPress={() => slot.setCollapsed(true)}
+          <Pressable accessibilityRole="button" accessibilityLabel="Hide the sidebar" testID="sidebar-collapse" onPress={() => slot.setCollapsed(true)}
+            {...webOnly({ title: "Hide the sidebar (⌘⇧\\)" })}
             style={({ hovered }: { hovered?: boolean }) => [s.icon, hovered === true && s.hover]}>
             <MenuIcon icon={PANEL} color="var(--ink-3)" />
           </Pressable>
         )}
       </View>
-      <View style={s.search} testID="sidebar-search">
-        <MenuIcon icon={iconMarkup("search")} color="var(--ink-3)" />
-        <TextInput accessibilityLabel={o.entry.searchPlaceholder} testID="sidebar-search-input" value={o.query} onChangeText={o.setQuery} placeholder={o.entry.searchPlaceholder} placeholderTextColor="var(--ink-4)" style={s.input} />
-      </View>
+      {o.entry.noSearch === true ? null : (
+        <View style={s.search} testID="sidebar-search">
+          <MenuIcon icon={iconMarkup("search")} color="var(--ink-3)" />
+          <TextInput accessibilityLabel={o.entry.searchPlaceholder} testID="sidebar-search-input" value={o.query} onChangeText={o.setQuery} placeholder={o.entry.searchPlaceholder} placeholderTextColor="var(--ink-4)" style={s.input} />
+        </View>
+      )}
       <View style={s.outlet} testID="sidebar-outlet" ref={(n) => { if (n !== null) o.setOutlet(n); }} />
-      {full ? null : <ResizeHandle r={resize} at="right" label="Resize the sidebar" testID="sidebar-resize" />}
+    </>
+  );
+  if (full) return <View style={[s.slot, s.full, away && s.away]} testID="place-sidebar" accessibilityLabel={`${o.entry.title} sidebar`} aria-hidden={away}>{inner}</View>;
+  return (
+    <View style={[s.column, { width: resize.width, minWidth: 0 }]} testID="place-sidebar" accessibilityLabel={`${o.entry.title} sidebar`} aria-hidden={away}>
+      <View style={SHEET} {...sq("sheet")}>{inner}</View>
+      <ResizeHandle r={resize} at="right" label="Resize the sidebar" testID="sidebar-resize" />
     </View>
   );
 }
 
-/** The button that brings a collapsed sidebar back; the shell draws it at the body's left edge. */
-export function SidebarExpand(): ReactElement | null {
+/** The Hide button on a sheet that draws its own head (Inbox, Vault, Settings). */
+export function SidebarHide(): ReactElement | null {
   const slot = useSidebarSlot();
-  if (!slot.hasSidebar || !slot.collapsed || slot.compact) return null;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel="Show sidebar" testID="sidebar-expand" onPress={() => slot.setCollapsed(false)} style={({ hovered }: { hovered?: boolean }) => [s.expand, hovered === true && s.hover]}>
+    <Pressable accessibilityRole="button" accessibilityLabel="Hide the sidebar" testID="sidebar-hide" onPress={() => slot.setCollapsed(true)} {...webOnly({ title: "Hide the sidebar (⌘⇧\\)" })} style={({ hovered }: { hovered?: boolean }) => [s.hideFloat, hovered === true && s.hover]}>
       <MenuIcon icon={PANEL} color="var(--ink-3)" />
     </Pressable>
   );
+}
+
+/** The button that brings a hidden sidebar back: the shell draws it at the left of the tab strip. */
+export function SidebarExpand(): ReactElement | null {
+  const slot = useSidebarSlot();
+  if (!slot.collapsed || slot.compact) return null;
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel="Show the sidebar" testID="sidebar-expand" onPress={() => slot.setCollapsed(false)} {...webOnly({ title: "Show the sidebar (⌘⇧\\)" })} style={({ hovered }: { hovered?: boolean }) => [s.expand, hovered === true && s.hover]}>
+      <MenuIcon icon={PANEL} color="var(--ink-3)" />
+    </Pressable>
+  );
+}
+
+const webOnly = (props: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? props : {});
+
+function deviceStorage(): SidebarStorage | null {
+  if (Platform.OS !== "web") return null;
+  try { return (globalThis as { localStorage?: SidebarStorage }).localStorage ?? null; } catch { return null; }
 }
 
 /** True when a key press should take the phone from the body back to the list: Escape that nothing else (a menu, a dialog, a field's own handler) has taken. */
@@ -184,10 +209,10 @@ const PANEL = '<svg viewBox="0 0 16 16" width="15" height="15" fill="none" strok
 
 const s = StyleSheet.create({
   slot: { backgroundColor: "var(--side)" as string, minHeight: 0 },
-  side: { width: 248, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
+  column: { position: "relative", minHeight: 0, flexShrink: 0 },
   full: { flex: 1 },
   away: { display: "none" },
-  head: { height: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14 },
+  head: { height: 54, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4, paddingLeft: 16, paddingRight: 10, paddingTop: 4 },
   title: { color: "var(--ink)" as string, fontSize: 15, fontWeight: "600", flexShrink: 1 },
   actions: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4 },
   icon: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
@@ -195,7 +220,8 @@ const s = StyleSheet.create({
   search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, marginHorizontal: 10, marginBottom: 8, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string },
   input: { flex: 1, minWidth: 0, color: "var(--ink)" as string, fontSize: 13, padding: 0 },
   outlet: { flex: 1, minHeight: 0 },
-  expand: { position: "absolute", left: 8, top: 8, width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center", zIndex: 3 },
+  expand: { width: 28, height: 28, borderRadius: 9, alignItems: "center", justifyContent: "center", marginLeft: 8, marginTop: 6, flexShrink: 0 },
+  hideFloat: { position: "absolute", right: 8, top: 12, width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center", zIndex: 3 },
   back: { height: 40, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   backText: { color: "var(--accent)" as string, fontSize: 14, fontWeight: "500" },
 });

@@ -1,0 +1,1 @@
+- Any face or name opens that profile in a closable right tab. Message actions follow the chat: people get reactions and threads, and fork stays away from chats with no agent. Click a chat's name to rename it, react with a searchable picker, and quick work stays out of the way until you hover.

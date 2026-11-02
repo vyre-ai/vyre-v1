@@ -42,10 +42,10 @@ test("screen page renders every frozen component from its props", () => {
   assert.equal(html.includes('data-kit-screen="ok"'), true);
 });
 
-test("native registry covers fourteen types and the page renders each one", () => {
+test("native registry covers fifteen types and the page renders each one", () => {
   const html = renderScreen();
-  assert.equal(NATIVE_BLOCK_TYPES.length, 14);
-  assert.equal(Object.keys(blockRenderers).length, 14);
+  assert.equal(NATIVE_BLOCK_TYPES.length, 15);
+  assert.equal(Object.keys(blockRenderers).length, 15);
   for (const type of NATIVE_BLOCK_TYPES) {
     assert.equal(typeof blockRenderers[`${type}@1`], "function", type);
     assert.equal(html.includes(`data-block-type="${type}"`), true, type);

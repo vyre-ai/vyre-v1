@@ -58,7 +58,7 @@ ARCH 3.7 output 6 and 6.7. Source of truth: `generated/tool-index.json` and `gen
 | `mail_send` | inbox | Send an email through the single send API: caps per sender, send windows, throttling, suppression, consent, trace id header, agent footer line |
 | `calendar_list_events` | inbox | Events in a time range for chosen calendars (Day, Week and Month views) |
 | `calendar_create_event` | inbox | Create an event (drag in 15 minute steps); the provider invites attendees |
-| `artifact_publish` | artifacts | Put a page, dashboard or document on a private link people in the Space can open |
+| `artifact_publish` | sites | Put a page, dashboard or document on a private link people in the Space can open |
 | `sites_build` | sites | Build the site from its repo (the site agent runs in the repo); test and verify |
 | `sites_tables` | sites | List site tables of a site |
 | `sites_deploy` | sites | Deploy a build to the always-password-protected staging URL |

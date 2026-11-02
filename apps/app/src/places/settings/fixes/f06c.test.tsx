@@ -40,9 +40,9 @@ test("search on a phone: the results take the place of the page list under the s
 
 test("Appearance: Skin with the preview, System, Dark and Light, and the line under them", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "appearance" });
-  for (const id of ["skin-preview", "skins-system", "skins-dark", "skins-light", "skin-foot"]) assert.ok(has(out, `data-testid="${id}"`), id);
-  assert.ok(out.indexOf("skin-preview") < out.indexOf("skins-system") && out.indexOf("skins-system") < out.indexOf("skins-dark"));
-  assert.ok(has(out, "Just for you, in Northwind") && has(out, "Paper by day, Graphite by night") && has(out, "Weekly report"));
+  for (const id of ["skin-preview", "skins-system", "skins-dark", "skins-light", "skin-foot", "skin-system"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  assert.ok(out.indexOf("skin-preview") < out.indexOf("skins-system") && out.indexOf("skins-system") < out.indexOf("skins-dark") && out.indexOf("skins-dark") < out.indexOf("skins-light"));
+  assert.ok(has(out, "Just for you, in Northwind") && has(out, "Vyre Light by day, Vyre Black by night") && has(out, "Weekly report"));
   for (const gone of ["Light or dark", "Skin for this Space", "Hover a tile to try it", "A Kit sets the rail"]) assert.ok(!has(out, gone), gone);
 });
 
