@@ -193,7 +193,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     let opened: Awaited<ReturnType<typeof openBundle>>;
     try { opened = await openBundle(password, { ...got.keys, personKeyByRecovery: got.keys.personKeyByRecovery ?? "" }); } catch { throw new Error("That password does not open your vault."); }
     try {
-      if (!(await holdKeyOnOwnNode(o.baseUrl, token ?? "", opened.personKey))) throw new Error("Your Mine vault opens on the computer your Space runs on, not from here.");
+      if (!(await holdKeyOnOwnNode(o.baseUrl, token ?? "", opened.personKey))) throw new Error("Your Vault could not be opened. Sign in again to open it.");
       keepKey(opened.personKey);
     } finally { wipe(opened.personKey); wipe(opened.privateKey); }
   };

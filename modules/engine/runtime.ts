@@ -18,6 +18,7 @@ import { withChatSettings } from "./chat-settings.ts";
 import { withSpaceKeyTurns } from "./space-key-turns.ts";
 import { createLimitSwitch } from "./switch-on-limit.ts";
 import { checkedOpen, createRunnableAccount } from "./runnable-account.ts";
+import { skipLocked } from "./locked-account.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
 import { configureEngines, engines, enginesRoot } from "./engine-install.ts";
 import { createContextBuilder, diskSkills, takeHandoff, withTurnContext } from "./context.ts";
@@ -60,6 +61,8 @@ export interface EngineHostSeam {
   nodes?: NodeRelay;
   /** True when the person is on their own computer (a local model on this machine is then reachable). */
   own?: (person: string) => boolean;
+  /** A Space server only: does it hold this person's key now (locked-account.ts). Absent on a person's own computer. */
+  keyHeld?: (person: string) => boolean;
   /** CLI engines: swap a program for a command (a fake CLI in a test), and extra read-only folders the sandbox must expose for it. Default: the real CLI, nothing extra. */
   cli?: { command?: Readonly<Record<string, readonly string[]>>; programRead?: readonly string[]; /** Where programs are looked for (a test's own folders); default: this computer's PATH. */ probe?: NodeCliProbe };
   /** The Space data directory. With it and no `sandbox`, the module builds the default sandbox for this platform on the first CLI turn (sandbox-default.ts). */
@@ -137,10 +140,12 @@ export async function resolveOne(h: Pick<EngineHostSeam, "call" | "log">, q: Acc
 
 /** An account whose engine can run on this computer: the pick, or another account of the person when the pick's program is not installed (runnable-account.ts). */
 function runnableAccount(h: EngineHostSeam): (q: AccountQuery) => Promise<ResolvedAccount | null> {
+  // On a Space server a person's own account pays only while the server holds their key (locked-account.ts); the next account answers otherwise, said in the chat.
+  const resolve = skipLocked({ resolve: (q) => resolveOne(h, q), ...(h.keyHeld ? { held: h.keyHeld } : {}), ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) });
   // A host that hands in its own opener (a test's scripted one) starts no program of ours: nothing to check, and one resolve per turn.
-  if (h.openSession) return (q) => resolveOne(h, q);
+  if (h.openSession) return resolve;
   return createRunnableAccount({
-    call: h.call, resolve: (q) => resolveOne(h, q), ...(h.cli?.command ? { command: h.cli.command } : {}), ...(h.cli?.probe ? { probe: h.cli.probe } : {}),
+    call: h.call, resolve, ...(h.cli?.command ? { command: h.cli.command } : {}), ...(h.cli?.probe ? { probe: h.cli.probe } : {}),
     ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}), ...(engines() ? { engines: engines()! } : {}),
   });
 }

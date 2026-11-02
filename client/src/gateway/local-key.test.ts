@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { dropKeyOnOwnNode, holdKeyOnOwnNode, isLoopbackUrl } from "./local-key.ts";
+import { dropKeyOnOwnNode, holdKeyOnOwnNode, isLoopbackUrl, keyDoor } from "./local-key.ts";
 
 const key = new Uint8Array(32).fill(7);
 
@@ -18,14 +18,21 @@ test("local key: the key is sent to a loopback daemon as base64 with the bearer 
   assert.equal((seen[0]!.init.headers as Record<string, string>)["authorization"], "Bearer vst_1");
 });
 
-test("local key: a Space on another machine never receives the key, and sign-out only locks a local node", async () => {
-  let calls = 0;
-  const f = (async () => { calls++; return new Response(null, { status: 204 }); }) as unknown as typeof fetch;
-  assert.equal(await holdKeyOnOwnNode("https://northwind.vyre.run", "t", key, f), false);
+test("local key: a Space server takes the key over https only (owner ruling 3 Nov), plain http to another machine never; sign-out locks wherever it was held", async () => {
+  const urls: string[] = [];
+  const f = (async (url: string) => { urls.push(url); return new Response(null, { status: 204 }); }) as unknown as typeof fetch;
+  assert.equal(keyDoor("https://northwind.vyre.run/"), "https://northwind.vyre.run/vault/key");
+  assert.equal(keyDoor("http://127.0.0.1:7777"), "http://127.0.0.1:7777/local/vault/key");
+  assert.equal(keyDoor("http://10.0.0.2:7777"), null);
+  assert.equal(await holdKeyOnOwnNode("http://10.0.0.2:7777", "t", key, f), false);
+  await dropKeyOnOwnNode("http://10.0.0.2:7777", "t", f);
+  assert.equal(urls.length, 0, "nothing goes over plain http to another machine");
+  assert.equal(await holdKeyOnOwnNode("https://northwind.vyre.run", "t", key, f), true);
+  assert.equal(urls[0], "https://northwind.vyre.run/vault/key/unlock");
   await dropKeyOnOwnNode("https://northwind.vyre.run", "t", f);
-  assert.equal(calls, 0);
+  assert.equal(urls[1], "https://northwind.vyre.run/vault/key/lock");
   await dropKeyOnOwnNode("http://localhost:3000", "t", f);
-  assert.equal(calls, 1);
+  assert.equal(urls[2], "http://localhost:3000/local/vault/key/lock");
   const refused = (async () => new Response("{}", { status: 403 })) as unknown as typeof fetch;
   assert.equal(await holdKeyOnOwnNode("http://127.0.0.1:1", "t", key, refused), false, "a refusal is not an unlock");
 });

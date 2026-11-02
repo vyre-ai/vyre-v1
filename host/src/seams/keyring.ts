@@ -1,5 +1,5 @@
-// The person key this node holds (ruling 62, 63): the signed-in person's own key, unwrapped by their client on their own computer after a password sign-in and handed to this daemon over loopback
-// (host/src/routes/local-key.ts). The daemon never sees the password and never unwraps anything. The key lives in daemon memory only: never on disk or in a log. It is cleared at lock and at shutdown, and it
+// The person key this node holds (ruling 62, 63; owner ruling 3 Nov): the signed-in person's own key, unwrapped by their client after a password sign-in and handed to this daemon, over loopback on their
+// own computer, or over the Space's https address to a Space server for the length of that person's own signed-in sessions (host/src/routes/local-key.ts). The daemon never sees the password and never unwraps anything. The key lives in daemon memory only: never on disk or in a log. It is cleared at lock and at shutdown, and it
 // lives only as long as the sessions that unlocked it: when the last of them ends (sign-out, a revoked device, a password change or reset all end sessions) the next read finds none alive, wipes the key and
 // answers null. A node that is not the person's own (`allowed` says no) never takes it. The vault module reads it through its KeyPort for that person's Mine items.
 export interface Keyring {
@@ -17,7 +17,7 @@ export interface Keyring {
 
 interface Entry { key: Uint8Array; sessions: Set<string>; unbound: boolean }
 
-export function createKeyring(o: { allowed(personId: string): boolean; /** is this session still signed in; omitted: sessions never end */ live?(sessionId: string): boolean }): Keyring {
+export function createKeyring(o: { /** may this node hold the person's key; `sessionId` is the session handing it over, absent for the local admin */ allowed(personId: string, sessionId?: string): boolean; /** is this session still signed in; omitted: sessions never end */ live?(sessionId: string): boolean }): Keyring {
   const held = new Map<string, Entry>();
   const wipe = (e: Entry | undefined): void => { e?.key.fill(0); };
   const fresh = (personId: string): Uint8Array | null => {
@@ -29,7 +29,7 @@ export function createKeyring(o: { allowed(personId: string): boolean; /** is th
   };
   return {
     hold(personId, key, sessionId) {
-      if (!o.allowed(personId) || key.length !== 32) return false;
+      if (!o.allowed(personId, sessionId) || key.length !== 32) return false;
       const old = held.get(personId);
       wipe(old);
       held.set(personId, {
