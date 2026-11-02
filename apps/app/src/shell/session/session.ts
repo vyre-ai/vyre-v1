@@ -86,6 +86,11 @@ const loadScreens = (): Promise<ReadonlyMap<string, ScreenIndexEntry>> => import
 type Out<C extends keyof CapMap> = CapMap[C]["out"];
 
 /** The rail place a screen belongs to, by the screen's place field. */
+/** Does this person hold one of these built-in roles? identity.whoami's schema says `rol_owner`, a claimed owner really gets `Owner`, so every form counts. */
+export function holdsRole(roles: readonly string[], ...names: readonly string[]): boolean {
+  return roles.some((r) => names.includes(r.toLowerCase().replace(/^rol_/, "")));
+}
+
 const RAIL_PLACES: readonly PlaceId[] = ["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings", "console"];
 const railPlace = (p: string): PlaceId | null => (RAIL_PLACES as readonly string[]).includes(p) ? (p as PlaceId) : null;
 
@@ -267,9 +272,9 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     skinDefault: typeof space.defaults.skin==="string"?space.defaults.skin:"system",
     starred: true,
     needsYou: (switcher?.needsYou ?? 0) > 0,
-    console: who.roles.some((r) => r === "owner" || r === "admin"),
+    console: holdsRole(who.roles, "owner", "admin"),
     // a Personal Space has one person and their own computer: the terminal is always theirs. A Team Space gives it to owners and developers
-    terminal: space.kind === "personal" || who.roles.some((r) => r === "owner" || r === "developer"),
+    terminal: space.kind === "personal" || holdsRole(who.roles, "owner", "developer"),
     counts: {},   // the Chats badge is Needs you, live: ShellHost follows tasks.count_needs_you
     dots: {},
   };
