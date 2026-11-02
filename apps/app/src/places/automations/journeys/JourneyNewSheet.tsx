@@ -68,8 +68,7 @@ export function JourneyNewSheet({ onClose, initialName = "", initialSubject = ""
     setBusy(true); setErr(null);
     try {
       const id = await makeJourney(data.call, { name, subject, stages });
-      data.nav.openJourney(id);
-      onClose();
+      data.nav.openJourney(id);   // opening the new Journey replaces this sheet; closing after it would land on the empty Automations page
     } catch (e) { setErr(e instanceof Error ? e.message : plainError(e)); setBusy(false); }
   };
   const fill = (titles: readonly string[]): void => { setStages(stagesFrom(titles)); setFocusKey(null); };
