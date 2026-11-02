@@ -37,6 +37,9 @@ export function tabKey(place: PlaceId, hash?: string): string {
   if (!hash.includes("=")) return `${place}:${hash}`;
   const t = parseHash(hash);
   if (t.subject !== undefined) return `${place}:subject=${t.subject.type}:${t.subject.id}`;
+  // Tasks is a page of its own inside Chats: one tab, beside the chat. A task opened by its screen is the tab of that task.
+  if (t.screen === "tasks.my-work") return `${place}:tasks`;
+  if (t.screen === "tasks.page" && t.args["taskId"]) return `${place}:subject=task:${t.args["taskId"]}`;
   const type = t.args["type"];
   if (type !== undefined && type !== "") return `${place}:type=${type}`;
   return place;
@@ -101,7 +104,7 @@ export function reorderTabs(state: TabsState, keys: readonly string[]): TabsStat
 
 /** A place's own tab, or an item inside it. */
 export function placeTab(place: PlaceId, hash?: string, title?: string): TabEntry {
-  return { key: tabKey(place, hash), title: title ?? PLACE_TITLE[place], place, ...(hash === undefined || hash === "" ? {} : { hash }) };
+  return { key: tabKey(place, hash), title: title ?? (tabKey(place, hash) === `${place}:tasks` ? "Tasks" : PLACE_TITLE[place]), place, ...(hash === undefined || hash === "" ? {} : { hash }) };
 }
 
 let newCounter = 0;

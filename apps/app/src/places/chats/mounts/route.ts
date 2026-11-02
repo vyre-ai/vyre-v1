@@ -15,6 +15,10 @@ export type Route =
   | { view: "chat"; threadId: string | null; focus?: string }
   | { view: "search"; q: string; from: string | null }
   | { view: "needs"; taskId: string | null }
+  /** Tasks: the list. */
+  | { view: "tasks" }
+  /** One task's page, in its own tab. */
+  | { view: "task"; taskId: string }
   | { view: "agent"; agentId: string; tab: TabKey | null }
   | { view: "helper"; threadId: string }
   /** An imported coding session: its saved transcript, read-only, with Continue here. */
@@ -50,6 +54,8 @@ export type Act =
   | { t: "imported"; conversationId: string }
   | { t: "ask"; agentId: string; scopeType: string; scopeId: string; bringFrom?: string; draft?: string; first?: string }
   | { t: "needs"; taskId?: string }
+  | { t: "tasks" }
+  | { t: "task"; taskId: string }
   | { t: "agent"; agentId: string; tab?: TabKey }
   | { t: "pane" }
   /** Opens the agent's pane whatever it showed (the message menu's "Show what the agent knew here"). */
@@ -68,6 +74,8 @@ export function step(s: Shown, a: Act): Shown {
     case "imported": return { ...s, route: { view: "imported", conversationId: a.conversationId }, layer: null };
     case "ask": return { ...s, route: { view: "ask", agentId: a.agentId, scopeType: a.scopeType, scopeId: a.scopeId, bringFrom: a.bringFrom ?? null, ...(a.draft ? { draft: a.draft } : {}), ...(a.first ? { first: a.first } : {}) }, layer: null };
     case "needs": return { ...s, route: { view: "needs", taskId: a.taskId ?? null }, layer: null };
+    case "tasks": return { ...s, route: { view: "tasks" }, pane: false, terminalId: null, layer: null };
+    case "task": return { ...s, route: { view: "task", taskId: a.taskId }, pane: false, terminalId: null, layer: null };
     case "agent": return { ...s, route: { view: "agent", agentId: a.agentId, tab: a.tab ?? null }, layer: null };
     // One column on the right: the agent's pane or the terminal. The pane button closes whichever is showing, or opens the pane.
     case "pane": return s.terminalId !== null ? { ...s, terminalId: null } : { ...s, pane: !s.pane };
@@ -94,6 +102,8 @@ export const SCREEN = {
   agent: "chats.agent-page",
   helper: "chats.helper-chat",
   needs: "tasks.needs-you",
+  tasks: "tasks.my-work",
+  task: "tasks.page",
   conversation: "chats.conversation",
   ask: "chats.ask",
   computer: "chats.computer-popup",
@@ -121,13 +131,21 @@ export function askAbout(v: string): { type: string; id: string } | null {
   return m ? { type: m[1]!, id: m[2]! } : null;
 }
 
+export const TASKS_HASH = "screen=tasks.my-work";
+
 /** The first `Shown` for a link from another place, or the start when the link is not for this place. */
 export function fromHash(hash: string): Shown {
+  // the route of Tasks: the Chats sidebar links here, and tabKey keeps it one tab of its own
+  if (hash === TASKS_HASH || hash === "tasks") return step(START, { t: "tasks" });
   const p = new URLSearchParams(hash.replace(/^#/, ""));
   const screen = p.get("screen") ?? "";
   const arg = (k: string): string => p.get(k) ?? "";
   const fixed = { x: 8, y: 48 };
+  const subject = p.get("subject") ?? "";
+  if (subject.startsWith("task:") && subject.length > 5) return step(START, { t: "task", taskId: subject.slice(5) });
   switch (screen) {
+    case SCREEN.tasks: return step(START, { t: "tasks" });
+    case SCREEN.task: return arg("taskId") === "" ? step(START, { t: "tasks" }) : step(START, { t: "task", taskId: arg("taskId") });
     case SCREEN.agent: { const tab = arg("tab"); return arg("agentId") === "" ? START : step(START, { t: "agent", agentId: arg("agentId"), ...(isTabKey(tab) ? { tab } : {}) }); }
     case SCREEN.helper: return arg("threadId") === "" ? START : step(START, { t: "helper", threadId: arg("threadId") });
     case SCREEN.needs: return step(START, { t: "needs", ...(arg("taskId") === "" ? {} : { taskId: arg("taskId") }) });

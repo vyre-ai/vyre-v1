@@ -183,7 +183,11 @@ test("a snoozed request returns at its time", async () => {
   const cleared = await h.call("tasks.snooze", { taskId: id, until: null }, { id: alice.id });
   assert.equal(cleared.task.snoozedUntil, undefined);
   assert.equal((await h.call("tasks.needs_you", {}, { id: alice.id })).total, 1);
+  // plain work snoozes too, for whoever holds it, so quiet tasks can be put off; a finished task and someone else's task cannot
   const work = await mk(h);
+  assert.equal((await h.call("tasks.snooze", { taskId: work, until: h.now() + HOUR }, { id: alice.id })).task.snoozedUntil, h.now() + HOUR);
+  await refused(h.call("tasks.snooze", { taskId: work, until: h.now() + HOUR }, { id: bob.id }), "validation.precondition_failed", "wrong_actor");
+  await h.call("tasks.transition", { taskId: work, to: "canceled" }, { id: alice.id });
   await refused(h.call("tasks.snooze", { taskId: work, until: h.now() + HOUR }, { id: alice.id }), "validation.precondition_failed", "not_a_request");
 });
 
@@ -390,7 +394,7 @@ test("history lists what happened, newest first, in pages", async () => {
   await h.call("tasks.transition", { taskId: id, to: "doing" }, { id: alice.id });
   await h.call("tasks.transition", { taskId: id, to: "done" }, { id: alice.id });
   const all = await h.call("tasks.history", { taskId: id }, me);
-  assert.deepEqual(all.entries.map((e: { type: string }) => e.type), ["completed", "transitioned", "transitioned", "assigned", "created"]);
+  assert.deepEqual(all.entries.map((e: { type: string }) => e.type), ["completed", "transitioned:done", "transitioned:doing", "assigned", "created"]);
   assert.equal(all.total, 5);
   assert.ok(all.entries.every((e: { eventId: string; by: string }) => /^evt_[a-z0-9]+$/.test(e.eventId) && e.by.length > 0));
   const p = await h.call("tasks.history", { taskId: id, limit: 2 }, me);

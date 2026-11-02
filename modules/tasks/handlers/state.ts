@@ -132,7 +132,7 @@ export function commitMove(ctx: TasksCtx, t: Task, to: TaskState, c: Checked): A
 
   const by = ctx.principal.id;
   const hist = (type: string): { type: string; by: string; note?: string } => clean({ type, by, note });
-  emitTask(ctx, ctx.db, "task.transitioned", t, { kind: t.kind, from, to, note }, hist("transitioned"));
+  emitTask(ctx, ctx.db, "task.transitioned", t, { kind: t.kind, from, to, note }, hist(`transitioned:${to}`));
   if (to === "done") emitTask(ctx, ctx.db, "task.completed", t, { kind: t.kind, recordId: t.recordId, source: t.source }, hist("completed"));
   if (move.action === "send_back") emitTask(ctx, ctx.db, "task.sent_back", t, { by, note: note ?? "", reviewLoops: t.reviewLoops }, hist("sent_back"));
   if (move.action === "reject") emitTask(ctx, ctx.db, "task.rejected", t, { by, note: note ?? "" }, hist("rejected"));

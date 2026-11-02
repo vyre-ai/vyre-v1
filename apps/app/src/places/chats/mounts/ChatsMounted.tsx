@@ -41,6 +41,8 @@ import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
 import { START, fromHash, newestThread, step, workOf } from "./route.ts";
 import { WORKSPACE_MIN_W, Workspace } from "./Workspace.tsx";
+import { TasksPage } from "../tasks/TasksPage.tsx";
+import { TaskDetail } from "../tasks/TaskDetail.tsx";
 import type { Act, Shown } from "./route.ts";
 import { nameOr } from "../names.ts";
 
@@ -98,7 +100,11 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
     if (hash === linked.current) return;
     linked.current = hash;
     if (hash !== "") setShown(fromHash(hash));
+    // back on the Chats tab from Tasks or a task: the chat that was open
+    else setShown((s) => (s.route.view === "tasks" || s.route.view === "task" ? lastChat.current : s));
   }, [hash]);
+  const lastChat = useRef<Shown>(START);
+  if (shown.route.view !== "tasks" && shown.route.view !== "task") lastChat.current = shown;
   // An Ask link names an agent and an object; the thread it opens is found or made, then shown as a chat.
   const asking = shown.route.view === "ask" ? shown.route : null;
   useEffect(() => {
@@ -149,6 +155,7 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
     () => (threadId === null ? null : wireConversation(rt, go, { threadId, list, nameOf, leadId, fill, ...(focus ? { focus } : {}) })),
     [rt, go, threadId, list, nameOf, leadId, fill, focus],
   );
+  const conversationFor = useCallback((id: string) => wireConversation(rt, go, { threadId: id, list, nameOf, leadId: rt.assistant.id, fill }), [rt, go, list, nameOf, fill]);
   const searchData = useMemo<SearchData>(() => ({
     call: rt.call, me: { id: rt.me.id, name: rt.me.name }, nameOf, kindOf: (id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person"), clock: rt.clock,
     query: route.view === "search" ? route.q : "", openMessage: go.message, openThread: go.chat, close: go.closeSearch, copy,
@@ -172,7 +179,9 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
 
   /* ---------- the middle ---------- */
   let main: ReactElement;
-  if (route.view === "search") main = <SearchPage key={route.q} data={searchData} />;
+  if (route.view === "tasks") main = <TasksPage rt={rt} openTask={go.task} openAgent={(id) => go.agent(id)} openChat={(text) => rt.open({ screen: "chats.ask", args: { with: "assistant", first: text } })} {...(window ? { window } : {})} />;
+  else if (route.view === "task") main = <TaskDetail key={route.taskId} rt={rt} taskId={route.taskId} conversationFor={conversationFor} openTask={go.task} openAgent={(id) => go.agent(id)} openChat={(id) => rt.open({ screen: "chats.conversation", args: { threadId: id } })} />;
+  else if (route.view === "search") main = <SearchPage key={route.q} data={searchData} />;
   else if (route.view === "needs") main = <NeedsYou data={needs} {...(route.taskId ? { initialSelected: route.taskId } : {})} {...(window ? { window } : {})} />;
   else if (route.view === "imported") main = <ImportedSession key={route.conversationId} conversationId={route.conversationId} data={importedData} />;
   else if (route.view === "helper") main = helperId === "" ? <HelperChatLoading /> : <HelperChat key={helperId} data={helper} />;

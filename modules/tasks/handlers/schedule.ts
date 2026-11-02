@@ -50,6 +50,15 @@ function rollUp(ctx: TasksCtx, t: Task): void {
   if (kids.every((k) => !isOpen(k.state))) settle(ctx, parent, "finished");
 }
 
+/** A parent is under way once any of its work is: the list says Doing, not To do, while its children run. */
+function startParent(ctx: TasksCtx, t: Task): string[] {
+  if (t.kind !== "work" || !t.parentTaskId) return [];
+  const parent = findTask(ctx.db, t.parentTaskId);
+  if (!parent || parent.kind !== "work" || parent.state !== "todo") return [];
+  applyMove(ctx, parent, "doing");
+  return [parent.id];
+}
+
 async function comeBack(ctx: TasksCtx, t: Task): Promise<void> {
   if (!t.recur || t.state !== "done" || !ctx.call) return;
   const every = t.recur.every, n = t.recur.n ?? 1;
@@ -69,6 +78,7 @@ export async function onTaskChanged(ctx: TasksCtx, event: Ev): Promise<string[]>
   const t = findTask(ctx.db, id);
   if (!t) return [];
   if (event.name === "task.created") { if (t.kind === "answer" || t.kind === "unblock") rollUp(ctx, t); return []; }
+  if (event.name === "task.transitioned" && t.state === "doing") return startParent(ctx, t);
   if (isOpen(t.state)) return [];
   rollUp(ctx, t);
   await comeBack(ctx, t);
