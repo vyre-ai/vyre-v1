@@ -468,7 +468,7 @@ async function submit(ctx: Ctx, input: unknown): Promise<{ recordId: string; tha
   );
   if (attribution) recordAttribution(ctx, written.recordId, attribution, written.created);
   if (link) ctx.db.run("UPDATE forms_link SET partial = ?, partial_step = ?, partial_expires_at = ? WHERE id = ?", null, null, null, str(link.id));
-  ctx.emit("form.submitted", `form/${formId}`, { formId, recordId: written.recordId, type: str(form.record_type), matched: written.matched });
+  ctx.emit("form.submitted", `form/${formId}`, { formId, recordId: written.recordId, type: str(form.record_type), matched: written.matched, ...(str(form.kind) === "booking" ? { booking: true } : {}) });
 
   const thanks = parseJson(form.thank_you);
   const out: { recordId: string; thankYou?: string } = { recordId: written.recordId };

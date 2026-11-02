@@ -17,7 +17,7 @@ export default defineManifest({
     ev('form.created', 'A form was created as a draft', { p: { formId: id.form, name: t.str(), kind: t.str() }, subject: ['form', '/formId'] }),
     ev('form.choices_changed', 'The records or people a public question offers were changed by its publisher', { p: { formId: id.form, field: t.str(), count: t.int() }, subject: ['form', '/formId'] }),
     ev('form.published', 'A form went live', { p: { formId: id.form, slug }, subject: ['form', '/formId'] }),
-    ev('form.submitted', 'A form was submitted; the record was written with source link holder', { p: { formId: id.form, recordId: id.record, type: id.recordType, matched: t.bool() }, subject: ['form', '/formId'], trigger: { title: 'A form is submitted', fields: ['/formId'] } }),
+    ev('form.submitted', 'A form was submitted; the record was written with source link holder', { p: { formId: id.form, recordId: id.record, type: id.recordType, matched: t.bool(), booking: t.opt(t.bool()) }, subject: ['form', '/formId'], trigger: { title: 'A form is submitted', fields: ['/formId'] } }),
     ev('form.link_created', 'A one-use or signed record link was made', { p: { formId: id.form, recordId: id.record, expiresAt: t.opt(t.ts()) }, subject: ['form', '/formId'] }),
     ev('booking.created', 'A booking was made; a record and a meeting were created or updated', { p: { bookingId: t.id('bkg'), formId: id.form, recordId: id.record }, subject: ['form', '/formId'], trigger: { title: 'A booking is made' } }),
     ev('booking.cancelled', 'A booking was cancelled', { p: { bookingId: t.id('bkg'), formId: id.form }, subject: ['form', '/formId'] }),

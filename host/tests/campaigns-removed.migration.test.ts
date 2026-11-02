@@ -11,7 +11,7 @@ import { migrate } from "../src/daemon/hosttables.ts";
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const AFTER = new Map([
   ["mail", "0003_unsubscribe.sql"], ["gate", "0004_campaign_launch_removed.sql"], ["runs", "0004_campaign_runs_removed.sql"], ["notifications", "0003_campaign_reply_removed.sql"],
-  ["scheduler-api", "0002_campaigns_removed.sql"], ["inbox", "0003_campaign_removed.sql"], ["telephony", "0002_campaign_removed.sql"],
+  ["scheduler-api", "0002_campaigns_removed.sql"], ["settings", "0002_text_window.sql"], ["inbox", "0003_campaign_removed.sql"], ["telephony", "0002_campaign_removed.sql"],
 ]);
 
 /** A code root holding every migration from before this change, as a Space that booted then ran them. */
@@ -55,6 +55,9 @@ test("a Space that ran Campaigns keeps its links, drops the tables, and open wor
       INSERT INTO runs_items (id, kind, status, updated_at) VALUES ('run_open', 'campaign', 'running', 5), ('run_done', 'campaign', 'succeeded', 5);
       INSERT INTO notifications_items (id, person, kind) VALUES ('ntf_1', 'usr_1', 'campaign.reply'), ('ntf_2', 'usr_1', 'run.failed');
     `);
+    db.exec(`
+      INSERT INTO settings_value (setting, scope, person, value, updated_at) VALUES ('mail.send_window', 'space', '', '{"days":[1],"startHour":9,"endHour":10,"zone":"space"}', 1), ('mail.sender_caps', 'space', '', '{"perHour":5,"perDay":9}', 1), ('mail.throttle', 'space', '', '{"perMinute":1}', 1);
+    `);
     const ran = migrate(db, ROOT, () => 2).map((m) => `${m.module}/${m.file}`);
     assert.ok(ran.includes("mail/0004_campaigns_removed.sql"), ran.join(", "));
     assert.deepEqual(tables(db, "campaigns_%"), []);
@@ -68,6 +71,9 @@ test("a Space that ran Campaigns keeps its links, drops the tables, and open wor
     assert.deepEqual(all(db, "SELECT state FROM gate_holds"), [{ state: "expired" }]);
     assert.deepEqual(all(db, "SELECT id, status FROM runs_items ORDER BY id"), [{ id: "run_done", status: "succeeded" }, { id: "run_open", status: "stopped" }]);
     assert.deepEqual(all(db, "SELECT id FROM notifications_items"), [{ id: "ntf_2" }]);
+    assert.deepEqual(all(db, "SELECT setting, value FROM settings_value ORDER BY setting"), [
+      { setting: "telephony.send_window", value: '{"days":[1],"startHour":9,"endHour":10,"zone":"space"}' }, { setting: "telephony.sender_caps", value: '{"perHour":5,"perDay":9}' },
+    ].sort((a, b) => (a.setting < b.setting ? -1 : 1)), "a value a Space chose keeps working under the text names");
     assert.deepEqual(migrate(db, ROOT, () => 3), [], "the next boot runs nothing");
   } finally { db.close(); }
 });

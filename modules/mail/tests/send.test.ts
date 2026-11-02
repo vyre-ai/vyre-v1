@@ -290,6 +290,20 @@ test("the mailbox route needs a mailbox that can send, and a connected one", asy
 
 // ---- who may send
 
+test("a Space Automation sends from a shared inbox on the use its press gave it; a person still needs comms.shared_send", async () => {
+  const flow = rig({ deniedPerms: ["comms.shared_send"], origin: "automation:aut_1", principal: { kind: "service", id: "svc_0123456789abcdef0123456789abcdef" } });
+  assert.equal((await send(flow.ctx, sendIn())).status, "sent");
+});
+
+test("a Personal Automation runs as its owner and sends from their own Gmail; a Space Automation goes through the Space domain", async () => {
+  const mine = rig({ origin: "automation:aut_1" });
+  assert.equal((await send(mine.ctx, sendIn({ mailboxId: "mbx_maya" }))).status, "sent");
+  assert.equal(mine.calls("google.gmail.send_message").length, 1);
+  const space = rig({ origin: "automation:aut_1", principal: { kind: "service", id: "svc_0123456789abcdef0123456789abcdef" } });
+  assert.equal((await send(space.ctx, sendIn({ mailboxId: "mbx_maya" }))).status, "sent");
+  assert.equal(space.calls("resend.send_email").length, 1);
+});
+
 test("sending needs use of the mailbox, comms.shared_send on a shared inbox, and comms.agent_send for an agent", async () => {
   const shared = rig({ deniedPerms: ["comms.shared_send"] });
   await refused(send(shared.ctx, sendIn({ mailboxId: "mbx_hello" })), "permission.no_grant");

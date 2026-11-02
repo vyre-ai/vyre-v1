@@ -4,7 +4,8 @@
 // DECISION: windows and caps apply to every non-person actor. A person who texts is not made to wait for a window; suppression and consent still apply.
 // DECISION: Space setting contacts.sms_requires_consent (default on) means a text needs smsConsent `granted` on the contact. A reply to a text the person sent us (replyToId) counts as consent for that
 // conversation. A number with no contact has no consent on file, so with the setting on it is refused as `no_consent`. STOP and UNSUBSCRIBE (telephony.ingest_sms) suppress the sender.
-// DECISION: the window and caps are telephony.send_window and telephony.sender_caps; the recipient's zone is not known in v1 data, so the sender's profile.timezone applies.
+// DECISION: the window and caps are telephony.send_window and telephony.sender_caps. The default window is every day, 8 to 21, in the recipient's zone, read from their number (zones.ts); a number that says nothing falls back on the sender's profile.timezone.
+// DECISION: an Automation step marked `transactional` (one text to one person, such as an appointment confirmation) goes at once: no window and no cap. Suppression, consent and DND still apply, and an agent's own text is never transactional.
 // DECISION: a refusal that depends on the person (suppressed, no consent, do not contact) is a status `suppressed` and a message.suppressed event, not an error. Over the cap is an error
 // (rate_limit.exceeded): waiting a day silently is worse than telling the sender. Outside the window the text is queued and sent by a scheduled call.
 // DECISION: pictures (mediaFileIds) need a public address for each file, which the Space does not give Twilio yet, so a text with pictures is refused with a plain message rather than sent without them.
@@ -13,11 +14,12 @@ import {
   actorOf, bad, ensure, first, isId, isInt, keyOf, liveNumber, list, newId, seesNumber, num, obj, pageOf, paging, parseJson, patch, phone, refuse, rowsOf, setting, smsOut, str, strOrNull, strOrUndef, text, validZone,
 } from "../projections.ts";
 import type { Json, Row, TelCtx } from "../projections.ts";
+import { zoneOfNumber } from "./zones.ts";
 
 interface Caps { perHour: number; perDay: number }
 interface Window { days: number[]; startHour: number; endHour: number; zone: "recipient" | "space" }
 const DEFAULT_CAPS: Caps = { perHour: 30, perDay: 150 };
-const DEFAULT_WINDOW: Window = { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 18, zone: "recipient" };
+const DEFAULT_WINDOW: Window = { days: [1, 2, 3, 4, 5, 6, 7], startHour: 8, endHour: 21, zone: "recipient" };
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
 const STEP = 15 * 60_000;
@@ -115,7 +117,7 @@ function capCheck(ctx: TelCtx, numberId: string, caps: Caps, now: number): void 
 }
 
 interface SendIn {
-  numberId: string; senderId?: string; to: string; body: string; mediaFileIds?: string[]; contactId?: string; replyToId?: string; sendAt?: number; idempotencyKey: string;
+  numberId: string; senderId?: string; to: string; body: string; mediaFileIds?: string[]; contactId?: string; replyToId?: string; transactional?: boolean; sendAt?: number; idempotencyKey: string;
 }
 interface SendOut { smsId?: string; status: "queued" | "sent" | "held" | "suppressed"; taskId?: string }
 
@@ -160,12 +162,13 @@ export async function sendSms(ctx: TelCtx, input: SendIn): Promise<SendOut> {
     return { status: "suppressed" };
   }
 
-  const bulk = actor !== "person";
+  const bulk = actor !== "person" && !(input.transactional === true && actor === "automation");
   const wanted = Math.max(now, input.sendAt ?? now);
   let when = wanted;
   if (bulk) {
     const win = await setting<Window>(ctx, "telephony.send_window", DEFAULT_WINDOW, windowOk);
-    const zone = await setting<string>(ctx, "profile.timezone", "UTC", zoneOk);
+    const own = await setting<string>(ctx, "profile.timezone", "UTC", zoneOk);
+    const zone = win.zone === "recipient" ? zoneOfNumber(input.to) ?? own : own;
     const open = nextWindowStart(wanted, zone, win);
     if (open === null) return refuse(ctx, "The send window has no open time in the next week. Change the send window in Console, Comms.");
     when = open;
@@ -185,7 +188,7 @@ export async function sendSms(ctx: TelCtx, input: SendIn): Promise<SendOut> {
   if (!due) insertSms(ctx, id, { n, input, contactId, status: "queued", at: now, direction: "out" });
   let sent: Json;
   try {
-    sent = obj(await ctx.call("twilio.sms.send", { from: str(n, "e164"), to: input.to, body: input.body, idempotencyKey: `${input.idempotencyKey}:send` }));
+    sent = obj(await ctx.call("twilio.sms.send", { numberId: input.numberId, from: str(n, "e164"), to: input.to, body: input.body, idempotencyKey: `${input.idempotencyKey}:send` }));
   } catch (e) {
     patch(ctx, "telephony_sms", id, { status: "failed" });
     ctx.emit("message.failed", `entity/${id}`, { messageId: id, channel: "sms", reason: (e as { error?: { code?: string } } | null)?.error?.code ?? "failed" });

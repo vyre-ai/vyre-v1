@@ -510,6 +510,50 @@ export async function share(ctx: ShareCtx, input: {
   return out;
 }
 
+/**
+ * What a Space Automation may send from (modules/automations/grants.ts). It runs as its own service, which holds nothing, so the person who presses Turn on or saves a send step gives it `use` on the
+ * mailbox or number the step names and `view` on the Space, which every send reads for suppression and settings. These are grant rows made by that person, audited, tagged with the source
+ * automation:<id>. Only a person's press reaches this: an agent's save does not call it, and a nested call from anything but a person is refused. The person's own access is the ceiling, and it asks
+ * for `use` where a share would ask for Manage, because a person who may send from a mailbox may have their own Automation send from it. A sender no step names any more loses its row.
+ */
+export async function automationSenders(ctx: ShareCtx, input: { automationId: string; give: ResourceRef[]; keep: ResourceRef[] }) {
+  const trace = ctx.trace.traceId;
+  if (((ctx as { depth?: number }).depth ?? 0) === 0 || ctx.principal.kind !== "person") raise(trace, "permission.role_lacks_permission", "A person gives an Automation its senders by turning it on.");
+  const store = storeOf(ctx);
+  const ss = shareOf(ctx);
+  const source = `automation:${input.automationId}`;
+  const serviceId = `svc_${input.automationId.replace(/^aut_/, "")}`;
+  const space: ResourceRef = { type: "space", id: ctx.space };
+  const named = new Set([...input.give, ...input.keep].map((r) => r.id));
+  if (named.size > 0) named.add(space.id);
+  const wanted: { resource: ResourceRef; level: Level }[] = [...input.give.map((resource) => ({ resource, level: "use" as Level })), ...(named.size > 0 ? [{ resource: space, level: "view" as Level }] : [])];
+  const wasFresh = isFresh(ctx, store, ss);
+  const gone = [...store.grants.values()].filter((g) => g.source === source && !named.has(g.resource.id));
+  const roots = new Set<string>();
+  for (const g of gone) {
+    store.grants.delete(g.id);
+    roots.add(g.resource.id);
+    ctx.emit("grant.revoked", g.id, { grantId: g.id, subject: g.subject, resource: g.resource, reason: "unshared" });
+  }
+  const made: GrantRec[] = [];
+  const refused: ResourceRef[] = [];
+  for (const w of wanted) {
+    const res = store.resources.get(w.resource.id);
+    if (!res || !atLeast(res.type, callerLevel(ctx, store, res), w.level)) { refused.push(w.resource); continue; }
+    if ([...store.grants.values()].some((g) => g.source === source && g.resource.id === res.id)) continue;
+    const grant: GrantRec = { id: nid("gnt"), subject: { kind: "service", id: serviceId }, resource: { type: res.type, id: res.id }, level: w.level, conditions: {}, by: ctx.principal.id, createdAt: ctx.now(), source };
+    store.grants.set(grant.id, grant);
+    roots.add(res.id);
+    ctx.emit("grant.created", grant.id, { grantId: grant.id, subject: grant.subject, resource: grant.resource, level: grant.level, source });
+    made.push(grant);
+  }
+  if (made.length > 0 || gone.length > 0) {
+    changed(ctx, store, "assignment");
+    commit(ctx, store, ss, wasFresh, [...roots], false);
+  }
+  return { granted: made.map(grantView), revoked: gone.length, refused };
+}
+
 /** May this caller take this grant away: Manage on the resource, or the person who gave it and still holds Edit. */
 function mayRemove(ctx: ShareCtx, store: AccessStore, g: GrantRec): boolean {
   if (g.resource.id === "*") return !!store.snapshot().info(ctx.principal.id)?.perms.has("access.manage");
