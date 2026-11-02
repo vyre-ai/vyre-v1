@@ -35,3 +35,8 @@ export function providerMarkOf(provider: string | null | undefined): Exclude<Mar
   if (/github/i.test(p)) return "github";
   return null;
 }
+
+/** The AppIcon brand Mark draws for a provider: Google Drive's own logo for "google_drive", the provider's for the rest; null for a folder on a computer, which Mark draws as a laptop. */
+export function markBrandOf(kind: MarkKind): string | null {
+  return kind === "local" ? null : kind === "google_drive" ? "gdrive" : kind;
+}

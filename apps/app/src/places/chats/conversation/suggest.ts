@@ -4,13 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import type { ComposerLists, ComposerPreview, ListItem, PopupItem } from "../../../../../../ui/src/Composer/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
+import { markBrandOf, providerMarkOf } from "../../files/google.ts";
 
-export interface Suggested { records: ListItem[]; files: ListItem[]; folders: ListItem[]; channels: ListItem[]; chats?: ListItem[]; automations?: ListItem[]; projects?: ListItem[] }
+export interface Suggested { records: ListItem[]; files: ListItem[]; folders: ListItem[]; channels: ListItem[]; chats?: ListItem[]; automations?: ListItem[]; projects?: ListItem[]; notice?: string }
 export const NONE: Suggested = { records: [], files: [], folders: [], channels: [] };
 
 type Hit = CapMap["search.query"]["out"]["hits"][number];
 
-export function itemOf(h: Hit): { group: keyof Suggested; item: ListItem } | null {
+export function itemOf(h: Hit): { group: Exclude<keyof Suggested, "notice">; item: ListItem } | null {
   if (h.kind === "record") return { group: "records", item: { t: h.title, ...(h.recordType ? { s: h.recordType, data: { type: h.recordType } } : {}), kind: "Record", ref: h.id } };
   if (h.kind === "file") return { group: "files", item: { t: h.title, ...(h.path ? { s: h.path } : {}), kind: "File", ref: h.id } };
   if (h.kind === "channel") return { group: "channels", item: { t: h.title, kind: "Channel", ref: h.id } };
@@ -32,8 +33,22 @@ export const DEBOUNCE_MS = 150;
 
 type MountRow = CapMap["mounts.list"]["out"]["mounts"][number];
 
-/** The AppIcon brand of a mount's source; a folder on a computer has none and keeps the folder icon. */
-export const BRAND_OF_MOUNT: Record<MountRow["kind"], string | undefined> = { google_drive: "gdrive", onedrive: "onedrive", sharepoint: "sharepoint", github: "github", local: undefined };
+/** The AppIcon brand of a mount's source, the one the shared Mark draws (files/google.ts); a folder on a computer has none and keeps the folder icon. */
+const brandOf = (kind: MountRow["kind"]): string | undefined => markBrandOf(kind) ?? undefined;
+export const BRAND_OF_MOUNT: Record<MountRow["kind"], string | undefined> = {
+  google_drive: brandOf("google_drive"), onedrive: brandOf("onedrive"), sharepoint: brandOf("sharepoint"), dropbox: brandOf("dropbox"), github: brandOf("github"), local: brandOf("local"),
+};
+
+/** The words a connected source is also found by, past its own name: "google" finds My Drive, "sharepoint" a library called Documents, "repo" a GitHub repository. */
+const FOUND_BY: Record<MountRow["kind"], string> = {
+  google_drive: "shared drive", onedrive: "Microsoft", sharepoint: "site library Microsoft", dropbox: "", github: "repo repository", local: "computer",
+};
+export function foundBy(m: Pick<MountRow, "kind" | "provider" | "ref">): string {
+  return [m.provider, FOUND_BY[m.kind] ?? "", m.kind === "github" ? m.ref ?? "" : ""].filter((x) => x !== "").join(" ");
+}
+
+/** The quiet line under the list when the connected folders could not be read: the rest still shows, and the person knows something is missing. */
+export const MOUNTS_UNREAD = "Your connected folders could not be read just now";
 
 /** The quiet line of a mounted folder: where it comes from and how it is doing. */
 export function mountNote(m: MountRow, now: number): string {
@@ -50,10 +65,11 @@ function agoWords(ms: number): string {
 export function withMounts(out: Suggested, hits: readonly Hit[], mounts: readonly MountRow[], q: string, now: number): Suggested {
   if (mounts.length === 0) return out;
   const want = q.toLowerCase();
-  const mine = mounts.filter((m) => want === "" || m.name.toLowerCase().includes(want) || m.provider.toLowerCase().includes(want));
+  // the name matches anywhere in it; the other words only from the start of a word, so "repo" finds a GitHub repository and not SharePoint
+  const mine = mounts.filter((m) => want === "" || m.name.toLowerCase().includes(want) || ` ${foundBy(m).toLowerCase()}`.includes(` ${want}`));
   const rows: ListItem[] = mine.map((m) => {
     const brand = BRAND_OF_MOUNT[m.kind];
-    return { t: m.name, s: mountNote(m, now), kind: "Folder", ref: m.folderId, data: { mount: m.mountId, ...(brand ? { brand } : {}) } };
+    return { t: m.name, s: mountNote(m, now), kind: "Folder", ref: m.folderId, find: foundBy(m), data: { mount: m.mountId, ...(brand ? { brand } : {}) } };
   });
   const seen = new Set(rows.map((r) => (typeof r === "string" ? r : r.ref)));
   const folders = [...rows, ...(out.folders ?? []).filter((f) => typeof f === "string" || f.ref === undefined || !seen.has(f.ref))];
@@ -66,6 +82,30 @@ export function withMounts(out: Suggested, hits: readonly Hit[], mounts: readonl
     return m ? { ...f, s: `${m.provider} \u00b7 ${m.name}`, data: { ...(f.data ?? {}), mount: m.mountId, ...(brand ? { brand } : {}) } } : f;
   });
   return { ...out, folders, files };
+}
+
+type FolderHit = CapMap["files.folder.search"]["out"]["folders"][number];
+
+/** A folder found by name: one inside a connected source carries the source's mark and says where it comes from; a git folder says it is a repository. */
+export function folderItem(x: FolderHit): ListItem {
+  const mark = providerMarkOf(x.source?.provider);
+  const brand = mark ? markBrandOf(mark) : null;
+  const s = x.source ? `${x.source.provider} \u00b7 ${x.path}` : x.git ? `Git repository \u00b7 ${x.path}` : x.path;
+  return { t: x.name, s, kind: "Folder", ref: x.folderId, ...(x.source ? { find: x.source.provider } : {}), ...(x.source || brand ? { data: { ...(x.source ? { mount: x.source.mountId } : {}), ...(brand ? { brand } : {}) } } : {}) };
+}
+
+/**
+ * The person's own Drive or OneDrive, which the company connected, becomes a mount the first time they open Files. Someone who goes straight to a chat has not been there, so the first # of a
+ * session asks for it too (mounts.company_drive does nothing when it is already there). It waits a moment at most: a first sync that takes longer shows on the next #.
+ */
+const companyDrive = new WeakMap<object, Promise<unknown>>();
+export const COMPANY_DRIVE_WAIT_MS = 1500;
+async function withCompanyDrive(data: Pick<ConversationData, "call">): Promise<void> {
+  let p = companyDrive.get(data.call);
+  if (!p) { p = Promise.resolve().then(() => data.call("mounts.company_drive", {})).catch(() => undefined); companyDrive.set(data.call, p); }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([p, new Promise((done) => { timer = setTimeout(done, COMPANY_DRIVE_WAIT_MS); })]);
+  clearTimeout(timer);
 }
 
 export async function fetchSuggestions(data: Pick<ConversationData, "call">, ch: "#" | "[[", q: string): Promise<Suggested> {
@@ -84,12 +124,16 @@ export async function fetchSuggestions(data: Pick<ConversationData, "call">, ch:
     } catch { /* projects are an extra */ }
     try {
       const f = (await data.call("files.folder.search", { q, limit: 6 })) as CapMap["files.folder.search"]["out"];
-      out.folders = f.folders.map((x) => ({ t: x.name, s: x.path, kind: "Folder", ref: x.folderId }));
+      out.folders = f.folders.map(folderItem);
     } catch { /* folders are an extra; the rest still shows */ }
+    await withCompanyDrive(data);
     try {
-      const m = (await data.call("mounts.list", {})) as CapMap["mounts.list"]["out"];
+      const m = (await data.call("mounts.list", { limit: 100 })) as CapMap["mounts.list"]["out"];
       return withMounts(out, hits, m.mounts, q, Date.now());
-    } catch { /* mounts are an extra; the plain lists still show */ }
+    } catch {
+      // the connected folders are an extra: the plain lists still show, with a quiet line so their absence is not mistaken for nothing connected
+      return { ...out, notice: MOUNTS_UNREAD };
+    }
   }
   return out;
 }
