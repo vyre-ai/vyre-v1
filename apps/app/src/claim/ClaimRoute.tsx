@@ -15,7 +15,8 @@ import { ClaimOwner } from "./ClaimOwner.tsx";
 import { deviceFor } from "../join/logic.ts";
 import { prefillFor, rememberClaimed } from "../onboarding/doors.ts";
 
-export function ClaimRoute({ token, onDone, onSignIn, onBack, address, fragment, deviceClass="web" }: { token: string; onDone(): void; onSignIn(): void; onBack?():void; address?:string; fragment?:string;deviceClass?:"web"|"desktop" }): ReactElement | null {
+/** `local`: the Space is this computer's own Personal Space, so there is no server whose printed fingerprint to compare with and none is shown. */
+export function ClaimRoute({ token, onDone, onSignIn, onBack, address, fragment, deviceClass="web", local=false }: { token: string; onDone(): void; onSignIn(): void; onBack?():void; address?:string; fragment?:string;deviceClass?:"web"|"desktop";local?:boolean }): ReactElement | null {
   const baseUrl = address ?? spaceAddress();
   const call = useMemo(() => (baseUrl ? createCapCaller({ baseUrl, token: () => null }) : null), [baseUrl]);
   const hash = fragment ?? (globalThis as { location?: { hash?: string } }).location?.hash ?? "";
@@ -45,5 +46,5 @@ export function ClaimRoute({ token, onDone, onSignIn, onBack, address, fragment,
     rememberClaimed({ name: v.name, username: v.username, address: baseUrl });
     onDone();
   };
-  return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={claim} onSignIn={onSignIn} {...(onBack ? { onBack } : {})} fingerprint={fingerprintOf(hash)} prefill={prefillFor(baseUrl)} />;
+  return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={claim} onSignIn={onSignIn} {...(onBack ? { onBack } : {})} fingerprint={local ? null : fingerprintOf(hash)} prefill={prefillFor(baseUrl)} />;
 }

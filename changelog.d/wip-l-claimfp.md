@@ -1,0 +1,1 @@
+- Setting up your Personal Space on this computer no longer shows a key fingerprint; it is only shown when you claim a server, where you compare it with the one the server printed.
