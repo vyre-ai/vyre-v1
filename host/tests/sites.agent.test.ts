@@ -57,5 +57,9 @@ test("an agent publishes an artifact for its person, and its going public is hel
     assert.equal(held.json.data.status, "held");
     const after = await call("olivia", "/v1/sites/get", { siteId: made.json.data.site.siteId });
     assert.equal(after.json.data.site.live, false);
+    // a Space with no address of its own takes its public origin from the name it claimed, on the same call (the relay case)
+    d.db!.run("INSERT OR REPLACE INTO network_phone (id, name, nickname, state, detail, box_key, reported_at) VALUES (1, 'harbor', NULL, 'claimed', NULL, NULL, 1)");
+    const claimed = await call("agent", "/v1/sites/artifact_publish", { idempotencyKey: "a2", title: "Numbers", html: "<p>43</p>" });
+    assert.equal(claimed.json.data.url, `https://team.example.com/a/${id}`, "a given address still wins");
   } finally { await d.stop(); }
 });
