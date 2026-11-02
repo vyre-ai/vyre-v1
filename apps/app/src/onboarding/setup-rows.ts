@@ -5,6 +5,9 @@ import type { Device } from "./device.ts";
 
 export interface SetupRow { key: string; title: string; note: string; state: StepState }
 
+/** The quiet line under a step's row: Skipped for a step put off, else its own line. */
+export const setupNote = (row: SetupRow): string => (row.state === "later" ? "Skipped" : row.note);
+
 /** What the new chat shows on the first day: the top three steps still to do, the ones not put off first, and how many more wait. Done steps have left. */
 export function setupTop(rows: readonly SetupRow[], most = 3): { rows: SetupRow[]; more: number } {
   const left = [...rows.filter((r) => r.state === "open"), ...rows.filter((r) => r.state === "later")];

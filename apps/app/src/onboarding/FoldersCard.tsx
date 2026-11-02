@@ -1,11 +1,14 @@
 // The "Local folders" step on the desktop: the system folder dialog (the shell's pick_paths), and each pick is mounted at once through mounts.add, the call Files uses.
-// A row says Adding, then Added with a check, or fails with Retry. Removing an Added row unmounts it (mounts.remove). Continue only moves on.
+// Each folder is a row with its name and where it is ("~/Claude/Orgs/Vyre"): Adding, then Added with a check, or Retry. Removing an Added row unmounts it (mounts.remove).
+// Continue moves on once one is added; until then Skip for now is the way past.
 // The folders stay on this computer (live only). On the web and the phone the step keeps the card that opens Files.
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
-import { baseName, mountLocalFolder, mountPlace, parentOf, pickFolders, shellInvoke, unmountFolder } from "../shell/providers/local-folder-mount.ts";
+import { baseName, mountLocalFolder, mountPlace, pickFolders, shellInvoke, unmountFolder } from "../shell/providers/local-folder-mount.ts";
+import { Row } from "../../../../ui/src/Row/index.tsx";
+import { forgetFolder, rememberFolder, tildePath } from "./folders-model.ts";
 import type { Invoke, MountPlace } from "../shell/providers/local-folder-mount.ts";
 import { CARD } from "./card-style.ts";
 
@@ -27,6 +30,7 @@ export function FoldersCard({ call, gate, invoke = shellInvoke() }: { call: CapC
       where.current = at;
       const out = await mountLocalFolder(call, path, at);
       set(path, { status: "added", ...(out.mountId ? { mountId: out.mountId } : {}) });
+      rememberFolder(out.mountId, path);
     } catch { set(path, { status: "failed" }); setError(`Could not add ${baseName(path)}. Try again.`); }
   };
   const pick = async (): Promise<void> => {
@@ -44,6 +48,7 @@ export function FoldersCard({ call, gate, invoke = shellInvoke() }: { call: CapC
     setError("");
     if (r.status === "added" && r.mountId) {
       try { await unmountFolder(call, r.mountId); } catch { setError(`Could not remove ${baseName(r.path)}. Try again.`); return; }
+      forgetFolder(r.mountId);
     }
     setRows((old) => old.filter((x) => x.path !== r.path));
   };
@@ -57,13 +62,18 @@ export function FoldersCard({ call, gate, invoke = shellInvoke() }: { call: CapC
   const list: ReactElement[] = [];
   rows.forEach((r, i) => {
     list.push(
-      <View key={r.path} testID={`folder-row-${i}`} style={s.row}>
-        <Text style={s.name} numberOfLines={1}>{baseName(r.path)}</Text>
-        <Text style={s.note} numberOfLines={1}>{parentOf(r.path)}</Text>
-        {r.status === "adding" ? <Text testID={`folder-status-${i}`} style={s.state}>Adding</Text> : null}
-        {r.status === "added" ? <Text testID={`folder-status-${i}`} accessibilityLabel="Added" style={s.ok}>{"Added \u2713"}</Text> : null}
-        {r.status === "failed" ? <Pressable testID={`folder-retry-${i}`} accessibilityRole="button" accessibilityLabel={`Retry ${baseName(r.path)}`} onPress={() => { setError(""); void mount(r.path); }} style={s.retry}><Text style={s.retryText}>Retry</Text></Pressable> : null}
-        <Pressable testID={`folder-remove-${i}`} accessibilityRole="button" accessibilityLabel={`Remove ${baseName(r.path)}`} disabled={r.status === "adding"} onPress={() => void remove(r)} style={[s.x, r.status === "adding" && s.dim]}><Text style={s.xText}>{"\u00d7"}</Text></Pressable>
+      <View key={r.path} testID={`folder-row-${i}`}>
+        <Row
+          id={`folder-${i}`} title={baseName(r.path)} note={tildePath(r.path)} domProps={{ title: r.path }}
+          trailing={(
+            <View style={s.trail}>
+              {r.status === "adding" ? <Text testID={`folder-status-${i}`} style={s.state}>Adding</Text> : null}
+              {r.status === "added" ? <Text testID={`folder-status-${i}`} accessibilityLabel="Added" style={s.ok}>{"Added \u2713"}</Text> : null}
+              {r.status === "failed" ? <Pressable testID={`folder-retry-${i}`} accessibilityRole="button" accessibilityLabel={`Retry ${baseName(r.path)}`} onPress={() => { setError(""); void mount(r.path); }} style={s.retry}><Text style={s.retryText}>Retry</Text></Pressable> : null}
+              <Pressable testID={`folder-remove-${i}`} accessibilityRole="button" accessibilityLabel={`Remove ${baseName(r.path)}`} disabled={r.status === "adding"} onPress={() => void remove(r)} style={[s.x, r.status === "adding" && s.dim]}><Text style={s.xText}>{"\u00d7"}</Text></Pressable>
+            </View>
+          )}
+        />
       </View>,
     );
   });
@@ -71,17 +81,15 @@ export function FoldersCard({ call, gate, invoke = shellInvoke() }: { call: CapC
     <View testID="folders-card" style={s.col}>
       {list.length > 0 ? <View style={s.list}>{list}</View> : null}
       {error ? <Text accessibilityRole="alert" testID="folders-error" style={s.err}>{error}</Text> : null}
-      <Pressable testID="folders-add" accessibilityRole="button" disabled={!invoke} onPress={() => void pick()} style={[s.primary, !invoke && s.off]}><Text style={[s.primaryText, !invoke && s.offText]}>Add folder</Text></Pressable>
+      <Pressable testID="folders-add" accessibilityRole="button" disabled={!invoke} onPress={() => void pick()} style={[list.length > 0 ? s.ghost : s.primary, !invoke && s.off]}><Text style={[list.length > 0 ? s.ghostText : s.primaryText, !invoke && s.offText]}>{list.length > 0 ? "Add another" : "Add folder"}</Text></Pressable>
     </View>
   );
 }
 
 const s = StyleSheet.create({
   col: { gap: 10 },
-  list: { gap: 6 },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 40, paddingLeft: 12, paddingRight: 4, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--win)" as string },
-  name: { fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
-  note: { flex: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
+  list: { borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, padding: 4, backgroundColor: "var(--win)" as string },
+  trail: { flexDirection: "row", alignItems: "center", gap: 6 },
   x: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   xText: { fontSize: 18, color: "var(--ink-3)" as string },
   state: { fontSize: 12.5, color: "var(--ink-3)" as string },
@@ -91,6 +99,8 @@ const s = StyleSheet.create({
   err: CARD.err,
   primary: CARD.primary,
   primaryText: CARD.primaryText,
+  ghost: { ...CARD.ghost, alignSelf: "flex-start" },
+  ghostText: CARD.ghostText,
   off: CARD.off,
   offText: CARD.offText,
   dim: { opacity: 0.45 },

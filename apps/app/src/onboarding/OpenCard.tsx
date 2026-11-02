@@ -1,18 +1,25 @@
 // A step whose real screen already exists elsewhere in Vyre (session import in Settings, Chrome in the Vault, folders in Files, a routine in Automations). The card says what the step
-// does, opens that place, and lets the person tick the step when they are back.
+// does, opens that place, and lets the person tick the step when they are back. In the onboarding screen the bar's Continue is that tick (the card hands it over), so the card has one
+// button, the place to open.
+import { useEffect } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { FlowKind } from "./flow.ts";
 import { StepTile } from "./StepGlyph.tsx";
 import { CARD } from "./card-style.ts";
 
-export function OpenCard({ text, action, onOpen, onDone, step }: { text: string; action: string; onOpen(): void; onDone(): void; step?: { flow: FlowKind; key: string } }): ReactElement {
+export function OpenCard({ text, action, onOpen, onDone, step, gate }: { text: string; action: string; onOpen(): void; onDone(): void; step?: { flow: FlowKind; key: string }; gate?(save: (() => Promise<boolean>) | null): void }): ReactElement {
+  useEffect(() => {
+    if (!gate) return undefined;
+    gate(async () => true);
+    return () => gate(null);
+  }, [gate]);
   return (
     <View testID="open-card" style={s.col}>
-      <View style={s.head}>{step ? <StepTile flow={step.flow} k={step.key} size={40} /> : null}{text ? <Text style={s.line}>{text}</Text> : null}</View>
+      {text ? <View style={s.head}>{step ? <StepTile flow={step.flow} k={step.key} size={40} /> : null}<Text style={s.line}>{text}</Text></View> : null}
       <View style={s.row}>
-        <Pressable testID="open-card-go" accessibilityRole="button" onPress={onOpen} style={s.primary}><Text style={s.primaryText}>{action}</Text></Pressable>
-        <Pressable testID="open-card-done" accessibilityRole="button" onPress={onDone} style={s.ghost}><Text style={s.ghostText}>Done</Text></Pressable>
+        <Pressable testID="open-card-go" accessibilityRole="button" onPress={onOpen} style={gate ? s.ghost : s.primary}><Text style={gate ? s.ghostText : s.primaryText}>{action}</Text></Pressable>
+        {gate ? null : <Pressable testID="open-card-done" accessibilityRole="button" onPress={onDone} style={s.ghost}><Text style={s.ghostText}>Done</Text></Pressable>}
       </View>
     </View>
   );

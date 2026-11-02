@@ -12,11 +12,21 @@ function Buttons({ children }: { children: ReactElement | (ReactElement | null)[
 function Go({ id, label, onPress, ghost }: { id: string; label: string; onPress(): void; ghost?: boolean }): ReactElement {
   return <Pressable testID={id} accessibilityRole="button" onPress={onPress} style={ghost ? s.ghost : s.primary}><Text style={ghost ? s.ghostText : s.primaryText}>{label}</Text></Pressable>;
 }
+type Gate = (save: (() => Promise<boolean>) | null) => void;
+/** In the onboarding screen the bar's Continue ticks the step done once the card says it is (the card hands it over); the card then shows no Done of its own. */
+function useGate(gate: Gate | undefined, ready: boolean): void {
+  useEffect(() => {
+    if (!gate) return undefined;
+    gate(ready ? async () => true : null);
+    return () => gate(null);
+  }, [gate, ready]);
+}
 const line = (p: Probe<unknown>, ok: string): string => (p.kind === "ready" ? ok : p.kind === "not_yet" ? NOT_YET : "Could not read this right now.");
 
 /** Step 3: Google Workspace or Microsoft 365. Setup itself lives in the Console pages; the secure fields there send keys straight to the Vault. */
-export function WorkspaceCard({ call, onOpenConsole, onDone }: { call: CapCall; onOpenConsole(): void; onDone(): void }): ReactElement {
+export function WorkspaceCard({ call, onOpenConsole, onDone, gate }: { call: CapCall; onOpenConsole(): void; onDone(): void; gate?: Gate }): ReactElement {
   const [c, setC] = useState<Awaited<ReturnType<typeof connections>> | null>(null);
+  useGate(gate, c !== null && stepDoneBy(c));
   useEffect(() => { let off = false; void connections(call).then((r) => { if (!off) setC(r); }); return () => { off = true; }; }, [call]);
   const rows = c ? [c.google, c.microsoft] : [];
   return (
@@ -24,7 +34,7 @@ export function WorkspaceCard({ call, onOpenConsole, onDone }: { call: CapCall; 
       <Text style={s.line}>Connect Google Workspace or Microsoft 365.</Text>
       {/* ui-rows-lint: not a list (two status lines of text, not list rows) */}
       {c === null ? <Text style={s.dim}>Checking</Text> : rows.map((p, i) => <Text key={i} testID={`workspace-${i === 0 ? "google" : "microsoft"}`} style={s.dim}>{p.kind === "ready" ? `${p.value.name}: ${p.value.note}` : `${i === 0 ? "Google Workspace" : "Microsoft 365"}: ${line(p, "")}`}</Text>)}
-      <Buttons><Go id="workspace-open" label="Open the setup in the Console" onPress={onOpenConsole} />{c && stepDoneBy(c) ? <Go id="workspace-done" label="Done" ghost onPress={onDone} /> : null}</Buttons>
+      <Buttons><Go id="workspace-open" label="Open the setup in the Console" onPress={onOpenConsole} />{!gate && c && stepDoneBy(c) ? <Go id="workspace-done" label="Done" ghost onPress={onDone} /> : null}</Buttons>
     </View>
   );
 }
@@ -32,11 +42,12 @@ export function WorkspaceCard({ call, onOpenConsole, onDone }: { call: CapCall; 
 /** The Console page that holds the Google and Microsoft sign-in forms (access.policies, the sign-in policy). */
 export const SSO_SETUP_HASH = "screen=access.policies&policyId=sign_in";
 
-export function SignInDomainCard({ call, onOpenConsole, onSetUp, onDone }: { call: CapCall; onOpenConsole(): void; /** opens the Google and Microsoft sign-in forms in the Console; without it the Console opens at its start */ onSetUp?: () => void; onDone(): void }): ReactElement {
+export function SignInDomainCard({ call, onOpenConsole, onSetUp, onDone, gate }: { call: CapCall; onOpenConsole(): void; /** opens the Google and Microsoft sign-in forms in the Console; without it the Console opens at its start */ onSetUp?: () => void; onDone(): void; gate?: Gate }): ReactElement {
   const [p, setP] = useState<Awaited<ReturnType<typeof ssoProviders>> | null>(null);
   const [tested, setTested] = useState<Record<string, string>>({});
   useEffect(() => { let off = false; void ssoProviders(call).then((r) => { if (!off) setP(r); }); return () => { off = true; }; }, [call]);
   const list = p?.kind === "ready" ? p.value : [];
+  useGate(gate, list.some(ssoWorks));
   return (
     <View testID="signin-domain-card" style={s.col}>
       <Text style={s.line}>Sign in with a work account, in the same app.</Text>
@@ -47,12 +58,12 @@ export function SignInDomainCard({ call, onOpenConsole, onSetUp, onDone }: { cal
           <Buttons><Go id={`sso-test-${x.key}`} label="Test it" ghost onPress={() => void testSso(call, x.key).then((r) => setTested((t) => ({ ...t, [x.key]: r.ok ? "The test passed." : r.detail ?? "The test did not pass." })))} />{tested[x.key] ? <Text style={s.dim}>{tested[x.key]}</Text> : null}</Buttons>
         </View>
       ))}
-      <Buttons><Go id="signin-setup" label="Set up" onPress={onSetUp ?? onOpenConsole} /><Go id="signin-open" label="Open sign-in settings" ghost onPress={onSetUp ?? onOpenConsole} />{list.some(ssoWorks) ? <Go id="signin-done" label="Done" ghost onPress={onDone} /> : <Go id="signin-done" label="Skip" ghost onPress={onDone} />}</Buttons>
+      <Buttons><Go id="signin-setup" label="Set up" onPress={onSetUp ?? onOpenConsole} /><Go id="signin-open" label="Open sign-in settings" ghost onPress={onSetUp ?? onOpenConsole} />{!gate && list.some(ssoWorks) ? <Go id="signin-done" label="Done" ghost onPress={onDone} /> : null}</Buttons>
     </View>
   );
 }
 
-export function DirectoryCard({ call, by, space, onOpenConsole, onDone }: { call: CapCall; /** who is inviting, for the email */ by: string; space: string; onOpenConsole(): void; onDone(): void }): ReactElement {
+export function DirectoryCard({ call, by, space, onOpenConsole, onDone, gate }: { call: CapCall; /** who is inviting, for the email */ by: string; space: string; onOpenConsole(): void; onDone(): void; gate?: Gate }): ReactElement {
   const attempt = useRef(0);
   const [people, setPeople] = useState<DirectoryPerson[] | null>(null);
   const [next, setNext] = useState<DirectoryPage["next"]>({});
@@ -81,6 +92,7 @@ export function DirectoryCard({ call, by, space, onOpenConsole, onDone }: { call
       setSender(await ownMailbox(call));
     } catch { setError("Could not bring these people in. Try again."); } finally { setBusy(false); }
   };
+  useGate(gate, result !== null);
   const names = new Map((people ?? []).filter((p) => p.name).map((p) => [p.email, p.name!] as const));
   const drafts = result ? draftInvites(result.invited, names, by, space) : [];
   const send = async (): Promise<void> => {
@@ -124,20 +136,21 @@ export function DirectoryCard({ call, by, space, onOpenConsole, onDone }: { call
       <Buttons>
         {shown.length > 0 && !result ? <Go id="directory-import" label={busy ? "Inviting" : `Invite ${ticked.size} ${ticked.size === 1 ? "person" : "people"}`} onPress={() => void run()} /> : null}
         <Go id="directory-open" label="Open People in the Console" ghost onPress={onOpenConsole} />
-        <Go id="directory-done" label="Done" ghost onPress={onDone} />
+        {gate ? null : <Go id="directory-done" label="Done" ghost onPress={onDone} />}
       </Buttons>
     </View>
   );
 }
 
 /** Step 6: invites. Making a link sends nothing; the owner decides who gets it. */
-export function InvitesCard({ call, onDone }: { call: CapCall; onDone(): void }): ReactElement {
+export function InvitesCard({ call, onDone, gate }: { call: CapCall; onDone(): void; gate?: Gate }): ReactElement {
   const attempt = useRef(0);
   const [list, setList] = useState<Awaited<ReturnType<typeof invites>> | null>(null);
   const [email, setEmail] = useState("");
   const [link, setLink] = useState<string | null>(null);
   const [error, setError] = useState("");
   useEffect(() => { let off = false; void invites(call).then((r) => { if (!off) setList(r); }); return () => { off = true; }; }, [call]);
+  useGate(gate, link !== null || (list?.kind === "ready" && (list.value ?? []).some((i) => i.state === "open")));
   const make = async (): Promise<void> => {
     setError("");
     try { setLink(await createInviteLink(call, "Member", email.trim() || undefined, `onb-invite-${Date.now()}-${attempt.current++}`)); } catch { setError("Could not make an invite. Try again."); }
@@ -149,7 +162,7 @@ export function InvitesCard({ call, onDone }: { call: CapCall; onDone(): void })
       <TextInput testID="invite-email" accessibilityLabel="Email" value={email} onChangeText={setEmail} placeholder="Their email, if you know it" autoCapitalize="none" style={s.input} />
       {link ? <Text selectable testID="invite-link" style={s.link}>{link}</Text> : null}
       {error ? <Text testID="invite-error" style={s.err}>{error}</Text> : null}
-      <Buttons><Go id="invite-make" label={link ? "Make another" : "Make an invite link"} onPress={() => void make()} /><Go id="invites-done" label="Done" ghost onPress={onDone} /></Buttons>
+      <Buttons><Go id="invite-make" label={link ? "Make another" : "Make an invite link"} onPress={() => void make()} />{gate ? null : <Go id="invites-done" label="Done" ghost onPress={onDone} />}</Buttons>
     </View>
   );
 }

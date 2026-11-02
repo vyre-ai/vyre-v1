@@ -66,3 +66,6 @@ let lastImported = 0;
 /** The count of the last import in this run of the app, for the summary at the end. */
 export const rememberImported = (count: number): void => { lastImported = count; };
 export const rememberedImported = (): number => lastImported;
+
+/** The folder filter's button: "Folder: All", or the folder picked. */
+export const folderMenuLabel = (folder: string): string => `Folder: ${folder || "All"}`;
