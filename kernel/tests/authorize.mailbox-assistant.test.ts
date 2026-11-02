@@ -68,19 +68,16 @@ test("a Mine Vault folder is its person's alone: their own agent uses it for the
   assert.ok(worlds >= 20, `worlds exercised: ${worlds}`);
 });
 
-test("an agent builds definitions its person may build, never more", () => {
+test("an agent never takes a permission its own role lacks from its person, even an owner", () => {
   let worlds = 0;
   for (let seed = 1; seed <= 60; seed++) {
     const { snap } = buildWorld(seed);
-    if (snap.info("p1")?.p.status !== "active" || snap.info("p2")?.p.status !== "active" || snap.info(AGENT)?.p.status !== "active") continue;
+    if (snap.info("p1")?.p.status !== "active" || snap.info(AGENT)?.p.status !== "active") continue;
     worlds++;
     snap.putRole({ id: "builder", clearance: 3, perms: ["journeys.manage", "schema.manage"], name: "Builder" });
     snap.addPrincipalRole({ holder: "p1", role: "builder" });
-    const build = (acting: string) => authorize(snap, { principal: AGENT, actingFor: acting, action: { perm: "journeys.manage", level: "view" }, resource: { type: "folder", id: "root" }, now: NOW }).effect;
-    const person = (who: string) => authorize(snap, { principal: who, action: { perm: "journeys.manage", level: "view" }, resource: { type: "folder", id: "root" }, now: NOW }).effect;
-    if (person("p1") === "allow" && authorize(snap, { principal: AGENT, actingFor: "p1", action: act("view"), resource: { type: "folder", id: "root" }, now: NOW }).effect === "allow") assert.equal(build("p1"), "allow", `seed ${seed}: the person's role is the ceiling`);
-    if (person("p2") === "deny") assert.equal(build("p2"), "deny", `seed ${seed}: never above the person`);
-    assert.equal(authorize(snap, { principal: AGENT, actingFor: "p1", action: { perm: "access.manage", level: "view" }, resource: { type: "folder", id: "root" }, now: NOW }).effect, "deny", `seed ${seed}: only definitions, never access.manage`);
+    for (const perm of ["journeys.manage", "schema.manage", "access.manage"]) assert.equal(authorize(snap, { principal: AGENT, actingFor: "p1", action: { perm, level: "view" }, resource: { type: "folder", id: "root" }, now: NOW }).effect, "deny", `seed ${seed}: ${perm} stays with the person`);
   }
   assert.ok(worlds >= 20, `worlds exercised: ${worlds}`);
 });
+

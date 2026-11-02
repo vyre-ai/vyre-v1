@@ -62,8 +62,6 @@ function collect(list: readonly GrantRec[], s: SubjectInfo, need: number, req: R
     if (g.rank > max) max = g.rank;
   }
 }
-/** Permissions to build definitions: an agent acting for a person holds them when that person does. */
-const DEFINE_PERMS: ReadonlySet<string> = new Set(["journeys.manage", "schema.manage", "automations.personal", "automations.space"]);
 /** Permissions a grant can carry on its own (a person is given them on one thing without a role change). */
 const GRANT_PERMS: ReadonlySet<string> = new Set(["records.export"]);
 const ownerScope = (clearance: number): Scope => ({ level: "manage", rowFilter: null, hiddenFields: NO_FIELDS, labelCeiling: clearance });
@@ -185,9 +183,9 @@ export function authorize(snap: AccessSnapshot, req: Req): Decision {
   let label = res.label;
   if (req.fields) for (const f of req.fields) { const fl = snap.fieldLabel(res.type, f); if (fl > label) label = fl; }
 
-  let first = evalSubject(snap, me, req, res, chain, label, steps);
-  // an agent acting for a person builds what that person may build (Journeys, Automations, record types): the person's role is the ceiling in place of the agent's. What it builds holds no grant until a person turns it on.
-  if (first === "role_lacks_permission" && kind === "agent" && others !== null && req.action.perm !== null && DEFINE_PERMS.has(req.action.perm)) first = evalSubject(snap, me, { ...req, action: { ...req.action, perm: null } }, res, chain, label, steps);
+  // An agent holds only its own role's permissions, never more through its person or a group (ARCH 4.5: agents never hold Owner or Admin, nor what only they carry). Building Journeys,
+  // record types or Space Automations takes a role that carries it, given to the agent by a person.
+  const first = evalSubject(snap, me, req, res, chain, label, steps);
   // an agent acting for a person may send from whatever that person may send from: on a mailbox or a number, at Use (the level a send asks for, reading stays as it is), the person's access is the ceiling in place of a grant of the agent's own
   const sendsAs = kind === "agent" && others !== null && (res.type === "mailbox" || res.type === "number") && res.id !== "" && req.action.level === "use" && first === "no_grant";
   if (typeof first === "string" && !sendsAs) return denied(snap, first, name, steps);
