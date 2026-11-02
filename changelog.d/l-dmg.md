@@ -1,0 +1,2 @@
+- The Mac install window is designed: the Vyre sheet on Vyre Black, a calm arrow from the app to Applications, labels that read in light and dark Finder, sharp on Retina. Release builds now really carry it; before, the build skipped the layout on CI.
+- Vyre opens on one surface: the folded mark, in the chosen theme from the first paint, breathing calmly and crossfading into the lock screen or the app as soon as they are ready. A slow start says so in one quiet line and a start that never answers lands on Try again.

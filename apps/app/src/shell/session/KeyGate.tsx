@@ -9,11 +9,15 @@ import { isLoopbackUrl, keyStatusOnOwnNode } from "../../../../../client/src/gat
 import { rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { OFFLINE_OWN, SESSION_OVER, WRONG_PASSWORD, passwordKeyState, unlockWithPassword } from "./key-unlock.ts";
 export { hasPasswordKey, passwordKeyState, unlockWithPassword } from "./key-unlock.ts";
-import { Bar, Button, ErrorLine, Field, Group, JoinFrame, Links, Opening, Panel, Step, TextButton, Title } from "../../join/kit.tsx";
+import { Bar, Button, ErrorLine, Field, Group, JoinFrame, Links, Opening, Panel, Step, TextButton, Title, useHoldFirstFrame } from "../../join/kit.tsx";
+import { whenUsable } from "../../startup/marks.ts";
 import { MANY_TRIES, TOO_MANY } from "../../join/failure.ts";
 
 /** How long the lock screen holds Unlock after too many wrong passwords. */
 export const LOCK_WAIT_MS = 30_000;
+
+/** The app is mounted but not drawn yet: the first frame stays until the first place is usable. */
+function HoldUntilUsable(): null { useHoldFirstFrame(whenUsable); return null; }
 
 export function LockScreen({ name, onUnlock, onForgot, onSignOut, notice }: { name: string; onUnlock: (password: string) => Promise<void>; onForgot?: () => void; onSignOut?: () => void; /** a line to start with: the Space on this computer did not answer */ notice?: string }): ReactElement {
   const [password, setPassword] = useState("");
@@ -108,11 +112,11 @@ export function KeyGate({ baseUrl, token, name, onSignOut, onForgot, children }:
     const timer = setInterval(() => { void rehandKey(baseUrl, token); }, 3_000);
     return () => clearInterval(timer);
   }, [own, state, baseUrl, token]);
-  if (state === "checking") return <Opening title="Opening your Vault" testID="lock-checking" />;
+  if (state === "checking") return <Opening testID="lock-checking" />;
   if (state === "nopassword") return <NoPasswordKey onContinue={() => setState("open")} {...(onSignOut ? { onSignOut } : {})} />;
   if (state === "locked" || state === "offline") {
     const forgot = onForgot ?? onSignOut;
     return <LockScreen name={name} {...(forgot ? { onForgot: forgot } : {})} {...(onSignOut ? { onSignOut } : {})} {...(state === "offline" ? { notice: OFFLINE_OWN } : {})} onUnlock={async (password) => { await unlockWithPassword(baseUrl, token, password); if (alive.current) setState("open"); }} />;
   }
-  return <>{children}</>;
+  return <><HoldUntilUsable />{children}</>;
 }

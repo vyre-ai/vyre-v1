@@ -7,6 +7,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Dim
 import type { TextStyle, ViewStyle } from "react-native";
 import { Avatar } from "../../../../ui/src/Avatar/index.tsx";
 import { injectCss } from "../../../../ui/src/theme/css.ts";
+import { FOLDED_MARK } from "./folded-mark.ts";
 import { ENTRY, FONT, MONO } from "./palette.ts";
 import type { EntryPalette } from "./palette.ts";
 
@@ -34,18 +35,24 @@ function useRing(): { ring: boolean; handlers: { onFocus(): void; onBlur(): void
 }
 const ringShadow = (p: EntryPalette, on: boolean): ViewStyle => (on ? shadow(`0 0 0 2px ${p.sheet}, 0 0 0 4px ${p.accent}`) : {});
 
+/** How long the first frame takes to give way to what is under it. */
+const FIRST_LEAVE_MS = 220;
+
 // The motion lives in one stylesheet, so a person who asked for less motion gets none and the static page and the first client render are the same markup.
 function ensureMotion(): void {
   injectCss((globalThis as { document?: Parameters<typeof injectCss>[0] }).document, "vyre-entry-motion",
     "@keyframes vyre-entry-fade{from{opacity:0}to{opacity:1}}"
     + "@keyframes vyre-entry-run{0%{left:-34%}100%{left:100%}}"
     + "@keyframes vyre-entry-breathe{0%,100%{opacity:1}50%{opacity:.35}}"
+    + "@keyframes vyre-entry-rest{0%,100%{opacity:1}50%{opacity:.4}}"
     + "[data-entry-step]{animation:vyre-entry-fade 140ms ease both}"
+    + "[data-entry-spark]{animation:vyre-entry-rest 2400ms ease-in-out 2}"
+    + `[data-entry-first]{transition:opacity ${FIRST_LEAVE_MS}ms ease}[data-entry-gone]{opacity:0}`
     + "[data-entry-after]{animation:vyre-entry-fade 140ms ease 300ms both}"
     + "[data-entry-run]{animation:vyre-entry-run 1600ms ease-in-out infinite}"
     + "[data-entry-wait] circle{animation:vyre-entry-breathe 1600ms ease-in-out infinite}"
     + "[data-entry-height]{transition:height 140ms ease}"
-    + "@media (prefers-reduced-motion: reduce){[data-entry-step],[data-entry-after],[data-entry-run],[data-entry-wait] circle{animation:none!important}[data-entry-height]{transition:none!important}}");
+    + "@media (prefers-reduced-motion: reduce){[data-entry-step],[data-entry-after],[data-entry-run],[data-entry-spark],[data-entry-wait] circle{animation:none!important}[data-entry-height],[data-entry-first]{transition:none!important}}");
 }
 
 // The window size as an external store: the static export is pre-rendered with no window, and a size read during the first render would keep the pre-rendered layout (the phone
@@ -96,6 +103,12 @@ export function Mark({ size = 40, wait, ink = ENTRY.ink }: { size?: number; wait
     createElement("circle", { cx: 18.6, cy: 5.6, r: 2.7, fill: ink === ENTRY.ink ? ENTRY.spark : ink }));
 }
 
+/** The folded mark, the app's own icon: what a person sees while Vyre opens. Its spark breathes twice and rests. */
+export function FoldedMark({ size = 40 }: { size?: number }): ReactElement {
+  if (!web) return <Mark size={size} />;
+  return createElement("svg", { viewBox: "0 0 64 64", width: size, height: size, "aria-hidden": true, "data-icon": "vyre-mark", style: { display: "block", flex: "none" }, dangerouslySetInnerHTML: { __html: FOLDED_MARK } });
+}
+
 /** The Space's own letter, in place of the mark, once the screen is about one Space. */
 export function SpaceTile({ name }: { name: string }): ReactElement {
   const { p } = useJoin();
@@ -132,9 +145,11 @@ export interface PanelProps {
   space?: string;
   /** kept for callers that say the sheet is centred; every sheet is */
   center?: boolean;
+  /** Vyre is opening: the folded mark, in the place every other screen has its mark. */
+  opening?: boolean;
 }
 
-export function Panel({ children, bar, below, wait, space }: PanelProps): ReactElement {
+export function Panel({ children, bar, below, wait, space, opening }: PanelProps): ReactElement {
   const { p, phone } = useJoin();
   const back = bar?.props;
   const backRing = useRing();
@@ -158,7 +173,7 @@ export function Panel({ children, bar, below, wait, space }: PanelProps): ReactE
         ) : null}
         <Eased>
           <View style={{ minHeight: SHEET_MIN, paddingTop: 36, paddingHorizontal: phone ? 20 : 32, paddingBottom: 28, alignItems: "stretch" }}>
-            <View testID="auth-form-mark" accessible={false} style={{ alignItems: "center", marginBottom: 18 }}>{space ? <SpaceTile name={space} /> : <Mark {...(wait ? { wait: true } : {})} />}</View>
+            <View testID="auth-form-mark" accessible={false} style={{ alignItems: "center", marginBottom: 18 }}>{space ? <SpaceTile name={space} /> : opening ? <FoldedMark /> : <Mark {...(wait ? { wait: true } : {})} />}</View>
             <View style={{ flexGrow: 1, flexShrink: 0 }}>{children}</View>
             {bar && back?.cont != null ? bar : null}
             {below ?? null}
@@ -585,9 +600,73 @@ export function CodeShown({ code, testID }: { code: string; testID?: string }): 
   return <View style={{ marginTop: 22, borderRadius: 12, backgroundColor: p.field, paddingVertical: 16, paddingHorizontal: 12, alignItems: "center", ...shadow(`inset 0 0 0 1px ${p.fieldLine}`) }}><Text selectable testID={testID} style={[base(p), { textAlign: "center", fontFamily: MONO, fontSize: 18, lineHeight: 28, fontWeight: "500", letterSpacing: 1 }]}>{code}</Text></View>;
 }
 
-/** The first frame of every path, before anything is known: the mark on the sheet. The screen that follows fades in on the same sheet. */
+/** A start that is taking a while says so once, in one quiet line. */
+const SLOW_MS = 4000;
+
+/** What a person sees while Vyre opens: the sheet and the folded mark, and after a few seconds one quiet line that does not move anything. */
+function OpeningSurface({ testID }: { testID?: string | undefined }): ReactElement {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setSlow(true), SLOW_MS); return () => clearTimeout(t); }, []);
+  return (
+    <JoinFrame>
+      <Panel opening>
+        <View testID={testID ?? "entry-opening"} style={{ flexGrow: 1, justifyContent: "flex-end" }}>
+          {slow ? <Step id="opening-slow"><View style={{ flexGrow: 1, justifyContent: "flex-end" }}><QuietLine testID="opening-slow">Still opening</QuietLine></View></Step> : null}
+        </View>
+      </Panel>
+    </JoinFrame>
+  );
+}
+
+// How many plain Openings are on screen. The first frame stays while there is one: nothing else decides how long it lasts, so it can never add a wait.
+let opening = 0;
+const watchers = new Set<() => void>();
+const held = (by: number): void => { opening += by; for (const w of watchers) w(); };
+
+/** Keeps the first frame up until `until` resolves, for a screen that is mounted but not drawn yet. */
+export function useHoldFirstFrame(until?: () => Promise<void>): void {
+  useEffect(() => {
+    let on = true;
+    held(1);
+    const free = (): void => { if (on) { on = false; held(-1); } };
+    if (until) void until().then(free, free);
+    return free;
+  }, [until]);
+}
+
+/** The first frame of every path, before anything is known: the mark on the sheet. With a title it is a step that takes a while inside a flow. */
 export function Opening({ title, line, testID }: { title?: string | undefined; line?: string | undefined; testID?: string | undefined }): ReactElement {
-  return <JoinFrame><Panel wait={!!title}><Step id={title ? "opening" : "first"}>{title ? <Working title={title} {...(testID ? { testID } : {})} {...(line ? { line } : {})} /> : <View testID="entry-opening" />}</Step></Panel></JoinFrame>;
+  useHoldFirstFrame(title ? NOT_HELD : undefined);
+  if (!title) return <OpeningSurface testID={testID} />;
+  return <JoinFrame><Panel wait><Step id="opening"><Working title={title} {...(testID ? { testID } : {})} {...(line ? { line } : {})} /></Step></Panel></JoinFrame>;
+}
+const NOT_HELD = (): Promise<void> => Promise.resolve();
+
+/**
+ * The launch: one surface from the first paint until the app is there. It is at the root and never remounts, so the mark does not move and the breath does not restart however many screens
+ * pass under it, and it leaves as soon as nothing is opening, in one crossfade. A failure lands on a real screen under it (StartFailed), which ends the wait like any other.
+ */
+export function FirstFrame(): ReactElement | null {
+  const [stage, setStage] = useState<"on" | "leaving" | "gone">("on");
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    // One screen hands over to the next within a commit: look once that has settled, so a handover is not read as the end.
+    const look = (): void => { clearTimeout(timer); timer = setTimeout(() => { if (opening === 0) setStage((s) => (s === "on" ? "leaving" : s)); }, 0); };
+    watchers.add(look);
+    look();
+    return () => { clearTimeout(timer); watchers.delete(look); };
+  }, []);
+  useEffect(() => {
+    if (stage !== "leaving") return undefined;
+    const t = setTimeout(() => setStage("gone"), FIRST_LEAVE_MS + 20);
+    return () => clearTimeout(t);
+  }, [stage]);
+  if (stage === "gone") return null;
+  return (
+    <View testID="first-frame" accessible={false} {...(web ? { dataSet: { entryFirst: "", ...(stage === "leaving" ? { entryGone: "" } : {}) } } : {})} pointerEvents={stage === "leaving" ? "none" : "auto"} style={{ position: (web ? "fixed" : "absolute") as "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 1000 }}>
+      <OpeningSurface testID="first-frame-surface" />
+    </View>
+  );
 }
 
 export const styles = StyleSheet.create({ fill: { flex: 1 } });
