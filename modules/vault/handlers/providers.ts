@@ -4,8 +4,8 @@
 // ever sees the key for that one call.
 // DECISION: a Shared provider is an API key or a local model; a subscription sign-in is Mine for ever (the kind cannot be shared). The Space may use a Mine provider only when its owner says so.
 import { fail } from "../../../host/src/routes/errors.ts";
-import { itemDelete, itemPut, itemUpdate, openFields } from "./items.ts";
-import { atLeast, bad, denied, ensure, first, isId, levelOn, newId, num, rowsOf, statements, str } from "../projections.ts";
+import { itemDelete, itemPut, itemUpdate, openFields, resealOwn } from "./items.ts";
+import { atLeast, bad, denied, ensure, first, isId, levelOn, newId, num, patchMeta, record, rowsOf, statements, str } from "../projections.ts";
 import type { Row, VaultCtx } from "../projections.ts";
 import { hostOf } from "./use.ts";
 import { currentKeyPort } from "./crypto.ts";
@@ -15,6 +15,8 @@ import { addressProblem, builtinDefs } from "./provider-defs.ts";
 import { forget as forgetSpaceKey, spaceKeyProviderId } from "./space-key.ts";
 import type { CatalogEntry } from "./provider-defs.ts";
 import { identityOfFields } from "../../../host/src/seams/signin-identity.ts";
+import { decideRefresh } from "../../../host/src/seams/signin-refresh.ts";
+import type { ReadBack } from "../../../host/src/seams/signin-refresh.ts";
 import { aliasesOf, identityOf, learnIdentities, liveSignins, nameForNew, olderOf, setIdentity, shownName, tidySignins } from "./signins.ts";
 
 export type { CatalogEntry } from "./provider-defs.ts";
@@ -333,6 +335,68 @@ function aliasedTo(ctx: VaultCtx, providerId: string): string {
 export function tidy(ctx: VaultCtx): { folded: number } {
   ensureProviders(ctx);
   return { folded: tidySignins(ctx) };
+}
+
+// ---- a sign-in the CLI refreshed during a turn
+
+/** One save at a time per item: two turns of one account that end together decide on what the other saved, never on what both read before either wrote. */
+const refreshing = new Map<string, Promise<unknown>>();
+const fileMap = (json: string | undefined): ReadBack | null => {
+  if (json === undefined) return null;
+  try {
+    const v = JSON.parse(json) as unknown;
+    if (v === null || typeof v !== "object" || Array.isArray(v)) return null;
+    return Object.fromEntries(Object.entries(v as Record<string, unknown>).filter((e): e is [string, string] => typeof e[1] === "string"));
+  } catch { return null; }
+};
+
+/**
+ * The host's save of sign-in files a CLI rewrote during a turn (host/src/seams/signin-refresh.ts), run only as the host's own call (vault.signin_refreshed in hostCalls; host/src/daemon/consumers.ts
+ * refuses any other caller). The files come from the host under a single-use ticket, never as input. They are saved over the item's `credentials` field only when the item is the person's own
+ * live Codex or Grok sign-in, the files are still a sign-in of the same account, and they are newer than what the item holds now (decideRefresh). A history line and vault.item_updated say it was
+ * refreshed; neither carries a value.
+ */
+export async function signinRefreshed(ctx: VaultCtx, input: { ticket: string; itemId: string; asker: string }): Promise<{ saved: boolean; reason: string }> {
+  const itemId = typeof input?.itemId === "string" ? input.itemId : "";
+  const prev = refreshing.get(itemId) ?? Promise.resolve();
+  const run = prev.catch(() => undefined).then(() => refreshOne(ctx, input));
+  refreshing.set(itemId, run);
+  try { return await run; } finally { if (refreshing.get(itemId) === run) refreshing.delete(itemId); }
+}
+
+async function refreshOne(ctx: VaultCtx, input: { ticket: string; itemId: string; asker: string }): Promise<{ saved: boolean; reason: string }> {
+  ensureProviders(ctx);
+  const done = (saved: boolean, reason: string, extra: Record<string, unknown> = {}): { saved: boolean; reason: string } => {
+    ctx.log.info("vault.signin_refreshed", { itemId: input.itemId, saved, reason, ...extra });
+    return { saved, reason };
+  };
+  const held = typeof input.ticket === "string" && typeof input.itemId === "string" ? hostOf()?.refreshed?.take(input.ticket, input.itemId) ?? null : null;
+  if (!held || held.asker !== input.asker) return done(false, "gone");
+  const it = itemOf(ctx, input.itemId);
+  // the person's own subscription sign-in, still live, still the item their provider row keeps
+  if (!it || str(it, "kind") !== "ai_subscription" || str(it, "scope") !== "mine" || str(it, "owner") !== held.asker) return done(false, "not_a_signin");
+  const row = rowsOf(ctx.db.all(`SELECT * FROM vault_provider WHERE "itemId" = ?`, input.itemId)).find((p) => live(p) && str(p, "connection") === "subscription" && str(p, "owner") === held.asker);
+  const providerKey = row ? str(row, "providerKey") : "";
+  if (providerKey !== "codex" && providerKey !== "grok") return done(false, "not_a_signin");
+  const filled = fileMap(held.filled);
+  if (!filled) return done(false, "unreadable", { providerKey });
+  const known = identityOf(ctx, str(row!, "id"))?.id ?? null;
+  let why = "unchanged";
+  const saved = await resealOwn(ctx, it, (fields) => {
+    const current = fileMap(fields.find((f) => f.key === "credentials")?.value);
+    if (!current) { why = "unreadable"; return null; }
+    const d = decideRefresh({ provider: providerKey, filled, current, back: held.files, known });
+    if (!d.save) { why = d.why; return null; }
+    // a field holds up to 64 KB, as anywhere else in the Vault
+    if (JSON.stringify(held.files).length > 64 * 1024) { why = "too_large"; return null; }
+    return fields.map((f) => (f.key === "credentials" ? { ...f, value: JSON.stringify(held.files) } : f));
+  });
+  if (!saved) return done(false, why, { providerKey });
+  const name = entry(ctx, providerKey)?.name ?? providerKey;
+  patchMeta(ctx, input.itemId, {});
+  record(ctx, input.itemId, "edited", { field: "credentials", detail: `${name} refreshed its sign-in` });
+  ctx.emit("vault.item_updated", `vault_item/${input.itemId}`, { itemId: input.itemId, fieldsChanged: ["credentials"], settingsChanged: [] }, { vis: "participants" });
+  return done(true, "refreshed", { providerKey });
 }
 
 // ---- test

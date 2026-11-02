@@ -347,3 +347,43 @@ test("a Codex sign-in whose files the Vault does not hold fails the turn with en
   await g.opener.close();
   assert.deepEqual(g.minted.map((m) => m.sessionId).sort(), g.closed.slice().sort(), "a token minted for a session that never started is revoked");
 });
+
+// ---- a sign-in the CLI refreshed during its turn goes back to the item it was filled from
+
+test("the files a Codex turn refreshed are handed to the host's save with the item they were filled from, the person the turn ran for and what the fill gave; a Claude turn hands nothing", async () => {
+  const backs: Array<boolean> = [];
+  const saved: Array<{ itemId: string; asker: string; filled: string; files: Readonly<Record<string, string | null>> }> = [];
+  const homes: string[] = [];
+  const inner = filesLauncher([], homes);
+  // the engine's launcher (modules/engine/session.ts spawnCli) reads the files back when the process ends and calls signinBack; this one does the same from its stand-in home
+  const launcher: Launcher = {
+    async spawn(spec) {
+      backs.push(spec.signinBack !== undefined);
+      const p = await inner.spawn(spec);
+      const home = homes.at(-1)!;
+      void p.exited.then(() => {
+        const files = JSON.parse(spec.env["VYRE_CRED_FILES"] ?? "{}") as Record<string, string>;
+        const now = Object.fromEntries(Object.keys(files).map((rel) => [rel, fs.existsSync(path.join(home, rel)) ? fs.readFileSync(path.join(home, rel), "utf8") : null]));
+        if (Object.keys(files).some((rel) => now[rel] !== files[rel])) void spec.signinBack?.(now);
+      });
+      return p;
+    },
+  };
+  const NEW = `${ACCESS}-r1`;   // what the stand-in refreshes to on "authrefresh r1"
+  const g = rig({ launcher, saveSignin: async (r) => { saved.push(r); } });
+  const { turn } = await ask(g, "authrefresh r1", agent("#CodexSignin", { model: "gpt-5-codex" }));
+  assert.equal(turn.state, "completed", JSON.stringify(turn.error));
+  await g.opener.close();
+  await until(() => saved.length === 1);
+  assert.deepEqual([saved[0]!.itemId, saved[0]!.asker, saved[0]!.filled], ["vit_codex", "dana", CODEX_FILES]);
+  assert.equal((JSON.parse(saved[0]!.files[".codex/auth.json"]!) as { tokens: { access_token: string } }).tokens.access_token, NEW);
+  assert.equal(everything(g, ["T1"]).includes(NEW), false, "the refreshed token is in no event, turn or message");
+
+  const plain: boolean[] = [];
+  const claudeLauncher = rig({ launcher: { async spawn(spec) { plain.push(spec.signinBack !== undefined); return createLocalLauncher({ wrap: (argv) => [process.execPath, FAKE_CLI, ...argv], baseEnv: { PATH: process.env["PATH"] ?? "" } }).spawn(spec); } }, saveSignin: async (r) => { saved.push(r); } });
+  await ask(claudeLauncher, "hello", agent("#Dana_Claude"));
+  assert.deepEqual([backs, plain], [[true], [false]], "only a sign-in kept in files is handed back");
+  assert.equal(saved.length, 1);
+  await claudeLauncher.opener.close();
+  for (const h of homes) fs.rmSync(h, { recursive: true, force: true });
+});

@@ -5,9 +5,11 @@
 //              row); only after it says yes is the value read from the Vault port. The value leaves this file in one return and is never logged, stored or put in an error.
 //   reportMiss vault.report_scrub_miss with ids and place only.
 //   mcp        mcp.session.mint and mcp.session.close for the loopback endpoint of a CLI engine: a token that encodes the agent, the person it acts for and the thread.
+//   saveSignin sign-in files a CLI rewrote during a turn, saved back to the Vault item they came from (signin-refresh.ts). Present only when the daemon wires the save.
 import type { CtxSeed, Invoke } from "../invoke.ts";
 import { HANDLE } from "./ports.ts";
 import type { VaultPort } from "./ports.ts";
+import type { SigninRefresh } from "./signin-refresh.ts";
 
 export type VaultLookup =
   | { kind: "value"; itemId: string; value: string; spaceOnly: boolean; injectIntoDeployments: boolean }
@@ -21,6 +23,7 @@ export interface EngineSessionHost {
     mint(i: { principal: string; actingFor: string; threadId: string; traceId: string }): Promise<{ sessionId: string; sessionToken: string; url: string; expiresAt: number }>;
     close(sessionId: string): Promise<void>;
   };
+  saveSignin?: SigninRefresh["save"];
 }
 
 export interface EngineSessionHostDeps {
@@ -37,6 +40,8 @@ export interface EngineSessionHostDeps {
   /** For tests. */
   sleep?(ms: number): Promise<void>;
   now?(): number;
+  /** The host's save of refreshed CLI sign-in files (signin-refresh.ts). Omitted: a refresh is not saved back. */
+  saveSignin?: SigninRefresh["save"];
 }
 
 /** The agent id of an automation AI step that runs as no agent in particular (the same word as modules/engine/step-turn.ts STEP_AGENT; host never imports a module). */
@@ -145,6 +150,7 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
   };
 
   return {
+    ...(d.saveSignin ? { saveSignin: d.saveSignin } : {}),
     source: {
       async lookup(handle, who) {
         // A locked key is waited for, not failed on: right after a start the app is still handing the key over, and a person who sees Unlock can do it in place. The turn goes on by itself the moment the key is there.

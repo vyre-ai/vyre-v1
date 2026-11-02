@@ -78,6 +78,8 @@ export interface EngineHostSeam {
   stream?: (e: StreamEvent) => void;
   /** Runs once the runtime exists and before it is bound (the chat bridge attaches here). */
   extend?: (engine: TurnEngine) => void;
+  /** Told at shutdown with the promise of the engine's close (CLI sessions ended, the sign-ins they refreshed saved), so the daemon waits for it before its databases close. */
+  closing?: (done: Promise<void>) => void;
 }
 
 interface AccountRow { ref: string; driver: string; kind: "api_key" | "subscription"; mine?: boolean; base?: string; keyless?: boolean; spaceKey?: boolean }
@@ -96,7 +98,10 @@ let closeOpener: (() => Promise<void>) | null = null;
 export function setEngineHost(h: EngineHostSeam | null): void {
   if (h === null) { void closePluginRuntime(); awake.stop(); }   // plugin servers end with the daemon, and so does holding the computer awake
   // At shutdown the engine processes end and MCP tokens are revoked, and then the default sandbox's wall (its egress proxy) stops: the proxy outlives nothing it served, and nothing keeps the daemon's process alive.
-  if (h === null) void (closeOpener ? closeOpener().catch(() => undefined) : Promise.resolve()).then(() => closeDefaultSandbox()).catch(() => undefined);
+  if (h === null) {
+    const done = (closeOpener ? closeOpener().catch(() => undefined) : Promise.resolve()).then(() => closeDefaultSandbox()).catch(() => undefined);
+    host?.closing?.(done);
+  }
   closeOpener = null;
   host = h;
   building = null;

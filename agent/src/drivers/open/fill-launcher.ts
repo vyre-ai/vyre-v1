@@ -5,6 +5,7 @@ import type { Scrubber, Secret, Used, ValueSource, VaultRunDeps, Where } from ".
 import { LaunchError } from "../cli/launcher.ts";
 import { lines } from "../cli/lines.ts";
 import type { CliProcess, LaunchSpec, Launcher } from "../cli/types.ts";
+import { CRED_FILES_ENV } from "./credentials.ts";
 
 /**
  * The tokens inside a sign-in file map: every string long enough to be one, read through the files that are themselves JSON. The file text and the map are not secrets of their own (their braces and quotes
@@ -35,6 +36,11 @@ export interface FillLauncherDeps {
   env: Readonly<Record<string, string>>;
   /** Items the fill used (ids and handles only): for the audit and the usage record. */
   onUsed?(used: readonly Used[]): void;
+  /**
+   * Sign-in files the CLI rewrote (a refreshed token), with the item they were filled from, the person the turn ran for and the value the fill gave: the host saves them back if they are still a
+   * sign-in of that account and newer than what the item holds (host/src/seams/signin-refresh.ts). Omitted: a refresh is lost when the files are removed.
+   */
+  saveSignin?(r: { itemId: string; asker: string; filled: string; files: Readonly<Record<string, string | null>> }): Promise<unknown>;
 }
 
 /** What a refusal from the Vault is called to the engine: the Vault's own permission codes pass through, the rest is the account being unusable. */
@@ -60,39 +66,56 @@ export function createFillLauncher(d: FillLauncherDeps): Launcher {
     async spawn(spec: LaunchSpec): Promise<CliProcess> {
       // Set from inside the executor; held in an object so the code after the await sees them as they are.
       const got: { proc?: CliProcess; filled: Record<string, string>; failure?: unknown } = { filled: {} };
-      const run = await runWithVault(
-        { source: d.source, reportMiss: d.reportMiss },
-        { tool: "engine_launch", args: { env: d.env }, traceId: d.who.traceId, agentId: d.who.agentId, asker: d.who.asker, where: d.who.where },
-        async (args) => {
-          got.filled = (args as { env: Record<string, string> }).env;
-          // The Vault leaves a handle it does not know as text; a process must not start with that in place of a key.
-          if (Object.entries(d.env).some(([name, handle]) => got.filled[name] === handle)) {
-            got.failure = new LaunchError("engine.account_unavailable", "The account's key is not in the Vault.");
-            throw got.failure;
-          }
-          let p: CliProcess;
-          try { p = await d.inner.spawn({ ...spec, env: { ...spec.env, ...got.filled } }); }
-          catch (e) { got.failure = e; throw e; }
-          got.proc = p;
-          // Nothing the vault scrubber would see: the engine's output is scrubbed below, line by line.
-          return "";
-        },
-      );
+      // The item the sign-in files came from is known once the fill has answered; a process that ends before that waits for it. Null when the start failed: nothing is saved then.
+      const credHandle = d.env[CRED_FILES_ENV];
+      let itemIs: (id: string | null) => void = () => undefined;
+      const item = new Promise<string | null>((r) => { itemIs = r; });
+      const save = d.saveSignin;
+      const signinBack = credHandle !== undefined && save
+        ? async (files: Readonly<Record<string, string | null>>): Promise<void> => {
+          const itemId = await item;
+          const filled = got.filled[CRED_FILES_ENV];
+          if (itemId !== null && filled !== undefined) await save({ itemId, asker: d.who.asker, filled, files });
+        }
+        : undefined;
+      let run: Awaited<ReturnType<typeof runWithVault>>;
+      try {
+        run = await runWithVault(
+          { source: d.source, reportMiss: d.reportMiss },
+          { tool: "engine_launch", args: { env: d.env }, traceId: d.who.traceId, agentId: d.who.agentId, asker: d.who.asker, where: d.who.where },
+          async (args) => {
+            got.filled = (args as { env: Record<string, string> }).env;
+            // The Vault leaves a handle it does not know as text; a process must not start with that in place of a key.
+            if (Object.entries(d.env).some(([name, handle]) => got.filled[name] === handle)) {
+              got.failure = new LaunchError("engine.account_unavailable", "The account's key is not in the Vault.");
+              throw got.failure;
+            }
+            let p: CliProcess;
+            try { p = await d.inner.spawn({ ...spec, env: { ...spec.env, ...got.filled }, ...(signinBack ? { signinBack } : {}) }); }
+            catch (e) { got.failure = e; throw e; }
+            got.proc = p;
+            // Nothing the vault scrubber would see: the engine's output is scrubbed below, line by line.
+            return "";
+          },
+        );
+      } catch (e) { itemIs(null); throw e; }
       // A start that failed for its own reasons (the program is not installed) keeps its own code.
-      if (got.failure instanceof LaunchError) throw got.failure;
-      if (!run.ok) throw new LaunchError(fillErrorCode(run.error.code), run.error.message);
+      if (got.failure instanceof LaunchError) { itemIs(null); throw got.failure; }
+      if (!run.ok) { itemIs(null); throw new LaunchError(fillErrorCode(run.error.code), run.error.message); }
       const started = got.proc;
       const named = Object.values(d.env);
       if (started === undefined || run.used.length !== new Set(named).size) {
         // A handle the Vault did not know was left as text; the process must not run with that in its place.
+        itemIs(null);
         started?.kill("SIGKILL");
         throw new LaunchError("engine.account_unavailable", "The account's key is not in the Vault.");
       }
+      itemIs(credHandle !== undefined ? run.used.find((u) => u.handle === credHandle)?.itemId ?? null : null);
       d.onUsed?.(run.used);
       const secrets: Secret[] = Object.entries(d.env).flatMap(([name, handle]) => {
         const itemId = run.used.find((u) => u.handle === handle)?.itemId ?? handle;
         const value = got.filled[name] ?? "";
-        return name === "VYRE_CRED_FILES" ? credentialLeaves(value).map((leaf) => ({ handle, itemId, value: leaf })) : [{ handle, itemId, value }];
+        return name === CRED_FILES_ENV ? credentialLeaves(value).map((leaf) => ({ handle, itemId, value: leaf })) : [{ handle, itemId, value }];
       });
       const scrubber = createScrubber(secrets);
       return {

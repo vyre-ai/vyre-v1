@@ -51,6 +51,8 @@ export interface VaultHost {
   signin?: SigninPort;
   /** The module hands the host its SecretPort. */
   provide?(port: SecretPort): void;
+  /** Sign-in files a CLI rewrote during a turn (host/src/seams/signin-refresh.ts), held by the host under a single-use ticket for vault.signin_refreshed. The values come only this way, never as call input. */
+  refreshed?: { take(ticket: string, itemId: string): { asker: string; filled: string; files: Readonly<Record<string, string | null>> } | null };
 }
 
 export interface SigninPort {

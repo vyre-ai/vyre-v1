@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { GUARDED_CALL, GUARDED_CALL_PERMISSION, createHookRunner } from "../src/daemon/consumers.ts";
+import { GUARDED_CALL, GUARDED_CALL_PERMISSION, HOST_ONLY_CALL, createHookRunner } from "../src/daemon/consumers.ts";
 import type { ModuleHooks } from "../src/daemon/consumers.ts";
 import type { CtxSeed, Invoke } from "../src/invoke.ts";
 
@@ -15,6 +15,10 @@ const hooks: ModuleHooks[] = [{
     { name: "files.owned_by", module: "files", run: () => { touched.push("owned_by"); return { files: { count: 0, sample: [], ids: [] } }; } },
     { name: "files.reassign_owned", module: "files", run: () => { touched.push("reassign_owned"); return 3; } },
     { name: "chat.attention", module: "files", run: () => { touched.push("attention"); return 4; } },
+  ],
+}, {
+  module: "vault", consumers: [], periodic: [], calls: [
+    { name: "vault.signin_refreshed", module: "vault", run: () => { touched.push("signin_refreshed"); return { saved: false, reason: "gone" }; } },
   ],
 }];
 
@@ -71,4 +75,25 @@ test("no registry route or tool names a host call: nothing reaches them through 
   assert.equal(reg.capabilities.some((c) => c.name.startsWith("host.hook.")), false);
   assert.equal((reg.routes ?? []).some((r) => r.cap.startsWith("host.hook.")), false);
   assert.equal(GUARDED_CALL.test("chat.owned_by") && GUARDED_CALL.test("mail.reassign_owned") && !GUARDED_CALL.test("tasks.attention"), true);
+});
+
+test("the save of a refreshed CLI sign-in is the host's own call: run as the host it runs; as a person, an agent, a nested call, the gateway or MCP it is refused", async () => {
+  const { runner, invoke } = rig();
+  assert.equal(HOST_ONLY_CALL.test("vault.signin_refreshed") && !HOST_ONLY_CALL.test("vault.owned_by"), true);
+  assert.deepEqual(await runner.call("vault.signin_refreshed", { ticket: "t", itemId: "vit_1", asker: "usr_pat" }), { saved: false, reason: "gone" });
+  assert.deepEqual(touched, ["signin_refreshed"]);
+  touched.length = 0;
+  await assert.rejects(runner.call("vault.signin_refreshed", {}, { principal: { kind: "person", id: "usr_admin" } }), (e) => code(e) === "permission.no_grant", "a person through the host's own call");
+  const cap = "host.hook.call.vault.signin_refreshed";
+  const host = { kind: "service" as const, id: "svc_host" };
+  for (const [why, seed] of [
+    ["another module's ctx.call as the host", { principal: host, origin: "hook", depth: 1 }],
+    ["an agent's call", { principal: { kind: "agent", id: "agt_1" }, origin: "agent", depth: 0 }],
+    ["an MCP session", { principal: { kind: "agent", id: "agt_1" }, origin: "mcp", depth: 0 }],
+    ["a gateway call as the host's id", { principal: host, origin: "user", depth: 0 }],
+    ["a person under the hook origin", { principal: { kind: "person", id: "usr_pat" }, origin: "hook", depth: 0 }],
+  ] as const) {
+    await assert.rejects(invoke(cap as never, { input: {} }, { space: "spc_t", ...seed } as unknown as CtxSeed), (e) => code(e) === "permission.no_grant", why);
+  }
+  assert.deepEqual(touched, [], "none of them ran");
 });

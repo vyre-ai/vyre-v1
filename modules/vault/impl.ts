@@ -100,6 +100,8 @@ export const hostCalls = {
     vault_mine: kept(rows(ctx, `SELECT "id", "name" FROM vault_meta WHERE "owner" = ? AND "scope" = 'mine' AND "deleted_at" IS NULL`, i.person), "vault_item", "name"),
   }),
   /** Mine items are exportable by their owner for 30 days after removal and stay sealed under the owner's own key meanwhile (export keeps them); delete puts them in the trash. */
+  /** Sign-in files a CLI refreshed during a turn, saved back to their item (providers.ts signinRefreshed). The host's own call only: consumers.ts refuses every other caller. */
+  "vault.signin_refreshed": (ctx: Ctx, i: { ticket: string; itemId: string; asker: string }) => pr.signinRefreshed(ctx as unknown as Parameters<typeof pr.signinRefreshed>[0], i),
   "vault.reassign_owned": (ctx: Ctx, i: { person: string; kind: string; action: string }): number => {
     if (i.kind !== "vault_mine" || i.action !== "delete") return 0;
     try { return ctx.db.run(`UPDATE vault_meta SET "deleted_at" = ?, "updated_at" = ? WHERE "owner" = ? AND "scope" = 'mine' AND "deleted_at" IS NULL`, ctx.now(), ctx.now(), i.person).changes; } catch { return 0; }

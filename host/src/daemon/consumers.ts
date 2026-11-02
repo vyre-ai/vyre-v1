@@ -31,7 +31,17 @@ export const SYSTEM_PRINCIPAL = { kind: "service", id: "svc_host" } as const;
  */
 export const GUARDED_CALL = /\.(owned_by|reassign_owned)$/;
 export const GUARDED_CALL_PERMISSION = "members.remove";
-export function guardCall(name: string, ctx: Pick<Ctx, "origin" | "depth" | "trace">): void {
+/**
+ * Host calls the host makes as itself and nobody else may: the save of a sign-in a CLI refreshed during a turn (`vault.signin_refreshed`, host/src/seams/signin-refresh.ts). The handler refuses unless the
+ * call is the host's own top-level hook call as the host service: not a person's or an agent's call, not another module's ctx.call, not a gateway, session or MCP call.
+ */
+export const HOST_ONLY_CALL = /^vault\.signin_refreshed$/;
+export function guardCall(name: string, ctx: Pick<Ctx, "origin" | "depth" | "trace"> & { principal?: { kind: string; id: string } }): void {
+  if (HOST_ONLY_CALL.test(name)) {
+    const host = ctx.principal?.kind === SYSTEM_PRINCIPAL.kind && ctx.principal.id === SYSTEM_PRINCIPAL.id;
+    if (ctx.origin !== "hook" || ctx.depth !== 0 || !host) throw fail("permission.no_grant", ctx.trace.traceId, { message: "This is the host's own call; it cannot be called from here.", details: { call: name } });
+    return;
+  }
   if (!GUARDED_CALL.test(name)) return;
   if (ctx.origin !== "hook" || ctx.depth !== 0) throw fail("permission.no_grant", ctx.trace.traceId, { message: "This is a host call for the removal wizard; it cannot be called from here.", details: { call: name } });
 }
