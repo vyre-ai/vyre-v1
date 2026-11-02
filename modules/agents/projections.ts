@@ -3,6 +3,7 @@
 // (every file of an agent is a file in Agents/<name>), and the small pure helpers the handlers share (status, cron, unified diffs).
 // Every statement names an agents_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
 import { readFileSync } from "node:fs";
+import { isHostService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintId as mint } from "../../lib/ids.ts";
 import type { ErrorCode, EventName } from "../../packages/contracts/src/types.ts";
@@ -50,7 +51,7 @@ export const askerOf = (ctx: Pick<AgentsCtx, "principal" | "actingFor">): string
 
 // ---- schema -----------------------------------------------------------------------------------------------------------------------------------------
 
-const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
+const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql", "0007_outside.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
@@ -58,7 +59,7 @@ const ready = new WeakSet<object>();
 /** Make sure the agents tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT key FROM agents_meta WHERE key = ?", "probe"); db.all("SELECT routineId FROM agents_routine_watch WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_skills WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT kind FROM agents_agent WHERE id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  try { db.all("SELECT key FROM agents_meta WHERE key = ?", "probe"); db.all("SELECT routineId FROM agents_routine_watch WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_skills WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT kind, runtime FROM agents_agent WHERE id = ?", "probe"); db.all("SELECT id FROM agents_outside_jobs WHERE id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   ready.add(db);
 }
 
@@ -475,14 +476,15 @@ export function applyPatch(doc: TomlDoc, current: AgentConfig, patch: Record<str
 
 /** What an agent is: the person's private assistant, a teammate made for one project, or an agent the Space shares. Stored as a column; the role line is only words. */
 export type AgentKind = "assistant" | "teammate" | "agent";
+export type AgentRuntime = "vyre" | "outside";
 export interface AgentRec {
-  id: string; name: string; kind: AgentKind; projectId?: string; face: string; ownerId: string; folderId?: string; tomlFileId?: string; agentMdFileId?: string; tomlText: string; config: AgentConfig; configError?: Problem;
+  id: string; name: string; kind: AgentKind; runtime: AgentRuntime; projectId?: string; face: string; ownerId: string; folderId?: string; tomlFileId?: string; agentMdFileId?: string; tomlText: string; config: AgentConfig; configError?: Problem;
   lastGoodVersionId?: string; hasComputer: boolean; templateVersion: number; paused: boolean; pausedReason?: string; pausedBy?: string; pausedAt?: number; working: number; lastActiveAt?: number;
   createdAt: number; updatedAt: number; deletedAt?: number;
 }
 export function agentOf(r: Row): AgentRec {
   const o: AgentRec = {
-    id: str(r["id"]), name: str(r["name"]), kind: r["kind"] === "assistant" || r["kind"] === "teammate" ? r["kind"] : "agent", face: str(r["face"]), ownerId: str(r["ownerId"]), tomlText: str(r["tomlText"] ?? ""), config: parseJson<AgentConfig>(r["config"], newConfig({ name: str(r["name"]) })),
+    id: str(r["id"]), name: str(r["name"]), kind: r["kind"] === "assistant" || r["kind"] === "teammate" ? r["kind"] : "agent", runtime: r["runtime"] === "outside" ? "outside" : "vyre", face: str(r["face"]), ownerId: str(r["ownerId"]), tomlText: str(r["tomlText"] ?? ""), config: parseJson<AgentConfig>(r["config"], newConfig({ name: str(r["name"]) })),
     hasComputer: flag(r["hasComputer"]), templateVersion: num(r["templateVersion"] ?? 0), paused: flag(r["paused"]), working: num(r["working"] ?? 0), createdAt: num(r["createdAt"]), updatedAt: num(r["updatedAt"]),
   };
   const set = <K extends keyof AgentRec>(k: K, v: AgentRec[K] | undefined): void => { if (v !== undefined) o[k] = v; };
@@ -504,9 +506,12 @@ export function allAgents(db: Db): AgentRec[] {
 }
 
 export type Status = "awake" | "working" | "asleep" | "paused";
-/** Paused beats working beats awake (idle for under 2 minutes) beats asleep. */
+/** An outside agent counts as working for a minute after a tool call: Vyre sees its calls, not its turns. */
+export const OUTSIDE_WORKING_MS = 60_000;
+/** Paused beats working beats awake (idle for under 2 minutes) beats asleep. An outside agent that has gone quiet is asleep, which the app says as Offline. */
 export function statusOf(a: AgentRec, now: number): Status {
   if (a.paused) return "paused";
+  if (a.runtime === "outside" && a.lastActiveAt !== undefined && now - a.lastActiveAt < OUTSIDE_WORKING_MS) return "working";
   if (a.working > 0) return "working";
   return a.lastActiveAt !== undefined && now - a.lastActiveAt < AWAKE_MS ? "awake" : "asleep";
 }
@@ -515,7 +520,7 @@ export function statusOf(a: AgentRec, now: number): Status {
 export function agentOut(a: AgentRec, now: number): Record<string, unknown> {
   const c = a.config;
   return {
-    agentId: a.id, name: a.name, kind: a.kind, face: a.face, ...(c.description !== undefined ? { role: c.description } : {}), status: statusOf(a, now),
+    agentId: a.id, name: a.name, kind: a.kind, ...(a.runtime === "outside" ? { runtime: a.runtime } : {}), face: a.face, ...(c.description !== undefined ? { role: c.description } : {}), status: statusOf(a, now),
     ...(a.paused && a.pausedReason !== undefined ? { pausedReason: a.pausedReason } : {}), ...(a.paused && a.pausedBy !== undefined ? { pausedBy: a.pausedBy } : {}),
     ownerId: a.ownerId, folderId: a.folderId ?? "fld_unset", ...(c.model !== undefined ? { model: c.model } : {}), ...(c.fallbackModel !== undefined ? { fallbackModel: c.fallbackModel } : {}),
     accountPolicy: c.accountPolicy, ...(c.accountKey !== undefined ? { accountKey: c.accountKey } : {}), accountFallback: c.accountFallback ?? [], ...(c.memoryKey !== undefined ? { memoryKey: c.memoryKey } : {}), ...(c.switchOnLimit !== undefined ? { switchOnLimit: c.switchOnLimit } : {}), toolsAllowed: c.toolsAllowed, toolsDenied: c.toolsDenied, vaultKeys: c.vaultKeys,
@@ -526,9 +531,9 @@ export function agentOut(a: AgentRec, now: number): Record<string, unknown> {
 
 export function insertAgent(db: Db, a: AgentRec): void {
   db.run(
-    `INSERT INTO agents_agent (id, name, nameKey, kind, projectId, face, ownerId, folderId, tomlFileId, agentMdFileId, tomlText, config, configError, lastGoodVersionId, hasComputer, templateVersion, paused, working, lastActiveAt, createdAt, updatedAt, deletedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 0, 0, ?, ?, ?, NULL)`,
-    a.id, a.name, nameKey(a.name), a.kind, a.projectId ?? null, a.face, a.ownerId, a.folderId ?? null, a.tomlFileId ?? null, a.agentMdFileId ?? null, a.tomlText, JSON.stringify(a.config), a.lastGoodVersionId ?? null, a.hasComputer ? 1 : 0,
+    `INSERT INTO agents_agent (id, name, nameKey, kind, runtime, projectId, face, ownerId, folderId, tomlFileId, agentMdFileId, tomlText, config, configError, lastGoodVersionId, hasComputer, templateVersion, paused, working, lastActiveAt, createdAt, updatedAt, deletedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 0, 0, ?, ?, ?, NULL)`,
+    a.id, a.name, nameKey(a.name), a.kind, a.runtime, a.projectId ?? null, a.face, a.ownerId, a.folderId ?? null, a.tomlFileId ?? null, a.agentMdFileId ?? null, a.tomlText, JSON.stringify(a.config), a.lastGoodVersionId ?? null, a.hasComputer ? 1 : 0,
     a.templateVersion, a.lastActiveAt ?? null, a.createdAt, a.updatedAt,
   );
 }
@@ -1069,6 +1074,8 @@ export const isAssistant = (a: Pick<AgentRec, "kind">): boolean => a.kind === "a
 export function canSee(ctx: AgentsCtx, a: AgentRec): boolean {
   // the assistant is private even from the Space's admins and from anyone it was shared with: other people neither see, mention nor open it
   if (isAssistant(a)) return a.ownerId === askerOf(ctx);
+  // an outside agent runs on its owner's machine on its owner's access: a share does not change who may use it. An admin who turned on All in the Space may see it, to answer for it.
+  if (a.runtime === "outside") return a.ownerId === askerOf(ctx) || isHostService(ctx.principal) || seesAll(ctx);
   return a.ownerId === askerOf(ctx) || allows(ctx, null, "view", "agent", a.id) || seesAll(ctx);
 }
 /** An agent the caller may see, or the same answer as for one that is not there (what exists is not leaked). */

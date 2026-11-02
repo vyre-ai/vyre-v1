@@ -307,6 +307,12 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       if (phase !== "started") void done.then(() => { if (recording.get(turnId) === done) recording.delete(turnId); });
     };
     engine.subscribe((ev) => {
+      // a message for an agent that runs outside Vyre waits in its queue: the owner's only, the queue checks that
+      if (ev.type === "agent.outside_asked") {
+        void h.call("agents.outside.enqueue", { agentId: ev.agentId, kind: "mention", threadId: ev.threadId, messageId: ev.messageId, asker: ev.asker, title: "A message for you", text: ev.body })
+          .catch((err: unknown) => h.log?.("a message for an outside agent was not queued", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
+        return;
+      }
       if (ev.type === "turn.started") awake.up();
       else if (ev.type === "turn.completed" || ev.type === "turn.cancelled" || (ev.type === "turn.failed" && ev.code !== "host_lost") || (ev.type === "turn.waiting" && ev.reason === "approval")) awake.down();
       // a turn a dead host left is not in this engine's rows: its record is closed from what recover() knows, so the turn list, Try again and the agent's Working status are right

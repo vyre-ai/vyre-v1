@@ -1,27 +1,19 @@
-// mcp: one-time tokens for outside agents, the registered credential, scopes, sessions (outside actors and CLI engines) and the tool list the MCP server serves (spec 2.2, 4.12; ARCH 6.6, 6.7).
-//   mcp.token.issue / register / log_reveal   a one-time token, valid once and for 10 minutes, traded by the outside tool for a long-lived credential shown once; reveal and copy are logged
-//   mcp.scopes.set                            read, post in threads, read changesets, write on a branch (with approval)
-//   mcp.session.open / mint / close / list    the session of an outside actor or a CLI engine; `mint` encodes principal, acting-for person, thread, run and trace
+// mcp: sessions (outside agents and CLI engines) and the tool list the MCP server serves (spec 2.2, 4.12; ARCH 6.6, 6.7). Sign-in for outside agents is in oauth.ts and handlers/oauth.ts.
+//   mcp.session.mint / close / list    the session of an outside agent or a CLI engine; `mint` encodes principal, acting-for person, thread, run and trace
 //   mcp.tools.list / tool.search / tool.describe / toolsets.list / health   the generated tool list as this caller may see it
-// Nothing stored is a secret: tokens are kept as SHA-256 and shown once. Access (who the actor is, revoking it) belongs to the access module: it creates the actor principal when it sees
-// token.registered, and calls revokeActor (projections.ts) when it emits token.revoked. Every call the server makes still goes through the invoke pipeline as the actor acting for the person.
+// Nothing stored is a secret. Every call the server makes goes through the invoke pipeline as the agent acting for the person.
 import { isSystemCall } from "../../../lib/trust.ts";
 import { searchTools, toolsFor } from "../../../agent/src/tools/access.ts";
 import type { AccessDeps } from "../../../agent/src/tools/access.ts";
 import type { ToolCtx, ToolDef } from "../../../agent/src/tools/types.ts";
-import { scopeAllows } from "../../../agent/src/mcp/scopes.ts";
-import { DEFAULT_SCOPES } from "../../../agent/src/mcp/types.ts";
-import type { Scopes } from "../../../agent/src/mcp/types.ts";
 import {
-  DEFAULT_SESSION_TTL_SEC, ONE_TIME_MS, actorOf, boundServer, callerForToken, countLive, endpointOf, ensure, insertSession, isLive, loadGenerated, mintId, registryHash, parseScopes, raise, revokeActor,
-  scopesJson, secret, sessionBy, sessionOf, sha256, tokenBy,
+  DEFAULT_SESSION_TTL_SEC, actorOf, boundServer, countLive, endpointOf, ensure, insertSession, isLive, loadGenerated, mintId, registryHash, raise, secret, sessionBy, sessionOf, sha256,
 } from "../projections.ts";
 import type { McpCtx, SessionRow } from "../projections.ts";
 
 type Row = Record<string, unknown>;
 const TOOLSETS = ["records", "files", "memory", "vault", "automations", "chats", "inbox", "sites", "terminal", "computer", "agents", "tasks", "meta", "engineer"] as const;
 type Toolset = (typeof TOOLSETS)[number];
-const KINDS = new Set(["claude_code", "codex", "other"]);
 
 const holdsEngineer = (ctx: McpCtx): boolean => ctx.authorize({ perm: "engineer.mcp", level: "use" }, { type: "space", id: ctx.space }).effect === "allow";
 
@@ -29,107 +21,13 @@ function sessionOut(s: SessionRow) {
   return {
     sessionId: s.sessionId, kind: s.kind, principal: s.principal,
     ...(s.actingFor === undefined ? {} : { actingFor: s.actingFor }), ...(s.threadId === undefined ? {} : { threadId: s.threadId }), ...(s.runId === undefined ? {} : { runId: s.runId }),
-    ...(s.name === undefined ? {} : { name: s.name }), ...(s.scopes === undefined ? {} : { scopes: s.scopes }),
+    ...(s.name === undefined ? {} : { name: s.name }),
     startedAt: s.startedAt, ...(s.lastCallAt === undefined ? {} : { lastCallAt: s.lastCallAt }), calls: s.calls,
     ...(s.closedAt===undefined?{}:{closedAt:s.closedAt}),...(s.expiresAt===undefined?{}:{expiresAt:s.expiresAt}),
   };
 }
 
-// ---- tokens -----------------------------------------------------------------------------------------------------------------------------------------
-
-export async function tokenIssue(ctx: McpCtx, input: { name: string; kind: "claude_code" | "codex" | "other"; channelId?: string; scopes?: Scopes; idempotencyKey?: string }) {
-  ensure(ctx.db);
-  const name = input.name.trim();
-  if (name === "") raise(ctx, "validation.bad_input", "Give the connection a name.");
-  if (!KINDS.has(input.kind)) raise(ctx, "validation.bad_input", "That kind of tool is not one Vyre connects to.");
-  const scopes: Scopes = input.scopes ? parseScopes(JSON.stringify(input.scopes)) : { ...DEFAULT_SCOPES };
-  const now = ctx.now();
-  const tokenId = mintId("tok", now);
-  const oneTime = secret("otk");
-  const expiresAt = now + ONE_TIME_MS;
-  const by = actorOf(ctx);
-  ctx.db.run(
-    `INSERT INTO mcp_tokens (token_id, token_hash, name, kind, channel_id, scopes, issued_by, issued_at, expires_at, state, reveals) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'issued', 0)`,
-    tokenId, await sha256(oneTime), name.slice(0, 120), input.kind, input.channelId ?? null, scopesJson(scopes), by, now, expiresAt,
-  );
-  ctx.emit("token.issued", tokenId, { tokenId, name: name.slice(0, 120), kind: input.kind, ...(input.channelId === undefined ? {} : { channelId: input.channelId }), by, expiresAt });
-  return { tokenId, oneTimeToken: oneTime, expiresAt, mcpUrl: endpointOf().url };
-}
-
-export async function tokenRegister(ctx: McpCtx, input: { oneTimeToken: string; clientName: string; clientVersion?: string }) {
-  ensure(ctx.db);
-  const row = tokenBy(ctx.db, "token_hash", await sha256(input.oneTimeToken));
-  // Wrong, used and revoked look the same from outside: the tool learns nothing about which tokens exist.
-  if (!row || row.state !== "issued") raise(ctx, "auth.invalid_code", "That token is wrong or has already been used.");
-  const now = ctx.now();
-  if (row.expiresAt <= now) raise(ctx, "auth.expired", "That token has expired. Make a new one in Vyre.");
-  const actorId = mintId("act", now);
-  const credential = secret("vyr");
-  // The single UPDATE both claims the token and records the credential: a second register with the same token matches no row.
-  const claimed = ctx.db.run(
-    "UPDATE mcp_tokens SET state = 'registered', actor_id = ?, cred_hash = ?, registered_at = ?, client_name = ?, client_version = ? WHERE token_id = ? AND state = 'issued'",
-    actorId, await sha256(credential), now, input.clientName.slice(0, 120), input.clientVersion?.slice(0, 60) ?? null, row.tokenId,
-  );
-  if (claimed.changes !== 1) raise(ctx, "auth.invalid_code", "That token is wrong or has already been used.");
-  ctx.emit("token.registered", actorId, { tokenId: row.tokenId, actorId, name: row.name, scopes: row.scopes });
-  return { actorId, token: credential, mcpUrl: endpointOf().url, scopes: row.scopes };
-}
-
-export async function tokenLogReveal(ctx: McpCtx, input: { tokenId: string; action: "reveal" | "copy" }) {
-  ensure(ctx.db);
-  const row = tokenBy(ctx.db, "token_id", input.tokenId);
-  if (!row) raise(ctx, "validation.bad_input", "There is no such token.");
-  const by = actorOf(ctx);
-  if (row.issuedBy !== by && ctx.authorize({ perm: "channels.agents", level: "manage" }, { type: "space", id: ctx.space }).effect !== "allow") {
-    raise(ctx, "permission.no_grant", "Only the person who made the token can log that it was shown.");
-  }
-  ctx.db.run("UPDATE mcp_tokens SET reveals = reveals + 1 WHERE token_id = ?", row.tokenId);
-  ctx.emit("token.revealed", row.tokenId, { tokenId: row.tokenId, action: input.action, by });
-  return { ok: true };
-}
-
-export function scopesSet(ctx: McpCtx, input: { actorId: string; scopes: Scopes }) {
-  ensure(ctx.db);
-  const row = tokenBy(ctx.db, "actor_id", input.actorId);
-  if (!row) raise(ctx, "validation.bad_input", "There is no such outside actor.");
-  if (row.state === "revoked") raise(ctx, "permission.no_grant", "That connection was revoked.");
-  const scopes = parseScopes(JSON.stringify(input.scopes));
-  ctx.db.run("UPDATE mcp_tokens SET scopes = ? WHERE actor_id = ?", scopesJson(scopes), input.actorId);
-  // Sessions already open pick the new scopes up on their next call: the server rechecks, and a new session reads the token row.
-  ctx.db.run("UPDATE mcp_sessions SET scopes = ? WHERE principal = ? AND closed_at IS NULL", scopesJson(scopes), input.actorId);
-  ctx.emit("mcp.scopes_changed", input.actorId, { actorId: input.actorId, by: actorOf(ctx) });
-  return { scopes };
-}
-
 // ---- sessions ---------------------------------------------------------------------------------------------------------------------------------------
-
-function toolsetsOf(scopes: Scopes | undefined, engineer: boolean): Toolset[] {
-  const { catalog } = loadGenerated();
-  const seen = new Set<string>();
-  for (const t of catalog.all) {
-    if (t.toolset === "engineer" && !engineer) continue;
-    if (scopes && !scopeAllows(scopes, t)) continue;
-    seen.add(t.toolset);
-  }
-  return TOOLSETS.filter((s) => seen.has(s));
-}
-
-export async function sessionOpen(ctx: McpCtx, input: { token: string; clientName?: string }) {
-  ensure(ctx.db);
-  const now = ctx.now();
-  const r = await callerForToken(ctx.db, ctx.space, input.token, now, input.clientName);
-  if ("refused" in r) {
-    if (r.refused === "expired") raise(ctx, "auth.expired", "That session has expired.");
-    if (r.refused === "revoked") raise(ctx, "permission.revoked", "That connection was revoked.");
-    raise(ctx, "auth.unauthenticated", "That token is not one Vyre knows.");
-  }
-  const c = r.caller;
-  if (r.fresh) ctx.emit("mcp.session_started", c.sessionId, { sessionId: c.sessionId, kind: "outside", principal: c.principal.id, ...(c.actingFor === undefined ? {} : { actingFor: c.actingFor }) });
-  return {
-    sessionId: c.sessionId, principal: c.principal.id, ...(c.actingFor === undefined ? {} : { actingFor: c.actingFor }),
-    scopes: c.scopes ?? { ...DEFAULT_SCOPES }, toolsets: toolsetsOf(c.kind === "outside" ? c.scopes : undefined, c.engineer === true),
-  };
-}
 
 export async function sessionMint(ctx: McpCtx, input: { principal: string; actingFor: string; threadId: string; runId?: string; traceId: string; ttlSec?: number }) {
   // a session token acts as the principal it names, for the person it names: minting one is the host's act (the engine seam drives a CLI engine through it). A member who could name any principal here would be that principal.
@@ -240,4 +138,4 @@ export async function health(ctx: McpCtx, _input: Record<string, never>) {
   };
 }
 
-export { isLive, revokeActor };
+export { isLive };

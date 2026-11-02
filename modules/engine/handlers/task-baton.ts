@@ -64,6 +64,8 @@ export function holderOf(t: Pick<BatonTask, "state" | "assigned" | "reviewer" | 
 }
 export const signatureOf = (t: BatonTask, h: { role: string; who: Who }): string => `${h.role}|${t.reviewLoops}|${h.who.kind}:${h.who.id}`;
 
+const runsOutside = (host: BatonHost, agentId: string): Promise<boolean> => host.call("agents.get", { agentId }).then((r) => (r as { agent?: { runtime?: string } } | null)?.agent?.runtime === "outside", () => false);
+
 /** The person responsible for an agent: its owner. */
 async function ownerOfAgent(host: BatonHost, agentId: string): Promise<string | undefined> {
   try {
@@ -223,6 +225,12 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   for (const agentId of targets) {
     await shareTask(host, task.id, agentId, asker);
     if (!(await openThread(ctx.db, host, engine, threadId, agentId, asker))) continue;
+    // an agent that runs outside Vyre is not woken: the task waits in its queue. Its owner's tasks only; the queue checks that.
+    if (await runsOutside(host, agentId)) {
+      const q = await host.call("agents.outside.enqueue", { agentId, kind: "task", threadId, taskId: task.id, asker, title: task.title, text: task.workingNotes["brief"] ?? task.title }).catch(() => null) as { queued?: boolean } | null;
+      if (q?.queued === true) woken.push(agentId);
+      continue;
+    }
     engine.wake(threadId, agentId);
     woken.push(agentId);
   }
@@ -262,7 +270,7 @@ export async function resumeTasks(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
       if (row.sig !== signatureOf(t, holder) || row.turnEndedAt !== undefined || !row.threadId) continue;
       let busy = false;
       try { busy = engine.turns(row.threadId).some((x) => x.state === "running" || x.state === "waiting" || x.state === "queued"); } catch { /* not open on this host yet */ }
-      if (busy) continue;
+      if (busy || await runsOutside(host, holder.who.id)) continue;
       if (await openThread(ctx.db, host, engine, row.threadId, holder.who.id, row.asker ?? t.createdBy)) { engine.wake(row.threadId, holder.who.id); out.push(holder.who.id); }
     }
     cursor = got.next;

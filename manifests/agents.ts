@@ -19,7 +19,7 @@ const limits = t.obj({
   runCostMicros: t.opt(t.int()), dayCostMicros: t.opt(t.int()), monthCostMicros: t.opt(t.int()), turnsPerDay: t.opt(t.int()), minutesPerRun: t.opt(t.int()), tokensPerDay: t.opt(t.int()),
 });
 const agentRow = t.obj({
-  agentId: id.agent, name: t.str(), kind: t.opt(t.enm('assistant', 'teammate', 'agent')), face: t.str({ description: 'DiceBear Notionists seed tinted per Space', examples: ['intake'] }), role: t.opt(t.str({ description: 'The "use me when" line' })),
+  agentId: id.agent, name: t.str(), kind: t.opt(t.enm('assistant', 'teammate', 'agent')), runtime: t.opt(t.enm('vyre', 'outside')), face: t.str({ description: 'DiceBear Notionists seed tinted per Space', examples: ['intake'] }), role: t.opt(t.str({ description: 'The "use me when" line' })),
   status: agentStatus, pausedReason: t.opt(t.str()), pausedBy: t.opt(t.str()), ownerId: id.user, folderId: id.folder,
   model: t.opt(t.str()), fallbackModel: t.opt(t.str()), accountPolicy: t.enm('asker', 'key'), accountKey: t.opt(t.str({ description: 'Vault handle, never a value', examples: ['#Team_Anthropic_Key'] })),
   accountFallback: t.arr(t.str({ description: 'Vault handles, best first: tried in this order when the chat key fails, before the Space backups' })),
@@ -39,6 +39,9 @@ const routineRow = t.obj({
 const suggestionRow = t.obj({
   suggestionId: t.id('sug'), agentId: id.agent, kind: t.enm('agent_md', 'template'), file: t.str({ examples: ['AGENT.md'] }), diff: t.str(), reason: t.opt(t.str()),
   widening: t.bool(), state: t.enm('open', 'accepted', 'dismissed'), proposedBy: t.str(), proposedAt: t.ts(), taskId: t.opt(id.task),
+});
+const outsideJob = t.obj({
+  jobId: t.id('ojb'), kind: t.enm('mention', 'task', 'answer'), threadId: t.opt(id.thread), taskId: t.opt(id.task), messageId: t.opt(id.message), from: t.str({ description: 'Who asked' }), title: t.str(), text: t.str(), queuedAt: t.ts(),
 });
 const agentFile = t.enm('AGENT.md', 'agent.toml');
 const target = { agentId: id.agent };
@@ -125,6 +128,18 @@ export default defineManifest({
     }),
     write('agents.role_line.set', 'Edit the role line in place: saves the description of agent.toml with an inline Undo; read-only without Edit', {
       in: { ...target, description: t.str({ maxLength: 200 }) }, out: { agent: agentRow, undoVersionId: id.version }, on: ['agent', '/agentId'], emits: ['agent.config_changed'], tool: 'agents', offline: 'patch',
+    }),
+    // ---- outside agents: an app that signed in from outside Vyre is a normal agent that runs elsewhere. Work waits for it here, because it is not running all the time.
+    write('agents.outside.connect', 'System: make the agent an app becomes when a person allows it. Called by mcp.oauth.allow, never by a client', {
+      in: { clientName: t.str() }, out: { agentId: id.agent, name: t.str() }, perm: 'agents.create', emits: ['agent.created'], audit: 'always', idem: 'none', risk: 'high', offline: 'online',
+    }),
+    write('agents.outside.enqueue', 'System: a mention or a task for an outside agent waits in its queue until it asks', {
+      in: { agentId: id.agent, kind: t.enm('mention', 'task', 'answer'), threadId: t.opt(id.thread), taskId: t.opt(id.task), messageId: t.opt(id.message), asker: t.str(), title: t.opt(t.str()), text: t.opt(t.str()) },
+      out: { queued: t.bool() }, emits: ['agent.job_queued'], idem: 'none', risk: 'low',
+    }),
+    write('agents.outside.seen', 'System: an outside agent called a tool: its status follows', { in: { agentId: id.agent }, out: { ok: t.bool() }, emits: ['agent.seen'], idem: 'none', risk: 'low' }),
+    write('agents.next', 'Take your next job: a mention or a task. It names the chat to work in; what you do afterwards shows there. Nothing waiting answers job null. Only an outside agent has a queue', {
+      out: { job: t.nullable(outsideJob), waiting: t.int({ minimum: 0 }) }, level: 'member', emits: ['agent.job_taken'], tool: 'agents', mcpName: 'agents_next', agent: { planMode: 'allowed' }, idem: 'none', risk: 'low',
     }),
     write('agents.pause', 'Pause an agent with a reason; the status shows who paused it', {
       in: { ...target, reason: t.opt(t.str()) }, out: { agent: agentRow }, on: ['agent', '/agentId'], level: 'manage', emits: ['agent.paused'], tool: 'agents', idem: 'natural',
@@ -255,6 +270,9 @@ export default defineManifest({
     ev('agent.paused', 'An agent was paused', { p: { agentId: id.agent, reason: t.opt(t.str()), by: t.str() }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is paused' } }),
     ev('agent.resumed', 'An agent was resumed', { p: { agentId: id.agent, by: t.str() }, subject: ['agent', '/agentId'] }),
     ev('agent.owner_changed', 'An agent was handed to another person', { p: { agentId: id.agent, from: id.user, to: id.user, by: t.str() }, subject: ['agent', '/agentId'] }),
+    ev('agent.job_queued', 'A mention or a task is waiting for an outside agent', { p: { agentId: id.agent, jobId: t.str(), kind: t.str() }, subject: ['agent', '/agentId'], vis: 'participants' }),
+    ev('agent.job_taken', 'An outside agent took a job', { p: { agentId: id.agent, jobId: t.str() }, subject: ['agent', '/agentId'], vis: 'participants' }),
+    ev('agent.seen', 'An outside agent was active', { p: { agentId: id.agent, at: t.ts() }, subject: ['agent', '/agentId'], vis: 'participants' }),
     ev('agent.deleted', 'An agent moved to Trash', { p: { agentId: id.agent, name: t.opt(t.str()), by: t.str() }, subject: ['agent', '/agentId'] }),
     ev('agent.restored', 'An agent came back from Trash', { p: { agentId: id.agent, by: t.str() }, subject: ['agent', '/agentId'] }),
     ev('agent.config_changed', 'AGENT.md, agent.toml or the agent record changed (a new version was saved)', {
