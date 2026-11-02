@@ -382,18 +382,22 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
       const slice = entry ? walkUntil(by, entry, new Set([node.id, ...(node.next ?? [])])) : [];
       if (slice.some((n) => n.key === "loop")) hostError("run.nested_loop", "A loop cannot contain another loop.");
       let kids = await reportsOf(run.id, node.id);
-      if (kids.length === 0) {
-        const prep = await callStep(node, call, { prepare: true });
-        if (!prep.prepare) return finish(node, prep);
-        const cap = concurrencyOf(node.input);
-        for (const it of prep.prepare.iterations) {
-          const hold = it.iterationIndex >= cap;
-          await spawn(run.id, `child:${run.id}:${node.id}:iter:${it.iterationKey}`, {
-            ...carryItem(scope), containerNodeId: node.id, iterationIndex: it.iterationIndex, iterationKey: it.iterationKey, item: it.item, ...(hold ? { held: true } : {}),
-          }, hold);
-        }
-        kids = await reportsOf(run.id, node.id);
-      } else kids = await releaseLoop(node, kids);
+      const started = kids.length > 0;
+      // Every pass asks which iterations exist. A retry brings the ones that succeeded along and starts the rest (automations carryFinishedChildren); after the first pass of any other Run nothing is missing.
+      const prep = await callStep(node, call, { prepare: true });
+      if (!started && !prep.prepare) return finish(node, prep);
+      const have = new Set(kids.map((k) => k.iterationKey));
+      let room = concurrencyOf(node.input) - kids.filter((k) => !k.held && !TERMINAL.has(k.status)).length;
+      for (const it of prep.prepare?.iterations ?? []) {
+        if (have.has(it.iterationKey)) continue;
+        const hold = room <= 0;
+        if (!hold) room -= 1;
+        await spawn(run.id, `child:${run.id}:${node.id}:iter:${it.iterationKey}`, {
+          ...carryItem(scope), containerNodeId: node.id, iterationIndex: it.iterationIndex, iterationKey: it.iterationKey, item: it.item, ...(hold ? { held: true } : {}),
+        }, hold);
+      }
+      kids = await reportsOf(run.id, node.id);
+      if (started) kids = await releaseLoop(node, kids);
       return finish(node, await callStep(node, call, { children: kids }));
     };
     const exec = async (step: PlanStep, call: never): Promise<StepResult> => {

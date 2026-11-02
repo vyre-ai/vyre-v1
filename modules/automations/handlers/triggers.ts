@@ -109,19 +109,42 @@ export async function retry(ctx: AutoCtx, input: In): Promise<unknown> {
   if (!old || old.automationId !== a.id) raise(ctx, "validation.precondition_failed", "That run does not belong to this automation.", { reason: "not_a_run_of_this" });
   usable(ctx, a);
   if (!ctx.call) raise(ctx, "internal.unavailable", "Runs are not available right now.");
+  const from: string | undefined = input.fromStep ?? await unfinishedStep(ctx, old.runId);
   const r = (await ctx.call("runs.retry", clean({ runId: old.runId, fromStep: input.fromStep }))) as { runId: string };
   if (!findRunLink(ctx.db, r.runId)) {
+    await carryFinishedChildren(ctx, old.runId, r.runId, from);
     saveRunLink(ctx.db, clean({ ...old, runId: r.runId, parentRun: old.runId, principal: principalFor(a), startedAt: ctx.now() }) as RunLink);
     emitAuto(ctx, "automation.run_started", a.id, clean({ runId: r.runId, trigger: old.trigger, version: old.version, test: old.test, depth: old.depth, origin: old.origin }));
   }
   return { runId: r.runId };
 }
 
+/** The step a retry goes on from: the first that did not finish (the same rule as runs.retry). */
+async function unfinishedStep(ctx: AutoCtx, runId: string): Promise<string | undefined> {
+  try {
+    const out = (await ctx.call?.("runs.steps", { runId, limit: 500 })) as { steps?: Array<{ step?: string; state?: string }> } | null;
+    return out?.steps?.find((s) => s.state !== "succeeded" && s.state !== "skipped")?.step;
+  } catch { return undefined; }
+}
+
+/**
+ * A loop or parallel step that is retried must not run again the lanes and iterations that succeeded: they may have sent. They move to the new Run, so it counts them as done and starts only what did not finish.
+ * The old Run keeps its own step log; its list of children loses the ones that moved.
+ */
+async function carryFinishedChildren(ctx: AutoCtx, oldId: string, freshId: string, step: string | undefined): Promise<void> {
+  if (!step || !ctx.call) return;
+  for (const child of listChildLinks(ctx.db, oldId)) {
+    if (child.scope?.containerNodeId !== step) continue;
+    const got = (await ctx.call("runs.get", { runId: child.runId })) as { run?: { status?: string } } | null;
+    if (got?.run?.status === "succeeded") saveRunLink(ctx.db, { ...child, parentRun: freshId });
+  }
+}
+
 /**
  * A Run of an Automation retried or replayed through runs.*, as the Runs pages and the notification's Retry button do: it needs what automations.retry gives it, the link to the definition, and the event that
  * drives it. Without them the new Run sat queued for ever. A paused Automation ends the Run at once with the reason, so nothing waits in silence. automations.retry links the Run first, and then this does nothing.
  */
-export async function adoptRun(ctx: AutoCtx, event: { name: string; payload: { runId?: string; newRunId?: string; kind?: string; parentRun?: string; definitionVersion?: number } }): Promise<string | undefined> {
+export async function adoptRun(ctx: AutoCtx, event: { name: string; payload: { runId?: string; newRunId?: string; fromStep?: string; kind?: string; parentRun?: string; definitionVersion?: number } }): Promise<string | undefined> {
   const p = event.payload;
   const replay = event.name === "run.started" && p.kind === "replay";
   if (event.name === "run.started" && !replay) return undefined;
@@ -134,6 +157,7 @@ export async function adoptRun(ctx: AutoCtx, event: { name: string; payload: { r
   if (!a) return undefined;
   if (a.status === "paused" && !replay) { await ctx.call?.("runs.stop", { runId: fresh, reason: a.pausedReason ?? "This automation is paused." }); return undefined; }
   const version = replay && p.definitionVersion === undefined ? a.version : old.version;
+  if (!replay) await carryFinishedChildren(ctx, old.runId, fresh, p.fromStep);
   saveRunLink(ctx.db, clean({ ...old, runId: fresh, version, parentRun: old.runId, principal: principalFor(a), startedAt: ctx.now() }) as RunLink);
   emitAuto(ctx, "automation.run_started", a.id, clean({ runId: fresh, trigger: old.trigger, version, test: replay ? true : old.test, depth: old.depth, origin: old.origin }));
   return fresh;
