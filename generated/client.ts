@@ -957,6 +957,7 @@ export function createClient(transport: Transport) {
       expire: call("gate.expire", 1),
       grants: {
         ask: call("gate.grants.ask", 1),
+        give_back: call("gate.grants.give_back", 1),
         set: call("gate.grants.set", 1),
         take: call("gate.grants.take", 1),
       },

@@ -13,6 +13,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "gate.effective_rule": async (ctx) => { throw new VyreErr(notImplemented("gate.effective_rule", ctx.trace)); },
   "gate.expire": async (ctx) => { throw new VyreErr(notImplemented("gate.expire", ctx.trace)); },
   "gate.grants.ask": async (ctx) => { throw new VyreErr(notImplemented("gate.grants.ask", ctx.trace)); },
+  "gate.grants.give_back": async (ctx) => { throw new VyreErr(notImplemented("gate.grants.give_back", ctx.trace)); },
   "gate.grants.set": async (ctx) => { throw new VyreErr(notImplemented("gate.grants.set", ctx.trace)); },
   "gate.grants.take": async (ctx) => { throw new VyreErr(notImplemented("gate.grants.take", ctx.trace)); },
   "gate.holds.get": async (ctx) => { throw new VyreErr(notImplemented("gate.holds.get", ctx.trace)); },
