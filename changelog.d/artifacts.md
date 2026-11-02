@@ -1,1 +1,0 @@
-- Artifacts: `artifact_publish` is how any model shows what it made. It stays private, opens in the app or the browser, updates at the same link and shares like Files, from a new row at the top of the Chats sidebar.

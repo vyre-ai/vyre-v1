@@ -1,1 +1,0 @@
-- One page makes an agent and changes it: a face you shuffle or pick, instructions drafted from what it does, a context folder it always reads, Vault items it can use, its computer, who can use it and a preferred model.

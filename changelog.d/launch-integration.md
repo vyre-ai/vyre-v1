@@ -1,2 +1,0 @@
-- Fixed the mounted folder sheet, whose Try again state crashed.
-- Fixed the app failing to start after the launch merges.

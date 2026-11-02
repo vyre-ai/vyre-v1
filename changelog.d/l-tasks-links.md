@@ -1,1 +1,0 @@
-- A link opens what it points at from the first frame, on a computer and on a phone, for tasks, chats, records and files, whatever tab was open last.

@@ -1,1 +1,0 @@
-- In Auto, an outward act you asked for in your own message goes without a second yes, once, to the act and target you named. Nothing a model writes can give that permission.

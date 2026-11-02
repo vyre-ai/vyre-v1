@@ -1,7 +1,0 @@
-- Outside agents sign in with one press. Paste your Space's /mcp address into Claude Code or any MCP app; a tab opens, Vyre shows who is asking, and Allow makes it an agent you own, acting for you.
-- An outside agent is a normal agent: a face, a folder and a profile. It can do what you can and no more, only you can use it, and sends, posts and payments still wait for your yes.
-- Everything an outside agent does shows up as that agent: its profile, the audit log, and the chat or task it works in. Mentions and tasks wait in a queue it reads with agents_next.
-- Remove on an outside agent's profile ends its sign-in at once. A call in flight fails.
-- The one-time token for outside agents is gone, with its scope list.
-- An outside actor's reach on /v1 is now capped by the person who made it.
-- An outside agent reads as the strictest AI provider a label policy names, unless an admin names it.

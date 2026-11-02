@@ -1,1 +1,0 @@
-- Known outward terminal commands (git push, curl with data, gh pr create, npm publish, ssh) now follow the outward rule. An agent's delete inside work/ on its own computer no longer stops.

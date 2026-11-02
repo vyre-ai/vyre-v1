@@ -1,1 +1,0 @@
-- Typing a whole `:joy:` now turns into the emoji, in every composer.
