@@ -20,7 +20,7 @@ export function EmailDesignEditor({ step, onChange, title = "Email design", intr
   const d = useAppsData(), online = useOnline();
   const [emailId, setEmailId] = useState<string | null>(typeof step.config.emailId === "string" ? step.config.emailId : null);
   const [mode, setMode] = useState<EmailMode>((step.config.designMode as EmailMode | undefined) ?? "plain");
-  const [snapshot, setSnapshot] = useState<EmailSnapshot>({ subject: String(step.config.subject ?? ""), previewText: "", blocks: (step.config.designBlocks as EmailBlock[] | undefined) ?? [], html: String(step.config.html ?? ""), plain: String(step.config.text ?? ""), subjectB: typeof step.config.subjectB === "string" ? step.config.subjectB : null });
+  const [snapshot, setSnapshot] = useState<EmailSnapshot>({ subject: String(step.config.subject ?? ""), previewText: "", blocks: (step.config.designBlocks as EmailBlock[] | undefined) ?? [], html: String(step.config.html ?? ""), plain: String(step.config.text ?? "") });
   const [dirty, setDirty] = useState(false), [status, setStatus] = useState("No changes"), [error, setError] = useState("");
   const [testTo, setTestTo] = useState("");
   const library = useRead<CapMap["email_builder.saved_blocks.list"]["out"]>("email_builder.saved_blocks.list", {}, "templates");
