@@ -4,31 +4,36 @@ on:
     branches: [spike/dmg-window]
 jobs:
   dmg:
-    runs-on: macos-latest
-    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-15, macos-26]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: A stub app with the real icon, laid out by Tauri's own script
+      - name: Stub app, and both grounds laid out by Tauri's own script
         run: |
-          set -euo pipefail
+          set -uo pipefail
           sw_vers
           R=https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-bundler/src/bundle/macos/dmg
           T="$RUNNER_TEMP/t"; mkdir -p "$T/bundle/dmg" "$T/bundle/macos/Vyre.app/Contents/MacOS" "$T/bundle/macos/Vyre.app/Contents/Resources" "$T/bundle/share/create-dmg/support"
           curl -fsSL $R/bundle_dmg -o "$T/bundle/dmg/bundle_dmg.sh"; chmod +x "$T/bundle/dmg/bundle_dmg.sh"
           curl -fsSL $R/template.applescript -o "$T/bundle/share/create-dmg/support/template.applescript"
           curl -fsSL $R/eula-resources-template.xml -o "$T/bundle/share/create-dmg/support/eula-resources-template.xml"
-          I="$PWD/apps/desktop/src-tauri/icons/icon.icns"; B="$PWD/apps/desktop/src-tauri/dmg/background.tiff"
+          I="$PWD/apps/desktop/src-tauri/icons/icon.icns"
           cp "$I" "$T/bundle/macos/Vyre.app/Contents/Resources/icon.icns"
           printf '#!/bin/sh\n' > "$T/bundle/macos/Vyre.app/Contents/MacOS/vyre-desktop"; chmod +x "$T/bundle/macos/Vyre.app/Contents/MacOS/vyre-desktop"
           /usr/libexec/PlistBuddy -c 'Add :CFBundleExecutable string vyre-desktop' -c 'Add :CFBundleIconFile string icon' -c 'Add :CFBundleIdentifier string ai.vyre.spike' -c 'Add :CFBundleName string Vyre' -c 'Add :CFBundlePackageType string APPL' "$T/bundle/macos/Vyre.app/Contents/Info.plist"
           touch "$T/bundle/macos/Vyre.app"
-          cd "$T/bundle/macos"
-          ( sleep 240; pkill osascript && echo "WATCHDOG: osascript killed" ) & W=$!
-          time "$T/bundle/dmg/bundle_dmg.sh" --volname Vyre --icon Vyre.app 170 178 --app-drop-link 490 178 --window-size 660 428 --hide-extension Vyre.app --background "$B" --volicon "$I" Vyre_spike.dmg Vyre.app
-          kill $W || true
-          echo "DMG=$T/bundle/macos/Vyre_spike.dmg" >> "$GITHUB_ENV"
-      - run: hdiutil verify "$DMG"
-      - run: apps/desktop/src-tauri/ci/dmg-window.sh "$DMG" "$PWD/out" 170 178 490 178
+          W="$PWD"
+          for v in a b; do
+            mkdir -p "$RUNNER_TEMP/bg-$v"; cp "spike-art/$v.tiff" "$RUNNER_TEMP/bg-$v/background.tiff"
+            ( cd "$T/bundle/macos"; "$T/bundle/dmg/bundle_dmg.sh" --volname Vyre --icon Vyre.app 170 178 --app-drop-link 490 178 --window-size 660 428 --hide-extension Vyre.app --background "$RUNNER_TEMP/bg-$v/background.tiff" --volicon "$I" "Vyre_$v.dmg" Vyre.app ) || echo "bundle failed $v"
+            "$W/apps/desktop/src-tauri/ci/dmg-window.sh" "$T/bundle/macos/Vyre_$v.dmg" "$W/out/$v" 170 178 490 178 || echo "window check failed $v"
+            hdiutil detach /Volumes/Vyre -force >/dev/null 2>&1 || true
+            rm -f "$T/bundle/macos/Vyre_$v.dmg"
+          done
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: dmg-window, path: out }
+        with: { name: "dmg-${{ matrix.os }}", path: out }
