@@ -163,7 +163,7 @@ export interface InvokeDeps {
    * The Personal Space gate (P-H_19, spec 2.1): asked first for every capability. In a Personal Space it throws `permission.needs_team` for a team-only capability, before validation,
    * authorize or any handler work. The sync module's `createPersonalHost(...)` satisfies this; a Team Space passes nothing, or a gate that never throws.
    */
-  personal?: { gate(cap: string, traceId: string): void };
+  personal?: { gate(cap: string, traceId: string, call?: PersonalCall): void };
   /**
    * Called with the resource a call resolved to, before it is authorized: a resource that exists only on demand (a connector that ships with the server) is registered here, so the
    * decision finds it. Nothing to do for any other resource.
@@ -212,17 +212,51 @@ export function createRateLimiter(): NonNullable<InvokeDeps["rate"]> {
   };
 }
 
+/** What the Personal gate may read of a call: its raw input (before validation) and who makes it. */
+export interface PersonalCall { input: unknown; principal: PrincipalSeed; actingFor?: string | undefined }
+
+/**
+ * The share capabilities a Personal Space still serves for the person's own agents and automations. In a Personal Space everything belongs to the one person, and their agents and automations
+ * act for them, so giving one of them Use on their own item is not sharing with anyone else. A person, group, role, link or outside actor still needs a Team Space.
+ */
+export const OWN_SHARE_CAPS: ReadonlySet<string> = new Set(["vault.share", "vault.unshare", "access.share", "access.unshare"]);
+const OWN_SUBJECT_KINDS: ReadonlySet<string> = new Set(["agent", "service"]);
+
+/** The plain line a person sees for a refused team-only call: never the capability's name. */
+export function needsTeamLine(cap: string): string {
+  return OWN_SHARE_CAPS.has(cap) ? "Sharing with other people needs a Team Space. Create or join one to share this." : "Needs a Team Space. Create or join one to use this.";
+}
+
+/** The subject of a share call, read defensively (the gate runs before validation). */
+function shareSubject(input: unknown): { kind: string; id: string } | null {
+  const s = input !== null && typeof input === "object" ? (input as { subject?: unknown }).subject : undefined;
+  if (s === null || typeof s !== "object") return null;
+  const { kind, id } = s as { kind?: unknown; id?: unknown };
+  return typeof kind === "string" && typeof id === "string" && id !== "" ? { kind, id } : null;
+}
+
 /**
  * The Personal Space matrix as an invoke gate (spec 2.1): in a Personal Space a capability whose manifest says `teamOnly` is refused with `permission.needs_team`. Same rule and wording as
- * the sync module's createPersonalHost(...).gate (host never imports a module, so the daemon builds this one from the registry's rows and the Space kind).
+ * the sync module's createPersonalHost(...).gate (host never imports a module, so the daemon builds this one from the registry's rows and the Space kind). One exception: a share capability
+ * (OWN_SHARE_CAPS) a person makes to an agent or automation that `owns` says is theirs. Without `owns` there is no exception.
  */
-export function personalMatrix(o: { kind: () => "personal" | "team"; caps: Iterable<{ name: string; teamOnly?: boolean }> }): NonNullable<InvokeDeps["personal"]> {
+export function personalMatrix(o: {
+  kind: () => "personal" | "team";
+  caps: Iterable<{ name: string; teamOnly?: boolean }>;
+  /** Whether this agent (kind "agent") or automation (kind "service", svc_<id>) belongs to this person. */
+  owns?: (subject: { kind: string; id: string }, person: string) => boolean;
+}): NonNullable<InvokeDeps["personal"]> {
   const teamOnly = new Set<string>();
   for (const c of o.caps) if (c.teamOnly === true) teamOnly.add(c.name);
+  const own = (cap: string, call: PersonalCall | undefined): boolean => {
+    if (!o.owns || !call || !OWN_SHARE_CAPS.has(cap) || call.principal.kind !== "person") return false;
+    const subject = shareSubject(call.input);
+    return subject !== null && OWN_SUBJECT_KINDS.has(subject.kind) && o.owns(subject, call.principal.id);
+  };
   return {
-    gate(cap, traceId) {
-      if (o.kind() !== "personal" || !teamOnly.has(cap)) return;
-      throw fail("permission.needs_team", traceId, { message: `Needs a Team Space. ${cap} works in a Team Space; create or join one to use it.`, details: { capability: cap }, next: [{ kind: "open_settings", label: "Create or join a Team Space" }] });
+    gate(cap, traceId, call) {
+      if (o.kind() !== "personal" || !teamOnly.has(cap) || own(cap, call)) return;
+      throw fail("permission.needs_team", traceId, { message: needsTeamLine(cap), details: { capability: cap }, next: [{ kind: "open_settings", label: "Create or join a Team Space" }] });
     },
   };
 }
@@ -255,7 +289,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       cap = deps.caps.get(capName, seed.v);
       if (!cap) throw fail("validation.unknown_capability", traceId, { message: "There is no such capability.", details: { cap: capName, v: seed.v ?? null } });
       const c = cap;
-      deps.personal?.gate(c.name, traceId);
+      deps.personal?.gate(c.name, traceId, { input, principal: seed.principal, actingFor: seed.actingFor });
       const depth = seed.depth ?? 0;
       if (depth >= MAX_DEPTH) throw fail("validation.precondition_failed", traceId, { message: "Calls nest too deeply.", details: { depth, limit: MAX_DEPTH } });
 

@@ -1210,6 +1210,9 @@ async function folderSettings(ctx: Ctx, input: unknown): Promise<{ folder: Folde
     fail(ctx, "validation.bad_input", "The input is not valid.", { field: "source" });
   }
   if (review === undefined && labelName === undefined && sourceIn === undefined) fail(ctx, "validation.bad_input", "The input is not valid.");
+  // every refusal comes before the first write: an unknown label never leaves a changed source behind
+  const rank = labelName === undefined ? undefined : LABEL_RANK[labelName];
+  if (labelName !== undefined && rank === undefined) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "label" });
   const fields: string[] = [];
   // the mounts module marks the top of a mount with where it comes from; nothing changes (and nothing is said) when the mark is already there
   const source = sourceIn === undefined ? undefined : sourceIn === null ? null : { mountId: String((sourceIn as Row).mountId), provider: String((sourceIn as Row).provider) };
@@ -1228,9 +1231,7 @@ async function folderSettings(ctx: Ctx, input: unknown): Promise<{ folder: Folde
     reviewBit = review ? 1 : 0;
     fields.push("reviewChanges");
   }
-  if (labelName !== undefined) {
-    const rank = LABEL_RANK[labelName];
-    if (rank === undefined) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "label" });
+  if (labelName !== undefined && rank !== undefined) {
     await setFolderLabel(String(row.id), labelName as "public" | "internal" | "confidential" | "restricted");
     label = rank;
     fields.push("label");
