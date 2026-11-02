@@ -5,6 +5,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "ms.access_log": async (ctx) => { throw new VyreErr(notImplemented("ms.access_log", ctx.trace)); },
   "ms.calendar.create_event": async (ctx) => { throw new VyreErr(notImplemented("ms.calendar.create_event", ctx.trace)); },
   "ms.calendar.delete_event": async (ctx) => { throw new VyreErr(notImplemented("ms.calendar.delete_event", ctx.trace)); },
   "ms.calendar.delta": async (ctx) => { throw new VyreErr(notImplemented("ms.calendar.delta", ctx.trace)); },
@@ -17,12 +18,15 @@ export const handlers: Handlers<HandlerCtx> = {
   "ms.calendar.subscribe": async (ctx) => { throw new VyreErr(notImplemented("ms.calendar.subscribe", ctx.trace)); },
   "ms.calendar.unsubscribe": async (ctx) => { throw new VyreErr(notImplemented("ms.calendar.unsubscribe", ctx.trace)); },
   "ms.calendar.update_event": async (ctx) => { throw new VyreErr(notImplemented("ms.calendar.update_event", ctx.trace)); },
+  "ms.consent.check_app": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.check_app", ctx.trace)); },
+  "ms.consent.connect_all": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.connect_all", ctx.trace)); },
   "ms.consent.disable": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.disable", ctx.trace)); },
   "ms.consent.link": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.link", ctx.trace)); },
   "ms.consent.map_member": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.map_member", ctx.trace)); },
   "ms.consent.members": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.members", ctx.trace)); },
   "ms.consent.my_account": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.my_account", ctx.trace)); },
   "ms.consent.policy_snippet": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.policy_snippet", ctx.trace)); },
+  "ms.consent.set_data": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.set_data", ctx.trace)); },
   "ms.consent.set_excluded": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.set_excluded", ctx.trace)); },
   "ms.consent.setup": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.setup", ctx.trace)); },
   "ms.consent.status": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.status", ctx.trace)); },
@@ -30,6 +34,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "ms.consent.verify": async (ctx) => { throw new VyreErr(notImplemented("ms.consent.verify", ctx.trace)); },
   "ms.directory.import": async (ctx) => { throw new VyreErr(notImplemented("ms.directory.import", ctx.trace)); },
   "ms.directory.list": async (ctx) => { throw new VyreErr(notImplemented("ms.directory.list", ctx.trace)); },
+  "ms.directory.reconcile": async (ctx) => { throw new VyreErr(notImplemented("ms.directory.reconcile", ctx.trace)); },
   "ms.drive.create_folder": async (ctx) => { throw new VyreErr(notImplemented("ms.drive.create_folder", ctx.trace)); },
   "ms.drive.delete_item": async (ctx) => { throw new VyreErr(notImplemented("ms.drive.delete_item", ctx.trace)); },
   "ms.drive.delta": async (ctx) => { throw new VyreErr(notImplemented("ms.drive.delta", ctx.trace)); },

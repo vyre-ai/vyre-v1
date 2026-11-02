@@ -9,6 +9,7 @@ HTTP 401. Retryable: no.
 - identity.claim_owner
 - identity.pair_redeem
 - identity.reset_complete
+- identity.sso_join_start
 - identity.verify_second_factor
 - invites.accept_create_account
 - mcp.session.open

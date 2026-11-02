@@ -208,12 +208,12 @@ test("a notice that fails the client state, or names no subscription of ours, is
 test("a notice for an excluded member, or after the connection is off, pulls nothing; calendar notices start no pull", async () => {
   const h = mailboxReady();
   await consentExclude(h.ctx, { email: MAYA, excluded: true });
-  assert.deepEqual(await receiveNotification(h.ctx, note("x1")), { accepted: true });
+  assert.deepEqual(await receiveNotification(h.ctx, note("x1")), { accepted: false }, "their watch came down with the exclusion, so a late notice is nobody's");
   await consentExclude(h.ctx, { email: MAYA, excluded: false });
   await consentDisable(h.ctx);
   await receiveNotification(h.ctx, note("x2"));
-  assert.equal(h.requests.length, 0);
-  assert.equal(h.scheduled.length, 0);
+  assert.deepEqual(h.requests.filter((r) => r.method !== "DELETE"), [], "no mailbox was read");
+  assert.deepEqual(h.scheduled.filter((s) => !String(s.input.notificationId).startsWith("first:")), [], "being included again queues their first pull, and no notice queues anything");
   const cal = mailboxReady();
   await receiveNotification(cal.ctx, note("c1", { resource: "Users/mid/Events/e1" }));
   assert.equal(cal.requests.length, 0);
@@ -260,10 +260,11 @@ test("setup connects every mapped member once and never an excluded or outside a
   const cfg = h.rows(`SELECT * FROM microsoft_config`)[0]!;
   assert.deepEqual([cfg.connectionId, cfg.tenantId, cfg.domain, cfg.clientId, cfg.configured, cfg.consentGiven, cfg.autoConnect], [CONN, "tenant-guid", "vyre.test", "11111111-2222-3333-4444-555555555555", 1, 0, 1]);
   assert.deepEqual(h.named("microsoft.consent_configured").map((e) => e.payload), [{ connector: "microsoft", tenantId: "tenant-guid", mappedMembers: 2, autoConnect: true }]);
-  assert.deepEqual(h.scheduled, [{ at: NOW + 12 * 60 * MIN, cap: "ms.subscriptions.renew", input: {} }]);
+  assert.deepEqual(h.scheduled.filter((s) => s.cap === "ms.subscriptions.renew"), [{ at: NOW + 12 * 60 * MIN, cap: "ms.subscriptions.renew", input: {} }]);
+  assert.deepEqual(h.scheduled.filter((s) => s.cap === "ms.receive_notification").map((s) => [s.at, s.input.resource]), [[NOW + 1000, `users/${MAYA}/messages`], [NOW + 3000, `users/${SAM}/messages`]], "each included member's first pull, spaced out, because nothing else starts one");
   await consentSetup(h.ctx, { ...setupInput, idempotencyKey: "setup-2" });
   assert.equal(h.calls("connections.create").length, 1);   // the Space connection is kept
-  assert.equal(h.scheduled.length, 1);   // and so is the one queued Run
+  assert.equal(h.scheduled.length, 3);   // and so is the one queued Run, and each one first pull
 });
 
 test("with auto-connect off nobody is connected until the first-run step", async () => {
@@ -293,16 +294,16 @@ test("verify names missing permissions and the mailbox the access policy blocks,
   const h = admin();
   await consentSetup(h.ctx, setupInput);
   const ok = await consentVerify(h.ctx, {});
-  assert.deepEqual(ok, { ok: true, missingPermissions: [] });
+  assert.deepEqual(ok, { ok: true, missingPermissions: [], unscoped: [] });
   assert.deepEqual(h.named("microsoft.consent_verified").at(-1)?.payload, { connector: "microsoft", ok: true, missingPermissions: [] });
-  assert.deepEqual(await consentStatus(h.ctx), { configured: true, tenantId: "tenant-guid", consentGiven: true, policyConfirmed: true, lastVerifyAt: NOW, autoConnect: true, mappedMembers: 3, excluded: [] });
+  assert.deepEqual(await consentStatus(h.ctx), { configured: true, data: { mail: true, calendar: true, files: true }, appStored: true, clientId: "11111111-2222-3333-4444-555555555555", permissions: PERMISSIONS, exchangeRoles: ["Application Mail.ReadWrite", "Application Mail.Send", "Application Calendars.ReadWrite"], tenantId: "tenant-guid", consentGiven: true, policyConfirmed: true, lastVerifyAt: NOW, autoConnect: true, mappedMembers: 3, excluded: [] });
   check("ms.consent.verify", ok);
 
-  h.state.roles = PERMISSIONS.filter((p) => p !== "Mail.Send" && p !== "OnlineMeetingRecording.Read.All");
+  h.state.roles = PERMISSIONS.filter((p) => p !== "Files.ReadWrite.All" && p !== "OnlineMeetingRecording.Read.All");
   h.advance(2 * 3_600_000);   // the token is new, so the roles are re-read
   const missing = await consentVerify(h.ctx, {});
-  assert.deepEqual([missing.ok, missing.missingPermissions], [false, ["Mail.Send", "OnlineMeetingRecording.Read.All"]]);
-  assert.match(missing.detail ?? "", /Grant admin consent for: Mail\.Send, OnlineMeetingRecording\.Read\.All/);
+  assert.deepEqual([missing.ok, missing.missingPermissions], [false, ["Files.ReadWrite.All", "OnlineMeetingRecording.Read.All"]]);
+  assert.match(missing.detail ?? "", /Grant admin consent for: Files\.ReadWrite\.All, OnlineMeetingRecording\.Read\.All/);
   assert.equal((await consentStatus(h.ctx)).consentGiven, false);
 
   h.state.roles = PERMISSIONS;
@@ -310,7 +311,7 @@ test("verify names missing permissions and the mailbox the access policy blocks,
   h.on("GET", `${GRAPH}/users/maya%40vyre.test/mailFolders/inbox`, { status: 403, body: { error: { code: "ErrorAccessDenied" } } });
   const blocked = await consentVerify(h.ctx, { as: MAYA });
   assert.deepEqual([blocked.ok, blocked.missingPermissions], [false, []]);
-  assert.match(blocked.detail ?? "", /cannot reach maya@vyre\.test.*access policy snippet/);
+  assert.match(blocked.detail ?? "", /cannot reach maya@vyre\.test.*Exchange snippet/);
   assert.equal((await consentStatus(h.ctx)).consentGiven, true);   // consent is fine; the policy is the gap
   assert.equal((await consentStatus(h.ctx)).policyConfirmed, false);
   const told = await consentVerify(h.ctx, { as: MAYA, policyConfirmed: true });
@@ -342,8 +343,10 @@ test("the consent link and the PowerShell snippet carry the client id and the ma
   assert.equal(snippet.groupName, "VyreMappedMembers");
   assert.match(snippet.snippet, /New-DistributionGroup -Name "VyreMappedMembers" .* -Members "kim@vyre\.test","maya@vyre\.test"\r?\n/);
   assert.ok(!snippet.snippet.includes(SAM));   // an excluded member is not given access
-  assert.match(snippet.snippet, /New-ApplicationAccessPolicy -AppId "11111111-2222-3333-4444-555555555555" -PolicyScopeGroupId "vyremappedmembers@vyre\.test" -AccessRight RestrictAccess/);
-  assert.match(snippet.snippet, /Test-ApplicationAccessPolicy .* -Identity "kim@vyre\.test"/);
+  assert.ok(!snippet.snippet.includes("New-ApplicationAccessPolicy"), "Microsoft says new setups do not use the legacy policy");
+  assert.match(snippet.snippet, /New-ManagementScope -Name "VyreMappedMembers" -RecipientRestrictionFilter "MemberOfGroup -eq '\$group'"/);
+  for (const role of ["Application Mail.ReadWrite", "Application Mail.Send", "Application Calendars.ReadWrite"]) assert.ok(snippet.snippet.includes(`New-ManagementRoleAssignment -App "11111111-2222-3333-4444-555555555555" -Role "${role}" -CustomResourceScope "VyreMappedMembers"`), role);
+  assert.match(snippet.snippet, /Test-ServicePrincipalAuthorization -Identity "11111111-2222-3333-4444-555555555555" -Resource "kim@vyre\.test"/);
   for (const [cap, out] of [["ms.consent.link", link], ["ms.consent.policy_snippet", snippet]] as const) check(cap, out);
 });
 
@@ -360,9 +363,10 @@ test("members list in pages; an exclusion stops every call for that member; turn
 
   h.on("GET", /mailFolders/, { body: { value: [] } });
   assert.deepEqual(await consentExclude(h.ctx, { email: "Sam@Vyre.test", excluded: true }), { excluded: [SAM] });
-  await assert.rejects(() => mailFolders(h.ctx, { ...act, as: SAM }), (e) => codeOf(e) === "permission.no_grant");
+  const host = { ...h.ctx, principal: { kind: "service" as const, id: "svc_ms" } };
+  await assert.rejects(() => mailFolders(host, { ...act, as: SAM }), (e) => (e as { error?: { message?: string } }).error?.message === "That member is excluded from the Microsoft connection.");
   assert.deepEqual(await consentExclude(h.ctx, { email: SAM, excluded: false }), { excluded: [] });
-  await mailFolders(h.ctx, { ...act, as: SAM });
+  await mailFolders(host, { ...act, as: SAM });
   assert.deepEqual(await consentExclude(h.ctx, { email: "new@vyre.test", excluded: true }), { excluded: ["new@vyre.test"] });
   await assert.rejects(() => consentExclude(h.ctx, { email: "nope", excluded: true }), (e) => codeOf(e) === "validation.bad_input");
 
@@ -377,7 +381,7 @@ test("members list in pages; an exclusion stops every call for that member; turn
 test("status before setup, and read log rows for tenant-level calls", async () => {
   const h = admin();
   const before = await consentStatus(h.ctx);
-  assert.deepEqual(before, { configured: false, consentGiven: false, policyConfirmed: false, autoConnect: true, mappedMembers: 0, excluded: [] });
+  assert.deepEqual(before, { configured: false, data: { mail: true, calendar: true, files: true }, appStored: false, permissions: PERMISSIONS, exchangeRoles: ["Application Mail.ReadWrite", "Application Mail.Send", "Application Calendars.ReadWrite"], consentGiven: false, policyConfirmed: false, autoConnect: true, mappedMembers: 0, excluded: [] });
   check("ms.consent.status", before);
   await consentSetup(h.ctx, setupInput);
   await consentVerify(h.ctx, {});
@@ -413,7 +417,7 @@ test("health is healthy with a latency, degraded when Microsoft struggles, down 
 test("the handler map covers exactly the capabilities the microsoft manifest declares", () => {
   const declared = registry.capabilities.filter((c) => c.module === "microsoft").map((c) => c.name).sort();
   assert.deepEqual(Object.keys(handlers).sort(), declared);
-  assert.equal(declared.length, 67);
+  assert.equal(declared.length, 72);
 });
 
 test("verify asks for a fresh token, so a permission consented a moment ago is seen at once", async () => {

@@ -32,11 +32,15 @@ export interface DesktopSessionDeps {
   persist?: Persist;
   /** Browser invite links share the verified acceptance path without pretending to be native devices. */
   deviceClass?: "web" | "desktop";
+  /** Everyone here must use single sign-on: the provider the invitation's address was proved at. */
+  ssoProvider?: string;
 }
 
 export interface DesktopInvitePreview {
   spaceId: string;
   spaceName: string;
+  /** Everyone here must use single sign-on: join by proving the invitation's address at one of these. */
+  ssoRequired?: { key: string; title: string }[];
   invitedBy: string;
   role: string;
   expiresAt: number;
@@ -138,7 +142,8 @@ function previewOf(value: unknown): DesktopInvitePreview {
   const expiresAt = response?.["expiresAt"];
   const fingerprint = response && text(response["fingerprint"]);
   if (!spaceId || !spaceName || !invitedBy || !role || typeof expiresAt !== "number" || !Number.isFinite(expiresAt) || !fingerprint) throw new Error("This invite is unavailable. Ask for a new one.");
-  return { spaceId, spaceName, invitedBy, role, expiresAt, fingerprint };
+  const required = response?.["ssoRequired"];
+  return { spaceId, spaceName, invitedBy, role, expiresAt, fingerprint, ...(Array.isArray(required) ? { ssoRequired: required as { key: string; title: string }[] } : {}) };
 }
 
 /** The preview's public Space id routes key sealing. It is checked again against the authenticated session after acceptance. */
@@ -174,6 +179,7 @@ export async function acceptDesktopJoin(join: PreviewedDesktopJoin, values: Join
       deviceName: values.deviceName || (deps.deviceClass === "web" ? "Web browser" : "Vyre desktop"),
       deviceClass: deps.deviceClass ?? "desktop",
       keys: { ...wrappedKeys, ...(values.recoveryCode ? { personKeyByRecovery } : {}), spaceKeys },
+      ...(deps.ssoProvider ? { ssoProvider: deps.ssoProvider } : {}),
     });
     const accepted = object(answer);
     const stored = await verifyAndPersist(join.route.address, { status: "ok", session: { token: accepted?.["token"] } }, join.preview.spaceId, deps);

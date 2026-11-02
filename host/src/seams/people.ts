@@ -88,22 +88,46 @@ export function ssoProvidersIn(db: PeopleDeps["db"]): SsoProvider[] {
 }
 
 /**
- * The person a finished sign-in is. Google: the verified address. Microsoft: its email claim is not verified, so the person is known by tenant and immutable user id. Their first sign-in links that id
- * to the person their account name matches (the invitation or the address matched by hand); after that the id alone is who they are, and an id that is not linked can never take over a linked person.
+ * The person a finished sign-in is. A provider's address can change hands and a Microsoft email claim is not even verified, so a person is known by the organization and the provider's immutable id. Their first sign-in links
+ * that id to the person their address matches (the invitation, or the address matched by hand); after that the id alone is who they are, and an id that is not linked can never take over a linked person.
  */
 export function personForSso(db: PeopleDeps["db"], active: (id: string) => boolean, key: string, t: { email: string; link?: { tenant: string; subject: string } }): string | null {
-  if (!t.link) return key === "microsoft" ? null : personForEmail(db, active, t.email);
+  if (!t.link) return null;
   const row = `sso_link:${key}:${t.link.tenant}:${t.link.subject}`;
   let linked: string | undefined;
   try { linked = (db.all("SELECT value FROM members_policy WHERE key = ?", row)[0] as { value?: string } | undefined)?.value; } catch { return null; }
   if (linked) return active(linked) ? linked : null;
   const person = personForEmail(db, active, t.email);
   if (!person || !db.run) return null;
-  // one person, one id per tenant: someone else's id with the same account name does not get in
+  // one person, one id per organization: someone else's id with the same address does not get in
   const mine = db.all("SELECT key FROM members_policy WHERE key LIKE ? AND value = ?", `sso_link:${key}:${t.link.tenant}:%`, person);
   if (mine.length > 0) return null;
   db.run("INSERT OR IGNORE INTO members_policy (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)", row, person, Date.now(), person);
   return person;
+}
+
+/** A signed-in person proves the provider identity is theirs by finishing a sign-in with it. An id already linked to someone else stays theirs. */
+export function linkSso(db: PeopleDeps["db"], key: string, t: { email: string; link?: { tenant: string; subject: string } }, person: string): boolean {
+  if (!t.link || !db.run) return false;
+  const row = `sso_link:${key}:${t.link.tenant}:${t.link.subject}`;
+  const linked = (db.all("SELECT value FROM members_policy WHERE key = ?", row)[0] as { value?: string } | undefined)?.value;
+  if (linked) return linked === person;
+  if (db.all("SELECT key FROM members_policy WHERE key LIKE ? AND value = ?", `sso_link:${key}:${t.link.tenant}:%`, person).length > 0) return false;
+  db.run("INSERT OR IGNORE INTO members_policy (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)", row, person, Date.now(), person);
+  return true;
+}
+
+/** Has this person a provider identity linked: the proof they will still get in once everyone must use it. */
+export function hasSsoLink(db: PeopleDeps["db"], person: string): boolean {
+  try { return db.all("SELECT key FROM members_policy WHERE key LIKE 'sso_link:%' AND value = ?", person).length > 0; } catch { return false; }
+}
+
+/** Has this person saved a recovery key: the break-glass way in when the provider is down. */
+export function hasRecovery(db: PeopleDeps["db"], person: string): boolean {
+  try {
+    const row = db.all("SELECT keys_json FROM identity_accounts WHERE person_id = ?", person)[0] as { keys_json?: string | null } | undefined;
+    return !!row?.keys_json && typeof (JSON.parse(row.keys_json) as { personKeyByRecovery?: unknown }).personKeyByRecovery === "string";
+  } catch { return false; }
 }
 
 /** The person a verified work address belongs to: the invitation it went to, or a Google or Microsoft address matched by hand, and only when they are active. */
@@ -207,6 +231,13 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
           const t = d.sso!.tickets.take(key, ticket);
           return t ? personForSso(d.db, (id) => d.access().principal(id)?.status === "active", key, t) : null;
         },
+        // a signed-in person is about to prove a provider identity is theirs
+        offer: (person: string): string => d.sso!.tickets.offer(person),
+        // the address a finished sign-in proved, for joining by invitation when everyone must use it; the link is written once the person exists
+        prove: (key: string, invite: string): { email: string; bind(person: string): void } | null => {
+          const t = d.sso!.tickets.held(invite, key);
+          return t ? { email: t.email, bind: (person: string) => { linkSso(d.db, key, t, person); } } : null;
+        },
       } } : {}),
       ...(d.keyring ? { keyring: { clear: (personId: string) => d.keyring!.clear(personId) } } : {}),
       invites: {
@@ -217,6 +248,7 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
     },
     members: {
       signInMethods,spaceOwner,
+      breakGlass: { ssoLinked: (personId: string) => hasSsoLink(d.db, personId), hasRecovery: (personId: string) => hasRecovery(d.db, personId) },
       factors: { of: (personId: string) => (count(d.db, `SELECT count(*) AS n FROM identity_accounts WHERE person_id = ? AND totp_secret IS NOT NULL`, personId) > 0 ? ["totp"] : []) },
       owned: ownedFor(undefined),
     },

@@ -11,7 +11,7 @@ Set the sign-in policy (owner floor: nobody goes below it)
 | Grant level | view |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | signin_change when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

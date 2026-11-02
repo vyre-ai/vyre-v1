@@ -411,6 +411,19 @@ export function stubs(ctx: CallCtx) {
         set_default: call("comms.senders.set_default"),
       },
     },
+    company: {
+      access_log: call("company.access_log"),
+      check: call("company.check"),
+      connect: call("company.connect"),
+      disconnect: call("company.disconnect"),
+      guide: call("company.guide"),
+      people_done: call("company.people_done"),
+      probe: call("company.probe"),
+      script: call("company.script"),
+      start: call("company.start"),
+      status: call("company.status"),
+      sweep: call("company.sweep"),
+    },
     computers: {
       chrome: {
         act: call("computers.chrome.act"),
@@ -1021,6 +1034,7 @@ export function stubs(ctx: CallCtx) {
       },
     },
     google: {
+      access_log: call("google.access_log"),
       calendar: {
         create_event: call("google.calendar.create_event"),
         delete_event: call("google.calendar.delete_event"),
@@ -1036,6 +1050,7 @@ export function stubs(ctx: CallCtx) {
       directory: {
         import: call("google.directory.import"),
         list: call("google.directory.list"),
+        reconcile: call("google.directory.reconcile"),
       },
       docs: {
         batch_update: call("google.docs.batch_update"),
@@ -1063,12 +1078,15 @@ export function stubs(ctx: CallCtx) {
         watch_changes: call("google.drive.watch_changes"),
       },
       dwd: {
+        check_key: call("google.dwd.check_key"),
+        connect_all: call("google.dwd.connect_all"),
         disable: call("google.dwd.disable"),
         map_member: call("google.dwd.map_member"),
         members: call("google.dwd.members"),
         my_account: call("google.dwd.my_account"),
         probe: call("google.dwd.probe"),
         scopes: call("google.dwd.scopes"),
+        set_data: call("google.dwd.set_data"),
         set_excluded: call("google.dwd.set_excluded"),
         setup: call("google.dwd.setup"),
         status: call("google.dwd.status"),
@@ -1202,6 +1220,8 @@ export function stubs(ctx: CallCtx) {
       sign_in: call("identity.sign_in"),
       sign_in_options: call("identity.sign_in_options"),
       sign_out: call("identity.sign_out"),
+      sso_join_start: call("identity.sso_join_start"),
+      sso_link: call("identity.sso_link"),
       sso_sign_in: call("identity.sso_sign_in"),
       totp_begin: call("identity.totp_begin"),
       totp_confirm: call("identity.totp_confirm"),
@@ -1330,6 +1350,7 @@ export function stubs(ctx: CallCtx) {
         set_sync_state: call("mail.mailbox.set_sync_state"),
         update: call("mail.mailbox.update"),
       },
+      member_pause: call("mail.member_pause"),
       message: {
         erase: call("mail.message.erase"),
         get: call("mail.message.get"),
@@ -1543,8 +1564,10 @@ export function stubs(ctx: CallCtx) {
       versions: call("memory.versions"),
     },
     mounts: {
+      account_pause: call("mounts.account_pause"),
       add: call("mounts.add"),
       browse: call("mounts.browse"),
+      company_drive: call("mounts.company_drive"),
       doc_insert_text: call("mounts.doc_insert_text"),
       doc_replace_text: call("mounts.doc_replace_text"),
       editors: call("mounts.editors"),
@@ -1567,6 +1590,7 @@ export function stubs(ctx: CallCtx) {
       update: call("mounts.update"),
     },
     ms: {
+      access_log: call("ms.access_log"),
       calendar: {
         create_event: call("ms.calendar.create_event"),
         delete_event: call("ms.calendar.delete_event"),
@@ -1582,12 +1606,15 @@ export function stubs(ctx: CallCtx) {
         update_event: call("ms.calendar.update_event"),
       },
       consent: {
+        check_app: call("ms.consent.check_app"),
+        connect_all: call("ms.consent.connect_all"),
         disable: call("ms.consent.disable"),
         link: call("ms.consent.link"),
         map_member: call("ms.consent.map_member"),
         members: call("ms.consent.members"),
         my_account: call("ms.consent.my_account"),
         policy_snippet: call("ms.consent.policy_snippet"),
+        set_data: call("ms.consent.set_data"),
         set_excluded: call("ms.consent.set_excluded"),
         setup: call("ms.consent.setup"),
         status: call("ms.consent.status"),
@@ -1597,6 +1624,7 @@ export function stubs(ctx: CallCtx) {
       directory: {
         import: call("ms.directory.import"),
         list: call("ms.directory.list"),
+        reconcile: call("ms.directory.reconcile"),
       },
       drive: {
         create_folder: call("ms.drive.create_folder"),
