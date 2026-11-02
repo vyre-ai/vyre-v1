@@ -1105,6 +1105,29 @@ export function seesSetup(ctx: AgentsCtx, a: AgentRec): boolean {
   if ((ctx.depth ?? 0) >= 1 || (ctx.origin !== undefined && SERVER_ORIGINS.has(ctx.origin))) return true;
   return ctx.principal.id === a.id || a.ownerId === askerOf(ctx) || allows(ctx, null, "edit", "agent", a.id) || seesAll(ctx);
 }
+/**
+ * Who may change an agent's settings. agent.toml is the settings, so the rule is one, however the change arrives: agents.update, the role line, a restored version, an accepted suggestion, or a save of
+ * agent.toml itself in Files (files.write and files.restore_version ask agents.config.may_save before they write).
+ *   outside   an outside agent (signed in over MCP, runtime outside) or an outside actor never changes them. The MCP door keeps agents.update for people; this keeps every other way to the same change.
+ *   no_edit   anyone else needs Edit on the agent: a person with it, or one of the Space's own agents acting for one (both must allow, as on every call).
+ * Answers why not, or null when the caller may.
+ */
+export function settingsRefusal(ctx: AgentsCtx, a: AgentRec): "outside" | "no_edit" | null {
+  if (ctx.principal.kind === "actor") return "outside";
+  if (ctx.principal.kind === "agent" && agentBy(ctx.db, ctx.principal.id, true)?.runtime === "outside") return "outside";
+  return allows(ctx, null, "edit", "agent", a.id) ? null : "no_edit";
+}
+/** The words for a refused change of settings. */
+export const SETTINGS_REFUSED: Readonly<Record<"outside" | "no_edit", string>> = Object.freeze({
+  outside: "Only a person can change an agent's settings. Ask the person you act for.",
+  no_edit: "You can read this agent but not change it.",
+});
+/** Refuse the change when the caller may not change this agent's settings: permission.no_grant, with the reason (person_only for an outside caller). */
+export function mustChangeSettings(ctx: AgentsCtx, a: AgentRec): void {
+  const why = settingsRefusal(ctx, a);
+  if (why !== null) raise(ctx, "permission.no_grant", SETTINGS_REFUSED[why], why === "outside" ? { reason: "person_only" } : undefined);
+}
+
 /** An agent's shape without its setup: the fields the contract requires stay, empty. */
 export function withoutSetup<T extends object>(out: T): T {
   const { accountKey: _key, memoryKey: _memory, ...rest } = out as T & { accountKey?: unknown; memoryKey?: unknown };

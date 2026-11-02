@@ -1283,6 +1283,7 @@ async function filesWrite(ctx: Ctx, input: unknown): Promise<{ file: FileOut; ve
   const reason = optStr(ctx, o, "reason");
   const content = parseContent(ctx, o.content);
   if (content.kind === "empty" && o.content === undefined) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "content" });
+  await guardAgentSettings(ctx, file);
   const mime = String(file.mime);
   const blob = await resolveBlob(ctx, content, mime);
   const n = num(file.version) + 1;
@@ -1305,6 +1306,29 @@ async function filesWrite(ctx: Ctx, input: unknown): Promise<{ file: FileOut; ve
   ctx.emit("file.version_added", `file/${String(file.id)}`, payload);
   ctx.log.info("files.write", { fileId: String(file.id), version: n, bytes: blob.size });
   return { file: fileOutC(ctx, mustFile(ctx, String(file.id))), versionId };
+}
+
+/**
+ * agent.toml in an agent's folder is that agent's settings: saving it changes the model the agent runs, the Vault keys it holds, the tools it may use and what it may spend. So a new version of a file
+ * named agent.toml is written only by someone who may change that agent's settings, the same right agents.update takes (a person with Edit on the agent, or one of the Space's own agents acting for one;
+ * never an outside agent). The agents module answers that, asked as the writer, before anything is written: refusing here means the file never holds settings its writer could not set, so the text in
+ * Files and what the agent runs never part. A Space without the agents module has nothing that reads the file as settings, so the write goes on.
+ */
+export async function guardAgentSettings(ctx: Ctx, file: Row): Promise<void> {
+  if (String(file.name) !== "agent.toml") return;
+  const fileId = String(file.id);
+  let answer: { agentId?: unknown; allowed?: unknown; reason?: unknown; message?: unknown } | null;
+  try {
+    answer = (await ctx.call("agents.config.may_save", { fileId })) as typeof answer;
+  } catch (e) {
+    const code = (e as { error?: { code?: unknown } } | null)?.error?.code ?? (e as { code?: unknown } | null)?.code;
+    if (code === "internal.not_implemented" || code === "validation.unknown_capability") return;
+    fail(ctx, "permission.no_grant", "agent.toml is this agent's settings, and Vyre could not check that you may change them. Nothing was saved. Try again.", { fileId, reason: "agent_settings" });
+  }
+  if (answer?.allowed !== false) return;
+  fail(ctx, "permission.no_grant", typeof answer.message === "string" && answer.message !== "" ? answer.message : "agent.toml is this agent's settings, and you may not change them. Nothing was saved.", {
+    fileId, reason: "agent_settings", ...(typeof answer.agentId === "string" ? { agentId: answer.agentId } : {}), ...(typeof answer.reason === "string" ? { why: answer.reason } : {}),
+  });
 }
 
 /** The two files an agent is made of. They stay in the agent's own folder under their own names: renaming, moving or deleting either would leave an agent with no configuration or no instructions. */
@@ -1515,6 +1539,7 @@ async function filesRestoreVersion(ctx: Ctx, input: unknown): Promise<{ file: Fi
   const versionId = reqStr(ctx, o, "versionId");
   const version = one(ctx, "SELECT * FROM files_file_version WHERE id = ?", versionId);
   if (!version || String(version.file_id) !== String(file.id)) fail(ctx, "validation.not_found", "That version is not on this file.", { versionId });
+  await guardAgentSettings(ctx, file);
   const n = num(file.version) + 1;
   const blobId = String(version.blob);
   const now = ctx.now();
