@@ -11,3 +11,4 @@
 - An agent acting for you can send email, texts and calls from anything you may send from. It needs no role of its own, and the Gate still holds what you did not ask for. An admin can turn agent sending off for the Space in Console.
 - The A/B test button is gone from the email step.
 - The Test button on an Automation works.
+- A notice on the Automation canvas no longer covers the zoom control.
