@@ -353,13 +353,24 @@ export function rawSecretIn(input: unknown, path = ""): string | null {
 /** One input value as a line on the card: text as it is, anything else as compact JSON. */
 const shown = (v: unknown): string => (typeof v === "string" ? v : v === undefined ? "" : JSON.stringify(v));
 
+/** Every leaf of an input as one row, a nested field named by its path ("provider clientId"), so a person reads each value on its own line. Lists stay as JSON. */
+function flatRows(input: Record<string, unknown>, at = ""): [string, string][] {
+  const out: [string, string][] = [];
+  for (const [k, v] of Object.entries(input)) {
+    const name = at ? `${at} ${k}` : k;
+    if (isObj(v) && Object.keys(v).length > 0) out.push(...flatRows(v, name));
+    else out.push([name, cut(shown(v), 400)]);
+  }
+  return out;
+}
+
 /**
  * The card of an ask: what will happen, which agent asked, that it runs as you, and every input exactly, one row each (nested values as JSON). Secrets are handles by then (rawSecretIn refused
  * anything else), so nothing on it is a secret. Drawn by the app as key/value pairs.
  */
 export function askBlocks(o: { act: string; what: string; agentName: string; capName: string; input: unknown }): { type: string; v: number; data: unknown }[] {
   const rows: [string, string][] = [["What happens", o.what], ["Asked by", o.agentName], ["Runs as", "You, once, exactly as shown"], ["Tool", o.capName]];
-  const inputs: [string, string][] = isObj(o.input) ? Object.entries(o.input).filter(([k]) => k !== "idempotencyKey").map(([k, v]) => [k, cut(shown(v), 400)]) : [["input", cut(shown(o.input), 400)]];
+  const inputs: [string, string][] = isObj(o.input) ? flatRows(o.input).filter(([k]) => k !== "idempotencyKey") : [["input", cut(shown(o.input), 400)]];
   // the first block also carries { act, cap, input } like every hold's preview, so the chat's approval card reads it the same way, plus `ask` for its own first line
   return [{ type: "pairs", v: 1, data: { pairs: rows, act: o.act, cap: o.capName, input: o.input, ask: { what: o.what, by: o.agentName } } }, { type: "table", v: 1, data: { columns: ["Input", "Value"], rows: inputs } }];
 }

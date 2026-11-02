@@ -150,7 +150,8 @@ export function createGateHook(d: GateHookDeps): GateHook {
         capName: a.cap.name, capVersion: a.cap.v, input: a.input, payloadHash: payloadHash(a.cap, a.input, runner), act: a.act,
         principal: { kind: runner.principal.kind, id: runner.principal.id }, decisionId: a.decisionId, idempotencyKey: a.decisionId,
       };
-      if (person) input["ask"] = { by: { kind: a.seed.principal.kind, id: a.seed.principal.id }, what: a.cap.summary };
+      // what happens, in the capability's own words: its summary up to the first ";" (the rest is for developers)
+      if (person) input["ask"] = { by: { kind: a.seed.principal.kind, id: a.seed.principal.id }, what: a.cap.summary.split(";")[0]!.trim() || a.cap.name };
       else if (a.seed.actingFor) input["actingFor"] = a.seed.actingFor;
       if (a.seed.run) input["runId"] = a.seed.run;
       if (a.seed.thread) input["threadId"] = a.seed.thread;

@@ -60,7 +60,8 @@ withSpace("the owner's agent asks to set up Google sign-in: one card for the own
   assert.deepEqual(pairs.find((p) => p[0] === "Asked by"), ["Asked by", "Simba (Claude Code)"]);
   assert.deepEqual(pairs.find((p) => p[0] === "Runs as"), ["Runs as", "You, once, exactly as shown"]);
   const rows = task.blocks.find((b: Json) => b.type === "table").data.rows as string[][];
-  assert.deepEqual(rows, [["provider", JSON.stringify(google())]]);
+  assert.deepEqual(rows, Object.entries(google()).map(([k, v]) => [`provider ${k}`, String(v)]), "the exact input, one value per row");
+  assert.match(task.title, /asks: Add or change an OIDC provider \(Google, Microsoft, Okta\)$/, "what happens, in the capability's own words");
   const hold = expectStatus(await s.call("gate.holds.list", owner, { states: ["held"] }), 200, "gate.holds.list").holds.find((h: Json) => h.taskId === taskId);
   assert.deepEqual(hold.principal, { kind: "person", id: "usr_olivia" }, "it runs as her");
   assert.deepEqual(hold.askedBy, { kind: "agent", id: agentId }, "and names the agent");
