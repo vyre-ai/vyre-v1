@@ -8,7 +8,7 @@
 // DECISION: decline by one person marks that person in the call's meta; with toVoicemail the call moves to voicemail, otherwise it is missed once nobody else is left ringing.
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
-  bad, callMeta, callOut, ensure, isId, liveCall, liveNumber, list, newId, numOrNull, num, obj, pageOf, paging, parseJson, partyOf, patch, refuse, rowsOf, setMeta, str, strOrNull, text, phone, strOrUndef, keyOf,
+  bad, callMeta, callOut, ensure, isId, liveCall, liveNumber, seenCall, seesCall, list, newId, numOrNull, num, obj, pageOf, paging, parseJson, partyOf, patch, refuse, rowsOf, setMeta, str, strOrNull, text, phone, strOrUndef, keyOf,
 } from "../projections.ts";
 import type { Party, Row, TelCtx } from "../projections.ts";
 
@@ -138,7 +138,7 @@ export async function decline(ctx: TelCtx, input: { callId: string; toVoicemail?
 
 export async function hangup(ctx: TelCtx, input: { callId: string }) {
   ensure(ctx);
-  const row = liveCall(ctx, callId(ctx, input.callId));
+  const row = seenCall(ctx, callId(ctx, input.callId));
   if (!["ringing", "answered"].includes(str(row, "state"))) refuse(ctx, "This call already ended.");
   if (strOrNull(row, "twilioSid")) await ctx.call("twilio.call.update", { sid: str(row, "twilioSid"), action: "hangup", idempotencyKey: `tel:${str(row, "id")}:hangup` });
   const answered = numOrNull(row, "answeredAt") !== null || str(row, "direction") === "out";
@@ -147,7 +147,7 @@ export async function hangup(ctx: TelCtx, input: { callId: string }) {
 
 export async function hold(ctx: TelCtx, input: { callId: string; hold: boolean }) {
   ensure(ctx);
-  const row = liveCall(ctx, callId(ctx, input.callId));
+  const row = seenCall(ctx, callId(ctx, input.callId));
   if (typeof input.hold !== "boolean") bad(ctx, "hold is true or false.");
   if (str(row, "state") !== "answered") refuse(ctx, "Only a call in progress can be put on hold.");
   const meta = callMeta(ctx, str(row, "id"));
@@ -173,7 +173,7 @@ async function voiceUrlOf(ctx: TelCtx, row: Row): Promise<string> {
 
 export async function transfer(ctx: TelCtx, input: { callId: string; to: { kind: string; id: string }; mode: string }) {
   ensure(ctx);
-  const row = liveCall(ctx, callId(ctx, input.callId));
+  const row = seenCall(ctx, callId(ctx, input.callId));
   const to = obj(input.to);
   if (to.kind !== "person" && to.kind !== "agent") refuse(ctx, "A call can be transferred to a teammate or an agent.");
   if (!isId(to.kind === "person" ? "usr" : "agt", to.id)) bad(ctx, "The person or agent to transfer to has an id that is not valid.");
@@ -196,7 +196,7 @@ export async function transfer(ctx: TelCtx, input: { callId: string; to: { kind:
 
 export async function record(ctx: TelCtx, input: { callId: string; action: string; consent?: { announced: boolean; confirmedBy?: string } }) {
   ensure(ctx);
-  const row = liveCall(ctx, callId(ctx, input.callId));
+  const row = seenCall(ctx, callId(ctx, input.callId));
   if (input.action !== "start" && input.action !== "stop") bad(ctx, "Recording starts or stops.");
   if (str(row, "state") !== "answered") refuse(ctx, "Only a call in progress can be recorded.");
   const sid = strOrNull(row, "twilioSid");
@@ -232,7 +232,7 @@ export async function callList(ctx: TelCtx, input: { numberId?: string; contactI
   const { cursor, limit } = paging(ctx, obj(input));
   if (input.direction !== undefined && input.direction !== "in" && input.direction !== "out") bad(ctx, "Direction is in or out.");
   if (input.state !== undefined && !["ringing", "answered", "voicemail", "completed", "missed", "failed"].includes(input.state)) bad(ctx, "That call state is not known.");
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM telephony_call`)).filter((r) => live(r)
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM telephony_call`)).filter((r) => live(r) && seesCall(ctx, r)
     && (input.numberId === undefined || str(r, "numberId") === input.numberId) && (input.contactId === undefined || str(r, "contactId") === input.contactId)
     && (input.direction === undefined || str(r, "direction") === input.direction) && (input.state === undefined || str(r, "state") === input.state));
   rows.sort((a, b) => num(b, "startedAt") - num(a, "startedAt") || str(b, "id").localeCompare(str(a, "id")));
@@ -242,7 +242,7 @@ export async function callList(ctx: TelCtx, input: { numberId?: string; contactI
 
 export async function callGet(ctx: TelCtx, input: { callId: string }) {
   ensure(ctx);
-  const row = liveCall(ctx, callId(ctx, input.callId));
+  const row = seenCall(ctx, callId(ctx, input.callId));
   const transcript = strOrNull(row, "transcript");
   return { call: callOut(row), ...(transcript ? { transcript } : {}) };
 }
@@ -250,7 +250,7 @@ export async function callGet(ctx: TelCtx, input: { callId: string }) {
 export async function callLogTask(ctx: TelCtx, input: { callId: string; title: string; assigneeId?: string; dueAt?: number; idempotencyKey: string }) {
   ensure(ctx);
   const key = keyOf(ctx, input);
-  const row = liveCall(ctx, callId(ctx, input.callId));
+  const row = seenCall(ctx, callId(ctx, input.callId));
   if (typeof input.title !== "string" || input.title.trim() === "") bad(ctx, "Give the task a title.");
   if (input.assigneeId !== undefined && !isId("usr", input.assigneeId)) bad(ctx, "The assignee id is not valid.");
   if (input.dueAt !== undefined && !Number.isSafeInteger(input.dueAt)) bad(ctx, "The due time is not valid.");
@@ -265,7 +265,7 @@ export async function callLogTask(ctx: TelCtx, input: { callId: string; title: s
 
 export async function callAttachSummary(ctx: TelCtx, input: { callId: string; transcript?: string; summary?: string }) {
   ensure(ctx);
-  const row = liveCall(ctx, callId(ctx, input.callId));
+  const row = seenCall(ctx, callId(ctx, input.callId));
   if (input.transcript === undefined && input.summary === undefined) bad(ctx, "Send a transcript, a summary or both.");
   for (const [k, v] of [["transcript", input.transcript], ["summary", input.summary]] as const) if (v !== undefined && (typeof v !== "string" || v === "")) bad(ctx, `The ${k} is text.`);
   const fields: Record<string, string> = {};

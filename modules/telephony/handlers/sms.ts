@@ -10,7 +10,7 @@
 // DECISION: pictures (mediaFileIds) need a public address for each file, which the Space does not give Twilio yet, so a text with pictures is refused with a plain message rather than sent without them.
 import { HostError, fail } from "../../../host/src/routes/errors.ts";
 import {
-  actorOf, bad, ensure, first, isId, isInt, keyOf, liveNumber, list, newId, num, obj, pageOf, paging, parseJson, patch, phone, refuse, rowsOf, setting, smsOut, str, strOrNull, strOrUndef, text, validZone,
+  actorOf, bad, ensure, first, isId, isInt, keyOf, liveNumber, list, newId, seesNumber, num, obj, pageOf, paging, parseJson, patch, phone, refuse, rowsOf, setting, smsOut, str, strOrNull, strOrUndef, text, validZone,
 } from "../projections.ts";
 import type { Json, Row, TelCtx } from "../projections.ts";
 
@@ -225,7 +225,7 @@ export async function smsList(ctx: TelCtx, input: { numberId?: string; contactId
   ensure(ctx);
   const { cursor, limit } = paging(ctx, obj(input));
   if (input.direction !== undefined && input.direction !== "in" && input.direction !== "out") bad(ctx, "Direction is in or out.");
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM telephony_sms`)).filter((r) => (r.deleted_at === null || r.deleted_at === undefined)
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM telephony_sms`)).filter((r) => (r.deleted_at === null || r.deleted_at === undefined) && seesNumber(ctx, str(r, "numberId"))
     && (input.numberId === undefined || str(r, "numberId") === input.numberId) && (input.contactId === undefined || str(r, "contactId") === input.contactId)
     && (input.direction === undefined || str(r, "direction") === input.direction));
   rows.sort((a, b) => num(b, "at") - num(a, "at") || str(b, "id").localeCompare(str(a, "id")));

@@ -19,3 +19,4 @@
 - A person can connect through Workspace delegation only the address matched to them: typing a colleague's address no longer opens their mail. An agent working for a person is held to the same rule.
 - Records, Agents now lists the agents themselves, so it always matches Chats. New makes a real agent with no second row beside it; an old row with nothing behind it stays, marked, and offers to set it up.
 - A person who leaves a Space stops: their mailboxes end and their own Google and Microsoft sign-ins go, as they do when someone is removed.
+- Calls and texts now follow the access rules for their number, the same way the Inbox does. Whoever a call rings for, and whoever holds it after a transfer, keeps it.
