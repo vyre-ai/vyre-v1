@@ -1,4 +1,4 @@
-// P-L8_LIVE (rulings 27, 31, 32): lane L8 is live except sites and portal. A booted daemon on the seeded `core` Space reports no L8 module as not set up, the five live modules answer a read and
+// P-L8_LIVE (rulings 27, 31, 32): lane L8 is live except portal; Sites is live as routes, with its build pipeline dormant. A booted daemon on the seeded `core` Space reports no L8 module as not set up, the five live modules answer a read and
 // a write through the gateway with a real token, and a member without the permission is refused.
 // Path mapping: the packet owns __live__/L8; this test sits in host/tests because it boots the daemon.
 import test from "node:test";
@@ -14,7 +14,7 @@ import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 
 const L8 = ["email-builder-api", "esign", "forms", "portal", "sites", "templates"];
-// sites is live with every capability deferred (ruling 60, docs/deferred.md); portal is live since P-L8_17 (its mailer sends through mail.send from the service mailbox).
+// sites is live as routes, its build pipeline deferred (docs/deferred.md); portal is live since P-L8_17 (its mailer sends through mail.send from the service mailbox).
 const GAP: string[] = [];
 const OWNER_TOKEN = "tok-usr_olivia";
 const MEMBER_TOKEN = "tok-usr_noah";
@@ -104,9 +104,17 @@ test("l8 live: choosing Documenso before its container is connected is refused w
   const body = (await r.json()) as { error?: { code?: string } };
   assert.equal(body.error?.code, "validation.precondition_failed");
 });
-test("l8 live: Sites is deferred (ruling 60): registered, live, and it refuses with the shared message", async () => {
-  const r = await post(live(), OWNER_TOKEN, "sites.list", {});
-  const body = (await r.json()) as { error?: { code?: string; message?: string } };
+test("l8 live: Sites is live as routes: a site is made and listed, nothing is served until it is published, and the dormant build pipeline still refuses with the shared message", async () => {
+  const made = (await ok(live(), OWNER_TOKEN, "sites.create", { idempotencyKey: "l8-site", name: "Studio", port: 3000 })) as { site: { siteId: string; slug: string; live: boolean; access: string } };
+  assert.equal(made.site.live, false, "a new site serves nothing");
+  assert.equal(made.site.access, "public");
+  assert.equal(made.site.slug, "studio");
+  const listed = (await ok(live(), OWNER_TOKEN, "sites.list", {})) as { sites: { siteId: string }[]; total: number };
+  assert.ok(listed.sites.some((s) => s.siteId === made.site.siteId), "the site is listed");
+  assert.equal(((await ok(live(), OWNER_TOKEN, "sites.get", { siteId: made.site.siteId })) as { site: { name: string } }).site.name, "Studio");
+  assert.equal(((await ok(live(), OWNER_TOKEN, "sites.status", { siteId: made.site.siteId })) as { live: boolean }).live, false);
+  const dormant = await post(live(), OWNER_TOKEN, "sites.build", { siteId: made.site.siteId });
+  const body = (await dormant.json()) as { error?: { code?: string; message?: string } };
   assert.equal(body.error?.code, "internal.unavailable");
   assert.equal(body.error?.message, "Not in this version yet");
 });
