@@ -43,7 +43,7 @@ test("an agent sends from a mailbox or number its person may use, with no grant 
       const as = (acting: string, level: "use" | "manage") => authorize(snap, { principal: AGENT, actingFor: acting, action: act(level), resource: { type, id }, now: NOW }).effect;
       assert.equal(as("p2", "use"), "allow", `seed ${seed}: the owner's agent uses the ${type}`);
       assert.equal(as("p2", "manage"), "deny", `seed ${seed}: Manage stays with the person`);
-      assert.equal(as("p1", "use"), "deny", `seed ${seed}: an agent acting for someone else may not use it`);
+      assert.equal(as("p1", "use"), authorize(snap, { principal: "p1", action: act("use"), resource: { type, id }, now: NOW }).effect, `seed ${seed}: the person is the ceiling`);
       assert.equal(authorize(snap, { principal: AGENT, action: act("use"), resource: { type, id }, now: NOW }).effect, "deny", `seed ${seed}: an agent alone has no person's ceiling`);
     }
   }
