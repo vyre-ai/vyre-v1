@@ -18,6 +18,29 @@ rc.14, Windows desktop, Personal Space, Claude Code. The turn died at once at th
 - `sandbox/src/sock.ts` gives every daemon socket its path. Windows gets a named pipe; a Mac or Linux socket that would be too long gets a short private link.
 - With that fixed, the same turn would have failed with `sandbox.unavailable`. It now fails before anything opens, and the chat says so in plain words.
 
+## Second spike: the real engines in the container (wip/l-winengine-sbx, runs 41542652447 and 41546402404)
+
+`spikes/win-engines` ran the pinned claude.exe 2.1.316 and codex.exe 0.166.0 in a capability-less AppContainer, from C: under the profile. Their model API was a fake on the host. The only way to it was a bridge inside the container that carries each connection over a named pipe whose DACL names the container. Each engine was asked for one tool call.
+
+- Claude Code started, reached the fake API through the bridge and the pipe, and finished the model round trip. The network design works.
+- Claude Code's Bash tool: Git Bash (MSYS2) dies with `NtCreateDirectoryObject(\BaseNamedObjects\msys-2.0S5-...): 0xC0000022`. MSYS needs a global object directory.
+- Claude Code's PowerShell tool: `EPERM: operation not permitted, uv_spawn 'C:\Windows\System32\cmd.exe'`.
+- Codex: `failed to canonicalize CODEX_HOME: Access is denied`, before any model call.
+- Outside the container, the same binaries with the same fake API ran both tools (control).
+
+A native bisect inside the container (`bisect.cs`) shows why:
+
+| Step | In the container |
+|---|---|
+| CreateProcess (plain, suspended, in a job, detached, with anonymous pipes) | ok |
+| CreateNamedPipe `\\?\pipe\uv\...` (libuv's stdio pipes, used by Node and Bun) | error 5 |
+| CreateNamedPipe `\\.\pipe\rust_anon...` (Rust std's pipes) | error 5 |
+| CreateNamedPipe `\\.\pipe\LOCAL\...` | ok |
+| GetFinalPathNameByHandle, DOS or GUID volume name (Rust `canonicalize`, libuv realpath) | error 5 |
+| GetFinalPathNameByHandle, NT name | ok |
+
+All three are AppContainer by design, and all three are in the engines' runtimes (Bun and libuv, Rust std, MSYS2), which Vyre cannot change. Option 1 can confine the engines but cannot let them run a tool. It is set aside.
+
 ## Options
 
 ### 1. AppContainer (LowBox token) + Job Object: files work, the network does not
