@@ -8,6 +8,7 @@ system: true
 
 An agent computer is a small desktop with Chrome, a Terminal and Files, owned by you. It sleeps when idle and wakes when you use it. Its Files folder is your own Vyre folder.
 The person can watch it live, take over ("You are in control"), record, and give it back. It exists only if the context block says you have one.
+Without one you still run commands: `terminal_run` with no host runs them on the computer this chat runs on. Never tell the person you cannot run commands because you have no computer.
 
 ## State
 - `computers_list` and `computers_get` give its state: asleep, waking, working, takeover, error; the caption of what it is doing; the open tabs.
@@ -23,7 +24,7 @@ The person can watch it live, take over ("You are in control"), record, and give
 - Sites with a recorded recipe: look in your Files `recipes/` first; a recorded backend call is faster and steadier than clicking.
 
 ## Terminal
-- `terminal_run` runs a command in a session and waits. `terminal_open` starts a session; `terminal_read` and `terminal_input` drive a long one; `terminal_interrupt` stops it.
+- `terminal_run` runs a command in a session and waits: on your computer when the chat runs there, else on the computer the chat runs on. `terminal_open` starts a session; `terminal_read` and `terminal_input` drive a long one; `terminal_interrupt` stops it.
   The session survives its tab, and the person can attach to it. Give `idempotencyKey` and a `timeoutSec`.
 - Secrets: only as `#Handle.field` in `env`, from `vault_use`. Output is scrubbed. Never `echo` a secret and never write one to a file.
 

@@ -1,5 +1,5 @@
-// The "Working in Vyre" skill and its evals (ARCH 6.10, spec "native"): twenty scripted scenarios replayed against the frozen tool list, and the rubric that grades them. The scenarios hold the secret
-// never printed, memory searched before the person is asked, and the rest of what the skill teaches. A change to the skill, the tool list or the memory module that breaks one fails here.
+// The "Working in Vyre" skill and its evals (ARCH 6.10, spec "native"): twenty-one scripted scenarios replayed against the frozen tool list, and the rubric that grades them. The scenarios hold the secret
+// never printed, memory searched before the person is asked, a command run on the computer the chat runs on, and the rest of what the skill teaches. A change to the skill, the tool list or the memory module that breaks one fails here.
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -28,10 +28,10 @@ const rulesBroken = (s: Scenario): string[] => [...new Set(evaluate(s, world, to
 
 // ---- the set
 
-test("the eval set holds twenty scenarios, each with a prompt, a trace and named rules that exist", () => {
+test("the eval set holds twenty-one scenarios, each with a prompt, a trace and named rules that exist", () => {
   assert.equal(evalSet.version, 1);
-  assert.equal(evalSet.scenarios.length, 20);
-  assert.equal(new Set(evalSet.scenarios.map((s) => s.id)).size, 20, "ids are unique");
+  assert.equal(evalSet.scenarios.length, 21);
+  assert.equal(new Set(evalSet.scenarios.map((s) => s.id)).size, 21, "ids are unique");
   for (const s of evalSet.scenarios) {
     assert.ok(s.prompt.length > 0 && s.trace.length > 0 && s.rules.length > 0, s.id);
     for (const r of s.rules) assert.ok(r in RULES, `${s.id}: rule ${r}`);
@@ -95,6 +95,9 @@ const mutations: Mutation[] = [
   ["secret-browser-fill", "tools_available", (s) => { s.trace.splice(0, 1); }],
   ["memory-save-own-layer", "tools_available", (s) => { delete (calls(s)[0]!.input as { sourceKind?: string }).sourceKind; }],
   ["memory-save-own-layer", "tools_available", (s) => { calls(s)[0]!.call = "memory_save_fact"; }],
+  ["command-on-this-computer", "runs_commands_here", (s) => { s.trace = [{ say: "I have no Vyre computer, so I can run commands in the local working folder here, but I can't run them on a Vyre computer." }]; }],
+  ["command-on-this-computer", "runs_commands_here", (s) => { s.trace.push({ say: "I do not have a computer of my own, so I cannot run that." }); }],
+  ["command-on-this-computer", "runs_commands_here", (s) => { (calls(s)[0]!.input as { host?: string }).host = "agent_computer"; }],
 ];
 
 for (const [id, rule, mutate] of mutations) {
@@ -123,7 +126,7 @@ test("the skill teaches each thing the spec lists", () => {
     [/Cite your sources/i, "cite sources"], [/Search before you ask/i, "search memory before asking"], [/memory_search/, "memory_search"], [/facts_as_of/, "facts_as_of"], [/transcript_search/, "transcript_search"],
     [/vault_use/, "secrets by name"], [/Never print, store, summarise, encode or send a secret value/, "never print"], [/vault_request/, "request a missing key"],
     [/Never copy data from one Space into another/, "never copy across Spaces"], [/Prefer a capability to reading the screen/, "capabilities over screen scraping"],
-    [/open_tab/, "tabs only through open_tab"], [/ask_question/, "structured questions"], [/plan_propose/, "plan mode"], [/Gate/, "the Gate"], [/held/, "held"], [/trace id/, "error shape and trace id"],
+    [/open_tab/, "tabs only through open_tab"], [/run commands on the computer this chat runs on with `terminal_run`/, "commands on the computer the chat runs on"], [/Do not say you have no computer/, "no 'I have no computer'"], [/Your own shell works in your work folder/, "the engine's own shell"], [/ask_question/, "structured questions"], [/plan_propose/, "plan mode"], [/Gate/, "the Gate"], [/held/, "held"], [/trace id/, "error shape and trace id"],
   ];
   for (const [re, what] of must) assert.match(SKILL, re, what);
 });
