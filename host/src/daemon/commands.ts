@@ -22,6 +22,9 @@ export interface NetworkPort {
   disconnect(serverId: string): Promise<void>;
   /** Observe a managed local HTTPS certificate without requesting another change. */
   certificate?(host: string): Promise<{ expiresAt: number | null; reason?: string }>;
+  /** Make sure the Space's own-domain ingress route is in Caddy. `replace` writes it even when present (boot, so the upstream is current); otherwise it is written only when
+   *  missing, because every write reloads Caddy. Resolves true when it wrote the route. */
+  ensureIngress?(host: string, o?: { replace?: boolean }): Promise<boolean>;
 }
 
 /** The phone address (<name>.vyre.run) over the relay link. `claim` brings the link up when it is not (a computer with no relay configured dials the public one for this). */

@@ -39,7 +39,7 @@ import { createFormsPageRoute } from "../routes/forms-page.ts";
 import { createPublicPathRoute } from "../routes/public-path.ts";
 import type { PublicPathDeps, ServedSite } from "../routes/public-path.ts";
 import { createDomainEdge, createSitesHost, mimeOf } from "../seams/sites-host.ts";
-import { CaddyAdmin, CaddyRouter } from "../caddy/index.ts";
+import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf } from "../caddy/index.ts";
 import type { PublicFormView } from "../routes/forms-page.ts";
 import { deferredCaps, deferredModules } from "../routes/deferred.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
@@ -328,6 +328,8 @@ export interface Daemon {
   runProbes(names?: readonly ProbeName[]): Promise<Partial<Record<ProbeName, ProbeResult>>>;
   /** do every open restart and network command now */
   pollCommands(): Promise<number>;
+  /** the slow timer's ingress check now: write the own-domain route into Caddy when it is missing (waits for one already running, the boot write included) */
+  ensureIngress(): Promise<void>;
   /** The Chrome bridge behind /chrome-bridge/v1/*: agent tool calls to the extension, and the extension's requests (apps/chrome native host) */
   chromeBridge: ChromeBridge;
   /** Engine processes on computers that joined (a turn pinned to a server): start one on a node, over its live socket. */
@@ -1741,7 +1743,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   };
 
   const network = o.network ?? managedNetworkPort({
-    adminUrl: cfg.caddyAdmin, space: space ?? '-', upstream: () => `127.0.0.1:${boundPort}`,
+    adminUrl: cfg.caddyAdmin, space: space ?? '-', upstream: () => `127.0.0.1:${boundPort}`, base: process.env["VYRE_CADDY_CA"] === "internal" ? { acme: { ca: "internal" } } : {},
     ingressHost: () => (db?.all("SELECT address FROM network_config WHERE id = 1 AND mode = 'own_domain'")[0] as {address?:string}|undefined)?.address ?? null,
     relayReady: (address) => !!db?.all("SELECT url FROM network_endpoint WHERE kind = 'relay' AND state = 'healthy' AND heartbeat_at > ?", now() - 60_000).some((raw) => {
       const url = (raw as {url?:string}).url;
@@ -1771,12 +1773,40 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const result = await network.certificate(row.address);
     db.run("INSERT INTO network_cert (host, expires_at, reason, reported_at) VALUES (?, ?, ?, ?) ON CONFLICT(host) DO UPDATE SET expires_at = COALESCE(excluded.expires_at, network_cert.expires_at), reason = excluded.reason, reported_at = excluded.reported_at", row.address, result.expiresAt, result.reason ?? null, now());
   };
+  // The Space's own-domain route in Caddy. A Space started with an address (install.sh --domain) must answer at it without anyone opening Console, so the route is written at boot
+  // and put back on the slow timer when it is missing. Only a missing route is written then: every write reloads Caddy. Caddy that is not up yet (it starts after vyred) is
+  // tried again on the next slow tick, and a failure never stops the daemon. Relay Spaces have no route here.
+  let ingressRun: Promise<void> | null = null;
+  let ingressFailing: string | null = null;
+  const ensureIngress = (replace: boolean): Promise<void> => {
+    if (ingressRun) return ingressRun;
+    const run = async (): Promise<void> => {
+      let host: string | null = null;
+      try {
+        if (!hasSpace || !db || !network.ensureIngress) return;
+        const row = db.all("SELECT address, mode FROM network_config WHERE id = 1")[0] as { address?: string; mode?: string } | undefined;
+        host = row?.mode === "own_domain" ? ingressHostOf(row.address) : null;
+        if (!host) return;
+        const wrote = await network.ensureIngress(host, { replace });
+        if (wrote) sink.log({ space: space ?? "-", level: 30, msg: "network.ingress_written", place: "network", attrs: { host, at: replace ? "boot" : "missing" } });
+        ingressFailing = null;
+      } catch (e) {
+        const why = (e instanceof Error ? e.message : String(e)).slice(0, 200);
+        // said once per cause, not every minute; Caddy not answering yet is expected for a moment after a start, Caddy refusing the route is not
+        if (why !== ingressFailing) { try { sink.log({ space: space ?? "-", level: e instanceof CaddyError && e.status === 0 ? 30 : 40, msg: "network.ingress_pending", place: "network", attrs: { host, why } }); } catch { /* stopping */ } }
+        ingressFailing = why;
+      }
+    };
+    const p = run().finally(() => { ingressRun = null; });
+    ingressRun = p;
+    return p;
+  };
   const fast = o.intervals?.fast ?? 15_000, slow = o.intervals?.slow ?? 60_000;
   const group = (names: ProbeName[]): ProbeName[] => names.filter((n) => relevant.includes(n));
   // a signed-out person's key leaves memory within the interval, not whenever someone next reads it
   scheduler.add({ name: "keyring.sweep", schedule: { everyMs: o.intervals?.sweep ?? 30_000 }, run: () => { keyring.sweep(); } });
   scheduler.add({ name: "probes.fast", schedule: { everyMs: fast }, run: async () => { await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"]), false); } });
-  scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"]), false); reportNetwork(); await refreshNetworkCertificate(); } });
+  scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"]), false); reportNetwork(); await ensureIngress(false); await refreshNetworkCertificate(); } });
   scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"]), false); } });
   if (hasSpace) {
     scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });
@@ -1880,6 +1910,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     if (supervisor.status("gateway")[0]?.phase !== "running") { const g = supervisor.status("gateway")[0]; throw new Error(`the gateway did not start on ${cfg.host}:${cfg.port}${g?.lastExit?.error ? `: ${g.lastExit.error}` : ""}`); }
     await runProbes();
     reportNetwork();
+    // the gateway is bound, so the upstream port is known; not awaited, so a Caddy that does not answer yet never holds up the start
+    void ensureIngress(true);
     // The boot checks (the scheduler's first pass) have committed events, and the consumers that react to them run after the commit. Finish that chain before the daemon reports itself started,
     // so nothing writes in the first moments after /healthz answers: a caller that reads the head at once sees the head it will keep.
     if (hasSpace) { await hooks?.pump(); await projections?.pump(); }
@@ -1945,7 +1977,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
   return {
     url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) },
-    runProbes: (names) => runProbes(names), pollCommands: runCommands,
+    runProbes: (names) => runProbes(names), pollCommands: runCommands, ensureIngress: () => ensureIngress(false),
     stop,
   };
 }
