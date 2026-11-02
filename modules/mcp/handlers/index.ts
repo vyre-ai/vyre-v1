@@ -1,12 +1,16 @@
-// Handler table of the mcp module: all 13 capabilities of manifests/mcp.ts.
-import { health, scopesSet, sessionClose, sessionMint, sessionOpen, sessionsList, tokenIssue, tokenLogReveal, tokenRegister, toolDescribe, toolSearch, toolsList, toolsetsList } from "./server.ts";
+// Handler table of the mcp module: all the capabilities of manifests/mcp.ts.
+import { activityList, connectedLink, connectedList, connectedRemove, oauthAllow, oauthDecline, oauthReplayed, oauthRequest } from "./oauth.ts";
+import { health, sessionClose, sessionMint, sessionsList, toolDescribe, toolSearch, toolsList, toolsetsList } from "./server.ts";
 
 export const handlers = {
-  "mcp.token.issue": tokenIssue,
-  "mcp.token.register": tokenRegister,
-  "mcp.token.log_reveal": tokenLogReveal,
-  "mcp.scopes.set": scopesSet,
-  "mcp.session.open": sessionOpen,
+  "mcp.oauth.request": oauthRequest,
+  "mcp.oauth.allow": oauthAllow,
+  "mcp.oauth.decline": oauthDecline,
+  "mcp.oauth.replayed": oauthReplayed,
+  "mcp.connected.list": connectedList,
+  "mcp.connected.link": connectedLink,
+  "mcp.connected.remove": connectedRemove,
+  "mcp.activity.list": activityList,
   "mcp.session.mint": sessionMint,
   "mcp.session.close": sessionClose,
   "mcp.sessions.list": sessionsList,
@@ -17,4 +21,4 @@ export const handlers = {
   "mcp.health": health,
 };
 
-export { isLive, revokeActor } from "./server.ts";
+export { isLive } from "./server.ts";

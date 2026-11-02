@@ -5,15 +5,18 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "mcp.activity.list": Handler<"mcp.activity.list", X>;
+  "mcp.connected.link": Handler<"mcp.connected.link", X>;
+  "mcp.connected.list": Handler<"mcp.connected.list", X>;
+  "mcp.connected.remove": Handler<"mcp.connected.remove", X>;
   "mcp.health": Handler<"mcp.health", X>;
-  "mcp.scopes.set": Handler<"mcp.scopes.set", X>;
+  "mcp.oauth.allow": Handler<"mcp.oauth.allow", X>;
+  "mcp.oauth.decline": Handler<"mcp.oauth.decline", X>;
+  "mcp.oauth.replayed": Handler<"mcp.oauth.replayed", X>;
+  "mcp.oauth.request": Handler<"mcp.oauth.request", X>;
   "mcp.session.close": Handler<"mcp.session.close", X>;
   "mcp.session.mint": Handler<"mcp.session.mint", X>;
-  "mcp.session.open": Handler<"mcp.session.open", X>;
   "mcp.sessions.list": Handler<"mcp.sessions.list", X>;
-  "mcp.token.issue": Handler<"mcp.token.issue", X>;
-  "mcp.token.log_reveal": Handler<"mcp.token.log_reveal", X>;
-  "mcp.token.register": Handler<"mcp.token.register", X>;
   "mcp.tool.describe": Handler<"mcp.tool.describe", X>;
   "mcp.tool.search": Handler<"mcp.tool.search", X>;
   "mcp.tools.list": Handler<"mcp.tools.list", X>;

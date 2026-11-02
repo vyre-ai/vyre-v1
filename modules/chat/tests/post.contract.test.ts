@@ -10,10 +10,10 @@ import type { Harness } from "../fixtures/harness.ts";
 
 const mine = registry.capabilities.filter((c) => c.module === "chat");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
-const OURS = ["chat.post", "chat.start", "chat.thread", "chat.answer_block", "chat.approve_plan", "threads.make_channel", "channels.create", "channels.connect_outside_agent"];
+const OURS = ["chat.post", "chat.start", "chat.thread", "chat.answer_block", "chat.approve_plan", "threads.make_channel", "channels.create"];
 
 test("the handler table is exactly the 62 frozen chat capabilities (P-L2_LIVE), and the eight of P-L2_10 are among them", () => {
-  assert.equal(mine.length, 84);   // 62 plus the two chat-mode capabilities (threads.set_mode, threads.agent.configure) and the erase and purge capabilities of P-CC_39, the five per-person list verbs of rc.8 (threads.archive, unarchive, delete, restore, leave), chat.screen.get, chat.history.search (memory exact recall), chat.fork and chat.search, and the five of rc.9 (chat.make_task, chat.remember, chat.share, chat.catch_up, chat.flow_card) and chat.aside, chat.aside_keep (rc.9 /btw)
+  assert.equal(mine.length, 83);   // 62 plus the two chat-mode capabilities (threads.set_mode, threads.agent.configure) and the erase and purge capabilities of P-CC_39, the five per-person list verbs of rc.8 (threads.archive, unarchive, delete, restore, leave), chat.screen.get, chat.history.search (memory exact recall), chat.fork and chat.search, and the five of rc.9 (chat.make_task, chat.remember, chat.share, chat.catch_up, chat.flow_card) and chat.aside, chat.aside_keep (rc.9 /btw)
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const name of OURS) assert.ok(mine.some((c) => c.name === name), name);
 });
@@ -77,9 +77,8 @@ const scenarios: Scenario[] = [
   { cap: "threads.make_channel", setup: chatOf, run: (hn, t) => h["threads.make_channel"]!(hn.ctx, { threadId: t, personId: MAYA, name: "Launch", idempotencyKey: key() }) },
   { cap: "threads.make_channel", setup: chatOf, run: (hn, t) => h["threads.make_channel"]!(hn.ctx, { threadId: t, personId: DANA, idempotencyKey: key() }), expect: "validation.bad_input" },
   { cap: "channels.create", run: (hn) => h["channels.create"]!(hn.ctx, { name: "Launch", visibility: "invite", topic: "Spring launch", memberIds: [MAYA, LEO], agentIds: [INTAKE], recordId: "rec_p1", folderId: "fld_p1", idempotencyKey: key() }) },
+  { cap: "channels.create", run: (hn) => h["channels.create"]!(hn.ctx, { name: "Autumn", visibility: "public", topic: "Autumn launch", memberIds: [MAYA, LEO], agentIds: [INTAKE], recordId: "rec_p1", folderId: "fld_p1", idempotencyKey: key() }) },
   { cap: "channels.create", setup: channelOf, run: (hn) => h["channels.create"]!(hn.ctx, { name: "Intake", visibility: "public", idempotencyKey: key() }), expect: "validation.bad_input" },
-  { cap: "channels.connect_outside_agent", setup: channelOf, run: (hn, c) => h["channels.connect_outside_agent"]!(hn.ctx, { channelId: c.channelId, name: "Claude Code", idempotencyKey: key() }) },
-  { cap: "channels.connect_outside_agent", run: (hn) => h["channels.connect_outside_agent"]!(hn.ctx, { channelId: "chn_none", name: "Claude Code", idempotencyKey: key() }), expect: "validation.not_found" },
 ];
 
 test("every path through every capability: answers match the schema, errors are declared, events are declared and match their schemas", async () => {

@@ -11,6 +11,8 @@ export interface SettingsNav {
   openSpace(id: string): void;
   /** Provider or mailbox sign-in lives in the Vault or the Connections flow. */
   connect(kind: "mailbox" | "calendar" | "twilio"): void;
+  /** An agent's page. Absent where the shell has no way there: the row then only reads. */
+  openAgent?(agentId: string): void;
   /** The shell's file picker for a profile photo: the file id, or null when nothing was chosen. */
   choosePhoto(): Promise<string | null>;
   /** Applies a skin to the window at once, before it is saved. */

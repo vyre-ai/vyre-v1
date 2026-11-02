@@ -1178,6 +1178,7 @@ export type AgentsCreateOut = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1225,6 +1226,7 @@ export type AgentsGetOut = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1292,6 +1294,7 @@ export type AgentsListOut = {
       agentId: string;
       name: string;
       kind?: "assistant" | "teammate" | "agent";
+      runtime?: "vyre" | "outside";
       face: string;
       role?: string;
       status: "awake" | "working" | "asleep" | "paused";
@@ -1334,6 +1337,53 @@ export type AgentsMemoryKeyGetOut = {
   memoryKey?: string;
   ownerId: string;
 };
+export type AgentsNextIn = Record<string, unknown>;
+export type AgentsNextOut = {
+  job: ({
+    jobId: string;
+    kind: "mention" | "task" | "answer";
+    threadId?: string;
+    taskId?: string;
+    messageId?: string;
+    from: string;
+    title: string;
+    text: string;
+    queuedAt: number;
+  }) | null;
+  waiting: number;
+};
+export type AgentsOutsideConnectIn = {
+  clientName: string;
+};
+export type AgentsOutsideConnectOut = {
+  agentId: string;
+  name: string;
+};
+export type AgentsOutsideEnqueueIn = {
+  agentId: string;
+  kind: "mention" | "task" | "answer";
+  threadId?: string;
+  taskId?: string;
+  messageId?: string;
+  asker: string;
+  title?: string;
+  text?: string;
+};
+export type AgentsOutsideEnqueueOut = {
+  queued: boolean;
+};
+export type AgentsOutsideSeenIn = {
+  agentId: string;
+};
+export type AgentsOutsideSeenOut = {
+  ok: boolean;
+};
+export type AgentsOutsideUsableIn = {
+  agentId: string;
+};
+export type AgentsOutsideUsableOut = {
+  usable: boolean;
+};
 export type AgentsPauseIn = {
   agentId: string;
   reason?: string;
@@ -1343,6 +1393,7 @@ export type AgentsPauseOut = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1384,6 +1435,7 @@ export type AgentsRestoreOut = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1427,6 +1479,7 @@ export type AgentsRestoreVersionOut = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1468,6 +1521,7 @@ export type AgentsResumeOut = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1510,6 +1564,7 @@ export type AgentsRoleLineSetOut = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1670,6 +1725,7 @@ export type AgentsSetOwnerOut = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1861,6 +1917,7 @@ export type AgentsUpdateOut = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -5105,23 +5162,6 @@ export type ChannelsArchiveOut = {
     createdAt: number;
     restricted?: boolean;
   };
-};
-export type ChannelsConnectOutsideAgentIn = {
-  channelId: string;
-  name: string;
-  scopes?: {
-    read: boolean;
-    post: boolean;
-    readChangesets: boolean;
-    writeBranch: boolean;
-  };
-  idempotencyKey: string;
-};
-export type ChannelsConnectOutsideAgentOut = {
-  mcpUrl: string;
-  oneTimeToken: string;
-  expiresAt: number;
-  runCommand: string;
 };
 export type ChannelsCreateIn = {
   name: string;
@@ -17646,6 +17686,46 @@ export type MailgunSendEmailIn = {
 export type MailgunSendEmailOut = {
   providerId: string;
 };
+export type McpActivityListIn = {
+  agentId: string;
+  cursor?: string;
+  limit?: number;
+};
+export type McpActivityListOut = {
+  rows: Array<{
+      id: string;
+      tool: string;
+      cap?: string;
+      outcome: "ok" | "error" | "held";
+      threadId?: string;
+      taskId?: string;
+      at: number;
+    }>;
+  next?: string;
+  total?: number;
+};
+export type McpConnectedLinkIn = Record<string, unknown>;
+export type McpConnectedLinkOut = {
+  url: string;
+  claudeCode: string;
+};
+export type McpConnectedListIn = Record<string, unknown>;
+export type McpConnectedListOut = {
+  agents: Array<{
+      agentId: string;
+      clientName: string;
+      redirectHost?: string;
+      connectedAt: number;
+      lastSeenAt?: number;
+      calls: number;
+    }>;
+};
+export type McpConnectedRemoveIn = {
+  agentId: string;
+};
+export type McpConnectedRemoveOut = {
+  removed: boolean;
+};
 export type McpHealthIn = Record<string, unknown>;
 export type McpHealthOut = {
   state: "healthy" | "degraded" | "down";
@@ -17654,21 +17734,39 @@ export type McpHealthOut = {
   sessions: number;
   registryHash: string;
 };
-export type McpScopesSetIn = {
-  actorId: string;
-  scopes: {
-    read: boolean;
-    post: boolean;
-    readChangesets: boolean;
-    writeBranch: boolean;
-  };
+export type McpOauthAllowIn = {
+  requestId: string;
 };
-export type McpScopesSetOut = {
-  scopes: {
-    read: boolean;
-    post: boolean;
-    readChangesets: boolean;
-    writeBranch: boolean;
+export type McpOauthAllowOut = {
+  agentId: string;
+  name: string;
+};
+export type McpOauthDeclineIn = {
+  requestId: string;
+};
+export type McpOauthDeclineOut = {
+  declined: boolean;
+};
+export type McpOauthReplayedIn = {
+  agentId: string;
+  person: string;
+  why: string;
+};
+export type McpOauthReplayedOut = {
+  noted: boolean;
+};
+export type McpOauthRequestIn = {
+  requestId: string;
+};
+export type McpOauthRequestOut = {
+  request: {
+    requestId: string;
+    clientName: string;
+    redirectHost?: string;
+    spaceName: string;
+    match: string;
+    expiresAt: number;
+    rejoins: boolean;
   };
 };
 export type McpSessionCloseIn = {
@@ -17691,22 +17789,6 @@ export type McpSessionMintOut = {
   url: string;
   expiresAt: number;
 };
-export type McpSessionOpenIn = {
-  token: string;
-  clientName?: string;
-};
-export type McpSessionOpenOut = {
-  sessionId: string;
-  principal: string;
-  actingFor?: string;
-  scopes: {
-    read: boolean;
-    post: boolean;
-    readChangesets: boolean;
-    writeBranch: boolean;
-  };
-  toolsets: Array<"records" | "files" | "memory" | "vault" | "automations" | "chats" | "inbox" | "sites" | "terminal" | "computer" | "agents" | "tasks" | "meta" | "engineer">;
-};
 export type McpSessionsListIn = {
   kind?: "outside" | "driver";
   cursor?: string;
@@ -17721,12 +17803,6 @@ export type McpSessionsListOut = {
       threadId?: string;
       runId?: string;
       name?: string;
-      scopes?: {
-        read: boolean;
-        post: boolean;
-        readChangesets: boolean;
-        writeBranch: boolean;
-      };
       startedAt: number;
       lastCallAt?: number;
       calls: number;
@@ -17735,47 +17811,6 @@ export type McpSessionsListOut = {
     }>;
   next?: string;
   total?: number;
-};
-export type McpTokenIssueIn = {
-  name: string;
-  kind: "claude_code" | "codex" | "other";
-  channelId?: string;
-  scopes?: {
-    read: boolean;
-    post: boolean;
-    readChangesets: boolean;
-    writeBranch: boolean;
-  };
-  idempotencyKey: string;
-};
-export type McpTokenIssueOut = {
-  tokenId: string;
-  oneTimeToken: string;
-  expiresAt: number;
-  mcpUrl: string;
-};
-export type McpTokenLogRevealIn = {
-  tokenId: string;
-  action: "reveal" | "copy";
-};
-export type McpTokenLogRevealOut = {
-  ok: boolean;
-};
-export type McpTokenRegisterIn = {
-  oneTimeToken: string;
-  clientName: string;
-  clientVersion?: string;
-};
-export type McpTokenRegisterOut = {
-  actorId: string;
-  token: string;
-  mcpUrl: string;
-  scopes: {
-    read: boolean;
-    post: boolean;
-    readChangesets: boolean;
-    writeBranch: boolean;
-  };
 };
 export type McpToolDescribeIn = {
   names: Array<string>;
@@ -33786,6 +33821,11 @@ export interface CapMap {
   "agents.limits.get": { in: AgentsLimitsGetIn; out: AgentsLimitsGetOut };
   "agents.list": { in: AgentsListIn; out: AgentsListOut };
   "agents.memory_key.get": { in: AgentsMemoryKeyGetIn; out: AgentsMemoryKeyGetOut };
+  "agents.next": { in: AgentsNextIn; out: AgentsNextOut };
+  "agents.outside.connect": { in: AgentsOutsideConnectIn; out: AgentsOutsideConnectOut };
+  "agents.outside.enqueue": { in: AgentsOutsideEnqueueIn; out: AgentsOutsideEnqueueOut };
+  "agents.outside.seen": { in: AgentsOutsideSeenIn; out: AgentsOutsideSeenOut };
+  "agents.outside.usable": { in: AgentsOutsideUsableIn; out: AgentsOutsideUsableOut };
   "agents.pause": { in: AgentsPauseIn; out: AgentsPauseOut };
   "agents.restore": { in: AgentsRestoreIn; out: AgentsRestoreOut };
   "agents.restore_version": { in: AgentsRestoreVersionIn; out: AgentsRestoreVersionOut };
@@ -33931,7 +33971,6 @@ export interface CapMap {
   "channels.agents.add": { in: ChannelsAgentsAddIn; out: ChannelsAgentsAddOut };
   "channels.agents.remove": { in: ChannelsAgentsRemoveIn; out: ChannelsAgentsRemoveOut };
   "channels.archive": { in: ChannelsArchiveIn; out: ChannelsArchiveOut };
-  "channels.connect_outside_agent": { in: ChannelsConnectOutsideAgentIn; out: ChannelsConnectOutsideAgentOut };
   "channels.create": { in: ChannelsCreateIn; out: ChannelsCreateOut };
   "channels.erase": { in: ChannelsEraseIn; out: ChannelsEraseOut };
   "channels.get": { in: ChannelsGetIn; out: ChannelsGetOut };
@@ -34714,15 +34753,18 @@ export interface CapMap {
   "mailgun.routes.delete": { in: MailgunRoutesDeleteIn; out: MailgunRoutesDeleteOut };
   "mailgun.routes.list": { in: MailgunRoutesListIn; out: MailgunRoutesListOut };
   "mailgun.send_email": { in: MailgunSendEmailIn; out: MailgunSendEmailOut };
+  "mcp.activity.list": { in: McpActivityListIn; out: McpActivityListOut };
+  "mcp.connected.link": { in: McpConnectedLinkIn; out: McpConnectedLinkOut };
+  "mcp.connected.list": { in: McpConnectedListIn; out: McpConnectedListOut };
+  "mcp.connected.remove": { in: McpConnectedRemoveIn; out: McpConnectedRemoveOut };
   "mcp.health": { in: McpHealthIn; out: McpHealthOut };
-  "mcp.scopes.set": { in: McpScopesSetIn; out: McpScopesSetOut };
+  "mcp.oauth.allow": { in: McpOauthAllowIn; out: McpOauthAllowOut };
+  "mcp.oauth.decline": { in: McpOauthDeclineIn; out: McpOauthDeclineOut };
+  "mcp.oauth.replayed": { in: McpOauthReplayedIn; out: McpOauthReplayedOut };
+  "mcp.oauth.request": { in: McpOauthRequestIn; out: McpOauthRequestOut };
   "mcp.session.close": { in: McpSessionCloseIn; out: McpSessionCloseOut };
   "mcp.session.mint": { in: McpSessionMintIn; out: McpSessionMintOut };
-  "mcp.session.open": { in: McpSessionOpenIn; out: McpSessionOpenOut };
   "mcp.sessions.list": { in: McpSessionsListIn; out: McpSessionsListOut };
-  "mcp.token.issue": { in: McpTokenIssueIn; out: McpTokenIssueOut };
-  "mcp.token.log_reveal": { in: McpTokenLogRevealIn; out: McpTokenLogRevealOut };
-  "mcp.token.register": { in: McpTokenRegisterIn; out: McpTokenRegisterOut };
   "mcp.tool.describe": { in: McpToolDescribeIn; out: McpToolDescribeOut };
   "mcp.tool.search": { in: McpToolSearchIn; out: McpToolSearchOut };
   "mcp.tools.list": { in: McpToolsListIn; out: McpToolsListOut };
@@ -35646,6 +35688,15 @@ export type AgentHandoffPayload = {
   toAgentId: string;
   depth: number;
 };
+export type AgentJobQueuedPayload = {
+  agentId: string;
+  jobId: string;
+  kind: string;
+};
+export type AgentJobTakenPayload = {
+  agentId: string;
+  jobId: string;
+};
 export type AgentLimitHitPayload = {
   agentId: string;
   threadId?: string;
@@ -35705,6 +35756,10 @@ export type AgentRoutineRunStartedPayload = {
   runId: string;
   ownerId: string;
   requestedBy: string;
+};
+export type AgentSeenPayload = {
+  agentId: string;
+  at: number;
 };
 export type AgentSuggestionProposedPayload = {
   suggestionId: string;
@@ -37066,9 +37121,25 @@ export type MailgunInboundReceivedPayload = {
   messageId: string;
   recipient: string;
 };
-export type McpScopesChangedPayload = {
-  actorId: string;
+export type McpClientAllowedPayload = {
+  agentId: string;
+  person: string;
+  clientName: string;
+  redirectHost?: string;
+};
+export type McpClientDeclinedPayload = {
+  requestId: string;
+  person: string;
+  clientName: string;
+};
+export type McpClientRemovedPayload = {
+  agentId: string;
   by: string;
+};
+export type McpClientReplayedPayload = {
+  agentId: string;
+  person: string;
+  why: string;
 };
 export type McpSessionEndedPayload = {
   sessionId: string;
@@ -38796,30 +38867,6 @@ export type ThreadUpdatedPayload = {
   fields: Array<string>;
   starter?: string;
 };
-export type TokenIssuedPayload = {
-  tokenId: string;
-  name: string;
-  kind: string;
-  channelId?: string;
-  by: string;
-  expiresAt: number;
-};
-export type TokenRegisteredPayload = {
-  tokenId: string;
-  actorId: string;
-  name: string;
-  scopes: {
-    read: boolean;
-    post: boolean;
-    readChangesets: boolean;
-    writeBranch: boolean;
-  };
-};
-export type TokenRevealedPayload = {
-  tokenId: string;
-  action: string;
-  by: string;
-};
 export type TokenRevokedPayload = {
   actorId: string;
   by: string;
@@ -39147,6 +39194,8 @@ export interface EventMap {
   "agent.disengaged": AgentDisengagedPayload;
   "agent.engaged": AgentEngagedPayload;
   "agent.handoff": AgentHandoffPayload;
+  "agent.job_queued": AgentJobQueuedPayload;
+  "agent.job_taken": AgentJobTakenPayload;
   "agent.limit_hit": AgentLimitHitPayload;
   "agent.mode_changed": AgentModeChangedPayload;
   "agent.model_changed": AgentModelChangedPayload;
@@ -39157,6 +39206,7 @@ export interface EventMap {
   "agent.routine_changed": AgentRoutineChangedPayload;
   "agent.routine_delegated": AgentRoutineDelegatedPayload;
   "agent.routine_run_started": AgentRoutineRunStartedPayload;
+  "agent.seen": AgentSeenPayload;
   "agent.suggestion_proposed": AgentSuggestionProposedPayload;
   "agent.suggestion_resolved": AgentSuggestionResolvedPayload;
   "agent.task_finished": AgentTaskFinishedPayload;
@@ -39418,7 +39468,10 @@ export interface EventMap {
   "mailbox.sync_failed": MailboxSyncFailedPayload;
   "mailgun.event_received": MailgunEventReceivedPayload;
   "mailgun.inbound_received": MailgunInboundReceivedPayload;
-  "mcp.scopes_changed": McpScopesChangedPayload;
+  "mcp.client_allowed": McpClientAllowedPayload;
+  "mcp.client_declined": McpClientDeclinedPayload;
+  "mcp.client_removed": McpClientRemovedPayload;
+  "mcp.client_replayed": McpClientReplayedPayload;
   "mcp.session_ended": McpSessionEndedPayload;
   "mcp.session_started": McpSessionStartedPayload;
   "meeting.canceled": MeetingCanceledPayload;
@@ -39731,9 +39784,6 @@ export interface EventMap {
   "thread.started": ThreadStartedPayload;
   "thread.unarchived": ThreadUnarchivedPayload;
   "thread.updated": ThreadUpdatedPayload;
-  "token.issued": TokenIssuedPayload;
-  "token.registered": TokenRegisteredPayload;
-  "token.revealed": TokenRevealedPayload;
   "token.revoked": TokenRevokedPayload;
   "tombstones.reapplied": TombstonesReappliedPayload;
   "transcripts.purged": TranscriptsPurgedPayload;

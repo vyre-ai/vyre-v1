@@ -374,6 +374,12 @@
     },
     {
       "deferred": false,
+      "name": "agents_next",
+      "summary": "Take your next job: a mention or a task. It names the chat to work in; what you do afterwards shows there. Nothing waiting answers job null. Only an outside agent has a queue",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "agents_pause",
       "summary": "Pause an agent with a reason; the status shows who paused it",
       "toolset": "agents"
@@ -1150,12 +1156,6 @@
       "deferred": false,
       "name": "channels_archive",
       "summary": "Archive a channel (project and Journey channels archive when the record completes)",
-      "toolset": "chats"
-    },
-    {
-      "deferred": false,
-      "name": "channels_connect_outside_agent",
-      "summary": "Connect an outside agent (Claude Code, Codex) to a channel: returns the MCP address, a one-time token (once, 10 minutes) and the run command",
       "toolset": "chats"
     },
     {
@@ -4688,9 +4688,15 @@
     },
     {
       "deferred": false,
-      "name": "mcp_scopes_set",
-      "summary": "Change the scopes of an outside actor (read, post in threads, read changesets, write on a branch with approval)",
-      "toolset": "engineer"
+      "name": "mcp_activity_list",
+      "summary": "What an outside agent did: the tool, how it ended and where, never an input or an answer",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "mcp_connected_link",
+      "summary": "The address to paste into an MCP app, and the one line for Claude Code",
+      "toolset": "meta"
     },
     {
       "deferred": false,
@@ -4702,18 +4708,6 @@
       "deferred": false,
       "name": "mcp_sessions_list",
       "summary": "Active and recent MCP sessions for the Console (outside actors and CLI engines)",
-      "toolset": "engineer"
-    },
-    {
-      "deferred": false,
-      "name": "mcp_token_issue",
-      "summary": "Issue a one-time registration token for an outside agent: works once, within 10 minutes; reveal and copy are logged",
-      "toolset": "meta"
-    },
-    {
-      "deferred": false,
-      "name": "mcp_token_log_reveal",
-      "summary": "Log that a one-time token was revealed or copied in the connect sheet",
       "toolset": "engineer"
     },
     {

@@ -31,6 +31,7 @@ import { TerminalRules } from "../terminal/TerminalRules.tsx";
 import { TerminalTab } from "../terminal/TerminalTab.tsx";
 import { AllAgents } from "./AllAgents.tsx";
 import { ConnectOutsideAgent } from "./ConnectOutsideAgent.tsx";
+import type { ConnectProps } from "./ConnectOutsideAgent.tsx";
 import { SearchPage } from "../search/SearchPage.tsx";
 import type { SearchData } from "../search/SearchPage.tsx";
 import { TextButton } from "../conversation/parts.tsx";
@@ -245,7 +246,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   else if (route.view === "needs") main = <NeedsYou data={needs} {...(route.taskId ? { initialSelected: route.taskId } : {})} {...(window ? { window } : {})} />;
   else if (route.view === "imported") main = <ImportedSession key={route.conversationId} conversationId={route.conversationId} data={importedData} />;
   else if (route.view === "helper") main = helperId === "" ? <HelperChatLoading /> : <HelperChat key={helperId} data={helper} />;
-  else if (route.view === "agent") main = agentId === "" ? <AgentPageLoading /> : <AgentPage key={agentId} data={agentPage} initialTab={route.tab ?? "chats"} {...(window ? { window } : {})} />;
+  else if (route.view === "agent") main = agentId === "" ? <AgentPageLoading /> : <AgentPage key={agentId} data={agentPage} {...(route.tab ? { initialTab: route.tab } : {})} {...(window ? { window } : {})} />;
   else if (route.view === "agent-form") main = <AgentForm key={route.agentId ?? "new"} agentId={route.agentId} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} newKey={newKey} onDone={(id) => { closeSelf?.(); go.agentChat(id); }} onCancel={() => act({ t: "new" })} say={setLine} {...(rt.space.kind === "personal" ? {} : { sharing: { directory, meName: rt.me.name, meId: rt.me.id, nameOf } })} />;
   else if (route.view === "threads") main = <ThreadsPage rt={rt} nameOf={nameOf} openChat={go.thread} />;
   else if (route.view === "new") {
@@ -320,7 +321,7 @@ function Layer({ shown, rt, go, nameOf, list, counter, terminal, window }: {
   switch (l.kind) {
     case "computer": return <ComputerLayer key={l.computerId} rt={rt} go={go} nameOf={nameOf} list={list} counter={counter} computerId={l.computerId} chat={l.chat} />;
     case "recording": return <RecordingLayer key={l.recordingId} rt={rt} go={go} nameOf={nameOf} list={list} counter={counter} recordingId={l.recordingId} />;
-    case "connect": return <ConnectOutsideAgent screens={rt.screens} call={rt.call} newKey={newKey} clock={rt.clock} channelId={l.channelId} onClose={go.closeLayer} say={go.say} />;
+    case "connect": return <ConnectOutsideAgent call={rt.call as ConnectProps["call"]} onClose={go.closeLayer} say={go.say} />;
     case "all-agents":
       return (
         <AllAgents

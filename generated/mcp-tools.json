@@ -3043,6 +3043,21 @@
     },
     {
       "blocks": [],
+      "cap": "agents.next",
+      "deferred": false,
+      "description": "Take your next job: a mention or a task. It names the chat to work in; what you do afterwards shows there. Nothing waiting answers job null. Only an outside agent has a queue",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "agents_next",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.pause",
       "deferred": false,
       "description": "Pause an agent with a reason; the status shows who paused it",
@@ -8908,70 +8923,6 @@
         "type": "object"
       },
       "name": "channels_archive",
-      "planMode": "blocked",
-      "toolset": "chats",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "channels.connect_outside_agent",
-      "deferred": false,
-      "description": "Connect an outside agent (Claude Code, Codex) to a channel: returns the MCP address, a one-time token (once, 10 minutes) and the run command",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "channelId": {
-            "examples": [
-              "chn_a1b2c3"
-            ],
-            "pattern": "^chn_[a-z0-9]+$",
-            "type": "string"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "name": {
-            "examples": [
-              "Claude Code"
-            ],
-            "type": "string"
-          },
-          "scopes": {
-            "properties": {
-              "post": {
-                "type": "boolean"
-              },
-              "read": {
-                "type": "boolean"
-              },
-              "readChangesets": {
-                "type": "boolean"
-              },
-              "writeBranch": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "read",
-              "post",
-              "readChangesets",
-              "writeBranch"
-            ],
-            "type": "object"
-          }
-        },
-        "required": [
-          "channelId",
-          "name",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "channels_connect_outside_agent",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1
@@ -31546,52 +31497,51 @@
     },
     {
       "blocks": [],
-      "cap": "mcp.scopes.set",
+      "cap": "mcp.activity.list",
       "deferred": false,
-      "description": "Change the scopes of an outside actor (read, post in threads, read changesets, write on a branch with approval)",
-      "effects": "write",
+      "description": "What an outside agent did: the tool, how it ended and where, never an input or an answer",
+      "effects": "read",
       "inputSchema": {
         "properties": {
-          "actorId": {
+          "agentId": {
             "examples": [
-              "act_a1b2c3"
+              "agt_a1b2c3"
             ],
-            "pattern": "^act_[a-z0-9]+$",
+            "pattern": "^agt_[a-z0-9]+$",
             "type": "string"
           },
-          "scopes": {
-            "properties": {
-              "post": {
-                "type": "boolean"
-              },
-              "read": {
-                "type": "boolean"
-              },
-              "readChangesets": {
-                "type": "boolean"
-              },
-              "writeBranch": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "read",
-              "post",
-              "readChangesets",
-              "writeBranch"
-            ],
-            "type": "object"
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
           }
         },
         "required": [
-          "actorId",
-          "scopes"
+          "agentId"
         ],
         "type": "object"
       },
-      "name": "mcp_scopes_set",
-      "planMode": "blocked",
-      "toolset": "engineer",
+      "name": "mcp_activity_list",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "mcp.connected.link",
+      "deferred": false,
+      "description": "The address to paste into an MCP app, and the one line for Claude Code",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "mcp_connected_link",
+      "planMode": "allowed",
+      "toolset": "meta",
       "v": 1
     },
     {
@@ -31648,112 +31598,6 @@
       },
       "name": "mcp_sessions_list",
       "planMode": "allowed",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mcp.token.issue",
-      "deferred": false,
-      "description": "Issue a one-time registration token for an outside agent: works once, within 10 minutes; reveal and copy are logged",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "channelId": {
-            "examples": [
-              "chn_a1b2c3"
-            ],
-            "pattern": "^chn_[a-z0-9]+$",
-            "type": "string"
-          },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "claude_code",
-              "codex",
-              "other"
-            ],
-            "type": "string"
-          },
-          "name": {
-            "examples": [
-              "Claude Code"
-            ],
-            "type": "string"
-          },
-          "scopes": {
-            "properties": {
-              "post": {
-                "type": "boolean"
-              },
-              "read": {
-                "type": "boolean"
-              },
-              "readChangesets": {
-                "type": "boolean"
-              },
-              "writeBranch": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "read",
-              "post",
-              "readChangesets",
-              "writeBranch"
-            ],
-            "type": "object"
-          }
-        },
-        "required": [
-          "name",
-          "kind",
-          "idempotencyKey"
-        ],
-        "type": "object"
-      },
-      "name": "mcp_token_issue",
-      "planMode": "blocked",
-      "toolset": "meta",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mcp.token.log_reveal",
-      "deferred": false,
-      "description": "Log that a one-time token was revealed or copied in the connect sheet",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "action": {
-            "enum": [
-              "reveal",
-              "copy"
-            ],
-            "type": "string"
-          },
-          "tokenId": {
-            "examples": [
-              "tok_a1b2c3"
-            ],
-            "pattern": "^tok_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "tokenId",
-          "action"
-        ],
-        "type": "object"
-      },
-      "name": "mcp_token_log_reveal",
-      "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
     },

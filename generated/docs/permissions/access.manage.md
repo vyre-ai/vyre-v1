@@ -48,5 +48,4 @@ Area: space. Risk: high. Applies to: space.
 - devices.rotate_space_key
 - identity.reset_preview
 - identity.reset_start
-- mcp.scopes.set
 - sync.epoch.bump

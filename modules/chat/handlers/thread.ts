@@ -4,7 +4,6 @@
 //   chat.thread                  the inline thread under a message
 //   threads.make_channel         a private chat becomes a channel with another person, linked back to the chat
 //   channels.create              a named room, public to the Team Space or invite-only; a record's channel is a Project or Journey channel
-//   channels.connect_outside_agent   the MCP address, a one-time token (shown once, 10 minutes) and the run command for Claude Code or Codex
 //   chat.answer_block / chat.approve_plan   answers to the blocks that park a turn; the engine reads block.answered and queues the wake
 import {
   MAX_NAME, addAgent, addMember, agentsOf, askerOf, blockBy, channelBy, channelByName, channelOfRecord, channelOut, ensure, insertChannel, insertMessage, insertThread, membersOf, messageBy,
@@ -231,28 +230,6 @@ export async function channelsCreate(ctx: ChatCtx, input: { name: string; visibi
   ctx.emit("channel.created", channel.id, { channelId: channel.id, name, visibility: input.visibility, ...(input.recordId !== undefined ? { recordId: input.recordId } : {}) });
   emitStarted(ctx, main);
   return { channel: channelOut(ctx.db, channel) };
-}
-
-const kindOfTool = (name: string): "claude_code" | "codex" | "other" => (/codex/i.test(name) ? "codex" : /claude/i.test(name) ? "claude_code" : "other");
-
-export async function connectOutsideAgent(
-  ctx: ChatCtx, input: { channelId: string; name: string; scopes?: { read: boolean; post: boolean; readChangesets: boolean; writeBranch: boolean }; idempotencyKey?: string },
-) {
-  ensure(ctx.db);
-  const channel = channelBy(ctx.db, input.channelId);
-  const main = channel ? threadBy(ctx.db, channel.mainThread) : null;
-  if (!channel || !main || !canSpeak(ctx, main)) raise(ctx, "validation.not_found", "That channel does not exist.");
-  if (channel.archived) raise(ctx, "validation.bad_input", "An archived channel takes no new connections.");
-  const name = input.name.trim();
-  if (name === "" || name.length > 120) raise(ctx, "validation.bad_input", "Give the connection a name of up to 120 characters.");
-  if (!ctx.call) raise(ctx, "internal.unexpected", "The MCP server is not available right now.");
-  const kind = kindOfTool(name);
-  // The MCP module mints the one-time token (10 minutes, shown once) and logs it; this channel only asks for it.
-  const issued = (await ctx.call("mcp.token.issue", {
-    name, kind, channelId: channel.id, ...(input.scopes ? { scopes: input.scopes } : {}), idempotencyKey: input.idempotencyKey ?? `${ctx.trace.traceId}:connect:${channel.id}`,
-  })) as { oneTimeToken: string; expiresAt: number; mcpUrl: string };
-  const runCommand = kind === "other" ? `mcp add vyre ${issued.mcpUrl} --token ${issued.oneTimeToken}` : `${kind === "codex" ? "codex" : "claude"} mcp add vyre ${issued.mcpUrl} --token ${issued.oneTimeToken}`;
-  return { mcpUrl: issued.mcpUrl, oneTimeToken: issued.oneTimeToken, expiresAt: issued.expiresAt, runCommand };
 }
 
 // ---- blocks that park a turn ------------------------------------------------------------------------------------------------------------------------

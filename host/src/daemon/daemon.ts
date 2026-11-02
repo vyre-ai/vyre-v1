@@ -190,11 +190,6 @@ export const repairEventMatches = (stored: { id: string; type: string; sv: numbe
   stored.cause === intended.cause && stored.origin === intended.origin && stored.depth === (intended.depth ?? 0) && stableJson(stored.fields) === stableJson(intended.fields) &&
   stored.label === (intended.label ?? 0) && stored.enc === (intended.enc ?? 0) && stored.key_id === intended.key_id && stored.nonce === intended.nonce && stableJson(repairPayload(stored.payload)) === stableJson(intended.payload);
 
-/** Outside MCP actors get Engineer tools only through the live Access decision used by every other surface. */
-export const mayUseEngineerMcp = (snap: AccessSnapshot, actorId: string, spaceId: string, now: number): boolean => authorize(snap, {
-  principal: actorId, action: { perm: "engineer.mcp", level: "use" }, resource: { type: "space", id: spaceId }, now,
-}).effect === "allow";
-
 const refusingVault: VaultPort = {
   secret: () => Promise.reject(new Error("The Vault is not live on this server.")),
   signRs256: () => Promise.reject(new Error("The Vault is not live on this server.")),
@@ -929,21 +924,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (typeof makeMcp === "function") {
         const unbindServer = mcpExports?.["bindServer"];
         const unbindEndpoint = mcpExports?.["bindEndpoint"];
-        const unbindEngineerCheck = mcpExports?.["bindEngineerCheck"];
         stopMcpRuntime = () => {
           mcpRuntime = null;
           if (typeof unbindServer === "function") unbindServer(null);
           if (typeof unbindEndpoint === "function") unbindEndpoint(null);
-          if (typeof unbindEngineerCheck === "function") unbindEngineerCheck(null);
         };
         startMcpRuntime = (port) => {
           stopMcpRuntime?.();
           const local = `http://127.0.0.1:${port}/mcp`;
-          const address = cfg.address ? (/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`) : `http://${cfg.host}:${port}`;
           mcpRuntime = (makeMcp as (o: Record<string, unknown>) => McpRuntime)({
             db, space: spaceId, invoke: invokeRef, now,
-            endpoint: { url: `${address.replace(/\/$/, "")}/mcp`, loopbackUrl: local },
-            engineerCheck: (actorId: string) => mayUseEngineerMcp(access.snap, actorId, spaceId, now()),
+            // the address outside tools use: the Space's public one, which a claimed phone name can change while the daemon runs, else this computer
+            endpoint: () => ({ url: `${publicOrigin()?.origin ?? `http://127.0.0.1:${port}`}/mcp`, loopbackUrl: local }),
+            active: (agentId: string, person: string) => access.snap.principal(agentId)?.status === "active" && access.snap.principal(person)?.status === "active",
+            spaceName: async () => ((await dispatchSystem?.("spaces.get", {})) as { space?: { name?: string } } | undefined)?.space?.name ?? cfg.spaceName ?? "this Space",
+            system: (cap: string, input: unknown) => (dispatchSystem ? dispatchSystem(cap, input) : Promise.reject(new Error("the server is starting"))),
+            ...(process.env["VYRE_WEB_APP"] ? { webApp: process.env["VYRE_WEB_APP"] } : {}),
           });
         };
         closers.push(() => stopMcpRuntime?.());
@@ -1480,8 +1476,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // an outside tool's long-lived credential (issued by access.actors.redeem): the active actor holding it, only while the access snapshot still has that actor active
         return (async (): Promise<(SessionInfo & { device: string }) | null> => {
           const found = (await hookRunner.call("access.actor_by_credential", { credential: token }).catch(() => null)) as { actorId: string } | null;
-          if (!found || access.snap.principal(found.actorId)?.status !== "active") return null;
-          return { space: spaceId, principal: { kind: "actor", id: found.actorId }, device: "outside-actor" };
+          const actor = found ? access.snap.principal(found.actorId) : undefined;
+          if (!found || actor?.status !== "active") return null;
+          // the person who made the actor is its ceiling on this door too: a call runs as the actor for that person, and an actor whose person has gone does not get in
+          const owner = actor.owner ? access.snap.principal(actor.owner) : undefined;
+          if (!owner || owner.kind !== "person" || owner.status !== "active") return null;
+          return { space: spaceId, principal: { kind: "actor", id: found.actorId }, actingFor: owner.id, device: "outside-actor" };
         })();
       });
       ownerOfSpace = () => access.owner() ?? cfg.owner ?? null;
@@ -1734,7 +1734,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
     });
-    const mcpRoute = createMcpRoute(() => mcpRuntime);
+    // The address a request reached. A token is bound to it, so it never comes from the Host header alone: only a connection from this computer that names this computer is the loopback address; everything else, the relay included, is the public one.
+    const mcpOrigin = (req: http.IncomingMessage): string | null => {
+      const host = String(req.headers.host ?? "").toLowerCase();
+      if (req.headers["x-vyre-via"] !== "relay" && loopback(req.socket.remoteAddress) && /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(host)) return `http://${host}`;
+      return publicOrigin()?.origin ?? null;
+    };
+    const mcpRoute = createMcpRoute({ runtime: () => mcpRuntime, origin: mcpOrigin });
     server.on("request", (req, res) => {
       if(desktopCors(req,res))return;
       if (bearer(req.headers.authorization)?.startsWith("vas_")) {

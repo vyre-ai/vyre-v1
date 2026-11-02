@@ -1,5 +1,5 @@
 // Test harness for the chat module: a real in-memory SQLite behind the host's ctx.db guard (chat_* tables only), a recording ctx, a clock the tests move, an in-memory stand-in for the
-// capabilities chat calls (settings.get, mcp.token.issue), and checks against the frozen contract.
+// capabilities chat calls (settings.get), and checks against the frozen contract.
 import { ProjectionHost } from "../../../kernel/src/store/projection.ts";
 import { registry } from "../../../generated/registry.ts";
 import { scopedDb } from "../../../host/src/ctx/db.ts";
@@ -45,7 +45,6 @@ export function harness(o: HarnessOptions = {}) {
   const emitted: Emitted[] = [];
   const callLog: CallLog[] = [];
   const answers: Record<string, (input: Record<string, unknown>) => unknown> = {
-    "mcp.token.issue": (i) => ({ tokenId: "tok_test", oneTimeToken: "otk_testtoken", expiresAt: clock.t + 600_000, mcpUrl: "https://northwind.example.com/mcp", echo: i }),
     ...(o.calls ?? {}),
   };
   const db = scopedDb("chat", raw, TRACE);

@@ -1557,22 +1557,13 @@ export const screens: ScreenIndexEntry[] = [
     "builtin": "ui:ConnectOutsideAgent",
     "caller": "principal",
     "queries": {
-      "channel": {
-        "cap": "channels.get",
-        "input": {
-          "channelId": "/state/channelId"
-        },
+      "link": {
+        "cap": "mcp.connected.link",
+        "input": {},
         "live": true
       }
     },
-    "actions": {
-      "connect": {
-        "cap": "channels.connect_outside_agent",
-        "input": {
-          "channelId": "/state/channelId"
-        }
-      }
-    },
+    "actions": {},
     "needs": [],
     "perf": {
       "firstPaintMs": 50,
@@ -2855,13 +2846,6 @@ export const screens: ScreenIndexEntry[] = [
         "input": {
           "actorId": "/state/actorId",
           "enabled": "/draft/enabled"
-        }
-      },
-      "scopes": {
-        "cap": "mcp.scopes.set",
-        "input": {
-          "actorId": "/state/actorId",
-          "scopes": "/draft/scopes"
         }
       },
       "revoke": {

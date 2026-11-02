@@ -1,6 +1,6 @@
-# mcp.token.log_reveal
+# mcp.oauth.allow
 
-Log that a one-time token was revealed or copied in the connect sheet
+A person allows an app to join: it becomes an agent they own, acting for them, and only the tab that asked can collect the sign-in
 
 | | |
 |---|---|
@@ -8,25 +8,24 @@ Log that a one-time token was revealed or copied in the connect sheet
 | Version | 1 (since 1.0.0) |
 | Effects | write |
 | Permission | grant only |
-| Grant level | edit |
-| Risk | low |
+| Grant level | member |
+| Risk | high |
 | Resource | space |
 | Gate | none |
-| Idempotency | none |
+| Idempotency | natural |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
-| HTTP | POST /v1/mcp/token/log_reveal |
-| MCP tool | mcp_token_log_reveal (engineer) |
+| HTTP | POST /v1/mcp/oauth/allow |
+| MCP tool | none |
 | CLI | none |
-| Emits | token.revealed |
+| Emits | mcp.client_allowed |
 
 ## Input
 
 ```ts
 type In = {
-  tokenId: string;
-  action: "reveal" | "copy";
+  requestId: string;
 };
 ```
 
@@ -34,16 +33,19 @@ type In = {
 
 ```ts
 type Out = {
-  ok: boolean;
+  agentId: string;
+  name: string;
 };
 ```
 
 ## Errors
 
+- auth.expired
 - internal.unexpected
 - permission.above_clearance
 - permission.no_grant
 - validation.bad_input
+- validation.not_found
 
 ## Example
 
@@ -51,11 +53,11 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "action": "reveal",
-    "tokenId": "tok_a1b2c3"
+    "requestId": "oar_a1b2c3"
   },
   "output": {
-    "ok": true
+    "agentId": "agt_a1b2c3",
+    "name": "example"
   }
 }
 ```

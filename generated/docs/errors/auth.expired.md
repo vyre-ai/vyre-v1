@@ -12,8 +12,8 @@ HTTP 401. Retryable: no.
 - identity.sso_join_start
 - identity.verify_second_factor
 - invites.accept_create_account
-- mcp.session.open
-- mcp.token.register
+- mcp.oauth.allow
+- mcp.oauth.request
 - members.accept
 - members.invites.preview
 - sync.hello

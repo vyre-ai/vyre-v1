@@ -43,6 +43,7 @@ import { windowAround } from "./focus.ts";
 import type { MessageActions } from "./MessageView.tsx";
 import { FaceButton, Glyph, IconButton, TextButton } from "./parts.tsx";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
+import { offlineLine } from "../agentpage/model.ts";
 import {
   WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel, swapNeeded,
   threadKindNote, timeline, titleOf, whoLine, workingAgents,
@@ -89,6 +90,25 @@ function useLiveTurns(data: ConversationData): readonly import("../../../shell/s
   const read = (): readonly import("../../../shell/session/turn-streams.ts").LiveTurn[] => (live ? live.turnsOf(data.threadId) : NO_TURNS);
   return useSyncExternalStore(live ? live.subscribe : noSub, read, read);
 }
+
+/** The lead of this chat runs outside Vyre and has gone quiet: said plainly above the composer, because a message here will wait. Only its owner can read it, and only its owner can ask it. */
+export function useOutsideOffline(data: Pick<ConversationData, "call">, agentId: string | null, messages: number): string | null {
+  const [line, setLine] = useState<string | null>(null);
+  useEffect(() => {
+    if (agentId === null) { setLine(null); return undefined; }
+    let live = true;
+    const read = (): void => { void data.call("agents.get", { agentId }).then((o) => {
+      const a = (o as { agent?: { name?: string; runtime?: string; status?: string } }).agent;
+      if (live) setLine(a?.runtime === "outside" && a.status === "asleep" ? offlineLine(a.name ?? "This agent") : null);
+    }, () => { if (live) setLine(null); }); };
+    read();
+    const t = setInterval(read, OUTSIDE_POLL_MS);
+    (t as { unref?: () => void }).unref?.();
+    return () => { live = false; clearInterval(t); };
+  }, [data, agentId, messages]);
+  return line;
+}
+const OUTSIDE_POLL_MS = 30_000;
 
 function ConversationView(): ReactElement {
   const data = useConversationData();
@@ -185,6 +205,7 @@ function ConversationView(): ReactElement {
   const leadNow = threadQ.status === "loading" ? undefined : leadOf(threadQ.data.thread);
   // the lead's context, read again whenever the message count changes (a turn ended or a message went out)
   const leadUsage = useUsage(data, leadNow?.agentId ?? null, leadNow?.accountRef ?? null, messagesQ.status === "loading" ? 0 : messagesQ.data.messages.length);
+  const outsideOffline = useOutsideOffline(data, leadNow?.agentId ?? null, messagesQ.status === "loading" ? 0 : messagesQ.data.messages.length);
   const place = useRunsOn({ call: data.call, threadId: data.threadId, agentId: leadNow?.agentId, spaceName: data.spaceName ?? "The Space", say });
   const serverMode = threadQ.status === "loading" ? null : modeOf(threadQ.data.thread);
   // what the server says wins once it changes (a /plan, another device); a local choice holds until then
@@ -538,6 +559,7 @@ function ConversationView(): ReactElement {
           <TextButton label={`Start a channel with ${nameOf(personMention.id).split(" ")[0]}`} testID="channel-start" onPress={() => void act.startChannel(data, personMention.id, data.newKey()).then(() => say("Channel started, linked back to this chat."), fail("Could not start the channel."))} />
         </View>
       ) : null}
+      {outsideOffline && !closed ? <Text testID="outside-offline" style={st.outsideOffline}>{outsideOffline}</Text> : null}
       {closed ? (
         <View testID="conversation-closed" style={st.closed}><Text style={st.lineText}>This thread is closed.</Text><TextButton label="Reopen" onPress={() => void data.call("threads.reopen", { threadId: thread.threadId }).catch(fail("Could not reopen."))} testID="reopen" /></View>
       ) : (
@@ -623,6 +645,7 @@ function OlderPage({ before, onPage }: { before: number; onPage: (page: Messages
 }
 
 const st = StyleSheet.create({
+  outsideOffline: { paddingHorizontal: 16, paddingBottom: 6, fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string, textAlign: "center" },
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   head: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 20, paddingRight: 10 },
   title: { flexShrink: 1, minWidth: 40, maxWidth: 320, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },

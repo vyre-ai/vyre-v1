@@ -3,7 +3,7 @@
 // nothing. It makes no thread (the baton makes one when the work starts) and it shares nothing: a task an agent made holds no permissions of its own.
 import { allTasks, clean, emitTask, ensurePrefix, findTask, getTask, isOpen, newTaskId, out, raise, readPolicy, saveTask, touch } from "../projections.ts";
 import type { Assignee, Priority, Task, TasksCtx } from "../projections.ts";
-import { INITIAL_STATE, checkSlots, responsibleFor } from "./state.ts";
+import { INITIAL_STATE, checkOutside, checkSlots, responsibleFor } from "./state.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
 interface Child { key: string; title: string; brief?: string; doneMeans?: string[]; assigned: Assignee; reviewer?: Assignee; approver?: Assignee; dependsOn?: string[]; due?: number; priority?: Priority; worker?: "thread" | "crew"; projectId?: string }
@@ -67,7 +67,7 @@ export async function plan(ctx: TasksCtx, input: In): Promise<unknown> {
     external.add(d);
   }
   const policy = readPolicy(ctx.db);
-  for (const c of children) checkSlots(ctx, "work", c, policy);
+  for (const c of children) { checkSlots(ctx, "work", c, policy); await checkOutside(ctx, [c.assigned, c.reviewer, c.approver]); }
   let parent: Task | undefined;
   if (input.parentTaskId !== undefined) {
     parent = getTask(ctx, input.parentTaskId);

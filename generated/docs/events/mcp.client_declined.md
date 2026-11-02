@@ -1,25 +1,25 @@
-# token.revealed
+# mcp.client_declined
 
-A one-time token was revealed or copied
+A person said no to an app
 
 | | |
 |---|---|
 | Module | mcp |
 | Schema version | 1 |
-| Subject | entity at /tokenId |
+| Subject | entity at /requestId |
 | Visibility | participants |
 | Label | none |
 | Replay | pure |
 | Automation trigger | no |
 | Notification | none |
-| Retention | audit |
+| Retention | default |
 
 ## Payload
 
 ```ts
 type Payload = {
-  tokenId: string;
-  action: string;
-  by: string;
+  requestId: string;
+  person: string;
+  clientName: string;
 };
 ```

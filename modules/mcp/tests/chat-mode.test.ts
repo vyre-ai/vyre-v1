@@ -21,8 +21,8 @@ test("the session of a chat opens with the chat's mode, read as the agent for th
   assert.equal((await withChatMode(runtime("auto"), caller())).mode, "auto");
 });
 
-test("an outside actor, a session with no chat, and a chat that cannot be read are left as they were", async () => {
-  const outside = caller({ kind: "outside", principal: { kind: "actor", id: "act_1" } });
+test("an outside agent, a session with no chat, and a chat that cannot be read are left as they were", async () => {
+  const outside = caller({ kind: "outside", principal: { kind: "agent", id: "agt_1" } });
   assert.equal(await withChatMode(runtime("plan"), outside), outside);
   const nochat = caller(); delete (nochat as { threadId?: string }).threadId;
   assert.equal(await withChatMode(runtime("plan"), nochat), nochat);

@@ -181,12 +181,7 @@ export function createMountSample(o: { conversation?: ConversationVariant; who?:
       return { starred: i.on, following: false };
     },
     "access.request": () => ({ requested: true }),
-    "channels.connect_outside_agent": (i: { channelId: string; name: string }) => {
-      const url = "https://northwind.vyre.run/mcp";
-      const token = "vyre_ot_k3m9q7xw2dtp5ncfr8h4vbae";
-      const tool = /codex/i.test(i.name) ? "codex" : "claude";
-      return { mcpUrl: url, oneTimeToken: token, expiresAt: SAMPLE_NOW + 10 * 60_000, runCommand: `${tool} mcp add vyre ${url} --token ${token}` };
-    },
+    "mcp.connected.link": () => ({ url: "https://northwind.vyre.run/mcp", claudeCode: "claude mcp add --transport http vyre https://northwind.vyre.run/mcp" }),
     "runs.stop": (i: { runId: string }) => {
       const cur = whole<Run>("runs").find((r) => r.id === i.runId);
       if (cur) replica.put("runs", [{ ...cur, id: cur.id, status: "stopped" }]);

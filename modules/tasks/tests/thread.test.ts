@@ -25,7 +25,7 @@ test("a new task gets a thread named by the task, with its agents, and the peopl
   assert.equal(start.idempotencyKey, `task-thread:${id}`);
   const people = h.threadCalls.filter((c) => c.cap === "threads.members.add").map((c) => (c.input as { personId: string }).personId);
   assert.deepEqual(people.sort(), [bob.id, cara.id].sort());
-  assert.deepEqual(h.calls.map((c) => c.cap), ["access.principals.get"], "nothing but the owner lookup");
+  assert.deepEqual(h.calls.map((c) => c.cap), ["access.principals.get", "agents.outside.usable"], "nothing but the owner lookup and the check that this agent takes work from the asker");
 });
 
 test("every kind of task has a thread", async () => {

@@ -48,7 +48,7 @@ export interface Edge { origin: string; close(): void }
 export function edge(dist: string, daemonUrl: string, tls?: { key: string; cert: string }, port = 0): Promise<Edge> {
   const target = new URL(daemonUrl);
   const base = path.resolve(dist);
-  const proxied = (p: string): boolean => p.startsWith("/v1/") || p.startsWith("/sync/") || p === "/healthz" || p.startsWith("/live") || p.startsWith("/local/vault/key/");
+  const proxied = (p: string): boolean => p.startsWith("/v1/") || p.startsWith("/sync/") || p === "/healthz" || p.startsWith("/live") || p.startsWith("/local/vault/key/") || p === "/mcp" || p.startsWith("/.well-known/oauth-") || /^\/oauth\/(authorize|register|token|wait)$/.test(p);
   const handle: http.RequestListener = (req, res) => {
     const u = new URL(req.url ?? "/", "http://edge");
     if (proxied(u.pathname)) {
