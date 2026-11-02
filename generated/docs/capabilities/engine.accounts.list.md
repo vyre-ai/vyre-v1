@@ -44,6 +44,12 @@ type Out = {
       base?: string;
       keyless?: boolean;
       spaceKey?: boolean;
+      aliases?: Array<string>;
+      older?: Array<{
+          ref: string;
+          providerId: string;
+          name: string;
+        }>;
     }>;
 };
 ```
@@ -64,6 +70,9 @@ type Out = {
   "output": {
     "accounts": [
       {
+        "aliases": [
+          "#Team_Anthropic_Key"
+        ],
         "base": "example",
         "driver": "anthropic",
         "keyless": true,
@@ -71,6 +80,13 @@ type Out = {
         "lastProbeAt": 1760000000000,
         "mine": true,
         "name": "Dana Claude Max",
+        "older": [
+          {
+            "name": "example",
+            "providerId": "prv_a1b2c3",
+            "ref": "#Team_Anthropic_Key"
+          }
+        ],
         "ownerId": "usr_a1b2c3",
         "ref": "#Team_Anthropic_Key",
         "spaceKey": true,

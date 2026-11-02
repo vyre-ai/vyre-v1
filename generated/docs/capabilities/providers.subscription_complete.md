@@ -19,7 +19,7 @@ Finish a subscription sign-in. Pass the pasted code where the provider shows one
 | HTTP | POST /v1/providers/subscription_complete |
 | MCP tool | providers_subscription_complete (vault) |
 | CLI | none |
-| Emits | provider.added, vault.item_created, vault.folder_created |
+| Emits | provider.added, provider.updated, provider.removed, vault.item_created, vault.item_updated, vault.item_deleted, vault.folder_created |
 
 ## Input
 
@@ -57,6 +57,10 @@ type Out = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    identity?: string;
+    displayName?: string;
+    aliases?: Array<string>;
+    olderOf?: string;
   };
   waiting?: boolean;
 };
@@ -86,15 +90,21 @@ type Out = {
       "agentsUsing": [
         "agt_a1b2c3"
       ],
+      "aliases": [
+        "#Dana_Lawmatics"
+      ],
       "connection": "subscription",
+      "displayName": "Claude Code, dana@example.com",
       "engine": "claude-code",
       "handle": "#Dana_Lawmatics",
       "id": "prv_a1b2c3",
+      "identity": "dana@example.com",
       "itemId": "vit_a1b2c3",
       "itemName": "Dana Claude Max",
       "keyless": true,
       "logo": "example",
       "name": "example",
+      "olderOf": "prv_a1b2c3",
       "providerKey": "anthropic",
       "scope": "mine",
       "spaceKey": true,

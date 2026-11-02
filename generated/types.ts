@@ -9363,6 +9363,12 @@ export type EngineAccountsListOut = {
       base?: string;
       keyless?: boolean;
       spaceKey?: boolean;
+      aliases?: Array<string>;
+      older?: Array<{
+          ref: string;
+          providerId: string;
+          name: string;
+        }>;
     }>;
 };
 export type EngineCompleteIn = {
@@ -22810,6 +22816,10 @@ export type ProvidersAddOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    identity?: string;
+    displayName?: string;
+    aliases?: Array<string>;
+    olderOf?: string;
   };
 };
 export type ProvidersCatalogIn = Record<string, unknown>;
@@ -22866,6 +22876,10 @@ export type ProvidersCustomAddOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    identity?: string;
+    displayName?: string;
+    aliases?: Array<string>;
+    olderOf?: string;
   };
 };
 export type ProvidersCustomListIn = Record<string, unknown>;
@@ -22910,6 +22924,10 @@ export type ProvidersListOut = {
       address?: string;
       keyless?: boolean;
       spaceKey?: boolean;
+      identity?: string;
+      displayName?: string;
+      aliases?: Array<string>;
+      olderOf?: string;
     }>;
 };
 export type ProvidersRemoveIn = {
@@ -22946,6 +22964,10 @@ export type ProvidersSetSpaceUseOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    identity?: string;
+    displayName?: string;
+    aliases?: Array<string>;
+    olderOf?: string;
   };
 };
 export type ProvidersSpaceKeyGetIn = {
@@ -23028,6 +23050,10 @@ export type ProvidersSubscriptionCompleteOut = {
     address?: string;
     keyless?: boolean;
     spaceKey?: boolean;
+    identity?: string;
+    displayName?: string;
+    aliases?: Array<string>;
+    olderOf?: string;
   };
   waiting?: boolean;
 };
