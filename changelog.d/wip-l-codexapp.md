@@ -5,3 +5,5 @@
 - The foot of the rail no longer shows a second Settings icon when it is open: the button folds it instead.
 - Artifacts opens inside Chats with the sidebar, laid out like Tasks and Threads, instead of a separate page with a Back button.
 - The Provider and Model menus scroll when a provider has many models, and a find field appears for long lists.
+- Typing @ in a task or subtask lists your teammates and agents to pick from, and a subtask can be assigned with @, given a day and labels like quick add.
+- In an agent's side panel, the faces in its chat list sit in their own column instead of on top of the title.

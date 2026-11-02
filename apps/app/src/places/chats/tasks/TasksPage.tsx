@@ -19,6 +19,7 @@ import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { Glyph } from "../conversation/parts.tsx";
 import { nameOr } from "../names.ts";
 import { useLive } from "../mounts/live.ts";
+import { QuickField } from "./QuickField.tsx";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import type { ActEnv } from "./actions.ts";
 import { bulkAssign, bulkDelete, bulkDue, bulkLabel, bulkMove, bulkPriority, bulkStatus, dueEntries, failure, keepQuiet, letGo, priorityEntries, setStatus, snoozeQuiet } from "./actions.ts";
@@ -270,7 +271,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
       case "need": return <NeedLine item={e.item} env={env} />;
       case "task": { const cur = e.row.id === currentRow?.id; return <TaskLine row={e.row} env={env} selected={selected.has(e.row.id)} current={cur} />; }
       case "quiet": return <QuietLine rows={e.rows} open={quietOpen} onToggle={() => setQuietOpen((o) => !o)} assistant={rt.assistant} act={act} />;
-      case "add": return <View style={st.wrap}><View style={st.addRow}><View style={st.addDot} /><TextInput ref={addRef} testID="task-quick-add" accessibilityLabel="Add a task" placeholder="Add a task: Call Omar friday @sara #portal" placeholderTextColor="var(--ink-3)" value={quick} onChangeText={setQuick} onSubmitEditing={addTask} style={rowStyles.add} /></View></View>;
+      case "add": return <View style={st.wrap}><View style={st.addRow}><View style={st.addDot} /><QuickField ref={addRef} testID="task-quick-add" label="Add a task" placeholder="Add a task: Call Omar friday @sara #portal" value={quick} onChangeText={setQuick} onSubmit={addTask} people={list as readonly QuickPerson[]} style={rowStyles.add} /></View></View>;
       case "done": return <View style={st.wrap}><Pressable accessibilityRole="button" accessibilityLabel={`${e.count} done this week`} accessibilityState={{ expanded: e.open }} testID="tasks-done" onPress={toggleDone} style={st.done}><Text style={st.doneText}>{e.open ? "Hide what is done" : `${e.count} done this week`}</Text></Pressable></View>;
       case "empty": return <View style={st.wrap}><Text style={st.empty}>{e.text}</Text></View>;
     }
