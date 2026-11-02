@@ -26,7 +26,7 @@ import type { CredentialKind } from "./credentials.ts";
 import { createFillAuthorizer } from "./fill-authorizer.ts";
 import { createFillLauncher } from "./fill-launcher.ts";
 import { createGuardedFetch } from "../../../../lib/net-guard.ts";
-import type { FillWho } from "./fill-launcher.ts";
+import type { FillLauncherDeps, FillWho } from "./fill-launcher.ts";
 
 /** The account a turn runs on, as the accounts module resolved it (SessionSpec.account, agent/src/turn-engine/types.ts). `ref` is a Vault handle, never a value. */
 export interface OpenAccount { ref: string; driver: string; kind: CredentialKind; payer?: string; base?: string; keyless?: boolean }
@@ -70,6 +70,8 @@ export interface SessionOpenerDeps {
   pool?: Pick<PoolOptions, "maxPerDriver" | "maxPerPerson" | "maxTotal" | "idleMs" | "now">;
   /** A Vault item was used for a session: ids and handles only (audit and usage records). */
   onUsed?(e: { spec: OpenerSpec; used: readonly Used[] }): void;
+  /** Sign-in files a CLI refreshed during a turn, saved back to their Vault item by the host (fill-launcher.ts). Omitted: not saved. */
+  saveSignin?: FillLauncherDeps["saveSignin"];
 }
 
 export interface SessionOpener {
@@ -121,7 +123,7 @@ export function createSessionOpener(d: SessionOpenerDeps): SessionOpener {
       if (!cred) throw new DriverError("engine.account_unsupported", `${id} cannot run on this kind of account yet. Use an API key for it.`);
       try { await d.prepare?.(spec); } catch { /* the engine runs without the guide */ }
       const native = id === "claude_code" || id === "codex" ? (await d.nativePlugins?.(spec, id)) ?? null : null;
-      const launcher = createFillLauncher({ inner: d.launcher, source: d.source, reportMiss: d.reportMiss, who: whoOf(spec), env: { [cred.env]: cred.handle, ...(native?.secrets ?? {}) }, onUsed: used(spec) });
+      const launcher = createFillLauncher({ inner: d.launcher, source: d.source, reportMiss: d.reportMiss, who: whoOf(spec), env: { [cred.env]: cred.handle, ...(native?.secrets ?? {}) }, onUsed: used(spec), ...(d.saveSignin ? { saveSignin: d.saveSignin } : {}) });
       const driver = createCliDriver(CLI_ADAPTERS[id], { ...d.cli, launcher, ...(native ? { plugins: () => native } : {}), mcp: () => mcpFor(spec), mcpClose: (_s, endpoint) => mcpRevoke(endpoint) });
       return driver.open(spec);
     },

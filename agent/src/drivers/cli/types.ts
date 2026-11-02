@@ -11,7 +11,14 @@ export const CLI_IDS: readonly CliId[] = ["claude_code", "codex", "grok"];
 export const TOKEN_ENV = "VYRE_MCP_TOKEN";
 
 /** One process to start. `env` is everything the process sees besides what the launcher itself adds (PATH and the like); the host's environment is never passed through. */
-export interface LaunchSpec { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }
+export interface LaunchSpec {
+  argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>>;
+  /**
+   * A sign-in kept in files (VYRE_CRED_FILES): the launcher that placed them calls this when the process has ended, with the files as the CLI left them (null for one that is gone), when they differ
+   * from what was filled. The fill launcher sets it, the one place that knows the Vault item; the files are removed after it settles. Never sent to another computer.
+   */
+  signinBack?(files: Readonly<Record<string, string | null>>): Promise<void>;
+}
 
 export interface CliExit { code: number | null; signal: string | null }
 

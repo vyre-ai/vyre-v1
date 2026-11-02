@@ -45,7 +45,11 @@ export function ownedArgv(argv: readonly string[], probe?: NodeCliProbe): readon
 }
 
 /** The ports the host builds (host/src/seams/engine-session.ts), as the module sees them: structural, so neither side imports the other. */
-export interface EngineSessionPorts { source: ValueSource; reportMiss: VaultRunDeps["reportMiss"]; mcp: McpPort }
+export interface EngineSessionPorts {
+  source: ValueSource; reportMiss: VaultRunDeps["reportMiss"]; mcp: McpPort;
+  /** The host's save of sign-in files a CLI refreshed during a turn (host/src/seams/signin-refresh.ts). Absent: a refresh is not saved back. */
+  saveSignin?(r: { itemId: string; asker: string; filled: string; files: Readonly<Record<string, string | null>> }): Promise<unknown>;
+}
 
 export interface OpenerHost {
   session: EngineSessionPorts;
@@ -148,20 +152,49 @@ async function crewWorkspaceOf(call: OpenerHost["call"], spec: { asker: string; 
   return null;
 }
 
+/** Saves of refreshed sign-ins still under way, so closing the opener at shutdown waits for them. */
+const saving = new Set<Promise<void>>();
+/** How long the files wait in the home for a save before they are removed anyway. */
+const SAVE_WAIT_MS = 30_000;
+
+/** When the engine has ended, however it ended: read the sign-in files back, hand them to `back` when they changed (a refreshed token), then remove them. */
+function settleSignin(p: Placed, back: LaunchSpec["signinBack"]): void {
+  let files: Record<string, string | null> | null = null;
+  try { files = p.changed(); } catch { files = null; }
+  const job = (async () => {
+    try {
+      if (files !== null && back) {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        await Promise.race([back(files), new Promise<void>((r) => { timer = setTimeout(r, SAVE_WAIT_MS); timer.unref?.(); })]).finally(() => clearTimeout(timer));
+      }
+    } catch { /* the host logs why; the values are never in an error here */ }
+    finally { p.release(); }
+  })();
+  saving.add(job);
+  void job.then(() => saving.delete(job));
+}
+
+/** Every refreshed sign-in handed over so far has been saved or refused, and its files removed. */
+export async function signinsSettled(): Promise<void> {
+  while (saving.size > 0) await Promise.allSettled([...saving]);
+}
+
 /**
  * Start a CLI engine for a turn inside the sandbox. A sign-in kept in files (Codex, Grok) arrives in the environment under VYRE_CRED_FILES, filled by the Vault; it is taken out of the environment and put in the
- * engine's own home for the life of the process, and removed when the process ends or fails to start. `wrapOf` is the sandbox wrap; a test passes its own.
+ * engine's own home for the life of the process, and removed when the process ends or fails to start. When the process ends (done, failed, cancelled, crashed, or killed at shutdown) the files are read back
+ * first, and a sign-in the CLI refreshed goes to `spec.signinBack` before they are removed. `wrapOf` is the sandbox wrap; a test passes its own.
  */
 export async function spawnCli(planned: SandboxPlan, spec: LaunchSpec, argv: readonly string[], o: { wrapOf?: typeof sandboxWrap } = {}): Promise<CliProcess> {
-  const { env, files } = takeCredentialFiles(spec.env);
+  const { signinBack, ...launch } = spec;
+  const { env, files } = takeCredentialFiles(launch.env);
   let placed: Placed | undefined;
   if (files !== undefined) {
-    if (spec.cwd === undefined) throw new LaunchError("engine.account_unavailable", "The engine has no work folder to keep its sign-in in.");
-    try { placed = placeCredentialFiles(planned.dataDir, spec.cwd, files); } catch (e) { throw new LaunchError("engine.account_unavailable", e instanceof Error ? e.message : "The sign-in files could not be put in place."); }
+    if (launch.cwd === undefined) throw new LaunchError("engine.account_unavailable", "The engine has no work folder to keep its sign-in in.");
+    try { placed = placeCredentialFiles(planned.dataDir, launch.cwd, files); } catch (e) { throw new LaunchError("engine.account_unavailable", e instanceof Error ? e.message : "The sign-in files could not be put in place."); }
   }
   try {
-    const proc = await createLocalLauncher({ wrap: (o.wrapOf ?? sandboxWrap)(planned, { homeFromScratch: placed !== undefined }), baseEnv: launcherEnv() }).spawn({ ...spec, env, argv });
-    if (placed) { const p = placed; void proc.exited.then(() => p.release(), () => p.release()); }
+    const proc = await createLocalLauncher({ wrap: (o.wrapOf ?? sandboxWrap)(planned, { homeFromScratch: placed !== undefined }), baseEnv: launcherEnv() }).spawn({ ...launch, env, argv });
+    if (placed) { const p = placed; const end = (): void => settleSignin(p, signinBack); void proc.exited.then(end, end); }
     return proc;
   } catch (e) { placed?.release(); throw e; }
 }
@@ -198,10 +231,12 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     return (planned ??= h.defaultSandbox().catch((e: unknown) => { planned = undefined; throw e; }));
   };
   const dataDir = h.sandbox?.dataDir ?? h.dataDir;
-  return createSessionOpener({
+  const save = h.session.saveSignin?.bind(h.session);
+  const opener = createSessionOpener({
     source: h.session.source,
     reportMiss: h.session.reportMiss,
     mcp: h.session.mcp,
+    ...(save ? { saveSignin: save } : {}),
     ...(h.own ? { own: h.own } : {}),
     launcher: {
       spawn: async (spec) => {
@@ -221,4 +256,6 @@ export function buildOpener(h: OpenerHost): SessionOpener {
       return h.apiTools ? h.apiTools.context(spec, input) : { system: await system(spec, input), tools: [] };
     },
   });
+  // shutdown: the sessions end (their processes are killed and waited for), then the sign-ins their CLIs refreshed are saved before the daemon closes its databases
+  return { ...opener, close: async () => { await opener.close(); await signinsSettled(); } };
 }
