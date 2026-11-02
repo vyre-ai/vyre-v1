@@ -1,2 +1,3 @@
 - The sign-in page names your Space as soon as the owner names it in setup. It showed the Space id until the server restarted.
 - An agent that asks for a Vault item it cannot use is told in plain words that there is no such item it can use, instead of "Input failed validation".
+- In a Team Space, the key request card an agent posts in a member's own chat stays there and says it waits on an admin. It used to vanish for the member. One agent asking for two people now keeps their requests apart.

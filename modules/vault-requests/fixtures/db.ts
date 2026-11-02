@@ -24,12 +24,17 @@ export function columns(sql: string): Map<string, { cols: Col[]; pk: string }> {
     }
     out.set(m[1]!, { cols, pk });
   }
+  // a later migration's added columns
+  for (const m of text.matchAll(/ALTER TABLE (\w+) ADD COLUMN (\w+)([^;]*);/g)) out.get(m[1]!)?.cols.push({ name: m[2]!, notNull: /NOT NULL/i.test(m[3]!) });
   return out;
 }
 
+/** Every migration of the module, in order. */
+const MIGRATIONS = [MIGRATION, fileURLToPath(new URL("../migrations/0002_asker.sql", import.meta.url))];
+
 export class MemoryDb implements Db {
   private tables = new Map<string, Row[]>();
-  private schema = columns(readFileSync(MIGRATION, "utf8"));
+  private schema = columns(MIGRATIONS.map((f) => readFileSync(f, "utf8")).join("\n"));
   /** every statement seen, for the tests that check what was run */
   statements: string[] = [];
 

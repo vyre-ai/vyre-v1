@@ -2,7 +2,8 @@
 // (or the Space's owners and admins) as one Needs you card each; the requester sees its status, and a Run waiting for the key resumes when it is supplied.
 // DECISION: a request carries names, never values. A manager supplies the key in the fulfil call; the value goes straight to vault.item.put (or the item they name is shared) and is not stored here,
 // not echoed back, not in an event, a card, a log line or the thread. The requester gets Use on the item, which hands out a handle and never the value.
-// DECISION: the requester never decides their own request. Anyone who is neither the requester nor a manager gets "not found", so request ids leak nothing.
+// DECISION: the requester never decides their own request. Anyone who is neither the requester nor a manager gets "not found", so request ids leak nothing. The person an agent asked for (the asker)
+// reads it as the requester does: their card in their own chat shows who it waits on (a Team Space agent is shared, so one agent's requests are kept apart by whom it asked for).
 import { isCompanyKey } from "../../../lib/company-keys.ts";
 import { TABLE, asRow, idsOf, nid, page, raise, requestById, requestOut, strOf } from "../projections.ts";
 import type { Ref, RequestRow, State, VaultReqCtx } from "../projections.ts";
@@ -76,13 +77,16 @@ export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fie
   const fields = [...new Set((input.fields && input.fields.length > 0 ? input.fields : DEFAULT_FIELDS).map((f) => f.trim()))];
   for (const f of fields) if (!FIELD.test(f)) raise(trace, "validation.bad_input", `${f} is not a field name.`);
 
-  const mine = ctx.db.all(`SELECT * FROM ${TABLE} WHERE requester_id = ?`, requester.id) as RequestRow[];
+  const asker = requester.kind === "person" ? null : ctx.actingFor ?? null;
+  // one agent's asks for different people are different requests; one it made for nobody in particular serves whoever asks next
+  const mine = (ctx.db.all(`SELECT * FROM ${TABLE} WHERE requester_id = ?`, requester.id) as RequestRow[]).filter((r) => (r.asker_id ?? null) === asker || !r.asker_id);
   const again = mine.find((r) => r.idem_key === input.idempotencyKey);
   if (again) return { request: requestOut(again) };
   // asked again while the first ask still waits (another chat, an earlier turn): the same request answers, and its card is drawn in this chat too, so the person types the key where they are now.
   // Both cards read the one request and close together; nobody gets a second task.
   const waiting = mine.find((r) => r.state === "waiting" && r.name === name && r.folder_id === (input.folderId ?? null));
   if (waiting) {
+    if (asker && !waiting.asker_id) ctx.db.run(`UPDATE ${TABLE} SET asker_id = ? WHERE id = ?`, asker, waiting.id);
     if (ctx.thread) {
       const fields0 = JSON.parse(waiting.fields_json) as string[];
       const card = { type: "vault_request", v: 1, data: { requestId: waiting.id, name: waiting.name, fields: fields0, reason: waiting.reason, requester, ...(waiting.for_run ? { forRun: waiting.for_run } : {}), ...(waiting.folder_id ? { folderId: waiting.folder_id } : {}), threadId: ctx.thread, ...(requester.kind === "agent" ? { agentId: requester.id } : {}), ...((ctx.actingFor ?? (requester.kind === "person" ? requester.id : undefined)) ? { asker: (ctx.actingFor ?? requester.id) } : {}), state: "waiting" } };
@@ -115,8 +119,8 @@ export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fie
     taskIds.push(taskId);
   }
   ctx.db.run(
-    `INSERT INTO ${TABLE} (id, name, fields_json, reason, requester_kind, requester_id, for_run, folder_id, state, idem_key, managers_json, task_ids_json, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, name, JSON.stringify(fields), input.reason.trim(), requester.kind, requester.id, input.forRun ?? null, input.folderId ?? null, "waiting", input.idempotencyKey, JSON.stringify(managers), JSON.stringify(taskIds), ctx.now(),
+    `INSERT INTO ${TABLE} (id, name, fields_json, reason, requester_kind, requester_id, for_run, folder_id, state, idem_key, managers_json, task_ids_json, at, asker_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, name, JSON.stringify(fields), input.reason.trim(), requester.kind, requester.id, input.forRun ?? null, input.folderId ?? null, "waiting", input.idempotencyKey, JSON.stringify(managers), JSON.stringify(taskIds), ctx.now(), asker,
   );
   const row = requestById(ctx, id)!;
   ctx.emit("vault.requested", id, { requestId: id, name, fields, requester, ...(input.forRun ? { forRun: input.forRun } : {}), taskId: taskIds[0]! });
@@ -132,7 +136,7 @@ export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fie
 function visible(ctx: VaultReqCtx, requestId: string): { row: RequestRow; asRequester: boolean; asManager: boolean } {
   const row = requestById(ctx, requestId);
   const me = personOf(ctx);
-  const asRequester = !!row && (row.requester_id === ctx.principal.id || (!!ctx.actingFor && row.requester_id === ctx.actingFor));
+  const asRequester = !!row && (row.requester_id === ctx.principal.id || (!!ctx.actingFor && row.requester_id === ctx.actingFor) || (!!me && row.asker_id === me));
   const asManager = !!row && !!me && row.requester_id !== me && idsOf(row.managers_json).includes(me);
   if (!row || (!asRequester && !asManager)) return raise(ctx.trace.traceId, "validation.not_found", "No such request.");
   return { row, asRequester, asManager };
@@ -143,7 +147,7 @@ export async function requestsList(ctx: VaultReqCtx, input: { mine?: boolean; st
   const ownIds = new Set([ctx.principal.id, ...(ctx.actingFor ? [ctx.actingFor] : [])]);
   const all = (ctx.db.all(`SELECT * FROM ${TABLE}`) as RequestRow[])
     .filter((r) => {
-      const mine = ownIds.has(r.requester_id);
+      const mine = ownIds.has(r.requester_id) || (!!r.asker_id && ownIds.has(r.asker_id));
       const toDecide = !!me && r.requester_id !== me && idsOf(r.managers_json).includes(me);
       return input.mine === true ? mine : input.mine === false ? toDecide : mine || toDecide;
     })

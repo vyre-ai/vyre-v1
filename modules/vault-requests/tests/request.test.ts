@@ -233,6 +233,19 @@ test("get shows a request to the requester and the managers and to nobody else; 
   assert.equal(codeOf(await handlers["vault.requests.get"](w.as("usr_mira"), { requestId: "vrq_missing" }).catch((e: unknown) => e)), "validation.not_found");
 });
 
+test("a Team Space agent asking for two people keeps their requests apart, and each person reads their own card without deciding it (3 Nov: a member's card vanished)", async () => {
+  const w = world();
+  const forDana = await handlers["vault.request"]({ ...w.as("agt_spark", "agent", "usr_dana"), thread: "thr_dana" } as never, { name: "Fathom", reason: "Read the meetings", idempotencyKey: "d1" } as never);
+  const forEli = await handlers["vault.request"]({ ...w.as("agt_spark", "agent", "usr_eli"), thread: "thr_eli" } as never, { name: "Fathom", reason: "Read the meetings", idempotencyKey: "e1" } as never);
+  assert.notEqual(forEli.request.id, forDana.request.id, "Eli's Fathom is not Dana's");
+  // the person asked for reads it, as the card in their chat does, and sees it among their own; they do not decide it
+  assert.equal((await handlers["vault.requests.get"](w.as("usr_dana"), { requestId: forDana.request.id })).request.id, forDana.request.id);
+  assert.deepEqual((await handlers["vault.requests.list"](w.as("usr_dana"), { mine: true })).requests.map((r: { id: string }) => r.id), [forDana.request.id]);
+  assert.deepEqual((await handlers["vault.requests.list"](w.as("usr_dana"), { mine: false })).requests, []);
+  assert.equal(codeOf(await handlers["vault.requests.get"](w.as("usr_eli"), { requestId: forDana.request.id }).catch((e: unknown) => e)), "validation.not_found", "nor the other person's");
+  assert.equal(codeOf(await handlers["vault.requests.fulfil"](w.as("usr_dana"), { requestId: forDana.request.id, fields: [{ key: "value", value: "x" }], folderId: FOLDER }).catch((e: unknown) => e)), "permission.no_grant");
+});
+
 test("a card that will not close is logged and the decision stands; a Run that will not resume is logged too", async () => {
   const w = world({ fail: { "tasks.transition": "tasks down", "runs.resume": "runs down" } });
   const { request } = await ask(w, "agt_helper", { forRun: "run_z" });
