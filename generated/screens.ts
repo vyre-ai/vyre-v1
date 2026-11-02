@@ -2464,30 +2464,30 @@ export const screens: ScreenIndexEntry[] = [
   },
   {
     "id": "console.ai-voice",
-    "module": "voice",
+    "module": "talk",
     "place": "console",
     "slot": "main",
     "builtin": "ui:ConsoleAiVoice",
     "caller": "principal",
     "queries": {
       "space": {
-        "cap": "voice.space.status",
+        "cap": "talk.space.status",
         "input": {},
         "live": true
       },
       "me": {
-        "cap": "voice.status",
+        "cap": "talk.status",
         "input": {},
         "live": true
       }
     },
     "actions": {
       "configure": {
-        "cap": "voice.space.configure",
+        "cap": "talk.space.configure",
         "input": {}
       },
       "check": {
-        "cap": "voice.space.check",
+        "cap": "talk.space.check",
         "input": {}
       }
     },

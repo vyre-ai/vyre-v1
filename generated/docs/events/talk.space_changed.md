@@ -1,23 +1,24 @@
-# voice.space_checked
+# talk.space_changed
 
-The Space key was checked with the provider
+Talk for everyone in the Space was turned on or off
 
 | | |
 |---|---|
-| Module | voice |
+| Module | talk |
 | Schema version | 1 |
-| Subject | entity at /state |
+| Subject | entity at /by |
 | Visibility | space |
 | Label | none |
 | Replay | pure |
 | Automation trigger | no |
 | Notification | none |
-| Retention | default |
+| Retention | audit |
 
 ## Payload
 
 ```ts
 type Payload = {
-  state: "ok" | "failing";
+  on: boolean;
+  by: string;
 };
 ```

@@ -29576,6 +29576,204 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/talk/ask_key",
+    "cap": "talk.ask_key",
+    "v": 1,
+    "module": "talk",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/talk/configure",
+    "cap": "talk.configure",
+    "v": 1,
+    "module": "talk",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/talk/connect",
+    "cap": "talk.connect",
+    "v": 1,
+    "module": "talk",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/talk/disconnect",
+    "cap": "talk.disconnect",
+    "v": 1,
+    "module": "talk",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/talk/session",
+    "cap": "talk.session",
+    "v": 1,
+    "module": "talk",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "none",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/talk/space/check",
+    "cap": "talk.space.check",
+    "v": 1,
+    "module": "talk",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/talk/space/configure",
+    "cap": "talk.space.configure",
+    "v": 1,
+    "module": "talk",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": "approve"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/talk/space/connect",
+    "cap": "talk.space.connect",
+    "v": 1,
+    "module": "talk",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/talk/space/disconnect",
+    "cap": "talk.space.disconnect",
+    "v": 1,
+    "module": "talk",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": "delete"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/talk/space/status",
+    "cap": "talk.space.status",
+    "v": 1,
+    "module": "talk",
+    "effects": "read",
+    "permission": "policy.manage",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/talk/status",
+    "cap": "talk.status",
+    "v": 1,
+    "module": "talk",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/tasks/act",
     "cap": "tasks.act",
     "v": 1,
@@ -32992,7 +33190,10 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/views/delete",
@@ -33102,207 +33303,6 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "send"
-  },
-  {
-    "method": "POST",
-    "path": "/v1/voice/ask_key",
-    "cap": "voice.ask_key",
-    "v": 1,
-    "module": "voice",
-    "effects": "write",
-    "permission": null,
-    "level": "edit",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": "online",
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/voice/configure",
-    "cap": "voice.configure",
-    "v": 1,
-    "module": "voice",
-    "effects": "write",
-    "permission": null,
-    "level": "edit",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": "online",
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/voice/connect",
-    "cap": "voice.connect",
-    "v": 1,
-    "module": "voice",
-    "effects": "write",
-    "permission": null,
-    "level": "edit",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "key",
-    "risk": "medium",
-    "offline": "online",
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/voice/disconnect",
-    "cap": "voice.disconnect",
-    "v": 1,
-    "module": "voice",
-    "effects": "write",
-    "permission": null,
-    "level": "edit",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": "online",
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/voice/session",
-    "cap": "voice.session",
-    "v": 1,
-    "module": "voice",
-    "effects": "write",
-    "permission": null,
-    "level": "edit",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "none",
-    "risk": "medium",
-    "offline": "online",
-    "teamOnly": false,
-    "gate": null
-  }
-];
-
-const routes6: Route[] = [
-  {
-    "method": "POST",
-    "path": "/v1/voice/space/check",
-    "cap": "voice.space.check",
-    "v": 1,
-    "module": "voice",
-    "effects": "write",
-    "permission": "policy.manage",
-    "level": "edit",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": "online",
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/voice/space/configure",
-    "cap": "voice.space.configure",
-    "v": 1,
-    "module": "voice",
-    "effects": "write",
-    "permission": "policy.manage",
-    "level": "edit",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": "online",
-    "teamOnly": false,
-    "gate": "approve"
-  },
-  {
-    "method": "POST",
-    "path": "/v1/voice/space/connect",
-    "cap": "voice.space.connect",
-    "v": 1,
-    "module": "voice",
-    "effects": "write",
-    "permission": "policy.manage",
-    "level": "edit",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "key",
-    "risk": "medium",
-    "offline": "online",
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/voice/space/disconnect",
-    "cap": "voice.space.disconnect",
-    "v": 1,
-    "module": "voice",
-    "effects": "write",
-    "permission": "policy.manage",
-    "level": "edit",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": "online",
-    "teamOnly": false,
-    "gate": "delete"
-  },
-  {
-    "method": "POST",
-    "path": "/v1/voice/space/status",
-    "cap": "voice.space.status",
-    "v": 1,
-    "module": "voice",
-    "effects": "read",
-    "permission": "policy.manage",
-    "level": "view",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "low",
-    "offline": "online",
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/voice/status",
-    "cap": "voice.status",
-    "v": 1,
-    "module": "voice",
-    "effects": "read",
-    "permission": null,
-    "level": "view",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "low",
-    "offline": "online",
-    "teamOnly": false,
-    "gate": null
   },
   {
     "method": "POST",

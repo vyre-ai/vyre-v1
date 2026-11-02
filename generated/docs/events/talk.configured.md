@@ -1,12 +1,12 @@
-# voice.disconnected
+# talk.configured
 
-A Talk key was removed
+A person's Talk choices changed
 
 | | |
 |---|---|
-| Module | voice |
+| Module | talk |
 | Schema version | 1 |
-| Subject | entity at /provider |
+| Subject | entity at /person |
 | Visibility | participants |
 | Label | none |
 | Replay | pure |
@@ -18,8 +18,11 @@ A Talk key was removed
 
 ```ts
 type Payload = {
-  scope: "mine" | "space";
+  person: string;
+  on: boolean;
   provider: string;
+  language: string;
+  model: string;
   by: string;
 };
 ```

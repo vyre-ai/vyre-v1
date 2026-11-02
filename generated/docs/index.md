@@ -85,6 +85,7 @@ Counts are not written down: they change with every contract change. Run `node t
 - [steps-core](modules/steps-core.md) (L6, module)
 - [stripe](modules/stripe.md) (L5, connector)
 - [sync](modules/sync.md) (L1, module)
+- [talk](modules/talk.md) (L7a, module)
 - [tasks](modules/tasks.md) (L6, module)
 - [telephony](modules/telephony.md) (L5, module)
 - [templates](modules/templates.md) (L8, module)
@@ -93,5 +94,4 @@ Counts are not written down: they change with every contract change. Run `node t
 - [updates](modules/updates.md) (L7b, module)
 - [vault](modules/vault.md) (L7a, module)
 - [vault-requests](modules/vault-requests.md) (L7a, module)
-- [voice](modules/voice.md) (L7a, module)
 - [zoom](modules/zoom.md) (L5, connector)

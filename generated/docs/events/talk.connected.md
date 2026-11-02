@@ -1,12 +1,12 @@
-# voice.configured
+# talk.connected
 
-A person's Talk choices changed
+A Talk key was added or replaced in the Vault (no value)
 
 | | |
 |---|---|
-| Module | voice |
+| Module | talk |
 | Schema version | 1 |
-| Subject | entity at /person |
+| Subject | entity at /provider |
 | Visibility | participants |
 | Label | none |
 | Replay | pure |
@@ -18,11 +18,8 @@ A person's Talk choices changed
 
 ```ts
 type Payload = {
-  person: string;
-  on: boolean;
+  scope: "mine" | "space";
   provider: string;
-  language: string;
-  model: string;
   by: string;
 };
 ```

@@ -2267,6 +2267,21 @@ export function stubs(ctx: CallCtx) {
       undo_push: call("sync_types.undo_push"),
       update: call("sync_types.update"),
     },
+    talk: {
+      ask_key: call("talk.ask_key"),
+      configure: call("talk.configure"),
+      connect: call("talk.connect"),
+      disconnect: call("talk.disconnect"),
+      session: call("talk.session"),
+      space: {
+        check: call("talk.space.check"),
+        configure: call("talk.space.configure"),
+        connect: call("talk.space.connect"),
+        disconnect: call("talk.space.disconnect"),
+        status: call("talk.space.status"),
+      },
+      status: call("talk.status"),
+    },
     tasks: {
       act: call("tasks.act"),
       ask: call("tasks.ask"),
@@ -2523,21 +2538,6 @@ export function stubs(ctx: CallCtx) {
       publish: call("views.publish"),
       save: call("views.save"),
       share_external: call("views.share_external"),
-    },
-    voice: {
-      ask_key: call("voice.ask_key"),
-      configure: call("voice.configure"),
-      connect: call("voice.connect"),
-      disconnect: call("voice.disconnect"),
-      session: call("voice.session"),
-      space: {
-        check: call("voice.space.check"),
-        configure: call("voice.space.configure"),
-        connect: call("voice.space.connect"),
-        disconnect: call("voice.space.disconnect"),
-        status: call("voice.space.status"),
-      },
-      status: call("voice.status"),
     },
     warmup: {
       pool_optin_set: call("warmup.pool_optin_set"),
