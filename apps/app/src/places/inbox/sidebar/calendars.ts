@@ -1,5 +1,6 @@
 // The Calendars rows of the Inbox sidebar, the pure part: what a row is called, what its menu offers, what its status line says and what a key does. No React.
 // A row is one calendar: click shows or hides it in the view, right-click and the "..." open its menu, Up and Down move, Space toggles, Enter shows only it.
+import type { ReactNode } from "react";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/props.ts";
 import type { CalendarRow, Mailbox } from "./model.ts";
 
@@ -39,14 +40,28 @@ export const CALENDAR_COLOURS: readonly { name: string; hex: string }[] = [
   { name: "Purple", hex: "#8e44ad" }, { name: "Red", hex: "#c0392b" }, { name: "Slate", hex: "#2c3e50" },
 ];
 
-/** The quiet line under a row: a pull the person started is running, or the last pull failed. Null when there is nothing to say. */
+/** The quiet line under a row: the first pull has not landed yet or a pull the person started is running, or the last pull failed. Null when there is nothing to say. */
 export type CalendarStatus = { kind: "syncing"; text: string } | { kind: "failed"; text: string; action: string } | null;
 
-export function calendarStatus(c: Pick<CalendarRow, "provider" | "state">, running: boolean, failed: boolean): CalendarStatus {
+export function calendarStatus(c: Pick<CalendarRow, "provider" | "state" | "lastSyncAt">, running: boolean, failed: boolean): CalendarStatus {
   if (c.provider === "local") return null;
   if (running) return { kind: "syncing", text: "Syncing…" };
   if (failed || c.state === "error") return { kind: "failed", text: "Couldn't sync", action: "Retry" };
+  if (c.state === "syncing" && c.lastSyncAt === undefined) return { kind: "syncing", text: "Syncing…" };
   return null;
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+/** "Synced 2 min ago": when the last pull worked, for the row's hover and the top of its menu. Empty for a calendar kept in Vyre or never pulled. */
+export function syncedLabel(c: Pick<CalendarRow, "provider" | "lastSyncAt">, now: number): string {
+  if (c.provider === "local" || c.lastSyncAt === undefined) return "";
+  const d = Math.max(0, now - c.lastSyncAt);
+  if (d < 60_000) return "Synced just now";
+  if (d < 3_600_000) return `Synced ${Math.floor(d / 60_000)} min ago`;
+  if (d < 86_400_000) return `Synced ${Math.floor(d / 3_600_000)} hr ago`;
+  const at = new Date(c.lastSyncAt);
+  return `Synced ${MONTHS[at.getUTCMonth()] ?? ""} ${at.getUTCDate()}`;
 }
 
 /** May this person ask for a pull now? Their own provider calendar: yes. Someone else's, or a local one: no, and the reason says why. */
@@ -64,12 +79,11 @@ export interface CalendarMenuActions {
   settings(): void;
 }
 
-/** The row's menu: Show only this calendar, Colour, Sync now, Open in the provider's app, Calendar settings. */
-export function calendarRowMenu(c: CalendarRow, name: string, me: string | undefined, a: CalendarMenuActions, canOpenIn = true): MenuEntry[] {
-  const out: MenuEntry[] = [
-    { label: "Show only this calendar", onSelect: a.only },
-    { label: "Colour…", onSelect: a.colour },
-  ];
+/** The row's menu: when it last synced (a quiet head), Show only this calendar, Colour, Sync now, Open in the provider's app, Calendar settings. */
+export function calendarRowMenu(c: CalendarRow, name: string, me: string | undefined, a: CalendarMenuActions, canOpenIn = true, synced = ""): MenuEntry[] {
+  const out: MenuEntry[] = [];
+  if (synced !== "") out.push({ head: synced });
+  out.push({ label: "Show only this calendar", onSelect: a.only }, { label: "Colour…", onSelect: a.colour });
   const app = providerApp(c);
   if (app !== null) {
     out.push({ separator: true });
@@ -83,9 +97,11 @@ export function calendarRowMenu(c: CalendarRow, name: string, me: string | undef
   return out;
 }
 
-/** The colour menu: each colour with its name, the current one checked. */
-export function calendarColourMenu(current: string, pick: (hex: string) => void): MenuEntry[] {
-  return CALENDAR_COLOURS.map((c) => ({ label: c.name, checked: c.hex.toLowerCase() === current.toLowerCase(), onSelect: () => pick(c.hex) }));
+/** The colour menu: each colour with its swatch and name, the current one checked. */
+export function calendarColourMenu(current: string, pick: (hex: string) => void, swatch?: (hex: string) => ReactNode): MenuEntry[] {
+  const out: MenuEntry[] = [];
+  for (const c of CALENDAR_COLOURS) out.push({ label: c.name, checked: c.hex.toLowerCase() === current.toLowerCase(), onSelect: () => pick(c.hex), ...(swatch ? { leading: swatch(c.hex) } : {}) });
+  return out;
 }
 
 /** What a key does on a focused calendar row: Up and Down move between rows, Space toggles, Enter shows only this one. Null: the key is not the row's. */

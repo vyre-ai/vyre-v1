@@ -5,7 +5,7 @@
       "route": "/m/CALROWS_01",
       "proto": "inbox,{skin}",
       "waitFor": "[data-testid='inbox-calendars']",
-      "note": "Inbox > Calendar: each Calendars row is named for the calendar (the Google one for its account, not \"Google Calendar\"), with the provider's mark and a filled dot in its colour. Consults' last pull failed: a quiet Couldn't sync line with Retry under it."
+      "note": "Inbox > Calendar: each Calendars row is named for the calendar (the Google one for its account, not \"Google Calendar\"), with the provider's mark and a filled dot in its colour. Consults' last pull failed: a quiet Couldn't sync line with Retry under it. Mia's calendar has not had its first pull yet: Syncing. The sidebar is the shell's default width and no name is cut short."
     },
     {
       "id": "CALROWS_01-hidden",
