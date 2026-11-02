@@ -15622,6 +15622,13 @@
           "provider": {
             "type": "string"
           },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
           "teammateId": {
             "examples": [
               "agt_a1b2c3"
@@ -49726,6 +49733,13 @@
           "provider": {
             "type": "string"
           },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
           "threadId": {
             "examples": [
               "thr_a1b2c3"
@@ -53013,6 +53027,254 @@
     },
     {
       "blocks": [],
+      "cap": "tasks.plan",
+      "deferred": false,
+      "description": "Break work into tasks in one step: a parent (new, or one that exists) and its children, each with its brief, what done means, who does it and which others it waits on. A child starts by itself when what it waits on is done; the parent hears only when all are done, or one is blocked or asks",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "children": {
+            "items": {
+              "properties": {
+                "approver": {
+                  "properties": {
+                    "id": {
+                      "examples": [
+                        "usr_a1b2c3"
+                      ],
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "person",
+                        "agent",
+                        "group",
+                        "role",
+                        "automation"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "assigned": {
+                  "properties": {
+                    "id": {
+                      "examples": [
+                        "usr_a1b2c3"
+                      ],
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "person",
+                        "agent",
+                        "group",
+                        "role",
+                        "automation"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "brief": {
+                  "type": "string"
+                },
+                "dependsOn": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 50,
+                  "type": "array"
+                },
+                "doneMeans": {
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "maxItems": 20,
+                  "type": "array"
+                },
+                "due": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "key": {
+                  "examples": [
+                    "draft"
+                  ],
+                  "maxLength": 60,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "priority": {
+                  "enum": [
+                    "urgent",
+                    "high",
+                    "normal",
+                    "low"
+                  ],
+                  "type": "string"
+                },
+                "projectId": {
+                  "examples": [
+                    "prj_a1b2c3"
+                  ],
+                  "pattern": "^prj_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "reviewer": {
+                  "properties": {
+                    "id": {
+                      "examples": [
+                        "usr_a1b2c3"
+                      ],
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "person",
+                        "agent",
+                        "group",
+                        "role",
+                        "automation"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "title": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "worker": {
+                  "enum": [
+                    "thread",
+                    "crew"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "title",
+                "assigned"
+              ],
+              "type": "object"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "parent": {
+            "properties": {
+              "assigned": {
+                "properties": {
+                  "id": {
+                    "examples": [
+                      "usr_a1b2c3"
+                    ],
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "person",
+                      "agent",
+                      "group",
+                      "role",
+                      "automation"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "type": "object"
+              },
+              "brief": {
+                "type": "string"
+              },
+              "doneMeans": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              "due": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              "recordId": {
+                "examples": [
+                  "rec_a1b2c3"
+                ],
+                "pattern": "^rec_[a-z0-9]+$",
+                "type": "string"
+              },
+              "title": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "type": "object"
+          },
+          "parentTaskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "children",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "task_plan",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.review",
       "deferred": false,
       "description": "Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)",
@@ -53206,6 +53468,32 @@
     },
     {
       "blocks": [],
+      "cap": "tasks.by_key",
+      "deferred": false,
+      "description": "Find a task by its short key, such as VY-123",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "key": {
+            "examples": [
+              "VY-123"
+            ],
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_by_key",
+      "planMode": "allowed",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.count_needs_you",
       "deferred": false,
       "description": "Count of Ready requests for the rail badge and the Space switcher dot",
@@ -53366,6 +53654,10 @@
             "minimum": 0,
             "type": "integer"
           },
+          "fields": {
+            "additionalProperties": true,
+            "type": "object"
+          },
           "fileIds": {
             "items": {
               "examples": [
@@ -53394,6 +53686,12 @@
             ],
             "type": "string"
           },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "notes": {
             "additionalProperties": {
               "type": "string"
@@ -53410,12 +53708,42 @@
           "payloadHash": {
             "type": "string"
           },
+          "priority": {
+            "enum": [
+              "urgent",
+              "high",
+              "normal",
+              "low"
+            ],
+            "type": "string"
+          },
           "recordId": {
             "examples": [
               "rec_a1b2c3"
             ],
             "pattern": "^rec_[a-z0-9]+$",
             "type": "string"
+          },
+          "recur": {
+            "properties": {
+              "every": {
+                "enum": [
+                  "day",
+                  "week",
+                  "month"
+                ],
+                "type": "string"
+              },
+              "n": {
+                "maximum": 365,
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "every"
+            ],
+            "type": "object"
           },
           "reviewer": {
             "properties": {
@@ -53466,6 +53794,14 @@
               "id"
             ],
             "type": "object"
+          },
+          "start": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
           },
           "summary": {
             "type": "string"
@@ -53541,6 +53877,32 @@
         "type": "object"
       },
       "name": "tasks_delegate",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.delete",
+      "deferred": false,
+      "description": "Delete a task; Undo brings it back. A held act and a task a Run waits on are canceled instead",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_delete",
       "planMode": "blocked",
       "toolset": "tasks",
       "v": 1
@@ -53735,6 +54097,53 @@
         "type": "object"
       },
       "name": "tasks_history",
+      "planMode": "allowed",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.index",
+      "deferred": false,
+      "description": "The long list of a scope in one read: a light row per task with its rollup, ordered newest first; pass the last rev and an unchanged list answers nothing",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "done": {
+            "type": "boolean"
+          },
+          "parentTaskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "rev": {
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "mine",
+              "given",
+              "everyone"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_index",
       "planMode": "allowed",
       "toolset": "tasks",
       "v": 1
@@ -54009,9 +54418,50 @@
     },
     {
       "blocks": [],
+      "cap": "tasks.restore",
+      "deferred": false,
+      "description": "Bring a deleted task back",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_restore",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.rev",
+      "deferred": false,
+      "description": "A short mark that changes whenever any task changes, for a screen that holds a long list",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "tasks_rev",
+      "planMode": "allowed",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.snooze",
       "deferred": false,
-      "description": "Snooze a request until a time, or clear the snooze with null",
+      "description": "Snooze an open task until a time, or clear the snooze with null",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -54185,6 +54635,89 @@
               }
             ]
           },
+          "fields": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "parentTaskId": {
+            "anyOf": [
+              {
+                "examples": [
+                  "tsk_a1b2c3"
+                ],
+                "pattern": "^tsk_[a-z0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "enum": [
+                  "urgent",
+                  "high",
+                  "normal",
+                  "low"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recur": {
+            "anyOf": [
+              {
+                "properties": {
+                  "every": {
+                    "enum": [
+                      "day",
+                      "week",
+                      "month"
+                    ],
+                    "type": "string"
+                  },
+                  "n": {
+                    "maximum": 365,
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "every"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "start": {
+            "anyOf": [
+              {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "summary": {
             "type": "string"
           },
@@ -54206,6 +54739,13 @@
             "type": "string"
           },
           "why": {
+            "type": "string"
+          },
+          "workerThread": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
             "type": "string"
           }
         },

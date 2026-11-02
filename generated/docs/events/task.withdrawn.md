@@ -1,6 +1,6 @@
 # task.withdrawn
 
-A request was withdrawn because its source chat or run stopped or the item changed
+A request or a task was withdrawn because its source chat or run stopped, the item changed or someone let it go
 
 | | |
 |---|---|
@@ -10,7 +10,7 @@ A request was withdrawn because its source chat or run stopped or the item chang
 | Visibility | participants |
 | Label | subject |
 | Replay | pure |
-| Automation trigger | no |
+| Automation trigger | A task is withdrawn |
 | Notification | none |
 | Retention | default |
 

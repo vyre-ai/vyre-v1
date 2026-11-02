@@ -33,6 +33,7 @@ type In = {
   model?: string;
   provider?: string;
   effort?: "low" | "medium" | "high" | "max";
+  taskId?: string;
   idempotencyKey: string;
 };
 ```
@@ -80,6 +81,7 @@ type Out = {
     "model": "example",
     "projectId": "prj_a1b2c3",
     "provider": "example",
+    "taskId": "tsk_a1b2c3",
     "teammateId": "agt_a1b2c3",
     "threadId": "thr_a1b2c3",
     "title": "example"
