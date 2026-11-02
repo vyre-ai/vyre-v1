@@ -21,6 +21,7 @@ import { askServerAccess, attach, closeSession, createSender, openSession, toggl
 import { openHostCall } from "./hosts.ts";
 import { NO_HOST, useHostsRead } from "./useHosts.ts";
 import type { SessionDeps } from "./session.ts";
+import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 
 type GetOut = CapMap["terminal.get"]["out"];
 type StarsOut = CapMap["stars.list"]["out"];
@@ -112,6 +113,8 @@ export function TerminalTab({ data, terminalId }: { data: TerminalData; terminal
   }, [hosts, data]);
   const onGap = useCallback((): void => setAgain((n) => n + 1), []);
 
+  const failed = failureOf(q);
+  if (failed) return <LoadFailed what="this terminal" failure={failed} testID="terminal-failed" />;
   if (q.status === "loading") return <TerminalLoading />;
   const row = q.data.terminal;
   const starred = stars.status === "ready" && stars.data.stars.some((s) => s.resource.type === "terminal" && s.resource.id === row.terminalId);

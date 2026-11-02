@@ -9,6 +9,7 @@
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, VyreError } from "../../../packages/contracts/src/types.ts";
+import { googleAppOf } from "./providers.ts";
 
 type Row = Record<string, unknown>;
 
@@ -77,15 +78,16 @@ function locate(ctx: Ctx, fileId: string): Located | undefined {
 
 const conn = (l: Located): Row => (l.connectionId !== undefined ? { connectionId: l.connectionId } : {});
 
-interface Described { located: Located; type: LinkType; webUrl?: string }
+interface Described { located: Located; type: LinkType; webUrl?: string; /** the app's name when the type alone does not say it (a Google Drawing, Form or Site) */ app?: string }
 
 /** Ask the provider what the item is and where it opens. Called as the asker: the provider decides whether they may see it. */
 async function describe(ctx: Ctx, l: Located): Promise<Described> {
   if (l.kind === "google_drive") {
     const f = obj(obj(await ctx.call("google.drive.get_file", { ...conn(l), fileId: l.remoteId }))["file"]);
-    const type = GOOGLE_TYPE[str(f["mimeType"])] ?? "google_file";
+    const mime = str(f["mimeType"]);
+    const type = GOOGLE_TYPE[mime] ?? "google_file";
     const url = googleEditor(type, l.remoteId, opt(f["webViewLink"]));
-    return { located: l, type, ...(url !== undefined ? { webUrl: url } : {}) };
+    return { located: l, type, ...(url !== undefined ? { webUrl: url } : {}), ...(type === "google_file" ? { app: googleAppOf(mime) } : {}) };
   }
   if (l.kind === "dropbox") {
     const e = obj(obj(await ctx.call("dropbox.files.get_metadata", { ...conn(l), path: l.remoteId }))["entry"]);
@@ -112,7 +114,7 @@ export async function fileLink(ctx: Ctx, input: unknown): Promise<Row> {
     throw e;
   }
   if (d.webUrl === undefined) return { reason: "The provider gave no address for this file." };
-  return { link: { mountId: located.mountId, kind: located.kind, type: d.type, openIn: OPEN_IN[d.type], webUrl: d.webUrl, edit: EDITS[d.type] ?? [] } };
+  return { link: { mountId: located.mountId, kind: located.kind, type: d.type, openIn: d.app ?? OPEN_IN[d.type], webUrl: d.webUrl, edit: EDITS[d.type] ?? [] } };
 }
 
 // ---- native edits -------------------------------------------------------------------------------------------

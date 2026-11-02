@@ -1,3 +1,4 @@
+import type { AiHome } from "../../ai-signin/own-ai.ts";
 import type{SpaceDef}from'../spaces/model.ts';
 import type {RecordsPreviewTicket,RecordsPreviewReader} from "../../../../../client/src/gateway/records-preview.ts";
 // What the shell hands every place: one runtime per open Space. It carries the client replica's screen hooks (every list a place draws is a live query over the kept copy),
@@ -31,6 +32,11 @@ export interface ShellRuntime extends Omit<HomeData, "nav"> {
   assistant: { id: string; name: string };
   /** Without an AI account the assistant is locked (the Ask box says so). Read at render, so a connection made in Settings shows at once. */
   readonly aiConnected: boolean;
+  /**
+   * True when the person holds only the built-in Member or Guest roles here. Those roles hold no console.access, connectors.manage or schema.manage (manifests/permissions.ts), so the UI
+   * never asks the server for what it would refuse (console.nav, connectors.list): it already knows the answer. Absent: unknown, ask.
+   */
+  readonly plainRole?: boolean;
   /** A Personal Space draws Today only when a calendar is connected on this computer. */
   calendarConnected: boolean;
   /** The modules the server defers whole (ruling 60); a place of one hides itself. Empty until the server says. */
@@ -51,6 +57,8 @@ export interface ShellRuntime extends Omit<HomeData, "nav"> {
   unlockVault?(password: string): Promise<void>;
   /** A Space server's wrap of the person's key for provider sign-ins (owner ruling 3 Nov): what it keeps, and Forget on this server. Null state where there is no such server. */
   serverKey?: ServerKeyPort;
+  /** Where the Space runs (ai-signin/own-ai.ts): "here" unlocks a locked key in place; elsewhere signing in opens it. For the words of a refused save. Absent: as "here". */
+  aiHome?: AiHome;
 }
 
 export interface ServerKeyPort { state(): Promise<{ held: boolean; remembered: boolean; forgotten: boolean } | null>; keep(keep: boolean): Promise<boolean> }

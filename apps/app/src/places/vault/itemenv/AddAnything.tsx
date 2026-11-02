@@ -17,6 +17,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { fieldsFor, filterTemplates, mergeFields, nameFromKey, normalizeKey, patchAt, plainFields, templateById, understandPaste } from "./env.ts";
 import type { Field, ItemKind, Template } from "./env.ts";
 import { LAYOUT_SCREEN } from "./ItemEnv.tsx";
+import { ownAiRefusal } from "../../../ai-signin/own-ai.ts";
 
 type FoldersOut = CapMap["vault.folders.list"]["out"];
 
@@ -183,7 +184,8 @@ export function AddAnything({ onClose, onAdded, lastFolderId, initialPaste, init
       onAdded(out.item.id, out.item.name, target);
     } catch (e) {
       // the pipeline answers a folder that is not there (or not yours to put into) as "not found, existence is not leaked": the owner of this Vault is told what to do instead
-      setError(e instanceof Error && /duplicate/.test(e.message) ? `There is already an item called ${name.trim()} here. Pick another name.` : e instanceof Error && /not found or not visible/i.test(e.message) ? "That place is not available. Pick another under Add to, or make a new folder there." : reasonOf(e, "Could not save. Nothing was lost; try again."));
+      // a Mine key that is not open: "unlock" only where that works here, elsewhere signing in opens it (ai-signin/own-ai.ts); never the server's raw words
+      setError(ownAiRefusal(e, data.aiHome ?? "here") ?? (e instanceof Error && /duplicate/.test(e.message) ? `There is already an item called ${name.trim()} here. Pick another name.` : e instanceof Error && /not found or not visible/i.test(e.message) ? "That place is not available. Pick another under Add to, or make a new folder there." : reasonOf(e, "Could not save. Nothing was lost; try again.")));
       setSaving(false);
     }
   };

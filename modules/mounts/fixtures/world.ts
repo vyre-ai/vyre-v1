@@ -28,7 +28,7 @@ export function vyreErr(code: string, message: string, retryable = false): VyreE
 
 // ---- the files module ---------------------------------------------------------------------------------------
 
-export interface FFolder { id: string; parentId: string | null; name: string; reviewChanges: boolean; deleted: boolean }
+export interface FFolder { id: string; parentId: string | null; name: string; reviewChanges: boolean; deleted: boolean; source?: { mountId: string; provider: string } | null }
 export interface FFile { id: string; folderId: string; name: string; version: number; blob: string; mime?: string; kind?: string; deleted: boolean; reasons: string[] }
 
 export class FakeFiles {
@@ -139,7 +139,10 @@ export class FakeFiles {
     if (cap === "files.folder.settings") {
       const f = this.folders.get(String(i["folderId"]));
       if (!f) missing("folder");
-      else if (typeof i["reviewChanges"] === "boolean") f.reviewChanges = i["reviewChanges"];
+      else {
+        if (typeof i["reviewChanges"] === "boolean") f.reviewChanges = i["reviewChanges"];
+        if (i["source"] !== undefined) f.source = i["source"] === null ? null : { mountId: String(obj(i["source"])["mountId"]), provider: String(obj(i["source"])["provider"]) };
+      }
       return { folder: { folderId: String(i["folderId"]) } };
     }
     if (cap === "files.folder.rename") {
@@ -291,6 +294,9 @@ export class FakeGoogle {
     if (typeof f["id"] === "string" && typeof f["modifiedTime"] === "string") this.modified.set(f["id"], f["modifiedTime"]);
   }
 
+  /** the real id behind the "root" alias (My Drive) */
+  myDrive = "root_drv";
+
   /** the Drive feed's start page token; unset, the call fails and a mount scans (an older Drive, or a refused scope) */
   startToken: string | undefined;
 
@@ -321,6 +327,8 @@ export class FakeGoogle {
       return { blobId, size: 10, mimeType: cap.endsWith("export_file") ? String(i["mimeType"]) : "application/octet-stream" };
     }
     if (cap === "google.drive.get_file") {
+      // "root" is Drive's alias for My Drive; the file it names has its own id
+      if (i["fileId"] === "root") return { file: { id: this.myDrive, name: "My Drive", mimeType: "application/vnd.google-apps.folder" } };
       const f = this.find(String(i["fileId"]));
       if (!f) throw vyreErr("validation.not_found", "No such file.");
       return { file: f };

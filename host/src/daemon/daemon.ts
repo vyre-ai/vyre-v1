@@ -141,7 +141,7 @@ import { bootstrapSpace, mintOwner } from "./bootstrap.ts";
 import { createAccess, isAccessEvent, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
 import { createResourceRegistrar, missingAgentResources } from "../gateway/resources.ts";
-import { createPrincipalRegistrar, lowAgentUpgradeEvents, missingAgentPrincipalEvents, ownPlaceGrant } from "../gateway/principals.ts";
+import { createPrincipalRegistrar, lowAgentUpgradeEvents, missingAgentHomeEvents, missingAgentPrincipalEvents, ownPlaceGrant } from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
 import { createRecordsVaultHost } from "../seams/records-vault.ts";
@@ -637,7 +637,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             sink.log({ space, level: 20, msg: "access.agent_principal_reconciled", place: "boot", entity: "agent", entity_id: repairedEvent.id });
           }
         }
-
+        // Ruling 99 home grants an agent never got at birth (see missingAgentHomeEvents). The host writes them once per boot, granted by the agent's owner; the agents module's 15 s
+        // boot check runs as the host and holds no grant on anyone's folder, so it no longer tries (it logged the refusal for every agent on every pass).
+        // A Personal Space has no sharing, so nothing to write.
+        if (cfg.spaceKind !== "personal") {
+          let rows: { id: string; ownerId: string; folderId: string | null }[] = [];
+          try { rows = db!.all(`SELECT "id", "ownerId", "folderId" FROM agents_agent WHERE "deletedAt" IS NULL`) as typeof rows; } catch { /* no agents table yet: nothing to repair */ }
+          const known = rows.filter((r) => access.snap.info(r.id) !== null && access.snap.info(r.ownerId) !== null && r.folderId !== null && access.snap.resource(r.folderId) !== undefined);
+          for (const e of missingAgentHomeEvents({ events: agentAccessEvents, agents: known })) {
+            const repaired = await appendRepair({ id: `evt_agent_home_${e.id}`, type: e.type, sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: e.entity, entity_id: e.id, payload: e.payload });
+            if (!repaired.duplicate) {
+              access.fold(repaired.event);
+              accessPending.push(toAccessEvent(repaired.event));
+              sink.log({ space, level: 20, msg: "access.agent_home_reconciled", place: "boot", entity: "agent", entity_id: String(e.payload["subject_id"]) });
+            }
+          }
+        }
       }
       headSeq = (await log.currentHead()).seq;
 
@@ -1501,7 +1516,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       await reloadSpaceGithub().catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "github.signin_reload_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
       if (loaded.serving.get("identity") === "live") {
         const made = (await spaceLog.read({ after: 0, limit: 200 })).find((e) => e.type === "space.created");
-        const name = made ? ((JSON.parse(new TextDecoder().decode(made.payload)) as { name?: string }).name ?? spaceId) : spaceId;
+        // the name as it is now (the spaces profile, after any rename), else the one the Space was made with; sign-in options show it before anyone signs in, so it is never left an id
+        let current = "";
+        try { current = String((db?.all("SELECT name FROM spaces_profile WHERE id = ?", spaceId)[0] as { name?: unknown } | undefined)?.name ?? "").trim(); } catch { /* the profile table is made by the spaces module */ }
+        const name = current || (made ? ((JSON.parse(new TextDecoder().decode(made.payload)) as { name?: string }).name ?? spaceId) : spaceId);
         await hookRunner.call("identity.ensure_space", { name, github: githubNow() !== null }).catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "identity.space_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
       }
       if (loaded.serving.get("spaces") === "live") {

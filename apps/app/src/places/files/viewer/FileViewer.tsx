@@ -14,7 +14,8 @@ import type { FileLink } from "../open-in.ts";
 import { commentOnQuote, pinArea, resolveComment, saveMarkup, saveText } from "./actions.ts";
 import { useFilesViewerData } from "./data.tsx";
 import { useFileLinks } from "../links.ts";
-import { boxesOf, nodeFor, docCommentsOf, kindLabel, parseCsv, strokesOf, subtitleOf, textToBlocks, viewerKind } from "./model.ts";
+import { boxesOf, nodeFor, docCommentsOf, docsMarkdown, kindLabel, parseCsv, strokesOf, subtitleOf, textToBlocks, viewerKindOf } from "./model.ts";
+import { GoogleTile, WithProviderMark, googleAppOf } from "../marks.tsx";
 import type { FileComment, ViewerData } from "./model.ts";
 
 type Markup = CapMap["files.markup.get"]["out"];
@@ -79,10 +80,12 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   }, [d, fileId, say]);
 
   const ready = load.status === "ready" ? load : null;
-  const kind = ready ? viewerKind(ready.data.file.kind) : "other";
-  const text = ready?.data.text ?? "";
-  const fileLinks = useFileLinks(d, ready ? { folderId: ready.data.file.folderId } : null, kind === "document" ? text : "");
-  const blocks = useMemo(() => (ready && kind === "document" ? textToBlocks(text, ready.data.file.kind) : []), [ready, kind, text]);
+  const kind = ready ? viewerKindOf(ready.data) : "other";
+  // a Google Doc is kept as Markdown: it is read as a note is, without Drive's escapes
+  const app = ready ? googleAppOf(ready.data.file) : null;
+  const text = app === "gdocs" ? docsMarkdown(ready?.data.text ?? "") : ready?.data.text ?? "";
+  const fileLinks = useFileLinks(d, ready && app === null ? { folderId: ready.data.file.folderId } : null, kind === "document" ? text : "");
+  const blocks = useMemo(() => (ready && kind === "document" ? textToBlocks(text, app === "gdocs" ? "markdown" : ready.data.file.kind) : []), [ready, kind, text, app]);
   const sheet = useMemo(() => (kind === "csv" ? parseCsv(text) : undefined), [kind, text]);
   const boxes = useMemo(() => (ready ? boxesOf(ready.comments) : []), [ready]);
   const strokes = useMemo(() => (ready ? strokesOf(ready.markup.strokes) : []), [ready]);
@@ -113,6 +116,7 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
         key={fileId}
         fileId={fileId} title={file.name} kind={kind} pane={pane}
         kindLabel={kindLabel(file.name)} subtitle={subtitleOf(ready.data, now, path)}
+        {...(app !== null ? { kindMark: <GoogleTile app={app} size={28} />, readOnly: true } : file.source ? { kindMark: <WithProviderMark provider={file.source.provider} size={12}><View style={s.tile}><Text style={s.tileText}>{kindLabel(file.name)}</Text></View></WithProviderMark> } : {})}
         {...(kind === "image" && ready.data.previewUrl ? { src: ready.data.previewUrl } : {})}
         boxes={boxes} strokes={strokes} blocks={blocks} {...(fileLinks ? { fileLinks } : {})} {...(sheet ? { sheet } : {})}
         comments={docCommentsOf(ready.comments, d.name, now)}
@@ -135,5 +139,7 @@ const s = StyleSheet.create({
   frame: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   skHead: { height: 48, margin: 14, borderRadius: 9, backgroundColor: "var(--sunk)" as string },
   skBody: { flex: 1, margin: 14, borderRadius: 12, backgroundColor: "var(--sunk)" as string },
+  tile: { width: 28, height: 28, borderRadius: 6, backgroundColor: "var(--sunk)" as string, alignItems: "center", justifyContent: "center" },
+  tileText: { color: "var(--ink-3)" as string, fontSize: 8.5, fontWeight: "700" },
   note: { position: "absolute", left: 16, bottom: 14, fontSize: 12.5, color: "var(--ink-2)" as string, backgroundColor: "var(--raised)" as string, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
 });

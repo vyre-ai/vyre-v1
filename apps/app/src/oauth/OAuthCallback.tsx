@@ -1,3 +1,4 @@
+import type { AiHome } from "../ai-signin/own-ai.ts";
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -14,12 +15,14 @@ interface Props {
   /** Remove the code and state from the address bar and history. Called once, before anything is sent. */
   scrub(): void;
   go(path: string): void;
+  /** Where the person's own key can be kept from this page (ai-signin/own-ai.ts), for the words of a refusal. Default: the Space is on this computer. */
+  home?: AiHome;
   /** Where Back goes: the Console's Connections page in a Team Space; Home in a Personal Space, which has no Console. */
   back?: { path: string; label: string };
 }
 
 /** The signed-in page that finishes an OAuth connection. The code and state are read once, taken out of the address, and sent to the Space only as the signed-in person. */
-export function OAuthCallback({ call, search, scrub, go, back: backTo }: Props): ReactElement {
+export function OAuthCallback({ call, search, scrub, go, back: backTo, home = "here" }: Props): ReactElement {
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [attempt, setAttempt] = useState(0);
   const params = useRef<CallbackParams | null>(null);
@@ -31,7 +34,7 @@ export function OAuthCallback({ call, search, scrub, go, back: backTo }: Props):
     started.current = attempt;
     let alive = true;
     setOutcome(null);
-    void completeCallback(call, params.current!).then((o) => { if (alive) setOutcome(o); });
+    void completeCallback(call, params.current!, home).then((o) => { if (alive) setOutcome(o); });
     return () => { alive = false; };
   }, [attempt, call, scrub]);
   const target = backTo ?? { path: BACK_TO_CONNECTIONS, label: "Back to Connections" };

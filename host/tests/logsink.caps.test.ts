@@ -233,5 +233,5 @@ test("the counted failures of a window close as one invoke row with the error co
   const db = new DatabaseSync(file, { readOnly: true });
   const got = db.prepare("SELECT msg, level, cap, actor, result, attrs FROM logs ORDER BY id").all().map((r) => [r["msg"], r["level"], r["cap"], r["actor"], r["result"], r["attrs"] ? JSON.parse(String(r["attrs"])).count ?? null : null]);
   db.close();
-  assert.deepEqual(got, [["invoke", 20, "settings.get", null, null, null], ["invoke", 20, "settings.get", "usr_a", "validation.bad_input", 4]], "the first failure as the pipeline logged it, then the four repeats on one row");
+  assert.deepEqual(got, [["invoke", 20, "settings.get", null, "validation.bad_input", null], ["invoke", 20, "settings.get", "usr_a", "validation.bad_input", 4]], "the first failure as the pipeline logged it (its result in the result column), then the four repeats on one row");
 });

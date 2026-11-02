@@ -45,7 +45,7 @@ export function ProjectsAtRisk(): ReactElement | null {
       <SectionHeader id="risk" title="Projects at risk" count={q.status === "ready" ? rows.length : undefined}>
         <MoreButton inline visible label="Projects at risk: how this is counted" onOpen={showRule} />
       </SectionHeader>
-      {q.status === "loading" ? <Skeleton rows={2} id="risk" /> : rows.length ? <View accessibilityRole="list">{rows}</View> : <EmptyLine id="risk" text="No projects at risk" />}
+      {q.status === "loading" ? <Skeleton rows={2} id="risk" failure={q.status === "loading" ? q.error : undefined} /> : rows.length ? <View accessibilityRole="list">{rows}</View> : <EmptyLine id="risk" text="No projects at risk" />}
       {menu.element}
     </Section>
   );

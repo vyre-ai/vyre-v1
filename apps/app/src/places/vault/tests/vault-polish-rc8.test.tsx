@@ -78,7 +78,8 @@ test("empty lists have their own words and one action", () => {
       : screen === "vault.layout" && name === "items" ? { subscribe: () => () => undefined, getSnapshot: () => ({ status: "ready", data: { items: (quiet.data.screens.query(screen, name, state).getSnapshot() as { data: { items: { kind: string }[] } }).data.items.filter((i) => i.kind !== "ai_subscription") } }) }
       : quiet.data.screens.query(screen, name, state)) } };
   const out = clean(renderToStaticMarkup(<Vault data={none as never} initial={{ kind: "providers" }} />));
-  assert.ok(has(out, "No AI providers yet") && has(out, "Add a provider"), "providers: its own title and its own action");
+  for (const word of ["Connect Claude", "Connect ChatGPT", "Connect Grok", "Use an API key"]) assert.ok(has(out, word), `providers: ${word} right in the section`);
+  assert.ok(!has(out, "Your vault is empty"), "the AI providers section never says the Vault is empty");
   assert.ok(!has(empty({ kind: "keys" }), "No keys yet"), "a section with items draws the items");
 });
 

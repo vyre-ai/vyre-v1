@@ -113,38 +113,8 @@ async function agentsRoot(ctx: AgentsCtx): Promise<string> {
   return root.folderId;
 }
 
-const LEVEL_RANK: Record<string, number> = { view: 0, use: 1, edit: 2, manage: 3 };
-
-/**
- * Ruling 99: an agent holds Edit on its own Agents/<name> (not Manage, so it cannot share its home out) and its owner holds Manage there. This is applied ONCE per agent: when it is made, or the
- * first pass that sees an agent made before the ruling. A marker (agents.home_grants.v1:<agentId>) records that it was done, and an agent with the marker is never touched again, so a person who
- * lowers or removes one of these grants on purpose is not overruled by the boot pass. Within that one application a grant already held at the level or higher is left as it is. A failure writes no
- * marker, so the next pass tries again. Returns how many grants it wrote.
- */
-export async function ensureHomeGrants(ctx: AgentsCtx, agentId: string, ownerId: string, folderId: string): Promise<number> {
-  const marker = `agents.home_grants.v1:${agentId}`;
-  if (meta(ctx.db, marker) !== undefined) return 0;
-  // A Personal Space has no sharing at all (access.share needs a Team Space), so there are no grants to write or to retry every pass.
-  const kind = await ctx.call?.("spaces.get", {}).then((r) => (r as { space?: { kind?: string } } | null)?.space?.kind, () => undefined);
-  if (kind === "personal") { setMeta(ctx.db, marker, "personal"); return 0; }
-  const resource = { type: "folder", id: folderId };
-  const have = await tolerant<{ shares?: Array<{ grant: { subject: { kind: string; id: string }; level: string } }> }>(ctx, "access.shares_of", { resource }, {});
-  const holds = (kind: string, id: string, level: string): boolean =>
-    (have.shares ?? []).some((x) => x.grant.subject.kind === kind && x.grant.subject.id === id && (LEVEL_RANK[x.grant.level] ?? -1) >= (LEVEL_RANK[level] ?? 99));
-  let wrote = 0;
-  if (!holds("agent", agentId, "edit")) {
-    const idempotencyKey = `agent-home:${agentId}:agent`;
-    await call(ctx, "access.share", { resource, subject: { kind: "agent", id: agentId }, level: "edit", source: `agent:${agentId}`, idempotencyKey }, { idempotencyKey });
-    wrote += 1;
-  }
-  if (!holds("person", ownerId, "manage")) {
-    const idempotencyKey = `agent-home:${agentId}:owner:${ownerId}`;
-    await call(ctx, "access.share", { resource, subject: { kind: "person", id: ownerId }, level: "manage", source: `agent:${agentId}`, idempotencyKey }, { idempotencyKey });
-    wrote += 1;
-  }
-  setMeta(ctx.db, marker, String(ctx.now()));
-  return wrote;
-}
+// Ruling 99, an agent's home grants (the agent holds Edit on Agents/<name>, its owner Manage): the gateway writes both in the commit of agent.created, and the host repairs at boot an agent
+// whose home lacks them (host/src/gateway/principals.ts missingAgentHomeEvents). Nothing here writes them: this module runs its checks as the host, which holds no grant on anyone's folder.
 
 export interface TreeResult { folderId: string; tomlFileId: string; agentMdFileId: string }
 
@@ -710,11 +680,6 @@ export async function restoreAgentFiles(ctx: AgentsCtx): Promise<string[]> {
     }
     if (a.folderId === undefined) continue;
     const folderId = a.folderId;
-    try {
-      if ((await ensureHomeGrants(ctx, a.id, a.ownerId, folderId)) > 0) put.push(`${a.name}/grants`);
-    } catch (e) {
-      ctx.log.warn("agents: the grants on an agent's folder could not be written", { agent: a.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
-    }
     const wanted: Array<{ name: "agent.toml" | "AGENT.md"; id: string | undefined; column: "tomlFileId" | "agentMdFileId"; text: () => string }> = [
       { name: "agent.toml", id: a.tomlFileId, column: "tomlFileId", text: () => a.tomlText },
       { name: "AGENT.md", id: a.agentMdFileId, column: "agentMdFileId", text: () => AGENT_MD_DEFAULT(a.name, a.config.description, a.kind) },
@@ -769,7 +734,6 @@ async function adoptAgentPrincipals(ctx: AgentsCtx, put: string[]): Promise<void
         id: p.id, name, kind: "agent", runtime: "vyre", face: slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: false,
         templateVersion: await templateVersion(ctx), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
       });
-      await ensureHomeGrants(ctx, p.id, owner, tree.folderId);
       put.push(`${name}/agent.toml`, `${name}/AGENT.md`);
       ctx.log.warn("agents: an agent principal had no record, folder or files and has been given them", { agent: p.id });
     } catch (e) {

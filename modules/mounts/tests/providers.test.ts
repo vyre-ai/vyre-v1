@@ -36,11 +36,12 @@ function feed(w: World, name: string, payload: Row, actor = "usr_owner"): void {
   fn(w.db, { at: w.now(), actor, payload: new TextEncoder().encode(JSON.stringify(payload)) });
 }
 
-test("Google-native documents are exported as the nearest open format", () => {
-  assert.equal(exportMimeFor("application/vnd.google-apps.document"), "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-  assert.equal(exportMimeFor("application/vnd.google-apps.spreadsheet"), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+test("Google-native files are exported as something a person and an agent can read; the ones with no export have none", () => {
+  assert.equal(exportMimeFor("application/vnd.google-apps.document"), "text/markdown");
+  assert.equal(exportMimeFor("application/vnd.google-apps.spreadsheet"), "text/csv");
   assert.equal(exportMimeFor("application/vnd.google-apps.presentation"), "application/pdf");
-  assert.equal(exportMimeFor("application/vnd.google-apps.drawing"), "application/pdf");
+  assert.equal(exportMimeFor("application/vnd.google-apps.drawing"), "image/png");
+  for (const none of ["form", "site", "map", "shortcut", "script", "folder"]) assert.equal(exportMimeFor(`application/vnd.google-apps.${none}`), undefined, none);
 });
 
 test("Drive: a scan lists every folder (paged) and tags folders, natives and parents; a feed read follows the page tokens and returns the new start token", async () => {
@@ -78,13 +79,13 @@ test("Drive: download, export, upload, new folder and delete use the connection 
   const plain = await drive.download(w.ctx, m, { remoteId: "f1", name: "intro.pdf", mime: "application/pdf" });
   assert.deepEqual([plain.size, plain.mime], [10, "application/octet-stream"]);
   const doc = await drive.download(w.ctx, m, { remoteId: "g1", name: "Plan", mime: "application/vnd.google-apps.document", native: true });
-  assert.equal(doc.mime, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+  assert.equal(doc.mime, "text/markdown");
   const sheet = await drive.download(w.ctx, m, { remoteId: "g2", name: "Budget", mime: "application/vnd.google-apps.spreadsheet", native: true });
-  assert.equal(sheet.mime, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  assert.equal(sheet.mime, "text/csv");
   assert.deepEqual(w.google.calls.map((c) => [c.cap, c.input]), [
     ["google.drive.download_file", { connectionId: "con_g", fileId: "f1" }],
-    ["google.drive.export_file", { connectionId: "con_g", fileId: "g1", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }],
-    ["google.drive.export_file", { connectionId: "con_g", fileId: "g2", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }],
+    ["google.drive.export_file", { connectionId: "con_g", fileId: "g1", mimeType: "text/markdown" }],
+    ["google.drive.export_file", { connectionId: "con_g", fileId: "g2", mimeType: "text/csv" }],
   ]);
   w.google.calls.length = 0;
   const folder = await drive.createFolder(w.ctx, m, { name: "Drafts", parentRemote: "root_drv" });

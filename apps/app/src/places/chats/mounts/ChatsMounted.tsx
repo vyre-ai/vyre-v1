@@ -35,7 +35,7 @@ import type { ConnectProps } from "./ConnectOutsideAgent.tsx";
 import { SearchPage } from "../search/SearchPage.tsx";
 import type { SearchData } from "../search/SearchPage.tsx";
 import { TextButton } from "../conversation/parts.tsx";
-import { copy, agentPageData, askWith, chatOpening, chatWith, createCapture, createGo, helperData, needsData, newKey, popupData, terminalData, wireConversation, wirePane, wireSidebar } from "./data.ts";
+import { channelThread, isChannelId, copy, agentPageData, askWith, chatOpening, chatWith, createCapture, createGo, helperData, needsData, newKey, popupData, terminalData, wireConversation, wirePane, wireSidebar } from "./data.ts";
 import type { CaptureCounter, Go, LineAction } from "./data.ts";
 import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
@@ -55,6 +55,10 @@ import { TasksPage } from "../tasks/TasksPage.tsx";
 import { TaskDetail } from "../tasks/TaskDetail.tsx";
 import type { Act, Shown } from "./route.ts";
 import { nameOr } from "../names.ts";
+import { LoadFailed } from "../../../../../../ui/src/States/Loads.tsx";
+import type { LoadFailure } from "../../../../../../ui/src/States/Loads.tsx";
+
+/** A channel id; the place shows a channel as its main thread. */
 
 type ThreadOut = CapMap["threads.get"]["out"];
 type RecentOut = CapMap["chat.recent"]["out"];
@@ -133,7 +137,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     // a tab switch or a link: the same thing already on screen keeps its pane and its place
     setShown((s) => { const next = hash === "" ? START : fromHash(hash); return JSON.stringify(next.route) === JSON.stringify(s.route) ? s : { ...next, pane: s.pane, terminalId: s.terminalId }; });
   }, [hash]);
-  // what is open follows into the tab strip and the address, so each chat is a tab and coming back lands on it
+  // what is open follows into the tab and the address (the Chats tab moves with it; tabs/store.ts moveTab), so coming back lands on it
   const openedRef = useRef(opened);
   openedRef.current = opened;
   const routeKey = shown.route.view === "agent-form" ? `a:${shown.route.agentId ?? ""}` : shown.route.view === "chat" ? `t:${shown.route.threadId ?? ""}` : shown.route.view === "new" ? "new" : shown.route.view === "task" ? `k:${shown.route.taskId}` : shown.route.view === "tasks" ? "tasks" : shown.route.view === "threads" ? "threads" : shown.route.view === "artifacts" ? "artifacts" : "";
@@ -200,7 +204,24 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
 
   /* ---------- the open chat ---------- */
   const recent = useLive<RecentOut>(rt.screens, "chats.sidebar", "recent", { filter: "all" });
-  const threadId = route.view === "chat" ? route.threadId : null;
+  // A channel is opened by its id (the sidebar row, a new channel, Browse, a project's channel, a chat:channel link) but shown as its main thread: the thread capabilities refuse a channel id.
+  // The id is turned into the thread here, once, for every way in; until then the middle waits, and a channel that cannot be read says so with Retry.
+  const channelOpen = route.view === "chat" && route.threadId !== null && isChannelId(route.threadId) ? route.threadId : null;
+  const [channelFailed, setChannelFailed] = useState<{ id: string; failure: LoadFailure } | null>(null);
+  const [channelTry, setChannelTry] = useState(0);
+  useEffect(() => {
+    if (channelOpen === null) return undefined;
+    const asked = channelOpen;
+    let live = true;
+    setChannelFailed(null);
+    void channelThread(rt.call as (cap: string, input: unknown) => Promise<unknown>, asked).then((r) => {
+      if (!live) return;
+      if ("threadId" in r) act({ t: "chat", threadId: r.threadId, ...(route.view === "chat" && route.focus ? { focus: route.focus } : {}) });
+      else setChannelFailed({ id: asked, failure: r.failure });
+    });
+    return () => { live = false; };
+  }, [channelOpen, channelTry, rt, act]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const threadId = route.view === "chat" && channelOpen === null ? route.threadId : null;
   const thread = useLive<ThreadOut>(rt.screens, "chats.conversation", "thread", threadId === null ? null : { threadId });
   if (thread.status === "ready" && threadId !== null) noteThreadKind(threadId, thread.data.thread.kind);
   const lead = thread.status === "ready" && threadId !== null ? (thread.data.thread.agents.find((a) => a.mode === "lead") ?? thread.data.thread.agents[0]) : undefined;
@@ -265,6 +286,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     const live = { ...conv, tail: <ChatWork rt={rt} threadId={conv.threadId} nameOf={nameOf} openTask={go.task} openProfile={(who) => { if (who.kind === "agent") go.agent(who.id); else rt.open({ subject: { type: "contact", id: who.id } }); }} /> };
     main = work && width >= WORKSPACE_MIN_W ? <Workspace rt={rt} work={work}><Conversation key={conv.threadId} data={live} /></Workspace> : <Conversation key={conv.threadId} data={live} />;
   }
+  else if (channelOpen !== null && channelFailed?.id === channelOpen) main = <LoadFailed what="this channel" failure={channelFailed.failure} onRetry={() => setChannelTry((n) => n + 1)} testID="channel-failed" />;
   else main = <ConversationLoading />;
 
   /* ---------- the right ---------- */

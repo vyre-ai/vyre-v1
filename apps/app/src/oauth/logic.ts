@@ -2,6 +2,8 @@
 // touches the state. The pure parts live here: reading the address, scrubbing it, and turning every outcome into words.
 import { CapError } from "../shell/session/caps.ts";
 import type { CapCall } from "../shell/session/caps.ts";
+import { isOwnKeyRefusal } from "../ai-signin/own-ai.ts";
+import type { AiHome } from "../ai-signin/own-ai.ts";
 
 /** Where Back goes: the Connections page of the Console. */
 export const BACK_TO_CONNECTIONS = "/console#screen=console.integrations&page=connections";
@@ -24,12 +26,15 @@ const failed = (message: string, cause: string, next: string, extra: { code?: st
 const START_AGAIN = "Open Connections and connect the account again.";
 
 /** Every way finishing a sign-in can end, in words a person can act on. The server's own message is used where it says something the person needs (a locked vault, the app's refusal). */
-export function describeFailure(e: unknown): Outcome {
+export function describeFailure(e: unknown, home: AiHome = "here"): Outcome {
   if (e instanceof CapError) {
     const x = { code: e.code, traceId: e.traceId };
     if (e.details?.["reason"] === "declined") return { kind: "declined" };
     if (e.code === "auth.invalid_code") return failed("This sign-in link has expired or was already used", "A sign-in link works once and only for ten minutes.", START_AGAIN, x);
     if (e.code === "permission.no_grant") return failed("This sign-in was started by someone else", "Only the person who started a connection can finish it. You are signed in as a different person.", "Ask them to open the link, or start the connection yourself from Connections.", x);
+    // "locked" only for a locked key on a device that can unlock it; on a Space that runs elsewhere signing in opens the key; anything else is a session that ended
+    if (e.code === "auth.unauthenticated" && !isOwnKeyRefusal(e)) return failed("You were signed out", "This browser is no longer signed in to the Space.", "Sign in again, then connect the account again.", x);
+    if (e.code === "auth.unauthenticated" && home !== "here") return failed("Your vault opens when you sign in", "A personal account's tokens are kept in your own vault, which opens when you sign in to this Space.", "Sign out, sign in again, then connect the account again.", x);
     if (e.code === "auth.unauthenticated") return failed("Your vault is locked", e.message, "Unlock it, then connect the account again.", x);
     if (e.code === "validation.not_found") return failed("The connection was removed while you signed in", e.message, START_AGAIN, x);
     if (e.code.startsWith("provider.")) return failed("The app did not complete the sign-in", e.message, START_AGAIN, x);
@@ -48,11 +53,11 @@ const finishing = (state: string): string => {
 };
 
 /** Finish the sign-in with what the address carried. */
-export async function completeCallback(call: CapCall, p: CallbackParams): Promise<Outcome> {
+export async function completeCallback(call: CapCall, p: CallbackParams, home: AiHome = "here"): Promise<Outcome> {
   if (p.state === null) return failed("There is no sign-in to finish", "This address has no sign-in state. It only works when an app sends you back to it.", START_AGAIN);
   if (p.error === null && p.code === null) return failed("The app did not send a sign-in code", "It returned to Vyre without a code or an error.", START_AGAIN);
   try {
     const out = (await call(finishing(p.state), p.error !== null ? { state: p.state, error: p.error } : { state: p.state, code: p.code })) as { connectionId?: string; accountId?: string };
     return { kind: "connected", connectionId: out.connectionId ?? out.accountId ?? "" };
-  } catch (e) { return describeFailure(e); }
+  } catch (e) { return describeFailure(e, home); }
 }

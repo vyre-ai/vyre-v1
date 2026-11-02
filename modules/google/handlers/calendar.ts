@@ -1,7 +1,6 @@
-// A member's Google calendar in Calendar. Delegation puts each included member's primary calendar in Calendar (owned by them, read as their account) and the mailbox pass keeps it
-// current by asking Calendar to sync it: Calendar owns the events, the sync token and the merge with Meetings; this file only connects and nudges. A failure here never fails the
-// setup or the mailbox pass.
-import { codeOf, first, strOrNull } from "../projections.ts";
+// A member's Google calendar in Calendar. Delegation puts each included member's primary calendar in Calendar (owned by them, read as their account) and Calendar pulls its events on its own schedule
+// (calendar.pull_provider, run by the server): Calendar owns the events, the sync token and the merge with Meetings; this file only connects. A failure here never fails the setup.
+import { codeOf } from "../projections.ts";
 import type { GoogleCtx } from "../projections.ts";
 
 /**
@@ -20,16 +19,5 @@ export async function connectCalendar(ctx: GoogleCtx, a: { connectionId: string;
   } catch (e) {
     ctx.log.warn("google calendar connect failed", { mailbox: a.email, code: codeOf(e) });
     return undefined;
-  }
-}
-
-/** Ask Calendar to sync this member's calendar now. A member with no calendar connected (they came after setup) has nothing to sync until an admin connects again. */
-export async function syncCalendar(ctx: GoogleCtx, a: { connectionId: string; email: string }): Promise<void> {
-  const calendarId = strOrNull(first(ctx.db.all(`SELECT "calendarId" FROM google_calendar WHERE email = ?`, a.email)), "calendarId");
-  if (!calendarId) return;
-  try {
-    await ctx.call("calendar.sync_now", { calendarId });
-  } catch (e) {
-    ctx.log.warn("google calendar sync failed", { mailbox: a.email, code: codeOf(e) });
   }
 }

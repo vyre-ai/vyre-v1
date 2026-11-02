@@ -2,6 +2,7 @@
 // host/modules.json (ruling 25) once P-CI_02 has landed. The module keeps calendars and events; meetings keeps the Meeting an event with guests becomes, and the
 // google and microsoft modules answer the pull that calendar.sync_now asks for.
 import type { Handler } from "../../host/src/invoke.ts";
+import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import * as h from "./handlers/index.ts";
 import { codecs, consumers, inline } from "./projections.ts";
 
@@ -30,3 +31,8 @@ export const handlers: Record<string, Handler> = {
 
 export const projections = { inline, consumers };
 export { codecs, inline, consumers };
+
+/** The scheduled pull of connected Google and Microsoft calendars, run by the server on this module's own tables (see pullProviderCalendars). */
+export const periodic = {
+  "calendar.pull_provider": { everyMs: 120_000, run: (ctx: Ctx) => h.pullProviderCalendars(ctx as never) },
+};
