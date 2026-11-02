@@ -261,8 +261,8 @@ function mintKey(db: Db, t: Task): void {
   t.key = `${keyPrefix(db) ?? DEFAULT_PREFIX}-${t.keyNo}`;
 }
 
-export function findTask(db: Db, id: string): Task | undefined {
-  const rows = db.all(`${SELECT} WHERE c.id = ? AND m.deleted_at IS NULL`, id) as Raw[];
+export function findTask(db: Db, id: string, opts?: { deleted?: boolean }): Task | undefined {
+  const rows = db.all(`${SELECT} WHERE c.id = ?${opts?.deleted ? "" : " AND m.deleted_at IS NULL"}`, id) as Raw[];
   return rows[0] ? rowToTask(rows[0]) : undefined;
 }
 export function getTask(ctx: TasksCtx, id: string): Task {

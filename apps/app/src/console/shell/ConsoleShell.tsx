@@ -1,6 +1,6 @@
 // The Console shell (spec 3.10): a top bar (Space mark and name, "Console", health dot, Cmd-K, Assistant toggle Cmd-J, skin, Open the app, the admin), the left navigation with its groups,
 // and the page. Pages hide by permission; a page opened without its permission, or the whole Console without console.access, shows the shared LockedState with Ask for access.
-// Runs on the Space's own server (console.<space-address>) and is not linked from the app.
+// In the app it is a place in the shell, so `embedded` leaves the shell's own bar, theme and search to the shell. Alone (a phone, or console.<space-address>) it draws its own top bar.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -19,7 +19,7 @@ import { HEALTH_LABEL, HEALTH_TONE, Overview } from "../pages/overview/Overview.
 import { ConsoleDataProvider, useConsoleData, useScreenQuery } from "./data.tsx";
 import type { ConsoleData } from "./data.tsx";
 import { Dot, Glyph } from "./glyphs.tsx";
-import { DEFAULT_PAGE, GROUPS, PAGES, pageById, visiblePages } from "./nav.ts";
+import { DEFAULT_PAGE, GROUPS, PAGES, PAGE_NOTE, pageById, visiblePages } from "./nav.ts";
 import type { PageDef } from "./nav.ts";
 import { Lead, PageHelpContext, pointer } from "./ui.tsx";
 import { Info } from "../../../../../ui/src/Tip/index.tsx";
@@ -46,6 +46,10 @@ export interface ConsoleShellProps {
   invoke?: AskInvoke;
   /** The window width, when the shell knows it before the first layout (and for the tests, which render without a window). */
   width?: number;
+  /** Inside the app's shell: no top bar of its own, and Cmd-K stays the shell's. */
+  embedded?: boolean;
+  /** At the Console's own address there is no app here to open. */
+  noApp?: boolean;
 }
 
 export function skinMenuEntries(current: string, onSkin: (id: string) => void): MenuEntry[] {
@@ -76,14 +80,14 @@ export function ConsoleShell(props: ConsoleShellProps): ReactElement {
   return <ShellBody {...props} />;
 }
 
-function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKIN, onSkin, assistantOpen = false, assistant, invoke, width: given, renderPage }: ConsoleShellProps): ReactElement {
+function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKIN, onSkin, assistantOpen = false, assistant, invoke, width: given, renderPage, embedded = false, noApp = false }: ConsoleShellProps): ReactElement {
   const data = useConsoleData();
   const measured = useWindowDimensions().width;
   const narrow = (given ?? measured) < 900;
   const [page, setPage] = useState<string>(pageById(initialPage) ? initialPage : DEFAULT_PAGE);
   const [pageState, setPageState] = useState<Record<string, unknown>>({});
   const [assistantOn, setAssistantOn] = useState(assistantOpen);
-  const [openGroups, setOpenGroups] = useState<ReadonlySet<string>>(() => new Set(["Access", pageById(initialPage)?.group ?? ""]));
+  const [openGroups, setOpenGroups] = useState<ReadonlySet<string>>(() => new Set(["Space defaults", pageById(initialPage)?.group ?? ""]));
   const menu = useMenu();
   const searchBtn = useRef<unknown>(null);
   const skinBtn = useRef<unknown>(null);
@@ -92,6 +96,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
   const registerHelp = useCallback((text: string) => { setPageHelps((h) => [...h, text]); return () => setPageHelps((h) => h.filter((x) => x !== text)); }, []);
   const pages = visiblePages(data.can, data.allowedScreens);
   const def = pageById(page) ?? PAGES[0]!;
+  const helpLine = [PAGE_NOTE[def.id], ...pageHelps].filter(Boolean).join(". ");
 
   const go = useCallback((id: string, state: Record<string, unknown> = {}): void => {
     const d = pageById(id);
@@ -124,7 +129,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
 
   useEffect(() => {
     const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void } }).document;
-    if (!doc) return undefined;
+    if (!doc || embedded) return undefined;
     const onKey = (e: KeyboardEvent): void => {
       if (!(e.metaKey || e.ctrlKey)) return;
       const k = e.key.toLowerCase();
@@ -133,7 +138,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
     };
     doc.addEventListener("keydown", onKey);
     return () => doc.removeEventListener("keydown", onKey);
-  }, [openSearch]);
+  }, [openSearch, embedded]);
 
   const overview = useScreenQuery<CapMap["console.overview"]["out"]>("console.overview", "overview", {});
   const health = overview.status === "ready" ? overview.data.health : null;
@@ -173,7 +178,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
 
   return (
     <View style={s.frame} testID="console">
-      <View style={s.top} testID="console-top">
+      {embedded ? null : <View style={s.top} testID="console-top">
         <Avatar name={data.space.name} kind="space" size={22} />
         <Text numberOfLines={1} style={s.space}>{data.space.name}</Text>
         {narrow ? null : <Text style={s.console}>Console</Text>}
@@ -191,11 +196,11 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
         <Pressable accessibilityRole="button" accessibilityLabel="Setup guide" testID="console-setup-guide" onPress={() => { openOnboarding(); }} style={[s.chip, pointer]}>
           <Glyph name="ok" size={14} color="var(--ink-2)" />{narrow ? null : <Text style={s.chipText}>Setup guide</Text>}
         </Pressable>
-        <Pressable accessibilityRole="link" accessibilityLabel="Open the app" testID="console-open-app" onPress={() => data.nav.openApp()} style={[s.chip, pointer]}>
+        {noApp ? null : <Pressable accessibilityRole="link" accessibilityLabel="Open the app" testID="console-open-app" onPress={() => data.nav.openApp()} style={[s.chip, pointer]}>
           <Glyph name="open" size={14} color="var(--ink-2)" />{narrow ? null : <Text style={s.chipText}>Open the app</Text>}
-        </Pressable>
+        </Pressable>}
         <View style={s.admin} testID="console-admin" accessibilityLabel={`${data.me.name}, ${data.me.role}`}><Avatar name={data.me.name} size={22} /></View>
-      </View>
+      </View>}
       <View style={s.below}>
         {narrow ? null : <ScrollView style={s.nav} contentContainerStyle={s.navScroll} testID="console-nav" accessibilityLabel="Console navigation">{navRows}</ScrollView>}
         <View style={s.main} testID={`page-${def.id}`} accessibilityLabel={def.title}>
@@ -205,7 +210,9 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
                 <Text accessibilityRole="header" aria-level={1} style={s.title}>{def.title}</Text><Glyph name="chevD" size={12} color="var(--ink-3)" />
               </Pressable>
             ) : <Text accessibilityRole="header" aria-level={1} style={s.title}>{def.title}</Text>}
-            {pageHelps.length ? <Info help={pageHelps.join(" ")} testID="page-help" /> : null}
+            {helpLine ? <Info help={helpLine} testID="page-help" /> : null}
+            {embedded && health ? <View style={s.health} testID="console-health" accessibilityLabel={`Server ${HEALTH_LABEL[health].toLowerCase()}`}><Dot tone={HEALTH_TONE[health]} size={8} /></View> : null}
+            {embedded ? <><View style={{ flex: 1 }} /><Pressable accessibilityRole="button" accessibilityLabel="Setup guide" testID="console-setup-guide" onPress={() => { openOnboarding(); }} style={[s.chip, pointer]}><Glyph name="ok" size={14} color="var(--ink-2)" /><Text style={s.chipText}>Setup guide</Text></Pressable></> : null}
           </View>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={s.content}>
             <View style={def.id === "audit" ? s.wide : s.column}>

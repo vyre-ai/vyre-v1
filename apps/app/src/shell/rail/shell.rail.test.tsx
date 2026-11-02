@@ -16,7 +16,7 @@ const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string => rende
 const labels = (entries: readonly MenuEntry[]): string[] => entries.filter(isItem).map((e) => e.label);
 
 test("each Space's Kit draws its own rail and the Console shows only with access", () => {
-  assert.deepEqual(railPlaces(rail(NORTHWIND)), ["chats", "inbox", "records", "files", "automations", "apps", "vault", "settings", "console"]);
+  assert.deepEqual(railPlaces(rail(NORTHWIND)), ["chats", "inbox", "records", "files", "automations", "apps", "vault", "console", "settings"]);
   assert.deepEqual(railPlaces(rail(HARBOR)), ["chats", "inbox", "files", "apps", "vault", "settings"]);
   assert.ok(!railPlaces(rail(PERSONAL)).includes("console"));
   for (const k of [NORTHWIND, HARBOR, PERSONAL]) assert.ok(!railPlaces(rail(k)).includes("home"), "Home is gone");
@@ -117,3 +117,10 @@ test("a Team Space's menu has a Chats run on switch: This computer or The Space,
   const personal = SEED_DEFS.find((s) => s.kind === "personal")!;
   assert.ok(!entries(personal.spaceId, "device").some((e) => e.head === "Chats run on"), "this Space is this computer: nothing to choose");
 });
+
+test("the Console sits in the bottom group of a Team Space for a person with access, and for nobody else", () => {
+  for (const kit of ["northwind", "studio"]) assert.ok(railFor({ kit: kitById(kit), console: true, counts: {}, dots: {}, active: "chats" }).bottom.some((e) => e.place === "console"), kit);
+  for (const kit of ["northwind", "studio", "personal"]) assert.ok(!railPlaces(railFor({ kit: kitById(kit), console: false, counts: {}, dots: {}, active: "chats" })).includes("console"), kit);
+  assert.ok(!railPlaces(railFor({ kit: kitById("personal"), console: true, counts: {}, dots: {}, active: "chats" })).includes("console"), "a Personal Space has no Console");
+});
+

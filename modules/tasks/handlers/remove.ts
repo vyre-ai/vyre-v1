@@ -21,10 +21,10 @@ export async function remove(ctx: TasksCtx, input: In): Promise<unknown> {
 }
 
 export async function restore(ctx: TasksCtx, input: In): Promise<unknown> {
-  ctx.db.run("UPDATE tasks_meta SET deleted_at = NULL WHERE id = ?", input.taskId);
-  const t = findTask(ctx.db, input.taskId);
+  const t = findTask(ctx.db, input.taskId, { deleted: true });
   if (!t) raise(ctx, "permission.not_found", "That task is not available.");
-  if (!mayLetGo(ctx, t)) { ctx.db.run("UPDATE tasks_meta SET deleted_at = ? WHERE id = ?", ctx.now(), t.id); raise(ctx, "validation.precondition_failed", "Only someone on this task can bring it back.", { reason: "wrong_actor" }); }
+  if (!mayLetGo(ctx, t)) { raise(ctx, "validation.precondition_failed", "Only someone on this task can bring it back.", { reason: "wrong_actor" }); }
+  ctx.db.run("UPDATE tasks_meta SET deleted_at = NULL WHERE id = ?", t.id);
   touch(ctx, ctx.db, t);
   emitTask(ctx, ctx.db, "task.restored", t, {}, { type: "restored", by: ctx.principal.id });
   return { task: out(ctx, t) };

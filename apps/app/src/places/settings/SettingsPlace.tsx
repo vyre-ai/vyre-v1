@@ -7,7 +7,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDime
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { PAGE, useIsPersonal, useScreenQuery, useSettingsData } from "./data.tsx";
-import { PAGES, adminHome, pageByKey, searchRows, spacePagesFor } from "./model.ts";
+import { PAGES, pageByKey, searchRows, spacePagesFor } from "./model.ts";
 import type { Hit, PageKey, SettingRow, SpacePage } from "./model.ts";
 import { AppearancePage, ComputerPage, SignInPage } from "./pages-b.tsx";
 import { AiPage, ConnectedPage, NotificationsPage, ProfilePage } from "./pages-a.tsx";
@@ -25,10 +25,6 @@ export interface SettingsProps {
   initialView?: "nav" | "page";
   /** A row to point at, as if the search had just opened it. */
   initialFound?: string | null;
-  /** A Console page to open inside its Space page. */
-  initialAdmin?: string | null;
-  /** What that Console page was opened with. */
-  initialAdminArgs?: Record<string, string>;
   /** The window width, when the shell knows it before the first layout (and for the tests, which render without a window). */
   width?: number;
 }
@@ -37,12 +33,11 @@ export function SettingsPlace(props: SettingsProps): ReactElement {
   return <SavedProvider><SettingsBody {...props} /></SavedProvider>;
 }
 
-function SettingsBody({ initialPage = "profile", initialQuery = "", initialView = "page", initialFound = null, initialAdmin = null, initialAdminArgs = {}, width: given }: SettingsProps): ReactElement {
+function SettingsBody({ initialPage = "profile", initialQuery = "", initialView = "page", initialFound = null, width: given }: SettingsProps): ReactElement {
   const data = useSettingsData();
   const measured = useWindowDimensions().width;
   const phone = (given ?? measured) < 760;
-  const [page, setPage] = useState<PageKey>(adminHome(initialAdmin ?? "")?.page ?? initialPage);
-  const [admin, setAdmin] = useState<{ id: string; args: Record<string, string> } | null>(initialAdmin ? { id: initialAdmin, args: initialAdminArgs } : null);
+  const [page, setPage] = useState<PageKey>(initialPage);
   const [view, setView] = useState<"nav" | "page">(initialView);
   const [q, setQ] = useState(initialQuery);
   const [found, setFound] = useState<string | null>(initialFound);
@@ -51,11 +46,10 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
   const list = useScreenQuery<ListOut>(PAGE, "rows", {});
   const rows: readonly SettingRow[] = list.status === "ready" ? list.data.rows : [];
   const personal = useIsPersonal();
-  const spaceRows = useSpaceRows();
-  const hits = useMemo(() => searchRows(rows, q, { personal, admin: data.admin }), [rows, q, personal, data.admin]);
-  const spacePages = spacePagesFor(data.admin);
+  const spaceRows = useSpaceRows(personal);
+  const hits = useMemo(() => searchRows(rows, q, { personal }), [rows, q, personal]);
+  const spacePages = spacePagesFor(personal);
   const def = pageByKey(page);
-  const adminTitle = admin ? adminHome(admin.id)?.link.title ?? def.title : null;
 
   useEffect(() => {
     const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void } }).document;
@@ -74,9 +68,8 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
     return () => clearTimeout(t);
   }, [found, page]);
 
-  const open = (key: PageKey, row: string | null = null): void => { setPage(key); setFound(row); setAdmin(null); setView("page"); if (row) setQ(""); };
-  const openAdmin = (id: string, args: Record<string, string> = {}): void => { const home = adminHome(id); if (!home) return; setPage(home.page); setFound(null); setAdmin({ id, args }); setView("page"); setQ(""); };
-  const openHit = (h: Hit): void => { if (h.admin) openAdmin(h.admin); else open(h.page, h.key); };
+  const open = (key: PageKey, row: string | null = null): void => { setPage(key); setFound(row); setView("page"); if (row) setQ(""); };
+  const openHit = (h: Hit): void => { open(h.page, h.key); };
   const onSearchKey = (e: KeyEventLike): void => {
     if (e.key === "Escape") { setQ(""); return; }
     if (e.key === "ArrowDown") { e.preventDefault?.(); setCursor((c) => Math.min(hits.length - 1, c + 1)); }
@@ -92,6 +85,7 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
     pageRows.push(<View key="g-space" style={n.groupHead} testID="space-group"><Mark name={spaceTitle} size={16} /><Text accessibilityRole="header" style={n.groupTitle}>{spaceTitle}</Text></View>);
     for (const key of spacePages) { const p = pageByKey(key); pageRows.push(<Row key={p.key} id={`page-${p.key}`} title={p.title} selected={!q.trim() && page === p.key} leading={<IconBox name={p.icon} />} onPress={() => open(p.key)} />); }
   }
+  if (data.openConsole) pageRows.push(<View key="g-console" style={n.groupHead} />, <Row key="console" id="open-console" title="Console" note="Running this Space" leading={<IconBox name="grid" />} onPress={data.openConsole} />);
   const searching = q.trim().length > 0;
   const hitRows: ReactElement[] = [];
   hits.forEach((h: Hit, i) => hitRows.push(
@@ -147,8 +141,7 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
       case "signin": return <SignInPage />;
       case "computer": return <ComputerPage />;
       default:
-        if (admin && data.admin) return data.admin.render(admin.id, admin.args, openAdmin);
-        return <SpacePageBody page={page as SpacePage} rows={spaceRows.rows} reload={spaceRows.reload} found={found} onOpen={(id) => openAdmin(id)} />;
+        return <SpacePageBody page={page as SpacePage} rows={spaceRows.rows} reload={spaceRows.reload} found={found} personal />;
     }
   })();
 
@@ -156,11 +149,10 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
     <View style={n.main} testID={searching ? "page-search" : `page-${page}`} accessibilityLabel={searching ? "Search" : def.title}>
       <View style={n.head}>
         {phone ? <Pressable accessibilityRole="button" accessibilityLabel="Settings" testID="back" onPress={() => setView("nav")} style={[n.back, pointer]}><View style={{ transform: [{ rotate: "90deg" }] }}><Glyph name="chevD" size={14} color="var(--ink-2)" /></View></Pressable> : null}
-        {admin && !searching ? <Pressable accessibilityRole="button" accessibilityLabel={`Back to ${def.title}`} testID="admin-back" onPress={() => setAdmin(null)} style={[n.crumb, pointer]}><View style={{ transform: [{ rotate: "90deg" }] }}><Glyph name="chevD" size={12} color="var(--ink-3)" /></View><Text style={n.crumbText}>{def.title}</Text></Pressable> : null}
-        <Text accessibilityRole="header" aria-level={1} style={n.title}>{searching ? "Search" : adminTitle ?? def.title}</Text>
+        <Text accessibilityRole="header" aria-level={1} style={n.title}>{searching ? "Search" : def.title}</Text>
       </View>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={n.content}>
-        <View style={admin && !searching ? n.wide : n.column}>
+        <View style={n.column}>
           <SavedBar />
           {searching ? searchPage : list.status === "ready" ? body : <Text style={n.none} accessibilityRole="progressbar">Loading</Text>}
         </View>
@@ -199,7 +191,4 @@ const n = StyleSheet.create({
   title: { fontSize: 14.5, fontWeight: "600", color: "var(--ink)" as string },
   content: { paddingTop: 16, paddingBottom: 24, paddingHorizontal: 20, alignItems: "center" },
   column: { width: "100%", maxWidth: 684 },
-  wide: { width: "100%", maxWidth: 960 },
-  crumb: { flexDirection: "row", alignItems: "center", gap: 4, height: 28, paddingHorizontal: 6, borderRadius: 7 },
-  crumbText: { fontSize: 13, color: "var(--ink-3)" as string },
 });
