@@ -404,7 +404,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const statusLabel = a.status === "on" ? "On" : a.status === "paused" ? "Paused" : a.status === "draft" ? "Draft" : "Off";
   const test = async (): Promise<void> => {
     if (errors.length > 0) { flash(`Fix ${errors.length === 1 ? "the problem" : `the ${errors.length} problems`} first, then test.`); setTab("steps"); return; }
-    try { await data.call("automations.test", { automationId: a.id, sample: true }); flash("Test run started with sample data"); }
+    try { await data.call("automations.test", { automationId: a.id, sample: {} }); flash("Test run started with sample data"); }
     catch (e) { flash(e instanceof Error ? e.message : "The test did not start."); }
   };
   const hasManual = startsByHand(def);
