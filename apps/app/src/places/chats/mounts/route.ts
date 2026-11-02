@@ -20,6 +20,8 @@ export type Route =
   | { view: "task"; taskId: string }
   /** The threads you are in. */
   | { view: "threads" }
+  /** One page to make an agent (null) or change one. */
+  | { view: "agent-form"; agentId: string | null }
   | { view: "search"; q: string; from: string | null }
   | { view: "needs"; taskId: string | null }
   | { view: "agent"; agentId: string; tab: TabKey | null }
@@ -54,6 +56,7 @@ export type Act =
   | { t: "tasks" }
   | { t: "task"; taskId: string }
   | { t: "threads" }
+  | { t: "agent-form"; agentId?: string }
   /** Search every chat. `q` starts the box with those words. */
   | { t: "search"; q?: string }
   | { t: "search-close" }
@@ -77,6 +80,7 @@ export function step(s: Shown, a: Act): Shown {
     case "tasks": return { ...s, route: { view: "tasks" }, layer: null };
     case "task": return { ...s, route: { view: "task", taskId: a.taskId }, layer: null };
     case "threads": return { ...s, route: { view: "threads" }, layer: null };
+    case "agent-form": return { ...s, route: { view: "agent-form", agentId: a.agentId ?? null }, layer: null };
     case "search": return { ...s, route: { view: "search", q: a.q ?? "", from: s.route.view === "chat" ? s.route.threadId : s.route.view === "search" ? s.route.from : null }, layer: null };
     case "search-close": { const from = s.route.view === "search" ? s.route.from : null; return { ...s, route: from === null ? { view: "new" } : { view: "chat", threadId: from }, layer: null }; }
     case "helper": return { ...s, route: { view: "helper", threadId: a.threadId }, layer: null };
@@ -112,6 +116,7 @@ export const SCREEN = {
   tasks: "tasks.my-work",
   task: "tasks.page",
   threads: "chats.threads",
+  agentForm: "chats.agent-form",
   conversation: "chats.conversation",
   ask: "chats.ask",
   computer: "chats.computer-popup",
@@ -151,6 +156,7 @@ export function fromHash(hash: string): Shown {
     case SCREEN.tasks: return step(START, { t: "tasks" });
     case SCREEN.task: return arg("taskId") === "" ? step(START, { t: "tasks" }) : step(START, { t: "task", taskId: arg("taskId") });
     case SCREEN.threads: return step(START, { t: "threads" });
+    case SCREEN.agentForm: return step(START, { t: "agent-form", ...(arg("agentId") === "" ? {} : { agentId: arg("agentId") }) });
     case SCREEN.agent: { const tab = arg("tab"); return arg("agentId") === "" ? START : step(START, { t: "agent", agentId: arg("agentId"), ...(isTabKey(tab) ? { tab } : {}) }); }
     case SCREEN.helper: return arg("threadId") === "" ? START : step(START, { t: "helper", threadId: arg("threadId") });
     case SCREEN.needs: return step(START, { t: "needs", ...(arg("taskId") === "" ? {} : { taskId: arg("taskId") }) });

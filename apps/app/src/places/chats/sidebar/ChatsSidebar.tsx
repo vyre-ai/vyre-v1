@@ -296,7 +296,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
           <SectionHead id={e.section} label={e.label} count={!e.open ? e.count : undefined} open={e.open} onToggle={() => toggle(e.section)}>
             {e.section === "channels" ? <Tool icon="search" label="Browse channels" onPress={() => setSheet("browse")} testID="browse-channels-tool" /> : null}
             {e.section === "channels" ? <Tool icon="plus" label="New channel" onPress={() => setSheet("new")} testID="new-channel" /> : null}
-            {e.section === "faces" ? <Tool icon="plus" label="New agent" onPress={() => { data.nav.openAllAgents(); leave(); }} testID="all-agents" /> : null}
+            {e.section === "faces" ? <Tool icon="plus" label="New agent" onPress={() => { (data.nav.openNewAgent ?? data.nav.openAllAgents)(); leave(); }} testID="all-agents" /> : null}
           </SectionHead>
         );
       }
@@ -390,7 +390,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   const newMenu = (x: number, y: number): void => menu.show([
     { label: "New chat", onSelect: () => { (data.nav.openNew ?? (() => void api.newChat()))(); leave(); } },
     ...(personal ? [] : [{ label: "New channel", onSelect: () => setSheet("new") }, { label: "Browse channels", onSelect: () => setSheet("browse") }]),
-    { label: "New agent", onSelect: () => { data.nav.openAllAgents(); leave(); } },
+    { label: "New agent", onSelect: () => { (data.nav.openNewAgent ?? data.nav.openAllAgents)(); leave(); } },
   ], x, y, "other");
   const newButton = <Tool icon="plus" label="New" onPress={newMenu} testID="new-menu" />;
   const newChatButton = <Tool icon="filter" label="Filter" active={filter !== "all"} onPress={filterMenu} testID="filter-chats" />;

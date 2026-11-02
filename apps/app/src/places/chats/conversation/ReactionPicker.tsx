@@ -30,7 +30,7 @@ export function ReactionPicker({ x, y, onPick, onClose }: { x: number; y: number
   return (
     <View ref={box as never} testID="reaction-picker" accessibilityRole="menu" style={[st.pop, { left: Math.min(x, win.width - 300), top: Math.min(y + 6, win.height - 170) }]}>
       <View style={st.grid}>
-        {each(list, (e) => <Pressable key={e.char} role="button" aria-label={e.name ?? e.char} testID={`react-${e.char}`} onPress={() => onPick(e.char)} style={({ hovered }: { hovered?: boolean }) => [st.cell, hovered === true && st.over]}><Text style={st.emoji}>{e.char}</Text></Pressable>)}
+        {each(list, (e) => <Pressable key={e.char} role="button" aria-label={e.name ?? e.char} testID={`react-${e.char}`} onPress={() => onPick(e.char)} style={(({ hovered }: { hovered?: boolean }) => [st.cell, hovered === true && st.over]) as never}><Text style={st.emoji}>{e.char}</Text></Pressable>)}
         {list.length === 0 ? <Text style={st.none}>Nothing by that name</Text> : null}
       </View>
       <TextInput autoFocus testID="reaction-search" accessibilityLabel="Search emoji" placeholder="Search emoji" placeholderTextColor="var(--ink-3)" value={q} onChangeText={setQ} style={st.field} />

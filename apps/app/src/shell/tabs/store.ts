@@ -45,7 +45,7 @@ export function tabKey(place: PlaceId, hash?: string): string {
 }
 
 /** Screens inside Chats that are a tab of their own, with the tab's name. */
-const OWN_TAB: Readonly<Record<string, string>> = { "tasks.my-work": "Tasks", "chats.threads": "Threads" };
+const OWN_TAB: Readonly<Record<string, string>> = { "tasks.my-work": "Tasks", "chats.threads": "Threads", "chats.agent-form": "New agent" };
 
 /** The name a tab starts with when its screen has one of its own; the place's name otherwise. */
 export function screenTitle(hash: string | undefined): string | undefined {

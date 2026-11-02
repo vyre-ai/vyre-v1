@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Avatar, avatarOf, resetAssistant, setAssistantId, setAssistantLook } from "./index.tsx";
+import { pickedFace, setAgentFaces, Avatar, avatarOf, resetAssistant, setAssistantId, setAssistantLook } from "./index.tsx";
 
 const html = (p: Parameters<typeof Avatar>[0]): string => renderToStaticMarkup(<Avatar {...p} />);
 
@@ -31,6 +31,24 @@ test("a person keeps their own avatar and photo", () => {
   assert.equal(p.kind, "person");
   assert.match(html({ ...p, size: 20 }), /m\.png/);
   assert.match(html({ ...avatarOf({ id: "usr_2", name: "Omar" }), size: 20 }), /data-avatar="person"/);
+});
+
+test("a face picked on an agent's page wins over its id everywhere; a stored slug does not", () => {
+  setAgentFaces([{ id: "agt_a", face: "pick-abc" }, { id: "agt_b", face: "intake" }]);
+  assert.equal(pickedFace("agt_a"), "pick-abc");
+  assert.equal(pickedFace("agt_b"), "");
+  assert.equal(pickedFace(undefined), "");
+  resetAssistant();
+  assert.equal(pickedFace("agt_a"), "");
+});
+
+test("a face picked on an agent's page wins over its id everywhere; a stored slug does not", () => {
+  setAgentFaces([{ id: "agt_a", face: "pick-abc" }, { id: "agt_b", face: "intake" }]);
+  assert.equal(pickedFace("agt_a"), "pick-abc");
+  assert.equal(pickedFace("agt_b"), "");
+  assert.equal(pickedFace(undefined), "");
+  resetAssistant();
+  assert.equal(pickedFace("agt_a"), "");
 });
 
 test("a look set in Settings replaces the mark, and clearing it brings the mark back", () => {

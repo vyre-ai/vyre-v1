@@ -778,7 +778,7 @@ export async function walkFolder(ctx: AgentsCtx, folderId: string, max = 600): P
 
 /** Folders of an agent (spec 2.6). .vyre/ and .index/ are hidden by name. */
 export const TREE_FOLDERS: readonly string[] = [
-  "memory", "memory/notes", "memory/proposed", "memory/recipes", "memory/journal", "skills", "routines", "knowledge", "inbox", "work", "work/drafts", "work/done", "work/scratch", "downloads", "logs", "chats", ".vyre", ".index",
+  "memory", "memory/notes", "memory/proposed", "memory/recipes", "memory/journal", "context", "skills", "routines", "knowledge", "inbox", "work", "work/drafts", "work/done", "work/scratch", "downloads", "logs", "chats", ".vyre", ".index",
 ];
 export const GUIDE_VERSION = "1.0.0";
 export const GUIDE_MD = [

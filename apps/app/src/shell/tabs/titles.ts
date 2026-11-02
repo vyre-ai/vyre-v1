@@ -27,7 +27,7 @@ export function titleAsk(subject: { type: string; id: string }, args: Readonly<R
     case "file": case "doc": case "document": return { cap: "files.get", input: { fileId: id }, name: (o) => at(o, "file", "name") };
     case "task": return { cap: "tasks.get", input: { taskId: id }, name: (o) => at(o, "task", "title") };
     case "run": return { cap: "runs.get", input: { runId: id }, name: (o) => at(o, "run", "name") };
-    case "chat": case "thread": return { cap: "threads.get", input: { threadId: id }, name: (o) => at(o, "thread", "title") };
+    case "chat": case "thread": return { cap: "threads.get", input: { threadId: id }, name: (o) => at(o, "thread", "title") ?? "New chat" };
     default: return null;
   }
 }

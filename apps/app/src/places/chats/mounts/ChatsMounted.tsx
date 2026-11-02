@@ -42,6 +42,9 @@ import { START, fromHash, step, workOf } from "./route.ts";
 import { Landing } from "../landing/Landing.tsx";
 import { TasksRoute, TaskRouteLeaf } from "./TasksRoute.tsx";
 import { ThreadsPage } from "./ThreadsPage.tsx";
+import { AgentForm } from "../agentform/AgentForm.tsx";
+import { setAgentFaces } from "../../../../../../ui/src/Avatar/assistant.ts";
+import { useDirectory } from "../../../shell/providers/automations-parts.tsx";
 import { ProfilePane, afterClose, profileTab, withTab } from "../rightpane/ProfilePane.tsx";
 import type { ProfileTab } from "../rightpane/ProfilePane.tsx";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -76,14 +79,16 @@ export interface ChatsMountedProps {
   /** Pins which rows are drawn (tests and screenshots draw them all). */
   window?: VirtualWindow;
   /** What is open, as a hash, for the tab strip and the address: a chat is a tab of its own. */
-  opened?: (target: { subject?: { type: string; id: string }; screen?: string }) => void;
+  opened?: (target: { subject?: { type: string; id: string }; screen?: string; args?: Record<string, unknown> }) => void;
   /** The middle is about to change: the shell keeps a still copy on screen until the next view is ready. */
   onSwitch?: () => void;
+  /** Closes the tab this page sits in: a page that is finished leaves no stale tab behind. */
+  closeSelf?: () => void;
   /** A phone: what opens from the first screen goes on top of its history, so Back returns here. */
   stacked?: boolean;
 }
 
-export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch, stacked = false }: ChatsMountedProps): ReactElement {
+export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch, closeSelf, stacked = false }: ChatsMountedProps): ReactElement {
   const [shown, setShown] = useState<Shown>(() => initial ?? (hash === "" ? START : fromHash(hash)));
   const [line, setLineState] = useState<{ text: string; action?: LineAction } | null>(null);
   const setLine = useCallback((text: string, action?: LineAction): void => setLineState(action ? { text, action } : { text }), []);
@@ -96,6 +101,13 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   const byId = useMemo(() => new Map(list.map((p) => [p.id, p] as const)), [list]);
   const nameOf = useCallback((id: string): string => (id === rt.assistant.id ? rt.assistant.name : nameOr(byId.get(id)?.name, id)), [byId, rt.assistant.id, rt.assistant.name]);
 
+  // what someone picked on an agent's page shows on every face of that agent
+  useEffect(() => {
+    let live = true;
+    void Promise.resolve(rt.call("agents.list", { section: "space" })).then((o) => { if (live) setAgentFaces((o as CapMap["agents.list"]["out"]).agents.map((a) => ({ id: a.agentId, face: a.face }))); }, () => undefined);
+    return () => { live = false; };
+  }, [rt, shown.route.view]);
+
   useEffect(() => {
     if (line === null) return undefined;
     const t = setTimeout(() => setLineState(null), LINE_MS);
@@ -106,7 +118,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   routeNow.current = shown.route.view;
   const act = useCallback((a: Act): void => {
     if (stacked && a.t === "chat" && routeNow.current === "new" && a.threadId !== "") { opened?.({ subject: { type: "thread", id: a.threadId } }); return; }
-    if (a.t === "chat" || a.t === "new" || a.t === "tasks" || a.t === "task" || a.t === "threads" || a.t === "agent" || a.t === "needs") onSwitch?.();
+    if (a.t === "chat" || a.t === "new" || a.t === "tasks" || a.t === "task" || a.t === "threads" || a.t === "agent-form" || a.t === "agent" || a.t === "needs") onSwitch?.();
     setShown((s) => step(s, a));
   }, [onSwitch, stacked, opened]);
   // a link from another place, a notification or the Space menu while Chats is already open
@@ -120,13 +132,14 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   // what is open follows into the tab strip and the address, so each chat is a tab and coming back lands on it
   const openedRef = useRef(opened);
   openedRef.current = opened;
-  const routeKey = shown.route.view === "chat" ? `t:${shown.route.threadId ?? ""}` : shown.route.view === "new" ? "new" : shown.route.view === "task" ? `k:${shown.route.taskId}` : shown.route.view === "tasks" ? "tasks" : shown.route.view === "threads" ? "threads" : "";
+  const routeKey = shown.route.view === "agent-form" ? `a:${shown.route.agentId ?? ""}` : shown.route.view === "chat" ? `t:${shown.route.threadId ?? ""}` : shown.route.view === "new" ? "new" : shown.route.view === "task" ? `k:${shown.route.taskId}` : shown.route.view === "tasks" ? "tasks" : shown.route.view === "threads" ? "threads" : "";
   useEffect(() => {
     const report = openedRef.current;
     if (!report || routeKey === "") return;
     if (routeKey === "new") report({});
     else if (routeKey === "tasks") report({ screen: "tasks.my-work" });
     else if (routeKey === "threads") report({ screen: "chats.threads" });
+    else if (routeKey.startsWith("a:")) report({ screen: "chats.agent-form", ...(routeKey.length > 2 ? { args: { agentId: routeKey.slice(2) } } : {}) });
     else if (routeKey.startsWith("t:") && routeKey !== "t:") report({ subject: { type: "thread", id: routeKey.slice(2) } });
     else if (routeKey.startsWith("k:")) report({ subject: { type: "task", id: routeKey.slice(2) } });
   }, [routeKey]);
@@ -170,11 +183,12 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   }, [go]);
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < WIDE;
+  const directory = useDirectory(rt);
 
   /* ---------- the sidebar: registered in the shell's shared place sidebar slot (collapse, search and the phone list are the slot's) ---------- */
   const side = useMemo(() => {
     const base = wireSidebar(rt, go);
-    return { ...base, people: list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name })), nav: { ...base.nav, openTasks: () => act({ t: "tasks" }), openThreads: () => act({ t: "threads" }), openNew: () => act({ t: "new" }) } };
+    return { ...base, people: list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name })), nav: { ...base.nav, openTasks: () => act({ t: "tasks" }), openThreads: () => act({ t: "threads" }), openNew: () => act({ t: "new" }), openNewAgent: () => act({ t: "agent-form" }) } };
   }, [rt, go, act, list]);
 
   /* ---------- the open chat ---------- */
@@ -230,6 +244,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   else if (route.view === "agent") main = agentId === "" ? <AgentPageLoading /> : <AgentPage key={agentId} data={agentPage} initialTab={route.tab ?? "chats"} {...(window ? { window } : {})} />;
   else if (route.view === "tasks") main = <TasksRoute rt={rt} />;
   else if (route.view === "task") main = <TaskRouteLeaf rt={rt} taskId={route.taskId} onBack={() => act({ t: "tasks" })} />;
+  else if (route.view === "agent-form") main = <AgentForm key={route.agentId ?? "new"} agentId={route.agentId} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} newKey={newKey} onDone={(id) => { closeSelf?.(); go.agentChat(id); }} onCancel={() => act({ t: "new" })} say={setLine} {...(rt.space.kind === "personal" ? {} : { sharing: { directory, meName: rt.me.name, meId: rt.me.id, nameOf } })} />;
   else if (route.view === "threads") main = <ThreadsPage rt={rt} nameOf={nameOf} openChat={go.thread} />;
   else if (route.view === "new") {
     const agentRows = list.filter((p) => p.kind === "agent").map((p) => ({ id: p.id, name: p.name }));
@@ -250,7 +265,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       key={rightTab.key} tab={rightTab} name={nameOf(rightTab.id)} call={rt.call as (cap: string, input: unknown) => Promise<unknown>}
       onMessage={() => { if (rightTab.kind === "person") void Promise.resolve(rt.call("chat.start", { kind: "chat", agentIds: [], personId: rightTab.id, idempotencyKey: `dm_${rightTab.id}` })).then((o) => { const id = (o as { thread?: { threadId?: string } }).thread?.threadId; if (id) go.chat(id); }, () => setLine("Could not start the chat. Try again.")); else go.agentChat(rightTab.id); }}
       onMention={() => fill.set(`@${nameOf(rightTab.id)} `)}
-      onEdit={() => go.agent(rightTab.id)}
+      onEdit={() => act({ t: "agent-form", agentId: rightTab.id })}
     />
   ) : null;
   let right: ReactElement | null = null;

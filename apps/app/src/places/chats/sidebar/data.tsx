@@ -23,6 +23,8 @@ export interface ChatsNav {
   openThreads?(): void;
   /** The first screen: a new chat. */
   openNew?(): void;
+  /** The one agent page, empty. */
+  openNewAgent?(): void;
   /** Hides the sidebar (the panel button in its header). Left out where the shell keeps the sidebar always. */
   toggleSidebar?(): void;
 }

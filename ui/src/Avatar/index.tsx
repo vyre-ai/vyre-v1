@@ -12,10 +12,10 @@ import { cachedFace, currentSkin, faceKey, requestFace } from "./cache.ts";
 import { loadNotionists } from "./load.ts";
 import { injectCss } from "../theme/css.ts";
 import type { AvatarKind, AvatarProps, FaceState } from "./props.ts";
-import { assistantLook, isAssistantId, subscribeAssistant } from "./assistant.ts";
+import { assistantLook, isAssistantId, pickedFace, subscribeAssistant } from "./assistant.ts";
 
 export type { AvatarKind, AvatarProps, FaceState } from "./props.ts";
-export { assistantId, assistantLook, avatarOf, isAssistantId, resetAssistant, setAssistantId, setAssistantLook, subscribeAssistant } from "./assistant.ts";
+export { assistantId, assistantLook, avatarOf, isAssistantId, pickedFace, resetAssistant, setAgentFaces, setAssistantId, setAssistantLook, subscribeAssistant } from "./assistant.ts";
 export type { AvatarEntity } from "./assistant.ts";
 export { faceTint, hash, hueOf, initialsOf, marbleGradient, marbleInner, marbleSpec } from "./faces.ts";
 export { cachedFace, cachedFaceCount, clearFaceCache, currentSkin, faceKey, requestFace, wrapSvg } from "./cache.ts";
@@ -80,7 +80,8 @@ export const Avatar = memo(function Avatar({ name, seedId, kind: kindProp, size 
   const look = useSyncExternalStore(subscribeAssistant, assistantLook, assistantLook);
   const looked = kind === "assistant" && look !== "";
   // One person, one face everywhere: the face is seeded by the id when the caller has one, by the name only as a fallback. Letters and the label still come from the name.
-  const seed = looked ? look : seedId !== undefined && seedId !== "" ? seedId : name;
+  const chosen = useSyncExternalStore(subscribeAssistant, () => pickedFace(seedId), () => pickedFace(seedId));
+  const seed = looked ? look : chosen !== "" ? chosen : seedId !== undefined && seedId !== "" ? seedId : name;
   // A person's marble and an agent's face are drawn once to a cached bitmap per seed, kind, size and skin; rows reuse it as an <img>.
   const browser = web && typeof document !== "undefined";
   const drawn = web && (kind === "agent" || looked);
