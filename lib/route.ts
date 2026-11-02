@@ -17,6 +17,8 @@ export interface RouteMessage {
   depth?: number;
   /** The person whose message this replies to, when it is a reply to a person. */
   replyToPerson?: string | undefined;
+  /** A Job's own line, verified by chat.post: its brief or its result. It is work coming back, not agents talking, so it is no hop, and it reaches the lead even when the lead wrote it. */
+  job?: boolean;
 }
 export interface RoutePolicy { agentHops?: number }
 export type RouteReason = "mention" | "person_addressed" | "lead" | "no_lead" | "hop_limit";
@@ -36,9 +38,10 @@ export function route(thread: RouteThread, m: RouteMessage, policy: RoutePolicy 
   const done = (responders: string[], reason: RouteReason): RouteResult => ({ responders, reason, listeners });
 
   const fromAgent = m.author.kind === "agent";
-  if (fromAgent && (m.depth ?? 0) >= limit) return done([], "hop_limit");
+  const job = m.job === true;
+  if (fromAgent && !job && (m.depth ?? 0) >= limit) return done([], "hop_limit");
 
-  const mentionedAgents = [...new Set(m.mentions.filter((x) => x.kind === "agent").map((x) => x.id))].filter((id) => !(fromAgent && id === m.author.id));
+  const mentionedAgents = [...new Set(m.mentions.filter((x) => x.kind === "agent").map((x) => x.id))].filter((id) => job || !(fromAgent && id === m.author.id));
   if (mentionedAgents.length) return done(mentionedAgents, "mention");
   if (m.mentions.some((x) => x.kind === "agent")) return done([], "mention");   // only self-mentions: an agent never answers itself
 
@@ -48,9 +51,9 @@ export function route(thread: RouteThread, m: RouteMessage, policy: RoutePolicy 
 
   // the only agent in a person's chat answers that person whatever its mode says: listening means nothing with no one else to lead. Not a message the host posts (a nudge, a baton line, svc_...),
   // not an agent's, not a run, helper, channel or console thread, and never a watcher.
-  const solo = thread.agents.length === 1 && thread.agents[0]!.watching !== true && !fromAgent && !m.author.id.startsWith("svc_") && (thread.kind === undefined || PERSON_CHATS.has(thread.kind));
+  const solo = thread.agents.length === 1 && thread.agents[0]!.watching !== true && (!fromAgent || job) && !m.author.id.startsWith("svc_") && (thread.kind === undefined || PERSON_CHATS.has(thread.kind));
   const lead = thread.agents.find((a) => a.mode === "lead") ?? (solo ? thread.agents[0] : undefined);
-  if (!lead || (fromAgent && lead.id === m.author.id)) return done([], "no_lead");
+  if (!lead || (fromAgent && !job && lead.id === m.author.id)) return done([], "no_lead");
   return done([lead.id], "lead");
 }
 

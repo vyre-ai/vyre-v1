@@ -199,11 +199,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   function ingest(st: ThreadState, m: IncomingMessage, interrupt: boolean): ReceiveResult {
-    return dispatch(st, store(st, m), interrupt, m.replyToPerson);
+    return dispatch(st, store(st, m), interrupt, m.replyToPerson, m.job);
   }
 
-  function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean, replyToPerson?: string): ReceiveResult {
-    const r = route({ agents: st.thread.agents, kind: st.thread.kind }, { author: msg.author, mentions: msg.mentions, depth: msg.depth, replyToPerson }, opts.policy);
+  function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean, replyToPerson?: string, job?: string): ReceiveResult {
+    const r = route({ agents: st.thread.agents, kind: st.thread.kind }, { author: msg.author, mentions: msg.mentions, depth: msg.depth, replyToPerson, job: job !== undefined }, opts.policy);
     let responders = r.responders;
     let routine = false;
     if (r.reason === "hop_limit") emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id });
@@ -213,7 +213,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       routine = responders.length > 0;
     }
     const kind = interrupt ? "interrupt" : "message";
-    const qseqs = responders.map((agentId) => enqueue(st, { kind, agentId, from: msg.author.id, messageId: msg.id, priority: interrupt ? PRIORITY_INTERRUPT : 0, routine }).qseq);
+    const qseqs = responders.map((agentId) => enqueue(st, { kind, agentId, from: job ?? msg.author.id, messageId: msg.id, priority: interrupt ? PRIORITY_INTERRUPT : 0, routine }).qseq);
     if (interrupt && st.running) void cancelRunning(st);
     if (qseqs.length > 0) kick(st);
     return { responders, reason: r.reason, qseqs, messageId: msg.id };
@@ -270,7 +270,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   function payerOf(st: ThreadState, item: QueueItem): { asker: string; reason: "starter" | "steerer" } {
-    const personFrom = (item.kind === "message" || item.kind === "interrupt") && findMessage(st, item.messageId)?.author.kind === "person";
+    // a person's message, or a Job's line: its row's `from` is the person the Job works for, not the agent that wrote it
+    const said = item.kind === "message" || item.kind === "interrupt" ? findMessage(st, item.messageId) : null;
+    const personFrom = said?.author.kind === "person" || (said !== null && said !== undefined && item.from !== said.author.id);
     if (personFrom && item.from !== st.thread.starter) return { asker: item.from, reason: "steerer" };
     return { asker: st.thread.starter, reason: "starter" };
   }

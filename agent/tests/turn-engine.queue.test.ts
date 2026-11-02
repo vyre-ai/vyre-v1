@@ -203,6 +203,20 @@ test("a driver that throws is a failed turn, not a stuck thread", async () => {
   assert.ok(engine.events("T").some((e) => e.type === "turn.failed"));
 });
 
+test("account: a Job's line wakes the lead that wrote it, stays the agent's words, and the person who started the Job pays", async () => {
+  const p = scriptedProvider({ script: ok });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
+  engine.openThread(thread("T", { starter: "dana" }));
+  assert.deepEqual(engine.receive({ threadId: "T", author: agent("intake"), body: "plain", depth: 0 }).responders, [], "an agent's own line wakes nothing");
+  assert.deepEqual(engine.receive({ threadId: "T", author: agent("intake"), body: "Helper found", depth: 0, job: "sam" }).responders, ["intake"]);
+  await engine.idle("T");
+  assert.deepEqual(engine.turns("T").map((t) => [t.asker, t.payerReason, t.kind]), [["sam", "steerer", "message"]]);
+  assert.deepEqual(engine.spend().map((s) => s.payer), ["sam"]);
+  engine.receive({ threadId: "T", author: agent("intake"), body: "Helper found again", depth: 0, job: "dana" });
+  await engine.idle("T");
+  assert.deepEqual(engine.turns("T").map((t) => [t.asker, t.payerReason]), [["sam", "steerer"], ["dana", "starter"]]);
+});
+
 test("account: the starter pays by default, whoever steers pays for the turn their message causes, a wake runs on the starter", async () => {
   const p = scriptedProvider({ script: ok });
   const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });

@@ -45,6 +45,8 @@ export interface IncomingMessage {
   author: Author;
   /** The person whose message this replies to: a reply to someone else's message is for them, not the lead. */
   replyToPerson?: string | undefined;
+  /** A Job's own line, verified by chat.post, and the person the Job works for: it wakes the lead even when the lead wrote it, and that person pays for the turn. The author stays the agent: a Job's words never count as a person's. */
+  job?: string | undefined;
   mentions?: readonly RouteMention[];
   /** Agent-to-agent hops since the last person message. Persons reset it to 0. */
   depth?: number;

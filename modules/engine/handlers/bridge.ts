@@ -396,8 +396,9 @@ export function createBridge(o: BridgeOptions): Bridge {
         } catch (e) { ctx.log.warn("the bridge could not read who joined the chat", { traceId: ctx.trace.traceId, threadId, error: e instanceof Error ? e.message : String(e) }); }
       }
     }
+    const job = p["job"] === true ? str(p["actingFor"]) || authorId : undefined;
     const res = withMessageId(messageId, () => eng.receive({
-      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note, replyToPerson,
+      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note, replyToPerson, ...(job ? { job } : {}),
     }));
     return { receivedAs: res.responders };
   }

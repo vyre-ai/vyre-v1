@@ -434,7 +434,8 @@ export async function helperStart(
   deliver(ctx, parent, messageBy(ctx.db, line.id)!, [], by, { notify: false });
   // a brief from one agent to another is addressed to it: an agent's message reaches another agent only when it names it
   const addressed = ctx.principal.kind === "agent" && agentId !== ctx.principal.id ? [{ kind: "agent" as const, id: agentId }] : [];
-  deliver(ctx, helper, first, addressed, by, { notify: false });
+  // a brief an agent gives itself is a Job's line: it stays the agent's words, and it starts the helper, which an agent's own message never does
+  deliver(ctx, helper, first, addressed, by, { notify: false, job: ctx.principal.kind === "agent" && agentId === ctx.principal.id });
   return { helper: threadOut(ctx.db, threadBy(ctx.db, helper.id)!), blockId };
 }
 

@@ -446,7 +446,7 @@ export default defineManifest({
     ev('channel.erased', 'A channel was erased for good with its messages (ids only)', { p: { channelId: id.channel }, subject: ['entity', '/channelId'], retention: 'audit' }),
     ev('transcripts.purged', 'Chat transcripts past their retention were removed (a count)', { p: { removed: t.int({ minimum: 0 }) }, subject: ['entity', '/removed'], retention: 'audit' }),
     ev('message.received', 'A message was posted in a thread (ids and counts only, never the text)', {
-      p: { messageId: id.message, threadId: id.thread, threadSeq: t.int(), author: principalRef, kind: t.str(), depth: t.int(), mentions: t.arr(mention), hasBlocks: t.bool(), via: t.opt(id.user), actingFor: t.opt(id.user) },
+      p: { messageId: id.message, threadId: id.thread, threadSeq: t.int(), author: principalRef, kind: t.str(), depth: t.int(), mentions: t.arr(mention), hasBlocks: t.bool(), via: t.opt(id.user), actingFor: t.opt(id.user), job: t.opt(t.bool({ description: 'A Job\'s own brief or result, checked by chat.post: the engine runs it even when the agent that wrote it leads the chat' })) },
       subject: ['thread', '/threadId'], label: 'subject', retention: 'transcripts', trigger: { title: 'A message is posted', fields: ['/threadId', '/author/kind'] },
     }),
     ev('message.edited', 'A message was edited', { p: { messageId: id.message, threadId: id.thread }, subject: ['thread', '/threadId'], label: 'subject', retention: 'transcripts' }),

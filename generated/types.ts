@@ -36365,6 +36365,7 @@ export type MessageReceivedPayload = {
   hasBlocks: boolean;
   via?: string;
   actingFor?: string;
+  job?: boolean;
 };
 export type MessageSentPayload = {
   messageId: string;

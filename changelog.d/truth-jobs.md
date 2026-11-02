@@ -1,0 +1,3 @@
+- A helper the lead starts on itself now runs, its answer comes back as the helper's own line in the chat that started it, and that line wakes the lead through the engine, as the agent's words and never a person's.
+- A finished helper or crew job is billed to the person who started it, and it no longer counts as agents handing work back and forth.
+- A rollover no longer ends a session while a Job is running, however full the window is; the engine's own compaction is the backstop.
