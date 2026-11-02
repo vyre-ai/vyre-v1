@@ -19,7 +19,7 @@ try {
     s.on("error", (e) => done({ ok: false, error: `listen ${e.code}` }));
   } else if (mode === "cross-process-loopback") {
     const s = net.createServer((c) => c.end("hi")).listen(0, "127.0.0.1", () => {
-      const child = spawn(process.execPath, [process.argv[1], "host-loopback", out + ".child", String(s.address().port)], { stdio: "ignore" });
+      const child = spawn(process.execPath, ["--preserve-symlinks", "--preserve-symlinks-main", process.argv[1], "host-loopback", out + ".child", String(s.address().port)], { stdio: "ignore" });
       child.on("exit", () => { try { done({ child: JSON.parse(fs.readFileSync(out + ".child", "utf8")) }); } catch (e) { done({ ok: false, error: `child wrote nothing: ${e.message}` }); } });
       child.on("error", (e) => done({ ok: false, error: `spawn ${e.code}` }));
     });

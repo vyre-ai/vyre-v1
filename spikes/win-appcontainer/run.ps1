@@ -111,7 +111,8 @@ foreach ($p in $probes) {
   $n++
   $out = Join-Path $w "out-$n.json"
   $err = Join-Path $w "err-$n.txt"
-  $line = '"' + $cmd + '" /c ""' + $node + '" "' + $w + '\probe.mjs" ' + $p[0] + ' "' + $out + '" "' + $p[1] + '" > "' + $err + '" 2>&1"'
+  # a contained process may not read the drive root, so Node must not resolve the script's real path (it lstat's every parent)
+  $line = '"' + $cmd + '" /c ""' + $node + '" --preserve-symlinks --preserve-symlinks-main "' + $w + '\probe.mjs" ' + $p[0] + ' "' + $out + '" "' + $p[1] + '" > "' + $err + '" 2>&1"'
   $code = [Ac]::Run($name, $line, $w, 30000)
   if (Test-Path $out) { "probe $($p[0]) $($p[1]): $(Get-Content $out -Raw)".Trim() } else { "probe $($p[0]) $($p[1]): no answer (exit $code) $(if (Test-Path $err) { (Get-Content $err -Raw) })" }
 }
