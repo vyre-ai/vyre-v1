@@ -32,6 +32,14 @@ export function reachOffers(items: readonly VaultItem[], query: string, does: st
   return free.filter((i) => i.name.toLowerCase().split(/[^a-z0-9]+/).some((w) => words.has(w))).slice(0, limit);
 }
 
+/**
+ * The picked items that need a grant (vault.share at Use). A Mine item is never shared, and needs none: the agent's own turn for its person reaches that person's Mine item at Use (vault
+ * rulings 62 and 96). Every other item is granted, in a Personal Space too, where the agent is the person's own.
+ */
+export function grantsFor(picked: readonly VaultItem[]): VaultItem[] {
+  return picked.filter((i) => i.scope !== "mine");
+}
+
 export function createInput(d: AgentDraft, key: string): CapMap["agents.create"]["in"] {
   return { name: d.name.trim(), ...(d.does.trim() ? { role: d.does.trim() } : {}), ...(d.face ? { face: d.face } : {}), ...(d.model ? { model: d.model } : {}), computer: d.computer === "own", idempotencyKey: key };
 }
