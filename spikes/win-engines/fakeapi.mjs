@@ -35,6 +35,7 @@ const server = http.createServer((req, res) => {
       const usage = { input_tokens: 1, input_tokens_details: { cached_tokens: 0 }, output_tokens: 1, output_tokens_details: { reasoning_tokens: 0 }, total_tokens: 2 };
       let item;
       if (out) item = { type: "message", id: "msg_2", role: "assistant", status: "completed", content: [{ type: "output_text", text: "spike done", annotations: [] }] };
+      else if (tools.includes("exec_command")) item = { type: "function_call", id: "fc_1", call_id: "call_1", name: "exec_command", arguments: JSON.stringify({ cmd: "echo spike-tool-ok > spike-tool.txt" }) };
       else if (tools.includes("shell_command")) item = { type: "function_call", id: "fc_1", call_id: "call_1", name: "shell_command", arguments: JSON.stringify({ command: "echo spike-tool-ok > spike-tool.txt" }) };
       else item = { type: "function_call", id: "fc_1", call_id: "call_1", name: "shell", arguments: JSON.stringify({ command: ["cmd.exe", "/c", "echo spike-tool-ok> spike-tool.txt"] }) };
       const resp = { id: "resp_1", object: "response", status: "completed", output: [item], usage };

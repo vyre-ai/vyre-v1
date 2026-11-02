@@ -104,13 +104,15 @@ public static class Ac {
 function Q([string]$s) { '"' + $s + '"' }
 function Tail([string]$p) { if (Test-Path $p) { (Get-Content $p -Tail 15) -join "`n" } else { "(none)" } }
 
-$root = Join-Path $env:RUNNER_TEMP "eng"
+# on C: under the profile, where a real data folder is: the runner's D: drive root is closed to app containers, which no person's C: is
+$root = Join-Path $env:LOCALAPPDATA "vyre-eng"
 $bin = Join-Path $root "bin"; $w = Join-Path $root "w"; $home2 = Join-Path $root "home"; $wc = Join-Path $root "control"
 foreach ($d in @($bin, $w, $home2, $wc, "$home2\tmp", "$home2\.claude", "$home2\.codex")) { New-Item -ItemType Directory -Force $d | Out-Null }
 $node = (Get-Command node).Source
 node "$PSScriptRoot\fetch.mjs" "https://downloads.claude.ai/claude-code-releases/2.1.316/win32-x64/claude.exe.zst" "26af66d4fa70e980047d54c85140579de0271d79a9257ac467f90a0ecdca528d" "$bin\claude.exe"
 node "$PSScriptRoot\fetch.mjs" "https://github.com/openai/codex/releases/download/rust-v0.166.0/codex-x86_64-pc-windows-msvc.exe.zst" "5aa3c88e75bd0c843c48e2fe7062999546f0d3094a3361659c2d731dfdf84960" "$bin\codex.exe"
 Copy-Item "$PSScriptRoot\bridge.mjs" $w
+Copy-Item "$PSScriptRoot\..\win-appcontainer\probe.mjs" $w
 
 $name = "vyre.engines.$PID"
 $sid = [Ac]::Sid($name)
@@ -163,6 +165,10 @@ $bp = (Get-Content $bpf -Raw).Trim()
 $env:ANTHROPIC_BASE_URL = "http://127.0.0.1:$bp"
 $env:USERPROFILE = $home2; $env:HOME = $home2; $env:TEMP = "$home2\tmp"; $env:TMP = "$home2\tmp"; $env:CLAUDE_CONFIG_DIR = "$home2\.claude"; $env:CODEX_HOME = "$home2\.codex"
 $cmd = Join-Path $env:WINDIR "System32\cmd.exe"
+# how a contained Node starts children, on C:
+$po = "$w\spawn.json"; $pe = "$w\spawn.err"
+$code = [Ac]::Run($name, (Q $cmd) + ' /c "' + (Q $node) + ' --preserve-symlinks --preserve-symlinks-main ' + (Q "$w\probe.mjs") + ' spawn ' + (Q $po) + ' x > ' + (Q $pe) + ' 2>&1"', $w, 60000)
+"=== node spawn in the container (exit $code): $(Tail $po) $(Tail $pe)"
 foreach ($m in @("bash", "powershell", "codex")) {
   Set-Content $modeFile $m
   $o = "$w\in-$m.out"; $e = "$w\in-$m.err"
