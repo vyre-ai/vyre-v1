@@ -105,23 +105,24 @@ test("the X and Finish later both leave to the app, and Esc does too", async () 
   assert.ok(!out.includes("onboarding-x"), "no X without a way out");
 });
 
-test("Set up N of 8 counts done and skipped steps, matching the rail", () => {
+test("Set up N of 8 counts only what is done, the same number as the Finish setup entry", () => {
   const out = renderToStaticMarkup(<OnboardingScreen flow="personal" spaceName="Maya" progress={{ ai: "done", interview: "later", sessions: "later" }} stepKey="folders" device="mac" onStep={noop} onClose={noop} />);
-  assert.ok(/Set up\s+3 of 8/.test(out.replace(/&nbsp;/g, " ")));
+  assert.ok(/Set up\s+1 of 8/.test(out.replace(/&nbsp;/g, " ")));
 });
 
-test("the Finish setup entry shows the handled count, reopens the first open step, hides, and is gone when all is handled", async () => {
+test("the Finish setup entry counts what is really done, reopens the first open step, hides, and is gone when nothing is open", async () => {
   installDom();
   const { ResumeChip, resumeInfo } = await import("./ResumeChip.tsx");
   const progress = { ai: "done", interview: "later", sessions: "done" } as const;
-  assert.deepEqual(resumeInfo("personal", progress, "mac"), { handled: 3, total: 8, step: "folders" });
+  assert.deepEqual(resumeInfo("personal", progress, "mac"), { done: 2, total: 8, step: "folders" }, "a skipped step moves the entry on, not the number");
+  assert.equal(resumeInfo("personal", { ai: "later" }, "mac")?.done, 0, "skip one step with nothing done: 0");
   const all = Object.fromEntries(steps.map((st) => [st.key, "later" as const]));
   assert.equal(resumeInfo("personal", all, "mac"), null);
   const opened: string[] = [];
   const r = createRoot();
   await act(async () => { r.render(<ResumeChip flow="personal" progress={progress} device="mac" onOpen={(k) => opened.push(k)} />); });
   const root = r.container as never;
-  assert.ok(JSON.stringify(find(root, "resume-open")).includes("Finish setup, 3 of 8") || find(root, "resume-open"));
+  assert.ok(JSON.stringify(find(root, "resume-open")).includes("Finish setup, 2 of 8") || find(root, "resume-open"));
   await press(find(root, "resume-open"));
   assert.deepEqual(opened, ["folders"]);
   await press(find(root, "resume-hide"));
@@ -136,4 +137,17 @@ test("on the phone the Finish setup entry never floats over the page; the comput
   const draw = (compact: boolean): string => renderToStaticMarkup(<ResumeChip flow="personal" progress={{ ai: "done" }} device={compact ? "phone" : "mac"} compact={compact} onOpen={noop} />);
   assert.equal(draw(true), "", "the phone shows setup as a row on the You page instead");
   assert.match(draw(false), /Finish setup, 1 of/);
+});
+
+test("the new chat lists the top three steps left: not done, the ones not put off first, on this device, and says how many more", async () => {
+  const { setupRows, setupTop } = await import("./setup-rows.ts");
+  const fresh = setupTop(setupRows("personal", {}, "mac"));
+  assert.deepEqual(fresh.rows.map((r) => r.key), ["ai", "interview", "sessions"]);
+  assert.equal(fresh.more, 5);
+  const web = setupTop(setupRows("personal", {}, "web"));
+  assert.deepEqual(web.rows.map((r) => r.key), ["ai", "interview", "chrome"], "a browser is not offered what it cannot do");
+  assert.equal(web.more, 3);
+  const later = setupTop(setupRows("personal", { ai: "done", interview: "later" }, "web"));
+  assert.deepEqual(later.rows.map((r) => r.key), ["chrome", "phone", "win"], "a done step has gone and a skipped one waits its turn");
+  assert.equal(setupTop(setupRows("personal", Object.fromEntries(steps.map((st) => [st.key, "done" as const])), "mac")).rows.length, 0);
 });

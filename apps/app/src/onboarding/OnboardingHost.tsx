@@ -128,10 +128,10 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
   const info = !shown && flow ? resumeInfo(flow, progress, detectDevice()) : null;
   const device = detectDevice();
   const resume = useMemo(() => (info && flow ? {
-    handled: info.handled, total: info.total, open: () => { setStep(info.step); setShown(true); },
+    done: info.done, total: info.total, open: () => { setStep(info.step); setShown(true); },
     // the entry itself, for the title bar to draw: it is never a floating pill over the rail or the page
     pill: <ResumeChip flow={flow} progress={progress} device={device} onOpen={(k) => { setStep(k); setShown(true); }} />,
-  } : null), [info?.handled, info?.total, info?.step, flow, progress, device]);
+  } : null), [info?.done, info?.total, info?.step, flow, progress, device]);
 
   // the shell stays mounted underneath, so closing the screen returns to exactly where the person was
   return (

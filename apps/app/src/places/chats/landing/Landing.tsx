@@ -125,7 +125,7 @@ export function Landing(p: LandingProps): ReactElement {
           </Pressable>
         </View>
         <View testID="landing-below" style={st.below}>
-          {firstDay ? <SetupRows render={(row, open) => <SetupLine key={row.key} title={row.title} sub={row.note} done={row.state === "done"} open={open} />} /> : (
+          {firstDay ? <SetupRows render={(row, open) => <SetupLine key={row.key} title={row.title} sub={row.note} done={row.state === "done"} open={open} />} more={(count, open) => <Pressable key="more" role="button" testID="landing-setup-more" onPress={open} style={st.more}><Text style={st.moreText}>{`${count} more to set up`}</Text></Pressable>} /> : (
             <>
               {each(items, (n) => <NeedRow key={n.task.id} item={n} {...p} />)}
               {moreLine(total, items.length) ? <Pressable role="button" testID="landing-more" onPress={p.openTasks} style={st.more}><Text style={st.moreText}>{moreLine(total, items.length)}</Text></Pressable> : null}

@@ -69,8 +69,8 @@ const fade = web ? { dataSet: { vyreOb: "1" } } : {};
 /** The last step of the flow on this device: skipping it ends the walk, even when an earlier step was put off. */
 const isLast0 = (flow: FlowKind, key: string, device: Device): boolean => { const st = visibleSteps(flow, device); return st[st.length - 1]?.key === key; };
 
-/** "Set up N of M" counts a step as handled when it is done or skipped, so the number matches the rail. */
-const counted = (flow: FlowKind, progress: Progress, device: Device): { done: number; later: number; total: number } => { const c = countsOn(flow, progress, device); return { ...c, done: c.done + c.later }; };
+/** "Set up N of M" counts what is really done, the same number the Finish setup entry shows: a skipped step moves you on, never the count. */
+const counted = (flow: FlowKind, progress: Progress, device: Device): { done: number; later: number; total: number } => countsOn(flow, progress, device);
 
 function ProgressBar({ done, total }: { done: number; total: number }): ReactElement {
   return <View style={s.bar} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: total, now: done }}><View style={[s.barFill, { width: `${total === 0 ? 0 : Math.round((done / total) * 100)}%` as `${number}%` }]} /></View>;
