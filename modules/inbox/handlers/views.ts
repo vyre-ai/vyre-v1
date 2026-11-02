@@ -48,7 +48,7 @@ function canSee(ctx: InboxCtx, reach: Reach, type: string, id: string): boolean 
   let ok = reach.access.get(key);
   if (ok === undefined) {
     const d = ctx.authorize({ perm: null, level: "view" }, { type, id });
-    // A conversation is a row of the Inbox, not a resource the access rules know by itself. When they know nothing of it (not found), the reasons below decide (owner, follow, campaign,
+    // A conversation is a row of the Inbox, not a resource the access rules know by itself. When they know nothing of it (not found), the reasons below decide (owner, follow,
     // the inbox it arrived in); one they know and deny stays hidden.
     ok = d.effect === "allow" || (type === "conversation" && d.reason === "not_found");
     reach.access.set(key, ok);
