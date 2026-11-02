@@ -10,6 +10,7 @@ type Call = (cap: string, input: unknown, as?: string) => Promise<unknown>;
 type Obj = Record<string, unknown>;
 
 import { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL } from "../../lib/connector-chat.ts";
+import { COMPANY_INTENT } from "../../lib/company-flow.ts";
 
 /** The titles of the chats the Vault (Add to Automations) and the step picker (Build a connector) start, and the skill they run on. */
 /** How to name a record, file, task or chat in a reply: by link, never by id. */
@@ -385,7 +386,7 @@ export function createContextBuilder(d: ContextDeps) {
     // skills: the manual is always in front of the agent; the other skills are an index, and the place's focus skill is loaded for it
     // A chat that Add to Automations or Build a connector started is a connector build whatever screen it was sent from: that skill is the focus. Anywhere else it is in the skills index by its description.
     const connectorChat = CONNECTOR_CHAT.test(str(th?.["title"]) ?? "");
-    const focusName = taskId ? "working-on-tasks" : connectorChat ? CONNECTOR_SKILL : CRM_CHAT.test(str(th?.["title"]) ?? "") ? CRM_SKILL : screen?.focus ?? (screen ? `focus-${screen.place}` : undefined);
+    const focusName = taskId ? "working-on-tasks" : connectorChat ? CONNECTOR_SKILL : CRM_CHAT.test(str(th?.["title"]) ?? "") ? CRM_SKILL : COMPANY_INTENT.test(str(th?.["title"]) ?? "") ? "connect-company" : screen?.focus ?? (screen ? `focus-${screen.place}` : undefined);
     if (d.skills) {
       const idx = await d.skills.index(agentId, asker).catch(() => []);
       const manual = await d.skills.load("working-in-vyre", agentId, asker).catch(() => null);

@@ -11,7 +11,7 @@ Name the Vault item that holds the Microsoft OAuth app (client_id, client_secret
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | connection_change when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |
@@ -43,6 +43,7 @@ type Out = {
 - internal.unexpected
 - permission.above_clearance
 - permission.no_grant
+- permission.on_hold
 - permission.role_lacks_permission
 - provider.auth_failed
 - validation.bad_input

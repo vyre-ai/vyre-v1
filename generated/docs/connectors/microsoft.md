@@ -18,6 +18,11 @@ Key microsoft, module microsoft. Mode oauth_app, owned by a space. Auth client_c
 ## Actions
 
 - ms.consent.status
+- ms.consent.check_app
+- ms.consent.connect_all
+- ms.consent.set_data
+- ms.access_log
+- ms.directory.reconcile
 - ms.consent.link
 - ms.consent.policy_snippet
 - ms.consent.setup

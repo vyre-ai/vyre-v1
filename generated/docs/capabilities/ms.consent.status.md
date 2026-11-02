@@ -39,6 +39,15 @@ type Out = {
   autoConnect: boolean;
   mappedMembers: number;
   excluded: Array<string>;
+  data: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  appStored: boolean;
+  clientId?: string;
+  permissions: Array<string>;
+  exchangeRoles: Array<string>;
 };
 ```
 
@@ -57,14 +66,27 @@ type Out = {
   "name": "example",
   "input": {},
   "output": {
+    "appStored": true,
     "autoConnect": true,
+    "clientId": "example",
     "configured": true,
     "consentGiven": true,
+    "data": {
+      "calendar": true,
+      "files": true,
+      "mail": true
+    },
+    "exchangeRoles": [
+      "example"
+    ],
     "excluded": [
       "maya@example.com"
     ],
     "lastVerifyAt": 1760000000000,
     "mappedMembers": 1,
+    "permissions": [
+      "example"
+    ],
     "policyConfirmed": true,
     "tenantId": "example"
   }

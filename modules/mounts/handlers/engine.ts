@@ -805,7 +805,9 @@ async function mountsAdd(ctx: Ctx, input: unknown): Promise<{ mountId: string; f
   const modeIn = optStr(o, "mode");
   if (modeIn !== undefined && modeIn !== "server_copy" && modeIn !== "live_only") fail(ctx, "validation.bad_input", "mode must be server_copy or live_only.");
   if (modeIn === "live_only" && source.kind === "github") fail(ctx, "validation.bad_input", "A GitHub repository is always a copy.");
-  if (liveMounts(ctx).some((r) => sameSource(r, source))) fail(ctx, "validation.duplicate", "That is already mounted.");
+  const account = await accountOf(ctx, source.kind);
+  // two people may hold the same source: each syncs as themselves
+  if (liveMounts(ctx).some((r) => sameSource(r, source) && str(r["account"]) === (account ?? ""))) fail(ctx, "validation.duplicate", "That is already mounted.");
   // a cloud folder is live by default (tree and metadata from the provider, content fetched on open); a synced copy is a choice
   const mode: MountMode = source.kind === "local" ? (modeIn === "live_only" || modeIn === "server_copy" ? modeIn : await localDefaultMode(ctx))
     : isCloud(source.kind) ? (modeIn === "server_copy" ? "server_copy" : "live_only") : "server_copy";
@@ -819,7 +821,7 @@ async function mountsAdd(ctx: Ctx, input: unknown): Promise<{ mountId: string; f
   const mountId = nid(ctx, "mnt");
   const fields: Row = {
     id: mountId, folder_id: folderId, kind: source.kind, connection_id: source.connectionId ?? null, ref: source.ref ?? null, path: source.path ?? null, branch: source.branch ?? null,
-    device_id: source.deviceId ?? null, local_path: source.localPath ?? null, name, mode, review_changes: review ? 1 : 0, pull_only: 0, state: "idle", cursor: null, owner: ctx.principal.id, account: await accountOf(ctx, source.kind),
+    device_id: source.deviceId ?? null, local_path: source.localPath ?? null, name, mode, review_changes: review ? 1 : 0, pull_only: 0, state: "idle", cursor: null, owner: ctx.principal.id, account,
     last_sync_at: null, stale_since: null, next_sync_at: null, conflicts: 0, error: null, created_at: now, updated_at: now, deleted_at: null,
   };
   const cols = Object.keys(fields);
@@ -842,6 +844,48 @@ async function mountsAdd(ctx: Ctx, input: unknown): Promise<{ mountId: string; f
   }
   if (source.kind !== "local") await runPass(ctx, mountId);
   return { mountId, folderId, runId };
+}
+
+const COMPANY_DRIVES = [
+  { kind: "google_drive", cap: "google.dwd.my_account", name: "My Drive", ref: "root" },
+  { kind: "onedrive", cap: "ms.consent.my_account", name: "OneDrive" },
+] as const;
+
+/**
+ * The person's own Drive or OneDrive comes into their Personal folder the first time they open Files, with nothing to sign in to: the company connected it, and it syncs as them. It runs as the person, so it is theirs and
+ * private to them. An agent working for them has no business making it, and someone excluded, or with Files turned off, gets nothing.
+ */
+async function mountsCompanyDrive(ctx: Ctx): Promise<{ mounted: string[] }> {
+  if (ctx.principal.kind !== "person") return { mounted: [] };
+  const mounted: string[] = [];
+  for (const d of COMPANY_DRIVES) {
+    let me: Row;
+    try { me = obj(await ctx.call(d.cap, {})); } catch { continue; }
+    const account = optStr(me, "email"), connectionId = optStr(me, "connectionId");
+    if (!account || !connectionId || me["files"] !== true) continue;
+    if (liveMounts(ctx).some((r) => str(r["kind"]) === d.kind && str(r["owner"]) === ctx.principal.id && str(r["account"]) === account)) continue;
+    const personal = list(obj(await ctx.call("files.tree", {}))["roots"]).map(obj).find((r) => r["key"] === "personal");
+    const into = optStr(personal ?? {}, "folderId");
+    if (!into) continue;
+    const made = await mountsAdd(ctx, { into, name: d.name, source: { kind: d.kind, connectionId, ...("ref" in d ? { ref: d.ref } : {}) } });
+    mounted.push(made.mountId);
+  }
+  return { mounted };
+}
+
+/** The connector stops or restarts everything that syncs as one address: excluded, gone from the directory, or the company turned Files off. The folders stay; nothing moves. */
+async function mountsAccountPause(ctx: Ctx, input: unknown): Promise<{ changed: number }> {
+  const o = record(ctx, input);
+  const account = reqStr(ctx, o, "account").trim().toLowerCase();
+  const paused = o["paused"] === true;
+  let changed = 0;
+  for (const row of liveMounts(ctx).filter((r) => str(r["account"]).toLowerCase() === account)) {
+    if ((row["state"] === "paused") === paused) continue;
+    patchMount(ctx, row, paused ? { state: "paused", next_sync_at: null, updated_at: ctx.now() } : { state: "idle", updated_at: ctx.now() });
+    ctx.emit(paused ? "mount.paused" : "mount.resumed", `folder/${str(row["folder_id"])}`, { mountId: str(row["id"]), folderId: str(row["folder_id"]) });
+    changed += 1;
+  }
+  return { changed };
 }
 
 async function mountsSyncNow(ctx: Ctx, input: unknown): Promise<{ runId: string }> {
@@ -1300,6 +1344,8 @@ export const engineHandlers = {
   "mounts.remove": (ctx: Ctx, input: unknown) => mountsRemove(ctx, input),
   "mounts.sync_now": (ctx: Ctx, input: unknown) => mountsSyncNow(ctx, input),
   "mounts.pause": (ctx: Ctx, input: unknown) => mountsPause(ctx, input),
+  "mounts.company_drive": (ctx: Ctx) => mountsCompanyDrive(ctx),
+  "mounts.account_pause": (ctx: Ctx, input: unknown) => mountsAccountPause(ctx, input),
   "mounts.resume": (ctx: Ctx, input: unknown) => mountsResume(ctx, input),
   "mounts.local_report": (ctx: Ctx, input: unknown) => localReport(ctx, input),
   "mounts.lag": (ctx: Ctx, input: unknown) => mountsLag(ctx, input),

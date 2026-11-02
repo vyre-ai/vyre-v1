@@ -26,7 +26,7 @@ const good = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
 const check = (token: string, over: { domain?: string | undefined; nonce?: string } = {}) => verifyIdToken(fetchKeys, D, token, { clientId: "app", nonce: over.nonce ?? "n1", domain: "domain" in over ? over.domain : "firm.test", now: NOW });
 
 test("an ID token that is right names the lower-cased address and the subject", async () => {
-  assert.deepEqual(await check(await sign(good())), { email: "ana@firm.test", subject: "u1" });
+  assert.deepEqual(await check(await sign(good())), { email: "ana@firm.test", subject: "u1", link: { tenant: "firm.test", subject: "u1" } });
 });
 
 test("every wrong ID token is refused with its reason", async () => {
@@ -95,7 +95,7 @@ const msGood = (over: Record<string, unknown> = {}): Record<string, unknown> => 
 const msCheck = (claims: Record<string, unknown>, tenant: string | undefined = T1) => sign(claims).then((t) => verifyIdToken(fetchKeys, MS, t, { clientId: "app", nonce: "n1", domain: "firm.test", now: NOW, ...(tenant ? { tenant } : {}) }));
 
 test("a Microsoft token is known by tenant and user id, and its unverified email claim is not the address", async () => {
-  assert.deepEqual(await msCheck(msGood()), { email: "ana@firm.test", subject: OID, tenant: T1, oid: OID }, "the account name is the address, not the email claim");
+  assert.deepEqual(await msCheck(msGood()), { email: "ana@firm.test", subject: OID, tenant: T1, oid: OID, link: { tenant: T1, subject: OID } }, "the account name is the address, not the email claim");
   await assert.rejects(msCheck(msGood({ email: "ana@firm.test", preferred_username: "ana@other.test" })), refused(/not at firm.test/), "a firm address in the email claim does not pass when the account name is elsewhere");
 });
 
@@ -135,4 +135,21 @@ test("a typed issuer is never dialled at a local or private address, by name or 
   await assert.rejects(g("https://intranet/x"), refused(/public/));
   await assert.rejects(g("https://sneaky.example.com/x"), refused(/private/));
   assert.equal((await g("https://idp.example.com/x")).status, 200);
+});
+
+test("Google: only a verified Workspace account of the firm's domain, and the person is the subject, never the address", async () => {
+  const google = (token: string) => verifyIdToken(fetchKeys, D, token, { clientId: "app", nonce: "n1", domain: "firm.test", now: NOW, hostedDomain: true });
+  await assert.rejects(google(await sign(good({ sub: "g1", email_verified: true }))), refused(/not a verified Google Workspace/), "a consumer account made with a firm address has no hosted domain");
+  await assert.rejects(google(await sign(good({ sub: "g1", hd: "firm.test", email_verified: undefined }))), refused(/not a verified Google Workspace/));
+  await assert.rejects(google(await sign(good({ sub: "g1", hd: "other.test" }))), refused(/another domain/));
+  assert.deepEqual((await google(await sign(good({ sub: "g1", hd: "firm.test" })))).link, { tenant: "firm.test", subject: "g1" });
+});
+
+test("a token meant for several apps must have been issued to this one", async () => {
+  await assert.rejects(check(await sign(good({ aud: ["app", "other"], azp: "other" }))), refused(/issued to another app/));
+  await check(await sign(good({ aud: ["app", "other"], azp: "app" })));
+});
+
+test("a token with no subject links nobody", async () => {
+  await assert.rejects(check(await sign(good({ sub: undefined }))), refused(/no user id/));
 });

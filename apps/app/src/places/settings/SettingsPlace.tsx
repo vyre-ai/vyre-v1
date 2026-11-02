@@ -85,6 +85,7 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
     pageRows.push(<View key="g-space" style={n.groupHead} testID="space-group"><Mark name={spaceTitle} size={16} /><Text accessibilityRole="header" style={n.groupTitle}>{spaceTitle}</Text></View>);
     for (const key of spacePages) { const p = pageByKey(key); pageRows.push(<Row key={p.key} id={`page-${p.key}`} title={p.title} selected={!q.trim() && page === p.key} leading={<IconBox name={p.icon} />} onPress={() => open(p.key)} />); }
   }
+  if (data.openCompany) pageRows.push(<View key="g-company" style={n.groupHead} />, <Row key="company" id="open-company" title="Connect your company" note="Google Workspace or Microsoft 365" leading={<IconBox name="link" />} onPress={data.openCompany} />);
   if (data.openConsole) pageRows.push(<View key="g-console" style={n.groupHead} />, <Row key="console" id="open-console" title="Console" note="Running this Space" leading={<IconBox name="grid" />} onPress={data.openConsole} />);
   const searching = q.trim().length > 0;
   const hitRows: ReactElement[] = [];

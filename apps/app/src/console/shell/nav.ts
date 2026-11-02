@@ -50,6 +50,7 @@ export const PAGES: readonly PageDef[] = [
   p("numbers", "Numbers", "Comms", "phone", "comms.numbers", "telephony.numbers"),
   p("inboxes", "Shared inboxes", "Comms", "inbox", "comms.shared_send", "mail.shared-inboxes"),
   p("texting", "Texting registration", "Comms", "chat", "comms.numbers", "telephony.registration"),
+  p("company", "Connect your company", "Integrations", "cloud", "connectors.manage", "company.setup"),
   p("google", "Google Workspace", "Integrations", "cloud", "connectors.manage", "google.setup"),
   p("microsoft", "Microsoft 365", "Integrations", "windows", "connectors.manage", "microsoft.setup"),
   p("connectors", "Connectors", "Integrations", "braces", "console.access", "console.integrations"),

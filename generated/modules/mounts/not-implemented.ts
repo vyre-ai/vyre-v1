@@ -5,8 +5,10 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "mounts.account_pause": async (ctx) => { throw new VyreErr(notImplemented("mounts.account_pause", ctx.trace)); },
   "mounts.add": async (ctx) => { throw new VyreErr(notImplemented("mounts.add", ctx.trace)); },
   "mounts.browse": async (ctx) => { throw new VyreErr(notImplemented("mounts.browse", ctx.trace)); },
+  "mounts.company_drive": async (ctx) => { throw new VyreErr(notImplemented("mounts.company_drive", ctx.trace)); },
   "mounts.doc_insert_text": async (ctx) => { throw new VyreErr(notImplemented("mounts.doc_insert_text", ctx.trace)); },
   "mounts.doc_replace_text": async (ctx) => { throw new VyreErr(notImplemented("mounts.doc_replace_text", ctx.trace)); },
   "mounts.editors": async (ctx) => { throw new VyreErr(notImplemented("mounts.editors", ctx.trace)); },

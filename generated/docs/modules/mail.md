@@ -29,6 +29,7 @@ Requires: nothing.
 - [mail.mailbox.set_privacy](../capabilities/mail.mailbox.set_privacy.md): Mark a mailbox private, shared with the Space or shared with chosen people
 - [mail.mailbox.set_sync_state](../capabilities/mail.mailbox.set_sync_state.md): A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings
 - [mail.mailbox.update](../capabilities/mail.mailbox.update.md): Rename a mailbox or change its agent
+- [mail.member_pause](../capabilities/mail.member_pause.md): The connector stops a member's delegated mailbox, or starts it again; what is already in Vyre stays theirs
 - [mail.message.erase](../capabilities/mail.message.erase.md): Erase one mail message for good (governance erase)
 - [mail.message.get](../capabilities/mail.message.get.md): Read one message with attachments, provider id, DNS check state and trace id
 - [mail.message.list](../capabilities/mail.message.list.md): List messages of a mailbox, thread or contact

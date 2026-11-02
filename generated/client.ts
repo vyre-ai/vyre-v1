@@ -411,6 +411,19 @@ export function createClient(transport: Transport) {
         set_default: call("comms.senders.set_default", 1),
       },
     },
+    company: {
+      access_log: call("company.access_log", 1),
+      check: call("company.check", 1),
+      connect: call("company.connect", 1),
+      disconnect: call("company.disconnect", 1),
+      guide: call("company.guide", 1),
+      people_done: call("company.people_done", 1),
+      probe: call("company.probe", 1),
+      script: call("company.script", 1),
+      start: call("company.start", 1),
+      status: call("company.status", 1),
+      sweep: call("company.sweep", 1),
+    },
     computers: {
       chrome: {
         act: call("computers.chrome.act", 1),
@@ -1021,6 +1034,7 @@ export function createClient(transport: Transport) {
       },
     },
     google: {
+      access_log: call("google.access_log", 1),
       calendar: {
         create_event: call("google.calendar.create_event", 1),
         delete_event: call("google.calendar.delete_event", 1),
@@ -1036,6 +1050,7 @@ export function createClient(transport: Transport) {
       directory: {
         import: call("google.directory.import", 1),
         list: call("google.directory.list", 1),
+        reconcile: call("google.directory.reconcile", 1),
       },
       docs: {
         batch_update: call("google.docs.batch_update", 1),
@@ -1063,12 +1078,15 @@ export function createClient(transport: Transport) {
         watch_changes: call("google.drive.watch_changes", 1),
       },
       dwd: {
+        check_key: call("google.dwd.check_key", 1),
+        connect_all: call("google.dwd.connect_all", 1),
         disable: call("google.dwd.disable", 1),
         map_member: call("google.dwd.map_member", 1),
         members: call("google.dwd.members", 1),
         my_account: call("google.dwd.my_account", 1),
         probe: call("google.dwd.probe", 1),
         scopes: call("google.dwd.scopes", 1),
+        set_data: call("google.dwd.set_data", 1),
         set_excluded: call("google.dwd.set_excluded", 1),
         setup: call("google.dwd.setup", 1),
         status: call("google.dwd.status", 1),
@@ -1202,6 +1220,8 @@ export function createClient(transport: Transport) {
       sign_in: call("identity.sign_in", 1),
       sign_in_options: call("identity.sign_in_options", 1),
       sign_out: call("identity.sign_out", 1),
+      sso_join_start: call("identity.sso_join_start", 1),
+      sso_link: call("identity.sso_link", 1),
       sso_sign_in: call("identity.sso_sign_in", 1),
       totp_begin: call("identity.totp_begin", 1),
       totp_confirm: call("identity.totp_confirm", 1),
@@ -1330,6 +1350,7 @@ export function createClient(transport: Transport) {
         set_sync_state: call("mail.mailbox.set_sync_state", 1),
         update: call("mail.mailbox.update", 1),
       },
+      member_pause: call("mail.member_pause", 1),
       message: {
         erase: call("mail.message.erase", 1),
         get: call("mail.message.get", 1),
@@ -1543,8 +1564,10 @@ export function createClient(transport: Transport) {
       versions: call("memory.versions", 1),
     },
     mounts: {
+      account_pause: call("mounts.account_pause", 1),
       add: call("mounts.add", 1),
       browse: call("mounts.browse", 1),
+      company_drive: call("mounts.company_drive", 1),
       doc_insert_text: call("mounts.doc_insert_text", 1),
       doc_replace_text: call("mounts.doc_replace_text", 1),
       editors: call("mounts.editors", 1),
@@ -1567,6 +1590,7 @@ export function createClient(transport: Transport) {
       update: call("mounts.update", 1),
     },
     ms: {
+      access_log: call("ms.access_log", 1),
       calendar: {
         create_event: call("ms.calendar.create_event", 1),
         delete_event: call("ms.calendar.delete_event", 1),
@@ -1582,12 +1606,15 @@ export function createClient(transport: Transport) {
         update_event: call("ms.calendar.update_event", 1),
       },
       consent: {
+        check_app: call("ms.consent.check_app", 1),
+        connect_all: call("ms.consent.connect_all", 1),
         disable: call("ms.consent.disable", 1),
         link: call("ms.consent.link", 1),
         map_member: call("ms.consent.map_member", 1),
         members: call("ms.consent.members", 1),
         my_account: call("ms.consent.my_account", 1),
         policy_snippet: call("ms.consent.policy_snippet", 1),
+        set_data: call("ms.consent.set_data", 1),
         set_excluded: call("ms.consent.set_excluded", 1),
         setup: call("ms.consent.setup", 1),
         status: call("ms.consent.status", 1),
@@ -1597,6 +1624,7 @@ export function createClient(transport: Transport) {
       directory: {
         import: call("ms.directory.import", 1),
         list: call("ms.directory.list", 1),
+        reconcile: call("ms.directory.reconcile", 1),
       },
       drive: {
         create_folder: call("ms.drive.create_folder", 1),

@@ -276,6 +276,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.company.setup",
+      "place": "console",
+      "screen": "company.setup"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.console.agent-computers",
       "place": "console",
       "screen": "console.agent-computers"

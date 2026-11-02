@@ -26,6 +26,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "identity.sign_in": Handler<"identity.sign_in", X>;
   "identity.sign_in_options": Handler<"identity.sign_in_options", X>;
   "identity.sign_out": Handler<"identity.sign_out", X>;
+  "identity.sso_join_start": Handler<"identity.sso_join_start", X>;
+  "identity.sso_link": Handler<"identity.sso_link", X>;
   "identity.sso_sign_in": Handler<"identity.sso_sign_in", X>;
   "identity.totp_begin": Handler<"identity.totp_begin", X>;
   "identity.totp_confirm": Handler<"identity.totp_confirm", X>;

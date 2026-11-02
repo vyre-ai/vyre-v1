@@ -5280,6 +5280,204 @@ const routes0: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/company/access_log",
+    "cap": "company.access_log",
+    "v": 1,
+    "module": "members",
+    "effects": "read",
+    "permission": "connectors.manage",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/company/check",
+    "cap": "company.check",
+    "v": 1,
+    "module": "members",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/company/connect",
+    "cap": "company.connect",
+    "v": 1,
+    "module": "members",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "connection_change"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/company/disconnect",
+    "cap": "company.disconnect",
+    "v": 1,
+    "module": "members",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "connection_change"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/company/guide",
+    "cap": "company.guide",
+    "v": 1,
+    "module": "members",
+    "effects": "read",
+    "permission": "connectors.manage",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/company/people_done",
+    "cap": "company.people_done",
+    "v": 1,
+    "module": "members",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/company/probe",
+    "cap": "company.probe",
+    "v": 1,
+    "module": "members",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/company/script",
+    "cap": "company.script",
+    "v": 1,
+    "module": "members",
+    "effects": "read",
+    "permission": "connectors.manage",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/company/start",
+    "cap": "company.start",
+    "v": 1,
+    "module": "members",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/company/status",
+    "cap": "company.status",
+    "v": 1,
+    "module": "members",
+    "effects": "read",
+    "permission": "connectors.manage",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/company/sweep",
+    "cap": "company.sweep",
+    "v": 1,
+    "module": "members",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/computers/chrome/act",
     "cap": "computers.chrome.act",
     "v": 1,
@@ -10564,7 +10762,10 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes2: Route[] = [
   {
     "method": "POST",
     "path": "/v1/esign/send",
@@ -13223,6 +13424,24 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/google/access_log",
+    "cap": "google.access_log",
+    "v": 1,
+    "module": "google",
+    "effects": "read",
+    "permission": "connectors.manage",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/google/calendar/create_event",
     "cap": "google.calendar.create_event",
     "v": 1,
@@ -13443,6 +13662,24 @@ const routes2: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/google/directory/reconcile",
+    "cap": "google.directory.reconcile",
+    "v": 1,
+    "module": "google",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -13848,6 +14085,42 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/google/dwd/check_key",
+    "cap": "google.dwd.check_key",
+    "v": 1,
+    "module": "google",
+    "effects": "read",
+    "permission": "connectors.manage",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/google/dwd/connect_all",
+    "cap": "google.dwd.connect_all",
+    "v": 1,
+    "module": "google",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "connection_change"
+  },
+  {
+    "method": "POST",
     "path": "/v1/google/dwd/disable",
     "cap": "google.dwd.disable",
     "v": 1,
@@ -13953,6 +14226,24 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/google/dwd/set_data",
+    "cap": "google.dwd.set_data",
+    "v": 1,
+    "module": "google",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "connection_change"
   },
   {
     "method": "POST",
@@ -14534,7 +14825,7 @@ const routes2: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "connection_change"
   },
   {
     "method": "POST",
@@ -15819,6 +16110,42 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/identity/sso_join_start",
+    "cap": "identity.sso_join_start",
+    "v": 1,
+    "module": "identity",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/identity/sso_link",
+    "cap": "identity.sso_link",
+    "v": 1,
+    "module": "identity",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/identity/sso_sign_in",
     "cap": "identity.sso_sign_in",
     "v": 1,
@@ -15978,7 +16305,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/import/get",
@@ -17693,6 +18023,24 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/mail/member_pause",
+    "cap": "mail.member_pause",
+    "v": 1,
+    "module": "mail",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/mail/message/erase",
     "cap": "mail.message.erase",
     "v": 1,
@@ -18915,7 +19263,7 @@ const routes3: Route[] = [
     "risk": "high",
     "offline": null,
     "teamOnly": true,
-    "gate": null
+    "gate": "signin_change"
   },
   {
     "method": "POST",
@@ -18951,7 +19299,7 @@ const routes3: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": true,
-    "gate": null
+    "gate": "signin_change"
   },
   {
     "method": "POST",
@@ -18969,7 +19317,7 @@ const routes3: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": true,
-    "gate": null
+    "gate": "signin_change"
   },
   {
     "method": "POST",
@@ -20092,6 +20440,24 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/mounts/account_pause",
+    "cap": "mounts.account_pause",
+    "v": 1,
+    "module": "mounts",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/mounts/add",
     "cap": "mounts.add",
     "v": 1,
@@ -20124,6 +20490,24 @@ const routes3: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mounts/company_drive",
+    "cap": "mounts.company_drive",
+    "v": 1,
+    "module": "mounts",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -20499,6 +20883,24 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/ms/access_log",
+    "cap": "ms.access_log",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "read",
+    "permission": "connectors.manage",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/ms/calendar/create_event",
     "cap": "ms.calendar.create_event",
     "v": 1,
@@ -20727,6 +21129,42 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/ms/consent/check_app",
+    "cap": "ms.consent.check_app",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "read",
+    "permission": "connectors.manage",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/ms/consent/connect_all",
+    "cap": "ms.consent.connect_all",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "connection_change"
+  },
+  {
+    "method": "POST",
     "path": "/v1/ms/consent/disable",
     "cap": "ms.consent.disable",
     "v": 1,
@@ -20832,6 +21270,24 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/ms/consent/set_data",
+    "cap": "ms.consent.set_data",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "connection_change"
   },
   {
     "method": "POST",
@@ -20955,6 +21411,24 @@ const routes3: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/ms/directory/reconcile",
+    "cap": "ms.directory.reconcile",
+    "v": 1,
+    "module": "microsoft",
+    "effects": "write",
+    "permission": "connectors.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -21337,7 +21811,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/ms/mail/move_message",
@@ -21580,7 +22057,7 @@ const routes3: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": null
+    "gate": "connection_change"
   },
   {
     "method": "POST",
@@ -26863,7 +27340,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sites/build",
@@ -32396,7 +32876,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/vault/policy/get",

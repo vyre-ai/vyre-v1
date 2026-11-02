@@ -387,7 +387,7 @@ test("a call acts as the member through /users/{address} with the application to
   assert.deepEqual(log, [1, 2, 3].map(() => ({ subject: MAYA, actor: "usr_maya01", cap: "ms.mail.list_folders", bulk: 1 })));
 });
 
-test("another member needs an admin or a service; an excluded or unmapped one is never reached", async () => {
+test("a role never reaches a teammate, only a service; an excluded or unmapped one is never reached", async () => {
   const sam = "sam@vyre.test";
   const members = [{ email: MAYA, userId: "usr_maya01" }, { email: sam, userId: "usr_sam01" }, { email: "kim@vyre.test", userId: "usr_kim01", excluded: true }];
   const plain = harness();
@@ -397,10 +397,10 @@ test("another member needs an admin or a service; an excluded or unmapped one is
   const boss = harness({ admin: true });
   seedConsent(boss, { members });
   boss.on("GET", /mailFolders/, { body: { value: [] } });
-  await mailFolders(boss.ctx, { ...act, as: "SAM@vyre.test" });
-  assert.match(boss.requests.at(-1)!.url, /users\/sam%40vyre\.test\//);
+  await assert.rejects(() => mailFolders(boss.ctx, { ...act, as: "SAM@vyre.test" }), (e) => codeOf(e) === "permission.no_grant");
   await assert.rejects(() => mailFolders(boss.ctx, { ...act, as: "kim@vyre.test" }), (e) => codeOf(e) === "permission.no_grant");
-  await assert.rejects(() => mailFolders(boss.ctx, { ...act, as: "stranger@vyre.test" }), (e) => codeOf(e) === "validation.precondition_failed");
+  await assert.rejects(() => mailFolders(boss.ctx, { ...act, as: "stranger@vyre.test" }), (e) => codeOf(e) === "permission.no_grant");
+  assert.equal(boss.requests.length, 0, "Microsoft is never asked for a teammate");
   const svc = harness({ principal: { kind: "service", id: "svc_ms" } });
   seedConsent(svc, { members });
   svc.on("GET", /mailFolders/, { body: { value: [] } });
@@ -413,7 +413,7 @@ test("another member needs an admin or a service; an excluded or unmapped one is
   seedConsent(agent);
   agent.on("GET", /mailFolders/, { body: { value: [] } });
   await mailFolders(agent.ctx, act);
-  assert.deepEqual(agent.rows(`SELECT subject, actor FROM microsoft_read_log`), [{ subject: MAYA, actor: "usr_maya01" }]);
+  assert.deepEqual(agent.rows(`SELECT subject, actor, "onBehalf" FROM microsoft_read_log`), [{ subject: MAYA, actor: "agt_scout01", onBehalf: "usr_maya01" }]);
 });
 
 test("a 401 mints a new token once; a second 401 is an answer", async () => {

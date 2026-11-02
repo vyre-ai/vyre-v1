@@ -24,6 +24,7 @@
     "mail.mailbox.set_privacy@1": "4642b97a45c9557601247c30da67b7903c8f426fb993d5ae49fdef788156956e",
     "mail.mailbox.set_sync_state@1": "0142acb42f344ecc071e09fe6c840fef63899bf6026f04fa04374db5f61da4d5",
     "mail.mailbox.update@1": "29a8597e66b5284d195488affc73a9a3997a803171021019e5960bd4d670b77f",
+    "mail.member_pause@1": "f39737daa9989235186609a97e4482c009f728db29db821ab9a294487cd2bb8f",
     "mail.message.erase@1": "85ba4cced6bd24b16d1f7a15e743beba9935914dd2b5f83b92173ff5f9a7284f",
     "mail.message.get@1": "efc42c48f17aea621455a03b412e58304096fecf0a8c25bd1a6359a72325f6ac",
     "mail.message.list@1": "8598e97b4014f859bb24b63f7489b6e0d3e2eda1e1be1773a5596f808c2ae280",

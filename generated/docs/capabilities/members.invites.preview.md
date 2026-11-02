@@ -40,6 +40,10 @@ type Out = {
   role: string;
   expiresAt: number;
   fingerprint: string;
+  ssoRequired?: Array<{
+      key: string;
+      title: string;
+    }>;
 };
 ```
 
@@ -67,7 +71,13 @@ type Out = {
     "logoFileId": "fil_a1b2c3",
     "role": "example",
     "spaceId": "spc_a1b2c3",
-    "spaceName": "example"
+    "spaceName": "example",
+    "ssoRequired": [
+      {
+        "key": "example",
+        "title": "example"
+      }
+    ]
   }
 }
 ```
