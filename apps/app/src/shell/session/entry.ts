@@ -37,4 +37,6 @@ export function isPhoneAddress(address:string):boolean{try{const host=new URL(ad
 export const PHONE_ADDRESS_IN_BROWSER='This Space is reached through Vyre’s relay. Open the link in your browser.';
 /** The existing desktop join protocol accepts HTTPS Space addresses only, and not a phone address, which the desktop app cannot reach. */
 export function inviteAppLink(route:Extract<DesktopRoute,{kind:'join'}>):string|null{if(!route.address.startsWith('https://')||isPhoneAddress(route.address))return null;return`vyre://join?${new URLSearchParams({address:route.address,code:route.code,fp:route.fingerprint})}`;}
+/** The owner claim handed to the desktop app (rc.14): the same link, as vyre://claim, so the app can use the account it already has. HTTPS Spaces only, not a phone address. */
+export function claimAppLink(address:string,token:string,fragment:string):string|null{if(!address.startsWith('https://')||isPhoneAddress(address)||!/^[A-Za-z0-9_-]{8,200}$/.test(token))return null;const h=new URLSearchParams(fragment.replace(/^#/,''));const s=h.get('s');if(!s)return null;const q=new URLSearchParams({address,token,s});for(const k of['fp','n']){const v=h.get(k);if(v)q.set(k,v);}return`vyre://claim?${q}`;}
 export const VYRE_DOWNLOADS='https://github.com/vyre-ai/vyre-v1/releases';

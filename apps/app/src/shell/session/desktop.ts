@@ -5,6 +5,7 @@ import type { DesktopDeepLink, DesktopLinkBridge, Unlisten } from "../../../../.
 import { keepKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { holdKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
 import { loadCryptoKeys } from "../../../../../client/src/crypto/load.ts";
+import type { MadeBundle } from "../../../../../client/src/crypto/keys.ts";
 import type { JoinValues } from "../../join/JoinFlow.tsx";
 import { deviceFor } from "../../join/logic.ts";
 import { openVerifiedSession, writeStored } from "./stored.ts";
@@ -17,7 +18,9 @@ export type DesktopRoute =
   /** An app outside Vyre asked to join a Space this computer is signed in to: the Allow sheet. Never a sign-in to an address a link named. */
   | { kind: "allow"; address: string; request: string }
   | { kind: "pair"; address: string; code: string; /** a phone opened the pairing link in its browser */ phone?: true }
-  | { kind: "join"; address: string; code: string; fingerprint: string };
+  | { kind: "join"; address: string; code: string; fingerprint: string }
+  /** An owner claim link a browser handed over (rc.14): the claim runs here, where the person's account already is. `fragment` is the link's own #s=&fp=&n=. */
+  | { kind: "claim"; address: string; token: string; fragment: string };
 
 export type DesktopBootstrapBridge = DesktopLinkBridge;
 
@@ -37,6 +40,8 @@ export interface DesktopSessionDeps {
   deviceClass?: "web" | "desktop";
   /** Everyone here must use single sign-on: the provider the invitation's address was proved at. */
   ssoProvider?: string;
+  /** Join with the account this device already has (rc.14): its bundle, opened with the current password, with a Space key for this Space. No new bundle and no new recovery code. */
+  carry?: (spaceId: string) => Promise<MadeBundle>;
 }
 
 export interface DesktopInvitePreview {
@@ -121,15 +126,22 @@ export function routeDesktopLink(link: DesktopDeepLink): DesktopRoute | null {
     const code = link.params["code"];
     return space && code ? { kind: "pair", address: space, code } : null;
   }
+  if (link.action === "claim") {
+    const at = address(link.params["address"], true), token = link.params["token"], s = link.params["s"];
+    if (!at || !token || !/^[A-Za-z0-9_-]{8,200}$/.test(token) || !s || !/^[A-Za-z0-9_-]{3,64}$/.test(s)) return null;
+    const fragment = new URLSearchParams({ s });
+    for (const k of ["fp", "n"]) { const v = link.params[k]; if (v) fragment.set(k, v); }
+    return { kind: "claim", address: at, token, fragment: `#${fragment}` };
+  }
   const code = link.params["code"];
   const fingerprint = link.params["fp"];
   const verifiedSpace = address(link.params["address"], true);
   return verifiedSpace && code && fingerprint ? { kind: "join", address: verifiedSpace, code, fingerprint } : null;
 }
 
-/** One-time pair and join links become an ordinary sign-in address after success, so sign-out cannot replay their codes. */
+/** One-time pair, join and claim links become an ordinary sign-in address after success, so sign-out cannot replay their codes. */
 export function consumeDesktopRoute(route: DesktopRoute | null): DesktopRoute | null {
-  return route?.kind === "pair" || route?.kind === "join" ? { kind: "signin", address: route.address } : route;
+  return route?.kind === "pair" || route?.kind === "join" || route?.kind === "claim" ? { kind: "signin", address: route.address } : route;
 }
 
 /** Pairing spends the anonymous one-time code, then requires whoami and spaces.get before storing a session. Returned key ciphertext is intentionally ignored: Mine remains locked. */
@@ -172,7 +184,9 @@ async function acceptOnSpace(call: AnonymousCall, input: unknown): Promise<unkno
 /** Creates a real client key bundle, sends only wrapped fields, and persists only after post-accept Space-ID agreement. */
 export async function acceptDesktopJoin(join: PreviewedDesktopJoin, values: JoinValues, deps: DesktopSessionDeps): Promise<StoredSession> {
   const { makeBundle, wipe } = await loadCryptoKeys();
-  const made = await makeBundle(values.password, values.recoveryCode ?? fallbackRecoveryCode(), { spaceId: join.preview.spaceId });
+  const made = deps.carry ? await deps.carry(join.preview.spaceId) : await makeBundle(values.password, values.recoveryCode ?? fallbackRecoveryCode(), { spaceId: join.preview.spaceId });
+  // A carried account keeps the recovery wrap it has (none when it never kept a code); a new one sends it only when a code was made and saved.
+  const keepRecovery = deps.carry ? !!made.personKeyByRecovery : !!values.recoveryCode;
   try {
     if (!made.spaceKeys?.length) throw new Error("This device could not create the Space key. Try again.");
     const { personKey: _personKey, personKeyByRecovery, spaceKeys, ...wrappedKeys } = made;
@@ -183,7 +197,7 @@ export async function acceptDesktopJoin(join: PreviewedDesktopJoin, values: Join
       password: values.password,
       deviceName: values.deviceName || deviceFor(deps.deviceClass ?? "desktop").deviceName,
       deviceClass: deps.deviceClass ?? "desktop",
-      keys: { ...wrappedKeys, ...(values.recoveryCode ? { personKeyByRecovery } : {}), spaceKeys },
+      keys: { ...wrappedKeys, ...(keepRecovery ? { personKeyByRecovery } : {}), spaceKeys },
       ...(deps.ssoProvider ? { ssoProvider: deps.ssoProvider } : {}),
     });
     const accepted = object(answer);

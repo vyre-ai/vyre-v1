@@ -76,7 +76,7 @@ export function Starred(): ReactElement | null {
       <SectionHeader id="starred" title="Starred" count={stars.status === "ready" ? split.rows.length || undefined : undefined}>
         {more > 0 ? <LinkButton label={all ? "Show fewer" : `Show all ${split.rows.length}`} onPress={() => setAll(!all)} testID="starred-all" /> : null}
       </SectionHeader>
-      {stars.status === "loading" ? <Skeleton rows={2} id="starred" /> : rows.length ? <View accessibilityRole="list">{rows}</View> : split.blocked.length ? null : <EmptyLine id="starred" text="Star a chat, record, file or terminal and it shows here" />}
+      {stars.status === "loading" ? <Skeleton rows={2} id="starred" failure={stars.status === "loading" ? stars.error : undefined} /> : rows.length ? <View accessibilityRole="list">{rows}</View> : split.blocked.length ? null : <EmptyLine id="starred" text="Star a chat, record, file or terminal and it shows here" />}
       {split.blocked.length ? <View style={local.team}><NeedsTeamSpace what={teamOnlyWhat(split.blocked)} density={narrow ? "compact" : "regular"} onAction={() => extras.go("team_space")} /></View> : null}
       {menu.element}
     </Section>

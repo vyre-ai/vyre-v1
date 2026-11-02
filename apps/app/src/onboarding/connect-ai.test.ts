@@ -11,6 +11,7 @@ const recorder = (answers: Record<string, unknown>): { call: CapCall; calls: Arr
 test("Claude, ChatGPT and Grok are the subscription tiles, with Grok beside the other two", () => {
   assert.deepEqual(SUBSCRIPTIONS.map((o) => o.key), ["claude-code", "codex", "grok"]);
   assert.ok(API_KEYS.some((o) => o.key === "xai"));
+  assert.equal(API_KEYS[0]!.key, "opencode-go", "a personal key offers OpenCode Go first, as the Space AI key does");
 });
 
 test("a subscription sign-in starts through the Vault providers and answers the link, the code and whether a code comes back", async () => {

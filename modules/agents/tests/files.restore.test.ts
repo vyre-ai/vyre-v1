@@ -144,70 +144,19 @@ test("create gives the agent Edit on its own folder (not Manage) and its owner M
   assert.equal(shareCalls(hn).length, 0, "creation does not call access.share before the principal exists");
 });
 
-test("the boot pass adds the grants an agent made before the ruling lacks, once, and only those two", async () => {
+test("the boot check never writes grants: it runs as the host, which holds no grant on anyone's folder, so a home without its grants is the host's boot repair to fix", async () => {
   const hn = harness();
   const a = await make(hn);
-  const home = String(record(hn, a.agentId)["folderId"]);
-  hn.world.homeGrants.length = 0;   // an agent made before ruling 99: no grants and no marker
-  hn.ctx.db.run("DELETE FROM agents_meta WHERE key = ?", `agents.home_grants.v1:${a.agentId}`);
-  hn.clear();
-  assert.deepEqual(await restoreAgentFiles(hn.ctx), ["Intake/grants"]);
-  assert.deepEqual(onHome(hn, home), [`agent:${a.agentId}:edit:agent:${a.agentId}`, `person:${DANA}:manage:agent:${a.agentId}`].sort());
-  assert.equal(shareCalls(hn).length, 2);
-  assert.deepEqual(shareCalls(hn).map((c) => [(c.input as { idempotencyKey: string }).idempotencyKey, c.opts?.idempotencyKey]), [
-    [`agent-home:${a.agentId}:agent`, `agent-home:${a.agentId}:agent`],
-    [`agent-home:${a.agentId}:owner:${DANA}`, `agent-home:${a.agentId}:owner:${DANA}`],
-  ]);
-  hn.clear();
-  assert.deepEqual(await restoreAgentFiles(hn.ctx), [], "the next pass writes nothing");
-  assert.equal(hn.world.calls.filter((c) => c.cap === "access.share").length, 0);
-});
-
-test("a person's choice stands: lower or remove the agent's grant after the pass and later passes leave it as it is", async () => {
-  const hn = harness();
-  const a = await make(hn);
-  const home = String(record(hn, a.agentId)["folderId"]);
-  assert.deepEqual(await restoreAgentFiles(hn.ctx), [], "made with its grants, marked done");
-  // an admin lowers the agent to view and takes the owner's grant away
-  const agentGrant = hn.world.homeGrants.find((g) => g.subject.kind === "agent" && g.resource.id === home)!;
-  agentGrant.level = "view";
-  hn.world.homeGrants.splice(hn.world.homeGrants.findIndex((g) => g.subject.kind === "person" && g.resource.id === home), 1);
-  hn.clear();
-  assert.deepEqual(await restoreAgentFiles(hn.ctx), []);
-  assert.deepEqual(await restoreAgentFiles(hn.ctx), []);
-  assert.equal(hn.world.calls.filter((c) => c.cap === "access.share").length, 0, "no grant is written again");
-  assert.deepEqual(onHome(hn, home), [`agent:${a.agentId}:view:agent:${a.agentId}`], "the lowered grant stays lowered, the removed one stays removed");
-});
-
-test("the marker is only set once the grants are written: a failure is tried again next pass", async () => {
-  const hn = harness();
-  const a = await make(hn);
-  hn.world.homeGrants.length = 0;
-  hn.ctx.db.run("DELETE FROM agents_meta WHERE key = ?", `agents.home_grants.v1:${a.agentId}`);
-  const share = hn.world.handlers["access.share"]!;
-  hn.world.answer("access.share", () => { throw Object.assign(new Error("down"), { error: { code: "internal.unavailable", message: "down" } }); });
-  assert.deepEqual(await restoreAgentFiles(hn.ctx), [], "access is down: nothing written, nothing throws");
-  hn.world.answer("access.share", share);
-  assert.deepEqual(await restoreAgentFiles(hn.ctx), ["Intake/grants"], "access is back: the grants are written now");
-});
-
-test("an adopted agent gets the same two grants on its new folder", async () => {
-  const hn = harness();
   hn.world.principals.push({ id: "agt_scout", kind: "agent", name: "Scout", owner: DANA, status: "active" });
-  await restoreAgentFiles(hn.ctx);
-  const home = String(record(hn, "agt_scout")["folderId"]);
-  assert.deepEqual(onHome(hn, home), [`agent:agt_scout:edit:agent:agt_scout`, `person:${DANA}:manage:agent:agt_scout`].sort());
-});
-
-test("a Personal Space has no grants to write: the boot pass makes no access call, logs nothing and is quiet on every later pass", async () => {
-  const hn = harness();
-  const a = await make(hn);
-  hn.world.homeGrants.length = 0;
+  hn.world.homeGrants.length = 0;   // an agent made before ruling 99, and one adopted now: neither has its grants
   hn.ctx.db.run("DELETE FROM agents_meta WHERE key = ?", `agents.home_grants.v1:${a.agentId}`);
-  hn.world.answer("spaces.get", () => ({ space: { kind: "personal" } }));
-  hn.world.answer("access.share", () => { throw Object.assign(new Error("Needs a Team Space"), { error: { code: "permission.needs_team", message: "Needs a Team Space" } }); });
+  const warned: string[] = [];
+  const warn = hn.ctx.log.warn;
+  hn.ctx.log.warn = (msg: string, attrs?: Record<string, unknown>) => { warned.push(msg); warn.call(hn.ctx.log, msg, attrs); };
   hn.clear();
-  assert.deepEqual(await restoreAgentFiles(hn.ctx), []);
-  assert.deepEqual(await restoreAgentFiles(hn.ctx), []);
-  assert.equal(hn.world.calls.filter((c) => c.cap === "access.share" || c.cap === "access.shares_of").length, 0);
+  assert.deepEqual((await restoreAgentFiles(hn.ctx)).sort(), ["Scout/AGENT.md", "Scout/agent.toml"], "only the adopted agent's files");
+  hn.clear();
+  for (let i = 0; i < 3; i++) assert.deepEqual(await restoreAgentFiles(hn.ctx), [], "a pass with nothing to do changes nothing");
+  assert.equal(hn.world.calls.filter((c) => c.cap === "access.share" || c.cap === "access.shares_of" || c.cap === "spaces.get").length, 0, "no grant is read or written");
+  assert.deepEqual(warned.filter((m) => !/put back|adopted|given them/.test(m)), [], "and nothing is logged");
 });

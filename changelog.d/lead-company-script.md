@@ -1,0 +1,1 @@
+- The Google setup script in Connect your company works again. It named the service account "vyre", which Google refuses (an id must be 6 to 30 characters), so every step after it failed with "Unknown service account". It is now "vyre-space", and the script stops with a plain line if Google refuses it.

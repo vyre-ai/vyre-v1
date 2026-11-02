@@ -123,6 +123,49 @@ export function missingAgentPrincipalEvents(a: { space: string; events: readonly
 }
 
 /**
+ * Ruling 99, the home of an agent: the agent holds Edit on its Agents/<name> folder and its owner holds Manage there. The gateway writes both at `agent.created` (createPrincipalRegistrar); this
+ * repairs, once per boot, an agent whose home never had them: one born before that, one the agents module adopted from an access principal, one given a new folder by the agents boot check.
+ * The folder comes from the agents module's own record (`agents_agent.folderId`), never from an event payload. A grant that exists for the same subject and folder (whatever its level or id) is
+ * left as it is, and one that was ever revoked is never written again, so a person who lowers or removes these grants on purpose is not overruled. The grantor is the agent's owner, as at birth.
+ */
+export function missingAgentHomeEvents(a: { events: readonly EventLike[]; agents: readonly { id: string; ownerId: string; folderId: string | null }[] }): PrincipalEvent[] {
+  const live: GrantShape[] = [];
+  const liveById = new Map<string, GrantShape>();
+  const revokedIds = new Set<string>();
+  const revoked: GrantShape[] = [];
+  for (const event of a.events) {
+    const p = recordOf(event.payload);
+    if (event.type === "grant.created") {
+      const id = typeof p["id"] === "string" ? p["id"] : typeof p["grantId"] === "string" ? p["grantId"] : "";
+      const shape = grantShape(p);
+      if (id !== "" && shape) { liveById.set(id, shape); revokedIds.delete(id); }
+    } else if (event.type === "grant.revoked") {
+      const id = typeof p["grantId"] === "string" ? p["grantId"] : "";
+      const shape = grantShape(p) ?? (id === "" ? undefined : liveById.get(id));
+      if (id !== "") { revokedIds.add(id); liveById.delete(id); }
+      if (shape) revoked.push(shape);
+    }
+  }
+  live.push(...liveById.values());
+  const out: PrincipalEvent[] = [];
+  for (const agent of a.agents) {
+    if (!/^agt_[a-z0-9]+$/.test(agent.id) || !/^usr_[a-z0-9]+$/.test(agent.ownerId) || agent.folderId === null || !/^fld_[a-z0-9]+$/.test(agent.folderId)) continue;
+    const want: Array<{ id: string; subject: string; level: "edit" | "manage" }> = [
+      { id: agentGrantId(agent.id, "home"), subject: agent.id, level: "edit" },
+      { id: agentGrantId(agent.id, "owner"), subject: agent.ownerId, level: "manage" },
+    ];
+    for (const w of want) {
+      const shape: GrantShape = { subject: w.subject, resource: `folder:${agent.folderId}` };
+      if (live.some((g) => sameSubjectResource(g, shape)) || revokedIds.has(w.id) || revoked.some((g) => sameSubjectResource(g, shape))) continue;
+      // the id names the agent; a second home (a new folder) keeps the id of the first only if that one is gone, so it never shadows a live grant
+      const id = liveById.has(w.id) ? `${w.id}${agent.folderId.slice(4, 12)}` : w.id;
+      out.push({ type: "grant.created", entity: "grant", id, payload: { id, subject_kind: "actor", subject_id: w.subject, resource_type: "folder", resource_id: agent.folderId, level: w.level, by: agent.ownerId } });
+    }
+  }
+  return out;
+}
+
+/**
  * An agent born while its maker's own access was not yet in the snapshot (the person's private assistant is made the moment their account exists, before the sync that makes the person
  * "active" has run) is born Guest with no Space grant, and then cannot read the maker's AI key or post a word. Once the maker may edit the Space, the agent gets what a Member agent gets: the
  * role and the edit grant, under ids made from the agent so running this again changes nothing. An agent the maker cannot edit for is left as it is (never above its person).

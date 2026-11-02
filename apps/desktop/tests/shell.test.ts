@@ -74,7 +74,7 @@ test("the vyre scheme and the global shortcut are registered; single instance is
   assert.match(lib, /get_current\(\)/);
   assert.ok(lib.indexOf("tauri_plugin_single_instance") < lib.indexOf("tauri_plugin_shell::init"), "single instance registers first");
   const links = read("src", "links.rs");
-  for (const a of ["join", "open", "pair", "signin"]) assert.ok(links.includes(`"${a}"`), a);
+  for (const a of ["join", "open", "pair", "signin", "claim"]) assert.ok(links.includes(`"${a}"`), a);
   const commands = read("src", "commands.rs");
   assert.match(commands, /deep link \{\} received", link\.action/);
   assert.doesNotMatch(commands, /println!\([^)]*params/, "one-time codes never reach a log");

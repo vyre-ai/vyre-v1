@@ -66,6 +66,13 @@ export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["man
   };
 }
 
+/** The other Spaces this device is in, reached as the same person: a new recovery code replaces the old one there too. */
+export function otherSpaces(rt: ShellRuntime): { name: string; call: (cap: string, input: unknown) => Promise<unknown> }[] {
+  const callIn = rt.callIn;
+  if (!callIn || !rt.knownSpaces) return [];
+  return rt.knownSpaces.filter((x) => x.spaceId !== rt.space.id).map((x) => ({ name: x.name, call: (cap: string, input: unknown) => callIn(x.spaceId, cap, input) }));
+}
+
 export default function SettingsShellPlace(_props: { place: string }): ReactElement {
   const rt = useOptionalShellRuntime();
   const [security, setSecurity] = useState<Parameters<NonNullable<SettingsNav["manageSecurity"]>>[0] | null>(null);
@@ -87,7 +94,7 @@ export default function SettingsShellPlace(_props: { place: string }): ReactElem
   // may this person open the Console? The same read the Console itself makes
   const [pages, setPages] = useState<ReadonlySet<string> | null>(null);
   useEffect(() => {
-    if (!rt || rt.space.kind === "personal") return undefined;
+    if (!rt || rt.space.kind === "personal" || rt.plainRole === true) return undefined;   // a Member or Guest has no Console to open
     let live = true;
     void rt.call("console.nav", {}).then((out) => { if (live) setPages(adminPages(out as Parameters<typeof adminPages>[0])); }, () => undefined);
     return () => { live = false; };
@@ -101,7 +108,7 @@ export default function SettingsShellPlace(_props: { place: string }): ReactElem
   }, [rt, askedAdmin]);
   const data = useMemo(() => (rt ? settingsData(rt, (kind) => setSecurity(kind), signIn, consoleAllowed) : null), [rt, signIn, consoleAllowed]);
   if (!data) return <View style={s.page} testID="settings-loading" />;
-  return <SettingsDataProvider value={data}><SettingsPlace key={`${nonce}:${page ?? ""}:${askedAdmin ?? ""}`} {...(addServerAsked() ? { initialPage: "computer" as const } : page ? { initialPage: page } : {})} />{security ? <SecuritySheet key={security} action={security} call={rt!.call} onClose={() => setSecurity(null)} /> : null}</SettingsDataProvider>;
+  return <SettingsDataProvider value={data}><SettingsPlace key={`${nonce}:${page ?? ""}:${askedAdmin ?? ""}`} {...(addServerAsked() ? { initialPage: "computer" as const } : page ? { initialPage: page } : {})} />{security ? <SecuritySheet key={security} action={security} call={rt!.call} onClose={() => setSecurity(null)} spaceName={rt!.space.name} others={otherSpaces(rt!)} /> : null}</SettingsDataProvider>;
 }
 
 const s = StyleSheet.create({ page: { flex: 1, backgroundColor: "var(--win)" as string } });

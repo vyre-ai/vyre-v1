@@ -69,7 +69,7 @@ export function SignInPage(): ReactElement {
   if (sec) for (const sp of data.spaces) { const info = sec.spaces[sp.id]; if (info) cards.push(<SpaceSecurityCard key={sp.id} space={sp} info={info} />); }
   return (
     <>
-      {sec ? <AccountCard sec={sec} /> : <Section title="Sign-in"><SettingsRow id="signin.password" label="Password" first control={<SmallButton label="Change..." testID="pw-change" onPress={() => data.nav.manageSecurity?.("password", data.space.id)} />} /><SettingsRow id="signin.authenticator" label="Authenticator app" sub="Set up or remove a second factor for this Space" control={<><SmallButton label="Set up" testID="totp-setup" onPress={() => data.nav.manageSecurity?.("totp-on", data.space.id)} /><SmallButton label="Remove" testID="totp-remove" onPress={() => data.nav.manageSecurity?.("totp-off", data.space.id)} /></>} /></Section>}
+      {sec ? <AccountCard sec={sec} /> : <Section title="Sign-in"><SettingsRow id="signin.password" label="Password" first control={<SmallButton label="Change..." testID="pw-change" onPress={() => data.nav.manageSecurity?.("password", data.space.id)} />} /><SettingsRow id="signin.recovery" label="Recovery code" sub="Make a new code; the old one stops working" control={<SmallButton label="Make a new code..." testID="recovery-new" onPress={() => data.nav.manageSecurity?.("recovery", data.space.id)} />} /><SettingsRow id="signin.authenticator" label="Authenticator app" sub="Set up or remove a second factor for this Space" control={<><SmallButton label="Set up" testID="totp-setup" onPress={() => data.nav.manageSecurity?.("totp-on", data.space.id)} /><SmallButton label="Remove" testID="totp-remove" onPress={() => data.nav.manageSecurity?.("totp-off", data.space.id)} /></>} /></Section>}
       {cards}
       <Section title="Devices and computers">
         {list}
@@ -87,6 +87,7 @@ function AccountCard({ sec }: { sec: NonNullable<SettingsData["security"]> }): R
   return (
     <Section title="Sign-in" testID="signin-account">
       <SettingsRow id="signin.password" label="Password" first lead={<Glyph name="key" size={16} />} sub={`Changed ${sec.account.passwordChanged}`} control={<SmallButton label="Change..." testID="pw-change" onPress={() => data.nav.manageSecurity?.("password", first)} />} />
+      <SettingsRow id="signin.recovery" label="Recovery code" lead={<Glyph name="key" size={16} />} sub="Make a new code; the old one stops working" control={<SmallButton label="Make a new code..." testID="recovery-new" onPress={() => data.nav.manageSecurity?.("recovery", first)} />} />
       <SettingsRow
         id="signin.github" label="GitHub" lead={<Glyph name="github" size={16} />} sub={gh ? `Connected as @${gh}` : "Sign in with one click"}
         control={<SmallButton label={gh ? "Disconnect" : "Connect"} testID="gh-toggle" onPress={() => data.nav.manageSecurity?.(gh ? "github-off" : "github-on", first)} />}

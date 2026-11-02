@@ -1,0 +1,2 @@
+- Members of a Team Space on a Vyre Server can use their own Claude, ChatGPT or Grok account, in the browser and the desktop app. Signing in with your password opens your Vault on the Space for as long as you stay signed in, with no separate Unlock step; signing out closes it. Before, Vault said "Your Mine vault opens on the computer your Space runs on, not from here" and nothing could be connected.
+- When your own account cannot open (you signed out, or the server restarted), your chat runs on the Space AI key and says so in one line, instead of waiting on a locked Vault.

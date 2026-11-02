@@ -301,7 +301,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       // the span first: the log can then tell a repeat of the same failure, which it counts, from a new one
       span(error.code.startsWith("permission.") ? "denied" : "error", error.code);
       if (unexpected) log.error("handler threw", { cap: capName, traceId, stack: e instanceof Error ? e.stack : String(e) });
-      log.info("invoke", { cap: capName, traceId, status: error.code });
+      // who was refused: without the caller and the person it acted for, a refusal in the log cannot be traced to a session
+      log.info("invoke", { cap: capName, traceId, status: error.code, actor: seed.principal.id, ...(seed.actingFor ? { onBehalf: seed.actingFor } : {}) });
       throw new HostError(error);
     }
   };

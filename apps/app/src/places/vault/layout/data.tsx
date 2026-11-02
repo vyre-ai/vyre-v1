@@ -1,5 +1,6 @@
 // Vault data: the one context the place reads. Lists are live screen queries over the local copy (generated/screens.ts: vault.layout, vault.item), so the place paints from what
 // the device keeps and updates when it changes. Writes go through `call`, one capability per action. Values never come through a query: only vault.item.reveal returns them.
+import type { AiHome } from "../../../ai-signin/own-ai.ts";
 import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
@@ -69,6 +70,8 @@ export interface VaultData {
   pickFile?(accept: string): Promise<string | null>;
   /** Install Vyre for Chrome from this app (desktop only). Without it the Advanced page has no row for it. */
   browsers?: VaultBrowsers;
+  /** Where the Space runs (ai-signin/own-ai.ts), for the words of a refused save: "here" may unlock in place; elsewhere signing in opens the key. Absent: as "here". */
+  aiHome?: AiHome;
 }
 
 const DataCtx = createContext<VaultData | null>(null);

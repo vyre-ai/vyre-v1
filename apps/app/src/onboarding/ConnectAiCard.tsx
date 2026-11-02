@@ -9,9 +9,12 @@ import { SIGNIN_BUTTONS } from "../ai-signin/flow.ts";
 import { API_KEYS, saveApiKey, startSubscription } from "./connect-ai.ts";
 import type { SignInFlow } from "./connect-ai.ts";
 import { Mark } from "./ProviderLogo.tsx";
+import { Row } from "../../../../ui/src/Row/index.tsx";
+import { checkKey } from "../ai-signin/key-prefix.ts";
 import { CARD } from "./card-style.ts";
+import type { AiHome } from "../ai-signin/own-ai.ts";
 
-export function ConnectAiCard({ call, connected, onConnected, initialFlow }: { call: CapCall; connected?: boolean; onConnected(providerId: string): void; /** Opens with this sign-in showing (screenshots and tests). */ initialFlow?: SignInFlow & { provider: string } }): ReactElement {
+export function ConnectAiCard({ call, connected, onConnected, initialFlow, home = "here" }: { call: CapCall; connected?: boolean; onConnected(providerId: string): void; /** Opens with this sign-in showing (screenshots and tests). */ initialFlow?: SignInFlow & { provider: string }; /** where the person's own key can be kept from here, for the words of a refusal (ai-signin/own-ai.ts) */ home?: AiHome }): ReactElement {
   const attempt = useRef(globalThis.crypto?.randomUUID?.() ?? String(Date.now()));
   const [mode, setMode] = useState<"tiles" | "key">("tiles");
   const [flow, setFlow] = useState<(SignInFlow & { provider: string }) | null>(initialFlow ?? null);
@@ -26,17 +29,26 @@ export function ConnectAiCard({ call, connected, onConnected, initialFlow }: { c
   };
   if (connected) return <Text testID="ai-connected" style={s.ok}>AI account connected.</Text>;
   if (mode === "key") {
+    const mismatch = checkKey(provider, secret, (k) => API_KEYS.find((o) => o.key === k)?.label ?? null);
+    const rows: ReactElement[] = [];
+    for (const o of API_KEYS) {
+      const on = provider === o.key;
+      rows.push(<Row key={o.key} id={`ai-provider-${o.key}`} title={o.label} note={o.help} selected={on} leading={<View style={s.lead}><Mark k={o.key} size={18} /></View>} onPress={() => setProvider(o.key)} domProps={{ role: "radio", "aria-checked": on }} />);
+    }
     return (
       <View testID="ai-key-form" style={s.col}>
-        {/* ui-rows-lint: not a list (provider choices are tiles, not list rows) */}
-        <View style={s.row}>{API_KEYS.map((o) => (
-          <Pressable key={o.key} testID={`ai-provider-${o.key}`} accessibilityRole="button" accessibilityState={{ selected: provider === o.key }} onPress={() => setProvider(o.key)} style={[s.tile, provider === o.key && s.tileOn]}><Mark k={o.key} size={18} /><Text style={s.tileText}>{o.label}</Text></Pressable>
-        ))}</View>
+        <View testID="ai-provider-list" accessibilityRole="radiogroup" style={s.list}>{rows}</View>
         <TextInput testID="ai-key-field" secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="off" value={secret} onChangeText={setSecret} placeholder="Paste your API key" accessibilityLabel="API key" style={s.input} />
-        <Text style={s.dim}>The key goes straight into your Vault. I never see it.</Text>
+        {mismatch ? (
+          <View testID="ai-key-mismatch" style={s.row}>
+            <Text accessibilityRole="alert" style={s.warn}>{mismatch.line}</Text>
+            {mismatch.suggest && API_KEYS.some((o) => o.key === mismatch.suggest) ? <Pressable testID="ai-key-switch" accessibilityRole="button" onPress={() => setProvider(mismatch.suggest!)}><Text style={s.link}>{`Use ${API_KEYS.find((o) => o.key === mismatch.suggest)!.label}`}</Text></Pressable> : null}
+          </View>
+        ) : null}
+        <Text testID="ai-key-note" style={s.dim}>The key goes straight into your Vault. I never see it.</Text>
         {error ? <Text testID="ai-error" style={s.err}>{error}</Text> : null}
         <View style={s.row}>
-          <Pressable testID="ai-key-save" accessibilityRole="button" disabled={busy || secret.trim() === ""} onPress={() => void run(async () => { const value = secret; setSecret(""); onConnected(await saveApiKey(call, provider, value, attempt.current)); })} style={[s.primary, (busy || secret.trim() === "") && s.off]}><Text style={[s.primaryText, (busy || secret.trim() === "") && s.offText]}>{busy ? "Saving" : "Save key"}</Text></Pressable>
+          <Pressable testID="ai-key-save" accessibilityRole="button" disabled={busy || secret.trim() === ""} onPress={() => void run(async () => { const value = secret; setSecret(""); onConnected(await saveApiKey(call, provider, value, attempt.current, home)); })} style={[s.primary, (busy || secret.trim() === "") && s.off]}><Text style={[s.primaryText, (busy || secret.trim() === "") && s.offText]}>{busy ? "Saving" : "Save key"}</Text></Pressable>
           <Pressable testID="ai-back" accessibilityRole="button" onPress={() => { setSecret(""); setMode("tiles"); setError(""); }} style={s.ghost}><Text style={s.tileText}>Back</Text></Pressable>
         </View>
       </View>
@@ -46,12 +58,12 @@ export function ConnectAiCard({ call, connected, onConnected, initialFlow }: { c
     <View testID="ai-tiles" style={s.col}>
       {/* ui-rows-lint: not a list (sign-in choices are tiles, not list rows) */}
       {flow ? (
-        <SignInPanel call={call as never} flow={flow} onCancel={() => { setFlow(null); setError(""); }} onDone={(p) => { setFlow(null); onConnected(p.id); }} />
+        <SignInPanel call={call as never} flow={flow} home={home} onCancel={() => { setFlow(null); setError(""); }} onDone={(p) => { setFlow(null); onConnected(p.id); }} />
       ) : (
         <View style={s.col}>
           {/* ui-rows-lint: not a list (sign-in choices are buttons, not list rows) */}
           {SIGNIN_BUTTONS.map((o) => (
-            <Pressable key={o.key} testID={`ai-sub-${o.key}`} accessibilityRole="button" accessibilityLabel={o.button} disabled={busy} onPress={() => void run(async () => setFlow({ ...(await startSubscription(call, o.key, `${attempt.current}:${o.key}:${Date.now()}`)), provider: o.key }))} style={[s.signin, busy && s.dim]}><Mark k={o.key} size={18} /><Text style={s.tileText}>{o.button}</Text></Pressable>
+            <Pressable key={o.key} testID={`ai-sub-${o.key}`} accessibilityRole="button" accessibilityLabel={o.button} disabled={busy} onPress={() => void run(async () => setFlow({ ...(await startSubscription(call, o.key, `${attempt.current}:${o.key}:${Date.now()}`, home)), provider: o.key }))} style={[s.signin, busy && s.busyDim]}><Mark k={o.key} size={18} /><Text style={s.tileText}>{o.button}</Text></Pressable>
           ))}
         </View>
       )}
@@ -76,7 +88,10 @@ const s = StyleSheet.create({
   primaryText: CARD.primaryText,
   off: CARD.off,
   offText: CARD.offText,
-  dim: { opacity: 0.45 },
+  busyDim: { opacity: 0.45 },
+  warn: { flexShrink: 1, fontSize: 13, lineHeight: 18, color: "var(--warn)" as string },
+  list: { borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, padding: 4, backgroundColor: "var(--win)" as string },
+  lead: { marginRight: 10 },
   ghost: CARD.ghost,
   link: { fontSize: 13, color: "var(--accent)" as string },
 });

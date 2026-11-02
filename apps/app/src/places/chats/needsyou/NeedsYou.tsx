@@ -27,6 +27,7 @@ import { useOpenConnect } from "../../../shell/connect/index.ts";
 import { Button, Face, Icon, LeadIcon, OriginMark, Tool } from "./parts.tsx";
 import { KeyRequestCard } from "../conversation/keyrequest.tsx";
 import { ReplaceKeySheet } from "../../../hubs/ReplaceKey.tsx";
+import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 
 type ItemsOut = CapMap["tasks.needs_you"]["out"];
 type CountOut = CapMap["tasks.count_needs_you"]["out"];
@@ -67,6 +68,8 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
   const countQ = useScreenQuery<CountOut>(NEEDS_SCREEN, "count", {});
   const deps: NeedsDeps = useMemo(() => ({ call: data.call, note: (text: string) => setLine(text) }), [data.call]);
 
+  const failed = failureOf(itemsQ);
+  if (failed) return <LoadFailed what="what needs you" failure={failed} testID="needs-failed" />;
   if (itemsQ.status === "loading") return <NeedsYouLoading />;
   const all = itemsQ.data.items;
   const list = sortItems(splitWithdrawn(all).live).filter((i) => matchesFilter(i.task, filter));

@@ -39,7 +39,7 @@ import { createFormsPageRoute } from "../routes/forms-page.ts";
 import { createPublicPathRoute } from "../routes/public-path.ts";
 import type { PublicPathDeps, ServedSite } from "../routes/public-path.ts";
 import { createDomainEdge, createSitesHost, mimeOf } from "../seams/sites-host.ts";
-import { CaddyAdmin, CaddyRouter } from "../caddy/index.ts";
+import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf } from "../caddy/index.ts";
 import type { PublicFormView } from "../routes/forms-page.ts";
 import { deferredCaps, deferredModules } from "../routes/deferred.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
@@ -140,7 +140,7 @@ import { bootstrapSpace, mintOwner } from "./bootstrap.ts";
 import { createAccess, isAccessEvent, isMemberOrGuest, toAccessEvent, touchesAccess } from "./access.ts";
 import { ADMIN_DEVICE, createSessionResolver, issueSessionToken, sessionLive } from "./session.ts";
 import { createResourceRegistrar, missingAgentResources } from "../gateway/resources.ts";
-import { createPrincipalRegistrar, lowAgentUpgradeEvents, missingAgentPrincipalEvents, ownPlaceGrant } from "../gateway/principals.ts";
+import { createPrincipalRegistrar, lowAgentUpgradeEvents, missingAgentHomeEvents, missingAgentPrincipalEvents, ownPlaceGrant } from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
 import { createRecordsVaultHost } from "../seams/records-vault.ts";
@@ -328,6 +328,8 @@ export interface Daemon {
   runProbes(names?: readonly ProbeName[]): Promise<Partial<Record<ProbeName, ProbeResult>>>;
   /** do every open restart and network command now */
   pollCommands(): Promise<number>;
+  /** the slow timer's ingress check now: write the own-domain route into Caddy when it is missing (waits for one already running, the boot write included) */
+  ensureIngress(): Promise<void>;
   /** The Chrome bridge behind /chrome-bridge/v1/*: agent tool calls to the extension, and the extension's requests (apps/chrome native host) */
   chromeBridge: ChromeBridge;
   /** Engine processes on computers that joined (a turn pinned to a server): start one on a node, over its live socket. */
@@ -468,7 +470,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let callerOf: (h: http.IncomingHttpHeaders) => Promise<{ person: string; sessionId?: string } | null> = () => Promise.resolve(null);
   const ownNode = (p: string): boolean => cfg.roles.includes("device") || p === ownerOfSpace();
   const connectorPort=createConnectorsHost({publicBase:()=>{const address=cfg.address??`http://${cfg.host}:${boundPort}`;return /^https?:\/\//.test(address)?address:`https://${address}`;},own:caller=>ownNode(caller.actingFor??caller.principal.id),...(o.connectorNetwork?{network:o.connectorNetwork}:{})});
-  const keyring = createKeyring({ allowed: ownNode, live: (id) => (db ? sessionLive(db, id) : false) });
+  // Owner ruling 3 Nov (R62 amended): a Space server also holds a person's key for as long as the signed-in session that handed it over is live, so a member's own AI account runs their own turns on the
+  // Space. Without a session (the local admin token) only the person's own node takes it.
+  const sessionAlive = (id: string): boolean => (db ? sessionLive(db, id) : false);
+  const keyring = createKeyring({ allowed: (p, sessionId) => ownNode(p) || (sessionId !== undefined && sessionAlive(sessionId)), live: sessionAlive });
   closers.push(() => keyring.clearAll());
   const fillRoute = createFillRoute();
   // GitHub sign-in: the server environment first, then the app an admin saved (members.sign_in_github.set; its secret is read from the Vault by handle and kept in memory only)
@@ -486,7 +491,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     bind: (key, who, person) => { const bound = db ? linkSso(db, key, who, person) : false; if (bound) matchProven(key, who, person); return bound; },
     log: (why, attrs) => sink.log({ space: space ?? "-", level: 30, msg: why, place: "sso", attrs }),
   });
-  const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: ownNode });
+  const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: (p, sessionId) => ownNode(p) || (sessionId !== undefined && sessionAlive(sessionId)),
+    log: (msg, attrs) => sink.log({ space: space ?? "-", level: 30, msg, place: "vault", attrs }) });
   let headSeq = 0;
   let sawSpace = false, hostMadeSpace = false;
   let claimIssue: () => Promise<{ code: string; expiresAt: number } | null> = async () => null;
@@ -621,7 +627,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             sink.log({ space, level: 20, msg: "access.agent_principal_reconciled", place: "boot", entity: "agent", entity_id: repairedEvent.id });
           }
         }
-
+        // Ruling 99 home grants an agent never got at birth (see missingAgentHomeEvents). The host writes them once per boot, granted by the agent's owner; the agents module's 15 s
+        // boot check runs as the host and holds no grant on anyone's folder, so it no longer tries (it logged the refusal for every agent on every pass).
+        // A Personal Space has no sharing, so nothing to write.
+        if (cfg.spaceKind !== "personal") {
+          let rows: { id: string; ownerId: string; folderId: string | null }[] = [];
+          try { rows = db!.all(`SELECT "id", "ownerId", "folderId" FROM agents_agent WHERE "deletedAt" IS NULL`) as typeof rows; } catch { /* no agents table yet: nothing to repair */ }
+          const known = rows.filter((r) => access.snap.info(r.id) !== null && access.snap.info(r.ownerId) !== null && r.folderId !== null && access.snap.resource(r.folderId) !== undefined);
+          for (const e of missingAgentHomeEvents({ events: agentAccessEvents, agents: known })) {
+            const repaired = await appendRepair({ id: `evt_agent_home_${e.id}`, type: e.type, sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: e.entity, entity_id: e.id, payload: e.payload });
+            if (!repaired.duplicate) {
+              access.fold(repaired.event);
+              accessPending.push(toAccessEvent(repaired.event));
+              sink.log({ space, level: 20, msg: "access.agent_home_reconciled", place: "boot", entity: "agent", entity_id: String(e.payload["subject_id"]) });
+            }
+          }
+        }
       }
       headSeq = (await log.currentHead()).seq;
 
@@ -1336,7 +1357,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           log: (u) => sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
         }) : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
-        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineInstall ? { engineInstall: true } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}), saveSignin: (r) => signinRefresh.save(r), closing: (done) => { engineClosing = done; } })),
+        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, ...(cfg.roles.includes("device") ? {} : { keyHeld: (p: string) => { const k = keyring.get(p); k?.fill(0); return k !== null; } }), nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineInstall ? { engineInstall: true } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}), saveSignin: (r) => signinRefresh.save(r), closing: (done) => { engineClosing = done; } })),
         // Report a problem: the bundle sources (the person's last actions from the log, the versions) and the reports.vyre.run client, signed with a key derived from this Space's seal key
         configureReports: () => createReportsHost({
           space: spaceId, now, fetch: o.reportsFetch ?? ((u, i) => globalThis.fetch(u, i as RequestInit) as never),
@@ -1485,7 +1506,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       await reloadSpaceGithub().catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "github.signin_reload_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
       if (loaded.serving.get("identity") === "live") {
         const made = (await spaceLog.read({ after: 0, limit: 200 })).find((e) => e.type === "space.created");
-        const name = made ? ((JSON.parse(new TextDecoder().decode(made.payload)) as { name?: string }).name ?? spaceId) : spaceId;
+        // the name as it is now (the spaces profile, after any rename), else the one the Space was made with; sign-in options show it before anyone signs in, so it is never left an id
+        let current = "";
+        try { current = String((db?.all("SELECT name FROM spaces_profile WHERE id = ?", spaceId)[0] as { name?: unknown } | undefined)?.name ?? "").trim(); } catch { /* the profile table is made by the spaces module */ }
+        const name = current || (made ? ((JSON.parse(new TextDecoder().decode(made.payload)) as { name?: string }).name ?? spaceId) : spaceId);
         await hookRunner.call("identity.ensure_space", { name, github: githubNow() !== null }).catch((e: unknown) => sink.log({ space: spaceId, level: 40, msg: "identity.space_failed", place: "boot", attrs: { error: e instanceof Error ? e.message : String(e) } }));
       }
       if (loaded.serving.get("spaces") === "live") {
@@ -1741,7 +1765,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   };
 
   const network = o.network ?? managedNetworkPort({
-    adminUrl: cfg.caddyAdmin, space: space ?? '-', upstream: () => `127.0.0.1:${boundPort}`,
+    adminUrl: cfg.caddyAdmin, space: space ?? '-', upstream: () => `127.0.0.1:${boundPort}`, base: process.env["VYRE_CADDY_CA"] === "internal" ? { acme: { ca: "internal" } } : {},
     ingressHost: () => (db?.all("SELECT address FROM network_config WHERE id = 1 AND mode = 'own_domain'")[0] as {address?:string}|undefined)?.address ?? null,
     relayReady: (address) => !!db?.all("SELECT url FROM network_endpoint WHERE kind = 'relay' AND state = 'healthy' AND heartbeat_at > ?", now() - 60_000).some((raw) => {
       const url = (raw as {url?:string}).url;
@@ -1771,12 +1795,40 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const result = await network.certificate(row.address);
     db.run("INSERT INTO network_cert (host, expires_at, reason, reported_at) VALUES (?, ?, ?, ?) ON CONFLICT(host) DO UPDATE SET expires_at = COALESCE(excluded.expires_at, network_cert.expires_at), reason = excluded.reason, reported_at = excluded.reported_at", row.address, result.expiresAt, result.reason ?? null, now());
   };
+  // The Space's own-domain route in Caddy. A Space started with an address (install.sh --domain) must answer at it without anyone opening Console, so the route is written at boot
+  // and put back on the slow timer when it is missing. Only a missing route is written then: every write reloads Caddy. Caddy that is not up yet (it starts after vyred) is
+  // tried again on the next slow tick, and a failure never stops the daemon. Relay Spaces have no route here.
+  let ingressRun: Promise<void> | null = null;
+  let ingressFailing: string | null = null;
+  const ensureIngress = (replace: boolean): Promise<void> => {
+    if (ingressRun) return ingressRun;
+    const run = async (): Promise<void> => {
+      let host: string | null = null;
+      try {
+        if (!hasSpace || !db || !network.ensureIngress) return;
+        const row = db.all("SELECT address, mode FROM network_config WHERE id = 1")[0] as { address?: string; mode?: string } | undefined;
+        host = row?.mode === "own_domain" ? ingressHostOf(row.address) : null;
+        if (!host) return;
+        const wrote = await network.ensureIngress(host, { replace });
+        if (wrote) sink.log({ space: space ?? "-", level: 30, msg: "network.ingress_written", place: "network", attrs: { host, at: replace ? "boot" : "missing" } });
+        ingressFailing = null;
+      } catch (e) {
+        const why = (e instanceof Error ? e.message : String(e)).slice(0, 200);
+        // said once per cause, not every minute; Caddy not answering yet is expected for a moment after a start, Caddy refusing the route is not
+        if (why !== ingressFailing) { try { sink.log({ space: space ?? "-", level: e instanceof CaddyError && e.status === 0 ? 30 : 40, msg: "network.ingress_pending", place: "network", attrs: { host, why } }); } catch { /* stopping */ } }
+        ingressFailing = why;
+      }
+    };
+    const p = run().finally(() => { ingressRun = null; });
+    ingressRun = p;
+    return p;
+  };
   const fast = o.intervals?.fast ?? 15_000, slow = o.intervals?.slow ?? 60_000;
   const group = (names: ProbeName[]): ProbeName[] => names.filter((n) => relevant.includes(n));
   // a signed-out person's key leaves memory within the interval, not whenever someone next reads it
   scheduler.add({ name: "keyring.sweep", schedule: { everyMs: o.intervals?.sweep ?? 30_000 }, run: () => { keyring.sweep(); } });
   scheduler.add({ name: "probes.fast", schedule: { everyMs: fast }, run: async () => { await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"]), false); } });
-  scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"]), false); reportNetwork(); await refreshNetworkCertificate(); } });
+  scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"]), false); reportNetwork(); await ensureIngress(false); await refreshNetworkCertificate(); } });
   scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"]), false); } });
   if (hasSpace) {
     scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });
@@ -1880,6 +1932,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     if (supervisor.status("gateway")[0]?.phase !== "running") { const g = supervisor.status("gateway")[0]; throw new Error(`the gateway did not start on ${cfg.host}:${cfg.port}${g?.lastExit?.error ? `: ${g.lastExit.error}` : ""}`); }
     await runProbes();
     reportNetwork();
+    // the gateway is bound, so the upstream port is known; not awaited, so a Caddy that does not answer yet never holds up the start
+    void ensureIngress(true);
     // The boot checks (the scheduler's first pass) have committed events, and the consumers that react to them run after the commit. Finish that chain before the daemon reports itself started,
     // so nothing writes in the first moments after /healthz answers: a caller that reads the head at once sees the head it will keep.
     if (hasSpace) { await hooks?.pump(); await projections?.pump(); }
@@ -1945,7 +1999,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
   return {
     url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) },
-    runProbes: (names) => runProbes(names), pollCommands: runCommands,
+    runProbes: (names) => runProbes(names), pollCommands: runCommands, ensureIngress: () => ensureIngress(false),
     stop,
   };
 }

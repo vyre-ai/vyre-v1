@@ -80,3 +80,9 @@ export function flowFor(space: { kind: "personal" | "team" }, isOwner: boolean):
 export function shouldAutoOpen(flow: FlowKind, progress: Progress, seen: boolean): boolean {
   return !seen && resumeAt(flow, progress) !== null;
 }
+
+/** A Space's name as a person reads it: a raw id ("spc_2a7c98c337e1dfd2e05e1aab") is no name, so it reads empty and the screen says "Your Space" instead. Setup never shows an id. */
+export function readableName(name: string | null | undefined): string {
+  const n = (name ?? "").trim();
+  return /^[a-z]{2,6}_[0-9a-z]{8,}$/i.test(n) ? "" : n;
+}

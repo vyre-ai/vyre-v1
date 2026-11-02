@@ -30,11 +30,13 @@ export class ClaimError extends Error {
 
 type ClaimOut = { status?: string; session?: { token: string }; principal?: { id: string } };
 
+/** `makeBundle` makes a new account's bundle, or carries the one the person already has (join/identity.ts); either way only wrapped halves are sent. */
 export async function claimOwner(deps: ClaimDeps, i: ClaimInput): Promise<Claimed> {
   const made = await deps.makeBundle(i.password, i.recoveryCode, i.spaceId);
   // identity.claim_owner wants the wrapped halves only, plus the Space key sealed to the owner's public key (spaceKeys, made by makeBundle for this spaceId).
   const spaceKeys = made.spaceKeys ?? [];
-  const keys = { personKeyByPassword: made.personKeyByPassword, personKeyByRecovery: made.personKeyByRecovery, publicKey: made.publicKey, privateKeyWrapped: made.privateKeyWrapped, spaceKeys };
+  // A carried account that never kept a recovery code has no recovery wrap, and none is invented here.
+  const keys = { personKeyByPassword: made.personKeyByPassword, ...(made.personKeyByRecovery ? { personKeyByRecovery: made.personKeyByRecovery } : {}), publicKey: made.publicKey, privateKeyWrapped: made.privateKeyWrapped, spaceKeys };
   try {
     let out: ClaimOut;
     try {

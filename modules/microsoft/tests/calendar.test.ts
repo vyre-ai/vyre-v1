@@ -53,11 +53,11 @@ function notified(excluded = false): Harness {
   return h;
 }
 
-test("a notice also asks Calendar to sync that member's calendar, never connects one, and an excluded member's is never synced", async () => {
+test("a notice never asks Calendar to sync (Calendar pulls on its own schedule as the server) and never connects a calendar", async () => {
   const h = notified();
   h.ctx.db.run(`INSERT INTO microsoft_calendar (email, "calendarId") VALUES (?, ?)`, MAYA, "cld_maya0001");
   await receiveNotification(h.ctx, { notificationId: "n1", subscriptionId: "sub1", resource: `users/${MAYA}/messages/A`, changeType: "created", clientStateOk: true });
-  assert.deepEqual(h.calls("calendar.sync_now").map((c) => c.input), [{ calendarId: "cld_maya0001" }]);
+  assert.equal(h.calls("calendar.sync_now").length, 0, "that call answers to the calendar's owner, which the server is not");
   assert.equal(h.calls("calendar.connect_provider").length, 0, "connecting takes an admin, so a notice never does it");
   const x = notified(true);
   x.ctx.db.run(`INSERT INTO microsoft_calendar (email, "calendarId") VALUES (?, ?)`, MAYA, "cld_maya0001");

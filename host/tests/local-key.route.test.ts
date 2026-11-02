@@ -5,9 +5,11 @@ import http from "node:http";
 import { createKeyring } from "../src/seams/keyring.ts";
 import { createLocalKeyRoute } from "../src/routes/local-key.ts";
 
-async function rig(allowed: (p: string) => boolean = () => true) {
-  const keyring = createKeyring({ allowed });
-  const route = createLocalKeyRoute({ caller: (h) => (h["authorization"] === "Bearer tok-a" ? { person: "usr_a", sessionId: "ses_a" } : null), keyring, allowed });
+const CALLERS: Record<string, { person: string; sessionId?: string }> = { "Bearer tok-a": { person: "usr_a", sessionId: "ses_a" }, "Bearer tok-b": { person: "usr_b", sessionId: "ses_b" }, "Bearer admin": { person: "usr_a" } };
+
+async function rig(allowed: (p: string, s?: string) => boolean = () => true, live?: (s: string) => boolean) {
+  const keyring = createKeyring({ allowed, ...(live ? { live } : {}) });
+  const route = createLocalKeyRoute({ caller: (h) => CALLERS[String(h["authorization"])] ?? null, keyring, allowed });
   const server = http.createServer((req, res) => { if (!route.handle(req, res)) { res.writeHead(404); res.end(); } });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const port = (server.address() as { port: number }).port;
@@ -60,4 +62,39 @@ test("no token is 401, a node that is not the person's own is 403, a bad key is 
     assert.equal((await own.call("/local/vault/key/unlock", { method: "GET" })).status, 405);
     assert.equal((await own.call("/other")).status, 404);
   } finally { own.close(); }
+});
+
+// Owner ruling 3 Nov (R62 amended): a Space server holds a member's key while their session is signed in. The door is /vault/key/*, https only, a device session only, bound to that session.
+const SPACE = { host: "team.example.com", "x-forwarded-proto": "https", "x-forwarded-for": "203.0.113.9" };
+/** A Space server: no person's own node, so only a live session may hand a key over (daemon.ts). */
+const serverRule = (alive: Set<string>) => (_p: string, s?: string): boolean => s !== undefined && alive.has(s);
+
+test("the Space door holds a member's key over https for their own session, answers status for them alone, and drops it when the session ends", async () => {
+  const alive = new Set(["ses_a", "ses_b"]);
+  const r = await rig(serverRule(alive), (id) => alive.has(id));
+  try {
+    const u = await r.call("/vault/key/unlock", { headers: SPACE, body: { key: B64 } });
+    assert.deepEqual([u.status, u.body], [204, ""]);
+    assert.deepEqual(r.keyring.get("usr_a"), new Uint8Array(32).fill(5));
+    assert.deepEqual(JSON.parse((await r.call("/vault/key/status", { headers: SPACE })).body), { held: true });
+    // another member asks: their own answer, never usr_a's key
+    assert.deepEqual(JSON.parse((await r.call("/vault/key/status", { headers: { ...SPACE, authorization: "Bearer tok-b" } })).body), { held: false });
+    assert.equal(r.keyring.get("usr_b"), null);
+    alive.delete("ses_a");   // sign-out, a revoked device or a password change ends the session
+    assert.equal(r.keyring.get("usr_a"), null, "the key goes with the session");
+  } finally { r.close(); }
+});
+
+test("the Space door refuses plain http from another machine, a session that has ended, and a caller with no device session; nothing is held", async () => {
+  const alive = new Set(["ses_a"]);
+  const r = await rig(serverRule(alive), (id) => alive.has(id));
+  try {
+    assert.equal((await r.call("/vault/key/unlock", { headers: { ...SPACE, "x-forwarded-proto": "http" }, body: { key: B64 } })).status, 403);
+    assert.equal((await r.call("/vault/key/unlock", { headers: { ...SPACE, authorization: "Bearer admin" }, body: { key: B64 } })).status, 403);
+    assert.equal((await r.call("/vault/key/unlock", { headers: { ...SPACE, authorization: "Bearer tok-b" }, body: { key: B64 } })).status, 403, "ses_b is not signed in");
+    assert.equal((await r.call("/vault/key/unlock", { headers: SPACE, method: "GET" })).status, 405);
+    assert.equal(r.keyring.holds("usr_a") || r.keyring.holds("usr_b"), false);
+    // the loopback door stays local only
+    assert.equal((await r.call("/local/vault/key/unlock", { headers: SPACE, body: { key: B64 } })).status, 403);
+  } finally { r.close(); }
 });

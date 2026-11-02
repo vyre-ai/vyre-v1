@@ -1,4 +1,4 @@
-// Every onboarding step has the same bar: Finish later, Skip and Continue (Done on the last step), so none is a dead end; plus the First win card's starter routines.
+// Every onboarding step has the same bar: Back (from the second step), Skip for now and Continue (Done on the last step), with Finish later in the rail, so none is a dead end; plus the First win card's starter routines.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { act } from "react";
@@ -13,11 +13,12 @@ import type { CapCall } from "../shell/session/caps.ts";
 const noop = (): void => undefined;
 const steps = stepsOf("personal");
 
-test("each of the 8 steps renders Finish later, Skip and Continue (Done on the last)", () => {
+test("each of the 8 steps renders Finish later, Back (not on the first), Skip for now and Continue (Done on the last)", () => {
   assert.equal(steps.length, 8);
   steps.forEach((st, i) => {
     const out = renderToStaticMarkup(<OnboardingScreen flow="personal" spaceName="Maya" progress={{}} stepKey={st.key} device="mac" onStep={noop} onClose={noop} />);
-    assert.ok(out.includes("Finish later") && out.includes(">Skip<") && out.includes('data-testid="step-next"'), st.key);
+    assert.ok(out.includes("Finish later") && out.includes(">Skip for now<") && out.includes('data-testid="step-next"'), st.key);
+    assert.equal(out.includes('data-testid="step-back"'), i > 0, `${st.key}: Back`);
     assert.ok(out.includes(i === steps.length - 1 ? ">Done<" : ">Continue<"), st.key);
   });
 });
@@ -35,7 +36,7 @@ test("Continue on a done step opens the next one, and Done on the last ends on t
   }
 });
 
-test("Skip on an open step marks it skipped, and on a done step only moves on", async () => {
+test("Skip for now on an open step marks it skipped and moves on; a done step has no Skip, so it is never downgraded", async () => {
   installDom();
   const seen: string[] = [], opened: string[] = [];
   const r = createRoot();
@@ -43,9 +44,11 @@ test("Skip on an open step marks it skipped, and on a done step only moves on", 
   await press(find(r.container as never, "step-later"));
   await flush();
   assert.deepEqual(seen, ["folders:later"]);
+  assert.deepEqual(opened, ["chrome"]);
   const d = createRoot();
   await act(async () => { d.render(<OnboardingScreen flow="personal" spaceName="Maya" progress={{ ai: "done" }} stepKey="ai" device="mac" onStep={(k, st) => seen.push(`${k}:${st}`)} onOpenStep={(k) => opened.push(k)} onClose={noop} />); });
-  await press(find(d.container as never, "step-later"));
+  assert.equal(find(d.container as never, "step-later"), null);
+  await press(find(d.container as never, "step-next"));
   await flush();
   assert.deepEqual(seen, ["folders:later"], "a done step is not downgraded");
   assert.ok(opened.includes("interview"));
@@ -105,9 +108,11 @@ test("the X and Finish later both leave to the app, and Esc does too", async () 
   assert.ok(!out.includes("onboarding-x"), "no X without a way out");
 });
 
-test("Set up N of 8 counts only what is done, the same number as the Finish setup entry", () => {
+test("the counter and the bar follow the step on show, done or skipped: Step 4 of 8 on the fourth step", () => {
   const out = renderToStaticMarkup(<OnboardingScreen flow="personal" spaceName="Maya" progress={{ ai: "done", interview: "later", sessions: "later" }} stepKey="folders" device="mac" onStep={noop} onClose={noop} />);
-  assert.ok(/Set up\s+1 of 8/.test(out.replace(/&nbsp;/g, " ")));
+  assert.ok(out.includes(">Step 4 of 8<"), "the fourth step says so");
+  assert.match(out, /aria-valuenow="4"/);
+  assert.match(out, /width:50%/, "the bar is half full on step 4 of 8");
 });
 
 test("the Finish setup entry counts what is really done, reopens the first open step, hides, and is gone when nothing is open", async () => {

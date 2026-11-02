@@ -5,6 +5,7 @@ import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import { ConnectAiCard } from "./ConnectAiCard.tsx";
+import { SpaceAiStatus } from "../ai-signin/SpaceAiStatus.tsx";
 import { ResumeChip, ResumeContext, resumeInfo } from "./ResumeChip.tsx";
 import { detectDevice } from "./device.ts";
 import { FirstWinCard } from "./FirstWinCard.tsx";
@@ -17,12 +18,12 @@ import { TeamBridgeCard } from "./TeamBridgeCard.tsx";
 import { OPEN_TARGETS, OpenCard } from "./OpenCard.tsx";
 import { PairPhoneCard } from "./PairPhoneCard.tsx";
 import { KitPickCard } from "./KitPickCard.tsx";
-import { SPACE_KEY_HASH, SpaceAiCard } from "./SpaceAiCard.tsx";
+import { SpaceAiCard } from "./SpaceAiCard.tsx";
 import { AssistantThread } from "./AssistantThread.tsx";
 import { PreviewPane } from "./PreviewPane.tsx";
 import type { ShellRuntime } from "../shell/providers/runtime.tsx";
 import { DirectoryCard, InvitesCard, SSO_SETUP_HASH, SignInDomainCard, WorkspaceCard } from "./SuiteCards.tsx";
-import { shouldAutoOpen } from "./flow.ts";
+import { readableName, shouldAutoOpen } from "./flow.ts";
 import { scriptFor } from "./script.ts";
 import type { CardKind, FlowKind, Progress, StepState } from "./flow.ts";
 import { OnboardingScreen } from "./OnboardingScreen.tsx";
@@ -55,12 +56,16 @@ export interface OnboardingHostProps {
 }
 
 export function OnboardingHost({ call, space, children, cards, onAddSpace, mac = false, address, onGo, personalCall = null, runtime = null, person = null, personName = null }: OnboardingHostProps): ReactElement {
+  const home = runtime?.aiHome ?? "here";
   const [flow, setFlow] = useState<FlowKind | null>(null);
   const [progress, setProgress] = useState<Progress>({});
   const [shown, setShown] = useState(false);
   const [step, setStep] = useState<string | null>(null);
   const [aiProvider, setAiProvider] = useState<string | null>(null);
   const [hasAi, setHasAi] = useState(false);
+  // the Space's name as the owner types it on Your organisation, so the preview follows each key; never a raw id
+  const [typedName, setTypedName] = useState<string | null>(null);
+  const shownName = typedName ?? readableName(space.name);
   // the Assistant is live once an AI account of the person's exists here
   useEffect(() => {
     if (!call) return undefined;
@@ -103,7 +108,13 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
   const renderCard = useMemo(() => (card: CardKind, ctx: CardContext): ReactNode => {
     const given = cards?.[card];
     if (given) return given(ctx);
-    if (card === "connect_ai" && call) return <ConnectAiCard call={call} connected={aiProvider !== null || progress["ai"] === "done"} onConnected={(id) => { setAiProvider(id); ctx.done(); }} />;
+    // in a Team Space the step says first whether the Space AI key already covers the person, then offers their own account
+    if (card === "connect_ai" && call) return (
+      <View style={s.aiCol}>
+        {space.kind === "team" ? <SpaceAiStatus call={call} {...(person ? { me: person } : {})} /> : null}
+        <ConnectAiCard home={home} call={call} connected={aiProvider !== null || progress["ai"] === "done"} onConnected={(id) => { setAiProvider(id); ctx.done(); }} />
+      </View>
+    );
     if (card === "bridge_team" && onAddSpace) return <TeamBridgeCard mac={mac} onCreate={() => { onAddSpace(); ctx.later(); }} />;
     if (card === "phone" && call && address) return <PairPhoneCard call={call} address={address} onPaired={() => ctx.done()} {...(onAddSpace ? { onTeamSpace: () => { onAddSpace(); ctx.later(); } } : {})} />;
     if (card === "chrome" && call) return <ChromeCard call={call} device={ctx.device} onConnected={() => ctx.done()} gate={ctx.gate} />;
@@ -111,19 +122,19 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
     if (card === "local_folders" && call && shellInvoke() && ctx.device !== "web" && ctx.device !== "phone") return <FoldersCard call={call} gate={ctx.gate} />;
     if (card === "first_win" && call) return <FirstWinCard call={call} hasAi={hasAi || aiProvider !== null || progress["ai"] === "done"} gate={ctx.gate} onConnectAi={() => setStep("ai")} />;
     const target = OPEN_TARGETS[card];
-    if (target && onGo) return <OpenCard step={{ flow: ctx.flow, key: ctx.step.key }} text={target.text} action={target.action} onOpen={() => { setShown(false); setStep(null); onGo(target.place); }} onDone={() => ctx.done()} />;
-    if (card === "space_ai" && call) return <SpaceAiCard team={call} personal={personalCall} onConnected={() => ctx.done()} {...(onGo ? { onOpenConsole: () => { setShown(false); setStep(null); onGo("console", SPACE_KEY_HASH); } } : {})} />;
+    if (target && onGo) return <OpenCard step={{ flow: ctx.flow, key: ctx.step.key }} text={target.text} action={target.action} onOpen={() => { setShown(false); setStep(null); onGo(target.place); }} onDone={() => ctx.done()} gate={ctx.gate} />;
+    if (card === "space_ai" && call) return <SpaceAiCard home={home} team={call} personal={personalCall} onConnected={(id) => setAiProvider(id)} gate={ctx.gate} me={{ id: person ?? "", name: personName ?? "" }} />;
     if (call && onGo) {
       const toConsole = (): void => { setShown(false); setStep(null); onGo("console"); };
-      if (card === "google_microsoft") return <WorkspaceCard call={call} onOpenConsole={toConsole} onDone={() => ctx.done()} />;
-      if (card === "sign_in_domain") return <SignInDomainCard call={call} onOpenConsole={toConsole} onSetUp={() => { setShown(false); setStep(null); onGo("console", SSO_SETUP_HASH); }} onDone={() => ctx.done()} />;
-      if (card === "directory") return <DirectoryCard call={call} by={personName ?? "Your admin"} space={space.name} onOpenConsole={toConsole} onDone={() => ctx.done()} />;
+      if (card === "google_microsoft") return <WorkspaceCard call={call} onOpenConsole={toConsole} onDone={() => ctx.done()} gate={ctx.gate} />;
+      if (card === "sign_in_domain") return <SignInDomainCard call={call} onOpenConsole={toConsole} onSetUp={() => { setShown(false); setStep(null); onGo("console", SSO_SETUP_HASH); }} onDone={() => ctx.done()} gate={ctx.gate} />;
+      if (card === "directory") return <DirectoryCard call={call} by={personName ?? "Your admin"} space={shownName || "your Space"} gate={ctx.gate} onOpenConsole={toConsole} onDone={() => ctx.done()} />;
     }
-    if (card === "invites" && call) return <InvitesCard call={call} onDone={() => ctx.done()} />;
-    if (card === "org" && call) return <KitPickCard call={call} spaceName={space.kind === "team" ? space.name : ""} onInstalled={() => ctx.done()} gate={ctx.gate} />;
-    if (card === "interview" && call) return <InterviewCard call={call} onSaved={() => ctx.done()} />;
+    if (card === "invites" && call) return <InvitesCard call={call} onDone={() => ctx.done()} gate={ctx.gate} />;
+    if (card === "org" && call) return <KitPickCard call={call} spaceName={space.kind === "team" ? readableName(space.name) : ""} onName={setTypedName} onInstalled={() => ctx.done()} gate={ctx.gate} />;
+    if (card === "interview" && call) return <InterviewCard call={call} onSaved={() => ctx.done()} gate={ctx.gate} />;
     return <Text testID="card-not-set-up" style={s.dim}>This part is not set up yet. You can come back to it later.</Text>;
-  }, [call, cards, aiProvider, hasAi, progress, onAddSpace, mac, address, onGo, personalCall, personName]);
+  }, [call, cards, aiProvider, hasAi, progress, onAddSpace, mac, address, onGo, personalCall, personName, person, shownName, space.kind, space.name, home]);
 
   const info = !shown && flow ? resumeInfo(flow, progress, detectDevice()) : null;
   const device = detectDevice();
@@ -139,7 +150,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
       <ResumeContext.Provider value={resume}>{children}</ResumeContext.Provider>
       {shown && flow ? (
         <View style={s.fill}>
-          <OnboardingScreen flow={flow} spaceName={space.kind === "personal" ? (personName ?? space.name) : space.name} progress={progress} stepKey={step} live={hasAi && runtime !== null && person !== null} {...(hasAi && runtime && person ? { liveChat: <AssistantThread rt={runtime} person={person} flow={flow} step={step} progress={progress} /> } : {})} onOpenStep={setStep} onStep={onStep} {...(onGo ? { onOpenChats: () => { setShown(false); setStep(null); onGo("chats"); } } : {})} onClose={() => { setShown(false); setStep(null); if (call) void markSeen(call, flow).catch(() => undefined); }} renderCard={renderCard} renderPreview={(card) => scriptFor(card, flow).preview === "" ? null : <PreviewPane call={call} card={card} progress={progress} fallback={scriptFor(card, flow).preview} />} />
+          <OnboardingScreen flow={flow} spaceName={space.kind === "personal" ? (personName ?? (readableName(space.name) || "Personal")) : (shownName || "Your Space")} progress={progress} stepKey={step} live={hasAi && runtime !== null && person !== null} {...(hasAi && runtime && person ? { renderLive: (st, ask) => <AssistantThread rt={runtime} person={person} flow={flow} step={st.key} progress={progress} ask={ask} /> } : {})} onOpenStep={setStep} onStep={onStep} {...(onGo ? { onOpenChats: () => { setShown(false); setStep(null); onGo("chats"); } } : {})} onClose={() => { setShown(false); setStep(null); if (call) void markSeen(call, flow).catch(() => undefined); }} renderCard={renderCard} renderPreview={(card) => scriptFor(card, flow).preview === "" ? null : <PreviewPane call={call} card={card} progress={progress} fallback={scriptFor(card, flow).preview} />} />
         </View>
       ) : null}
     </>
@@ -149,4 +160,5 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
 const s = StyleSheet.create({
   fill: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 50, backgroundColor: "var(--rail)" as string },
   dim: { fontSize: 13, color: "var(--ink-3)" as string },
+  aiCol: { gap: 12 },
 });
