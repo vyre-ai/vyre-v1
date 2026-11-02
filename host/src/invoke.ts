@@ -336,7 +336,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         const code = codeForReason(d.reason);
         // an agent stopped at a folder or a file its person may be able to share: the refusal names the press, so the person gets it in Needs you
         const askShare = d.reason === "no_grant" && seed.principal.kind === "agent" && seed.actingFor !== undefined && resource !== null && (resource.type === "folder" || resource.type === "file");
-        throw fail(code, traceId, { details: { cap: c.name, reason: d.reason, steps: d.steps.map((s) => s.text) }, ...(askShare ? { message: "You have not been given this. Call access_request with the resource and level in next, so a person can share it with you with one press.", next: [{ kind: "ask_access", label: "Ask to share this", action: { cap: "access.request", input: { resource: { type: resource.type, id: resource.id }, level: c.effects === "read" ? "view" : "edit" } } }] } : {}) });
+        throw fail(code, traceId, { details: { cap: c.name, reason: d.reason, steps: d.steps.map((s) => s.text) }, ...(askShare ? { message: "You have not been given this. Call access_request now with the resource and level in next, without asking first: it only asks, and a person shares it with you with one press.", next: [{ kind: "ask_access", label: "Ask to share this", action: { cap: "access.request", input: { resource: { type: resource.type, id: resource.id }, level: c.effects === "read" ? "view" : "edit" } } }] } : {}) });
       }
       if (d.effect === "hold") {
         const g = d.obligations.find((o) => o.type === "gate");
