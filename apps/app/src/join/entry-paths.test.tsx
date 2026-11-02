@@ -14,9 +14,9 @@ import { SessionGate } from "../shell/session/SessionGate.tsx";
 import { MANY_TRIES, OFFLINE_SPACE, TOO_MANY, WRONG_SIGN_IN, isMiss, signInLine } from "./failure.ts";
 import { readFileSync } from "node:fs";
 import { Button, FirstFrame, JoinFrame, Opening } from "./kit.tsx";
-import { FOLDED_MARK } from "./folded-mark.ts";
 import { withinStart } from "../shell/session/SessionGate.tsx";
 import { whenUsable } from "../startup/marks.ts";
+import { openVerifiedSession } from "../shell/session/stored.ts";
 import { initialState, reduce, valid } from "./logic.ts";
 import { JoinFlow } from "./JoinFlow.tsx";
 import type { JoinInvite } from "./logic.ts";
@@ -181,17 +181,35 @@ test("one screen handing over to the next inside the launch does not end the fir
   assert.ok(find(root as never, "first-frame"), "two Openings in a row are one wait");
 });
 
-test("the launch is the folded mark with no bar and no heading, the same drawing as the app icon", () => {
+test("the launch is the ground and one clean mark: no sheet, no tile, no halftone, no bar and no heading; only the Spark moves", () => {
   const first = renderToStaticMarkup(<Opening />);
-  assert.doesNotMatch(first, /data-testid="entry-run"/);
-  assert.doesNotMatch(first, /accessibilityRole|role="heading"/);
-  assert.match(first, /data-entry-spark/);
-  const dots = (svg: string): string[] => (svg.match(/<circle [^>]*>/g) ?? []).map((c) => c.replace(/ fill="[^"]*"/, "")).sort();
-  assert.deepEqual(dots(FOLDED_MARK), dots(readFileSync(new URL("../../public/vyre-mark.svg", import.meta.url), "utf8")));
+  for (const gone of [/data-testid="join-panel"/, /data-testid="entry-run"/, /role="heading"/, /<rect/, /clipPath/]) assert.doesNotMatch(first, gone);
+  assert.equal(first.match(/<circle/g)?.length, 2, "the Spark and its halo, not a field of dots");
+  assert.equal(first.match(/<path/g)?.length, 1, "one V");
+  assert.match(first, /<circle[^>]*data-entry-halo/, "only the halo carries the animation; the V and the Spark are still");
+  assert.equal(first.match(/data-entry-halo/g)?.length, 1);
+  assert.ok(first.indexOf("data-entry-halo") < first.indexOf("<path"), "the halo is behind the V");
+  assert.match(first, /width="64"/);
   const kit = readFileSync(new URL("./kit.tsx", import.meta.url), "utf8");
-  assert.match(kit, /\[data-entry-spark\]\{animation:vyre-entry-rest 2400ms ease-in-out 2\}/, "it breathes twice and rests");
+  assert.match(kit, /\[data-entry-halo\]\{[^}]*animation:vyre-entry-bloom 2800ms ease-in-out 2\}/, "it blooms twice and rests");
   assert.match(kit, /FIRST_LEAVE_MS = 220/);
-  assert.match(kit, /prefers-reduced-motion[^"]*\[data-entry-spark\][^"]*\[data-entry-first\]\{transition:none/, "less motion means no breath and no fade");
+  assert.match(kit, /prefers-reduced-motion[^"]*\[data-entry-halo\][^"]*\[data-entry-glide\]\{transition:none/, "less motion means no bloom and no glide");
+});
+
+test("the lock sheet hugs what is on it, with no gap kept for a line that is not there", () => {
+  const empty = renderToStaticMarkup(<LockScreen name="Dana Wills" onUnlock={async () => undefined} onForgot={() => undefined} onSignOut={() => undefined} />);
+  assert.match(empty, /Welcome back, Dana Wills/);
+  assert.doesNotMatch(empty, /min-height:416px/);
+  assert.doesNotMatch(empty, /data-testid="lock-error"/);
+  assert.match(renderToStaticMarkup(<LockScreen name="" notice="Nope." onUnlock={async () => undefined} />), /data-testid="lock-error"/);
+});
+
+test("a session keeps the name as the person wrote it, for the lock screen", async () => {
+  const kept: unknown[] = [];
+  const open = async () => ({ def: { spaceId: "s" }, me: { id: "p", name: "Dana Wills" }, close: () => undefined });
+  const stored = await openVerifiedSession({ baseUrl: "http://x", token: "t", username: "dana", open, getSpace: async () => ({ id: "s", marker: "m" }), persist: (s) => kept.push(s) });
+  assert.equal(stored.displayName, "Dana Wills");
+  assert.equal(stored.username, "dana");
 });
 
 test("a Personal Space that never answers fails, so the launch lands on Try again; one that answers is not cut off", async () => {

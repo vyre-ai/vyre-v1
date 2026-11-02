@@ -44,13 +44,13 @@ export function LockScreen({ name, onUnlock, onForgot, onSignOut, notice }: { na
   const gone = error === SESSION_OVER;
   return (
     <JoinFrame>
-      <Panel below={<LockLinks {...(onForgot ? { onForgot } : {})} {...(onSignOut && !gone ? { onSignOut } : {})} />} bar={<Bar cont={gone && onSignOut ? <Button label="Sign in" onPress={onSignOut} testID="lock-signout" /> : <Button label={busy ? "Unlocking" : "Unlock"} onPress={submit} busy={busy} disabled={password === "" || held} testID="lock-unlock" />} />}>
+      <Panel hug below={<LockLinks {...(onForgot ? { onForgot } : {})} {...(onSignOut && !gone ? { onSignOut } : {})} />} bar={<Bar cont={gone && onSignOut ? <Button label="Sign in" onPress={onSignOut} testID="lock-signout" /> : <Button label={busy ? "Unlocking" : "Unlock"} onPress={submit} busy={busy} disabled={password === "" || held} testID="lock-unlock" />} />}>
         <Step id="lock">
           <Title title={name ? `Welcome back, ${name}` : "Welcome back"} />
           <Group>
             <Field label="Password" value={password} onChange={(v) => { setPassword(v); if (!held) setError(""); }} secure autoFocus onSubmit={submit} disabled={busy} testID="lock-password" autoComplete="current-password" error={!!error && !held} visibilityTestID="lock-password-visibility" />
           </Group>
-          <ErrorLine testID="lock-error">{error}</ErrorLine>
+          <ErrorLine testID="lock-error" collapse>{error}</ErrorLine>
         </Step>
       </Panel>
     </JoinFrame>

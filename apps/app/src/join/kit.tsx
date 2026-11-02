@@ -7,7 +7,6 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Dim
 import type { TextStyle, ViewStyle } from "react-native";
 import { Avatar } from "../../../../ui/src/Avatar/index.tsx";
 import { injectCss } from "../../../../ui/src/theme/css.ts";
-import { FOLDED_MARK } from "./folded-mark.ts";
 import { ENTRY, FONT, MONO } from "./palette.ts";
 import type { EntryPalette } from "./palette.ts";
 
@@ -44,15 +43,16 @@ function ensureMotion(): void {
     "@keyframes vyre-entry-fade{from{opacity:0}to{opacity:1}}"
     + "@keyframes vyre-entry-run{0%{left:-34%}100%{left:100%}}"
     + "@keyframes vyre-entry-breathe{0%,100%{opacity:1}50%{opacity:.35}}"
-    + "@keyframes vyre-entry-rest{0%,100%{opacity:1}50%{opacity:.4}}"
+    + "@keyframes vyre-entry-bloom{0%,100%{opacity:0;transform:scale(1)}50%{opacity:.8;transform:scale(3.4)}}"
     + "[data-entry-step]{animation:vyre-entry-fade 140ms ease both}"
-    + "[data-entry-spark]{animation:vyre-entry-rest 2400ms ease-in-out 2}"
-    + `[data-entry-first]{transition:opacity ${FIRST_LEAVE_MS}ms ease}[data-entry-gone]{opacity:0}`
+    + "[data-entry-halo]{opacity:0;transform-box:fill-box;transform-origin:center;animation:vyre-entry-bloom 2800ms ease-in-out 2}"
+    + `[data-entry-first]{transition:opacity ${FIRST_LEAVE_MS}ms ease}[data-entry-ground]{transition:opacity ${FIRST_LEAVE_MS}ms cubic-bezier(.6,0,.9,.4)}[data-entry-glide]{transition:transform ${FIRST_LEAVE_MS}ms cubic-bezier(.2,.8,.2,1)}`
+    + `[data-entry-landing] [data-entry-ground]{opacity:0}[data-entry-fading]{opacity:0}[data-entry-landed] [data-testid="auth-form-mark"] [data-icon="vyre-mark"]{visibility:hidden}`
     + "[data-entry-after]{animation:vyre-entry-fade 140ms ease 300ms both}"
     + "[data-entry-run]{animation:vyre-entry-run 1600ms ease-in-out infinite}"
     + "[data-entry-wait] circle{animation:vyre-entry-breathe 1600ms ease-in-out infinite}"
     + "[data-entry-height]{transition:height 140ms ease}"
-    + "@media (prefers-reduced-motion: reduce){[data-entry-step],[data-entry-after],[data-entry-run],[data-entry-spark],[data-entry-wait] circle{animation:none!important}[data-entry-height],[data-entry-first]{transition:none!important}}");
+    + "@media (prefers-reduced-motion: reduce){[data-entry-step],[data-entry-after],[data-entry-run],[data-entry-halo],[data-entry-wait] circle{animation:none!important}[data-entry-height],[data-entry-first],[data-entry-ground],[data-entry-glide]{transition:none!important}}");
 }
 
 // The window size as an external store: the static export is pre-rendered with no window, and a size read during the first render would keep the pre-rendered layout (the phone
@@ -95,22 +95,14 @@ export function JoinFrame({ children }: { children: ReactNode }): ReactElement {
   );
 }
 
-/** The Vyre mark: the V in the ink, the spark in the beacon. While `wait` the spark breathes. `ink` is for a mark drawn on a filled control, where the whole mark takes it so the spark stays legible. */
-export function Mark({ size = 40, wait, ink = ENTRY.ink }: { size?: number; wait?: boolean; ink?: string }): ReactElement {
+/** The Vyre mark: the V in the ink, the spark in the beacon. While `wait` the spark breathes; with `bloom` a soft halo opens behind it twice, slowly, and rests, for the launch; the V and the Spark stay still and solid. `ink` is for a mark drawn on a filled control, where the whole mark takes it so the spark stays legible. */
+export function Mark({ size = 40, wait, ink = ENTRY.ink, bloom }: { size?: number; wait?: boolean; ink?: string; bloom?: boolean }): ReactElement {
   if (!web) return <Text style={{ color: ink, fontSize: Math.round(size * 0.6), fontWeight: "700" }}>V</Text>;
-  return createElement("svg", { viewBox: "0 0 24 24", width: size, height: size, "aria-hidden": true, "data-icon": "vyre-mark", ...(wait ? { "data-entry-wait": "" } : {}), style: { display: "block", flex: "none" } },
+  return createElement("svg", { viewBox: "0 0 24 24", width: size, height: size, "aria-hidden": true, "data-icon": "vyre-mark", ...(wait ? { "data-entry-wait": "" } : {}), style: { display: "block", flex: "none", overflow: "visible" } },
+    bloom ? createElement("defs", null, createElement("radialGradient", { id: "vyre-entry-bloom" }, createElement("stop", { offset: "30%", style: { stopColor: ENTRY.spark, stopOpacity: 0.7 } }), createElement("stop", { offset: "100%", style: { stopColor: ENTRY.spark, stopOpacity: 0 } }))) : null,
+    bloom ? createElement("circle", { cx: 18.6, cy: 5.6, r: 2.7, fill: "url(#vyre-entry-bloom)", "data-entry-halo": "" }) : null,
     createElement("path", { d: "M5.2 6.4l6.3 11.2 4.9-8.6", fill: "none", stroke: ink, strokeWidth: 3.1, strokeLinecap: "round", strokeLinejoin: "round" }),
     createElement("circle", { cx: 18.6, cy: 5.6, r: 2.7, fill: ink === ENTRY.ink ? ENTRY.spark : ink }));
-}
-
-/** The folded mark, the app's own icon: what a person sees while Vyre opens. Its spark breathes twice and rests. It is drawn on a 64 grid, where the dots land on whole pixels, and sits in the 40 px slot of the plain mark with its centre on the same point, so the mark does not move when the next screen arrives. */
-export function FoldedMark(): ReactElement {
-  if (!web) return <Mark />;
-  return (
-    <View style={{ width: 40, height: 40, alignItems: "center", justifyContent: "center", overflow: "visible" }}>
-      {createElement("svg", { viewBox: "0 0 64 64", width: 64, height: 64, "aria-hidden": true, "data-icon": "vyre-mark", style: { display: "block", flex: "none" }, dangerouslySetInnerHTML: { __html: FOLDED_MARK } })}
-    </View>
-  );
 }
 
 /** The Space's own letter, in place of the mark, once the screen is about one Space. */
@@ -149,11 +141,11 @@ export interface PanelProps {
   space?: string;
   /** kept for callers that say the sheet is centred; every sheet is */
   center?: boolean;
-  /** Vyre is opening: the folded mark, in the place every other screen has its mark. */
-  opening?: boolean;
+  /** The sheet is as tall as what is on it, for a screen with no steps to keep level with. */
+  hug?: boolean;
 }
 
-export function Panel({ children, bar, below, wait, space, opening }: PanelProps): ReactElement {
+export function Panel({ children, bar, below, wait, space, hug }: PanelProps): ReactElement {
   const { p, phone } = useJoin();
   const back = bar?.props;
   const backRing = useRing();
@@ -176,9 +168,9 @@ export function Panel({ children, bar, below, wait, space, opening }: PanelProps
           </Pressable>
         ) : null}
         <Eased>
-          <View style={{ minHeight: SHEET_MIN, paddingTop: 36, paddingHorizontal: phone ? 20 : 32, paddingBottom: 28, alignItems: "stretch" }}>
-            <View testID="auth-form-mark" accessible={false} style={{ alignItems: "center", marginBottom: 18 }}>{space ? <SpaceTile name={space} /> : opening ? <FoldedMark /> : <Mark {...(wait ? { wait: true } : {})} />}</View>
-            <View style={{ flexGrow: 1, flexShrink: 0 }}>{children}</View>
+          <View style={{ ...(hug ? {} : { minHeight: SHEET_MIN }), paddingTop: 36, paddingHorizontal: phone ? 20 : 32, paddingBottom: 28, alignItems: "stretch" }}>
+            <View testID="auth-form-mark" accessible={false} style={{ alignItems: "center", marginBottom: 18 }}>{space ? <SpaceTile name={space} /> : <Mark {...(wait ? { wait: true } : {})} />}</View>
+            <View style={{ flexGrow: hug ? 0 : 1, flexShrink: 0 }}>{children}</View>
             {bar && back?.cont != null ? bar : null}
             {below ?? null}
           </View>
@@ -216,9 +208,9 @@ export function Caption({ children }: { children: ReactNode }): ReactElement {
 }
 
 /** The one error line. Its place is held while it is empty, so a failure appears where the eye already is and the primary action does not move. */
-export function ErrorLine({ children, testID }: { children?: ReactNode; testID?: string }): ReactElement {
+export function ErrorLine({ children, testID, collapse }: { children?: ReactNode; testID?: string; /** take no room until there is something to say */ collapse?: boolean }): ReactElement | null {
   const { p } = useJoin();
-  if (children === null || children === undefined || children === "" || children === false) return <View style={{ minHeight: 20, marginTop: 8 }} />;
+  if (children === null || children === undefined || children === "" || children === false) return collapse ? null : <View style={{ minHeight: 20, marginTop: 8 }} />;
   return (
     <View accessibilityRole="alert" style={{ flexDirection: "row", alignItems: "flex-start", gap: 6, minHeight: 20, marginTop: 8 }}>
       <Glyph kind="alert" size={16} color={p.danger} />
@@ -607,19 +599,19 @@ export function CodeShown({ code, testID }: { code: string; testID?: string }): 
 /** A start that is taking a while says so once, in one quiet line. */
 const SLOW_MS = 4000;
 
-/** What a person sees while Vyre opens: the sheet and the folded mark, and after a few seconds one quiet line that does not move anything. */
-function OpeningSurface({ testID, first }: { testID?: string | undefined; first?: boolean }): ReactElement {
+/** How big the mark is while Vyre opens. On the lock screen it is 40. */
+const OPENING_MARK = 64;
+
+/** What a person sees while Vyre opens: the ground and one mark, a little above the middle where the eye takes it as centred. After a few seconds, one quiet line that moves nothing. */
+function OpeningMark({ testID, first }: { testID?: string | undefined; first?: boolean }): ReactElement {
   const [slow, setSlow] = useState(false);
   // Under the first frame the same surface is hidden: only the one on top speaks, or a screen reader hears the line twice.
   useEffect(() => { const t = setTimeout(() => { if (first || !firstFrameUp) setSlow(true); }, SLOW_MS); return () => clearTimeout(t); }, [first]);
   return (
-    <JoinFrame>
-      <Panel opening>
-        <View testID={testID ?? "entry-opening"} style={{ flexGrow: 1, justifyContent: "flex-end" }}>
-          {slow ? <Step id="opening-slow"><View style={{ flexGrow: 1, justifyContent: "flex-end" }}><QuietLine testID="opening-slow">Still opening</QuietLine></View></Step> : null}
-        </View>
-      </Panel>
-    </JoinFrame>
+    <View testID={testID ?? "entry-opening"} style={{ position: "absolute", left: 0, right: 0, top: "46%", marginTop: -OPENING_MARK / 2, alignItems: "center" }}>
+      <View testID={first ? "first-frame-mark" : undefined} {...(web && first ? { dataSet: { entryGlide: "" } } : {})} style={{ width: OPENING_MARK, height: OPENING_MARK }}><Mark size={OPENING_MARK} bloom /></View>
+      <View style={{ position: "absolute", top: OPENING_MARK + 16, left: 0, right: 0, alignItems: "center" }}>{slow ? <Step id="opening-slow"><QuietLine testID="opening-slow">Still opening</QuietLine></Step> : null}</View>
+    </View>
   );
 }
 
@@ -640,41 +632,66 @@ export function useHoldFirstFrame(until?: () => Promise<void>): void {
   }, [until]);
 }
 
-/** The first frame of every path, before anything is known: the mark on the sheet. With a title it is a step that takes a while inside a flow. */
+/** The first frame of every path, before anything is known: the mark on the ground. With a title it is a step that takes a while inside a flow. */
 export function Opening({ title, line, testID }: { title?: string | undefined; line?: string | undefined; testID?: string | undefined }): ReactElement {
   useHoldFirstFrame(title ? NOT_HELD : undefined);
-  if (!title) return <OpeningSurface testID={testID} />;
+  if (!title) return <JoinFrame><OpeningMark testID={testID} /></JoinFrame>;
   return <JoinFrame><Panel wait><Step id="opening"><Working title={title} {...(testID ? { testID } : {})} {...(line ? { line } : {})} /></Step></Panel></JoinFrame>;
 }
 const NOT_HELD = (): Promise<void> => Promise.resolve();
 
+type Dom = { querySelector(s: string): (Element & { style: { transform: string; animation: string; opacity: string; transition: string } }) | null; documentElement: { setAttribute(k: string, v: string): void; removeAttribute(k: string): void } };
+const dom = (): Dom | undefined => (web ? (globalThis as { document?: Dom }).document : undefined);
+const spot = (d: Dom | undefined): Element | null => d?.querySelector('[data-testid="auth-form-mark"] [data-icon="vyre-mark"]') ?? null;
+
+/** The mark goes to where the next screen has its own, and the bloom settles on the way, from wherever it had got to. */
+function glide(d: Dom): void {
+  const mine = d.querySelector('[data-testid="first-frame-mark"]'); const to = spot(d);
+  if (!mine || !to) return;
+  const halo = mine.querySelector("[data-entry-halo]");
+  if (halo) {
+    const now = getComputedStyle(halo);
+    halo.style.opacity = now.opacity; halo.style.transform = now.transform; halo.style.animation = "none";
+    void (halo as unknown as { getBoundingClientRect(): unknown }).getBoundingClientRect();
+    halo.style.transition = `opacity ${FIRST_LEAVE_MS}ms ease, transform ${FIRST_LEAVE_MS}ms ease`; halo.style.opacity = "0"; halo.style.transform = "none";
+  }
+  const a = mine.getBoundingClientRect(), b = to.getBoundingClientRect();
+  mine.style.transform = `translate(${b.left + b.width / 2 - a.left - a.width / 2}px, ${b.top + b.height / 2 - a.top - a.height / 2}px) scale(${b.width / a.width})`;
+}
+
 /**
  * The launch: one surface from the first paint until the app is there. It is at the root and never remounts, so the mark does not move and the breath does not restart however many screens
- * pass under it, and it leaves as soon as nothing is opening, in one crossfade. A failure lands on a real screen under it (StartFailed), which ends the wait like any other.
+ * pass under it, and it leaves as soon as nothing is opening: into a screen with a mark, the mark glides to its place while the ground clears around it; into the app, one crossfade.
+ * A failure lands on a real screen under it (StartFailed), which ends the wait like any other.
  */
 export function FirstFrame(): ReactElement | null {
-  const [stage, setStage] = useState<"on" | "leaving" | "gone">("on");
+  const [stage, setStage] = useState<"on" | "landing" | "fading" | "gone">("on");
+  useEffect(ensureMotion, []);
   useEffect(() => { firstFrameUp = stage !== "gone"; return () => { firstFrameUp = false; }; }, [stage]);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     // One screen hands over to the next within a commit: look once that has settled, so a handover is not read as the end.
-    const look = (): void => { clearTimeout(timer); timer = setTimeout(() => { if (opening === 0) setStage((s) => (s === "on" ? "leaving" : s)); }, 0); };
+    const look = (): void => { clearTimeout(timer); timer = setTimeout(() => { if (opening === 0) setStage((s) => (s === "on" ? (spot(dom()) ? "landing" : "fading") : s)); }, 0); };
     watchers.add(look);
     look();
     return () => { clearTimeout(timer); watchers.delete(look); };
   }, []);
   useEffect(() => {
-    if (stage !== "leaving") return undefined;
+    if (stage === "on" || stage === "gone") return undefined;
+    const d = dom();
+    if (stage === "landing" && d) { d.documentElement.setAttribute("data-entry-landed", ""); glide(d); }
     const t = setTimeout(() => setStage("gone"), FIRST_LEAVE_MS + 20);
-    return () => clearTimeout(t);
+    return () => { clearTimeout(t); d?.documentElement.removeAttribute("data-entry-landed"); };
   }, [stage]);
   if (stage === "gone") return null;
   return (
-    <View testID="first-frame" accessible={false} {...(web ? { dataSet: { entryFirst: "", ...(stage === "leaving" ? { entryGone: "" } : {}) } } : {})} pointerEvents={stage === "leaving" ? "none" : "auto"} style={{ position: (web ? "fixed" : "absolute") as "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 1000 }}>
-      <OpeningSurface testID="first-frame-surface" first />
+    <View testID="first-frame" accessible={false} {...(web ? { dataSet: { entryFirst: "", ...(stage === "landing" ? { entryLanding: "" } : stage === "fading" ? { entryFading: "" } : {}) } } : {})} pointerEvents={stage === "on" ? "auto" : "none"} style={{ position: (web ? "fixed" : "absolute") as "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 1000 }}>
+      <View {...(web ? { dataSet: { entryGround: "" } } : {})} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: ENTRY.ground }} />
+      <ThemeCtx.Provider value={ENTRY_THEME}><OpeningMark testID="first-frame-surface" first /></ThemeCtx.Provider>
     </View>
   );
 }
+const ENTRY_THEME = { p: ENTRY, phone: false };
 
 export const styles = StyleSheet.create({ fill: { flex: 1 } });
 export { base as baseText };

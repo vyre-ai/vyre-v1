@@ -21,7 +21,7 @@ test("a Space that is not on this computer never shows the lock: it keeps its ex
 test("on this computer a calm loading state shows until the daemon answers: no blank page, no shell flash behind the lock", () => {
   const html = renderToStaticMarkup(<KeyGate baseUrl="http://127.0.0.1:1" token="t" name="Irfad"><p>the shell</p></KeyGate>);
   assert.match(html, /data-testid="lock-checking"/);
-  assert.match(html, /data-icon="vyre-mark"/, "the folded mark, not a blank page");
+  assert.match(html, /data-icon="vyre-mark"/, "the mark, not a blank page");
   assert.doesNotMatch(text(html), /the shell/);
 });
 
