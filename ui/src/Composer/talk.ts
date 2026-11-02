@@ -22,7 +22,7 @@ export interface TalkDeps {
   now(): number;
   later(fn: () => void, ms: number): unknown;
   /** Where the refused-mic line sends a person: this app's system settings, or the site's own permission. */
-  shell: "mac" | "web";
+  shell: "mac" | "windows" | "web";
 }
 export interface TalkEvents {
   /** Everything heard so far in this session, the part still being corrected last. */
@@ -43,6 +43,7 @@ export const LINE = {
   noMicApi: "This browser cannot reach a microphone here. Open Vyre at its https address.",
   noMic: "No microphone found. Plug one in and press the mic again.",
   micMac: "Vyre cannot hear you. Allow the microphone for Vyre in System Settings, Privacy and Security, Microphone.",
+  micWindows: "Vyre cannot hear you. Allow the microphone in Windows Settings, Privacy and security, Microphone.",
   micWeb: "Your browser blocked the microphone. Allow it for this site, then press the mic again.",
   network: "Talk needs the internet. What you typed is still here.",
   down: "The voice service is not answering. Try again in a moment.",
@@ -70,7 +71,7 @@ export function micLine(e: unknown, shell: TalkDeps["shell"]): string {
   const name = (e as { name?: string })?.name ?? "";
   if (name === "NoMicApi") return LINE.noMicApi;
   if (name === "NotFoundError" || name === "OverconstrainedError") return LINE.noMic;
-  return shell === "mac" ? LINE.micMac : LINE.micWeb;
+  return shell === "mac" ? LINE.micMac : shell === "windows" ? LINE.micWindows : LINE.micWeb;
 }
 
 /** What was heard: finished words in order, then the part still changing. */

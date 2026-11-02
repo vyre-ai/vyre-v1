@@ -24,6 +24,7 @@ test("a grant asks with the key in one header and a 30 second life, and returns 
 test("the check tells a wrong key, a low role, a busy provider, a down provider and no network apart, in plain words", async () => {
   const check = (f: SeamFetch) => fails(createTalkHost({ vault, fetch: f }).check(ctx, { provider: "deepgram", apiKey: KEY }));
   assert.deepEqual(await check(answer(401, "")), { code: "provider.auth_failed", message: "Deepgram did not accept that key. Check it and try again.", reason: "revoked" });
+  assert.equal((await check(answer(400, '{"err_code":"BAD_REQUEST","err_msg":"Invalid credentials."}'))).reason, "revoked", "what Deepgram really answers for a wrong key");
   assert.equal((await check(answer(403, ""))).reason, "role");
   assert.match((await check(answer(403, ""))).message, /Member role/);
   assert.equal((await check(answer(429, ""))).code, "provider.rate_limited");

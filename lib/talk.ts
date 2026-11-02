@@ -56,7 +56,8 @@ const DEEPGRAM: TalkProvider = {
     url: "https://api.deepgram.com/v1/auth/grant", method: "POST", headers: { authorization: `Token ${apiKey}`, "content-type": "application/json" }, body: JSON.stringify({ ttl_seconds: ttlSeconds }),
   }),
   readGrant(status, body) {
-    if (status === 401) return { ok: false, why: "key" };
+    // a wrong or revoked key answers 400 "Invalid credentials" (seen live), not 401
+    if (status === 400 || status === 401) return { ok: false, why: "key" };
     if (status === 403) return { ok: false, why: "role" };
     if (status === 429) return { ok: false, why: "busy" };
     if (status < 200 || status >= 300) return { ok: false, why: "down" };

@@ -182,6 +182,7 @@ test("lines: a server's sentence is used as it is, a raw failure is not, and the
   assert.equal(micLine({ name: "NotFoundError" }, "web"), LINE.noMic);
   assert.equal(micLine({ name: "NoMicApi" }, "mac"), LINE.noMicApi);
   assert.equal(micLine({ name: "NotAllowedError" }, "web"), LINE.micWeb);
+  assert.equal(micLine({ name: "NotAllowedError" }, "windows"), LINE.micWindows);
   assert.equal(joinWords(["a", "b"], ""), "a b");
 });
 
