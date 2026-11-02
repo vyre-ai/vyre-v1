@@ -29,12 +29,12 @@ test("send lands at my level for that kind, for me only", async () => {
 
 test("kinds.list carries my choice only where I made one, and one event names the kind", async () => {
   const h = harness();
-  await h.call("notifications.kind.set_level", { kind: "campaign.reply", channels: ["email"] }, me);
-  assert.deepEqual(h.events.map((e) => [e.name, e.payload.fields]), [["notification.rules_changed", ["kind:campaign.reply"]]]);
+  await h.call("notifications.kind.set_level", { kind: "reply.followed", channels: ["email"] }, me);
+  assert.deepEqual(h.events.map((e) => [e.name, e.payload.fields]), [["notification.rules_changed", ["kind:reply.followed"]]]);
   const { kinds } = await h.call("notifications.kinds.list", {}, me);
-  assert.deepEqual(kinds.find((k: { key: string }) => k.key === "campaign.reply").mine, { level: "badge", channels: ["email"] });
+  assert.deepEqual(kinds.find((k: { key: string }) => k.key === "reply.followed").mine, { level: "badge", channels: ["email"] });
   assert.equal(kinds.filter((k: { mine?: unknown }) => k.mine !== undefined).length, 1);
-  await h.call("notifications.kind.set_level", { kind: "campaign.reply", channels: ["email"] }, me);
+  await h.call("notifications.kind.set_level", { kind: "reply.followed", channels: ["email"] }, me);
   assert.equal(h.events.length, 0, "no change, no event");
   const other = (await h.call("notifications.kinds.list", {}, as(bob))).kinds;
   assert.equal(other.some((k: { mine?: unknown }) => k.mine !== undefined), false);

@@ -5,7 +5,7 @@
       "route": "/m/P-L9c_02",
       "proto": "inbox,at:contact:elena,{skin}",
       "waitFor": "[data-testid='email:m_lease']",
-      "note": "A contact's tab in the Northwind sample Space: Elena Rivera's whole history in reading order with day separators, the lease email with its quoted text folded, attachments and record chip, text bubbles, a call with its player and summary, a campaign step as a quiet line, the agent's draft with its Gate line, and the composer on Email with the inbox picker. The prototype side is its Inbox with Elena's contact tab open."
+      "note": "A contact's tab in the Northwind sample Space: Elena Rivera's whole history in reading order with day separators, the lease email with its quoted text folded, attachments and record chip, text bubbles, a call with its player and summary, the agent's draft with its Gate line, and the composer on Email with the inbox picker. The prototype side is its Inbox with Elena's contact tab open."
     },
     {
       "id": "P-L9c_02-contacttab-texts",

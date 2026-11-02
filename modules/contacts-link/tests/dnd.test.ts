@@ -39,7 +39,7 @@ const NEW_ADDS: Candidate[] = [
 
 test("candidates are refused for Do-not-contact or a suppressed address, and every other one is allowed", async () => {
   const h = await world();
-  const input = { context: "campaign", contextId: "cmp_spring", candidates: NEW_ADDS };
+  const input = { context: "journey_enrol", contextId: "jrn_spring", candidates: NEW_ADDS };
   assert.deepEqual(contractErrors("contacts.dnd_screen", "in", input), []);
   const out = await dndScreen(h.ctx, input);
   assert.deepEqual(out.allowed, ["r3", "r6", "r7"]);   // r7 opted out of email but is not Do-not-contact: that is the send API's check, not the screen's

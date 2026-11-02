@@ -16,7 +16,7 @@ const MAX_LIMIT = 500;
 
 /** The resource type an Ask scope names, where the object is a resource of its own. Events and pages are read through their own capability (see below), which carries the same refusal. */
 const RESOURCE_OF: Readonly<Record<string, ResourceType>> = {
-  record: "record", file: "file", folder: "folder", site: "site", automation: "automation", form: "form", campaign: "campaign", project: "project", run: "run", agent: "agent", task: "task",
+  record: "record", file: "file", folder: "folder", site: "site", automation: "automation", form: "form", project: "project", run: "run", agent: "agent", task: "task",
 };
 
 type Call = NonNullable<ChatCtx["call"]>;

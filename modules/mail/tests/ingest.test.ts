@@ -25,6 +25,7 @@ const LEE = { "lee@acme.test": [{ recordId: "rec_lee01", score: 0.95 }] };
 const PAT = { "pat@acme.test": [{ recordId: "rec_pata", score: 0.4 }, { recordId: "rec_patb", score: 0.55 }] };
 
 async function mailbox(h: Harness, address: string, privacy?: "private" | "space" | "people"): Promise<string> {
+  h.matchTo(address);
   const out = await connect(h.ctx, { provider: "google", address, idempotencyKey: `idem-${address}`, ...(privacy ? { privacy } : {}) });
   assert.deepEqual(contractErrors("mail.connect", "out", out), []);
   return out.mailbox.id;
@@ -183,17 +184,13 @@ test("mail from the Sent folder is stored as sent, linked by its recipient and n
   assert.equal(h.calls("inbox.link_message")[0]!.input.direction, "out");
 });
 
-test("a reply keeps the thread and the campaign of the message it answers", async () => {
+test("a reply keeps the thread of the message it answers", async () => {
   const h = harness({ contacts: LEE });
   const mbx = await mailbox(h, "maya@vyre.test");
-  const sent = await ingest(h.ctx, letter("maya@vyre.test", "<Campaign-1@vyre.test>", "g-c1", { mailboxId: mbx, direction: "out", to: [{ address: "lee@acme.test" }], threadKey: "thread-9" }));
-  h.ctx.db.run(`UPDATE mail_message SET "campaignId" = ? WHERE id = ?`, "cmp_spring", sent.messageId);
-  const reply = await ingest(h.ctx, letter("lee@acme.test", "<reply-1@acme.test>", "g-r1", { mailboxId: mbx, headers: { "In-Reply-To": "<campaign-1@vyre.test>" } }));
-  const row = h.rows(`SELECT "threadId", "campaignId" FROM mail_message WHERE id = ?`, reply.messageId)[0]!;
+  const sent = await ingest(h.ctx, letter("maya@vyre.test", "<Letter-1@vyre.test>", "g-c1", { mailboxId: mbx, direction: "out", to: [{ address: "lee@acme.test" }], threadKey: "thread-9" }));
+  const reply = await ingest(h.ctx, letter("lee@acme.test", "<reply-1@acme.test>", "g-r1", { mailboxId: mbx, headers: { "In-Reply-To": "<letter-1@vyre.test>" } }));
+  const row = h.rows(`SELECT "threadId" FROM mail_message WHERE id = ?`, reply.messageId)[0]!;
   assert.equal(row.threadId, "thread-9");
-  assert.equal(row.campaignId, "cmp_spring");
-  assert.equal(h.named("mail.received")[0]?.payload.campaignId, "cmp_spring");
-  assert.equal(h.calls("inbox.link_message")[1]!.input.campaignId, "cmp_spring");
 });
 
 test("when the linking step is down the message is kept and linked on the next delivery", async () => {
@@ -256,6 +253,7 @@ test("bad input is refused before anything is written", async () => {
 
 test("connect makes a Pending mailbox owned by the caller, once per idempotency key", async () => {
   const h = harness();
+  h.matchTo("maya@vyre.test");
   const a = await connect(h.ctx, { provider: "google", address: "Maya@Vyre.test", idempotencyKey: "k1" });
   const b = await connect(h.ctx, { provider: "google", address: "maya@vyre.test", idempotencyKey: "k1" });
   assert.equal(a.mailbox.id, b.mailbox.id);
@@ -267,6 +265,32 @@ test("connect makes a Pending mailbox owned by the caller, once per idempotency 
   assert.equal(h.named("mailbox.connected").length, 1);
   assert.equal(h.named("mailbox.connected")[0]?.payload.memberId, "usr_maya01");
   await assert.rejects(() => connect(h.ctx, { provider: "google", address: "maya@vyre.test", idempotencyKey: "k2" }), (e) => codeOf(e) === "validation.duplicate");
+});
+
+test("a person can connect through delegation only the address matched to them: a colleague's address is refused and makes no mailbox", async () => {
+  const h = harness();
+  h.matchTo("maya@vyre.test");
+  for (const provider of ["google", "microsoft"] as const) {
+    await assert.rejects(() => connect(h.ctx, { provider, address: "ceo@vyre.test", idempotencyKey: `steal-${provider}` }), (e) => codeOf(e) === "permission.no_grant");
+  }
+  assert.equal(h.rows("SELECT id FROM mail_mailbox").length, 0);
+  assert.equal(h.named("mailbox.connected").length, 0);
+  h.matchTo(undefined);
+  await assert.rejects(() => connect(h.ctx, { provider: "google", address: "maya@vyre.test", idempotencyKey: "unmatched" }), (e) => codeOf(e) === "permission.no_grant", "matched to nobody, nothing to name");
+});
+
+test("an agent working for a person is held to that person's address", async () => {
+  const h = harness({ principal: { kind: "agent", id: "agt_scout01" }, actingFor: "usr_maya01" } as never);
+  (h.ctx as { actingFor?: string }).actingFor = "usr_maya01";
+  h.matchTo("maya@vyre.test");
+  await assert.rejects(() => connect(h.ctx, { provider: "google", address: "ceo@vyre.test", idempotencyKey: "agent-steal" }), (e) => codeOf(e) === "permission.no_grant");
+});
+
+test("a person's own sign-in and an IMAP password prove the address themselves", async () => {
+  const h = harness();
+  const out = await connect(h.ctx, { provider: "google", address: "side@gmail.test", connectionId: `gua_${"0".repeat(32)}`, idempotencyKey: "own" });
+  assert.equal(out.mailbox.address, "side@gmail.test");
+  assert.equal(h.calls("google.dwd.my_account").length, 0);
 });
 
 test("an agent connects its own address as an agent mailbox", async () => {
@@ -405,6 +429,7 @@ test("sync_now uses the run the host started, and refuses an unknown or malforme
 test("Google and Microsoft mailboxes are pulled by their connectors, which sync_now asks", async () => {
   const h = harness();
   const g = await mailbox(h, "maya@vyre.test");
+  h.matchTo("maya@corp.test");
   const ms = (await connect(h.ctx, { provider: "microsoft", address: "maya@corp.test", idempotencyKey: "ms" })).mailbox.id;
   const one = await syncNow(h.ctx, { mailboxId: g });
   const two = await syncNow(h.ctx, { mailboxId: ms });

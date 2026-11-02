@@ -19,7 +19,7 @@ export interface SubjectDef { name: string; subject: { type: string; id: string 
 const ID_SHAPE: Readonly<Record<string, RegExp | null>> = Object.freeze({
   space: /^spc_[a-z0-9]+$/, record: /^rec_[a-z0-9]+$/, record_type: /^[a-z][a-z0-9_]*$/, project: /^prj_[a-z0-9]+$/, folder: /^fld_[a-z0-9]+$/, file: /^fil_[a-z0-9]+$/,
   channel: /^chn_[a-z0-9]+$/, thread: /^thr_[a-z0-9]+$/, mailbox: /^mbx_[a-z0-9]+$/, vault_folder: /^vfd_[a-z0-9]+$/, vault_item: /^vit_[a-z0-9]+$/, automation: /^aut_[a-z0-9]+$/,
-  agent: /^agt_[a-z0-9]+$/, connection: /^con_[a-z0-9]+$/, site: /^sit_[a-z0-9]+$/, form: /^frm_[a-z0-9]+$/, campaign: /^cmp_[a-z0-9]+$/, kit: /^kit_[a-z0-9]+$/,
+  agent: /^agt_[a-z0-9]+$/, connection: /^con_[a-z0-9]+$/, site: /^sit_[a-z0-9]+$/, form: /^frm_[a-z0-9]+$/, kit: /^kit_[a-z0-9]+$/,
   terminal: /^trm_[a-z0-9]+$/, computer: /^cmt_[a-z0-9]+$/, task: /^tsk_[a-z0-9]+$/, run: /^run_[a-z0-9]+$/, number: /^num_[a-z0-9]+$/, domain: /^dom_[a-z0-9]+$/, note: /^not_[a-z0-9]+$/, email: /^eml_[a-z0-9]+$/,
   conversation: /^cnv_[a-z0-9]+$/, mail_message: /^eml_[a-z0-9]+$/, inbox: null, automation_group: null, connector: null, calendar: null,
 });
@@ -144,8 +144,8 @@ export function createResourceRegistrar(deps: RegistrarDeps): ResourceRegistrar 
         const container = typeof given === "string" && given !== id && (deps.exists(given) || seen.has(given)) ? given : a.space;
         // a birth event that names its owner (agent.created names ownerId) says whose the object is; otherwise the person the call acts for
         const named = OWNER_NAMED.has(s.type) ? pointer(ev.payload, OWNER_NAMED.get(s.type)!) : undefined;
-        // a calendar or mailbox that says it is private (a member's own Google or Outlook calendar or mail, a Personal calendar) does not inherit the Space's access: the owner has it, and anyone they share it with
-        const privateRoot = (s.type === "calendar" || s.type === "mailbox") && pointer(ev.payload, "/private") === true;
+        // a calendar, mailbox or site that says it is private (a member's own Google or Outlook calendar or mail, a Personal calendar, an artifact) does not inherit the Space's access: the owner has it, and anyone they share it with
+        const privateRoot = (s.type === "calendar" || s.type === "mailbox" || s.type === "site") && pointer(ev.payload, "/private") === true;
         out.push({ id, type: s.type, parent_id: s.type === "space" || privateRoot ? null : container, label: 0, owner_id: typeof named === "string" && /^usr_[a-z0-9]+$/.test(named) ? named : a.owner, holds: 0 });
       }
       return out;

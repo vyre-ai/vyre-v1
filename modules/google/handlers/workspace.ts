@@ -5,9 +5,9 @@
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
   ADMIN_CONSOLE_URL, api, apiRaw, bad, bearer, CALENDAR, CONFIG_ID, config, DOCS, DRIVE, EMAIL, enc, ensure, EVENTS, first, forgetTokens, int, list, MEET,
-  needHost, newId, normalizeEmail, num, obj, pushToken, refusal, rowsOf, SCOPES, SHEETS, str, strOrNull, text, codeOf, userAccountByEmail,
+  needHost, newId, normalizeEmail, num, obj, pushToken, refusal, rowsOf, SHEETS, DIRECTORY_SCOPE, dataOf, scopesFor, str, strOrNull, subjectFor, text, codeOf, userAccountByEmail,
 } from "../projections.ts";
-import type { Call, GoogleCtx } from "../projections.ts";
+import type { Call, DataChoice, GoogleCtx } from "../projections.ts";
 import { ensureMailbox, pollInterval, pullMailbox } from "./gmail.ts";
 import { userSigninLost } from "./personal.ts";
 import { pullMeet } from "./meet.ts";
@@ -26,9 +26,11 @@ export async function dwdStatus(ctx: GoogleCtx) {
   const cfg = config(ctx);
   const members = rowsOf(ctx.db.all(`SELECT email, mapped, excluded FROM google_member`));
   const out: {
-    configured: boolean; adminEmail?: string; domain?: string; lastProbeAt?: number; lastProbeOk?: boolean; autoConnect: boolean; mappedMembers: number; excluded: string[]; pushToken?: string;
+    configured: boolean; adminEmail?: string; domain?: string; lastProbeAt?: number; lastProbeOk?: boolean; autoConnect: boolean; mappedMembers: number; excluded: string[]; pushToken?: string; data: DataChoice; keyStored: boolean; clientId?: string;
   } = {
     configured: num(cfg, "configured") === 1,
+    data: dataOf(cfg),
+    keyStored: !!strOrNull(cfg, "vaultItem"),
     autoConnect: cfg ? num(cfg, "autoConnect") === 1 : true,
     mappedMembers: members.filter((m) => num(m, "mapped") === 1 && num(m, "excluded") === 0).length,
     excluded: members.filter((m) => num(m, "excluded") === 1).map((m) => str(m, "email")).sort(),
@@ -39,13 +41,15 @@ export async function dwdStatus(ctx: GoogleCtx) {
   if (typeof cfg?.lastProbeOk === "number") out.lastProbeOk = cfg.lastProbeOk === 1;
   // The secret that goes in the Pub/Sub push address (?token=): shown to the admin who sets it up, made when delegation is set up.
   const token = strOrNull(first(ctx.db.all(`SELECT token FROM google_push_secret WHERE id = ?`, CONFIG_ID)), "token");
-  if (token && out.configured) out.pushToken = token;
+  // the admin setting up Pub/Sub pastes it; a model never sees it
+  if (token && out.configured && ctx.principal.kind === "person") out.pushToken = token;
+  if (strOrNull(cfg, "clientId")) out.clientId = str(cfg, "clientId");
   return out;
 }
 
 export async function dwdScopes(ctx: GoogleCtx) {
   ensure(ctx);
-  const out: { scopes: string[]; clientId?: string; adminConsoleUrl: string } = { scopes: [...SCOPES], adminConsoleUrl: ADMIN_CONSOLE_URL };
+  const out: { scopes: string[]; clientId?: string; adminConsoleUrl: string } = { scopes: scopesFor(dataOf(config(ctx))), adminConsoleUrl: ADMIN_CONSOLE_URL };
   const clientId = strOrNull(config(ctx), "clientId");
   if (clientId) out.clientId = clientId;
   return out;
@@ -60,15 +64,74 @@ async function autoConnectPolicy(ctx: GoogleCtx): Promise<boolean> {
   }
 }
 
-/** A delegated sign-in for one address, proved with users.getProfile. Runs before the member map exists, so it is open. */
+/** A delegated sign-in for one address, proved read-only with whatever this company chose. Runs before the member map exists, so it is open. */
 async function probeProfile(ctx: GoogleCtx, connectionId: string, email: string, cap: string): Promise<{ status: number; email?: string }> {
-  const r = await apiRaw(ctx, { cap, connectionId, as: email, scope: "gmail.modify", open: true, url: "https://gmail.googleapis.com/gmail/v1/users/me/profile" });
+  const d = dataOf(config(ctx));
+  const call = d.mail ? { scope: "gmail.modify", url: "https://gmail.googleapis.com/gmail/v1/users/me/profile" }
+    : d.calendar ? { scope: "calendar", url: `${CALENDAR}/users/me/calendarList/primary` }
+    : d.files ? { scope: "drive", url: `${DRIVE}/about?fields=user(emailAddress)` }
+    : { scope: DIRECTORY_SCOPE, url: `https://admin.googleapis.com/admin/directory/v1/users/${enc(email)}?projection=basic` };
+  const r = await apiRaw(ctx, { cap, connectionId, as: email, scope: call.scope, open: true, url: call.url });
   const out: { status: number; email?: string } = { status: r.status };
-  if (text(r.json.emailAddress)) out.email = text(r.json.emailAddress)!;
+  const said = text(r.json.emailAddress) ?? text(obj(r.json.user).emailAddress) ?? text(r.json.primaryEmail) ?? (text(r.json.id) === email ? email : undefined);
+  if (said) out.email = said;
+  else if (r.status < 300) out.email = email;
   return out;
 }
 
-export async function dwdSetup(ctx: GoogleCtx, input: { vaultItem: string; adminEmail: string; domain?: string; idempotencyKey: string }) {
+/** One person comes in: their mailbox, their calendar and the first pull, for what the company chose. Their Files come in the first time they open Files, as themselves (mounts.company_drive). */
+async function connectMember(ctx: GoogleCtx, a: { connectionId: string; userId: string; email: string; key: string; wait: number }): Promise<boolean> {
+  const d = dataOf(config(ctx));
+  let connected = false;
+  if (d.mail) {
+    const out = obj(await ctx.call("mail.auto_connect_members", { provider: "google", members: [{ userId: a.userId, email: a.email }], idempotencyKey: a.key }));
+    connected = (int(out.created) ?? 0) > 0 || (int(out.skipped) ?? 0) > 0;
+    ctx.db.run(`UPDATE google_member SET "mailboxState" = ? WHERE email = ?`, "pending", a.email);
+    await queueFirstPull(ctx, a.connectionId, a.email, a.wait);
+  }
+  if (d.calendar) await connectCalendar(ctx, { connectionId: a.connectionId, userId: a.userId, email: a.email });
+  return connected;
+}
+
+/** Nothing else starts a member's mail: a push needs a watch, and a poll needs a pass before it. People are spaced out so a big company does not arrive at Google at once. */
+async function queueFirstPull(ctx: GoogleCtx, connectionId: string, email: string, wait: number): Promise<void> {
+  const at = ctx.now() + 1000 + wait * 2000;
+  ensureMailbox(ctx, email, connectionId);
+  if (num(first(ctx.db.all(`SELECT "nextPollAt" FROM google_mailbox WHERE email = ?`, email)), "nextPollAt") > ctx.now()) return;   // one chain per mailbox
+  ctx.db.run(`UPDATE google_mailbox SET "nextPollAt" = ? WHERE email = ?`, at, email);
+  await ctx.schedule(at, "google.receive_push", { kind: "gmail", messageId: `first:${email}:${at}`, mailbox: email });
+}
+
+/** A person stops: excluded, gone from the directory, or removed from the Space. What is already in Vyre stays theirs; nothing new comes in and nothing goes back to the provider. Each stop is best effort, because the exclusion row is what every call checks. */
+export async function stopMember(ctx: GoogleCtx, a: { email: string; userId: string | null; connectionId: string | null }): Promise<void> {
+  ctx.db.run(`UPDATE google_mailbox SET "nextPollAt" = ?, "watchExpiresAt" = ? WHERE email = ?`, null, null, a.email);
+  ctx.db.run(`UPDATE google_member SET "mailboxState" = ?, updated_at = ? WHERE email = ?`, "paused", ctx.now(), a.email);
+  forgetTokens();
+  await ctx.call("mail.member_pause", { provider: "google", address: a.email, paused: true }).catch((e: unknown) => ctx.log.warn("google member mailbox was not paused", { code: codeOf(e) }));
+  await ctx.call("mounts.account_pause", { account: a.email, paused: true }).catch((e: unknown) => ctx.log.warn("google member mounts were not paused", { code: codeOf(e) }));
+  if (a.connectionId && a.userId) await connectCalendar(ctx, { connectionId: a.connectionId, userId: a.userId, email: a.email, connected: false });
+}
+
+export async function dwdCheckKey(ctx: GoogleCtx, input: { vaultItem: string }) {
+  ensure(ctx);
+  return needHost(ctx).checkKey(ctx, input.vaultItem);
+}
+
+/** Everyone included comes in, now that a person chose who that is. Repeating it adds nobody twice. */
+export async function dwdConnectAll(ctx: GoogleCtx, input: { idempotencyKey: string }) {
+  ensure(ctx);
+  const cfg = config(ctx);
+  const connectionId = strOrNull(cfg, "connectionId");
+  if (!cfg || num(cfg, "configured") !== 1 || !connectionId) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Google delegation is not set up." });
+  const people = rowsOf(ctx.db.all(`SELECT email, "userId" FROM google_member WHERE mapped = ? AND excluded = ? AND "userId" IS NOT NULL ORDER BY email ASC`, 1, 0));
+  let connected = 0;
+  for (const [i, m] of people.entries()) {
+    if (await connectMember(ctx, { connectionId, userId: str(m, "userId"), email: str(m, "email"), key: `${input.idempotencyKey}:${str(m, "email")}`, wait: i })) connected += 1;
+  }
+  return { connected, included: people.length };
+}
+
+export async function dwdSetup(ctx: GoogleCtx, input: { vaultItem: string; adminEmail: string; domain?: string; data?: DataChoice; hold?: boolean; idempotencyKey: string }) {
   ensure(ctx);
   if (!HANDLE.test(input.vaultItem ?? "")) bad(ctx, "The Vault item is not a valid handle.");
   const admin = normalizeEmail(input.adminEmail ?? "");
@@ -82,7 +145,7 @@ export async function dwdSetup(ctx: GoogleCtx, input: { vaultItem: string; admin
   let connectionId = strOrNull(cfg, "connectionId");
   if (!connectionId) {
     const made = obj(obj(await ctx.call("connections.create", {
-      connector: "google", title: "Google Workspace", ownerKind: "space", secrets: { Google_DWD: input.vaultItem }, scopes: [...SCOPES],
+      connector: "google", title: "Google Workspace", ownerKind: "space", secrets: { Google_DWD: input.vaultItem }, scopes: scopesFor(input.data ?? dataOf(cfg)),
       idempotencyKey: `${input.idempotencyKey}:connection`,
     })).connection);
     connectionId = text(made.connectionId) ?? null;
@@ -90,6 +153,7 @@ export async function dwdSetup(ctx: GoogleCtx, input: { vaultItem: string; admin
   }
   const now = ctx.now();
   const autoConnect = await autoConnectPolicy(ctx);
+  const data = input.data ?? dataOf(cfg);
   if (cfg) {
     ctx.db.run(
       `UPDATE google_config SET "connectionId" = ?, "vaultItem" = ?, "adminEmail" = ?, domain = ?, "clientId" = ?, "clientEmail" = ?, configured = ?, "autoConnect" = ?, updated_at = ? WHERE id = ?`,
@@ -101,6 +165,7 @@ export async function dwdSetup(ctx: GoogleCtx, input: { vaultItem: string; admin
       CONFIG_ID, connectionId, input.vaultItem, admin, domain, account.clientId, account.clientEmail, 0, autoConnect ? 1 : 0, null, null, now,
     );
   }
+  ctx.db.run(`UPDATE google_config SET "dataMail" = ?, "dataCalendar" = ?, "dataFiles" = ? WHERE id = ?`, data.mail ? 1 : 0, data.calendar ? 1 : 0, data.files ? 1 : 0, CONFIG_ID);
   forgetTokens();
   pushToken(ctx);   // the secret that proves a push came from Google exists from the moment delegation does
 
@@ -139,15 +204,20 @@ export async function dwdSetup(ctx: GoogleCtx, input: { vaultItem: string; admin
   }
 
   let connected = 0;
-  if (autoConnect && mapped.length > 0) {
-    const out = obj(await ctx.call("mail.auto_connect_members", { provider: "google", members: mapped, idempotencyKey: `${input.idempotencyKey}:members` }));
-    connected = int(out.created) ?? 0;
-    for (const m of mapped) ctx.db.run(`UPDATE google_member SET "mailboxState" = ? WHERE email = ?`, "pending", m.email);
-    for (const m of mapped) await connectCalendar(ctx, { connectionId, userId: m.userId, email: m.email });   // their calendars come in with their mail
+  if (autoConnect && mapped.length > 0 && input.hold !== true) {
+    if (data.mail) {
+      const out = obj(await ctx.call("mail.auto_connect_members", { provider: "google", members: mapped, idempotencyKey: `${input.idempotencyKey}:members` }));
+      connected = int(out.created) ?? 0;
+      for (const [i, m] of mapped.entries()) {
+        ctx.db.run(`UPDATE google_member SET "mailboxState" = ? WHERE email = ?`, "pending", m.email);
+        await queueFirstPull(ctx, connectionId, m.email, i);
+      }
+    }
+    if (data.calendar) for (const m of mapped) await connectCalendar(ctx, { connectionId, userId: m.userId, email: m.email });   // their calendars come in with their mail
   }
   ctx.db.run(`UPDATE google_config SET configured = ?, updated_at = ? WHERE id = ?`, 1, now, CONFIG_ID);
   ctx.emit("google.dwd_configured", "connector/google", { connector: "google", adminEmail: admin, mappedMembers: mapped.length, autoConnect });
-  return { configured: true, scopes: [...SCOPES], mappedMembers: mapped.length, connected };
+  return { configured: true, scopes: scopesFor(data), mappedMembers: mapped.length, connected };
 }
 
 export async function dwdProbe(ctx: GoogleCtx, input: { as?: string }) {
@@ -156,11 +226,12 @@ export async function dwdProbe(ctx: GoogleCtx, input: { as?: string }) {
   const connectionId = strOrNull(cfg, "connectionId");
   const admin = strOrNull(cfg, "adminEmail");
   if (!cfg || !connectionId || !admin) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Google delegation is not set up." });
-  const who = input.as ? normalizeEmail(input.as) : admin;
-  if (!EMAIL.test(who)) bad(ctx, "The address is not an email.");
+  const named = input.as ? normalizeEmail(input.as) : admin;
+  if (!EMAIL.test(named)) bad(ctx, "The address is not an email.");
+  const who = subjectFor(ctx, { connectionId, as: named, open: true });   // an excluded member or a teammate stops here, before any token is made for them
   const host = needHost(ctx);
   const missing: string[] = [];
-  for (const scope of SCOPES) {
+  for (const scope of scopesFor(dataOf(cfg))) {
     try {
       await host.mintToken(ctx, { connectionId, sub: who, scopes: [scope] });
     } catch (e) {
@@ -218,12 +289,16 @@ export async function dwdSetExcluded(ctx: GoogleCtx, input: { email: string; exc
     ctx.db.run(`INSERT INTO google_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, email, null, 0, input.excluded ? 1 : 0, null, now);
   }
   forgetTokens();
-  // An excluded member's calendar leaves Calendar; including them again brings a fresh one in.
+  // An excluded member stops at once; including them again brings them back in.
   const member = first(ctx.db.all(`SELECT "userId", mapped FROM google_member WHERE email = ?`, email));
-  const connectionId = strOrNull(config(ctx), "connectionId");
+  const cfg = config(ctx);
+  const connectionId = strOrNull(cfg, "connectionId");
   const userId = strOrNull(member, "userId");
-  if (connectionId && userId && num(member, "mapped") === 1 && (input.excluded || num(config(ctx), "autoConnect") === 1)) {
-    await connectCalendar(ctx, { connectionId, userId, email, connected: !input.excluded });
+  if (input.excluded) await stopMember(ctx, { email, userId: num(member, "mapped") === 1 ? userId : null, connectionId });
+  else if (connectionId && userId && num(member, "mapped") === 1 && num(cfg, "autoConnect") === 1) {
+    await ctx.call("mail.member_pause", { provider: "google", address: email, paused: false }).catch((e: unknown) => ctx.log.warn("google member mailbox was not resumed", { code: codeOf(e) }));
+    await ctx.call("mounts.account_pause", { account: email, paused: false }).catch((e: unknown) => ctx.log.warn("google member mounts were not resumed", { code: codeOf(e) }));
+    await connectMember(ctx, { connectionId, userId, email, key: `include:${email}:${ctx.now()}`, wait: 0 });
   }
   return { excluded: rowsOf(ctx.db.all(`SELECT email FROM google_member WHERE excluded = ?`, 1)).map((r) => str(r, "email")).sort() };
 }
@@ -258,13 +333,60 @@ export async function dwdMapMember(ctx: GoogleCtx, input: { email: string; userI
   else ctx.db.run(`INSERT INTO google_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, email, input.userId, 1, 0, null, now);
   const excluded = num(have, "excluded") === 1;
   let connected = false;
-  if (!excluded && num(cfg, "autoConnect") === 1) {
-    const out = obj(await ctx.call("mail.auto_connect_members", { provider: "google", members: [{ userId: input.userId, email }], idempotencyKey: `map:${email}:${input.userId}` }));
-    ctx.db.run(`UPDATE google_member SET "mailboxState" = ? WHERE email = ?`, "pending", email);
-    await connectCalendar(ctx, { connectionId, userId: input.userId, email });
-    connected = (int(out.created) ?? 0) > 0 || (int(out.skipped) ?? 0) > 0;
-  }
+  if (!excluded && num(cfg, "autoConnect") === 1) connected = await connectMember(ctx, { connectionId, userId: input.userId, email, key: `map:${email}:${input.userId}`, wait: 0 });
   return { email, userId: input.userId, mapped: true, connected };
+}
+
+/** Choose Mail, Calendar and Files separately, after setup too. What is turned off stops for everyone at once; what is turned on comes in for everyone who is included. The scopes in the Admin console do not change by themselves: a wider choice needs them added there, and the next probe says so. */
+export async function dwdSetData(ctx: GoogleCtx, input: { data: DataChoice; idempotencyKey: string }) {
+  ensure(ctx);
+  const cfg = config(ctx);
+  const connectionId = strOrNull(cfg, "connectionId");
+  if (!cfg || num(cfg, "configured") !== 1 || !connectionId) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Google delegation is not set up." });
+  const before = dataOf(cfg), next = input.data;
+  ctx.db.run(`UPDATE google_config SET "dataMail" = ?, "dataCalendar" = ?, "dataFiles" = ?, updated_at = ? WHERE id = ?`, next.mail ? 1 : 0, next.calendar ? 1 : 0, next.files ? 1 : 0, ctx.now(), CONFIG_ID);
+  forgetTokens();
+  const people = rowsOf(ctx.db.all(`SELECT email, "userId" FROM google_member WHERE mapped = ? AND excluded = ? AND "userId" IS NOT NULL`, 1, 0));
+  for (const [i, m] of people.entries()) {
+    const email = str(m, "email"), userId = str(m, "userId");
+    if (before.mail !== next.mail) {
+      await ctx.call("mail.member_pause", { provider: "google", address: email, paused: !next.mail }).catch((e: unknown) => ctx.log.warn("google mailbox change failed", { code: codeOf(e) }));
+      if (next.mail) {
+        await ctx.call("mail.auto_connect_members", { provider: "google", members: [{ userId, email }], idempotencyKey: `${input.idempotencyKey}:${email}` });
+        await queueFirstPull(ctx, connectionId, email, i);
+      } else ctx.db.run(`UPDATE google_mailbox SET "nextPollAt" = ? WHERE email = ?`, null, email);
+    }
+    if (before.calendar !== next.calendar) await connectCalendar(ctx, { connectionId, userId, email, connected: next.calendar });
+    if (before.files !== next.files) await ctx.call("mounts.account_pause", { account: email, paused: !next.files }).catch((e: unknown) => ctx.log.warn("google mount change failed", { code: codeOf(e) }));
+  }
+  return { data: next, scopes: scopesFor(next) };
+}
+
+/** The removal wizard ended this person: nothing of theirs is read any more. */
+export async function personLeft(ctx: GoogleCtx, event: { payload: { personId?: string } }): Promise<string[]> {
+  const gone = event.payload.personId;
+  if (typeof gone !== "string" || !/^usr_[a-z0-9]+$/.test(gone)) return [];
+  ensure(ctx);
+  const rows = rowsOf(ctx.db.all(`SELECT email FROM google_member WHERE "userId" = ? AND mapped = ?`, gone, 1)).map((r) => str(r, "email"));
+  for (const email of rows) {
+    ctx.db.run(`UPDATE google_member SET mapped = ?, "mailboxState" = ?, updated_at = ? WHERE email = ?`, 0, "paused", ctx.now(), email);
+    ctx.db.run(`UPDATE google_mailbox SET "nextPollAt" = ? WHERE email = ?`, null, email);
+  }
+  if (rows.length) forgetTokens();
+  return [];
+}
+
+/** Who reached whose Google data: newest first, a page at a time. `onBehalf` is the person an agent worked for. */
+export async function accessLog(ctx: GoogleCtx, input: { cursor?: string; limit?: number; mailbox?: string }) {
+  ensure(ctx);
+  const limit = input.limit ?? 100;
+  const offset = input.cursor === undefined ? 0 : Number(input.cursor);
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) bad(ctx, "Limit must be from 1 to 500.");
+  if (!Number.isSafeInteger(offset) || offset < 0) bad(ctx, "Cursor is not valid.");
+  const mailbox = input.mailbox === undefined ? undefined : normalizeEmail(input.mailbox);
+  const rows = rowsOf(mailbox ? ctx.db.all(`SELECT * FROM google_read_log WHERE subject = ? ORDER BY at DESC, id DESC LIMIT ? OFFSET ?`, mailbox, limit + 1, offset) : ctx.db.all(`SELECT * FROM google_read_log ORDER BY at DESC, id DESC LIMIT ? OFFSET ?`, limit + 1, offset));
+  const entries = rows.slice(0, limit).map((r) => ({ who: str(r, "actor"), ...(strOrNull(r, "onBehalf") ? { onBehalf: str(r, "onBehalf") } : {}), mailbox: str(r, "subject"), cap: str(r, "cap"), at: num(r, "at") }));
+  return { entries, ...(rows.length > limit ? { next: String(offset + limit) } : {}) };
 }
 
 export async function dwdDisable(ctx: GoogleCtx) {
@@ -842,7 +964,12 @@ export async function meetSubscribe(ctx: GoogleCtx, a: Act & { target: string; e
 export async function dwdMyAccount(ctx: GoogleCtx) {
   const person = ctx.actingFor ?? ctx.principal.id;
   const row = first(ctx.db.all(`SELECT email, excluded FROM google_member WHERE "userId" = ? AND mapped = ?`, person, 1));
-  const out: { email?: string } = {};
-  if (row && num(row, "excluded") !== 1) out.email = str(row, "email");
+  const out: { email?: string; connectionId?: string; files?: boolean } = {};
+  if (row && num(row, "excluded") !== 1) {
+    out.email = str(row, "email");
+    const cfg = config(ctx);
+    const connectionId = strOrNull(cfg, "connectionId");
+    if (connectionId && num(cfg, "configured") === 1) { out.connectionId = connectionId; out.files = dataOf(cfg).files; }
+  }
   return out;
 }

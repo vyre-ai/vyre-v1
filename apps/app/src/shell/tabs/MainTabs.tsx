@@ -35,6 +35,7 @@ export function MainTabs({ controller, onNavigate, onNewTab, onGoToPlace }: Main
     <TabStrip
       label="Open tabs"
       hideLoneClose
+      noOptions
       tabs={tabSpecs(state.tabs)}
       active={state.active}
       onSelect={(key) => {
@@ -49,7 +50,7 @@ export function MainTabs({ controller, onNavigate, onNewTab, onGoToPlace }: Main
         if (tab !== undefined && onNavigate !== undefined) onNavigate(tab);
       }}
       onReorder={(keys) => controller.reorder(keys)}
-      onPlus={() => (onNewTab === undefined ? controller.newTab(find(state.active)?.place ?? "home") : onNewTab())}
+      onPlus={() => (onNewTab === undefined ? controller.newTab(find(state.active)?.place ?? "chats") : onNewTab())}
       plusTitle="New tab (Cmd-T)"
       menu={(key) => {
         const tab = find(key);

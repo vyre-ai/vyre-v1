@@ -8,6 +8,7 @@ import { toolsFor, searchTools } from "../agent/src/tools/access.ts";
 import { createEngineApiTools } from "../modules/engine/api-tools.ts";
 import { loadGenerated } from "../modules/mcp/projections.ts";
 
+const DORMANT = ["sites_build", "sites_deploy", "sites_previews", "sites_rollback", "sites_table_create", "sites_env_set"];
 const ctx = { space: "spc_1", agentId: "agt_1", asker: "per_1", thread: { threadId: "T1", kind: "chat" as const, planMode: false } };
 const offered = (): { names: string[]; searchable: ReturnType<typeof toolsFor>["searchable"] } => {
   const g = loadGenerated();
@@ -22,15 +23,16 @@ const inTurn = async (): Promise<string[]> => {
 
 test("the MCP list and tool search leave out every capability that only refuses, and keep the rest", () => {
   const { names, searchable } = offered();
-  assert.ok(DEFERRED_CAPS.has("sites.list") && DEFERRED_CAPS.has("vault.import"), "this test needs the deferred handlers registered");
-  assert.deepEqual(names.filter((n) => n.startsWith("sites_") || n.startsWith("vault_import")), []);
-  assert.deepEqual(searchTools(searchable, "site deploy staging", 50).filter((t) => t.name.startsWith("sites_")), []);
+  assert.ok(DEFERRED_CAPS.has("sites.build") && DEFERRED_CAPS.has("vault.import"), "this test needs the deferred handlers registered");
+  assert.deepEqual(names.filter((n) => DORMANT.includes(n) || n.startsWith("vault_import")), []);
+  assert.deepEqual(searchTools(searchable, "site deploy staging", 50).filter((t) => DORMANT.includes(t.name)), []);
+  assert.ok(names.includes("sites_promote") && names.includes("artifact_publish"), "what ships is offered");
   assert.ok(names.includes("forms_publish"), "a real tool stays");
 });
 
 test("a turn is not offered them either", async () => {
   const names = await inTurn();
-  assert.deepEqual(names.filter((n) => n.startsWith("sites_") || n.startsWith("vault_import")), []);
+  assert.deepEqual(names.filter((n) => DORMANT.includes(n) || n.startsWith("vault_import")), []);
   assert.ok(names.length > 0, "the turn has tools");
 });
 

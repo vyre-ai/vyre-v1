@@ -1,18 +1,18 @@
 // The Inbox views (spec 2.18 Views, Following, Recipients; 3.3): By contact, By thread, one contact's whole history, Unmatched, Needs a match, the sidebar counts, who
 // reaches your Inbox and why, the sending options of a thread, and the shared recipient search. "Calls only" is telephony.call.list, not a second list here.
 //
-// What a person sees. A conversation reaches your Inbox when you own it, follow the contact, run the campaign it belongs to, or can see an inbox it arrived in (spec: "you
-// receive a contact's messages in your Inbox when you own the record, are on its project, follow it, or are on a campaign it is in; also messages to teammates' inboxes
+// What a person sees. A conversation reaches your Inbox when you own it, follow the contact, or can see an inbox it arrived in (spec: "you
+// receive a contact's messages in your Inbox when you own the record, are on its project or follow it; also messages to teammates' inboxes
 // about the contact when shared"), and the kernel lets you see the conversation (an unmatched one falls back to the access of its mailbox). Every list applies both.
 // DECISION: "are on its project" is not derived here: project membership is held by records, and no frozen capability answers "which contacts belong to my projects". Such a
-// contact reaches you through the other four reasons or through the record's own Conversation tab, which asks inbox.thread for one contact.
+// contact reaches you through the other reasons or through the record's own Conversation tab, which asks inbox.thread for one contact.
 // DECISION: recipient search returns contacts, companies, inboxes and groups. Space members have no list capability in the frozen contract, so kind member returns nothing.
 import { fail } from "../../../host/src/routes/errors.ts";
 import { bad, codeOf, ensure, first, getConversation, privateIds, getRecord, nameOf, jsonList, list, missing, num, obj, rowsOf, str, strOrNull, strings, text, toConversation } from "../projections.ts";
 import type { Channel, ConversationRow, InboxCtx, Json, Row } from "../projections.ts";
 import { candidatesFor } from "./match.ts";
 
-type Reason = "owner" | "project" | "follow" | "campaign" | "shared_inbox";
+type Reason = "owner" | "project" | "follow" | "shared_inbox";
 const DEFAULT_LIMIT = 50;
 
 // ---- paging
@@ -35,13 +35,12 @@ function pageOf<T>(all: T[], w: { limit: number; offset: number }): { rows: T[];
 
 interface Reach {
   follows: Set<string>;
-  campaignOwner: Map<string, string | null>;
   access: Map<string, boolean>;
 }
 
 function reachOf(ctx: InboxCtx): Reach {
   const follows = new Set(rowsOf(ctx.db.all(`SELECT * FROM inbox_follow WHERE "principalId" = ? AND deleted_at IS NULL`, ctx.principal.id)).map((r) => str(r, "contactId")));
-  return { follows, campaignOwner: new Map(), access: new Map() };
+  return { follows, access: new Map() };
 }
 
 function canSee(ctx: InboxCtx, reach: Reach, type: string, id: string): boolean {
@@ -49,7 +48,7 @@ function canSee(ctx: InboxCtx, reach: Reach, type: string, id: string): boolean 
   let ok = reach.access.get(key);
   if (ok === undefined) {
     const d = ctx.authorize({ perm: null, level: "view" }, { type, id });
-    // A conversation is a row of the Inbox, not a resource the access rules know by itself. When they know nothing of it (not found), the reasons below decide (owner, follow, campaign,
+    // A conversation is a row of the Inbox, not a resource the access rules know by itself. When they know nothing of it (not found), the reasons below decide (owner, follow,
     // the inbox it arrived in); one they know and deny stays hidden.
     ok = d.effect === "allow" || (type === "conversation" && d.reason === "not_found");
     reach.access.set(key, ok);
@@ -62,25 +61,13 @@ async function reasonsOf(ctx: InboxCtx, reach: Reach, row: Row): Promise<Reason[
   if (strOrNull(row, "ownerId") === ctx.principal.id) out.push("owner");
   const contactId = strOrNull(row, "contactId");
   if (contactId && reach.follows.has(contactId)) out.push("follow");
-  const campaign = strOrNull(row, "campaignId");
-  if (campaign) {
-    if (!reach.campaignOwner.has(campaign)) {
-      try {
-        reach.campaignOwner.set(campaign, strOrNull(obj(await ctx.call("contacts.route_owner", { campaignId: campaign })) as Row, "ownerId"));
-      } catch (e) {
-        ctx.log.warn("inbox: could not read the campaign owner", { code: codeOf(e) });
-        reach.campaignOwner.set(campaign, null);
-      }
-    }
-    if (reach.campaignOwner.get(campaign) === ctx.principal.id) out.push("campaign");
-  }
   if (jsonList(row.mailboxIds).some((id) => canSee(ctx, reach, "mailbox", id)) || jsonList(row.numberIds).some((id) => canSee(ctx, reach, "number", id))) out.push("shared_inbox");
   return out;
 }
 
 /**
  * Whether the caller may open this conversation, by the rule the list uses: the access rules decide when they know the conversation, and when they know nothing of it (an unmatched sender has no
- * record above it, and the manifest's conversation rows are not resources) the reasons decide: its owner, a follower, the campaign owner, someone who can see the inbox it arrived in.
+ * record above it, and the manifest's conversation rows are not resources) the reasons decide: its owner, a follower, someone who can see the inbox it arrived in.
  */
 export async function mustSee(ctx: InboxCtx, conv: Row): Promise<void> {
   const verdict = ctx.authorize({ perm: null, level: "view" }, { type: "conversation", id: str(conv, "id") });
@@ -249,26 +236,23 @@ export async function listByThread(
 // ---- inbox.thread
 
 interface TimelineItem {
-  kind: "email" | "sms" | "call" | "meeting" | "campaign_step";
+  kind: "email" | "sms" | "call" | "meeting";
   id: string;
   at: number;
   direction?: "in" | "out";
   title?: string;
   preview?: string;
-  campaignId?: string;
   ref?: Json;
 }
 
 function timelineOf(item: Row): TimelineItem {
   const kind = str(item, "kind") === "sms" ? "sms" : str(item, "kind") === "call" ? "call" : "email";
   const direction = str(item, "direction") === "out" ? "out" : "in";
-  const campaignId = strOrNull(item, "campaignId");
-  const out: TimelineItem = { kind: direction === "out" && campaignId && kind !== "call" ? "campaign_step" : kind, id: str(item, "refId"), at: num(item, "at"), direction };
+  const out: TimelineItem = { kind, id: str(item, "refId"), at: num(item, "at"), direction };
   const subject = str(item, "subject");
   if (subject) out.title = subject;
   const preview = str(item, "preview");
   if (preview) out.preview = preview;
-  if (campaignId) out.campaignId = campaignId;
   out.ref = { kind: kind === "email" ? "mail_message" : kind, id: str(item, "refId"), ...(strOrNull(item, "threadId") ? { threadId: str(item, "threadId") } : {}) };
   return out;
 }
@@ -404,7 +388,7 @@ export async function following(
     have.add("follow");
     byContact.set(contactId, have);
   }
-  const rank: Reason[] = ["owner", "project", "follow", "campaign", "shared_inbox"];
+  const rank: Reason[] = ["owner", "project", "follow", "shared_inbox"];
   const all = [...byContact.entries()]
     .map(([contactId, set]) => ({ contactId, reasons: rank.filter((r) => set.has(r)), alertOnReplies: num(first(ctx.db.all(`SELECT * FROM inbox_follow WHERE "contactId" = ? AND "principalId" = ? AND deleted_at IS NULL`, contactId, ctx.principal.id)), "alertOnReplies") === 1 }))
     .sort((a, b) => a.contactId.localeCompare(b.contactId));

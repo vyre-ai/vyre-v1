@@ -36,6 +36,7 @@ type In = {
 type Out = {
   ok: boolean;
   missingPermissions: Array<string>;
+  unscoped?: Array<string>;
   detail?: string;
 };
 ```
@@ -63,7 +64,10 @@ type Out = {
     "missingPermissions": [
       "example"
     ],
-    "ok": true
+    "ok": true,
+    "unscoped": [
+      "example"
+    ]
   }
 }
 ```

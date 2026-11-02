@@ -47,7 +47,6 @@ sv. Every event has integer schema version 1.
 | automations | 18 |
 | backup | 5 |
 | calendar | 6 |
-| campaigns | 6 |
 | chat | 34 |
 | computers | 12 |
 | conflicts | 6 |

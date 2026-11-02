@@ -4,8 +4,19 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access, home.
 
-## Capabilities (20)
+## Capabilities (31)
 
+- [company.access_log](../capabilities/company.access_log.md): Who reached whose mail, calendar or files: who made the call, the person an agent worked for, which mailbox, when
+- [company.check](../capabilities/company.check.md): Prove the key now in the Vault works, with no person involved. Answers what is wrong in plain words, or who it is; never the key. A key that works is remembered
+- [company.connect](../capabilities/company.connect.md): The one confirmation: everyone included comes in, and the directory is watched from here on
+- [company.disconnect](../capabilities/company.disconnect.md): Undo: every member sync stops at once; what already came in stays with its owner
+- [company.guide](../capabilities/company.guide.md): The guide for a step of Connect your company, or all of it: the doc page itself
+- [company.people_done](../capabilities/company.people_done.md): A person has looked at who is in; the flow moves on to the one confirmation
+- [company.probe](../capabilities/company.probe.md): The read-only check of what the company allowed, as one line a person can act on
+- [company.script](../capabilities/company.script.md): The one paste that does the provider's side: which shell to open and the script. It holds no secret; the admin runs it under their own account
+- [company.start](../capabilities/company.start.md): Start Connect your company for Google Workspace or Microsoft 365 and choose Mail, Calendar and Files, or pick it up where it stands
+- [company.status](../capabilities/company.status.md): Where Connect your company stands: the provider, each step and whether it is done, the next step, and which doc section explains it. Read this first; it never asks twice
+- [company.sweep](../capabilities/company.sweep.md): Check the directory: a person gone from it stops and loses access. Runs on a schedule; a person confirms a change large enough to be held
 - [members.accept](../capabilities/members.accept.md): Accept an invite: pick a username and password, the device makes its keys; the person becomes active
 - [members.invites.create](../capabilities/members.invites.create.md): Invite a person: role, groups, the agents, projects and channels they start in, expiry; returns the link (address, one-time code, Space key fingerprint)
 - [members.invites.extend](../capabilities/members.invites.extend.md): Give an open invite a new expiry

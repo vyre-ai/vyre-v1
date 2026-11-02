@@ -1,6 +1,6 @@
-// The Apps place (spec 3.6): a sidebar of five groups (Sites, Forms, Campaigns, Templates, Sending domains) with a search and one New menu, and the selected group's list in the main view. The
-// lists are live queries over the kept copy (generated/screens.ts: apps.sites, apps.forms, apps.campaigns, apps.templates). A row opens its own screen (P-L9e_06 to P-L9e_09 mount there);
-// its menu and the hover buttons act on it with one capability call: Publish a form, Launch a campaign, Install a template. Launch and Publish go through Gate, so the line says when they wait
+// The Apps place (spec 3.6): a sidebar of four groups (Sites, Forms, Templates, Sending domains) with a search and one New menu, and the selected group's list in the main view. The
+// lists are live queries over the kept copy (generated/screens.ts: apps.sites, apps.forms, apps.templates). A row opens its own screen (P-L9e_06 to P-L9e_09 mount there);
+// its menu and the hover buttons act on it with one capability call: Publish a form, Install a template. Publish goes through Gate, so the line says when they wait
 // for a yes. In a Personal Space the place says it needs a Team Space. Click selects, double click or Enter opens, right-click and the More button open the menu.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
@@ -18,7 +18,7 @@ import { openKitBuilder, runAction } from "./actions.ts";
 import { AppsDataProvider, useAppsData, useOptionalAppsData, useScreenQuery } from "./data.tsx";
 import type { AppsData } from "./data.tsx";
 import { AppsSurface } from "./Surfaces.tsx";
-import { ACTION_LABEL, GROUPS, NEEDS_YES, actionsFor, campaignRow, domainRow, formRow, groupOf, matches, siteRow, templateRow } from "./model.ts";
+import { ACTION_LABEL, GROUPS, NEEDS_YES, actionsFor, domainRow, formRow, groupOf, matches, siteRow, templateRow } from "./model.ts";
 import type { AppRow, DomainRow, GroupKey, RowAction } from "./model.ts";
 
 export { AppsDataProvider } from "./data.tsx";
@@ -26,9 +26,10 @@ export type { AppsData, AppsNav } from "./data.tsx";
 
 export type AppsRoute =
   | { kind: "list"; group?: GroupKey | undefined }
-  | { kind: "detail"; group: Exclude<GroupKey, "sites">; id: string }
-  | { kind: "create"; group: "forms" | "campaigns" | "templates" | "domains" }
-  | { kind: "email"; group: "campaigns"; id?: string };
+  | { kind: "detail"; group: GroupKey; id: string }
+  | { kind: "artifacts"; group: "sites"; id?: string }
+  | { kind: "create"; group: "forms" | "templates" | "domains" }
+  | { kind: "email"; group: "templates"; id?: string };
 
 const ROW_HEIGHT = 44;
 const DOUBLE_MS = 450;
@@ -39,7 +40,6 @@ function useLists(): Lists {
   const d = useAppsData();
   const sites = useScreenQuery<CapMap["sites.list"]["out"]>("apps.sites", "sites", {}, !(d.deferred ?? []).includes("sites"));
   const forms = useScreenQuery<CapMap["forms.list"]["out"]>("apps.forms", "forms", {});
-  const campaigns = useScreenQuery<CapMap["campaigns.list"]["out"]>("apps.campaigns", "campaigns", {});
   const templates = useScreenQuery<CapMap["templates.list"]["out"]>("apps.templates", "templates", {});
   const [domains, setDomains] = useState<readonly DomainRow[] | null>(null);
   const [domainError, setDomainError] = useState<string | undefined>();
@@ -57,14 +57,14 @@ function useLists(): Lists {
     const dom: AppRow[] = [];
     for (const x of domains ?? []) dom.push(domainRow(x));
     return {
-      sites: rows(sites, (o: CapMap["sites.list"]["out"]) => [...o.sites], siteRow), forms: rows(forms, (o: CapMap["forms.list"]["out"]) => [...o.forms], formRow),
-      campaigns: rows(campaigns, (o: CapMap["campaigns.list"]["out"]) => [...o.campaigns], campaignRow), templates: rows(templates, (o: CapMap["templates.list"]["out"]) => [...o.templates], templateRow),
+      sites: rows(sites, (o: CapMap["sites.list"]["out"]) => o.sites.filter((x) => x.kind !== "artifact"), siteRow), forms: rows(forms, (o: CapMap["forms.list"]["out"]) => [...o.forms], formRow),
+      templates: rows(templates, (o: CapMap["templates.list"]["out"]) => [...o.templates], templateRow),
       domains: { rows: dom, ready: domains !== null, ...(domainError ? { error: domainError } : {}) },
     };
-  }, [sites, forms, campaigns, templates, domains, domainError]);
+  }, [sites, forms, templates, domains, domainError]);
 }
 
-const EMPTY_ICON = { sites: "files", forms: "doc", campaigns: "inbox", templates: "files", domains: "inbox" } as const;
+const EMPTY_ICON = { sites: "files", forms: "doc", templates: "files", domains: "inbox" } as const;
 
 function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | undefined; route?: AppsRoute | undefined }): ReactElement {
   const d = useAppsData();
@@ -100,8 +100,9 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
   const newMenu = (x: number, y: number, only?: GroupKey): void => {
     const entries: MenuEntry[] = [];
     if (only === undefined || only === "templates") entries.push({ label: "Save as template", onSelect: () => d.nav.create("templates") });
-    for (const g of groups) if ((only === undefined || only === g.key) && (g.key === "forms" || g.key === "campaigns" || g.key === "domains")) entries.push({ label: g.key === "domains" ? "Add sending domain" : `New ${g.one}`, onSelect: () => d.nav.create(g.key) });
-    if ((only === undefined || only === "campaigns") && d.nav.openEmailDesign) entries.push({ label: "New email design", onSelect: () => d.nav.openEmailDesign?.() });
+    if ((only === undefined || only === "sites") && groups.some((g) => g.key === "sites") && d.nav.newSite) entries.push({ label: "New site", onSelect: () => d.nav.newSite?.() });
+    for (const g of groups) if ((only === undefined || only === g.key) && (g.key === "forms" || g.key === "domains")) entries.push({ label: g.key === "domains" ? "Add sending domain" : `New ${g.one}`, onSelect: () => d.nav.create(g.key) });
+    if ((only === undefined || only === "templates") && d.nav.openEmailDesign) entries.push({ label: "New email design", onSelect: () => d.nav.openEmailDesign?.() });
     if (only === undefined || only === "templates") entries.push({ separator: true }, { label: "Build a Kit with an agent", onSelect: () => void openKitBuilder(d).catch((e: unknown) => setNote({ text: e instanceof Error ? e.message : "That did not work." })) });
     show(entries, x, y, "other");
   };
@@ -115,7 +116,7 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
   };
 
   if (!d.team) {
-    return <View style={s.page} testID="apps-needs-team"><View style={s.center}><NeedsTeamSpace density="regular" what="Sites, forms and campaigns" onAction={d.nav.joinTeam} /></View></View>;
+    return <View style={s.page} testID="apps-needs-team"><View style={s.center}><NeedsTeamSpace density="regular" what="Sites and forms" onAction={d.nav.joinTeam} /></View></View>;
   }
 
   const rowsOf = (g: GroupKey): AppRow[] => { const out: AppRow[] = []; for (const r of lists[g].rows) if (matches(r, q)) out.push(r); return out; };
@@ -165,7 +166,8 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
         <Text style={s.mc}>{rows.length}</Text>
         <View style={s.grow} />
         {group === "templates" ? <Pressable accessibilityRole="button" testID="apps-kit" onPress={() => void openKitBuilder(d).catch((e: unknown) => setNote({ text: e instanceof Error ? e.message : "That did not work." }))} style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={s.btnText}>Build a Kit</Text></Pressable> : null}
-        {group === "forms" || group === "campaigns" || group === "domains" ? <Pressable accessibilityRole="button" accessibilityLabel={group === "domains" ? "Add sending domain" : `New ${g.one}`} testID="apps-new-group" onPress={(e) => { const p = pointOf(e); newMenu(p.x, p.y, group); }} style={(state) => [s.btn, s.btnPrimary, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={[s.btnText, s.btnPrimaryText]}>{group === "domains" ? "Add domain" : `New ${g.one}`}</Text></Pressable> : null}
+        {group === "sites" && d.nav.newSite ? <Pressable accessibilityRole="button" accessibilityLabel="New site" testID="apps-new-site" onPress={() => d.nav.newSite?.()} style={(state) => [s.btn, s.btnPrimary, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={[s.btnText, s.btnPrimaryText]}>New site</Text></Pressable> : null}
+        {group === "forms" || group === "domains" ? <Pressable accessibilityRole="button" accessibilityLabel={group === "domains" ? "Add sending domain" : `New ${g.one}`} testID="apps-new-group" onPress={(e) => { const p = pointOf(e); newMenu(p.x, p.y, group); }} style={(state) => [s.btn, s.btnPrimary, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={[s.btnText, s.btnPrimaryText]}>{group === "domains" ? "Add domain" : `New ${g.one}`}</Text></Pressable> : null}
       </View>
       {cur.error ? <States kind="error" message={cur.error} /> : !cur.ready ? <View testID="apps-loading" style={s.skeleton}>{skeleton()}</View> : rows.length === 0 ? (
         <View style={s.empty} testID="apps-empty"><States kind="empty" title={q ? `Nothing matches ${q}` : g.empty} icon={q ? "search" : EMPTY_ICON[g.key]} /></View>
@@ -228,7 +230,9 @@ export default function AppsLayout({ data, start, route }: { data?: AppsData | u
   const provided = useOptionalAppsData();
   const v = data ?? provided;
   if (!v) return <AppsLoading />;
-  if (!v.team) return <View style={s.page} testID="apps-needs-team"><View style={s.center}><NeedsTeamSpace density="regular" what="Forms and campaigns" onAction={v.nav.joinTeam} /></View></View>;
+  // artifacts need no team and no server: they are a person's own
+  if (route?.kind === "artifacts") return <AppsDataProvider value={v}><View style={s.page}><AppsSurface route={route} /></View></AppsDataProvider>;
+  if (!v.team) return <View style={s.page} testID="apps-needs-team"><View style={s.center}><NeedsTeamSpace density="regular" what="Forms" onAction={v.nav.joinTeam} /></View></View>;
   return <AppsDataProvider value={v}><Page initial={start} route={route} /></AppsDataProvider>;
 }
 const s = StyleSheet.create({

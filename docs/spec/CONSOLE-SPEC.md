@@ -26,7 +26,7 @@ Group by area. Each has a risk level shown as a dot. (Keys in brackets.)
 - Files: upload (files.write), delete (files.delete), share outside the Space (files.share_external).
 - Chats and channels: create channels (channels.create), invite agents to channels (channels.agents), start private chats (chats.private).
 - Agents: create agents (agents.create), change any agent (agents.manage), run agents on a schedule (agents.schedule), use agent computers (computers.use).
-- Automations: create personal automations (automations.personal), create Space automations (automations.space), launch campaigns (campaigns.launch), design Journeys (journeys.manage).
+- Automations: create personal automations (automations.personal), create Space automations (automations.space), design Journeys (journeys.manage).
 - Comms: send from shared inboxes (comms.shared_send), send outside from agents (comms.agent_send), assign numbers (comms.numbers), manage sending domains (comms.domains).
 - Vault: create shared items (vault.shared_create), reveal shared values (vault.reveal), export secrets as .env (vault.export, high risk; injection needs only Use), manage vault policy (vault.policy).
 - AI: choose models beyond the defaults (ai.models), raise spend limits (ai.spend), review AI incidents (ai.incidents).

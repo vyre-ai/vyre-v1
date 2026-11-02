@@ -96,7 +96,6 @@ test("a filter narrows the list and the header says what is showing, with Show a
   assert.deepEqual(lines(list({ scope: { kind: "mailbox", id: "mbx_support" } })), ["tomas"]);
   assert.ok(has(list({ scope: { kind: "mailbox", id: "mbx_support" } }), "support@"), "the header is the inbox's name");
   assert.deepEqual(lines(list({ scope: { kind: "follow" } })), ["elena", "hannah", "nina"]);
-  assert.deepEqual(lines(list({ scope: { kind: "camp" } })), ["priya", "jonas"]);
   assert.deepEqual(lines(list({ query: "lease" })), ["elena"]);
   assert.deepEqual(lines(list({ channels: ["email", "sms"], inboxes: ["mbx_hello"] })), ["wei", "ben"], "two filters narrow together");
   assert.ok(!has(list(), 'data-testid="inbox-showing"'), "nothing narrowed, nothing to show");
@@ -112,7 +111,7 @@ test("the sidebar groups inboxes with their unread counts and keeps the lists an
   const out = side();
   const order = ["By contact", "All inboxes", "Calendar", "Mine", "Shared", "Agents", "Lists", "Calendars"].map((t) => at(out, `>${t}<`));
   assert.deepEqual([...order].sort((a, b) => a - b), order, "rows then Mine, Shared, Agents, Lists, Calendars");
-  for (const label of ["Work Gmail", "Personal", "+1 415 555 0132", "hello@", "support@", "intake@", "Starred", "Following", "Campaigns", "Work Google", "Microsoft"]) assert.ok(has(out, `>${label}<`), label);
+  for (const label of ["Work Gmail", "Personal", "+1 415 555 0132", "hello@", "support@", "intake@", "Starred", "Following", "Work Google", "Microsoft"]) assert.ok(has(out, `>${label}<`), label);
   assert.ok(has(out, 'data-testid="row-nav:view:contact"') && has(out, 'data-testid="row-nav:view:contact-trailing"'), "sidebar rows are ui/Row with slots");
   const dot = (id: string): string => (out.match(/<div[^>]*data-testid="cal-dot-[^"]*"[^>]*>/g) ?? []).find((t) => t.includes(`cal-dot-${id}"`)) ?? "";
   assert.ok(dot("cal_work").includes("background-color") && dot("cal_ms").includes("background-color") && dot("cal_work") !== dot("cal_ms"), "each calendar has its own colour dot");
@@ -224,7 +223,7 @@ test("harbor studio draws its own inboxes, contacts and calendar", () => {
 });
 
 test("narrowing is a function of the entries and the state alone", () => {
-  const mk = (key: string, at: number, o: Partial<Entry> = {}): Entry => ({ key, kind: "contact", name: key, snippet: "", at, unread: 0, channel: "email", via: "", inboxIds: ["a"], needsMatch: false, followed: false, starred: false, campaign: false, missed: false, openId: key, ...o });
+  const mk = (key: string, at: number, o: Partial<Entry> = {}): Entry => ({ key, kind: "contact", name: key, snippet: "", at, unread: 0, channel: "email", via: "", inboxIds: ["a"], needsMatch: false, followed: false, starred: false, missed: false, openId: key, ...o });
   const es = [mk("old", 1), mk("new", 9), mk("ghost", 5, { needsMatch: true }), mk("call", 7, { channel: "call", inboxIds: ["b"] })];
   assert.deepEqual(narrow(es, INITIAL_STATE).map((e) => e.key), ["ghost", "new", "call", "old"], "an unmatched sender first, then newest first");
   assert.deepEqual(narrow(es, { ...INITIAL_STATE, inboxes: ["b"] }).map((e) => e.key), ["call"]);
@@ -237,7 +236,7 @@ test("narrowing is a function of the entries and the state alone", () => {
 
 test("Starred: a list under Lists, before Following, that holds the starred conversations", () => {
   const out = side();
-  assert.ok(at(out, ">Lists<") < at(out, ">Starred<") && at(out, ">Starred<") < at(out, ">Following<") && at(out, ">Following<") < at(out, ">Campaigns<"));
+  assert.ok(at(out, ">Lists<") < at(out, ">Starred<") && at(out, ">Starred<") < at(out, ">Following<"));
   assert.ok(has(out, 'data-testid="row-nav:list:starred"') && has(out, 'data-testid="row-nav:list:starred-leading"'), "a ui/Row with a leading glyph");
   assert.deepEqual(lines(list({ scope: { kind: "starred" } })), ["marcus", "priya"]);
   assert.ok(has(list({ scope: { kind: "starred" } }), ">Starred<"), "the header names the list");

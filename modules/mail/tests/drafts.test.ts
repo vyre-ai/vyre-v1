@@ -137,7 +137,7 @@ test("an edit must name a draft of the same mailbox", async () => {
 test("bad input is refused before anything is written", async () => {
   const h = setup();
   const bad = [
-    { mailboxId: "box" }, { mailboxId: "mbx_nope" }, { to: [{ address: "nope" }] }, { idempotencyKey: "" }, { contactId: "pat" }, { campaignId: "spring" },
+    { mailboxId: "box" }, { mailboxId: "mbx_nope" }, { to: [{ address: "nope" }] }, { idempotencyKey: "" }, { contactId: "pat" },
     { replyToMessageId: "msg_1" }, { to: "pat@acme.test" as unknown as { address: string }[] },
   ];
   for (const patch of bad) {

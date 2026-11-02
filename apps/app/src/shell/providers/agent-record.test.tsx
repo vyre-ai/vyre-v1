@@ -2,7 +2,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AgentRecord, agentOfRecord, listAgents } from "./agent-record.tsx";
+import { AgentRecord, agentOfRecord } from "./agent-record.tsx";
+import { listAgents } from "../../places/records/recordpage/agentlink.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
 const fake = (name: string, pages: Array<{ agents: Array<{ agentId: string; name: string }>; next?: string }>) => {

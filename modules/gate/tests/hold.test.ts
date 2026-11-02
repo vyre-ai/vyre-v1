@@ -76,7 +76,7 @@ test("who approves follows the act and the strictest rule", async () => {
     return findHold(h.db, r.holdId)!.approver;
   };
   assert.deepEqual(await approverOf({ act: "pay" }), { kind: "role", id: "rol_owner" });
-  assert.deepEqual(await approverOf({ act: "campaign_launch" }), { kind: "role", id: "rol_admin" });
+  assert.deepEqual(await approverOf({ act: "site_promote" }), { kind: "role", id: "rol_admin" });
   assert.deepEqual(await approverOf({ act: "delete" }), { kind: "person", id: alice.id });
   // no acting-for: the agent's owner is the asker
   assert.deepEqual(await approverOf({ actingFor: undefined }), { kind: "person", id: alice.id });
@@ -120,7 +120,7 @@ test("the effective rule: agents wait, a person's own send does not, human-too a
   const p = await rule(alice, "send");
   assert.equal(p.hold, false, "ordinary human sends skip the Gate");
   assert.match(p.reason, /own act/);
-  for (const act of ["push_protected", "campaign_launch", "secret_export", "site_promote"]) assert.equal((await rule(alice, act)).hold, true, `${act} by a person`);
+  for (const act of ["push_protected", "secret_export", "site_promote"]) assert.equal((await rule(alice, act)).hold, true, `${act} by a person`);
   for (const act of ["pay", "delete", "post", "signature_send", "spend_raise"]) assert.equal((await rule(alice, act)).hold, false, `${act} by a person`);
   assert.equal((await rule({ kind: "service", id: "svc_job" }, "send")).hold, true);
   assert.equal((await rule({ kind: "actor", id: "act_outside" }, "send")).hold, true);
@@ -186,12 +186,12 @@ test("rules: scope checks, never loosening, the defaults list, one event", async
   await refused(set({ scope: "agent", agentId: bot.id, afterHours: 9 }), "validation.precondition_failed", "would_loosen");
   await set({ scope: "agent", agentId: bot.id, afterHours: 4 });
   const all = (await h.call("gate.rules.list", {}, owner)).rules;
-  assert.equal(all.filter((x: { scope: string }) => x.scope === "space").length, 15, "every act has a Space rule, stored or default");
+  assert.equal(all.filter((x: { scope: string }) => x.scope === "space").length, 14, "every act has a Space rule, stored or default");
   assert.equal(all.find((x: { act: string; scope: string }) => x.act === "send" && x.scope === "space").afterHours, 8);
   assert.equal(all.find((x: { act: string; scope: string }) => x.act === "pay" && x.scope === "space").approvers, "owner");
   assert.deepEqual((await h.call("gate.rules.list", { scope: "agent" }, owner)).rules.map((x: { agentId: string }) => x.agentId), [bot.id]);
   assert.deepEqual((await h.call("gate.rules.list", { scope: "agent", agentId: bot2.id }, owner)).rules, []);
-  assert.equal((await h.call("gate.acts.list", {}, owner)).acts.length, 15);
+  assert.equal((await h.call("gate.acts.list", {}, owner)).acts.length, 14);
 });
 
 test("the gate settings change the defaults", async () => {

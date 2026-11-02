@@ -35,6 +35,7 @@ type In = {
 type Out = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -82,6 +83,15 @@ type Out = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 ```
@@ -135,6 +145,7 @@ type Out = {
       ],
       "due": 1760000000000,
       "effort": 1,
+      "fields": {},
       "fileIds": [
         "fil_a1b2c3"
       ],
@@ -142,9 +153,18 @@ type Out = {
         "example"
       ],
       "id": "tsk_a1b2c3",
+      "key": "VY-123",
       "kind": "work",
+      "labels": [
+        "example"
+      ],
       "parentTaskId": "tsk_a1b2c3",
+      "priority": "urgent",
       "recordId": "rec_a1b2c3",
+      "recur": {
+        "every": "day",
+        "n": 1
+      },
       "reviewLoops": 1,
       "reviewer": {
         "id": "usr_a1b2c3",
@@ -155,6 +175,7 @@ type Out = {
         "id": "run_a1b2c3",
         "kind": "chat"
       },
+      "start": 1760000000000,
       "state": "todo",
       "summary": "example",
       "takenBy": "usr_a1b2c3",
@@ -162,6 +183,7 @@ type Out = {
       "title": "example",
       "updatedAt": 1760000000000,
       "why": "example",
+      "workerThread": "thr_a1b2c3",
       "workingNotes": {}
     }
   }

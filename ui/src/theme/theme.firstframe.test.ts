@@ -105,11 +105,11 @@ function rootRecorder() {
   return { root, attrs, props };
 }
 
-test("token table is System plus the thirteen skins, as plain data (no promise)", () => {
+test("token table is System plus the fifteen skins, as plain data (no promise)", () => {
   const table = tokenTable();
   assert.equal(table instanceof Promise, false);
   assert.deepEqual(Object.keys(table).sort(), ["system", ...skins.map((s) => s.id)].sort());
-  assert.equal(skins.length, 13);
+  assert.equal(skins.length, 15);
   assert.equal(table.system?.light["--accent"], documentTokens.light["--accent"]);
   assert.equal(table.system?.dark["--win"], documentTokens.dark["--win"]);
   for (const skin of skins) {
@@ -121,7 +121,7 @@ test("order: the person's choice for the Space, else the Space default, else Sys
   const nothing = resolveTheme(toInput(emptyStore(PERSON, "nw"), true));
   assert.deepEqual([nothing.source, nothing.skin, nothing.mode], ["system", "system", "dark"]);
   assert.equal(resolveTheme(toInput(emptyStore(PERSON, "nw"), false)).mode, "light");
-  assert.equal(resolveTheme(toInput(emptyStore(PERSON, "nw"), false)).tokens["--accent"], "#5B50E8");
+  assert.equal(resolveTheme(toInput(emptyStore(PERSON, "nw"), false)).tokens["--accent"], "#5A3FF0");
 
   const spaceOnly = { ...emptyStore(PERSON, "hb"), spaceSkin: seedSpaceSkin() };
   const fromSpace = resolveTheme(toInput(spaceOnly, true));

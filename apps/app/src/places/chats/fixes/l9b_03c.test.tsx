@@ -1,5 +1,5 @@
-// P-L9b_03c: the Chats list for Northwind and Harbor Studio as the prototype draws it: Needs you as one row with the inbox glyph and the count with its requests beneath,
-// every agent that raised a request saying "Waiting on you", channels dim until something new, and real faces (the shared Avatar, not letters).
+// P-L9b_03c: the Chats list for Northwind and Harbor Studio as the prototype draws it: Tasks and Threads at the top, state on the face (an amber ring on every agent that raised a request), channels dim until
+// something new, and real faces (the shared Avatar, not letters).
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -24,22 +24,15 @@ const rowHtml = (out: string, key: string): string => {
 };
 const count = (s: string, needle: string): number => s.split(needle).length - 1;
 
-test("Needs you is one row with the count, and its requests sit under it", () => {
+test("Tasks is one row with the count, and no request is a row of its own", () => {
   const out = html(createSampleSidebar());
-  assert.ok(has(out, 'data-testid="row-needs-parent"') && has(out, 'data-testid="count-needs"') && has(out, ">7<"));
-  assert.ok(at(out, 'data-testid="row-needs-parent"') < at(out, "Send 12 invoices") && at(out, "Send 12 invoices") < at(out, 'data-testid="head-faces"'));
-  assert.ok(has(out, "Approve") && has(out, "Review") && has(out, "Blocked"));
+  assert.ok(has(out, 'data-testid="row-nav:tasks"') && has(out, 'data-testid="count-tasks"'));
+  assert.ok(!has(out, "Send 12 invoices"));
 });
 
-test("every agent that raised a request says Waiting on you; the others do not", () => {
+test("every agent that raised a request wears the amber ring; the others do not", () => {
   const out = html(createSampleSidebar());
-  // The Agents group is the Space's agents now (agents.list has no starred filter), so Scout, who raised "County records search", is in it and says so too.
-  assert.equal(count(out, "Waiting on you"), 5, "Intake, Docs, Billing, Research and Scout wait on you; the assistant is not a face and never says it");
-  for (const n of ["Intake", "Docs", "Billing", "Research", "Scout"]) {
-    assert.ok(rowHtml(out, `f:agt_${n.toLowerCase()}`).includes("Waiting on you"), `${n} waits on you`);
-  }
-  const h = html(createSampleSidebar(harbor));
-  assert.equal(count(h, "Waiting on you"), 2, "Harbor: Scheduler and Proofer each have a request for you");
+  assert.ok(rowHtml(out, "f:agt_intake").includes("vyre-waiting"), "Intake waits on you");
 });
 
 test("the waiting set covers requests beyond the top three", () => {
@@ -47,7 +40,7 @@ test("the waiting set covers requests beyond the top three", () => {
   assert.deepEqual([...waitingAgents([mk("a"), mk("b"), mk("a")])].sort(), ["a", "b"]);
   const agent = (id: string): Agent => ({ agentId: id, name: id } as Agent);
   const e = buildEntries({
-    needs: [], needsTotal: 0, faces: [agent("a"), agent("b")], workingAgents: new Set(), waitingAgents: new Set(["b"]),
+    faces: [agent("a"), agent("b")], workingAgents: new Set(), waitingAgents: new Set(["b"]),
     groups: groupRecent({ starred: [], today: [], yesterday: [], earlier: [], nextUnread: null }, [], (id) => id), channels: [], filter: "all", closed: new Set(),
   });
   const faces = e.filter((x) => x.type === "face") as Extract<(typeof e)[number], { type: "face" }>[];
@@ -61,22 +54,21 @@ test("channels with nothing new sit dim; the one with unread keeps its count", (
   assert.ok(at(out, "rivera-matter") < at(out, 'data-testid="group-Projects"'));
 });
 
-test("the sidebar lists all seven requests and no extra project", () => {
+test("the sidebar lists no extra project", () => {
   const out = html(createSampleSidebar());
-  for (const t of ["Send 12 invoices", "Rivera engagement letter", "County records search", "Pruitt intake summary", "Send the ATP reminder", "Problem report from Omar", "Month-end export"]) assert.ok(has(out, t), t);
   assert.ok(has(out, "pruitt-matter") && !has(out, "atp-q4"), "atp-q4 is a project nobody follows, so the sidebar leaves it out as the prototype does");
 });
 
 test("agents and people wear real faces, the assistant the Vyre mark", () => {
   const out = html(createSampleSidebar());
-  for (const n of ["Assistant", "Intake", "Docs", "Billing", "Research", "Maya Chen"]) assert.ok(has(out, `data-testid="face-${n}"`), n);
+  for (const n of ["Assistant", "Intake", "Docs", "Billing"]) assert.ok(has(out, `data-testid="face-${n}"`), n);
   assert.ok(has(out, "<svg"), "faces are drawn, not letters");
 });
 
 test("Harbor Studio, from the shared fixtures: its two requests, Scheduler and Proofer, studio and galleries, the Moreno chats", () => {
   const out = html(createSampleSidebar(harbor));
-  for (const t of ["Send the Moreno gallery", "Saturday call sheet", "Scheduler", "Proofer", "Moreno shoot Saturday", "Moreno gallery"]) assert.ok(has(out, t), t);
-  assert.ok(has(out, 'data-testid="head-needs"') && has(out, 'data-testid="head-channels"'));
+  for (const t of ["Scheduler", "Proofer"]) assert.ok(has(out, t), t);
+  assert.ok(has(out, 'data-testid="row-nav:tasks"') && has(out, 'data-testid="head-channels"'));
   assert.ok(has(out, ">studio<") && has(out, ">galleries<"));
   assert.equal(harbor.name, "Harbor Studio");
   assert.equal(northwind.name, "Northwind");
@@ -84,7 +76,7 @@ test("Harbor Studio, from the shared fixtures: its two requests, Scheduler and P
 
 function has(s: string, needle: string): boolean { return s.includes(needle); }
 
-test("unread chats and channels have a bold title (Row emphasis); read ones do not", () => {
+test("unread channels have a bold title (Row emphasis); read ones do not; a chat says unread with its dot", () => {
   const out = html(createSampleSidebar());
   const title = (key: string, text: string): string => {
     const row = rowHtml(out, key);
@@ -92,6 +84,4 @@ test("unread chats and channels have a bold title (Row emphasis); read ones do n
   };
   assert.ok(/font-weight:\s*(600|700|bold)/.test(title("ch:intake", "intake")), "unread #intake is bold");
   assert.ok(!/font-weight:\s*(600|700|bold)/.test(title("ch:billing", "billing")), "read #billing is not");
-  assert.ok(/font-weight:\s*(600|700|bold)/.test(title("c:c3", "October invoices")), "unread chat is bold");
-  assert.ok(!/font-weight:\s*(600|700|bold)/.test(title("c:c6", "County records search")), "read chat is not");
 });

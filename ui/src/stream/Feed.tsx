@@ -22,6 +22,10 @@ export interface FeedProps {
   store?: StreamStore;
   /** Follow the end while the person is there. Default on. */
   follow?: boolean;
+  /** Open at the top, following only once the person reaches the end (a page that sits on top of its thread). */
+  startAway?: boolean;
+  /** Changes when the person acted and should see the result: the feed goes to the end and follows again, with no remount. */
+  endKey?: number;
   testID?: string;
   /** Padding and width of the content inside the scroll area. */
   contentStyle?: StyleProp<ViewStyle>;
@@ -39,10 +43,12 @@ const GUTTER = Platform.OS === "web" ? ({ scrollbarGutter: "stable" } as object)
 const NO_SUBSCRIBE = (): (() => void) => () => undefined;
 const NO_VERSION = (): number => 0;
 
-export function Feed({ children, followKey, store, follow = true, testID = "stream-list", contentStyle, onAtEndChange }: FeedProps) {
+export function Feed({ children, followKey, store, follow = true, startAway = false, endKey = 0, testID = "stream-list", contentStyle, onAtEndChange }: FeedProps) {
   const ref = useRef<ScrollView | null>(null);
-  const atEnd = useRef(true);
+  const atEnd = useRef(!startAway);
   const [away, setAway] = useState(false);
+  const lastEnd = useRef(endKey);
+  if (lastEnd.current !== endKey) { lastEnd.current = endKey; atEnd.current = true; }
   const version = useSyncExternalStore(store ? store.subscribe : NO_SUBSCRIBE, store ? () => store.getSnapshot().version : NO_VERSION, store ? () => store.getSnapshot().version : NO_VERSION);
 
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -63,7 +69,7 @@ export function Feed({ children, followKey, store, follow = true, testID = "stre
     } else {
       ref.current?.scrollToEnd({ animated: false });
     }
-  }, [followKey, version, follow]);
+  }, [followKey, version, follow, endKey]);
 
   return (
     <ScrollView ref={ref} testID={testID} accessibilityLabel={away ? "Conversation, scrolled up" : "Conversation"} onScroll={onScroll} scrollEventThrottle={16} style={[{ flex: 1 }, GUTTER]} contentContainerStyle={contentStyle}>

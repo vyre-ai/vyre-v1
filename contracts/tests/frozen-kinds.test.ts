@@ -127,9 +127,9 @@ test('steps, triggers and connectors each have a declaring module and an example
 
 test('gate acts follow spec 2.14', () => {
   assert.deepEqual(gateActs.map((g) => g.key).sort(), [
-    'approve', 'campaign_launch', 'connection_change', 'delete', 'enroll_node', 'pay', 'post', 'push_protected', 'secret_export', 'send', 'signature_send', 'signin_change', 'site_promote', 'spend_raise', 'transfer',
+    'approve', 'connection_change', 'delete', 'enroll_node', 'pay', 'post', 'push_protected', 'secret_export', 'send', 'signature_send', 'signin_change', 'site_promote', 'spend_raise', 'transfer',
   ]);
-  const humanToo = new Set(['campaign_launch', 'push_protected', 'secret_export', 'site_promote']);
+  const humanToo = new Set(['push_protected', 'secret_export', 'site_promote']);
   for (const g of gateActs) {
     assert.equal(g.module, 'gate', g.key);
     assert.equal(g.sendsOnApprove, 'gate.release', g.key);

@@ -29,9 +29,9 @@ test("Settings leaves for the Vault through the shell's door, and a Console addr
   const d = settingsData(sampleRuntime({ screens: s.data.screens, call: s.data.call, opened }));
   d.nav.openVault();
   assert.deepEqual(opened, ["vault.layout"]);
-  assert.deepEqual(adminTarget("console.backups"), { screen: "settings.page", args: { page: "data", admin: "backups" } });
-  assert.deepEqual(adminTarget("console.schema", { type: "contact" }), { screen: "settings.page", args: { page: "data", admin: "schema", type: "contact" } });
-  assert.deepEqual([...adminPages({ groups: [{ pages: [{ key: "gate.rules" }, { key: "console.backups" }] }] })].sort(), ["backups", "export", "gate"], "Export shares the Backups screen");
+  assert.deepEqual(adminTarget("console.backups"), { screen: "console.backups", args: { page: "backups" } });
+  assert.deepEqual(adminTarget("console.schema", { type: "contact" }), { screen: "console.schema", args: { page: "schema", type: "contact" } });
+  assert.deepEqual([...adminPages({ groups: [{ pages: [{ key: "gate.rules" }, { key: "console.backups" }] }] })].sort(), ["backups", "gate"]);
   assert.equal(d.space.name, "Northwind");
 });
 

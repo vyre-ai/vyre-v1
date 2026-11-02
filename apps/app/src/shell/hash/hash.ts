@@ -34,7 +34,7 @@ const SUBJECT_PLACE: Readonly<Record<string, string>> = {
   chat: "chats", thread: "chats", channel: "chats", agent: "chats", message: "chats",
   call: "inbox", conversation: "inbox", mail: "inbox", email: "inbox",
   run: "automations", automation: "automations", journey: "automations",
-  task: "home",
+  task: "chats",
   vault: "vault", item: "vault",
 };
 export function placeForSubject(type: string): string | null {

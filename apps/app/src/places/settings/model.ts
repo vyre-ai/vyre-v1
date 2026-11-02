@@ -101,7 +101,7 @@ export interface SpaceRowDef { id: string; key: string; page: SpacePage; section
 const yes = [{ value: "server_copy", label: "Yes" }, { value: "live_only", label: "No" }];
 const sr = (key: string, page: SpacePage, section: string, label: string, control: SpaceControl, help: string, words?: string): SpaceRowDef => ({ id: control.kind === "flag" ? `${key}.${control.field}` : key, key, page, section, label, help, control, ...(words ? { words } : {}) });
 
-/** What a Space admin sets, each row with its reader in team/v1/AUDIT-settings-2nov.md. Shipped defaults are good, so most Spaces never touch these. */
+/** Space defaults, each with its reader in team/v1/AUDIT-settings-2nov.md. The Console draws these; a Personal Space, which has none, draws PERSONAL_SPACE_ROWS in Settings. */
 export const SPACE_ROWS: readonly SpaceRowDef[] = [
   sr("access.review_every_days", "people", "Access", "Review who has access every", { kind: "number", min: 7, max: 365, unit: "days" }, "How often Vyre asks admins to confirm who keeps access."),
   sr("gate.timeout_hours", "agents", "Approvals", "A waiting approval times out after", { kind: "number", min: 1, max: 720, unit: "hours" }, "A held action nobody answers is dropped after this long. A Gate rule can set its own.", "gate hold"),
@@ -131,29 +131,20 @@ export const SPACE_ROWS: readonly SpaceRowDef[] = [
   sr("mailgun.region", "advanced", "Email", "Mailgun region", { kind: "choice", options: [{ value: "us", label: "US" }, { value: "eu", label: "EU" }] }, "Pick the region your Mailgun account lives in."),
 ];
 
-export interface AdminLink { id: string; title: string; note: string }
-const al = (id: string, title: string, note: string): AdminLink => ({ id, title, note });
+/** Space rows that mean something with one person in the Space. A Personal Space has no Console, so these show in its Settings, and only there. */
+export const PERSONAL_SPACE_ROWS: ReadonlySet<string> = new Set([
+  "engine.agent_hops", "memory.meaning_search", "reports.vyre",
+  "git.protected_branches", "files.review_changes.git", "files.review_changes.cloud_mount", "files.review_changes.plain", "vault.export_expiry_max",
+  "mail.provider", "contacts.sms_requires_consent", "telephony.recording_default",
+  "mounts.public_address", "files.local_mount_default", "mailgun.region",
+]);
 
-/** The pages that used to be the Console, under the Space page each belongs to. Each opens right here. The ids are the Console's (console/shell/nav.ts). */
-export const ADMIN_LINKS: Readonly<Record<SpacePage, readonly AdminLink[]>> = {
-  space: [al("space", "Name, image and owner", "What people see, and who owns this Space"), al("overview", "Health and activity", "Checks, recent admin changes, last backup"), al("usage", "Usage", "Turns and spend by agent, person and model")],
-  people: [al("people", "People", "Invite, change a role, remove"), al("groups", "Groups", "People who share access"), al("roles", "Roles", "What each role may do"), al("grants", "Grants", "Access to one thing"), al("policies", "Policies", "Sign-in requirements and public links"), al("checker", "Access checker", "Why someone can or cannot open something"), al("reviews", "Access reviews", "Confirm who keeps access"), al("sessions", "Sessions and devices", "Sign anyone out")],
-  agents: [al("agents", "Agents", "Every agent in this Space"), al("actors", "Outside actors", "Agents that connect from elsewhere"), al("computers", "Agent computers", "Limits and sleep for each"), al("template", "Agent template", "What a new agent starts with"), al("skills", "Skills", "What agents can learn"), al("plugins", "Plugins and tools", "What agents can reach"), al("models", "Models and providers", "Which AI this Space allows"), al("gate", "Gate rules", "What needs an approval"), al("spend", "Spend and limits", "Budgets"), al("review", "Review sampling", "Turns a person checks"), al("incidents", "Incidents", "What went wrong"), al("aipolicy", "AI use policy", "The policy people agree to")],
-  data: [al("schema", "Schema", "Record types and fields"), al("labels", "Sensitivity labels", "What each label protects"), al("retention", "Retention", "How long things are kept"), al("holds", "Holds", "Keep things past retention"), al("erase", "Erase a person", "Remove someone's data"), al("backups", "Backups", "Where and how often"), al("export", "Export", "Take this Space with you")],
-  apps: [al("domains", "Sending domains", "Your own domain for email"), al("numbers", "Numbers", "Phone numbers"), al("inboxes", "Shared inboxes", "Mailboxes a team reads"), al("texting", "Texting registration", "Carrier registration"), al("google", "Google Workspace", "One connection for everyone"), al("microsoft", "Microsoft 365", "One connection for everyone"), al("connectors", "Connectors", "Sync with other apps"), al("connections", "Connections", "Live connections"), al("webhooks", "Webhooks", "Events to other systems"), al("keys", "API keys", "Access for scripts")],
-  advanced: [al("network", "Network", "Addresses and certificates"), al("server", "Server", "Logs"), al("updates", "Updates", "Versions and the release channel"), al("diagnostics", "Diagnostics", "Run checks"), al("support", "Support bundle", "For a support request"), al("speed", "Speed", "Response times"), al("audit", "Audit log", "Who did what")],
-};
-
-/** The Space page a Console page sits under. */
-export function adminHome(id: string): { page: SpacePage; link: AdminLink } | null {
-  for (const page of Object.keys(ADMIN_LINKS) as SpacePage[]) { const link = ADMIN_LINKS[page].find((l) => l.id === id); if (link) return { page, link }; }
-  return null;
-}
-
-/** The Space pages this person sees: a page shows when it holds a row they can change or a link they can open. */
-export function spacePagesFor(admin: { pages: ReadonlySet<string>; canPolicy: boolean } | undefined): SpacePage[] {
-  if (!admin) return [];
-  return (Object.keys(ADMIN_LINKS) as SpacePage[]).filter((p) => (admin.canPolicy && SPACE_ROWS.some((r) => r.page === p)) || ADMIN_LINKS[p].some((l) => admin.pages.has(l.id)));
+/** The Space pages in Settings: only in a Personal Space. In a Team Space every Space row is the Console's, and no setting is in both. */
+export function spacePagesFor(personal: boolean): SpacePage[] {
+  if (!personal) return [];
+  const pages: SpacePage[] = [];
+  for (const r of SPACE_ROWS) if (PERSONAL_SPACE_ROWS.has(r.id) && !pages.includes(r.page)) pages.push(r.page);
+  return pages;
 }
 
 // ---------------------------------------------------------------- how a value is drawn
@@ -286,7 +277,7 @@ export function summaryOf(value: unknown): string {
 
 // ---------------------------------------------------------------- search (Cmd-F)
 
-export interface Hit { key: string; page: PageKey; title: string; score: number; sub?: string; admin?: string }
+export interface Hit { key: string; page: PageKey; title: string; score: number; sub?: string }
 
 /** Extra words that find a row whose title says too little. */
 export const HIT_HELP: Readonly<Record<string, { sub?: string; words?: string }>> = {
@@ -314,7 +305,7 @@ export const DRAWN_ROWS: readonly { key: string; page: PageKey; title: string; s
 ];
 
 /** What a search looks through beyond the person's own rows: nothing in a Personal Space or for someone who cannot change the Space. */
-export interface SearchScope { personal?: boolean; admin?: { pages: ReadonlySet<string>; canPolicy: boolean } | undefined }
+export interface SearchScope { personal?: boolean }
 
 const matches = (words: readonly string[], hay: string): boolean => words.every((w) => hay.toLowerCase().includes(w));
 const scored = (title: string, words: readonly string[]): number => (title.toLowerCase().startsWith(words[0]!) ? 2 : 1);
@@ -336,13 +327,9 @@ export function searchRows(rows: readonly SettingRow[], q: string, scope: Search
     if (!matches(words, `${d.title} ${d.sub} ${d.words} ${pageByKey(d.page).title}`)) continue;
     out.push({ key: d.key, page: d.page, title: d.title, score: scored(d.title, words), sub: d.sub });
   }
-  if (scope.admin?.canPolicy) for (const r of SPACE_ROWS) {
-    if (!matches(words, `${r.label} ${r.words ?? ""} ${r.help} ${r.key.replace(/[._]/g, " ")} ${pageByKey(r.page).title}`)) continue;
+  if (scope.personal) for (const r of SPACE_ROWS) {
+    if (!PERSONAL_SPACE_ROWS.has(r.id) || !matches(words, `${r.label} ${r.words ?? ""} ${r.help} ${r.key.replace(/[._]/g, " ")} ${pageByKey(r.page).title}`)) continue;
     out.push({ key: r.id, page: r.page, title: r.label, score: scored(r.label, words), sub: pageByKey(r.page).title });
-  }
-  if (scope.admin) for (const page of Object.keys(ADMIN_LINKS) as SpacePage[]) for (const l of ADMIN_LINKS[page]) {
-    if (!scope.admin.pages.has(l.id) || !matches(words, `${l.title} ${l.note} ${pageByKey(page).title}`)) continue;
-    out.push({ key: `admin.${l.id}`, page, title: l.title, score: scored(l.title, words), sub: l.note, admin: l.id });
   }
   return out.sort((a, b) => b.score - a.score || a.title.localeCompare(b.title));
 }

@@ -41,7 +41,7 @@ export type PlaceId = 'join' | 'home' | 'chats' | 'inbox' | 'records' | 'files' 
 export type ResourceType =
   | 'space' | 'record_type' | 'record' | 'project' | 'folder' | 'file' | 'channel' | 'thread' | 'inbox' | 'mailbox'
   | 'vault_folder' | 'vault_item' | 'automation_group' | 'automation' | 'agent' | 'connector' | 'connection'
-  | 'site' | 'form' | 'campaign' | 'kit' | 'terminal' | 'computer' | 'task' | 'run' | 'number' | 'domain' | 'calendar' | 'note' | 'email';
+  | 'site' | 'form' | 'kit' | 'terminal' | 'computer' | 'task' | 'run' | 'number' | 'domain' | 'calendar' | 'note' | 'email';
 
 export interface Manifest {
   manifest: 1;
@@ -258,7 +258,7 @@ export interface SavedViewDef { key: string; kind: string; title: string; config
 
 // ---- 3.4 Steps, triggers, connectors, agent tools ----
 
-export interface StepDef {             // an Automation / Journey / Campaign step kind
+export interface StepDef {             // an Automation / Journey step kind
   key: string;                         // 'records.update', 'send_email', 'ai', 'wait_stage'
   title: string; category: 'data' | 'send' | 'ai' | 'control' | 'wait' | 'code' | 'sheet' | 'sign' | 'journey';
   kind: 'capability' | 'ai' | 'control' | 'wait' | 'code';
@@ -399,7 +399,7 @@ export interface HealthCheckDef {
   intervalSec: number; timeoutMs: number;
   states: { degradedWhen?: string; downWhen?: string };        // Expr over result/latency
   dependsOn?: string[];
-  pauses?: ('automations' | 'sync' | 'sends' | 'campaigns')[]; // visible reason shown on the paused thing
+  pauses?: ('automations' | 'sync' | 'sends')[]; // visible reason shown on the paused thing
   next: string;                        // plain next step shown when not healthy
 }
 
@@ -409,7 +409,7 @@ export interface GateActKindDef {
   preview: { blocks: { type: string; from: string /* template over input */ }[] };    // exact preview
   approvers: { default: string /* 'role:admin' | 'owner' | 'asker' */; peopleOnly: boolean; agentOkFor?: Risk };
   timeout: { afterHours: number; onTimeout: 'drop' | 'escalate'; escalateTo: 'delegate' | 'role'; emailBackstopHours: number };
-  appliesTo: { actors: ('agent' | 'automation' | 'campaign')[]; humanToo: boolean };   // humanToo: launches, promotes, protected pushes, exports
+  appliesTo: { actors: ('agent' | 'automation')[]; humanToo: boolean };   // humanToo: launches, promotes, protected pushes, exports
   sendsOnApprove: CapName;             // re-invoked with an approval token bound to the payload hash
 }
 

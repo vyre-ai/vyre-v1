@@ -133,7 +133,7 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
     assert.equal(item.item.handle, "#Google_DWD");
     assert.equal(JSON.stringify(item).includes("PRIVATE KEY"), false, "the Vault never answers with the key");
     const before = await w.ok(OWNER, "google.dwd.status");
-    assert.deepEqual(before, { configured: false, autoConnect: true, mappedMembers: 0, excluded: [] });
+    assert.deepEqual(before, { configured: false, data: { mail: true, calendar: true, files: true }, keyStored: false, autoConnect: true, mappedMembers: 0, excluded: [] });
     const scopes = await w.ok(OWNER, "google.dwd.scopes");
     assert.equal(scopes.scopes.length, 7);
 

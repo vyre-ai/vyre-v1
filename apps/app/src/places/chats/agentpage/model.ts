@@ -13,7 +13,7 @@ export type Suggestion = CapMap["agents.suggestions.list"]["out"]["suggestions"]
 export type Config = CapMap["agents.config.get"]["out"];
 export type Thread = CapMap["threads.list"]["out"]["threads"][number];
 
-export type TabKey = "chats" | "memory" | "files" | "computer" | "settings";
+export type TabKey = "activity" | "chats" | "memory" | "files" | "computer" | "settings";
 export const TABS: readonly { key: TabKey; title: string }[] = [
   { key: "chats", title: "Chats" },
   { key: "memory", title: "Memory" },
@@ -22,21 +22,46 @@ export const TABS: readonly { key: TabKey; title: string }[] = [
   { key: "settings", title: "Settings" },
 ];
 export const DEFAULT_TAB: TabKey = "chats";
+/** An agent that runs outside Vyre: what it did comes first. No computer of ours and no settings of ours: it has its own. */
+export const OUTSIDE_TABS: readonly { key: TabKey; title: string }[] = [
+  { key: "activity", title: "Activity" },
+  { key: "chats", title: "Chats" },
+  { key: "memory", title: "Memory" },
+  { key: "files", title: "Files" },
+];
 
 export function isTabKey(v: string): v is TabKey {
-  return TABS.some((t) => t.key === v);
+  return v === "activity" || TABS.some((t) => t.key === v);
 }
+
+export const isOutside = (a: Pick<AgentRow, "runtime">): boolean => a.runtime === "outside";
 
 /* ---------- status ---------- */
 
 export const STATUS_WORDS: Record<AgentRow["status"], string> = { awake: "Awake", working: "Working", asleep: "Asleep", paused: "Paused" };
 
+/** An outside agent is not asleep: it is somewhere else, and may be off. */
+const OUTSIDE_WORDS: Record<AgentRow["status"], string> = { awake: "Online", working: "Working", asleep: "Offline", paused: "Paused" };
+
 /** "Working", "Asleep", or "Paused by Maya Chen: Waiting for the new retainer terms". */
 export function statusLine(a: AgentRow, nameOf: (id: string) => string): string {
+  if (isOutside(a)) return OUTSIDE_WORDS[a.status];
   if (a.status !== "paused") return STATUS_WORDS[a.status];
   const who = a.pausedBy ? ` by ${nameOf(a.pausedBy)}` : "";
   return a.pausedReason ? `Paused${who}: ${a.pausedReason}` : `Paused${who}`;
 }
+
+/** The plain line under the name of an outside agent. */
+export const OUTSIDE_LINE = "Runs outside Vyre, on its own computer. Only you can use it. Vyre sees what it does here, not what it does there.";
+/** Said where a person might wait for it. */
+export const offlineLine = (name: string): string => `${name} is offline. It will see new tasks and mentions the next time it checks in.`;
+
+/* ---------- activity ---------- */
+
+export type Activity = CapMap["mcp.activity.list"]["out"]["rows"][number];
+export const OUTCOME_WORDS: Record<Activity["outcome"], string> = { ok: "Done", error: "Failed", held: "Waiting for your yes" };
+/** "records_query" reads "records query": a tool name is the only name a call has. */
+export const toolWords = (tool: string): string => tool.replace(/_/g, " ");
 
 /* ---------- the role line ---------- */
 

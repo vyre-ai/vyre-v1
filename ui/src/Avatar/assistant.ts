@@ -29,11 +29,24 @@ export function setAssistantLook(look: string | null): void {
   emit();
 }
 
+/** An agent's face stays seeded by its id until someone picks one on its page: a picked seed starts "pick-" (the stored default is only a slug of its name). */
+const PICKED = "pick-";
+let picked: ReadonlyMap<string, string> = new Map();
+
+export function setAgentFaces(agents: readonly { id: string; face?: string | undefined }[]): void {
+  const next = new Map<string, string>();
+  for (const a of agents) if (a.face?.startsWith(PICKED) === true) next.set(a.id, a.face);
+  if (next.size === picked.size && [...next].every(([id, f]) => picked.get(id) === f)) return;
+  picked = next;
+  emit();
+}
+
+export const pickedFace = (id: string | undefined): string => (id === undefined ? "" : picked.get(id) ?? "");
 export const assistantId = (): string => state.id;
 export const assistantLook = (): string => state.look;
 export function subscribeAssistant(l: () => void): () => void { listeners.add(l); return () => { listeners.delete(l); }; }
 /** Test seam: forget the assistant and its look. */
-export function resetAssistant(): void { state = { id: "", look: "" }; emit(); }
+export function resetAssistant(): void { state = { id: "", look: "" }; picked = new Map(); emit(); }
 
 export const isAssistantId = (id: string | undefined): boolean => id !== undefined && id !== "" && id === state.id;
 

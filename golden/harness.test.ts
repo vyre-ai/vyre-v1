@@ -74,7 +74,7 @@ test("golden-ready prints blockers per flow and applies the hour 6, 9 and 11 dea
   const live = all.map((m) => ({ ...m, status: "live" as const }));
   assert.match(readyReport(flows, live, 11).lines.at(-1)!, /15 ready, 0 pending; hour 11 deadline: met/);
   assert.deepEqual(dueAt(6, flows).map((f) => f.n), [1, 4, 14]);
-  assert.ok(dueAt(9, flows).every((f) => !f.needs.includes("forms") && !f.needs.includes("campaigns")));
+  assert.ok(dueAt(9, flows).every((f) => !f.needs.includes("forms")));
   assert.throws(() => dueAt(7, flows));
   // hour 6 is late while a module flow 4 needs is a stub
   const part = live.map((m) => (m.id === "conflicts" ? { ...m, status: "stub" as const } : m));

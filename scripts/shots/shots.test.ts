@@ -62,13 +62,13 @@ function harness(): { browser: ShotBrowser; views: { width: number; height: numb
   return { browser, views, posts, fetchImpl };
 }
 
-test("place skins use system white for Northwind and linen for Harbor Studio", () => {
+test("place skins use the Vyre default for Northwind and linen for Harbor Studio", () => {
   const northwind = placeSkin("Northwind");
   const harbor = placeSkin("Harbor Studio");
   assert.equal(northwind.skinId, "system");
   assert.equal(northwind.space, "Northwind");
-  assert.equal(northwind.tokens["--win"], "#FFFFFF");
-  assert.equal(northwind.tokens["--accent"], "#5B50E8");
+  assert.equal(northwind.tokens["--win"], "#FBFAFD");
+  assert.equal(northwind.tokens["--accent"], "#5A3FF0");
   assert.equal(harbor.skinId, "linen");
   assert.equal(harbor.space, "Harbor Studio");
   assert.equal(harbor.tokens["--win"], "#FAF7F2");
@@ -139,8 +139,8 @@ test("captures the batch1 screen page in Northwind and Harbor Studio skins", asy
   assert.match(north.meta.html, /data-space="Northwind"/);
   assert.match(north.meta.html, /data-skin-id="system"/);
   assert.match(north.meta.html, /data-density="compact"/);
-  assert.match(north.meta.html, /--win:#FFFFFF/);
-  assert.match(north.meta.html, /--accent:#5B50E8/);
+  assert.match(north.meta.html, /--win:#FBFAFD/);
+  assert.match(north.meta.html, /--accent:#5A3FF0/);
   assert.equal(harbor.meta.space, "Harbor Studio");
   assert.equal(harbor.meta.skinId, "linen");
   assert.equal(harbor.meta.density, "regular");
@@ -179,7 +179,7 @@ test("screenshot of the screens page in both skins", async () => {
   const harbor = posts.find((post) => post.meta.skin === "Harbor Studio");
   assert.ok(north && harbor);
   assert.match(north.meta.html, /data-skin-id="system"/);
-  assert.match(north.meta.html, /--win:#FFFFFF/);
+  assert.match(north.meta.html, /--win:#FBFAFD/);
   assert.match(harbor.meta.html, /data-skin-id="linen"/);
   assert.match(harbor.meta.html, /data-space="Harbor Studio"/);
   assert.match(harbor.meta.html, /--win:#FAF7F2/);

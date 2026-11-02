@@ -111,7 +111,7 @@ test("a new tab is a '+' tab with its own key, and a rename keeps the key", () =
   assert.equal(c.state().tabs.find((x) => x.key === "chats:thread-1")?.title, "Rivera intake");
 });
 
-test("the strip draws the Space's tabs with the selected one marked, a plus and the options button", () => {
+test("the strip draws the Space's tabs with the selected one marked and a plus; its menu is the right-click on a tab", () => {
   const c = controller(null);
   c.openPlace("files");
   c.openPlace("records", "pruitt", "Pruitt matter");
@@ -119,7 +119,7 @@ test("the strip draws the Space's tabs with the selected one marked, a plus and 
   for (const title of ["Chats", "Files", "Pruitt matter"]) assert.ok(out.includes(title), title);
   assert.ok(out.includes('data-testid="tab-records:pruitt-selected"'), "the selected tab is marked");
   assert.ok(out.includes('data-testid="tab-chats"') && out.includes('data-testid="tab-files"'));
-  assert.ok(out.includes('data-testid="tab-strip-plus"') && out.includes('data-testid="tab-strip-more"'));
+  assert.ok(out.includes('data-testid="tab-strip-plus"') && !out.includes('data-testid="tab-strip-more"'));
   const specs = tabSpecs([{ ...placeTab("home"), pinned: true }, placeTab("chats")]);
   assert.deepEqual(specs.map((s) => [s.key, s.title, s.pinned === true]), [["home", "Home", true], ["chats", "Chats", false]]);
   assert.ok(specs.every((s) => s.icon !== undefined && s.icon.startsWith("<svg")), "every tab carries its place icon");

@@ -73,7 +73,7 @@ export function todayCount(rows: readonly TodayRow[]): string {
 export const STAR_LABEL: Record<StarType, string> = {
   space: "Space", record_type: "Record type", record: "Record", project: "Project", folder: "Folder", file: "File", channel: "Channel", thread: "Chat",
   inbox: "Inbox", mailbox: "Mailbox", vault_folder: "Vault folder", vault_item: "Vault item", automation_group: "Automations", automation: "Automation",
-  agent: "Agent", connector: "Connector", connection: "Connection", site: "Site", form: "Form", campaign: "Campaign", kit: "Kit", terminal: "Terminal",
+  agent: "Agent", connector: "Connector", connection: "Connection", site: "Site", form: "Form", kit: "Kit", terminal: "Terminal",
   computer: "Agent computer", task: "Task", run: "Run", number: "Number", domain: "Domain", calendar: "Calendar",
 };
 
@@ -128,15 +128,15 @@ export function terminalIds(stars: readonly Star[]): string[] {
 
 // ---------------------------------------------------------------- Personal Space (spec 2.1 matrix)
 
-/** Starred things a Personal Space cannot hold: the Apps (public sites, forms, campaigns) need a Team Space. Agent computers are not on the list: they need a capable host, and a star only exists once one does. */
-const TEAM_ONLY: ReadonlySet<StarType> = new Set<StarType>(["site", "form", "campaign"]);
+/** Starred things a Personal Space cannot hold: the Apps (public sites, forms) need a Team Space. Agent computers are not on the list: they need a capable host, and a star only exists once one does. */
+const TEAM_ONLY: ReadonlySet<StarType> = new Set<StarType>(["site", "form"]);
 export const needsTeamSpace = (t: StarType): boolean => TEAM_ONLY.has(t);
 
-const TEAM_WORDS: Partial<Record<StarType, string>> = { computer: "Agent computers", site: "Sites", form: "forms", campaign: "campaigns" };
+const TEAM_WORDS: Partial<Record<StarType, string>> = { computer: "Agent computers", site: "Sites", form: "forms" };
 
-/** "Agent computers, sites, forms and campaigns" for the kinds present, in a fixed order. */
+/** "Agent computers, sites and forms" for the kinds present, in a fixed order. */
 export function teamOnlyWhat(types: readonly StarType[]): string {
-  const order: StarType[] = ["computer", "site", "form", "campaign"];
+  const order: StarType[] = ["computer", "site", "form"];
   const words = order.filter((t) => types.includes(t)).map((t, i) => (i === 0 ? TEAM_WORDS[t]! : TEAM_WORDS[t]!.toLowerCase()));
   if (words.length <= 1) return words[0] ?? "";
   return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;

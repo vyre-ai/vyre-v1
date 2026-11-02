@@ -93,7 +93,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       // the desktop app's first launch: its own page with the desktop shell's bridge, so the first screen is the three doors and Sign in sits under them
       const desk = await ctx.newPage();
       await desk.addInitScript(`globalThis.__TAURI__ = { core: { invoke: async (command) => { if (command === "desktop_info") return { app: "Vyre", version: "1.0.0-rc.1", platform: "macos", arch: "aarch64", sidecar: { phase: "ready", url: null, version: "1.0.0-rc.1", restarts: 0, error: null } }; if (command === "take_pending_link") return null; throw new Error("unexpected command"); } }, event: { listen: async () => () => undefined } };`);
-      await desk.goto(`${web.origin}/home?space=tauri%3A%2F%2Flocalhost`, { waitUntil: "load" });
+      await desk.goto(`${web.origin}/chat?space=tauri%3A%2F%2Flocalhost`, { waitUntil: "load" });
       for (const door of ["door-me", "door-invited", "door-team"]) await desk.getByTestId(door).waitFor({ timeout: 15_000 });
       await desk.getByTestId("door-existing").click();
       await desk.getByTestId("space-address").waitFor({ timeout: 15_000 });
@@ -126,7 +126,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       let signInRequests = 0;
       await page.route("**/v1/identity/sign_in", async (route) => { signInRequests++; await signInGate; await route.continue(); });
       try {
-        await page.goto(`${web.origin}/home`, { waitUntil: "load" });
+        await page.goto(`${web.origin}/chat`, { waitUntil: "load" });
         await page.getByTestId("si-user").waitFor({ timeout: 15_000 });
         await page.getByTestId("si-user").fill("typing.user");
         await page.getByTestId("si-password").fill("synthetic typed password");
@@ -148,7 +148,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.unroute("**/v1/identity/sign_in");
       }
       // Capture the reference frame only after the synthetic input has been discarded.
-      await page.goto(`${web.origin}/home`, { waitUntil: "load" });
+      await page.goto(`${web.origin}/chat`, { waitUntil: "load" });
       await page.getByTestId("si-user").waitFor({ timeout: 15_000 });
       assert.equal(await page.getByTestId("shell").count(), 0, "no shell before sign-in");
       await page.getByRole("heading", { name: "Sign in to Fresh Co", exact: true }).waitFor({ timeout: 15_000 });
@@ -196,8 +196,8 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       const gap = (signedIn ? null : "needs the claimed owner session (step 2)") ?? todoFor("home", live);
       if (gap) { todo.push(gap); s.todo(gap); return; }
       await step("home", async () => {
-        await page.getByTestId("rail-home").or(page.getByTestId("rail-home-selected")).first().click();
-        await page.getByTestId("s-needs").or(page.getByTestId("home-place")).first().waitFor({ timeout: 15_000 });
+        await page.getByTestId("rail-chats").or(page.getByTestId("rail-chats-selected")).first().click();
+        await page.getByTestId("chats-landing").or(page.getByTestId("conversation")).first().waitFor({ timeout: 15_000 });
       });
     });
 
@@ -307,7 +307,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         if (sessionStorage.getItem("vyre.e2e.watchHome") !== "1") return;
         const w = window as unknown as { __homeSeen?: boolean };
         w.__homeSeen = false;
-        new MutationObserver(() => { if (document.querySelector('[data-testid="home-place"], [data-testid="s-needs"]')) w.__homeSeen = true; }).observe(document, { subtree: true, childList: true });
+        new MutationObserver(() => { if (document.querySelector('[data-testid="chats-landing"]')) w.__homeSeen = true; }).observe(document, { subtree: true, childList: true });
       });
       await page.reload({ waitUntil: "load" });
       await page.getByTestId("project-page").waitFor({ timeout: 15_000 });
@@ -471,14 +471,14 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.getByText("Group details changed", {exact:true}).first().waitFor();
         await page.getByText("Role assigned", {exact:true}).waitFor();
         await page.screenshot({path:"shots-evidence/console/groups-activity.png"});
-        await page.getByTestId("console-skin").click();
+        await page.getByTestId("title-skin").click();
         await page.getByText("Obsidian",{exact:true}).click();
         await page.screenshot({path:"shots-evidence/console/groups-dark.png"});
         await page.setViewportSize({width:390,height:844});
         await page.screenshot({path:"shots-evidence/console/groups-phone.png"});
         assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"phone Console does not overflow horizontally");
         await page.setViewportSize({width:1280,height:800});
-        await page.getByTestId("console-skin").click();
+        await page.getByTestId("title-skin").click();
         await page.getByTestId("menu-item-System").click();
         await page.getByRole("tab", {name:/^Members/}).click();
         await page.getByRole("button", {name:"Remove…", exact:true}).click();
@@ -543,10 +543,10 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         const from=new Date(Date.now()-60000).toISOString().slice(0,16).replace("T"," "),to=new Date(Date.now()+86400000).toISOString().slice(0,16).replace("T"," ");
         await page.getByTestId("grant-window-from").fill(from);await page.getByTestId("grant-window-to").fill(to);
         await page.screenshot({path:"shots-evidence/console/grant-conditions.png",fullPage:true});
-        await page.getByTestId("console-skin").click();await page.getByText("Obsidian",{exact:true}).click();
+        await page.getByTestId("title-skin").click();await page.getByText("Obsidian",{exact:true}).click();
         await page.getByTestId("grant-window-to").scrollIntoViewIfNeeded();await page.screenshot({path:"shots-evidence/console/grant-conditions-dark.png"});
         await page.setViewportSize({width:390,height:844});await page.getByTestId("grant-window-to").scrollIntoViewIfNeeded();await page.screenshot({path:"shots-evidence/console/grant-conditions-phone.png"});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"Grant conditions fit the phone viewport");
-        await page.setViewportSize({width:1280,height:800});await page.getByTestId("console-skin").click();await page.getByTestId("menu-item-System").click();
+        await page.setViewportSize({width:1280,height:800});await page.getByTestId("title-skin").click();await page.getByTestId("menu-item-System").click();
         await page.getByTestId("grant-add").click();await page.getByTestId("grant-save-confirm").click();await page.getByText("Access granted",{exact:true}).waitFor({timeout:5000}).catch(async error=>{console.log("grant conditions save: "+(await page.locator("body").innerText()).slice(-1800));throw error;});
         const conditionReadback=await api("access.grants.list",{resource:{type:"record_type",id:"grant_conditions"}}) as {grants:{id:string;conditions:{rowFilter:unknown;hiddenFields:string[];labelCeiling:string;window:{from:number;to:number}}}[]};
         const bounded=conditionReadback.grants[0]!;assert.deepEqual(bounded.conditions.rowFilter,{field:"name",op:"eq",value:"Allowed"});assert.deepEqual(bounded.conditions.hiddenFields,["secret"]);assert.equal(bounded.conditions.labelCeiling,"public");assert.equal(bounded.conditions.window.from,Date.parse(from.replace(" ","T")+":00Z"));
@@ -564,8 +564,8 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.reload();await page.getByTestId("console-agent-template").waitFor();await page.getByTestId("row-template-file-RELEASE.md").waitFor();
         await page.getByRole("button",{name:"Target agent",exact:true}).click();await page.getByTestId("menu-item-Template proof assistant").click();await page.getByTestId("template-preview").click();await page.getByRole("button",{name:"Apply template",exact:true}).waitFor();
         await page.screenshot({path:"shots-evidence/console/template-files-preview.png"});
-        await page.getByTestId("console-skin").click();await page.getByText("Obsidian",{exact:true}).click();await page.getByTestId("template-preview").scrollIntoViewIfNeeded();await page.screenshot({path:"shots-evidence/console/template-files-dark.png"});
-        await page.setViewportSize({width:390,height:844});await page.getByTestId("template-preview").scrollIntoViewIfNeeded();await page.screenshot({path:"shots-evidence/console/template-files-phone.png"});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"Template editor fits the phone viewport");await page.setViewportSize({width:1280,height:800});await page.getByTestId("console-skin").click();await page.getByTestId("menu-item-System").click();
+        await page.getByTestId("title-skin").click();await page.getByText("Obsidian",{exact:true}).click();await page.getByTestId("template-preview").scrollIntoViewIfNeeded();await page.screenshot({path:"shots-evidence/console/template-files-dark.png"});
+        await page.setViewportSize({width:390,height:844});await page.getByTestId("template-preview").scrollIntoViewIfNeeded();await page.screenshot({path:"shots-evidence/console/template-files-phone.png"});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"Template editor fits the phone viewport");await page.setViewportSize({width:1280,height:800});await page.getByTestId("title-skin").click();await page.getByTestId("menu-item-System").click();
         await page.getByRole("button",{name:"Apply template",exact:true}).click();await page.getByText("Template applied",{exact:true}).waitFor();
         const appliedFiles=await api("files.list",{section:"space",folder:templateAgent.agent.folderId}) as {files:{fileId:string;name:string}[]};const appliedFile=appliedFiles.files.find(file=>file.name==="RELEASE.md")!;assert.ok(appliedFile,"one-agent apply creates the actual template file in the target agent home");assert.match((await api("files.read",{fileId:appliedFile.fileId,as:"text"}) as {text:string}).text,/record the release evidence/);
         await openConsole("console.agent-computers");const hostHealth=await api("computers.health",{}) as {state:string;runtime?:string};const hostState=hostHealth.state;const hostLabel=hostHealth.runtime==="missing"&&hostState==="healthy"?"No container runtime":hostState==="down"?"Host unavailable":hostState==="degraded"?"Host needs attention":"Host ready";await page.getByText(hostLabel,{exact:true}).waitFor();await page.getByTestId("computer-new").click();const provisionSheet=page.getByTestId("computer-new-sheet");await provisionSheet.waitFor();await page.getByTestId(`row-provision-agent-${templateAgent.agent.agentId}`).click();if(hostState==="down")assert.equal(await provisionSheet.getByRole("button",{name:"Provision",exact:true}).isDisabled(),true,"a down host cannot pretend to provision an agent computer");await page.screenshot({path:"shots-evidence/console/computer-host-unavailable.png"});await provisionSheet.getByRole("button",{name:"Cancel",exact:true}).click();await provisionSheet.waitFor({state:"detached"});
@@ -626,13 +626,13 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.keyboard.press("Escape");
         await page.getByTestId("object-sheet-close").click();
         await page.screenshot({path:"shots-evidence/console/policies-signin.png"});
-        await page.getByTestId("console-skin").click();await page.getByText("Obsidian",{exact:true}).click();
+        await page.getByTestId("title-skin").click();await page.getByText("Obsidian",{exact:true}).click();
         await page.screenshot({path:"shots-evidence/console/policies-dark.png"});
         await page.setViewportSize({width:390,height:844});await page.reload();await page.getByTestId("policy-object").waitFor();
         assert.equal(await page.getByTestId("console").count(),1,"fresh phone Console has one frame");
         await page.screenshot({path:"shots-evidence/console/policies-phone.png"});
         assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"phone Policies does not overflow");
-        await page.setViewportSize({width:1280,height:800});await page.getByTestId("console-skin").click();await page.getByTestId("menu-item-System").click();
+        await page.setViewportSize({width:1280,height:800});await page.getByTestId("title-skin").click();await page.getByTestId("menu-item-System").click();
 
         await openConsole("access.checker");
         await page.getByTestId("checker-resource-picker-search").fill("Console access proof");
@@ -640,7 +640,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.getByTestId("checker-run").click();
         await page.getByTestId("checker-decision").filter({ hasText: "allow" }).waitFor();
         await page.screenshot({ path: "shots-evidence/console/access-checker.png" });
-        await page.getByTestId("console-open-app").click();
+        await page.getByTestId("rail-chats").click();
         await page.getByTestId("shell").waitFor();
       } finally { fs.rmSync(backupDir, { recursive: true, force: true }); }
     });
@@ -650,7 +650,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       if (gap) { todo.push(gap); s.todo(gap); return; }
       // One fresh page per place: a place that loops or throws takes its whole page down, and must not hide the places after it.
       const places: [string, string][] = [
-        ["home", '[data-testid="s-needs"], [data-testid="home-place"]'], ["chat", '[data-testid="chats-place"]'], ["mail", '[data-testid="inbox-place"]'], ["records", '[data-testid="records-place"]'],
+        ["chat", '[data-testid="chats-place"]'], ["mail", '[data-testid="inbox-place"]'], ["records", '[data-testid="records-place"]'],
         ["files", '[data-testid="files-place"]'], ["sites", '[data-testid="apps-place"]'], ["automations", '[data-testid="automations-place"]'],
         ["vault", '[data-testid="vault-place"]'], ["settings", '[data-testid="settings-place"]'],
       ];
@@ -731,7 +731,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         else await route.continue();
       });
       try {
-        await joined.goto(`${secureWeb.origin}/home`, { waitUntil: "load" });
+        await joined.goto(`${secureWeb.origin}/chat`, { waitUntil: "load" });
         await joined.getByTestId("first").waitFor({timeout:15000});
         assert.equal(await joined.getByTestId("web").count(),0,"native invite goes directly to account setup");
         await joined.getByTestId("first").fill("Casey");
@@ -799,7 +799,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       const gap = signedIn ? null : "needs the claimed owner session (step 2)";
       if (gap) { todo.push(gap); s.todo(gap); return; }
       const p = await ctx.newPage();
-      await p.goto(`${web.origin}/home`, { waitUntil: "load" });
+      await p.goto(`${web.origin}/chat`, { waitUntil: "load" });
       await p.evaluate(() => {
         const raw = localStorage.getItem("vyre.session.v1");
         if (!raw) return;

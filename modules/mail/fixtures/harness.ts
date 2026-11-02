@@ -32,6 +32,7 @@ export function harness(opts: HarnessOptions = {}) {
   const denied = opts.denied ?? new Set<string>();
   let clock = NOW;
   let linkFails = opts.linkFails === true;
+  let matched: string | undefined;   // the Workspace address the caller is matched to
   let tasks = 0;
   const contacts = opts.contacts ?? {};
   const ctx: MailCtx = {
@@ -61,6 +62,7 @@ export function harness(opts: HarnessOptions = {}) {
         return { conversationId, linked: "none" };
       }
       if (cap === "google.receive_push" || cap === "ms.receive_notification") return { accepted: true };
+      if (cap === "google.dwd.my_account" || cap === "ms.consent.my_account") return matched === undefined ? {} : { email: matched };
       throw new Error(`unexpected capability ${cap}`);
     },
     authorize(_action, resource) {
@@ -79,6 +81,7 @@ export function harness(opts: HarnessOptions = {}) {
     ctx, emitted, called, denied,
     advance(ms: number) { clock += ms; },
     failLinks(on: boolean) { linkFails = on; },
+    matchTo(address: string | undefined) { matched = address; },
     rows(sql: string, ...args: unknown[]): Row[] { return ctx.db.all(sql, ...args) as Row[]; },
     named(name: string): Emitted[] { return emitted.filter((e) => e.name === name); },
     calls(cap: string): Called[] { return called.filter((c) => c.cap === cap); },

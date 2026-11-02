@@ -39,6 +39,7 @@ import {
   SAMPLE_PLAN,
   SAMPLE_QUESTION,
   SAMPLE_RECORD,
+  SAMPLE_ARTIFACT,
   SAMPLE_TERMINAL,
   sampleBlocksA,
 } from "../impl-a/sample.ts";
@@ -103,6 +104,7 @@ const SAMPLES: Record<PartOneType, Block> = {
   deploy: SAMPLE_DEPLOY,
   mount: SAMPLE_MOUNT,
   record_card: SAMPLE_RECORD,
+  artifact: SAMPLE_ARTIFACT,
 };
 
 function html(block: Block, host: BlockHost = fakeHost().host): string {
@@ -151,9 +153,9 @@ test("every id a block action sends is a field of the block's data schema", () =
 
 /* ---------- each type renders ---------- */
 
-test("the registry of this part holds the seven types and each renders its title and buttons", () => {
+test("the registry of this part holds its types and each renders its title and buttons", () => {
   assert.deepEqual(Object.keys(BLOCK_COMPONENTS_A).sort(), [...PART_ONE_TYPES].sort());
-  assert.equal(sampleBlocksA().length, 7);
+  assert.equal(sampleBlocksA().length, PART_ONE_TYPES.length);
   for (const type of PART_ONE_TYPES) {
     const block = SAMPLES[type];
     const markup = html(block);

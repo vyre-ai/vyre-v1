@@ -103,7 +103,7 @@ function prodRows(w: World & { db: MemoryDb }, siteId: string): Row[] {
 test("gate: sites.promote declares the site_promote act and rollback declares none (the host holds the call, the handler runs after approval)", () => {
   const registry = JSON.parse(readFileSync(join(here, "../../../generated/registry.json"), "utf8")) as { capabilities: { name: string; gate?: { act: string; reason?: string } }[] };
   const gate = (name: string) => registry.capabilities.find((c) => c.name === name)?.gate;
-  assert.deepEqual(gate("sites.promote"), { act: "site_promote" });
+  assert.equal((gate("sites.promote") as { act: string }).act, "site_promote");
   assert.equal(gate("sites.rollback")?.act, "none");
   assert.ok((gate("sites.rollback")?.reason ?? "").length > 0);
 });

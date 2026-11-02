@@ -9,7 +9,7 @@ import { screensById } from "../../../../../generated/screens.ts";
 import { namesFor, nameOf } from "../../fixtures/index.ts";
 import type { CapMap } from "../../../../../generated/types.ts";
 import type { SettingsData, SettingsNav, SpaceTile } from "./data.tsx";
-import { ADMIN_LINKS, SPACE_ROWS, searchRows } from "./model.ts";
+import { SPACE_ROWS, searchRows } from "./model.ts";
 import type { SettingRow } from "./model.ts";
 
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
@@ -258,7 +258,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   };
   const data: SettingsData = {
     // the Owner of Northwind can open everything; Harbor Studio is a Member's Space and has no Space pages
-    ...(space.id === "northwind" ? { admin: { pages: new Set(Object.values(ADMIN_LINKS).flat().map((l) => l.id)), canPolicy: true, render: (id: string) => createElement(Text, { testID: `admin-${id}` }, id) } } : {}),
+    ...(space.id === "northwind" ? { openConsole: () => undefined } : {}),
     screens,
     async call(cap, input) {
       calls.push({ cap, input });

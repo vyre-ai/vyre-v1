@@ -81,7 +81,7 @@ export const hostCalls = {
     rows(ctx, `SELECT "id", "folderId" FROM agents_agent WHERE "ownerId" = ? AND "deletedAt" IS NULL`, i.person).map((r) => ({ agentId: String(r["id"]), folderId: String(r["folderId"]) })),
   "agents.owned_by": (ctx: Ctx, i: { person: string }) => ({
     // the person's private assistant is theirs alone: it is not something to hand on, so the wizard does not list it (it goes with the person, below)
-    agents: kept(rows(ctx, `SELECT "id", "name" FROM agents_agent WHERE "ownerId" = ? AND "deletedAt" IS NULL AND "kind" <> 'assistant'`, i.person), "agent", "name"),
+    agents: kept(rows(ctx, `SELECT "id", "name" FROM agents_agent WHERE "ownerId" = ? AND "deletedAt" IS NULL AND "kind" <> 'assistant' AND "runtime" <> 'outside'`, i.person), "agent", "name"),
     routines: kept(rows(ctx, `SELECT "id", "title" FROM agents_routine WHERE "ownerId" = ?`, i.person), "routine", "title"),
   }),
   "agents.reassign_owned": async (ctx: Ctx, i: { person: string; kind: string; action: string; to?: string }): Promise<number> => {
@@ -89,7 +89,8 @@ export const hostCalls = {
     try {
       if (i.kind === "agents") {
         // a private assistant is never handed on: it ends with its person (agents.person_left), whatever is done with their other agents
-        const OTHERS = `"ownerId" = ? AND "deletedAt" IS NULL AND "kind" <> 'assistant'`;
+        // and an outside agent runs on its person's machine, so it ends with them too
+        const OTHERS = `"ownerId" = ? AND "deletedAt" IS NULL AND "kind" <> 'assistant' AND "runtime" <> 'outside'`;
         if (i.action === "reassign" && i.to) return ctx.db.run(`UPDATE agents_agent SET "ownerId" = ?, "updatedAt" = ? WHERE ${OTHERS}`, i.to, now, i.person).changes;
         const mine = rows(ctx, `SELECT * FROM agents_agent WHERE ${OTHERS}`, i.person);
         if (i.action === "pause") {

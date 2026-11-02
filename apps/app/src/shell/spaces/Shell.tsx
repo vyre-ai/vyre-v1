@@ -1,24 +1,35 @@
-// The shell (spec 3.0, 2.1, ARCH 7.0): title bar on top; under it the rail, then the main view with its tab strip and the open place. One Space is open at a time:
+// The shell (spec 3.0, 2.1, ARCH 7.0): title bar on top; under it, on the quiet rail ground, the fixed rail and then soft sheets: the sidebar, the main view with its tab strip and the open place, and the
+// right rail. A place never draws this frame: its sidebar and its panes land in the sheets through ui/SidePane's host. One Space is open at a time:
 // a switch shows the skeleton as its first frame, unmounts every place, and keys the next place by the new Space, so two Spaces' rows never meet on screen.
 // Places are drawn by `renderPlace`; the shell owns the frame, the tabs, the keys and the Space.
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, StyleSheet, View, useWindowDimensions } from "react-native";
+import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
 import { reportProblem } from "../../../../../ui/src/Menu/index.tsx";
+import { Avatar } from "../../../../../ui/src/Avatar/index.tsx";
+import { holdView, installMotion } from "../../../../../ui/src/theme/motion.ts";
+import type { Swap } from "../../../../../ui/src/theme/motion.ts";
+import { SHEET_GAP, SHEET_RADIUS, SheetHostProvider, sq, useSquircle } from "../../../../../ui/src/SidePane/host.tsx";
+import { Tooltip } from "../../../../../ui/src/Tooltip/index.tsx";
+import { installTips } from "../../../../../ui/src/Tooltip/tips.ts";
 import { NeedsTeamSpace } from "../../../../../ui/src/NeedsTeamSpace/index.tsx";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import type { PhoneDeviceLike } from "../../../../../ui/src/Softphone/index.tsx";
 import type { InboxData } from "../../places/inbox/sidebar/data.tsx";
 import { Rail } from "../rail/Rail.tsx";
-import { SidebarBack, SidebarExpand, SidebarSlot, SidebarSlotProvider, useSidebarSlot } from "../sidebar/index.ts";
+import { SidebarBack, SidebarExpand, SidebarHide, SidebarSlot, SidebarSlotProvider, useSidebarSlot } from "../sidebar/index.ts";
 import type { SidebarStorage } from "../sidebar/index.ts";
 import type { KitDef, PlaceId } from "../rail/kits.ts";
 import { MainTabs, useTabs } from "../tabs/MainTabs.tsx";
 import { TitleBar } from "../titlebar/TitleBar.tsx";
+import { Toast } from "./Toast.tsx";
 import { HubProvider, useHubState } from "./context.tsx";
 import { titleText } from "./hub.ts";
 import type { ShellHub, ShellTheme } from "./hub.ts";
 import { shellKey } from "./keys.ts";
+
+/** A slow view stops holding the old one after this long: its own quiet sign takes over. */
+const HOLD_MAX_MS = 900;
 import type { SpaceKind } from "./model.ts";
 import { SpaceSkeleton } from "./Skeleton.tsx";
 import { watchPurge } from "./purge.ts";
@@ -63,21 +74,22 @@ export interface ShellProps {
   purge?: ShellPurge;
   /** Where new chats run by default in a Team Space (the Space menu's "Chats run on"). */
   runsOn?: SpaceMenuInput["runsOn"];
+  /** The person signed in: their own face sits at the foot of the rail and opens their profile. */
+  me?: { id: string; name: string; photo?: string } | undefined;
+  onOpenMe?: () => void;
 }
 
-/** The body beside the sidebar. On a computer the sidebar sits left of the place. On the phone a place with a sidebar opens on its list; choosing an item shows the body with Back. */
+/** The body beside the sidebar. On a computer the sidebar is its own sheet left of this; on the phone a place with a sidebar opens on its list, and choosing an item shows the body with Back. */
 export function Stage({ children }: { children: ReactNode }): ReactElement {
   const slot = useSidebarSlot();
   const showList = slot.compact && slot.view === "list";
   return (
     <View style={styles.stageRow}>
-      <SidebarSlot />
+      {slot.compact ? <SidebarSlot /> : null}
       {/* the place stays mounted while the phone shows its list, because its sidebar content is drawn from inside the place */}
       <View testID="place-body" aria-hidden={showList} style={[styles.stageCol, showList && styles.hidden]}>
         <SidebarBack />
-        <SidebarExpand />
-        {/* a collapsed sidebar leaves its "show" button at the top left: the place moves over so its title never sits under it */}
-        <View testID="place-stage" style={[styles.stage, slot.hasSidebar && slot.collapsed && !slot.compact && styles.stageBesideExpand]}>{children}</View>
+        <View testID="place-stage" style={styles.stage}>{children}</View>
       </View>
     </View>
   );
@@ -85,10 +97,72 @@ export function Stage({ children }: { children: ReactNode }): ReactElement {
 
 /** What a Personal Space cannot do (spec 2.1 matrix), by place. */
 export function teamOnly(place: PlaceId): string | null {
-  return place === "apps" ? "Sites, forms and campaigns" : null;
+  return place === "apps" ? "Sites and forms" : null;
 }
 
 export const COMPACT_BELOW = 700;
+
+/** The sidebar slides on the one panel motion: 220 ms, the standard ease. */
+const SLIDE = (Platform.OS === "web" ? { transitionProperty: "margin-left, opacity", transitionDuration: "220ms", transitionTimingFunction: "cubic-bezier(.2,.8,.2,1)" } : {}) as object;
+
+/** The computer's frame: the sidebar sheet, the main sheet with the tabs, then the outlets panes land in. */
+export function Sheets({ tabs, toast, hub, children }: { tabs: ReactNode; toast?: ReactNode; hub?: ShellHub; children: ReactNode }): ReactElement {
+  const main = useRef<unknown>(null);
+  // A switch never shows a blank frame: a still copy of the view stays over the sheet until the next view stops loading, then lets go in one fade.
+  useEffect(() => {
+    if (!hub || Platform.OS !== "web") return undefined;
+    installMotion((globalThis as { document?: Parameters<typeof installMotion>[0] }).document);
+    let held: Swap | null = null;
+    hub.setHolder(() => {
+      if (held !== null) return;
+      const swap = holdView(main.current, main.current);
+      if (swap === null) return;
+      held = swap;
+      const began = Date.now();
+      let frames = 0;
+      const wait = (): void => {
+        const el = main.current as { querySelector?: (q: string) => unknown } | null;
+        frames += 1;
+        if (frames < 3 || (el?.querySelector?.("[data-loading]:not([data-swap] [data-loading])") && Date.now() - began < HOLD_MAX_MS)) { requestAnimationFrame(wait); return; }
+        swap.fade();
+        held = null;
+      };
+      requestAnimationFrame(wait);
+    });
+    return () => hub.setHolder(null);
+  }, [hub]);
+  const [left, setLeft] = useState<unknown>(null);
+  const [right, setRight] = useState<unknown>(null);
+  const host = useMemo(() => ({ left, right, hide: <SidebarHide /> }), [left, right]);
+  const slot = useSidebarSlot();
+  const [leftW, setLeftW] = useState(0);
+  const hidden = slot.collapsed;
+  useSquircle();
+  useEffect(() => { if (Platform.OS === "web") { installTips(); installMotion((globalThis as { document?: Parameters<typeof installMotion>[0] }).document); } }, []);
+  useEffect(() => {
+    if (Platform.OS !== "web") return undefined;
+    const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void } }).document;
+    const onKey = (e: KeyboardEvent): void => { if (shellKey(e)?.type === "sidebar") { e.preventDefault(); slot.setCollapsed(!slot.collapsed); } };
+    doc?.addEventListener("keydown", onKey);
+    return () => doc?.removeEventListener("keydown", onKey);
+  }, [slot]);
+  return (
+    <SheetHostProvider value={host}>
+      <View testID="sheets" style={styles.sheets}>
+        <View testID="sheet-left-wrap" aria-hidden={hidden} pointerEvents={hidden ? "none" : "auto"} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0) setLeftW(w); }} style={[styles.leftWrap, SLIDE, hidden ? { marginLeft: -leftW, opacity: 0 } : null]}>
+          <SidebarSlot />
+          <View testID="sheet-left" style={styles.outlet} ref={(n) => { if (n !== null) setLeft(n); }} />
+        </View>
+        <View testID="sheet-main" ref={main as never} style={[styles.mainSheet, SLIDE, hidden ? styles.mainAlone : null]} {...sq("sheet")}>
+          <View style={styles.tabsRow}><SidebarExpand /><View style={styles.tabsFill}>{tabs}</View></View>
+          {children}
+          {toast}
+        </View>
+        <View testID="sheet-right" style={styles.outlet} ref={(n) => { if (n !== null) setRight(n); }} />
+      </View>
+    </SheetHostProvider>
+  );
+}
 
 /** A place frame: the first time it draws after a switch it tells the hub, which records the switch time. */
 function PlaceFrame({ hub, epoch, children }: { hub: ShellHub; epoch: number; children?: ReactNode }): ReactElement {
@@ -188,19 +262,10 @@ export function Shell(props: ShellProps): ReactElement {
       <View testID="shell" style={styles.root} accessibilityLabel={`Vyre, ${session.def.name}`}>
         <TitleBar
           title={titleText(session.def.name, state.place, state.away)}
-          status={state.status}
-          onUndo={() => hub.undoStatus()}
           online={state.online}
           waiting={state.waiting}
           onOpenWaiting={() => (props.onOpenWaiting !== undefined ? props.onOpenWaiting() : hub.go("settings", "waiting"))}
           onSearch={() => props.onSearch?.()}
-          skin={skin}
-          onSkin={(id) => {
-            theme?.setSkin(id);
-            hub.flash("Skin saved for this Space");
-          }}
-          spaceName={session.def.name}
-          onMoreAppearance={() => hub.go("settings", "appearance")}
           compact={compact}
           call={props.phone ? <Suspense fallback={null}><InboxCallTitlePill /></Suspense> : null}
         />
@@ -211,16 +276,16 @@ export function Shell(props: ShellProps): ReactElement {
             onSelect={(place) => hub.go(place)}
             {...(props.onPrefetchPlace === undefined ? {} : { onPrefetch: props.onPrefetchPlace })}
             header={spaceTile}
+            {...(props.me ? { foot: <MeFace me={props.me} {...(props.onOpenMe ? { onPress: props.onOpenMe } : {})} /> } : {})}
           />}
-          <View style={styles.main}>
-            {compact ? null : <MainTabs controller={session.tabs} onNavigate={(tab) => hub.showTab(tab)} onNewTab={() => hub.newTab()} onGoToPlace={(place) => hub.go(place)} />}
-            <SidebarSlotProvider
-              deviceId={props.sidebar?.deviceId ?? "device"} personId={props.sidebar?.personId ?? "me"} spaceId={ctx.spaceId} place={state.place}
-              epoch={state.epoch} compact={compact} storage={props.sidebar?.storage ?? null}
-            >
-              <Stage>{stage}</Stage>
-            </SidebarSlotProvider>
-          </View>
+          <SidebarSlotProvider
+            deviceId={props.sidebar?.deviceId ?? "device"} personId={props.sidebar?.personId ?? "me"} spaceId={ctx.spaceId} place={state.place}
+            epoch={state.epoch} compact={compact} storage={props.sidebar?.storage ?? null}
+          >
+            {compact
+              ? <View style={styles.main}><Stage>{stage}</Stage><Toast status={state.status} onUndo={() => hub.undoStatus()} /></View>
+              : <Sheets hub={hub} toast={<Toast status={state.status} onUndo={() => hub.undoStatus()} />} tabs={<MainTabs controller={session.tabs} onNavigate={(tab) => hub.showTab(tab)} onNewTab={() => hub.newTab()} onGoToPlace={(place) => hub.go(place)} />}><Stage>{stage}</Stage></Sheets>}
+          </SidebarSlotProvider>
           {compact ? (
             <Rail
               bottom
@@ -241,15 +306,33 @@ export function Shell(props: ShellProps): ReactElement {
   );
 }
 
+/** The person's own face at the foot of the rail. Their profile opens beside whatever is open. */
+function MeFace({ me, onPress }: { me: { id: string; name: string; photo?: string }; onPress?: () => void }): ReactElement {
+  return (
+    <Tooltip text="You">
+      <Pressable role="button" aria-label={`${me.name}, your profile`} testID="rail-me" onPress={onPress} style={styles.me}>
+        <Avatar name={me.name} seedId={me.id} kind="person" size={24} {...(me.photo ? { photo: me.photo } : {})} />
+      </Pressable>
+    </Tooltip>
+  );
+}
+
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: "var(--win)" as string },
-  body: { flex: 1, flexDirection: "row", minHeight: 0 },
+  root: { flex: 1, backgroundColor: "var(--rail)" as string },
+  body: { flex: 1, flexDirection: "row", minHeight: 0, paddingRight: 8, paddingBottom: 8 },
+  sheets: { flex: 1, minWidth: 0, minHeight: 0, flexDirection: "row" },
+  outlet: { flexDirection: "row", minHeight: 0, flexShrink: 0 },
+  leftWrap: { flexDirection: "row", minHeight: 0, flexShrink: 0 },
+  mainAlone: { marginLeft: 0 },
+  tabsRow: { flexDirection: "row", flexShrink: 0 },
+  tabsFill: { flex: 1, minWidth: 0 },
+  mainSheet: { flex: 1, minWidth: 0, minHeight: 0, marginLeft: SHEET_GAP, borderRadius: SHEET_RADIUS, overflow: "hidden", backgroundColor: "var(--win)" as string },
+  me: { width: 38, height: 38, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   bodyPhone: { flex: 1, flexDirection: "column", minHeight: 0 },
   main: { flex: 1, minWidth: 0, minHeight: 0 },
   stageRow: { flex: 1, flexDirection: "row", minHeight: 0 },
   stageCol: { flex: 1, minWidth: 0, minHeight: 0 },
   hidden: { display: "none" },
   stage: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
-  stageBesideExpand: { paddingLeft: 36 },
   place: { flex: 1, minHeight: 0 },
 });

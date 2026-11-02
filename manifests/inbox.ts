@@ -3,7 +3,7 @@
 // telephony.send_sms; mailboxes are in `mail`; calls are in `telephony`.
 // DECISION: the "Calls only" view is telephony.call.list; inbox keeps no second call list.
 // DECISION: follow itself is `follows.toggle` in spaces. inbox adds the per-contact "Alert me on replies" option and
-// the reasons a contact reaches your Inbox (owner, project, follow, campaign, shared inbox).
+// the reasons a contact reaches your Inbox (owner, project, follow, shared inbox).
 // DECISION: inbox.thread takes a conversationId or a contactId (the record Conversation tab); the handler requires one of them.
 // An unmatched conversation has no contact: its ACL falls back to the mailbox it arrived in (acl.fallback).
 import { defineManifest, entity, ev, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
@@ -15,7 +15,7 @@ const contactOrCompany = t.enm('contact', 'company');
 const conversationRow = t.obj({
   id: cnvId, contactId: t.opt(id.record), address: t.str({ description: 'Email, number or handle when no contact is matched', examples: ['maya@example.com'] }),
   displayName: t.str(), lastMessageAt: t.ts(), lastChannel: t.enm('email', 'sms', 'call', 'meeting'), lastPreview: t.str(), unreadCount: t.int({ minimum: 0 }),
-  needsMatch: t.bool(), ownerId: t.opt(id.user), mailboxIds: t.arr(id.mailbox), campaignId: t.opt(id.campaign), followed: t.bool(), alertOnReplies: t.bool(),
+  needsMatch: t.bool(), ownerId: t.opt(id.user), mailboxIds: t.arr(id.mailbox), followed: t.bool(), alertOnReplies: t.bool(),
   starred: t.opt(t.bool()),   // the caller's own flag, like followed; absent means not starred
   // Row flags the list handler fills from the contact record, its deliverability and the drafts; absent means unknown or none.
   organisation: t.opt(t.str({ examples: ['Acme Legal'] })), dnd: t.opt(t.bool()),
@@ -23,8 +23,8 @@ const conversationRow = t.obj({
   draftReady: t.opt(t.bool()),
 });
 const timelineItem = t.obj({
-  kind: t.enm('email', 'sms', 'call', 'meeting', 'campaign_step', 'record_chip', 'note'), id: t.str(), at: t.ts(), direction: t.opt(t.enm('in', 'out')),
-  title: t.opt(t.str()), preview: t.opt(t.str()), campaignId: t.opt(id.campaign), recordId: t.opt(id.record), ref: t.opt(t.json()),
+  kind: t.enm('email', 'sms', 'call', 'meeting', 'record_chip', 'note'), id: t.str(), at: t.ts(), direction: t.opt(t.enm('in', 'out')),
+  title: t.opt(t.str()), preview: t.opt(t.str()), recordId: t.opt(id.record), ref: t.opt(t.json()),
 });
 const suggestion = t.obj({ recordId: id.record, type: contactOrCompany, name: t.str(), score: t.num({ minimum: 0, maximum: 1 }), why: t.str() });
 const senderChannel = t.enm('email', 'text');
@@ -45,7 +45,7 @@ const manifest = defineManifest({
   entities: [
     entity('conversation', 'inbox_conversation', 'cnv_', {
       contactId: 'text', address: 'text', displayName: 'text', lastMessageAt: 'datetime', lastChannel: 'choice', lastPreview: 'text', unreadCount: 'number',
-      needsMatch: 'checkbox', ownerId: 'person', mailboxIds: 'text', numberIds: 'text', campaignId: 'text',
+      needsMatch: 'checkbox', ownerId: 'person', mailboxIds: 'text', numberIds: 'text',
     }, 'record', {
       parentField: 'contactId', ownerField: 'ownerId', fallback: { resource: 'mailbox', field: 'mailboxIds' }, fts: ['displayName', 'address', 'lastPreview'],
       sync: { profile: { desktop: 'all', phone: 'window', web: 'window' }, window: { days: 90, recentCount: 300 }, protectedFields: ['needsMatch'] },
@@ -66,9 +66,6 @@ const manifest = defineManifest({
     ev('conversation.reply_received', 'A followed contact replied (Alert me on replies raises it to Interrupt in working hours)', {
       p: { conversationId: cnvId, contactId: id.record, channel }, subject: ['record', '/contactId'], vis: 'participants', notify: 'reply.followed',
     }),
-    ev('conversation.campaign_reply', 'A contact on a campaign replied; it lands in the owner Inbox marked with the campaign', {
-      p: { conversationId: cnvId, contactId: id.record, campaignId: id.campaign, channel }, subject: ['record', '/contactId'], vis: 'participants', notify: 'campaign.reply',
-    }),
     ev('conversation.follow_changed', 'A person followed or unfollowed a contact conversation', {
       p: { contactId: id.record, principalId: t.str(), following: t.bool(), alertOnReplies: t.bool() }, subject: ['record', '/contactId'], vis: 'participants',
     }),
@@ -85,7 +82,7 @@ const manifest = defineManifest({
       out: { threads: t.arr(t.obj({ threadId: t.str(), channel, subject: t.opt(t.str()), mailboxId: t.opt(id.mailbox), lastAt: t.ts(), participants: t.arr(t.str()), unread: t.int(), contactId: t.opt(id.record) })), showing: t.str(), ...pageOut },
       tool: 'inbox', label: 'filter',
     }),
-    read('inbox.thread', 'The whole history of one contact: emails, texts, calls, meetings, campaign lines and record chips', {
+    read('inbox.thread', 'The whole history of one contact: emails, texts, calls, meetings and record chips', {
       in: { conversationId: t.opt(cnvId), contactId: t.opt(id.record), before: t.opt(t.ts()), ...pageIn }, out: { conversation: conversationRow, items: t.arr(timelineItem), ...pageOut },
       tool: 'inbox', label: 'check', errors: ['validation.bad_input'],
     }),
@@ -108,17 +105,17 @@ const manifest = defineManifest({
       in: { conversationId: cnvId, type: contactOrCompany, name: t.opt(t.str()), fileAttachments: t.opt(t.bool()), replyTask: t.opt(t.bool()) }, out: { recordId: id.record, conversation: conversationRow, filed: t.opt(t.int({ minimum: 0 })), skipped: t.opt(t.int({ minimum: 0 })), taskId: t.opt(id.task) },
       perm: 'records.create', emits: ['conversation.matched'], idem: 'key', tool: 'inbox',
     }),
-    write('inbox.link_message', 'Shared linking step for a stored message, text or call: sure matches link, unsure go to Needs you, unowned replies route to the campaign owner then the shared inbox', {
+    write('inbox.link_message', 'Shared linking step for a stored message, text or call: sure matches link, unsure go to Needs you, unowned replies route to the shared inbox', {
       in: {
         channel, ref: t.obj({ kind: t.enm('mail_message', 'sms', 'call'), id: t.str() }), address: t.str(), direction: t.enm('in', 'out'), at: t.ts(),
-        mailboxId: t.opt(id.mailbox), numberId: t.opt(id.number), campaignId: t.opt(id.campaign), preview: t.opt(t.str()),
+        mailboxId: t.opt(id.mailbox), numberId: t.opt(id.number), preview: t.opt(t.str()),
         // what mail already knows of an email, so the thread needs no read-back: its thread key, subject and the people on it
         threadId: t.opt(t.str()), subject: t.opt(t.str()), participants: t.opt(t.arr(t.str())),
         // mail from a person's private mailbox gets a conversation of that person's own, matched to no record and merged with nothing
         private: t.opt(t.bool()), ownerId: t.opt(id.user),
       },
       out: { conversationId: cnvId, contactId: t.opt(id.record), linked: t.enm('sure', 'unsure', 'none'), taskId: t.opt(id.task) },
-      emits: ['conversation.created', 'conversation.matched', 'conversation.needs_match', 'conversation.reply_received', 'conversation.campaign_reply'], idem: 'natural',
+      emits: ['conversation.created', 'conversation.matched', 'conversation.needs_match', 'conversation.reply_received'], idem: 'natural',
     }),
     read('inbox.counts', 'Unread counts for the sidebar: per inbox, per number and the Needs a match total', {
       in: {}, out: { byInbox: t.arr(t.obj({ kind: t.enm('mailbox', 'number'), id: t.str(), name: t.opt(t.str({ description: 'What the sidebar shows: the mailbox address or the number display name (telephony number displayName), never the id' })), unread: t.int() })), total: t.int(), needsMatch: t.int() }, tool: 'inbox',
@@ -130,9 +127,9 @@ const manifest = defineManifest({
       in: { contactId: id.record, follow: t.bool(), alertOnReplies: t.opt(t.bool()) }, out: { following: t.bool(), alertOnReplies: t.bool() },
       on: ['record', '/contactId'], level: 'view', emits: ['conversation.follow_changed'], tool: 'inbox', offline: 'queue',
     }),
-    read('inbox.following', 'Contacts that reach your Inbox and why: owner, project, follow, campaign or shared inbox', {
+    read('inbox.following', 'Contacts that reach your Inbox and why: owner, project, follow or shared inbox', {
       in: { ...pageIn },
-      out: { rows: t.arr(t.obj({ contactId: id.record, reasons: t.arr(t.enm('owner', 'project', 'follow', 'campaign', 'shared_inbox')), alertOnReplies: t.bool() })), ...pageOut }, tool: 'inbox', label: 'filter',
+      out: { rows: t.arr(t.obj({ contactId: id.record, reasons: t.arr(t.enm('owner', 'project', 'follow', 'shared_inbox')), alertOnReplies: t.bool() })), ...pageOut }, tool: 'inbox', label: 'filter',
     }),
     read('inbox.send_options', 'Channels and sending inboxes for a contact; the default is the inbox the thread came in on', {
       in: { conversationId: t.opt(cnvId), contactId: t.opt(id.record) },
@@ -203,5 +200,5 @@ const manifest = defineManifest({
 });
 
 // The conversation caps stay bound to the Space (not to an entity row): the access rules hold no row for a conversation, so a row binding refused every one of them with not found, an unmatched
-// sender above all. The handlers run guardConversation (the list's own rule: owner, follower, campaign owner, the inbox it arrived in) before they act.
+// sender above all. The handlers run guardConversation (the list's own rule: owner, follower, the inbox it arrived in) before they act.
 export default manifest;

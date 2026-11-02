@@ -68,6 +68,8 @@ async function mailbox(d: Daemon, name: string): Promise<string> {
   await post(d, "/v1/contacts/suppression/add", { channel: "email", addresses: [TO], reason: "manual" });
   const box = await post(d, "/v1/mail/mailbox/create", { idempotencyKey: `${name}-mbx`, kind: "service", address: `${name}@example.com`, title: name, provider: "inbound_only" });
   const mailboxId = String((box["mailbox"] as { id?: string } | undefined)?.id);
+  // Turn on checks that the mailbox can send: this one sends through the Space domain, so the Space has a verified one. The recipient is suppressed, so nothing reaches a provider
+  d.db!.run(`INSERT OR IGNORE INTO mail_domain (id, name, provider, spf, dkim, dmarc, verified, "isDefault", version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, "dom_gate", "example.com", "resend", "pass", "pass", "pass", 1, 1, 1);
   await post(d, "/v1/access/share", { idempotencyKey: `${name}-noah`, resource: { type: "mailbox", id: mailboxId }, subject: { kind: "person", id: "usr_noah" }, level: "use" });
   return mailboxId;
 }

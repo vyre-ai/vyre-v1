@@ -1,4 +1,4 @@
-// ui/EmailBuilder: the one email editor (spec 2.19, 3.6; ARCH 7.6) for campaigns, Inbox templates and Automation email steps.
+// ui/EmailBuilder: the one email editor (spec 2.19, 3.6; ARCH 7.6) for Inbox templates and Automation email steps.
 // Three modes (Visual blocks, HTML, Plain text), Focus mode (Cmd-Shift-F, Esc), preview frames (desktop, mobile, dark), an Ask pane where each suggested
 // change is accepted on its own, checks, and autosaved versions (undo and redo walk them). The look follows the prototype's vy-em editor.
 // The compile step is `email_builder.render`; this file holds the same rules as pure functions so the preview, the checks and the tests share them.

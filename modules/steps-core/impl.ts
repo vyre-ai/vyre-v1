@@ -1,5 +1,5 @@
 // Steps-core module (lane L6). The host loads these handlers once the manifest status is live (ARCH 12.4).
-// `runStep` is what the Run executor calls for each step of an Automation, Journey or Campaign; `evalExpr` and `render` are the expression language the editor checks against.
+// `runStep` is what the Run executor calls for each step of an Automation or Journey; `evalExpr` and `render` are the expression language the editor checks against.
 import { handlers } from "./handlers/index.ts";
 import { runStep } from "./handlers/control.ts";
 import { aiStep } from "./handlers/ai-step.ts";

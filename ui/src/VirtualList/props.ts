@@ -18,6 +18,10 @@ export interface VirtualListProps<T> {
   window?: VirtualWindow;
   keyOf?: (item: T, index: number) => string;
   onEndReached?: () => void;
+  /** Rows of a few known heights (a head, a row): the height of each, so a long list lays out with no measuring. Wins over `rowHeight` on the web. */
+  heightOf?: (item: T, index: number) => number;
+  /** Keep this row in view (a keyboard cursor moved). */
+  reveal?: number;
 }
 
 /** Text a placeholder can show for one row without calling renderItem. */

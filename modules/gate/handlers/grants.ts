@@ -6,7 +6,7 @@
 // through wakes, Jobs and plan approval because it is matched on the thread and the threads above it, and the Gate spends it at the moment the act happens.
 import { ANY_TARGET, namedCovers, normalLink, targetsOf } from "../../../lib/grants.ts";
 import { isHostService } from "../../../lib/trust.ts";
-import { clean, newHoldId, raise, sha } from "../projections.ts";
+import { actOf, clean, newHoldId, raise, sha } from "../projections.ts";
 import type { GateCtx, Hold, StepRef } from "../projections.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -97,6 +97,7 @@ export async function allowSet(ctx: GateCtx, input: In): Promise<unknown> {
   if (ctx.principal.kind !== "person") raise(ctx, "permission.role_lacks_permission", "Only a person allows this.", { reason: "people_only" });
   if (!input.agentId && !input.threadId) raise(ctx, "validation.bad_input", "Always allow is for one agent or one chat.");
   if (input.act === "pay") raise(ctx, "permission.role_lacks_permission", "Sending money always asks.", { reason: "money" });
+  if (actOf(input.act).alwaysStops) raise(ctx, "permission.role_lacks_permission", "A company connection or a sign-in change always asks.", { reason: "always_stops" });
   if (input.act !== "approve" && !isAdmin(ctx)) raise(ctx, "permission.role_lacks_permission", "An admin allows this.", { reason: "admin_only" });
   const now = ctx.now();
   const row: AllowRow = { id: newGrantId(), kind: "always", act: input.act, target: input.target, agent_id: input.agentId ?? null, thread_id: input.threadId ?? null, subject_id: null, step_id: null, expires_at: now + (input.days ?? ALWAYS_DAYS) * DAY_MS, person: ctx.principal.id };

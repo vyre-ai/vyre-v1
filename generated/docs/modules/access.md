@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: files.
 
-## Capabilities (64)
+## Capabilities (65)
 
 - [access.actors.create](../capabilities/access.actors.create.md): Register an outside actor and issue a one-time token (works once, within 10 minutes)
 - [access.actors.list](../capabilities/access.actors.list.md): List outside actors (registered external tools such as Claude Code or Codex)
@@ -13,6 +13,7 @@ Requires: files.
 - [access.actors.set_engineer_mcp](../capabilities/access.actors.set_engineer_mcp.md): Allow or stop an outside actor using the Engineer MCP toolset
 - [access.actors.update](../capabilities/access.actors.update.md): Change the roles or declared provider of an outside actor
 - [access.audience_set](../capabilities/access.audience_set.md): Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record's Files folder can follow its record
+- [access.automation_senders](../capabilities/access.automation_senders.md): A person's press gives a Space Automation use of the mailboxes and numbers its send steps name, inside that person's own access, and takes back what no step names any more
 - [access.check](../capabilities/access.check.md): Access checker: can principal P do action A on resource R, with each step in plain words
 - [access.connector_builder.grant](../capabilities/access.connector_builder.grant.md): Give an assistant the Connector builder role (Member permissions plus connectors.manage), making the role if the Space has none. Needs access.manage.
 - [access.connector_builder.status](../capabilities/access.connector_builder.status.md): Does this assistant hold the permission to build connectors, and may the caller give it

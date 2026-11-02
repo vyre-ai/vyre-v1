@@ -183,16 +183,21 @@ test("the packaged shell with no stored Space opens on the three doors once the 
   } finally { if (had) g.__TAURI__ = before; else delete g.__TAURI__; restore(); }
 });
 
-test("a browser with no stored Space is offered to join or set up a server, and tauri is not offered as a host", () => {
-  const out = renderToStaticMarkup(<SessionGate baseUrl={null} />).replaceAll("<!-- -->", "");
-  assert.ok(out.includes('data-testid="door-invited"') && out.includes('data-testid="door-server"'));
-  assert.ok(!out.includes('data-testid="door-me"'), "no Just me door without the app");
-  assert.ok(!out.includes("tauri"));
+test("a browser with no stored Space is offered to join or set up a server, and tauri is not offered as a host", async () => {
+  // the static page is the opening frame; the doors draw right after mount, so the test mounts and waits for that frame
+  const restore = installDom();
+  try {
+    const root = await mount(createRoot, <SessionGate baseUrl={null} />);
+    await flush(); await flush();
+    assert.ok(find(root, "door-invited") && find(root, "door-server"));
+    assert.ok(!find(root, "door-me"), "no Just me door without the app");
+    assert.ok(!textOf(root).includes("tauri"));
+  } finally { restore(); }
 });
 
 test("the Connect a Space screen behind Sign in still takes a Space address, with a sign-in action and no tauri", () => {
   const out = renderToStaticMarkup(<ConnectSpaceWelcome onConnect={() => undefined} onGetStarted={() => undefined} />).replaceAll("<!-- -->", "");
-  assert.ok(out.includes("Connect a Space"));
+  assert.ok(out.includes("Sign in"));
   assert.ok(out.includes('data-testid="space-address"'), "a desktop can enter the Space address");
   assert.ok(out.includes('data-testid="resolve-space"'), "the address has a sign-in action");
   assert.ok(!out.includes("tauri"));

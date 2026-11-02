@@ -537,11 +537,6 @@ export const syncEntities: SyncEntityConfig[] = [
         "type": "text",
         "label": null,
         "required": false
-      },
-      "campaignId": {
-        "type": "text",
-        "label": null,
-        "required": false
       }
     },
     "fts": [
@@ -1304,11 +1299,6 @@ export const syncEntities: SyncEntityConfig[] = [
       },
       "isPrivate": {
         "type": "checkbox",
-        "label": null,
-        "required": false
-      },
-      "campaignId": {
-        "type": "text",
         "label": null,
         "required": false
       },
@@ -2146,11 +2136,6 @@ export const syncEntities: SyncEntityConfig[] = [
       },
       "mediaFileIds": {
         "type": "files",
-        "label": null,
-        "required": false
-      },
-      "campaignId": {
-        "type": "text",
         "label": null,
         "required": false
       },

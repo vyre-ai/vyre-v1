@@ -212,6 +212,9 @@ export default defineManifest({
       },
       tool: 'automations',
     }),
+    read('automations.senders', 'What this Automation sends from: the mailboxes and numbers its steps name, and whether each can send now', {
+      in: target, out: { senders: t.arr(t.obj({ id: t.str(), channel: t.enm('email', 'text'), address: t.str(), usable: t.bool(), why: t.opt(t.str()) })) }, on: ['automation', '/automationId'], tool: 'automations',
+    }),
     read('automations.get', 'Read an Automation with its definition, alerts and followers', { in: target, out: { automation: row }, on: ['automation', '/automationId'], tool: 'automations', label: 'check', cli: 'vyre automations get' }),
     read('automations.migration_preview', 'Group active runs by the step they are on before moving them to a definition version', {
       in: { ...target, toVersion: t.int({ minimum: 1 }) },
@@ -479,7 +482,7 @@ export default defineManifest({
     trigger('form_submit', 'A form is submitted', { event: 'form.submitted' },
       { formId: id.form, recordId: id.record, type: id.recordType, matched: t.bool() }),
     trigger('email_received', 'An email is received', { events: ['mail.received', 'sms.received'] },
-      { messageId: t.str(), mailboxId: id.mailbox, from: t.str(), subject: t.str(), contactId: t.opt(id.record), campaignId: t.opt(id.campaign) }),
+      { messageId: t.str(), mailboxId: id.mailbox, from: t.str(), subject: t.str(), contactId: t.opt(id.record) }),
     trigger('chat_message', 'A chat message is posted', { event: 'message.received' },
       { messageId: id.message, threadId: id.thread, threadSeq: t.int(), author: t.obj({ kind: t.str(), id: t.str() }), kind: t.str(), depth: t.int() }),
     trigger('spreadsheet_row', 'A spreadsheet row is added or changed', { events: ['sheet.row_appended', 'sheet.row_updated'], filter: rowFilter },
@@ -492,8 +495,6 @@ export default defineManifest({
       { journeyId: id.journey, recordId: id.record, stage: t.str(), previousStage: t.opt(t.str()), manual: t.bool() }),
     trigger('journey_stage_left', 'A Journey record leaves a stage', { event: 'journey.stage_exited' },
       { journeyId: id.journey, recordId: id.record, stage: t.str(), toStage: t.opt(t.str()) }),
-    trigger('campaign_reply', 'A campaign gets a reply', { event: 'campaign.replied' },
-      { campaignId: id.campaign, recordId: id.record, messageId: id.message }),
     trigger('button', 'A button is pressed', { button: true },
       { recordId: t.opt(id.record), type: t.opt(id.recordType), pressedBy: t.str(), label: t.opt(t.str()) }),
     trigger('manual', 'Run by hand', { manual: true },

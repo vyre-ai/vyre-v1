@@ -18,7 +18,7 @@ export function Workspace({ rt, work, children }: { rt: ShellRuntime; work: Work
       <View testID="chats-work" accessibilityLabel={work.type === "project" ? "The project" : "The record"} style={st.work}>
         <RecordDetail key={work.id} rt={rt} recordId={work.id} />
       </View>
-      <ResizableColumn paneKey="chats-beside" defaultWidth={CHAT_BESIDE_W} grow="left" min={300} style={st.chat as never} testID="chats-beside" label="The conversation">
+      <ResizableColumn inline paneKey="chats-beside" defaultWidth={CHAT_BESIDE_W} grow="left" min={300} style={st.chat as never} testID="chats-beside" label="The conversation">
         <Text accessibilityRole="header" style={st.label}>Conversation</Text>
         <View style={st.fill}>{children}</View>
       </ResizableColumn>

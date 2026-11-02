@@ -11,8 +11,8 @@ const events = [
 const cap = (name: string, type: string, emits: string[], create = true) => ({ name, emits, resource: { create, type } });
 
 test("make-emits: a creating capability with no event on its type is a finding", () => {
-  const hits = checkMakeEmits([cap("forms.create", "form", []), cap("campaigns.create", "campaign", ["audit.noted"])], events);
-  assert.deepEqual(hits.map((h) => h.cap), ["forms.create", "campaigns.create"]);
+  const hits = checkMakeEmits([cap("forms.create", "form", []), cap("sites.create", "site", ["audit.noted"])], events);
+  assert.deepEqual(hits.map((h) => h.cap), ["forms.create", "sites.create"]);
   assert.match(hits[0]!.message, /emits nothing/);
   assert.match(hits[1]!.message, /emits: audit.noted/);
 });

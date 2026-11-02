@@ -28,7 +28,7 @@ export default function Mount(): ReactNode {
       if (cap === "agents.list") return { agents: [{ agentId: "agt_docs", name: "Docs", role: "Drafts documents" }] };
       return apps.data.call(cap, input);
     };
-    return <AppsLayout data={{ ...apps.data, call, nav: { ...apps.data.nav, openEmailDesign: () => undefined } }} route={{ kind: "email", group: "campaigns", id: "eml_welcome" }} />;
+    return <AppsLayout data={{ ...apps.data, call, nav: { ...apps.data.nav, openEmailDesign: () => undefined } }} route={{ kind: "email", group: "templates", id: "eml_welcome" }} />;
   }
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     if (cap === "vault.policy.get") return { policy: { exportRoles: ["owner", "admin"], pullExpiryMax: "1d", blockRestrictedExport: true, revealNeedsReason: false } };

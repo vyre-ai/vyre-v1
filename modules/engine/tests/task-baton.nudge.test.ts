@@ -73,11 +73,24 @@ test("a baton that moved during the turn is not a silent stop", async () => {
 });
 
 test("a task waiting on a question it asked is not a silent stop", async () => {
-  const s = scene(task({ blocked: true }));
+  // it is blocked by the question the turn itself asked, so it was not blocked when the turn began: a task that starts out blocked waits for task.ready instead
+  const t = task();
+  const s = scene(t);
+  const finished = s.engine.subscribe((ev) => { if (ev.type === "turn.started") t.blocked = true; });
   await s.wake();
   await s.settle();
+  finished();
   assert.equal(nudges(s).length, 0);
   assert.equal(batonRow(s.h.ctx.db, "tsk_t1")!.turnEndedAt, undefined);
+});
+
+test("a task that waits on another starts no turn and opens no thread until task.ready", async () => {
+  const s = scene(task({ blocked: true }));
+  assert.deepEqual(await s.wake(), []);
+  // nothing was opened, so there is no thread for settle to wait on: the proof is that nothing ran
+  assert.equal(s.provider.specs.length, 0);
+  assert.equal(batonRow(s.h.ctx.db, "tsk_t1"), undefined);
+  assert.equal(nudges(s).length, 0);
 });
 
 test("a failed turn is not nudged, and starts the clock", async () => {

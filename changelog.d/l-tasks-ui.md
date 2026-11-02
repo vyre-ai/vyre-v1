@@ -1,0 +1,1 @@
+- Tasks is one page in Chats: a list ordered for you, a Board, a Timeline and a Month, with one status control from every door, quick add in plain words, multi-select, saved views and keyboard keys. Every task opens on its own page with its blocks, a work breakdown and one Activity feed that is the task's thread.

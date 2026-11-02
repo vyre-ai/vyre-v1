@@ -3,7 +3,7 @@
 import type { Handler } from "../../../../host/src/invoke.ts";
 import { attachmentSave, messageGet, messageList, messageSearch, messageSetPrivate } from "./messages.ts";
 import {
-  autoConnectMembers, mailboxCreate, mailboxDisconnect, mailboxGet, mailboxList, mailboxPause, mailboxResume, mailboxSetPrivacy, mailboxSetSyncState, mailboxUpdate,
+  autoConnectMembers, memberPause, mailboxCreate, mailboxDisconnect, mailboxGet, mailboxList, mailboxPause, mailboxResume, mailboxSetPrivacy, mailboxSetSyncState, mailboxUpdate,
 } from "./mailboxes.ts";
 import { domainAdd, domainCheck, domainGet, domainList, domainRemove, domainSetDefault } from "./domains.ts";
 import { routeList, routeRemove, routeSet } from "./routes.ts";
@@ -20,6 +20,7 @@ export const extraHandlers: Record<string, Handler> = {
   "mail.mailbox.resume": (ctx, input) => mailboxResume(ctx, input),
   "mail.mailbox.disconnect": (ctx, input) => mailboxDisconnect(ctx, input),
   "mail.auto_connect_members": (ctx, input) => autoConnectMembers(ctx, input),
+  "mail.member_pause": (ctx, input) => memberPause(ctx, input),
   "mail.health": (ctx, input) => health(ctx, input),
   "mail.message.get": (ctx, input) => messageGet(ctx, input),
   "mail.message.list": (ctx, input) => messageList(ctx, input),

@@ -10,7 +10,8 @@ import {
   codeOf, ensure, insertAgent, makeFile, makeFolder, meta, mintId, newConfig, nameKey, parseToml, raise, saveFile, setMeta, slug, statusOf, storeConfig, textOf, tolerant, tomlFor, versionsOf, visible, widenings,
   writeConfig,
 } from "../projections.ts";
-import type { AgentConfig, AgentKind, AgentRec, AgentsCtx, FolderOut, Limits, VersionOut } from "../projections.ts";
+import type { AgentConfig, AgentKind, AgentRec, AgentRuntime, AgentsCtx, FolderOut, Limits, VersionOut } from "../projections.ts";
+import { isOutside, outsideFace, outsideName } from "./outside.ts";
 import { readTemplate, templateVersion } from "./routines.ts";
 import { isHostService } from "../../../lib/trust.ts";
 
@@ -177,7 +178,16 @@ type CreateInput = { name: string; role?: string; face?: string; model?: string;
 /** agents.create: a teammate when it names a project, otherwise an agent of the Space. A private assistant is never asked for: only a person's account makes one (onPersonCreated). */
 export const create = (ctx: AgentsCtx, input: CreateInput) => make(ctx, input, input.projectId !== undefined ? "teammate" : "agent");
 
-async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind) {
+/** agents.outside.connect: the agent an app becomes when a person allows it. Only the sign-in reaches this: a nested call from mcp.oauth.allow, as that person. */
+export async function connectOutside(ctx: AgentsCtx, input: { clientName: string }) {
+  if ((ctx.depth ?? 0) < 1 || ctx.principal.kind !== "person") raise(ctx, "permission.no_grant", "An outside agent is made by a person allowing it to join.");
+  ensure(ctx.db);
+  const made = await make(ctx, { name: await outsideName(ctx, input.clientName), role: "Runs outside Vyre", face: outsideFace(ctx) }, "agent", "outside");
+  const agent = made.agent as { agentId: string; name: string };
+  return { agentId: agent.agentId, name: agent.name };
+}
+
+async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind, runtime: AgentRuntime = "vyre") {
   ensure(ctx.db);
   const name = input.name.trim().replace(/\s+/g, " ");
   if (name === "" || name.length > MAX_NAME || NAME_BAD.test(name) || name.startsWith(".")) raise(ctx, "validation.bad_input", `An agent's name is up to ${MAX_NAME} characters with none of / \\ : * ? " < > | and no dot at the start.`);
@@ -203,7 +213,7 @@ async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind) {
   const agentMd = starter !== undefined && kind !== "assistant" ? starter.replaceAll("{{name}}", name).replaceAll("{{role}}", input.role?.trim() ?? "") : AGENT_MD_DEFAULT(name, input.role, kind);
   const tree = await createTree(ctx, id, name, tomlText, agentMd);
   const rec: AgentRec = {
-    id, name, kind, ...(input.projectId !== undefined ? { projectId: input.projectId } : {}), face: input.face?.trim() || slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: input.computer === true,
+    id, name, kind, runtime, ...(input.projectId !== undefined ? { projectId: input.projectId } : {}), face: input.face?.trim() || slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: input.computer === true,
     templateVersion: await templateVersion(ctx, template), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
   };
   insertAgent(ctx.db, rec);
@@ -277,6 +287,7 @@ export async function roleLineSet(ctx: AgentsCtx, input: { agentId: string; desc
 
 export async function pause(ctx: AgentsCtx, input: { agentId: string; reason?: string }) {
   const a = visible(ctx, input.agentId);
+  if (isOutside(a)) raise(ctx, "validation.precondition_failed", "An outside agent runs on its own computer, so it cannot be paused from here. Remove it to end its access.", { reason: "outside" });
   if (a.paused) return { agent: agentOut(a, ctx.now()) };
   const now = ctx.now();
   const reason = input.reason?.trim() || undefined;
@@ -316,6 +327,8 @@ export async function setOwner(ctx: AgentsCtx, input: { agentId: string; ownerId
   const a = visible(ctx, input.agentId);
   if (!input.ownerId.startsWith("usr_")) raise(ctx, "validation.bad_input", "An agent's owner is a person.", { ownerId: input.ownerId });
   if (input.ownerId === a.ownerId) return { agent: agentOut(a, ctx.now()) };
+  // it acts for the person who pressed Allow, on that person's machine: it cannot change hands
+  if (isOutside(a)) raise(ctx, "validation.precondition_failed", "An outside agent stays with the person who connected it.", { reason: "outside" });
   const who = await tolerant<{ principal?: { status?: string; kind?: string } }>(ctx, "access.principals.get", { principal: { kind: "person", id: input.ownerId } }, {});
   if (who.principal?.kind !== "person" || who.principal.status !== "active") raise(ctx, "validation.bad_input", "The new owner has to be an active person in this Space.", { ownerId: input.ownerId });
   const from = a.ownerId, now = ctx.now();
@@ -616,7 +629,7 @@ export async function onPersonLeft(ctx: AgentsCtx, event: PersonLeftEvent): Prom
   const touched: string[] = [];
   const now = ctx.now();
   for (const a of allAgents(ctx.db).filter((x) => x.ownerId === person)) {
-    if (isAssistant(a)) { await retire(ctx, a, person); touched.push(a.id); continue; }
+    if (isAssistant(a) || isOutside(a)) { await retire(ctx, a, person); touched.push(a.id); continue; }
     if (a.paused) continue;
     ctx.db.run("UPDATE agents_agent SET paused = 1, pausedReason = ?, pausedBy = ?, pausedAt = ?, updatedAt = ? WHERE id = ?", OWNER_LEFT, person, now, now, a.id);
     ctx.emit("agent.paused", a.id, { agentId: a.id, reason: OWNER_LEFT, by: person });
@@ -753,7 +766,7 @@ async function adoptAgentPrincipals(ctx: AgentsCtx, put: string[]): Promise<void
       const tree = await createTree(ctx, p.id, name, tomlText, AGENT_MD_DEFAULT(name, undefined));
       const now = ctx.now();
       insertAgent(ctx.db, {
-        id: p.id, name, kind: "agent", face: slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: false,
+        id: p.id, name, kind: "agent", runtime: "vyre", face: slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: false,
         templateVersion: await templateVersion(ctx), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
       });
       await ensureHomeGrants(ctx, p.id, owner, tree.folderId);

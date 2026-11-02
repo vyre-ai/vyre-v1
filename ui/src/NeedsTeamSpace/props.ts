@@ -10,12 +10,12 @@ export const NEEDS_TEAM_SPACE_LABEL = "Needs a Team Space";
 export const NEEDS_TEAM_SPACE_ACTION = "Create or join a Team Space";
 
 export interface NeedsTeamSpaceProps {
-  /** What is blocked, such as "Sites, forms and campaigns". Empty when the sentence is enough. */
+  /** What is blocked, such as "Sites and forms". Empty when the sentence is enough. */
   what: string;
   density: Density;
 }
 
 export const frozenNeedsTeamSpaceProps = {
-  what: "Sites, forms and campaigns",
+  what: "Sites and forms",
   density: "compact",
 } as const satisfies NeedsTeamSpaceProps;

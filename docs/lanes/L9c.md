@@ -27,7 +27,7 @@ Read these in `V1-SPEC.md` (spec numbers) and `ARCHITECTURE-V1.md` (b-numbers an
 - **P-L9c_01** (grok, 75 min) Inbox sidebar and ContactList (By contact, By thread, Calls only; header and filter menus with checkmarks)
   - spec: 3.3; depends on: P-L9_02, P-L9_03; budgets: scroll
   - reuse_from: none (write fresh)
-- **P-L9c_02** (grok, 90 min) ContactTab: collapsed quotes, bubbles, call player, campaign lines, record chips, Email and Text composer with inbox picker, Draft with Gate line
+- **P-L9c_02** (grok, 90 min) ContactTab: collapsed quotes, bubbles, call player, record chips, Email and Text composer with inbox picker, Draft with Gate line
   - spec: 3.3, 2.18, 2.14; depends on: P-L9c_01, P-L9_04; budgets: -
   - reuse_from: none (write fresh)
 - **P-L9c_03** (grok, 90 min) Calendar: Day, Week, Month; drag in 15 minute steps; availability stripes; Find a time

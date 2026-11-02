@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat, engine, mcp, memory, runs, terminal.
 
-## Capabilities (63)
+## Capabilities (68)
 
 - [agents.builtin_skill.get](../capabilities/agents.builtin_skill.get.md): Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer
 - [agents.builtin_skills.list](../capabilities/agents.builtin_skills.list.md): Skills every agent carries, led by "Working in Vyre": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces
@@ -17,6 +17,11 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [agents.limits.get](../capabilities/agents.limits.get.md): Effective limits of an agent: agent.toml capped by Space caps
 - [agents.list](../capabilities/agents.list.md): List agents you are in or that are shared with you (admins may toggle All in the Space)
 - [agents.memory_key.get](../capabilities/agents.memory_key.get.md): The Vault handle that pays for an agent memory upkeep, for the memory module and the nightly job (the server reads it without seeing the agent page)
+- [agents.next](../capabilities/agents.next.md): Take your next job: a mention or a task. It names the chat to work in; what you do afterwards shows there. Nothing waiting answers job null. Only an outside agent has a queue
+- [agents.outside.connect](../capabilities/agents.outside.connect.md): System: make the agent an app becomes when a person allows it. Called by mcp.oauth.allow, never by a client
+- [agents.outside.enqueue](../capabilities/agents.outside.enqueue.md): System: a mention or a task for an outside agent waits in its queue until it asks
+- [agents.outside.seen](../capabilities/agents.outside.seen.md): System: an outside agent called a tool: its status follows
+- [agents.outside.usable](../capabilities/agents.outside.usable.md): May the person asking give this agent work? An outside agent takes work from its owner only; every other agent says yes
 - [agents.pause](../capabilities/agents.pause.md): Pause an agent with a reason; the status shows who paused it
 - [agents.restore](../capabilities/agents.restore.md): Restore an agent from Trash
 - [agents.restore_version](../capabilities/agents.restore_version.md): Restore AGENT.md or agent.toml to an earlier version
@@ -70,12 +75,14 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [skills.remove](../capabilities/skills.remove.md): Remove a skill from the Space library, or from one agent
 - [skills.set_enabled](../capabilities/skills.set_enabled.md): Turn a Space or agent skill off or on without removing it
 
-## Events (26)
+## Events (29)
 
 - [agent.config_changed](../events/agent.config_changed.md): AGENT.md, agent.toml or the agent record changed (a new version was saved)
 - [agent.config_error](../events/agent.config_error.md): An agent.toml failed validation; the last good version keeps running
 - [agent.created](../events/agent.created.md): An agent was created
 - [agent.deleted](../events/agent.deleted.md): An agent moved to Trash
+- [agent.job_queued](../events/agent.job_queued.md): A mention or a task is waiting for an outside agent
+- [agent.job_taken](../events/agent.job_taken.md): An outside agent took a job
 - [agent.owner_changed](../events/agent.owner_changed.md): An agent was handed to another person
 - [agent.paused](../events/agent.paused.md): An agent was paused
 - [agent.restored](../events/agent.restored.md): An agent came back from Trash
@@ -83,6 +90,7 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [agent.routine_changed](../events/agent.routine_changed.md): A routine was created, changed or deleted
 - [agent.routine_delegated](../events/agent.routine_delegated.md): A routine was handed to another owner, or handed back
 - [agent.routine_run_started](../events/agent.routine_run_started.md): A routine run started now, as the routine owner
+- [agent.seen](../events/agent.seen.md): An outside agent was active
 - [agent.suggestion_proposed](../events/agent.suggestion_proposed.md): A change to an agent was suggested
 - [agent.suggestion_resolved](../events/agent.suggestion_resolved.md): A suggestion was accepted or dismissed
 - [agent.template_applied](../events/agent.template_applied.md): The Agent template was applied

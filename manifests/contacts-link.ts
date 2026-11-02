@@ -64,7 +64,7 @@ export default defineManifest({
     ev('contact.preferences_changed', 'Consent, Do-not-contact or channel opt-outs changed', { p: { contactId: id.record, changed: t.arr(t.str()), source: t.str() }, subject: ['record', '/contactId'], label: 'subject', trigger: { title: "A contact's preferences change" } }),
     ev('contact.address_added', 'An email, phone or handle was added to a contact', { p: { contactId: id.record, kind: t.enm('email', 'phone', 'handle'), addressId: adrId }, subject: ['record', '/contactId'], label: 'subject' }),
     ev('contact.address_removed', 'An email, phone or handle was removed from a contact', { p: { contactId: id.record, kind: t.enm('email', 'phone', 'handle'), addressId: adrId }, subject: ['record', '/contactId'], label: 'subject' }),
-    ev('contact.dnd_screened', 'A Do-not-contact screening ran over new adds (never removes anyone)', { p: { context: t.enm('audience', 'campaign', 'journey_enrol', 'import'), contextId: t.opt(t.str()), screened: t.int(), refused: t.int() }, subject: ['entity', '/context'], vis: 'space' }),
+    ev('contact.dnd_screened', 'A Do-not-contact screening ran over new adds (never removes anyone)', { p: { context: t.enm('audience', 'journey_enrol', 'import'), contextId: t.opt(t.str()), screened: t.int(), refused: t.int() }, subject: ['entity', '/context'], vis: 'space' }),
     ev('suppression.added', 'An address was added to the suppression list', { p: { suppressionId: supId, channel, reason, contactId: t.opt(id.record) }, subject: ['entity', '/suppressionId'], trigger: { title: 'An address is suppressed', fields: ['/channel', '/reason'] } }),
     ev('suppression.removed', 'An address was removed from the suppression list by a person', { p: { suppressionId: supId, channel, reason, contactId: t.opt(id.record) }, subject: ['entity', '/suppressionId'] }),
   ],
@@ -96,9 +96,9 @@ export default defineManifest({
       in: { contactId: id.record }, out: { state: t.enm('good', 'risky', 'bounced', 'complained'), lastEventAt: t.opt(t.ts()), reasons: t.arr(t.str()) },
       on: ['record', '/contactId'], tool: 'inbox', label: 'check',
     }),
-    read('contacts.route_owner', 'Who receives an unowned reply: contact owner, then campaign owner, then the shared inbox', {
-      in: { contactId: t.opt(id.record), campaignId: t.opt(id.campaign), mailboxId: t.opt(id.mailbox) },
-      out: { ownerId: t.opt(id.user), via: t.enm('owner', 'campaign_owner', 'shared_inbox'), mailboxId: t.opt(id.mailbox) },
+    read('contacts.route_owner', 'Who receives an unowned reply: contact owner, then the shared inbox', {
+      in: { contactId: t.opt(id.record), mailboxId: t.opt(id.mailbox) },
+      out: { ownerId: t.opt(id.user), via: t.enm('owner', 'shared_inbox'), mailboxId: t.opt(id.mailbox) },
     }),
     read('contacts.suppression.list', 'List the suppression list', {
       in: { channel: t.opt(channel), reason: t.opt(reason), query: t.opt(t.str()), ...pageIn }, out: { rows: t.arr(supRow), ...pageOut }, perm: null, tool: 'inbox', label: 'filter',
@@ -121,9 +121,9 @@ export default defineManifest({
       in: { channel, address: t.str(), keyword: t.str({ examples: ['STOP'] }), source: t.enm('sms_stop', 'email_unsubscribe', 'link', 'reply'), at: t.opt(t.ts()) },
       out: { suppressionId: supId, contactId: t.opt(id.record) }, emits: ['suppression.added', 'contact.preferences_changed'], idem: 'natural',
     }),
-    read('contacts.dnd_screen', "Screen candidates before they are ADDED to an audience, campaign, Journey enrolment or import. Adds only: it never removes, unsubscribes or deletes anyone already present", {
+    read('contacts.dnd_screen', "Screen candidates before they are ADDED to an audience, Journey enrolment or import. Adds only: it never removes, unsubscribes or deletes anyone already present", {
       in: {
-        context: t.enm('audience', 'campaign', 'journey_enrol', 'import'), contextId: t.opt(t.str()),
+        context: t.enm('audience', 'journey_enrol', 'import'), contextId: t.opt(t.str()),
         candidates: t.arr(t.obj({ ref: t.str(), contactId: t.opt(id.record), email: t.opt(t.str()), phone: t.opt(phone) }), { minItems: 1 }),
       },
       out: { allowed: t.arr(t.str()), refused: t.arr(t.obj({ ref: t.str(), reason })), removed: t.int({ maximum: 0, description: 'Always 0: screening never removes anyone' }) },

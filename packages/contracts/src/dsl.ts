@@ -362,7 +362,7 @@ export function gateAct(key: string, title: string, risk: Risk, previewBlock: st
     preview: { blocks: [{ type: previewBlock, from: '$input' }] },
     approvers: { default: 'role:admin', peopleOnly: true },
     timeout: { afterHours: 24, onTimeout: 'escalate', escalateTo: 'delegate', emailBackstopHours: 4 },
-    appliesTo: { actors: ['agent', 'automation', 'campaign'], humanToo: false },
+    appliesTo: { actors: ['agent', 'automation'], humanToo: false },
     sendsOnApprove: 'gate.release' as CapName,
     ...o,
   };

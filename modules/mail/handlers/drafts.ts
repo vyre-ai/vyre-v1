@@ -18,7 +18,6 @@ export interface DraftIn {
   attachments?: string[];
   replyToMessageId?: string;
   contactId?: string;
-  campaignId?: string;
   draftId?: string;
   idempotencyKey: string;
 }
@@ -43,7 +42,6 @@ export interface MessageRowOut {
   sentAt: number;
   contactId?: string;
   isPrivate: boolean;
-  campaignId?: string;
   draftedByAgent?: string;
 }
 
@@ -74,7 +72,6 @@ export async function draft(ctx: MailCtx, input: DraftIn): Promise<DraftOut> {
   const bcc = cleanParties(ctx, input.bcc ?? (existing ? readParties(bccOf(ctx, str(existing, "id"))) : []));
   const lists = dedupeRecipients(to, cc, bcc);
   if (input.contactId !== undefined && !isId("rec", input.contactId)) bad(ctx, "Contact id is not valid.");
-  if (input.campaignId !== undefined && !isId("cmp", input.campaignId)) bad(ctx, "Campaign id is not valid.");
   const files = input.attachments ?? (existing ? attachmentIds(str(existing, "attachments")) : []);
   for (const f of files) if (!isId("fil", f)) bad(ctx, "Attachment id is not valid.");
 
@@ -82,7 +79,6 @@ export async function draft(ctx: MailCtx, input: DraftIn): Promise<DraftOut> {
   const bodyText = text ?? (existing ? textOf(ctx, str(existing, "id")) : undefined);
   const bodyHtml = input.html ?? (existing ? htmlOf(ctx, str(existing, "id")) : undefined);
   const contactId = input.contactId ?? strOrNull(existing, "contactId") ?? strOrNull(parent, "contactId");
-  const campaignId = input.campaignId ?? strOrNull(existing, "campaignId") ?? strOrNull(parent, "campaignId");
   const agentId = ctx.principal.kind === "agent" && isId("agt", ctx.principal.id) ? ctx.principal.id : null;
   const now = ctx.now();
   const draftId = existing ? str(existing, "id") : newId("eml", now);
@@ -91,9 +87,9 @@ export async function draft(ctx: MailCtx, input: DraftIn): Promise<DraftOut> {
 
   if (existing) {
     ctx.db.run(
-      `UPDATE mail_message SET "toAddresses" = ?, "ccAddresses" = ?, subject = ?, snippet = ?, body = ?, "sentAt" = ?, "contactId" = ?, "campaignId" = ?,
+      `UPDATE mail_message SET "toAddresses" = ?, "ccAddresses" = ?, subject = ?, snippet = ?, body = ?, "sentAt" = ?, "contactId" = ?,
         attachments = ?, "draftedByAgent" = ?, version = ?, updated_at = ? WHERE id = ?`,
-      partyJson(lists.to), partyJson(lists.cc), subject, snippetOf(bodyText, subject), bodyText ?? bodyHtml ?? "", now, contactId, campaignId,
+      partyJson(lists.to), partyJson(lists.cc), subject, snippetOf(bodyText, subject), bodyText ?? bodyHtml ?? "", now, contactId,
       JSON.stringify(files.map((fileId) => ({ fileId }))), draftedBy, num(existing, "version") + 1, now, draftId,
     );
     ctx.db.run(
@@ -105,11 +101,11 @@ export async function draft(ctx: MailCtx, input: DraftIn): Promise<DraftOut> {
       `INSERT INTO mail_message (
         id, "mailboxId", "inboxIds", "providerId", "rfcMessageId", "threadId", direction, status,
         "fromAddress", "toAddresses", "ccAddresses", subject, snippet, body, "sentAt", "contactId",
-        "isPrivate", "campaignId", attachments, "draftedByAgent", "traceId", version, updated_at, deleted_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        "isPrivate", attachments, "draftedByAgent", "traceId", version, updated_at, deleted_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       draftId, input.mailboxId, JSON.stringify([input.mailboxId]), null, null, threadId, "out", "draft",
       own, partyJson(lists.to), partyJson(lists.cc), subject, snippetOf(bodyText, subject), bodyText ?? bodyHtml ?? "", now, contactId,
-      str(box, "privacy") === "private" ? 1 : 0, campaignId, JSON.stringify(files.map((fileId) => ({ fileId }))), draftedBy, ctx.trace.traceId, 1, now, null,
+      str(box, "privacy") === "private" ? 1 : 0, JSON.stringify(files.map((fileId) => ({ fileId }))), draftedBy, ctx.trace.traceId, 1, now, null,
     );
     ctx.db.run(
       `INSERT INTO mail_body ("messageId", text, html, "fromName", bcc, headers) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -268,10 +264,8 @@ function rowOut(row: Row): MessageRowOut {
     isPrivate: num(row, "isPrivate") === 1,
   };
   const contactId = strOrNull(row, "contactId");
-  const campaignId = strOrNull(row, "campaignId");
   const agent = strOrNull(row, "draftedByAgent");
   if (contactId) out.contactId = contactId;
-  if (campaignId) out.campaignId = campaignId;
   if (agent) out.draftedByAgent = agent;
   return out;
 }

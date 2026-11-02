@@ -42,7 +42,7 @@ test("only calls, incidents and approval reminders are exempt from working hours
 const SAMPLE: Record<string, Record<string, unknown>> = {
   "approval.requested": { title: "Retainer" }, "approval.backstop": { title: "Retainer" }, dm: { from: "Bob" }, mention: { from: "Bob", where: "Sales" }, "call.incoming": { from: "Bob" },
   "agent.blocked": { agent: "Scout", reason: "needs a login" }, "incident.owned": { title: "Mail is down" }, "task.assigned": { from: "Bob", title: "Call Lee" },
-  "reply.followed": { where: "Intake" }, "agent.task_finished": { agent: "Scout", title: "Research" }, "campaign.reply": { from: "Lee", campaign: "Spring" }, "digest.away": {},
+  "reply.followed": { where: "Intake" }, "agent.task_finished": { agent: "Scout", title: "Research" }, "digest.away": {},
   "mention.thread": { where: "Intake" }, "run.failed": { name: "Weekly", message: "no mailbox" }, "conflict.needs_you": { title: "Lee" },
   "access.requested": { from: "Bob", level: "edit", title: "Clients" }, "access.decided": { title: "Clients", decision: "approved" }, "sync.attention": { device: "Laptop" },
   "health.degraded": { service: "Mail", state: "slow" }, "problem.report": { from: "Bob" }, "member.joined": { name: "Cara", space: "Northwind" }, "limit.hit": { title: "Scout" },

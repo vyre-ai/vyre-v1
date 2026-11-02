@@ -20,7 +20,7 @@
     "twilio.recording.download@1": "84709fed3164a9a180e9e3f6add8b8d9eec2324808239add0083e30d09ae1ae1",
     "twilio.recording.start@1": "770377f63da2a393d3b0a849f0b55f071077dc433b37bb44d5081bd84c61929d",
     "twilio.recording.stop@1": "6d66e42737360bdd27f198af88c0f59a0c750c24a21607e0182fdb302debe011",
-    "twilio.sms.send@1": "bd9b6a0c9fc89be9d35de2f162e143da40d7e55eb2c2855a9e56516a48e7ac7a",
+    "twilio.sms.send@1": "33c9ea718eb4bd6eae76b426eace896cd6dbbbe8d36a2704dc9510e00a7f1801",
     "twilio.twiml_app.ensure@1": "dccafd43f5d34a4054efbfcced0c9c1297df04e8dbc3830711d493fb979605a7"
   },
   "events": {

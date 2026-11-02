@@ -22,6 +22,8 @@
     "identity.sign_in@1": "7c9d028f42e343f4a66d4201f1e676e78eb8be6d8030a617117218b2d7abd162",
     "identity.sign_in_options@1": "e68cea81145174f44617f6388d1b807b2cf1671438da847d3984c98496815d13",
     "identity.sign_out@1": "8eb7a3d15e095567046d9c4a8bb80d120b920a42a88744857cfe491539a73808",
+    "identity.sso_join_start@1": "c4bdec0e43501f26a512ca91e645d1a9910ad82c6745c2702d37432c99eae075",
+    "identity.sso_link@1": "fef3791cd68b8a8b73915cb7da211868e759c3f88313eb4125ba5f9ccb0e9db5",
     "identity.sso_sign_in@1": "8c85a516c39b0bcf7ea0348341962db5ca418d8f75fe056898f5014dccce71a4",
     "identity.totp_begin@1": "4a6be194de66bd2e53134858e3dc0a04713a0b86c10863f7e21035b8cbd0eeac",
     "identity.totp_confirm@1": "3471bfb0c71ae45fecadb8dff4852e46985ca47766c58c8e86b9424ac787ea85",
@@ -29,7 +31,7 @@
     "identity.username_available@1": "60ba13add72829b846eb68701c10f0d1d2b59c5aa3ce71a03c7fc02349250e38",
     "identity.verify_second_factor@1": "1f4b31a45adfc31b79526c0ac28cbd95d708d530145ebb7b875b7d00ecf188db",
     "identity.whoami@1": "2d0c52beaabb487ed5d508f39c7841e72be9fb85e4081c72c5c23cd2a51c71d3",
-    "invites.accept_create_account@1": "02d43fe2059b4b1d50d1b4a0b4ac599733999ae4be0c3cfaaf6e514413026099"
+    "invites.accept_create_account@1": "164fdacfb2827a91165c699cedf32c47fad5b8b22aa465c836e41bd45acb2dc0"
   },
   "events": {
     "factor.enrolled": "580e0de1168743c77ab5ce213bb2c904d4135627feff85e0bbf389c55a057963",

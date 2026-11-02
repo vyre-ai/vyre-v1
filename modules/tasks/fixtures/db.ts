@@ -15,6 +15,7 @@ import type { Caller } from "./seed.ts";
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 const schema = readFileSync(new URL("../../../generated/modules/tasks/schema.sql", import.meta.url), "utf8");
 const migration = readFileSync(new URL("../migrations/0001_tasks_state.sql", import.meta.url), "utf8");
+const tickets = readFileSync(new URL("../migrations/0002_ticket_fields.sql", import.meta.url), "utf8");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
 export interface Ev { name: string; subject: string; payload: Record<string, unknown>; opts?: Record<string, unknown> | undefined; id: string }
@@ -39,6 +40,7 @@ export function harness(o: HarnessOptions = {}) {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec(schema);
   sqlite.exec(migration);
+  sqlite.exec(tickets);
   const raw: Db = {
     all: (sql, ...args) => sqlite.prepare(sql).all(...(args.map(norm) as never[])),
     run: (sql, ...args) => ({ changes: Number(sqlite.prepare(sql).run(...(args.map(norm) as never[])).changes) }),
@@ -68,6 +70,7 @@ export function harness(o: HarnessOptions = {}) {
         return { id: ev.id };
       },
       async call(c, input) {
+        if (c === "spaces.get" && !calleeMap[c]) return { space: { name: "Northwind" } };   // the Space's name gives its task keys their letters, once
         (THREAD_CAPS.has(c) ? threadCalls : calls).push({ cap: c, input });
         const f = calleeMap[c];
         if (!f) throw new Error(`unexpected call to ${c}`);

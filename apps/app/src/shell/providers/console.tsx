@@ -25,6 +25,7 @@ import { LabelsPage, SchemaPage } from "../../console/pages/Data.tsx";
 import { ApiKeysPage, ConnectorsPage, ConnectionsPage, WebhooksPage } from "../../console/pages/Integrations.tsx";
 import { SkillsPage } from "../../console/pages/Skills.tsx";
 import { PluginsPage } from "../../console/pages/Plugins.tsx";
+import { ConnectCompanyPage } from "../../console/pages/company/ConnectCompany.tsx";
 import { GoogleWorkspacePage } from "../../console/pages/suite/GoogleWorkspace.tsx";
 import { Microsoft365Page } from "../../console/pages/suite/Microsoft365.tsx";
 import { Models } from "../../console/pages/Models.tsx";
@@ -40,6 +41,11 @@ import { Assistant } from "../../console/Assistant.tsx";
 import { Audit } from "../../console/pages/audit/Audit.tsx";
 import { Overview } from "../../console/pages/overview/Overview.tsx";
 import { usePlaceHash } from "../hash/context.tsx";
+import { settingsData } from "./settings.tsx";
+import { SettingsDataProvider } from "../../places/settings/data.tsx";
+import { SpaceDefaults } from "../../places/settings/SpacePages.tsx";
+import type { SpacePage } from "../../places/settings/model.ts";
+import { onConsoleHost, useConsoleAlone } from "../console-host.ts";
 import { nameLookup } from "./records-live.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
@@ -55,7 +61,6 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "speed") return <Speed />;
   if (id === "updates") return <Updates />;
   if (id === "space") return <SpaceProfile />;
-  if (id === "export") return <Backups />;
   if (id === "server") return <Server />;
   if (id === "diagnostics") return <Diagnostics />;
   if (id === "support") return <Support />;
@@ -80,6 +85,7 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "numbers") return <NumbersPage {...(args["numberId"]?{initialId:args["numberId"]}:{})} />;
   if (id === "inboxes") return <InboxesPage {...(args["mailboxId"]?{initialId:args["mailboxId"]}:{})} />;
   if (id === "texting") return <TextingPage />;
+  if (id === "company") return <ConnectCompanyPage />;
   if (id === "google") return <GoogleWorkspacePage />;
   if (id === "microsoft") return <Microsoft365Page />;
   if (id === "connectors") return <ConnectorsPage {...(args["connectorKey"]?{initialKey:args["connectorKey"]}:{})} />;
@@ -101,7 +107,7 @@ export function aiDataPageFor(id: string): ReactElement | null {
   if (id === "erase") return <ErasePerson />;
   return null;
 }
-/** What every Console page reads, for the person and the pages they may open. Settings and the Console's own address share it. */
+/** What every Console page reads, for the person and the pages they may open. */
 function consoleData(rt: ShellRuntime, allowed: ReadonlySet<string>, openPage: ConsoleData["nav"]["openPage"]): ConsoleData {
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.createRecordsPreview?{createRecordsPreview:rt.createRecordsPreview}:{}), me: { id: rt.me.id, name: rt.me.name, role: "" }, space: { id: rt.space.id, name: rt.space.name, address: "" },
@@ -111,15 +117,17 @@ function consoleData(rt: ShellRuntime, allowed: ReadonlySet<string>, openPage: C
   };
 }
 
-/** One Console page, inside Settings. */
-export function AdminPage({ rt, id, args, allowed, open }: { rt: ShellRuntime; id: string; args: Record<string, string>; allowed: ReadonlySet<string>; open(id: string, args?: Record<string, string>): void }): ReactElement {
-  const data = useMemo(() => consoleData(rt, allowed, (next, state) => open(next, state as Record<string, string> | undefined)), [rt, allowed, open]);
-  const page = id === "overview" ? <Overview /> : id === "audit" ? <Audit /> : consolePageFor(id, args);
-  return <ConsoleDataProvider value={data}>{page}</ConsoleDataProvider>;
+const DEFAULTS: Readonly<Record<string, SpacePage | "memory">> = { "def-access": "people", "def-agents": "agents", "def-memory": "memory", "def-data": "data", "def-apps": "apps", "def-advanced": "advanced" };
+
+/** Space defaults are drawn by the rows Settings shows in a Personal Space, so one row has one home in each kind of Space. */
+function spaceDefaults(rt: ShellRuntime, id: string): ReactElement | null {
+  const page = DEFAULTS[id];
+  return page ? <SettingsDataProvider value={settingsData(rt)}><SpaceDefaults page={page} /></SettingsDataProvider> : null;
 }
 
 export default function ConsolePlace(): ReactElement {
   const rt = useOptionalShellRuntime();
+  const alone = useConsoleAlone();
   const { target } = usePlaceHash();
   const [allowed, setAllowed] = useState<ReadonlySet<string> | null>(null);
   const [failed, setFailed] = useState(false);
@@ -146,15 +154,15 @@ export default function ConsolePlace(): ReactElement {
   if (!rt || !data) return <OutsideShell rt={rt ?? null}><States kind="empty" title="Opening the Console…" icon="search" /></OutsideShell>;
   const requestedPage = target.args.page && pageById(target.args.page)?.screen === target.screen ? target.args.page : null;
   const page = requestedPage ?? PAGES.find((entry) => entry.screen === target.screen)?.id ?? "overview";
-  return <ConsoleDataProvider value={data}><ConsoleShell initialPage={page} skin={skin} onSkin={(id) => { theme?.setSkin(id); setSkin(id); }} assistant={<Assistant rt={rt} page={target.screen ?? "console.overview"} />} renderPage={(id) => consolePageFor(id, target.args)} /></ConsoleDataProvider>;
+  return <ConsoleDataProvider value={data}><ConsoleShell initialPage={page} embedded={!alone} {...(onConsoleHost() ? { noApp: true } : {})} skin={skin} onSkin={(id) => { theme?.setSkin(id); setSkin(id); }} assistant={<Assistant rt={rt} page={target.screen ?? "console.overview"} />} renderPage={(id) => spaceDefaults(rt, id) ?? consolePageFor(id, target.args)} /></ConsoleDataProvider>;
 }
 
-/** The Console draws outside the shell, so every state of it that is not the Console itself keeps the theme and a way back to the app. */
+/** The states of the Console that are not the Console itself keep the theme and a way back to the app. */
 function OutsideShell({ rt, testID, children }: { rt: ShellRuntime | null; testID?: string; children: ReactElement }): ReactElement {
   return (
     <View {...(testID ? { testID } : {})} style={{ flex: 1, backgroundColor: "var(--win)" as string, alignItems: "center", justifyContent: "center", gap: 12 }}>
       {children}
-      {rt ? (
+      {rt && !onConsoleHost() ? (
         <Pressable accessibilityRole="button" accessibilityLabel="Back to Vyre" testID="console-back-home" onPress={() => rt.open({ screen: "home.today-starred-ask" })} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: "var(--raised)" as string }}>
           <Text style={{ color: "var(--ink)" as string, fontSize: 13 }}>Back to Vyre</Text>
         </Pressable>

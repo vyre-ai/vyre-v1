@@ -90,7 +90,7 @@ test("a Checkout session for a site payment carries the record and site on the s
   h.on("POST /v1/checkout/sessions", { status: 200, body: RECORDED.session });
   const input = {
     mode: "payment", lineItems: [{ priceId: "price_1Retainer", quantity: 2 }, { name: "Filing fee", unitAmount: 4500, currency: "usd", quantity: 1 }],
-    successUrl: "https://firm.example/thanks", cancelUrl: "https://firm.example/pay", customerEmail: "pat@acme.test", metadata: { campaign: "spring" },
+    successUrl: "https://firm.example/thanks", cancelUrl: "https://firm.example/pay", customerEmail: "pat@acme.test", metadata: { source: "spring" },
     recordId: "rec_lee01", siteId: "sit_firm01", idempotencyKey: "idem_cs_1",
   } as const;
   const asked = { ...input, lineItems: [...input.lineItems] };
@@ -103,8 +103,8 @@ test("a Checkout session for a site payment carries the record and site on the s
     mode: "payment", success_url: "https://firm.example/thanks", cancel_url: "https://firm.example/pay", customer_email: "pat@acme.test",
     "line_items[0][price]": "price_1Retainer", "line_items[0][quantity]": "2",
     "line_items[1][price_data][currency]": "usd", "line_items[1][price_data][unit_amount]": "4500", "line_items[1][price_data][product_data][name]": "Filing fee", "line_items[1][quantity]": "1",
-    "metadata[campaign]": "spring", "metadata[recordId]": "rec_lee01", "metadata[siteId]": "sit_firm01", "metadata[vyre_trace]": "0123456789abcdef0123456789abcdef",
-    "payment_intent_data[metadata][campaign]": "spring", "payment_intent_data[metadata][recordId]": "rec_lee01", "payment_intent_data[metadata][siteId]": "sit_firm01",
+    "metadata[source]": "spring", "metadata[recordId]": "rec_lee01", "metadata[siteId]": "sit_firm01", "metadata[vyre_trace]": "0123456789abcdef0123456789abcdef",
+    "payment_intent_data[metadata][source]": "spring", "payment_intent_data[metadata][recordId]": "rec_lee01", "payment_intent_data[metadata][siteId]": "sit_firm01",
     "payment_intent_data[metadata][vyre_trace]": "0123456789abcdef0123456789abcdef",
   });
   assert.equal(h.last().headers["idempotency-key"], "idem_cs_1");

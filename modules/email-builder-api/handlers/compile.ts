@@ -1,4 +1,4 @@
-// email-builder-api: the server half of the one email builder used by Campaigns, Inbox templates and Automation email steps (spec 2.19, 3.6; ARCH 7.6).
+// email-builder-api: the server half of the one email builder used by Inbox templates and Automation email steps (spec 2.19, 3.6; ARCH 7.6).
 // A design is a block document (text, image, button, columns, divider, merge field, HTML block), full HTML, or plain text. This file saves it with a version per
 // save, compiles it to table-based HTML and a plain-text part, previews it as desktop, mobile, dark or plain text (optionally as a record), runs the checks a send
 // needs (unsubscribe, links, alt text, spam words, weight), sends the author a test, lists merge fields, keeps composer snippets, and turns an Ask Vyre edit into a

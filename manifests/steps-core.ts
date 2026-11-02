@@ -1,4 +1,4 @@
-// steps-core (lane L6): the StepDefs every Automation, Journey and Campaign can use (spec 2.12, 2.16): plain data steps, send, AI, task, Journey,
+// steps-core (lane L6): the StepDefs every Automation and Journey can use (spec 2.12, 2.16): plain data steps, send, AI, task, Journey,
 // wait, control (if, paths, parallel, loop, stop, approval), spreadsheet, sign and code. Other modules add a step only for a capability they own.
 // Spreadsheets (spec 2.16) are table files owned by module files: the sheet steps wrap files' sheets.* capabilities and row events, no sheets.* is declared here.
 // DECISION: the AI step is one engine turn (engine.step_turn) with no tools: a Personal automation runs on its owner's own account, a Space automation on a Space-shared key named in the step. outputSchema is checked here.
@@ -79,7 +79,7 @@ export default defineManifest({
     step('send_sms', 'Send a text message', 'send', 'capability', {
       cap: 'telephony.send_sms', effects: 'outward', gateAct: 'send', idempotency: 'key', retry: { max: 3, backoff: 'exp', baseMs: 1000 },
       errors: ['validation.bad_input', 'internal.unexpected', 'provider.unavailable', 'provider.network', 'permission.needs_approval'],
-      in: { numberId: t.opt(id.number), to: tpl('Phone number'), body: tpl('Message'), recordId: t.opt(id.record) }, out: { messageId: t.str() },
+      in: { numberId: t.opt(id.number), to: tpl('Phone number'), body: tpl('Message'), recordId: t.opt(id.record), sendAtOnce: t.opt(t.bool()) }, out: { messageId: t.str() },
     }),
     step('post_message', 'Post a chat message', 'send', 'capability', {
       cap: 'chat.post', effects: 'outward', gateAct: 'post', idempotency: 'key',

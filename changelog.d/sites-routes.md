@@ -1,0 +1,1 @@
+- Sites are back as routes: an agent builds and runs anything on a computer and Vyre gives it an address, at `/p/<name>` or a custom domain with automatic TLS through Caddy, now on every server. Sites has its place in Apps, and a skill ships by default.

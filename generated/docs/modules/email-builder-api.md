@@ -11,7 +11,7 @@ Requires: nothing.
 - [email_builder.create](../capabilities/email_builder.create.md): Create an email design
 - [email_builder.get](../capabilities/email_builder.get.md): Read an email design
 - [email_builder.html_set](../capabilities/email_builder.html_set.md): Set full HTML (an agent can write it and place it)
-- [email_builder.list](../capabilities/email_builder.list.md): List email designs (campaigns, inbox templates, automation steps share them)
+- [email_builder.list](../capabilities/email_builder.list.md): List email designs (inbox templates and automation steps share them)
 - [email_builder.merge_fields](../capabilities/email_builder.merge_fields.md): Merge fields available for a record type
 - [email_builder.render](../capabilities/email_builder.render.md): Render desktop, mobile, dark and plain-text previews, optionally as a record
 - [email_builder.restore_version](../capabilities/email_builder.restore_version.md): Restore a version

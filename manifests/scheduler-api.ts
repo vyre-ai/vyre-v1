@@ -9,7 +9,7 @@ import { cron, id, pageIn, pageOut, resourceRef, runStarted } from './_common.ts
 const scheduleId = t.id('sch');
 const waitId = t.id('wat');
 const ifMissed = t.enm('skip', 'run_once');
-const owner = t.obj({ kind: t.enm('automation', 'journey', 'agent_routine', 'campaign', 'gate', 'task', 'system'), id: t.str({ examples: ['aut_a1b2c3'] }) });
+const owner = t.obj({ kind: t.enm('automation', 'journey', 'agent_routine', 'gate', 'task', 'system'), id: t.str({ examples: ['aut_a1b2c3'] }) });
 const when = t.union(t.obj({ at: t.ts() }), t.obj({ cron, tz: t.str({ examples: ['Asia/Karachi'] }) }));
 const scheduleRow = t.obj({
   id: scheduleId, owner, principal: t.str({ description: 'The principal the call runs as' }), cap: t.str({ examples: ['automations.fire'] }), when,

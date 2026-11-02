@@ -4,7 +4,7 @@ import f1 from "./01-lead-to-client-to-project.flow.ts";
 import f2 from "./02-person-joining.flow.ts";
 import f3 from "./03-agent-changes-reviewed.flow.ts";
 import f4 from "./04-offline-edit-conflict.flow.ts";
-import f5 from "./05-lead-campaign-reply-call.flow.ts";
+import f5 from "./05-lead-automation-reply-call.flow.ts";
 import f6 from "./06-site-deploy-rollback.flow.ts";
 import f7 from "./07-gate-approval-expiry.flow.ts";
 import f8 from "./08-memory-promotion.flow.ts";

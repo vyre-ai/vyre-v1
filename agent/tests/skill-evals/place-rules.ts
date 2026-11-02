@@ -88,7 +88,7 @@ const draftUnlessSend: Check = (s) => calls(s).flatMap(([c, i]) => (c.call === "
 
 /** Publishing and launching: the person is asked first (or already confirmed), and a held act is reported as waiting. */
 const publishAsksFirst: Check = (s) => calls(s).flatMap(([c, i]) => {
-  if (!["forms_publish", "campaigns_launch", "sites_promote"].includes(c.call)) return [];
+  if (!["forms_publish", "sites_promote"].includes(c.call)) return [];
   return s.context?.confirmed === true || before(s, i, "ask_question") ? [] : [{ step: i, message: `${c.call} without asking or a clear yes` }];
 });
 

@@ -1,4 +1,4 @@
-import {authorize,type AccessSnapshot,type Req} from "../../../kernel/src/authorize/index.ts";
+import {authorize,providerMax,type AccessSnapshot,type Req} from "../../../kernel/src/authorize/index.ts";
 import type {Store,StoredRecord} from "../../../kernel/src/store/types.ts";
 import type {CtxSeed} from "../invoke.ts";
 import {fail} from "../routes/errors.ts";
@@ -26,7 +26,7 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
    const grants=snapshot.allGrantRecs().filter(grant=>info.keys.has(grant.key)&&grant.rank>=1&&grant.exp>ports.now()&&grant.nb<=ports.now()&&grant.na>=ports.now()&&(related(grant.row.resource_id,type)||(grant.row.resource_id===null&&grant.row.resource_type==="record")));
    const hidden=new Set(exact.effect==="allow"?exact.scope?.hiddenFields??[]:grants.flatMap(grant=>[...grant.hidden]));
    let ceiling=exact.effect==="allow"?exact.scope?.labelCeiling??-1:Math.min(info.clearance,...grants.map(grant=>grant.ceiling));
-   if(req.provider)for(const policy of snapshot.policies())if(policy.kind==="provider_label")ceiling=Math.min(ceiling,policy.allow[req.provider]??policy.defaultMax??Infinity);
+   if(req.provider)for(const policy of snapshot.policies())if(policy.kind==="provider_label")ceiling=Math.min(ceiling,providerMax(policy,req.provider));
    if(touched.some(path=>{const field=path.split(".")[0]!;return hidden.has(field)||(!["id","version","created_at","updated_at"].includes(field)&&labels[field]===undefined)||(labels[field]??0)>ceiling||snapshot.fieldLabel(type,field)>ceiling||snapshot.fieldLabel("record",field)>ceiling;}))throw fail("permission.no_grant",trace,{message:"Filtering, grouping or sorting by a hidden field is not allowed."});
   }
  }
@@ -62,7 +62,7 @@ export function createRecordAccess(ports:{store():Store;snapshot():AccessSnapsho
  }
  function fields(seed:ReadSeed,row:StoredRecord,original:Record<string,unknown>,trace:string){
   const result=decision(seed,row);if(!result)throw fail("permission.no_grant",trace);
-  const snapshot=ports.snapshot(),hidden=new Set(result.scope?.hiddenFields??[]);let ceiling=result.scope?.labelCeiling??-1;if(seed.provider)for(const policy of snapshot.policies())if(policy.kind==="provider_label")ceiling=Math.min(ceiling,policy.allow[seed.provider]??policy.defaultMax??Infinity);
+  const snapshot=ports.snapshot(),hidden=new Set(result.scope?.hiddenFields??[]);let ceiling=result.scope?.labelCeiling??-1;if(seed.provider)for(const policy of snapshot.policies())if(policy.kind==="provider_label")ceiling=Math.min(ceiling,providerMax(policy,seed.provider));
   return Object.fromEntries(Object.entries(original).filter(([key])=>!hidden.has(key)&&seed.labels?.[key]!==undefined&&seed.labels[key]<=ceiling&&snapshot.fieldLabel(row.type,key)<=ceiling&&snapshot.fieldLabel("record",key)<=ceiling).map(([key,value])=>[key,seeable(seed,value)]));
  }
  return{

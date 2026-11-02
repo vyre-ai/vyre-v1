@@ -76,6 +76,9 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
   const [memory, setMemory] = useState<KnowRoute | null>(fromHash);
   const argsKey = JSON.stringify(target.args);
   useEffect(() => { const r = fromHash(); if (r) setMemory(r); }, [screen, argsKey]);   // eslint-disable-line react-hooks/exhaustive-deps
+  // the company connected Files: this person's own Drive or OneDrive comes into their Personal folder the first time they are here, with nothing to sign in to
+  const spaceId = rt?.space.id;
+  useEffect(() => { if (rt) void Promise.resolve().then(() => rt.call("mounts.company_drive", {})).catch(() => undefined); }, [spaceId]);   // eslint-disable-line react-hooks/exhaustive-deps
   // Live folders: every mount with how it is doing. Choosing anything else in the sidebar gives the body back (the tree calls leaveMemory, which is openRoute(null)).
   const [liveOn, setLiveOn] = useState(screen === "files.live");
   useEffect(() => { if (screen === "files.live") setLiveOn(true); }, [screen]);

@@ -30,6 +30,8 @@ export interface RecordsShare {
 export interface RecordsNav {
   /** A record opens as a tab on its page; the table stays where it was. */
   openRecord(recordId: string): void;
+  /** An agent's own page. Left out, the Agents type shows as a plain table. */
+  openAgent?(agentId: string): void;
   /** The read-only list of record types (the screen records.types). */
   openRecordTypes(): void;
   openSchemaMap(): void;

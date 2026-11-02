@@ -37,12 +37,11 @@ test("the sidebar, the open chat and the agent pane sit side by side, in that or
   assert.equal(WIDE, 640);
 });
 
-test("the sidebar has Needs you, Agents, Channels and Chats in the prototype's order", () => {
+test("the sidebar runs Tasks, Threads, Recent, Channels, Agents in the prototype's order", () => {
   const out = side();
-  const ids = ["head-needs", "head-faces", "head-channels", "head-recent"].map((id) => out.indexOf(`data-testid="${id}"`));
+  const ids = ["row-nav:tasks", "row-nav:threads", "head-recent", "head-channels", "head-faces"].map((id) => out.indexOf(`data-testid="${id}"`));
   assert.ok(ids.every((i) => i >= 0));
   assert.deepEqual([...ids].sort((a, b) => a - b), ids);
-  assert.ok(has(out, "Send 12 invoices") && has(out, "Waiting on you"));
 });
 
 test("the open chat is Rivera intake with its composer, and the pane follows its agent on shared tabs", () => {
@@ -59,7 +58,7 @@ test("there is no Comment or Notes control: those are the prototype's review too
 test("the sample shell shows the Chats place on Chats and the sample rows everywhere else", () => {
   const ctx = (place: string): PlaceContext => ({ spaceId: "nw", spaceName: "Northwind", kind: "team", place, hash: "", epoch: 0, kit: { id: "team", places: [], top: [], start: "chats" } } as unknown as PlaceContext);
   const chats = renderToStaticMarkup(chatsPlace(ctx("chats")) as never).replaceAll("<!-- -->", "");
-  assert.ok(has(chats, 'data-testid="chats-place"') && has(side(), "Send 12 invoices"), "the place, and its sidebar in the shell's slot");
+  assert.ok(has(chats, 'data-testid="chats-place"') && has(side(), "Tasks"), "the place, and its sidebar in the shell's slot");
   // Any other place falls back to the sample place (rendered inside a hub in the shell); here only what it returns is looked at: not the Chats place.
   const other = chatsPlace(ctx("files")) as { type?: unknown };
   assert.notEqual(other.type, (chatsPlace(ctx("chats")) as { type?: unknown }).type, "the other places are not the Chats place");

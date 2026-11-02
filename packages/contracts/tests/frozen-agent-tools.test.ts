@@ -26,7 +26,7 @@ export const DEFAULT_TOOLS: Record<string, string[]> = {
   automations: ['automations_list', 'automations_create', 'read_link', 'automations_run', 'journeys_start', 'wait_for'],
   chats: ['chat_post', 'chat_thread', 'handoff', 'ask_question', 'plan_propose', 'open_tab'],
   inbox: ['mail_message_search', 'mail_draft', 'mail_send', 'calendar_list_events', 'calendar_create_event'],
-  sites: ['sites_build', 'sites_tables', 'sites_deploy', 'sites_previews', 'sites_promote'],
+  sites: ['artifact_publish', 'sites_build', 'sites_tables', 'sites_deploy', 'sites_previews', 'sites_promote'],
   terminal: ['terminal_run', 'terminal_open'],
   computer: ['screen_screenshot', 'screen_click', 'chrome_snapshot', 'chrome_act'],
   agents: ['agents_list', 'agents_get'],
