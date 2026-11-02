@@ -52,13 +52,21 @@ test("a request goes to the folder's managers as one card each, holds names and 
   assert.deepEqual(w.events, [{ name: "vault.requested", subject: r.id, payload: { requestId: r.id, name: "Dana_Lawmatics", fields: ["api_key", "account"], requester: { kind: "agent", id: "agt_helper" }, forRun: "run_intake", taskId: "tsk_1" } }]);
 });
 
-test("the same idempotency key answers with the same request; a second waiting ask for the same key is a duplicate", async () => {
+test("the same idempotency key answers with the same request; asking again while it waits answers with it too, and draws its card in the chat asked from", async () => {
   const w = world();
   const a = await ask(w);
   const b = await ask(w);
   assert.equal(b.request.id, a.request.id);
   assert.equal(w.called("tasks.create").length, 1, "no second card");
-  assert.equal(await failed(ask(w, "agt_helper", { idempotencyKey: "another" })), "validation.duplicate");
+  const again = await handlers["vault.request"]({ ...w.as("agt_helper", "agent", "usr_dana"), thread: "thr_new" } as never, { name: "Dana_Lawmatics", reason: "Connect Lawmatics", folderId: FOLDER, idempotencyKey: "another" } as never);
+  assert.equal(again.request.id, a.request.id, "the waiting request answers");
+  assert.equal(w.called("tasks.create").length, 1, "nobody gets a second task");
+  const posted = w.called("chat.post");
+  assert.equal(posted.length, 1);
+  assert.equal(posted[0]!.input["threadId"], "thr_new");
+  const block = (posted[0]!.input["blocks"] as { type: string; data: Record<string, unknown> }[])[0]!;
+  assert.deepEqual([block.type, block.data["requestId"], block.data["threadId"], block.data["asker"], block.data["state"]], ["vault_request", a.request.id, "thr_new", "usr_dana", "waiting"], "the same request's secure field, where the person is now");
+  assert.deepEqual(w.called("tasks.update").map((c) => [c.input["taskId"], (c.input["blocks"] as { data: Record<string, unknown> }[])[0]!.data["threadId"]]), [["tsk_1", "thr_new"]], "once the key is saved the agent carries on in the newest chat");
   assert.notEqual((await ask(w, "agt_helper", { idempotencyKey: "k3", name: "Dana_Other" })).request.id, a.request.id, "a different key is a different request");
 });
 

@@ -43,6 +43,7 @@ export function world(over: Partial<Script> = {}) {
       }
       case "tasks.create": return { task: { id: `tsk_${++task}` } };
       case "tasks.transition": return { task: { id: i["taskId"] } };
+      case "tasks.update": return { task: { id: i["taskId"] } };
       case "vault.item.get": {
         const keys = script.items[String(i["itemId"])];
         if (!keys) throw new Error("no such item");
@@ -54,6 +55,7 @@ export function world(over: Partial<Script> = {}) {
       case "vault.folders.create": return { folder: { id: "vfd_company" } };
       case "access.labels.set": return { ok: true };
       case "runs.resume": return { run: { id: i["runId"] } };
+      case "chat.post": return { message: { id: `msg_${calls.length}` } };
       default: throw new Error(`unexpected call ${cap}`);
     }
   };
