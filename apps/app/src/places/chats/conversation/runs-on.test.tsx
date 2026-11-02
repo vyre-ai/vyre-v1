@@ -1,7 +1,7 @@
 // The runs-on chip: drawn for a private chat that has somewhere else to run, named for the place it runs now, with the others in a menu; off places are grey with the reason.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { currentOption, runsOnEntries, showsChip } from "./RunsOn.tsx";
+import { currentOption, runsOnEntries, runsOptions, showsChip } from "./RunsOn.tsx";
 import type { RunsOnOption, RunsOnState } from "./RunsOn.tsx";
 
 const device: RunsOnOption = { target: "device", name: "This computer", online: true };
@@ -28,4 +28,12 @@ test("the menu lists every place, ticks the current one, and greys an off place 
   items[1]!.onSelect!();
   items[2]!.onSelect!();
   assert.deepEqual(picked.map((o) => o.name), ["The Space", "home-box"]);
+});
+
+test("Runs on leads with Automatic, which says where it lands, and no row says its own name twice", () => {
+  const rows = runsOptions(state({ options: [device, space, home] }));
+  assert.deepEqual(rows.map((r) => [r.name, r.note ?? null]), [["Automatic", "This computer"], ["This computer", null], ["The Space", null], ["home-box", "Your server"]]);
+  assert.ok(rows.every((r) => r.name !== r.note), "the source of the duplicate is gone");
+  assert.equal(rows[0]!.online, true, "Automatic can always be picked");
+  assert.equal(runsOptions(state({ effective: { target: "server", serverId: "srv_home" } }))[0]!.note, "home-box");
 });

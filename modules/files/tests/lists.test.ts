@@ -203,6 +203,17 @@ test("Knowledge for a caller who may read nothing lists nothing but still names 
   await assert.rejects(() => handlers["files.knowledge"](broken.ctx, {}), /down: memory\.notes\.list/);
 });
 
+test("Recent and its count leave out an agent's home: an agent's AGENT.md is written in its maker's name, and it is not what they worked on", async () => {
+  const { ctx } = open();
+  const tree = await handlers["files.tree"](ctx, {});
+  const personal = idOf(tree.roots.find((r) => r.key === "personal")?.folderId, "personal");
+  const agents = idOf(tree.roots.find((r) => r.key === "agents")?.folderId, "agents");
+  const mine = (await handlers["files.create"](ctx, { folderId: personal, name: "mine.txt", content: { text: "a" } })).file.fileId;
+  await handlers["files.create"](ctx, { folderId: agents, name: "AGENT.md", content: { text: "b" } });
+  assert.deepEqual((await handlers["files.recent"](ctx, {})).files.map((f) => f.fileId), [mine]);
+  assert.equal((await handlers["files.tree"](ctx, {})).roots.find((r) => r.key === "recent")?.count, 1, "the sidebar's number is the list's");
+});
+
 test("Recent lists the newest opened first and Trash lists deleted roots, folders and files", async () => {
   const { ctx } = open();
   const tree = await handlers["files.tree"](ctx, {});

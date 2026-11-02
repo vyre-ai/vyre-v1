@@ -1,4 +1,4 @@
-// "Runs on": where the next turn of this private chat runs. This computer, the Space (in a Team Space), or one of the person's own servers by its nickname. It lives in the model menu, and the composer's pill says
+// "Runs on": where the next turn of this private chat runs. Automatic, the default, lets the rules decide; or pinned to this computer, the Space (in a Team Space), or one of the person's own servers by its nickname. It lives in the model menu, and the composer's pill says
 // "On Northwind" only when it is not this computer. An option that is off is grey and says why. The choice is stored on the thread (engine.placement.set) and decides the next turn (engine.placement.decide).
 // A person's chat is never offered a teammate's machine.
 import { useCallback, useEffect, useState } from "react";
@@ -9,7 +9,7 @@ import { iconMarkup } from "../../../shell/rail/icons.tsx";
 
 export type Target = "device" | "space" | "server";
 export interface RunsOnOption { target: Target; serverId?: string; name: string; online: boolean; reason?: string }
-export interface RunsOnState { private: boolean; effective: { target: Target; serverId?: string }; options: readonly RunsOnOption[] }
+export interface RunsOnState { private: boolean; pinned?: boolean; effective: { target: Target; serverId?: string }; options: readonly RunsOnOption[] }
 
 const same = (a: { target: Target; serverId?: string }, b: { target: Target; serverId?: string }): boolean => a.target === b.target && (a.serverId ?? "") === (b.serverId ?? "");
 
@@ -32,6 +32,15 @@ export function runsOnEntries(s: RunsOnState, pick: (o: RunsOnOption) => void): 
 }
 
 const keyOf = (o: { target: Target; serverId?: string }): string => `${o.target}:${o.serverId ?? ""}`;
+const AUTOMATIC = "auto:";
+
+/** The rows of the Runs on menu. Automatic comes first and says where it lands now; each place says only what its name does not. */
+export function runsOptions(s: RunsOnState): PanelRuns["options"] {
+  return [
+    { key: AUTOMATIC, name: "Automatic", note: currentOption(s).name, online: true },
+    ...s.options.map((o) => ({ key: keyOf(o), name: o.name, online: o.online, ...(o.target === "server" ? { note: "Your server" } : {}), ...(o.reason ? { reason: o.reason } : {}) })),
+  ];
+}
 
 /** Where this chat runs, for the model menu and the pill: read from engine.placement.options, pinned with engine.placement.set. A chat with other people has no choice: it always runs on the Space. */
 export function useRunsOn({ call, threadId, agentId, spaceName, say }: { call(cap: string, input: unknown): Promise<unknown>; threadId: string; agentId?: string | undefined; spaceName: string; say?: (text: string) => void }): { runs: PanelRuns | undefined; chip: string | undefined } {
@@ -45,13 +54,13 @@ export function useRunsOn({ call, threadId, agentId, spaceName, say }: { call(ca
   const now = currentOption(state);
   const pick = (key: string): void => {
     const o = state.options.find((x) => keyOf(x) === key);
-    if (!o) return;
-    Promise.resolve(call("engine.placement.set", { threadId, target: o.target, ...(o.serverId ? { serverId: o.serverId } : {}) })).then(() => load(), () => say?.("Could not change where this chat runs."));
+    if (!o && key !== AUTOMATIC) return;
+    Promise.resolve(call("engine.placement.set", { threadId, target: o?.target ?? "auto", ...(o?.serverId ? { serverId: o.serverId } : {}) })).then(() => load(), () => say?.("Could not change where this chat runs."));
   };
   return {
     runs: {
-      value: now.name, current: keyOf(now), onPick: pick,
-      options: state.options.map((o) => ({ key: keyOf(o), name: o.name, online: o.online, note: o.target === "device" ? "This computer" : o.target === "space" ? "Space computer" : "Your server", ...(o.reason ? { reason: o.reason } : {}) })),
+      value: state.pinned === true ? now.name : "Automatic", current: state.pinned === true ? keyOf(now) : AUTOMATIC, onPick: pick,
+      options: runsOptions(state),
     },
     chip: now.target === "device" ? undefined : now.name,
   };

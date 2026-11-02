@@ -1,6 +1,7 @@
 // The All agents picker (spec 3.2, registry screen chats.all-agents): every agent the Space has, found by name or role, under the control that opened it (the Agents header's menu or
 // the arrow row). A press starts or returns to a chat with the agent (chat.start through the shell's openAgentChat), right-click offers its page, and New agent opens the place
 // where agents are made. The rows are the shared PaneList over ui/Row with the agent's face in the leading slot, so hover, selection and the keyboard are the list's own.
+import { agentName } from "../../../../../../ui/src/Avatar/assistant.ts";
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
@@ -61,13 +62,13 @@ export function AllAgents({ screens, space, x, y, onChat, onOpenPage, onCreate, 
   for (const a of shown) {
     const word = STATUS[a.status];
     entries.push({
-      key: a.agentId, type: "row", title: a.name, testID: `agent-${a.agentId}`, ...(a.role ? { note: a.role } : {}),
-      leading: <Face name={a.name} seedId={a.agentId} size={22} pulse={a.status === "working"} />,
+      key: a.agentId, type: "row", title: agentName(a.agentId, a.name), testID: `agent-${a.agentId}`, ...(a.role ? { note: a.role } : {}),
+      leading: <Face name={agentName(a.agentId, a.name)} seedId={a.agentId} size={22} pulse={a.status === "working"} />,
       ...(word ? { trailing: <Text style={st.status}>{word}</Text> } : {}),
       onPress: () => { onChat(a.agentId); onClose(); },
       menu: [
         { label: "Chat", onSelect: () => { onChat(a.agentId); onClose(); } },
-        { label: `Open ${a.name}'s Page`, onSelect: () => { onOpenPage(a.agentId); onClose(); } },
+        { label: `Open ${agentName(a.agentId, a.name)}'s Page`, onSelect: () => { onOpenPage(a.agentId); onClose(); } },
       ],
     });
   }

@@ -55,7 +55,7 @@ const Ctx = createContext<ShellRuntime | null>(null);
 
 export function ShellRuntimeProvider({ value, children }: { value: ShellRuntime; children: ReactNode }): ReactElement {
   // The assistant wears the Vyre mark in every face below; say which agent it is before they draw.
-  setAssistantId(value.assistant.id);
+  setAssistantId(value.assistant.id, value.assistant.name);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

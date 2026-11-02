@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { KeyGate, LockScreen, NoPasswordKey } from "./KeyGate.tsx";
+import { lockName } from "./stored.ts";
 import { forgetKey, keepKey, keyIsKept, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
 
 const text = (h: string): string => h.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
@@ -40,4 +41,11 @@ test("the key is kept in memory only for the session and dropped on sign-out; a 
   assert.equal(await rehandKey("https://team.example.com", "t"), false);
   forgetKey();
   assert.equal(keyIsKept(), false);
+});
+
+test("the lock greets the first name of the display name, and the username only for a session saved before that was kept", () => {
+  assert.equal(lockName({ displayName: "Nadia Noor", username: "nadia" }), "Nadia");
+  assert.equal(lockName({ username: "nadia" }), "nadia");
+  assert.equal(lockName({}), "");
+  assert.equal(lockName({ displayName: "  ", username: "nadia" }), "nadia");
 });

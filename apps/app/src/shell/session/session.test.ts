@@ -239,7 +239,7 @@ test("live: a revoked device (purge) tells the session", async () => {
 test("live: the socket address swaps http for ws, drops the path and carries the token", () => {
   assert.equal(socketBase("http://127.0.0.1:7777/x?y=1"), "ws://127.0.0.1:7777");
   assert.equal(socketBase("https://s.test"), "wss://s.test");
-  assert.equal(socketPath("ws://127.0.0.1:7777", "a b"), "ws://127.0.0.1:7777/sync/v1/ws?token=a%20b");
+  assert.equal(socketPath("ws://127.0.0.1:7777", "a b"), "ws://127.0.0.1:7777/sync/v1/ws?ticket=a%20b");
 });
 
 const WHOAMI = { principal: { kind: "person", id: "usr_irfad" }, name: "Irfad Imtiaz", roles: ["owner"], groups: [], epoch: 1, spaceId: "spc_nw" };

@@ -1,9 +1,11 @@
-// The live link of the open Space (ARCH 5.9): the client connection manager (client/src/connection) over a WebSocket to the Space's live socket (`/sync/v1/ws?token=`). The manager says
+// The live link of the open Space (ARCH 5.9): the client connection manager (client/src/connection) over a WebSocket to the Space's live socket (`/sync/v1/ws?ticket=`). A socket address shows up in
+// console errors and logs, so the session token never goes in it: each dial trades the token for a one-time ticket that lasts seconds (client/src/gateway/live-ticket.ts). The manager says
 // hello with the cursor, acks each numbered batch after it is applied, keeps the heartbeat, fails over between endpoints and reconnects with backoff. Here a batch only tells the session
 // "something changed" and the session re-reads the queries on screen; the replica that applies rows replaces that later. A server that answers anything but live (update required, resync)
 // leaves the link offline for the session, which then polls.
 import { createConnection, endpoint } from "../../../../../client/src/connection/index.ts";
 import type { Connection, Dial, Scheduler, Status, Transport } from "../../../../../client/src/connection/index.ts";
+import { liveTicket } from "../../../../../client/src/gateway/live-ticket.ts";
 
 export type LiveStatus = "connecting" | "live" | "offline";
 
@@ -49,7 +51,10 @@ export function socketBase(baseUrl: string): string {
   return u.toString().replace(/\/$/, "");
 }
 
-export const socketPath = (base: string, token: string): string => `${base}/sync/v1/ws?token=${encodeURIComponent(token)}`;
+export const socketPath = (base: string, ticket: string): string => `${base}/sync/v1/ws?ticket=${encodeURIComponent(ticket)}`;
+
+/** The http(s) address behind a socket base, where the ticket is asked for. */
+const httpBase = (wsBase: string): string => wsBase.replace(/^ws/, "http");
 
 interface SocketLike {
   send(data: string): void;
@@ -61,12 +66,19 @@ interface SocketLike {
 }
 
 /** A WebSocket as the manager's Transport. Rejects when the socket cannot open. */
-export function webSocketDial(token: () => string | null): Dial {
-  return (ep, signal) => new Promise<Transport>((resolve, reject) => {
+export function webSocketDial(token: () => string | null, ticketFor: (baseUrl: string, token: string) => Promise<string> = liveTicket): Dial {
+  return async (ep, signal) => {
     const t = token();
     const WS = (globalThis as { WebSocket?: new (u: string) => SocketLike }).WebSocket;
-    if (!t || !WS) { reject(new Error(t ? "no WebSocket on this platform" : "not signed in")); return; }
-    const ws = new WS(socketPath(ep.url, t));
+    if (!t || !WS) throw new Error(t ? "no WebSocket on this platform" : "not signed in");
+    const ticket = await ticketFor(httpBase(ep.url), t);
+    if (signal.aborted) throw new Error("superseded");
+    return openSocket(new WS(socketPath(ep.url, ticket)), signal);
+  };
+}
+
+function openSocket(ws: SocketLike, signal: AbortSignal): Promise<Transport> {
+  return new Promise<Transport>((resolve, reject) => {
     const frames: ((f: unknown) => void)[] = [];
     const closes: ((reason: string) => void)[] = [];
     let opened = false;
@@ -90,7 +102,6 @@ export function webSocketDial(token: () => string | null): Dial {
     ws.onclose = () => { if (!opened) reject(new Error("closed before it opened")); for (const cb of closes) cb("closed"); };
     ws.onerror = () => { /* onclose follows */ };
     signal.addEventListener("abort", aborted, { once: true });
-    if(signal.aborted)aborted();
   });
 }
 

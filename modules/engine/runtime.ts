@@ -298,7 +298,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       const phase = ev.type === "turn.started" ? "started" : ev.type === "turn.completed" ? "completed" : ev.type === "turn.failed" ? "failed" : "cancelled";
       const input = {
         threadId: turn.threadId, turnId, agentId: turn.agentId, phase, qseq: turn.qseq, asker: turn.asker, ...(turn.model ? { model: turn.model } : {}),
-        ...(phase === "started" ? {} : { tokensIn: turn.tokensIn, tokensOut: turn.tokensOut }), ...(ev.type === "turn.failed" ? { code: ev.code } : {}),
+        ...(phase === "started" ? {} : { tokensIn: turn.tokensIn, tokensOut: turn.tokensOut }), ...(ev.type === "turn.failed" ? { code: ev.code, ...(ev.message ? { message: ev.message.slice(0, 500) } : {}) } : {}),
       };
       const done = (recording.get(turnId) ?? Promise.resolve()).then(() => h.call("engine.turn.record", input, turn.asker)).then(() => undefined, (err: unknown) => {
         h.log?.("a turn could not be recorded", { turnId, phase, error: err instanceof Error ? err.message : String(err) });

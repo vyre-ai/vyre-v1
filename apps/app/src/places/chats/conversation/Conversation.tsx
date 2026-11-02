@@ -47,8 +47,7 @@ import { useMobileBack } from "../../../mobile/shell/back.ts";
 import { offlineLine } from "../agentpage/model.ts";
 import {
   WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel, swapNeeded,
-  threadKindNote, timeline, titleOf, whoLine, workingAgents,
-} from "./model.ts";
+  threadKindNote, timeline, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
 
 type ThreadOut = CapMap["threads.get"]["out"];
@@ -217,7 +216,8 @@ function ConversationView(): ReactElement {
   const all = mergePages(around ?? live, older);
   emptyRef.current = all.length === 0;
   const liveView = around === null;
-  const win = lastMessages(all, shown);
+  // a failure a later reply has answered is over: its card leaves, and the reply stands on its own time
+  const win = lastMessages(withoutAnswered(all), shown);
   const ghosts = liveView ? ghostMessages(liveTurns, win.rows, thread.threadId) : [];
   const writing = new Set(collect([...win.rows, ...ghosts].filter((m) => { const s = data.streamOf(m.messageId); return s !== undefined && !s.getSnapshot().done; }), (m) => m.messageId));
   // a reply being written has no saved message yet: its row is the live turn (a ghost), and it counts as work from the moment the turn starts
@@ -385,6 +385,7 @@ function ConversationView(): ReactElement {
     answer: (blockId, answer) => void act.answerBlock(data, blockId, answer).catch(fail("Could not send the answer.")),
     approvePlan: (planId) => void act.approvePlan(data, planId).then(() => say("Plan approved. The steps run and tick off in the card."), fail("Could not approve the plan.")),
     retryTurn: (turnId) => void act.retryTurn(data, turnId).catch(fail("Could not retry.")),
+    turnDetail: (turnId) => act.turnDetail(data, turnId),
     accountReady: () => act.hasWorkingAccount(data),
     errorNext: (key, turnId) => void act.errorAction(data, key, turnId, say).catch(fail("Could not do that.")),
     retrySend: (id) => { const p = pending.find((x) => `pending:${x.key}` === id); if (p) { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "sending" as const } : x))); setLine(""); run(p); } },
@@ -511,7 +512,7 @@ function ConversationView(): ReactElement {
           <IconButton icon="x" label="Close find" size={24} testID="find-close" onPress={() => { setFinding(false); setQuery(""); }} />
         </View>
       ) : null}
-      <CatchUpLine onJump={(id) => setFocusId(id)} />
+      <CatchUpLine onJump={(id) => setFocusId(id)} newest={live[live.length - 1]?.messageId ?? ""} />
       {note ? <Text testID="conversation-note" style={st.noteLine}>{note}</Text> : null}
       {thread.kind === "thread" ? <ThreadParent threadId={thread.parentThreadId} messageId={thread.parentMessageId} call={data.call as never} nameOf={nameOf} /> : null}
 

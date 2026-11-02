@@ -50,7 +50,7 @@ const isAssistant = (rt: ShellRuntime, id: string): boolean => id === rt.assista
 
 export function Landing(p: LandingProps): ReactElement {
   const { rt } = p;
-  const you: WithEntry = useMemo(() => ({ id: rt.assistant.id, name: "Assistant", kind: "assistant" }), [rt.assistant.id]);
+  const you: WithEntry = useMemo(() => ({ id: rt.assistant.id, name: rt.assistant.name, kind: "assistant" }), [rt.assistant.id, rt.assistant.name]);
   const [picked, setPicked] = useState<readonly WithEntry[]>([you]);
   const [choice, setChoice] = useState<NewChoice>({ mode: "auto" });
   const needs = useLive<NeedsOut>(rt.screens, "home.needs-you-top3", "items", { limit: LANDING_NEEDS });
@@ -85,7 +85,7 @@ export function Landing(p: LandingProps): ReactElement {
     const add = (w: WithEntry): void => setPicked((cur) => [...cur.filter((c) => c.kind !== "assistant" || w.kind === "person"), w]);
     const entries: MenuEntry[] = [
       { head: "Agents" },
-      ...free([{ id: rt.assistant.id, name: "Assistant" }, ...p.agents.filter((a) => !isAssistant(rt, a.id))]).map((a): MenuEntry => ({ label: a.name, onSelect: () => add({ id: a.id, name: a.name, kind: isAssistant(rt, a.id) ? "assistant" : "agent" }) })),
+      ...free([{ id: rt.assistant.id, name: rt.assistant.name }, ...p.agents.filter((a) => !isAssistant(rt, a.id))]).map((a): MenuEntry => ({ label: a.name, onSelect: () => add({ id: a.id, name: a.name, kind: isAssistant(rt, a.id) ? "assistant" : "agent" }) })),
       ...(p.people.length > 0 ? [{ head: "People" } as MenuEntry] : []),
       ...free(p.people).map((a): MenuEntry => ({ label: a.name, onSelect: () => add({ id: a.id, name: a.name, kind: "person" }) })),
     ];
@@ -114,7 +114,7 @@ export function Landing(p: LandingProps): ReactElement {
           {each(picked, (w) => (
             <Pressable key={w.id} role="button" aria-label={`Remove ${w.name}`} testID={`with-${w.id}`} onPress={() => setPicked((cur) => (cur.length === 1 ? [you] : cur.filter((c) => c.id !== w.id)))} style={st.chip}>
               <Avatar {...avatarOf({ id: w.id, name: w.name, kind: w.kind })} size={18} />
-              <Text numberOfLines={1} style={st.chipText}>{w.name.split(/\s+/)[0]}</Text>
+              <Text numberOfLines={1} style={st.chipText}>{w.kind === "person" ? w.name.split(/\s+/)[0] : w.name}</Text>
             </Pressable>
           ))}
           <Pressable
@@ -125,7 +125,7 @@ export function Landing(p: LandingProps): ReactElement {
           </Pressable>
         </View>
         <View testID="landing-below" style={st.below}>
-          {firstDay ? <SetupRows render={(row, open) => <SetupLine key={row.key} title={row.title} sub={row.note} done={row.state === "done"} open={open} />} /> : (
+          {firstDay ? <SetupRows render={(row, open) => <SetupLine key={row.key} title={row.title} sub={row.note} done={row.state === "done"} open={open} />} more={(count, open) => <Pressable key="more" role="button" testID="landing-setup-more" onPress={open} style={st.more}><Text style={st.moreText}>{`${count} more to set up`}</Text></Pressable>} /> : (
             <>
               {each(items, (n) => <NeedRow key={n.task.id} item={n} {...p} />)}
               {moreLine(total, items.length) ? <Pressable role="button" testID="landing-more" onPress={p.openTasks} style={st.more}><Text style={st.moreText}>{moreLine(total, items.length)}</Text></Pressable> : null}

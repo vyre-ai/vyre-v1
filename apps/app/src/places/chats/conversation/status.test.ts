@@ -1,7 +1,7 @@
 // A turn that ended without a reply is a plain sentence with one action, never a card named after its internal status.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { installCommand, isTurnStatus, statusView } from "./status.ts";
+import { installCommand, isTurnStatus, statusView, withoutAnswered } from "./status.ts";
 
 const block = (data: Record<string, unknown>) => ({ id: "b1", type: "turn_status", v: 1, state: "done", data, traceId: "t" }) as never;
 
@@ -64,4 +64,26 @@ test("a locked Vault is an Unlock card, not a failed reply; an unreadable one gi
 
 test("a line the engine added to the chat reads as a quiet note", () => {
   assert.deepEqual(statusView(block({ state: "note", text: "Codex is not installed here, so Claude answered." })), { kind: "note", id: "b1", text: "Codex is not installed here, so Claude answered." });
+});
+
+const msg = (id: string, kind: "agent" | "person", authorId: string, body: string, blocks: unknown[] = []) => ({ messageId: id, author: { kind, id: authorId }, body, blocks }) as never;
+const failed = (id: string, agent = "agt_a") => msg(id, "agent", agent, "", [{ id: `b_${id}`, type: "turn_status", v: 1, data: { state: "failed", turnId: `trn_${id}`, code: "engine.cli_error" } }]);
+
+test("a failure the same agent has answered leaves; a newer failure replaces it; a failure someone talked past stays", () => {
+  const ids = (l: readonly { messageId: string }[]) => l.map((m) => m.messageId);
+  const reply = msg("reply", "agent", "agt_a", "Rivers carry water.");
+  assert.deepEqual(ids(withoutAnswered([msg("ask", "person", "usr_a", "Hi"), failed("f1"), reply] as never)), ["ask", "reply"], "the retry worked: the card has left and the reply stands alone");
+  assert.deepEqual(ids(withoutAnswered([msg("ask", "person", "usr_a", "Hi"), failed("f1"), failed("f2")] as never)), ["ask", "f2"], "the retry failed too: one card");
+  assert.deepEqual(ids(withoutAnswered([failed("f1"), msg("next", "person", "usr_a", "Never mind"), reply] as never)), ["f1", "next", "reply"]);
+  assert.deepEqual(ids(withoutAnswered([failed("f1"), msg("other", "agent", "agt_b", "Me too")] as never)), ["f1", "other"], "another agent's reply answers nothing");
+  const kept = msg("kept", "agent", "agt_a", "The words", [{ id: "b", type: "turn_status", v: 1, data: { state: "failed", turnId: "t", code: "engine.post_failed" } }]);
+  assert.deepEqual(ids(withoutAnswered([kept, reply] as never)), ["kept", "reply"], "a failure that kept the reply's words is not dropped");
+  const none = [reply] as never;
+  assert.equal(withoutAnswered(none), none, "nothing to drop: the same array");
+});
+
+test("Details has something real before the turn is read", () => {
+  const v = statusView({ id: "b", type: "turn_status", v: 1, traceId: "", data: { state: "failed", turnId: "trn_1", code: "engine.cli_error" } } as never);
+  assert.ok(v.kind === "error");
+  assert.deepEqual((v.block.data as { steps: unknown }).steps, [["Code", "engine.cli_error"], ["Reply", "trn_1"]]);
 });

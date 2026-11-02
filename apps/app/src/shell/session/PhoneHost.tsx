@@ -30,7 +30,7 @@ function You({ session, nav, onSignOut, onAddSpace, onLock, onSwitchSpace }: { s
   return (
     <View style={{ flex: 1 }}>
       <YouScreen nav={nav} data={{ name: session.me.name, space: session.def.name, workOpen: work.status === "ready" ? work.data.tasks.length : 0, starred: stars.status === "ready" ? stars.data.stars.length : 0 }} />
-      {resume ? <Row id="you-finish-setup" title="Finish setup" note={`${resume.handled} of ${resume.total} done`} onPress={resume.open} /> : null}
+      {resume ? <Row id="you-finish-setup" title="Finish setup" note={`${resume.done} of ${resume.total} done`} onPress={resume.open} /> : null}
       <Row id="you-vault" title="Vault" note="Keys, logins and cards" onPress={() => nav.open(entryFor("vault", "")!)} />
       <Row id="you-automations" title="Automations" note="What runs on its own" onPress={() => nav.open(entryFor("automations", "")!)} />
       {session.runtime.space.kind === "team" ? <Row id="you-apps" title="Apps" note="Forms and templates" onPress={() => nav.open(entryFor("apps", "")!)} /> : null}

@@ -3,6 +3,13 @@ const AUTH = /invalid api key|please run \/login|not logged in|log ?in required|
 const RATE = /rate.?limit|usage limit|limit reached|hit your (usage |weekly |5.?hour )?limit|quota|too many requests|\b429\b|overloaded|credit balance/i;
 const CONTEXT = /context.{0,20}(length|window)|prompt is too long|too many tokens/i;
 
+/** A sandbox that could not start the program says so on stderr (bwrap, sandbox-exec). The program's name is what the chat needs, never the rest of the line. */
+const NOT_THERE = /\bexecvp(?:\(\))?(?: of)? '?([\w./-]+?)'?(?: failed)?: No such file or directory/;
+export function missingProgram(message: string): string | null {
+  const path = NOT_THERE.exec(message)?.[1];
+  return path === undefined ? null : path.slice(path.lastIndexOf("/") + 1);
+}
+
 export function classifyCli(message: string): string {
   if (CONTEXT.test(message)) return "provider.context_too_long";
   if (AUTH.test(message)) return "provider.auth_failed";

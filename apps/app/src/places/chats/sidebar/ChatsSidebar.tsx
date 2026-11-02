@@ -334,14 +334,14 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
         />
       );
       case "person": return (
-        <Row id={e.key} title={e.name} selected={sel} emphasis={e.unread > 0} onPress={() => open(e)}
+        <Row id={e.key} title={e.name} selected={sel} emphasis={e.unread > 0 && !sel} onPress={() => open(e)}
           leading={<View style={{ marginRight: 9 }}><Face name={e.name} seedId={e.id} kind="person" size={18} /></View>}
-          trailing={e.unread > 0 ? <UnreadDot /> : null} />
+          trailing={e.unread > 0 && !sel ? <UnreadDot /> : null} />
       );
       case "face": return wrap(
         <Row
-          id={e.key} title={e.assistant ? "Assistant" : e.agent.name} selected={sel} onPress={() => open(e)}
-          leading={<View testID={e.agent.runtime === "outside" && e.agent.status === "asleep" ? "outside-offline-row" : undefined} accessibilityLabel={e.agent.runtime === "outside" && e.agent.status === "asleep" ? `${e.agent.name} is offline` : undefined} style={{ marginRight: 9, opacity: e.agent.runtime === "outside" && e.agent.status === "asleep" ? 0.5 : 1 }}><Face name={e.assistant ? "Assistant" : e.agent.name} seedId={e.agent.agentId} kind="agent" size={18} pulse={e.working} waiting={e.waiting} /></View>}
+          id={e.key} title={e.assistant ? data.space.assistant.name : e.agent.name} selected={sel} onPress={() => open(e)}
+          leading={<View testID={e.agent.runtime === "outside" && e.agent.status === "asleep" ? "outside-offline-row" : undefined} accessibilityLabel={e.agent.runtime === "outside" && e.agent.status === "asleep" ? `${e.agent.name} is offline` : undefined} style={{ marginRight: 9, opacity: e.agent.runtime === "outside" && e.agent.status === "asleep" ? 0.5 : 1 }}><Face name={e.assistant ? data.space.assistant.name : e.agent.name} seedId={e.agent.agentId} kind="agent" size={18} pulse={e.working} waiting={e.waiting} /></View>}
         />,
       );
       case "more": return <Pressable accessibilityRole="button" accessibilityLabel={e.label} testID={`row-${e.key}`} onPress={() => open(e)} style={st.more}><Text style={st.moreText}>{e.label}</Text></Pressable>;
@@ -351,7 +351,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
           <Row
             id={e.key} title={displayTitle(r, data.clock().offsetMin)} selected={sel} onPress={() => open(e)}
             leading={<View style={{ marginRight: 9 }}>{r.members ? <FaceStack members={r.members} size={16} /> : <Face name={r.who} seedId={r.whoId} kind={r.kind} size={18} pulse={r.working} waiting={r.waiting === true} />}</View>}
-            trailing={r.waiting ? <View style={st.needDot} testID="need-dot" /> : r.unread > 0 ? <UnreadDot /> : null}
+            trailing={r.waiting ? <View style={st.needDot} testID="need-dot" /> : r.unread > 0 && !sel ? <UnreadDot /> : null}
           />,
         );
       }
