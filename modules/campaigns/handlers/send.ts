@@ -160,8 +160,8 @@ async function sendEmail(p: Pass, m: Row, stepKey: string, cfg: Record<string, u
   const { ctx } = p;
   const mailboxId = str(cfg.mailboxId);
   const token = randomToken();
-  const base = (campaignConfig().publicBase ?? "").replace(/\/+$/, "");
-  const url = `${base}/u/${token}`;
+  const c = campaignConfig();
+  const url = `${(c.publicBase ?? "").replace(/\/+$/, "")}${c.publicPath ? "/p" : ""}/u/${token}`;
   const foot = unsubscribeLine(ctx, url);
   const body: Record<string, unknown> = {
     idempotencyKey: `campaign:${str(p.row.id)}:${str(m.id)}:${stepKey}:email`, mailboxId, to: [{ address: str(m.address), ...(typeof fields.name === "string" && fields.name ? { name: fields.name } : {}), contactId: str(m.record_id) }],
@@ -550,14 +550,16 @@ async function unsubscribe(ctx: Ctx, input: unknown) {
   if (!t) fail(ctx, "auth.invalid_code", "That link is not valid.");
   if (!isNull(t.used_at)) return { ok: true };
   const now = ctx.now();
-  ctx.db.run("UPDATE campaigns_unsub SET used_at = ? WHERE token_hash = ?", now, str(t.token_hash));
   const address = str(t.address);
+  // the opt-out first: a link marked used before it took effect would say yes on the retry and leave the person subscribed
   await ctx.call("contacts.apply_optout", { channel: "email", address, keyword: "UNSUBSCRIBE", source: "link", at: now });
+  ctx.db.run("UPDATE campaigns_unsub SET used_at = ? WHERE token_hash = ?", now, str(t.token_hash));
   const mine = one(ctx, "SELECT * FROM campaigns_member WHERE id = ?", str(t.member_id));
   for (const m of many(ctx, "SELECT * FROM campaigns_member").filter((x) => str(x.address).toLowerCase() === address.toLowerCase())) {
     if (m.state === "active" || m.state === "screening" || m.id === t.member_id) setMember(ctx, str(m.id), { state: "unsubscribed", due_at: null });
   }
-  ctx.emit("campaign.unsubscribed", `campaign/${str(t.campaign_id)}`, { campaignId: str(t.campaign_id), recordId: mine ? str(mine.record_id) : "" });
+  // a member taken off the campaign since the email went out has no record to name, and the person still has to be able to leave
+  if (mine) ctx.emit("campaign.unsubscribed", `campaign/${str(t.campaign_id)}`, { campaignId: str(t.campaign_id), recordId: str(mine.record_id) });
   return { ok: true };
 }
 

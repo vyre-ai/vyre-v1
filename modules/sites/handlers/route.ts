@@ -22,7 +22,7 @@ const NAME_MAX = 80;
 /** The Space's own gateway and the Caddy admin, and ssh. A site never points at these. */
 const RESERVED_PORTS = new Set([22, 2019, 8420]);
 const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
-const RESERVED_SLUGS = new Set(["forms", "a", "p", "api", "admin", "assets", "v1"]);
+const RESERVED_SLUGS = new Set(["forms", "u", "a", "p", "api", "admin", "assets", "v1"]);
 const TICKET_MS = 8 * 60 * 60 * 1000;
 const PAGE_DEFAULT = 100;
 const PAGE_MAX = 500;
