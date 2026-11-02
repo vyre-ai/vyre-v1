@@ -1,0 +1,1 @@
+- Talk: a mic in the composer. Speak and your words land in the message; nothing sends until you press Send.
