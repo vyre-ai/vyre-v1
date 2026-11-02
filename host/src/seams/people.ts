@@ -40,6 +40,8 @@ export interface PeopleDeps {
   stale?(principalId: string): boolean;
   /** the person key this node holds (ruling 62, 63); identity clears it at sign-out */
   keyring?: Keyring;
+  /** A Space reached at its phone address (<name>.vyre.run): the key an invite link carries for an invite's code hash, or null where there is no phone address (seams/relay.ts inviteKeyOf). */
+  phoneInvite?: { keyFor(codeHash: string): Promise<string | null> };
 }
 
 const count = (db: PeopleDeps["db"], sql: string, ...args: unknown[]): number => {
@@ -251,6 +253,7 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
       breakGlass: { ssoLinked: (personId: string) => hasSsoLink(d.db, personId), hasRecovery: (personId: string) => hasRecovery(d.db, personId) },
       factors: { of: (personId: string) => (count(d.db, `SELECT count(*) AS n FROM identity_accounts WHERE person_id = ? AND totp_secret IS NOT NULL`, personId) > 0 ? ["totp"] : []) },
       owned: ownedFor(undefined),
+      ...(d.phoneInvite ? { phoneInvite: d.phoneInvite } : {}),
     },
     spaces: {
       directory,

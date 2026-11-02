@@ -39,6 +39,8 @@ export interface MembersCtx {
   now(): number;
   db: Db;
   emit(name: string, subject: string, payload: unknown): unknown;
+  /** A Space reached at its phone address (<name>.vyre.run): the key its invite links carry for a code hash, so a person with no box key can reach the join page. Null: a plain link. */
+  phoneInvite?: { keyFor(codeHash: string): Promise<string | null> };
   /** The host's capability call (ctx.call). */
   call(cap: string, input: unknown): Promise<unknown>;
   /** ctx.http, used only by sso.test (egress is the issuer's domain). */
