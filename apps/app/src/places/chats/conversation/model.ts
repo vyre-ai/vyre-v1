@@ -403,8 +403,9 @@ export function postInput(threadId: string, body: string, mentions: readonly { k
 }
 
 /** The line under the header while a send waits for the agent's next step. */
-export function queueNote(n: number, leadName: string, steers = false): string {
+export function queueNote(n: number, leadName: string, steers = false, ownTurn = true): string {
   if (n <= 0) return "";
+  if (!ownTurn) return "After this: it goes in when this turn ends";
   if (steers) return "Goes in at the next step";
   return `${n} ${n === 1 ? "message" : "messages"} queued for ${leadName || "the agent"}'s next step`;
 }

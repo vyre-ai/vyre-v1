@@ -264,7 +264,7 @@ test("session: opens the Space as the signed-in person and builds the card the s
   assert.equal(s.def.role, "Owner");
   assert.equal(s.def.needsYou, true);
   assert.equal(s.def.console, true);
-  assert.deepEqual(s.def.counts, { chats: 3 });
+  assert.deepEqual(s.def.counts, {}, "the Chats badge is Needs you, followed live, never an unread snapshot");
   assert.equal(s.runtime.space.kind, "team");
   assert.equal(gw.seen[0]!.headers["authorization"], "Bearer vst_1");
   s.close();

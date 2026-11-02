@@ -23,7 +23,30 @@ export function cardBody(o: { name: string; title: string; state: "done" | "fail
 
 export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => number }): (e: StreamEvent) => void {
   const ended = new Map<string, "done" | "failed" | "cancelled" | "waiting">();
+  const askers = new Map<string, string>();   // turnId -> the person it ran for, kept from its start for the result of a helper
   const warn = (msg: string, attrs: Record<string, unknown>): void => o.host.log?.(msg, attrs);
+
+  /**
+   * A helper's turn ended. Its answer goes to the chat that started it as the helper's own line, carrying a `helper` block that names the thread and how it ended. chat.post checks that block, and the engine then
+   * wakes the lead, even when the lead is the helper's own agent, and bills the person the helper works for. Stopped or waiting on a person, it has nothing to report yet.
+   */
+  async function helperResult(e: Extract<StreamEvent, { kind: "final" }>): Promise<void> {
+    const asker = askers.get(e.turnId);
+    const state = ended.get(e.turnId) ?? "done";
+    askers.delete(e.turnId);
+    ended.delete(e.turnId);
+    if (!asker || state === "waiting" || state === "cancelled") return;
+    const th = ((await o.host.call("threads.get", { threadId: e.threadId }, asker)) as { thread?: { kind?: string; title?: string; parentThreadId?: string } }).thread;
+    if (th?.kind !== "helper" || !th.parentThreadId) return;
+    let text = "";
+    if (e.messageId) { try { text = str(((await o.host.call("chat.message.get", { threadId: e.threadId, messageId: e.messageId }, asker)) as { message?: { body?: string } }).message?.body).trim(); } catch { /* the line goes without the words */ } }
+    const title = str(th.title);
+    const body = state === "failed" ? `Helper "${title}" could not finish.${text ? `\n\n${cut(text, 600)}` : ""}` : `Helper "${title}" found:\n\n${text ? cut(text, 1500) : "(it ended with no words)"}`;
+    await o.host.postAs(e.agentId, {
+      actingFor: asker, threadId: th.parentThreadId, body, mentions: [], clientId: `msg_hlp${e.turnId.replace(/^trn_/, "")}`.replace(/[^a-z0-9_]/g, ""),
+      blocks: [{ type: "helper", v: 1, data: { threadId: e.threadId, parentThreadId: th.parentThreadId, title, status: state, agentId: e.agentId, path: [] } }],
+    });
+  }
 
   async function finish(job: Row, turnId: string, state: "done" | "failed", messageId: string | null): Promise<void> {
     const asker = str(job["asker"]);
@@ -54,8 +77,14 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
 
   async function handle(e: StreamEvent): Promise<void> {
     ensure(o.db);
+    if (e.kind === "start") askers.set(e.turnId, e.asker);
     const job = o.db.all("SELECT * FROM engine_crew_job WHERE thread_id = ?", e.threadId)[0] as Row | undefined;
-    if (!job) return;
+    if (!job) {
+      if (e.kind === "end") ended.set(e.turnId, e.state);
+      if (e.kind === "final") await helperResult(e);
+      return;
+    }
+    if (e.kind === "final") askers.delete(e.turnId);
     if (e.kind === "start") { o.db.run("UPDATE engine_crew_job SET state = 'working', ended_at = NULL WHERE job_id = ? AND state IN ('done', 'failed', 'stopped', 'waiting')", str(job["job_id"])); return; }
     if (e.kind === "end") {
       ended.set(e.turnId, e.state);

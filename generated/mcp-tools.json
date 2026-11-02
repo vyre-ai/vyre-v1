@@ -38470,6 +38470,8 @@
           "kind": {
             "enum": [
               "approval.requested",
+              "answer.requested",
+              "unblock.requested",
               "approval.backstop",
               "dm",
               "mention",
@@ -38928,6 +38930,8 @@
           "kind": {
             "enum": [
               "approval.requested",
+              "answer.requested",
+              "unblock.requested",
               "approval.backstop",
               "dm",
               "mention",

@@ -34,6 +34,6 @@ type Payload = {
   hasBlocks: boolean;
   via?: string;
   actingFor?: string;
-  typed?: boolean;
+  job?: boolean;
 };
 ```

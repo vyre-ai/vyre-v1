@@ -2,7 +2,7 @@
 // What a work card reads from its target: which read, how the answer is worded, and what hides a card from someone who may not open it.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { HIDDEN_TITLE, probeOf, stateOf } from "./state.ts";
+import { HIDDEN_TITLE, doneByState, heldTaskOf, probeOf, stateOf } from "./state.ts";
 import type { LinkCardData } from "./model.ts";
 
 const card = (type: string, id: string, via?: string): LinkCardData => ({ icon: "x", lead: "Made", title: "Thing", target: { type, id }, ...(via ? { via } : {}) });
@@ -27,4 +27,19 @@ test("a Run reads running, waiting on you, done or failed; a task reads its own 
   assert.equal(stateOf(card("file", "f"), { file: {} }), null);
   assert.equal(stateOf(card("run", "r"), {}), null);
   assert.equal(HIDDEN_TITLE, "Not shared with you");
+});
+
+test("a Flow card reads its Flow, and Turn on reads done once the Flow is on, wherever it was turned on", () => {
+  const d = { icon: "flow", lead: "Flow drafted", title: "Weekly", target: { type: "automation", id: "aut_1" } };
+  assert.deepEqual(probeOf(d), { cap: "automations.get", input: { automationId: "aut_1" } });
+  assert.equal(stateOf(d, { automation: { status: "draft" } })?.text, "Draft");
+  assert.equal(stateOf(d, { automation: { status: "draft" } })?.live, true, "a draft is still to be decided");
+  assert.equal(stateOf(d, { automation: { status: "on" } })?.text, "On");
+  assert.deepEqual(doneByState(d, stateOf(d, { automation: { status: "on" } }) ?? null), ["on"]);
+  assert.deepEqual(doneByState(d, stateOf(d, { automation: { status: "draft" } }) ?? null), []);
+});
+
+test("a held work card names its task; any other card names nothing", () => {
+  assert.equal(heldTaskOf({ icon: "approval", lead: "Approval", title: "records delete", target: { type: "task", id: "tsk_1" } }), "tsk_1");
+  assert.equal(heldTaskOf({ icon: "task", lead: "Task", title: "x", target: { type: "task", id: "tsk_1" } }), null);
 });

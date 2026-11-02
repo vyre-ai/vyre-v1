@@ -3,7 +3,7 @@ import { handlers } from "./handlers/index.ts";
 
 export { handlers };
 import { countNeedsYou } from "./handlers/state.ts";
-import { resumeRunOf } from "./handlers/resume.ts";
+import { resumeRunOf, settleFromSource } from "./handlers/resume.ts";
 import type { TasksCtx } from "./projections.ts";
 export { findStuck, mintApprovalToken, readApprovalToken, ACT_KEYS } from "./handlers/act.ts";
 export { applyMove, checkMove, commitMove, planMove, submitTarget, afterReview } from "./handlers/state.ts";
@@ -18,4 +18,9 @@ export const hostCalls = {
 /** A Run waiting on a task goes on when the task is Done or Canceled, whichever way it got there (handlers/resume.ts). */
 export const consumers = {
   "tasks.run_resume": { on: ["task.transitioned"], run: (ctx: TasksCtx, event: Parameters<typeof resumeRunOf>[1]) => resumeRunOf(ctx, event) },
+  /** The source decided (a card in the chat, the access or key card): its tasks close, for everyone they were addressed to (handlers/resume.ts). */
+  "tasks.source_settle": {
+    on: ["block.answered", "plan.approved", "plan.rejected", "access.granted", "access.declined", "vault.request_fulfilled", "vault.request_declined", "vault.request_canceled"],
+    run: (ctx: TasksCtx, event: Parameters<typeof settleFromSource>[1]) => settleFromSource(ctx, event),
+  },
 };

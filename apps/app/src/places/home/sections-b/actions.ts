@@ -1,5 +1,6 @@
 // What a press does in Home sections B: one capability call, then the quiet line under the greeting, with Undo where the change can be taken back.
 // A failed write becomes "Could not ...", never a thrown error from a click.
+import { currentScreen } from "../../../shell/ask/screen.ts";
 import type { StarType } from "./model.ts";
 
 export interface ActionDeps {
@@ -32,14 +33,16 @@ export interface AskExtras { mentions?: readonly { kind: "person" | "agent"; id:
  */
 export async function startAsk(d: ActionDeps, assistantId: string, text: string, at: number, extras: AskExtras = {}): Promise<string | null> {
   const key = `home-ask-${at}-${++seq}`;
-  const rich = (extras.mentions?.length ?? 0) > 0 || (extras.refs?.length ?? 0) > 0;
+  // the question goes the way a chat's message goes, with the screen it was asked from: the first message of a chat carries none
+  const screen = currentScreen();
+  const rich = screen !== null || (extras.mentions?.length ?? 0) > 0 || (extras.refs?.length ?? 0) > 0;
   let thread: string | null = null;
   const ok = await attempt(d, "start that chat", async () => {
     const out = (await d.call("chat.start", { kind: "chat", agentIds: [assistantId], ...(rich ? {} : { first: text }), idempotencyKey: key })) as { thread: { threadId: string } };
     thread = out.thread.threadId;
     if (rich) {
       await d.call("chat.post", {
-        threadId: thread, body: text, idempotencyKey: `${key}-post`,
+        threadId: thread, body: text, idempotencyKey: `${key}-post`, ...(screen ? { screen } : {}),
         ...((extras.mentions?.length ?? 0) > 0 ? { mentions: extras.mentions!.map((m) => ({ kind: m.kind, id: m.id })) } : {}),
         ...((extras.refs?.length ?? 0) > 0 ? { blocks: [{ type: "refs", v: 1, data: { refs: extras.refs!.map((r) => ({ kind: r.kind, id: r.id, title: r.title })) } }] } : {}),
       });

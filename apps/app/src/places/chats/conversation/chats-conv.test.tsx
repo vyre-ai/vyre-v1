@@ -90,6 +90,7 @@ test("while an agent works a plain send queues; Interrupt sends it now with the 
   assert.equal(queuedCount(msgs(s), "usr_irfad", true), 2);
   assert.equal(queueNote(2, "Intake"), "2 messages queued for Intake's next step");
   assert.equal(queueNote(2, "Intake", true), "Goes in at the next step", "an engine that steers takes it at its next step");
+  assert.equal(queueNote(1, "Intake", false, false), "After this: it goes in when this turn ends", "someone else's turn is not steered");
 });
 
 test("one chat.post gives one message and one bubble on the page, never two", async () => {

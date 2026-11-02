@@ -1,0 +1,1 @@
+- An agent in a thread now reads the message it hangs off and the conversation around it, a handoff keeps that message, and an @agent in any thread, a task's thread included, joins and replies there. A reply to another person no longer wakes the lead agent.

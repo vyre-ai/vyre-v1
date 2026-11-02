@@ -234,7 +234,9 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
     for (const [k, v] of Object.entries(input.notes as Record<string, unknown>).slice(0, MAX_START_NOTES)) if (!(k in RESERVED_NOTES) && typeof v === "string") notes[k] = v.slice(0, MAX_NOTE_CHARS);
     t.workingNotes = notes;
   }
-  if (ctx.call) await ensureThread(ctx, t, ctx.thread);
+  // a request that came from a chat lives in that chat: its feed is the conversation that asked, never a second thread beside it
+  if (isRequest(kind) && t.source?.kind === "chat") t.threadId = t.source.id;
+  else if (ctx.call) await ensureThread(ctx, t, ctx.thread);
   if (t.threadId === undefined && ctx.thread) t.threadId = ctx.thread;
   const resp = await responsibleFor(ctx, assigned);
   if (resp !== undefined) t.responsible = resp;

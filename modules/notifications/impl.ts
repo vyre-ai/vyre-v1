@@ -2,7 +2,7 @@
 // setPushPort is the host's door for the APNs/FCM transport and the computer's idle time (call it at boot); the fanout consumer turns events that name a notification kind into rows.
 import { handlers } from "./handlers/index.ts";
 import { setPushPort } from "./handlers/push.ts";
-import { send } from "./handlers/rules.ts";
+import { clearForSubject, send } from "./handlers/rules.ts";
 import { readSettings, syncSetting } from "./handlers/deliver.ts";
 import type { NotifCtx } from "./projections.ts";
 
@@ -23,7 +23,9 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<Parameters<typeof send>[1] |
   if (e.name === "task.requested") {
     const to = p.assigned as Assignee;
     if (!to || to.kind !== "person") return undefined;   // a group, role or agent holder is reached through tasks.delegate and Needs you, not a personal banner
-    return { to: to.id, kind: "approval.requested", subject: { type: "task", id: String(p.taskId) }, title: String(p.title ?? ""), collapseKey: `approval.requested:${String(p.taskId)}` };
+    // the words say what is asked: an answer, or something only this person can unblock, never "Approval needed"
+    const kind = p.kind === "answer" ? "answer.requested" : p.kind === "unblock" ? "unblock.requested" : "approval.requested";
+    return { to: to.id, kind, subject: { type: "task", id: String(p.taskId) }, title: String(p.title ?? ""), collapseKey: `${kind}:${String(p.taskId)}` };
   }
   if (e.name === "task.assigned") {
     const to = p.to as Assignee;
@@ -38,6 +40,10 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<Parameters<typeof send>[1] |
       return { to: run.owner, kind: "agent.task_finished", subject: { type: "run", id: String(p.runId) }, title: run.name ?? run.summary ?? "a routine", data: { agent: "Your routine" }, runId: String(p.runId) };
     }, () => undefined);
   }
+  if ((e.name === "access.granted" || e.name === "access.declined") && typeof p.requester === "string") {
+    const r = p.resource as { type?: string } | undefined;
+    return { to: p.requester, kind: "access.decided", title: r?.type ?? "this", data: { decision: e.name === "access.granted" ? "approved" : "declined" } };
+  }
   if (e.name === "run.failed") return { to: String(p.owner), kind: "run.failed", subject: { type: "run", id: String(p.runId) }, data: { name: p.kind, message: p.message }, runId: String(p.runId) };
   if (e.name === "member.joined") return { to: String(p.invitedBy), kind: "member.joined", data: { name: p.personId, space: ctx.space } };
   return undefined;
@@ -46,12 +52,22 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<Parameters<typeof send>[1] |
 /** Async consumers by name: the events each one reads and what it does with one. */
 export const consumers = {
   "notifications.fanout": {
-    on: ["task.requested", "task.assigned", "run.failed", "run.succeeded", "member.joined"],
+    on: ["task.requested", "task.assigned", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined"],
     async run(ctx: NotifCtx, event: Ev): Promise<string[]> {
       const input = await plan(ctx, event);
       if (!input) return [];
       const r = await send(ctx, input);
       return r.notificationId ? [r.notificationId] : [];
+    },
+  },
+  /** A request that closed is nothing to be told about any more: its notification stops counting, whoever decided it and wherever. */
+  "notifications.task_closed": {
+    on: ["task.transitioned", "task.withdrawn"],
+    async run(ctx: NotifCtx, event: Ev): Promise<string[]> {
+      const to = event.payload.to;
+      if (event.name === "task.transitioned" && to !== "done" && to !== "canceled") return [];
+      const taskId = String(event.payload.taskId ?? "");
+      return taskId ? clearForSubject(ctx, "task", taskId) : [];
     },
   },
   /** Keeps a copy of each person's notification settings from settings.changed, for the deliver path (P-CC_22b). */

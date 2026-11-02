@@ -2192,13 +2192,6 @@ export type AutomationsAnalyticsOut = {
       count: number;
     }>;
 };
-export type AutomationsCodeReachIn = {
-  hosts: Array<string>;
-  idempotencyKey: string;
-};
-export type AutomationsCodeReachOut = {
-  ok: boolean;
-};
 export type AutomationsConnectorCardIn = {
   threadId: string;
   title: string;
@@ -3293,22 +3286,6 @@ export type AutomationsReadDocsIn = {
   focus?: string;
 };
 export type AutomationsReadDocsOut = {
-  ok: boolean;
-  reason?: string;
-  finalUrl?: string;
-  kind?: "openapi" | "html" | "text";
-  text?: string;
-  links?: Array<{
-      text: string;
-      url: string;
-    }>;
-  truncated?: boolean;
-};
-export type AutomationsReadLinkIn = {
-  url: string;
-  focus?: string;
-};
-export type AutomationsReadLinkOut = {
   ok: boolean;
   reason?: string;
   finalUrl?: string;
@@ -12210,46 +12187,6 @@ export type GateActsListOut = {
       peopleOnly: boolean;
     }>;
 };
-export type GateAllowListIn = Record<string, unknown>;
-export type GateAllowListOut = {
-  rules: Array<{
-      id: string;
-      kind: "standing" | "always";
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
-      target: string;
-      agentId?: string;
-      threadId?: string;
-      automationId?: string;
-      stepId?: string;
-      expiresAt?: number;
-    }>;
-};
-export type GateAllowRemoveIn = {
-  id: string;
-};
-export type GateAllowRemoveOut = {
-  ok: boolean;
-};
-export type GateAllowSetIn = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
-  target: string;
-  agentId?: string;
-  threadId?: string;
-  days?: number;
-};
-export type GateAllowSetOut = {
-  rule: {
-    id: string;
-    kind: "standing" | "always";
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
-    target: string;
-    agentId?: string;
-    threadId?: string;
-    automationId?: string;
-    stepId?: string;
-    expiresAt?: number;
-  };
-};
 export type GateDenyIn = {
   holdId: string;
   taskId: string;
@@ -12287,61 +12224,6 @@ export type GateExpireIn = {
 export type GateExpireOut = {
   outcome: "dropped" | "escalated";
   escalatedTo?: string;
-};
-export type GateGrantsAskIn = {
-  threadId: string;
-  messageId: string;
-  asked: Array<{
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
-      target: string;
-    }>;
-  links?: Array<string>;
-};
-export type GateGrantsAskOut = {
-  ok: boolean;
-};
-export type GateGrantsSetIn = {
-  automationId: string;
-  defHash: string;
-  press: "save" | "on";
-  steps: Array<{
-      stepId: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
-      targets: Array<string>;
-      computed: boolean;
-      changed: boolean;
-    }>;
-};
-export type GateGrantsSetOut = {
-  grants: Array<{
-      id: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
-      target: string;
-      stepId?: string;
-    }>;
-};
-export type GateGrantsTakeIn = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
-  targets: Array<string>;
-  step?: {
-    automationId: string;
-    nodeId: string;
-    defHash: string;
-    ask?: boolean;
-  };
-  turn?: {
-    person: string;
-    threads: Array<string>;
-  };
-  always?: {
-    person: string;
-    agentId: string;
-    threads: Array<string>;
-    cap: string;
-  };
-};
-export type GateGrantsTakeOut = {
-  granted: boolean;
 };
 export type GateHoldsGetIn = {
   holdId: string;
@@ -12391,13 +12273,6 @@ export type GateHoldsListOut = {
   next?: string;
   total?: number;
 };
-export type GateLinksKnownIn = {
-  url: string;
-  threads: Array<string>;
-};
-export type GateLinksKnownOut = {
-  known: boolean;
-};
 export type GateParkIn = {
   capName: string;
   capVersion: number;
@@ -12412,12 +12287,6 @@ export type GateParkIn = {
   decisionId: string;
   runId?: string;
   threadId?: string;
-  step?: {
-    automationId: string;
-    nodeId: string;
-    defHash: string;
-    ask?: boolean;
-  };
   idempotencyKey: string;
 };
 export type GateParkOut = {
@@ -12484,14 +12353,6 @@ export type GateRulesSetOut = {
     scope: "space" | "floor" | "agent";
     agentId?: string;
   };
-};
-export type GateTaintMarkIn = {
-  threads: Array<string>;
-  source: string;
-  links?: Array<string>;
-};
-export type GateTaintMarkOut = {
-  ok: boolean;
 };
 export type GitBranchIn = {
   folderId: string;
@@ -21296,7 +21157,7 @@ export type NotificationsDigestCollectIn = {
 };
 export type NotificationsDigestCollectOut = {
   items: Array<{
-      kind: "approval.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
       title: string;
       at: number;
       subject?: {
@@ -21307,19 +21168,19 @@ export type NotificationsDigestCollectOut = {
     }>;
 };
 export type NotificationsKindSetLevelIn = {
-  kind: "approval.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
   level?: "interrupt" | "badge" | "digest";
   channels?: Array<"desktop" | "phone" | "email">;
 };
 export type NotificationsKindSetLevelOut = {
-  kind: "approval.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
   level: "interrupt" | "badge" | "digest";
   channels: Array<"desktop" | "phone" | "email">;
 };
 export type NotificationsKindsListIn = Record<string, unknown>;
 export type NotificationsKindsListOut = {
   kinds: Array<{
-      key: "approval.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+      key: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
       level: "interrupt" | "badge" | "digest";
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
@@ -21340,7 +21201,7 @@ export type NotificationsListIn = {
 export type NotificationsListOut = {
   notifications: Array<{
       id: string;
-      kind: "approval.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
       level: "interrupt" | "badge" | "digest";
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
@@ -21454,7 +21315,7 @@ export type NotificationsRulesSetOut = {
 };
 export type NotificationsSendIn = {
   to: string;
-  kind: "approval.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
   subject?: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
@@ -32992,7 +32853,6 @@ export interface CapMap {
   "automations.alerts.get": { in: AutomationsAlertsGetIn; out: AutomationsAlertsGetOut };
   "automations.alerts.set": { in: AutomationsAlertsSetIn; out: AutomationsAlertsSetOut };
   "automations.analytics": { in: AutomationsAnalyticsIn; out: AutomationsAnalyticsOut };
-  "automations.code_reach": { in: AutomationsCodeReachIn; out: AutomationsCodeReachOut };
   "automations.connector_card": { in: AutomationsConnectorCardIn; out: AutomationsConnectorCardOut };
   "automations.connector_levels": { in: AutomationsConnectorLevelsIn; out: AutomationsConnectorLevelsOut };
   "automations.connector_offer.accept": { in: AutomationsConnectorOfferAcceptIn; out: AutomationsConnectorOfferAcceptOut };
@@ -33027,7 +32887,6 @@ export interface CapMap {
   "automations.preview_promote": { in: AutomationsPreviewPromoteIn; out: AutomationsPreviewPromoteOut };
   "automations.promote": { in: AutomationsPromoteIn; out: AutomationsPromoteOut };
   "automations.read_docs": { in: AutomationsReadDocsIn; out: AutomationsReadDocsOut };
-  "automations.read_link": { in: AutomationsReadLinkIn; out: AutomationsReadLinkOut };
   "automations.replay": { in: AutomationsReplayIn; out: AutomationsReplayOut };
   "automations.restore_version": { in: AutomationsRestoreVersionIn; out: AutomationsRestoreVersionOut };
   "automations.retry": { in: AutomationsRetryIn; out: AutomationsRetryOut };
@@ -33550,24 +33409,16 @@ export interface CapMap {
   "forms.unpublish": { in: FormsUnpublishIn; out: FormsUnpublishOut };
   "forms.update": { in: FormsUpdateIn; out: FormsUpdateOut };
   "gate.acts.list": { in: GateActsListIn; out: GateActsListOut };
-  "gate.allow.list": { in: GateAllowListIn; out: GateAllowListOut };
-  "gate.allow.remove": { in: GateAllowRemoveIn; out: GateAllowRemoveOut };
-  "gate.allow.set": { in: GateAllowSetIn; out: GateAllowSetOut };
   "gate.deny": { in: GateDenyIn; out: GateDenyOut };
   "gate.effective_rule": { in: GateEffectiveRuleIn; out: GateEffectiveRuleOut };
   "gate.expire": { in: GateExpireIn; out: GateExpireOut };
-  "gate.grants.ask": { in: GateGrantsAskIn; out: GateGrantsAskOut };
-  "gate.grants.set": { in: GateGrantsSetIn; out: GateGrantsSetOut };
-  "gate.grants.take": { in: GateGrantsTakeIn; out: GateGrantsTakeOut };
   "gate.holds.get": { in: GateHoldsGetIn; out: GateHoldsGetOut };
   "gate.holds.list": { in: GateHoldsListIn; out: GateHoldsListOut };
-  "gate.links.known": { in: GateLinksKnownIn; out: GateLinksKnownOut };
   "gate.park": { in: GateParkIn; out: GateParkOut };
   "gate.release": { in: GateReleaseIn; out: GateReleaseOut };
   "gate.result.take": { in: GateResultTakeIn; out: GateResultTakeOut };
   "gate.rules.list": { in: GateRulesListIn; out: GateRulesListOut };
   "gate.rules.set": { in: GateRulesSetIn; out: GateRulesSetOut };
-  "gate.taint.mark": { in: GateTaintMarkIn; out: GateTaintMarkOut };
   "git.branch": { in: GitBranchIn; out: GitBranchOut };
   "git.commit": { in: GitCommitIn; out: GitCommitOut };
   "git.diff": { in: GitDiffIn; out: GitDiffOut };
@@ -34707,6 +34558,8 @@ export type AccessDeclinedPayload = {
   };
   requester: string;
   note?: string;
+  threadId?: string;
+  agentId?: string;
 };
 export type AccessEveryoneDefaultsChangedPayload = {
   grants: number;
@@ -34721,6 +34574,8 @@ export type AccessGrantedPayload = {
   level: "view" | "use" | "edit" | "manage";
   requester: string;
   grantId: string;
+  threadId?: string;
+  agentId?: string;
 };
 export type AccessRequestedPayload = {
   requestId: string;
@@ -36510,7 +36365,7 @@ export type MessageReceivedPayload = {
   hasBlocks: boolean;
   via?: string;
   actingFor?: string;
-  typed?: boolean;
+  job?: boolean;
 };
 export type MessageSentPayload = {
   messageId: string;
@@ -36628,7 +36483,7 @@ export type NoteErasedPayload = {
 export type NotificationCappedPayload = {
   person: string;
   agentId: string;
-  kind: "approval.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
   perHour: number;
 };
 export type NotificationDelegateChangedPayload = {
@@ -36641,7 +36496,7 @@ export type NotificationDelegateChangedPayload = {
 export type NotificationDeliveredPayload = {
   notificationId: string;
   person: string;
-  kind: "approval.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
   level: "interrupt" | "badge" | "digest";
   place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
   subject?: {

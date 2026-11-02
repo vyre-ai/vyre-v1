@@ -82,7 +82,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     const invoke: Invoke = (cap, input, seed) => deps.invoke(cap, input, { ...seed, principal: caller.principal, origin: "mcp", space: caller.space });
     const tools = createToolSession({
       catalog: deps.catalog, defaults: deps.defaults, invoke,
-      levelFor: () => null,
+      levelFor: () => caller.askLevel ?? null,
       canEngineer: () => caller.engineer === true,
       // A CLI engine's session works for one chat, so a local tool follows that chat's mode, under the owner's floor. An outside tool has none: its scopes refuse local tools before they get here.
       ...(caller.kind === "driver" ? { localPolicy: (t: ToolDef, c: ToolCtx, input: unknown) => { const dial = dialFor(c.thread.mode, caller.localFloor); return decideLocal(t, dial.person, dial.floor, localFacts(t, input)); } } : {}),
@@ -91,7 +91,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     if (caller.preload) tools.preload(threadId, caller.preload);
     const ctx: ToolCtx = {
       space: caller.space, agentId: caller.principal.id, asker,
-      thread: { threadId, kind: "chat", planMode: caller.planMode === true || caller.mode === "plan", ...(caller.mode !== undefined ? { mode: caller.mode } : {}) },
+      thread: { threadId, kind: caller.threadKind ?? "chat", planMode: caller.planMode === true || caller.mode === "plan", ...(caller.mode !== undefined ? { mode: caller.mode } : {}), ...(caller.scope ? { scope: caller.scope } : {}) },
       ...(caller.rules ? { rules: caller.rules } : {}),
       ...(caller.provider ? { provider: caller.provider } : {}),
       ...(caller.runId ? { runId: caller.runId } : {}),

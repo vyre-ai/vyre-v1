@@ -189,6 +189,7 @@ export function needsNote(a: Action): boolean {
 
 /** The placeholder in the note field. */
 export function notePrompt(a: Action, who: string): string {
+  if (a.key === "answer") return "Your answer…";
   return isSendBack(a) ? `Tell ${who} what to change…` : a.note === "required" ? "Add a note…" : "Add a note (optional)…";
 }
 
@@ -301,6 +302,15 @@ export function accessRequestOf(t: Task): { requestId: string; level?: string } 
   if (typeof d !== "object" || d === null || Array.isArray(d)) return null;
   const r = d as Record<string, unknown>;
   return typeof r["requestId"] === "string" ? { requestId: r["requestId"], ...(typeof r["level"] === "string" ? { level: r["level"] } : {}) } : null;
+}
+
+/** A question a chat asked (chat.question.ask): its options, and whether words are taken too. Null for any other task, and for a question with no options, which is answered in words. */
+export function questionOf(t: Task): { options: { key: string; label: string }[]; words: boolean } | null {
+  const d = t.blocks.find((x) => x.type === "question")?.data;
+  if (typeof d !== "object" || d === null || Array.isArray(d)) return null;
+  const r = d as Record<string, unknown>;
+  const options = (Array.isArray(r["options"]) ? r["options"] : []).filter(isRec).map((o) => ({ key: str(o["key"]), label: str(o["label"]) })).filter((o) => o.key !== "");
+  return options.length > 0 ? { options, words: r["allowOther"] === true } : null;
 }
 
 /** A connection that stopped working (connectors needs_reconnect): the connection its Reconnect and Check again buttons act on. Null for any other task. */
