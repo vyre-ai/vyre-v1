@@ -4,8 +4,7 @@ import { shellDesktopLinkBridge } from "../../../../../client/src/connection/des
 import type { DesktopDeepLink, DesktopLinkBridge, Unlisten } from "../../../../../client/src/connection/desktop-link.ts";
 import { keepKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { holdKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
-import { loadCryptoKeys } from "../../../../../client/src/crypto/load.ts";
-import type { MadeBundle } from "../../../../../client/src/crypto/keys.ts";
+import { loadCryptoKeys, type MadeBundle } from "../../../../../client/src/crypto/load.ts";
 import type { JoinValues } from "../../join/JoinFlow.tsx";
 import { deviceFor } from "../../join/logic.ts";
 import { openVerifiedSession, writeStored } from "./stored.ts";
