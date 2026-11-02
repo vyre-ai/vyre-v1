@@ -24,5 +24,9 @@ type Payload = {
   by: string;
   mode: "send_back" | "drop";
   note?: string;
+  askedBy?: {
+    kind: "person" | "agent" | "actor" | "service";
+    id: string;
+  };
 };
 ```

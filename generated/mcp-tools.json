@@ -59091,6 +59091,9 @@
             "pattern": "^run_[a-z0-9]+$",
             "type": "string"
           },
+          "handleOnly": {
+            "type": "boolean"
+          },
           "idempotencyKey": {
             "examples": [
               "idem_1"

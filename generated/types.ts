@@ -12470,6 +12470,10 @@ export type GateHoldsGetOut = {
     payloadHash: string;
     createdAt: number;
     expiresAt: number;
+    askedBy?: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
+    };
   };
 };
 export type GateHoldsListIn = {
@@ -12495,6 +12499,10 @@ export type GateHoldsListOut = {
       payloadHash: string;
       createdAt: number;
       expiresAt: number;
+      askedBy?: {
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      };
     }>;
   next?: string;
   total?: number;
@@ -12525,6 +12533,13 @@ export type GateParkIn = {
     nodeId: string;
     defHash: string;
     ask?: boolean;
+  };
+  ask?: {
+    by: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
+    };
+    what: string;
   };
   idempotencyKey: string;
 };
@@ -33310,6 +33325,7 @@ export type VaultRequestIn = {
   reason: string;
   forRun?: string;
   folderId?: string;
+  handleOnly?: boolean;
   idempotencyKey: string;
 };
 export type VaultRequestOut = {
@@ -36886,6 +36902,10 @@ export type GateApprovedPayload = {
   taskId: string;
   by: string;
   forPerson?: string;
+  askedBy?: {
+    kind: "person" | "agent" | "actor" | "service";
+    id: string;
+  };
 };
 export type GateDeniedPayload = {
   holdId: string;
@@ -36894,6 +36914,10 @@ export type GateDeniedPayload = {
   by: string;
   mode: "send_back" | "drop";
   note?: string;
+  askedBy?: {
+    kind: "person" | "agent" | "actor" | "service";
+    id: string;
+  };
 };
 export type GateExpiredPayload = {
   holdId: string;
@@ -36901,6 +36925,10 @@ export type GateExpiredPayload = {
   taskId: string;
   outcome: "dropped" | "escalated";
   escalatedTo?: string;
+  askedBy?: {
+    kind: "person" | "agent" | "actor" | "service";
+    id: string;
+  };
 };
 export type GateRequestedPayload = {
   holdId: string;
@@ -36914,6 +36942,10 @@ export type GateRequestedPayload = {
   actingFor?: string;
   runId?: string;
   expiresAt: number;
+  askedBy?: {
+    kind: "person" | "agent" | "actor" | "service";
+    id: string;
+  };
 };
 export type GateRuleChangedPayload = {
   act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";

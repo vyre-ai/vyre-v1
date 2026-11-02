@@ -44,6 +44,13 @@ type In = {
     defHash: string;
     ask?: boolean;
   };
+  ask?: {
+    by: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
+    };
+    what: string;
+  };
   idempotencyKey: string;
 };
 ```
@@ -73,6 +80,13 @@ type Out = {
   "input": {
     "act": "send",
     "actingFor": "example",
+    "ask": {
+      "by": {
+        "id": "usr_a1b2c3",
+        "kind": "person"
+      },
+      "what": "example"
+    },
     "capName": "mail.send",
     "capVersion": 1,
     "decisionId": "example",
