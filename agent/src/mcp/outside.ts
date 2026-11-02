@@ -11,7 +11,7 @@ const PERSON_ONLY: ReadonlySet<string> = new Set(["mcp", "identity", "members", 
 /** The company's own connections, inside a family that is otherwise work: a person's tools for the mail in it stay. */
 const PERSON_ONLY_CAPS = /^(google|ms|microsoft)\.(dwd|tenant|connect|directory)(\.|_|$)|^settings\.(set_space|floor_set|reset_space|copy_profile|kit\.set_space)$|^agents\.(delete|pause|resume|update|role_line\.set|config\.)/;
 /** Asking is never a way past a person: this opens a question they answer. */
-const ASKS: ReadonlySet<string> = new Set(["access.request", "vault.request"]);
+const ASKS: ReadonlySet<string> = new Set(["access.request"]);
 /** Finding tools is not a power. */
 const ALWAYS: ReadonlySet<string> = new Set(["mcp.tool.search", "mcp.tool.describe", "mcp.toolsets.list", "mcp.tools.list"]);
 

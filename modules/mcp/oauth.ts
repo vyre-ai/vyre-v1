@@ -29,7 +29,9 @@ const hash = (token: string): string => sha256b64(token);
 /** What a page may safely show of a name a client gave itself: no control or direction characters, one line, at most 60 characters. */
 export function cleanClientName(raw: unknown): string {
   const text = str(raw).replace(/[\u0000-\u001f\u007f-\u009f\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff]+/g, " ").replace(/ {2,}/g, " ").trim().slice(0, MAX_NAME).trim();
-  return text === "" ? "An MCP app" : text;
+  // Claude Code calls itself "Claude Code (<the name it gave this server>)": the last part says nothing to a person in Vyre
+  const name = text.replace(/\s*\(vyre\)$/i, "");
+  return name === "" ? "An MCP app" : name;
 }
 
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(["localhost", "127.0.0.1", "[::1]"]);

@@ -18,8 +18,7 @@ const RESERVED = new Set(["vyre", "assistant", "admin", "administrator", "owner"
 
 /** The name an app gets: its own word, cut to what a name may hold. One that reads like Vyre, a role or a person here is marked, so a hostile client cannot sit in the sidebar as someone else. */
 export async function outsideName(ctx: AgentsCtx, clientName: string): Promise<string> {
-  // Claude Code calls itself "Claude Code (<the name it gave this server>)": the last part says nothing to a reader in Vyre
-  const base = clientName.replace(/\s*\(vyre\)\s*$/i, "").replace(new RegExp(NAME_BAD.source, "gu"), " ").replace(/\s+/g, " ").replace(/^[.\s]+/, "").trim().slice(0, MAX_NAME - 12).trim() || "Outside agent";
+  const base = clientName.replace(new RegExp(NAME_BAD.source, "gu"), " ").replace(/\s+/g, " ").replace(/^[.\s]+/, "").trim().slice(0, MAX_NAME - 12).trim() || "Outside agent";
   const people = await tolerant<{ principals?: Array<{ name?: string }> }>(ctx, "access.principals.list", { kind: "person", limit: 500 }, {});
   const claims = RESERVED.has(nameKey(base)) || (people.principals ?? []).some((p) => typeof p.name === "string" && nameKey(p.name) === nameKey(base));
   const wanted = claims ? `${base} (outside)` : base;

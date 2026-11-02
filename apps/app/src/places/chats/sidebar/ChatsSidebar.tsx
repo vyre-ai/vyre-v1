@@ -166,6 +166,8 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   const working = useMemo(() => {
     const set = new Set<string>();
     for (const g of groups) for (const r of g.rows) if (r.working && r.kind === "agent") set.add(agents.find((a) => a.name === r.who)?.agentId ?? r.who);
+    // an agent that runs outside Vyre has no turn to read: its own status says it
+    for (const a of agents) if (a.runtime === "outside" && a.status === "working") set.add(a.agentId);
     return set;
   }, [groups, agents]);
 
@@ -376,7 +378,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
               leading={<View style={{ marginRight: 6 }}><Face name={e.agent.name} seedId={e.agent.agentId} kind="agent" size={18} pulse={e.working} /></View>}
               trailing={over
                 ? <View style={st.tools}>{e.digit !== undefined ? <Text style={st.digit}>{`⌘${e.digit}`}</Text> : null}<Tool icon="plus" label={`New chat with ${e.agent.name}`} onPress={() => { void api.newChat({ agentId: e.agent.agentId, name: e.agent.name }); leave(); }} testID={`face-new-${e.agent.agentId}`} /></View>
-                : e.waiting ? <Text style={st.waiting}>Waiting on you</Text> : e.working ? <Text style={st.quiet}>Working</Text> : null}
+                : e.waiting ? <Text style={st.waiting}>Waiting on you</Text> : e.working ? <Text style={st.quiet}>Working</Text> : e.agent.runtime === "outside" && e.agent.status === "asleep" ? <Text testID="outside-offline-row" style={st.quiet}>Offline</Text> : null}
             />
           )}
         </Hot>,

@@ -212,6 +212,7 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (kind === "approve" && !approver) approver = assigned;
   if (kind === "review" && !reviewer) reviewer = assigned;
   checkSlots(ctx, kind, { assigned, reviewer, approver }, policy);
+  const resp = await responsibleFor(ctx, assigned);
   await checkOutside(ctx, [assigned, reviewer, approver]);
 
   const known = new Set(KIND_ACTIONS[kind].map((a) => a.key));
@@ -252,7 +253,6 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (isRequest(kind) && t.source?.kind === "chat") t.threadId = t.source.id;
   else if (ctx.call) await ensureThread(ctx, t, ctx.thread);
   if (t.threadId === undefined && ctx.thread) t.threadId = ctx.thread;
-  const resp = await responsibleFor(ctx, assigned);
   if (resp !== undefined) t.responsible = resp;
   touch(ctx, ctx.db, t);
 
