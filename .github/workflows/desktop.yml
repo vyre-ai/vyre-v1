@@ -314,6 +314,16 @@ jobs:
         shell: powershell
         continue-on-error: true
         run: spikes/win-appcontainer/run.ps1
+      - name: WSL on this runner (option B needs WSL2 with a distro and bubblewrap)
+        if: always()
+        shell: powershell
+        continue-on-error: true
+        run: |
+          wsl.exe --version 2>&1 | Out-String
+          wsl.exe --status 2>&1 | Out-String
+          wsl.exe -l -v 2>&1 | Out-String
+          (Get-CimInstance Win32_ComputerSystem).HypervisorPresent
+          Get-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform, Microsoft-Windows-Subsystem-Linux | Select-Object FeatureName, State | Format-Table | Out-String
       - name: Claude Code and Codex in the AppContainer, behind the bridge, one tool call each (spike)
         if: always()
         shell: powershell
