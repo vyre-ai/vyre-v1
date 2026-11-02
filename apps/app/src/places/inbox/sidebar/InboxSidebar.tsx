@@ -1,7 +1,7 @@
 // Inbox > sidebar (spec 3.3): By contact and All inboxes, Calendar, then Mine, Shared and Agents with their unread counts, the Lists (Following, Campaigns) and the Calendars with
 // a colour dot each. Every row is a ui/Row with a leading glyph and a trailing count. Click selects; right-click opens the row's menu; a calendar's click hides or shows it and its
 // menu offers Show Only This. The dialer sits at the foot.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
@@ -9,6 +9,8 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useCanSend, useInboxData, useOptionalInboxData, useScreenQuery } from "./data.tsx";
+import type { NumberInfo } from "./data.tsx";
+import { prettyNumber } from "../softphone/model.ts";
 import { SCREENS, calendarIds, navGroups, sameScope } from "./model.ts";
 import type { ContactRow, NavInbox, Scope, View as ViewKind } from "./model.ts";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -75,10 +77,20 @@ function Sidebar(): ReactElement {
   const mailboxes = boxes.status === "ready" ? boxes.data.mailboxes : [];
   const calendars = cals.status === "ready" ? cals.data.calendars : [];
   const all: readonly ContactRow[] = rows.status === "ready" ? rows.data.rows : [];
-  const groups = navGroups(mailboxes, counts.status === "ready" ? counts.data : null, data.numbers?.());
+  const numberCount = counts.status === "ready" ? counts.data.byInbox.filter((c) => c.kind === "number").length : 0;
+  const [lines, setLines] = useState<ReadonlyMap<string, NumberInfo>>(NO_LINES);
+  useEffect(() => {
+    if (numberCount === 0) return;
+    let live = true;
+    void Promise.resolve(data.call("telephony.number.mine", {})).then((out) => { if (live) setLines(lineNames(out)); }, () => undefined);
+    return () => { live = false; };
+  }, [data, numberCount]);
+  const names = data.numbers?.() ?? lines;
+  const groups = navGroups(mailboxes, counts.status === "ready" ? counts.data : null, names);
   const unreadOf = (f: (r: ContactRow) => boolean): number => all.reduce((n, r) => n + (f(r) && r.unreadCount > 0 ? 1 : 0), 0);
   // The first number of the Space labels the dialer, as in the prototype; with no number there is no dialer.
-  const dialNumber = counts.status === "ready" ? counts.data.byInbox.find((c) => c.kind === "number")?.id ?? null : null;
+  const dialId = counts.status === "ready" ? counts.data.byInbox.find((c) => c.kind === "number")?.id ?? null : null;
+  const dialNumber = dialId === null ? null : names.get(dialId)?.label ?? "Dialer";
   const bare = canSend === false; // nothing can send yet: the page is the Connect choice, so the pencil, plus, Lists and dialer stay away
   const total = counts.status === "ready" ? counts.data.total : 0;
 
@@ -201,6 +213,13 @@ function Sidebar(): ReactElement {
       {menu.element}
     </View>
   );
+}
+
+const NO_LINES: ReadonlyMap<string, NumberInfo> = new Map();
+/** A number's name in the sidebar: its title, else the number. An id never shows. */
+export function lineNames(out: unknown): ReadonlyMap<string, NumberInfo> {
+  const rows = (out as { numbers?: { id: string; e164: string; title?: string; assignees?: { kind: string }[] }[] }).numbers ?? [];
+  return new Map(rows.map((n) => [n.id, { label: n.title || prettyNumber(n.e164), group: n.assignees?.length && n.assignees.every((a) => a.kind === "agent") ? "agent" as const : "mine" as const }]));
 }
 
 export function InboxSidebar(): ReactElement {

@@ -1,5 +1,5 @@
 // Inbox > the softphone dock, bound to the Inbox (spec 2.18, ARCH 7.3, 3.3). The shared ui/Softphone does the drawing and the call state machine; this wires it to the Space: numbers from
-// telephony.number.list, the telephony capabilities as its hooks, a caller's record from the calls the replica holds, and Cmd-Shift-K. A call that ends is saved to the conversation of the person
+// telephony.number.mine, the telephony capabilities as its hooks, a caller's record from the calls the replica holds, and Cmd-Shift-K. A call that ends is saved to the conversation of the person
 // it was with (the server writes the call into the thread; the dock says where it went and the thread shows it), and Log a task runs telephony.call.log_task. The Voice device is the shell's: it
 // passes `device` (the real Twilio Voice SDK Device, or a fake in tests), because the SDK is never imported here.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";

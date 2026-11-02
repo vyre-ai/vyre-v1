@@ -24,13 +24,13 @@ import { tabsOf, visibleSections, withStages } from "./groups.ts";
 import { errorText, savePrefs, saveField, saveValue, sourceOf, undoSave } from "./actions.ts";
 import { useLive, useOptionalPageData, usePageData } from "./data.tsx";
 import {
-  PANE_TABS, RING_R, ago, asksForFields, each, editKind, historyVersions, hueOf, inputText, isEmpty, mapLayout, optionsOf, peekFields, relationIds, relationTarget, resolveLink, ringOf, sectionsOf,
+  CONVERSATION_TYPES, PANE_TABS, RING_R, ago, asksForFields, each, editKind, historyVersions, hueOf, inputText, isEmpty, mapLayout, optionsOf, peekFields, relationIds, relationTarget, resolveLink, ringOf, sectionsOf,
   shownFields, sourceText, splitLinks, toggleFold, valueText,
 } from "./model.ts";
 import { TabMeasure, useFittedTabs, useTitleWidths } from "../../chats/rightpane/fit.tsx";
 import { PANE_CHROME, PANE_TAB_EXTRA } from "../../chats/rightpane/ChatRightPane.tsx";
 import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
-import { channelFieldToAdd, findContact } from "./askfor.ts";
+import { channelFieldToAdd, findContact, ownContact } from "./askfor.ts";
 import { ActivityTab, ChatTab, CommentsTab, EverythingTab, FilesTab } from "../recordpane/index.ts";
 import type { FieldDef, PaneKey, RecordRow, RelNode, Section, TypeDef, Undo } from "./model.ts";
 import { SealedField } from "./SealedField.tsx";
@@ -207,7 +207,9 @@ function Pane({ type, row, def, tab, onTab, phone = false }: { type: string; row
   const titles = useTitleWidths();
   const paneNow = phone ? win.width : paneW;
   // the tabs that do not fit fold behind one More tab, as in the Chats pane
-  const { strip, select } = useFittedTabs(PINNED_TABS, tab, paneNow, {
+  const hasConversation = data.renderConversation !== undefined && CONVERSATION_TYPES.has(type);
+  const paneTabs = hasConversation ? PINNED_TABS : PINNED_TABS.filter((t) => t.key !== "conversation");
+  const { strip, select } = useFittedTabs(paneTabs, tab, paneNow, {
     extra: PANE_TAB_EXTRA, chrome: PANE_CHROME + 28, ...(titles.widths.size > 0 ? { chevron: true } : {}), menu, left: Math.max(0, win.width - paneNow) + 40, top: 118, measured: withMore(titles.widths),
     pick: (key) => onTab(key as PaneKey),
   });
@@ -221,7 +223,8 @@ function Pane({ type, row, def, tab, onTab, phone = false }: { type: string; row
   let body: ReactElement;
   // Comments and Chat fill the pane's height (a field at the bottom); the other tabs scroll
   let fill = false;
-  if (tab === "everything") body = <EverythingTab type={type} recordId={row.id} def={def} onComments={() => onTab("comments")} />;
+  if (tab === "conversation" && hasConversation) { fill = true; body = <View style={{ flex: 1, minHeight: 0 }} testID="pane-conversation">{data.renderConversation!(ownContact(def, row) ?? { contactId: row.id, name: String(row.fields[def.titleField] ?? "") || "Contact" })}</View>; }
+  else if (tab === "everything" || tab === "conversation") body = <EverythingTab type={type} recordId={row.id} def={def} onComments={() => onTab("comments")} />;
   else if (tab === "activity") body = <ActivityTab type={type} recordId={row.id} def={def} />;
   else if (tab === "comments") { fill = true; body = <CommentsTab type={type} recordId={row.id} />; }
   else if (tab === "chat") { fill = true; body = <ChatTab type={type} recordId={row.id} />; }

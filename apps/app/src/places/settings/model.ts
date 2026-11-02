@@ -300,7 +300,7 @@ export const DRAWN_ROWS: readonly { key: string; page: PageKey; title: string; s
   { key: "memory.keys", page: "ai", title: "Who pays for memory", sub: "The account memory upkeep uses", words: "upkeep spend" },
   { key: "connect-mailbox", page: "connected", title: "Connect a mailbox", sub: "Google, Microsoft or IMAP", words: "email gmail outlook" },
   { key: "connect-calendar", page: "connected", title: "Connect a calendar", sub: "Google or Microsoft", words: "events" },
-  { key: "connect-twilio", page: "connected", title: "Connect Twilio", sub: "Texts and calls", words: "phone number sms" },
+  { key: "connect-twilio", page: "connected", title: "Telephony", sub: "Twilio numbers, texts and calls", words: "phone number sms twilio connect" },
   { key: "computers-list", page: "computer", title: "Computers", sub: "Where your agents can run", words: "server docker device" },
 ];
 

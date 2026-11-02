@@ -118,12 +118,12 @@ test("Other email: a server that refuses the sign-in says to check the address a
 test("Twilio: the account's own numbers come in and the first is claimed; with none, a search and a buy (a held purchase says it waits for a yes)", async () => {
   const calls: { cap: string; input: unknown }[] = [];
   const done: Connected[] = [];
-  const own = { call: async (cap: string, input?: unknown) => { calls.push({ cap, input }); return cap === "telephony.number.import" ? { imported: 1, numbers: [{ numberId: "num_1", e164: "+14155550100" }] } : {}; }, openUrl: () => undefined, open: () => undefined } as unknown as ShellRuntime;
+  const own = { call: async (cap: string, input?: unknown) => { calls.push({ cap, input }); return cap === "telephony.connect" ? { connected: true, imported: 1, numbers: [{ numberId: "num_1", e164: "+14155550100" }] } : {}; }, openUrl: () => undefined, open: () => undefined } as unknown as ShellRuntime;
   await mount(createRoot, <NumberSheet rt={own} onDone={(a) => done.push(a)} onCancel={() => undefined} />);
   await flush();
   assert.deepEqual(done, [{ id: "num_1", title: "+14155550100", app: "twilio" }]);
   const none: { cap: string; input: unknown }[] = [];
-  const empty = { call: async (cap: string, input?: unknown) => { none.push({ cap, input }); if (cap === "telephony.number.import") return { imported: 0, numbers: [] }; if (cap === "telephony.number.list") return { numbers: [] }; if (cap === "telephony.number.search") return { available: [{ e164: "+14155550111" }] }; if (cap === "telephony.number.buy") return {}; return {}; }, openUrl: () => undefined, open: () => undefined } as unknown as ShellRuntime;
+  const empty = { call: async (cap: string, input?: unknown) => { none.push({ cap, input }); if (cap === "telephony.connect") return { connected: true, imported: 0, numbers: [] }; if (cap === "telephony.number.list") return { numbers: [] }; if (cap === "telephony.number.search") return { available: [{ e164: "+14155550111" }] }; if (cap === "telephony.number.buy") return {}; return {}; }, openUrl: () => undefined, open: () => undefined } as unknown as ShellRuntime;
   const d2: Connected[] = [];
   const root = await mount(createRoot, <NumberSheet rt={empty} onDone={(a) => d2.push(a)} onCancel={() => undefined} />);
   await flush();
@@ -177,12 +177,16 @@ test("the Dropbox sheet starts the sign-in with its own capability, opens the ad
   assert.deepEqual(done, [{ id: "con_dbx1", title: "maya@firm.example", app: "dropbox" }]);
 });
 
-test("Twilio: a number the Space already has counts as claimed when nothing new comes in", async () => {
+test("Twilio: refused keys say so plainly, and a number the Space already has counts as claimed", async () => {
   const done: Connected[] = [];
-  const rt = { call: async (cap: string) => (cap === "telephony.number.import" ? { imported: 0, numbers: [] } : cap === "telephony.number.list" ? { numbers: [{ numberId: "num_7", e164: "+14155550123" }] } : {}), openUrl: () => undefined, open: () => undefined } as unknown as ShellRuntime;
+  const rt = { call: async (cap: string) => (cap === "telephony.connect" ? { connected: true, imported: 0, numbers: [{ id: "num_7", e164: "+14155550123" }] } : {}) } as unknown as ShellRuntime;
   await mount(createRoot, <NumberSheet rt={rt} onDone={(a) => done.push(a)} onCancel={() => undefined} />);
   await flush();
   assert.deepEqual(done, [{ id: "num_7", title: "+14155550123", app: "twilio" }]);
+  const refused = { call: async () => ({ connected: false, detail: "Twilio did not accept the credentials.", numbers: [] }) } as unknown as ShellRuntime;
+  const root = await mount(createRoot, <NumberSheet rt={refused} onDone={() => assert.fail("nothing connected")} onCancel={() => undefined} />);
+  await flush();
+  assert.ok(JSON.stringify(root.toJSON()).includes("Twilio did not accept the credentials."));
 });
 
 function ownRuntime(calls: { cap: string; input: unknown }[], opened: string[], o: { signedIn: boolean; microsoft?: boolean }): ShellRuntime {

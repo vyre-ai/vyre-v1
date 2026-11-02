@@ -1,5 +1,5 @@
 // Resolve an incoming record link once, then mount the existing record or project page.
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { attemptKey } from "./files-review.ts";
 import { States } from "../../../../../ui/src/States/index.tsx";
@@ -15,6 +15,9 @@ import { RecordsAssistant } from "./records-ask.tsx";
 import { askRequestFor, putAsk } from "../../places/inbox/contacttab/ask.ts";
 import { AgentRecord } from "./agent-record.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
+
+// the Inbox's composer and phone are their own lazy chunk: a record that never opens its Conversation does not load them
+const RecordConversation = lazy(() => import("./record-conversation.tsx"));
 
 export async function resolveRecordType(call: ShellRuntime["call"], recordId: string, hint?: string): Promise<string> {
   if (hint) { await call("records.get", { type: hint, recordId }); return hint; }
@@ -62,6 +65,7 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
       const s = rt.principals.getSnapshot();
       return (s.status === "ready" ? s.data : []).filter((x) => x.id !== rt.me.id && (x.kind === "person" || x.kind === "agent")).map((x) => ({ id: x.id, name: x.name, kind: x.kind as "person" | "agent", ...(x.id === rt.assistant.id ? { sub: "Assistant" } : x.kind === "agent" ? { sub: "Agent" } : {}) }));
     },
+    renderConversation: (person) => <Suspense fallback={null}><RecordConversation rt={rt} person={person} /></Suspense>,
     renderChat: (type, id) => <RecordsAssistant rt={rt} about={{}} title={id} scope={{ type: "record", id, title: "Record", context: { title: `Record ${type}`, open: [{ type: "record", id }], actions: ["read the record and its history", "answer questions about it"], focus: "" } }} />,
     files: {
       folderOf: (t) => findRecordFolder(rt.call, t.type, t.recordId),

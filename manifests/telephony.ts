@@ -223,7 +223,7 @@ export default defineManifest({
   screens: [
     screen('telephony.softphone', 'inbox', 'ui:Softphone', {
       slot: 'popover',
-      q: { numbers: ['telephony.number.list', {}, true], calls: ['telephony.call.list', { numberId: '/state/numberId' }, true], token: ['telephony.voice_token', { numberId: '/state/numberId' }, false] },
+      q: { numbers: ['telephony.number.mine', {}, true], calls: ['telephony.call.list', { numberId: '/state/numberId' }, true], token: ['telephony.voice_token', { numberId: '/state/numberId' }, false] },
       a: {
         dial: ['telephony.dial', { numberId: '/state/numberId', to: '/state/to', contactId: '/state/contactId' }], answer: ['telephony.answer', { callId: '/state/callId' }],
         decline: ['telephony.decline', { callId: '/state/callId' }], hangup: ['telephony.hangup', { callId: '/state/callId' }], hold: ['telephony.hold', { callId: '/state/callId', hold: '/state/hold' }],

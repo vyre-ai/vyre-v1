@@ -2,7 +2,7 @@
 // A text from an unknown number stays with them until it is matched to a contact. An assignee who cannot open the record reads their line and nothing else of that history.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { linkMessage, listByContact, match, sendOptions, thread, unmatched } from "../handlers/index.ts";
+import { counts, linkMessage, listByContact, match, sendOptions, thread, unmatched } from "../handlers/index.ts";
 import { harness } from "../fixtures/harness.ts";
 
 const NOW = 1_760_000_000_000;
@@ -95,4 +95,12 @@ test("sending from a contact: only your numbers, the one the thread came in on, 
   assert.equal((await sendOptions(h.ctx, { contactId: LEE.id })).inboxes.find((o) => o.kind === "number" && o.isDefault)?.id, "num_back1");
   h.onLines([]);
   assert.deepEqual((await sendOptions(h.ctx, { contactId: LEE.id })).inboxes.filter((o) => o.kind === "number"), []);
+});
+
+test("the sidebar counts a person's own numbers, never another's they reach through a contact's history", async () => {
+  const { h } = await world();
+  h.onLines(["num_front"]);
+  assert.deepEqual((await counts(h.ctx)).byInbox.filter((c) => c.kind === "number").map((c) => c.id), ["num_front"]);
+  h.onLines([]);
+  assert.deepEqual((await counts(h.ctx)).byInbox.filter((c) => c.kind === "number"), []);
 });

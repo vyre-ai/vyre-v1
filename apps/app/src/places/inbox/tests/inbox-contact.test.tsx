@@ -10,7 +10,8 @@ import { installComposerForTests } from "../../../../../../ui/src/Composer/Defer
 import { ContactTab, TabLoading, followMenuEntries, fromMenuEntries, headSub } from "../contacttab/index.ts";
 import { quickEntries, templateEntries } from "../contacttab/menus.ts";
 import { listSnippets, listTemplates, templateContent } from "../contacttab/actions.ts";
-import { cannedLists } from "../contacttab/model.ts";
+import { NO_NUMBER, cannedLists, composerLine } from "../contacttab/model.ts";
+import { lineNames } from "../sidebar/InboxSidebar.tsx";
 import {
   buildFeed, headerOf, canSend, choicesFor, dayLabel, deliveryNote, draftCards, emailTarget, fill, gateLine, initialDraft, pickInbox, replySubject, sendBlocker, sentNote, startChannel, textTarget,
 } from "../contacttab/model.ts";
@@ -391,4 +392,19 @@ test("a contact with no name is called by its address, and the header's quiet li
   assert.equal(headSub("Pat@Acme.test", "pat@acme.test ", undefined), null, "case and spaces do not make it a different label");
   assert.equal(headSub("Pat Lee", "pat@acme.test", undefined), "pat@acme.test", "a named contact keeps its address beside the name");
   assert.equal(headSub("pat@acme.test", "pat@acme.test", "Acme"), "Acme", "a company still shows");
+});
+
+test("the line under the composer: a known contact's history is said plainly, and no number is said instead of a dead Send", () => {
+  assert.equal(composerLine("Elena Rivera", "sms", true), "Goes on Elena's history. Everyone who can open this contact can read it.");
+  assert.equal(composerLine("Elena Rivera", "email", false), "Goes on Elena's history. Everyone who can open this contact can read it.");
+  assert.equal(composerLine("Elena Rivera", "sms", false), NO_NUMBER);
+  assert.equal(composerLine(null, "sms", true), "");
+  assert.match(NO_NUMBER, /You have no number to text from/);
+});
+
+test("a number in the sidebar has a name: never its id", () => {
+  const names = lineNames({ numbers: [{ id: "num_a", e164: "+14155550101", title: "Main line" }, { id: "num_b", e164: "+14155550102", title: "" }, { id: "num_c", e164: "+14155550103", title: "Bot", assignees: [{ kind: "agent" }] }] });
+  assert.equal(names.get("num_a")?.label, "Main line");
+  assert.doesNotMatch(names.get("num_b")?.label ?? "", /num_/);
+  assert.equal(names.get("num_c")?.group, "agent");
 });

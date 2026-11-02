@@ -301,6 +301,17 @@ export function ConnectedPage({ rows, found }: PageProps): ReactElement {
   const mine = boxes.status === "ready" ? boxes.data.mailboxes.map((m) => ({ id: m.id, address: m.address, provider: m.provider, state: m.state })) : [];
   const suites = suiteSections(mine, calendars ?? []);
   const personal = useIsPersonal();
+  const [numbers, setNumbers] = useState<{ id: string; e164: string; title: string }[]>([]);
+  useEffect(() => {
+    let live = true;
+    void Promise.resolve(data.call("telephony.number.mine", {})).then(
+      (out) => { if (live) setNumbers((out as { numbers?: { id: string; e164: string; title: string }[] }).numbers ?? []); },
+      () => { if (live) setNumbers([]); },
+    );
+    return () => { live = false; };
+  }, [data]);
+  // A Team Space runs Telephony from the Console; here a person sees the numbers that are theirs
+  const numberLine = personal || numbers.length > 0 ? undefined : "No number is assigned to you. Ask an admin to assign you one.";
   const firm: ReactElement[] = [];
   suites.forEach((suite, si) => firm.push(
     <SettingsRow key={suite.key} id={`suite.${suite.key}`} label={suite.title} sub={throughFirm(suite)} first={si === 0} lead={<Glyph name="link" size={15} />} control={<Value text={suite.rows.map((r) => r.service).filter((v, i, a) => a.indexOf(v) === i).join(" and ")} />} />,
@@ -316,7 +327,10 @@ export function ConnectedPage({ rows, found }: PageProps): ReactElement {
         {list}
         <SettingsRow id="connect-mailbox" label="Connect a mailbox" first={list.length === 0} lead={<Glyph name="plus" size={15} />} onPress={() => (openConnect ? void openConnect({ kind: "mailbox" }) : data.nav.connect("mailbox"))} control={<Glyph name="chevR" size={13} />} />
         <SettingsRow id="connect-calendar" label="Connect a calendar" lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("calendar")} control={<Glyph name="chevR" size={13} />} />
-        <SettingsRow id="connect-twilio" label="Connect Twilio" lead={<Glyph name="plus" size={15} />} onPress={() => (openConnect ? void openConnect({ kind: "number" }) : data.nav.connect("twilio"))} control={<Glyph name="chevR" size={13} />} />
+      </Section>
+      <Section title="Telephony" {...(numberLine ? { note: numberLine } : {})}>
+        {numbers.map((n, i) => <SettingsRow key={n.id} id={`number.${n.id}`} label={n.e164} first={i === 0} sub={n.title} lead={<Glyph name="phone" size={15} />} />)}
+        {personal ? <SettingsRow id="connect-twilio" label={numbers.length > 0 ? "Bring in new numbers" : "Connect Twilio"} first={numbers.length === 0} lead={<Glyph name="plus" size={15} />} onPress={() => (openConnect ? void openConnect({ kind: "number" }) : data.nav.connect("twilio"))} control={<Glyph name="chevR" size={13} />} /> : null}
       </Section>
       <Section title="App hubs"><AppHubsCard call={data.call} /></Section>
       <SignInApps />

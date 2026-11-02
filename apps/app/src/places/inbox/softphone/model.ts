@@ -1,11 +1,11 @@
-// Inbox > softphone wiring (spec 2.18, ARCH 7.3): what the shared ui/Softphone needs from the Inbox's data. The numbers come from telephony.number.list, a caller's name from the calls the
+// Inbox > softphone wiring (spec 2.18, ARCH 7.3): what the shared ui/Softphone needs from the Inbox's data. The numbers come from telephony.number.mine, a caller's name from the calls the
 // Space already holds, and the phone hooks run the telephony capabilities (dial, hangup, hold, transfer, record). Pure, so the tests read them without drawing anything.
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { PhoneHooks } from "../../../../../../ui/src/Softphone/index.tsx";
 import type { SoftphoneCaller, SoftphoneNumber, TransferTarget } from "../../../../../../ui/src/Softphone/index.tsx";
 import type { ContactRow } from "../sidebar/model.ts";
 
-export type NumbersOut = CapMap["telephony.number.list"]["out"];
+export type NumbersOut = CapMap["telephony.number.mine"]["out"];
 export type CallsOut = CapMap["telephony.call.list"]["out"];
 export type CallOut = CapMap["telephony.hangup"]["out"]["call"];
 

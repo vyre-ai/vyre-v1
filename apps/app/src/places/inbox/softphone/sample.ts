@@ -82,7 +82,7 @@ export function withTelephony<T extends ContactTabSample>(base: T): PhoneSample<
   let seq = 0;
   const calls = (): Record<string, unknown>[] => replica.rows("calls") as unknown as Record<string, unknown>[];
 
-  replica.resolve("telephony.number.list", () => ({
+  replica.resolve("telephony.number.mine", () => ({
     numbers: [{
       id: SAMPLE_NUMBER_ID, e164: "+14155550132", title: "Irfad", capabilities: ["voice", "sms"], assigneeKind: "person", assigneeId: "usr_irfad",
       route: { ring: [{ kind: "person", id: "usr_irfad" }], ringSeconds: 20, voicemail: true, voicemailTranscript: true },

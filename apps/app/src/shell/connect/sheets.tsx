@@ -24,7 +24,7 @@ export default function ConnectSheets({ rt, need, onDone, onCancel }: FlowProps)
   return <VaultFlow rt={rt} need={need} onDone={onDone} onCancel={onCancel} />;
 }
 
-/** Twilio: its account goes to the Vault from the Twilio template, then a number is claimed: the ones already in the account come in, or one is searched and bought (the Gate holds a purchase for a yes). */
+/** Twilio: its account goes to the Vault from the Twilio template, then it is tested and every number in it comes in; an empty account searches and buys one (the Gate holds a purchase for a yes). */
 function NumberFlow({ rt, onDone, onCancel }: { rt: FlowProps["rt"]; onDone: Done; onCancel: () => void }): ReactElement {
   const [step, setStep] = useState<"vault" | "claim">("vault");
   if (step === "vault") return <VaultFlowTwilio rt={rt} onAdded={() => setStep("claim")} onCancel={onCancel} />;
@@ -37,6 +37,7 @@ function VaultFlowTwilio({ rt, onAdded, onCancel }: { rt: FlowProps["rt"]; onAdd
 }
 
 type NumberOut = { e164: string; numberId?: string; id?: string };
+const TWILIO_SILENT = "Twilio did not answer. Check the Account SID and Auth Token.";
 
 export function NumberSheet({ rt, onDone, onCancel }: { rt: FlowProps["rt"]; onDone: Done; onCancel: () => void }): ReactElement {
   const [busy, setBusy] = useState(true);
@@ -46,17 +47,15 @@ export function NumberSheet({ rt, onDone, onCancel }: { rt: FlowProps["rt"]; onD
   const claimed = (n: NumberOut): Connected => ({ id: String(n.numberId ?? n.id ?? n.e164), title: n.e164, app: "twilio" });
   useEffect(() => {
     let off = false;
-    void Promise.resolve().then(() => rt.call("telephony.number.import", { idempotencyKey: attemptKey() })).then(
-      async (r) => {
-        const fresh = ((r as { numbers?: NumberOut[] }).numbers ?? []);
+    // the keys are tested at once, every number comes in and calls and texts are pointed at this Space: nothing to do number by number
+    void Promise.resolve().then(() => rt.call("telephony.connect", { idempotencyKey: attemptKey() })).then(
+      (r) => {
         if (off) return;
-        if (fresh[0]) { onDone(claimed(fresh[0])); return; }
-        // nothing new came in: a number the Space already has still counts
-        const have = ((await rt.call("telephony.number.list", {}).catch(() => ({}))) as { numbers?: NumberOut[] }).numbers ?? [];
-        if (off) return;
-        if (have[0]) onDone(claimed(have[0])); else setBusy(false);
+        const out = r as { connected: boolean; detail?: string; numbers?: NumberOut[] };
+        if (!out.connected) { setLine(out.detail ?? TWILIO_SILENT); setBusy(false); return; }
+        if (out.numbers?.[0]) onDone(claimed(out.numbers[0])); else setBusy(false);
       },
-      (e) => { if (!off) { setLine(reason(e, "Twilio did not answer. Check the Account SID and Auth Token.")); setBusy(false); } },
+      (e) => { if (!off) { setLine(reason(e, TWILIO_SILENT)); setBusy(false); } },
     );
     return () => { off = true; };
   }, [rt]);

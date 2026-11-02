@@ -126,7 +126,7 @@ export async function connect(ctx: TelCtx, input: { idempotencyKey: string }) {
   const key = keyOf(ctx, input);
   const refused = (detail: string) => ({ connected: false, detail, imported: 0, total: 0, numbers: [], notSetUp: 0 });
   const health = obj(await ctx.call("twilio.health", {}));
-  if (health.state !== "healthy" || typeof health.detail === "string") return refused(text(health.detail) || "Twilio is not answering. Try again in a minute.");
+  if (health.state !== "healthy" || typeof health.detail === "string") return refused(/credential/i.test(text(health.detail)) ? "Twilio did not accept these keys. Check the Account SID and Auth Token." : text(health.detail) || "Twilio is not answering. Try again in a minute.");
   const imported = await numberImport(ctx, { idempotencyKey: `${key}:import` });
   let notSetUp = 0;
   const all = rowsOf(ctx.db.all(`SELECT * FROM telephony_number`)).filter((r) => live(r) && str(r, "state") !== "released");

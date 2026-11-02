@@ -388,6 +388,7 @@ export async function counts(ctx: InboxCtx): Promise<{ byInbox: { kind: "mailbox
   ensure(ctx);
   const found = await mine(ctx, `deleted_at IS NULL`, []);
   const ids = new Set(found.map(({ row }) => str(row, "id")));
+  const lines = await linesOf(ctx, reachOf(ctx));   // reading a contact's history puts no one on the numbers in it: the sidebar lists a person's own
   const byInbox = new Map<string, { kind: "mailbox" | "number"; id: string; unread: number }>();
   const bump = (kind: "mailbox" | "number", id: string | null): void => {
     if (!id) return;
@@ -399,7 +400,8 @@ export async function counts(ctx: InboxCtx): Promise<{ byInbox: { kind: "mailbox
   for (const item of rowsOf(ctx.db.all(`SELECT * FROM inbox_item WHERE unread = ?`, 1))) {
     if (!ids.has(str(item, "conversationId"))) continue;
     bump("mailbox", strOrNull(item, "mailboxId"));
-    bump("number", strOrNull(item, "numberId"));
+    const number = strOrNull(item, "numberId");
+    if (number && lines.has(number)) bump("number", number);
   }
   return {
     byInbox: [...byInbox.values()].sort((a, b) => b.unread - a.unread || a.id.localeCompare(b.id)),

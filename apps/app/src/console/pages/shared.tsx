@@ -59,8 +59,10 @@ export function useAction(refresh: () => void) {
 export function Field({ label, value, onChange, testID, secure = false, multiline = false }: { label: string; value: string; onChange: (value: string) => void; testID?: string; secure?: boolean; multiline?: boolean }): ReactElement {
   return <View style={s.field}><Text style={s.label}>{label}</Text><TextInput multiline={multiline} value={value} onChangeText={onChange} accessibilityLabel={label} testID={testID} secureTextEntry={secure} autoCapitalize="none" autoCorrect={false} style={s.input} /></View>;
 }
+/** Where a press landed, for a menu that opens at the button. */
+export type PressPoint = { clientX?: number; clientY?: number; nativeEvent?: { pageX?: number; pageY?: number } };
 /** `why`: a disabled button says why as its tooltip, so nobody meets a dead button without a reason and no sentence sits beside it. */
-export function Button({ label, onPress, disabled = false, testID, danger = false, why }: { label: string; onPress: () => void; disabled?: boolean; testID?: string; danger?: boolean; why?: string }): ReactElement {
+export function Button({ label, onPress, disabled = false, testID, danger = false, why }: { label: string; onPress: (event?: PressPoint) => void; disabled?: boolean; testID?: string; danger?: boolean; why?: string }): ReactElement {
   const button = <Pressable accessibilityRole="button" accessibilityState={{ disabled }} {...(disabled && why ? { accessibilityHint: why } : {})} onPress={onPress} disabled={disabled} testID={testID} style={[s.button, { alignSelf: "flex-start" }, disabled && { opacity: 0.5 }]}><Text style={[s.buttonText, danger && { color: "var(--danger)" as string }]}>{label}</Text></Pressable>;
   return disabled && why ? <Tip help={why}>{button}</Tip> : button;
 }

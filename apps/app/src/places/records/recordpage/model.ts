@@ -259,9 +259,11 @@ export { hueOf, optionsOf };
 
 // ---------------------------------------------------------------- the right pane
 
-export type PaneKey = "everything" | "activity" | "comments" | "chat" | "files" | "memory" | "history";
+export type PaneKey = "conversation" | "everything" | "activity" | "comments" | "chat" | "files" | "memory" | "history";
+/** The people and companies a Conversation tab belongs to: a contact's emails, texts and calls, for whoever can open the record. */
+export const CONVERSATION_TYPES: ReadonlySet<string> = new Set(["contact", "company"]);
 export const PANE_TABS: readonly { key: PaneKey; title: string }[] = [
-  { key: "everything", title: "Everything" }, { key: "activity", title: "Activity" }, { key: "comments", title: "Comments" }, { key: "chat", title: "Chat" }, { key: "files", title: "Files" }, { key: "memory", title: "Memory" }, { key: "history", title: "History" },
+  { key: "conversation", title: "Conversation" }, { key: "everything", title: "Everything" }, { key: "activity", title: "Activity" }, { key: "comments", title: "Comments" }, { key: "chat", title: "Chat" }, { key: "files", title: "Files" }, { key: "memory", title: "Memory" }, { key: "history", title: "History" },
 ];
 
 const AGO: readonly (readonly [number, string])[] = [[86_400_000, "d"], [3_600_000, "h"], [60_000, "min"]];

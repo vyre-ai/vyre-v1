@@ -257,9 +257,19 @@ export function canSend(d: ComposerDraft, inbox: InboxChoice | null, online: boo
 }
 
 /** Why Send is off, in a few words, for the tooltip. */
+/** Said when someone with no number tries to text. */
+export const NO_NUMBER = "You have no number to text from. Ask an admin to assign you one.";
+
+/** The line under the composer: who will read this, or why it cannot be sent. A message with a known contact joins their history, by design. */
+export function composerLine(contactName: string | null, chan: Chan, hasSender: boolean): string {
+  if (chan === "sms" && !hasSender) return NO_NUMBER;
+  if (contactName === null) return "";
+  return `Goes on ${contactName.split(" ")[0]}'s history. Everyone who can open this contact can read it.`;
+}
+
 export function sendBlocker(d: ComposerDraft, inbox: InboxChoice | null, online: boolean, textTo: string | null): string {
   if (!online) return "You are offline";
-  if (!inbox) return d.chan === "email" ? "No mailbox can send" : "No number can send";
+  if (!inbox) return d.chan === "email" ? "No mailbox can send" : NO_NUMBER;
   if (d.chan === "email" && d.to.length === 0) return "Add a recipient";
   if (d.chan === "sms" && textTo === null) return "No phone number for this contact";
   if (d.chan === "email" && d.subject.trim() === "") return "Add a subject";

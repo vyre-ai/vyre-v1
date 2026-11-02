@@ -5,7 +5,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ReactElement } from "react";
-import { asksForFields } from "../recordpage/model.ts";
+import { Text } from "react-native";
+import { CONVERSATION_TYPES, asksForFields } from "../recordpage/model.ts";
 import { Peek, RecordPage, RecordPageDataProvider, askText, activityLine, ago, editKind, historyVersions, inputText, mapLayout, parseInput, patchFor, peekFields, relationIds, resolveLink, ringOf, saveField, savePrefs, saveValue, sectionsOf, shownFields, sourceOf, sourceText, splitLinks, toggleFold, undoSave, valueText } from "../recordpage/index.ts";
 import type { RecordPageStart, RelNode } from "../recordpage/index.ts";
 import { CLIENT, PROJECT, SAMPLE_NOW, createSamplePage, harbor, northwind } from "../recordpage/sample.ts";
@@ -302,4 +303,17 @@ test("screen: a project record page has no completeness ring and no Ask for thes
   assert.ok(has(out, 'data-testid="record-page"'), "the page opens");
   assert.ok(!has(out, 'data-testid="completeness"') && !has(out, "Ask for these") && !has(out, 'data-testid="ring"'), "no ring on a project");
   assert.ok(has(page(createSamplePage()), 'data-testid="completeness"'), "a client keeps its ring");
+});
+
+test("a contact's page has a Conversation tab drawn by the Inbox's own tab; other records do not, and neither does a page with no Inbox to draw it", () => {
+  const sample = createSamplePage();
+  const drawn = { ...sample, data: { ...sample.data, renderConversation: (who: { contactId: string }) => <Text testID={`conv-${who.contactId}`}>one composer</Text> } };
+  assert.ok(!has(page(drawn), ">Conversation<"), "a client is not a contact");
+  const types = CONVERSATION_TYPES as Set<string>;
+  types.add("clients");
+  try {
+    assert.ok(!has(page(sample), ">Conversation<"), "no Inbox here, no tab");
+    const out = page(drawn, { tab: "conversation" });
+    assert.ok(has(out, ">Conversation<") && has(out, 'data-testid="pane-conversation"') && has(out, 'data-testid="conv-cl_0"'));
+  } finally { types.delete("clients"); }
 });

@@ -4,7 +4,7 @@ import { createContext, useContext, useMemo, useSyncExternalStore } from "react"
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import type { AskForInput } from "./askfor.ts";
+import type { AskContact, AskForInput } from "./askfor.ts";
 import type { PickEntry } from "../../../../../../ui/src/PeoplePicker/index.tsx";
 
 export type LiveCap =
@@ -45,6 +45,8 @@ export interface RecordPageData {
   mentionables?(): readonly PickEntry[];
   /** The Chat tab: this record's Ask pane drawn in place. The shell fills it in; where it cannot, the tab says so. */
   renderChat?(type: string, recordId: string): ReactElement;
+  /** The contact's Conversation: the Inbox's own tab, one composer and one call control. Left out, the tab is not drawn. */
+  renderConversation?(person: AskContact): ReactElement;
   /** The Files tab: the record's own folder (its `folder` field, else the one made for it on the first attach) and storing files in it. Where the shell cannot, the tab lists the folder only. */
   files?: {
     folderOf(target: { type: string; recordId: string; title: string }): Promise<string | null>;

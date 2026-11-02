@@ -18,7 +18,7 @@ import { useInboxData, useOnline, useOptionalInboxData, useScreenQuery } from ".
 import { Face, Ghost, pointOf } from "../sidebar/parts.tsx";
 import type { Mailbox } from "../sidebar/model.ts";
 import { discardDraft, listSnippets, listTemplates, markRead, sendAgentDraft, sendEmail, sendText, setFollow, templateContent } from "./actions.ts";
-import { QUICK_FORM_NOTE, askStart, conversationOf, makeQuickForm, startChannel as askChannel, switchText, withLink, withoutLink } from "./ask.ts";
+import { QUICK_FORM_NOTE, askStart, conversationOf, makeQuickForm, newConversation, startChannel as askChannel, switchText, withLink, withoutLink } from "./ask.ts";
 import type { AskRequest } from "./ask.ts";
 import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
@@ -27,6 +27,7 @@ import type { IconName } from "./icons.tsx";
 import { followMenuEntries, quickEntries, templateEntries } from "./menus.ts";
 import {
   buildFeed, canSend, cannedLists, choicesFor, firstName, draftCards, headerOf, initialDraft, namedTo, pickInbox, sendBlocker, startChannel, textTarget,
+  composerLine,
 } from "./model.ts";
 import type { Chan, ComposerDraft, DraftCard, DraftRow, InboxChoice, SendOptions, ThreadOut } from "./model.ts";
 import { Bubbles, CallLine, DaySep, DraftBlock, EmailItem, QuietLine } from "./parts.tsx";
@@ -48,6 +49,8 @@ export interface ContactTabProps {
   onOpenAttachment?(name: string): void;
   /** Opened from a record's "Ask for these": the message is drafted for the person to read and send, with a quick form when one can be made. */
   ask?: AskRequest;
+  /** Opened from a contact's page: someone with no history yet still gets the composer. The first send makes the conversation. */
+  person?: Pick<AskRequest, "contactId" | "name" | "email" | "phone">;
 }
 
 const agentName = (id: string): string => {
@@ -137,7 +140,8 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const [attached, setAttached] = useState<readonly { name: string }[]>([]);
 
   const dock = usePhone();
-  const conv = conversationOf(thread, ask, data.clock().now);
+  const person = props.person;
+  const conv = conversationOf(thread, ask, data.clock().now) ?? (person && (thread as { error?: unknown }).error !== undefined ? newConversation(person, data.clock().now) : null);
   const items = thread.status === "ready" ? thread.data.items : [];
   const options = opts.status === "ready" ? opts.data : null;
   const clock = data.clock();
@@ -165,13 +169,15 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
     : choicesFor(chan, options, titles);
   const listed: ComposerSender[] = senders ?? choices.map((c) => ({ id: c.id, channel: chan === "email" ? "email" as const : "text" as const, name: c.label, address: c.address, via: chan === "email" ? "Mailboxes" : "Numbers", usable: true }));
   const inbox = draft && conv ? (choices.find((c) => c.id === draft.from[chan]) ?? pickInbox(choices, conv.mailboxIds)) : null;
-  const textTo = conv ? (ask?.phone?.to ?? textTarget(conv, items)) : null;
+  const textTo = conv ? (ask?.phone?.to ?? person?.phone?.to ?? textTarget(conv, items)) : null;
 
   // the newest message is at the foot: open scrolled down, and again when something arrives
   useEffect(() => { scroll.current?.scrollToEnd?.({ animated: false }); }, [feed.length, cards.length]);
   // opening the conversation reads it
   const unread = conv?.unreadCount ?? 0;
-  useEffect(() => { if (unread > 0) void markRead(data, conversationId); }, [conversationId, unread > 0]);
+  // a contact's page opens by the contact: the conversation's id is what the thread answers with
+  const openId = conv?.id ?? conversationId;
+  useEffect(() => { if (unread > 0 && openId) void markRead(data, openId); }, [openId, unread > 0]);
 
   // every hook above this line: the frame before the conversation arrives and the one after it must call the same hooks
   const openConnect = useOpenConnect();
@@ -259,6 +265,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const showQuick = (x: number, y: number): void => menu.show(quickEntries(!!conv.contactId, { dial, openRecord: () => props.onOpenRecord?.(conv.contactId as string, hdr?.recordId), attach: () => { if (props.onAttach) props.onAttach(); else setNote("Attach from Files is not connected in this view"); } }), x, y);
   const mail = chan === "email";
   const unmatched = conv.needsMatch && !conv.contactId;
+  const whoReads = options ? composerLine(conv.contactId ? conv.displayName : null, chan, !!inbox) : "";
   const blocker = sendBlocker(draft, inbox, online, textTo);
   const target = mail ? draft.to.join(", ") : textTo ?? "";
 
@@ -359,6 +366,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             )}
           />
           {note ? <Text style={s.note} accessibilityRole="alert" testID="contact-note">{note}</Text> : null}
+          {whoReads ? <Text style={s.note} testID="contact-who-reads">{whoReads}</Text> : null}
         </View>
       </View>
       {menu.element}

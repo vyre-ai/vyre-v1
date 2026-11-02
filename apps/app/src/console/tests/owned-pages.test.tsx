@@ -74,7 +74,7 @@ test("Comms pages use live domains, numbers, inboxes and texting registration co
   if (!pages) return;
   const domain = { id: "dom_one", name: "mail.example.com", provider: "resend", spf: "pass", dkim: "pass", dmarc: "pending", verified: true, isDefault: false };
   assert.match(draw(<pages.DomainsPage />, { "mail.domain.list": { domains: [domain] } }), /mail.example.com|Check DNS|Make default/);
-  const number = { id: "num_one", e164: "+15551234567", title: "Support", capabilities: ["voice", "sms"], assigneeKind: "inbox", route: { ring: [], ringSeconds: 20, voicemail: true, voicemailTranscript: true }, hours: { zone: "UTC", weekly: [], outsideHours: "voicemail" }, recording: "off", a2p: "approved", state: "active" };
+  const number = { assignees: [], id: "num_one", e164: "+15551234567", title: "Support", capabilities: ["voice", "sms"], assigneeKind: "inbox", route: { ring: [], ringSeconds: 20, voicemail: true, voicemailTranscript: true }, hours: { zone: "UTC", weekly: [], outsideHours: "voicemail" }, recording: "off", a2p: "approved", state: "active" };
   assert.match(draw(<pages.NumbersPage />, { "telephony.number.list": { numbers: [number] } }), /Support|Recording|Release/);
   const mailbox = { id: "mbx_one", kind: "shared", address: "support@example.com", title: "Support", provider: "google", privacy: "space", state: "syncing" };
   assert.match(draw(<pages.InboxesPage />, { "mail.mailbox.list": { mailboxes: [mailbox] }, "mail.route.list": { routes: [] } }), /support@example.com|Privacy|New shared inbox/);
