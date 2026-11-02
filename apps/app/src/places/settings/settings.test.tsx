@@ -354,7 +354,7 @@ test("a Personal Space shows no team-only rows, no words about other Spaces and 
 test("long registry titles are short labels and the rest is hover help", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "computer" });
   assert.ok(has(out, "Terminal prompts") && !has(out, "Ask, Allow or Auto; one value per Space)"), "no bracketed paragraph in the label");
-  assert.ok(has(out, 'title="Ask, Allow or Auto. One value per Space."'), "the detail is the row's hover help");
+  assert.ok(has(out, 'title="For work outside a chat. In a chat, the chat&#x27;s mode decides. One value per Space."'), "the detail is the row's hover help");
   assert.ok(has(html(createSampleSettings(northwind), { initialPage: "notifications" }), 'title="Outside them only calls, urgent approvals and incidents interrupt."'));
   for (const r of rowsOf(createSampleSettings(northwind))) assert.ok(rowLabel(r).length <= 48, `${r.key} label is short (${rowLabel(r)})`);
 });

@@ -114,6 +114,6 @@ test("Always allow keeps a rule for this agent in this chat, then allows; an act
   await flush();
   await press(find(root, "approval-always-tsk_1"));
   await flush();
-  assert.deepEqual(calls.filter((c) => c.cap !== "tasks.get").map((c) => c.cap).slice(0, 2), ["gate.allow.set", "tasks.act"]);
+  assert.deepEqual(calls.map((c) => c.cap).filter((c) => c === "gate.allow.set" || c === "tasks.act"), ["gate.allow.set", "tasks.act"], "the rule is kept first, then this one is allowed");
   assert.deepEqual(calls.find((c) => c.cap === "gate.allow.set")!.input, { act: "approve", target: "files.write", agentId: "agt_1", threadId: "thr_1" });
 });
