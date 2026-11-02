@@ -11,3 +11,4 @@
 - A Vault pull link follows the rules of a reveal: an agent never gets one, a person gets only what they may view, an item set to the Space only stays out, and a folder's list of who may export is obeyed. Renaming a Vault item keeps its handle, so nothing that uses it breaks, and setting a new value counts as rotating it.
 - Retrying a failed loop no longer runs again the items that already went out: they carry over to the new run, and only what did not finish starts. The same holds for parallel lanes.
 - Agents are no longer offered tools that only answer "Not in this version yet": Sites and Vault import leave the tool list and tool search, and come back by themselves when they go live.
+- When one lane of a parallel step ended early, the step after the parallel ran inside the other lane, without waiting and even when the parallel failed. It now runs after the lanes, once.
