@@ -27,7 +27,7 @@ export function GoogleWorkspacePage(): ReactElement {
   const scopes = useRead<CapMap["google.dwd.scopes"]["out"]>("google.dwd.scopes", {});
   const members = useRead<CapMap["google.dwd.members"]["out"]>("google.dwd.members", { limit: 100 }, { enabled: configured });
   const folders = useRead<CapMap["vault.folders.list"]["out"]>("vault.folders.list", { scope: "shared" });
-  const items = useRead<CapMap["vault.items.list"]["out"]>("vault.items.list", { q: "Google_DWD", section: "shared" });
+  const items = useRead<CapMap["vault.items.list"]["out"]>("vault.items.list", { q: "Google_DWD", section: "space" });
   const people = useRead<CapMap["access.principals.list"]["out"]>("access.principals.list", { kind: "person", status: "active", limit: 200 }, { enabled: configured });
   const refresh = (): void => { status.refresh(); scopes.refresh(); members.refresh(); folders.refresh(); items.refresh(); };
   const act = useAction(refresh);

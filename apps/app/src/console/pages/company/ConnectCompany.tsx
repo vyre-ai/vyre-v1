@@ -112,8 +112,9 @@ function KeyStep({ s, provider, refresh }: { s: Status; provider: Provider; refr
   const script = useRead<CapMap["company.script"]["out"]>("company.script", { provider });
   const folders = useRead<CapMap["vault.folders.list"]["out"]>("vault.folders.list", { scope: "shared" });
   const name = provider === "google" ? "Google_DWD" : "Microsoft_App";
-  const items = useRead<CapMap["vault.items.list"]["out"]>("vault.items.list", { q: name, section: "shared" });
-  const act = useAction(refresh);
+  // "space" lists every shared item, the person's own too: the key they pasted before is updated in place, never put twice (a second put of the same name is a duplicate)
+  const items = useRead<CapMap["vault.items.list"]["out"]>("vault.items.list", { q: name, section: "space" });
+  const act = useAction(() => { items.refresh(); folders.refresh(); refresh(); });
   const [text, setText] = useState("");
   const [hand, setHand] = useState({ tenantId: "", clientId: "", clientSecret: "" });
   const [problem, setProblem] = useState("");
@@ -165,6 +166,7 @@ function AllowGoogle({ s, refresh }: { s: Status; refresh: () => void }): ReactE
     {wanted.length ? <CopyRow label="Scopes, as one line" value={wanted.join(",")} testID="company-scopes" /> : null}
     <Bullets items={wanted.map((x) => x.slice(x.lastIndexOf("/") + 1))} />
     <Field label="A Workspace admin's address" value={admin} onChange={setAdmin} testID="company-admin-email" />
+    <Note>Vyre only signs in as this address to check the setup. Nobody's Inbox gets its mail.</Note>
     {problem ? <Note>{problem}</Note> : null}
     {act.note ? <Note>{act.note}</Note> : null}
     <Actions><Button label="Check" disabled={act.busy} testID="company-allow-check" onPress={() => void check()} /></Actions>
@@ -219,6 +221,7 @@ function SignInStep({ s, provider, refresh }: { s: Status; provider: Provider; r
   const [note, setNote] = useState("");
   const save = async (): Promise<void> => {
     const hint = (domain || have?.domainHint || "").trim().toLowerCase();
+    if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(hint)) { setNote("Type your domain, like yourfirm.com. Without it nobody can sign in."); return; }
     // Microsoft: the app you registered is the sign-in app, so its secret is already in the Vault under the same handle
     const r = provider === "google" ? await saveSso(data.call, { key: provider, clientId: clientId || have?.clientId || "", secret, domain: hint, tenant: "", enabled: true }, have)
       : await data.call("members.sso.set", { provider: { key: "microsoft", title: "Microsoft", issuer: `https://login.microsoftonline.com/${s.tenant ?? ""}/v2.0`, clientId: s.clientId ?? "", clientSecretHandle: MICROSOFT_HANDLE, enabled: true, domainHint: hint } }).then(() => ({ ok: true as const, message: "Microsoft sign-in saved" }), (e: { message?: string }) => ({ ok: false as const, message: e.message ?? "Couldn't save this." }));
@@ -247,7 +250,7 @@ function TryStep({ s, provider, refresh }: { s: Status; provider: Provider; refr
     setLine("Finish in the window that opened, then press Done.");
   };
   return <>
-    <Para>The Space owner signs in once. This proves it works, and it means requiring it later can never lock them out.</Para>
+    <Para>The Space owner signs in once. This proves it works, requiring it later can never lock them out, and it brings in your own mail and calendar.</Para>
     {line ? <Note>{line}</Note> : null}
     <Actions><Button label={`Sign in with ${provider === "google" ? "Google" : "Microsoft"} once`} testID="company-try" onPress={() => void go()} /><Button label="Done" testID="company-try-done" onPress={refresh} /></Actions>
   </>;
