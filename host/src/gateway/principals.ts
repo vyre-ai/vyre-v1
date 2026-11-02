@@ -30,7 +30,7 @@ export function ownPlaceGrant(a: { agentId: string; ownerId: string; agentKind: 
   if (a.agentKind === "outside") return null;
   if (a.agentKind !== "assistant" && a.spaceKind !== "personal") return null;
   const grantId = agentGrantId(a.agentId, "own");
-  return { eventId: `evt_agent_own_place_${a.agentId}_${a.rootId}`, grantId, payload: { id: grantId, subject_kind: "actor", subject_id: a.agentId, resource_type: "folder", resource_id: a.rootId, level: "edit", by: a.ownerId } };
+  return { eventId: `evt_own_${a.agentId.slice(4)}${a.rootId.slice(4)}`, grantId, payload: { id: grantId, subject_kind: "actor", subject_id: a.agentId, resource_type: "folder", resource_id: a.rootId, level: "edit", by: a.ownerId } };
 }
 
 type EventLike = Pick<EventEnvelope, "type" | "payload">;

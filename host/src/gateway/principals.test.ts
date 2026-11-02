@@ -127,5 +127,7 @@ test("own place: the Assistant gets its person's folder in any Space, a made age
   assert.equal(ownPlaceGrant({ ...base, agentKind: "agent", spaceKind: "team" }), null);
   assert.equal(ownPlaceGrant({ ...base, agentKind: "outside", spaceKind: "personal" }), null);
   assert.equal(ownPlaceGrant({ ...base, ownerId: "svc_host", agentKind: "assistant", spaceKind: "team" }), null);
+  const long = ownPlaceGrant({ agentId: `agt_${"a".repeat(32)}`, ownerId: "usr_a1", rootId: `fld_${"b".repeat(32)}`, agentKind: "assistant", spaceKind: "team" });
+  assert.ok(long !== null && long.eventId.length <= 80, "the log takes event ids of 8 to 80 characters");
   assert.equal(ownPlaceGrant({ ...base, agentKind: "assistant", spaceKind: "team" })?.eventId, ownPlaceGrant({ ...base, agentKind: "assistant", spaceKind: "team" })?.eventId, "the same grant is one event, so a revoked one stays revoked");
 });

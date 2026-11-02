@@ -1076,7 +1076,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const grant = ownPlaceGrant({ agentId: agent.id, ownerId: owner, agentKind: agent.runtime === "outside" ? "outside" : agent.kind, spaceKind: cfg.spaceKind ?? "team", rootId: root });
           if (!grant) continue;
           const made = await spaceLog.appendResult({ id: grant.eventId, type: "grant.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "grant", entity_id: grant.grantId, payload: grant.payload });
-          if (!made.ok) throw new Error(`could not grant an agent its person's folder: ${made.message}`);
+          if (!made.ok) { sink.log({ space: spaceId, level: 40, msg: "access.own_place_failed", place: "access", entity: "agent", entity_id: agent.id, attrs: { error: made.message } }); continue; }   // the next boot tries again; Files stays up
           if (!made.duplicate) { access.fold(made.event); accessPending.push(toAccessEvent(made.event)); headSeq = Math.max(headSeq, made.event.seq); await syncAccess(); }
         }
       };
