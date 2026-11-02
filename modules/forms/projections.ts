@@ -39,7 +39,9 @@ export interface FormsConfig {
   canUpload?(publisherId: string, formId: string, folderId: string): boolean;
   captcha?: CaptchaVerifier;
   /** Public origin of the Space edge, for example https://harbor.vyre.run. Links are relative when absent. */
-  publicBase?: string;
+  publicBase?: string | undefined;
+  /** True when that origin is a phone address (name.vyre.run): the relay carries only the public path, so links live under /p/forms. */
+  publicPath?: boolean | undefined;
   /** Default submissions per minute per form when a form sets no limit. */
   defaultRateLimit?: number;
 }
@@ -287,7 +289,9 @@ export function insertForm(ctx: Ctx, f: NewForm): Row {
 }
 
 export function publicUrl(form: Row): string {
-  const base = (formsConfig().publicBase ?? "").replace(/\/+$/, "");
+  const c = formsConfig();
+  const base = (c.publicBase ?? "").replace(/\/+$/, "");
+  if (c.publicPath) return `${base}/p/forms/${form.kind === "booking" ? "book/" : ""}${str(form.slug)}`;
   return `${base}/${form.kind === "booking" ? "book" : "f"}/${str(form.slug)}`;
 }
 

@@ -93,6 +93,14 @@ export async function dial(ctx: TelCtx, input: { numberId: string; to: string; c
 
 // ---- answer, decline, hangup, hold
 
+/** Only someone a call rings for may answer it or turn it away. */
+function mustRingFor(ctx: TelCtx, row: Row, who: Party): void {
+  const ringing = parseJson<Party[]>(callMeta(ctx, str(row, "id")).ringing, []);
+  if (ringing.length > 0 && !ringing.some((p) => p.kind === "group" || (p.kind === who.kind && p.id === who.id))) {
+    throw fail("permission.no_grant", ctx.trace.traceId, { message: "This call is not ringing for you." });
+  }
+}
+
 export async function answer(ctx: TelCtx, input: { callId: string }) {
   ensure(ctx);
   const row = liveCall(ctx, callId(ctx, input.callId));
@@ -100,10 +108,7 @@ export async function answer(ctx: TelCtx, input: { callId: string }) {
   if (str(row, "state") !== "ringing") refuse(ctx, "This call is not ringing.");
   if (str(row, "direction") !== "in") refuse(ctx, "You placed this call; it connects when the other person answers.");
   const who = partyOf(ctx);
-  const ringing = parseJson<Party[]>(callMeta(ctx, str(row, "id")).ringing, []);
-  if (ringing.length > 0 && !ringing.some((p) => p.kind === "group" || (p.kind === who.kind && p.id === who.id))) {
-    throw fail("permission.no_grant", ctx.trace.traceId, { message: "This call is not ringing for you." });
-  }
+  mustRingFor(ctx, row, who);
   patch(ctx, "telephony_call", str(row, "id"), { state: "answered", answeredAt: ctx.now(), handledBy: JSON.stringify(who) });
   const base = eventBase(row);
   ctx.emit("call.started", `entity/${base.callId}`, base);
@@ -116,6 +121,7 @@ export async function decline(ctx: TelCtx, input: { callId: string; toVoicemail?
   if (input.toVoicemail !== undefined && typeof input.toVoicemail !== "boolean") bad(ctx, "toVoicemail is true or false.");
   if (str(row, "state") !== "ringing" || str(row, "direction") !== "in") refuse(ctx, "Only a call that is ringing can be declined.");
   const who = partyOf(ctx);
+  mustRingFor(ctx, row, who);
   const meta = callMeta(ctx, str(row, "id"));
   const declined = parseJson<Party[]>(meta.declined, []);
   if (!declined.some((p) => p.kind === who.kind && p.id === who.id)) declined.push(who);
@@ -199,7 +205,8 @@ export async function record(ctx: TelCtx, input: { callId: string; action: strin
   const on = num(meta, "recording") === 1;
   if (input.action === "stop") {
     if (!on) refuse(ctx, "This call is not being recorded.");
-    if (strOrNull(meta, "recordingSid")) await ctx.call("twilio.recording.stop", { callSid: sid as string, recordingSid: str(meta, "recordingSid"), idempotencyKey: `tel:${str(row, "id")}:recstop:${ctx.now()}` });
+    // a recording that began with the call (dial, or the number's announce policy) has no Sid here: Twilio names it by call. Saying stopped without asking would leave it recording.
+    await ctx.call("twilio.recording.stop", { callSid: sid as string, recordingSid: strOrNull(meta, "recordingSid") ?? "Twilio.CURRENT", idempotencyKey: `tel:${str(row, "id")}:recstop:${ctx.now()}` });
     setMeta(ctx, str(row, "id"), { recording: 0 });
     ctx.emit("call.recording_changed", `entity/${str(row, "id")}`, { callId: str(row, "id"), recording: false, consentLogged: num(row, "consentLogged") === 1 });
     return { recording: false, consentLogged: num(row, "consentLogged") === 1 };

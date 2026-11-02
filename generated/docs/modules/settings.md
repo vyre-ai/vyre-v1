@@ -14,7 +14,7 @@ Requires: nothing.
 - [settings.kit.set_mine](../capabilities/settings.kit.set_mine.md): Choose my own Kit for this Space (null follows the Space)
 - [settings.kit.set_space](../capabilities/settings.kit.set_space.md): Choose the Kit for the whole Space
 - [settings.list](../capabilities/settings.list.md): Rows of one page (or all) with the value that applies to me
-- [settings.pages](../capabilities/settings.pages.md): The ten settings pages in their two groups (named after the Space, and Everywhere) with row counts
+- [settings.pages](../capabilities/settings.pages.md): The settings pages a person has, with row counts
 - [settings.reset](../capabilities/settings.reset.md): Put one of my settings back to the Space default
 - [settings.reset_space](../capabilities/settings.reset_space.md): Put a Space-wide setting back to its shipped default
 - [settings.search](../capabilities/settings.search.md): Find settings rows by words (Cmd-F)

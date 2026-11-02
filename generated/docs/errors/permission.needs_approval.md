@@ -7,8 +7,9 @@ HTTP 403. Retryable: no.
 ## Raised by
 
 - automations.http_send
+- automations.read_docs
+- automations.read_link
 - changesets.approve
-- engine.crew.merge
 - engine.crew.push
 - git.push
 - git.sync

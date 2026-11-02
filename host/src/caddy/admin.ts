@@ -41,7 +41,9 @@ export class CaddyAdmin {
     try {
       r = await this.f(`${this.base}${path}`, {
         method, signal: ctl.signal,
-        ...(body !== undefined ? { headers: { "content-type": "application/json" }, body: JSON.stringify(body) } : {}),
+        // Node's fetch marks every request as a browser's (sec-fetch-mode: cors), and Caddy then refuses one with no Origin: a real Caddy answered 403 until this named its own address
+        headers: { origin: new URL(this.base).origin, ...(body !== undefined ? { "content-type": "application/json" } : {}) },
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
       });
     } catch (e) {
       const why = ctl.signal.aborted ? `no answer within ${this.timeoutMs} ms` : e instanceof Error ? e.message : String(e);

@@ -40,11 +40,11 @@ const ADDED_EVENTS = [
   'access.everyone_defaults_changed', 'record.value_proposed', 'record.value_reviewed', 'record.gaps_found', 'vault.site_rule_changed', 'vault.rotation_due',
 ];
 const ADDED_SETTINGS = [
-  'security.level', 'security.terminal_mode', 'security.chrome_mode', 'security.team_agents_on_my_computer', 'chrome.agents_use_my_browser', 'space.data_location',
+  'security.terminal_mode', 'security.chrome_mode', 'security.team_agents_on_my_computer', 'chrome.agents_use_my_browser',
 ];
 const ADDED_SCREENS = [
   'shell.new-tab', 'shell.report-problem', 'console.network', 'console.server-updates', 'console.server-logs', 'console.diagnostics',
-  'console.support-bundle', 'console.backups', 'console.labels', 'console.logging', 'console.outside-actors',
+  'console.support-bundle', 'console.backups', 'console.labels', 'console.outside-actors',
 ];
 
 test('every capability added for the coverage gaps is declared once', () => {

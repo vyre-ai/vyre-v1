@@ -35,6 +35,10 @@ import { createPortalLinkRoute } from "../routes/portal-link.ts";
 import { createShareRoute } from "../routes/share.ts";
 import type { SharedView } from "../routes/share.ts";
 import { createFormsPageRoute } from "../routes/forms-page.ts";
+import { createPublicPathRoute } from "../routes/public-path.ts";
+import type { PublicPathDeps, ServedSite } from "../routes/public-path.ts";
+import { createDomainEdge, createSitesHost, mimeOf } from "../seams/sites-host.ts";
+import { CaddyAdmin, CaddyRouter } from "../caddy/index.ts";
 import type { PublicFormView } from "../routes/forms-page.ts";
 import { deferredCaps, deferredModules } from "../routes/deferred.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
@@ -79,7 +83,7 @@ import type { FetchFn, ProbeName, ProbeResult } from "../platform/probes.ts";
 import { Scheduler } from "../scheduler/index.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
-import { createGateHook, moduleWhens } from "./gate-hook.ts";
+import { createGateHook, moduleFetches, moduleOutward, moduleWhens } from "./gate-hook.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { createComputersFillHost, createFillRoute } from "../seams/computers.ts";
 import { homeCallAllowed, homeScopeOf } from "./home-confine.ts";
@@ -146,6 +150,7 @@ import { coreOf, createSyncEngine } from "./syncengine.ts";
 import { collectProjections, createProjectionRunner } from "./projections.ts";
 import type { ProjectionRunner } from "./projections.ts";
 import { managedNetworkPort } from "./network-driver.ts";
+import { publicOriginOf } from "./public-origin.ts";
 import { pollCommands } from "./commands.ts";
 import { createPhonePort } from "./phone.ts";
 import type { NetworkPort, PhonePort } from "./commands.ts";
@@ -402,6 +407,20 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let portalLinkRoute: ReturnType<typeof createPortalLinkRoute> | null = null;
   let shareRoute: ReturnType<typeof createShareRoute> | null = null;
   let formsPageRoute: ReturnType<typeof createFormsPageRoute> | null = null;
+  // every public link starts here: the address this Space was given, else the phone name it holds at the relay
+  const publicOrigin = (): { origin: string; relay: boolean } | null => {
+    let claimed: { name?: string; state?: string } | undefined;
+    try { claimed = db?.all("SELECT name, state FROM network_phone WHERE id = 1")[0] as typeof claimed; } catch { /* the table comes with the network module */ }
+    return publicOriginOf(cfg.address, claimed?.state === "claimed" ? claimed.name : null);
+  };
+  // sites: what the module answers and where the bytes go; set once the modules are loaded and the stream exists
+  let sitesServing: Partial<PublicPathDeps> = {};
+  let refreshDomains: () => Promise<void> = () => Promise.resolve();
+  const publicPath = createPublicPathRoute({
+    forms: () => formsPageRoute, origin: () => publicOrigin()?.origin ?? null,
+    site: (slug) => sitesServing.site?.(slug) ?? null, artifact: (id, token) => sitesServing.artifact?.(id, token) ?? Promise.resolve(null),
+    fetch: (t, r, sink) => sitesServing.fetch ? sitesServing.fetch(t, r, sink) : Promise.resolve(sink.fail("Not available.")), file: (f, rel) => sitesServing.file?.(f, rel) ?? Promise.resolve(null),
+  });
   // GET /exports/<id>?token= (P-L7_16): the vault module checks the token; until it is configured every pull is refused
   let pullVaultExport: (exportId: string, token: string) => string = () => { throw new Error("the Vault is not live on this server"); };
   const exportRoute = createVaultExportRoute({ pull: (id, t) => pullVaultExport(id, t) });
@@ -644,6 +663,26 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // the async projections the live modules export (P-H_07): the events module's webhooks_out turns subscribed events into signed deliveries
       // crash recovery: a webhook delivery row inserted but never dispatched (the daemon died between the two) is sent again; the send is idempotent per attempt
       let dispatchSystem: ((cap: string, input: unknown) => Promise<unknown>) | null = null;
+      // one file of a folder a site or an artifact serves from: the caller already decided the visitor may see it, so this reads as the server. A folder published from disk keeps its paths flat, a/b as a__b
+      const readFolderFile = async (folderId: string, rel: string): Promise<{ bytes: Uint8Array; mime: string } | null> => {
+        const parts = rel.split("/").filter((p) => p !== "");
+        if (!dispatchSystem || parts.length === 0 || parts.some((p) => p === "." || p === "..")) return null;
+        const fileIn = (folder: string, name: string): { id: string; name: string } | undefined => db!.all("SELECT id, name FROM files_file WHERE folder_id = ? AND name = ? AND deleted_at IS NULL", folder, name)[0] as { id: string; name: string } | undefined;
+        let at = folderId;
+        let hit = fileIn(at, parts.join("__"));
+        if (!hit) {
+          for (const dir of parts.slice(0, -1)) {
+            const next = db!.all("SELECT id FROM files_folder WHERE parent_id = ? AND name = ? AND deleted_at IS NULL", at, dir)[0] as { id: string } | undefined;
+            if (!next) return null;
+            at = next.id;
+          }
+          hit = fileIn(at, parts[parts.length - 1] as string);
+        }
+        if (!hit) return null;
+        const found = { fileId: hit.id, name: hit.name };
+        const f = (await dispatchSystem("files.read", { fileId: found.fileId, as: "base64" })) as { base64?: string; mime?: string };
+        return typeof f.base64 === "string" ? { bytes: new Uint8Array(Buffer.from(f.base64, "base64")), mime: f.mime ?? mimeOf(found.name) } : null;
+      };
       const dueDeliveries = loaded.moduleExports.get("events")?.["dueDeliveries"] as ((ctx: { db: unknown }, now: number, limit?: number) => { webhook_id: string; event_id: string; attempts: number; state: string; at: number }[]) | undefined;
       const WEBHOOK_RECOVER_MS = 30_000;
       const projectionRunner = createProjectionRunner({
@@ -718,6 +757,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       await ownedExports.cleanup();
       const exportCleanup=setInterval(()=>{void Promise.all([ownedExports.cleanup(),ownerArchives.cleanup()]).catch(()=>sink.log({space:spaceId,level:40,msg:'exports.cleanup_failed',place:'owned-exports'}));},60000);exportCleanup.unref();closers.push(()=>clearInterval(exportCleanup));
 
+      const threadChain = (id: string): string[] => {
+        const chain = [id];
+        for (let cur = id, i = 0; i < 8; i++) {
+          let up: string | null | undefined;
+          try { up = (db?.all("SELECT parentThreadId FROM chat_thread WHERE id = ?", cur)[0] as { parentThreadId?: string | null } | undefined)?.parentThreadId; } catch { break; }   // no chat tables here: the thread alone
+          if (!up || chain.includes(up)) break;
+          chain.push(up); cur = up;
+        }
+        return chain;
+      };
       // The Gate hook, only once the Gate module is live (a stub answers with examples, which must never decide a send). Its questions and parked calls run as the Space itself.
       const gate = loaded.serving.get("gate") === "live"
         ? withGateNesting(createGateHook({
@@ -728,6 +777,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           },
           unseal: (s) => seal.unseal(s), now,
           evaluators: moduleWhens(loaded.moduleExports, () => db, (cap, input) => system(cap, input)),
+          outward: moduleOutward(loaded.moduleExports), fetches: moduleFetches(loaded.moduleExports),
+          threads: threadChain,
+          mode: (id) => {
+            // 1 plan, 2 auto, anything else ask (modules/chat/projections.ts): a Job is never looser than the chat above it
+            try {
+              const rows = threadChain(id).map((t) => (db?.all("SELECT modePlan FROM chat_thread WHERE id = ?", t)[0] as { modePlan?: number | null } | undefined));
+              if (rows[0] === undefined) return undefined;
+              const codes = rows.filter((r) => r !== undefined).map((r) => r!.modePlan);
+              return codes.includes(1) ? "plan" : codes.every((c) => c === 2) ? "auto" : "ask";
+            } catch { return undefined; }
+          },
           hold: (id) => {
             const r = db?.all("SELECT state, principal_kind, principal_id, acting_for, run_id, thread_id, payload_hash FROM gate_holds WHERE id = ?", id)[0] as
               { state: string; principal_kind: string; principal_id: string; acting_for: string | null; run_id: string | null; thread_id: string | null; payload_hash: string } | undefined;
@@ -1101,12 +1161,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setFormsHost: () => ({ choiceSource: createChoiceSource({
           as: (person, cap, input) => invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "forms-public" }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`)))),
           people: () => [...access.snap.allPrincipals()].filter((p) => p.kind === "person" && p.status === "active").map((p) => ({ id: p.id, name: p.name ?? p.id })),
-        }), ...(cfg.address ? { publicBase: /^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}` } : {}), schemaFields: async (type: string) => { const out = await system("schema.types.get", { type }) as { type: { fields: readonly unknown[] } }; return out.type.fields; }, canUpload: (publisherId: string, formId: string, folderId: string) => {
+        }), get publicBase() { return publicOrigin()?.origin; }, get publicPath() { return publicOrigin()?.relay; }, schemaFields: async (type: string) => { const out = await system("schema.types.get", { type }) as { type: { fields: readonly unknown[] } }; return out.type.fields; }, canUpload: (publisherId: string, formId: string, folderId: string) => {
           return formUploadAllowed(access.snap,{publisherId,formId,folderId,stale:staleFor(publisherId),liveLocalFolder:!!db!.all("SELECT id FROM files_folder WHERE id = ? AND deleted_at IS NULL",folderId)[0],now:now()});
         } }),
         // memory's meaning search: a small embedding model on this server, fetched into the data folder the first time it is used and checked against pinned hashes
         setMemoryMeaningHost: () => ({ files: createModelFiles({ root: process.env["VYRE_MODEL_CACHE"] ?? paths.root }), now, log: (msg: string, attrs?: Record<string, unknown>) => sink.log({ space: spaceId, level: 30, msg, place: "memory-meaning", ...(attrs ? { attrs } : {}) }) }),
-        setCampaignsHost: () => (cfg.address ? { publicBase: /^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}` } : {}),
+        setCampaignsHost: () => ({ get publicBase() { return publicOrigin()?.origin; } }),
         // backups: the Space's own files, the owner from the access layer (P-SEC_07: without owner() every export refuses), exports into the blob store, S3 over the seam fetch with keys from the Vault
         setBackupHost: (d) => createBackupHost({
           root: paths.root, space: spaceId, log: spaceLog, owner: () => access.owner() ?? cfg.owner ?? null, system, vault: d.vault, fetch: d.fetch,
@@ -1130,6 +1190,45 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           mint: (sessionId: string) => issueSessionToken(db!, sessionId, now),
           end: (sessionId: string) => { db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", now(), sessionId); },
         }),
+        // sites are routes: an address pointing at a port on a computer, or at a folder in Files. Site code never runs here; only its bytes pass
+        configureRoutes: () => {
+          const computers = loaded.moduleExports.get("computers") as { localComputerAddress?: (id: string) => Promise<string | null>; localSiteLogs?: (a: { computerId: string; slug: string; lines: number }) => Promise<string[]> } | undefined;
+          const sitesMod = loaded.moduleExports.get("sites") as { routeBySlug?(c: { db: unknown }, slug: string): ServedSite | null; routeByTicket?(c: { db: unknown }, id: string, token: string, now: number): Promise<{ route: ServedSite; principal: string; owner: string } | null> } | undefined;
+          const made = createSitesHost({
+            origin: publicOrigin, contained: fs.existsSync("/.dockerenv"),
+            nodeOf: (id) => (db!.all("SELECT node_id FROM computers_computers WHERE computer_id = ?", id)[0] as { node_id?: string | null } | undefined)?.node_id ?? null,
+            localAddress: (id) => computers?.localComputerAddress?.(id) ?? Promise.resolve(null),
+            localLogs: (computerId, slug, lines) => computers?.localSiteLogs?.({ computerId, slug, lines }) ?? Promise.resolve([]),
+            stream: { portFetch: (n, a, sink) => computeStream.portFetch(n, a, sink), ask: (n, k, i) => computeStream.ask(n, k, i), connected: (n) => computeStream.connected(n) },
+          });
+          sitesServing = {
+            site: (slug) => sitesMod?.routeBySlug?.({ db: db! }, slug) ?? null,
+            artifact: async (id, token) => {
+              const got = await sitesMod?.routeByTicket?.({ db: db! }, id, token, now());
+              if (!got) return null;
+              // access is asked on every request, so ending a share ends the link
+              const may = got.principal === got.owner || (got.route.access === "space" && access.snap.principal(got.principal)?.status === "active") || (!staleFor(got.principal) && authorize(access.snap, { principal: got.principal, action: { perm: null, level: "view" }, resource: { type: "site", id } }).effect === "allow");
+              return may ? got.route : null;
+            },
+            fetch: (t, r, sink) => made.fetchTarget(t, r, sink),
+            file: (folderId, rel) => readFolderFile(folderId, rel),
+          };
+          return made.host;
+        },
+        configureDomainEdge: () => {
+          const computers = loaded.moduleExports.get("computers") as { localComputerAddress?: (id: string) => Promise<string | null> } | undefined;
+          const refresh = loaded.moduleExports.get("sites")?.["refreshDomainRoutes"] as ((c: { db: unknown }, warn: (m: string, a: Record<string, unknown>) => void) => Promise<number>) | undefined;
+          // a computer that restarted has a new address, so the routes are written again on the slow timer
+          refreshDomains = async () => { if (refresh && db) await refresh({ db }, (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "sites", attrs })); };
+          return createDomainEdge({
+            origin: publicOrigin, contained: fs.existsSync("/.dockerenv"),
+            nodeOf: (id) => (db!.all("SELECT node_id FROM computers_computers WHERE computer_id = ?", id)[0] as { node_id?: string | null } | undefined)?.node_id ?? null,
+            localAddress: (id) => computers?.localComputerAddress?.(id) ?? Promise.resolve(null), localLogs: () => Promise.resolve([]),
+            stream: { portFetch: (n, a, sink) => computeStream.portFetch(n, a, sink), ask: (n, k, i) => computeStream.ask(n, k, i), connected: (n) => computeStream.connected(n) },
+            peerAddress: (n) => computeStream.peerAddress(n),
+            router: cfg.caddyAdmin ? new CaddyRouter({ admin: new CaddyAdmin({ baseUrl: cfg.caddyAdmin, ...(o.fetch ? { fetch: o.fetch as never } : {}) }), space: spaceId, base: process.env["VYRE_CADDY_CA"] === "internal" ? { acme: { ca: "internal" } } : {} }) : null,
+          });
+        },
         setComputerHost: () => createComputersHost({
           dataDir: paths.root,
           ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : {}),
@@ -1557,6 +1656,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   if (hasSpace) {
     scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });
     scheduler.add({ name: "schedule.tick", schedule: { everyMs: o.intervals?.tick ?? 1000 }, run: async () => { await queue?.tick(); } });
+    scheduler.add({ name: "sites.domain_routes", schedule: { everyMs: o.intervals?.slow ?? 60_000 }, run: async () => { await refreshDomains(); } });
     scheduler.add({ name: "projections.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await projections?.pump(); } });
     scheduler.add({ name: "hooks.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await hooks?.pump(); } });   // the backstop for a consumer that failed, and for events committed by another process
     for (const p of hooks?.periodic ?? []) scheduler.add({ name: `hook.${p.name}`, schedule: { everyMs: p.everyMs, ...(p.immediate ? { immediate: true } : {}) }, run: async () => { await hooks?.runPeriodic(p.name); } });
@@ -1613,7 +1713,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         res.once("finish", () => { setImmediate(requestStop); });
         return;
       }
-      if (mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
+      if (publicPath.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {

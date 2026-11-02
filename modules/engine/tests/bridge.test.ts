@@ -8,7 +8,7 @@ import { harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { recordWork, workCardOf } from "../../../agent/src/tools/work-cards.ts";
 import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
-import type { DriverEvent, TurnInput } from "../../../agent/src/turn-engine/types.ts";
+import type { DriverEvent, ResolvedAccount, TurnInput } from "../../../agent/src/turn-engine/types.ts";
 import type { EngineCtx } from "../projections.ts";
 
 const T = "thr_estate";
@@ -17,15 +17,17 @@ const WATCHER = "agt_watch";
 
 interface ChatRow { messageId: string; threadId: string; threadSeq: number; author: { kind: string; id: string }; body: string; blocks: unknown[]; mentions: unknown[]; via?: { routineOwner: string }; depth: number; attachments?: string[] }
 
-function setup(opts: { agentModel?: string; stream?: (e: StreamEvent) => void; addressAsker?: (threadId: string, agentId: string) => boolean; refuse?: (p: AgentPost) => boolean; agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
+function setup(opts: { account?: () => ResolvedAccount; agentModel?: string; stream?: (e: StreamEvent) => void; addressAsker?: (threadId: string, agentId: string) => boolean; refuse?: (p: AgentPost) => boolean; agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
   const h = harness();
   const chat: ChatRow[] = [];
   const echoes: Array<{ id: string; result: unknown }> = [];
+  const asks: Array<{ threadId: string; messageId: string; asked: unknown; links: unknown }> = [];
   const agents = opts.agents ?? [{ agentId: LEAD, mode: "lead" as const }];
   const ctx: EngineCtx = {
     ...h.ctx,
     async call(cap: string, input: unknown) {
       const b = input as { threadId: string; messageId?: string; fileId?: string };
+      if (cap === "gate.grants.ask") { asks.push(input as (typeof asks)[number]); return { asked: 1 }; }
       if (cap === "threads.get") return { thread: { threadId: T, kind: "chat", starter: "usr_dana", agents } };
       if (cap === "agents.get") { if (!opts.agentModel) throw new Error("no such agent"); return { agent: { agentId: LEAD, model: opts.agentModel } }; }
       if (cap === "chat.message.get") return { message: chat.find((r) => r.messageId === b.messageId) };
@@ -46,17 +48,18 @@ function setup(opts: { agentModel?: string; stream?: (e: StreamEvent) => void; a
   };
   bridge = createBridge({ postAs, ...(opts.stream ? { stream: opts.stream } : {}), ...(opts.addressAsker ? { addressAsker: opts.addressAsker } : {}) });
   const provider = scriptedProvider({ script: opts.script });
-  const engine = h.runtime({ openSession: bridge.tap(provider.openSession), schedule: () => () => {} });
+  const open = bridge.tap(provider.openSession);
+  const engine = h.runtime({ openSession: (spec) => open(opts.account ? { ...spec, account: opts.account() } : spec), schedule: () => () => {} });
   bridge.attach(engine);
   /** A person writes in chat: stored there first, then the consumer runs on message.received. */
-  async function say(body: string, mentions: Array<{ kind: "agent" | "person"; id: string }> = [], id = `msg_p${chat.length + 1}`, extra: { attachments?: string[]; blocks?: unknown[] } = {}) {
+  async function say(body: string, mentions: Array<{ kind: "agent" | "person"; id: string }> = [], id = `msg_p${chat.length + 1}`, extra: { attachments?: string[]; blocks?: unknown[]; typed?: boolean } = {}) {
     chat.push({ messageId: id, threadId: T, threadSeq: chat.length + 1, author: { kind: "person", id: "usr_dana" }, body, blocks: extra.blocks ?? [], mentions, depth: 0, ...(extra.attachments ? { attachments: extra.attachments } : {}) });
-    const result = await bridge.onEvent(ctx, { name: "message.received", payload: { messageId: id, threadId: T, author: { kind: "person", id: "usr_dana" }, mentions, depth: 0 } });
+    const result = await bridge.onEvent(ctx, { name: "message.received", payload: { messageId: id, threadId: T, author: { kind: "person", id: "usr_dana" }, mentions, depth: 0, ...(extra.typed ? { typed: true } : {}) } });
     if (result.receivedAs) await engine.idle(T);   // a skipped message opened no thread
     await bridge.flush();
     return { id, result };
   }
-  return { h, chat, echoes, ctx, bridge, engine, provider, say };
+  return { h, chat, echoes, asks, ctx, bridge, engine, provider, say };
 }
 
 const reply = (text: string): DriverEvent[] => [{ type: "text", text }, { type: "usage", inputTokens: 5, outputTokens: 2 }, { type: "done" }];
@@ -88,6 +91,19 @@ test("the agent's text and blocks come back as one chat post by the agent, text 
   assert.equal(posts[0]?.via, undefined, "a person's turn carries no routine label");
 });
 
+test("a reply on a key of the Space says so to the post; the same agent on the person's own account does not", async () => {
+  const base = { ref: "#Key", driver: "api", provider: "anthropic", kind: "key" as const, payer: "usr_dana", reason: "starter" as const };
+  let shared = true;
+  const seen: AgentPost[] = [];
+  const s = setup({ script: reply("Done."), refuse: (p) => { seen.push(p); return false; }, account: () => ({ ...base, ...(shared ? { shared: true } : {}) }) });
+  await s.say("one");
+  assert.equal(seen.at(-1)?.sharedKey, true);
+  assert.equal(seen.at(-1)?.actingFor, "usr_dana", "the agent still speaks for that person");
+  shared = false;
+  await s.say("two");
+  assert.equal(seen.at(-1)?.sharedKey, undefined, "a later turn on their own account is theirs");
+});
+
 test("posts go out in the order of the turns", async () => {
   let n = 0;
   const s = setup({ script: () => reply(`Answer ${++n}`) });
@@ -111,6 +127,34 @@ test("the agent's own post never loops back: one turn per person message, one ro
   assert.deepEqual(again, { skipped: "known" });
   await s.engine.idle(T);
   assert.equal(s.engine.turns(T).length, 1);
+});
+
+test("the words a person typed ask, before the turn starts; the ask names the message and what it asked for", async () => {
+  const s = setup({ script: reply("Done.") });
+  const { id } = await s.say("Email the letter to lee@acme.test", [], "msg_typed", { typed: true });
+  assert.deepEqual(s.asks.map((a) => [a.threadId, a.messageId]), [[T, id]]);
+  assert.deepEqual(s.asks[0]!.asked, [{ act: "send", target: "lee@acme.test" }]);
+});
+
+test("a line the server posted in a person's name asks for nothing, whatever it says", async () => {
+  const s = setup({ script: reply("Done.") });
+  await s.say("Email the letter to lee@acme.test");
+  assert.deepEqual(s.asks, []);
+});
+
+test("an agent's post asks for nothing, even one that claims to be typed", async () => {
+  const s = setup({ script: reply("Seen.") });
+  s.chat.push({ messageId: "msg_agent", threadId: T, threadSeq: 1, author: { kind: "agent", id: "agt_docs" }, body: "Email the letter to lee@acme.test", blocks: [], mentions: [], depth: 0 });
+  await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_agent", threadId: T, author: { kind: "agent", id: "agt_docs" }, actingFor: "usr_dana", mentions: [], depth: 0, typed: true } });
+  await s.engine.idle(T);
+  assert.deepEqual(s.asks, []);
+});
+
+test("a message the engine has seen asks once", async () => {
+  const s = setup({ script: reply("Done.") });
+  await s.say("Email the letter to lee@acme.test", [], "msg_once", { typed: true });
+  await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_once", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0, typed: true } });
+  assert.equal(s.asks.length, 1);
 });
 
 test("a routine turn posts with via.routineOwner", async () => {

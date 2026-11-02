@@ -203,6 +203,8 @@ export function crewNote(j: CrewJob, c: Clock): string {
   switch (j.state) {
     case "working": return `Working · started ${agoLabel(j.startedAt, c)}`;
     case "waiting": return "Waiting on you";
+    case "paused": return "Paused with its agent";
+    case "lost": return `The server stopped ${agoLabel(j.endedAt ?? j.startedAt, c)} · run it again?`;
     case "done": return `Done ${agoLabel(j.endedAt ?? j.startedAt, c)}${files === null ? "" : ` · ${files} ${files === 1 ? "file" : "files"}`}`;
     case "merged": return `Merged ${agoLabel(j.endedAt ?? j.startedAt, c)}`;
     case "failed": return `Could not finish ${agoLabel(j.endedAt ?? j.startedAt, c)}`;

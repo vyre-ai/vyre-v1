@@ -12,11 +12,12 @@ import { registry } from "../../generated/registry.ts";
 export { handlers };
 export const hostSeams = { setDocumentNetwork, setConnectorReadSender, setHttpStepHost };
 export { accessDiff, canView, structuralIssues, validateDefinition, webhookSecretMatches } from "./handlers/defs.ts";
-import { acceptHook, consumeEvent, loadRunPlan, startRun } from "./handlers/triggers.ts";
+import { acceptHook, adoptRun, consumeEvent, loadRunPlan, startRun } from "./handlers/triggers.ts";
 export { consumeEvent, dropReason, fireOne, loadRunPlan, matches, startRun, triggerPayload } from "./handlers/triggers.ts";
 import { recordSavedItem } from "./offer-store.ts";
 import type { OfferDb } from "./offer-store.ts";
-import { findAutomation, findRunLink, listChildLinks, listScopedChildren, saveRunLink } from "./projections.ts";
+import { backfillGrants } from "./grants.ts";
+import { findAutomation, findRunLink, listChildLinks, listScopedChildren, saveRunLink, syncPolicy } from "./projections.ts";
 import type { AutoCtx, RunScope } from "./projections.ts";
 
 /**
@@ -31,6 +32,11 @@ const CONNECTOR_KINDS: ReadonlySet<string> = new Set(["api_key", "env", "login",
 const TRIGGER_EVENTS: readonly string[] = [...new Set(registry.triggers.flatMap((t) => { const src = t.source as { event?: string; events?: string[] } | undefined; return src?.events ?? (src?.event ? [src.event] : []); }))];
 
 export const consumers = {
+  /** The Space's automations.* settings, copied here from settings.changed: a module reads only its own tables. */
+  "automations.settings_sync": {
+    on: ["settings.changed"],
+    async run(ctx: AutoCtx, event: { payload: Record<string, unknown> }): Promise<string[]> { return syncPolicy(ctx.db, event.payload) ? [String(event.payload["key"])] : []; },
+  },
   /**
    * Events in, Runs out: the host runs this once per event a trigger listens for, after it is committed. An event a Run's own step made carries that Run's id, and from it the Automation and the chain depth
    * (the Run's depth plus one), so an Automation that makes the record it listens for is dropped as a self-trigger and a chain of them stops at the depth limit.
@@ -44,6 +50,11 @@ export const consumers = {
         ...(parent ? { origin: `automation:${parent.link.automationId}`, depth: (parent.link.depth ?? 0) + 1 } : {}),
       });
     },
+  },
+  /** A Run retried or replayed from the Runs pages joins its Automation, so it actually runs. */
+  "automations.run_retried": {
+    on: ["run.retried", "run.started"],
+    run: (ctx: Ctx, event: Parameters<typeof adoptRun>[1]) => adoptRun(ctx as unknown as AutoCtx, event),
   },
   "automations.connector_offer": {
     on: ["vault.item_created"],
@@ -60,6 +71,7 @@ export const consumers = {
 };
 export const periodic = {
   "automations.schedule_tick": { everyMs: SCHEDULE_EVERY_MS, run: (ctx: Ctx) => runDueSchedules(ctx as AutoCtx) },
+  "automations.grants_backfill": { everyMs: SCHEDULE_EVERY_MS, run: (ctx: Ctx) => backfillGrants(ctx as unknown as AutoCtx) },
 };
 export const hostCalls = {
   /** The inbound webhook route asks this: does the URL belong to a live, turned-on automation, and if so start its Run. Null is the one answer to every refusal. */

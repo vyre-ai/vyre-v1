@@ -280,3 +280,61 @@ test("a Shared item with the same handle never shadows the asker's own Mine item
     assert.equal(await port.secret("#Engine_Key.api_key", "spc_vault"), "attacker-key", "with no asker only Shared is read");
   } finally { h.cleanup(); }
 });
+
+// ---- a pull link hands over values, so it follows the rules a reveal follows ----
+
+test("export leaves out what the caller may only use, what is set to the Space only, and refuses an agent outright", async () => {
+  const h = harness();
+  const f = await folder(h);
+  await put(h, f, "Mine to see", "value-seen-1");
+  const hidden = await put(h, f, "Use only", "value-hidden-2");
+  const local = await put(h, f, "Stays here", "value-local-3");
+  await v.itemUpdate(h.ctx, { itemId: local, spaceOnly: true });
+  const openFor = (r: Json): string => u.exportPull(h.ctx, { exportId: String(r.exportId), token: new URL(String(r.pullUrl)).searchParams.get("token") ?? "" });
+  const text = openFor(out(await u.exportEnv(h.ctx, { folderId: f, expiresIn: "1h" })));
+  assert.ok(text.includes("value-seen-1") && text.includes("value-hidden-2"), "the owner sees all of it");
+  assert.ok(!text.includes("value-local-3"), "an item set to the Space only does not leave in a file");
+  h.actAs("person", ROB);
+  h.grant(ROB, f, "use");
+  h.grant(ROB, hidden, "use");
+  assert.equal(await refusedWith(u.exportEnv(h.ctx, { folderId: f, expiresIn: "1h" })), "validation.precondition_failed", "use is not view: the value does not leave");
+  h.actAs("agent", AGENT);
+  h.grant(AGENT, f, "manage");
+  assert.equal(await refusedWith(u.exportEnv(h.ctx, { folderId: f, expiresIn: "1h" })), "permission.no_grant", "an agent never holds a link to values");
+  h.cleanup();
+});
+
+test("a folder's list of who may export is obeyed: the owner and the people on it, by name or by role", async () => {
+  const h = harness();
+  const f = await folder(h);
+  await put(h, f, "Dana Lawmatics");
+  const { foldersUpdate } = await import("../handlers/g20.ts");
+  await foldersUpdate(h.ctx, { folderId: f, whoCanExport: [{ kind: "role", id: "rol_finance" }] });
+  assert.ok(out(await u.exportEnv(h.ctx, { folderId: f, expiresIn: "1h" })).exportId, "the folder's owner");
+  h.actAs("person", ROB);
+  h.grant(ROB, f, "manage");
+  assert.equal(await refusedWith(u.exportEnv(h.ctx, { folderId: f, expiresIn: "1h" })), "permission.no_grant");
+  h.cleanup();
+});
+
+test("an agent acting for the owner cannot get a link to every Mine value", async () => {
+  const h = harness();
+  const { exportMine } = await import("../handlers/g20.ts");
+  await put(h, await folder(h, "mine"), "Dana login");
+  h.ctx.actingFor = MAYA;
+  h.actAs("agent", AGENT);
+  assert.equal(await refusedWith(exportMine(h.ctx, { expiresIn: "1h" })), "permission.no_grant");
+  h.cleanup();
+});
+
+test("a rename keeps the handle, so what holds it keeps working; setting a new value counts as rotating it", async () => {
+  const h = harness();
+  const f = await folder(h);
+  const id = await put(h, f, "Dana Lawmatics");
+  await v.itemUpdate(h.ctx, { itemId: id, name: "Lawmatics main" });
+  assert.equal(out(await u.use(h.ctx, { item: "#Dana_Lawmatics" })).itemId, id);
+  h.advance(5000);
+  await v.itemUpdate(h.ctx, { itemId: id, fieldsSet: [{ key: "api_key", value: "a-new-one-9999" }] });
+  assert.equal(out(out(await v.itemGet(h.ctx, { itemId: id })).item).lastRotatedAt, h.ctx.now());
+  h.cleanup();
+});

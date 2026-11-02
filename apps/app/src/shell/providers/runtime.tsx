@@ -23,6 +23,8 @@ export type SpaceKind = "team" | "personal";
 export interface ShellRuntime extends Omit<HomeData, "nav"> {
   createRecordsPreview?(ticket:RecordsPreviewTicket):RecordsPreviewReader;
   space: { id: string; kind: SpaceKind; name: string };
+  /** The Space changed: what a card that reads by capability follows, on the same tick that re-reads the live queries. */
+  changes?: { subscribe(listener: () => void): () => void };
   /** The Space's address, e.g. https://northwind.vyre.run. A desktop app loads from its own scheme (tauri://), so a path the Space serves (a live view) needs this in front of it. */
   baseUrl?: string;
   knownSpaces?: readonly SpaceDef[];

@@ -2,9 +2,17 @@
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { recentWithUnread } from "./handlers/g26.ts";
+import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
 import type { ChatCtx } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
+
+export const consumers = {
+  /** A person left or was removed: they come off every thread, a thread they started gets a new owner, and each chat gets one line. */
+  "chat.person_left": { on: ["member.removed"], run: (ctx: ChatCtx, event: Parameters<typeof onPersonLeft>[1]) => onPersonLeft(ctx, event) },
+  /** An agent was deleted: it comes off the chats it was in, and each gets one line. */
+  "chat.agent_deleted": { on: ["agent.deleted"], run: (ctx: ChatCtx, event: Parameters<typeof onAgentDeleted>[1]) => onAgentDeleted(ctx, event) },
+};
 
 /**
  * Host calls for the removal wizard (members.owned, host/src/seams/people.ts): what a person owns here and what happens to it (P-L7_21). The host runs them with this module's ctx, so no other module

@@ -14,8 +14,10 @@ import { gateResumeConsumers } from "./handlers/gate-resume.ts";
 import { sweepWaits } from "./crew-waits.ts";
 import { reconcileAll } from "./handlers/crew.ts";
 import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
-import { closeNoAccountTasks, engineHost, ensureRuntime, recoverStale, setEngineHost, wakeAfterAnswer, wakeAfterUnblock } from "./runtime.ts";
+import { checkGroupAccount } from "./group-account.ts";
+import { closeNoAccountTasks, engineHost, ensureRuntime, openAs, recoverStale, setEngineHost, wakeAfterUnblock } from "./runtime.ts";
 import { onTaskEvent, sweepBaton } from "./handlers/task-baton.ts";
+import { markLostJobs, ownerChanged, resumeAgent, stopAgent, stopPerson } from "./handlers/departures.ts";
 import type { EngineCtx } from "./projections.ts";
 
 // Every engine capability first makes sure the runtime exists on a daemon that wired the engine seam (the first call builds it; a daemon without the seam leaves it unbound).
@@ -48,6 +50,7 @@ export const periodic = {
       if (!host) return [];
       const ended = await sweepWaits({ db: ctx.db, host, now: () => ctx.now() });
       await reconcileAll(ctx).catch(() => []);   // a branch merged or pushed any other way flips its card and its Crew row
+      markLostJobs(ctx);   // a Job nothing is running for any more says so
       return ended;
     },
   },
@@ -67,23 +70,51 @@ export const consumers = {
   ...withRuntime(bridgeConsumers),
   ...withRuntime(gateResumeConsumers),
   ...captureConsumers,
+  /** An agent ended or stopped: what it had running stops with it, and a Job follows (running, paused, lost, stopped). */
+  "engine.agent_lifecycle": {
+    on: ["agent.deleted", "agent.paused", "agent.resumed"],
+    run: async (ctx: EngineCtx, event: { name: string; payload: { agentId: string } }): Promise<string[]> => {
+      const engine = await ensureRuntime(ctx);
+      const id = event.payload.agentId;
+      if (event.name === "agent.deleted") return stopAgent(ctx, engine, id, "stopped");
+      if (event.name === "agent.paused") return stopAgent(ctx, engine, id, "paused");
+      return resumeAgent(ctx, engine, id, async (threadId, asker) => { await openAs(ctx, threadId, asker); });
+    },
+  },
+  /** A person left: nothing goes on running on their word or their account. */
+  "engine.person_left": {
+    on: ["member.removed"],
+    run: async (ctx: EngineCtx, event: { payload: { personId: string } }): Promise<string[]> => stopPerson(ctx, await ensureRuntime(ctx), event.payload.personId),
+  },
+  /** The owner of a chat changed: its next turn runs for them. */
+  "engine.thread_owner": {
+    on: ["thread.updated"],
+    run: async (ctx: EngineCtx, event: { payload: { threadId: string; starter?: string } }): Promise<void> => { if (event.payload.starter) ownerChanged(await ensureRuntime(ctx), event.payload.threadId, event.payload.starter); },
+  },
+  /** A person or an agent joined a group: say who an agent there could not answer (group-account.ts). */
+  "engine.group_account": {
+    on: ["channel.member_added", "channel.agent_added"],
+    run: async (_ctx: EngineCtx, event: { payload: { threadId?: string; channelId?: string; personId?: string } }): Promise<string[]> => {
+      const h = engineHost();
+      if (!h) return [];
+      const p = event.payload;
+      const threadId = p.threadId ?? (p.channelId ? ((await h.call("channels.get", { channelId: p.channelId })) as { channel: { mainThreadId: string } }).channel.mainThreadId : undefined);
+      return threadId ? checkGroupAccount(h, threadId, p.personId ? [p.personId] : undefined) : [];
+    },
+  },
   "engine.no_account_sweep": {
     on: ["provider.added"],
     run: async (ctx: EngineCtx): Promise<string[]> => closeNoAccountTasks(ctx.db),
   },
   /** The baton of a work task landed on an agent: wake it in the task's thread (handlers/task-baton.ts). */
   "engine.task_baton": {
-    on: ["task.created", "task.assigned", "task.transitioned", "task.delegated", "task.escalated", "task.taken", "task.released", "task.withdrawn"],
+    on: ["task.created", "task.assigned", "task.transitioned", "task.delegated", "task.escalated", "task.taken", "task.released", "task.withdrawn", "task.ready", "task.children_settled", "task.updated"],
     run: async (ctx: EngineCtx, event: Parameters<typeof onTaskEvent>[3]): Promise<string[]> => {
       const engine = await ensureRuntime(ctx);
       const host = engineHost();
       if (!engine || !host) return [];
       return onTaskEvent(ctx, { call: host.call, now: () => ctx.now(), ...(host.log ? { log: host.log } : {}) }, engine, event);
     },
-  },
-  "engine.block_answered": {
-    on: ["block.answered"],
-    run: async (ctx: EngineCtx, event: { payload: { threadId: string; blockId: string; by: string } }): Promise<string[]> => ((await wakeAfterAnswer(ctx, event)) ? [event.payload.blockId] : []),
   },
   /** A key an agent asked for in a chat was added or declined: the agent is told in that chat, as the person it asked for, and carries on. */
   "engine.key_request_answered": {
@@ -93,10 +124,24 @@ export const consumers = {
       const host = engineHost();
       if (!host || !p.threadId || !p.agentId || !p.asker) return [];
       await ensureRuntime(ctx);
-      const key = (p.name ?? "").replace(/_+/g, " ").trim();
+      const key = (p.name ?? "").replace(/_+/g, " ").replace(/\s+key$/i, "").trim();
       const text = event.name === "vault.request_fulfilled" ? `I added the ${key} key. Carry on.` : `I did not add the ${key} key${p.note ? `: ${p.note}` : "."}`;
       try { await host.call("chat.post", { threadId: p.threadId, body: text, mentions: [{ kind: "agent", id: p.agentId }], idempotencyKey: `${p.requestId}:carry` }, p.asker); }
       catch (e) { host.log?.("the agent was not told its key was answered", { requestId: p.requestId, error: e instanceof Error ? e.message : String(e) }); return []; }
+      return [p.requestId];
+    },
+  },
+  /** Access an agent asked for in a chat was approved or declined: the agent is told in that chat, as the person it asked for, and carries on. */
+  "engine.access_answered": {
+    on: ["access.granted", "access.declined"],
+    run: async (ctx: EngineCtx, event: { name: string; payload: { requestId: string; requester: string; note?: string; threadId?: string; agentId?: string } }): Promise<string[]> => {
+      const p = event.payload;
+      const host = engineHost();
+      if (!host || !p.threadId || !p.agentId) return [];
+      await ensureRuntime(ctx);
+      const text = event.name === "access.granted" ? "My access came through. Carry on." : `My access was declined${p.note ? `: ${p.note}` : "."}`;
+      try { await host.call("chat.post", { threadId: p.threadId, body: text, mentions: [{ kind: "agent", id: p.agentId }], idempotencyKey: `${p.requestId}:carry` }, p.requester); }
+      catch (e) { host.log?.("the agent was not told its access was answered", { requestId: p.requestId, error: e instanceof Error ? e.message : String(e) }); return []; }
       return [p.requestId];
     },
   },

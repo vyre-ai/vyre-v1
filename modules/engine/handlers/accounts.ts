@@ -88,7 +88,9 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
   });
   // the Vault item behind the account, so the turn worker can meter usage against it (record_usage itemId)
   const itemId = res.accountRef ? accounts.itemByRef.get(res.accountRef) : undefined;
-  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}) };
+  // an account ahead of this one was passed over: what pays is a fallback, whatever the reason word says
+  const fellBack = res.accountRef !== null && res.tried.some((a) => !a.used && (a.why === "expired" || a.why === "failed" || a.why === "failed_this_turn"));
+  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}), ...(fellBack ? { fellBack: true } : {}) };
 }
 
 export async function accountProbe(ctx: Ctx, input: { accountRef: string }) {

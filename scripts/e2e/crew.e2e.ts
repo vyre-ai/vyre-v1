@@ -196,10 +196,10 @@ async function main(): Promise<void> {
       const held = ((await ok("gate.holds.list", {})).holds as any[]).find((h) => h.act === "push_protected" && h.state === "held");   // eslint-disable-line @typescript-eslint/no-explicit-any
       if (held?.taskId) {
         if (page) {
-          // the card shows the approval itself: the person presses Approve right in the chat
-          await page.getByTestId(`crew-held-${job.jobId}`).waitFor({ timeout: 20_000 }).catch(() => undefined);
+          // a held call has one card, under the lead's message: the person presses Allow right in the chat
+          await page.getByTestId(`approval-${held.taskId}`).waitFor({ timeout: 20_000 }).catch(() => undefined);
           say("shot", await shot("inline-approval-on-card"));
-          await page.getByTestId(`crew-approve-${job.jobId}`).first().click({ timeout: 10_000 }).then(() => say("STEP6", "pressed Approve on the card in the chat"), (e) => say("DIAG", `no Approve on the card: ${String(e).slice(0, 160)}`));
+          await page.getByTestId(`approval-allow-${held.taskId}`).first().click({ timeout: 10_000 }).then(() => say("STEP6", "pressed Approve on the card in the chat"), (e) => say("DIAG", `no Approve on the card: ${String(e).slice(0, 160)}`));
         } else await ok("tasks.act", { taskId: held.taskId, action: "approve" }).catch((e) => say("DIAG", `approve failed: ${String(e).slice(0, 200)}`));
         for (let i = 0; i < 30 && !flipped; i++) { await sleep(2000); flipped = ((await ok("engine.crew.list", { threadId: chat })).jobs as any[]).find((j) => j.jobId === job.jobId)?.state === "merged"; }   // eslint-disable-line @typescript-eslint/no-explicit-any
         await sleep(6000);

@@ -19,7 +19,8 @@ const mcpCallIn = { agentId: id.agent, server: t.str({ examples: ['greeter/echo'
 const mcpCallOut = { isError: t.bool(), text: t.str(), structured: t.opt(t.json()) };
 const agentMode = t.enm('lead', 'listen');
 // The crew (DESIGN-crew.md): a teammate working in its own copy of the project repository, on its own branch, in its own thread under the lead's chat.
-const crewState = t.enm('working', 'waiting', 'done', 'failed', 'stopped', 'merged');
+// A Job is running (working, waiting on a hold), paused (its agent was paused), lost (the server stopped under it and only a person may run it again), stopped, or ended (done, failed, merged).
+const crewState = t.enm('working', 'waiting', 'paused', 'lost', 'done', 'failed', 'stopped', 'merged');
 const crewJob = t.obj({
   jobId: t.str({ examples: ['crw_01a1b2'] }), threadId: id.thread, leadThreadId: id.thread, projectId: id.project, agentId: id.agent, name: t.opt(t.str()), title: t.str(), branch: t.str({ examples: ['crew/ember-1'] }),
   base: t.str({ examples: ['main'] }), state: crewState, startedAt: t.ts(), endedAt: t.opt(t.ts()), result: t.opt(t.rec()),
@@ -68,7 +69,7 @@ export default defineManifest({
     }),
     read('engine.crew.repo.get', 'The project\'s repository for the crew, or nothing when none is set', { in: { projectId: id.project }, out: { repo: t.nullable(crewRepo) }, on: ['project', '/projectId'], tool: 'chats' }),
     write('engine.crew.start', 'Start a teammate on a brief: it gets its own thread under this chat and its own copy of the project repository on its own branch, and works until it is done', {
-      in: { ...threadT, projectId: id.project, teammateId: id.agent, title: t.str(), brief: t.str(), model: t.opt(t.str()), provider: t.opt(t.str()), effort: t.opt(effort) }, out: { job: crewJob },
+      in: { ...threadT, projectId: id.project, teammateId: id.agent, title: t.str(), brief: t.str(), model: t.opt(t.str()), provider: t.opt(t.str()), effort: t.opt(effort), taskId: t.opt(id.task) }, out: { job: crewJob },
       on: ['thread', '/threadId'], level: 'use', idem: 'key', audit: 'always', emits: ['crew.job_started'], tool: 'chats', mcpName: 'crew_start', agent: { planMode: 'blocked', blocks: ['helper'] },
       errors: ['validation.bad_input', 'validation.precondition_failed'],
     }),
@@ -82,17 +83,17 @@ export default defineManifest({
     write('engine.crew.stop', 'Stop a teammate: its running turn ends and anything queued for it is dropped; its work stays on its branch', {
       in: { jobId: t.str() }, out: { job: crewJob }, level: 'use', idem: 'key', audit: 'always', tool: 'chats', mcpName: 'crew_stop', agent: { planMode: 'blocked', blocks: [] }, errors: ['validation.not_found'],
     }),
-    write('engine.crew.merge', 'Land a teammate\'s branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. A person presses Merge; an agent asking holds at the Gate', {
+    write('engine.crew.merge', 'Land a teammate\'s branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. It is local: it leaves this computer only when it is pushed', {
       in: { jobId: t.str() }, out: { job: crewJob, landed: t.bool(), ref: t.str(), note: t.opt(t.str()) }, level: 'use', idem: 'key', audit: 'always', risk: 'high',
-      gate: { act: 'push_protected', when: "actor.kind != 'person'" }, emits: ['crew.job_merged', 'crew.job_pushed'], tool: 'chats', mcpName: 'crew_merge', agent: { planMode: 'blocked', blocks: [] },
-      errors: ['validation.not_found', 'validation.precondition_failed', 'permission.needs_approval'],
+      emits: ['crew.job_merged', 'crew.job_pushed'], tool: 'chats', mcpName: 'crew_merge', agent: { planMode: 'blocked', blocks: [] },
+      errors: ['validation.not_found', 'validation.precondition_failed'],
     }),
     write('engine.crew.wait', 'Wake me when the checks of a pull request end: the host looks at them, not the model, shows the progress in the Crew tab, and posts one message here that wakes the lead when they finish', {
       in: { ...threadT, repo: t.str({ examples: ['acme/site'] }), number: t.int({ minimum: 1 }) }, out: { wait: crewWait }, on: ['thread', '/threadId'], level: 'use', idem: 'key', audit: 'always', tool: 'chats', mcpName: 'crew_wait',
       agent: { planMode: 'blocked', blocks: [] }, errors: ['validation.bad_input'],
     }),
-    write('engine.crew.push', 'Push the project repository\'s base branch, with a teammate\'s merged work in it, to its remote. It is an outward act from the host and always holds at the Gate for a person\'s approval', {
-      in: { jobId: t.str() }, out: { job: crewJob, pushed: t.bool(), note: t.opt(t.str()) }, level: 'use', idem: 'key', audit: 'always', risk: 'high', gate: { act: 'push_protected' },
+    write('engine.crew.push', 'Push the project repository\'s base branch, with a teammate\'s merged work in it, to its remote. It is an outward act: a person pressing Push is their own act; an agent goes only when the person\'s own message this turn asked for it, else it holds at the Gate', {
+      in: { jobId: t.str() }, out: { job: crewJob, pushed: t.bool(), note: t.opt(t.str()) }, level: 'use', idem: 'key', audit: 'always', risk: 'high', gate: { act: 'push_protected', when: "actor.kind != 'person'" },
       emits: ['crew.job_merged', 'crew.job_pushed'], tool: 'chats', mcpName: 'crew_push', agent: { planMode: 'blocked', blocks: [] }, errors: ['validation.not_found', 'validation.precondition_failed', 'permission.needs_approval'],
     }),
     read('engine.crew.workspace', 'System: the repository copy a teammate thread works in, so the engine can make it before the first turn', {
@@ -240,7 +241,7 @@ export default defineManifest({
     }),
     read('engine.account.resolve', 'Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock', {
       in: { ...threadT, agentId: id.agent, askerId: t.opt(id.user), stepKey: t.opt(t.str()), unavailable: t.opt(t.arr(t.str(), { description: 'Accounts that already failed this turn: the answer is the next one in the agent\'s order' })) },
-      out: { accountRef: t.nullable(accountRef), payer: t.nullable(id.user), reason: t.enm('starter', 'steerer', 'step_key', 'backup_key', 'none'), allowed: t.bool(), itemId: t.opt(id.vaultItem) }, on: ['thread', '/threadId'],
+      out: { accountRef: t.nullable(accountRef), payer: t.nullable(id.user), reason: t.enm('starter', 'steerer', 'step_key', 'backup_key', 'none'), allowed: t.bool(), itemId: t.opt(id.vaultItem), fellBack: t.opt(t.bool()) }, on: ['thread', '/threadId'],
     }),
     write('engine.step_turn', 'Run one AI turn for an automation step: on the owner\'s own account (Personal) or a Space-shared key (Space), optionally as an agent, with no tools. A repeat of the same key returns the first answer.', {
       in: {
@@ -447,14 +448,9 @@ export default defineManifest({
   ],
   settings: [
     setting('engine.agent_hops', 'space', 'Policies', 'Agent-to-agent hops before a person must reply', t.int({ minimum: 1, maximum: 20 }), 4, { floorable: true }),
-    setting('engine.review_loops', 'space', 'Policies', 'Review send-backs before a person decides', t.int({ minimum: 0, maximum: 10 }), 2, { floorable: true }),
-    setting('engine.ci_fix_loops', 'space', 'Policies', 'CI fix attempts before a person decides', t.int({ minimum: 0, maximum: 10 }), 3, { floorable: true }),
     setting('engine.allowed_accounts', 'space', 'Models and providers', 'Allowed AI accounts', t.enm('any', 'company'), 'any', { floorable: true }),
-    setting('engine.logging', 'space', 'Logging', 'Detail kept for each turn', t.enm('steps', 'steps_and_tool_io'), 'steps'),
     setting('engine.review_sampling', 'space', 'Review sampling', 'Share of turns sampled for human review', t.obj({ percent: t.int({ minimum: 0, maximum: 100 }), labels: t.arr(label) }), { percent: 5, labels: ['confidential', 'restricted'] }),
-    setting('engine.local_runs', 'person', 'This computer', 'Run my private chats on this computer', t.bool(), true),
-    setting('engine.subscription_share', 'person', 'Models and usage', 'Let the Space run work on my subscription', t.bool(), true),
-    setting('engine.runtime_opt_in', 'person', 'Memory and privacy', 'Let the Space continue my chats when my computer is off', t.bool(), true),
+    setting('engine.local_runs', 'person', 'Models and usage', 'Run my private chats on this computer', t.bool(), true),
   ],
   screens: [
     screen('settings.models-usage', 'settings', 'ui:ModelsUsage', {

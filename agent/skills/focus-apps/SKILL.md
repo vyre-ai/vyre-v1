@@ -10,15 +10,12 @@ Apps holds what the Space puts in front of the outside world: Sites, Forms and b
 Public things are outward acts. Build and preview freely; publish and launch only with the person's word.
 
 ## Sites
-- `sites_list`, `sites_get`, `sites_deployments`, `sites_logs`. A site is built from its repo: `sites_build` runs the build in the repo, `sites_deploy` puts it on a
-  password-protected staging address, `sites_previews` lists one preview per branch. Show the person the staging address before you promote.
-- `sites_promote` sends staging to production and is held for approval. `sites_rollback` goes back. Say what changed between the two.
-- Site tables are record types owned by the site (`sites_tables`). Environment names come from the Vault (`sites_env_set`); never write a value.
+- A site is a route: you build and run anything on a computer, Vyre gives it an address. Load the `sites` skill before you start.
+- `sites_create`, `sites_status`, `sites_logs`, `sites_stop`. Going public is `sites_promote`, held for a yes unless the person asked this turn. Custom domains: `sites_domain_add`, `sites_domain_check`.
+- To show the person something private, use `artifact_publish` (the `artifacts` skill).
 
 ## Forms
-- `forms_create` on a record type: every input maps to a field. `forms_fields_set` chooses Ask, Show or Hide per field, prefill keys and steps.
-  `forms_design_set` for look. `forms_publish` makes a public link or embed: outward, so confirm the audience and the consent text first.
-- `forms_submissions` reads answers; `forms_survey_results` sums a survey. A form answer is a record with the source "link holder".
+- Load the `forms` skill. `forms_create` on a record type, `forms_fields_set`, `forms_design_set`, `forms_publish` (outward, so confirm the audience and the consent text first), `forms_submissions`.
 - To change a form's source (HTML, CSS, JavaScript) with the person watching, use `forms_ask_diff`: it returns a per-field diff they accept one by one. Nothing saves until they do.
 
 ## Campaigns

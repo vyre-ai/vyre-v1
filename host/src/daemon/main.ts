@@ -1,5 +1,6 @@
 // `vyred` entry point: node host/src/daemon/main.ts --role space --data-dir D [--space spc_x] [--port 8420] [--host 127.0.0.1]
 // The installer's launchd and systemd units, the Tauri sidecar and `vyre server start` all run this file. SIGTERM, SIGINT and Windows SIGBREAK stop it cleanly.
+import { CaddyAdmin, CaddyRouter } from "../caddy/index.ts";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "./config.ts";
 import type { DaemonConfig } from "./config.ts";
@@ -23,6 +24,18 @@ async function runCompute(config: DaemonConfig): Promise<number> {
   const docker = async (): Promise<boolean> => { try { const { execFileSync } = await import("node:child_process"); execFileSync("docker", ["info", "--format", "{{.ServerVersion}}"], { stdio: "ignore", timeout: 4000 }); return true; } catch { return false; } };
   let dockerUp = await docker();
   const timer = setInterval(() => { void docker().then((v) => { dockerUp = v; }); }, 60_000); timer.unref();
+  // a site's custom domain on this machine: Caddy beside this process, as on the Space server
+  const router = new CaddyRouter({ admin: new CaddyAdmin({ baseUrl: process.env["VYRE_CADDY_ADMIN"] ?? "http://127.0.0.1:2019" }), space: "node", base: process.env["VYRE_CADDY_CA"] === "internal" ? { acme: { ca: "internal" } } : {} });
+  const nodeEdge = async (input: unknown, addressOf: (computerId: string) => Promise<string | null>): Promise<unknown> => {
+    const a = (input ?? {}) as { op?: string; computerId?: string; domain?: string; port?: number };
+    const domain = String(a.domain);
+    if (a.op === "cert") return router.certState(domain);
+    if (a.op === "remove") { await router.removeRoute(domain); return true; }
+    const address = await addressOf(String(a.computerId));
+    if (!address) throw new Error("The computer it runs on is asleep.");
+    await router.setRoute({ host: domain, upstream: `${address}:${Number(a.port)}`, auth: null });
+    return true;
+  };
   try {
     const end = await runComputeNode({
       server: config.server, join: config.join, dataDir: config.dataDir, name: os.hostname(), signal: abort.signal, now: Date.now,
@@ -36,6 +49,7 @@ async function runCompute(config: DaemonConfig): Promise<number> {
           async run(kind, input) {
             const s = (await seams) as { buildComputerHost?: (c: unknown) => unknown; nodeRun?: (h: unknown, k: string, i: unknown) => Promise<unknown> } | undefined;
             if (!s?.buildComputerHost || !s.nodeRun) throw new Error("this computer has no agent computers module");
+            if (kind === "edge") return nodeEdge(input, (computerId) => s.nodeRun!(host!, "address", { computerId }) as Promise<string | null>);
             host ??= s.buildComputerHost(createComputersHost({ dataDir: config.dataDir, callAs: link.call, putBytes: link.put, announce: async (m) => ((await link.call(m.agentId, "made_files", { files: m.files.map((f) => ({ fileId: f.fileId })) })) as { said?: boolean } | undefined)?.said !== false, homeIntervalMs: 2_000_000_000, log: (level, msg, attrs) => process.stderr.write(`vyred: ${level} ${msg} ${JSON.stringify(attrs ?? {})}\n`) }));
             return s.nodeRun(host, kind, input);
           },

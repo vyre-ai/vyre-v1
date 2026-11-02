@@ -21,7 +21,7 @@ test("the card says what the Flow does and carries Turn on and Test, as a system
   const block = JSON.parse(String(row["blocks"]))[0];
   assert.equal(block.type, "link_card");
   assert.equal(block.data.lead, "Flow drafted");
-  assert.deepEqual(block.data.body.split("\n"), ["When a record changes", "Then make a task to call the lead", "Then email me the summary, held for your yes"]);
+  assert.deepEqual(block.data.body.split("\n"), ["When a record changes", "Then make a task to call the lead", "Then email me the summary, goes out once you turn this on"]);
   assert.deepEqual(block.data.target, { type: "automation", id: "aut_abc123" });
   assert.deepEqual(block.data.actions, [
     { key: "on", label: "Turn on", cap: "automations.set_enabled", input: { automationId: "aut_abc123", enabled: true } },

@@ -1,5 +1,6 @@
 // The writes Needs you makes, each one capability, as plain functions so the tests drive them without a renderer. Acting in Needs you acts at the source: approving continues the
 // chat or run at once, and Send back carries the note in. A failed write becomes one quiet line, never a thrown error from a click.
+import { DECIDED_LINE, isDecided } from "../../../shell/decided.ts";
 import { doneLine, isSendBack, snoozeUntil } from "./model.ts";
 import type { Action, Clock, SnoozeChoice, Task } from "./model.ts";
 
@@ -10,7 +11,15 @@ export interface NeedsDeps {
 }
 
 async function attempt(d: NeedsDeps, what: string, fn: () => Promise<void>): Promise<boolean> {
-  try { await fn(); return true; } catch { d.note(`Could not ${what}. Try again.`); return false; }
+  try { await fn(); return true; } catch (e) { d.note(isDecided(e) ? DECIDED_LINE : `Could not ${what}. Try again.`); return false; }
+}
+
+/** Answer a question by one of its options. The answer goes to the chat that asked, and the agent carries on. */
+export function pick(d: NeedsDeps, t: Task, key: string, who: string): Promise<boolean> {
+  return attempt(d, "send your answer", async () => {
+    await d.call("tasks.act", { taskId: t.id, action: "answer", answer: { keys: [key] } });
+    d.note(`Sent your answer to ${who}`);
+  });
 }
 
 /** Act on a request. A note is sent with it; Send back and a required note need one, so an empty note does nothing. */

@@ -111,7 +111,7 @@ test("Needs you menu: the task's own actions, then Open in Needs you", () => {
   const entries = needsMenu(it, needsRow(it, (x) => x), (k) => ran.push(k), () => ran.push("open"));
   assert.deepEqual(entries.filter(isItem).map((e) => e.label), ["Approve", "Send back", "Open in Needs you"]);
   for (const e of entries.filter(isItem)) e.onSelect?.();
-  assert.deepEqual(ran, ["approve", "send_back", "open"]);
+  assert.deepEqual(ran, ["approve", "open", "open"], "an action that needs words opens the item, where they are written; a bare press would fail");
 });
 
 test("Projects at risk: the reason in words, red for blocked and amber otherwise, a record type that reads", () => {

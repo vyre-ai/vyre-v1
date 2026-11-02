@@ -17,6 +17,8 @@ import { PlaceHashProvider } from "../src/shell/hash/context.tsx";
 import { sampleRuntime } from "../src/shell/providers/misc-test-runtime.tsx";
 import { stepOf } from "../src/places/apps/shell/EmailDesigner.tsx";
 import type { SampleApps } from "../src/places/apps/shell/sample.ts";
+import { siteLine } from "../src/places/apps/shell/SiteDetail.tsx";
+import { artifactAddress } from "../src/places/apps/shell/Artifacts.tsx";
 
 const size = (width: number): void => Dimensions.set({ window: { width, height: 800, scale: 1, fontScale: 1 }, screen: { width, height: 800, scale: 1, fontScale: 1 } });
 size(1280);
@@ -61,7 +63,23 @@ test("Templates and Sites lists open; Templates offers Build a Kit", () => {
   const t = html(createSampleApps(), { group: "templates" });
   assert.ok(has(t, "Law firm intake") && has(t, "Journey · v1.2") && has(t, 'data-testid="apps-kit"') && has(t, "Adds 3"));
   const s = html(createSampleApps({ deferred: [] }), { group: "sites" });
-  assert.ok(has(s, "Booking widget") && has(s, "App · live") && has(s, "Northwind site") && has(s, "Site · on staging"));
+  assert.ok(has(s, "Booking widget") && has(s, "Northwind site") && has(s, "Not published") && has(s, 'data-testid="apps-new-site"'));
+});
+
+test("a site says in one line what is true of it, and an artifact opens from the Space's address or this app's gateway", () => {
+  assert.equal(siteLine({ live: false, blocked: false }, null), "Not published. Nothing is served at its address.");
+  assert.equal(siteLine({ live: true, blocked: false }, { answering: true }), "Live and answering.");
+  assert.equal(siteLine({ live: true, blocked: false }, { answering: false, detail: "Nothing is listening on port 3000." }), "Nothing is listening on port 3000.");
+  assert.equal(siteLine({ live: true, blocked: true }, { answering: true }), "Taken down by an admin of this server.");
+  assert.equal(artifactAddress({ path: "/a/x/k/t/", url: "https://harbor.vyre.run/a/x/k/t/" }, "http://127.0.0.1:8420"), "https://harbor.vyre.run/a/x/k/t/");
+  assert.equal(artifactAddress({ path: "/a/x/k/t/" }, "http://127.0.0.1:8420/"), "http://127.0.0.1:8420/a/x/k/t/");
+});
+
+test("the hash reaches Sites and Artifacts", () => {
+  assert.deepEqual(appsRoute({ screen: "apps.sites", args: {} }), { kind: "list", group: "sites" });
+  assert.deepEqual(appsRoute({ screen: "apps.site-editor", args: { selected: "sit_1" } }), { kind: "detail", group: "sites", id: "sit_1" });
+  assert.deepEqual(appsRoute({ screen: "apps.artifacts", args: {} }), { kind: "artifacts", group: "sites" });
+  assert.deepEqual(appsRoute({ screen: "apps.artifacts", args: { selected: "sit_1" } }), { kind: "artifacts", group: "sites", id: "sit_1" });
 });
 
 test("a Personal Space says it needs a Team Space instead of drawing the place", () => {
@@ -178,15 +196,15 @@ const placeIn = (deferred: readonly string[], kind: "team" | "personal" = "team"
   return renderToStaticMarkup(<ShellRuntimeProvider value={rt}><AppsPlace place="apps" /></ShellRuntimeProvider>).replaceAll("<!-- -->", "");
 };
 
-test("in the real app, Sites stays deferred for v1 while the working Apps remain available", () => {
+test("in the real app, Sites shows in Apps, and a Space that defers the module hides it", () => {
   const hidden = placeIn(["sites"]);
   assert.ok(has(hidden, 'data-testid="apps-group-forms"') && !has(hidden, 'data-testid="apps-group-sites"'), "the runtime's deferred set hides the group");
-  assert.ok(!has(hidden, 'aria-label="New site"') && !has(hidden, "Booking widget"), "and nothing of it is listed");
   const shown = placeIn([]);
-  assert.ok(has(shown, 'data-testid="apps-group-forms"') && !has(shown, 'data-testid="apps-group-sites"'), "the provider keeps Sites out of the v1 shell");
+  assert.ok(has(shown, 'data-testid="apps-group-forms"') && has(shown, 'data-testid="apps-group-sites"'), "the group is drawn");
   const s = createSampleApps();
   const rt = { ...sampleRuntime({ screens: s.data.screens, call: s.data.call }), deferredModules: new Set(["sites"]) as ReadonlySet<string> };
   assert.deepEqual(appsData(rt).deferred, ["sites"]);
+  assert.deepEqual(appsData({ ...rt, deferredModules: new Set() as ReadonlySet<string> }).deferred, []);
 });
 
 test("only working create flows are offered: templates use the Kit builder and domains can be added", () => {

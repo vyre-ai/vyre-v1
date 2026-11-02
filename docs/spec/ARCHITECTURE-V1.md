@@ -956,7 +956,7 @@ on timeout (scheduler):  onTimeout == 'drop' -> task canceled, call dropped, run
 on deny ('send back'):   task -> doing semantics for the asker thread: note carried into the agent thread; call dropped
 ```
 
-Rules from spec 2.14 in code: ordinary human sends skip the Gate (`appliesTo.humanToo` false); the effective rule is the strictest of Space policy, owner floor and `agent.toml` (computed by `gate.effectiveRule(principal, act)`); Ask/Allow/Auto only govern local tool prompts (terminal, Chrome) in the device runner and cannot loosen the Gate (separate code path: `localPrompt` vs `gate`; there is a test that Auto cannot suppress a Gate hold).
+Rules from spec 2.14 in code: ordinary human sends skip the Gate (`appliesTo.humanToo` false); the effective rule is the strictest of Space policy, owner floor and `agent.toml` (computed by `gate.effectiveRule(principal, act)`); the chat's mode is the one dial for local tools, capped by the owner's floor; the mode never loosens a written rule or the owner's floor, and in Auto a single-use grant derived from the person's own message clears the default hold on an outward act that names the same act and target (`gate.grants.take`, asked by the Gate hook at act time; no model output can create one). A step of an automation needs a standing grant bound to its definition hash, whoever the Run runs as.
 
 ### 4.7 Tasks and Runs
 
@@ -2140,7 +2140,7 @@ Reviewed 24 Oct against V1-SPEC.md (all of sections 2, 3, 4, 5, the binding bloc
 | 2.11 Forms, bookings, attribution | 7.6 | golden 1; consent and captcha unit tests (may land after the window) |
 | 2.12 Automations and Journeys | 7.7 | flows golden-replay (ported); golden 1, 5 |
 | 2.13 Run | 4.7 | golden 7, 14; `runs.undo` test |
-| 2.14 Gate | 4.6 | golden 3, 7; test that Auto cannot suppress a Gate hold |
+| 2.14 Gate | 4.6 | golden 3, 7; test that Auto clears only a default hold, and only with a grant from the person's own message |
 | 2.15 Memory, layers, graph, pointers | 6.10 | 50-question proof set; golden 8 |
 | 2.16 Files, versions, mounts, changesets, viewer, markup | 7.5, 8.5 | golden 3; binary conflict in golden 4 |
 | 2.17 Vault, handles, requests | 7.8, 6.11 | scrub property test over encodings; golden 13; `vault.scrub_miss` test |
@@ -2166,7 +2166,7 @@ Reviewed 24 Oct against V1-SPEC.md (all of sections 2, 3, 4, 5, the binding bloc
 | 4.13 Lead and listen; cost nothing until invoked (ruling 35) | 6.5 | route test; no-inference-for-listener test |
 | 4.14 Own inference | 6.4 | golden 10 |
 | 4.15 Memory layers | 6.10 | golden 8 |
-| 4.17 Security modes (Ask, Allow, Auto) | 6.6, 4.6 `localPrompt` | Auto cannot loosen Gate test |
+| 4.17 Security modes (Ask, Allow, Auto) | 6.6, 4.6 `localPrompt` | the owner's floor caps Auto; a written rule beats a grant |
 | 4.18 Errors, health, trace, logs, client log | 4.8 to 4.10, 3.5 `HealthCheckDef` | contract tests for `next`; health tests; trace test in every golden flow |
 | b5 to b9 Data placement, merge, server visibility, agent placement, one API | 5, 6.3, 4.4 | sync and golden 13 |
 | b10 Events, b11 One index, b12 Technology base, b13 Releases, b14 Tested by default, b15 Several Spaces | 4.2, 6.9 and 5.10, 2, 10.7, 10, 7.0 | as listed in those sections |

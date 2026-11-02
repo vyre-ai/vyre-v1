@@ -206,7 +206,14 @@ export function createRuntime(o) {
     // A stub's fetch mirrors global fetch: either a Request, or (url, init). The real runtime
     // accepts both; this fake normalises to a Request the same way, so callers here don't have
     // to know which style a Durable Object binding happens to be called with.
-    get: id => ({ fetch: (input, init) => object(binding, Class, id.name).run(inst => inst.fetch(input instanceof Request ? input : new Request(input, init))) }),
+    // A held request (the public path waits for the box's socket messages) must not hold the queue those messages arrive through: the real runtime interleaves them at every await.
+    get: id => ({ fetch: async (input, init) => {
+      const req = input instanceof Request ? input : new Request(input, init);
+      const obj = object(binding, Class, id.name);
+      if (new URL(req.url).pathname !== "/p") return obj.run(inst => inst.fetch(req));
+      await obj.run(() => {});
+      return /** @type {any} */ (obj).instance.fetch(req);
+    } }),
   });
 
   const env = {

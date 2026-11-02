@@ -1,7 +1,7 @@
 // join/ConnectAI: the last account step (spec 3.13, 4.14). The assistant needs an AI account to answer. Three ways in, or not now.
 // The person's own subscription, their own key (kept in the vault, never shown again), or the key an admin shares with the Space.
-import { Text, View } from "react-native";
-import { Foot, Group, FieldRow, Row, Title, baseText, useJoin, ErrorLine } from "./kit.tsx";
+import { View } from "react-native";
+import { Foot, Group, FieldRow, Links, Row, Segments, TextButton, Title, ErrorLine } from "./kit.tsx";
 import type { AiChoice, JoinInvite } from "./logic.ts";
 
 export interface ConnectAIProps {
@@ -20,47 +20,30 @@ export interface ConnectAIProps {
 
 export function aiOptions(invite: Pick<JoinInvite, "space" | "adminKey">): { id: AiChoice; title: string; help: string }[] {
   const o: { id: AiChoice; title: string; help: string }[] = [
-    { id: "sub", title: "Use my subscription", help: "Sign in with Claude, ChatGPT or Codex. Your usage stays on your plan." },
-    { id: "key", title: "Use my own key", help: "Paste an API key. Vyre stores it in your vault and never shows it again." },
+    { id: "sub", title: "Claude, ChatGPT or Grok", help: "Sign in with your plan" },
+    { id: "key", title: "API key", help: "Kept in your Vault" },
   ];
-  if (invite.adminKey) o.push({ id: "admin", title: `Use the key from ${invite.space}`, help: "An admin provides a shared key. Spend counts toward the Space limit." });
+  if (invite.adminKey) o.push({ id: "admin", title: `The key from ${invite.space}`, help: "Spend counts toward the Space" });
   return o;
 }
 
-function InlineLink({ label, onPress, testID }: { label: string; onPress: () => void; testID?: string }) {
-  const { p } = useJoin();
-  return <Text accessibilityRole="link" testID={testID} onPress={onPress} style={{ color: p.blue }}>{label}</Text>;
-}
-
 export function ConnectAI({ invite, ai, apiKey, error, onPick, onKey, providerKey = "openrouter", onProvider }: ConnectAIProps) {
-  const { p } = useJoin();
+  const name = providerKey === "openrouter" ? "OpenRouter" : providerKey === "anthropic" ? "Anthropic" : "OpenAI";
   return (
     <View>
-
-      <Title title="Connect an AI account" sub="Your assistant needs an account to answer. You can change this in Settings." />
-      {error ? <ErrorLine testID="join-error">{error}</ErrorLine> : null}
+      <Title title="Connect your AI" />
       <Group testID="ai-options">
         {aiOptions(invite).map((o) => <Row kind="option" key={o.id} testID={`ai-${o.id}`} title={o.title} help={o.help} checked={ai === o.id} onPress={() => onPick(o.id)} />)}
       </Group>
       {ai === "key" ? (
-        <Group top={24}>
-          {(["openrouter", "anthropic", "openai"] as const).map((key) => <Row key={key} kind="option" testID={`ai-provider-${key}`} title={key === "openrouter" ? "OpenRouter" : key === "anthropic" ? "Anthropic" : "OpenAI"} checked={providerKey === key} onPress={() => onProvider?.(key)} />)}
-          <FieldRow label={`${providerKey === "openrouter" ? "OpenRouter" : providerKey === "anthropic" ? "Anthropic" : "OpenAI"} API key`} value={apiKey} onChange={onKey} placeholder="Paste your API key" secure testID="ai-key-field" />
+        <Group top={12}>
+          <Segments label="Provider" value={providerKey} onChange={(key) => onProvider?.(key)} options={[{ id: "openrouter", title: "OpenRouter", testID: "ai-provider-openrouter" }, { id: "anthropic", title: "Anthropic", testID: "ai-provider-anthropic" }, { id: "openai", title: "OpenAI", testID: "ai-provider-openai" }]} />
+          <FieldRow label={`${name} API key`} value={apiKey} onChange={onKey} placeholder="Paste your API key" secure testID="ai-key-field" />
         </Group>
       ) : null}
-      {ai === "sub" ? (
-        <Group top={24}>
-          <Row>
-            <Text style={[baseText(p), { flex: 1 }]}>Claude account</Text>
-            <Text style={[baseText(p), { color: p.tx2 }]} testID="ai-subscribe-after-join">Sign in after joining</Text>
-          </Row>
-        </Group>
-      ) : null}
-      {ai === "none" ? (
-        <Foot testID="ai-locked" top={14}>Your assistant is locked. It can read its welcome note but cannot run until an account is connected.</Foot>
-      ) : (
-        <Foot top={8}><InlineLink testID="ai-none" label="Not now" onPress={() => onPick("none")} /> locks the assistant until you connect an account.</Foot>
-      )}
+      {ai === "sub" ? <Foot testID="ai-subscribe-after-join" top={12}>You sign in after joining</Foot> : null}
+      <ErrorLine testID="join-error">{error}</ErrorLine>
+      {ai === "none" ? <Foot testID="ai-locked" top={4}>Your assistant waits until you connect one</Foot> : <Links><TextButton testID="ai-none" label="Not now" onPress={() => onPick("none")} /></Links>}
     </View>
   );
 }

@@ -3858,6 +3858,75 @@
       "v": 1
     },
     {
+      "blocks": [],
+      "cap": "sites.artifact_publish",
+      "deferred": false,
+      "description": "THE way to show something you made: publish it privately to a link that opens in a tab. Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "artifactId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          },
+          "computerId": {
+            "examples": [
+              "cmt_a1b2c3"
+            ],
+            "pattern": "^cmt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "port": {
+            "maximum": 65535,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "artifact_publish",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
       "blocks": [
         "question"
       ],
@@ -12508,8 +12577,9 @@
             "type": "string"
           },
           "idleSleepMinutes": {
+            "description": "0 keeps it awake (it serves a site)",
             "maximum": 1440,
-            "minimum": 1,
+            "minimum": 0,
             "type": "integer"
           },
           "tabLimit": {
@@ -15490,7 +15560,7 @@
       "blocks": [],
       "cap": "engine.crew.merge",
       "deferred": false,
-      "description": "Land a teammate's branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. A person presses Merge; an agent asking holds at the Gate",
+      "description": "Land a teammate's branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. It is local: it leaves this computer only when it is pushed",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -15554,7 +15624,7 @@
       "blocks": [],
       "cap": "engine.crew.push",
       "deferred": false,
-      "description": "Push the project repository's base branch, with a teammate's merged work in it, to its remote. It is an outward act from the host and always holds at the Gate for a person's approval",
+      "description": "Push the project repository's base branch, with a teammate's merged work in it, to its remote. It is an outward act: a person pressing Push is their own act; an agent goes only when the person's own message this turn asked for it, else it holds at the Gate",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -38470,6 +38540,8 @@
           "kind": {
             "enum": [
               "approval.requested",
+              "answer.requested",
+              "unblock.requested",
               "approval.backstop",
               "dm",
               "mention",
@@ -38928,6 +39000,8 @@
           "kind": {
             "enum": [
               "approval.requested",
+              "answer.requested",
+              "unblock.requested",
               "approval.backstop",
               "dm",
               "mention",
@@ -41783,6 +41857,31 @@
       "name": "providers_test",
       "planMode": "allowed",
       "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.read_link",
+      "deferred": false,
+      "description": "Open a web page from the server and read it as plain text, with its links. Use it for any link the person gave or a page you read links to. A link you put together yourself waits for the person, because its address can carry data. GET only, no key, public hosts only",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "focus": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      },
+      "name": "read_link",
+      "planMode": "allowed",
+      "toolset": "automations",
       "v": 1
     },
     {
@@ -46349,7 +46448,7 @@
       "blocks": [],
       "cap": "settings.pages",
       "deferred": false,
-      "description": "The ten settings pages in their two groups (named after the Space, and Everywhere) with row counts",
+      "description": "The settings pages a person has, with row counts",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -46851,6 +46950,32 @@
     },
     {
       "blocks": [],
+      "cap": "sites.artifact_open",
+      "deferred": false,
+      "description": "A short-lived address that opens an artifact for the person asking, in a tab or the browser",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "artifactId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_artifact_open",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sites.build",
       "deferred": false,
       "description": "Build the site from its repo (the site agent runs in the repo); test and verify",
@@ -46882,10 +47007,26 @@
       "blocks": [],
       "cap": "sites.create",
       "deferred": false,
-      "description": "Create a site with its root folder under Deployments/",
+      "description": "Create a site: a name, and where it runs (a port on a computer, or a folder in Files). Nothing is served until it is published",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "access": {
+            "enum": [
+              "public",
+              "password",
+              "space",
+              "private"
+            ],
+            "type": "string"
+          },
+          "computerId": {
+            "examples": [
+              "cmt_a1b2c3"
+            ],
+            "pattern": "^cmt_[a-z0-9]+$",
+            "type": "string"
+          },
           "folderId": {
             "examples": [
               "fld_a1b2c3"
@@ -46913,7 +47054,15 @@
           "name": {
             "type": "string"
           },
+          "port": {
+            "maximum": 65535,
+            "minimum": 1,
+            "type": "integer"
+          },
           "repoUrl": {
+            "type": "string"
+          },
+          "slug": {
             "type": "string"
           },
           "templateKit": {
@@ -46926,7 +47075,6 @@
         },
         "required": [
           "name",
-          "kind",
           "idempotencyKey"
         ],
         "type": "object"
@@ -47025,6 +47173,74 @@
         "type": "object"
       },
       "name": "sites_deployments",
+      "planMode": "allowed",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.domain_add",
+      "deferred": false,
+      "description": "Add a custom domain to a site: returns the exact DNS records to set and adds the Caddy route with automatic TLS",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId",
+          "domain",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "sites_domain_add",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.domain_check",
+      "deferred": false,
+      "description": "The state of a custom domain: waiting for DNS, issuing the certificate, or live",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId",
+          "domain"
+        ],
+        "type": "object"
+      },
+      "name": "sites_domain_check",
       "planMode": "allowed",
       "toolset": "sites",
       "v": 1
@@ -47191,9 +47407,24 @@
     },
     {
       "blocks": [],
+      "cap": "sites.host",
+      "deferred": false,
+      "description": "What this Space can host: its address, whether it is a phone address, and what a custom domain needs",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "sites_host",
+      "planMode": "allowed",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sites.list",
       "deferred": false,
-      "description": "List sites by section (Personal, Shared with me, Space) and folder",
+      "description": "List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -47205,6 +47436,13 @@
               "fld_a1b2c3"
             ],
             "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "site",
+              "artifact"
+            ],
             "type": "string"
           },
           "limit": {
@@ -47354,17 +47592,10 @@
       "blocks": [],
       "cap": "sites.promote",
       "deferred": false,
-      "description": "Promote a staging build to production (merges the pull request first when there is one)",
+      "description": "Put a site on the public internet at its address. Held for approval unless the person asked for it this turn",
       "effects": "outward",
       "inputSchema": {
         "properties": {
-          "deploymentId": {
-            "examples": [
-              "dpl_a1b2c3"
-            ],
-            "pattern": "^dpl_[a-z0-9]+$",
-            "type": "string"
-          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -47382,12 +47613,37 @@
         },
         "required": [
           "siteId",
-          "deploymentId",
           "idempotencyKey"
         ],
         "type": "object"
       },
       "name": "sites_promote",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.publish",
+      "deferred": false,
+      "description": "Serve a site that is not public: space or private access, or a password on its own domain",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_publish",
       "planMode": "blocked",
       "toolset": "sites",
       "v": 1
@@ -47489,6 +47745,58 @@
         "type": "object"
       },
       "name": "sites_staging_password_set",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.status",
+      "deferred": false,
+      "description": "Is the port answering? Where it runs, the address, and what is wrong when something is",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_status",
+      "planMode": "allowed",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.stop",
+      "deferred": false,
+      "description": "Stop serving a site. Its address answers nothing; the process on the computer keeps running",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_stop",
       "planMode": "blocked",
       "toolset": "sites",
       "v": 1
@@ -47614,12 +47922,40 @@
       "blocks": [],
       "cap": "sites.update",
       "deferred": false,
-      "description": "Rename a site or change its settings",
+      "description": "Rename a site, change its settings, where it runs or who may reach it. Making it public takes it down until it is published again",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "access": {
+            "enum": [
+              "public",
+              "password",
+              "space",
+              "private"
+            ],
+            "type": "string"
+          },
+          "computerId": {
+            "examples": [
+              "cmt_a1b2c3"
+            ],
+            "pattern": "^cmt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
           "name": {
             "type": "string"
+          },
+          "port": {
+            "maximum": 65535,
+            "minimum": 1,
+            "type": "integer"
           },
           "settings": {
             "additionalProperties": true,

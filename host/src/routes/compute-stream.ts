@@ -16,6 +16,10 @@
 //   node -> Space  {t:"cli_started", proc, pid?}  {t:"cli_out", proc, data, err?}  {t:"cli_exit", proc, code, signal}  {t:"cli_failed", proc, code, reason}
 // A frame naming a process that is not one of this socket's is dropped, like a view. A node that goes away ends its processes.
 //
+// And one request to a port on a computer on this node, for a site or an artifact (portFetch), and one question for the machine (ask): no job row, so a read can use them.
+//   Space -> node  {t:"port_req", id, computerId, port, method, path, headers, body?}   {t:"ask", id, kind, input}
+//   node -> Space  {t:"port_res", id, status, headers}  {t:"port_data", id, b}  {t:"port_end", id}  {t:"port_fail", id, reason}   {t:"ask_res", id, ok, result?, reason?}
+//
 // What keeps one node out of another's computers: the Space chooses the node from the register (computers.stream_open), mints the view id itself, and only sends `open` on that node's socket. A frame, a
 // message or an `ended` carrying a view id that is not one of this socket's views is dropped. Input is passed on only for a take-over ticket, and only while the person still holds the controls (asked of the
 // module again every half second), so nothing gets through before take-over or after a give-back; agentd's own check is the second lock. A node that is removed has its sockets closed the moment the Space
@@ -26,6 +30,7 @@ import { makeError } from "./errors.ts";
 import { acceptPeer as accept } from "../ws.ts";
 import type { Peer } from "../ws.ts";
 import { sourceOf } from "../daemon/preauth.ts";
+import type { PortRequest, PortSink } from "../seams/port-fetch.ts";
 
 const TRACE = "0".repeat(32);
 const NODE_PATH = "/compute/stream";
@@ -101,10 +106,16 @@ export interface ComputeStream {
   /** The node left the Space: close its socket and end its views. Returns how many sockets were closed. */
   closeNode(nodeId: string): number;
   connected(nodeId: string): boolean;
+  /** One HTTP request to a port on a computer on this node. */
+  portFetch(nodeId: string, a: { computerId: string; port: number; request: PortRequest }, sink: PortSink): void;
+  /** One question for the machine: its answer, or a rejection when it cannot say. */
+  ask(nodeId: string, kind: string, input: unknown): Promise<unknown>;
+  /** The address this node's socket came from. */
+  peerAddress(nodeId: string): string | null;
   close(): void;
 }
 
-interface NodeConn { nodeId: string; credential: string; peer: Peer; views: Set<string>; procs: Set<string>; lastSeen: number; secure: boolean }
+interface NodeConn { nodeId: string; credential: string; peer: Peer; views: Set<string>; procs: Set<string>; lastSeen: number; secure: boolean; address: string }
 interface ProcState {
   id: string; nodeId: string; started(pid: number | undefined): void; failed(e: RelayError): void; out(bytes: Buffer, err: boolean): void; exit(x: RelayExit): void;
 }
@@ -127,6 +138,12 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
   const views = new Map<string, View>();
   const procs = new Map<string, ProcState>();
   const hits = new Map<string, number[]>();
+  /** requests to a port and questions in flight, by id; each belongs to one node */
+  const ports = new Map<string, { nodeId: string; sink: PortSink; timer: ReturnType<typeof setTimeout> }>();
+  const asks = new Map<string, { nodeId: string; ok(v: unknown): void; no(e: Error): void; timer: ReturnType<typeof setTimeout> }>();
+  const PORT_MS = 30_000;
+  const newId = (): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(9)), (b) => b.toString(16).padStart(2, "0")).join("");
+  const portDone = (id: string): void => { const p = ports.get(id); if (p) { clearTimeout(p.timer); ports.delete(id); } };
   const limited = (key: string, max: number): boolean => {
     const at = now(), list = (hits.get(key) ?? []).filter((t) => at - t < 60_000);
     list.push(at); hits.delete(key); hits.set(key, list);
@@ -178,7 +195,7 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       if (!who) { refuseUpgrade(socket, "401 Unauthorized"); return; }
       const peer = accept(req, socket, head, MAX_NODE_FRAME);
       if (!peer) return;
-      const conn: NodeConn = { nodeId: who.serverId, credential, peer, views: new Set(), procs: new Set(), lastSeen: now(), secure: (deps.secure ?? linkIsSecure)(req) };
+      const conn: NodeConn = { nodeId: who.serverId, credential, peer, views: new Set(), procs: new Set(), lastSeen: now(), secure: (deps.secure ?? linkIsSecure)(req), address: sourceFor(req) };
       const old = nodes.get(conn.nodeId);
       if (old) dropNode(old, 4000);
       nodes.set(conn.nodeId, conn);
@@ -196,6 +213,27 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
         let m: { t?: unknown; view?: unknown; reason?: unknown; data?: unknown; proc?: unknown; pid?: unknown; err?: unknown; code?: unknown; signal?: unknown };
         try { m = JSON.parse(data.toString("utf8")) as typeof m; } catch { return; }
         if (m.t === "hb") return;
+        if (typeof m.t === "string" && m.t.startsWith("port_")) {
+          const r = m as unknown as { id?: unknown; status?: unknown; headers?: unknown; b?: unknown; reason?: unknown };
+          const id = typeof r.id === "string" ? r.id : "";
+          const p = ports.get(id);
+          if (!p || p.nodeId !== conn.nodeId) return;   // not this socket's request: ignored
+          if (m.t === "port_res") p.sink.head(typeof r.status === "number" ? r.status : 502, (r.headers ?? {}) as Record<string, string>);
+          else if (m.t === "port_data" && typeof r.b === "string") p.sink.data(Buffer.from(r.b, "base64"));
+          else if (m.t === "port_end") { portDone(id); p.sink.end(); }
+          else if (m.t === "port_fail") { portDone(id); p.sink.fail(typeof r.reason === "string" ? r.reason.slice(0, 200) : "The computer did not answer."); }
+          return;
+        }
+        if (m.t === "ask_res") {
+          const r = m as unknown as { id?: unknown; ok?: unknown; result?: unknown; reason?: unknown };
+          const id = typeof r.id === "string" ? r.id : "";
+          const a = asks.get(id);
+          if (!a || a.nodeId !== conn.nodeId) return;
+          clearTimeout(a.timer);
+          asks.delete(id);
+          if (r.ok === true) a.ok(r.result); else a.no(new Error(typeof r.reason === "string" ? r.reason.slice(0, 200) : "The computer could not say."));
+          return;
+        }
         if (typeof m.t === "string" && m.t.startsWith("cli_")) {
           const pid = typeof m.proc === "string" ? m.proc : "";
           const p = procs.get(pid);
@@ -376,6 +414,27 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
 
   return {
     spawnProc,
+    portFetch(nodeId, a, sink) {
+      const n = nodes.get(nodeId);
+      if (!n?.peer.open) { sink.fail("The computer it runs on is not connected."); return; }
+      const id = newId();
+      const timer = setTimeout(() => { portDone(id); sink.fail("The port did not answer in time."); }, PORT_MS);
+      timer.unref?.();
+      ports.set(id, { nodeId, sink, timer });
+      n.peer.send(JSON.stringify({ t: "port_req", id, computerId: a.computerId, port: a.port, method: a.request.method, path: a.request.path, headers: a.request.headers, ...(a.request.body?.length ? { body: Buffer.from(a.request.body).toString("base64") } : {}) }));
+    },
+    peerAddress(nodeId) { return nodes.get(nodeId)?.address ?? null; },
+    ask(nodeId, kind, input) {
+      return new Promise((ok, no) => {
+        const n = nodes.get(nodeId);
+        if (!n?.peer.open) { no(new Error("The computer it runs on is not connected.")); return; }
+        const id = newId();
+        const timer = setTimeout(() => { asks.delete(id); no(new Error("The computer did not answer in time.")); }, 20_000);
+        timer.unref?.();
+        asks.set(id, { nodeId, ok, no, timer });
+        n.peer.send(JSON.stringify({ t: "ask", id, kind, input }));
+      });
+    },
     claims(req) {
       const path = new URL(req.url ?? "/", "http://x").pathname;
       if (path === NODE_PATH) return true;

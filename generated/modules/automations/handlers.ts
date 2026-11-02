@@ -9,6 +9,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.alerts.get": Handler<"automations.alerts.get", X>;
   "automations.alerts.set": Handler<"automations.alerts.set", X>;
   "automations.analytics": Handler<"automations.analytics", X>;
+  "automations.code_reach": Handler<"automations.code_reach", X>;
   "automations.connector_card": Handler<"automations.connector_card", X>;
   "automations.connector_levels": Handler<"automations.connector_levels", X>;
   "automations.connector_offer.accept": Handler<"automations.connector_offer.accept", X>;
@@ -43,6 +44,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.preview_promote": Handler<"automations.preview_promote", X>;
   "automations.promote": Handler<"automations.promote", X>;
   "automations.read_docs": Handler<"automations.read_docs", X>;
+  "automations.read_link": Handler<"automations.read_link", X>;
   "automations.replay": Handler<"automations.replay", X>;
   "automations.restore_version": Handler<"automations.restore_version", X>;
   "automations.retry": Handler<"automations.retry", X>;

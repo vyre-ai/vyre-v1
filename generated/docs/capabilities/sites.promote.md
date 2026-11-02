@@ -1,6 +1,6 @@
 # sites.promote
 
-Promote a staging build to production (merges the pull request first when there is one)
+Put a site on the public internet at its address. Held for approval unless the person asked for it this turn
 
 | | |
 |---|---|
@@ -11,22 +11,21 @@ Promote a staging build to production (merges the pull request first when there 
 | Grant level | manage |
 | Risk | high |
 | Resource | site (/siteId) |
-| Gate | site_promote |
+| Gate | site_promote when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
-| Team Space only | yes |
+| Team Space only | no |
 | HTTP | POST /v1/sites/promote |
 | MCP tool | sites_promote (sites) |
 | CLI | none |
-| Emits | site.promoted |
+| Emits | site.published |
 
 ## Input
 
 ```ts
 type In = {
   siteId: string;
-  deploymentId: string;
   idempotencyKey: string;
 };
 ```
@@ -35,15 +34,24 @@ type In = {
 
 ```ts
 type Out = {
-  deployment: {
-    deploymentId: string;
+  site: {
     siteId: string;
-    env: "staging" | "preview" | "production";
+    name: string;
+    kind: "site" | "app" | "api" | "worker" | "artifact";
+    owner: string;
+    repoFolderId?: string;
+    stagingUrl?: string;
+    productionUrl?: string;
     state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
     url?: string;
-    branch?: string;
-    commit?: string;
-    at: number;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
   };
 };
 ```
@@ -52,7 +60,6 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
-- permission.needs_team
 - permission.no_grant
 - permission.role_lacks_permission
 - provider.network
@@ -67,19 +74,27 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "deploymentId": "dpl_a1b2c3",
     "idempotencyKey": "idem_1",
     "siteId": "sit_a1b2c3"
   },
   "output": {
-    "deployment": {
-      "at": 1760000000000,
-      "branch": "example",
-      "commit": "example",
-      "deploymentId": "dpl_a1b2c3",
-      "env": "staging",
+    "site": {
+      "access": "public",
+      "blocked": true,
+      "computerId": "cmt_a1b2c3",
+      "folderId": "fld_a1b2c3",
+      "kind": "site",
+      "live": true,
+      "name": "example",
+      "owner": "example",
+      "port": 1,
+      "productionUrl": "example",
+      "repoFolderId": "fld_a1b2c3",
       "siteId": "sit_a1b2c3",
+      "slug": "example",
+      "stagingUrl": "example",
       "state": "queued",
+      "updatedAt": 1760000000000,
       "url": "example"
     }
   }

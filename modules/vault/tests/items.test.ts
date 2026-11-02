@@ -205,7 +205,7 @@ test("update sets and removes fields, re-seals with a new revision, and says whi
   assert.ok(!h.everything().includes("rotated-value-777"));
 
   const settings = out(out(await v.itemUpdate(h.ctx, { itemId: id, name: "Dana Lawmatics v2", spaceOnly: true, injectIntoDeployments: true, rotateEveryDays: 30 })).item);
-  assert.deepEqual([settings.name, settings.handle, settings.spaceOnly, settings.injectIntoDeployments, settings.rotateEveryDays], ["Dana Lawmatics v2", "#Dana_Lawmatics_v2", true, true, 30]);
+  assert.deepEqual([settings.name, settings.handle, settings.spaceOnly, settings.injectIntoDeployments, settings.rotateEveryDays], ["Dana Lawmatics v2", "#Dana_Lawmatics", true, true, 30], "a rename keeps the handle: whatever holds it keeps working");
   assert.deepEqual(h.named("vault.item_updated")[1]?.payload, { itemId: id, fieldsChanged: [], settingsChanged: ["name", "spaceOnly", "injectIntoDeployments", "rotateEveryDays"] });
   assert.equal(out(out(await v.itemUpdate(h.ctx, { itemId: id, rotateEveryDays: null })).item).rotateEveryDays, undefined);
   const before = h.named("vault.item_updated").length;

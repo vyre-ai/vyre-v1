@@ -182,6 +182,14 @@ export function crewMerge(d: PaneDeps, jobId: string, name: string, branch: stri
   });
 }
 
+/** Run a lost Job again, on a person's word. It may have done part of the work, so the teammate is told to look first. */
+export function crewRunAgain(d: PaneDeps, jobId: string, name: string): Promise<boolean> {
+  return attempt(d, `run ${name} again`, async () => {
+    await d.call("engine.crew.message", { jobId, body: "The server stopped while you were working. Check what is already done before you do anything again, then carry on.", idempotencyKey: key("again", jobId) });
+    d.note(`${name} is running again`);
+  });
+}
+
 export function crewStop(d: PaneDeps, jobId: string, name: string): Promise<boolean> {
   return attempt(d, `stop ${name}`, async () => { await d.call("engine.crew.stop", { jobId, idempotencyKey: key("stop", jobId) }); d.note(`Stopped ${name}`); });
 }

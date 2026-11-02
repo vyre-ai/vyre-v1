@@ -252,15 +252,6 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
         <Pressable accessibilityRole="button" accessibilityLabel={`Applies to: ${scopeLabel}`} testID="model-scope" onPress={() => p.onScope(p.scope === "chat" ? "agent" : "chat")} style={({ hovered }: { hovered?: boolean }) => [st.item, hovered === true && st.hover]}>
           <Text numberOfLines={1} style={st.itemText}>{scopeLabel}</Text>
         </Pressable>
-        {p.onFallback ? (
-          <>
-            <Text style={st.grp}>If a limit hits</Text>
-            <Pressable accessibilityRole="switch" accessibilityState={{ checked: p.fallback === true }} aria-checked={p.fallback === true} accessibilityLabel="Switch when limits run out" testID="model-fallback" onPress={() => p.onFallback?.(!(p.fallback === true))} style={st.tog}>
-              <View style={st.togText}><Text style={st.itemText}>Switch accounts</Text><Text style={st.limLabel}>Moves to your next account, then back</Text></View>
-              <View style={[st.sw, p.fallback === true && st.swOn]}><View style={[st.knob, p.fallback === true && st.knobOn]} /></View>
-            </Pressable>
-          </>
-        ) : null}
       </View>
     );
     if (sub === "compact") return (
@@ -322,6 +313,12 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
             <Text style={st.lowBtn}>{`Use ${better.name}${typeof better.session === "number" ? ` · ${pct(better.session)}` : ""}`}</Text>
           </Pressable>
         </View>
+      ) : null}
+      {p.onFallback ? (
+        <Pressable accessibilityRole="switch" accessibilityState={{ checked: p.fallback === true }} aria-checked={p.fallback === true} accessibilityLabel="Switch when limits run out" testID="model-fallback" onPress={() => p.onFallback?.(!(p.fallback === true))} style={st.tog}>
+          <View style={st.togText}><Text style={st.itemText}>Switch when limits run out</Text><Text style={st.limLabel}>Moves to your next account. A paid key asks first</Text></View>
+          <View style={[st.sw, p.fallback === true && st.swOn]}><View style={[st.knob, p.fallback === true && st.knobOn]} /></View>
+        </Pressable>
       ) : null}
       {p.onCompact ? (
         <>

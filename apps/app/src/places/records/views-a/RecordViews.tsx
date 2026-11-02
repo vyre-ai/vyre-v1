@@ -6,13 +6,14 @@ import { useWindowDimensions } from "react-native";
 import type { ReactElement } from "react";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { useLive, useOptionalRecordsData, useScreenQuery } from "../sidebar/data.tsx";
+import { useLive, useOptionalRecordsData, useRecordsData, useScreenQuery } from "../sidebar/data.tsx";
 import { SCREENS, effectiveType, typeGroups } from "../sidebar/model.ts";
 import { useRecordsState } from "../sidebar/state.tsx";
 import { TableLoading, TableView } from "../table/index.ts";
 import { fromSaved } from "../table/model.ts";
 import { JourneyBoard } from "../journey/JourneyBoard.tsx";
 import { isJourneyDef } from "../journey/model.ts";
+import { AgentsView } from "./AgentsView.tsx";
 import { BoardView } from "./BoardView.tsx";
 import { GalleryView } from "./GalleryView.tsx";
 import { ListView } from "./ListView.tsx";
@@ -38,6 +39,7 @@ export interface RecordViewsProps {
 }
 
 function TypeViews({ type, kind, view, extraKinds }: RecordViewsProps & { type: string }): ReactElement {
+  const data = useRecordsData();
   const { state } = useRecordsState();
   const describe = useLive("schema.describe", { type });
   const views = useScreenQuery<ViewsOut>(SCREENS.views, "views", { type });
@@ -51,6 +53,7 @@ function TypeViews({ type, kind, view, extraKinds }: RecordViewsProps & { type: 
   const [picked, setPicked] = useState<{ key: string; kind: string } | null>(null);
   const key = `${type}:${saved?.viewId ?? ""}`;
   if (!def) return <TableLoading />;
+  if (type === "agent" && data.nav.openAgent) return <AgentsView def={def} />;
   const savedKind = saved ? kindOf(saved, known) : null;
   // a Journey type opens on its board; the table stays in the switch
   const journey = isJourneyDef(def);
