@@ -1,6 +1,7 @@
 // Imported sessions in the sidebar: the menu, rename, archive and delete.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createRoot } from "test-renderer";
 import { act } from "react";
 import { press, find, flush, textOf, typeInto } from "../../../onboarding/test-dom.ts";
 import { importedDeleteConfirm, importedMenuEntries } from "./chat-menu.ts";
@@ -28,14 +29,14 @@ test("an imported row's menu is Open, Rename, Archive or Unarchive, and Delete s
 });
 
 test("a continued session shows its chat's last day, not the word Chat; one never continued shows the day it started", async () => {
-  const { root } = await drawn({ imported: IMPORTED, open: null });
+  const { root } = await drawn(createRoot, { imported: IMPORTED, open: null });
   assert.equal(textOf(find(root, "imported-day-isc_b")).trim(), "Oct 24", "the day October invoices was last active");
   assert.equal(textOf(find(root, "imported-day-isc_a")).trim(), "Oct 20");
   assert.ok(!textOf(find(root, "imported-row-isc_b")).includes("Chat"));
 });
 
 test("right-click and the row's ... open the same menu; Rename edits the title in the row and keeps it", async () => {
-  const { s, root } = await drawn({ imported: IMPORTED, open: "i:isc_a" });
+  const { s, root } = await drawn(createRoot, { imported: IMPORTED, open: "i:isc_a" });
   // the "..." shows while the pointer is on the row
   const hot = [...(chainTo(root, "row-i:isc_a") ?? [])].reverse().find((n) => typeof n.props.onMouseEnter === "function");
   assert.ok(hot, "the row reacts to the pointer");
@@ -61,7 +62,7 @@ test("right-click and the row's ... open the same menu; Rename edits the title i
 });
 
 test("Escape, or leaving the name as it was, renames nothing", async () => {
-  const { s, root } = await drawn({ imported: IMPORTED });
+  const { s, root } = await drawn(createRoot, { imported: IMPORTED });
   await rightClick(root, "row-i:isc_a");
   await press(find(root, "menu-item-Rename"));
   await flush();
@@ -72,7 +73,7 @@ test("Escape, or leaving the name as it was, renames nothing", async () => {
 });
 
 test("Archive moves an imported session into the Archived section, and Unarchive puts it back", async () => {
-  const { s, root } = await drawn({ imported: IMPORTED });
+  const { s, root } = await drawn(createRoot, { imported: IMPORTED });
   await rightClick(root, "row-i:isc_a");
   await press(find(root, "menu-item-Archive"));
   await flush();
@@ -93,7 +94,7 @@ test("Archive moves an imported session into the Archived section, and Unarchive
 });
 
 test("Delete asks in the menu, removes the imported copy, keeps the chat it was continued in, and leaves its open transcript", async () => {
-  const { s, root, news } = await drawn({ imported: IMPORTED, open: "i:isc_b" });
+  const { s, root, news } = await drawn(createRoot, { imported: IMPORTED, open: "i:isc_b" });
   await rightClick(root, "row-i:isc_b");
   await press(find(root, "menu-item-Delete session"));
   await flush();
@@ -110,7 +111,7 @@ test("Delete asks in the menu, removes the imported copy, keeps the chat it was 
 });
 
 test("Cancel in the delete confirm deletes nothing", async () => {
-  const { s, root } = await drawn({ imported: IMPORTED });
+  const { s, root } = await drawn(createRoot, { imported: IMPORTED });
   await rightClick(root, "row-i:isc_a");
   await press(find(root, "menu-item-Delete session"));
   await flush();

@@ -54,7 +54,7 @@ test("the open row is the chat, else the channel of its thread, else the importe
 /* ---------- the drawn list follows the page ---------- */
 
 test("selection follows the open page across a tab switch, a link and Cmd-K for every row type, and nothing is selected when the page has no row", async () => {
-  const { root, show } = await drawn({ imported: IMPORTED, open: "t:c1", artifacts: true });
+  const { root, show } = await drawn(createRoot, { imported: IMPORTED, open: "t:c1", artifacts: true });
   assert.deepEqual(selectedRows(root), ["c:c1"], "the open chat");
   const channel = rowIds(root, "row-ch:")[0]!.slice("row-ch:".length);
   await show(`t:th_${channel}`);
@@ -79,7 +79,7 @@ test("selection follows the open page across a tab switch, a link and Cmd-K for 
 });
 
 test("a press opens the page but the selection waits for it: a row stays unselected until the place shows it", async () => {
-  const { s, root, show } = await drawn({ imported: IMPORTED, open: "t:c1" });
+  const { s, root, show } = await drawn(createRoot, { imported: IMPORTED, open: "t:c1" });
   await press(find(root, "row-i:isc_a"));
   await flush();
   assert.deepEqual(s.opened.slice(-1), ["imported:isc_a"], "the press asks the place to open the transcript");
@@ -89,7 +89,7 @@ test("a press opens the page but the selection waits for it: a row stays unselec
 });
 
 test("the arrow keys move a cursor of their own; it goes back to the open row when the page changes", async () => {
-  const { root, show } = await drawn({ imported: IMPORTED, open: "t:c1" });
+  const { root, show } = await drawn(createRoot, { imported: IMPORTED, open: "t:c1" });
   const list = (): Node => find(root, "chats-sidebar")!;
   assert.equal(list().props["aria-activedescendant"], "row-c:c1", "the cursor starts on the open row");
   await act(async () => { (list().props.onKeyDown as (e: { key: string; preventDefault(): void }) => void)({ key: "ArrowDown", preventDefault() {} }); });
