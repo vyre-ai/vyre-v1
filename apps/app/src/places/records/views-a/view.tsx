@@ -66,9 +66,12 @@ export function useViewState(ctx: ViewCtx): ViewState {
 
 /** Creates a record (with the fields it starts with) and opens it. */
 export function newRecord(data: RecordsData, type: string, fields: Record<string, unknown>): void {
-  void data.call("records.create", { type, fields, idempotencyKey: `new-${type}-${Date.now()}` }).then((out) => {
-    const id = (out as { record?: { id?: string } } | undefined)?.record?.id;
-    if (id) data.nav.openRecord(id);
+  const make = (with_: Record<string, unknown>): Promise<unknown> => data.call("records.create", { type, fields: with_, idempotencyKey: `new-${type}-${Date.now()}` });
+  const open = (out: unknown): void => { const id = (out as { record?: { id?: string } } | undefined)?.record?.id; if (id) data.nav.openRecord(id); };
+  // a type that needs its name to exist (Contacts) starts as "New contact", the name the table's New row uses, so New on a phone is never a dead button
+  void make(fields).then(open, (e: unknown) => {
+    const field = /^(\w+) is required$/.exec(String((e as { message?: unknown } | null)?.message ?? ""))?.[1];
+    if (field && fields[field] === undefined) void make({ ...fields, [field]: `New ${type.replace(/_/g, " ")}` }).then(open, () => undefined);
   });
 }
 

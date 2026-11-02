@@ -36,3 +36,4 @@
 - The message on a Mine item's Share closes with Escape or OK.
 - After agents answer a question put to all of them, the lead posts no summary unless you ask for one.
 - A row nothing can press, like Recent use in the Vault, is no longer announced as a button.
+- New on a phone in Records makes the record, starting from its name.
