@@ -52,6 +52,7 @@ import {
   WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel, swapNeeded,
   threadKindNote, timeline, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
+import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 
 type ThreadOut = CapMap["threads.get"]["out"];
 type MessagesOut = CapMap["chat.messages.list"]["out"];
@@ -213,6 +214,8 @@ function ConversationView(): ReactElement {
   const serverMode = threadQ.status === "loading" ? null : modeOf(threadQ.data.thread);
   // what the server says wins once it changes (a /plan, another device); a local choice holds until then
   useEffect(() => { setModeOver(null); }, [serverMode]);
+  const failed = failureOf(threadQ, messagesQ);
+  if (failed) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
   if (threadQ.status === "loading" || messagesQ.status === "loading") return <ConversationLoading />;
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;

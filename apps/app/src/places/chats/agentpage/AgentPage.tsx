@@ -26,6 +26,7 @@ import { SettingsTab } from "./SettingsTab.tsx";
 import { ActivityTab } from "./ActivityTab.tsx";
 import { DEFAULT_TAB, OUTSIDE_LINE, OUTSIDE_TABS, TABS, collect, isOutside, offlineLine, spendRatio, statusLine, stripOf } from "./model.ts";
 import type { TabKey } from "./model.ts";
+import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 
 type AgentOut = CapMap["agents.get"]["out"];
 type SummaryOut = CapMap["agents.summary"]["out"];
@@ -105,6 +106,8 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   });
 
   const summaryQ = useScreenQuery<SummaryOut>("summary", { agentId });
+  const failed = failureOf(agentQ);
+  if (failed) return <LoadFailed what="this agent" failure={failed} testID="agent-page-failed" />;
   if (agentQ.status === "loading") return <AgentPageLoading />;
   const agent = agentQ.data.agent;
   const summary = summaryQ.status === "ready" ? summaryQ.data : null;

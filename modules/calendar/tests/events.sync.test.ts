@@ -2,7 +2,7 @@
 // the provider capabilities are scripted stand-ins that answer in the frozen shapes; nothing here reaches a provider.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fromGoogle, fromGraph, health, ingestEvent, syncNow } from "../handlers/index.ts";
+import { fromGoogle, fromGraph, health, ingestEvent, pullProviderCalendars, syncNow } from "../handlers/index.ts";
 import { at, codeOf, contractErrors, HOUR, harness, seedCalendar } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -262,4 +262,37 @@ test("health is healthy with no provider calendars or no pull yet, degraded when
   const down = await health(h.ctx);
   assert.equal(down.state, "down");
   assert.equal(down.detail, "Work Google last synced 2 days ago. Outlook last synced 2 days ago.");
+});
+
+// ---- the scheduled pull, run by the server
+
+const HOST = { kind: "service", id: "svc_host" } as const;
+
+test("the server cannot sync a member's private calendar through calendar.sync_now, but its own scheduled pull does, as the calendar's account, and says nothing", async () => {
+  const h = world();
+  h.denied.add(`calendar:${GOOG}`);   // the server holds no grant on a calendar its member keeps private
+  const host = h.as(HOST);
+  await refused(syncNow(host, { calendarId: GOOG }), "permission.no_grant");
+  h.ctx.db.run(`INSERT INTO calendar_account ("calendarId", account) VALUES (?, ?)`, GOOG, "maya@vyre.test");
+  h.google.pages = [{ events: [gev("g1", "Intake", at(1, 10), at(1, 11))], nextSyncToken: "sync_1" }];
+  const warned: string[] = [];
+  (host as { log: { warn: (m: string) => void } }).log = { ...host.log, warn: (m: string) => { warned.push(m); } } as never;
+  assert.deepEqual(await pullProviderCalendars(host), { pulled: 1 });
+  assert.deepEqual(warned, [], "a pull that works is quiet");
+  assert.equal(h.calls("google.calendar.list_events")[0]!.input.as, "maya@vyre.test");
+  assert.equal(eventsOf(h, GOOG).length, 1);
+  assert.equal(h.rows(`SELECT cursor FROM calendar_sync WHERE "calendarId" = ?`, GOOG)[0]!.cursor, "sync_1");
+  assert.equal(h.named("calendar.synced").length, 1);
+});
+
+test("the scheduled pull takes Google and Outlook calendars, skips local and paused ones, and is for the server only", async () => {
+  const h = both();
+  seedCalendar(h, "cld_local01", { title: "Local" });
+  seedCalendar(h, "cld_paused1", { provider: "google", state: "paused", connectionId: "con_g02", remoteId: "other" });
+  h.google.pages = [{ events: [], nextSyncToken: "s" }];
+  h.graph.answers = [{ changed: [], removed: [], deltaLink: "d" }];
+  assert.deepEqual(await pullProviderCalendars(h.as(HOST)), { pulled: 2 });
+  assert.equal(h.calls("google.calendar.list_events").length, 1);
+  assert.equal(h.calls("ms.calendar.delta").length, 1);
+  await assert.rejects(pullProviderCalendars(h.ctx));   // a person does not run it
 });

@@ -29,6 +29,7 @@ import type { Dial, Scheduler } from "../../../../../client/src/connection/index
 import { PLACE_QUERIES, WARM_ORDER } from "./prefetch.ts";
 import { createRemoteScreenHooks } from "./remote-hooks.ts";
 import type { RemoteHooks } from "./remote-hooks.ts";
+import { onRetryLoads } from "../../../../../ui/src/States/retry.ts";
 import { speed } from "../../speed/recorder.ts";
 
 export interface OpenSessionOptions {
@@ -102,6 +103,8 @@ const CONSOLE_ROLES = ["owner", "admin", "developer"] as const;
 const PLAIN_ROLES = ["member", "guest"] as const;
 export const roleOpensConsole = (roles: readonly string[]): boolean => holdsRole(roles, ...CONSOLE_ROLES);
 export const roleAsksServer = (roles: readonly string[]): boolean => !roleOpensConsole(roles) && roles.some((r) => !holdsRole([r], ...PLAIN_ROLES));
+/** Only the built-in Member or Guest roles, in a Team Space: no console.access, connectors.manage or schema.manage, so the UI asks for none of them (ShellRuntime.plainRole). */
+export const plainRoleOnly = (roles: readonly string[], kind: string): boolean => kind === "team" && roles.length > 0 && roles.every((r) => holdsRole([r], ...PLAIN_ROLES));
 
 const RAIL_PLACES: readonly PlaceId[] = ["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings", "console"];
 const railPlace = (p: string): PlaceId | null => (RAIL_PLACES as readonly string[]).includes(p) ? (p as PlaceId) : null;
@@ -183,6 +186,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const page = (globalThis as { document?: { addEventListener?(t: string, l: () => void): void; removeEventListener?(t: string, l: () => void): void } }).document;
   const shown = (): void => { if (!hidden() && refreshTimer !== null) reread(); };
   page?.addEventListener?.("visibilitychange", shown);
+  // Retry on a failed or stalled load (ui/States Loads and Quiet) re-reads what is on screen
+  const offRetry = onRetryLoads(() => { if (!closed) hooks.invalidate(); });
   // A read changes nothing, so it does not re-read the screen. Re-reading after every read made a loop: a screen that reads on render re-rendered on the re-read and read again, every two
   // seconds, whole screens at a time (about 15 reads a second from an idle Mac). Until the route table has loaded, every call re-reads, as before.
   let reads: ReadonlySet<string> | null = null;
@@ -346,6 +351,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     get assistant() { return assistant(); },
     get aiConnected() { return connected(AI_CONNECTORS); },
     get calendarConnected() { return connected(CALENDAR_CONNECTORS); },
+    plainRole: plainRoleOnly(who.roles, space.kind),
     deferredModules: deferred.deferredModules,
     isDeferred: deferred.isDeferred,
     open,
@@ -370,6 +376,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       for (const t of warmTimers) clearTimeout(t);
       if (refreshTimer !== null) clearTimeout(refreshTimer);
       page?.removeEventListener?.("visibilitychange", shown);
+      offRetry();
       link.stop();
       turns.dispose();
       for (const off of keep) off();

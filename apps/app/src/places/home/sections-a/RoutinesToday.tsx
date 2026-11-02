@@ -48,7 +48,7 @@ export function RoutinesToday(): ReactElement {
   return (
     <Section id="s-routines">
       <SectionHeader id="routines" title="Routines and automations today" count={q.status === "ready" && list.length > 0 ? list.length : undefined} />
-      {q.status === "loading" ? <Skeleton rows={2} id="routines" /> : rows.length ? <View accessibilityRole="list">{rows}</View> : <EmptyLine id="routines" text="No routines today" />}
+      {q.status === "loading" ? <Skeleton rows={2} id="routines" failure={q.status === "loading" ? q.error : undefined} /> : rows.length ? <View accessibilityRole="list">{rows}</View> : <EmptyLine id="routines" text="No routines today" />}
       {menu.element}
     </Section>
   );

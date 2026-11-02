@@ -12,7 +12,7 @@ import type { Call, DataChoice, GoogleCtx } from "../projections.ts";
 import { ensureMailbox, pollInterval, pullMailbox } from "./gmail.ts";
 import { userSigninLost } from "./personal.ts";
 import { pullMeet } from "./meet.ts";
-import { connectCalendar, syncCalendar } from "./calendar.ts";
+import { connectCalendar } from "./calendar.ts";
 import type { Act } from "./gmail.ts";
 
 const g = (ctx: GoogleCtx, a: Act, cap: string, scope: string, c: Omit<Call, "cap" | "connectionId" | "as" | "scope">): Promise<Record<string, unknown>> =>
@@ -483,7 +483,7 @@ async function pullAndSchedule(ctx: GoogleCtx, email: string, cause: string): Pr
   try {
     const pull = await pullMailbox(ctx, { connectionId, mailbox: email });
     delay = pull.complete ? pull.nextPollMs : pollInterval(now, null, false);
-    ctx.log.info("google pull", { mailbox: email, ingested: pull.ingested, deduped: pull.deduped, skipped: pull.skipped, complete: pull.complete, cause });
+    ctx.log.info("google pull", { mailbox: email, ingested: pull.ingested, deduped: pull.deduped, skipped: pull.skipped, complete: pull.complete, bootstrapped: pull.bootstrapped, cause });
   } catch (e) {
     ctx.log.warn("google pull failed", { mailbox: email, code: codeOf(e), cause });
     // a person's own sign-in that the provider no longer accepts: say so once and stop polling (signing in again starts the chain)
@@ -496,7 +496,6 @@ async function pullAndSchedule(ctx: GoogleCtx, email: string, cause: string): Pr
   }
   // Meet transcripts ride on the same pass; a Meet failure never fails the mailbox pull. A person's own sign-in carries mail only.
   if (delegated) {
-    await syncCalendar(ctx, { connectionId, email });
     await pullMeet(ctx, { connectionId, mailbox: email }).catch((e: unknown) => ctx.log.warn("google meet pull failed", { mailbox: email, code: codeOf(e) }));
   }
   const box = first(ctx.db.all(`SELECT "nextPollAt" FROM google_mailbox WHERE email = ?`, email));

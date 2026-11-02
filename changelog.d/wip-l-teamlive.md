@@ -1,0 +1,6 @@
+- A new channel opens straight away. Chats used to open it by its channel id, which the chat reads refused, so the pane showed the loading mark for ever; it now opens the channel's conversation, from the sidebar, New channel, Browse and a project's channel alike.
+- Nothing waits on a loading mark for ever. A chat, helper, agent page, terminal, computer or Needs you list whose read fails says "Couldn't load" with the reason and Retry, the Home sections do the same in one line, and any loading mark still waiting after 20 seconds says so with Retry.
+- The server no longer tries every 15 seconds to write the grants on each agent's folder and logs the refusal each time. The grants are written when the agent is made, and the server puts back any that are missing once at start.
+- Connected Google and Outlook calendars sync again. The server pulls them every two minutes itself, where before it asked as nobody and was refused.
+- A member no longer gets refused calls when opening Records or Settings: the app knows a member cannot open the Console or manage connectors and does not ask.
+- A refused call in the server log names who made it and the reason in the actor and result columns.
