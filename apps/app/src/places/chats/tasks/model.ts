@@ -47,7 +47,7 @@ export function sectionsOf(rows: readonly TaskRow[], me: string, now: number, of
   const out: Sections = { now: [], next: [], quiet: [], waiting: [] };
   const end = dayStart(now, offsetMin) + DAY;
   for (const t of rows) {
-    if (needIds.has(t.id) && t.kind !== "work") continue;
+    if (t.kind !== "work" && needIds.has(t.id)) continue;
     if (!isOpenState(t.state)) continue;
     const h = holderOf(t);
     if (h?.id !== me) { out.waiting.push(t); continue; }
@@ -55,8 +55,25 @@ export function sectionsOf(rows: readonly TaskRow[], me: string, now: number, of
     if ((t.due !== undefined && t.due < end) || t.state === "doing") out.now.push(t);
     else out.next.push(t);
   }
-  const byDue = (a: TaskRow, b: TaskRow): number => (a.due ?? Infinity) - (b.due ?? Infinity) || (PRI_RANK[a.priority ?? "normal"]! - PRI_RANK[b.priority ?? "normal"]!) || b.updatedAt - a.updatedAt;
-  out.now.sort(byDue); out.next.sort(byDue); out.waiting.sort(byDue);
+  out.now = byDue(out.now); out.next = byDue(out.next); out.waiting = byDue(out.waiting);
+  return out;
+}
+
+/** Soonest first, then priority, then last changed. The keys are read once per row and the sort moves numbers: a comparison reads no row, so it costs the same at 5,000 tasks as at 50. */
+function byDue(list: readonly TaskRow[]): TaskRow[] {
+  const n = list.length;
+  const due = new Float64Array(n), pri = new Uint8Array(n), changed = new Float64Array(n), at = new Uint32Array(n);
+  for (let i = 0; i < n; i++) { const t = list[i]!; due[i] = t.due ?? Infinity; pri[i] = PRI_RANK[t.priority ?? "normal"]!; changed[i] = t.updatedAt; at[i] = i; }
+  at.sort((a, b) => {
+    const da = due[a]!, db = due[b]!;
+    if (da !== db) return da < db ? -1 : 1;
+    const pa = pri[a]!, pb = pri[b]!;
+    if (pa !== pb) return pa - pb;
+    const ca = changed[a]!, cb = changed[b]!;
+    return ca !== cb ? (ca > cb ? -1 : 1) : a - b;
+  });
+  const out = new Array<TaskRow>(n);
+  for (let i = 0; i < n; i++) out[i] = list[at[i]!]!;
   return out;
 }
 
@@ -128,6 +145,28 @@ export type Entry =
   | { kind: "add"; key: string }
   | { kind: "done"; key: string; count: number; open: boolean }
   | { kind: "empty"; key: string; text: string };
+
+/** Children in the order they were made: a plan reads top to bottom. */
+export const planOrder = (a: TaskRow, b: TaskRow): number => a.createdAt - b.createdAt || Number(a.key?.split("-")[1] ?? 0) - Number(b.key?.split("-")[1] ?? 0);
+
+/** The lines a chat shows of the work under way in it, before they fold into a count. */
+export const WORK_SHOWN = 6;
+/** What is still open, with whatever is moving first, then in plan order. */
+export function openWork(rows: readonly TaskRow[]): TaskRow[] {
+  const moving = (t: TaskRow): number => (t.state === "doing" ? 0 : t.state === "todo" ? 2 : 1);
+  return rows.filter((t) => t.kind === "work" && isOpenState(t.state)).sort((a, b) => moving(a) - moving(b) || planOrder(a, b));
+}
+
+/** The second half of a work line when no agent is writing: what the task is waiting for. */
+export function workStep(t: Pick<TaskRow, "state" | "blocked" | "dependsOn" | "assigned" | "reviewer" | "approver">, keyOf: (id: string) => string | undefined, nameOf: (id: string) => string): string {
+  const waits = t.blocked ? t.dependsOn.map(keyOf).filter((k): k is string => k !== undefined) : [];
+  if (waits.length > 0) return `Waits on ${waits.slice(0, 3).join(", ")}`;
+  if (t.blocked) return "Waiting";
+  const who = holderOf(t);
+  if (t.state === "in_review") return who ? `With ${nameOf(who.id)} for review` : "In review";
+  if (t.state === "awaiting_approval") return who ? `With ${nameOf(who.id)} to approve` : "Awaiting approval";
+  return t.state === "doing" ? "Doing" : "To do";
+}
 
 /** A board card's height, known before it draws: two lines of title past this many letters, and a line for its project or for an agent at work. */
 const CARD_LINE = 22;

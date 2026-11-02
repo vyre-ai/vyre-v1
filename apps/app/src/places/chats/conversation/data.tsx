@@ -103,6 +103,8 @@ export interface ConversationData {
   mountSheet?(p: { source: string; onMounted(info: { folderId: string; name: string }): void; onClose(): void }): ReactElement;
   /** Drawn above the messages, scrolling with them: the page of a task sits on top of its thread. The feed then opens at the top. */
   head?: ReactElement;
+  /** Drawn after the last message, scrolling with it: what is under way in this chat. */
+  tail?: ReactElement;
   /** Quiet lines woven into the feed by time, and which rows show (a task's status changes, with Everything, Comments or Updates). */
   activity?: { events: readonly import("./model.ts").Message[]; show: "all" | "comments" | "updates" };
   /** The composer's words, in place of the chat's. */

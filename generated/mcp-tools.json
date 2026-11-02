@@ -54280,6 +54280,13 @@
               "everyone"
             ],
             "type": "string"
+          },
+          "underThread": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
           }
         },
         "required": [

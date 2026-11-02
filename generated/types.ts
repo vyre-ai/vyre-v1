@@ -29328,6 +29328,7 @@ export type TasksIndexIn = {
   scope: "mine" | "given" | "everyone";
   recordId?: string;
   parentTaskId?: string;
+  underThread?: string;
   done?: boolean;
   rev?: string;
 };

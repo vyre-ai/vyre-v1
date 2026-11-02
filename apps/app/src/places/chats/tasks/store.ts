@@ -4,7 +4,7 @@ import type { QueryState } from "../../../../../../client/src/index.ts";
 import type { IndexOut, TaskRow } from "./model.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
-export interface ScopeKey { scope: "mine" | "given" | "everyone"; recordId?: string }
+export interface ScopeKey { scope: "mine" | "given" | "everyone"; recordId?: string; underThread?: string }
 
 export interface IndexSnapshot { status: "loading" | "ready" | "failed"; rows: readonly TaskRow[]; doneThisWeek: number; rev: string; error?: string; version: number }
 const EMPTY: IndexSnapshot = { status: "loading", rows: [], doneThisWeek: 0, rev: "", version: 0 };
@@ -32,7 +32,7 @@ export function createTaskStore(call: Call, key: ScopeKey): TaskStore {
     if (rev !== undefined && rev === snap.rev && snap.status === "ready") return;
     if (reading) { again = true; return; }
     reading = true;
-    void call("tasks.index", { scope: key.scope, ...(key.recordId ? { recordId: key.recordId } : {}), ...(snap.rev !== "" ? { rev: snap.rev } : {}) }).then(
+    void call("tasks.index", { scope: key.scope, ...(key.recordId ? { recordId: key.recordId } : {}), ...(key.underThread ? { underThread: key.underThread } : {}), ...(snap.rev !== "" ? { rev: snap.rev } : {}) }).then(
       (out) => {
         const o = out as IndexOut;
         if (o.unchanged) { if (snap.status !== "ready") set({ status: "ready" }); }
@@ -71,7 +71,7 @@ const stores = new WeakMap<object, Map<string, TaskStore>>();
 export function storeFor(owner: object, call: Call, key: ScopeKey): TaskStore {
   let m = stores.get(owner);
   if (!m) { m = new Map(); stores.set(owner, m); }
-  const k = `${key.scope}:${key.recordId ?? ""}`;
+  const k = `${key.scope}:${key.recordId ?? ""}:${key.underThread ?? ""}`;
   let s = m.get(k);
   if (!s) { s = createTaskStore(call, key); m.set(k, s); }
   return s;

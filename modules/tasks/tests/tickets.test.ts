@@ -171,3 +171,13 @@ test("a plan that waits in a circle, repeats a key or names nothing is refused w
   assert.equal((await h.call("tasks.rev", {}, who)).rev.startsWith("0."), true, "nothing was written");
   assert.equal(loopIn([{ key: "a", dependsOn: ["b"] }, { key: "b" }]), null);
 });
+
+test("the work under a chat is the children of the plans in that thread, and nothing else", async () => {
+  const h = harness();
+  const out = await h.call("tasks.plan", { parent: { title: "Plan here", assigned: { kind: "agent", id: bot.id } }, children: [{ key: "a", title: "One", assigned: { kind: "agent", id: bot.id } }, { key: "b", title: "Two", assigned: { kind: "agent", id: bot2.id } }], idempotencyKey: "p1" }, me);
+  await h.call("tasks.plan", { parent: { title: "Plan elsewhere", assigned: { kind: "agent", id: bot.id } }, children: [{ key: "c", title: "Three", assigned: { kind: "agent", id: bot.id } }], idempotencyKey: "p2" }, me);
+  await h.call("tasks.update", { taskId: out.parent.id, threadId: "thr_here" }, me);
+  const rows = (await h.call("tasks.index", { scope: "everyone", underThread: "thr_here" }, me)).rows;
+  assert.deepEqual(rows.map((r: { title: string }) => r.title).sort(), ["One", "Two"]);
+  assert.deepEqual((await h.call("tasks.index", { scope: "everyone", underThread: "thr_other" }, me)).rows, []);
+});

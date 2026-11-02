@@ -49,6 +49,7 @@ import { ProfilePane, afterClose, profileTab, withTab } from "../rightpane/Profi
 import type { ProfileTab } from "../rightpane/ProfilePane.tsx";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { WORKSPACE_MIN_W, Workspace } from "./Workspace.tsx";
+import { ChatWork } from "../tasks/ChatWork.tsx";
 import { TasksPage } from "../tasks/TasksPage.tsx";
 import { TaskDetail } from "../tasks/TaskDetail.tsx";
 import type { Act, Shown } from "./route.ts";
@@ -256,7 +257,8 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   }
   else if (conv) {
     const work = thread.status === "ready" ? workOf(thread.data.thread) : null;
-    main = work && width >= WORKSPACE_MIN_W ? <Workspace rt={rt} work={work}><Conversation key={conv.threadId} data={conv} /></Workspace> : <Conversation key={conv.threadId} data={conv} />;
+    const live = { ...conv, tail: <ChatWork rt={rt} threadId={conv.threadId} nameOf={nameOf} openTask={go.task} openProfile={(who) => { if (who.kind === "agent") go.agent(who.id); else rt.open({ subject: { type: "contact", id: who.id } }); }} /> };
+    main = work && width >= WORKSPACE_MIN_W ? <Workspace rt={rt} work={work}><Conversation key={conv.threadId} data={live} /></Workspace> : <Conversation key={conv.threadId} data={live} />;
   }
   else main = <ConversationLoading />;
 

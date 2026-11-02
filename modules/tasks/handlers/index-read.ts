@@ -47,6 +47,8 @@ export async function index(ctx: TasksCtx, input: In): Promise<unknown> {
   const args: unknown[] = [];
   if (input.recordId !== undefined) { where.push("c.record_id = ?"); args.push(input.recordId); }
   if (input.parentTaskId !== undefined) { where.push("m.parent_task = ?"); args.push(input.parentTaskId); }
+  // the work under a chat: the children of the plans that live in that thread
+  if (input.underThread !== undefined) { where.push("m.parent_task IN (SELECT id FROM tasks_meta WHERE thread_id = ? AND deleted_at IS NULL)"); args.push(input.underThread); }
   if (scope === "given") { where.push("c.created_by = ?"); args.push(who.id); }
   const rows = ctx.db.all(`SELECT ${COLS} FROM tasks_core c JOIN tasks_meta m ON m.id = c.id WHERE ${where.join(" AND ")} ORDER BY c.created_at DESC, c.id DESC`, ...args) as Raw[];
   // the rollup of a parent reads every child, seen or not: a count says nothing about a child
