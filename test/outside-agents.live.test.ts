@@ -263,7 +263,8 @@ withSpace("a teammate cannot use someone's outside agent: not see it, not mentio
   assert.notEqual((await s.call("agents.get", noah, { agentId })).status, 200);
   const list = expectStatus(await s.call("agents.list", noah, {}), 200, "agents.list").agents as Json[];
   assert.equal(list.some((a) => a.agentId === agentId), false);
-  const thread = expectStatus(await s.call("chat.start", noah, { kind: "chat", agentIds: ["agt_scout"], idempotencyKey: "noah-chat" }), 200, "chat.start").thread.threadId as string;
+  const own = expectStatus(await s.call("agents.create", noah, { name: "Noah's own", idempotencyKey: "noah-agent" }), 200, "agents.create").agent.agentId as string;
+  const thread = expectStatus(await s.call("chat.start", noah, { kind: "chat", agentIds: [own], idempotencyKey: "noah-chat" }), 200, "chat.start").thread.threadId as string;
   const mention = await s.call("chat.post", noah, { threadId: thread, body: "hey", mentions: [{ kind: "agent", id: agentId }], idempotencyKey: "noah-mention" });
   assert.notEqual(mention.status, 200, "a mention of it is refused");
   const task = await s.call("tasks.create", noah, { title: "Do this for me", assigned: { kind: "agent", id: agentId }, idempotencyKey: "noah-task" });
