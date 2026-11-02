@@ -18,7 +18,7 @@ const sessionRow = t.obj({
 const requestId = t.id('oar');
 const allowRow = t.obj({
   requestId, clientName: t.str({ description: 'What the app calls itself. Vyre has not checked it.', examples: ['Claude Code'] }), redirectHost: t.opt(t.str({ description: 'Where it goes when allowed, when that is not this computer', examples: ['tools.example.com'] })),
-  spaceName: t.str(), match: t.str({ description: 'The code the tab that asked shows too', pattern: '^[0-9]{4}$', examples: ['4821'] }), expiresAt: t.ts(), rejoins: t.bool({ description: 'This app is already connected for this person' }),
+  spaceName: t.str(), match: t.str({ description: 'The code the tab that asked shows too', pattern: '^[0-9]{4}$', examples: ['4821'] }), expiresAt: t.ts(), rejoins: t.bool(),
 });
 const connectedRow = t.obj({
   agentId: id.agent, clientName: t.str(), redirectHost: t.opt(t.str()), connectedAt: t.ts(), lastSeenAt: t.opt(t.ts()), calls: t.int({ minimum: 0 }),
