@@ -1,0 +1,1 @@
+- The sign-in page names your Space as soon as the owner names it in setup. It showed the Space id until the server restarted.
