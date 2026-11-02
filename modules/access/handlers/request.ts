@@ -88,9 +88,10 @@ export const resetAskLimit = (): void => asks.clear();
 const exists = (store: AccessStore, r: ResourceRef): boolean => r.type === "space" || store.resources.get(r.id)?.type === r.type;
 
 export async function requestCreate(ctx: AskCtx, input: { resource: ResourceRef; level: Level; note?: string; idempotencyKey: string }) {
-  // an agent asks for itself: the person who decides shares the thing with that agent, one press, and the agent's calls still stop at what the asker has
-  const requester = ctx.principal.kind === "agent" ? ctx.principal.id : personOf(ctx);
   const store = storeOf(ctx);
+  // an agent asks for itself when its person already has that level: the person who decides shares the thing with the agent, one press. An agent never asks for more than its person has; then the ask is the person's, as before
+  const asker = personOf(ctx);
+  const requester = ctx.principal.kind === "agent" && exists(store, input.resource) && allows(ctx, store, asker, null, input.level, input.resource) ? ctx.principal.id : asker;
   if (!LEVELS.includes(input.level)) raise(ctx.trace.traceId, "validation.bad_input", "level is view, use, edit or manage");
   const roles = store.rolesOf(requester);
   if (roles.length > 0 && roles.every((r) => r === "rol_guest")) raise(ctx.trace.traceId, "permission.guest_cannot_request", "Guests work inside the access they were given and cannot ask for more.");
