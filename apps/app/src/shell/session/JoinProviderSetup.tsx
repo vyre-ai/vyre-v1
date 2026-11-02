@@ -57,7 +57,7 @@ export function JoinProviderSetup({ stored, ai, onOpen, onClearSecret, home = "c
   return (
     <JoinFrame>
       <Panel
-        below={!connected ? <Links><TextButton testID="joined-provider-later" label="Connect later" disabled={busy} onPress={() => { secret.current = ""; onOpen(); }} /></Links> : undefined}
+        below={!connected ? <Links><TextButton testID="joined-provider-later" label={covered.covered ? "Continue with the Space key" : "Connect later"} disabled={busy} onPress={() => { secret.current = ""; onOpen(); }} /></Links> : undefined}
         bar={<Bar hideBack cont={<Button testID="joined-provider-continue" label={connected ? "Open Space" : busy ? "Connecting" : key ? "Save API key" : `Sign in with ${provider === "codex" ? "ChatGPT" : provider === "grok" ? "Grok" : "Claude"}`} busy={busy} disabled={!!flow && !connected} onPress={connected ? onOpen : () => void (key ? connectKey() : subscription())} />} />}
       >
         <Step id="joined-provider">

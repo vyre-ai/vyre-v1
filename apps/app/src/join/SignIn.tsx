@@ -43,7 +43,7 @@ export function SignIn({ invite, state, dispatch, busy, onSubmit, onSso, onGithu
         </Step>
       ) : (
         <Step id="sign-in">
-          <Title title={unlock ? "Unlock Vyre" : `Sign in to ${invite.space}`} sub={unlock ? "Sign in again" : invite.host} />
+          <Title title={unlock ? "Unlock Vyre" : `Sign in to ${invite.space}`} sub={unlock ? "Sign in again" : invite.space === invite.host ? undefined : invite.host} />
           <Group>
             <FieldRow testID="si-user" label="Username" value={state.siUser} onChange={(v) => dispatch({ t: "set", patch: { siUser: cleanUsername(v), error: "" } })} autoComplete="username" onSubmit={go} disabled={!!busy} />
             <FieldRow testID="si-password" label="Password" value={state.siPw} onChange={(v) => dispatch({ t: "set", patch: { siPw: v, error: "" } })} secure visibilityTestID="si-password-visibility" autoComplete="current-password" onSubmit={go} disabled={!!busy} error={!!state.error} />
