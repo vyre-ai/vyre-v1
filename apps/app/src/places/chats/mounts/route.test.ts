@@ -13,7 +13,12 @@ test("with and about make an Ask about the object, and bring names the chat whos
 test("with alone is a chat with that agent, a thread id wins, and neither is the start", () => {
   assert.deepEqual(fromHash("#screen=chats.conversation&with=assistant").route, { view: "ask", agentId: "assistant", scopeType: "", scopeId: "", bringFrom: null });
   assert.deepEqual(fromHash("#screen=chats.conversation&threadId=thr_1&with=agt_x&about=record%3Arec_1").route, { view: "chat", threadId: "thr_1" });
-  assert.deepEqual(fromHash("#screen=chats.conversation").route, { view: "chat", threadId: null });
+  assert.deepEqual(fromHash("#screen=chats.conversation").route, { view: "new" }, "the start is a new chat");
+  assert.deepEqual(fromHash("#screen=tasks.my-work").route, { view: "tasks" });
+  assert.deepEqual(fromHash("#screen=tasks.page&taskId=tsk_1").route, { view: "task", taskId: "tsk_1" });
+  assert.deepEqual(fromHash("#subject=task:tsk_1").route, { view: "task", taskId: "tsk_1" });
+  assert.deepEqual(fromHash("#subject=thread:thr_1").route, { view: "chat", threadId: "thr_1" });
+  assert.deepEqual(fromHash("#screen=chats.threads").route, { view: "threads" });
 });
 
 test("an object is type:id, and anything else is not an object", () => {

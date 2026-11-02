@@ -54,7 +54,7 @@ export interface ReportState {
   waiting: number;
 }
 
-const EMPTY_CONTEXT: ReportContext = { place: "home" };
+const EMPTY_CONTEXT: ReportContext = { place: "chats" };
 
 export class ReportController {
   private s: ReportState;

@@ -21,20 +21,15 @@ test("another Space needing you: a dot by the header on a desktop, none on a pho
   }
 });
 
-test("Needs you on a phone is three rows and a Show all row that opens Needs you", async () => {
+test("Tasks on a phone is the row at the top, and it opens Tasks", async () => {
   installDom();
   widen(390);
   const s = createSampleSidebar(northwind);
-  const opened: (string | undefined)[] = [];
-  const data = { ...s.data, nav: { ...s.data.nav, openNeedsYou: (id?: string) => void opened.push(id) } };
+  const opened: string[] = [];
+  const data = { ...s.data, nav: { ...s.data.nav, openTasks: () => void opened.push("tasks") } };
   const root = await mount(createRoot, <ChatsSidebar data={data} window={{ start: 0, end: 500 }} />);
-  const ids: string[] = [];
-  const walk = (n: { props: Record<string, unknown>; children?: unknown[] } | string): void => { if (typeof n === "string") return; const t = n.props["data-testid"]; if (typeof t === "string") ids.push(t); (n.children as never[] | undefined)?.forEach(walk as never); };
-  walk(root as never);
-  assert.equal(ids.filter((i) => /^row-n:[^-]+$/.test(i)).length, 3, "three Needs you rows");
-  assert.ok(ids.includes("row-m:needs"), "a Show all row");
-  await press(find(root, "row-m:needs"));
-  assert.deepEqual(opened, [undefined], "it opens Needs you");
+  await press(find(root, "row-nav:tasks"));
+  assert.deepEqual(opened, ["tasks"]);
   widen(1280);
 });
 

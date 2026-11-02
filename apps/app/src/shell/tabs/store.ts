@@ -2,7 +2,7 @@
 // The state is a plain value (immutable), the controller keeps it for one Space on one device and writes it to this device's storage under a key that names
 // the device, the person and the Space. Nothing here calls the server: a tab list that left the device would make Starred and tabs the same thing, and they are not.
 import type { PlaceId } from "../rail/kits.ts";
-import { PLACE_TITLE } from "../rail/kits.ts";
+import { PLACE_TITLE, livePlace } from "../rail/kits.ts";
 import { parseHash } from "../hash/hash.ts";
 
 /** Tabs are device state. Starred is the synced one (spec 3.0). */
@@ -37,9 +37,21 @@ export function tabKey(place: PlaceId, hash?: string): string {
   if (!hash.includes("=")) return `${place}:${hash}`;
   const t = parseHash(hash);
   if (t.subject !== undefined) return `${place}:subject=${t.subject.type}:${t.subject.id}`;
+  if (t.screen === "tasks.page" && t.args["taskId"]) return `${place}:subject=task:${t.args["taskId"]}`;
+  if (t.screen !== undefined && OWN_TAB[t.screen] !== undefined) return `${place}:${t.screen}`;
   const type = t.args["type"];
   if (type !== undefined && type !== "") return `${place}:type=${type}`;
   return place;
+}
+
+/** Screens inside Chats that are a tab of their own, with the tab's name. */
+const OWN_TAB: Readonly<Record<string, string>> = { "tasks.my-work": "Tasks", "chats.threads": "Threads" };
+
+/** The name a tab starts with when its screen has one of its own; the place's name otherwise. */
+export function screenTitle(hash: string | undefined): string | undefined {
+  if (hash === undefined || !hash.includes("=")) return undefined;
+  const s = parseHash(hash).screen;
+  return s === undefined ? undefined : OWN_TAB[s];
 }
 
 export function findTab(state: TabsState, key: string): TabEntry | undefined {
@@ -156,8 +168,10 @@ export function readTabs(raw: string | null): TabsState | null {
     const { key, title, place, hash, isNew, pinned } = row;
     if (typeof key !== "string" || typeof title !== "string" || typeof place !== "string" || !KNOWN_PLACES.has(place)) return null;
     const hashText = typeof hash === "string" && hash !== "" ? hash : undefined;
+    // a tab saved on Home reopens in Chats, where Home went
+    const where = livePlace(place as PlaceId);
     // tab lists saved before a place was unique can hold the same place or item twice: one tab per identity, the first kept
-    const id = isNew === true ? key : tabKey(place as PlaceId, hashText);
+    const id = isNew === true ? key : tabKey(where, hashText);
     renamed.set(key, id);
     if (seen.has(id)) {
       if (pinned === true) { const kept = tabs.find((t) => t.key === id); if (kept !== undefined) kept.pinned = true; }
@@ -166,8 +180,8 @@ export function readTabs(raw: string | null): TabsState | null {
     seen.add(id);
     tabs.push({
       key: id,
-      title,
-      place: place as PlaceId,
+      title: place === "home" && where !== place ? (hashText === undefined ? PLACE_TITLE.chats : title) : title,
+      place: where,
       ...(typeof hash === "string" && hash !== "" ? { hash } : {}),
       ...(isNew === true ? { isNew: true } : {}),
       ...(pinned === true ? { pinned: true } : {}),

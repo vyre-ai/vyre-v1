@@ -57,8 +57,8 @@ export interface SidebarSlotProviderProps {
 }
 
 export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
-  const key = collapseKey(p.deviceId, p.personId, p.spaceId, p.place);
-  const read = (): boolean => { try { return readCollapsed(p.storage?.getItem(key) ?? null); } catch { return false; } };
+  const key = collapseKey(p.deviceId, p.personId);
+  const read = (): boolean => { try { return readCollapsed((p.storage ?? deviceStorage())?.getItem(key) ?? null); } catch { return false; } };
   const [collapsed, setCollapsedState] = useState<boolean>(read);
   const [entry, setEntry] = useState<SidebarEntry | null>(p.initialEntry ?? null);
   const [query, setQuery] = useState("");
@@ -68,7 +68,7 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
   useEffect(() => { setCollapsedState(read()); setQuery(""); setBodyOpen(false); }, [key, p.epoch]);
   const setCollapsed = useCallback((v: boolean) => {
     setCollapsedState(v);
-    try { p.storage?.setItem(key, writeCollapsed(v)); } catch { /* a full or blocked store keeps the choice for this session only */ }
+    try { (p.storage ?? deviceStorage())?.setItem(key, writeCollapsed(v)); } catch { /* a full or blocked store keeps the choice for this session only */ }
   }, [key, p.storage]);
   const hasSidebar = entry !== null;
   const api = useMemo<SidebarSlotApi>(() => ({
@@ -111,20 +111,19 @@ export function SidebarSlot(): ReactElement | null {
   const slot = useSidebarSlot();
   const o = useContext(OutletContext);
   const resize = useResizable({ paneKey: "place-sidebar", defaultWidth: SIDEBAR_DEFAULT, grow: "right", min: 200, maxFraction: 0.5, maxWidth: 380 });
-  const [over, setOver] = useState(false);
   if (o === null || o.entry === null) return null;
-  if (slot.collapsed && !slot.compact) return null;
   const full = slot.compact;
   // On the phone an opened body replaces the list. The slot stays mounted (display none) because the place's sidebar content is portalled into its outlet.
   const away = slot.compact && slot.view === "body";
   const inner = (
     <>
-      <View style={s.head} {...{ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) }}>
+      <View style={s.head}>
         <Text style={s.title} accessibilityRole="header" numberOfLines={1}>{o.entry.title}</Text>
         <View style={s.actions} testID="sidebar-actions" ref={(n) => { if (n !== null) o.setActionsOutlet(n); }} />
         {full ? null : (
-          <Pressable accessibilityRole="button" accessibilityLabel="Collapse sidebar" testID="sidebar-collapse" onPress={() => slot.setCollapsed(true)}
-            style={({ hovered }: { hovered?: boolean }) => [s.icon, hovered === true && s.hover, !over && !hovered && s.quiet]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Hide the sidebar" testID="sidebar-collapse" onPress={() => slot.setCollapsed(true)}
+            {...webOnly({ title: "Hide the sidebar (⌘⇧\\)" })}
+            style={({ hovered }: { hovered?: boolean }) => [s.icon, hovered === true && s.hover]}>
             <MenuIcon icon={PANEL} color="var(--ink-3)" />
           </Pressable>
         )}
@@ -147,15 +146,32 @@ export function SidebarSlot(): ReactElement | null {
   );
 }
 
-/** The button that brings a collapsed sidebar back; the shell draws it at the body's left edge. */
-export function SidebarExpand(): ReactElement | null {
+/** The Hide button on a sheet that draws its own head (Inbox, Vault, Settings). */
+export function SidebarHide(): ReactElement | null {
   const slot = useSidebarSlot();
-  if (!slot.hasSidebar || !slot.collapsed || slot.compact) return null;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel="Show sidebar" testID="sidebar-expand" onPress={() => slot.setCollapsed(false)} style={({ hovered }: { hovered?: boolean }) => [s.expand, hovered === true && s.hover]}>
+    <Pressable accessibilityRole="button" accessibilityLabel="Hide the sidebar" testID="sidebar-hide" onPress={() => slot.setCollapsed(true)} {...webOnly({ title: "Hide the sidebar (⌘⇧\\)" })} style={({ hovered }: { hovered?: boolean }) => [s.hideFloat, hovered === true && s.hover]}>
       <MenuIcon icon={PANEL} color="var(--ink-3)" />
     </Pressable>
   );
+}
+
+/** The button that brings a hidden sidebar back: the shell draws it at the left of the tab strip. */
+export function SidebarExpand(): ReactElement | null {
+  const slot = useSidebarSlot();
+  if (!slot.collapsed || slot.compact) return null;
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel="Show the sidebar" testID="sidebar-expand" onPress={() => slot.setCollapsed(false)} {...webOnly({ title: "Show the sidebar (⌘⇧\\)" })} style={({ hovered }: { hovered?: boolean }) => [s.expand, hovered === true && s.hover]}>
+      <MenuIcon icon={PANEL} color="var(--ink-3)" />
+    </Pressable>
+  );
+}
+
+const webOnly = (props: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? props : {});
+
+function deviceStorage(): SidebarStorage | null {
+  if (Platform.OS !== "web") return null;
+  try { return (globalThis as { localStorage?: SidebarStorage }).localStorage ?? null; } catch { return null; }
 }
 
 /** True when a key press should take the phone from the body back to the list: Escape that nothing else (a menu, a dialog, a field's own handler) has taken. */
@@ -197,7 +213,6 @@ const s = StyleSheet.create({
   full: { flex: 1 },
   away: { display: "none" },
   head: { height: 54, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4, paddingLeft: 16, paddingRight: 10, paddingTop: 4 },
-  quiet: { opacity: 0 },
   title: { color: "var(--ink)" as string, fontSize: 15, fontWeight: "600", flexShrink: 1 },
   actions: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 4 },
   icon: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center" },
@@ -205,7 +220,8 @@ const s = StyleSheet.create({
   search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, marginHorizontal: 10, marginBottom: 8, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string },
   input: { flex: 1, minWidth: 0, color: "var(--ink)" as string, fontSize: 13, padding: 0 },
   outlet: { flex: 1, minHeight: 0 },
-  expand: { position: "absolute", left: 8, top: 10, width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center", zIndex: 3 },
+  expand: { width: 28, height: 28, borderRadius: 9, alignItems: "center", justifyContent: "center", marginLeft: 8, marginTop: 6, flexShrink: 0 },
+  hideFloat: { position: "absolute", right: 8, top: 12, width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center", zIndex: 3 },
   back: { height: 40, flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   backText: { color: "var(--accent)" as string, fontSize: 14, fontWeight: "500" },
 });

@@ -10,7 +10,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
-import { States } from "../../../../../../ui/src/States/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { Principal } from "../../home/sections-a/data.tsx";
@@ -39,7 +38,10 @@ import { copy, agentPageData, askWith, chatOpening, chatWith, createCapture, cre
 import type { CaptureCounter, Go, LineAction } from "./data.ts";
 import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
-import { START, fromHash, newestThread, step, workOf } from "./route.ts";
+import { START, fromHash, step, workOf } from "./route.ts";
+import { Landing } from "../landing/Landing.tsx";
+import { TasksRoute, TaskRouteLeaf } from "./TasksRoute.tsx";
+import { ThreadsPage } from "./ThreadsPage.tsx";
 import { WORKSPACE_MIN_W, Workspace } from "./Workspace.tsx";
 import type { Act, Shown } from "./route.ts";
 import { nameOr } from "../names.ts";
@@ -70,9 +72,13 @@ export interface ChatsMountedProps {
   initial?: Shown;
   /** Pins which rows are drawn (tests and screenshots draw them all). */
   window?: VirtualWindow;
+  /** What is open, as a hash, for the tab strip and the address: a chat is a tab of its own. */
+  opened?: (target: { subject?: { type: string; id: string }; screen?: string }) => void;
+  /** The middle is about to change: the shell keeps a still copy on screen until the next view is ready. */
+  onSwitch?: () => void;
 }
 
-export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedProps): ReactElement {
+export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch }: ChatsMountedProps): ReactElement {
   const [shown, setShown] = useState<Shown>(() => initial ?? (hash === "" ? START : fromHash(hash)));
   const [line, setLineState] = useState<{ text: string; action?: LineAction } | null>(null);
   const setLine = useCallback((text: string, action?: LineAction): void => setLineState(action ? { text, action } : { text }), []);
@@ -91,14 +97,28 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
     return () => clearTimeout(t);
   }, [line]);
 
-  const act = useCallback((a: Act): void => setShown((s) => step(s, a)), []);
+  const act = useCallback((a: Act): void => { if (a.t === "chat" || a.t === "new" || a.t === "tasks" || a.t === "task" || a.t === "threads" || a.t === "agent" || a.t === "needs") onSwitch?.(); setShown((s) => step(s, a)); }, [onSwitch]);
   // a link from another place, a notification or the Space menu while Chats is already open
   const linked = useRef(hash);
   useEffect(() => {
     if (hash === linked.current) return;
     linked.current = hash;
-    if (hash !== "") setShown(fromHash(hash));
+    // a tab switch or a link: the same thing already on screen keeps its pane and its place
+    setShown((s) => { const next = hash === "" ? START : fromHash(hash); return JSON.stringify(next.route) === JSON.stringify(s.route) ? s : { ...next, pane: s.pane, terminalId: s.terminalId }; });
   }, [hash]);
+  // what is open follows into the tab strip and the address, so each chat is a tab and coming back lands on it
+  const openedRef = useRef(opened);
+  openedRef.current = opened;
+  const routeKey = shown.route.view === "chat" ? `t:${shown.route.threadId ?? ""}` : shown.route.view === "new" ? "new" : shown.route.view === "task" ? `k:${shown.route.taskId}` : shown.route.view === "tasks" ? "tasks" : shown.route.view === "threads" ? "threads" : "";
+  useEffect(() => {
+    const report = openedRef.current;
+    if (!report || routeKey === "") return;
+    if (routeKey === "new") report({});
+    else if (routeKey === "tasks") report({ screen: "tasks.my-work" });
+    else if (routeKey === "threads") report({ screen: "chats.threads" });
+    else if (routeKey.startsWith("t:") && routeKey !== "t:") report({ subject: { type: "thread", id: routeKey.slice(2) } });
+    else if (routeKey.startsWith("k:")) report({ subject: { type: "task", id: routeKey.slice(2) } });
+  }, [routeKey]);
   // An Ask link names an agent and an object; the thread it opens is found or made, then shown as a chat.
   const asking = shown.route.view === "ask" ? shown.route : null;
   useEffect(() => {
@@ -128,11 +148,14 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const narrow = width > 0 && width < WIDE;
 
   /* ---------- the sidebar: registered in the shell's shared place sidebar slot (collapse, search and the phone list are the slot's) ---------- */
-  const side = useMemo(() => wireSidebar(rt, go), [rt, go]);
+  const side = useMemo(() => {
+    const base = wireSidebar(rt, go);
+    return { ...base, people: list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name })), nav: { ...base.nav, openTasks: () => act({ t: "tasks" }), openThreads: () => act({ t: "threads" }), openNew: () => act({ t: "new" }) } };
+  }, [rt, go, act, list]);
 
   /* ---------- the open chat ---------- */
   const recent = useLive<RecentOut>(rt.screens, "chats.sidebar", "recent", { filter: "all" });
-  const threadId = route.view === "chat" ? (route.threadId ?? newestThread(recent.status === "ready" ? recent.data : undefined)) : null;
+  const threadId = route.view === "chat" ? route.threadId : null;
   const thread = useLive<ThreadOut>(rt.screens, "chats.conversation", "thread", threadId === null ? null : { threadId });
   if (thread.status === "ready" && threadId !== null) noteThreadKind(threadId, thread.data.thread.kind);
   const lead = thread.status === "ready" && threadId !== null ? (thread.data.thread.agents.find((a) => a.mode === "lead") ?? thread.data.thread.agents[0]) : undefined;
@@ -177,16 +200,19 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   else if (route.view === "imported") main = <ImportedSession key={route.conversationId} conversationId={route.conversationId} data={importedData} />;
   else if (route.view === "helper") main = helperId === "" ? <HelperChatLoading /> : <HelperChat key={helperId} data={helper} />;
   else if (route.view === "agent") main = agentId === "" ? <AgentPageLoading /> : <AgentPage key={agentId} data={agentPage} initialTab={route.tab ?? "chats"} {...(window ? { window } : {})} />;
+  else if (route.view === "tasks") main = <TasksRoute rt={rt} />;
+  else if (route.view === "task") main = <TaskRouteLeaf rt={rt} taskId={route.taskId} onBack={() => act({ t: "tasks" })} />;
+  else if (route.view === "threads") main = <ThreadsPage rt={rt} nameOf={nameOf} openChat={go.thread} />;
+  else if (route.view === "new") {
+    const agentRows = list.filter((p) => p.kind === "agent").map((p) => ({ id: p.id, name: p.name }));
+    const people = list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name }));
+    main = <Landing rt={rt} nameOf={nameOf} kindOf={(id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person")} agents={agentRows} people={people} openChat={go.chat} openTasks={() => act({ t: "tasks" })} openNeed={(id) => go.needs(id)} openProfile={(id) => { if (byId.get(id)?.kind === "agent") go.agent(id); }} fill={(t) => fill.set(t)} newKey={newKey} say={setLine} />;
+  }
   else if (conv) {
     const work = thread.status === "ready" ? workOf(thread.data.thread) : null;
     main = work && width >= WORKSPACE_MIN_W ? <Workspace rt={rt} work={work}><Conversation key={conv.threadId} data={conv} /></Workspace> : <Conversation key={conv.threadId} data={conv} />;
   }
-  else if (threadId === null && recent.status === "ready") {
-    // A Space with no chats yet: the shared empty state with the way to start one, not a skeleton for ever.
-    main = <States kind="empty" title="No chats yet." icon="chat" action={{ label: "New chat", onPress: () => go.agentChat(rt.assistant.id) }} />;
-  } else if (threadId === null && recent.status === "loading" && recent.error) {
-    main = <States kind="error" message="Couldn't load your chats" cause={recent.error.message} {...(recent.error.traceId ? { traceId: recent.error.traceId } : {})} retryable />;
-  } else main = <ConversationLoading />;
+  else main = <ConversationLoading />;
 
   /* ---------- the right ---------- */
   let right: ReactElement | null = null;

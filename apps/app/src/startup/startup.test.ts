@@ -57,10 +57,11 @@ test("no network on the critical path: fetch, WebSocket and XMLHttpRequest are n
   }
 });
 
-test("the last place comes from persisted state, else Home", () => {
+test("the last place comes from persisted state, else Chats; a saved Home is Chats", () => {
   assert.equal(resolveLastPlace("records"), "records");
-  assert.equal(resolveLastPlace("nonsense"), "home");
-  assert.equal(resolveLastPlace(null), "home");
+  assert.equal(resolveLastPlace("nonsense"), "chat");
+  assert.equal(resolveLastPlace("home"), "chat");
+  assert.equal(resolveLastPlace(null), "chat");
   const h = harness("records");
   assert.equal(startup(h.deps).place, "records");
   assert.ok(h.log.includes(`sql ${FIRST_LIST_SQL.records}`));

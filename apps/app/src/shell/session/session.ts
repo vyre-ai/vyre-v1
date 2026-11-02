@@ -84,7 +84,7 @@ const loadScreens = (): Promise<ReadonlyMap<string, ScreenIndexEntry>> => import
 
 type Out<C extends keyof CapMap> = CapMap[C]["out"];
 
-/** The rail place a screen belongs to, by the screen's place field. */
+/** The rail place a screen belongs to, by the screen's place field. The task screens still say "home": the hub lands them in Chats. */
 const RAIL_PLACES: readonly PlaceId[] = ["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings", "console"];
 const railPlace = (p: string): PlaceId | null => (RAIL_PLACES as readonly string[]).includes(p) ? (p as PlaceId) : null;
 

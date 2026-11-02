@@ -20,7 +20,7 @@ export interface WorkingMarkProps {
 }
 
 const V = "M5.2 6.4l6.3 11.2 4.9-8.6";
-const DOT = "#7C6CF0";
+const DOT = "var(--beacon)";
 
 export const WORKING_MARK_CSS = [
   ".vyre-wm .vyre-wm-dot{transform-box:fill-box;transform-origin:center}",

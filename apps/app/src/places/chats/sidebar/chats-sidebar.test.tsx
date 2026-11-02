@@ -28,23 +28,21 @@ const recentNow = (s: SampleSidebar): RecentOut => {
 };
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-test("the sections render from the Northwind sample, in the spec's order", () => {
+test("the sections render from the Northwind sample, in the prototype's order", () => {
   const out = html(createSampleSidebar());
-  const heads = ["head-needs", "head-faces", "head-channels", "head-recent"].map((id) => at(out, `data-testid="${id}"`));
-  assert.deepEqual([...heads].sort((a, b) => a - b), heads, "Needs you, Agents, Channels, Chats (ruling 45)");
-  for (const text of ["Needs you", "Agents", "Chats", "Channels", "Northwind", "All agents"]) assert.ok(out.includes(text), text);
-  // The title, the collapse button and the search field are the shared slot's now (the next tests); the content draws none of them.
+  const heads = ["row-nav:tasks", "row-nav:threads", "head-recent", "head-channels", "head-faces"].map((id) => at(out, `data-testid="${id}"`));
+  assert.deepEqual([...heads].sort((a, b) => a - b), heads, "Tasks, Threads, Recent, Channels, Agents");
+  for (const text of ["Tasks", "Threads", "Recent", "Agents", "Channels", "Northwind"]) assert.ok(out.includes(text), text);
+  // The title, the hide button are the shared slot's; there is one search, Cmd-K, so the content draws neither.
   assert.ok(!out.includes("sidebar-toggle") && !out.includes("Hide the sidebar") && !out.includes("Search"), "no frame of its own");
   assert.ok(!out.includes(String.fromCharCode(0x2014)), "no em dash in any copy");
   assert.ok(!out.includes("chats-sidebar-loading"));
 });
 
-test("Needs you lists every request that waits, with the count (ruling 45: the prototype lists all seven)", () => {
+test("Tasks counts everything you owe: what needs you lives there, not as rows here", () => {
   const out = html(createSampleSidebar());
-  assert.ok(at(out, "Send 12 invoices") < at(out, "Rivera engagement letter"));
-  assert.ok(out.includes('data-testid="count-needs"') && out.includes(">7<"));
-  assert.ok(out.includes("Approve") && out.includes("Blocked"));
-  for (const title of ["Pruitt intake summary", "Send the ATP reminder", "Problem report from Omar", "Month-end export"]) assert.ok(out.includes(title), title);
+  assert.ok(out.includes('data-testid="count-tasks"'));
+  assert.ok(!out.includes("Send 12 invoices") && !out.includes('data-testid="head-needs"'), "no Needs you section");
 });
 
 test("Starred agent faces come first, each a row with its face; the working one is ringed", () => {
@@ -53,14 +51,10 @@ test("Starred agent faces come first, each a row with its face; the working one 
   assert.ok(out.includes('data-testid="pulse"'), "Intake is working");
 });
 
-test("Chats are grouped Starred, Today, Yesterday, Earlier", () => {
+test("Recent shows three, then N more; pressing it shows the rest", () => {
   const out = html(createSampleSidebar());
-  const g = ["Starred", "Today", "Yesterday", "Earlier"].map((l) => at(out, `data-testid="group-${l}"`));
-  assert.deepEqual([...g].sort((a, b) => a - b), g);
-  assert.ok(at(out, "Competitor pricing") > g[0]! && at(out, "Competitor pricing") < g[1]!, "the starred chat sits under Starred");
-  assert.ok(at(out, "Rivera intake") > g[1]! && at(out, "Rivera intake") < g[2]!);
-  assert.ok(at(out, "Omar Haddad") > g[2]! && at(out, "Omar Haddad") < g[3]!);
-  assert.ok(at(out, "Plan the Q4 offsite") > g[3]!);
+  assert.ok(out.includes('data-testid="row-m:recent"'));
+  assert.ok(!out.includes('data-testid="group-Starred"'), "no date groups");
 });
 
 test("unread chats carry a dot and channels a count; Projects sit under Channels", () => {
@@ -78,10 +72,10 @@ test("Personal: a personal Space has no Needs you and no Channels", () => {
   assert.ok(!out.includes("other-space-dot"));
 });
 
-test("Harbor Studio is the prototype's: Scheduler and Proofer, two Needs you, studio and galleries, the Moreno chats", () => {
+test("Harbor Studio draws its own: Scheduler, studio and galleries, none of the Personal chats", () => {
   const out = html(createSampleSidebar(harbor));
-  for (const text of ["Harbor Studio", "Scheduler", "Proofer", "Send the Moreno gallery", "Saturday call sheet", "studio", "galleries", "Moreno shoot Saturday", "Moreno gallery", "Theo Lindqvist", "Studio gear list"]) assert.ok(out.includes(text), text);
-  assert.ok(out.includes('data-testid="head-needs"') && out.includes('data-testid="head-channels"'));
+  for (const text of ["Harbor Studio", "Scheduler", "studio", "galleries"]) assert.ok(out.includes(text), text);
+  assert.ok(out.includes('data-testid="head-channels"'));
   assert.ok(!out.includes("Flights to Kuala Lumpur"), "none of the Personal chats");
 });
 
@@ -89,7 +83,7 @@ test("before the data arrives the sidebar draws its loading frame; offline it sa
   assert.ok(renderToStaticMarkup(<ChatsSidebar />).includes("chats-sidebar-loading"));
   const s = createSampleSidebar(northwind, { online: false });
   const out = html(s);
-  assert.ok(out.includes("sidebar-offline") && out.includes("Rivera intake"));
+  assert.ok(out.includes("sidebar-offline") && out.includes("Tasks"));
 });
 
 test("star, mark read and approve change what the next render shows", async () => {
@@ -107,7 +101,6 @@ test("star, mark read and approve change what the next render shows", async () =
   assert.deepEqual(s.rejected, [], "every read the sidebar sent was accepted by the generated validators");
   const need = (s.data.screens.query("home.needs-you-top3", "items", { limit: 3 }).getSnapshot() as { data: { items: Parameters<typeof api.act>[0][] } }).data.items[0]!;
   await api.act(need);
-  assert.ok(!html(s).includes("Send 12 invoices"), "an approved request leaves the sidebar");
   assert.deepEqual(s.calls.map((c) => c.cap), ["stars.toggle", "threads.mark_read", "stars.toggle", "tasks.act"]);
 });
 
@@ -137,20 +130,20 @@ const registered = (s: SampleSidebar, query: string, slot: SidebarSlotApi = slot
   return { entry: { title: el.props.title, ...(el.props.searchPlaceholder ? { searchPlaceholder: el.props.searchPlaceholder } : {}) }, out: renderToStaticMarkup(content).replaceAll("<!-- -->", "") };
 };
 
-test("the sidebar registers in the shared slot as Chats with the Search chats field, and draws all its rows inside it", () => {
+test("the sidebar registers in the shared slot as Chats with no search of its own, and draws all its rows inside it", () => {
   const { entry, out } = registered(createSampleSidebar(), "");
-  assert.deepEqual(entry, { title: "Chats", searchPlaceholder: "Search chats" });
-  for (const text of ["Needs you", "Send 12 invoices", "Intake", "Competitor pricing", "Rivera intake", "rivera-matter"]) assert.ok(out.includes(text), text);
-  assert.ok(out.includes('data-testid="new-chat"') && out.includes('data-testid="filter-chats"'), "the assistant's new chat and the filter keep their place");
+  assert.deepEqual(entry, { title: "Chats" });
+  for (const text of ["Tasks", "Threads", "Intake", "rivera-matter"]) assert.ok(out.includes(text), text);
+  assert.ok(out.includes('data-testid="new-menu"') && out.includes('data-testid="filter-chats"'), "filter and New keep their place");
 });
 
-test("the slot's search field narrows Needs you, Agents, Channels and Chats; a word nothing holds leaves only the section heads", () => {
+test("the query narrows Agents, Channels and Chats; a word nothing holds leaves only the section heads", () => {
   const s = createSampleSidebar();
   const out = registered(s, "rivera").out;
-  assert.ok(out.includes("Rivera intake") && out.includes("rivera-matter") && out.includes("Rivera engagement letter"));
-  assert.ok(!out.includes("Competitor pricing") && !out.includes("Send 12 invoices") && !out.includes("data-testid=\"face-Billing\""));
+  assert.ok(out.includes("Rivera intake") && out.includes("rivera-matter"));
+  assert.ok(!out.includes("Competitor pricing") && !out.includes("data-testid=\"face-Billing\""));
   const none = registered(s, "zzzz").out;
-  assert.ok(!none.includes("Rivera intake") && !none.includes("rivera-matter") && !none.includes('data-testid="head-needs"'));
+  assert.ok(!none.includes("Rivera intake") && !none.includes("rivera-matter") && !none.includes('data-testid="row-nav:tasks"'));
   assert.equal(registered(s, "  ").out, registered(s, "").out, "blank text is no search");
   assert.ok(matchesQuery("pric comp", "Competitor pricing") && !matchesQuery("pric zzz", "Competitor pricing") && matchesQuery("", "x"));
 });
@@ -173,7 +166,7 @@ test("the inputs the Chats sidebar and All agents send are accepted by the gener
 test("the Agents group shows the first agents and an All agents row for the rest", () => {
   const agent = (n: number) => ({ agentId: `a${n}`, name: `Agent ${n}` }) as never;
   const faces = Array.from({ length: FACES_SHOWN }, (_, n) => agent(n));
-  const base = { needs: [], needsTotal: 0, faces, workingAgents: new Set<string>(), groups: [], channels: [], filter: "all" as const, closed: new Set<never>() };
+  const base = { moreAgents: true, faces, workingAgents: new Set<string>(), groups: [], channels: [], filter: "all" as const, closed: new Set<never>() };
   const withMore = buildEntries({ ...base, facesMore: 5 });
   const more = withMore.find((e) => e.type === "more");
   assert.ok(more && more.type === "more" && more.label === `All agents (${FACES_SHOWN + 5})`);
@@ -188,17 +181,17 @@ test("a failed read puts one compact row under that section's head, the rest sti
   const s = createSampleSidebar();
   const agents = failing(s, "chats.all-agents");
   const at2 = (n: string): number => { const i = agents.indexOf(n); assert.ok(i >= 0, n); return i; };
-  assert.ok(at2('data-testid="head-faces"') < at2('data-testid="section-error-faces"') && at2('data-testid="section-error-faces"') < at2('data-testid="head-channels"'), "the error row sits under the Agents head, before Channels");
+  assert.ok(at2('data-testid="head-faces"') < at2('data-testid="section-error-faces"'), "the error row sits under the Agents head");
   assert.ok(agents.includes("load agents") && agents.includes('data-testid="retry-faces"') && agents.includes('data-testid="error-more-faces"'), "one row: the words, Retry and the details menu");
   assert.ok(!agents.includes("trace-1") && !agents.includes('data-testid="state-error"'), "the cause and trace id are behind the menu, no States block");
-  assert.ok(agents.includes("Rivera intake") && agents.includes("rivera-matter") && agents.includes("Send 12 invoices"), "chats, channels and Needs you still draw");
+  assert.ok(agents.includes("rivera-matter") && agents.includes("Recent"), "chats and channels still draw");
   assert.ok(!agents.includes("chats-sidebar-loading") && !agents.includes("No chats yet"), "no skeleton, no empty state");
   const chats = failing(s, "chats.sidebar");
   const ci = (n: string): number => chats.indexOf(n);
   assert.ok(ci('data-testid="head-recent"') >= 0 && ci('data-testid="head-recent"') < ci('data-testid="section-error-recent"'), "the Chats error row is under the Chats head");
   assert.ok(chats.includes("load chats") && chats.includes("load channels"), "both reads of that screen say so, each under its own head");
   assert.ok(!chats.includes("No chats yet") && !chats.includes("Nothing here") && !chats.includes("chats-sidebar-loading"), "a failed Chats read is not 'No chats yet'");
-  assert.ok(chats.includes("Send 12 invoices"), "Needs you still draws");
+  assert.ok(chats.includes("Tasks"), "Tasks still draws");
 });
 
 test("Retry asks the live reads to read again; a stand-in without that has nothing to re-ask", () => {

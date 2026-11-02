@@ -42,7 +42,7 @@ export function placeOf(e: Entry): { place: PlaceId; hash: string } | null {
   if (kind === "you") {
     const what = e.screen.slice(i + 1);
     if (what === "settings") return { place: "settings", hash: "" };
-    return { place: "home", hash: "" };
+    return { place: "chats", hash: "screen=tasks.my-work" };
   }
   const place = placeForSubject(kind);
   return place ? { place: place as PlaceId, hash: formatHash({ subject: { type: kind, id: e.screen.slice(i + 1) } }) } : null;

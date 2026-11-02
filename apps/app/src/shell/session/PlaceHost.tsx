@@ -4,6 +4,7 @@ import { ConnectInlineHost } from "../connect/ConnectInline.tsx";
 import { Component, Suspense, lazy, useCallback, useEffect, useRef } from "react";
 import type { ComponentType, ErrorInfo, LazyExoticComponent, ReactElement, ReactNode } from "react";
 import { States } from "../../../../../ui/src/States/index.tsx";
+import { Quiet } from "../../../../../ui/src/States/Quiet.tsx";
 import { screenFromHash, setScreenContext } from "../ask/screen.ts";
 import { PlaceHashProvider } from "../hash/context.tsx";
 import type { PlaceHash } from "../hash/context.tsx";
@@ -84,7 +85,7 @@ export function PlaceHost({ place, runtime, hash = "", opened }: { place: PlaceI
   const body = (
     <PlaceHashProvider hash={hash} opened={stable}>
       <PlaceBoundary key={routeId} place={routeId}>
-        <Suspense fallback={null}>
+        <Suspense fallback={<Quiet />}>
           <Place place={routeId} />
           <ScreenSignal place={place} hash={hash} />
           <Usable place={routeId} spaceId={runtime?.space.id ?? null} />

@@ -10,14 +10,14 @@ export type ChatMode = "ask" | "auto" | "plan";
 export interface ModeInfo { id: ChatMode; label: string; note: string }
 
 export const MODES: readonly ModeInfo[] = [
-  { id: "ask", label: "Ask first", note: "Asks before it changes or sends anything" },
   { id: "auto", label: "Auto", note: "Acts on its own; still asks before anything leaves Vyre" },
+  { id: "ask", label: "Ask first", note: "Asks before it changes or sends anything" },
   { id: "plan", label: "Plan", note: "Writes a plan first; nothing runs until you approve" },
 ];
 
 export const modeInfo = (m: ChatMode): ModeInfo => MODES.find((x) => x.id === m) ?? (MODES[0] as ModeInfo);
 
-/** Shift+Tab: Ask first, Auto, Plan, and round again. */
+/** Shift+Tab: Auto, Ask first, Plan, and round again. */
 export function nextMode(m: ChatMode): ChatMode {
   const i = MODES.findIndex((x) => x.id === m);
   return (MODES[(i + 1) % MODES.length] as ModeInfo).id;
@@ -34,15 +34,31 @@ export const EFFORTS: readonly { id: Effort; label: string; note: string }[] = [
   { id: "max", label: "Max", note: "deepest" },
 ];
 
+/** The effort levels a provider offers, in the words it uses. The engine's values stay the same four. */
+export function effortsFor(provider: string | undefined): readonly { id: Effort; label: string; note: string }[] {
+  const p = (provider ?? "").toLowerCase();
+  if (p === "openai" || p === "codex" || p === "chatgpt") return EFFORTS.slice(0, 3);
+  if (p === "grok" || p === "xai") return [{ id: "medium", label: "Normal", note: "balanced" }, { id: "high", label: "Deep", note: "thorough" }];
+  return EFFORTS;
+}
+
+/** What a provider calls its limits. A meter the engine has no number for is never drawn. */
+export function limitWords(provider: string | undefined): { session: string; week: string } {
+  const p = (provider ?? "").toLowerCase();
+  if (p === "openai" || p === "codex" || p === "chatgpt") return { session: "5 hours", week: "Week" };
+  if (p === "grok" || p === "xai") return { session: "Today", week: "Week" };
+  return { session: "Session", week: "Week" };
+}
+
 /** Bars lit for an effort: 1 to 4. Unknown is the engine's default, Medium. */
 export function effortBars(e: Effort | undefined): number {
   const i = EFFORTS.findIndex((x) => x.id === e);
   return i < 0 ? 2 : i + 1;
 }
 
-/** Keys 1 to 4 in the model panel. */
-export function effortForKey(key: string): Effort | null {
-  return /^[1-4]$/.test(key) ? (EFFORTS[Number(key) - 1] as { id: Effort }).id : null;
+/** Keys 1 to 4 in the model menu, as far as the provider's levels go. */
+export function effortForKey(key: string, levels: readonly { id: Effort }[] = EFFORTS): Effort | null {
+  return /^[1-4]$/.test(key) ? levels[Number(key) - 1]?.id ?? null : null;
 }
 
 /* ---------- who answers ---------- */
@@ -85,11 +101,11 @@ export function stripName(list: readonly ComposerAgent[]): string {
 
 /* ---------- the context ring ---------- */
 
-/** The ring next to Send: quiet until the context is past half full, amber past 80 percent. Null hides it (and a context the engine never reported). */
+/** The ring in the model pill: quiet until the context is past 60 percent, amber past 80. Null hides it (and a context the engine never reported). */
 export function contextRing(ctx: { used: number; window: number } | null | undefined): { pct: number; warn: boolean } | null {
   if (!ctx || !(ctx.window > 0) || !(ctx.used >= 0)) return null;
   const pct = Math.min(1, ctx.used / ctx.window);
-  if (pct <= 0.5) return null;
+  if (pct <= 0.6) return null;
   return { pct, warn: pct > 0.8 };
 }
 

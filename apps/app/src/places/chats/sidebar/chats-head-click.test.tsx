@@ -8,7 +8,7 @@ import { installDom, mount, press, find, flush } from "../../../onboarding/test-
 import { ChatsSidebar } from "./ChatsSidebar.tsx";
 import { createSampleSidebar } from "./sample.ts";
 
-test("pressing the Chats head folds the chats and pressing it again brings them back", async () => {
+test("pressing the Recent head folds its chats and pressing it again brings them back", async () => {
   installDom();
   const s = createSampleSidebar();
   const root = await mount(createRoot, <ChatsSidebar data={s.data} window={{ start: 0, end: 500 }} />);
@@ -20,7 +20,7 @@ test("pressing the Chats head folds the chats and pressing it again brings them 
   assert.ok(before > 0, "the sample Space has chats under the head");
   await press(find(root, "toggle-recent"));
   await flush();
-  assert.equal(rowIds().length, 0, "folded: no chat rows");
+  assert.ok(rowIds().length < before, "folded: its rows are gone");
   await press(find(root, "toggle-recent"));
   await flush();
   assert.equal(rowIds().length, before, "open again: the chats are back");

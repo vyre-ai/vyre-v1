@@ -217,5 +217,7 @@ test("state sits on the face: a moving ring working, an amber ring waiting, a gr
   assert.match(wait, /vyre-face-ring vyre-waiting vyre-round/);
   assert.match(renderToStaticMarkup(<Avatar name="Mira" kind="agent" state="done" />), /avatar-Mira-done/);
   assert.doesNotMatch(renderToStaticMarkup(<Avatar name="Mira" kind="agent" />), /vyre-face-ring/);
-  assert.match(FACE_STATE_CSS, /var\(--accent\) 78%,var\(--beacon\) 100%/, "the ring runs iris into coral");
+  assert.match(FACE_STATE_CSS, /var\(--accent\) 75%,var\(--beacon\) 100%/, "the ring runs iris into coral");
+  assert.match(FACE_STATE_CSS, /to\{--vyre-ra:360deg\}/, "the colour travels; the ring does not rotate");
+  assert.doesNotMatch(FACE_STATE_CSS, /rotate\(/);
 });

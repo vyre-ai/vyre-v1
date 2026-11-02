@@ -24,13 +24,15 @@ export const AVATAR_DEFAULT_SIZE = 18;
 
 const web = Platform.OS === "web";
 
-/** The working ring runs iris into coral, ours and nobody else's; the waiting ring is amber. CSS only, so a list of faces costs no frames and nothing restarts on a re-render. */
+/** The ring follows the face's shape, a rounded square on agents and a circle on people. It stays still and the colour travels round it, iris into coral, ours and nobody else's: an animated conic angle behind a
+ * border-only mask, never a rotating element. The waiting ring is amber. CSS only, so a list of faces costs no frames and nothing restarts on a re-render. */
 export const FACE_STATE_CSS = [
-  "@keyframes vyre-face-spin{to{transform:rotate(360deg)}}",
-  ".vyre-face-ring{position:absolute;inset:-3px;border-radius:42%;pointer-events:none}",
+  "@property --vyre-ra{syntax:\"<angle>\";inherits:false;initial-value:0deg}",
+  "@keyframes vyre-ring-turn{to{--vyre-ra:360deg}}",
+  ".vyre-face-ring{position:absolute;inset:-2.5px;border-radius:calc(30% + 2px);pointer-events:none}",
   ".vyre-face-ring.vyre-round{border-radius:50%}",
-  ".vyre-face-ring.vyre-working{background:conic-gradient(from 0deg,transparent 0 50%,var(--accent) 78%,var(--beacon) 100%);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 1.6px),#000 calc(100% - 1.6px));mask:radial-gradient(farthest-side,transparent calc(100% - 1.6px),#000 calc(100% - 1.6px));animation:vyre-face-spin 3.2s linear infinite}",
-  ".vyre-face-ring.vyre-waiting{box-shadow:inset 0 0 0 1.6px var(--warn)}",
+  ".vyre-face-ring.vyre-working{padding:1.5px;background:conic-gradient(from var(--vyre-ra),transparent 0 45%,var(--accent) 75%,var(--beacon) 100%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);animation:vyre-ring-turn 2.6s linear infinite}",
+  ".vyre-face-ring.vyre-waiting{box-shadow:inset 0 0 0 1.5px var(--warn)}",
   "@media (prefers-reduced-motion:reduce){.vyre-face-ring.vyre-working{animation:none}}",
 ].join("\n");
 

@@ -1,0 +1,3 @@
+- Home is gone. Chats opens on a new chat, with what needs you and what is running under the composer, and Tasks and Threads sit at the top of the sidebar. The sidebar reads Now, Recent, Channels, People, Agents and hides with Cmd-Shift-Backslash in every place.
+- The composer is one line. Its model menu holds the mode, provider, model, effort, where the chat runs, limits and Compact.
+- The rail keeps the main places and one foot button that opens upward. The working ring stays still while the colour travels round it, and tab switches fade with no blank frame.

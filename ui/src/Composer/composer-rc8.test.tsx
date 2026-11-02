@@ -44,7 +44,6 @@ test("the agent strip shows only when an AI will answer: the lead; an @mentioned
   const lead = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} />));
   assert.match(lead, /data-testid="composer-strip"/);
   assert.match(lead, /Intake will answer on Sonnet 5\.5, high effort/);
-  assert.match(lead, /data-brand="claude"/, "the provider's logo");
   assert.match(lead, /aria-label="Effort 3 of 4"/, "effort bars");
   const people = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={agents} />));
   assert.doesNotMatch(people, /composer-strip/, "people only: no strip");
@@ -58,11 +57,11 @@ test("the agent strip shows only when an AI will answer: the lead; an @mentioned
   assert.deepEqual(answering(["Nobody"], agents), [{ id: "Nobody", name: "Nobody" }], "an agent the place knows nothing about still shows by name");
 });
 
-test("the account name shows on the strip only when it is given (two accounts of one provider), and the ring only past half, amber past 80 percent", () => {
+test("the account name shows on the pill only when it is given (two accounts of one provider), and the ring only past 60 percent, amber past 80", () => {
   const two = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={[{ ...agents[0]!, accountName: "MLA work" }]} />));
   assert.match(two, /Sonnet 5\.5 · MLA work/);
-  assert.equal(contextRing({ used: 50, window: 100 }), null);
-  assert.deepEqual(contextRing({ used: 60, window: 100 }), { pct: 0.6, warn: false });
+  assert.equal(contextRing({ used: 60, window: 100 }), null);
+  assert.deepEqual(contextRing({ used: 70, window: 100 }), { pct: 0.7, warn: false });
   assert.deepEqual(contextRing({ used: 85, window: 100 }), { pct: 0.85, warn: true });
   assert.equal(contextRing(null), null);
   assert.match(two, /data-testid="composer-ring"/);
@@ -71,20 +70,24 @@ test("the account name shows on the strip only when it is given (two accounts of
   assert.doesNotMatch(low, /composer-ring/);
 });
 
-test("the mode chip shows with an AI and a mode, and Shift+Tab cycles Ask first, Auto, Plan", async () => {
-  assert.equal(nextMode("ask"), "auto");
-  assert.equal(nextMode("auto"), "plan");
-  assert.equal(nextMode("plan"), "ask");
+test("the mode chip shows only when the mode is not Auto, the runs chip only when given, and Shift+Tab cycles Auto, Ask first, Plan", async () => {
+  assert.equal(nextMode("auto"), "ask");
+  assert.equal(nextMode("ask"), "plan");
+  assert.equal(nextMode("plan"), "auto");
   const out = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} mode="auto" onMode={() => undefined} />));
-  assert.match(out, /aria-label="Mode: Auto\. Acts on its own; still asks before anything leaves Vyre\. Shift Tab to change\."/);
+  assert.doesNotMatch(out, /composer-mode/, "Auto says nothing");
+  assert.doesNotMatch(out, /composer-runs/);
+  const asked = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} mode="ask" onMode={() => undefined} runsChip="Northwind" />));
+  assert.match(asked, /data-testid="composer-mode"/);
+  assert.match(asked, />On Northwind</);
   await withDom(async () => {
     const modes: ChatMode[] = [];
     function Host(): ReactElement { const [m, setM] = useState<ChatMode>("ask"); return <Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} mode={m} onMode={(x) => { modes.push(x); setM(x); }} />; }
     const root = await mount(createRoot, <Host />);
     await keyDown(find(root, "composer-field"), "Tab", { shiftKey: true });
     await keyDown(find(root, "composer-field"), "Tab", { shiftKey: true });
-    await press(find(root, "composer-mode"));
-    assert.deepEqual(modes, ["auto", "plan", "ask"]);
+    await keyDown(find(root, "composer-field"), "Tab", { shiftKey: true });
+    assert.deepEqual(modes, ["plan", "auto", "ask"]);
   });
 });
 
@@ -123,6 +126,7 @@ test("the model panel opens from the strip and stays open while you pick account
     assert.equal(find(root, "model-panel"), null);
     await press(find(root, "composer-strip"));
     assert.ok(find(root, "model-panel"), "open");
+    await press(find(root, "model-model"));
     await press(find(root, "row-model-sonnet"));
     await press(find(root, "model-effort-max"));
     await keyDown(find(root, "model-panel"), "1");
@@ -135,7 +139,7 @@ test("the model panel opens from the strip and stays open while you pick account
   });
 });
 
-test("the account flyout lists only the connected accounts, by the names given, plus Add another AI provider", async () => {
+test("the Provider submenu lists only the connected accounts, by the names given, plus Connect another; the Model list follows", async () => {
   await withDom(async () => {
     const log: string[] = [];
     const root = await mount(createRoot, <PanelHost log={log} usageOf={() => null} />);
@@ -143,13 +147,14 @@ test("the account flyout lists only the connected accounts, by the names given, 
     assert.equal(find(root, "model-accounts"), null);
     await press(find(root, "model-account"));
     const list = textOf(find(root, "model-accounts"));
-    for (const n of ["Personal", "MLA work", "ChatGPT Plus", "Add another AI provider"]) assert.ok(list.includes(n), n);
+    for (const n of ["Personal", "MLA work", "ChatGPT Plus", "Connect another"]) assert.ok(list.includes(n), n);
     assert.ok(!list.includes("Grok"), "a provider that is not connected is not listed");
     await press(find(root, "row-model-account-#gpt"));
     assert.deepEqual(log, ["account:#gpt"]);
     assert.ok(find(root, "row-model-gpt-5"), "the models follow the account's provider");
     assert.equal(find(root, "row-model-opus"), null);
     assert.ok(find(root, "model-panel"), "picking an account keeps the panel open");
+    assert.equal(find(root, "model-effort-max"), null, "ChatGPT has no Max: effort follows the provider");
     await press(find(root, "model-account"));
     await press(find(root, "model-add-provider"));
     assert.deepEqual(log.at(-1), "add");
@@ -167,10 +172,11 @@ test("usage follows the selected account and model, and a meter the engine did n
     const root = await mount(createRoot, <PanelHost log={log} usageOf={(r) => usage[r] ?? null} />);
     await press(find(root, "composer-strip"));
     assert.match(textOf(find(root, "meter-context")), /84k.*200k/);
-    assert.match(textOf(find(root, "meter-session")), /88%/);
-    assert.match(textOf(find(root, "meter-week")), /41%/);
+    assert.match(textOf(find(root, "meter-session")), /Session.*resets/);
+    assert.match(textOf(find(root, "meter-week")), /Week.*resets/);
     assert.ok(find(root, "model-low"), "running low on Personal");
     assert.match(textOf(find(root, "model-low")), /Use MLA work · 22%/, "suggests the least used other account");
+    await press(find(root, "model-model"));
     await press(find(root, "row-model-sonnet"));
     assert.match(textOf(find(root, "meter-context")), /84k.*1M/, "the window follows the model");
     await press(find(root, "model-low-switch"));
@@ -268,7 +274,6 @@ test("while it works: Stop with nothing typed; Queue and Now once you type, send
   await withDom(async () => {
     const log: string[] = [];
     const root = await mount(createRoot, <Composer whoWillAnswer="" lead="Intake" lists={lists} working onStop={() => log.push("stop")} onSubmit={(p) => log.push(`${p.mode}:${p.text}`)} onInterrupt={(p) => log.push(`${p.mode}:${p.text}`)} />);
-    assert.ok(find(root, "composer-working-light"), "the working light");
     assert.equal(find(root, "composer-send")!.props["aria-label"], "Stop");
     await press(find(root, "composer-send"));
     const field = find(root, "composer-field");

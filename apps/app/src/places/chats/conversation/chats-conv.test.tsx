@@ -291,10 +291,10 @@ test("find in chat: matches are ignoring case and accents, counted, and stepped"
   assert.deepEqual(findMatches([{ ...all[0]!, body: "Café Rivera" }], "cafe"), ["m1"]);
 });
 
-test("the composer's agent strip names who answers and on what model (Opus), with the computer button; its placeholder names who answers", () => {
+test("the composer's pill names who answers and on what model (Opus); the computer lives in the pane; its placeholder names who answers", () => {
   const s = createSample("idle");
   const out = html(s);
-  assert.ok(has(out, 'data-testid="composer-strip"') && has(out, "Intake will answer on Opus") && has(out, 'data-testid="computer-button"') && has(out, "Intake's computer"));
+  assert.ok(has(out, 'data-testid="composer-strip"') && has(out, "Intake will answer on Opus") && !has(out, 'data-testid="computer-button"'));
   assert.ok(has(out, "Message Intake…"));
   assert.equal(modelLabel("opus"), "Opus");
   assert.equal(placeholderFor(thread(s), s.data.nameOf, true), "Queue a message for when Intake finishes…");

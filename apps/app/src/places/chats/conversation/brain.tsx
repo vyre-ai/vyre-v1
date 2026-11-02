@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 // the panel and the logo table are imported on their own, so the chat page does not pull the whole composer in before the deferred one loads
 import { ModelPanel } from "../../../../../../ui/src/Composer/ModelPanel.tsx";
-import type { PanelAccount, PanelModel, PanelScope, PanelUsage } from "../../../../../../ui/src/Composer/ModelPanel.tsx";
+import type { PanelAccount, PanelModel, PanelRuns, PanelScope, PanelUsage } from "../../../../../../ui/src/Composer/ModelPanel.tsx";
 import { brandOf } from "../../../../../../ui/src/Composer/parts.tsx";
 import type { ChatMode, ComposerAgent, Effort } from "../../../../../../ui/src/Composer/brain.ts";
 import { isAssistantId } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -128,7 +128,7 @@ export function stripAgents(thread: Thread, nameOf: (id: string) => string, acco
 }
 
 /** The connected accounts, read once per conversation and again when one is connected in place. */
-export function useAccounts(data: Pick<ConversationData, "call">, version = 0): PanelAccount[] | null {
+export function useAccounts(data: { call(cap: string, input: unknown): unknown }, version = 0): PanelAccount[] | null {
   const [rows, setRows] = useState<PanelAccount[] | null>(null);
   useEffect(() => {
     let live = true;
@@ -164,6 +164,9 @@ export interface ChatBrainProps {
   close(): void;
   narrow: boolean;
   say(text: string): void;
+  /** Where this chat runs (engine.placement.options). */
+  runs?: PanelRuns;
+  onCompact?(keep: string, always: boolean): void;
 }
 
 export function ChatBrain(p: ChatBrainProps): ReactElement {
@@ -264,6 +267,18 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
       onAddProvider={() => { p.close(); if (openConnect) void openConnect({ kind: "ai" }); else if (data.nav.openAiSetup) data.nav.openAiSetup(); else p.say("Open the Vault and add an AI provider."); }}
       onClose={p.close}
       narrow={p.narrow}
+      {...(p.runs ? { runs: p.runs } : {})}
+      {...(p.onCompact ? { onCompact: p.onCompact } : {})}
     />
   );
+}
+
+/* ---------- compact ---------- */
+
+/** Asks the engine to compact this chat, keeping what the person named. Where the server has no such capability yet the chat gets the command itself, which every driver with native compaction runs. */
+export async function compactChat(data: Pick<ConversationData, "call" | "threadId" | "newKey">, keep: string, always: boolean): Promise<void> {
+  await callOr(data, "engine.compact", { threadId: data.threadId, ...(keep ? { keep } : {}), always, idempotencyKey: data.newKey() }, async () => {
+    await data.call("chat.post", { threadId: data.threadId, body: keep ? `/compact ${keep}` : "/compact", idempotencyKey: data.newKey() });
+    return null;
+  });
 }

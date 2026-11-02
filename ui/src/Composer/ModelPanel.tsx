@@ -1,11 +1,10 @@
-// The model panel (rc.8 composer): opened from the agent strip. Who answers, which of your accounts pays, the model, effort, what is used of the context and the account's limits,
-// the chat's mode, and whether to switch accounts when limits run out. It stays open while you pick (only an outside click or Escape closes it) and every number follows the account
-// and model picked. Only accounts you connected are listed, by the name you gave them. A meter the engine has no number for is left out, never guessed.
+// The model menu (prototype vyre-chat): the one place to pick how a chat runs, opened from the composer. The mode tab (Auto, Ask first, Plan), then Provider and Model (each a submenu that opens to the right of
+// its row), Effort, Runs on, More, the limits as quiet meters, and Compact with what to keep. It stays open while you pick (only an outside click or Escape closes it) and everything follows the provider: its
+// models, its effort levels, the words on its limits. Only accounts you connected are listed, by the name you gave them. A meter the engine has no number for is left out, never guessed.
 import { useEffect, useRef, useState } from "react";
-import type { ReactElement } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { Avatar, avatarOf } from "../Avatar/index.tsx";
-import { EFFORTS, MODES, effortForKey, kTokens, modeInfo } from "./brain.ts";
+import type { ReactElement, ReactNode } from "react";
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { MODES, effortForKey, effortsFor, kTokens, limitWords, modeInfo } from "./brain.ts";
 import type { ChatMode, ComposerAgent, Effort } from "./brain.ts";
 import { BrandMark, I, ensureComposerCss, webOnly } from "./parts.tsx";
 import { Glyph } from "./shared.tsx";
@@ -32,6 +31,18 @@ export interface PanelUsage {
 }
 
 export type PanelScope = "chat" | "agent";
+
+/** One place a chat can run. */
+export interface RunsOption { key: string; name: string; note?: string; online: boolean; reason?: string }
+
+/** Where a chat runs, from engine.placement.options. `fixed` says why there is no choice (chats with other people always run on the Space). */
+export interface PanelRuns {
+  value: string;
+  current: string | null;
+  options: readonly RunsOption[];
+  fixed?: { name: string; note: string; line: string };
+  onPick(key: string): void;
+}
 
 export interface ModelPanelProps {
   agent: ComposerAgent;
@@ -60,6 +71,12 @@ export interface ModelPanelProps {
   narrow?: boolean;
   /** Now, for reset times ("21:40" today, "Mon" later). Tests pass a fixed one. */
   now?: number;
+  /** The Runs on row; left out where a chat has nowhere to choose. */
+  runs?: PanelRuns;
+  /** The menu opens under the composer (the first screen, where the composer sits high): submenus hang from their top. */
+  below?: boolean;
+  /** Compact the context, with what to keep and whether to keep it every time. */
+  onCompact?(keep: string, always: boolean): void;
 }
 
 const pct = (v: number): string => `${Math.round(v * 100)}%`;
@@ -103,51 +120,60 @@ function Mini({ v, testID }: { v: number | null | undefined; testID?: string }):
   );
 }
 
-function Meter({ label, value, sub, frac, testID }: { label: string; value: ReactElement | string; sub?: string; frac: number; testID: string }): ReactElement {
+function Meter({ label, value, frac, testID }: { label: string; value: string; frac: number; testID: string }): ReactElement {
   return (
-    <View style={st.meter} testID={testID}>
-      <Text style={st.meterLabel}>{label}</Text>
-      {typeof value === "string" ? <Text style={st.meterValue}>{value}</Text> : value}
+    <View style={st.lim} testID={testID}>
+      <View style={st.limHead}><Text style={st.limLabel}>{label}</Text><Text style={st.limValue}>{value}</Text></View>
       <View style={st.meterBar}><View style={[st.meterFill, { width: `${Math.round(Math.min(1, frac) * 100)}%` }, frac > 0.8 && st.warnFill]} /></View>
-      {sub ? <Text style={st.meterLabel}>{sub}</Text> : null}
     </View>
   );
 }
 
-function Seg<T extends string>({ items, on, pick, testID }: { items: readonly { id: T; label: string; note?: string }[]; on: T | undefined; pick: (id: T) => void; testID: string }): ReactElement {
+function Seg<T extends string>({ items, on, pick, testID, tight }: { items: readonly { id: T; label: string }[]; on: T | undefined; pick: (id: T) => void; testID: string; tight?: boolean }): ReactElement {
   return (
-    <View style={st.seg} testID={testID} accessibilityRole="radiogroup">
+    <View style={tight ? st.eseg : st.seg} testID={testID} accessibilityRole="radiogroup">
       {/* ui-rows-lint: not a list (segmented control choices) */}
       {items.map((x) => (
-        <Pressable key={x.id} accessibilityRole="radio" accessibilityState={{ checked: x.id === on }} accessibilityLabel={x.label} testID={`${testID}-${x.id}`} onPress={() => pick(x.id)} style={[st.segBtn, x.id === on && st.segOn]}>
-          <Text style={[st.segText, x.id === on && st.segTextOn]}>{x.label}</Text>
-          {x.note ? <Text style={st.segNote}>{x.note}</Text> : null}
+        <Pressable key={x.id} accessibilityRole="radio" accessibilityState={{ checked: x.id === on }} accessibilityLabel={x.label} testID={`${testID}-${x.id}`} onPress={() => pick(x.id)} style={[tight ? st.esegBtn : st.segBtn, x.id === on && st.segOn]}>
+          <Text style={[tight ? st.esegText : st.segText, x.id === on && st.segTextOn]}>{tight && x.label === "Medium" ? "Med" : x.label}</Text>
         </Pressable>
       ))}
     </View>
   );
 }
 
-function AccountRow({ a, on, onPress, testID, chevron }: { a: PanelAccount; on: boolean; onPress: () => void; testID: string; chevron?: boolean }): ReactElement {
+function Nav({ label, value, on, onPress, testID, lead }: { label: string; value: string; on: boolean; onPress: () => void; testID: string; lead?: ReactNode }): ReactElement {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${a.name}, ${providerTitle(a.provider)}${a.plan ? ` ${a.plan}` : ""}`} accessibilityState={{ selected: on }} testID={testID} onPress={onPress}
-      style={({ hovered }: { hovered?: boolean }) => [chevron ? st.acctRow : st.acct, on && !chevron && st.sel, hovered === true && !on && st.hover]}>
-      <BrandMark provider={a.provider} size={15} />
-      <View style={st.acctText}>
-        <Text numberOfLines={1} style={st.acctName}>{a.name}</Text>
-        <Text numberOfLines={1} style={st.acctPlan}>{`${providerTitle(a.provider)}${a.plan ? ` ${a.plan}` : ""}`}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${label}${value ? `: ${value}` : ""}`} accessibilityState={{ expanded: on }} testID={testID} onPress={onPress}
+      style={({ hovered }: { hovered?: boolean }) => [st.item, on ? st.sel : hovered === true ? st.hover : null]}>
+      <Text numberOfLines={1} style={st.itemText}>{label}</Text>
+      <View style={st.itemRight}>
+        {lead}
+        <Text numberOfLines={1} style={st.itemValue}>{value}</Text>
+        <Glyph icon={I.chevr} native="›" size={11} color="var(--ink-4)" />
       </View>
-      <Mini v={a.session} testID={`${testID}-mini`} />
-      {chevron ? <Glyph icon={I.chevr} native="›" size={12} color="var(--ink-3)" /> : null}
     </Pressable>
   );
 }
 
+const CHECK = <Glyph icon={I.check} native="✓" size={13} color="var(--accent)" />;
+
+type Sub = "provider" | "model" | "runs" | "more" | "compact";
+
 export function ModelPanel(p: ModelPanelProps): ReactElement {
   ensureComposerCss();
-  const [fly, setFly] = useState(false);
-  const node = useRef<{ focus?: () => void } | null>(null);
+  const [sub, setSub] = useState<Sub | null>(null);
+  const [flip, setFlip] = useState(false);
+  const [keep, setKeep] = useState("");
+  const [always, setAlways] = useState(false);
+  const node = useRef<{ focus?: () => void; getBoundingClientRect?: () => { right: number } } | null>(null);
   useEffect(() => { node.current?.focus?.(); }, []);
+  const toggle = (next: Sub): void => {
+    const box = node.current?.getBoundingClientRect?.();
+    const room = (globalThis as { innerWidth?: number }).innerWidth;
+    setFlip(box !== undefined && room !== undefined && box.right + 228 > room);
+    setSub((cur) => (cur === next ? null : next));
+  };
   const accounts = p.accounts ?? [];
   const account = accounts.find((a) => a.ref === p.accountRef) ?? null;
   const model = (p.models ?? []).find((m) => m.id === p.model);
@@ -157,185 +183,211 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
   const week = usage?.week ?? null;
   const better = lowSuggestion(accounts, p.accountRef, session?.pct ?? account?.session);
   const agentName = p.agent.name;
+  const efforts = effortsFor(account?.provider ?? p.agent.provider);
+  const words = limitWords(account?.provider ?? p.agent.provider);
   const scopeLabel = p.scope === "chat" ? "This chat" : `Default for ${agentName.split(/[\s’']/)[0] ?? agentName}`;
+  const noMeters = !ctx && !session && !week;
 
   const onKeyDown = (e: { key: string; shiftKey?: boolean; preventDefault(): void; stopPropagation?(): void; target?: { tagName?: string } }): void => {
-    const eff = effortForKey(e.key);
+    if (e.target?.tagName === "INPUT" || e.target?.tagName === "TEXTAREA") { if (e.key === "Escape") { e.preventDefault(); setSub(null); } return; }
+    const eff = effortForKey(e.key, efforts);
     if (eff) { e.preventDefault(); p.onEffort(eff); return; }
-    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation?.(); if (fly) setFly(false); else p.onClose(); return; }
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation?.(); if (sub) setSub(null); else p.onClose(); return; }
     if (e.key === "Tab" && e.shiftKey === true && p.onMode && p.mode) { e.preventDefault(); const i = MODES.findIndex((m) => m.id === p.mode); p.onMode((MODES[(i + 1) % MODES.length] as { id: ChatMode }).id); }
   };
 
-  const flyList = (
-    <View style={p.narrow ? st.flyInline : st.fly} testID="model-accounts">
-      <Text style={st.grp}>Your accounts</Text>
-      {accounts.map((a) => (
-        <Row key={a.ref} id={`model-account-${a.ref}`} title={a.name} note={`${providerTitle(a.provider)}${a.plan ? ` ${a.plan}` : ""}`} selected={a.ref === p.accountRef}
-          leading={<BrandMark provider={a.provider} size={15} />} trailing={<Mini v={a.session} testID={`model-account-${a.ref}-mini`} />}
-          onPress={() => { p.onAccount(a.ref); setFly(false); }} />
-      ))}
-      {p.onAddProvider ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Add another AI provider" testID="model-add-provider" onPress={() => { setFly(false); p.onAddProvider?.(); }} style={({ hovered }: { hovered?: boolean }) => [st.add, hovered === true && st.hover]}>
-          <Glyph icon={I.plus} native="+" size={15} color="var(--ink-3)" />
-          <Text style={st.addText}>Add another AI provider</Text>
+  const subBody = (): ReactElement | null => {
+    if (sub === "provider") return (
+      <View testID="model-accounts">
+        <Text style={st.grp}>Provider</Text>
+        {accounts.map((a) => (
+          <Row key={a.ref} id={`model-account-${a.ref}`} title={a.name} note={`${providerTitle(a.provider)}${a.plan ? ` ${a.plan}` : ""}`} selected={a.ref === p.accountRef}
+            leading={<View style={st.brand}><BrandMark provider={a.provider} size={15} /></View>} trailing={<Mini v={a.session} testID={`model-account-${a.ref}-mini`} />}
+            onPress={() => { p.onAccount(a.ref); setSub("model"); }} />
+        ))}
+        {p.onAddProvider ? (
+          <>
+            <View style={st.dv} />
+            <Pressable accessibilityRole="button" accessibilityLabel="Connect another" testID="model-add-provider" onPress={() => { setSub(null); p.onAddProvider?.(); }} style={({ hovered }: { hovered?: boolean }) => [st.item, hovered === true && st.hover]}>
+              <Text style={st.itemText}>Connect another</Text>
+            </Pressable>
+          </>
+        ) : null}
+      </View>
+    );
+    if (sub === "model") return (
+      <View testID="model-models">
+        <Text style={st.grp}>{account?.name ?? "Model"}</Text>
+        {p.models === null ? <Text style={st.quiet}>Reading models</Text> : p.models.length === 0 ? <Text style={st.quiet}>This account lists no models.</Text> : null}
+        {(p.models ?? []).map((m) => {
+          const on = m.id === p.model;
+          const off = m.allowed === false;
+          // a model the account may not use stays visible with the reason, and does nothing when pressed
+          return <Row key={m.id} id={`model-${m.id}`} title={m.title} selected={on} {...(off ? { note: m.reason ?? "Not available on this account" } : m.note ? { note: m.note } : {})} trailing={on ? CHECK : null} {...(off ? {} : { onPress: () => { p.onModel(m.id); setSub(null); } })} />;
+        })}
+      </View>
+    );
+    if (sub === "runs" && p.runs) {
+      const r = p.runs;
+      return (
+        <View testID="model-runs">
+          <Text style={st.grp}>Runs on</Text>
+          {r.fixed ? (
+            <>
+              <View style={st.item}><Text style={st.itemText}>{r.fixed.name}</Text><Text style={st.itemValue}>{r.fixed.note}</Text></View>
+              <Text style={st.cap}>{r.fixed.line}</Text>
+            </>
+          ) : (
+            <>
+              {r.options.map((o) => <Row key={o.key} id={`model-runs-${o.key}`} title={o.name} {...(o.note ? { note: o.note } : !o.online && o.reason ? { note: o.reason } : {})} selected={o.key === r.current} trailing={o.key === r.current ? CHECK : null} {...(o.online ? { onPress: () => { r.onPick(o.key); setSub(null); } } : {})} />)}
+              <Text style={st.cap}>Same chat wherever it runs. Only this Space's computers are listed.</Text>
+            </>
+          )}
+        </View>
+      );
+    }
+    if (sub === "more") return (
+      <View testID="model-more">
+        <Text style={st.grp}>Applies to</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Applies to: ${scopeLabel}`} testID="model-scope" onPress={() => p.onScope(p.scope === "chat" ? "agent" : "chat")} style={({ hovered }: { hovered?: boolean }) => [st.item, hovered === true && st.hover]}>
+          <Text numberOfLines={1} style={st.itemText}>{scopeLabel}</Text>
         </Pressable>
-      ) : null}
-    </View>
-  );
+        {p.onFallback ? (
+          <>
+            <Text style={st.grp}>If a limit hits</Text>
+            <Pressable accessibilityRole="switch" accessibilityState={{ checked: p.fallback === true }} aria-checked={p.fallback === true} accessibilityLabel="Switch when limits run out" testID="model-fallback" onPress={() => p.onFallback?.(!(p.fallback === true))} style={st.tog}>
+              <View style={st.togText}><Text style={st.itemText}>Switch accounts</Text><Text style={st.limLabel}>Moves to your next account, then back</Text></View>
+              <View style={[st.sw, p.fallback === true && st.swOn]}><View style={[st.knob, p.fallback === true && st.knobOn]} /></View>
+            </Pressable>
+          </>
+        ) : null}
+      </View>
+    );
+    if (sub === "compact") return (
+      <View testID="model-compact-form" style={st.form}>
+        <TextInput accessibilityLabel="What should it keep?" testID="model-compact-keep" value={keep} onChangeText={setKeep} placeholder="What should it keep? Optional" placeholderTextColor="var(--ink-3)" style={st.field} />
+        <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: always }} aria-checked={always} testID="model-compact-always" onPress={() => setAlways((x) => !x)} style={st.check}>
+          <View style={[st.box, always && st.boxOn]}>{always ? <Glyph icon={I.check} native="✓" size={11} color="var(--accent-ink)" /> : null}</View>
+          <Text style={st.limLabel}>Keep this every time</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Compact" testID="model-compact-go" onPress={() => { p.onCompact?.(keep.trim(), always); p.onClose(); }} style={st.go}><Text style={st.goText}>Compact</Text></Pressable>
+      </View>
+    );
+    return null;
+  };
+  const body = subBody();
 
   return (
     <View
       testID="model-panel"
-      accessibilityLabel={`${agentName}: model, effort and limits`}
+      accessibilityLabel={`${agentName}: mode, model, effort and limits`}
       style={[st.panel, p.narrow && st.panelNarrow]}
       ref={node as never}
       {...webOnly({ tabIndex: -1, onKeyDown, role: "dialog" })}
     >
-      <View style={st.head}>
-        <Avatar {...avatarOf({ id: p.agent.id, name: agentName, kind: p.agent.kind === "assistant" ? "assistant" : "agent" })} size={22} />
-        <Text numberOfLines={1} style={st.headName}>{agentName}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Applies to: ${scopeLabel}`} testID="model-scope" onPress={() => p.onScope(p.scope === "chat" ? "agent" : "chat")} style={({ hovered }: { hovered?: boolean }) => [st.scope, hovered === true && st.hover]}>
-          <Text style={st.scopeText}>{scopeLabel}</Text>
-          <Glyph icon={I.chev} native="▾" size={11} color="var(--ink-3)" />
-        </Pressable>
-      </View>
-
-      <View style={st.sec}>
-        <View style={st.h5}><Text style={st.h5Text}>Account</Text>{p.accounts ? <Text style={st.h5Note}>{`${accounts.length} connected`}</Text> : null}</View>
-        {p.accounts === null ? <Text style={st.quiet}>Loading your accounts</Text>
-          : account ? <AccountRow a={{ ...account, session: session?.pct ?? account.session ?? null }} on={fly} chevron testID="model-account" onPress={() => setFly((f) => !f)} />
-          : (
-            <Pressable accessibilityRole="button" accessibilityLabel="Choose an account" testID="model-account" onPress={() => (accounts.length > 0 ? setFly((f) => !f) : p.onAddProvider?.())} style={st.acctRow}>
-              <Text style={st.acctName}>{accounts.length > 0 ? "Choose an account" : "Connect an AI account"}</Text>
-            </Pressable>
-          )}
-        {fly && p.narrow ? flyList : null}
-        <View style={st.models} testID="model-models">
-          {p.models === null ? <Text style={st.quiet}>Loading models</Text> : (p.models.length === 0 ? <Text style={st.quiet}>This account lists no models.</Text> : null)}
-          {(p.models ?? []).map((m) => {
-            const on = m.id === p.model;
-            const off = m.allowed === false;
-            // a model the account may not use stays visible with the reason, and does nothing when pressed
-            return (
-              <Row key={m.id} id={`model-${m.id}`} title={m.title} selected={on}
-                {...(off ? { note: m.reason ?? "Not available on this account" } : m.note ? { note: m.note } : {})}
-                leading={<View style={st.ck}>{on ? <Glyph icon={I.check} native="✓" size={14} color="var(--accent)" /> : null}</View>}
-                {...(off ? {} : { onPress: () => p.onModel(m.id) })} />
-            );
-          })}
-        </View>
-      </View>
-
-      <View style={st.sec}>
-        <View style={st.h5}><Text style={st.h5Text}>Effort</Text><Text style={st.h5Note} testID="model-effort-note">{p.effortNote ?? "1 to 4"}</Text></View>
-        <Seg items={EFFORTS} on={p.effort ?? "medium"} pick={(e) => p.onEffort(e)} testID="model-effort" />
-      </View>
-
-      <View style={st.sec} testID="model-usage">
-        <View style={st.h5}><Text style={st.h5Text}>{account ? `${account.name} usage` : "Usage"}</Text>{model ? <Text style={st.h5Note}>{model.title}</Text> : null}</View>
-        {p.usage === "loading" ? <Text style={st.quiet}>Reading usage</Text> : null}
-        {p.usage !== "loading" && !ctx && !session && !week ? <Text style={st.quiet} testID="model-usage-none">No usage reported for this account yet</Text> : null}
-        <View style={st.meters}>
-          {ctx ? <Meter testID="meter-context" label="Context" frac={ctx.used / ctx.window} value={<Text style={st.meterValue}>{kTokens(ctx.used)}<Text style={st.meterOf}>{` / ${kTokens(ctx.window)}`}</Text></Text>} /> : null}
-          {session ? <Meter testID="meter-session" label="Session" frac={session.pct} value={pct(session.pct)} {...(resetLabel(session.resetsAt, p.now) ? { sub: `resets ${resetLabel(session.resetsAt, p.now)}` } : {})} /> : null}
-          {week ? <Meter testID="meter-week" label="Week" frac={week.pct} value={pct(week.pct)} {...(resetLabel(week.resetsAt, p.now) ? { sub: `resets ${resetLabel(week.resetsAt, p.now)}` } : {})} /> : null}
-        </View>
-        {better && account ? (
-          <View style={st.low} testID="model-low" {...webOnly({ dataSet: { cmpLow: "1" } })}>
-            <Text style={st.lowText}>{`Running low on ${account.name}.`}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Use ${better.name}`} testID="model-low-switch" onPress={() => p.onAccount(better.ref)}>
-              <Text style={st.lowBtn}>{`Use ${better.name}${typeof better.session === "number" ? ` · ${pct(better.session)}` : ""}`}</Text>
-            </Pressable>
-          </View>
-        ) : null}
-      </View>
-
       {p.onMode && p.mode ? (
-        <View style={st.sec}>
-          <View style={st.h5}><Text style={st.h5Text}>Mode</Text></View>
+        <>
           <Seg items={MODES.map((m) => ({ id: m.id, label: m.label }))} on={p.mode} pick={(m) => p.onMode?.(m)} testID="model-mode" />
           <Text style={st.modeNote} testID="model-mode-note">{modeInfo(p.mode).note}</Text>
-        </View>
+        </>
       ) : null}
-
-      {p.onFallback ? (
-        <View style={[st.sec, st.last]}>
-          <Pressable accessibilityRole="switch" accessibilityState={{ checked: p.fallback === true }} aria-checked={p.fallback === true} accessibilityLabel="Switch when limits run out" testID="model-fallback" onPress={() => p.onFallback?.(!(p.fallback === true))} style={st.tog}>
-            <View style={st.togText}>
-              <Text style={st.togTitle}>Switch when limits run out</Text>
-              <Text style={st.togSub}>Moves to your next account, then back</Text>
-            </View>
-            <View style={[st.sw, p.fallback === true && st.swOn]}><View style={[st.knob, p.fallback === true && st.knobOn]} /></View>
+      {p.accounts !== null && accounts.length === 0 ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Connect an AI account" testID="model-account" onPress={() => p.onAddProvider?.()} style={({ hovered }: { hovered?: boolean }) => [st.item, hovered === true && st.hover]}>
+          <Text style={st.itemText}>Connect an AI account</Text>
+        </Pressable>
+      ) : (
+        <Nav label="Provider" value={account?.name ?? (p.accounts === null ? "" : "Choose")} on={sub === "provider"} onPress={() => toggle("provider")} testID="model-account" lead={account ? <BrandMark provider={account.provider} size={13} /> : undefined} />
+      )}
+      <Nav label="Model" value={model?.title ?? p.agent.modelTitle ?? "Auto"} on={sub === "model"} onPress={() => toggle("model")} testID="model-model" />
+      <View style={st.item}>
+        <Text style={st.itemText}>Effort</Text>
+        <View style={st.itemRight}><Seg tight items={efforts} on={efforts.some((e) => e.id === p.effort) ? p.effort : "medium"} pick={(e) => p.onEffort(e)} testID="model-effort" /></View>
+      </View>
+      {p.runs ? <Nav label="Runs on" value={p.runs.fixed?.name ?? p.runs.value} on={sub === "runs"} onPress={() => toggle("runs")} testID="model-runs-row" /> : null}
+      <Nav label="More" value="" on={sub === "more"} onPress={() => toggle("more")} testID="model-more-row" />
+      {noMeters && p.usage !== "loading" ? null : (
+        <>
+          <View style={st.dv} />
+          <View style={st.lims} testID="model-usage">
+            {session ? <Meter testID="meter-session" label={words.session} frac={session.pct} value={resetLabel(session.resetsAt, p.now) ? `resets ${resetLabel(session.resetsAt, p.now)}` : pct(session.pct)} /> : null}
+            {week ? <Meter testID="meter-week" label={words.week} frac={week.pct} value={resetLabel(week.resetsAt, p.now) ? `resets ${resetLabel(week.resetsAt, p.now)}` : pct(week.pct)} /> : null}
+            {ctx ? <Meter testID="meter-context" label="Context" frac={ctx.used / ctx.window} value={`${kTokens(ctx.used)} / ${kTokens(ctx.window)}`} /> : null}
+          </View>
+        </>
+      )}
+      {better && account ? (
+        <View style={st.low} testID="model-low" {...webOnly({ dataSet: { cmpLow: "1" } })}>
+          <Text style={st.lowText}>{`Running low on ${account.name}.`}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Use ${better.name}`} testID="model-low-switch" onPress={() => p.onAccount(better.ref)}>
+            <Text style={st.lowBtn}>{`Use ${better.name}${typeof better.session === "number" ? ` · ${pct(better.session)}` : ""}`}</Text>
           </Pressable>
         </View>
       ) : null}
-      {fly && !p.narrow ? flyList : null}
-      {Platform.OS === "web" && !p.narrow ? <View style={st.foot}><Text style={st.footText}>{"⇧⇥ mode   1-4 effort   esc close"}</Text></View> : null}
+      {p.onCompact ? (
+        <>
+          <View style={st.dv} />
+          <Nav label="Compact" value="Free up context" on={sub === "compact"} onPress={() => toggle("compact")} testID="model-compact" />
+        </>
+      ) : null}
+      {body ? <View testID="model-sub" style={p.narrow ? st.subInline : [st.sub, flip ? st.subLeft : st.subRight, p.below ? st.subTop : null]} {...webOnly({ dataSet: { cmpPop: "1" } })}>{body}</View> : null}
     </View>
   );
 }
 
 const st = StyleSheet.create({
-  panel: { width: 340, backgroundColor: "var(--raised)" as string, borderRadius: 16, outlineStyle: "none" } as object,
+  panel: { width: 286, padding: 6, backgroundColor: "var(--raised)" as string, borderRadius: 16, outlineStyle: "none" } as object,
   panelNarrow: { width: "100%" },
-  head: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
-  headName: { fontWeight: "600", fontSize: 13, color: "var(--ink)" as string, flexShrink: 1 },
-  scope: { marginLeft: "auto", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7 },
-  scopeText: { fontSize: 12, color: "var(--ink-3)" as string },
-  sec: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
-  last: { borderBottomWidth: 0 },
-  h5: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
-  h5Text: { fontSize: 10.5, letterSpacing: 0.5, textTransform: "uppercase", color: "var(--ink-4)" as string, fontWeight: "600" },
-  h5Note: { fontSize: 11.5, color: "var(--ink-3)" as string, fontWeight: "500" },
-  quiet: { fontSize: 12, color: "var(--ink-3)" as string, paddingVertical: 4 },
-  acctRow: { flexDirection: "row", alignItems: "center", gap: 8, width: "100%", paddingHorizontal: 8, paddingVertical: 6, borderRadius: 9, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
-  acct: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 9 },
-  acctText: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "baseline", gap: 6, flexWrap: "wrap" },
-  acctName: { fontWeight: "600", fontSize: 12.5, color: "var(--ink)" as string },
-  acctPlan: { fontSize: 11.5, color: "var(--ink-3)" as string },
+  seg: { flexDirection: "row", marginHorizontal: 4, marginTop: 4, padding: 2, borderRadius: 9, backgroundColor: "var(--sunk)" as string },
+  segBtn: { flex: 1, height: 27, alignItems: "center", justifyContent: "center", borderRadius: 7 },
+  segOn: { backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-1)" } as object,
+  segText: { fontSize: 12.5, color: "var(--ink-2)" as string },
+  segTextOn: { color: "var(--ink)" as string, fontWeight: "500" },
+  modeNote: { fontSize: 11.5, lineHeight: 15, color: "var(--ink-3)" as string, paddingHorizontal: 9, paddingTop: 6, paddingBottom: 6 },
+  item: { flexDirection: "row", alignItems: "center", gap: 9, minHeight: 32, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 10 },
+  itemText: { fontSize: 13, color: "var(--ink)" as string },
+  itemRight: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 },
+  itemValue: { flexShrink: 1, fontSize: 12, color: "var(--ink-3)" as string },
+  hover: { backgroundColor: "var(--hover)" as string },
+  sel: { backgroundColor: "var(--sel)" as string },
+  eseg: { flexDirection: "row", padding: 2, borderRadius: 7, backgroundColor: "var(--sunk)" as string },
+  esegBtn: { height: 22, paddingHorizontal: 7, alignItems: "center", justifyContent: "center", borderRadius: 5 },
+  esegText: { fontSize: 11.5, color: "var(--ink-3)" as string },
+  dv: { height: 1, backgroundColor: "var(--line)" as string, marginVertical: 5, marginHorizontal: 9 },
+  lims: { paddingHorizontal: 9, paddingTop: 6, paddingBottom: 8, gap: 9 },
+  lim: { gap: 4 },
+  limHead: { flexDirection: "row", justifyContent: "space-between" },
+  limLabel: { fontSize: 11.5, color: "var(--ink-2)" as string },
+  limValue: { fontSize: 11.5, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] } as object,
+  meterBar: { height: 3, borderRadius: 3, backgroundColor: "var(--sel)" as string, overflow: "hidden" },
+  meterFill: { height: "100%", backgroundColor: "var(--accent)" as string },
+  warnFill: { backgroundColor: "var(--warn)" as string },
   mini: { flexDirection: "row", alignItems: "center", gap: 6 },
   miniBar: { width: 34, height: 4, borderRadius: 3, backgroundColor: "var(--line-2)" as string, overflow: "hidden" },
   miniFill: { height: "100%", backgroundColor: "var(--accent)" as string },
-  miniText: { fontSize: 11, color: "var(--ink-3)" as string },
-  warnFill: { backgroundColor: "var(--warn)" as string },
-  fly: { position: "absolute", left: "100%", marginLeft: 6, top: 52, width: 264, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string, borderRadius: 14, padding: 6, zIndex: 3, boxShadow: "var(--sh-pop)" } as object,
-  flyInline: { marginTop: 6, padding: 4, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string },
-  grp: { fontSize: 11, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase", color: "var(--ink-4)" as string, paddingTop: 8, paddingBottom: 4, paddingHorizontal: 8 },
-  add: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 9 },
-  addText: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  models: { marginTop: 6, marginHorizontal: -4, gap: 1 },
-  model: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, minHeight: 30 },
-  ck: { width: 14, alignItems: "center" },
-  modelTitle: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
-  modelNote: { marginLeft: "auto", fontSize: 11.5, color: "var(--ink-3)" as string },
-  sel: { backgroundColor: "var(--sel)" as string },
-  hover: { backgroundColor: "var(--hover)" as string },
-  off: { opacity: 0.45 },
-  seg: { flexDirection: "row", gap: 3, padding: 3, borderRadius: 9, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
-  segBtn: { flex: 1, alignItems: "center", paddingVertical: 4, borderRadius: 7 },
-  segOn: { backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-1)" } as object,
-  segText: { fontSize: 12, color: "var(--ink-3)" as string },
-  segTextOn: { color: "var(--ink)" as string, fontWeight: "600" },
-  segNote: { fontSize: 10, color: "var(--ink-4)" as string },
-  meters: { flexDirection: "row", gap: 10 },
-  meter: { flex: 1, gap: 4 },
-  meterLabel: { fontSize: 11.5, color: "var(--ink-3)" as string },
-  meterValue: { fontSize: 13, color: "var(--ink)" as string, fontWeight: "600" },
-  meterOf: { fontWeight: "400", color: "var(--ink-3)" as string },
-  meterBar: { height: 4, borderRadius: 3, backgroundColor: "var(--sunk)" as string, overflow: "hidden" },
-  meterFill: { height: "100%", borderRadius: 3, backgroundColor: "var(--accent)" as string },
-  low: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8, paddingHorizontal: 9, paddingVertical: 7, borderRadius: 9, backgroundColor: "var(--sunk)" as string },
+  miniText: { fontSize: 11, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] } as object,
+  sub: { position: "absolute", bottom: 0, width: 216, padding: 6, zIndex: 3, backgroundColor: "var(--raised)" as string, borderRadius: 14, boxShadow: "var(--sh-pop)" } as object,
+  subRight: { left: "100%", marginLeft: 6 },
+  subTop: { bottom: "auto" as unknown as number, top: 0 },
+  subLeft: { right: "100%", marginRight: 6 },
+  subInline: { marginTop: 4, padding: 4, borderRadius: 10, backgroundColor: "var(--sunk)" as string },
+  grp: { fontSize: 11.5, color: "var(--ink-4)" as string, paddingTop: 9, paddingBottom: 4, paddingHorizontal: 9 },
+  brand: { width: 18, marginRight: 6, alignItems: "center" },
+  cap: { fontSize: 12, lineHeight: 16, color: "var(--ink-3)" as string, paddingHorizontal: 9, paddingTop: 2, paddingBottom: 8 },
+  quiet: { fontSize: 12, color: "var(--ink-3)" as string, paddingVertical: 4, paddingHorizontal: 9 },
+  low: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4, marginHorizontal: 4, paddingHorizontal: 9, paddingVertical: 7, borderRadius: 9, backgroundColor: "var(--sunk)" as string },
   lowText: { flex: 1, fontSize: 12, color: "var(--ink-2)" as string },
   lowBtn: { fontSize: 12, fontWeight: "600", color: "var(--ink)" as string },
-  modeNote: { fontSize: 11.5, color: "var(--ink-3)" as string, marginTop: 6 },
-  tog: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
-  togText: { flex: 1 },
-  togTitle: { fontSize: 12.5, color: "var(--ink)" as string },
-  togSub: { fontSize: 11.5, color: "var(--ink-3)" as string },
+  tog: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingHorizontal: 9, paddingVertical: 6 },
+  togText: { flex: 1, gap: 2 },
   sw: { width: 30, height: 18, borderRadius: 999, backgroundColor: "var(--line-2)" as string, justifyContent: "center", paddingHorizontal: 2 },
   swOn: { backgroundColor: "var(--accent)" as string },
   knob: { width: 14, height: 14, borderRadius: 7, backgroundColor: "#fff" },
   knobOn: { transform: [{ translateX: 12 }] },
-  foot: { paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
-  footText: { fontSize: 11, color: "var(--ink-4)" as string },
+  form: { gap: 8, padding: 4 },
+  field: { height: 34, borderRadius: 9, paddingHorizontal: 11, fontSize: 13, color: "var(--ink)" as string, backgroundColor: "var(--field)" as string, outlineStyle: "none" } as object,
+  check: { flexDirection: "row", alignItems: "center", gap: 7 },
+  box: { width: 15, height: 15, borderRadius: 4, alignItems: "center", justifyContent: "center", boxShadow: "inset 0 0 0 1.4px var(--line-2)" } as object,
+  boxOn: { backgroundColor: "var(--accent)" as string, boxShadow: "none" } as object,
+  go: { height: 30, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string },
+  goText: { fontSize: 13, fontWeight: "600", color: "var(--accent-ink)" as string },
 });

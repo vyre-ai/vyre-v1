@@ -14,6 +14,8 @@ export interface SheetHost {
   left: unknown;
   /** The node the right rail's sheets land in. */
   right: unknown;
+  /** The Hide button, for a sheet with no head of the shell's. */
+  hide?: ReactNode;
 }
 
 const Ctx = createContext<SheetHost | null>(null);

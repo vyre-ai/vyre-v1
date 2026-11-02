@@ -1,4 +1,4 @@
-// The places the shell shows and how each one is mounted (spec 2.1, 3.0, ARCH 7). Nine places, each a lazy route: only the active place's bundle loads (speed b12).
+// The places the shell shows and how each one is mounted (spec 2.1, 3.0, ARCH 7). Eight places, each a lazy route: only the active place's bundle loads (speed b12).
 // Every place is wrapped in its data provider over the Space's replica (see ./providers). The app routes (src/startup/places.ts) know a place by its route id; the screens
 // of the generated registry know it by their `place` field, so both are kept here.
 import { registerPlace } from "../startup/places.ts";
@@ -21,7 +21,6 @@ const withComposer = (load: PlaceLoader): PlaceLoader => async () => {
 };
 
 export const SHELL_PLACES: readonly ShellPlace[] = [
-  { id: "home", label: "Home", screens: "home", load: withComposer(() => import("./providers/home.tsx")) },
   { id: "chat", label: "Chats", screens: "chats", load: withComposer(() => import("./providers/chats.tsx")) },
   { id: "mail", label: "Inbox", screens: "inbox", load: withComposer(() => import("./providers/inbox.tsx")) },
   { id: "records", label: "Records", screens: "records", load: () => import("./providers/records.tsx") },

@@ -98,6 +98,7 @@ test("the wired panel: usage is asked for the account in use and again for the a
     await flush();
     assert.ok(s.calls.some((c) => c.cap === "engine.usage.get" && c.input["accountRef"] === "#cl_work"), "usage for the account the agent runs on");
     assert.match(textOf(find(root, "meter-session")), /30%/);
+    await press(find(root, "model-more-row"));
     assert.equal(find(root, "model-fallback")!.props["aria-checked"], true);
     await press(find(root, "model-account"));
     await press(find(root, "row-model-account-#key"));
@@ -105,14 +106,14 @@ test("the wired panel: usage is asked for the account in use and again for the a
     assert.ok(s.calls.some((c) => c.cap === "threads.agent.configure" && c.input["accountRef"] === "#key"));
     assert.equal(find(root, "meter-session"), null, "an API key reports no session: no meter");
     assert.ok(find(root, "row-model-gpt-5"), "the models of the new account");
-    await press(find(root, "model-effort-max"));
+    await press(find(root, "model-effort-high"));
+    await press(find(root, "model-more-row"));
     await press(find(root, "model-fallback"));
     await flush();
     const cfg = s.calls.filter((c) => c.cap === "threads.agent.configure").at(-1)!;
-    assert.deepEqual(cfg.input, { threadId: "thr_1", agentId: "agt_intake", effort: "max", scope: "chat" });
+    assert.deepEqual(cfg.input, { threadId: "thr_1", agentId: "agt_intake", effort: "high", scope: "chat" });
     assert.deepEqual(s.calls.filter((c) => c.cap === "agents.update").at(-1)!.input, { agentId: "agt_intake", patch: { switchOnLimit: false } });
     await press(find(root, "model-scope"));
-    assert.match(textOf(find(root, "model-effort-note")), /This chat only/, "an agent has no default effort");
     await press(find(root, "model-account"));
     await press(find(root, "model-add-provider"));
     assert.ok(s.calls.some((c) => c.cap === "nav.openAiSetup"), "Add another AI provider opens the AI setup when there is no connect host");

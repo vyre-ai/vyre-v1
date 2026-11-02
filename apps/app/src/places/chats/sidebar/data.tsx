@@ -18,6 +18,11 @@ export interface ChatsNav {
   openSpaceSwitcher(): void;
   /** Opens the New channel sheet. */
   openNewChannel(): void;
+  /** The two rows at the top of the list: everything you owe, and the threads you are in. */
+  openTasks?(): void;
+  openThreads?(): void;
+  /** The first screen: a new chat. */
+  openNew?(): void;
   /** Hides the sidebar (the panel button in its header). Left out where the shell keeps the sidebar always. */
   toggleSidebar?(): void;
 }
@@ -32,6 +37,8 @@ export interface ChatsSidebarData {
   /** The Space's name and whether another Space needs you (the red dot). */
   space: { name: string; otherNeedsYou: boolean; /** A Personal Space: no channels */ personal?: boolean; /** your assistant: the new-chat icon starts a chat with it */ assistant: { agentId: string; name: string } };
   nav: ChatsNav;
+  /** The Space's people, for the People section. */
+  people?: readonly { id: string; name: string }[];
   /** You: left out of the people a channel can add (you are always in), and the test for "a channel you are not in". */
   me?: { id: string };
   clock(): { now: number; offsetMin: number };

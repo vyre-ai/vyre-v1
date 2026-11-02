@@ -1,7 +1,7 @@
 // The Chats sidebar (spec 3.2, 2.23, ARCH 7.2): the Space and search at the top, then Needs you (only when something waits), Starred agent faces (Cmd-1..9), Chats grouped
 // Starred, Today, Yesterday and Earlier with a pulse where an agent works, then Channels with Projects beneath. One flat list in ui/VirtualList, every row a ui/Row with
 // leading and trailing slots (ruling 36). Everything reads from the local copy; a new chat shows as a row at once and the server answers behind it.
-import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
+import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { SidebarContent } from "../../../shell/sidebar/index.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import type { QueryFailure } from "../../../../../../client/src/query/types.ts";
@@ -21,9 +21,9 @@ import { ChatsSidebarDataProvider, useOnline, useOptionalSidebarData, useScreenQ
 import type { ChatsSidebarData } from "./data.tsx";
 import { chatMenuEntries } from "./chat-menu.ts";
 import {
-  FILTERS, NEW_CHAT_MS, buildEntries, faceForDigit, filterCounts, archivedRows, groupRecent, matchesFilter, matchesQuery, needsKind, refetch, selectable, stepKey, waitingAgents, whenLabel,
+  FILTERS, NEW_CHAT_MS, buildEntries, faceForDigit, filterCounts, archivedRows, groupRecent, matchesFilter, matchesQuery, refetch, selectable, stepKey, waitingAgents,
 } from "./model.ts";
-import type { Agent, ChatRow, Entry, Filter, Group, NeedsItem, RecentOut, SectionError, SectionKey } from "./model.ts";
+import type { Agent, ChatRow, Entry, Group, NeedsItem, RecentOut, SectionError, SectionKey, SideFilter } from "./model.ts";
 import { REPORT_PROBLEM_EVENT } from "../../../../../../ui/src/States/index.tsx";
 import { displayTitle } from "./titles.ts";
 import { Badge, EmptyLine, Face, FaceStack, GroupLabel, Glyph, LeadGlyph, SectionHead, Tool, UnreadDot } from "./parts.tsx";
@@ -40,7 +40,9 @@ import type { ChannelSheetKind } from "../channels/request.ts";
 export const SIDEBAR_SCREEN = "chats.sidebar";
 export const AGENTS_SCREEN = "chats.all-agents";
 export const NEEDS_SCREEN = "home.needs-you-top3";
-export const ROW_H = 28;
+export const ROW_H = 34;
+/** A section head sits a little apart from the rows above it. */
+const WORK_SCREEN = "tasks.my-work";
 
 type ChannelsOut = CapMap["channels.list"]["out"];
 type AgentsOut = CapMap["agents.list"]["out"];
@@ -73,7 +75,7 @@ export function ChatsSidebar({ data, window, query = "", slot }: { data?: ChatsS
 /** Put this inside the Chats place: it registers the Chats sidebar in the shell's shared slot, so it collapses, searches and lands on the phone like every place. */
 export function ChatsSidebarSlot({ data, window }: { data?: ChatsSidebarData; window?: VirtualWindow }): ReactElement {
   return (
-    <SidebarContent title="Chats" searchPlaceholder="Search chats">
+    <SidebarContent title="Chats" noSearch>
       {(query, slot) => <ChatsSidebar query={query} slot={slot} {...(data ? { data } : {})} {...(window ? { window } : {})} />}
     </SidebarContent>
   );
@@ -81,21 +83,17 @@ export function ChatsSidebarSlot({ data, window }: { data?: ChatsSidebarData; wi
 
 /** The frame before data: rows the size of the real ones, so nothing moves when the data arrives. */
 export function ChatsSidebarLoading(): ReactElement {
-  const rows: ReactElement[] = [];
-  for (let i = 0; i < 12; i++) {
-    rows.push(<View key={i} style={{ height: ROW_H, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8 }}><View style={st.skFace} /><View style={[st.skBar, { width: `${40 + ((i * 17) % 40)}%` }]} /></View>);
-  }
-  return <View testID="chats-sidebar-loading" accessibilityLabel="Loading" style={st.root}><View style={st.top} />{rows}</View>;
+  return <View testID="chats-sidebar-loading" accessibilityLabel="Loading" style={st.root} />;
 }
 
 function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: string; slot: SidebarSlotApi | undefined }): ReactElement {
   const data = useSidebarData();
   const online = useOnline();
   const menu = useMenu();
-  // a phone shows the top three Needs you rows and the rest behind "Show all" (0 is "not measured yet": the desktop list)
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < 560;
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<SideFilter>("all");
+  const [more, setMore] = useState<{ recent?: boolean; people?: boolean; faces?: boolean }>({});
   const [closed, setClosed] = useState<ReadonlySet<SectionKey>>(new Set());
   // The imported coding sessions (sessions.list): read on open and again when the chats change, so a continued session shows its chat. A Space that cannot list them shows no group.
   const [archive, setArchive] = useState<ImportedRow[]>([]);
@@ -122,6 +120,8 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   const agentsQ = useScreenQuery<AgentsOut>(AGENTS_SCREEN, "agents", {});
   // The prototype lists every request under Needs you, not only the top three.
   const needsQ = useScreenQuery<NeedsOut>(NEEDS_SCREEN, "items", {});
+  const workQ = useScreenQuery<{ tasks: readonly unknown[] }>(WORK_SCREEN, "list", { section: "open" });
+  const peopleQ = useMemo(() => data.people ?? [], [data.people]);
   useEffect(() => {
     let off = false;
     void (Promise.resolve().then(() => data.call("sessions.list", {})) as Promise<{ sessions?: Partial<ImportedRow>[] } | undefined>).then((r) => { if (!off) setArchive(importedRows(r?.sessions)); }, () => { if (!off) setArchive([]); });
@@ -148,19 +148,21 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   const meId = data.me?.id;
   const channels: Channel[] = useMemo(() => allChannels.filter((c) => (meId === undefined || c.recordId !== undefined || c.members.some((m) => m.id === meId)) && matchesQuery(query, c.name)), [allChannels, query, meId]);
   const allNeeds: NeedsItem[] = needsQ.status === "ready" ? needsQ.data.items : [];
-  const needs: NeedsItem[] = useMemo(() => allNeeds.filter((n) => matchesQuery(query, n.task.title, agentName(n.task.createdBy))), [allNeeds, query, agentName]);
+  const waitingThreads = useMemo(() => new Set(allNeeds.flatMap((n) => { const id = (n.task as { threadId?: string }).threadId; return id ? [id] : []; })), [allNeeds]);
+  const tasksCount = (needsQ.status === "ready" ? needsQ.data.total : 0) + (workQ.status === "ready" ? workQ.data.tasks.length : 0);
   // A read that failed ends the skeleton and says so, for that section only (never the empty state: empty means nothing is here). The other sections draw what they have.
   const errors: Partial<Record<SectionKey, SectionError>> = {};
-  for (const [section, label, q] of [["recent", "Chats", recentQ], ["channels", "Channels", channelsQ], ["faces", "Agents", agentsQ], ["needs", "Needs you", needsQ]] as const) {
+  for (const [section, label, q] of [["recent", "Chats", recentQ], ["channels", "Channels", channelsQ], ["faces", "Agents", agentsQ]] as const) {
     if (q.status === "loading" && q.error !== undefined) errors[section] = { text: `Couldn't load ${label.toLowerCase()}`, cause: q.error.message, ...(q.error.code ? { code: q.error.code } : {}), ...(q.error.traceId ? { traceId: q.error.traceId } : {}) };
   }
   const pending = (q: { status: string; error?: unknown }): boolean => q.status === "loading" && q.error === undefined;
   const loading = pending(recentQ) || pending(channelsQ) || pending(agentsQ);
 
-  const counts = useMemo(() => filterCounts(recent, local, agentName), [recent, local, agentName]);
+  const allGroups: Group[] = useMemo(() => groupRecent(recent, local, agentName).map((g) => ({ ...g, rows: g.rows.map((r) => (waitingThreads.has(r.threadId) ? { ...r, waiting: true } : r)) })), [recent, local, agentName, waitingThreads]);
+  const counts = useMemo(() => filterCounts(allGroups.flatMap((g) => g.rows)), [allGroups]);
   const groups: Group[] = useMemo(
-    () => groupRecent(recent, local, agentName).map((g) => ({ ...g, rows: g.rows.filter((r) => matchesFilter(r, filter) && matchesQuery(query, r.title, r.who)) })).filter((g) => g.rows.length),
-    [recent, local, agentName, filter, query],
+    () => allGroups.map((g) => ({ ...g, rows: g.rows.filter((r) => matchesFilter(r, filter) && matchesQuery(query, r.title, r.who)) })).filter((g) => g.rows.length),
+    [allGroups, filter, query],
   );
   const archivedChats: ChatRow[] = useMemo(() => archivedRows(recent, agentName).filter((r) => matchesFilter(r, filter) && matchesQuery(query, r.title, r.who)), [recent, agentName, filter, query]);
   const working = useMemo(() => {
@@ -170,8 +172,8 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   }, [groups, agents]);
 
   const entries = useMemo(
-    () => buildEntries({ needs, needsTotal: needsQ.status === "ready" ? needsQ.data.total : 0, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(archive.length)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, personal, searching: query.trim() !== "", ...(narrow ? { needsLimit: 3 } : {}) }),
-    [personal, query, needs, needsQ, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, narrow, imported, importedOpen, archive.length, archivedChats, archivedOpen],
+    () => buildEntries({ tasksCount, waitingThreads, assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name }, people: peopleQ.filter((p) => matchesQuery(query, p.name)), moreRecent: more.recent === true, morePeople: more.people === true, moreAgents: more.faces === true, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(archive.length)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, personal, searching: query.trim() !== "" }),
+    [personal, query, tasksCount, waitingThreads, peopleQ, more, data.space.assistant.agentId, data.space.assistant.name, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, imported, importedOpen, archive.length, archivedChats, archivedOpen],
   );
   const order = useMemo(() => selectable(entries), [entries]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
@@ -232,11 +234,6 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
     ...(c.unread > 0 ? [{ label: "Mark as Read", onSelect: () => guard(api.markRead(c.mainThreadId)) }] : []),
     { label: "Star", onSelect: () => guard(api.star("channel", c.channelId, true)) },
   ];
-  const needMenu = (n: NeedsItem): MenuEntry[] => [
-    ...n.task.actions.map((a) => ({ label: a.label, onSelect: () => guard(data.call("tasks.act", { taskId: n.task.id, action: a.key })) })),
-    ...(n.task.actions.length ? [{ separator: true } as MenuEntry] : []),
-    { label: "Open in Needs you", onSelect: () => { data.nav.openNeedsYou(n.task.id); leave(); } },
-  ];
 
   /** Behind the failed row: the cause as a header line, then Copy trace id and Report a problem. */
   const errorMenu = (e: Extract<Entry, { type: "error" }>): MenuEntry[] => {
@@ -255,14 +252,15 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
     else if (e.type === "imported") { if (e.row.continuedThreadId) data.nav.openChat(e.row.continuedThreadId); else data.nav.openImported?.(e.row.conversationId); }
     else if (e.type === "face") data.nav.openAgentChat(e.agent.agentId);
     else if (e.type === "channel") data.nav.openChannel(e.channel.channelId);
-    else if (e.type === "need") data.nav.openNeedsYou(e.item.task.id);
+    else if (e.type === "nav") { (e.to === "tasks" ? data.nav.openTasks : data.nav.openThreads)?.(); }
+    else if (e.type === "person") void api.chatWithPerson(e.id);
     else if (e.type === "action") { setSheet("new"); return; }
-    else if (e.type === "more") { if (e.to === "needs") data.nav.openNeedsYou(); else data.nav.openAllAgents(); }
+    else if (e.type === "more") { if (e.to === "agents") data.nav.openAllAgents(); else { setMore((m) => ({ ...m, [e.to]: true })); return; } }
     else if (e.type === "head") { toggle(e.section); return; }
     leave();
   };
   const menuFor = (e: Entry): MenuEntry[] | null =>
-    e.type === "chat" ? chatMenu(e.row) : e.type === "face" ? faceMenu(e.agent) : e.type === "channel" ? channelMenu(e.channel) : e.type === "need" ? needMenu(e.item) : null;
+    e.type === "chat" ? chatMenu(e.row) : e.type === "face" ? faceMenu(e.agent) : e.type === "channel" ? channelMenu(e.channel) : null;
 
   // ----- keyboard: arrows move, Enter opens, Cmd-1..9 jump to a starred face
   const onKeyDown = (ev: { key?: string; preventDefault?: () => void }): void => {
@@ -295,33 +293,10 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
     };
     switch (e.type) {
       case "head": {
-        if (e.section === "needs") {
-          // The prototype's Needs you is one row with the inbox glyph and the count; its requests sit under it as child rows. The chevron folds them.
-          return (
-            <View testID="head-needs" style={{ height: ROW_H }}>
-              <Row
-                id="needs-parent" title="Needs you" onPress={() => { data.nav.openNeedsYou(); leave(); }}
-                leading={<LeadGlyph name="inbox" />}
-                trailing={
-                  <View style={st.tools}>
-                    <Pressable accessibilityRole="button" accessibilityLabel={`Needs you, ${e.count ?? 0}`} accessibilityState={{ expanded: e.open }} onPress={() => toggle("needs")} testID="toggle-needs" style={{ transform: [{ rotate: e.open ? "0deg" : "-90deg" }] }}>
-                      <Glyph name="chev" size={11} color="var(--ink-4)" />
-                    </Pressable>
-                    {e.count ? <Badge n={e.count} testID="count-needs" /> : null}
-                  </View>
-                }
-              />
-            </View>
-          );
-        }
-        const recentHead = e.section === "recent";
         return (
-          <SectionHead id={e.section} label={e.label} count={e.section === "needs" || e.section === "imported" || e.section === "archived" ? e.count : undefined} open={e.open} onToggle={() => toggle(e.section)} keep={recentHead && filter !== "all"}>
-            {recentHead ? <Tool icon="filter" label="Filter chats" active={filter !== "all"} onPress={filterMenu} testID="filter-chats" /> : null}
-            {recentHead ? <Tool icon="plus" label="New chat" onPress={() => { void api.newChat(); leave(); }} testID="new-chat-section" /> : null}
-            {e.section === "faces" ? <Tool icon="arrow" label="All agents" onPress={() => { data.nav.openAllAgents(); leave(); }} testID="all-agents" /> : null}
-            {e.section === "channels" ? <Tool icon="search" label="Browse channels" onPress={() => setSheet("browse")} testID="browse-channels-tool" /> : null}
+          <SectionHead id={e.section} label={e.label} count={!e.open ? e.count : undefined} open={e.open} onToggle={() => toggle(e.section)}>
             {e.section === "channels" ? <Tool icon="plus" label="New channel" onPress={() => setSheet("new")} testID="new-channel" /> : null}
+            {e.section === "faces" ? <Tool icon="plus" label="New agent" onPress={() => { data.nav.openAllAgents(); leave(); }} testID="all-agents" /> : null}
           </SectionHead>
         );
       }
@@ -350,57 +325,32 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
           <EmptyLine text={e.text} />
         </View>
       );
-      case "need": {
-        const k = needsKind(e.item);
-        const who = agentName(e.item.task.createdBy);
-        return wrap(
-          <Hot>
-            {(over) => (
-              <Row
-                id={e.key} title={e.item.task.title} selected={sel} onPress={() => open(e)}
-                leading={<View style={{ marginRight: 6 }}><Face name={who} seedId={e.item.task.createdBy} kind="agent" size={18} /></View>}
-                trailing={over && e.item.task.actions.length && k.tone === "accent"
-                  ? <Tool icon="check" label={`${e.item.task.actions[0]!.label} ${e.item.task.title}`} onPress={() => guard(api.act(e.item))} testID={`need-act-${e.item.task.id}`} />
-                  : <Text style={[st.kind, k.tone === "warn" && st.kindWarn]}>{k.label}</Text>}
-              />
-            )}
-          </Hot>,
-        );
-      }
+      case "nav": return (
+        <Row
+          id={e.key} title={e.label} selected={sel} onPress={() => open(e)} leading={<LeadGlyph name={e.to === "tasks" ? "task" : "reply"} />}
+          trailing={e.count > 0 ? <Text testID={`count-${e.to}`} style={st.navCount}>{e.count}</Text> : e.dot ? <UnreadDot /> : null}
+        />
+      );
+      case "person": return (
+        <Row id={e.key} title={e.name} selected={sel} emphasis={e.unread > 0} onPress={() => open(e)}
+          leading={<View style={{ marginRight: 9 }}><Face name={e.name} seedId={e.id} kind="person" size={18} /></View>}
+          trailing={e.unread > 0 ? <UnreadDot /> : null} />
+      );
       case "face": return wrap(
-        <Hot>
-          {(over) => (
-            <Row
-              id={e.key} title={e.agent.name} selected={sel} onPress={() => open(e)}
-              leading={<View style={{ marginRight: 6 }}><Face name={e.agent.name} seedId={e.agent.agentId} kind="agent" size={18} pulse={e.working} /></View>}
-              trailing={over
-                ? <View style={st.tools}>{e.digit !== undefined ? <Text style={st.digit}>{`⌘${e.digit}`}</Text> : null}<Tool icon="plus" label={`New chat with ${e.agent.name}`} onPress={() => { void api.newChat({ agentId: e.agent.agentId, name: e.agent.name }); leave(); }} testID={`face-new-${e.agent.agentId}`} /></View>
-                : e.waiting ? <Text style={st.waiting}>Waiting on you</Text> : e.working ? <Text style={st.quiet}>Working</Text> : null}
-            />
-          )}
-        </Hot>,
+        <Row
+          id={e.key} title={e.assistant ? "Assistant" : e.agent.name} selected={sel} onPress={() => open(e)}
+          leading={<View style={{ marginRight: 9 }}><Avatar {...avatarOf({ id: e.agent.agentId, name: e.agent.name, kind: e.assistant ? "assistant" : "agent" })} size={18} state={e.waiting ? "waiting" : e.working ? "working" : undefined} /></View>}
+        />,
       );
-      case "more": return (
-        <Row id={e.key} title={e.label} selected={sel} onPress={() => open(e)} leading={<LeadGlyph name="arrow" />} />
-      );
+      case "more": return <Pressable accessibilityRole="button" accessibilityLabel={e.label} testID={`row-${e.key}`} onPress={() => open(e)} style={st.more}><Text style={st.moreText}>{e.label}</Text></Pressable>;
       case "chat": {
         const r = e.row;
         return wrap(
-          <Hot>
-            {(over) => (
-              <Row
-                id={e.key} title={displayTitle(r, data.clock().offsetMin)} selected={sel} emphasis={r.unread > 0} onPress={() => open(e)}
-                leading={<View style={{ marginRight: 6 }}>{r.members ? <FaceStack members={r.members} size={16} /> : <Face name={r.who} seedId={r.whoId} kind={r.kind} size={18} pulse={r.working} />}</View>}
-                trailing={
-                  <View style={st.tools}>
-                    {r.starred && !over ? <Glyph name="star" size={12} color="var(--ink-4)" fill="var(--ink-4)" /> : null}
-                    {r.unread > 0 && !over ? <UnreadDot /> : null}
-                    {over ? <Text style={st.time}>{whenLabel(r.lastAt, data.clock().now, data.clock().offsetMin)}</Text> : null}
-                  </View>
-                }
-              />
-            )}
-          </Hot>,
+          <Row
+            id={e.key} title={displayTitle(r, data.clock().offsetMin)} selected={sel} onPress={() => open(e)}
+            leading={<View style={{ marginRight: 9 }}>{r.members ? <FaceStack members={r.members} size={16} /> : <Face name={r.who} seedId={r.whoId} kind={r.kind} size={18} pulse={r.working} waiting={r.waiting === true} />}</View>}
+            trailing={r.waiting ? <View style={st.needDot} testID="need-dot" /> : r.unread > 0 ? <UnreadDot /> : null}
+          />,
         );
       }
       case "imported": {
@@ -436,18 +386,14 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
   // another Space needing you is a dot by the Space switcher: here on a desktop, on the You tab on a phone
   const dot = data.space.otherNeedsYou && !narrow;
   const headBusy = dot || !online;
-  // A Team Space's new menu: a chat, a channel, or the channels you can still join. A Personal Space has the one button.
+  // Filter, then New: a chat, a channel, an agent. A Personal Space has no channels.
   const newMenu = (x: number, y: number): void => menu.show([
-    { label: "New chat", onSelect: () => { void api.newChat(); leave(); } },
-    { label: "New channel", onSelect: () => setSheet("new") },
-    { label: "Browse channels", onSelect: () => setSheet("browse") },
+    { label: "New chat", onSelect: () => { (data.nav.openNew ?? (() => void api.newChat()))(); leave(); } },
+    ...(personal ? [] : [{ label: "New channel", onSelect: () => setSheet("new") }, { label: "Browse channels", onSelect: () => setSheet("browse") }]),
+    { label: "New agent", onSelect: () => { data.nav.openAllAgents(); leave(); } },
   ], x, y, "other");
-  const newButton = personal ? null : <Tool icon="plus" label="New" onPress={newMenu} testID="new-menu" />;
-  const newChatButton = (
-    <Pressable accessibilityRole="button" accessibilityLabel={`New chat with ${data.space.assistant.name}`} {...{ title: `New chat with ${data.space.assistant.name}` }} onPress={() => { void api.newChat(); leave(); }} testID="new-chat" style={({ hovered }: { hovered?: boolean }) => [st.assistant, hovered === true && st.assistantOver]}>
-      <Avatar name={data.space.assistant.name} kind="assistant" size={18} />
-    </Pressable>
-  );
+  const newButton = <Tool icon="plus" label="New" onPress={newMenu} testID="new-menu" />;
+  const newChatButton = <Tool icon="filter" label="Filter" active={filter !== "all"} onPress={filterMenu} testID="filter-chats" />;
   return (
     <View testID="chats-sidebar" accessibilityRole="listbox" accessibilityLabel="Chats" style={st.root} {...{ tabIndex: 0, onKeyDown, ...(cursor ? { "aria-activedescendant": cursor.startsWith("h:") ? (cursor === "h:needs" ? "row-needs-parent" : `toggle-${cursor.slice(2)}`) : `row-${cursor}` } : {}) }}>
       {headBusy || !inHeader ? (
@@ -455,10 +401,10 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
           {dot ? <View testID="other-space-dot" accessibilityLabel="Another Space needs you" style={st.red} /> : null}
           {online ? null : <Text testID="sidebar-offline" style={st.quiet}>Offline</Text>}
           <View style={{ flex: 1 }} />
-          {inHeader ? null : <>{newButton}{newChatButton}</>}
+          {inHeader ? null : <>{newChatButton}{newButton}</>}
         </View>
       ) : null}
-      {inHeader ? portalInto(slot?.actionsOutlet, <>{newButton}{newChatButton}</>) : null}
+      {inHeader ? portalInto(slot?.actionsOutlet, <>{newChatButton}{newButton}</>) : null}
       <View style={st.list}>
         {loading ? <ChatsSidebarLoading /> : (
           <VirtualList data={entries} rowHeight={ROW_H} keyOf={(e) => e.key} renderItem={(e) => renderEntry(e)} {...(window ? { window } : {})} />
@@ -482,8 +428,10 @@ export const NEW_CHAT_BUDGET_MS = NEW_CHAT_MS;
 const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, paddingHorizontal: 8 },
   top: { height: 28, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 6, paddingBottom: 4 },
-  assistant: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
-  assistantOver: { backgroundColor: "var(--press)" as string },
+  navCount: { fontSize: 11, color: "var(--ink-4)" as string, fontVariant: ["tabular-nums"] },
+  needDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--warn)" as string },
+  more: { height: ROW_H, justifyContent: "center", paddingHorizontal: 8 },
+  moreText: { fontSize: 12, color: "var(--ink-3)" as string },
   undo: { flexDirection: "row", alignItems: "center", gap: 10, marginHorizontal: 8, marginBottom: 8, paddingHorizontal: 12, minHeight: 40, borderRadius: 10, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
   undoText: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink-2)" as string },
   undoBtn: { height: 28, paddingHorizontal: 8, justifyContent: "center" },
@@ -497,6 +445,4 @@ const st = StyleSheet.create({
   quiet: { fontSize: 11.5, color: "var(--ink-3)" as string },
   kind: { fontSize: 11.5, color: "var(--accent)" as string, fontWeight: "500" },
   kindWarn: { color: "var(--warn)" as string },
-  skFace: { width: 18, height: 18, borderRadius: 6, backgroundColor: "var(--sunk)" as string },
-  skBar: { height: 9, borderRadius: 5, backgroundColor: "var(--sunk)" as string },
 });

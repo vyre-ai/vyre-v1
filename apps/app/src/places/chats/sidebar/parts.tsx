@@ -16,6 +16,8 @@ export const ICON = {
   lock: ["M4.5 7.5h7v5.5h-7z", "M6 7.5V5.8a2 2 0 014 0v1.7"],
   star: ["M8 2.2l1.8 3.7 4 .6-2.9 2.8.7 4L8 11.4 4.4 13.3l.7-4L2.2 6.5l4-.6z"],
   check: ["M3 8.5l3 3 7-7"],
+  task: ["M8 14a6 6 0 100-12 6 6 0 000 12z", "M5.5 8.2l1.8 1.8 3.4-3.6"],
+  reply: ["M6.5 4L3 7.5 6.5 11", "M3 7.5h6.5a3.5 3.5 0 013.5 3.5V12"],
   inbox: ["M2.5 9l1.8-5.5h7.4L13.5 9v3.5h-11z", "M2.5 9h3.2l.8 1.6h3l.8-1.6h3.2"],
   project: ["M5 2.5h6A2.5 2.5 0 0113.5 5v6a2.5 2.5 0 01-2.5 2.5H5A2.5 2.5 0 012.5 11V5A2.5 2.5 0 015 2.5z", "M5.5 6h5M5.5 8.5h5M5.5 11h2.5"],
   more: ["M3.5 8h.01", "M8 8h.01", "M12.5 8h.01"],
@@ -105,8 +107,7 @@ export function SectionHead({ id, label, count, open, onToggle, keep = false, ch
     <View testID={`head-${id}`} style={s.head} {...hover}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${label}${count ? `, ${count}` : ""}`} accessibilityState={{ expanded: open }} onPress={onToggle} testID={`toggle-${id}`} nativeID={`toggle-${id}`} style={s.headLabel}>
         <Text style={s.headText}>{label}</Text>
-        <View style={{ transform: [{ rotate: open ? "0deg" : "-90deg" }] }}><Glyph name="chev" size={11} color="var(--ink-4)" /></View>
-        {count ? <Badge n={count} testID={`count-${id}`} /> : null}
+        {count ? <Text testID={`count-${id}`} style={s.headCount}>{count}</Text> : null}
       </Pressable>
       <View style={s.grow} />
       {/* the tools are always hit-testable and only drawn on hover, focus or keep: a hidden tool that swallowed no pointer would leave the head under the pointer, so the tool could not be pressed */}
@@ -125,15 +126,16 @@ export function EmptyLine({ text }: { text: string }): ReactElement {
 
 export const s = StyleSheet.create({
   presence: { position: "absolute", right: -2, bottom: -2, width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string, borderWidth: 1.5, borderColor: "var(--side)" as string },
-  lead: { width: 18, height: 18, marginRight: 6, alignItems: "center", justifyContent: "center" },
+  lead: { width: 18, height: 18, marginRight: 9, alignItems: "center", justifyContent: "center" },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--accent)" as string },
   badge: { minWidth: 17, height: 17, paddingHorizontal: 5, borderRadius: 9, backgroundColor: "var(--accent-wash)" as string, alignItems: "center", justifyContent: "center", marginLeft: 6 },
   badgeText: { fontSize: 11, fontWeight: "600", color: "var(--accent)" as string },
   tool: { width: 22, height: 22, borderRadius: 5, alignItems: "center", justifyContent: "center" },
   toolOver: { backgroundColor: "var(--press)" as string },
-  head: { height: 28, flexDirection: "row", alignItems: "center", paddingHorizontal: 8, marginTop: 0 },
-  headLabel: { flexDirection: "row", alignItems: "center", gap: 4, height: 22 },
-  headText: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
+  head: { height: 34, flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 8, paddingBottom: 6 },
+  headLabel: { flexDirection: "row", alignItems: "center", gap: 6, height: 20 },
+  headText: { fontSize: 11.5, fontWeight: "500", color: "var(--ink-4)" as string },
+  headCount: { fontSize: 11.5, color: "var(--ink-4)" as string, fontVariant: ["tabular-nums"] } as object,
   grow: { flex: 1, minWidth: 0 },
   tools: { flexDirection: "row", alignItems: "center", gap: 2 },
   group: { height: 28, justifyContent: "center", paddingHorizontal: 8 },

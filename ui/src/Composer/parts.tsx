@@ -99,14 +99,12 @@ export function LogoTile({ provider, name, size = 22 }: { provider: string | und
 
 /* ---------- effort bars, ring, light ---------- */
 
-export function EffortBars({ effort, testID }: { effort: Effort | undefined; testID?: string }): ReactElement {
-  const lit = effortBars(effort);
-  return (
-    <View style={s.bars} testID={testID} accessibilityLabel={`Effort ${lit} of 4`}>
-      {/* ui-rows-lint: not a list (the four effort bars of one meter) */}
-      {[0, 1, 2, 3].map((i) => <View key={i} style={[s.bar, i < lit && s.barOn]} />)}
-    </View>
-  );
+/** Rising bars, one per level the provider offers. */
+export function EffortBars({ effort, levels = 4, testID }: { effort: Effort | undefined; levels?: number; testID?: string }): ReactElement {
+  const lit = Math.min(levels, effortBars(effort));
+  const bars: ReactElement[] = [];
+  for (let i = 0; i < levels; i++) bars.push(<View key={i} style={[s.bar, { height: 5 + i * 2 }, i < lit && s.barOn]} />);
+  return <View style={s.bars} testID={testID} accessibilityLabel={`Effort ${lit} of ${levels}`}>{bars}</View>;
 }
 
 /** The context ring: how full the model's context is. Drawn only past half (the caller decides). */
@@ -202,9 +200,9 @@ export const STOP = '<svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" heigh
 const s = StyleSheet.create({
   tile: { alignItems: "center", justifyContent: "center", backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string, overflow: "hidden", flexShrink: 0 },
   tileLetter: { color: "var(--ink-2)" as string, fontWeight: "700" },
-  bars: { flexDirection: "row", gap: 2, marginLeft: 2, alignItems: "center" },
-  bar: { width: 3, height: 9, borderRadius: 2, backgroundColor: "var(--line-2)" as string },
-  barOn: { backgroundColor: "var(--accent)" as string },
+  bars: { flexDirection: "row", gap: 1.5, height: 11, alignItems: "flex-end" },
+  bar: { width: 2.5, borderRadius: 1, backgroundColor: "var(--line-2)" as string },
+  barOn: { backgroundColor: "var(--ink-3)" as string },
   ringText: { fontSize: 11, color: "var(--ink-3)" as string, fontWeight: "600" },
   ringWarn: { color: "var(--warn)" as string },
   light: { position: "absolute", left: 18, right: 18, top: -1, height: 2, borderRadius: 2, zIndex: 2 },

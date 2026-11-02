@@ -20,7 +20,7 @@ const ClaimRoute = lazy(() => import("../claim/ClaimRoute.tsx").then((m) => ({ d
 
 const currentPath = (): string => (globalThis as { location?: { pathname?: string } }).location?.pathname ?? "/";
 
-/** Leave the claim address for Home without a router: replace the history entry and read the path again. */
+/** Leave the claim address for Chats without a router: replace the history entry and read the path again. */
 function replacePath(path: string): void {
   const h = (globalThis as { history?: { state: unknown; replaceState(state: unknown, title: string, url: string): void } }).history;
   h?.replaceState(h.state, "", path);
@@ -48,7 +48,7 @@ function AppRoute(): ReactElement {
   const [path, setPath] = useState<string | null>(null);
   useEffect(() => setPath(currentPath()), []);
   const token = path === null ? null : claimToken(path);
-  const home = (): void => { replacePath("/home"); setPath("/home"); };
+  const home = (): void => { replacePath("/chat"); setPath("/chat"); };
   // /oauth/callback: where an app sends a person back after approving a connection; it finishes the sign-in as the signed-in person
   if (path === "/oauth/callback") return <Suspense fallback={null}><OAuthRoute /></Suspense>;
   if (token) {

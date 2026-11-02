@@ -11,14 +11,16 @@ import { PLACE_TITLE, kitById, railFor, railPlaces } from "./kits.ts";
 import { Rail } from "./Rail.tsx";
 import { SHELL_ICONS, iconMarkup } from "./icons.tsx";
 
-const rail = (space: typeof NORTHWIND, active: "home" | "chats" = "chats") => railFor({ kit: kitById(space.kit), console: space.console, counts: space.counts, dots: space.dots, active });
+const rail = (space: typeof NORTHWIND, active: "inbox" | "chats" = "chats") => railFor({ kit: kitById(space.kit), console: space.console, counts: space.counts, dots: space.dots, active });
 const html = (node: Parameters<typeof renderToStaticMarkup>[0]): string => renderToStaticMarkup(node).replaceAll("<!-- -->", "");
 const labels = (entries: readonly MenuEntry[]): string[] => entries.filter(isItem).map((e) => e.label);
 
 test("each Space's Kit draws its own rail and the Console shows only with access", () => {
-  assert.deepEqual(railPlaces(rail(NORTHWIND)), ["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings", "console"]);
-  assert.deepEqual(railPlaces(rail(HARBOR)), ["home", "chats", "inbox", "files", "apps", "vault", "settings"]);
+  assert.deepEqual(railPlaces(rail(NORTHWIND)), ["chats", "inbox", "records", "files", "automations", "apps", "vault", "settings", "console"]);
+  assert.deepEqual(railPlaces(rail(HARBOR)), ["chats", "inbox", "files", "apps", "vault", "settings"]);
   assert.ok(!railPlaces(rail(PERSONAL)).includes("console"));
+  for (const k of [NORTHWIND, HARBOR, PERSONAL]) assert.ok(!railPlaces(rail(k)).includes("home"), "Home is gone");
+  for (const k of ["northwind", "studio", "personal"]) assert.equal(kitById(k).start, "chats", "Chats is the first screen");
   assert.ok(!railPlaces(rail(PERSONAL)).includes("apps"), "a Personal Space hides Apps: forms, campaigns and sending domains are for a team");
   const noAccess = railFor({ kit: kitById("northwind"), console: false, counts: {}, dots: {}, active: "home" });
   assert.ok(!railPlaces(noAccess).includes("console"), "no console.access, no Console button");
@@ -35,7 +37,7 @@ test("no kit's rail has a + (Add a Space lives in the Space menu), and the switc
 });
 
 test("a count is a number, a dot is quiet and never on the place you are looking at", () => {
-  const nw = rail(NORTHWIND, "home");
+  const nw = rail(NORTHWIND, "records" as never);
   assert.equal(nw.top.find((e) => e.place === "chats")?.count, 7);
   assert.equal(nw.top.find((e) => e.place === "inbox")?.dot, true);
   assert.equal(rail(NORTHWIND, "chats").top.find((e) => e.place === "chats")?.dot, false);
@@ -45,16 +47,17 @@ test("a count is a number, a dot is quiet and never on the place you are looking
   assert.equal(lookingAtIt.top.find((e) => e.place === "chats")?.dot, false);
 });
 
-test("the rail draws the open place selected, a coral dot for what waits, the tile above two soft tracks and the person's own face at the foot", () => {
+test("the rail draws the open place selected, a quiet count or a coral dot, the tile above one soft track, one foot button over the rest, and the person's own face", () => {
   const out = html(<Rail groups={rail(NORTHWIND)} active="chats" onSelect={() => undefined} header={<SpaceTile spaces={SEED_DEFS} openId="nw" away={false} onSwitch={() => undefined} onAction={() => undefined} />} foot={<span data-testid="rail-me" />} />);
   assert.ok(out.includes('data-testid="rail-chats-selected"'));
   assert.ok(out.includes('data-testid="rail-inbox"') && !out.includes('data-testid="rail-inbox-selected"'));
-  assert.ok(out.includes('data-testid="rail-count-chats"') && !out.includes(">7<"), "a dot, the number is in the label");
+  assert.ok(out.includes('data-testid="rail-count-chats"') && out.includes(">7<"));
   assert.ok(out.includes('data-testid="rail-dot-inbox"'));
   assert.ok(out.includes('aria-label="Chats, 7 waiting"'));
   assert.ok(out.indexOf('data-testid="space-tile"') < out.indexOf('data-testid="rail-track"'), "the Space tile sits above the places");
-  assert.ok(out.indexOf('data-testid="rail-track"') < out.indexOf('data-testid="rail-files"') && out.indexOf('data-testid="rail-files"') < out.indexOf('data-testid="rail-track-foot"') && out.indexOf('data-testid="rail-track-foot"') < out.indexOf('data-testid="rail-apps"'), "top track, then bottom track");
-  assert.ok(out.indexOf('data-testid="rail-settings"') < out.indexOf('data-testid="rail-me"'), "the face closes the lower track");
+  assert.ok(out.indexOf('data-testid="rail-track"') < out.indexOf('data-testid="rail-automations"') && out.indexOf('data-testid="rail-automations"') < out.indexOf('data-testid="rail-isle"') && out.indexOf('data-testid="rail-isle"') < out.indexOf('data-testid="rail-apps"'), "the main track, then the foot button's places");
+  assert.ok(out.indexOf('data-testid="rail-settings"') < out.indexOf('data-testid="rail-isle-more"') && out.indexOf('data-testid="rail-isle-more"') < out.indexOf('data-testid="rail-me"'), "the button sits under what it opens, the face under it");
+  assert.match(out, /max-height:0px/, "folded until pressed");
   assert.ok(out.includes('data-testid="tile-dot"'), "Harbor Studio needs you: the red dot on the tile");
   for (const p of Object.keys(PLACE_TITLE)) assert.ok(SHELL_ICONS[p as keyof typeof SHELL_ICONS] !== undefined, `an icon for ${p}`);
 });

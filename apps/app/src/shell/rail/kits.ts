@@ -26,7 +26,7 @@ export interface KitDef {
   top: readonly PlaceId[];
   /** Places below the spacer, in order. */
   bottom: readonly PlaceId[];
-  /** The place a Space opens on the first time. */
+  /** The place a Space opens on the first time. A role's kit may choose another first screen. */
   start: PlaceId;
 }
 
@@ -34,27 +34,32 @@ export const KITS: Readonly<Record<string, KitDef>> = {
   northwind: {
     id: "northwind",
     name: "Team",
-    top: ["home", "chats", "inbox", "records", "files"],
-    bottom: ["apps", "automations", "vault", "settings", "console"],
+    top: ["chats", "inbox", "records", "files", "automations"],
+    bottom: ["apps", "vault", "settings", "console"],
     start: "chats",
   },
   studio: {
     id: "studio",
     name: "Studio",
-    top: ["home", "chats", "inbox", "files"],
+    top: ["chats", "inbox", "files"],
     bottom: ["apps", "vault", "settings"],
     start: "chats",
   },
   personal: {
     id: "personal",
     name: "Personal",
-    top: ["home", "chats", "inbox", "records", "files"],
-    bottom: ["automations", "vault", "settings"],
-    start: "home",
+    top: ["chats", "inbox", "records", "files", "automations"],
+    bottom: ["vault", "settings"],
+    start: "chats",
   },
 };
 
 export const DEFAULT_KIT = "northwind";
+
+/** Home is gone: Chats is the first screen. A link, a saved tab or a screen that still says "home" (the task screens do) lands in Chats with its hash, and Chats draws it. */
+export function livePlace(place: PlaceId): PlaceId {
+  return place === "home" ? "chats" : place;
+}
 
 export function kitById(id: string): KitDef {
   return Object.prototype.hasOwnProperty.call(KITS, id) ? (KITS[id] as KitDef) : (KITS[DEFAULT_KIT] as KitDef);

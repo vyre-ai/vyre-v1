@@ -7,9 +7,9 @@ export interface SidebarStorage {
   setItem(key: string, value: string): void;
 }
 
-/** One key per device, person, Space and place: collapsing Chats in one Space never collapses Records in another. */
-export function collapseKey(deviceId: string, personId: string, spaceId: string, place: string): string {
-  return `vyre.sidebar.v1:${deviceId}:${personId}:${spaceId}:${place}`;
+/** Hidden or shown is one choice per device and person, in every place: the rail stays, the sheet slides away. */
+export function collapseKey(deviceId: string, personId: string): string {
+  return `vyre.sidebar.v2:${deviceId}:${personId}`;
 }
 
 export function readCollapsed(raw: string | null): boolean {

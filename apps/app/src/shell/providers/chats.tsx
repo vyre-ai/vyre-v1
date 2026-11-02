@@ -7,6 +7,7 @@ import { StyleSheet, View } from "react-native";
 import { ChatsSidebarLoading } from "../../places/chats/sidebar/ChatsSidebar.tsx";
 import { ConversationLoading } from "../../places/chats/conversation/Conversation.tsx";
 import { ChatsMounted, PANE_W, SIDEBAR_W } from "../../places/chats/mounts/ChatsMounted.tsx";
+import { usePlaceHash } from "../hash/context.tsx";
 import { useHubState, useOptionalHub } from "../spaces/context.tsx";
 import type { ShellHub } from "../spaces/hub.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
@@ -33,7 +34,8 @@ export default function ChatsPlace(): ReactElement {
 
 // The shell keys the place by the Space and the place, not the link, so a link that arrives while Chats is open comes through here.
 function ChatsLinked({ rt, hub }: { rt: NonNullable<ReturnType<typeof useOptionalShellRuntime>>; hub: ShellHub }): ReactElement {
-  return <ChatsMounted rt={rt} hash={useHubState(hub).hash} />;
+  const { opened } = usePlaceHash();
+  return <ChatsMounted rt={rt} hash={useHubState(hub).hash} opened={opened} onSwitch={hub.hold} />;
 }
 
 const st = StyleSheet.create({

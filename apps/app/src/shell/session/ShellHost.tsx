@@ -171,9 +171,9 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     subscribe: (l) => session.onPurge(l),
   } : undefined), [session, onSignedOut]);
   useEffect(() => location.place === "console" && purge ? watchPurge(purge, (e) => hub.flash(`Couldn't remove this device's data: ${e instanceof Error ? e.message : "try again"}`)) : undefined, [location.place, purge, hub]);
-  // The Console is a Team Space place with a shell of its own. A Personal Space has none, so a saved or stale address that names it goes Home, never to a page with no way back.
+  // The Console is a Team Space place with a shell of its own. A Personal Space has none, so a saved or stale address that names it goes to Chats, never to a page with no way back.
   const deadConsole = location.place === "console" && stored.def.kind === "personal";
-  useEffect(() => { if (deadConsole) hub.go("home"); }, [deadConsole, hub]);
+  useEffect(() => { if (deadConsole) hub.go("chats"); }, [deadConsole, hub]);
   const renderPlace = (ctx: PlaceContext): ReactElement => failed !== null && session === null
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
     : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} hash={ctx.hash} opened={(t) => { const next = formatHash(t); if (next !== ctx.hash) hub.go(ctx.place, next); }} />;

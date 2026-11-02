@@ -196,10 +196,10 @@ export async function consumeDesktopBootstrap(bridge: DesktopBootstrapBridge, on
 
 export { phoneCanReach } from "./reach.ts";
 
-/** A pairing link opened in a phone's browser: `<Space address>/home?pair=<code>`. Only the code shape is accepted; the code itself is spent by the redeem, once. */
+/** A pairing link opened in a phone's browser: `<Space address>/chat?pair=<code>`. Only the code shape is accepted; the code itself is spent by the redeem, once. */
 export function pairLink(address: string, code: string, boxKey?: string): string {
   // a phone reaching this computer through its vyre.run name pins the box key from the fragment, which never reaches a server
-  return `${address.replace(/\/+$/, "")}/home?pair=${encodeURIComponent(code)}${boxKey && /^[A-Za-z0-9_-]{43}$/.test(boxKey) ? `#box=${boxKey}` : ""}`;
+  return `${address.replace(/\/+$/, "")}/chat?pair=${encodeURIComponent(code)}${boxKey && /^[A-Za-z0-9_-]{43}$/.test(boxKey) ? `#box=${boxKey}` : ""}`;
 }
 export function pairFromUrl(href: string, address: string): Extract<DesktopRoute, { kind: "pair" }> | null {
   try {

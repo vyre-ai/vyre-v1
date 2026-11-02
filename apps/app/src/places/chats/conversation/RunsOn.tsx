@@ -1,12 +1,9 @@
-// The "runs on" chip in a chat header: where the next turn of this private chat runs. This computer, the Space (in a Team Space), or one of the person's own servers by its nickname. It is quiet:
-// one small pill, drawn only when there is a choice to make, with the options in a menu. An option that is off is grey and says why on hover. The choice is stored on the thread
-// (engine.placement.set) and decides the next turn (engine.placement.decide). A person's chat is never offered a teammate's machine.
+// "Runs on": where the next turn of this private chat runs. This computer, the Space (in a Team Space), or one of the person's own servers by its nickname. It lives in the model menu, and the composer's pill says
+// "On Northwind" only when it is not this computer. An option that is off is grey and says why. The choice is stored on the thread (engine.placement.set) and decides the next turn (engine.placement.decide).
+// A person's chat is never offered a teammate's machine.
 import { useCallback, useEffect, useState } from "react";
-import type { ReactElement } from "react";
-import { Platform, Pressable, StyleSheet, Text } from "react-native";
-import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import type { PanelRuns } from "../../../../../../ui/src/Composer/ModelPanel.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
-import { Glyph, anchorOf } from "./parts.tsx";
 import type { GlyphName } from "./parts.tsx";
 import { iconMarkup } from "../../../shell/rail/icons.tsx";
 
@@ -34,35 +31,29 @@ export function runsOnEntries(s: RunsOnState, pick: (o: RunsOnOption) => void): 
   }));
 }
 
-export function RunsOnPill({ state, narrow = false, onOpen }: { state: RunsOnState; narrow?: boolean; onOpen(x: number, y: number): void }): ReactElement {
-  const now = currentOption(state);
-  return (
-    <Pressable
-      accessibilityRole="button" accessibilityLabel={`Runs on ${now.name}`} testID="runs-on" {...(Platform.OS === "web" ? ({ title: `Runs on ${now.name}` } as object) : {})}
-      onPress={(e) => { const p = anchorOf(e); onOpen(p.x, p.y); }} style={st.pill}
-    >
-      <Glyph name={iconOf(now)} size={13} color={now.online ? "var(--ink-2)" : "var(--ink-4)"} />
-      {narrow ? null : <Text numberOfLines={1} testID="runs-on-label" style={[st.text, !now.online && { color: "var(--ink-4)" as string }]}>{now.name}</Text>}
-      <Glyph name="chevd" size={11} color="var(--ink-4)" />
-    </Pressable>
-  );
-}
+const keyOf = (o: { target: Target; serverId?: string }): string => `${o.target}:${o.serverId ?? ""}`;
 
-export function RunsOnChip({ call, threadId, agentId, narrow = false, say }: { call(cap: string, input: unknown): Promise<unknown>; threadId: string; agentId?: string | undefined; narrow?: boolean; say?: (text: string) => void }): ReactElement | null {
+/** Where this chat runs, for the model menu and the pill: read from engine.placement.options, pinned with engine.placement.set. A chat with other people has no choice: it always runs on the Space. */
+export function useRunsOn({ call, threadId, agentId, spaceName, say }: { call(cap: string, input: unknown): Promise<unknown>; threadId: string; agentId?: string | undefined; spaceName: string; say?: (text: string) => void }): { runs: PanelRuns | undefined; chip: string | undefined } {
   const [state, setState] = useState<RunsOnState | null>(null);
-  const { element, show } = useMenu();
   const load = useCallback(async (): Promise<void> => {
     try { setState((await call("engine.placement.options", { threadId, ...(agentId ? { agentId } : {}) })) as RunsOnState); } catch { setState(null); }
   }, [call, threadId, agentId]);
   useEffect(() => { void load(); }, [load]);
-  if (!showsChip(state)) return null;
-  const pick = (o: RunsOnOption): void => {
-    call("engine.placement.set", { threadId, target: o.target, ...(o.serverId ? { serverId: o.serverId } : {}) }).then(() => load(), () => say?.("Could not change where this chat runs."));
+  if (state === null) return { runs: undefined, chip: undefined };
+  if (!state.private) return { runs: { value: spaceName, current: null, options: [], fixed: { name: spaceName, note: "Space computer", line: "Chats with other people always run on the Space." }, onPick: () => undefined }, chip: undefined };
+  const now = currentOption(state);
+  const pick = (key: string): void => {
+    const o = state.options.find((x) => keyOf(x) === key);
+    if (!o) return;
+    Promise.resolve(call("engine.placement.set", { threadId, target: o.target, ...(o.serverId ? { serverId: o.serverId } : {}) })).then(() => load(), () => say?.("Could not change where this chat runs."));
   };
-  return <>{element}<RunsOnPill state={state} narrow={narrow} onOpen={(x, y) => show(runsOnEntries(state, pick), x, y, "other", { label: "Runs on" })} /></>;
+  return {
+    runs: {
+      value: now.name, current: keyOf(now), onPick: pick,
+      options: state.options.map((o) => ({ key: keyOf(o), name: o.name, online: o.online, note: o.target === "device" ? "This computer" : o.target === "space" ? "Space computer" : "Your server", ...(o.reason ? { reason: o.reason } : {}) })),
+    },
+    chip: now.target === "device" ? undefined : now.name,
+  };
 }
 
-const st = StyleSheet.create({
-  pill: { flexDirection: "row", alignItems: "center", gap: 5, height: 24, paddingHorizontal: 8, borderRadius: 12, backgroundColor: "var(--hover)" as string, maxWidth: 160 },
-  text: { fontSize: 12, color: "var(--ink-2)" as string, flexShrink: 1 },
-});
