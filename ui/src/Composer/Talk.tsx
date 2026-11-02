@@ -1,5 +1,6 @@
 // Talk in the composer: the hook that puts words in the field, and the mic. Press to start and press to stop, or hold and let go. Esc cancels and takes back only what Talk added. It never sends.
 // The mic holds one fixed slot, so nothing moves when it listens. The level is four thin bars set directly on the nodes, so listening re-renders nothing. The refused-mic and network lines float above the box.
+// Pointer events, not onPressIn: the press has to start the mic on the way down, and Talk runs only on the web. A click with no pointer behind it is the keyboard: Enter toggles.
 // The shell gives a TalkPort through context, so every composer has the mic with no wiring per place. No port means no mic: a native app has no web microphone, and Talk there waits for its own capture.
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
@@ -45,6 +46,8 @@ export interface TalkControl {
   line: string | null;
   pressIn(): void;
   pressOut(): void;
+  /** The click a pointer press also makes is spent; a click with no pointer is the keyboard, which toggles. */
+  tapped(): void;
   /** The person typed while it listens: what is there stays, and the words carry on from the new end. */
   edited(text: string, cursor: number): void;
   /** Send was pressed: stop here, keep what is in the field. */
@@ -61,6 +64,7 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
   const heard = useRef("");
   const nodes = useRef<(HTMLElement | null)[]>([]);
   const warm = useRef(false);
+  const clicked = useRef(false);
   const pressed = useRef<{ at: number; started: boolean } | null>(null);
   const lineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef(o);
@@ -72,7 +76,7 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
     if (text !== null) lineTimer.current = setTimeout(() => setLine(null), LINE_MS);
   }, []);
   const paint = useCallback((level: number) => {
-    nodes.current.forEach((n, i) => { if (n) n.style.transform = `scaleY(${Math.max(0.16, Math.min(1, level * (BARS[i] ?? 1))).toFixed(2)})`; });
+    nodes.current.forEach((n, i) => { if (n?.style) n.style.transform = `scaleY(${Math.max(0.16, Math.min(1, level * (BARS[i] ?? 1))).toFixed(2)})`; });
   }, []);
   const over = useCallback(() => {
     run.current = null; anchor.current = null;
@@ -135,9 +139,14 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
   const pressOut = useCallback(() => {
     const p = pressed.current;
     pressed.current = null;
+    clicked.current = p !== null;
     if (p?.started && Date.now() - p.at >= HOLD_MS) run.current?.stop();
     latest.current.focus();
   }, []);
+  const tapped = useCallback(() => {
+    if (clicked.current) { clicked.current = false; return; }
+    if (run.current) run.current.stop(); else begin();
+  }, [begin]);
   const edited = useCallback((text: string, cursor: number) => {
     const a = anchor.current;
     if (!a) return;
@@ -159,7 +168,7 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
   }, [phase, cancel]);
   useEffect(() => () => { run.current?.cancel(); run.current = null; if (lineTimer.current !== null) clearTimeout(lineTimer.current); }, []);
 
-  return { port, phase, line, pressIn, pressOut, edited, finish, bars };
+  return { port, phase, line, pressIn, pressOut, tapped, edited, finish, bars };
 }
 
 const WEB_PRESS = { userSelect: "none", touchAction: "none" } as object;
@@ -171,8 +180,12 @@ export function TalkButton({ talk }: { talk: TalkControl }): ReactElement | null
   return (
     <Pressable
       accessibilityRole="button" accessibilityLabel={live ? "Stop listening" : "Talk"} accessibilityState={{ selected: live }} testID="composer-talk"
-      onPressIn={talk.pressIn} onPressOut={talk.pressOut}
-      {...(web ? { title: live ? "Listening. Press to stop, Esc to cancel" : "Talk" } as object : {})}
+      onPress={talk.tapped}
+      {...(web ? {
+        title: live ? "Listening. Press to stop, Esc to cancel" : "Talk",
+        onPointerDown: (e: { pointerId?: number; currentTarget?: { setPointerCapture?: (id: number) => void } }) => { if (e.pointerId !== undefined) e.currentTarget?.setPointerCapture?.(e.pointerId); talk.pressIn(); },
+        onPointerUp: talk.pressOut, onPointerCancel: talk.pressOut,
+      } as object : {})}
       style={({ hovered }: { hovered?: boolean }) => [s.mic, WEB_PRESS, hovered === true && s.hover]}
     >
       {live ? (

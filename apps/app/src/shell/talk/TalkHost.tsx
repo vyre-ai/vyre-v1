@@ -53,7 +53,7 @@ export function TalkSheet({ rt, status, only, onDone, onCancel }: { rt: ShellRun
         <View accessibilityRole="radiogroup" accessibilityLabel="Who this key covers" style={s.scopes}>
           {/* ui-rows-lint: not a list (two choices of one value) */}
           {([["space", "For everyone in this Space", "People just press the mic"], ["mine", "Just me", "Your own key"]] as const).map(([key, title, note]) => (
-            <Pressable key={key} accessibilityRole="radio" accessibilityState={{ checked: scope === key }} accessibilityLabel={title} testID={`talk-scope-${key}`} onPress={() => setScope(key)} style={[s.scope, scope === key && s.scopeOn]}>
+            <Pressable key={key} accessibilityRole="radio" accessibilityState={{ checked: scope === key }} aria-checked={scope === key} accessibilityLabel={title} testID={`talk-scope-${key}`} onPress={() => setScope(key)} style={[s.scope, scope === key && s.scopeOn]}>
               <View style={[s.dot, scope === key && s.dotOn]} /><View style={s.scopeText}><Text style={s.scopeTitle}>{title}</Text><Text style={s.provNote}>{note}</Text></View>
             </Pressable>
           ))}
