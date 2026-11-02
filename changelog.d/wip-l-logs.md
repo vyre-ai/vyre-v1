@@ -1,0 +1,3 @@
+- Vyre writes far less to disk while it sits idle. Routine background checks and the app's repeated reads are counted into one log line per hour instead of one line each, and checks that find nothing new no longer rewrite their row.
+- The diagnostics log keeps a week and at most 64 MB, trims itself while Vyre runs, gives the space back to the disk, and is written in a way a crash or forced restart cannot damage.
+- A background job that keeps failing the same way is logged once per streak, with a count, instead of once a second.

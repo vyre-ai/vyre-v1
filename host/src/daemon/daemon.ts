@@ -50,7 +50,7 @@ import { createInvoke, createRateLimiter, fail, indexCapabilities, makeError, pe
 import type { AuditRow, Handler, Invoke, InvokeDeps } from "../invoke.ts";
 import { fileExportsImporter, fileImporter, fileSeamImporter, loadHost, readModuleList } from "../loader.ts";
 import type { RegistryLike } from "../loader.ts";
-import { LogSink } from "../logsink/index.ts";
+import { LogSink, invokeSpanLog, jobRanLog } from "../logsink/index.ts";
 import { nodePlatform } from "../platform/index.ts";
 
 /** Files an agent made on its computer, said in the chat the work was for: one message with a file card each (four at most, the rest counted), posted as the agent for the person it works for. */
@@ -177,6 +177,8 @@ export const CODE_ROOT = path.resolve(HERE, "../../..");
 const registryHash = sha256Hex(fs.readFileSync(new URL("../../../generated/registry.json", import.meta.url)));
 const ZERO_TRACE = "0".repeat(32);
 const RING = 5000;
+/** A probe whose state and detail are unchanged is written again after this long (health calls a scheduler report older than 90 s stale). */
+const PROBE_REFRESH_MS = 60_000;
 
 const repairPayload = (payload: unknown): unknown => {
   if (!(payload instanceof Uint8Array)) return payload;
@@ -517,8 +519,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     return true;
   };
 
-  const writeProbe = (name: ProbeName, r: ProbeResult): void => {
+  // what each probe last wrote: a scheduled probe whose state and detail have not changed writes again only once a minute, inside the 90 s after which health calls a report stale
+  const probeWritten = new Map<ProbeName, { state: string; detail: string | undefined; at: number }>();
+  const writeProbe = (name: ProbeName, r: ProbeResult, force = true): void => {
     probeState.set(name, r);
+    const last = probeWritten.get(name), t = now();
+    if (!force && last && last.state === r.state && last.detail === r.detail && t - last.at < PROBE_REFRESH_MS) return;
+    probeWritten.set(name, { state: r.state, detail: r.detail, at: t });
     db?.run(
       "INSERT INTO health_probe (name, state, detail, latency_ms, values_json, at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(name) DO UPDATE SET state = excluded.state, detail = excluded.detail, latency_ms = excluded.latency_ms, values_json = excluded.values_json, at = excluded.at",
       name, r.state, r.detail ?? null, r.latencyMs ?? null, r.values ? JSON.stringify(r.values) : null, now(),
@@ -539,7 +546,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   });
   const scheduler = new Scheduler({
     now, tickMs: o.intervals?.tick ?? 1000, log: sink.logger({ space: space ?? "-", place: "scheduler" }),
-    onRun: (r) => sink.log({ space: space ?? "-", level: r.ok ? 10 : 40, msg: "job.ran", place: "scheduler", entity: "job", entity_id: r.job, dur_ms: r.ms, result: r.ok ? "ok" : "error", ...(r.error ? { attrs: { error: r.error } } : {}) }),
+    onRun: jobRanLog(sink, () => space ?? "-"),
   });
 
   try {
@@ -619,6 +626,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (telemetry) sink.setObserver(telemetry.write, telemetry.position(sink.sourceId));
       closers.push(() => { try { sink.flush(); } catch { /* The committed native source replays on the next boot. */ } finally { sink.setObserver(undefined); } });
       const registryCaps = registry.capabilities as unknown as CapabilityDef[];
+      const readCaps = new Set<string>(registryCaps.filter((c) => c.effects === "read").map((c) => c.name));
       // consumers and periodic jobs the live modules export (ruling 32): each runs through the invoke pipeline as a host-only capability that may emit what its module's capabilities emit
       // the Vault the connector seams read from: the vault module's own port once it is live and configured, else a refusal
       let vaultImpl: (VaultPort & { pullExport?(exportId: string, token: string): string }) | null = null;
@@ -931,7 +939,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           void hookRunner.pump().catch((e: unknown) => sink.log({ space: spaceId, level: 30, msg: "hooks.pump_failed", place: "hooks", attrs: { error: e instanceof Error ? e.message : String(e) } }));
           void projectionRunner.pump().catch((e: unknown) => sink.log({ space: spaceId, level: 30, msg: "projections.pump_failed", place: "projections", attrs: { error: e instanceof Error ? e.message : String(e) } }));
         },
-        onSpan: (s) => sink.span({ trace_id: s.traceId, span_id: s.spanId, parent: s.parent ?? null, name: s.name, at: s.startedAt, dur_us: s.ms * 1000, attrs: { cap: s.cap, status: s.status } }),
+        // a fast read, or the host's own periodic work and calls, is counted rather than stored per call (a client polling a dozen reads a second wrote a span each)
+        onSpan: invokeSpanLog(sink, () => spaceId, (cap) => readCaps.has(cap) || cap.startsWith("host.hook.periodic.") || cap.startsWith("host.hook.call.")),
       });
 
       // A job the host itself scheduled (a webhook retry from the events consumer) runs as the host service, which authorize does not know: it is pre-authorized like the hook that scheduled it.
@@ -1681,12 +1690,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     time_skew: () => probes.timeSkew(fetchFn, cfg.relayUrl, now),
   };
   const relevant: readonly ProbeName[] = hasSpace ? probes.PROBE_NAMES : ["disk_encrypted", "scheduler", "disk_space", "time_skew"];
-  const runProbes = async (names: readonly ProbeName[] = relevant): Promise<Partial<Record<ProbeName, ProbeResult>>> => {
+  const runProbes = async (names: readonly ProbeName[] = relevant, force = true): Promise<Partial<Record<ProbeName, ProbeResult>>> => {
     const out: Partial<Record<ProbeName, ProbeResult>> = {};
     for (const name of names) {
       let r: ProbeResult;
       try { r = await probeFns[name](); } catch (e) { r = { state: "down", detail: `The probe failed: ${e instanceof Error ? e.message : String(e)}` }; }
-      writeProbe(name, r);
+      writeProbe(name, r, force);
       out[name] = r;
     }
     return out;
@@ -1699,18 +1708,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const url = `http://${cfg.host}:${boundPort}`;
     const relayHost = cfg.relayUrl ? new URL(cfg.relayUrl).host : null;
     const address = cfg.address ?? url;
-    db.run(
-      "INSERT INTO network_config (id, address, mode, domain, relay_address, public_ingress, ingress_detail, reported_at) VALUES (1, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET reported_at = excluded.reported_at, relay_address = COALESCE(excluded.relay_address, network_config.relay_address)",
-      address, cfg.relayUrl && !cfg.address ? "relay" : "own_domain", cfg.address, relayHost, cfg.address || cfg.relayUrl ? 1 : 0, cfg.address || cfg.relayUrl ? null : "Forms and webhooks need a public address.", t,
-    );
-    db.run(
-      "INSERT INTO network_server (server_id, name, role, state, heartbeat_at) VALUES ('srv_local', ?, 'space', ?, ?) ON CONFLICT(server_id) DO UPDATE SET state = excluded.state, heartbeat_at = excluded.heartbeat_at, name = excluded.name",
-      platform.hostname, chainBroken ? "degraded" : "healthy", t,
-    );
-    db.run(
-      "INSERT INTO network_endpoint (kind, url, state, rtt_ms, heartbeat_at) VALUES ('direct', ?, 'healthy', NULL, ?) ON CONFLICT(kind, url) DO UPDATE SET state = excluded.state, heartbeat_at = excluded.heartbeat_at",
-      /^https?:\/\//.test(address) ? address : `https://${address}`, t,
-    );
+    const d = db;
+    // one commit for the three heartbeats, not three
+    d.tx(() => {
+      d.run(
+        "INSERT INTO network_config (id, address, mode, domain, relay_address, public_ingress, ingress_detail, reported_at) VALUES (1, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET reported_at = excluded.reported_at, relay_address = COALESCE(excluded.relay_address, network_config.relay_address)",
+        address, cfg.relayUrl && !cfg.address ? "relay" : "own_domain", cfg.address, relayHost, cfg.address || cfg.relayUrl ? 1 : 0, cfg.address || cfg.relayUrl ? null : "Forms and webhooks need a public address.", t,
+      );
+      d.run(
+        "INSERT INTO network_server (server_id, name, role, state, heartbeat_at) VALUES ('srv_local', ?, 'space', ?, ?) ON CONFLICT(server_id) DO UPDATE SET state = excluded.state, heartbeat_at = excluded.heartbeat_at, name = excluded.name",
+        platform.hostname, chainBroken ? "degraded" : "healthy", t,
+      );
+      d.run(
+        "INSERT INTO network_endpoint (kind, url, state, rtt_ms, heartbeat_at) VALUES ('direct', ?, 'healthy', NULL, ?) ON CONFLICT(kind, url) DO UPDATE SET state = excluded.state, heartbeat_at = excluded.heartbeat_at",
+        /^https?:\/\//.test(address) ? address : `https://${address}`, t,
+      );
+    });
   };
 
   const network = o.network ?? managedNetworkPort({
@@ -1748,9 +1761,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const group = (names: ProbeName[]): ProbeName[] => names.filter((n) => relevant.includes(n));
   // a signed-out person's key leaves memory within the interval, not whenever someone next reads it
   scheduler.add({ name: "keyring.sweep", schedule: { everyMs: o.intervals?.sweep ?? 30_000 }, run: () => { keyring.sweep(); } });
-  scheduler.add({ name: "probes.fast", schedule: { everyMs: fast }, run: async () => { await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"])); } });
-  scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"])); reportNetwork(); await refreshNetworkCertificate(); } });
-  scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"])); } });
+  scheduler.add({ name: "probes.fast", schedule: { everyMs: fast }, run: async () => { await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"]), false); } });
+  scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"]), false); reportNetwork(); await refreshNetworkCertificate(); } });
+  scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"]), false); } });
   if (hasSpace) {
     scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });
     scheduler.add({ name: "schedule.tick", schedule: { everyMs: o.intervals?.tick ?? 1000 }, run: async () => { await queue?.tick(); } });
@@ -1917,7 +1930,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
   return {
     url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) },
-    runProbes, pollCommands: runCommands,
+    runProbes: (names) => runProbes(names), pollCommands: runCommands,
     stop,
   };
 }
@@ -1927,15 +1940,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
  * aside as logs.db.corrupt-<time> with its journal files, a fresh one is made, and the move is the new file's first line. If even that fails, the sink keeps its rows in memory.
  */
 export function openLogSink(file: string, now: () => number, token: string): LogSink {
-  try { return new LogSink({ path: file, now, secrets: () => [token] }); }
+  const aside = `${file}.corrupt-${now()}`;
+  let moved = false;
+  const moveAside = (): void => {
+    if (moved) return;
+    fs.renameSync(file, aside);
+    for (const ext of ["-wal", "-shm", "-journal"]) { try { fs.renameSync(file + ext, aside + ext); } catch { /* not there */ } }
+    moved = true;
+  };
+  try { return LogSink.openFile({ path: file, now, secrets: () => [token] }, moveAside); }
   catch (first) {
-    const aside = `${file}.corrupt-${now()}`;
-    let moved = false;
-    try {
-      fs.renameSync(file, aside);
-      for (const ext of ["-wal", "-shm", "-journal"]) { try { fs.renameSync(file + ext, aside + ext); } catch { /* not there */ } }
-      moved = true;
-    } catch { /* nothing to move, or no right to: fall through to memory */ }
+    try { moveAside(); } catch { /* nothing to move, or no right to: fall through to memory */ }
     const why = first instanceof Error ? first.message.slice(0, 160) : "unknown";
     try {
       if (!moved) throw first;

@@ -94,6 +94,8 @@ export interface CommitBatch { cap: string; v: number; principal: string; events
 export interface SpanRecord {
   traceId: string; spanId: string; parent?: string | undefined; name: string; cap: string; startedAt: number; ms: number;
   status: "ok" | "held" | "denied" | "error"; code?: string | undefined;
+  /** who called, so a log can tell one person's repeated reads from another's */
+  principal?: string | undefined;
 }
 
 export interface GateHook {
@@ -233,7 +235,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     const traceId = trace.traceId;
     let cap: CapabilityDef | undefined;
     const span = (status: SpanRecord["status"], code?: string): void => {
-      deps.onSpan?.({ traceId, spanId: trace.spanId, parent: trace.parent, name: "invoke", cap: capName, startedAt: t0, ms: now() - t0, status, code });
+      deps.onSpan?.({ traceId, spanId: trace.spanId, parent: trace.parent, name: "invoke", cap: capName, startedAt: t0, ms: now() - t0, status, code, principal: seed.principal.id });
     };
     try {
       // 1 resolve
