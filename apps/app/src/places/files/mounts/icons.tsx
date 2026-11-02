@@ -4,6 +4,7 @@ import { createElement } from "react";
 import type { ReactElement } from "react";
 import { Platform, View } from "react-native";
 import { AppIcon } from "../../../../../../ui/src/AppIcon/index.tsx";
+import { markBrandOf } from "../google.ts";
 
 export const ICON = {
   chev: ["M6 3.5L10.5 8 6 12.5"],
@@ -38,7 +39,7 @@ export function Mark({ kind, size = 20 }: { kind: MarkKind; size?: number }): Re
   if (kind === "local") {
     return <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center", flexShrink: 0 }} testID="mark-local"><Glyph name="laptop" size={size * 0.8} color="var(--ink)" /></View>;
   }
-  const brand = kind === "google_drive" ? "gdrive" : kind;
+  const brand = markBrandOf(kind) ?? kind;
   const names: Record<string, string> = { gdrive: "Google Drive", onedrive: "OneDrive", sharepoint: "SharePoint", github: "GitHub", dropbox: "Dropbox", microsoft: "Microsoft 365" };
   return <View style={{ flexShrink: 0 }} testID={`mark-${kind}`}><AppIcon brand={brand} size={size} name={names[brand] ?? brand} testID={`mark-icon-${kind}`} /></View>;
 }
