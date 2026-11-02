@@ -744,10 +744,16 @@ async function pullCalendar(ctx: CalCtx, cal: Row): Promise<void> {
   const connectionId = strOrNull(cal, "connectionId");
   const remoteId = strOrNull(cal, "remoteId");
   const sync = first(ctx.db.all(`SELECT * FROM calendar_sync WHERE "calendarId" = ?`, calendarId));
-  if (!sync) ctx.db.run(`INSERT INTO calendar_sync ("calendarId", cursor, "lastTryAt", "lastOkAt", "lastError") VALUES (?, ?, ?, ?, ?)`, calendarId, null, now, null, null);
-  ctx.db.run(`UPDATE calendar_sync SET "lastTryAt" = ? WHERE "calendarId" = ?`, now, calendarId);
+  // the attempt is recorded whatever happens next: after the connection check on the way through, or in the catch when that check refuses, so nothing is written before a refusal
+  let tried = false;
+  const recordTry = (): void => {
+    if (!sync) ctx.db.run(`INSERT INTO calendar_sync ("calendarId", cursor, "lastTryAt", "lastOkAt", "lastError") VALUES (?, ?, ?, ?, ?)`, calendarId, null, now, null, null);
+    ctx.db.run(`UPDATE calendar_sync SET "lastTryAt" = ? WHERE "calendarId" = ?`, now, calendarId);
+    tried = true;
+  };
   try {
     if (!connectionId || !remoteId) refuse(ctx, "This calendar has no connection to pull from. Reconnect it in Settings, Connections.");
+    recordTry();
     const cursor = strOrNull(sync, "cursor");
     const account = strOrNull(first(ctx.db.all(`SELECT account FROM calendar_account WHERE "calendarId" = ?`, calendarId)), "account") ?? undefined;
     const pulled = provider === "google" ? await pullGoogle(ctx, calendarId, connectionId, remoteId, cursor, account) : await pullGraph(ctx, calendarId, connectionId, remoteId, cursor, account);
@@ -756,6 +762,7 @@ async function pullCalendar(ctx: CalCtx, cal: Row): Promise<void> {
     ctx.emit("calendar.synced", `entity/${calendarId}`, { calendarId, upserted: pulled.upserted, removed: pulled.removed }, { vis: "participants" });
   } catch (e) {
     const code = codeOf(e);
+    if (!tried) recordTry();
     ctx.db.run(`UPDATE calendar_sync SET "lastError" = ? WHERE "calendarId" = ?`, code || "sync_failed", calendarId);
     ctx.db.run(`UPDATE calendar_list SET state = ?, version = ?, updated_at = ? WHERE id = ?`, "error", num(cal, "version") + 1, ctx.now(), calendarId);
     // the scheduled pull tries again every two minutes: the same failure as last time is already in the log and on the calendar, so it is said once, not on every pass
