@@ -7,7 +7,10 @@ import { loadCryptoKeys } from "../../../../client/src/crypto/load.ts";
 import { makeRecoveryCode } from "../join/JoinFlow.tsx";
 import { createCapCaller } from "../shell/session/caps.ts";
 import { openRealSession } from "../shell/session/session.ts";
-import { readStoredSpace, spaceAddress, writeStored } from "../shell/session/stored.ts";
+import { readStoredSessions, readStoredSpace, spaceAddress, writeStored } from "../shell/session/stored.ts";
+import { claimAppLink, isPhoneAddress } from "../shell/session/entry.ts";
+import { carryIdentity, knownIdentity } from "../join/identity.ts";
+import type { KnownIdentity } from "../join/identity.ts";
 import { claimOwner } from "./claim.ts";
 import { fingerprintOf, spaceIdOf, spaceNameOf } from "./logic.ts";
 import { storeClaimedOwnerSession } from "./session.ts";
@@ -15,27 +18,32 @@ import { ClaimOwner } from "./ClaimOwner.tsx";
 import { deviceFor } from "../join/logic.ts";
 import { prefillFor, rememberClaimed } from "../onboarding/doors.ts";
 
-/** `local`: the Space is this computer's own Personal Space, so there is no server whose printed fingerprint to compare with and none is shown. */
-export function ClaimRoute({ token, onDone, onSignIn, onBack, address, fragment, deviceClass="web", local=false }: { token: string; onDone(): void; onSignIn(): void; onBack?():void; address?:string; fragment?:string;deviceClass?:"web"|"desktop";local?:boolean }): ReactElement | null {
+/** A browser on a computer (not a phone) can hand a claim link to the desktop app, where the person's account already is. */
+function onComputer(): boolean {
+  const ua = (globalThis as { navigator?: { userAgent?: string } }).navigator?.userAgent ?? "";
+  return !/iPhone|iPad|iPod|Android/.test(ua);
+}
+
+/**
+ * `local`: the Space is this computer's own Personal Space, so there is no server whose printed fingerprint to compare with and none is shown.
+ * `identity`: the account to offer as "Continue as" (rc.14); by default the one this device is signed in to elsewhere, and none for a Space it is already in.
+ */
+export function ClaimRoute({ token, onDone, onSignIn, onBack, address, fragment, deviceClass="web", local=false, identity }: { token: string; onDone(): void; onSignIn(): void; onBack?():void; address?:string; fragment?:string;deviceClass?:"web"|"desktop";local?:boolean; identity?: KnownIdentity | null }): ReactElement | null {
   const baseUrl = address ?? spaceAddress();
   const call = useMemo(() => (baseUrl ? createCapCaller({ baseUrl, token: () => null }) : null), [baseUrl]);
   const hash = fragment ?? (globalThis as { location?: { hash?: string } }).location?.hash ?? "";
   const spaceId = spaceIdOf(hash);
   // Read once: the claim below stores its own session just before it finishes, and that must not turn this screen into "already used".
   const [spent] = useState(() => !!spaceId && readStoredSpace(spaceId) !== null);
+  const [known] = useState(() => identity !== undefined ? identity : knownIdentity(readStoredSessions(), { spaceId, baseUrl }));
 
   if (!call || !baseUrl) return null;
   // A link without the Space id (#s=) is not the link the server printed.
   if (!spaceId) return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={async () => undefined} dead="invalid" onSignIn={onSignIn} />;
   if (spent) return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={async () => undefined} dead="used" onSignIn={onSignIn} signInLabel="Open" />;
-  const claim = async (v: { name: string; username: string; password: string; recoveryCode: string }): Promise<void> => {
-    const { makeBundle, wipe } = await loadCryptoKeys();
-    const claimed = await claimOwner(
-      { call, makeBundle: (password, recoveryCode, id) => makeBundle(password, recoveryCode, { spaceId: id }), holdKey: (t, key) => holdKeyOnOwnNode(baseUrl, t, key), wipe },
-      { token, spaceId, name: v.name, username: v.username, password: v.password, recoveryCode: v.recoveryCode, ...deviceFor(deviceClass) },
-    );
+  const finish = async (claimed: { token: string }, username: string): Promise<void> => {
     const authenticated = createCapCaller({ baseUrl, token: () => claimed.token });
-    await storeClaimedOwnerSession({ baseUrl, token: claimed.token, spaceId, username: v.username.trim().toLowerCase() }, {
+    await storeClaimedOwnerSession({ baseUrl, token: claimed.token, spaceId, username: username.trim().toLowerCase() }, {
       open: () => openRealSession({ baseUrl, token: claimed.token }),
       getSpace: async () => {
         const current = ((await authenticated("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space;
@@ -43,8 +51,30 @@ export function ClaimRoute({ token, onDone, onSignIn, onBack, address, fragment,
       },
       persist: writeStored,
     });
+  };
+  const claim = async (v: { name: string; username: string; password: string; recoveryCode: string }): Promise<void> => {
+    const { makeBundle, wipe } = await loadCryptoKeys();
+    const claimed = await claimOwner(
+      { call, makeBundle: (password, recoveryCode, id) => makeBundle(password, recoveryCode, { spaceId: id }), holdKey: (t, key) => holdKeyOnOwnNode(baseUrl, t, key), wipe },
+      { token, spaceId, name: v.name, username: v.username, password: v.password, recoveryCode: v.recoveryCode, ...deviceFor(deviceClass) },
+    );
+    await finish(claimed, v.username);
     rememberClaimed({ name: v.name, username: v.username, address: baseUrl });
     onDone();
   };
-  return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={claim} onSignIn={onSignIn} {...(onBack ? { onBack } : {})} fingerprint={local ? null : fingerprintOf(hash)} prefill={prefillFor(baseUrl)} />;
+  // The account this device already has: the same keys, opened with the current password, and a new Space key for this Space. No new password, no new recovery code.
+  const claimAs = known ? async (password: string): Promise<void> => {
+    const crypto = await loadCryptoKeys();
+    const source = createCapCaller({ baseUrl: known.baseUrl, token: () => known.token });
+    const claimed = await claimOwner(
+      { call, makeBundle: (pw, _code, id) => carryIdentity({ source, carryBundle: (p, b, sid) => crypto.carryBundle(p, b, sid) }, pw, id), holdKey: (t, key) => holdKeyOnOwnNode(baseUrl, t, key), wipe: crypto.wipe },
+      { token, spaceId, name: known.name, username: known.username, password, recoveryCode: "", ...deviceFor(deviceClass) },
+    );
+    await finish(claimed, known.username);
+    onDone();
+  } : undefined;
+  const appLink = deviceClass === "web" && !local && onComputer() && !isPhoneAddress(baseUrl) ? claimAppLink(baseUrl, token, hash) : null;
+  return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={claim} onSignIn={onSignIn} {...(onBack ? { onBack } : {})} fingerprint={local ? null : fingerprintOf(hash)} prefill={prefillFor(baseUrl)}
+    {...(known && claimAs ? { known: { username: known.username, name: known.name }, onClaimAs: claimAs } : {})}
+    {...(appLink ? { onOpenApp: () => { (globalThis as { location?: { assign(url: string): void } }).location?.assign(appLink); } } : {})} />;
 }

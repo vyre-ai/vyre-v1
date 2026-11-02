@@ -20,7 +20,7 @@ export interface SettingsNav {
   /** Applies a chosen skin to the window for good (the setting is saved by the page). */
   applySkin?(skinId: string): void;
   /** Starts a sign-in change that needs its own flow (password, authenticator app, passkey, GitHub) for a Space. The shell opens it; the page only asks. */
-  manageSecurity?(kind: "password" | "totp-on" | "totp-off" | "passkey" | "github-on" | "github-off", spaceId: string): void;
+  manageSecurity?(kind: "password" | "totp-on" | "totp-off" | "passkey" | "github-on" | "github-off" | "recovery", spaceId: string): void;
 }
 
 /** What one Space asks of this person's sign-in: its second factor, passkeys, the floor its admins set and single sign-on. */

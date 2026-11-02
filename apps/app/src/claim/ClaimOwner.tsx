@@ -5,6 +5,7 @@ import { useReducer, useState } from "react";
 import type { ReactElement } from "react";
 import { View } from "react-native";
 import { Bar, Button, CheckBox, CodeShown, ErrorLine, Field, Foot, Group, JoinFrame, Meter, Panel, Step, Title, Working } from "../join/kit.tsx";
+import { ContinueAs } from "../join/ContinueAs.tsx";
 import { FAILURE_LINE, PASSWORD_MIN, cleanUsername, isDeadLink, meter, problemOf, strength, usernameOk } from "./logic.ts";
 import type { ClaimFailure, Details, Problem } from "./logic.ts";
 
@@ -32,9 +33,15 @@ export interface ClaimOwnerProps {
   onSignIn?(): void;
   /** Leave before anything is claimed: back to the first screen. */
   onBack?(): void;
+  /** The account this device already has (rc.14): the screen opens on "Continue as", which asks only for the current password. */
+  known?: { username: string; name: string } | null;
+  /** Owns the Space with the known account: the same keys, no new password, no new recovery code. Rejects with a ClaimError or an error whose `line` (or message) is shown. */
+  onClaimAs?(password: string): Promise<void>;
+  /** A browser with the desktop app on this computer: hand the link to the app, where the account already is. */
+  onOpenApp?(): void;
 }
 
-type Stage = "details" | "recovery" | "run" | "dead";
+type Stage = "known" | "details" | "recovery" | "run" | "dead";
 interface State extends Details { stage: Stage; code: string; saved: boolean; error: string; dead: ClaimFailure | null; dir: 1 | -1 }
 type Action =
   | { t: "set"; patch: Partial<Details> }
@@ -42,7 +49,7 @@ type Action =
   | { t: "saved"; on: boolean }
   | { t: "fail"; failure: ClaimFailure; line: string };
 
-const first = (code: string, dead: ClaimFailure | null): State => ({ name: "", username: "", password: "", confirm: "", stage: dead ? "dead" : "details", code, saved: false, error: "", dead, dir: 1 });
+const first = (code: string, dead: ClaimFailure | null, known: boolean): State => ({ name: "", username: "", password: "", confirm: "", stage: dead ? "dead" : known ? "known" : "details", code, saved: false, error: "", dead, dir: 1 });
 
 function reduce(s: State, a: Action): State {
   switch (a.t) {
@@ -59,6 +66,9 @@ function Dead({ failure }: { failure: ClaimFailure }): ReactElement {
   return <Step id="dead"><Title title={FAILURE_LINE[failure]} sub={failure === "expired" ? "Ask whoever set up this Space for a new link" : failure === "invalid" ? "Open the link exactly as the server printed it" : undefined} /></Step>;
 }
 
+/** What the details form makes, said once: one account for every Space. */
+export const NEW_ACCOUNT = "This creates your Vyre account, used for all your Spaces.";
+
 function DetailsStep({ s, space, fingerprint, dispatch, next }: { s: State; space: string | null; fingerprint?: string | null; dispatch: (a: Action) => void; next: () => void }): ReactElement {
   const set = (patch: Partial<Details>): void => dispatch({ t: "set", patch });
   // An error shows once there is something to be wrong about: a field the person has not touched is not red.
@@ -68,7 +78,7 @@ function DetailsStep({ s, space, fingerprint, dispatch, next }: { s: State; spac
   const line = userBad ? LINES.username : passShort ? LINES.password : mism ? LINES.mismatch : s.error;
   return (
     <Step id="claim-details" dir={s.dir}>
-      <Title title={space ? `Set up ${space}` : "Create your account"} />
+      <Title title={space ? `Set up ${space}` : "Create your account"} sub={NEW_ACCOUNT} />
       <Group>
         <Field testID="claim-name" label="Name" value={s.name} onChange={(v) => set({ name: v })} placeholder="Your name" onSubmit={next} autoComplete="name" autoFocus valid={!!s.name.trim()} />
         <Field testID="claim-username" label="Username" value={s.username} onChange={(v) => set({ username: cleanUsername(v) })} placeholder="name" onSubmit={next} autoComplete="username" valid={usernameOk(s.username)} error={userBad} />
@@ -97,7 +107,8 @@ function RecoveryStep({ s, dispatch, onCopyCode, onSaveCode }: { s: State; dispa
 }
 
 export function ClaimOwner(props: ClaimOwnerProps): ReactElement {
-  const [s, dispatch] = useReducer(reduce, undefined, () => ({ ...first(props.newCode(), props.dead ?? null), ...(props.prefill ? { name: props.prefill.name, username: props.prefill.username } : {}), ...(props.stage === "recovery" ? { stage: "recovery" as const, name: "Dana Wills", username: "dana", password: "correct horse", confirm: "correct horse" } : {}) }));
+  const known = props.known && props.onClaimAs ? props.known : null;
+  const [s, dispatch] = useReducer(reduce, undefined, () => ({ ...first(props.newCode(), props.dead ?? null, !!known && props.stage !== "details"), ...(props.prefill ? { name: props.prefill.name, username: props.prefill.username } : {}), ...(props.stage === "recovery" ? { stage: "recovery" as const, name: "Dana Wills", username: "dana", password: "correct horse", confirm: "correct horse" } : {}) }));
   const [busy, setBusy] = useState(false);
   const problem = problemOf(s);
 
@@ -128,14 +139,30 @@ export function ClaimOwner(props: ClaimOwnerProps): ReactElement {
       </JoinFrame>
     );
   }
+  if (s.stage === "known" && known && props.onClaimAs) {
+    const claimAs = props.onClaimAs;
+    // A spent or expired link ends the flow on its own line; anything else stays on "Continue as" with the reason.
+    const go = async (password: string): Promise<void> => {
+      try { await claimAs(password); } catch (e) {
+        const failure = (e as { failure?: string }).failure as ClaimFailure | undefined;
+        if (failure && isDeadLink(failure)) { dispatch({ t: "fail", failure, line: "" }); return; }
+        if ((e as { line?: string }).line) throw e;
+        throw new Error(failure && failure !== "other" && failure in FAILURE_LINE ? FAILURE_LINE[failure] : (e as Error).message || FAILURE_LINE.other);
+      }
+    };
+    return <ContinueAs prefix="claim-as" space={props.space} username={known.username} sub={props.space ? `Enter your Vyre password to set up ${props.space}` : "Enter your Vyre password to set up this Space"} working={props.space ? `Setting up ${props.space}` : "Setting up your Space"} onContinue={go} onOther={() => dispatch({ t: "to", stage: "details", dir: 1 })} {...(props.onBack ? { onBack: props.onBack } : {})} />;
+  }
   const onDetails = s.stage === "details";
   const cont = onDetails
     ? <Button testID="claim-next" label="Continue" disabled={problem !== null} onPress={() => dispatch({ t: "to", stage: "recovery", dir: 1 })} />
     : <Button testID="claim-create" label="Create my Space" disabled={!s.saved || busy} onPress={() => void submit()} />;
-  const bar = <Bar hideBack={onDetails && !props.onBack} onBack={onDetails ? props.onBack : () => dispatch({ t: "to", stage: "details", dir: -1 })} step={onDetails ? 0 : 1} steps={2} cont={cont} />;
+  // Back from the details goes to "Continue as" when the person chose a different account there.
+  const backFromDetails = known ? () => dispatch({ t: "to", stage: "known", dir: -1 }) : props.onBack;
+  const bar = <Bar hideBack={onDetails && !backFromDetails} onBack={onDetails ? backFromDetails : () => dispatch({ t: "to", stage: "details", dir: -1 })} step={onDetails ? 0 : 1} steps={2} cont={cont} />;
+  const openApp = onDetails && props.onOpenApp ? <View style={{ marginTop: 8 }}><Button quiet testID="claim-open-app" label="Open in Vyre" onPress={props.onOpenApp} /><Foot top={6} testID="claim-open-app-note">Have Vyre on this computer? Open the link there to use the account you have.</Foot></View> : undefined;
   return (
     <JoinFrame>
-      <Panel bar={bar}>
+      <Panel bar={bar} {...(openApp ? { below: openApp } : {})}>
         {onDetails
           ? <DetailsStep s={s} space={props.space} fingerprint={props.fingerprint ?? null} dispatch={dispatch} next={() => { if (problem === null) dispatch({ t: "to", stage: "recovery", dir: 1 }); }} />
           : <RecoveryStep s={s} dispatch={dispatch} {...(props.onCopyCode ? { onCopyCode: props.onCopyCode } : {})} {...(props.onSaveCode ? { onSaveCode: props.onSaveCode } : {})} />}

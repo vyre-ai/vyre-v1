@@ -132,7 +132,7 @@ function SignInStep({ state, dispatch, rules }: Pick<AcceptInviteProps, "invite"
   const line = u && !ok ? (taken ? (sugg.length ? `@${u} is taken.` : `@${u} is taken. Choose a different username.`) : "Use 3 to 24 letters or digits, starting with a letter.") : short ? "Use at least 8 characters." : mism ? "The passwords do not match." : state.refused ? "" : state.error;
   return (
     <Step id="signin-details" dir={state.dir}>
-      <Title title="Your account" />
+      <Title title="Your account" sub="This creates your Vyre account, used for all your Spaces." />
       <Group>
         <FieldRow testID="username" label="Username" value={state.user} onChange={(v) => set({ user: cleanUsername(v) })} autoComplete="username" onSubmit={next} error={!!u && !ok} trailing={ok ? <View testID="username-ok" style={{ paddingHorizontal: 6 }}><Check size={15} color={p.ok} /></View> : null} />
         <FieldRow testID="password" label="Password" value={state.pw} onChange={(v) => set({ pw: v })} placeholder="At least 8 characters" secure visibilityTestID="password-visibility" autoComplete="new-password" onSubmit={next} />

@@ -8,6 +8,7 @@ import { JoinFrame } from "./kit.tsx";
 import { RUN_STEPS, createSpaceResolutionGate, fullName, initialState, normalizeSpaceAddress, reduce, refreshJoinInvite, resolveSpaceInvite, signInValid } from "./logic.ts";
 import type { Action, ConnectIntent, FlowState, JoinInvite } from "./logic.ts";
 import { MANY_TRIES, TOO_MANY, isMiss, signInLine } from "./failure.ts";
+import { makeRecoveryCode } from "./recovery-code.ts";
 
 export interface JoinValues {
   username: string;
@@ -46,14 +47,7 @@ export interface JoinFlowProps {
   unlock?: boolean;
 }
 
-const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
-/** 16 characters in four groups, from the platform's random source. */
-export function makeRecoveryCode(): string {
-  const b = globalThis.crypto.getRandomValues(new Uint8Array(16));
-  let s = "";
-  for (let i = 0; i < 16; i++) s += CODE_ALPHABET[b[i]! % CODE_ALPHABET.length];
-  return [s.slice(0, 4), s.slice(4, 8), s.slice(8, 12), s.slice(12)].join("-");
-}
+export { makeRecoveryCode };
 
 type Browser = { navigator?: { clipboard?: { writeText(t: string): unknown } }; document?: { createElement(t: string): Record<string, unknown> & { click(): void } }; URL?: { createObjectURL(b: unknown): string }; Blob?: new (p: string[], o: { type: string }) => unknown };
 function copyText(text: string): void {

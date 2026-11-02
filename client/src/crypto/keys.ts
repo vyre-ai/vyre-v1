@@ -235,6 +235,28 @@ export async function wrapPersonKeyWithPassword<T extends KeyBundle>(personKey:U
  return{...bundle,personKeyByPassword:toBase64(await sealWithSecret(newPassword,personKey,"password",fresh(o)))};
 }
 
+/** The bundle as a Space hands it back: the recovery wrap is missing when the person never kept a code. */
+export type StoredBundle = Omit<KeyBundle, "personKeyByRecovery"> & { personKeyByRecovery?: string };
+
+/**
+ * One account in another Space: the password must open the bundle the person already has, and the same person key, the same password and recovery wraps and the same key pair go to the
+ * new Space, with a new Space key sealed for it. No new password and no new recovery code. An absent recovery wrap stays absent (`personKeyByRecovery` is then "").
+ */
+export async function carryBundle(password: string, bundle: StoredBundle, spaceId: string, o: Options = {}): Promise<MadeBundle & { spaceKeys: SealedSpaceKey[] }> {
+  const opened = await openBundle(password, { ...bundle, personKeyByRecovery: bundle.personKeyByRecovery ?? "" }, o);
+  wipe(opened.privateKey);
+  try {
+    const spaceKey = await makeSpaceKey(bundle.publicKey, spaceId, o.rand ? { rand: o.rand } : {});
+    return { personKey: opened.personKey, personKeyByPassword: bundle.personKeyByPassword, personKeyByRecovery: bundle.personKeyByRecovery ?? "", publicKey: bundle.publicKey, privateKeyWrapped: bundle.privateKeyWrapped, spaceKeys: [spaceKey] };
+  } catch (e) { wipe(opened.personKey); throw e; }
+}
+
+/** A new recovery code: the password opens the person key, which is sealed again under the new code. Only the recovery wrap changes; the old code no longer opens what this returns. */
+export async function rewrapRecovery(password: string, newRecoveryCode: string, bundle: StoredBundle, o: Options = {}): Promise<string> {
+  const opened = await openBundle(password, { ...bundle, personKeyByRecovery: bundle.personKeyByRecovery ?? "" }, o);
+  try { return toBase64(await sealWithSecret(newRecoveryCode, opened.personKey, "recovery", fresh(o))); } finally { wipe(opened.personKey); wipe(opened.privateKey); }
+}
+
 // ---- the Space key (ruling 72)
 
 export const SPACE_KEY_VERSION = 1;
