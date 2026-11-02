@@ -14,6 +14,7 @@ import { gateResumeConsumers } from "./handlers/gate-resume.ts";
 import { sweepWaits } from "./crew-waits.ts";
 import { reconcileAll } from "./handlers/crew.ts";
 import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
+import { checkGroupAccount } from "./group-account.ts";
 import { closeNoAccountTasks, engineHost, ensureRuntime, openAs, recoverStale, setEngineHost, wakeAfterAnswer, wakeAfterUnblock } from "./runtime.ts";
 import { onTaskEvent, sweepBaton } from "./handlers/task-baton.ts";
 import { markLostJobs, ownerChanged, resumeAgent, stopAgent, stopPerson } from "./handlers/departures.ts";
@@ -89,6 +90,17 @@ export const consumers = {
   "engine.thread_owner": {
     on: ["thread.updated"],
     run: async (ctx: EngineCtx, event: { payload: { threadId: string; starter?: string } }): Promise<void> => { if (event.payload.starter) ownerChanged(await ensureRuntime(ctx), event.payload.threadId, event.payload.starter); },
+  },
+  /** A person or an agent joined a group: say who an agent there could not answer (group-account.ts). */
+  "engine.group_account": {
+    on: ["channel.member_added", "channel.agent_added"],
+    run: async (_ctx: EngineCtx, event: { payload: { threadId?: string; channelId?: string; personId?: string } }): Promise<string[]> => {
+      const h = engineHost();
+      if (!h) return [];
+      const p = event.payload;
+      const threadId = p.threadId ?? (p.channelId ? ((await h.call("channels.get", { channelId: p.channelId })) as { channel: { mainThreadId: string } }).channel.mainThreadId : undefined);
+      return threadId ? checkGroupAccount(h, threadId, p.personId ? [p.personId] : undefined) : [];
+    },
   },
   "engine.no_account_sweep": {
     on: ["provider.added"],

@@ -38,6 +38,8 @@ export interface Ctx {
   space: string;
   principal: Principal;
   actingFor?: string;
+  /** Set only on the engine's post of a turn a key of the Space paid for. */
+  sharedKey?: boolean;
   trace: TraceContext;
   run?: string;
   thread?: string;

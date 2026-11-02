@@ -5,7 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers, consumers, hostSeams } from "../impl.ts";
-import { ensureRuntime, wakeAfterUnblock } from "../runtime.ts";
+import { ensureRuntime, resolveOne, wakeAfterUnblock } from "../runtime.ts";
 import { boundEngine, bindEngine, sqlMessages, sqlQueue } from "../projections.ts";
 import { ensureExtra } from "../handlers/extra/schema.ts";
 import { harness, openRaw } from "../fixtures/harness.ts";
@@ -397,3 +397,15 @@ test("a paid key is offered once, and marking the Need done lets it answer in th
   assert.equal(engine.turns(THREAD).at(-1)?.state, "completed");
   hostSeams.setEngineHost(null);
 });
+
+test("a turn's account says when it is a key of the Space and not the person's own", async () => {
+  const q = { threadId: "thr_1", agentId: "agt_1", askerId: "usr_1" };
+  const on = (mine: boolean) => ({
+    call: async (cap: string) => (cap === "engine.account.resolve"
+      ? { accountRef: "#Key", payer: "usr_1", reason: "starter", allowed: true }
+      : { accounts: [{ ref: "#Key", driver: "api", kind: "key", mine }] }),
+  }) as never;
+  assert.equal((await resolveOne(on(false), q))?.shared, true);
+  assert.equal((await resolveOne(on(true), q))?.shared, undefined);
+});
+

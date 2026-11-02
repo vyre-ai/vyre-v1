@@ -53,6 +53,8 @@ export interface CtxSeed {
   device?: string | undefined;
   /** AI provider of the active model when the result goes to one (label vs provider, 4.5) */
   provider?: string | undefined;
+  /** A key of the Space paid for this agent's turn, not the person it acts for. Set only by the engine's post, so a chat never says the reply was on their account. */
+  sharedKey?: boolean | undefined;
   /** an approval token for exactly this payload, from the Gate resume path */
   approval?: string | undefined;
   /** contract version; latest when omitted */
@@ -412,6 +414,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       space: seed.space, principal: seed.principal, ...(seed.actingFor ? { actingFor: seed.actingFor } : {}), trace,
       ...(seed.run ? { run: seed.run } : {}), ...(seed.thread ? { thread: seed.thread } : {}), origin: seed.origin ?? "user", depth,
       ...(seed.device ? { device: seed.device } : {}), now,
+      ...(seed.sharedKey ? { sharedKey: true } : {}),
       ...(seed.sessionId ? { sessionId: seed.sessionId } : {}),
       db: svc.db ?? { all: unavailable("db"), run: unavailable("db") },
       emit<T>(name: EventName, subject: string, payload: T, opts?: EmitOpts): EventEnvelope<T> {

@@ -18,6 +18,8 @@ export interface ChatCtx {
   space: string;
   principal: Principal;
   actingFor?: string | undefined;
+  /** the engine's post of a turn a key of the Space paid for */
+  sharedKey?: boolean | undefined;
   thread?: string | undefined;
   trace: { traceId: string };
   now(): number;
@@ -219,7 +221,7 @@ export function threadOut(db: Db, t: ThreadRec): Record<string, unknown> {
 
 export interface MessageRec {
   id: string; thread: string; seq: number; author: string; kind: "text" | "agent" | "system" | "quiet"; body: string; blocks: Array<Record<string, unknown>>; replyTo?: string;
-  via?: { routineOwner: string }; /** The person whose turn this reply was: the one whose account the turn ran on. */ paidBy?: string; depth: number; attachments: string[]; reactions: Array<{ emoji: string; by: string[] }>; pinned: boolean; editedAt?: number; createdAt: number;
+  via?: { routineOwner: string }; /** The person whose own account this turn ran on; absent when a key of the Space paid. */ paidBy?: string; depth: number; attachments: string[]; reactions: Array<{ emoji: string; by: string[] }>; pinned: boolean; editedAt?: number; createdAt: number;
 }
 const parseJson = <T>(raw: unknown, fallback: T): T => { try { return raw === null || raw === undefined ? fallback : (JSON.parse(str(raw)) as T); } catch { return fallback; } };
 

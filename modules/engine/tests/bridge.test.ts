@@ -8,7 +8,7 @@ import { harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { recordWork, workCardOf } from "../../../agent/src/tools/work-cards.ts";
 import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
-import type { DriverEvent, TurnInput } from "../../../agent/src/turn-engine/types.ts";
+import type { DriverEvent, ResolvedAccount, TurnInput } from "../../../agent/src/turn-engine/types.ts";
 import type { EngineCtx } from "../projections.ts";
 
 const T = "thr_estate";
@@ -17,7 +17,7 @@ const WATCHER = "agt_watch";
 
 interface ChatRow { messageId: string; threadId: string; threadSeq: number; author: { kind: string; id: string }; body: string; blocks: unknown[]; mentions: unknown[]; via?: { routineOwner: string }; depth: number; attachments?: string[] }
 
-function setup(opts: { agentModel?: string; stream?: (e: StreamEvent) => void; addressAsker?: (threadId: string, agentId: string) => boolean; refuse?: (p: AgentPost) => boolean; agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
+function setup(opts: { account?: () => ResolvedAccount; agentModel?: string; stream?: (e: StreamEvent) => void; addressAsker?: (threadId: string, agentId: string) => boolean; refuse?: (p: AgentPost) => boolean; agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
   const h = harness();
   const chat: ChatRow[] = [];
   const echoes: Array<{ id: string; result: unknown }> = [];
@@ -46,7 +46,8 @@ function setup(opts: { agentModel?: string; stream?: (e: StreamEvent) => void; a
   };
   bridge = createBridge({ postAs, ...(opts.stream ? { stream: opts.stream } : {}), ...(opts.addressAsker ? { addressAsker: opts.addressAsker } : {}) });
   const provider = scriptedProvider({ script: opts.script });
-  const engine = h.runtime({ openSession: bridge.tap(provider.openSession), schedule: () => () => {} });
+  const open = bridge.tap(provider.openSession);
+  const engine = h.runtime({ openSession: (spec) => open(opts.account ? { ...spec, account: opts.account() } : spec), schedule: () => () => {} });
   bridge.attach(engine);
   /** A person writes in chat: stored there first, then the consumer runs on message.received. */
   async function say(body: string, mentions: Array<{ kind: "agent" | "person"; id: string }> = [], id = `msg_p${chat.length + 1}`, extra: { attachments?: string[]; blocks?: unknown[] } = {}) {
@@ -86,6 +87,19 @@ test("the agent's text and blocks come back as one chat post by the agent, text 
   assert.equal(posts[0]?.body, "Looking. Found it.");
   assert.deepEqual(posts[0]?.blocks, [{ type: "chart", v: 1, data: { n: 1 } }, { type: "table", v: 1, data: { n: 2 } }]);
   assert.equal(posts[0]?.via, undefined, "a person's turn carries no routine label");
+});
+
+test("a reply on a key of the Space says so to the post; the same agent on the person's own account does not", async () => {
+  const base = { ref: "#Key", driver: "api", provider: "anthropic", kind: "key" as const, payer: "usr_dana", reason: "starter" as const };
+  let shared = true;
+  const seen: AgentPost[] = [];
+  const s = setup({ script: reply("Done."), refuse: (p) => { seen.push(p); return false; }, account: () => ({ ...base, ...(shared ? { shared: true } : {}) }) });
+  await s.say("one");
+  assert.equal(seen.at(-1)?.sharedKey, true);
+  assert.equal(seen.at(-1)?.actingFor, "usr_dana", "the agent still speaks for that person");
+  shared = false;
+  await s.say("two");
+  assert.equal(seen.at(-1)?.sharedKey, undefined, "a later turn on their own account is theirs");
 });
 
 test("posts go out in the order of the turns", async () => {

@@ -24,6 +24,8 @@ export interface PostBlock { type: string; v: number; data: unknown }
 export interface AgentPost {
   /** the person whose turn this is; the agent posts for them */
   actingFor?: string;
+  /** a key of the Space paid for this turn, so the reply is not on that person's account */
+  sharedKey?: boolean;
   threadId: string; body: string; blocks: PostBlock[]; mentions: RouteMention[]; clientId: string;
   via?: { routineOwner: string };
 }
@@ -111,6 +113,7 @@ export function createBridge(o: BridgeOptions): Bridge {
   const turns = new Map<string, { routineOwner: string | null }>();
   const emit = (e: StreamEvent): void => { try { o.stream?.(e); } catch { /* a live view must never fail a turn */ } };
   const askerOf = new Map<string, string>();               // threadId -> the person whose turn ran last: the agent speaks for them
+  const onSharedKey = new Set<string>();                 // threadId|agentId: the account of this agent's turn here is a key of the Space
   const chains = new Map<string, Promise<void>>();       // per thread: posts go out one after another, in the order the events arrived
   const warn = (msg: string, attrs?: Record<string, unknown>): void => o.log?.warn(msg, attrs);
 
@@ -123,7 +126,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     const prev = chains.get(threadId) ?? Promise.resolve();
     const next = prev.then(async () => {
       const asker = askerOf.get(threadId);
-      const as = (p: AgentPost): AgentPost => (asker ? { ...p, actingFor: asker } : p);
+      const as = (p: AgentPost): AgentPost => (asker ? { ...p, actingFor: asker, ...(onSharedKey.has(`${threadId}|${agentId}`) ? { sharedKey: true } : {}) } : p);
       let posted = false;
       const [first = [], ...more] = fitBlocks(post.blocks);
       try {
@@ -412,7 +415,11 @@ export function createBridge(o: BridgeOptions): Bridge {
       engine = e;
       return e.subscribe(onEngine);
     },
-    tap: (openSession) => async (spec) => wrap(await openSession(spec)),
+    tap: (openSession) => async (spec) => {
+      const key = `${spec.threadId}|${spec.agent.id}`;
+      if (spec.account?.shared) onSharedKey.add(key); else onSharedKey.delete(key);
+      return wrap(await openSession(spec));
+    },
     onEvent: (ctx, event) => (event.name === "message.edited" ? onEdited(ctx, event.payload) : onReceived(ctx, event.payload)),
     liveTurns(threadId) {
       const out: Array<{ turnId: string; agentId: string; text: string }> = [];
