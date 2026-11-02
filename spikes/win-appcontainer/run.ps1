@@ -96,8 +96,14 @@ $probes = @(
   @("read", (Join-Path $env:WINDIR "win.ini"))
 )
 $cmd = Join-Path $env:WINDIR "System32\cmd.exe"
-"cmd echo: exit $([Ac]::Run($name, "`"$cmd`" /c echo hi> `"$w\echo.txt`"", $w, 30000)) wrote: $(if (Test-Path "$w\echo.txt") { Get-Content "$w\echo.txt" } else { 'nothing' })"
-"node version: exit $([Ac]::Run($name, "`"$cmd`" /c `"`"$node`" --version > `"$w\ver.txt`" 2>&1`"", $w, 30000)) said: $(if (Test-Path "$w\ver.txt") { Get-Content "$w\ver.txt" -Raw } else { 'nothing' })"
+$c1 = '"' + $cmd + '" /c echo hi> "' + $w + '\echo.txt"'
+$e1 = [Ac]::Run($name, $c1, $w, 30000)
+$t1 = if (Test-Path "$w\echo.txt") { Get-Content "$w\echo.txt" -Raw } else { "nothing" }
+"cmd echo: exit $e1 wrote: $t1"
+$c2 = '"' + $cmd + '" /c ""' + $node + '" --version > "' + $w + '\ver.txt" 2>&1"'
+$e2 = [Ac]::Run($name, $c2, $w, 30000)
+$t2 = if (Test-Path "$w\ver.txt") { Get-Content "$w\ver.txt" -Raw } else { "nothing" }
+"node version: exit $e2 said: $t2"
 "node dir acl:"; icacls (Split-Path $node) | Select-Object -First 8
 "node exe acl:"; icacls $node | Select-Object -First 8
 $n = 0
@@ -105,7 +111,8 @@ foreach ($p in $probes) {
   $n++
   $out = Join-Path $w "out-$n.json"
   $err = Join-Path $w "err-$n.txt"
-  $code = [Ac]::Run($name, "`"$cmd`" /c `"`"$node`" `"$w\probe.mjs`" $($p[0]) `"$out`" `"$($p[1])`" > `"$err`" 2>&1`"", $w, 30000)
+  $line = '"' + $cmd + '" /c ""' + $node + '" "' + $w + '\probe.mjs" ' + $p[0] + ' "' + $out + '" "' + $p[1] + '" > "' + $err + '" 2>&1"'
+  $code = [Ac]::Run($name, $line, $w, 30000)
   if (Test-Path $out) { "probe $($p[0]) $($p[1]): $(Get-Content $out -Raw)".Trim() } else { "probe $($p[0]) $($p[1]): no answer (exit $code) $(if (Test-Path $err) { (Get-Content $err -Raw) })" }
 }
 Stop-Process -Id $host1.Id -Force -ErrorAction SilentlyContinue
