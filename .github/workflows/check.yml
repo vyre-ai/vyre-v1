@@ -148,7 +148,7 @@ jobs:
         run: |
           git fetch -q origin main
           base="$(git merge-base origin/main HEAD)"
-          if git diff --name-only --no-renames "$base"...HEAD -- images/ modules/sites/ modules/esign/ | grep -q .; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "no image or heavy test change; nothing to build"; fi
+          if git diff --name-only --no-renames "$base"...HEAD -- images/ modules/sites/ modules/esign/ host/src/caddy/ host/src/seams/sites-host.ts test/site-route.heavy.test.ts | grep -q .; then echo "changed=true" >> "$GITHUB_OUTPUT"; else echo "changed=false" >> "$GITHUB_OUTPUT"; echo "no image or heavy test change; nothing to build"; fi
           if git diff --name-only --no-renames "$base"...HEAD -- images/vyred/ | grep -q .; then echo "vyred=true" >> "$GITHUB_OUTPUT"; else echo "vyred=false" >> "$GITHUB_OUTPUT"; fi
       - name: Docker is there
         if: steps.scope.outputs.changed == 'true'
@@ -177,6 +177,11 @@ jobs:
         env:
           VYRE_HEAVY_DOCKER: "1"
         run: node --test --test-timeout=900000 --test-reporter=spec modules/sites/tests/builders.heavy.test.ts
+      - name: A site through real Caddy with automatic TLS (test/site-route.heavy.test.ts)
+        if: always() && steps.scope.outputs.changed == 'true'
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+        run: node --test --test-timeout=300000 --test-reporter=spec test/site-route.heavy.test.ts
       - name: Standalone docker compose (the runner has no compose plugin), pinned and checksum-verified
         id: compose
         if: always() && steps.scope.outputs.changed == 'true'
@@ -351,6 +356,14 @@ jobs:
           set -o pipefail
           node scripts/test-run.ts --slow --no-cache --files apps/chrome/tests/ext-core.popup-shot.test.ts 2>&1 | tee chrome-popup.out
           grep -q '^ok .*apps/chrome/tests/ext-core.popup-shot.test.ts' chrome-popup.out
+      - name: A hostile page on the public path, in a real Chromium (public-path.heavy.test.ts)
+        # The security proof of /p/ and artifacts: the Worker, the relay box, the daemon's route and a real browser. Fast shards have no Chromium and skip it by name; this step is where it counts, and the grep needs the file to pass.
+        env:
+          VYRE_REQUIRE_CHROME: "1"
+        run: |
+          set -o pipefail
+          node scripts/test-run.ts --no-cache --files test/public-path.heavy.test.ts 2>&1 | tee public-path.out
+          grep -q '^ok .*test/public-path.heavy.test.ts' public-path.out
       - name: A row lays out in Chromium when the page drops style text (owner-model.test.ts)
         # The Mac app's CSP (a style nonce) drops <style> text a script adds. WebKit, the Mac app's engine, needs system libraries this Linux runner lacks: its half runs in the desktop job on macOS.
         # VYRE_REQUIRE_BROWSERS=chromium makes a missing Chromium a failure here, and the grep below needs the file to pass.
