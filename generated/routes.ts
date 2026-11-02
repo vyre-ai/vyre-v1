@@ -12540,6 +12540,24 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/gate/grants/give_back",
+    "cap": "gate.grants.give_back",
+    "v": 1,
+    "module": "gate",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/gate/grants/set",
     "cap": "gate.grants.set",
     "v": 1,
@@ -16594,7 +16612,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/inbox/counts",
@@ -16612,10 +16633,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/inbox/follow_set",
@@ -22099,7 +22117,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/ms/teams/recordings/get_recording",
@@ -22118,10 +22139,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/ms/teams/recordings/get_transcript",
@@ -27629,7 +27647,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sites/domain_set",
@@ -27648,10 +27669,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": true,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sites/domains_get",
@@ -33155,7 +33173,10 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/vault/requests/get",
@@ -33173,10 +33194,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/vault/requests/list",

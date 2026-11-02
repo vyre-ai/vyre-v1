@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (19)
+## Capabilities (20)
 
 - [gate.acts.list](../capabilities/gate.acts.list.md): The ten Gate act kinds with risk, preview and who they apply to
 - [gate.allow.list](../capabilities/gate.allow.list.md): What may go without asking: your Always allow rules and the automations your press gave permission to
@@ -14,6 +14,7 @@ Requires: nothing.
 - [gate.effective_rule](../capabilities/gate.effective_rule.md): The effective rule for a principal and act: the strictest of Space policy, owner floor and agent.toml
 - [gate.expire](../capabilities/gate.expire.md): Apply the timeout of a hold: drop it or escalate to the delegate or role (called by the scheduler)
 - [gate.grants.ask](../capabilities/gate.grants.ask.md): What a person asks for in their own message: one single-use grant per act and target, read from their words by the server before the turn starts
+- [gate.grants.give_back](../capabilities/gate.grants.give_back.md): System: hand back the turn grants a call spent when the call was refused before it went out; only the server may call it
 - [gate.grants.set](../capabilities/gate.grants.set.md): Replace what an automation may send without a hold, for its definition as saved now. A person pressing Save or Turn on writes rows for the outward steps it names; anyone else leaves the automation with none
 - [gate.grants.take](../capabilities/gate.grants.take.md): System: does a grant cover this call? Asked by the Gate hook at act time, it spends a single-use grant; only the server may call it
 - [gate.holds.get](../capabilities/gate.holds.get.md): Read one hold

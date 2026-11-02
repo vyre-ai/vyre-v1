@@ -957,6 +957,7 @@ export function stubs(ctx: CallCtx) {
       expire: call("gate.expire"),
       grants: {
         ask: call("gate.grants.ask"),
+        give_back: call("gate.grants.give_back"),
         set: call("gate.grants.set"),
         take: call("gate.grants.take"),
       },

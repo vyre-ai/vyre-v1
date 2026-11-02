@@ -12374,6 +12374,12 @@ export type GateGrantsAskIn = {
 export type GateGrantsAskOut = {
   ok: boolean;
 };
+export type GateGrantsGiveBackIn = {
+  ids: Array<string>;
+};
+export type GateGrantsGiveBackOut = {
+  returned: number;
+};
 export type GateGrantsSetIn = {
   automationId: string;
   defHash: string;
@@ -12416,6 +12422,7 @@ export type GateGrantsTakeIn = {
 };
 export type GateGrantsTakeOut = {
   granted: boolean;
+  spent?: Array<string>;
 };
 export type GateHoldsGetIn = {
   holdId: string;
@@ -34487,6 +34494,7 @@ export interface CapMap {
   "gate.effective_rule": { in: GateEffectiveRuleIn; out: GateEffectiveRuleOut };
   "gate.expire": { in: GateExpireIn; out: GateExpireOut };
   "gate.grants.ask": { in: GateGrantsAskIn; out: GateGrantsAskOut };
+  "gate.grants.give_back": { in: GateGrantsGiveBackIn; out: GateGrantsGiveBackOut };
   "gate.grants.set": { in: GateGrantsSetIn; out: GateGrantsSetOut };
   "gate.grants.take": { in: GateGrantsTakeIn; out: GateGrantsTakeOut };
   "gate.holds.get": { in: GateHoldsGetIn; out: GateHoldsGetOut };
