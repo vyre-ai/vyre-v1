@@ -16,6 +16,7 @@ import type { SettingRow } from "./model.ts";
 import { SettingRowFor, useChange } from "./rows.tsx";
 import { useSaved } from "./saved.tsx";
 import { Choice, Field, Glyph, Section, SettingsRow, SmallButton, Switch, Value, pointer } from "./ui.tsx";
+import { useOpenConnect } from "../../shell/connect/context.ts";
 
 export interface PageProps { rows: readonly SettingRow[]; found: string | null }
 
