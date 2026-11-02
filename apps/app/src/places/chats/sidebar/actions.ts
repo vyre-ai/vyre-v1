@@ -11,6 +11,8 @@ export interface SidebarApi {
   chatWithPerson(personId: string): Promise<void>;
   star(type: "thread" | "agent" | "channel", id: string, on: boolean): Promise<void>;
   markRead(threadId: string): Promise<void>;
+  /** The newest message from someone else counts as new again. */
+  markUnread(threadId: string): Promise<void>;
   /** Archive leaves my list only; an @mention of me brings the chat back. Unarchive puts it back by hand. */
   archive(threadId: string): Promise<void>;
   unarchive(threadId: string): Promise<void>;
@@ -46,6 +48,7 @@ export function createSidebarApi(data: ChatsSidebarData, onLocal: (row: ChatRow)
     },
     async star(type, id, on) { await data.call("stars.toggle", { resource: { type, id }, on }); },
     async markRead(threadId) { await data.call("threads.mark_read", { threadId }); },
+    async markUnread(threadId) { await data.call("threads.mark_read", { threadId, unread: true }); },
     async archive(threadId) { await data.call("threads.archive", { threadId }); },
     async unarchive(threadId) { await data.call("threads.unarchive", { threadId }); },
     async deleteChat(threadId) { await data.call("threads.delete", { threadId }); },

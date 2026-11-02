@@ -1,0 +1,4 @@
+- A direct message now shows its unread dot on the person's row in Chats, reads as the person's name, and puts that person at the top of People so the dot is never hidden under "N more".
+- An agent's row shows a dot when its own chat has something new, and the Threads row shows a dot when a thread you are in has a reply.
+- The Chats icon in the rail shows a quiet dot whenever a chat, channel or thread has something unread, and it clears when you read it.
+- Chats, channels and people have Mark as Read and Mark as Unread in their right-click menu.
