@@ -312,6 +312,8 @@ export function ConnectedPage({ rows, found }: PageProps): ReactElement {
   }, [data]);
   // A Team Space runs Telephony from the Console; here a person sees the numbers that are theirs
   const numberLine = personal || numbers.length > 0 ? undefined : "No number is assigned to you. Ask an admin to assign you one.";
+  const lines: ReactElement[] = [];
+  numbers.forEach((n, i) => lines.push(<SettingsRow key={n.id} id={`number.${n.id}`} label={n.e164} first={i === 0} sub={n.title} lead={<Glyph name="phone" size={15} />} />));
   const firm: ReactElement[] = [];
   suites.forEach((suite, si) => firm.push(
     <SettingsRow key={suite.key} id={`suite.${suite.key}`} label={suite.title} sub={throughFirm(suite)} first={si === 0} lead={<Glyph name="link" size={15} />} control={<Value text={suite.rows.map((r) => r.service).filter((v, i, a) => a.indexOf(v) === i).join(" and ")} />} />,
@@ -329,7 +331,7 @@ export function ConnectedPage({ rows, found }: PageProps): ReactElement {
         <SettingsRow id="connect-calendar" label="Connect a calendar" lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("calendar")} control={<Glyph name="chevR" size={13} />} />
       </Section>
       <Section title="Telephony" {...(numberLine ? { note: numberLine } : {})}>
-        {numbers.map((n, i) => <SettingsRow key={n.id} id={`number.${n.id}`} label={n.e164} first={i === 0} sub={n.title} lead={<Glyph name="phone" size={15} />} />)}
+        {lines}
         {personal ? <SettingsRow id="connect-twilio" label={numbers.length > 0 ? "Bring in new numbers" : "Connect Twilio"} first={numbers.length === 0} lead={<Glyph name="plus" size={15} />} onPress={() => (openConnect ? void openConnect({ kind: "number" }) : data.nav.connect("twilio"))} control={<Glyph name="chevR" size={13} />} /> : null}
       </Section>
       <Section title="App hubs"><AppHubsCard call={data.call} /></Section>

@@ -8,8 +8,12 @@ export function NumbersPage({initialId}:{initialId?:string}):ReactElement{
  if(query.rows.length===0)return <TelephonyConnect onConnected={query.refresh}/>;
  const{open:unowned,held}=splitNumbers(query.rows);
  return <View testID="console-numbers"><TelephonyAccount onChanged={query.refresh}/>
-  {unowned.length?<View testID="numbers-need-owner"><Section title="Needs an owner" count={unowned.length}><Note>{OWNER_LINE}</Note><Group>{unowned.map(row=><NumberRow key={row.id} row={row} onOpen={()=>open(row.id)} onChanged={query.refresh}/>)}</Group></Section></View>:null}
-  <Section title="Numbers" count={held.length} right={<Button label="Find a number" testID="number-new" onPress={()=>setBuying(true)}/>}><Note>{PRIVATE_LINE}</Note>{held.length?<Group>{held.map(row=><NumberRow key={row.id} row={row} onOpen={()=>open(row.id)} onChanged={query.refresh}/>)}</Group>:null}</Section></View>;
+  {unowned.length?<View testID="numbers-need-owner"><Section title="Needs an owner" count={unowned.length}><Note>{OWNER_LINE}</Note><Group>
+   {/* ui-rows-lint: not a list (NumberRow draws one ui/Row and holds its own assign menu) */}
+   {unowned.map(row=><NumberRow key={row.id} row={row} onOpen={()=>open(row.id)} onChanged={query.refresh}/>)}</Group></Section></View>:null}
+  <Section title="Numbers" count={held.length} right={<Button label="Find a number" testID="number-new" onPress={()=>setBuying(true)}/>}><Note>{PRIVATE_LINE}</Note>{held.length?<Group>
+   {/* ui-rows-lint: not a list (NumberRow draws one ui/Row and holds its own assign menu) */}
+   {held.map(row=><NumberRow key={row.id} row={row} onOpen={()=>open(row.id)} onChanged={query.refresh}/>)}</Group>:null}</Section></View>;
 }
 function BuyNumber({onBack,onCreated}:{onBack():void;onCreated(id:string):void}):ReactElement{
  const[country,setCountry]=useState('US'),[areaCode,setAreaCode]=useState(''),[available,setAvailable]=useState<CapMap['telephony.number.search']['out']['available']>([]),[picked,setPicked]=useState(''),[title,setTitle]=useState(''),[recipient,setRecipient]=useState<Recipient|null>(null),[review,setReview]=useState(false);const action=useAction(()=>undefined);
