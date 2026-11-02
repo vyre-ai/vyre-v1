@@ -1,6 +1,6 @@
 # CLI engines on Windows: the sandbox
 
-Status: research done, native sandbox not built. Lane l-winengine, 3 Nov 2026.
+Status: research done, native sandbox not built. Lane l-winengine, 3 Nov 2026. Evidence: desktop.yml `sandbox-windows` job, run 41535810154 on windows-latest.
 
 ## The rule we keep
 
@@ -38,14 +38,17 @@ The spike (`spikes/win-appcontainer`) ran on windows-latest in the `sandbox-wind
 | connect to a Node named pipe (default DACL) | EPERM |
 | connect to a named pipe whose DACL names the container SID | ok |
 | loopback inside one process | ok |
-| loopback between two processes of the same container | see below |
-| Node `child_process.spawn` inside the container | EPERM (cmd.exe starting node works) |
+| loopback between two processes of the same container (both started from outside) | ok |
+| the host connecting into the container's loopback port | refused (timeout) |
+| Node `child_process.spawn` inside the container | EPERM; `spawnSync` hangs (cmd.exe starting node with file redirects works) |
 
 The file confinement is what we want, and it is enforced by the kernel. One catch: Node must run with `--preserve-symlinks-main`, because the container cannot `lstat` the drive root.
 
 The network is the problem. CLI engines reach the internet through `HTTPS_PROXY`, which must be a TCP address. The container cannot reach the host's loopback. Microsoft documents the exemption, `CheckNetIsolation LoopbackExempt` or `NetworkIsolationSetAppContainerConfig`, as an elevated operation. Granting `internetClient` instead lets the engine reach any host directly, and `HTTPS_PROXY` then only asks the engine to behave. That is weaker than the Mac and Linux wall, and the brief rules it out.
 
-The only no-admin path left puts a small bridge inside the same container. The bridge listens on 127.0.0.1 for the engine, and talks to the host proxy over a named pipe whose DACL names the container SID. That path works only if two processes of one AppContainer may talk over loopback. Microsoft documents loopback as allowed "within the same process" only.
+The no-admin path puts a small bridge inside the same container. The bridge listens on 127.0.0.1 for the engine, and talks to the host proxy over a named pipe whose DACL names the container SID. The spike shows both halves work: two processes of one container talk over loopback, and a pipe with that DACL is reachable. The engine then has exactly one way out, the bridge, and the host checks every host name. It cannot reach the daemon's own loopback ports at all, which is stricter than the Mac.
+
+What is not proven: a CLI engine runs its tools by starting child processes. Inside the container, Node's `child_process` (libuv) fails with EPERM, and `spawnSync` hangs. Claude Code is a Bun program, and Bun uses libuv on Windows; Codex is Rust. Until claude.exe's Bash and PowerShell tools and codex.exe's commands work inside the container, the sandbox would confine an engine that cannot do its work. A likely cause: an AppContainer may create named pipes only under `\\.\pipe\LOCAL\`, and libuv and Rust name their stdio pipes globally. This is not confirmed.
 
 ### 2. Restricted token + Job Object, no AppContainer
 
@@ -70,9 +73,15 @@ Claude Code documents native Windows as having no sandbox. Codex ships `codex-wi
 - Claude Code: `claude.exe` (native, Bun). Config is in `%USERPROFILE%\.claude` and `%USERPROFILE%\.claude.json`; Vyre points `CLAUDE_CONFIG_DIR` at the scratch home. The Bash tool needs Git for Windows (`C:\Program Files\Git\bin\bash.exe`, readable by all app packages when installed for all users; set `CLAUDE_CODE_GIT_BASH_PATH`). Without Git it falls back to the PowerShell tool.
 - Codex: `codex.exe` (Rust), `CODEX_HOME` for its config. Its own sandbox mode stays on inside ours, as on the Mac.
 - Grok: `grok.exe`.
-- The MCP shim: Node with `--preserve-symlinks-main`, reaching the bridge pipe. The pipe's DACL must name the container SID; libuv cannot set that, so the pipe must come from native code.
+- The MCP shim: Node with `--preserve-symlinks-main`, reaching the bridge pipe. The pipe's DACL must name the container SID. libuv cannot set that (a Node pipe server answers the container with EPERM), so the pipe must come from native code.
 - Vyre installs all three by itself. `engine-pins.ts` now has win32-x64 and win32-arm64 builds, checked against the vendors' sums.
 
 ## Recommendation
 
-See the lane report. In short: AppContainer is the right base for files. The network needs either an in-container bridge (if two-process loopback is allowed) or one elevated step. Until one of those is proven on a real machine, Windows keeps refusing CLI turns honestly, and API keys work.
+Build option 1 with the in-container bridge. It needs no admin, no reboot and no setup, and its file and network confinement are kernel-enforced. The spike shows the confinement holds. Before building it:
+
+1. Prove that child processes work. Run the real claude.exe and codex.exe in the container on windows-latest with a fake API endpoint behind the bridge, and run one Bash or PowerShell tool call. If libuv's stdio pipes are the cause, test a `LOCAL\` pipe name or anonymous pipes. If they cannot be made to work, option 1 is dead for CLI engines.
+2. Write a small native launcher, a Rust binary shipped beside vyred: create the profile, grant the container SID on the work folder, the scratch home and the engine folder, and create the proxy and MCP pipes with a DACL for that SID. Then start the bridge and the engine in the container under one Job Object with kill-on-close. Node cannot do any of these steps.
+3. Add a `win32` branch to `defaultSandbox` and drop the gap in `cliSandboxGap` for win32. Do that only when the launcher is present and its self-test passes on this machine. The CI test runs a fake engine in the container and proves three things: it cannot read outside its folder, it cannot reach a host not on the list, and it reaches an allowed one through the proxy.
+
+The fallback is WSL2 with bwrap, when it is already installed. Last resort: the turn runs on a Space server. Until then, Windows refuses CLI turns with plain words, CLI accounts show what they need, and API keys work.
