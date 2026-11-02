@@ -255,14 +255,12 @@ test("the header has Preview as, Templates, Version history and Comments; Previe
   assert.ok(renderToStaticMarkup(<EmailBuilder {...base} contacts={CONTACTS} contactId="c2" />).includes("Preview as Omar Haddad"));
 });
 
-test("the subject row has Suggest 5 and A/B test; a second subject shows as Subject B; preview text starts empty with the prototype's hint and a 90 limit", () => {
+test("the subject row has Suggest 5 and no A/B test; preview text starts empty with the prototype's hint and a 90 limit", () => {
   const html = renderToStaticMarkup(<EmailBuilder {...base} previewText={undefined} />);
-  assert.ok(html.includes('data-testid="em-suggest"') && html.includes("Suggest 5") && html.includes('data-testid="em-ab"') && html.includes("A/B test"));
+  assert.ok(html.includes('data-testid="em-suggest"') && html.includes("Suggest 5") && !html.includes("A/B"));
   assert.ok(!html.includes('data-testid="em-subjectb"'));
   assert.match(html, /The grey line after the subject in the inbox/);
   assert.match(html, /0\/90/);
-  const ab = renderToStaticMarkup(<EmailBuilder {...base} subjectB="Quick note on Friday" />);
-  assert.ok(ab.includes('data-testid="em-subjectb"') && ab.includes("Quick note on Friday") && ab.includes("Subject B"));
 });
 
 test("Preview opens as the main canvas with the Desktop, Mobile, Dark and Send test toolbar; the pane keeps the inbox row and the test send; contacts fill the merge fields", () => {
