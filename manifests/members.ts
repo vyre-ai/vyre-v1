@@ -32,7 +32,7 @@ const companyData = t.obj({ mail: t.bool(), calendar: t.bool(), files: t.bool() 
 const companyStep = t.obj({ id: t.str(), title: t.str(), doc: t.str(), done: t.bool(), optional: t.opt(t.bool()) });
 const companyStatusOut = {
   started: t.bool(), providers: t.opt(t.arr(t.obj({ key: companyProvider, title: t.str() }))), provider: t.opt(companyProvider), title: t.opt(t.str()), data: t.opt(companyData), doc: t.opt(t.str()), steps: t.opt(t.arr(companyStep)), next: t.opt(t.str()),
-  requireSso: t.opt(t.bool()), signInOn: t.opt(t.bool()), signInTried: t.opt(t.bool()), recoveryKey: t.opt(t.bool()), domain: t.opt(t.str()), who: t.opt(t.str()), probeLine: t.opt(t.str()), keyHandle: t.opt(t.str()), connected: t.opt(t.bool()), connectedAt: t.opt(t.ts()), mapped: t.opt(t.int()), excluded: t.opt(t.arr(email)), space: t.opt(t.str()), redirect: t.opt(t.str()), clientId: t.opt(t.str()), lastSweep: t.opt(t.str()),
+  requireSso: t.opt(t.bool()), signInOn: t.opt(t.bool()), signInTried: t.opt(t.bool()), recoveryKey: t.opt(t.bool()), domain: t.opt(t.str()), tenant: t.opt(t.str()), who: t.opt(t.str()), probeLine: t.opt(t.str()), keyHandle: t.opt(t.str()), connected: t.opt(t.bool()), connectedAt: t.opt(t.ts()), mapped: t.opt(t.int()), excluded: t.opt(t.arr(email)), space: t.opt(t.str()), redirect: t.opt(t.str()), clientId: t.opt(t.str()), lastSweep: t.opt(t.str()),
 };
 
 export default defineManifest({

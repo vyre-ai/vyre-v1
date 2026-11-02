@@ -67,6 +67,7 @@ async function statusOf(ctx: Ctx) {
   if (clientId) out["clientId"] = clientId;
   if (str(f!["accountEmail"])) out["who"] = f!["accountEmail"];
   if (str(sso?.["domainHint"])) out["domain"] = sso!["domainHint"];
+  if (str(conn?.["tenantId"])) out["tenant"] = conn!["tenantId"];
   if (typeof f!["connectedAt"] === "number") out["connectedAt"] = f!["connectedAt"];
   if (str(f!["lastSweepLine"])) out["lastSweep"] = f!["lastSweepLine"];
   if (str(f!["probeLine"])) out["probeLine"] = f!["probeLine"];

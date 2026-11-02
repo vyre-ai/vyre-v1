@@ -66,7 +66,7 @@ test("a pasted key is read for what it is before anything is stored", () => {
   assert.match((readPasted("google", JSON.stringify({ type: "authorized_user" }), hand) as { problem: string }).problem, /not a Google service-account key/);
   const line = JSON.stringify({ clientId: "a", tenantId: "t", thumbprint: "ab", private_key: "k", clientSecret: "sso" });
   const ok = readPasted("microsoft", line, hand);
-  assert.ok(ok.ok && ok.value.kind === "microsoft" && ok.value.signInSecret === "sso", "the sign-in secret travels with the script's line");
+  assert.ok(ok.ok && ok.value.kind === "microsoft" && ok.value.text === line, "the whole line goes to the Vault, certificate and sign-in secret together");
   assert.equal(readPasted("microsoft", "", { tenantId: "t", clientId: "nope", clientSecret: "abcdefghij" }).ok, false);
 });
 

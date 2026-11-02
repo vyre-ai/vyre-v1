@@ -3,7 +3,7 @@ import { parseGoogleKey, microsoftSecret } from "../suite/model.ts";
 import type { Parsed } from "../suite/model.ts";
 
 export type Provider = "google" | "microsoft";
-export type Pasted = { kind: "google"; text: string; who: string } | { kind: "microsoft"; text: string; clientId: string; tenantId: string; signInSecret?: string };
+export type Pasted = { kind: "google"; text: string; who: string } | { kind: "microsoft"; text: string; clientId: string; tenantId: string };
 
 /** A pasted or dropped credential, read here so the first thing a person learns is whether it is the right kind of thing. Only the shape is read; the check that it works happens at the provider. */
 export function readPasted(provider: Provider, text: string, hand: { tenantId: string; clientId: string; clientSecret: string }): Parsed<Pasted> {
@@ -16,11 +16,10 @@ export function readPasted(provider: Provider, text: string, hand: { tenantId: s
     try { o = JSON.parse(text.trim()) as Record<string, unknown>; } catch { return { ok: false, problem: "That is not the whole line. Copy from the first { to the last }." }; }
     const clientId = o["clientId"], tenantId = o["tenantId"];
     if (typeof clientId !== "string" || typeof tenantId !== "string") return { ok: false, problem: "That line has no client ID or tenant ID. Paste what the script printed." };
-    const secret = typeof o["clientSecret"] === "string" ? o["clientSecret"] : undefined;
-    return { ok: true, value: { kind: "microsoft", text: text.trim(), clientId, tenantId, ...(secret ? { signInSecret: secret } : {}) } };
+    return { ok: true, value: { kind: "microsoft", text: text.trim(), clientId, tenantId } };
   }
   const made = microsoftSecret(hand);
-  return made.ok ? { ok: true, value: { kind: "microsoft", text: made.value, clientId: hand.clientId.trim(), tenantId: hand.tenantId.trim(), signInSecret: hand.clientSecret.trim() } } : made;
+  return made.ok ? { ok: true, value: { kind: "microsoft", text: made.value, clientId: hand.clientId.trim(), tenantId: hand.tenantId.trim() } } : made;
 }
 
 const slug = (heading: string): string => heading.toLowerCase().replace(/[^a-z0-9 -]/g, "").trim().replace(/\s+/g, "-");

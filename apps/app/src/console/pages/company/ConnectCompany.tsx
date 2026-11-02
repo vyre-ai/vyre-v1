@@ -112,7 +112,6 @@ function Body(p: { id: StepId; s: Status; provider: Provider; refresh: () => voi
 }
 
 function KeyStep({ s, provider, refresh }: { s: Status; provider: Provider; refresh: () => void }): ReactElement {
-  const data = useConsoleData();
   const script = useRead<CapMap["company.script"]["out"]>("company.script", { provider });
   const folders = useRead<CapMap["vault.folders.list"]["out"]>("vault.folders.list", { scope: "shared" });
   const name = provider === "google" ? "Google_DWD" : "Microsoft_App";
@@ -126,10 +125,10 @@ function KeyStep({ s, provider, refresh }: { s: Status; provider: Provider; refr
     const read = readPasted(provider, text, hand);
     if (!read.ok) { setProblem(read.problem); return; }
     const handle = provider === "google" ? GOOGLE_HANDLE : MICROSOFT_HANDLE;
-    const stored = await storeInVault(act.run, { name, handle, text: read.value.text, folders: folders.data?.folders ?? [], existingItemId: (items.data?.items ?? []).find((i) => i.handle === handle)?.id });
+    // a client secret lasts at most 24 months: the Vault reminds someone at 20. A certificate from the script is good for two years and rotates the same way.
+    const stored = await storeInVault(act.run, { name, handle, text: read.value.text, folders: folders.data?.folders ?? [], existingItemId: (items.data?.items ?? []).find((i) => i.handle === handle)?.id, ...(provider === "microsoft" ? { rotateEveryDays: 600 } : {}) });
     if (!stored) return;
     setText(""); setHand({ tenantId: "", clientId: "", clientSecret: "" });
-    if (read.value.kind === "microsoft" && read.value.signInSecret) await saveSso(data.call, { key: "microsoft", clientId: read.value.clientId, secret: read.value.signInSecret, domain: "", tenant: read.value.tenantId, enabled: false }, undefined).catch(() => undefined);
     const out = await act.run<CapMap["company.check"]["out"]>("company.check", {}, (o) => (o.ok ? `That works. ${o.who ?? "The app signed in"}.` : ""));
     if (out && !out.ok) setProblem(out.problem ?? "That did not work.");
     refresh();
@@ -221,9 +220,11 @@ function SignInStep({ s, provider, refresh }: { s: Status; provider: Provider; r
   const [secret, setSecret] = useState("");
   const [domain, setDomain] = useState("");
   const [note, setNote] = useState("");
-  const tenant = /login\.microsoftonline\.com\/([^/]+)/.exec(have?.issuer ?? "")?.[1] ?? "";
   const save = async (): Promise<void> => {
-    const r = await saveSso(data.call, { key: provider, clientId: clientId || have?.clientId || s.clientId || "", secret, domain: domain || have?.domainHint || "", tenant, enabled: true }, have);
+    const hint = (domain || have?.domainHint || "").trim().toLowerCase();
+    // Microsoft: the app you registered is the sign-in app, so its secret is already in the Vault under the same handle
+    const r = provider === "google" ? await saveSso(data.call, { key: provider, clientId: clientId || have?.clientId || "", secret, domain: hint, tenant: "", enabled: true }, have)
+      : await data.call("members.sso.set", { provider: { key: "microsoft", title: "Microsoft", issuer: `https://login.microsoftonline.com/${s.tenant ?? ""}/v2.0`, clientId: s.clientId ?? "", clientSecretHandle: MICROSOFT_HANDLE, enabled: true, domainHint: hint } }).then(() => ({ ok: true as const, message: "Microsoft sign-in saved" }), (e: { message?: string }) => ({ ok: false as const, message: e.message ?? "Couldn't save this." }));
     setNote(r.message); setSecret("");
     if (r.ok) { const t = await data.call("members.sso.test", { key: provider }) as { ok: boolean; detail?: string }; setNote(t.ok ? "Saved. The provider answered." : t.detail ?? "Saved, but the provider did not answer."); refresh(); }
   };

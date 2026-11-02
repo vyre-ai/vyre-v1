@@ -88,7 +88,8 @@ export function createGoogleHost(d: GoogleSeamDeps): GoogleHostSeam {
         // Google says why in error / error_description (not a secret); the sender needs it to fix the delegation.
         let why = "";
         try { const e = JSON.parse(await r.text()) as { error?: unknown; error_description?: unknown }; why = [e.error, e.error_description].filter((x) => typeof x === "string").join(": "); } catch { /* no body */ }
-        throw fail("provider.auth_failed", ctx.trace.traceId, { message: "Google refused the delegated sign-in.", details: { status: r.status, why: why.slice(0, 200) } });
+        const notYet = /unauthorized_client/.test(why);
+        throw fail("provider.auth_failed", ctx.trace.traceId, { message: notYet ? "Google has not allowed this client yet. Check you pasted the numeric client ID, not an email address, and the scopes. It can take up to 24 hours, usually minutes." : "Google refused the delegated sign-in.", details: { status: r.status, why: why.slice(0, 200) } });
       }
       if (r.status < 200 || r.status >= 300) statusError(ctx, r.status, "token");
       let body: { access_token?: unknown; expires_in?: unknown };

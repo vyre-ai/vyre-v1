@@ -83,6 +83,12 @@ export interface SsoSignInRouteDeps {
   log?: (why: string, attrs: Record<string, unknown>) => void;
 }
 
+/** The Vault item may be the bare secret, or the whole Microsoft app registration, which is both the data connection and the sign-in app. */
+function signInSecret(value: string): string {
+  if (!value.startsWith("{")) return value;
+  try { const secret = (JSON.parse(value) as { clientSecret?: unknown }).clientSecret; return typeof secret === "string" ? secret : value; } catch { return value; }
+}
+
 const same = (a: string, b: string): boolean => { let d = a.length ^ b.length; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ (b.charCodeAt(i) || 0); return d === 0; };
 const token = (): string => Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(24))).toString("base64url");
 const page = (res: http.ServerResponse, status: number, text: string, headers: Record<string, string> = {}): void => { res.writeHead(status, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", ...headers }); res.end(text); };
@@ -134,7 +140,7 @@ export function createSsoSignInRoute(deps: SsoSignInRouteDeps): { handle(req: ht
     const code = url.searchParams.get("code") ?? "";
     if (url.searchParams.get("error") || !code || code.length > 2000) return back("sso_error=denied");
     try {
-      const idToken = await exchangeCode(fetch, rec.disc, { clientId: provider.clientId, clientSecret: await deps.secret(provider.clientSecretHandle), code, redirect, verifier: rec.verifier });
+      const idToken = await exchangeCode(fetch, rec.disc, { clientId: provider.clientId, clientSecret: signInSecret(await deps.secret(provider.clientSecretHandle)), code, redirect, verifier: rec.verifier });
       const who = await verifyIdToken(fetch, rec.disc, idToken, { clientId: provider.clientId, nonce: rec.nonce, domain: provider.domainHint, now: now(), jwks, ...(key === "microsoft" ? { tenant: tenantOf(provider.issuer) ?? "-" } : {}), ...(key === "google" ? { hostedDomain: true } : {}) });
       if (rec.person?.startsWith("invite:")) {
         deps.tickets.hold(rec.person, key, { email: who.email, link: who.link });
