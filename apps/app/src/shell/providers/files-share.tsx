@@ -42,7 +42,7 @@ export function FolderShareSheet({ rt, folderId, resource, onClose }: { rt: Shel
   return shell(
     <View style={s.stack}>
       <ShareSheet
-        resourceType={type as "folder"} resourceId={folderId} resourceName={name} target="folder" ownerName={m.owner?.name ?? "Space owner"} {...(m.owner ? { ownerId: m.owner.id } : {})}
+        resourceType={type as "folder"} resourceId={folderId} resourceName={name} target="folder" {...(type === "site" ? { subtitle: "Artifact. The people you add can open it in Vyre." } : {})} ownerName={m.owner?.name ?? "Space owner"} {...(m.owner ? { ownerId: m.owner.id } : {})}
         levels={RECORD_LEVELS} shares={m.rows} allowExternal={false} density="regular" directory={directory}
         onShare={(i: ShareInput) => run(rt.call("access.share", { resource: res, subject: i.subject, level: i.level }))}
         onUnshare={(i: UnshareInput) => run(rt.call("access.unshare", { resource: i.resource, subject: i.subject }))}
