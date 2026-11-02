@@ -5,7 +5,7 @@ import { registry } from "../../../generated/registry.ts";
 import { scopedDb } from "../../../host/src/ctx/db.ts";
 import type { RawDb } from "../../../host/src/ctx/db.ts";
 import { validate } from "../../../packages/contracts/src/jsonschema.ts";
-import { bindHost, bindKit, bindTeam, bindValues } from "../projections.ts";
+import { bindHost, bindKit, bindPlace, bindTeam, bindValues } from "../projections.ts";
 import type { Lookup, Secret, TermCtx, TerminalHost, TermState, ValueSource, VaultKit, VaultRun } from "../projections.ts";
 
 export const NOW = 1_760_000_000_000;
@@ -183,7 +183,7 @@ export function testKit(): VaultKit {
   };
 }
 
-export function reset(): void { bindHost(null); bindValues(null); bindTeam(null); bindKit(testKit()); }
+export function reset(): void { bindHost(null); bindValues(null); bindTeam(null); bindPlace(null); bindKit(testKit()); }
 
 export function eventErrors(name: string, payload: unknown): string[] {
   const def = registry.events.find((e) => e.name === name);

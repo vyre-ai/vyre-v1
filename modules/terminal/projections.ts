@@ -17,6 +17,8 @@ export interface TermCtx {
   principal: { kind: "person" | "agent" | "actor" | "service"; id: string };
   actingFor?: string | undefined;
   run?: string | undefined;
+  /** The chat the call came from (an agent's tool call names it). */
+  thread?: string | undefined;
   trace: { traceId: string };
   now(): number;
   db: Db;
@@ -61,13 +63,41 @@ export interface TerminalHost {
   health(): Promise<{ ok: boolean; detail?: string; sessions: number }>;
 }
 
+// Two ways a host gets here: the daemon hands over this machine's own (setTerminalHost in impl.ts), and a test binds a stand-in. A stand-in bound in the process wins, so a test that boots a daemon
+// still runs against its own machine.
 let hostPort: TerminalHost | null = null;
+let machinePort: TerminalHost | null = null;
 export function bindHost(h: TerminalHost | null): void { hostPort = h; }
-export const boundHost = (): TerminalHost | null => hostPort;
+export function bindMachineHost(h: TerminalHost | null): void { machinePort = h; }
+export const boundHost = (): TerminalHost | null => hostPort ?? machinePort;
 export function hostOf(ctx: Pick<TermCtx, "trace">): TerminalHost {
-  if (!hostPort) raise(ctx, "provider.unavailable", "Terminals are not running on this host.");
-  return hostPort;
+  const h = boundHost();
+  if (!h) raise(ctx, "provider.unavailable", "Terminals are not running on this host.");
+  return h;
 }
+
+// ---- where an agent's command runs ---------------------------------------------------------------------------------------------------------------------
+
+/**
+ * Where a person's turn runs, for an agent's terminal_run that names no terminal and no host (owner, 31 Oct: a chat runs on this computer or on a server of the Space). The daemon reads it as the person:
+ * engine.placement.decide, whether the agent has a computer, and which of the person's computers this Space can open a terminal on. Null when it cannot be read.
+ */
+export interface TurnPlace {
+  team: boolean;
+  /** The agent has a computer of its own in this Space. */
+  agentComputer: boolean;
+  /** The person's computer, the agent's own computer, one of the person's added servers, or the Space server. */
+  runsOn: "device" | "agent_computer" | "server" | "space";
+  /** The person's computer the turn runs on, when this Space can open a terminal on it. */
+  deviceId?: string;
+}
+export type PlaceOf = (a: { space: string; threadId?: string; agentId: string; person: string }) => Promise<TurnPlace | null>;
+
+let placePort: PlaceOf | null = null;
+let machinePlace: PlaceOf | null = null;
+export function bindPlace(f: PlaceOf | null): void { placePort = f; }
+export function bindMachinePlace(f: PlaceOf | null): void { machinePlace = f; }
+export const boundPlace = (): PlaceOf | null => placePort ?? machinePlace;
 
 /** Is this a Team Space? Agent computers need one (spec 2.7). The host binds the answer; unbound means team. */
 let teamSpace: (space: string) => boolean = () => true;
