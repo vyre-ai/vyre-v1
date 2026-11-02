@@ -1,0 +1,2 @@
+- A new Vyre Server installs again. The installers (Linux, the `vyre-server` updater and the Mac server script) pinned the old 0.6 release key, so every v1 release failed its signature check with "the release signature does not match"; they now pin the v1 release key the app's own updater uses.
+- The server image now carries docs/frozen. It left the folder out, so the gateway could not read agent-tools.md at start and the server restarted in a loop.

@@ -296,7 +296,7 @@ need_docker() {
 # BEGIN release
 # The Vyre release public key (Ed25519). The private half lives only in the `release` GitHub Environment. VYRE_RELEASE_KEY_PEM (a file) is for tests.
 RELEASE_KEY_PEM='-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAKXSdujH7tO/gscXCJZmYCjB+Cv1sVlOfdgLNedMR7FU=
+MCowBQYDK2VwAyEAoh2/Z+k+ZXGNRVKYlkVeE6TLKWt3+HK3rxm6gbCU6Po=
 -----END PUBLIC KEY-----'
 
 # ---- the signed release -------------------------------------------------------------------------------------------------------------
