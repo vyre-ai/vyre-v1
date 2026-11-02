@@ -24,6 +24,7 @@ import { createTurnStreams } from "./turn-streams.ts";
 import { readStoredSessions } from "./stored.ts";
 import type { LiveLink, LiveStatus } from "./live.ts";
 import { BUILD_REGISTRY_HASH } from "../../../../../client/src/connection/registry-hash.ts";
+import { assistantName } from "../../../../../ui/src/Avatar/assistant.ts";
 import type { Dial, Scheduler } from "../../../../../client/src/connection/index.ts";
 import { PLACE_QUERIES, WARM_ORDER } from "./prefetch.ts";
 import { createRemoteScreenHooks } from "./remote-hooks.ts";
@@ -231,11 +232,12 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   // Keep the shell's own lists warm for the life of the session.
   const keep = [connections, principalsList, groupsList, agentsList].map((q) => q.subscribe(() => undefined));
 
-  const principals = derived<Principal[]>([principalsList, groupsList], ([p, g]) => {
+  const principals = derived<Principal[]>([principalsList, groupsList, agentsList], ([p, g]) => {
+    const own = assistant();
     const list = new Map<string, Principal>([[me.id, me]]);
     if (p?.status === "ready") {
       for (const x of (p.data as Out<"access.principals.list">).principals) {
-        list.set(x.id, { id: x.id, name: x.name, kind: x.kind === "person" ? "person" : "agent" });
+        list.set(x.id, { id: x.id, name: x.id === own.id ? own.name : x.name, kind: x.kind === "person" ? "person" : "agent" });
       }
     }
     if (g?.status === "ready") {
@@ -251,7 +253,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const assistant = (): { id: string; name: string } => {
     const s = agentsList.getSnapshot();
     const a = s.status === "ready" ? s.data.agents.find(isAssistantRow) : undefined;
-    return a ? { id: a.agentId, name: a.name } : { id: "assistant", name: "Assistant" };
+    return a ? { id: a.agentId, name: assistantName(a.name, who.name) } : { id: "assistant", name: "Assistant" };
   };
 
   const open = (t: ShellTarget): void => {
