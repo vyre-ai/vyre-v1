@@ -1,5 +1,0 @@
-- Connect your company: each member's mail and calendar now come in with nobody pressing Sync. A pull queued by the admin who pressed Connect ran as that admin, who is never allowed to read a teammate's mailbox, so it failed every time; the host now takes those pulls over within a minute and runs them as its own work (Google and Microsoft).
-- Connect your company: signing in with Google or Microsoft matches a person to the address the provider proved, so the owner (who has no invitation) gets their own mailbox. An address held by someone else stays theirs.
-- Connect your company: the admin address typed at setup is only who the checks sign in as. It is no longer put in the Inbox of the person setting things up.
-- Connect your company: pasting the key again updates the Vault item in place instead of failing as a duplicate.
-- Connect your company: an admin address Google does not know now says so plainly; turning on sign-in asks for the domain first.

@@ -1,8 +1,0 @@
-- A Team Space serves the Vyre app at its own address, so a browser opening the Space or an invite link gets the app instead of an error.
-- Invite links work on a vyre.run address. The link carries a key that opens only the join page, only while the invite is open; once the person joins, their browser moves to the Space's own key.
-- An invite link that was used, taken back or expired now says so plainly, instead of saying the computer is asleep.
-- Signing in, joining, claiming a Space, resetting and recovering an account all name this device the same way: "Vyre desktop" in the app, the browser's own name ("Chrome on Mac") in a browser.
-- The Mac app no longer offers to open an invite for a vyre.run address it cannot reach; it says to open the link in the browser.
-- Console, People lists the invites still open: who each is for, its role and when it ends, with New link and Revoke. A new invite can last 1, 7 or 30 days, and an invite with an email can be sent from your own mailbox in one press.
-- On a vyre.run address the app no longer replaces the relay's page worker with its own, which would have cut the page off from the Space.
-- A Team Space run from the Mac app hands the app to a browser too: the desktop bundle now carries the web export beside the server it runs.

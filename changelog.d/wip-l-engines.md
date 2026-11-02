@@ -1,4 +1,0 @@
-- Vyre now sets up Claude Code, Codex and Grok by itself. When you connect one of those accounts and the program is not on your computer or server, Vyre downloads it in the background into its own folder, checks it against the exact file it expects, and uses it. Your own installs and sign-in folders are never touched.
-- A chat that needs an engine that is still being set up waits for it and shows "Setting up Codex" while it does, then answers on the account you chose, instead of switching to another account.
-- The Install button on a "not installed" reply now installs in one press. No command to copy. If setup fails, the reply says why in one line, such as no internet connection.
-- Servers come with Claude Code, Codex and Grok already in place, and a server on an older image sets up a missing one the first time a chat needs it.
