@@ -21,6 +21,7 @@ export interface SitesHostDeps {
   };
   /** true when this daemon runs in a container */
   contained: boolean;
+  artifacts?: { folder(siteId: string, title: string): Promise<string>; put(folderId: string, name: string, base64: string, mime: string): Promise<void> };
 }
 
 const MIME: Readonly<Record<string, string>> = { ".html": "text/html", ".htm": "text/html", ".css": "text/css", ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".ico": "image/x-icon", ".txt": "text/plain", ".md": "text/markdown", ".pdf": "application/pdf", ".woff2": "font/woff2" };
@@ -103,6 +104,7 @@ export function createSitesHost(d: SitesHostDeps) {
     fetchTarget,
     host: {
       origin: d.origin,
+      ...(d.artifacts ? { artifacts: d.artifacts } : {}),
       probe: (t: SiteTarget): Promise<{ answering: boolean; detail?: string }> => new Promise((resolve) => {
         let settled = false;
         const done = (r: { answering: boolean; detail?: string }): void => { if (!settled) { settled = true; resolve(r); } };

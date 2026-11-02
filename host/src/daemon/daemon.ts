@@ -663,6 +663,24 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // the async projections the live modules export (P-H_07): the events module's webhooks_out turns subscribed events into signed deliveries
       // crash recovery: a webhook delivery row inserted but never dispatched (the daemon died between the two) is sent again; the send is idempotent per attempt
       let dispatchSystem: ((cap: string, input: unknown) => Promise<unknown>) | null = null;
+      // artifacts live under Files, in Deployments/Artifacts, written by the server: a model publishing must not depend on its own grants in Files, and who sees one is the artifact's own grants
+      const artifactStore = {
+        async folder(siteId: string, title: string): Promise<string> {
+          const call = dispatchSystem as (cap: string, input: unknown) => Promise<unknown>;
+          const roots = ((await call("files.tree", {})) as { roots?: { key?: string; folderId?: string }[] }).roots ?? [];
+          const parent = roots.find((r) => r.key === "deployments")?.folderId;
+          if (!parent) throw new Error("There is no Deployments folder.");
+          const kept = (db!.all("SELECT id FROM files_folder WHERE parent_id = ? AND name = 'Artifacts' AND deleted_at IS NULL", parent)[0] as { id?: string } | undefined)?.id
+            ?? ((await call("files.folder.create", { parentId: parent, name: "Artifacts", idempotencyKey: "artifacts-root" })) as { folder: { folderId: string } }).folder.folderId;
+          return ((await call("files.folder.create", { parentId: kept, name: `${title.replaceAll("/", "-")} (${siteId.slice(-6)})`, idempotencyKey: `artifact-folder-${siteId}` })) as { folder: { folderId: string } }).folder.folderId;
+        },
+        async put(folderId: string, name: string, base64: string, mime: string): Promise<void> {
+          const call = dispatchSystem as (cap: string, input: unknown) => Promise<unknown>;
+          const had = (db!.all("SELECT id FROM files_file WHERE folder_id = ? AND name = ? AND deleted_at IS NULL", folderId, name)[0] as { id?: string } | undefined)?.id;
+          if (had) await call("files.write", { fileId: had, content: { base64 } });
+          else await call("files.create", { folderId, name, mime, content: { base64 }, idempotencyKey: `artifact-${folderId}-${name}` });
+        },
+      };
       // one file of a folder a site or an artifact serves from: the caller already decided the visitor may see it, so this reads as the server. A folder published from disk keeps its paths flat, a/b as a__b
       const readFolderFile = async (folderId: string, rel: string): Promise<{ bytes: Uint8Array; mime: string } | null> => {
         const parts = rel.split("/").filter((p) => p !== "");
@@ -1195,7 +1213,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const computers = loaded.moduleExports.get("computers") as { localComputerAddress?: (id: string) => Promise<string | null>; localSiteLogs?: (a: { computerId: string; slug: string; lines: number }) => Promise<string[]> } | undefined;
           const sitesMod = loaded.moduleExports.get("sites") as { routeBySlug?(c: { db: unknown }, slug: string): ServedSite | null; routeByTicket?(c: { db: unknown }, id: string, token: string, now: number): Promise<{ route: ServedSite; principal: string; owner: string } | null> } | undefined;
           const made = createSitesHost({
-            origin: publicOrigin, contained: fs.existsSync("/.dockerenv"),
+            artifacts: artifactStore, origin: publicOrigin, contained: fs.existsSync("/.dockerenv"),
             nodeOf: (id) => (db!.all("SELECT node_id FROM computers_computers WHERE computer_id = ?", id)[0] as { node_id?: string | null } | undefined)?.node_id ?? null,
             localAddress: (id) => computers?.localComputerAddress?.(id) ?? Promise.resolve(null),
             localLogs: (computerId, slug, lines) => computers?.localSiteLogs?.({ computerId, slug, lines }) ?? Promise.resolve([]),
