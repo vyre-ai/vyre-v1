@@ -1465,8 +1465,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // an outside tool's long-lived credential (issued by access.actors.redeem): the active actor holding it, only while the access snapshot still has that actor active
         return (async (): Promise<(SessionInfo & { device: string }) | null> => {
           const found = (await hookRunner.call("access.actor_by_credential", { credential: token }).catch(() => null)) as { actorId: string } | null;
-          if (!found || access.snap.principal(found.actorId)?.status !== "active") return null;
-          return { space: spaceId, principal: { kind: "actor", id: found.actorId }, device: "outside-actor" };
+          const actor = found ? access.snap.principal(found.actorId) : undefined;
+          if (!found || actor?.status !== "active") return null;
+          // the person who made the actor is its ceiling on this door too: a call runs as the actor for that person, and an actor whose person has gone does not get in
+          const owner = actor.owner ? access.snap.principal(actor.owner) : undefined;
+          if (!owner || owner.kind !== "person" || owner.status !== "active") return null;
+          return { space: spaceId, principal: { kind: "actor", id: found.actorId }, actingFor: owner.id, device: "outside-actor" };
         })();
       });
       ownerOfSpace = () => access.owner() ?? cfg.owner ?? null;
