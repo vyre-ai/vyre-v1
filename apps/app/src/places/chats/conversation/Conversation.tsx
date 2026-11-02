@@ -37,6 +37,7 @@ import { parseSlash } from "../../../../../../lib/chat-commands.ts";
 import { pluginNames } from "./commands.ts";
 import { composerSuggest, previewOf } from "./suggest.ts";
 import { ThreadParent } from "./ThreadParent.tsx";
+import { isAssistantRow } from "../../../../../../lib/agent-kind.ts";
 import { ChatBrain, compactChat, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, useUsage } from "./brain.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
 import { useConnectVersion } from "../../../shell/connect/context.ts";
@@ -310,9 +311,14 @@ function ConversationView(): ReactElement {
     }
     void act.setMode(data, f.agentId, mode).then(() => data.toast(mode === "lead" ? `${f.name} replies to everything` : `${f.name} replies only when @mentioned`), fail("Could not change the mode."));
   };
-  const addMenu = (x: number, y: number): void => {
+  const addMenu = (x: number, y: number): void => { void addMenuAt(x, y); };
+  const addMenuAt = async (x: number, y: number): Promise<void> => {
     const inThread = new Set(collect(thread.agents, (a) => a.agentId));
-    const choices = data.directory.filter((c) => c.kind === "agent" && !inThread.has(c.id));
+    // the agents this person may add, read now (one made a moment ago is there): another person's Assistant is theirs alone and never offered
+    const listed = await Promise.resolve(data.call("agents.list", {})).then((o) => (o as { agents?: { agentId: string; name: string; kind?: string; role?: string; ownerId?: string }[] }).agents ?? null, () => null);
+    const choices = listed
+      ? listed.filter((a) => !inThread.has(a.agentId) && !(isAssistantRow(a) && a.ownerId !== data.me.id)).map((a) => ({ id: a.agentId, name: a.name }))
+      : data.directory.filter((c) => c.kind === "agent" && !inThread.has(c.id));
     menu.show(
       choices.length > 0
         ? [{ head: "Add as listening" } as MenuEntry, ...collect(choices, (c): MenuEntry => ({ label: c.name, onSelect: () => void act.addAgent(data, c.id).then(() => say(`${c.name} is listening`), fail("Could not add it.")) }))]
