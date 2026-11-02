@@ -40,7 +40,6 @@ export const PAGES: readonly PageDef[] = [
   p("holds", "Holds", "Data", "hold", "records.hold", "governance.holds"),
   p("erase", "Erase a person", "Data", "x", "policy.manage", "governance.erase"),
   p("backups", "Backups", "Data", "box", "server.backups", "console.backups"),
-  p("export", "Export", "Data", "download", "records.export", "console.backups"),
   p("models", "Models and providers", "AI", "ai", "ai.models", "console.ai-models"),
   p("voice", "Voice", "AI", "mic", "policy.manage", "console.ai-voice"),
   p("gate", "Gate rules", "AI", "filter", "policy.manage", "gate.rules"),
@@ -66,9 +65,16 @@ export const PAGES: readonly PageDef[] = [
   p("speed", "Speed", "Infrastructure", "gauge", "console.access", "console.speed"),
   p("audit", "Audit log", "", "audit", "audit.read", "audit.log", true),
   p("space", "Space", "", "home", "console.access", "spaces.console"),
+  // Space defaults: what a person's own choices in Settings sit inside. They share the Policies screen, so whoever may set policy has them all.
+  p("def-access", "Review schedule", "Space defaults", "check", "policy.manage", "access.policies"),
+  p("def-agents", "Agents and approvals", "Space defaults", "gear", "policy.manage", "access.policies"),
+  p("def-memory", "Memory", "Space defaults", "pulse", "policy.manage", "access.policies"),
+  p("def-data", "Files and data", "Space defaults", "list", "policy.manage", "access.policies"),
+  p("def-apps", "Email and calling", "Space defaults", "comms", "policy.manage", "access.policies"),
+  p("def-advanced", "Advanced", "Space defaults", "download", "policy.manage", "access.policies"),
 ];
 
-export const GROUPS: readonly string[] = ["Access", "Agents and actors", "Data", "AI", "Comms", "Integrations", "Infrastructure"];
+export const GROUPS: readonly string[] = ["Space defaults", "Access", "Agents and actors", "Data", "AI", "Comms", "Integrations", "Infrastructure"];
 
 export function pageById(id: string): PageDef | undefined {
   return PAGES.find((x) => x.id === id);
@@ -80,3 +86,59 @@ export function visiblePages(can: (perm: string) => boolean, allowed?: ReadonlyS
 }
 
 export const DEFAULT_PAGE = "overview";
+
+/** What each page is for: the tooltip beside its title. */
+export const PAGE_NOTE: Readonly<Record<string, string>> = {
+  actors: "Agents that connect from elsewhere",
+  agents: "Every agent in this Space",
+  aipolicy: "The policy people agree to",
+  audit: "Who did what, and when",
+  backups: "Where and how often",
+  checker: "Why someone can or cannot open something",
+  computers: "Limits and sleep for each",
+  connections: "Live connections",
+  connectors: "Sync with other apps",
+  "def-access": "How often access is reviewed",
+  "def-advanced": "Addresses and regions most Spaces never change",
+  "def-agents": "Approvals and limits for everyone in this Space",
+  "def-apps": "How this Space sends email and handles calls",
+  "def-data": "What needs review before it changes",
+  "def-memory": "Who pays for shared memory, and the monthly cap",
+  diagnostics: "Run checks",
+  domains: "Your own domain for email",
+  erase: "Remove someone's data",
+  gate: "What needs an approval",
+  google: "One connection for everyone",
+  grants: "Access to one thing",
+  groups: "People who share access",
+  holds: "Keep things past retention",
+  inboxes: "Mailboxes a team reads",
+  incidents: "What went wrong",
+  keys: "Access for scripts",
+  labels: "What each label protects",
+  microsoft: "One connection for everyone",
+  models: "Which AI this Space allows",
+  network: "Addresses and certificates",
+  numbers: "Phone numbers",
+  overview: "Checks, recent admin changes, last backup",
+  people: "Invite, change a role, remove",
+  plugins: "What agents can reach",
+  policies: "Sign-in requirements and public links",
+  retention: "How long things are kept",
+  review: "Turns a person checks",
+  reviews: "Confirm who keeps access",
+  roles: "What each role may do",
+  schema: "Record types and fields",
+  server: "Logs",
+  sessions: "Sign anyone out",
+  skills: "What agents can learn",
+  space: "What people see, and who owns this Space",
+  speed: "Response times",
+  spend: "Budgets",
+  support: "For a support request",
+  template: "What a new agent starts with",
+  texting: "Carrier registration",
+  updates: "Versions and the release channel",
+  usage: "Turns and spend by agent, person and model",
+  webhooks: "Events to other systems",
+};

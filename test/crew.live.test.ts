@@ -84,7 +84,7 @@ test("a teammate started from a chat works in its own copy of the repository on 
   } finally { await stop(d); }
 });
 
-test("the lead starts a teammate with a tool, the teammate finishes and one result card wakes the lead, a person presses Merge and the branch lands, and the lead's own ask to merge holds at the Gate", async () => {
+test("the lead starts a teammate with a tool, the teammate finishes and one result card wakes the lead, the lead's merge lands with no hold, its push nobody asked for holds, and a person's own press pushes", async () => {
   const repo = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-crew-repo-")));
   git(repo, "init", "--quiet", "-b", "main");
   fs.writeFileSync(path.join(repo, "README.md"), "a small site\n");
@@ -118,8 +118,10 @@ test("the lead starts a teammate with a tool, the teammate finishes and one resu
       yield* run("tool_search", { query: "crew teammate" });
       const jobs = yield* run("crew_list", { threadId: input.threadId });
       jobId = (((jobs.content as { data?: { jobs?: Array<{ jobId: string }> } }).data?.jobs) ?? [])[0]?.jobId ?? "";
-      // an agent's merge is held for a person: this call parks the turn until someone answers, which this test never does
+      // a merge is local: it leaves this computer only when it is pushed, so an agent's merge just happens
       yield* run("crew_merge", { jobId, idempotencyKey: "crew2-tool-merge" });
+      // a push leaves this computer and nobody asked for one: it holds, and this call parks the turn until someone answers, which this test never does
+      yield* run("crew_push", { jobId, idempotencyKey: "crew2-tool-push" });
       yield { type: "text", text: "Reviewed the card." };
     }
   });
@@ -158,19 +160,20 @@ test("the lead starts a teammate with a tool, the teammate finishes and one resu
     assert.equal(lines.filter((m) => m.blocks.some((b) => b.type === "turn_status" && b.data?.code === "engine.post_failed")).length, 0, "no lost-reply notice");
     assert.doesNotMatch(hostLog(d), /could not post an agent reply|could not even say/);
 
-    // the card woke the lead, which listed the crew and asked to merge: that is held at the Gate for a person, and nothing landed
-    const hold = await waitFor(async () => {
-      const holds = (await ok(d, "gate.holds.list", {})).holds as Array<{ holdId: string; act: string; state: string }>;
-      return holds.find((h) => h.act === "push_protected") ?? null;
+    // the card woke the lead, which listed the crew and merged: nothing waits at the Gate, and the branch lands
+    await waitFor(async () => {
+      const jobs = (await ok(d, "engine.crew.list", { threadId: chat })).jobs as Array<{ state: string }>;
+      return jobs[0]?.state === "merged" ? true : null;
     }, 60_000, () => `${hostLog(d)} SAW ${sawCard.slice(0, 100)}`);
-    assert.equal(hold.state, "held");
     assert.match(sawCard, /Ember finished "Dark mode"/);
     assert.notEqual(jobId, "");
-    assert.equal(fs.existsSync(path.join(repo, "dark-mode.txt")), false, "the lead's merge did not land anything");
-
-    // a person presses Merge: it lands
-    const landed = await ok(d, "engine.crew.merge", { jobId, idempotencyKey: "crew2-merge" });
-    assert.deepEqual([landed.landed, landed.job.state], [true, "merged"]);
+    // the same turn then tried to push: that one is held for a person, and the merge is not
+    const hold = await waitFor(async () => {
+      const holds = (await ok(d, "gate.holds.list", {})).holds as Array<{ act: string; state: string; capName: string }>;
+      return holds.find((h) => h.capName === "engine.crew.push") ?? null;
+    }, 60_000, () => hostLog(d));
+    assert.deepEqual([hold.act, hold.state], ["push_protected", "held"]);
+    assert.deepEqual(((await ok(d, "gate.holds.list", {})).holds as Array<{ capName: string }>).filter((h) => h.capName === "engine.crew.merge"), [], "a local merge holds nothing");
     assert.equal(fs.readFileSync(path.join(repo, "dark-mode.txt"), "utf8"), "toggle: on\n");
     assert.match(git(repo, "log", "--format=%s", "-n", "3"), /Merge crew\/ember-1/);
     assert.deepEqual((await ok(d, "engine.crew.list", { threadId: chat })).jobs.map((j: { state: string }) => j.state), ["merged"]);
@@ -192,14 +195,15 @@ test("the lead starts a teammate with a tool, the teammate finishes and one resu
     const wait = (await ok(d, "engine.crew.wait", { threadId: chat, repo: "acme/site", number: 12, idempotencyKey: "crew2-wait" })).wait;
     assert.deepEqual([wait.label, wait.state], ["acme/site#12", "pending"]);
     assert.deepEqual((await ok(d, "engine.crew.list", { threadId: chat })).waits.map((w: { label: string }) => w.label), ["acme/site#12"]);
-    // pushing the merged work to the remote is an outward act: it holds at the Gate and nothing leaves until a person approves
+    // the agent's held push sent nothing; a person pressing Push is their own act, so it goes at once
     const remote = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-crew-remote-")));
     git(remote, "init", "--quiet", "--bare", "-b", "main");
     git(repo, "remote", "add", "origin", remote);
-    const pushed = await call(d, "engine.crew.push", { jobId, idempotencyKey: "crew2-push" });
-    assert.equal(pushed.status, 202, JSON.stringify(pushed.data));
-    assert.equal(pushed.data.status, "held");
     assert.notEqual(spawnSync("git", ["rev-parse", "--verify", "main"], { cwd: remote }).status, 0, "nothing reached the remote");
+    const pushed = await call(d, "engine.crew.push", { jobId, idempotencyKey: "crew2-push" });
+    assert.equal(pushed.status, 200, JSON.stringify(pushed.data));
+    assert.equal(pushed.data.pushed, true);
+    assert.equal(spawnSync("git", ["rev-parse", "--verify", "main"], { cwd: remote }).status, 0, "the person's push reached the remote");
     // stopping a teammate that is idle leaves the job as it was; stopping is for a running one
     assert.equal((await ok(d, "engine.crew.stop", { jobId, idempotencyKey: "crew2-stop" })).job.jobId, jobId);
   } finally { await stop(d); }

@@ -23,12 +23,21 @@ export function entryFor(place: PlaceId, hash: string): Entry | null {
   if (place === "apps") return { tab: "you", screen: `apps:${encodeURIComponent(hash)}`, title: "Apps" };
   if (place === "vault") return { tab: "you", screen: `vault:${encodeURIComponent(hash)}`, title: "Vault" };
   const t = parseHash(hash);
-  if (t.screen === "tasks.page" && t.args.taskId) return { tab: "you", screen: `task:${t.args.taskId}` };
+  // Tasks lives in Chats: the list and every task sit on the Chats tab's history
+  if (t.screen === "tasks.my-work") return { tab: "chats", screen: "tasks:list", title: "Tasks" };
+  if (t.screen === "tasks.page" && t.args.taskId) return { tab: "chats", screen: `task:${t.args.taskId}` };
   if (t.subject) return { tab: tabOf(place), screen: `${t.subject.type}:${t.subject.id}` };
   if ((TAB_PLACES as readonly string[]).includes(place)) return { tab: place as TabId, screen: place };
   if (place === "settings") return { tab: "you", screen: "you:settings", title: "Settings" };
   if (place === "home") return { tab: "you", screen: "you:my-work", title: "My work" };
   return { tab: "you", screen: "you" };
+}
+
+/** Where the phone starts for a place and hash: a tab's own screen is that tab, anything else opens on top of the Chats tab. */
+export function phoneStart(place: PlaceId, hash: string): { initialTab: TabId; initialEntry?: Entry } {
+  const e = entryFor(place, hash);
+  if (!e) return { initialTab: "chats" };
+  return e.screen === e.tab ? { initialTab: e.tab } : { initialTab: "chats", initialEntry: e };
 }
 
 /** The place and hash that draw a phone screen. */
@@ -39,6 +48,7 @@ export function placeOf(e: Entry): { place: PlaceId; hash: string } | null {
   if (kind === "apps" || kind === "vault" || kind === "automations") {
     try { return { place: kind, hash: decodeURIComponent(e.screen.slice(i + 1)) }; } catch { return null; }
   }
+  if (kind === "tasks") return { place: "chats", hash: formatHash({ screen: "tasks.my-work", args: {} }) };
   if (kind === "you") {
     const what = e.screen.slice(i + 1);
     if (what === "settings") return { place: "settings", hash: "" };

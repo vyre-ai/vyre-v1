@@ -60,6 +60,8 @@ export interface Go {
   thread(threadId: string): void;
   agent(agentId: string, tab?: TabKey): void;
   needs(taskId?: string): void;
+  tasks(): void;
+  task(taskId: string): void;
   /** An imported coding session's transcript. */
   imported(conversationId: string): void;
   /** The agent's own chat (chat.start returns it). */
@@ -123,7 +125,7 @@ export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; c
       openAgentFile: (agentId, file) => rt.open({ subject: { type: "agent", id: agentId }, args: { file } }),
       openAddServer: () => { requestAddServer(); rt.open({ screen: "settings.page", args: { page: "computer" } }); },
       openAutomationRuns: (agentId) => rt.open({ screen: "runs.history", subject: { type: "agent", id: agentId } }),
-      openTask: (taskId) => rt.open({ screen: "tasks.page", args: { taskId } }),
+      openTask: (taskId) => rt.open({ subject: { type: "task", id: taskId } }),
       closePage: () => go.chat(""),
     },
     clock: rt.clock,
@@ -290,6 +292,8 @@ export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: s
     },
     agent: (agentId, tab) => act({ t: "agent", agentId, ...(tab ? { tab } : {}) }),
     needs: (taskId) => act({ t: "needs", ...(taskId ? { taskId } : {}) }),
+    tasks: () => rt.open({ screen: "tasks.my-work" }),
+    task: (taskId) => rt.open({ subject: { type: "task", id: taskId } }),
     imported: (conversationId) => act({ t: "imported", conversationId }),
     agentChat: (agentId) => {
       void chatWith(rt, agentId).then((id) => { if (id) act({ t: "chat", threadId: id, pane: true }); else say("Could not start the chat. Try again."); });

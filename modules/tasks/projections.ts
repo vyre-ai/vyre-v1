@@ -265,6 +265,11 @@ export function findTask(db: Db, id: string): Task | undefined {
   const rows = db.all(`${SELECT} WHERE c.id = ? AND m.deleted_at IS NULL`, id) as Raw[];
   return rows[0] ? rowToTask(rows[0]) : undefined;
 }
+/** Deleted or not: the one read that can see a task in its Undo window. */
+export function findAnyTask(db: Db, id: string): Task | undefined {
+  const rows = db.all(`${SELECT} WHERE c.id = ?`, id) as Raw[];
+  return rows[0] ? rowToTask(rows[0]) : undefined;
+}
 export function getTask(ctx: TasksCtx, id: string): Task {
   const t = findTask(ctx.db, id);
   if (!t) raise(ctx, "permission.not_found", "That task is not available.");

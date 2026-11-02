@@ -29,7 +29,7 @@ export const GO_TARGETS: Record<GoTarget, ShellTarget> = {
 
 export function homeNav(rt: ShellRuntime): HomeNav {
   return {
-    openTask: (taskId) => rt.open({ screen: "tasks.page", args: { taskId } }),
+    openTask: (taskId) => rt.open({ subject: { type: "task", id: taskId } }),
     openRecord: (recordId) => rt.open({ subject: { type: "record", id: recordId } }),
     openRun: (runId) => rt.open({ subject: { type: "run", id: runId } }),
     openNeedsYou: (taskId) => rt.open({ screen: "tasks.needs-you", ...(taskId ? { args: { taskId } } : {}) }),
