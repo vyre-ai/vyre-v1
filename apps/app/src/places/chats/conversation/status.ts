@@ -24,14 +24,17 @@ export function withoutAnswered<M extends Pick<Message, "messageId" | "author" |
   return gone.size === 0 ? messages : messages.filter((m) => !gone.has(m.messageId));
 }
 
-/** The engines a person can install, and the exact command (the same as images/vyred/Dockerfile installs). Grok has none we can name. */
-const ENGINES: Record<string, { name: string; command?: string }> = {
-  claude: { name: "Claude", command: "npm install -g @anthropic-ai/claude-code" },
-  codex: { name: "Codex", command: "npm install -g @openai/codex" },
-  grok: { name: "Grok" },
+/** The engines Vyre installs by itself (modules/engine/engine-install.ts): the Install button runs the turn again, and the turn waits while Vyre sets the engine up. No command is shown. */
+const ENGINES: Record<string, { name: string }> = { claude: { name: "Claude" }, codex: { name: "Codex" }, grok: { name: "Grok" } };
+/** The program behind an `install:<program>` action, or undefined. */
+export const installProgram = (key: string): string | undefined => (key.startsWith("install:") && Object.hasOwn(ENGINES, key.slice(8)) ? key.slice(8) : undefined);
+/** Why Vyre's own install did not finish, as the turn's block says it (`setup`), in a sentence. */
+const SETUP_WORDS: Record<string, string> = {
+  offline: "This computer could not reach the download. Check the connection, then try again.",
+  checksum: "The download did not match the expected file, so it was not used.",
+  disk: "It could not be saved on this computer. Free some space, then try again.",
+  failed: "The setup did not finish.",
 };
-/** The command behind an `install:<program>` action, or undefined. */
-export const installCommand = (key: string): string | undefined => (key.startsWith("install:") ? ENGINES[key.slice(8)]?.command : undefined);
 
 const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { key: string; label: string }[]; retryable: boolean }> = {
   no_account: { message: "Connect your AI to get replies.", cause: "No AI account is saved for this chat yet.", next: [{ key: "connect_ai", label: "Connect your AI" }], retryable: false },
@@ -61,10 +64,16 @@ export function statusView(b: MessageBlock): StatusView {
   if (state === "waiting" && str(d.taskId) !== "") return { kind: "approval", id: b.id, taskId: str(d.taskId) };
   if (state === "waiting") return { kind: "note", id: b.id, text: "Waiting for your approval." };
   let w = STATUS_WORDS[str(d.code)] ?? { message: "That reply did not finish.", retryable: true };
-  // The engine that is missing is named, with the command that installs it; the reason the Vault refused is the one it gave.
-  const engine = ENGINES[str(d.program)];
+  // The engine that is missing is named with one button that installs it, and why the last try did not finish; one that has no build for this computer offers another account only. The reason the
+  // Vault refused is the one it gave.
+  const engine = Object.hasOwn(ENGINES, str(d.program)) ? ENGINES[str(d.program)] : undefined;
   if (str(d.code) === "engine.cli_missing" && engine) {
-    w = { message: `${engine.name} is not installed here.`, ...(engine.command ? { cause: `Run ${engine.command}, then try again.` } : {}), next: [...(engine.command ? [{ key: `install:${str(d.program)}`, label: `Install ${engine.name}` }] : []), ...(w.next ?? [])], retryable: true };
+    const setup = str(d.setup);
+    if (setup === "unsupported") w = { message: `${engine.name} cannot run on this computer.`, next: w.next ?? [], retryable: false };
+    else {
+      const cause = SETUP_WORDS[setup];
+      w = { message: cause ? `${engine.name} could not be set up here.` : `${engine.name} is not installed here.`, cause: cause ?? "Vyre can set it up for you.", next: [{ key: `install:${str(d.program)}`, label: `Install ${engine.name}` }, ...(w.next ?? [])], retryable: false };
+    }
   }
   if (str(d.code) === "engine.vault_unreadable" && str(d.reason) !== "") w = { ...w, cause: `The Vault answered: ${str(d.reason)}.` };
   return { kind: "error", block: { ...b, type: "error", data: { code: str(d.code), message: w.message, ...(w.cause ? { cause: w.cause } : {}), next: w.next ?? [], retryable: w.retryable, turnId: str(d.turnId), steps: [...(str(d.code) ? [["Code", str(d.code)]] : []), ["Reply", str(d.turnId)]] } } };

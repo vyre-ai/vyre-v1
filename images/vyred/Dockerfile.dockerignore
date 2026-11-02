@@ -12,3 +12,11 @@
 .github
 docs
 spikes
+# the app's web export (the release runs scripts/app-export.mjs before the bake): the Space serves it at its own address and join links (host/src/routes/app-files.ts)
+!apps/app/dist
+!apps/app/dist/**
+# and still nothing secret from it
+apps/app/dist/**/.env
+apps/app/dist/**/.env.*
+apps/app/dist/**/*.pem
+apps/app/dist/**/*.key

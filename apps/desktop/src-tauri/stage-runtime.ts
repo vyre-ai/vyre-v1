@@ -77,6 +77,19 @@ export function stageChromeExtension(runtime: string, release: string): string {
   return dest;
 }
 
+/**
+ * The app's web export (apps/app/dist, `npm run web` before this), beside the daemon's program: a Team Space this Mac serves (Run this Mac as the Space server) hands it to a browser that opens its
+ * address or an invite link (host/src/routes/app-files.ts finds it at runtime/apps/app/dist). The desktop window itself loads its own embedded copy. Nothing is staged when there is no export.
+ */
+export function stageAppWeb(runtime: string, from: string = path.join(REPO, "apps", "app", "dist")): string | null {
+  if (!fs.existsSync(path.join(from, "index.html"))) return null;
+  const dest = path.join(runtime, "apps", "app", "dist");
+  fs.rmSync(dest, { recursive: true, force: true });
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.cpSync(from, dest, { recursive: true });
+  return dest;
+}
+
 function main(): void {
   const args = process.argv.slice(2);
   const outIdx = args.indexOf("--out");
@@ -116,6 +129,7 @@ function main(): void {
   execFileSync("npm", ["ci", "--omit=dev", "--no-audit", "--no-fund", "--ignore-scripts"], { cwd: runtime, stdio: "inherit", shell: os.platform() === "win32" });
   const shell = JSON.parse(fs.readFileSync(path.join(HERE, "tauri.conf.json"), "utf8")) as { version: string };
   stageChromeExtension(runtime, shell.version);
+  if (!stageAppWeb(runtime)) process.stdout.write("no web export at apps/app/dist: a Space this Mac serves will not hand the app to a browser (run npm run web first)\n");
   const bin = path.join(out, "binaries");
   fs.mkdirSync(bin, { recursive: true });
   const target = path.join(bin, binaryName(hostTriple()));

@@ -27,8 +27,15 @@ async function roleName(ctx: MembersCtx, roleId: string): Promise<string> {
   return out.role.name;
 }
 
-function linkFor(host: string, info: SpaceInfo, code: string): string {
-  return `https://${host}/join/${code}#fp=${info.fingerprint.replace(/\s+/g, "")}`;
+/**
+ * The link a person opens. On a Space reached at its phone address the relay serves the page, so everything secret rides in the fragment, which never reaches a server: the code, and the invite's own
+ * key in place of the box key (the relay shell pins it for this invite alone and opens /join/<code> through the box). Elsewhere the code is in the path, as the app and `vyre://join` read it.
+ */
+async function linkFor(ctx: MembersCtx, host: string, info: SpaceInfo, code: string): Promise<string> {
+  const fp = info.fingerprint.replace(/\s+/g, "");
+  const key = await ctx.phoneInvite?.keyFor(hashCode(code)).catch(() => null);
+  if (key && /^[A-Za-z0-9_-]{43}$/.test(key)) return `https://${host}/join#${new URLSearchParams({ c: code, k: key, fp })}`;
+  return `https://${host}/join/${code}#fp=${fp}`;
 }
 
 function cleanIds(trace: string, what: string, ids: readonly string[] | undefined, prefix: string): string[] {
@@ -63,7 +70,7 @@ export async function invitesCreate(ctx: MembersCtx, input: {
     if (again.state !== "open") raise(tid, "validation.precondition_failed", "that invite is no longer open");
     const code = newCode();
     ctx.db.run(`UPDATE members_invites SET code_hash = ? WHERE id = ?`, hashCode(code), again.id);
-    return { invite: inviteView({ ...again }, now), link: linkFor(host, info, code) };
+    return { invite: inviteView({ ...again }, now), link: await linkFor(ctx, host, info, code) };
   }
   if (input.role === OWNER_ROLE) raise(tid, "validation.precondition_failed", "ownership is transferred, never invited");
   await roleName(ctx, input.role);
@@ -90,7 +97,7 @@ export async function invitesCreate(ctx: MembersCtx, input: {
     `INSERT INTO members_invites (id, code_hash, role, groups, agents, projects, channels, email, expires_at, created_by, state, ai_key_handle, accepted_by, accepted_at, idem_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     row.id, row.code_hash, row.role, row.groups, row.agents, row.projects, row.channels, row.email, row.expires_at, row.created_by, row.state, row.ai_key_handle, row.accepted_by, row.accepted_at, row.idem_key, row.created_at);
   ctx.emit("member.invited", row.id, { inviteId: row.id, role: row.role, expiresAt: row.expires_at });
-  return { invite: inviteView(row, now), link: linkFor(host, info, code) };
+  return { invite: inviteView(row, now), link: await linkFor(ctx, host, info, code) };
 }
 
 export async function invitesExtend(ctx: MembersCtx, input: { inviteId: string; expiresInDays: number }) {

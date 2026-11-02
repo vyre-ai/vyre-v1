@@ -360,3 +360,32 @@ test("Subject only for email; Cmd+Enter sends an email and a plain Enter writes 
   assert.equal(enterAction({ metaKey: true }, false, false), "send");
   assert.equal(enterAction({ ctrlKey: true }, false, false), "send");
 });
+
+test("a provider with a long model list scrolls inside the Model submenu and can be searched; a model out of usage stays listed with why", async () => {
+  const many: PanelModel[] = Array.from({ length: 40 }, (_, i) => ({ id: `m${i}`, title: i === 7 ? "Kimi K2" : `Model ${i}`, window: 128_000, ...(i === 3 ? { allowed: false, reason: "Out of usage until 18:00" } : {}) }));
+  function Many({ log }: { log: string[] }): ReactElement {
+    const [model, setModel] = useState("m0");
+    return (
+      <Composer whoWillAnswer="" lead="Intake" lists={lists} agents={agents} mode="ask" onMode={() => undefined}
+        renderPanel={(agent, close) => (
+          <ModelPanel agent={agent} scope="chat" onScope={() => undefined} accounts={[{ ref: "#ocg", name: "OpenCode Go", provider: "opencode_go", session: null }]} accountRef="#ocg" onAccount={() => undefined}
+            models={many} model={model} onModel={(m) => { log.push(`model:${m}`); setModel(m); }} effort="medium" onEffort={() => undefined}
+            usage={null} mode="ask" onMode={() => undefined} onClose={close} now={0} />
+        )} />
+    );
+  }
+  await withDom(async () => {
+    const log: string[] = [];
+    const root = await mount(createRoot, <Many log={log} />);
+    await press(find(root, "composer-strip"));
+    await press(find(root, "model-model"));
+    assert.ok(find(root, "model-models-scroll"), "the list sits in its own scroll");
+    assert.ok(find(root, "row-model-m39"), "every model is listed");
+    assert.match(textOf(find(root, "row-model-m3")), /Out of usage until 18:00/);
+    await typeInto(find(root, "model-find"), "kimi");
+    assert.ok(find(root, "row-model-m7"));
+    assert.equal(find(root, "row-model-m8"), null, "the find field narrows the list");
+    await press(find(root, "row-model-m7"));
+    assert.deepEqual(log, ["model:m7"]);
+  });
+});

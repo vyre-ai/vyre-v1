@@ -1,7 +1,8 @@
 // A person is bound to a provider identity by verified identity, never by display name, and an address changing at the provider cannot take over another account.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hasRecovery, hasSsoLink, linkSso, personForSso } from "../src/seams/people.ts";
+import { createPeopleExtras, hasRecovery, hasSsoLink, linkSso, personForSso } from "../src/seams/people.ts";
+import { createSsoTickets } from "../src/routes/sso-signin.ts";
 
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 function world() {
@@ -59,4 +60,26 @@ test("a signed-in person proves their own identity; one already linked to someon
   assert.equal(hasRecovery(db, "usr_owner"), false);
   raw.prepare("INSERT INTO identity_accounts VALUES (?, ?)").run("usr_owner", JSON.stringify({ personKeyByRecovery: "abc" }));
   assert.equal(hasRecovery(db, "usr_owner"), true);
+});
+
+test("a finished sign-in matches the person to the address it proved, as the host, through the company connection; nobody signed in matches nothing", async () => {
+  const { db } = world();
+  const calls: { name: string; input: unknown; as: unknown }[] = [];
+  const tickets = createSsoTickets();
+  const extras = createPeopleExtras({ access: () => ({ principal: () => ({ status: "active" }), allResources: () => [] }) as never, db, call: async (name, input, as) => { calls.push({ name, input, as }); return {}; }, sso: { tickets } });
+  const sso = extras("identity", {})!["sso"] as { resolve(key: string, ticket: string): string | null; prove(key: string, invite: string): { bind(person: string): void } | null };
+  assert.equal(sso.resolve("google", tickets.make("google", "alice@firm.test", { tenant: "firm.test", subject: "sub-a" })), "usr_alice");
+  assert.equal(sso.resolve("microsoft", tickets.make("microsoft", "bob@firm.test", { tenant: "t1", subject: "oid-b" })), "usr_bob");
+  assert.deepEqual(calls, [
+    { name: "google.match_proven", input: { person: "usr_alice", email: "alice@firm.test" }, as: undefined },
+    { name: "microsoft.match_proven", input: { person: "usr_bob", email: "bob@firm.test", tenant: "t1" }, as: undefined },
+  ], "run as the host (no person named), with the address the provider proved");
+  calls.length = 0;
+  assert.equal(sso.resolve("google", tickets.make("google", "stranger@firm.test", { tenant: "firm.test", subject: "sub-x" })), null);
+  assert.equal(sso.resolve("okta", tickets.make("okta", "alice@firm.test", { tenant: "okta.firm.test", subject: "o-a" })), "usr_alice");
+  assert.deepEqual(calls, [], "nobody signed in matches nothing, and Okta carries no company mail");
+  // joining by invitation: the proof is bound once the person exists, and matched then
+  tickets.hold("invite:inv_1", "google", { email: "new@firm.test", link: { tenant: "firm.test", subject: "sub-new" } });
+  sso.prove("google", "invite:inv_1")!.bind("usr_new");
+  assert.deepEqual(calls, [{ name: "google.match_proven", input: { person: "usr_new", email: "new@firm.test" }, as: undefined }]);
 });

@@ -115,9 +115,10 @@ function Isle({ entries, active, render }: { entries: readonly RailEntry[]; acti
   return (
     <View ref={box as never} testID="rail-isle" style={[styles.isle, ISLE_MOVE, open ? styles.isleOpen : null]} {...sq("track")}>
       <View testID="rail-isle-places" aria-hidden={!open} pointerEvents={open ? "auto" : "none"} style={[styles.islePlaces, ISLE_REVEAL, { maxHeight: open ? entries.length * 41 : 0, opacity: open ? 1 : 0 }]}>{render(entries)}</View>
-      <Tooltip text="More">
-        <Pressable role="button" aria-label="More places" aria-expanded={open} testID="rail-isle-more" onPress={() => setOpen((o) => !o)} style={[styles.button, cur ? styles.on : null]} {...sq("tile")}>
-          <ShellIcon name={cur?.place ?? "more"} size={18} weight={1.15} color={cur ? "var(--accent)" : "var(--ink-3)"} />
+      {/* folded, the button stands for the open place; unfolded, that place is in the list above, so the button is only the fold (a second gear under Settings read as a duplicate) */}
+      <Tooltip text={open ? "Fold" : "More"}>
+        <Pressable role="button" aria-label="More places" aria-expanded={open} testID="rail-isle-more" onPress={() => setOpen((o) => !o)} style={[styles.button, cur && !open ? styles.on : null]} {...sq("tile")}>
+          <ShellIcon name={open ? "chev" : (cur?.place ?? "more")} size={18} weight={1.15} color={cur && !open ? "var(--accent)" : "var(--ink-3)"} />
           {waiting && !open ? <View testID="rail-isle-dot" style={styles.dot} /> : null}
         </Pressable>
       </Tooltip>

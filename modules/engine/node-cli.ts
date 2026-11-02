@@ -1,17 +1,19 @@
 // The CLI engines on a computer that joined a Space: what is installed here, and the launcher the node runs a pinned chat's engine with (host/src/compute/node.ts cliLauncher). The server image
-// ships Claude Code and Codex (images/vyred/Dockerfile) and bubblewrap for the sandbox. This says exactly what is missing instead of failing with a bare "not found", and never starts an engine
-// outside the sandbox.
+// bakes Claude Code, Codex and Grok at their pinned versions (images/vyred/Dockerfile) and bubblewrap for the sandbox; a server whose image lacks one (an older image) installs it into its own engines
+// folder the first time a turn needs it (engine-install.ts). This says exactly what is missing instead of failing with a bare "not found", and never starts an engine outside the sandbox.
 import fs from "node:fs";
 import path from "node:path";
 import { LaunchError } from "../../agent/src/drivers/cli/launcher.ts";
 import type { CliProcess, LaunchSpec } from "../../agent/src/drivers/cli/types.ts";
 import { SandboxError } from "../../sandbox/src/index.ts";
-import { findProgram } from "./cli-programs.ts";
+import { CLI_NAME, findProgram } from "./cli-programs.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
+import { EngineInstallError, configureEngines, enginesRoot } from "./engine-install.ts";
+import type { EngineInstaller } from "./engine-install.ts";
 import { defaultPlan } from "./runtime.ts";
-import { spawnCli } from "./session.ts";
+import { ownedArgv, spawnCli } from "./session.ts";
 
-/** The engines a server is expected to run. Grok is the person's own on their computer; a server image does not ship it. */
+/** The engines the report checks for. Grok is left out: current images bake it, and a server without it installs it the first time a turn needs it (engine-install.ts), as it would any of these. */
 export const NODE_ENGINES = ["claude", "codex"] as const;
 export { findProgram };
 export type { NodeCliEnv, NodeCliProbe } from "./cli-programs.ts";
@@ -42,19 +44,34 @@ export function nodeCliReport(o: NodeCliProbe = {}): NodeCliReport {
   return { programs, sandbox, missing };
 }
 
-export interface NodeLauncherDeps { probe?: NodeCliProbe; spawn?: (spec: LaunchSpec) => Promise<CliProcess> }
+export interface NodeLauncherDeps {
+  probe?: NodeCliProbe; spawn?: (spec: LaunchSpec) => Promise<CliProcess>;
+  /** Install a missing engine into this computer's engines folder before starting it (the daemon's entry turns it on). */
+  install?: boolean;
+  /** The installer to use (a test's). Default: one for <data dir>/engines, made when `install` is on. */
+  installer?: Pick<EngineInstaller, "root" | "supported" | "ensure">;
+}
 
-/** The node's launcher: refuses with the exact reason when the engine or the sandbox is missing, else starts the engine inside the sandbox. */
+/** The node's launcher: installs a missing engine when it can, refuses with the exact reason when the engine or the sandbox is still missing, else starts the engine inside the sandbox. */
 export function nodeCliLauncher(dataDir: string, deps: NodeLauncherDeps = {}): { spawn(spec: LaunchSpec): Promise<CliProcess> } {
-  const plan = defaultPlan(dataDir);
+  const root = deps.installer ? deps.installer.root : deps.install ? enginesRoot({ dataDir }) : null;
+  const installer = deps.installer ?? (root !== null ? configureEngines({ root }) : null);
+  const probe: NodeCliProbe | undefined = installer ? { ...deps.probe, enginesRoot: installer.root } : deps.probe;
+  // the engines folder is readable inside the sandbox, so an engine installed there can run
+  const plan = defaultPlan(dataDir, installer ? [installer.root] : undefined);
   return {
     async spawn(spec) {
       const prog = spec.argv[0] ?? "";
       const name = path.basename(prog);
-      if ((NODE_ENGINES as readonly string[]).includes(name) && findProgram(name, deps.probe) === null) throw new LaunchError("engine.cli_missing", `${name} is not installed on this server.`);
-      const report = nodeCliReport(deps.probe);
+      if (Object.hasOwn(CLI_NAME, name) && findProgram(name, probe) === null) {
+        if (!installer || !installer.supported(name)) throw new LaunchError("engine.cli_missing", `${name} is not installed on this server.`);
+        try { await installer.ensure(name); }
+        catch (e) { throw new LaunchError("engine.cli_missing", `${name} is not installed on this server (${e instanceof EngineInstallError ? e.reason : "failed"}).`); }
+      }
+      const report = nodeCliReport(probe);
       if (!report.sandbox.ok) throw new SandboxError("sandbox.unavailable", report.sandbox.reason ?? "no sandbox is available on this server");
-      return deps.spawn ? deps.spawn(spec) : spawnCli(await plan(), spec, spec.argv);
+      const argv = name === prog ? ownedArgv(spec.argv, probe) : spec.argv;
+      return deps.spawn ? deps.spawn({ ...spec, argv }) : spawnCli(await plan(), spec, argv);
     },
   };
 }

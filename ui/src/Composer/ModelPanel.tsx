@@ -3,7 +3,7 @@
 // models, its effort levels, the words on its limits. Only accounts you connected are listed, by the name you gave them. A meter the engine has no number for is left out, never guessed.
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { MODES, effortForKey, effortsFor, kTokens, limitWords, modeInfo } from "./brain.ts";
 import type { ChatMode, ComposerAgent, Effort } from "./brain.ts";
 import { BrandMark, I, ensureComposerCss, webOnly } from "./parts.tsx";
@@ -160,12 +160,16 @@ const CHECK = <Glyph icon={I.check} native="✓" size={13} color="var(--accent)"
 
 type Sub = "provider" | "model" | "runs" | "more" | "compact";
 
+/** Past this many models the submenu shows a find field. */
+const FIND_FROM = 8;
+
 export function ModelPanel(p: ModelPanelProps): ReactElement {
   ensureComposerCss();
   const [sub, setSub] = useState<Sub | null>(null);
   const [flip, setFlip] = useState(false);
   const [keep, setKeep] = useState("");
   const [always, setAlways] = useState(false);
+  const [find, setFind] = useState("");
   const node = useRef<{ focus?: () => void; getBoundingClientRect?: () => { right: number } } | null>(null);
   useEffect(() => { node.current?.focus?.(); }, []);
   const toggle = (next: Sub): void => {
@@ -173,6 +177,7 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
     const room = (globalThis as { innerWidth?: number }).innerWidth;
     setFlip(box !== undefined && room !== undefined && box.right + 228 > room);
     setSub((cur) => (cur === next ? null : next));
+    setFind("");
   };
   const accounts = p.accounts ?? [];
   const account = accounts.find((a) => a.ref === p.accountRef) ?? null;
@@ -200,11 +205,13 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
     if (sub === "provider") return (
       <View testID="model-accounts">
         <Text style={st.grp}>Provider</Text>
+        <ScrollView testID="model-accounts-scroll" style={st.list} nestedScrollEnabled>
         {accounts.map((a) => (
           <Row key={a.ref} id={`model-account-${a.ref}`} title={a.name} note={`${providerTitle(a.provider)}${a.plan ? ` ${a.plan}` : ""}`} selected={a.ref === p.accountRef}
             leading={<View style={st.brand}><BrandMark provider={a.provider} size={15} /></View>} trailing={<Mini v={a.session} testID={`model-account-${a.ref}-mini`} />}
-            onPress={() => { p.onAccount(a.ref); setSub("model"); }} />
+            onPress={() => { p.onAccount(a.ref); setFind(""); setSub("model"); }} />
         ))}
+        </ScrollView>
         {p.onAddProvider ? (
           <>
             <View style={st.dv} />
@@ -215,18 +222,27 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
         ) : null}
       </View>
     );
-    if (sub === "model") return (
-      <View testID="model-models">
-        <Text style={st.grp}>{account?.name ?? "Model"}</Text>
-        {p.models === null ? <Text style={st.quiet}>Reading models</Text> : p.models.length === 0 ? <Text style={st.quiet}>This account lists no models.</Text> : null}
-        {(p.models ?? []).map((m) => {
-          const on = m.id === p.model;
-          const off = m.allowed === false;
-          // a model the account may not use stays visible with the reason, and does nothing when pressed
-          return <Row key={m.id} id={`model-${m.id}`} title={m.title} selected={on} {...(off ? { note: m.reason ?? "Not available on this account" } : m.note ? { note: m.note } : {})} trailing={on ? CHECK : null} {...(off ? {} : { onPress: () => { p.onModel(m.id); setSub(null); } })} />;
-        })}
-      </View>
-    );
+    if (sub === "model") {
+      // a provider with many models (OpenCode Go, OpenRouter) scrolls inside the submenu and gets a find field; the panel itself never grows past the window
+      const all = p.models ?? [];
+      const q = find.trim().toLowerCase();
+      const shown = q === "" ? all : all.filter((m) => m.title.toLowerCase().includes(q) || m.id.toLowerCase().includes(q));
+      return (
+        <View testID="model-models">
+          <Text style={st.grp}>{account?.name ?? "Model"}</Text>
+          {all.length > FIND_FROM ? <TextInput testID="model-find" accessibilityLabel="Find a model" placeholder="Find a model" placeholderTextColor="var(--ink-4)" value={find} onChangeText={setFind} autoFocus style={st.find} /> : null}
+          {p.models === null ? <Text style={st.quiet}>Reading models</Text> : all.length === 0 ? <Text style={st.quiet}>This account lists no models.</Text> : shown.length === 0 ? <Text style={st.quiet}>No model matches.</Text> : null}
+          <ScrollView testID="model-models-scroll" style={st.list} nestedScrollEnabled>
+            {shown.map((m) => {
+              const on = m.id === p.model;
+              const off = m.allowed === false;
+              // a model the account may not use stays visible with the reason, and does nothing when pressed
+              return <Row key={m.id} id={`model-${m.id}`} title={m.title} selected={on} {...(off ? { note: m.reason ?? "Not available on this account" } : m.note ? { note: m.note } : {})} trailing={on ? CHECK : null} {...(off ? {} : { onPress: () => { p.onModel(m.id); setSub(null); } })} />;
+            })}
+          </ScrollView>
+        </View>
+      );
+    }
     if (sub === "runs" && p.runs) {
       const r = p.runs;
       return (
@@ -366,6 +382,8 @@ const st = StyleSheet.create({
   subRight: { left: "100%", marginLeft: 6 },
   subTop: { bottom: "auto" as unknown as number, top: 0 },
   subLeft: { right: "100%", marginRight: 6 },
+  list: { maxHeight: 320 },
+  find: { height: 30, marginHorizontal: 4, marginBottom: 4, paddingHorizontal: 9, borderRadius: 8, fontSize: 13, color: "var(--ink)" as string, backgroundColor: "var(--sunk)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   subInline: { marginTop: 4, padding: 4, borderRadius: 10, backgroundColor: "var(--sunk)" as string },
   grp: { fontSize: 11.5, color: "var(--ink-4)" as string, paddingTop: 9, paddingBottom: 4, paddingHorizontal: 9 },
   brand: { width: 18, marginRight: 6, alignItems: "center" },

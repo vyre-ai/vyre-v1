@@ -261,7 +261,11 @@ test("setup connects every mapped member once and never an excluded or outside a
   assert.deepEqual([cfg.connectionId, cfg.tenantId, cfg.domain, cfg.clientId, cfg.configured, cfg.consentGiven, cfg.autoConnect], [CONN, "tenant-guid", "vyre.test", "11111111-2222-3333-4444-555555555555", 1, 0, 1]);
   assert.deepEqual(h.named("microsoft.consent_configured").map((e) => e.payload), [{ connector: "microsoft", tenantId: "tenant-guid", mappedMembers: 2, autoConnect: true }]);
   assert.deepEqual(h.scheduled.filter((s) => s.cap === "ms.subscriptions.renew"), [{ at: NOW + 12 * 60 * MIN, cap: "ms.subscriptions.renew", input: {} }]);
-  assert.deepEqual(h.scheduled.filter((s) => s.cap === "ms.receive_notification").map((s) => [s.at, s.input.resource]), [[NOW + 1000, `users/${MAYA}/messages`], [NOW + 3000, `users/${SAM}/messages`]], "each included member's first pull, spaced out, because nothing else starts one");
+  assert.deepEqual(h.scheduled.filter((s) => s.cap === "ms.receive_notification").map((s) => [s.at, s.input.resource]), [[NOW + 1000, `users/${MAYA}/messages`]], "the admin's own first pull; a teammate's is left due for the host, which runs it as its own work");
+  assert.equal(h.rows(`SELECT "nextPollAt" FROM microsoft_mailbox WHERE email = ?`, SAM)[0]?.nextPollAt, 0);
+  const { adoptPolls } = await import("../handlers/index.ts");
+  await adoptPolls({ ...h.ctx, principal: { kind: "service", id: "svc_host" } });
+  assert.deepEqual(h.scheduled.filter((s) => s.cap === "ms.receive_notification").map((s) => [s.at, s.input.resource]), [[NOW + 1000, `users/${MAYA}/messages`], [NOW + 1000, `users/${SAM}/messages`]], "each included member's first pull, spaced out, because nothing else starts one");
   await consentSetup(h.ctx, { ...setupInput, idempotencyKey: "setup-2" });
   assert.equal(h.calls("connections.create").length, 1);   // the Space connection is kept
   assert.equal(h.scheduled.length, 3);   // and so is the one queued Run, and each one first pull

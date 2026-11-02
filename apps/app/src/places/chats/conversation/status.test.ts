@@ -1,7 +1,7 @@
 // A turn that ended without a reply is a plain sentence with one action, never a card named after its internal status.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { installCommand, isTurnStatus, statusView, withoutAnswered } from "./status.ts";
+import { installProgram, isTurnStatus, statusView, withoutAnswered } from "./status.ts";
 
 const block = (data: Record<string, unknown>) => ({ id: "b1", type: "turn_status", v: 1, state: "done", data, traceId: "t" }) as never;
 
@@ -38,18 +38,34 @@ test("stopped and parked turns are quiet lines", () => {
 
 const errorOf = (data: Record<string, unknown>) => { const v = statusView(block(data)); assert.equal(v.kind, "error"); return (v as { block: { data: { message: string; cause?: string; next: Array<{ key: string; label: string }>; retryable: boolean } } }).block.data; };
 
-test("an engine that is not installed names itself, offers the exact install command, and a way to connect another account", () => {
+test("an engine that is not installed names itself and offers one Install button (no command), and a way to connect another account", () => {
   const d = errorOf({ state: "failed", turnId: "t", code: "engine.cli_missing", program: "codex" });
   assert.equal(d.message, "Codex is not installed here.");
-  assert.equal(d.cause, "Run npm install -g @openai/codex, then try again.");
+  assert.equal(d.cause, "Vyre can set it up for you.");
   assert.deepEqual(d.next, [{ key: "install:codex", label: "Install Codex" }, { key: "connect_ai", label: "Connect an account" }]);
-  assert.equal(installCommand("install:codex"), "npm install -g @openai/codex");
-  assert.equal(installCommand("install:claude"), "npm install -g @anthropic-ai/claude-code");
-  assert.equal(installCommand("install:grok"), undefined);
-  assert.equal(installCommand("connect_ai"), undefined);
+  assert.equal(d.retryable, false, "Install is the one way to try again: no second Retry beside it");
+  assert.ok(!/npm|install -g|terminal/i.test(JSON.stringify(d)), "no command is shown");
+  assert.equal(installProgram("install:codex"), "codex");
+  assert.equal(installProgram("install:claude"), "claude");
+  assert.equal(installProgram("install:grok"), "grok", "Grok installs the same way");
+  assert.equal(installProgram("install:toString"), undefined);
+  assert.equal(installProgram("connect_ai"), undefined);
   const unnamed = errorOf({ state: "failed", turnId: "t", code: "engine.cli_missing" });
-  assert.deepEqual(unnamed.next, [{ key: "connect_ai", label: "Connect an account" }], "no program, no command to offer");
+  assert.deepEqual(unnamed.next, [{ key: "connect_ai", label: "Connect an account" }], "no program, nothing to install");
   assert.ok(!/execvp|sandbox-exec/.test(JSON.stringify([d, unnamed])));
+});
+
+test("an install that did not finish says why in a plain line and keeps the Install button; an engine with no build for this computer offers another account only", () => {
+  const offline = errorOf({ state: "failed", turnId: "t", code: "engine.cli_missing", program: "grok", setup: "offline" });
+  assert.equal(offline.message, "Grok could not be set up here.");
+  assert.equal(offline.cause, "This computer could not reach the download. Check the connection, then try again.");
+  assert.deepEqual(offline.next[0], { key: "install:grok", label: "Install Grok" });
+  assert.equal(errorOf({ state: "failed", turnId: "t", code: "engine.cli_missing", program: "claude", setup: "checksum" }).cause, "The download did not match the expected file, so it was not used.");
+  assert.equal(errorOf({ state: "failed", turnId: "t", code: "engine.cli_missing", program: "claude", setup: "disk" }).cause, "It could not be saved on this computer. Free some space, then try again.");
+  assert.equal(errorOf({ state: "failed", turnId: "t", code: "engine.cli_missing", program: "claude", setup: "failed" }).cause, "The setup did not finish.");
+  const unsupported = errorOf({ state: "failed", turnId: "t", code: "engine.cli_missing", program: "codex", setup: "unsupported" });
+  assert.equal(unsupported.message, "Codex cannot run on this computer.");
+  assert.deepEqual(unsupported.next, [{ key: "connect_ai", label: "Connect an account" }]);
 });
 
 test("a locked Vault is an Unlock card, not a failed reply; an unreadable one gives the reason the Vault gave", () => {

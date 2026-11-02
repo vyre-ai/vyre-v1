@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { sandboxWrap, workFolder } from "../sandbox.ts";
 import { appleDeveloperRoots, cliInstallRoots, enginePath } from "../sandbox-default.ts";
+import { findProgram } from "../cli-programs.ts";
 import { buildOpener } from "../session.ts";
 import type { SandboxPlan } from "../sandbox.ts";
 
@@ -99,6 +100,17 @@ test("PATH for a CLI engine: an app from the Finder gets the folders a shell wou
   assert.deepEqual(got, ["/usr/bin", "/bin", "/Users/dana/.local/bin", "/opt/homebrew/bin", "/Users/dana/.nvm/versions/node/v24.15.0/bin", "/Users/dana/.nvm/versions/node/v22.1.0/bin"]);
   assert.equal(enginePath({ PATH: "/usr/bin:/opt/homebrew/bin" }, home, "darwin", exists, list).split(":").filter((p) => p === "/opt/homebrew/bin").length, 1, "no duplicates");
   assert.equal(enginePath({ PATH: "/usr/bin:/bin" }, home, "linux", exists, list), "/usr/bin:/bin");
+});
+
+test("PATH for a CLI engine: the codex inside the ChatGPT app and the Claude Code inside the Claude app count, after a person's own installs, newest Claude Code first", () => {
+  const home = "/Users/dana";
+  const cc = "/Users/dana/Library/Application Support/Claude/claude-code";
+  const there = new Set(["/Users/dana/.local/bin", "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin", cc, `${cc}/2.1.9/b1/claude.app/Contents/MacOS`, `${cc}/2.1.10/a2/claude.app/Contents/MacOS`]);
+  const list = (p: string): string[] => p === cc ? ["2.1.9", "2.1.10", ".DS_Store"] : p === `${cc}/2.1.9` ? ["b1"] : p === `${cc}/2.1.10` ? ["a2"] : [];
+  const got = enginePath({ PATH: "/usr/bin:/bin" }, home, "darwin", (p) => there.has(p), list).split(":");
+  assert.deepEqual(got, ["/usr/bin", "/bin", "/Users/dana/.local/bin", "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin", `${cc}/2.1.10/a2/claude.app/Contents/MacOS`, `${cc}/2.1.9/b1/claude.app/Contents/MacOS`]);
+  const codex = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex";
+  assert.equal(findProgram("codex", { platform: "darwin", env: { PATH: "/usr/bin:/bin", HOME: home }, exists: (p) => p === codex || there.has(p) }), codex, "a Codex signed in through the ChatGPT app runs, with no fallback to another account");
 });
 
 test("CLI install roots: the folder of the link and the prefix above it, never the home, a parent of it, or the folders of a person's sign-ins and history", () => {

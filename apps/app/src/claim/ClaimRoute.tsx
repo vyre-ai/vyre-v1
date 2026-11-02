@@ -12,6 +12,7 @@ import { claimOwner } from "./claim.ts";
 import { fingerprintOf, spaceIdOf, spaceNameOf } from "./logic.ts";
 import { storeClaimedOwnerSession } from "./session.ts";
 import { ClaimOwner } from "./ClaimOwner.tsx";
+import { deviceFor } from "../join/logic.ts";
 import { prefillFor, rememberClaimed } from "../onboarding/doors.ts";
 
 export function ClaimRoute({ token, onDone, onSignIn, onBack, address, fragment, deviceClass="web" }: { token: string; onDone(): void; onSignIn(): void; onBack?():void; address?:string; fragment?:string;deviceClass?:"web"|"desktop" }): ReactElement | null {
@@ -30,7 +31,7 @@ export function ClaimRoute({ token, onDone, onSignIn, onBack, address, fragment,
     const { makeBundle, wipe } = await loadCryptoKeys();
     const claimed = await claimOwner(
       { call, makeBundle: (password, recoveryCode, id) => makeBundle(password, recoveryCode, { spaceId: id }), holdKey: (t, key) => holdKeyOnOwnNode(baseUrl, t, key), wipe },
-      { token, spaceId, name: v.name, username: v.username, password: v.password, recoveryCode: v.recoveryCode, deviceName: deviceClass==="desktop"?"Vyre desktop":"Web browser", deviceClass },
+      { token, spaceId, name: v.name, username: v.username, password: v.password, recoveryCode: v.recoveryCode, ...deviceFor(deviceClass) },
     );
     const authenticated = createCapCaller({ baseUrl, token: () => claimed.token });
     await storeClaimedOwnerSession({ baseUrl, token: claimed.token, spaceId, username: v.username.trim().toLowerCase() }, {

@@ -45,3 +45,25 @@ test("the launcher refuses a missing engine or sandbox with the reason, and star
   await nodeCliLauncher(dataDir, { probe: { platform: "linux", env: ok.env, bwrapPaths: [bwrap(ok.dir)] }, spawn }).spawn({ argv: ["claude", "-p"], env: {} });
   assert.deepEqual(started, ["claude -p"]);
 });
+
+test("a server whose image lacks an engine (Grok, or any on an older image) installs it into its engines folder the first time a turn needs it, then starts it by its full path", async () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-cli-data-"));
+  const root = path.join(dataDir, "engines");
+  const started: string[] = [];
+  const asked: string[] = [];
+  const spawn = async (spec: { argv: readonly string[] }): Promise<never> => { started.push(spec.argv.join(" ")); return {} as never; };
+  const installer = {
+    root, supported: (p: string) => p !== "codex",
+    ensure: async (p: string) => { asked.push(p); const at = path.join(root, "grok", "1.0.70", "grok"); fs.mkdirSync(path.dirname(at), { recursive: true }); fs.writeFileSync(at, "#!/bin/sh\n", { mode: 0o755 }); return at; },
+  };
+  const none = bin([]);
+  const node = nodeCliLauncher(dataDir, { probe: { platform: "linux", env: none.env, bwrapPaths: [bwrap(none.dir)] }, spawn, installer });
+  await node.spawn({ argv: ["grok", "-p"], env: {} });
+  assert.deepEqual(asked, ["grok"]);
+  assert.deepEqual(started, [`${path.join(root, "grok", "1.0.70", "grok")} -p`], "bwrap's PATH never holds the engines folder, so the full path is started");
+  await node.spawn({ argv: ["grok", "-p"], env: {} });
+  assert.deepEqual(asked, ["grok"], "installed once");
+  await assert.rejects(() => node.spawn({ argv: ["codex", "exec"], env: {} }), (e) => (e as { code?: string }).code === "engine.cli_missing" && /codex is not installed on this server\.$/.test((e as Error).message), "no build here: the plain reason");
+  const failing = nodeCliLauncher(dataDir, { probe: { platform: "linux", env: none.env, bwrapPaths: [bwrap(none.dir)] }, spawn, installer: { root: path.join(dataDir, "other"), supported: () => true, ensure: async () => { throw Object.assign(new Error("x"), {}); } } });
+  await assert.rejects(() => failing.spawn({ argv: ["claude", "-p"], env: {} }), (e) => /claude is not installed on this server \(failed\)\./.test((e as Error).message));
+});

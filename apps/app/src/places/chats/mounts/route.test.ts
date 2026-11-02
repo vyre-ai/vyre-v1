@@ -2,7 +2,7 @@
 // The links that open Chats: a link with `with` and `about` is an Ask about an object, `with` alone is a chat with that agent, and a thread id is that thread.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { askAbout, fromHash } from "./route.ts";
+import { START, askAbout, fromHash, step } from "./route.ts";
 
 test("with and about make an Ask about the object, and bring names the chat whose summary comes along", () => {
   const s = fromHash("#screen=chats.conversation&with=agt_billing&about=record%3Arec_a1&bring=thr_old");
@@ -54,4 +54,9 @@ test("first with an agent and no object opens a chat that starts with that messa
 
 test("Open Terminal from the Space menu or Search opens the terminal list", () => {
   assert.equal(fromHash("screen=chats.terminal-list&at=1").layer?.kind, "terminals");
+});
+
+test("Artifacts opens inside Chats like Threads, and its link lands there", () => {
+  assert.deepEqual(step(START, { t: "artifacts" }).route, { view: "artifacts" });
+  assert.deepEqual(fromHash("#screen=chats.artifacts").route, { view: "artifacts" });
 });

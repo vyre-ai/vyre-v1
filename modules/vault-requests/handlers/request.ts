@@ -79,8 +79,22 @@ export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fie
   const mine = ctx.db.all(`SELECT * FROM ${TABLE} WHERE requester_id = ?`, requester.id) as RequestRow[];
   const again = mine.find((r) => r.idem_key === input.idempotencyKey);
   if (again) return { request: requestOut(again) };
-  if (mine.some((r) => r.state === "waiting" && r.name === name && r.folder_id === (input.folderId ?? null))) {
-    raise(trace, "validation.duplicate", "You already asked for this key. The managers have it.");
+  // asked again while the first ask still waits (another chat, an earlier turn): the same request answers, and its card is drawn in this chat too, so the person types the key where they are now.
+  // Both cards read the one request and close together; nobody gets a second task.
+  const waiting = mine.find((r) => r.state === "waiting" && r.name === name && r.folder_id === (input.folderId ?? null));
+  if (waiting) {
+    if (ctx.thread) {
+      const fields0 = JSON.parse(waiting.fields_json) as string[];
+      const card = { type: "vault_request", v: 1, data: { requestId: waiting.id, name: waiting.name, fields: fields0, reason: waiting.reason, requester, ...(waiting.for_run ? { forRun: waiting.for_run } : {}), ...(waiting.folder_id ? { folderId: waiting.folder_id } : {}), threadId: ctx.thread, ...(requester.kind === "agent" ? { agentId: requester.id } : {}), ...((ctx.actingFor ?? (requester.kind === "person" ? requester.id : undefined)) ? { asker: (ctx.actingFor ?? requester.id) } : {}), state: "waiting" } };
+      try { await ctx.call("chat.post", { threadId: ctx.thread, body: "", blocks: [card], idempotencyKey: `${waiting.id}:card:${ctx.thread}` }); }
+      catch (e) { ctx.log.warn("vault request: the chat card was not posted", { requestId: waiting.id, error: e instanceof Error ? e.message : String(e) }); }
+      // the tasks' card names the chat the agent carries on in once the key is saved (chatOf): the newest ask's chat, where the person is
+      for (const taskId of idsOf(waiting.task_ids_json)) {
+        try { await ctx.call("tasks.update", { taskId, blocks: [card] }); }
+        catch (e) { ctx.log.warn("vault request: the task card still names the first chat", { requestId: waiting.id, error: e instanceof Error ? e.message : String(e) }); }
+      }
+    }
+    return { request: requestOut(waiting) };
   }
 
   const managers = await managersFor(ctx, input.folderId, requester.id);

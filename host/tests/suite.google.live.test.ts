@@ -107,7 +107,7 @@ function google() {
   };
 }
 
-// the owner has no invitation email on record: setup maps the admin to the address it is given
+// the owner has no invitation email on record, and the admin address typed at setup is only who the checks act as: nobody is matched to it
 const members = [{ userId: "usr_noah", email: NOAH }, { userId: "usr_mia", email: MIA }];
 
 test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach the product; an excluded member is never read", async () => {
@@ -142,7 +142,7 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
 
     // 3 setup works with Gmail delegated; the check names the scope that is missing
     const setup = await w.ok(OWNER, "google.dwd.setup", { vaultItem: "#Google_DWD", adminEmail: ADMIN, idempotencyKey: w.idem() });
-    assert.deepEqual([setup.configured, setup.mappedMembers, setup.connected], [true, 2, 2]);
+    assert.deepEqual([setup.configured, setup.mappedMembers, setup.connected], [true, 1, 1]);
     const missing = await w.ok(OWNER, "google.dwd.probe", {});
     assert.equal(missing.ok, false);
     assert.deepEqual(missing.scopesMissing, [`${SCOPE}drive`]);
@@ -150,16 +150,26 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
     const fixed = await w.ok(OWNER, "google.dwd.probe", {});
     assert.deepEqual([fixed.ok, fixed.scopesMissing, fixed.email], [true, [], ADMIN]);
     const status = await w.ok(OWNER, "google.dwd.status");
-    assert.deepEqual([status.configured, status.lastProbeOk, status.mappedMembers, status.excluded], [true, true, 2, [MIA]]);
+    assert.deepEqual([status.configured, status.lastProbeOk, status.mappedMembers, status.excluded], [true, true, 1, [MIA]]);
     assert.match(status.pushToken, /^[0-9a-f]{64}$/);
     const roster = await w.ok(OWNER, "google.dwd.members", {});
-    assert.deepEqual(roster.members.map((m: { email: string; mapped: boolean; excluded: boolean }) => [m.email, m.mapped, m.excluded]).sort(), [[MIA, true, true], [NOAH, true, false], [ADMIN, true, false]].sort());
+    assert.deepEqual(roster.members.map((m: { email: string; mapped: boolean; excluded: boolean }) => [m.email, m.mapped, m.excluded]).sort(), [[MIA, true, true], [NOAH, true, false]].sort(), "the admin address is nobody's Inbox");
 
-    // 4 mail: Noah's mailbox was made pending; syncing it brings the message into the Inbox
+    // 4 mail: Noah's mailbox was made pending, and his mail comes in with nobody pressing anything. The owner set this up, and a job the owner queued runs as the owner, who never
+    // reads Noah's mailbox: the host takes his first pull over (google.adopt_polls, every minute) and runs the chain as its own work
     const boxes = await w.ok(MEMBER, "mail.mailbox.list", {});
     const mine = boxes.mailboxes.filter((b: { address: string }) => b.address === NOAH);
     assert.equal(mine.length, 1, "Noah has his Google mailbox");
     assert.equal(boxes.mailboxes.some((b: { address: string }) => b.address === MIA), false, "Mia has none");
+    assert.equal(g.asked.some((a) => a.sub === NOAH), false, "nothing of Noah's was read as the owner");
+    await w.d.hooks!.runPeriodic("google.adopt_polls");
+    let arrived: string[] = [];
+    for (let i = 0; i < 100 && arrived.length === 0; i++) {
+      await new Promise((r) => setTimeout(r, 200));
+      arrived = (await w.ok(MEMBER, "mail.message.list", { mailboxId: mine[0].id })).messages.map((m: { subject: string }) => m.subject);
+    }
+    assert.deepEqual(arrived, ["Can we talk about the deed?"], `the host's pull brought it in: ${JSON.stringify(w.logsLike(/google pull/))}`);
+    // and Noah's own Sync now still pulls at once, as himself
     await w.ok(MEMBER, "mail.sync_now", { mailboxId: mine[0].id });
     const list = await w.ok(MEMBER, "mail.message.list", { mailboxId: mine[0].id });
     assert.deepEqual(list.messages.map((m: { subject: string }) => m.subject), ["Can we talk about the deed?"]);

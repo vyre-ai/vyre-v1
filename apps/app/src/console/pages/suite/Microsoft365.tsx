@@ -24,7 +24,7 @@ export function Microsoft365Page(): ReactElement {
   const snippet = useRead<CapMap["ms.consent.policy_snippet"]["out"]>("ms.consent.policy_snippet", {}, { enabled: configured });
   const members = useRead<CapMap["ms.consent.members"]["out"]>("ms.consent.members", { limit: 100 }, { enabled: configured });
   const folders = useRead<CapMap["vault.folders.list"]["out"]>("vault.folders.list", { scope: "shared" });
-  const items = useRead<CapMap["vault.items.list"]["out"]>("vault.items.list", { q: "Microsoft_App", section: "shared" });
+  const items = useRead<CapMap["vault.items.list"]["out"]>("vault.items.list", { q: "Microsoft_App", section: "space" });
   const people = useRead<CapMap["access.principals.list"]["out"]>("access.principals.list", { kind: "person", status: "active", limit: 200 }, { enabled: configured });
   const refresh = (): void => { status.refresh(); link.refresh(); snippet.refresh(); members.refresh(); folders.refresh(); items.refresh(); };
   const act = useAction(refresh);

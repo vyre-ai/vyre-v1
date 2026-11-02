@@ -19,7 +19,9 @@ export function bootScript(): string {
     + `var v=k[m];var r=document.documentElement,s=r.style;for(var n in v)s.setProperty(n,v[n]);s.backgroundColor=v["--rail"]||v["--win"];s.colorScheme=m;r.setAttribute("data-skin",id);r.setAttribute("data-mode",m);r.setAttribute("data-theme",m);var tc=document.querySelector('meta[name="theme-color"]');if(tc)tc.setAttribute("content",v["--rail"]||v["--win"]);window.__VYRE_THEME_AT__=performance.now();}catch(e){}})();`;
   // The load event comes before the app is usable (the deferred scripts have run, React is still hydrating), and the worker's install fetches every place and caches the scripts,
   // which compiled them again alongside startup. So the worker waits for load and for app.usable (the "vyre:usable" event mark() sends), or 5 s after load at the latest.
-  const sw = `(function(){var l=0,u=0,d=0;function go(){if(d||!("serviceWorker" in navigator))return;d=1;navigator.serviceWorker.register("/sw.js").catch(function(){});}`
+  // On a phone address (<name>.vyre.run) the relay's phone shell has its own worker at /__vyre/sw.js that carries every request to the Space; registering /sw.js over the same scope would replace it
+  // and cut the page off from the Space, so the app's worker stays out of that page.
+  const sw = `(function(){var l=0,u=0,d=0;function go(){if(d||!("serviceWorker" in navigator))return;d=1;var c=navigator.serviceWorker.controller;if(c&&/\\/__vyre\\/sw\\.js$/.test(new URL(c.scriptURL).pathname))return;navigator.serviceWorker.register("/sw.js").catch(function(){});}`
     + `addEventListener("vyre:usable",function(){u=1;if(l)setTimeout(go,0);});addEventListener("load",function(){l=1;if(u)setTimeout(go,0);else setTimeout(go,5000);});})();`;
   return theme + sw;
 }

@@ -126,7 +126,17 @@ export { consumersAll as consumers };
 export const hostSeams: SeamSetters = { setGoogleHost };
 
 /** /hooks/google/<kind>: the push secret is checked before anything is recorded (handlers/hook.ts). */
+/** The host adopts the mail polls nobody's queued job will run (a person queued them for someone else's mailbox, or a chain died), so each member's mail keeps coming in as the server's own work. */
+export const periodic = {
+  "google.adopt_polls": { everyMs: 60_000, run: (ctx: Ctx) => h.adoptPolls(ctx as never) },
+};
+
 export const hostCalls = {
+  /** A finished Sign in with Google proved this Workspace address is this person's (host/src/seams/people.ts): match them to it. */
+  "google.match_proven": async (ctx: Ctx, i: { person: string; email: string }): Promise<unknown> => {
+    hostOnly(ctx, "google.match_proven");
+    return h.matchProven(ctx as never, i);
+  },
   /** The removal wizard (host/src/seams/people.ts): a person whose mailbox connections are revoked loses their own sign-ins too. */
   "google.reassign_owned": async (ctx: Ctx, i: { person: string; kind: string; action: string }): Promise<number> => {
     hostOnly(ctx, "google.reassign_owned");

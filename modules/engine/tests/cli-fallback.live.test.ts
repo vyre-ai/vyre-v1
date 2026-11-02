@@ -14,6 +14,8 @@ import type { Lookup, ValueSource } from "../../../agent/src/vault-use/index.ts"
 import { buildNodeOpener, refuseMissingProgram } from "../session.ts";
 import { checkedOpen, createRunnableAccount } from "../runnable-account.ts";
 import type { NodeCliProbe } from "../cli-programs.ts";
+import { createEngineInstaller, EngineInstallError } from "../engine-install.ts";
+import type { EngineSetup } from "../runnable-account.ts";
 
 const FAKE_CLI = fileURLToPath(new URL("../../../host/tests/fixtures/fake-cli-driver/fake-cli.mjs", import.meta.url));
 const CLAUDE_KEY = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"; // secret-scan: fake
@@ -35,8 +37,11 @@ function home(programs: string[]): { probe: NodeCliProbe; dir: string } {
 /** engine.account.resolve as the policy answers it: the person's accounts in the order they are tried, minus the ones named in `unavailable`. */
 const resolver = (order: ResolvedAccount[]) => async (q: AccountQuery): Promise<ResolvedAccount | null> => order.find((a) => !(q.unavailable ?? []).includes(a.ref)) ?? null;
 
-function rig(o: { programs: string[]; order: ResolvedAccount[]; accountsList?: string[] }) {
-  const h = home(o.programs);
+function rig(o: { programs: string[]; order: ResolvedAccount[]; accountsList?: string[]; engines?: (probe: NodeCliProbe) => { engines: EngineSetup; probe: NodeCliProbe } }) {
+  const base = home(o.programs);
+  const withEngines = o.engines?.(base.probe);
+  const h = { ...base, probe: withEngines?.probe ?? base.probe };
+  const live: Array<Record<string, unknown>> = [];
   const started: string[][] = [];
   const looked: string[] = [];
   const posted: Array<{ threadId: string; blocks: unknown[] }> = [];
@@ -49,17 +54,17 @@ function rig(o: { programs: string[]; order: ResolvedAccount[]; accountsList?: s
   const opener = buildNodeOpener({ session, call: async () => ({}) }, launcher);
   const resolveAccount = createRunnableAccount({
     call: async (cap) => (cap === "engine.accounts.list" ? { accounts: (o.accountsList ?? o.order.map((a) => a.ref)).map((ref) => ({ ref })) } : { placement: "host", reason: "default" }),
-    resolve: resolver(o.order), probe: h.probe,
+    resolve: resolver(o.order), probe: h.probe, ...(withEngines ? { engines: withEngines.engines } : {}),
     postAs: async (_agent, post) => { posted.push({ threadId: (post as { threadId: string }).threadId, blocks: (post as { blocks: unknown[] }).blocks }); return undefined as never; },
   });
   let n = 0;
   const engine = createTurnEngine({
     holder: "host:s",
     resolveAccount,
-    openSession: checkedOpen((spec: SessionSpec) => opener.openSession({ ...spec, turnId: spec.turnId || `turn_${++n}`, traceId: TRACE } as SessionSpec), { probe: h.probe }),
+    openSession: checkedOpen((spec: SessionSpec) => opener.openSession({ ...spec, turnId: spec.turnId || `turn_${++n}`, traceId: TRACE } as SessionSpec), { probe: h.probe, ...(withEngines ? { engines: withEngines.engines } : {}), live: (e) => live.push(e as never) }),
   });
   engine.openThread({ id: "T1", kind: "chat", starter: "dana", agents: [AGENT] });
-  return { engine, started, looked, posted, opener };
+  return { engine, started, looked, posted, opener, live };
 }
 
 test("the Codex account cannot run here, so the turn is answered by Claude and the chat says so once", async () => {
@@ -92,6 +97,54 @@ test("with nothing installed the turn fails with engine.cli_missing naming the p
     assert.deepEqual(r.started, []);
     assert.deepEqual(r.looked, [], "the Vault was not asked for a key");
     assert.equal(r.posted.length, 0, "nobody answered, so there is no change to announce");
+  } finally { await r.opener.close(); }
+});
+
+/** Vyre's installer over a real engines folder; the "download" writes a program there after a moment (or fails offline). */
+const installing = (fail = false) => (probe: NodeCliProbe) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-engines-"));
+  const engines = createEngineInstaller({
+    root, platform: "darwin-arm64",
+    install: async (program, o) => {
+      await new Promise((r) => setTimeout(r, 30));
+      if (fail) throw new EngineInstallError("offline", "the vendor could not be reached");
+      const at = path.join(o.root, program, "2.1.316", program);
+      fs.mkdirSync(path.dirname(at), { recursive: true });
+      fs.writeFileSync(at, "#!/bin/sh\n", { mode: 0o755 });
+      return at;
+    },
+  });
+  return { engines, probe: { ...probe, enginesRoot: root } };
+};
+
+test("Claude Code is not installed: the turn waits while Vyre sets it up, says so on its live line, and Claude answers on the account the person chose, with no fallback", async () => {
+  // Codex is here and could have answered; the chosen account is Claude
+  const r = rig({ programs: ["codex"], order: [CLAUDE, CODEX], engines: installing() });
+  try {
+    r.engine.receive({ threadId: "T1", author: { kind: "person", id: "dana" }, body: "hello" });
+    await r.engine.idle("T1");
+    const turn = r.engine.turns("T1").at(-1);
+    assert.equal(turn?.state, "completed", JSON.stringify(r.engine.events().filter((e) => e.type === "turn.failed")));
+    assert.ok((r.engine.messages("T1").filter((m) => m.author.kind === "agent").at(-1)?.body ?? "").includes("Hello from the fake engine."));
+    assert.deepEqual(r.started.map((a) => path.basename(a[0] ?? "")), ["claude"], "Claude Code ran; no codex process started");
+    assert.deepEqual(r.posted, [], "no fallback line: the chosen account answered");
+    assert.deepEqual([r.live[0]?.["phase"], r.live[0]?.["name"]], ["call", "engine_setup"]);
+    assert.equal(r.live.find((e) => e["phase"] === "input")?.["detail"], "Claude", "read as Setting up Claude");
+    assert.deepEqual([r.live.at(-1)?.["phase"], r.live.at(-1)?.["ok"]], ["result", true]);
+    assert.equal(r.live[0]?.["turnId"], turn?.id, "on this turn's own live line");
+  } finally { await r.opener.close(); }
+});
+
+test("the install fails (offline) and nothing else can answer: the turn fails naming the program and why, before any engine starts or any key is read", async () => {
+  const r = rig({ programs: [], order: [CLAUDE], engines: installing(true) });
+  try {
+    r.engine.receive({ threadId: "T1", author: { kind: "person", id: "dana" }, body: "hello" });
+    await r.engine.idle("T1");
+    const failed = r.engine.events().filter((e) => e.type === "turn.failed").at(-1) as { code?: string; message?: string } | undefined;
+    assert.equal(failed?.code, "engine.cli_missing");
+    assert.equal(failed?.message, "claude is not installed on this computer (offline).");
+    assert.deepEqual(r.started, []);
+    assert.deepEqual(r.looked, []);
   } finally { await r.opener.close(); }
 });
 

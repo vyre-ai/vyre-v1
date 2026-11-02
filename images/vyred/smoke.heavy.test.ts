@@ -23,17 +23,25 @@ const verdictOf = verdict;
 const checkOf = check;
 const roleOf = doctorRole;
 
-test("Dockerfile: Claude Code and Codex are installed at exact versions with bubblewrap, so a computer that joined a Space can run a pinned chat's engine", () => {
+test("Dockerfile: Claude Code, Codex and Grok are baked at the pinned versions, checked, with bubblewrap, so a chat on this server never waits for a download", async () => {
   const d = read("Dockerfile");
   assert.match(d, /apt-get install -y --no-install-recommends[^\n]*\bbubblewrap\b/);
-  const pins = /^ARG ENGINE_PACKAGES="([^"]+)"$/m.exec(d)?.[1]?.split(" ") ?? [];
-  assert.deepEqual(pins.map((p) => p.replace(/@[0-9][^@]*$/, "")), ["@anthropic-ai/claude-code", "@openai/codex"]);
-  for (const p of pins) assert.match(p, /@\d+\.\d+\.\d+$/, `${p} is pinned to a version`);
-  assert.match(d, /not pinned: \$p/, "an unpinned package refuses the build");
-  assert.match(d, /npm install --global --omit=dev[^\n]*\$ENGINE_PACKAGES/);
+  const bake = /^RUN node \/opt\/vyre\/modules\/engine\/bake-engines\.ts (\S+) (\S+)$/m.exec(d);
+  assert.ok(bake, "the engines are baked by the same checked installer a computer uses");
+  assert.equal(bake[1], "/usr/local/lib/vyre/engines", "under /usr, which bubblewrap binds read-only");
+  assert.equal(bake[2], "/usr/local/bin", "linked onto the PATH the sandbox starts an engine with");
+  assert.doesNotMatch(d, /npm install --global/, "no engine from npm: one set of pins");
+  assert.doesNotMatch(d, /ENGINE_PACKAGES/);
   assert.match(d, /CLAUDE_CODE_DISABLE_AUTOUPDATE=1/);
-  assert.match(read("docker-bake.hcl"), /ENGINE_PACKAGES = ENGINE_PACKAGES/);
-  assert.equal(d.indexOf("npm install --global") < d.indexOf("USER node"), true, "installed as root, before the daemon's user");
+  assert.equal(d.indexOf("bake-engines.ts") > d.indexOf("npm ci"), true, "after the program is copied in");
+  assert.equal(d.indexOf("bake-engines.ts") < d.indexOf("USER node"), true, "installed as root, before the daemon's user");
+  assert.doesNotMatch(read("docker-bake.hcl"), /ENGINE_PACKAGES/);
+  const { ENGINE_PINS } = await import("../../modules/engine/engine-pins.ts");
+  assert.deepEqual(Object.keys(ENGINE_PINS), ["claude", "codex", "grok"]);
+  for (const pin of Object.values(ENGINE_PINS)) {
+    assert.match(pin.version, /^\d+\.\d+\.\d+$/, `${pin.program} is pinned to a version`);
+    for (const arch of ["linux-x64", "linux-arm64"] as const) assert.ok(pin.builds[arch], `${pin.program} has a ${arch} build for both image architectures`);
+  }
 });
 
 test("Dockerfile: Node 24 base pinned by digest, git and tmux installed, tini as PID 1, non-root", () => {

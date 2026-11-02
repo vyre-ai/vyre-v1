@@ -1,13 +1,25 @@
-// An account pays for a turn only if its engine can run on the computer the turn runs on. A Codex sign-in on a computer with no `codex` would pick, spawn, and fail with a bare error; this skips it
-// for another usable account of the person (the one connected most recently), says so in the chat in one line, and leaves the pick alone when it can run. When nothing can run, the pick stays and the
-// start fails with engine.cli_missing, which the chat draws as an Install card (status.ts). A turn pinned to a server is checked on that server (node-cli.ts), never here.
+// An account pays for a turn only if its engine can run on the computer the turn runs on. When the account's program is missing and Vyre can install it here (engine-install.ts), the pick stays and the
+// turn waits for the install, its live line saying "Setting up Codex". Only when that cannot happen (no build for this computer, or the last try failed a short while ago, offline or not the pinned file)
+// does another usable account of the person answer (the one connected most recently), said in the chat in one line. When nothing can run, the pick stays and the start fails with engine.cli_missing,
+// which the chat draws as an Install card (status.ts) whose button tries again. A turn pinned to a server is checked on that server (node-cli.ts), never here.
 import { LaunchError } from "../../agent/src/drivers/cli/launcher.ts";
 import type { AccountQuery, OpenSession, ResolvedAccount } from "../../agent/src/turn-engine/types.ts";
 import { BRIDGE_PREFIX } from "./handlers/bridge.ts";
-import type { PostAs } from "./handlers/bridge.ts";
+import type { PostAs, StreamEvent } from "./handlers/bridge.ts";
 import { CLI_NAME, CLI_PROGRAM, findProgram } from "./cli-programs.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
+import { EngineInstallError } from "./engine-install.ts";
+import type { EngineInstaller } from "./engine-install.ts";
 import { mintId } from "./projections.ts";
+
+/** What the account check needs of the installer. */
+export type EngineSetup = Pick<EngineInstaller, "supported" | "failedRecently" | "ensure"> & Partial<Pick<EngineInstaller, "state">>;
+
+/** How often a waiting turn's live line says how far the download has got: often enough that a screen never takes the turn for a dead one (it lets a silent turn go after 90 s). */
+export const SETUP_BEAT_MS = 10_000;
+
+/** The live step of a turn waiting for its engine: the activity line reads it as "Setting up <name>" (apps/app/src/places/chats/conversation/activity.ts). */
+export const ENGINE_SETUP_STEP = "engine_setup";
 
 type Call = (cap: string, input: unknown, as?: string) => Promise<unknown>;
 
@@ -20,7 +32,12 @@ export interface RunnableDeps {
   probe?: NodeCliProbe;
   postAs?: PostAs;
   log?: (msg: string, attrs?: Record<string, unknown>) => void;
+  /** Vyre's installer on this computer. Absent: a missing program is never installed, and another account answers as before. */
+  engines?: EngineSetup;
 }
+
+/** Will a turn that needs this program wait for Vyre to install it? Yes when there is a build for this computer and the last try did not just fail. */
+export const willInstall = (program: string, d: Pick<RunnableDeps, "engines">): boolean => d.engines !== undefined && d.engines.supported(program) && !d.engines.failedRecently(program);
 
 /** The program a CLI account needs that this computer does not have, or null (an API account, or the program is here). */
 export function missingProgram(driver: string, d: Pick<RunnableDeps, "command" | "probe">): string | null {
@@ -29,7 +46,7 @@ export function missingProgram(driver: string, d: Pick<RunnableDeps, "command" |
   return findProgram(program, d.probe) === null ? program : null;
 }
 
-const WORDS = (program: string, to: string): string => `${CLI_NAME[program] ?? program} is not installed here, so ${to} answered.`;
+const WORDS = (program: string, to: string, tried: boolean): string => `${CLI_NAME[program] ?? program} ${tried ? "could not be set up" : "is not installed"} here, so ${to} answered.`;
 
 export function createRunnableAccount(d: RunnableDeps): (q: AccountQuery) => Promise<ResolvedAccount | null> {
   const said = new Set<string>();
@@ -54,6 +71,11 @@ export function createRunnableAccount(d: RunnableDeps): (q: AccountQuery) => Pro
     if (!first) return first;
     const lacking = missingProgram(first.driver, d);
     if (lacking === null || await pinnedToServer(q)) return first;
+    if (willInstall(lacking, d)) {
+      // the download starts now, while the turn is being set up; the opener waits for this same install (checkedOpen)
+      d.engines?.ensure(lacking).catch(() => undefined);
+      return first;
+    }
 
     // The other accounts that could pay, in the order the policy would try them; those whose program is missing are skipped too.
     const skipped = [first.ref];
@@ -74,19 +96,38 @@ export function createRunnableAccount(d: RunnableDeps): (q: AccountQuery) => Pro
       pick = options.reduce((best, o) => (order.indexOf(o.ref) > order.indexOf(best.ref) ? o : best), pick);
     }
     const to = CLI_NAME[CLI_PROGRAM[pick.driver] ?? ""] ?? pick.provider.charAt(0).toUpperCase() + pick.provider.slice(1);
-    await say(q, WORDS(lacking, to), `${q.threadId}|${q.agentId}|${first.ref}|${pick.ref}`);
+    await say(q, WORDS(lacking, to, d.engines?.failedRecently(lacking) === true), `${q.threadId}|${q.agentId}|${first.ref}|${pick.ref}`);
     return pick;
   };
 }
 
 /**
- * The opener with the program check in front: a turn whose account needs an engine this computer does not have fails at once with engine.cli_missing, before the Vault is asked for the account's key
- * and before any sandbox starts. A turn pinned to a server never gets here (node-turns.ts routes it first).
+ * The opener with the program check in front: a turn whose account needs an engine this computer does not have waits while Vyre installs it, with a live step the activity line reads as "Setting up Codex",
+ * and then opens as usual. Where it cannot be installed, or the install fails, the turn fails with engine.cli_missing before the Vault is asked for the account's key and before any sandbox starts; the
+ * message names the program and, in brackets, why (offline, checksum, unsupported, disk, failed), which the chat turns into a sentence. A turn pinned to a server never gets here (node-turns.ts routes it first).
  */
-export function checkedOpen(open: OpenSession, d: Pick<RunnableDeps, "command" | "probe">): OpenSession {
-  return (spec) => {
+export function checkedOpen(open: OpenSession, d: Pick<RunnableDeps, "command" | "probe" | "engines"> & { live?: (e: StreamEvent) => void; beatMs?: number }): OpenSession {
+  return async (spec) => {
     const lacking = spec.account ? missingProgram(spec.account.driver, d) : null;
-    if (lacking !== null) return Promise.reject(new LaunchError("engine.cli_missing", `${lacking} is not installed on this computer.`));
+    if (lacking === null) return open(spec);
+    const setup = d.engines;
+    if (!setup || !setup.supported(lacking)) throw new LaunchError("engine.cli_missing", `${lacking} is not installed on this computer${setup ? " (unsupported)" : ""}.`);
+    const name = CLI_NAME[lacking] ?? lacking;
+    const step = { threadId: spec.threadId, turnId: spec.turnId, agentId: spec.agent.id, id: `setup_${lacking}` };
+    const live = (e: StreamEvent): void => { try { d.live?.(e); } catch { /* the live line is a courtesy; the install goes on */ } };
+    // how far it has got, in the step's detail: "Setting up Codex, 40%"
+    const said = (): string => { const s = setup.state?.(lacking); return s?.phase === "installing" && s.total && s.done ? `${name}, ${Math.min(99, Math.floor(((s.done ?? 0) / s.total) * 100))}%` : name; };
+    live({ kind: "step", phase: "call", ...step, name: ENGINE_SETUP_STEP });
+    live({ kind: "step", phase: "input", ...step, detail: said() });
+    const beat = setInterval(() => live({ kind: "step", phase: "input", ...step, detail: said() }), d.beatMs ?? SETUP_BEAT_MS);
+    beat.unref?.();
+    try { await setup.ensure(lacking); }
+    catch (e) {
+      live({ kind: "step", phase: "result", ...step, ok: false });
+      const reason = e instanceof EngineInstallError ? e.reason : "failed";
+      throw new LaunchError("engine.cli_missing", `${lacking} is not installed on this computer (${reason}).`);
+    } finally { clearInterval(beat); }
+    live({ kind: "step", phase: "result", ...step, ok: true });
     return open(spec);
   };
 }

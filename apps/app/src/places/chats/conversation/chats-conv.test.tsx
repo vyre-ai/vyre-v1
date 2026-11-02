@@ -159,12 +159,17 @@ test("an error is one inline row: what, why, next, Details, Copy id; Retry carri
   assert.equal(s.calls[0]!.cap, "engine.turn.retry");
 });
 
-test("the buttons on a failed reply: Install copies the exact command; Unlock asks for the password and then sends the stopped reply again, once", async () => {
+test("the buttons on a failed reply: Install runs the reply again so the turn sets the engine up, in one press; Unlock asks for the password and then sends the stopped reply again, once", async () => {
   const s = createSample("errors");
   const said: string[] = [];
+  const copiedBefore = s.copied.length;
   await act.errorAction(s.data, "install:codex", "turn_9", (t) => said.push(t));
-  assert.deepEqual(s.copied.slice(-1), ["npm install -g @openai/codex"]);
-  assert.match(said[0] ?? "", /^Copied: npm install -g @openai\/codex/);
+  const installs = s.calls.filter((c) => c.cap === "engine.turn.retry");
+  assert.equal(installs.length, 1, "one press, one retry of that turn: the new turn waits while Vyre sets Codex up");
+  assert.deepEqual(installs[0]?.input, { turnId: "turn_9" });
+  assert.equal(s.copied.length, copiedBefore, "no command is copied");
+  assert.deepEqual(said, [], "nothing to read: the turn's own live line says Setting up Codex");
+  s.calls.splice(0, s.calls.length);
 
   // no way to open the key here: a sentence, and nothing is retried
   await act.errorAction(s.data, "unlock_vault", "turn_9", (t) => said.push(t));

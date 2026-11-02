@@ -32,16 +32,33 @@ const CLI_NAMES = ["claude", "codex", "grok"] as const;
 
 /**
  * PATH for finding a CLI engine. An app opened from the Finder or the Dock gets PATH=/usr/bin:/bin:/usr/sbin:/sbin, where `claude` and `codex` are never installed; a person's shell would add the
- * folders below. They are appended (the given PATH keeps priority) and only the ones that exist are added, newest nvm version first. Other platforms keep their PATH as it is.
+ * folders below. They are appended (the given PATH keeps priority) and only the ones that exist are added, newest nvm version first. Other platforms keep their PATH as it is. `owned` are the folders of
+ * Vyre's own engines (engine-install.ts ownedProgramDirs), last on every platform: a person's own install wins, then a copy an app carries, then Vyre's.
  */
-export function enginePath(env: { PATH?: string | undefined }, home: string, platform: NodeJS.Platform = process.platform, exists: (p: string) => boolean = fs.existsSync, list: (p: string) => string[] = (p) => fs.readdirSync(p)): string {
+export function enginePath(env: { PATH?: string | undefined }, home: string, platform: NodeJS.Platform = process.platform, exists: (p: string) => boolean = fs.existsSync, list: (p: string) => string[] = (p) => fs.readdirSync(p), owned: readonly string[] = []): string {
   const have = (env.PATH ?? "/usr/bin:/bin").split(path.delimiter).filter((p) => p !== "");
-  if (platform !== "darwin") return have.join(path.delimiter);
+  const last = (more: readonly string[]): string => [...have, ...more.filter((p, i) => !have.includes(p) && more.indexOf(p) === i && exists(p))].join(path.delimiter);
+  if (platform !== "darwin") return last(owned);
   const nvm = path.join(home, ".nvm", "versions", "node");
   let versions: string[] = [];
   try { versions = exists(nvm) ? list(nvm).filter((v) => /^v\d+/.test(v)).sort((a, b) => b.localeCompare(a, undefined, { numeric: true })).map((v) => path.join(nvm, v, "bin")) : []; } catch { /* no nvm */ }
-  const more = [path.join(home, ".local", "bin"), "/opt/homebrew/bin", "/usr/local/bin", path.join(home, ".claude", "local"), path.join(home, ".bun", "bin"), path.join(home, ".volta", "bin"), ...versions];
-  return [...have, ...more.filter((p) => !have.includes(p) && exists(p))].join(path.delimiter);
+  return last([path.join(home, ".local", "bin"), "/opt/homebrew/bin", "/usr/local/bin", path.join(home, ".claude", "local"), path.join(home, ".bun", "bin"), path.join(home, ".volta", "bin"), ...versions, ...appBundledClis(home, exists, list), ...owned]);
+}
+
+/**
+ * The CLIs a desktop app carries inside itself, last so a person's own install wins. ChatGPT (and the older Codex app) ship `codex` in Resources/codex-cli/bin; the Claude app keeps Claude Code
+ * per version under Application Support, newest first. A person signed in to Codex through the ChatGPT app has no other `codex`, and without this their turn fell back to another account.
+ */
+function appBundledClis(home: string, exists: (p: string) => boolean, list: (p: string) => string[]): string[] {
+  const apps = ["/Applications", path.join(home, "Applications")];
+  const codex = apps.flatMap((a) => ["ChatGPT.app", "Codex.app"].map((app) => path.join(a, app, "Contents", "Resources", "codex-cli", "bin")));
+  const root = path.join(home, "Library", "Application Support", "Claude", "claude-code");
+  let claude: string[] = [];
+  try {
+    const versions = exists(root) ? list(root).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort((a, b) => b.localeCompare(a, undefined, { numeric: true })) : [];
+    claude = versions.flatMap((v) => list(path.join(root, v)).map((build) => path.join(root, v, build, "claude.app", "Contents", "MacOS")));
+  } catch { /* no Claude app */ }
+  return [...codex, ...claude];
 }
 
 /**

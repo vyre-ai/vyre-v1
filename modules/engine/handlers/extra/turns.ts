@@ -3,6 +3,7 @@
 // The worker in @vyre/agent calls these through invoke, so every turn event has an owning capability and a trace id. Each turn is one engine_turns row;
 // queue rows stay in engine_thread_queue (shared with the in-process engine). A write that repeats (same queue row, same outcome) answers with the first result.
 import { nodeOfTurn } from "../../node-turns.ts";
+import { engines } from "../../engine-install.ts";
 import { PRIORITY_INTERRUPT } from "../../../../agent/src/turn-engine/queue.ts";
 import { actorOf, engineIfBound, mintId, raise, sqlQueue } from "../../projections.ts";
 import { open } from "../control.ts";
@@ -356,6 +357,8 @@ export async function turnRetry(
   const why = blockedBy(policy, { model, ...(input.provider === undefined ? {} : { provider: input.provider }) });
   if (why !== null) raise(ctx, "permission.provider_label", `${input.model ?? input.provider ?? model} is not allowed by this Space's AI policy.`, { reason: why });
   const threadId = str(old["thread_id"]);
+  // the Install button on a turn whose engine was missing is this retry: the try starts afresh, so the turn waits for the install again instead of handing over to another account
+  if (str(old["error"]).includes("engine.cli_missing")) engines()?.forget();
   const oldQ = rows(ctx, "SELECT kind, message_id FROM engine_thread_queue WHERE thread_id = ? AND qseq = ?", threadId, num(old["qseq"]))[0];
   const kind = (oldQ ? str(oldQ["kind"]) : "message") as Kind;
   const messageId = oldQ ? optStr(oldQ["message_id"]) : undefined;

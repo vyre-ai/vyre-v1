@@ -82,6 +82,29 @@ export async function syncMembers(ctx: GoogleCtx, _input: { idempotencyKey?: str
   return { matched, connected };
 }
 
+/**
+ * A person finished Sign in with Google (an account of this Workspace, by its verified hosted domain and its id): that address is theirs, so they are matched to it and their own mail and calendar come in.
+ * This is how the owner, who has no invitation, gets their own mailbox. A proof never takes an address someone else is matched to, never moves a person who is matched to another address (an admin decides
+ * those), and never brings back a person who left the directory.
+ */
+export async function matchProven(ctx: GoogleCtx, input: { person: string; email: string }): Promise<{ matched: boolean; reason?: string }> {
+  ensure(ctx);
+  const email = normalizeEmail(input.email ?? "");
+  if (!/^usr_[a-z0-9]+$/.test(input.person ?? "") || !EMAIL.test(email)) return { matched: false, reason: "not a person and an address" };
+  const cfg = config(ctx);
+  const domain = strOrNull(cfg, "domain");
+  if (!cfg || num(cfg, "configured") !== 1 || !domain || !email.endsWith(`@${domain}`)) return { matched: false, reason: "not connected for that domain" };
+  const have = first(ctx.db.all(`SELECT "userId", mapped, "directoryGone" FROM google_member WHERE email = ?`, email));
+  if (num(have, "mapped") === 1) {
+    if (strOrNull(have, "userId") === input.person) return { matched: true };
+    ctx.log.warn("a signed-in address is matched to someone else", { reason: "address_taken" });
+    return { matched: false, reason: "matched to someone else" };
+  }
+  if (num(have, "directoryGone") === 1) return { matched: false, reason: "gone from the directory" };
+  if (first(ctx.db.all(`SELECT email FROM google_member WHERE "userId" = ? AND mapped = ?`, input.person, 1))) return { matched: false, reason: "matched to another address" };
+  const out = await dwdMapMember(ctx, { email, userId: input.person, idempotencyKey: `proven:${email}:${input.person}` });
+  return { matched: out.mapped };
+}
 
 const PAGE_LIMIT = 500;
 /** Too many people gone at once is more likely a wrong answer than a real one: a person looks first. */

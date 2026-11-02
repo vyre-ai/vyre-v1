@@ -19,6 +19,8 @@ function page(title, line, status) {
 
 /** The page for a box that does not answer. @param {string} label */
 export const asleepPage = label => page(`${label} is asleep`, "Wake the computer and this page opens by itself.", 503);
+/** The page for an invite link the box no longer answers: used, revoked or expired. @param {string} label */
+export const inviteGonePage = label => page("This invite has ended", `It was used, taken back or it expired. Ask the person who invited you to ${label} for a new link.`, 410);
 /** The page for a phone the box no longer lists. @param {string} label */
 export const removedPage = label => page("This phone was removed", `${label} no longer lists this phone. Open the link from Phone access on the computer again.`, 403);
 
@@ -78,8 +80,9 @@ export function toResponse(res) {
 
 /**
  * @typedef {{ fetch(path: string, init: { method?: string, headers?: Record<string, string>, body?: Uint8Array | null, signal?: AbortSignal }): Promise<any>, state?: string, lastError?: Error | null }} Box
- * @param {{ box: () => Promise<Box | null>, label: () => string, waitMs?: number }} o
- *   `box` gives the connection (null when the phone has no pin yet); `waitMs` is how long a request waits for the box before the page says it is asleep.
+ * @param {{ box: () => Promise<Box | null>, label: () => string, waitMs?: number, invite?: () => boolean }} o
+ *   `box` gives the connection (null when the phone has no pin yet); `waitMs` is how long a request waits for the box before the page says it is asleep; `invite` is true while the connection is an
+ *   invite link's, so a box that is up but will not open it reads as an ended invite rather than a sleeping computer.
  */
 export function createBridge(o) {
   const waitMs = o.waitMs ?? 8000;
@@ -101,6 +104,10 @@ export function createBridge(o) {
       } catch (e) {
         if (box.state === "relay_removed" || /device removed/.test(String(/** @type {Error} */ (e).message))) return removedPage(o.label());
         if (request.signal?.aborted) return new Response(null, { status: 499 });
+        // the relay reached the box and the box closed the hello: under an invite's key that is an invite that is no longer open
+        if (o.invite?.() && box.state !== "open" && /box closed the connection|refused/.test(String(box.lastError?.message ?? ""))) {
+          return navigation ? inviteGonePage(o.label()) : new Response(JSON.stringify({ error: "This invite has ended" }), { status: 410, headers: { "content-type": "application/json" } });
+        }
         return navigation ? asleepPage(o.label()) : new Response(JSON.stringify({ error: `${o.label()} is asleep` }), { status: 503, headers: { "content-type": "application/json", "retry-after": "20" } });
       } finally {
         clearTimeout(timer);

@@ -18,7 +18,8 @@ moment and scrubs it from the output. Never print, store, summarise, encode or s
 - `vault_items_list` lists names and metadata, never values. `vault_items_match` finds the item for a site or a service.
 - If the item you need is not listed for you, `vault_request` with the name and the reason. The managers of the folder get a task.
   Give the `folderId` of the shared folder the key should live in (`vault_folders_list`): its managers decide. With none, the Space owner and admins decide.
-  Say you are waiting, and what you will do when it arrives. Do not ask the person to paste the key in chat.
+  When the person you work for can decide it (their own Space, or they manage the folder), the card in the chat is a secure field they fill right there; ask again if an earlier ask is still open,
+  and the same request shows here. Say in one line what you will do when it arrives. Do not ask anyone to paste the key in chat or to add the item in the Vault by hand.
 - If someone pastes a secret into chat, do not repeat it. Offer a secret field (a `secret_input` block) so it goes straight to the Vault.
 
 ## Adding and changing

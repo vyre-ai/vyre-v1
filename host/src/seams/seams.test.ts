@@ -115,6 +115,13 @@ test("google: mintToken maps Google's answers to provider errors", async () => {
     const d = (e as HostError).error.details as { why?: string };
     return d.why === "unauthorized_client: Client is unauthorized";
   });
+  // the words say what to do: a client not allowed yet, or an admin address Google does not know
+  const said = async (body: string): Promise<string> => {
+    const x = world({ replies: [{ status: 400, body }] });
+    try { await createGoogleHost(x.deps).mintToken(x.ctx, { connectionId: "con_1", sub: "nobody@b.test", scopes: ["s"] }); return ""; } catch (e) { return (e as HostError).error.message ?? ""; }
+  };
+  assert.match(await said('{"error":"unauthorized_client","error_description":"Client is unauthorized"}'), /numeric client ID.*24 hours/);
+  assert.match(await said('{"error":"invalid_grant","error_description":"Invalid email or User ID"}'), /no Workspace user nobody@b\.test/);
 });
 
 test("google: mintToken with no configured connection fails as auth, before any network", async () => {
