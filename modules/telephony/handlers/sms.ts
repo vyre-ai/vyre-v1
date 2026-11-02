@@ -185,7 +185,7 @@ export async function sendSms(ctx: TelCtx, input: SendIn): Promise<SendOut> {
   if (!due) insertSms(ctx, id, { n, input, contactId, status: "queued", at: now, direction: "out" });
   let sent: Json;
   try {
-    sent = obj(await ctx.call("twilio.sms.send", { from: str(n, "e164"), to: input.to, body: input.body, idempotencyKey: `${input.idempotencyKey}:send` }));
+    sent = obj(await ctx.call("twilio.sms.send", { numberId: input.numberId, from: str(n, "e164"), to: input.to, body: input.body, idempotencyKey: `${input.idempotencyKey}:send` }));
   } catch (e) {
     patch(ctx, "telephony_sms", id, { status: "failed" });
     ctx.emit("message.failed", `entity/${id}`, { messageId: id, channel: "sms", reason: (e as { error?: { code?: string } } | null)?.error?.code ?? "failed" });

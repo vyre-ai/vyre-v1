@@ -34,7 +34,7 @@ test("send_sms sends through Twilio, keeps the text, writes it to the contact's 
   const sent = out(await send(t, numberId, { idempotencyKey: "k-first" }));
   assert.deepEqual(contractErrors("telephony.send_sms", "out", sent), []);
   assert.equal(sent.status, "queued");
-  assert.deepEqual(t.calls("twilio.sms.send")[0]?.input, { from: NUM_E164, to: CALLER, body: "Your appointment is Friday at 3.", idempotencyKey: "k-first:send" });
+  assert.deepEqual(t.calls("twilio.sms.send")[0]?.input, { numberId, from: NUM_E164, to: CALLER, body: "Your appointment is Friday at 3.", idempotencyKey: "k-first:send" });
   const row = sms(t)[0] ?? {};
   assert.deepEqual([row.id, row.direction, row.from, row.to, row.status, row.contactId, row.twilioSid, row.at], [sent.smsId, "out", NUM_E164, CALLER, "queued", PAT, SMS_SID, NOW]);
   assert.deepEqual(t.named("message.sent")[0]?.payload, { messageId: sent.smsId, channel: "sms", contactId: PAT });

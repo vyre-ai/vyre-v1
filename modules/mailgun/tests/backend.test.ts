@@ -32,7 +32,7 @@ test("an email is posted to the domain's messages with the key, one field per pa
     fromName: 'Hello "Team" <x>', to: ["pat@acme.test", "lee@acme.test"], cc: ["boss@acme.test"], bcc: ["audit@acme.test"], replyTo: "maya@vyre.test", html: "<p>Hi</p>",
     headers: { "X-Vyre-Trace": "abc", "Message-ID": "<eml_abc123@mail.vyre.test>" }, tags: ["message_id:eml_abc123", "flow_id:aut_spring", "a", "dropped-fourth"],
   });
-  assert.deepEqual(contractErrors("mailgun.send_email", "in", input), []);
+  assert.deepEqual(contractErrors("mailgun.send_email", "in", { ...input, mailboxId: "mbx_abc123" }), []);
   const out = await sendEmail(h.ctx, input);
   assert.deepEqual(out, { providerId: PROVIDER_ID });
   assert.deepEqual(contractErrors("mailgun.send_email", "out", out), []);

@@ -76,7 +76,7 @@ export function fakeNet(net: Net, dns: Map<string, string[]>): Net2 {
 }
 
 /** The lookups behind mail.domain.check, answering from the records the fake Resend published. */
-function fakeDns(zone: Map<string, string[]>): Parameters<typeof setDefaultDns>[0] {
+export function fakeDns(zone: Map<string, string[]>): Parameters<typeof setDefaultDns>[0] {
   const miss = (): never => { throw Object.assign(new Error("no data"), { code: "ENODATA" }); };
   return {
     txt: (name) => Promise.resolve(zone.get(name.toLowerCase()) ?? miss()),
@@ -124,8 +124,8 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
       const checked = expectStatus(await s.call("mail.domain.check", admin, { domainId: id }), 200, "mail.domain.check");
       assert.equal((checked.domain ?? checked).verified, true, `the domain verifies: ${short(checked)}`);
     });
-    const mailbox = await trail.step("a service mailbox sends from that domain", async () => {
-      const m = expectStatus(await s.call("mail.mailbox.create", admin, { idempotencyKey: "golden-5-mailbox", kind: "service", address: `hello@${DOMAIN}`, title: "Acme" }), 200, "mail.mailbox.create").mailbox;
+    const mailbox = await trail.step("a shared mailbox sends from that domain", async () => {
+      const m = expectStatus(await s.call("mail.mailbox.create", admin, { idempotencyKey: "golden-5-mailbox", kind: "shared", address: `hello@${DOMAIN}`, title: "Acme" }), 200, "mail.mailbox.create").mailbox;
       return (m.mailboxId ?? m.id) as string;
     }, ["a sending domain is added and verifies"]);
 
@@ -139,12 +139,12 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
         },
       }), 200, "automations.update");
       expectStatus(await s.call("automations.promote", admin, { automationId, confirm: true }), 200, "automations.promote");
-      const service = { kind: "service", id: `svc_${automationId.slice(4)}` };
-      // a Space Automation runs as its own service, which holds nothing until a person shares: `use` on the Space reaches the sending provider, `use` on the mailbox sends from it
-      expectStatus(await s.call("access.share", admin, { idempotencyKey: "golden-5-share-space", resource: { type: "space", id: "spc_core" }, subject: service, level: "use" }), 200, "access.share");
-      expectStatus(await s.call("access.share", admin, { idempotencyKey: "golden-5-share-box", resource: { type: "mailbox", id: mailbox! }, subject: service, level: "use" }), 200, "access.share");
+      // a person turns it on: that press gives the Automation the mailbox its step names, and nobody shares anything by hand
+      expectStatus(await s.call("automations.set_enabled", admin, { automationId, enabled: true }), 200, "automations.set_enabled");
+      const senders = expectStatus(await s.call("automations.senders", admin, { automationId }), 200, "automations.senders").senders as { address: string; usable: boolean }[];
+      assert.deepEqual(senders.map((x) => [x.address, x.usable]), [[`hello@${DOMAIN}`, true]], `it sends from the mailbox: ${short(senders)}`);
       return automationId;
-    }, ["a lead is made", "a service mailbox sends from that domain"]);
+    }, ["a lead is made", "a shared mailbox sends from that domain"]);
 
     const started = await trail.step("the send is held by the Gate for approval", async () => {
       const runId = expectStatus(await s.call("automations.run", admin, { automationId: flow!, idempotencyKey: "golden-5-run" }), 200, "automations.run").runId as string;

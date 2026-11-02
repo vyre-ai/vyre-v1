@@ -212,6 +212,9 @@ export default defineManifest({
       },
       tool: 'automations',
     }),
+    read('automations.senders', 'What this Automation sends from: the mailboxes and numbers its steps name, and whether each can send now', {
+      in: target, out: { senders: t.arr(t.obj({ id: t.str(), channel: t.enm('email', 'text'), address: t.str(), usable: t.bool(), why: t.opt(t.str()) })) }, on: ['automation', '/automationId'], tool: 'automations',
+    }),
     read('automations.get', 'Read an Automation with its definition, alerts and followers', { in: target, out: { automation: row }, on: ['automation', '/automationId'], tool: 'automations', label: 'check', cli: 'vyre automations get' }),
     read('automations.migration_preview', 'Group active runs by the step they are on before moving them to a definition version', {
       in: { ...target, toVersion: t.int({ minimum: 1 }) },

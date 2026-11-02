@@ -32,7 +32,7 @@ test("an email is posted to Resend with the key, the idempotency key and every p
     fromName: 'Hello "Team" <x>', cc: ["lee@acme.test"], bcc: ["boss@acme.test"], replyTo: "maya@vyre.test", html: "<p>Hi</p>", headers: { "X-Vyre-Trace": "abc", "Message-ID": "<eml_abc123@mail.vyre.test>" },
     tags: [{ name: "message_id", value: "eml_abc123" }, { name: "flow id", value: "spring/2025" }], attachments: [{ name: "intake.pdf", fileId: "fil_one" }],
   });
-  assert.deepEqual(contractErrors("resend.send_email", "in", input), []);
+  assert.deepEqual(contractErrors("resend.send_email", "in", { ...input, mailboxId: "mbx_abc123" }), []);
   const out = await sendEmail(h.ctx, input);
   assert.deepEqual(out, { providerId: "49a3999c-0ce1-4ea6-ab68-afcd6dc2e794" });
   assert.deepEqual(contractErrors("resend.send_email", "out", out), []);

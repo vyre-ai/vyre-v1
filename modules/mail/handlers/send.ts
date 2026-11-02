@@ -17,6 +17,7 @@
 // DECISION: consent 'unknown' sends (opt-out regime: STOP, UNSUBSCRIBE and bounces write the suppression list). Only an explicit
 // 'denied', Do-not-contact or an email opt-out refuses.
 import { HostError, fail } from "../../../host/src/routes/errors.ts";
+import { isTenantService } from "../../../lib/trust.ts";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
@@ -235,7 +236,8 @@ function loadMailbox(ctx: SendCtx, id: string): Row {
 
 /** Use of the mailbox, plus the sender's own permission: comms.agent_send for an agent, comms.shared_send for a person on a shared inbox. */
 function authorizeSender(ctx: SendCtx, box: Row): void {
-  const perm = ctx.principal.kind === "agent" ? "comms.agent_send" : str(box, "kind") === "shared" ? "comms.shared_send" : null;
+  // a Space Automation holds `use` on the mailboxes a person's press gave it (modules/automations/grants.ts), so that grant is the whole answer: it has no role to carry comms.shared_send
+  const perm = ctx.principal.kind === "agent" ? "comms.agent_send" : str(box, "kind") === "shared" && !isTenantService(ctx.principal) ? "comms.shared_send" : null;
   const resource = { type: "mailbox", id: str(box, "id") };
   if (!perm) return allow(ctx, "use", resource);
   const decision = ctx.authorize({ perm, level: "use" }, resource);
@@ -251,7 +253,8 @@ function resolveRoute(ctx: SendCtx, box: Row, actor: Actor, requested: Route | u
     return "mailbox";
   }
   if (requested === "space_domain") return "space_domain";
-  return memberProvider(box) && actor === "person" ? "mailbox" : "space_domain";
+  // a Personal Automation runs as its owner, so their own Gmail or Outlook is theirs to send from; a Space Automation goes through the Space domain
+  return memberProvider(box) && (actor === "person" || ctx.principal.kind === "person") ? "mailbox" : "space_domain";
 }
 
 function pickDomain(ctx: SendCtx, provider: string, mailboxAddress: string): Row | null {
@@ -546,7 +549,7 @@ async function viaSpaceDomain(ctx: SendCtx, p: Plan, c: Composed, parent: Row | 
   const from = domainOf(own) === domain ? own : `${own.split("@")[0] ?? "mail"}@${domain}`;
   const title = str(p.box, "title");
   const body: Record<string, unknown> = {
-    from, to: c.to.map((x) => x.address), subject: c.subject,
+    mailboxId: str(p.box, "id"), from, to: c.to.map((x) => x.address), subject: c.subject,
     headers: { ...outHeaders(ctx, parent, rfcId), ...(c.listUnsubscribe ? { "List-Unsubscribe": `<${c.listUnsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } : {}) },
     idempotencyKey: id,   // the provider capabilities need a key; the message id is stable across the one delivery of this message
   };
