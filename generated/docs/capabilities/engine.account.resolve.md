@@ -42,6 +42,7 @@ type Out = {
   reason: "starter" | "steerer" | "step_key" | "backup_key" | "none";
   allowed: boolean;
   itemId?: string;
+  fellBack?: boolean;
 };
 ```
 
@@ -70,6 +71,7 @@ type Out = {
   "output": {
     "accountRef": "#Team_Anthropic_Key",
     "allowed": true,
+    "fellBack": true,
     "itemId": "vit_a1b2c3",
     "payer": "usr_a1b2c3",
     "reason": "starter"

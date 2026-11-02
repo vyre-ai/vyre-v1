@@ -35,5 +35,6 @@ type Payload = {
   via?: string;
   actingFor?: string;
   job?: boolean;
+  typed?: boolean;
 };
 ```

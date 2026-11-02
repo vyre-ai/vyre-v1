@@ -1,6 +1,6 @@
 # thread.updated
 
-A thread title, folder or listing changed
+A thread title, folder, listing or owner changed
 
 | | |
 |---|---|
@@ -20,5 +20,6 @@ A thread title, folder or listing changed
 type Payload = {
   threadId: string;
   fields: Array<string>;
+  starter?: string;
 };
 ```
