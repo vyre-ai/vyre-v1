@@ -13,7 +13,7 @@ import { SessionGate } from "../shell/session/SessionGate.tsx";
 import { MANY_TRIES, OFFLINE_SPACE, TOO_MANY, WRONG_SIGN_IN, isMiss, signInLine } from "./failure.ts";
 import { readFileSync } from "node:fs";
 import { Button, JoinFrame, Opening } from "./kit.tsx";
-import { initialState, reduce } from "./logic.ts";
+import { initialState, reduce, valid } from "./logic.ts";
 import { JoinFlow } from "./JoinFlow.tsx";
 import type { JoinInvite } from "./logic.ts";
 
@@ -101,6 +101,7 @@ test("a wait is the breathing mark after 300 ms, never a turning ring, and the w
   assert.match(busy, /data-entry-after/);
   assert.match(busy, /aria-busy="true"/);
   assert.doesNotMatch(busy, /entry-spin/);
+  assert.doesNotMatch(busy, /var\(--beacon\)/, "on a filled button the whole mark takes the button's ink, so the spark never sinks into the fill");
   assert.doesNotMatch(renderToStaticMarkup(<JoinFrame><Button label="Sign in" /></JoinFrame>), /data-entry-wait/);
   const kit = readFileSync(new URL("./kit.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(kit, /vyre-entry-spin|rotate\(360deg\)/);
@@ -112,4 +113,30 @@ test("steps fade in 140 ms on every entry screen, and the onboarding cards use t
   assert.match(read("./kit.tsx"), /\[data-entry-step\]\{animation:vyre-entry-fade 140ms/);
   assert.match(read("../onboarding/OnboardingScreen.tsx"), /\[data-vyre-ob\]\{animation:vyre-ob-in 140ms/);
   for (const f of ["./Checklist.tsx", "../onboarding/SessionsCard.tsx", "../onboarding/ChromeCard.tsx", "../onboarding/StepGlyph.tsx"]) assert.doesNotMatch(read(f), /#[0-9a-fA-F]{3,8}\b|gradient\(/, f);
+});
+
+test("a username the Space refused reads as taken, with no tick, and the line goes as soon as another is chosen", () => {
+  const rules = { isTaken: () => false };
+  const typed = { stage: "steps" as const, step: 1 as const, user: "maya", pw: "harbor lamp", pw2: "harbor lamp" };
+  const s = reduce({ ...initialState(INVITE), stage: "run", step: 3, user: "maya", pw: typed.pw, pw2: typed.pw2 }, { t: "failed", message: "That username is taken.", step: 1 }, rules);
+  assert.equal(s.refused, "maya");
+  assert.equal(valid(s, rules), false, "the same name cannot go round again");
+  const held = renderToStaticMarkup(<JoinFlow invite={INVITE} initial={{ ...typed, error: s.error, refused: "maya" }} hold />);
+  assert.doesNotMatch(held, /data-testid="username-ok"/);
+  assert.match(held, /data-testid="username-error"/);
+  assert.match(held, /@maya is taken/);
+  const other = renderToStaticMarkup(<JoinFlow invite={INVITE} initial={{ ...typed, user: "sam", error: s.error, refused: "maya" }} hold />);
+  assert.match(other, /data-testid="username-ok"/);
+  assert.doesNotMatch(other, /taken/);
+  assert.equal(valid({ ...s, user: "sam" }, rules), true);
+});
+
+test("setup reads in the same typeface as the sheets: a web Text's own font class does not win", () => {
+  assert.match(readFileSync(new URL("../onboarding/OnboardingScreen.tsx", import.meta.url), "utf8"), /\[data-testid="onboarding"\] \[dir="auto"\]:not\(\[data-mono\]\).*font-family:\$\{FONT\}/);
+});
+
+test("a control that is not ready yet is the quiet neutral everywhere, never a faded accent", () => {
+  const read = (f: string): string => readFileSync(new URL(f, import.meta.url), "utf8");
+  assert.match(read("../onboarding/card-style.ts"), /off: \{ backgroundColor: "var\(--field\)"/);
+  for (const f of ["OnboardingScreen", "ChromeCard", "ConnectAiCard", "FoldersCard", "InterviewCard", "PairPhoneCard", "SameAccountOffer", "SessionsCard"]) assert.match(read(`../onboarding/${f}.tsx`), /off: CARD\.off,\n\s+offText: CARD\.offText/, f);
 });

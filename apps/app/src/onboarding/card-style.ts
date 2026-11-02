@@ -2,6 +2,9 @@
 export const CARD = {
   primary: { height: 44, paddingHorizontal: 18, borderRadius: 10, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center", alignSelf: "flex-start" },
   primaryText: { fontSize: 15, fontWeight: "600", color: "var(--accent-ink)" as string },
+  /** Not yet available: the quiet neutral of the entry Button, never a faded accent. */
+  off: { backgroundColor: "var(--field)" as string },
+  offText: { color: "var(--ink-4)" as string },
   ghost: { height: 44, paddingHorizontal: 16, borderRadius: 10, backgroundColor: "var(--field)" as string, borderWidth: 1, borderColor: "var(--field-line)" as string, alignItems: "center", justifyContent: "center" },
   ghostText: { fontSize: 14, fontWeight: "500", color: "var(--ink)" as string },
   input: { height: 44, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string, color: "var(--ink)" as string, fontSize: 15 },

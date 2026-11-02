@@ -63,7 +63,7 @@ export function FoldersCard({ call, gate, invoke = shellInvoke() }: { call: CapC
         {r.status === "adding" ? <Text testID={`folder-status-${i}`} style={s.state}>Adding</Text> : null}
         {r.status === "added" ? <Text testID={`folder-status-${i}`} accessibilityLabel="Added" style={s.ok}>{"Added \u2713"}</Text> : null}
         {r.status === "failed" ? <Pressable testID={`folder-retry-${i}`} accessibilityRole="button" accessibilityLabel={`Retry ${baseName(r.path)}`} onPress={() => { setError(""); void mount(r.path); }} style={s.retry}><Text style={s.retryText}>Retry</Text></Pressable> : null}
-        <Pressable testID={`folder-remove-${i}`} accessibilityRole="button" accessibilityLabel={`Remove ${baseName(r.path)}`} disabled={r.status === "adding"} onPress={() => void remove(r)} style={[s.x, r.status === "adding" && s.off]}><Text style={s.xText}>{"\u00d7"}</Text></Pressable>
+        <Pressable testID={`folder-remove-${i}`} accessibilityRole="button" accessibilityLabel={`Remove ${baseName(r.path)}`} disabled={r.status === "adding"} onPress={() => void remove(r)} style={[s.x, r.status === "adding" && s.dim]}><Text style={s.xText}>{"\u00d7"}</Text></Pressable>
       </View>,
     );
   });
@@ -71,7 +71,7 @@ export function FoldersCard({ call, gate, invoke = shellInvoke() }: { call: CapC
     <View testID="folders-card" style={s.col}>
       {list.length > 0 ? <View style={s.list}>{list}</View> : null}
       {error ? <Text accessibilityRole="alert" testID="folders-error" style={s.err}>{error}</Text> : null}
-      <Pressable testID="folders-add" accessibilityRole="button" disabled={!invoke} onPress={() => void pick()} style={[s.primary, !invoke && s.off]}><Text style={s.primaryText}>Add folder</Text></Pressable>
+      <Pressable testID="folders-add" accessibilityRole="button" disabled={!invoke} onPress={() => void pick()} style={[s.primary, !invoke && s.off]}><Text style={[s.primaryText, !invoke && s.offText]}>Add folder</Text></Pressable>
     </View>
   );
 }
@@ -91,5 +91,7 @@ const s = StyleSheet.create({
   err: CARD.err,
   primary: CARD.primary,
   primaryText: CARD.primaryText,
-  off: { opacity: 0.45 },
+  off: CARD.off,
+  offText: CARD.offText,
+  dim: { opacity: 0.45 },
 });

@@ -58,6 +58,8 @@ export interface FlowState {
   run: number;
   dir: 1 | -1;
   error: string;
+  /** The username the Space itself refused: the person sees it as taken until they choose another. */
+  refused: string;
 }
 
 export const RUN_STEPS = (space: string): string[] => ["Securing your keys", `Joining ${space}`, "Syncing your projects", "Waking your assistant"];
@@ -66,7 +68,7 @@ export function initialState(invite: JoinInvite, over: Partial<FlowState> = {}):
   return {
     stage: "accept", step: 0, first: invite.names?.first ?? "", last: invite.names?.last ?? "", photo: "", user: "", pw: "", pw2: "",
     device: invite.deviceName ?? "", trust: true, rec: false, code: "", saved: false, sheet: false, ai: invite.adminKey ? "admin" : "sub", key: "",
-    aiProvider: "openrouter", note: "", si: "pw", siUser: "", siPw: "", siCode: "", spaceAddress: "", spaceIntent: "signin", spaceResolving: false, spaceError: "", run: 0, dir: 1, error: "", ...over,
+    aiProvider: "openrouter", note: "", si: "pw", siUser: "", siPw: "", siCode: "", spaceAddress: "", spaceIntent: "signin", spaceResolving: false, spaceError: "", run: 0, dir: 1, error: "", refused: "", ...over,
   };
 }
 
@@ -150,7 +152,7 @@ export interface Rules { isTaken: (username: string) => boolean }
 export function valid(s: FlowState, r: Rules): boolean {
   if (s.stage !== "steps") return false;
   if (s.step === 0) return !!s.first.trim() && !!s.last.trim();
-  if (s.step === 1) return usernameOk(s.user) && !r.isTaken(s.user) && s.pw.length >= PASSWORD_MIN && s.pw2 === s.pw;
+  if (s.step === 1) return usernameOk(s.user) && !r.isTaken(s.user) && s.user !== s.refused && s.pw.length >= PASSWORD_MIN && s.pw2 === s.pw;
   if (s.step === 2) return !!s.device.trim() && (!s.rec || s.saved);
   return s.ai === "none" || s.ai === "admin" || (s.ai === "key" && s.key.trim().length >= 8) || s.ai === "sub";
 }
@@ -200,7 +202,7 @@ export function reduce(s: FlowState, a: Action, r: Rules): FlowState {
     case "space_failed": return s.stage === "connect" ? { ...s, spaceResolving: false, spaceError: a.message } : s;
     case "run_tick": return s.stage === "run" ? { ...s, run: Math.min(a.total, s.run + 1) } : s;
     case "run_done": return s.stage === "run" ? { ...s, stage: "done", dir: 1 } : s;
-    case "failed": return { ...s, stage: "steps", step: a.step ?? 3, error: a.message, run: 0, dir: -1 };
+    case "failed": return { ...s, stage: "steps", step: a.step ?? 3, error: a.message, refused: a.step === 1 ? s.user : s.refused, run: 0, dir: -1 };
   }
 }
 

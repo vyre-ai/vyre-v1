@@ -67,7 +67,7 @@ function PairPhoneLive({ call, address, phone, onPaired }: { call: CapCall; addr
       {link ? <Text style={s.dim}>Scan it, or open the link on your phone. It works once, for ten minutes.</Text> : <Text style={s.dim}>Making a link</Text>}
       {error ? <Text testID="pair-error" style={s.err}>{error}</Text> : null}
       <View style={s.row}>
-        <Pressable testID="pair-make" accessibilityRole="button" disabled={busy} onPress={() => void make()} style={[s.primary, busy && s.off]}><Text style={s.primaryText}>{link ? "New link" : "Make a pairing link"}</Text></Pressable>
+        <Pressable testID="pair-make" accessibilityRole="button" disabled={busy} onPress={() => void make()} style={[s.primary, busy && s.off]}><Text style={[s.primaryText, busy && s.offText]}>{link ? "New link" : "Make a pairing link"}</Text></Pressable>
         {link && onPaired ? <Pressable testID="pair-done" accessibilityRole="button" onPress={onPaired} style={s.ghost}><Text style={s.ghostText}>My phone is paired</Text></Pressable> : null}
       </View>
     </View>
@@ -86,5 +86,6 @@ const s = StyleSheet.create({
   ghostText: CARD.ghostText,
   choice: { gap: 4, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--win)" as string },
   choiceTitle: { fontSize: 14, fontWeight: "500", color: "var(--ink)" as string },
-  off: { opacity: 0.45 },
+  off: CARD.off,
+  offText: CARD.offText,
 });

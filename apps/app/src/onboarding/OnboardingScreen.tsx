@@ -15,6 +15,8 @@ import { LOCK, saidFor } from "./said.ts";
 import { scriptFor } from "./script.ts";
 import { importedNote, rememberedImported } from "./sessions-model.ts";
 import { Glyph, StepTile } from "./StepGlyph.tsx";
+import { FONT } from "../join/palette.ts";
+import { CARD } from "./card-style.ts";
 import { stepLook } from "./stepStyle.ts";
 
 export interface ChatLine { id: string; from: "assistant" | "you"; text: string }
@@ -54,10 +56,12 @@ const COLUMN = 640;
 const web = Platform.OS === "web";
 
 // the one motion of the entry screens: a soft fade between steps. Rules go through the sheet, so a page that drops injected style text still gets them.
+// A web Text carries its own font class, so the root font never reaches it: the same stack as the sheets is set here, or setup reads in a second typeface.
 function ensureCss(): void {
   injectCss((globalThis as { document?: Parameters<typeof injectCss>[0] }).document, "vyre-onboard-motion",
     "@keyframes vyre-ob-in{from{opacity:0}to{opacity:1}}"
     + "[data-vyre-ob]{animation:vyre-ob-in 140ms ease both}"
+    + `[data-testid="onboarding"] [dir="auto"]:not([data-mono]),[data-testid="onboarding"] input,[data-testid="onboarding"] textarea{font-family:${FONT}}`
     + "@media (prefers-reduced-motion: reduce){[data-vyre-ob]{animation:none!important;transition:none!important}}");
 }
 const fade = web ? { dataSet: { vyreOb: "1" } } : {};
@@ -252,7 +256,7 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
   const footBtns = def && ctx ? (
     <>
       <Pressable testID="step-later" accessibilityRole="button" onPress={skip} style={({ hovered }: { hovered?: boolean }) => [s.ghost, phone && s.btnTall, hovered === true && s.ghostOver]}><Text style={s.ghostText}>Skip</Text></Pressable>
-      <Pressable testID="step-next" accessibilityRole="button" accessibilityState={{ disabled: !canNext }} disabled={!canNext} onPress={next} style={({ hovered }: { hovered?: boolean }) => [s.primary, phone && s.btnTall, phone && s.flexBtn, !canNext && s.off, hovered === true && canNext && s.primaryOver]}><Text style={s.primaryText}>{isLast ? "Done" : "Continue"}</Text></Pressable>
+      <Pressable testID="step-next" accessibilityRole="button" accessibilityState={{ disabled: !canNext }} disabled={!canNext} onPress={next} style={({ hovered }: { hovered?: boolean }) => [s.primary, phone && s.btnTall, phone && s.flexBtn, !canNext && s.off, hovered === true && canNext && s.primaryOver]}><Text style={[s.primaryText, !canNext && s.offText]}>{isLast ? "Done" : "Continue"}</Text></Pressable>
     </>
   ) : null;
   const laterBtn = p.onClose && !finished ? <Pressable testID="onboarding-close" accessibilityRole="link" onPress={p.onClose} style={({ hovered }: { hovered?: boolean }) => [s.later, hovered === true && s.laterOver]}><Text style={s.finishLater}>Finish later</Text></Pressable> : null;
@@ -375,7 +379,8 @@ const s = StyleSheet.create({
   primaryLg: { height: 44, paddingHorizontal: 26, borderRadius: 10, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
   primaryOver: { opacity: 0.9 },
   primaryText: { fontSize: 15, fontWeight: "600", color: "var(--accent-ink)" as string },
-  off: { opacity: 0.4 },
+  off: CARD.off,
+  offText: CARD.offText,
   btnTall: { height: 44, borderRadius: 12 },
   flexBtn: { flex: 1 },
   sheet: { position: "absolute", left: 0, right: 0, bottom: 0, maxHeight: "68%", backgroundColor: "var(--raised)" as string, borderTopLeftRadius: 22, borderTopRightRadius: 22, boxShadow: "0 -1px 0 var(--line-2), 0 -24px 60px -24px rgba(0,0,0,.4)" } as object,

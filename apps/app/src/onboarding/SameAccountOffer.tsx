@@ -25,7 +25,7 @@ export function SameAccountOffer({ personal, team, accounts, onCopied, onDecline
       <Text style={s.line}>{`Use the same AI account here? Your ${first.name} key is copied into your private folder.`}</Text>
       {error ? <Text testID="same-account-error" style={s.err}>{error}</Text> : null}
       <View style={s.row}>
-        <Pressable testID="same-account-yes" accessibilityRole="button" disabled={busy} onPress={() => void yes()} style={[s.primary, busy && s.off]}><Text style={s.primaryText}>{busy ? "Copying" : "Use the same account"}</Text></Pressable>
+        <Pressable testID="same-account-yes" accessibilityRole="button" disabled={busy} onPress={() => void yes()} style={[s.primary, busy && s.off]}><Text style={[s.primaryText, busy && s.offText]}>{busy ? "Copying" : "Use the same account"}</Text></Pressable>
         <Pressable testID="same-account-no" accessibilityRole="button" onPress={() => { setDeclined(true); onDeclined?.(); }} style={s.ghost}><Text style={s.ghostText}>No, add a different one</Text></Pressable>
       </View>
     </View>
@@ -41,5 +41,6 @@ const s = StyleSheet.create({
   primaryText: CARD.primaryText,
   ghost: CARD.ghost,
   ghostText: CARD.ghostText,
-  off: { opacity: 0.45 },
+  off: CARD.off,
+  offText: CARD.offText,
 });

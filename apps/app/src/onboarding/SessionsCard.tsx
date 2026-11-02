@@ -107,7 +107,7 @@ export function SessionsCard({ call, onDone, gate, onOpenChats }: { call: CapCal
       ) : null}
       {rows.length > 0 ? <View style={s.list}>{rows}</View> : null}
       {error ? <Text accessibilityRole="alert" testID="sessions-error" style={s.err}>{error}</Text> : null}
-      {rows.length > 0 ? <Pressable testID="sessions-import" accessibilityRole="button" disabled={busy || on.size === 0} onPress={() => void run()} style={[s.primary, (busy || on.size === 0) && s.off]}><Text style={s.primaryText}>{busy ? "Importing" : on.size === 0 ? "Import" : `Import ${on.size}`}</Text></Pressable> : null}
+      {rows.length > 0 ? <Pressable testID="sessions-import" accessibilityRole="button" disabled={busy || on.size === 0} onPress={() => void run()} style={[s.primary, (busy || on.size === 0) && s.off]}><Text style={[s.primaryText, (busy || on.size === 0) && s.offText]}>{busy ? "Importing" : on.size === 0 ? "Import" : `Import ${on.size}`}</Text></Pressable> : null}
     </View>
   );
 }
@@ -137,5 +137,6 @@ const s = StyleSheet.create({
   err: CARD.err,
   primary: CARD.primary,
   primaryText: CARD.primaryText,
-  off: { opacity: 0.45 },
+  off: CARD.off,
+  offText: CARD.offText,
 });

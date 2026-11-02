@@ -36,7 +36,7 @@ export function ConnectAiCard({ call, connected, onConnected, initialFlow }: { c
         <Text style={s.dim}>The key goes straight into your Vault. I never see it.</Text>
         {error ? <Text testID="ai-error" style={s.err}>{error}</Text> : null}
         <View style={s.row}>
-          <Pressable testID="ai-key-save" accessibilityRole="button" disabled={busy || secret.trim() === ""} onPress={() => void run(async () => { const value = secret; setSecret(""); onConnected(await saveApiKey(call, provider, value, attempt.current)); })} style={[s.primary, (busy || secret.trim() === "") && s.off]}><Text style={s.primaryText}>{busy ? "Saving" : "Save key"}</Text></Pressable>
+          <Pressable testID="ai-key-save" accessibilityRole="button" disabled={busy || secret.trim() === ""} onPress={() => void run(async () => { const value = secret; setSecret(""); onConnected(await saveApiKey(call, provider, value, attempt.current)); })} style={[s.primary, (busy || secret.trim() === "") && s.off]}><Text style={[s.primaryText, (busy || secret.trim() === "") && s.offText]}>{busy ? "Saving" : "Save key"}</Text></Pressable>
           <Pressable testID="ai-back" accessibilityRole="button" onPress={() => { setSecret(""); setMode("tiles"); setError(""); }} style={s.ghost}><Text style={s.tileText}>Back</Text></Pressable>
         </View>
       </View>
@@ -51,7 +51,7 @@ export function ConnectAiCard({ call, connected, onConnected, initialFlow }: { c
         <View style={s.col}>
           {/* ui-rows-lint: not a list (sign-in choices are buttons, not list rows) */}
           {SIGNIN_BUTTONS.map((o) => (
-            <Pressable key={o.key} testID={`ai-sub-${o.key}`} accessibilityRole="button" accessibilityLabel={o.button} disabled={busy} onPress={() => void run(async () => setFlow({ ...(await startSubscription(call, o.key, `${attempt.current}:${o.key}:${Date.now()}`)), provider: o.key }))} style={[s.signin, busy && s.off]}><Mark k={o.key} size={18} /><Text style={s.tileText}>{o.button}</Text></Pressable>
+            <Pressable key={o.key} testID={`ai-sub-${o.key}`} accessibilityRole="button" accessibilityLabel={o.button} disabled={busy} onPress={() => void run(async () => setFlow({ ...(await startSubscription(call, o.key, `${attempt.current}:${o.key}:${Date.now()}`)), provider: o.key }))} style={[s.signin, busy && s.dim]}><Mark k={o.key} size={18} /><Text style={s.tileText}>{o.button}</Text></Pressable>
           ))}
         </View>
       )}
@@ -74,7 +74,9 @@ const s = StyleSheet.create({
   ok: { fontSize: 14, color: "var(--ok)" as string },
   primary: CARD.primary,
   primaryText: CARD.primaryText,
-  off: { opacity: 0.45 },
+  off: CARD.off,
+  offText: CARD.offText,
+  dim: { opacity: 0.45 },
   ghost: CARD.ghost,
   link: { fontSize: 13, color: "var(--accent)" as string },
 });

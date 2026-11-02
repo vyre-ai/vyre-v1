@@ -121,14 +121,15 @@ function SignInStep({ state, dispatch, rules }: Pick<AcceptInviteProps, "invite"
   const set = (patch: Partial<FlowState>) => dispatch({ t: "set", patch });
   const next = () => dispatch({ t: "next" });
   const u = state.user;
-  const ok = usernameOk(u) && !rules.isTaken(u);
-  const taken = !!u && rules.isTaken(u);
+  const isTaken = (x: string): boolean => rules.isTaken(x) || x === state.refused;
+  const ok = usernameOk(u) && !isTaken(u);
+  const taken = !!u && isTaken(u);
   const mism = !!state.pw2 && state.pw2 !== state.pw;
-  const sugg = taken ? suggestions(state.first, state.last, u, (x) => !rules.isTaken(x)) : [];
+  const sugg = taken ? suggestions(state.first, state.last, u, (x) => !isTaken(x)) : [];
   const tries: ReactNode[] = [];
   for (const x of sugg) tries.push(<TextButton key={x} small label={x} testID={`suggest-${x}`} onPress={() => set({ user: x })} />);
   const short = !!state.pw && state.pw.length < PASSWORD_MIN;
-  const line = u && !ok ? (taken ? (sugg.length ? `@${u} is taken.` : `@${u} is taken. Choose a different username.`) : "Use 3 to 24 letters or digits, starting with a letter.") : short ? "Use at least 8 characters." : mism ? "The passwords do not match." : state.error;
+  const line = u && !ok ? (taken ? (sugg.length ? `@${u} is taken.` : `@${u} is taken. Choose a different username.`) : "Use 3 to 24 letters or digits, starting with a letter.") : short ? "Use at least 8 characters." : mism ? "The passwords do not match." : state.refused ? "" : state.error;
   return (
     <Step id="signin-details" dir={state.dir}>
       <Title title="Your account" />

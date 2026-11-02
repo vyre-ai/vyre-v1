@@ -88,12 +88,12 @@ export function JoinFrame({ children }: { children: ReactNode }): ReactElement {
   );
 }
 
-/** The Vyre mark: the V in the ink, the spark in the beacon. While `wait` the spark breathes. `ink` is for a mark drawn on a filled control. */
+/** The Vyre mark: the V in the ink, the spark in the beacon. While `wait` the spark breathes. `ink` is for a mark drawn on a filled control, where the whole mark takes it so the spark stays legible. */
 export function Mark({ size = 40, wait, ink = ENTRY.ink }: { size?: number; wait?: boolean; ink?: string }): ReactElement {
   if (!web) return <Text style={{ color: ink, fontSize: Math.round(size * 0.6), fontWeight: "700" }}>V</Text>;
   return createElement("svg", { viewBox: "0 0 24 24", width: size, height: size, "aria-hidden": true, "data-icon": "vyre-mark", ...(wait ? { "data-entry-wait": "" } : {}), style: { display: "block", flex: "none" } },
     createElement("path", { d: "M5.2 6.4l6.3 11.2 4.9-8.6", fill: "none", stroke: ink, strokeWidth: 3.1, strokeLinecap: "round", strokeLinejoin: "round" }),
-    createElement("circle", { cx: 18.6, cy: 5.6, r: 2.7, fill: ENTRY.spark }));
+    createElement("circle", { cx: 18.6, cy: 5.6, r: 2.7, fill: ink === ENTRY.ink ? ENTRY.spark : ink }));
 }
 
 /** The Space's own letter, in place of the mark, once the screen is about one Space. */

@@ -60,7 +60,7 @@ export function ChromeCard({ call, device, onConnected, gate, extensionUrl = EXT
     return (
       <View testID="chrome-card" style={s.col}>
         <View style={s.big}><View style={s.chromeTile}><Glyph paths={CHROME} size={20} color="var(--ink-2)" /></View>
-          <Pressable testID="chrome-add" accessibilityRole="button" disabled={busy} onPress={() => void start()} style={[s.primary, busy && s.off]}><Text style={s.primaryText}>{app ? "Install" : "Download for Chrome"}</Text></Pressable>
+          <Pressable testID="chrome-add" accessibilityRole="button" disabled={busy} onPress={() => void start()} style={[s.primary, busy && s.off]}><Text style={[s.primaryText, busy && s.offText]}>{app ? "Install" : "Download for Chrome"}</Text></Pressable>
         </View>
         {error ? <Text testID="chrome-error" style={s.err}>{error}</Text> : null}
       </View>
@@ -100,7 +100,8 @@ const s = StyleSheet.create({
   bigText: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },
   primary: CARD.primary,
   primaryText: CARD.primaryText,
-  off: { opacity: 0.45 },
+  off: CARD.off,
+  offText: CARD.offText,
   err: CARD.err,
   steps: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   step: { flexGrow: 1, flexBasis: 150, gap: 10, padding: 10, borderRadius: 12, backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
