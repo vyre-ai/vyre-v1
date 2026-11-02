@@ -470,7 +470,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let callerOf: (h: http.IncomingHttpHeaders) => Promise<{ person: string; sessionId?: string } | null> = () => Promise.resolve(null);
   const ownNode = (p: string): boolean => cfg.roles.includes("device") || p === ownerOfSpace();
   const connectorPort=createConnectorsHost({publicBase:()=>{const address=cfg.address??`http://${cfg.host}:${boundPort}`;return /^https?:\/\//.test(address)?address:`https://${address}`;},own:caller=>ownNode(caller.actingFor??caller.principal.id),...(o.connectorNetwork?{network:o.connectorNetwork}:{})});
-  const keyring = createKeyring({ allowed: ownNode, live: (id) => (db ? sessionLive(db, id) : false) });
+  // Owner ruling 3 Nov (R62 amended): a Space server also holds a person's key for as long as the signed-in session that handed it over is live, so a member's own AI account runs their own turns on the
+  // Space. Without a session (the local admin token) only the person's own node takes it.
+  const sessionAlive = (id: string): boolean => (db ? sessionLive(db, id) : false);
+  const keyring = createKeyring({ allowed: (p, sessionId) => ownNode(p) || (sessionId !== undefined && sessionAlive(sessionId)), live: sessionAlive });
   closers.push(() => keyring.clearAll());
   const fillRoute = createFillRoute();
   // GitHub sign-in: the server environment first, then the app an admin saved (members.sign_in_github.set; its secret is read from the Vault by handle and kept in memory only)
@@ -488,7 +491,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     bind: (key, who, person) => { const bound = db ? linkSso(db, key, who, person) : false; if (bound) matchProven(key, who, person); return bound; },
     log: (why, attrs) => sink.log({ space: space ?? "-", level: 30, msg: why, place: "sso", attrs }),
   });
-  const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: ownNode });
+  const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: (p, sessionId) => ownNode(p) || (sessionId !== undefined && sessionAlive(sessionId)),
+    log: (msg, attrs) => sink.log({ space: space ?? "-", level: 30, msg, place: "vault", attrs }) });
   let headSeq = 0;
   let sawSpace = false, hostMadeSpace = false;
   let claimIssue: () => Promise<{ code: string; expiresAt: number } | null> = async () => null;
@@ -1338,7 +1342,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           log: (u) => sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
         }) : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
-        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineInstall ? { engineInstall: true } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}), saveSignin: (r) => signinRefresh.save(r), closing: (done) => { engineClosing = done; } })),
+        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, ...(cfg.roles.includes("device") ? {} : { keyHeld: (p: string) => { const k = keyring.get(p); k?.fill(0); return k !== null; } }), nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineInstall ? { engineInstall: true } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}), saveSignin: (r) => signinRefresh.save(r), closing: (done) => { engineClosing = done; } })),
         // Report a problem: the bundle sources (the person's last actions from the log, the versions) and the reports.vyre.run client, signed with a key derived from this Space's seal key
         configureReports: () => createReportsHost({
           space: spaceId, now, fetch: o.reportsFetch ?? ((u, i) => globalThis.fetch(u, i as RequestInit) as never),
