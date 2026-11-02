@@ -5,6 +5,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import type { ViewStyle } from "react-native";
 import { I } from "./parts.tsx";
 import { Glyph } from "./shared.tsx";
 import { openWebMic, startTalk } from "./talk.ts";
@@ -62,7 +63,7 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
   const run = useRef<TalkRun | null>(null);
   const anchor = useRef<Anchor | null>(null);
   const heard = useRef("");
-  const nodes = useRef<(HTMLElement | null)[]>([]);
+  const nodes = useRef<({ style?: { transform: string } } | null)[]>([]);
   const warm = useRef(false);
   const clicked = useRef(false);
   const pressed = useRef<{ at: number; started: boolean } | null>(null);
@@ -91,7 +92,7 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
     anchor.current = { before: cur.text.slice(0, cur.cursor), after: cur.text.slice(cur.cursor), skip: 0 };
     heard.current = "";
     setPhase("starting");
-    const G = globalThis as { navigator?: { onLine?: boolean }; __TAURI__?: unknown; WebSocket?: new (url: string, protocols: string[]) => unknown };
+    const G = globalThis as { navigator?: { onLine?: boolean; platform?: string }; __TAURI__?: unknown; WebSocket?: new (url: string, protocols: string[]) => unknown };
     const deps: TalkDeps = {
       session: () => p.session(),
       openMic: (on) => openWebMic(on),
@@ -99,7 +100,7 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
       online: () => G.navigator?.onLine !== false,
       now: () => Date.now(),
       later: (fn, ms) => setTimeout(fn, ms),
-      shell: G.__TAURI__ ? "mac" : "web",
+      shell: !G.__TAURI__ ? "web" : /win/i.test(G.navigator?.platform ?? "") && !/darwin|mac/i.test(G.navigator?.platform ?? "") ? "windows" : "mac",
       ...p.deps,
     };
     run.current = startTalk(deps, {
@@ -157,12 +158,13 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
     run.current.cancel();
     over();
   }, [over]);
-  const bars = useCallback((i: number) => (node: unknown) => { nodes.current[i] = node as HTMLElement | null; }, []);
+  const bars = useCallback((i: number) => (node: unknown) => { nodes.current[i] = node as { style?: { transform: string } } | null; }, []);
 
   useEffect(() => {
     if (phase === "idle" || !web) return undefined;
-    const w = globalThis as unknown as { addEventListener(t: string, f: (e: KeyboardEvent) => void, c: boolean): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void, c: boolean): void };
-    const onKey = (e: KeyboardEvent): void => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cancel(); } };
+    type Key = { key: string; preventDefault(): void; stopPropagation(): void };
+    const w = globalThis as unknown as { addEventListener(t: string, f: (e: Key) => void, c: boolean): void; removeEventListener(t: string, f: (e: Key) => void, c: boolean): void };
+    const onKey = (e: Key): void => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cancel(); } };
     w.addEventListener("keydown", onKey, true);
     return () => w.removeEventListener("keydown", onKey, true);
   }, [phase, cancel]);
@@ -171,7 +173,7 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
   return { port, phase, line, pressIn, pressOut, tapped, edited, finish, bars };
 }
 
-const WEB_PRESS = { userSelect: "none", touchAction: "none" } as object;
+const WEB_PRESS = { userSelect: "none", touchAction: "none" } as unknown as ViewStyle;
 
 /** The mic. One size in every state. */
 export function TalkButton({ talk }: { talk: TalkControl }): ReactElement | null {
