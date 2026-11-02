@@ -303,6 +303,10 @@ jobs:
           node-version: 24
       - name: Local sockets and the MCP bridge
         run: node --test --test-force-exit --test-reporter=spec sandbox/tests/sock.test.ts modules/engine/tests/mcp-bridge.test.ts
+      - name: What a capability-less AppContainer allows (spike, evidence for docs/windows-engine-sandbox.md)
+        shell: powershell
+        continue-on-error: true
+        run: spikes/win-appcontainer/run.ps1
   # The Mac server installer on a real macOS runner: BSD tar, shasum, diskutil, plutil and the system LibreSSL beside Homebrew's OpenSSL 3. No Docker and no launchd changes.
   # Its unit tests (scripts/install/macos/install.test.ts) also run on the Linux runners with the main suite. There is no self-hosted macOS runner. A tag run skips it:
   # the release already ran it on the commit that was merged.
