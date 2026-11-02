@@ -68,3 +68,22 @@ test("a body-less status stays body-less", async () => {
   const { init } = await toBoxRequest(new Request("https://alex.vyre.run/a", { method: "GET" }));
   assert.equal(init.body, null);
 });
+
+test("an invite link whose box closes the hello reads as an ended invite, not a sleeping computer; the same failure on a phone's own pin still reads asleep", async () => {
+  const refusing = () => ({ state: "connecting", lastError: new Error("box closed the connection"), fetch: (/** @type {string} */ _p, /** @type {any} */ init) => new Promise((_r, rej) => init.signal?.addEventListener("abort", () => rej(new Error("aborted")))) });
+  const invite = createBridge({ label: () => "Acme", waitMs: 20, invite: () => true, box: async () => refusing() });
+  const nav = await invite.handle(new Request("https://acme.vyre.run/join/ABCD-1234", { headers: { accept: "text/html" } }));
+  assert.equal(nav?.status, 410);
+  assert.match((await nav?.text()) || "", /This invite has ended[\s\S]*Ask the person who invited you to Acme for a new link/);
+  const api = await invite.handle(new Request("https://acme.vyre.run/v1/members/invites/preview", { method: "POST", headers: { accept: "application/json" }, body: "{}" }));
+  assert.equal(api?.status, 410);
+  const own = createBridge({ label: () => "Acme", waitMs: 20, invite: () => false, box: async () => refusing() });
+  assert.equal((await own.handle(new Request("https://acme.vyre.run/", { headers: { accept: "text/html" } })))?.status, 503);
+});
+
+test("the box key the accept hands back reaches the worker on the answer, untouched", async () => {
+  const key = "A".repeat(43);
+  const bridge = createBridge({ label: () => "Acme", box: async () => ({ fetch: async () => boxAnswer(200, { "content-type": "application/json", "x-vyre-box": key }, ["{}"]) }) });
+  const res = await bridge.handle(new Request("https://acme.vyre.run/v1/members/accept", { method: "POST", body: "{}" }));
+  assert.equal(res?.headers.get("x-vyre-box"), key);
+});
