@@ -111,6 +111,12 @@ function joinOf(by: Map<string, GNode>, n: GNode): string | null {
   return null;
 }
 
+/** Where a parallel's lanes end: at the node they all reach, and at what the step names as its next. When one lane ends early no node is common to all, and without its next the other lane would take the join into itself: it would run without waiting for the rest, even when the parallel fails. */
+function laneStop(by: Map<string, GNode>, n: GNode): Set<string> {
+  const join = joinOf(by, n);
+  return new Set<string>([n.id, ...(join ? [join] : []), ...(n.next ?? [])]);
+}
+
 function walkUntil(by: Map<string, GNode>, from: string, stop: Set<string>): GNode[] {
   const out: GNode[] = [];
   const seen = new Set<string>();
@@ -161,9 +167,7 @@ function contained(by: Map<string, GNode>, nodes: GNode[]): Set<string> {
   };
   for (const n of nodes) {
     if (n.key === "parallel") {
-      const stop = new Set<string>([n.id]);
-      const j = joinOf(by, n);
-      if (j) stop.add(j);
+      const stop = laneStop(by, n);
       for (const l of lanesOf(n)) if (l.entry) take(l.entry, stop);
     } else if (n.key === "loop") {
       const entry = lanesOf(n)[0]?.entry;
@@ -210,10 +214,7 @@ function childSlice(by: Map<string, GNode>, scope: Scope): GNode[] {
   }
   const lane = lanesOf(container).find((l) => l.id === scope.laneId);
   if (!lane?.entry) return [];
-  const stop = new Set<string>([container.id]);
-  const join = joinOf(by, container);
-  if (join) stop.add(join);
-  return walkUntil(by, lane.entry, stop);
+  return walkUntil(by, lane.entry, laneStop(by, container));
 }
 
 export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: string, attrs: Record<string, unknown>) => void }) {
@@ -384,18 +385,22 @@ export function createRunsHost(d: { call: HostCall; max?: number; log?: (msg: st
       const slice = entry ? walkUntil(by, entry, new Set([node.id, ...(node.next ?? [])])) : [];
       if (slice.some((n) => n.key === "loop")) hostError("run.nested_loop", "A loop cannot contain another loop.");
       let kids = await reportsOf(run.id, node.id);
-      if (kids.length === 0) {
-        const prep = await callStep(node, call, { prepare: true });
-        if (!prep.prepare) return finish(node, prep);
-        const cap = concurrencyOf(node.input);
-        for (const it of prep.prepare.iterations) {
-          const hold = it.iterationIndex >= cap;
-          await spawn(run.id, `child:${run.id}:${node.id}:iter:${it.iterationKey}`, {
-            ...carryItem(scope), containerNodeId: node.id, iterationIndex: it.iterationIndex, iterationKey: it.iterationKey, item: it.item, ...(hold ? { held: true } : {}),
-          }, hold);
-        }
-        kids = await reportsOf(run.id, node.id);
-      } else kids = await releaseLoop(node, kids);
+      const started = kids.length > 0;
+      // Every pass asks which iterations exist. A retry brings the ones that succeeded along and starts the rest (automations carryFinishedChildren); after the first pass of any other Run nothing is missing.
+      const prep = await callStep(node, call, { prepare: true });
+      if (!started && !prep.prepare) return finish(node, prep);
+      const have = new Set(kids.map((k) => k.iterationKey));
+      let room = concurrencyOf(node.input) - kids.filter((k) => !k.held && !TERMINAL.has(k.status)).length;
+      for (const it of prep.prepare?.iterations ?? []) {
+        if (have.has(it.iterationKey)) continue;
+        const hold = room <= 0;
+        if (!hold) room -= 1;
+        await spawn(run.id, `child:${run.id}:${node.id}:iter:${it.iterationKey}`, {
+          ...carryItem(scope), containerNodeId: node.id, iterationIndex: it.iterationIndex, iterationKey: it.iterationKey, item: it.item, ...(hold ? { held: true } : {}),
+        }, hold);
+      }
+      kids = await reportsOf(run.id, node.id);
+      if (started) kids = await releaseLoop(node, kids);
       return finish(node, await callStep(node, call, { children: kids }));
     };
     const exec = async (step: PlanStep, call: never): Promise<StepResult> => {

@@ -90,7 +90,7 @@ test("the account chosen for this chat (the member's accountRef, set by threads.
 
 // ---- switch when limits run out
 
-const acct = (ref: string, provider = "anthropic"): ResolvedAccount => ({ ref, driver: provider, provider, kind: "api_key", payer: "usr_dana", reason: "starter" });
+const acct = (ref: string, provider = "anthropic"): ResolvedAccount => ({ ref, driver: provider, provider, kind: "subscription", payer: "usr_dana", reason: "starter" });
 const query = (over: Partial<AccountQuery> = {}): AccountQuery => ({ threadId: "thr_1", agentId: "agt_1", askerId: "usr_dana", ...over });
 
 function switchRig(o: { switchOnLimit?: boolean; order?: string[]; post?: (id: string, p: AgentPost) => Promise<unknown>; clock?: { t: number } } = {}) {
@@ -197,4 +197,66 @@ test("the agent is told the chat's mode: Ask first waits for a yes, Auto acts bu
   assert.match(await where({ mode: "plan" }), /Mode: Plan\. Read and plan, change nothing/);
   assert.match(await where({ planMode: true }), /Mode: Plan\./);
   assert.doesNotMatch(await where({ mode: "auto", planMode: false }), /Mode: (Ask first|Plan)/);
+});
+
+// ---- who pays: a paid key that takes over is a person's call (hole 7) ----
+
+function paying(o: { first: ResolvedAccount; second: ResolvedAccount; ok?: boolean }) {
+  const asked: AccountQuery[] = [];
+  const posts: unknown[] = [];
+  const sw = createLimitSwitch({
+    call: async () => ({ agent: {} }), now: () => 0,
+    accountFor: async (q) => (q.unavailable?.includes(o.first.ref) ? o.second : o.first),
+    paidOk: () => o.ok === true, askToPay: async (q) => { asked.push(q); }, postAs: async (_a, p) => { posts.push(p); return {}; },
+  });
+  return { sw, asked, posts };
+}
+const sub: ResolvedAccount = { ref: "#Claude", driver: "claude_code", provider: "anthropic", kind: "subscription", payer: "usr_dana", reason: "starter" };
+const key: ResolvedAccount = { ref: "#Dana_Key", driver: "anthropic", provider: "anthropic", kind: "api_key", payer: "usr_dana", reason: "starter" };
+const q2: AccountQuery = { threadId: "thr_1", agentId: "agt_1", askerId: "usr_dana", unavailable: ["#Claude"] };
+
+test("a subscription that runs out does not quietly move to a metered key: one Need, and the turn ends saying so", async () => {
+  const r = paying({ first: sub, second: key });
+  await assert.rejects(r.sw.next(q2), (e: { code?: string }) => e.code === "paid_fallback");
+  assert.equal(r.asked.length, 1);
+  assert.equal(r.posts.length, 0, "the chat is not told a switch that did not happen");
+});
+
+test("a yes in this chat lets it through; a key on a fallback list was chosen already; a subscription or a local model costs nothing to move to", async () => {
+  assert.equal((await paying({ first: sub, second: key, ok: true }).sw.next(q2))?.ref, "#Dana_Key");
+  assert.equal((await paying({ first: sub, second: { ...key, reason: "backup_key" } }).sw.next(q2))?.ref, "#Dana_Key");
+  assert.equal((await paying({ first: sub, second: { ...sub, ref: "#Codex", driver: "codex" } }).sw.next(q2))?.ref, "#Codex");
+  assert.equal((await paying({ first: sub, second: { ...key, keyless: true } }).sw.next(q2))?.ref, "#Dana_Key");
+});
+
+test("an API key that is the person's first choice is just what they use; one reached because their subscription is signed out asks first", async () => {
+  const q: AccountQuery = { threadId: "thr_1", agentId: "agt_1", askerId: "usr_dana" };
+  assert.equal((await paying({ first: key, second: sub }).sw.resolve(q))?.ref, "#Dana_Key");
+  const broken = paying({ first: { ...key, fellBack: true }, second: sub });
+  await assert.rejects(broken.sw.resolve(q), (e: { code?: string }) => e.code === "paid_fallback");
+  assert.equal(broken.asked.length, 1);
+});
+
+test("the engine ends such a turn with the words for it: no session opened before the yes, and nothing paid", async () => {
+  const p = scriptedProvider({ script: [{ type: "text", text: "ok" }, { type: "done" }] });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, resolveAccount: async () => { throw Object.assign(new Error("ask"), { code: "paid_fallback" }); } });
+  engine.openThread({ id: "T", kind: "chat", starter: "usr_dana", agents: [{ id: "agt_1", mode: "lead" }] });
+  engine.receive({ threadId: "T", author: { kind: "person", id: "usr_dana" }, body: "hi" });
+  await engine.idle("T");
+  assert.equal(p.sessions.length, 0);
+  assert.equal(engine.turns("T")[0]?.error?.code, "paid_fallback");
+});
+
+test("accountResolve says when the account it picked is a fallback", async () => {
+  const { call } = callOf({
+    "threads.get": () => ({ thread: { starter: "usr_dana", agents: [{ agentId: "agt_1", provider: "anthropic" }] } }),
+    "agents.get": () => ({ agent: { accountPolicy: "asker" } }), "engine.policy.get": () => ({ allowedAccounts: "any" }), "engine.defaults.get": () => ({ fallback: [] }),
+    "engine.placement.decide": () => ({ placement: "device" }), "spaces.get": () => ({ space: { kind: "personal" } }),
+    "providers.list": () => ({ providers: [
+      { id: "p1", providerKey: "anthropic", name: "Claude", connection: "subscription", scope: "mine", handle: "#Claude", itemId: "vit_1", engine: "claude_code", spaceMayUse: true, state: "needs_sign_in" },
+      { id: "p2", providerKey: "anthropic", name: "Key", connection: "api_key", scope: "mine", handle: "#Key", itemId: "vit_2", engine: "anthropic", spaceMayUse: true, state: "ok" },
+    ] }),
+  });
+  const out = await accountResolve({ principal: { kind: "person", id: "usr_dana" }, call: (c: string, i: unknown) => call(c, i) } as never, { threadId: "thr_1", agentId: "agt_1" });
+  assert.deepEqual([out.accountRef, out.fellBack], ["#Key", true]);
 });

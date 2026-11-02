@@ -1,5 +1,6 @@
 // Agent page > Settings (spec 2.6): the agent's files with their line counts, changes it suggests to its own instructions, its model and account, limits, access and keys, the
 // routines you set (with the label their posts carry), and Pause and Move to Trash. Every change shows what it did and, where it can be taken back, Undo.
+import { isAssistantRow } from "../../../../../../lib/agent-kind.ts";
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -97,8 +98,9 @@ export function SettingsTab({ agent, deps, window }: { agent: AgentRow; deps: Pa
     entries.push({ key: "l-agent", type: "label", text: "This agent" });
     entries.push(agent.status === "paused"
       ? { key: "p-resume", type: "row", title: "Resume", note: "Routines and watchers start again", leading: <LeadIcon name="clock" />, onPress: () => void resume(deps, agentId, name), testID: "resume" }
-      : { key: "p-pause", type: "row", title: "Pause", note: "Stops its routines and watchers until you resume it", leading: <LeadIcon name="clock" />, onPress: () => void pause(deps, agentId, name, "Paused from the agent page"), testID: "pause" });
-    entries.push(trash
+      : { key: "p-pause", type: "row", title: "Pause", note: "Stops what it is doing, its routines and its watchers until you resume it", leading: <LeadIcon name="clock" />, onPress: () => void pause(deps, agentId, name, "Paused from the agent page"), testID: "pause" });
+    // every person has one assistant for as long as they are here: nothing to move to Trash
+    if (!isAssistantRow(agent)) entries.push(trash
       ? {
         key: "t-confirm", type: "block", node: (
           <View testID="trash-confirm" accessibilityRole="alert" style={st.confirm}>

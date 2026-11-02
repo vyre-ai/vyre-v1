@@ -66,6 +66,8 @@ export interface StoredMessage {
 export interface QueueItem {
   threadId: string;
   qseq: number;
+  /** The turn this row started has called a tool: it may have acted on the world, so it is never run again without a person saying so. */
+  touched?: boolean;
   kind: QueueKind;
   messageId: string | null;
   agentId: string;
@@ -113,7 +115,7 @@ export type EngineEvent =
   /** A tool call was held at the Gate (ARCH 6.7): the turn parks on the approval task and a wake continues it once the task is answered. */
   | { type: "turn.waiting"; threadId: string; reason: "approval"; turnId: string; agentId: string; taskId: string; runId?: string }
   | { type: "turn.completed"; threadId: string; turnId: string; agentId: string }
-  | { type: "turn.failed"; threadId: string; turnId: string; agentId: string; code: string; /** what the engine knows of the failure, for the log only: never stored in an event, never shown to the person, scrubbed by the bridge before it is written */ message?: string }
+  | { type: "turn.failed"; threadId: string; turnId: string; agentId: string; code: string; /** a turn a dead host left (code host_lost): its queue row and whom it ran for */ qseq?: number; asker?: string; /** what the engine knows of the failure, for the log only: never stored in an event, never shown to the person, scrubbed by the bridge before it is written */ message?: string }
   | { type: "turn.cancelled"; threadId: string; turnId: string; agentId: string }
   | { type: "agent.handoff"; threadId: string; to: Placement }
   | { type: "queue.consumed"; threadId: string; qseq: number; messageId: string | null };
@@ -183,6 +185,10 @@ export interface EngineSession {
  * `itemId` is the Vault item behind the handle, so usage can be metered against it. `payer` is the person who pays.
  */
 export interface ResolvedAccount { ref: string; driver: string; provider: string; kind: AccountKind; payer: string; reason: ResolveReason; itemId?: string;
+  /** An account ahead of this one could not pay (signed out, failing, out of its limit): this is a fallback, not the person's first choice. */
+  fellBack?: boolean;
+  /** A key of the Space, not the person's own: `payer` is only whose turn it was. */
+  shared?: boolean;
   /** An OpenAI-compatible endpoint names its own address (custom, local); `keyless` is a local server with no key. */
   base?: string; keyless?: boolean }
 export interface AccountQuery { threadId: string; agentId: string; askerId: string; stepKey?: string; /** Accounts that already failed this turn: the answer skips them and follows the agent's order. */ unavailable?: readonly string[] }

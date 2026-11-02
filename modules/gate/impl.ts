@@ -16,6 +16,13 @@ export const consumers = {
     on: ["settings.changed"],
     async run(ctx: GateCtx, event: { payload: Record<string, unknown> }): Promise<string[]> { return syncPolicy(ctx.db, event.payload) ? [String(event.payload["key"])] : []; },
   },
+  /** An agent was deleted: what it had held at the Gate is dropped, so nobody can approve an act of an agent that is gone (hole 10). */
+  "gate.agent_deleted": {
+    on: ["agent.deleted"],
+    async run(ctx: GateCtx, event: { payload: { agentId: string } }): Promise<string[]> {
+      return rejectAllOf(ctx, event.payload.agentId, "The agent that asked was deleted.");
+    },
+  },
   "gate.member_removed": {
     on: ["member.removed"],
     async run(ctx: GateCtx, event: { payload: { personId: string; reason?: string } }): Promise<string[]> {

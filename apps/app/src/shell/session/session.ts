@@ -1,3 +1,4 @@
+import { isAssistantRow } from "../../../../../lib/agent-kind.ts";
 import {createRecordsPreview} from "../../../../../client/src/gateway/records-preview.ts";
 // A signed-in Space, open (ARCH 7.0): who you are, the Space's name and kind, the capability caller on its gateway, the screen hooks every place reads, the live link that keeps them fresh, and the
 // ShellRuntime the places are handed. `openRealSession` is the only place the shell touches the network; the places only see the runtime. A call that succeeds re-reads what is on screen,
@@ -244,7 +245,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   };
   const assistant = (): { id: string; name: string } => {
     const s = agentsList.getSnapshot();
-    const a = s.status === "ready" ? (s.data.agents.find((x) => x.role === "assistant") ?? s.data.agents.find((x) => /assistant/i.test(x.name))) : undefined;
+    const a = s.status === "ready" ? s.data.agents.find(isAssistantRow) : undefined;
     return a ? { id: a.agentId, name: a.name } : { id: "assistant", name: "Assistant" };
   };
 

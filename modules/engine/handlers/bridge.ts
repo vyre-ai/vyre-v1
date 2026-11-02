@@ -26,6 +26,8 @@ export interface PostBlock { type: string; v: number; data: unknown }
 export interface AgentPost {
   /** the person whose turn this is; the agent posts for them */
   actingFor?: string;
+  /** a key of the Space paid for this turn, so the reply is not on that person's account */
+  sharedKey?: boolean;
   threadId: string; body: string; blocks: PostBlock[]; mentions: RouteMention[]; clientId: string;
   via?: { routineOwner: string };
 }
@@ -41,9 +43,11 @@ export type StreamEvent =
   | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string; /** characters of the turn before this piece, so a reader who also fetched the text so far never doubles or drops a piece */ at: number }
   /** A step of the turn (a tool call or its result): what the agent is doing, for the line under its reply. Names only; no input. */
   | { kind: "step"; threadId: string; turnId: string; agentId: string; phase: "call" | "result" | "input"; id: string; name?: string; ok?: boolean; /** what the call touches, in safe words (a file name, a query): for the live line only */ detail?: string }
-  /** A piece of the thinking the provider sent. It goes only to the people who may read the thread, over the live link; it is never logged and never saved. */
-  | { kind: "thinking"; threadId: string; turnId: string; agentId: string; text: string }
-  | { kind: "end"; threadId: string; turnId: string; agentId: string; state: "done" | "failed" | "cancelled" | "waiting" }
+  /** Steps gathered to about one frame a second for the screens (live-coalesce.ts): what the fan-out sends instead of each `step`. */
+  | { kind: "steps"; threadId: string; turnId: string; agentId: string; steps: Array<{ phase: "call" | "result" | "input"; id: string; name?: string; ok?: boolean; detail?: string }> }
+  /** A piece of the thinking the provider sent. It goes only to the person whose turn it is (hole 8), over the live link; it is never logged and never saved. */
+  | { kind: "thinking"; threadId: string; turnId: string; agentId: string; text: string; asker?: string }
+  | { kind: "end"; threadId: string; turnId: string; agentId: string; state: "done" | "failed" | "cancelled" | "waiting"; /** why a failed turn failed; host_lost means the server stopped under it */ code?: string }
   | { kind: "final"; threadId: string; turnId: string; agentId: string; messageId: string | null };
 
 export interface BridgeOptions {
@@ -112,6 +116,7 @@ export function createBridge(o: BridgeOptions): Bridge {
   const turns = new Map<string, { routineOwner: string | null }>();
   const emit = (e: StreamEvent): void => { try { o.stream?.(e); } catch { /* a live view must never fail a turn */ } };
   const askerOf = new Map<string, string>();               // threadId -> the person whose turn ran last: the agent speaks for them
+  const onSharedKey = new Set<string>();                 // threadId|agentId: the account of this agent's turn here is a key of the Space
   const chains = new Map<string, Promise<void>>();       // per thread: posts go out one after another, in the order the events arrived
   const warn = (msg: string, attrs?: Record<string, unknown>): void => o.log?.warn(msg, attrs);
 
@@ -124,7 +129,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     const prev = chains.get(threadId) ?? Promise.resolve();
     const next = prev.then(async () => {
       const asker = askerOf.get(threadId);
-      const as = (p: AgentPost): AgentPost => (asker ? { ...p, actingFor: asker } : p);
+      const as = (p: AgentPost): AgentPost => (asker ? { ...p, actingFor: asker, ...(onSharedKey.has(`${threadId}|${agentId}`) ? { sharedKey: true } : {}) } : p);
       let posted = false;
       const [first = [], ...more] = fitBlocks(post.blocks);
       try {
@@ -196,6 +201,8 @@ export function createBridge(o: BridgeOptions): Bridge {
       }
       case "turn.failed": case "turn.cancelled": case "turn.waiting": {
         if (e.type === "turn.waiting" && e.reason !== "approval") return;
+        // a turn a dead host left has no turn.started here: who it ran for comes with the event, so the agent can still say so in the chat
+        if (e.type === "turn.failed" && e.asker) askerOf.set(e.threadId, e.asker);
         if (e.type === "turn.failed") warn("a turn failed", { threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, code: e.code, ...(e.message ? { why: scrub(e.message) } : {}) });
         const parked = e.type === "turn.waiting";
         const seg = live.get(e.turnId);
@@ -203,7 +210,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         if (!parked) { live.delete(e.turnId); turns.delete(e.turnId); }
         const blocks = [...(seg?.blocks ?? []), ...workBlocks(e.turnId), status(e)];
         writing.delete(e.turnId);
-        emit({ kind: "end", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, state: e.type === "turn.failed" ? "failed" : e.type === "turn.cancelled" ? "cancelled" : "waiting" });
+        emit({ kind: "end", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, state: e.type === "turn.failed" ? "failed" : e.type === "turn.cancelled" ? "cancelled" : "waiting", ...(e.type === "turn.failed" ? { code: e.code } : {}) });
         enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: seg?.text ?? "", blocks, mentions: askerMention(e.threadId, e.agentId), clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) }, e.turnId);
         return;
       }
@@ -237,7 +244,7 @@ export function createBridge(o: BridgeOptions): Bridge {
           const at = seg.text.length; seg.text += t; if (ev.text !== "") emit({ kind: "delta", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: t, at });
           if (t !== ev.text) { yield { ...ev, text: t }; continue; }
         }
-        else if (ev.type === "thinking") { if (ev.text !== "") emit({ kind: "thinking", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: ev.text }); }
+        else if (ev.type === "thinking") { if (ev.text !== "") emit({ kind: "thinking", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: ev.text, asker: input.asker }); }
         else if (ev.type === "block" && ev.kind === "tool_input") {
           // what a call touches goes to the live line only, over the same gated link as the words: it is never saved with the reply
           const p = (ev.payload ?? {}) as { id?: unknown; detail?: unknown };
@@ -427,7 +434,11 @@ export function createBridge(o: BridgeOptions): Bridge {
       engine = e;
       return e.subscribe(onEngine);
     },
-    tap: (openSession) => async (spec) => wrap(await openSession(spec)),
+    tap: (openSession) => async (spec) => {
+      const key = `${spec.threadId}|${spec.agent.id}`;
+      if (spec.account?.shared) onSharedKey.add(key); else onSharedKey.delete(key);
+      return wrap(await openSession(spec));
+    },
     onEvent: (ctx, event) => (event.name === "message.edited" ? onEdited(ctx, event.payload) : onReceived(ctx, event.payload)),
     liveTurns(threadId) {
       const out: Array<{ turnId: string; agentId: string; text: string }> = [];

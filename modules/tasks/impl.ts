@@ -5,6 +5,7 @@ export { handlers };
 import { countNeedsYou } from "./handlers/state.ts";
 import { resumeRunOf, settleFromSource } from "./handlers/resume.ts";
 import { syncPolicy } from "./projections.ts";
+import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
 import type { TasksCtx } from "./projections.ts";
 export { findStuck, mintApprovalToken, readApprovalToken, ACT_KEYS } from "./handlers/act.ts";
 export { applyMove, checkMove, commitMove, planMove, submitTarget, afterReview } from "./handlers/state.ts";
@@ -29,4 +30,7 @@ export const consumers = {
     on: ["block.answered", "plan.approved", "plan.rejected", "access.granted", "access.declined", "vault.request_fulfilled", "vault.request_declined", "vault.request_canceled"],
     run: (ctx: TasksCtx, event: Parameters<typeof settleFromSource>[1]) => settleFromSource(ctx, event),
   },
+  /** Nothing waits on someone who is gone: what they held moves on, with one line of history. */
+  "tasks.person_left": { on: ["member.removed"], run: (ctx: TasksCtx, event: Parameters<typeof onPersonLeft>[1]) => onPersonLeft(ctx, event) },
+  "tasks.agent_deleted": { on: ["agent.deleted"], run: (ctx: TasksCtx, event: Parameters<typeof onAgentDeleted>[1]) => onAgentDeleted(ctx, event) },
 };

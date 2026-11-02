@@ -19,7 +19,8 @@ const mcpCallIn = { agentId: id.agent, server: t.str({ examples: ['greeter/echo'
 const mcpCallOut = { isError: t.bool(), text: t.str(), structured: t.opt(t.json()) };
 const agentMode = t.enm('lead', 'listen');
 // The crew (DESIGN-crew.md): a teammate working in its own copy of the project repository, on its own branch, in its own thread under the lead's chat.
-const crewState = t.enm('working', 'waiting', 'done', 'failed', 'stopped', 'merged');
+// A Job is running (working, waiting on a hold), paused (its agent was paused), lost (the server stopped under it and only a person may run it again), stopped, or ended (done, failed, merged).
+const crewState = t.enm('working', 'waiting', 'paused', 'lost', 'done', 'failed', 'stopped', 'merged');
 const crewJob = t.obj({
   jobId: t.str({ examples: ['crw_01a1b2'] }), threadId: id.thread, leadThreadId: id.thread, projectId: id.project, agentId: id.agent, name: t.opt(t.str()), title: t.str(), branch: t.str({ examples: ['crew/ember-1'] }),
   base: t.str({ examples: ['main'] }), state: crewState, startedAt: t.ts(), endedAt: t.opt(t.ts()), result: t.opt(t.rec()),
@@ -240,7 +241,7 @@ export default defineManifest({
     }),
     read('engine.account.resolve', 'Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock', {
       in: { ...threadT, agentId: id.agent, askerId: t.opt(id.user), stepKey: t.opt(t.str()), unavailable: t.opt(t.arr(t.str(), { description: 'Accounts that already failed this turn: the answer is the next one in the agent\'s order' })) },
-      out: { accountRef: t.nullable(accountRef), payer: t.nullable(id.user), reason: t.enm('starter', 'steerer', 'step_key', 'backup_key', 'none'), allowed: t.bool(), itemId: t.opt(id.vaultItem) }, on: ['thread', '/threadId'],
+      out: { accountRef: t.nullable(accountRef), payer: t.nullable(id.user), reason: t.enm('starter', 'steerer', 'step_key', 'backup_key', 'none'), allowed: t.bool(), itemId: t.opt(id.vaultItem), fellBack: t.opt(t.bool({ description: 'An account ahead of this one could not pay' })) }, on: ['thread', '/threadId'],
     }),
     write('engine.step_turn', 'Run one AI turn for an automation step: on the owner\'s own account (Personal) or a Space-shared key (Space), optionally as an agent, with no tools. A repeat of the same key returns the first answer.', {
       in: {

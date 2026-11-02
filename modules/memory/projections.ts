@@ -24,6 +24,8 @@ export type Level = "view" | "use" | "edit" | "manage";
 export interface MemCtx {
   space: string;
   principal: { kind: "person" | "agent" | "actor" | "service"; id: string };
+  /** The chat an agent's tool call came from. */
+  thread?: string | undefined;
   actingFor?: string | undefined;
   trace: { traceId: string };
   now(): number;
@@ -38,6 +40,17 @@ export interface MemCtx {
 /** Throw the catalogue error for this call. */
 export function raise(ctx: Pick<MemCtx, "trace">, code: ErrorCode, message: string, details?: Record<string, unknown>): never {
   throw fail(code, ctx.trace.traceId, { message, ...(details ? { details } : {}) });
+}
+
+/**
+ * Does anyone but the asker read this chat? A channel always counts, as does any chat with two people in it. A chat that cannot be read counts too: private memory stays out unless we know it is safe (hole 8).
+ */
+export async function seenByOthers(ctx: Pick<MemCtx, "call">, threadId: string): Promise<boolean> {
+  try {
+    const t = ((await ctx.call("threads.get", { threadId })) as { thread?: { kind?: string; members?: Array<{ kind?: string }> } }).thread;
+    if (!t || t.kind === "channel") return true;
+    return (t.members ?? []).filter((m) => m.kind === "person").length > 1;
+  } catch { return true; }
 }
 
 /** Who did it: the person an agent acts for, else the caller. */

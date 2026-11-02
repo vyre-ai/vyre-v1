@@ -45,8 +45,11 @@ function saveState(ctx: EngineCtx, threadId: string, agentId: string, patch: Par
   return next;
 }
 
-/** Open the thread in the engine if this host has not yet, from threads.get plus what this module saved for its agents. */
-export async function open(ctx: EngineCtx, threadId: string): Promise<TurnEngine> {
+/**
+ * Open the thread in the engine if this host has not yet, from threads.get plus what this module saved for its agents. A private chat answers only to its people, so a job that runs as the host (recovery,
+ * a wake, a Gate answer) passes `read`, a way to ask as the person the turn is for; without it the caller's own access decides.
+ */
+export async function open(ctx: EngineCtx, threadId: string, read?: (threadId: string) => Promise<unknown>): Promise<TurnEngine> {
   ensure(ctx.db);
   const engine = boundEngine(ctx);
   try {
@@ -57,7 +60,7 @@ export async function open(ctx: EngineCtx, threadId: string): Promise<TurnEngine
   }
   let out: ThreadOut;
   try {
-    out = (await ctx.call("threads.get", { threadId })) as ThreadOut;
+    out = (await (read ? read(threadId).catch(() => ctx.call("threads.get", { threadId })) : ctx.call("threads.get", { threadId }))) as ThreadOut;
   } catch {
     raise(ctx, "validation.not_found", "There is no such conversation.", { threadId });
   }

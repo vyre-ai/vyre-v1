@@ -10,6 +10,7 @@ Apps holds what the Space puts in front of the outside world: Sites, Forms and b
 Public things are outward acts. Build and preview freely; publish and launch only with the person's word.
 
 ## Sites
+Sites comes in a later version. Use what follows only when these tools are in your tool list; when they are not, tell the person Sites is not in this version yet.
 - `sites_list`, `sites_get`, `sites_deployments`, `sites_logs`. A site is built from its repo: `sites_build` runs the build in the repo, `sites_deploy` puts it on a
   password-protected staging address, `sites_previews` lists one preview per branch. Show the person the staging address before you promote.
 - `sites_promote` sends staging to production and is held for approval. `sites_rollback` goes back. Say what changed between the two.

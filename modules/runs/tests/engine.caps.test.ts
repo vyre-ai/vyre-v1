@@ -226,11 +226,12 @@ test("someone who can see a Run but does not manage it cannot stop or retry it",
 
 // ---- retry ----
 
-test("retry: a failed Run starts again from the start, a new Run pointing at the old one", async () => {
+test("retry: a failed Run goes on from the step that did not finish, a new Run pointing at the old one; what already ran is not run again", async () => {
   const h = harness();
   tasks(h);
   const old = await mk(h, { name: "Send", subject: { type: "record", id: "rec_r" }, definitionVersion: 2 });
   await step(h, old, "a", 1, "succeeded");
+  await step(h, old, "skip", 1, "skipped");
   await step(h, old, "b", 1, "failed", { error: { code: "x.y", message: "no" } });
   await h.call("runs.finish", { runId: old, status: "failed" }, engine);
   const r = await h.call("runs.retry", { runId: old }, alice);
@@ -242,9 +243,9 @@ test("retry: a failed Run starts again from the start, a new Run pointing at the
   assert.equal(next.definitionVersion, 2);
   assert.equal(next.status, "queued");
   assert.deepEqual(next.subject, { type: "record", id: "rec_r" });
-  assert.equal(allSteps(h.db, r.runId).length, 0, "nothing carried over");
+  assert.deepEqual(allSteps(h.db, r.runId).map((s) => `${s.step}:${s.state}`), ["a:succeeded", "skip:skipped"], "what happened stays happened");
   assert.equal(readExtra(h.db, r.runId).retryOf, old);
-  assert.deepEqual(retried.payload, { runId: old, newRunId: r.runId });
+  assert.deepEqual(retried.payload, { runId: old, newRunId: r.runId, fromStep: "b" });
 });
 
 test("retry from a step keeps the results of the steps before it", async () => {
