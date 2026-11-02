@@ -5,7 +5,7 @@
 //   mcp.oauth.decline      no, and the app is told
 //   mcp.connected.*        the person's outside agents, the link to connect one, and Remove
 //   mcp.activity.list      what one of them did
-import { endpointOf, actorOf, boundServer, ensure, mintId, raise, sessionBy } from "../projections.ts";
+import { endpointOf, actorOf, boundServer, ensure, hasSetup, mintId, putSetup, raise, sessionBy } from "../projections.ts";
 import type { McpCtx } from "../projections.ts";
 import { clientBy, grantBy, grantsOfAgent, grantsOfPerson, insertGrant, liveGrant, redirectHostOf, requestBy, revokeGrant } from "../oauth.ts";
 import type { GrantRow, RequestRow } from "../oauth.ts";
@@ -37,6 +37,7 @@ export async function oauthRequest(ctx: OauthCtx, input: { requestId: string }) 
   const space = await ctx.call?.("spaces.get", {}).catch(() => null) as { space?: { name?: string } } | null | undefined;
   return { request: {
     requestId: r.requestId, clientName: client.name, ...(host ? { redirectHost: host } : {}), spaceName: space?.space?.name ?? "this Space", match: r.match, expiresAt: r.expiresAt, rejoins: liveGrant(ctx.db, r.clientId, me, r.resource) !== null,
+    ...(manages(ctx) ? { canSetup: true } : {}),
   } };
 }
 
@@ -46,8 +47,10 @@ function resumable(ctx: McpCtx, clientId: string, me: string, resource: string):
   return r ? grantBy(ctx.db, String(r["grant_id"])) : null;
 }
 
-export async function oauthAllow(ctx: OauthCtx, input: { requestId: string }) {
+export async function oauthAllow(ctx: OauthCtx, input: { requestId: string; setup?: boolean }) {
   const me = person(ctx);
+  // "Act for me, including setup" (owner ruling 3 Nov): only a person who holds those rights can hand them on, and only as an explicit choice
+  if (input.setup === true && !manages(ctx)) raise(ctx, "permission.role_lacks_permission", "Only an owner or admin can let an agent do setup. Allow it to ask you first instead.");
   const r = openRequest(ctx, input.requestId);
   const client = clientBy(ctx.db, r.clientId);
   if (!client) raise(ctx, "validation.not_found", "That request is not here. Start again from the app you are connecting.");
@@ -73,7 +76,13 @@ export async function oauthAllow(ctx: OauthCtx, input: { requestId: string }) {
     insertGrant(ctx.db, { grantId, clientId: r.clientId, clientName: client.name, person: me, agentId, resource: r.resource, ...(host ? { redirectHost: host } : {}), createdAt: now });
     ctx.db.run("UPDATE mcp_oauth_requests SET status = 'allowed', agent_id = ?, grant_id = ? WHERE request_id = ?", agentId, grantId, r.requestId);
     ctx.emit("mcp.client_allowed", agentId, { agentId, person: me, clientName: client.name, ...(host ? { redirectHost: host } : {}) });
-    return { agentId, name };
+    // the choice made at this Allow is the agent's grant from now on, whatever an earlier sign-in of the same app had
+    const setup = input.setup === true;
+    if (setup || hasSetup(ctx.db, agentId, me)) {
+      putSetup(ctx.db, agentId, me, setup, me, now);
+      ctx.emit("mcp.setup_changed", agentId, { agentId, person: me, setup, by: me });
+    }
+    return { agentId, name, setup };
   } catch (e) {
     ctx.db.run("UPDATE mcp_oauth_requests SET status = 'open', person = NULL WHERE request_id = ? AND status = 'taken'", r.requestId);
     throw e;
@@ -98,14 +107,33 @@ export function oauthReplayed(ctx: McpCtx, input: { agentId: string; person: str
 
 // ---- yours --------------------------------------------------------------------------------------------------------------------------------------------
 
-export function connectedList(ctx: McpCtx, _input: Record<string, never>) {
+export function connectedList(ctx: McpCtx, input: { all?: boolean } = {}) {
   ensure(ctx.db);
   const me = actorOf(ctx);
-  const agents = grantsOfPerson(ctx.db, me).map((g) => {
+  // the Console's list: every outside agent in the Space, for an owner or admin, so a setup grant can be seen and taken back
+  if (input.all === true && !manages(ctx)) raise(ctx, "permission.no_grant", "Only an owner or admin sees every outside agent.");
+  const grants = input.all === true ? (ctx.db.all("SELECT * FROM mcp_oauth_grants WHERE revoked_at IS NULL ORDER BY created_at DESC") as Row[]).map((r) => String(r["person"])).filter((p, i, a) => a.indexOf(p) === i).flatMap((p) => grantsOfPerson(ctx.db, p)) : grantsOfPerson(ctx.db, me);
+  const agents = grants.map((g) => {
     const s = g.sessionId ? sessionBy(ctx.db, "session_id", g.sessionId) : null;
-    return { agentId: g.agentId, clientName: g.clientName, ...(g.redirectHost ? { redirectHost: g.redirectHost } : {}), connectedAt: g.createdAt, ...(s?.lastCallAt === undefined ? {} : { lastSeenAt: s.lastCallAt }), calls: s?.calls ?? 0 };
+    return { agentId: g.agentId, clientName: g.clientName, ...(g.redirectHost ? { redirectHost: g.redirectHost } : {}), connectedAt: g.createdAt, ...(s?.lastCallAt === undefined ? {} : { lastSeenAt: s.lastCallAt }), calls: s?.calls ?? 0, setup: hasSetup(ctx.db, g.agentId, g.person), ...(input.all === true ? { person: g.person } : {}) };
   });
   return { agents };
+}
+
+/** Turn an outside agent's setup grant on or off. On: its own person, who must hold the rights. Off: its person, or an owner or admin. A person only, signed in as themselves: never an agent. */
+export function setupSet(ctx: McpCtx, input: { agentId: string; setup: boolean }) {
+  ensure(ctx.db);
+  const me = person(ctx);
+  const owner = (ctx.db.all("SELECT person FROM mcp_oauth_grants WHERE agent_id = ? ORDER BY created_at DESC LIMIT 1", input.agentId) as Row[])[0];
+  if (!owner) raise(ctx, "validation.not_found", "That outside agent is not here.");
+  const its = String(owner["person"]);
+  if (its !== me && !(manages(ctx) && input.setup === false)) raise(ctx, its === me || manages(ctx) ? "permission.no_grant" : "validation.not_found", its === me || manages(ctx) ? "Only its own person can let it do setup." : "That outside agent is not here.");
+  if (input.setup && !manages(ctx)) raise(ctx, "permission.role_lacks_permission", "Only an owner or admin can let an agent do setup.");
+  if (hasSetup(ctx.db, input.agentId, its) !== input.setup) {
+    putSetup(ctx.db, input.agentId, its, input.setup, me, ctx.now());
+    ctx.emit("mcp.setup_changed", input.agentId, { agentId: input.agentId, person: its, setup: input.setup, by: me });
+  }
+  return { setup: input.setup };
 }
 
 export function connectedLink(_ctx: McpCtx, _input: Record<string, never>) {

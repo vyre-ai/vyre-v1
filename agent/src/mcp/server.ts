@@ -13,7 +13,7 @@ import type { Invoke } from "../../../host/src/invoke.ts";
 import { makeError } from "../../../host/src/routes/errors.ts";
 import { INTERNAL_ERROR, INVALID_PARAMS, INVALID_REQUEST, METHOD_NOT_FOUND, PARSE_ERROR, err, isRequest, ok } from "./jsonrpc.ts";
 import type { Id, Request, Response } from "./jsonrpc.ts";
-import { outsideAllows, outsideDoor } from "./outside.ts";
+import { outsideAllows, outsideDoor, setupCovers } from "./outside.ts";
 import { searchTools } from "../tools/access.ts";
 import { HostError } from "../../../host/src/routes/errors.ts";
 import { heldCard, workCardOf } from "../tools/work-cards.ts";
@@ -36,6 +36,7 @@ const USE_TOOL_VIEW = { name: USE_TOOL, description: "Call a tool that tool_sear
 const PASTE_SCHEMA = { type: "object", properties: { name: { type: "string", description: "The key's name, like Google_Client_Secret" }, fieldKeys: { type: "array", items: { type: "string" } }, folderId: { type: "string" }, reason: { type: "string" } }, required: ["name"] };
 const PASTE_NOTE = "Asks a person to paste the value in their own app. Send names only; you get the key's name back to pass as a handle, never the value.";
 const ASK_NOTE = "Only a person does this here. Calling it asks the person you act for; it runs as them once they approve.";
+const SETUP_NOTE = "Runs as the person you act for, under the setup grant they gave you. Their own rights are checked on the call.";
 /** Listed for an outside agent from the start, so it can get work and answer without a search. */
 const OUTSIDE_PRELOAD: readonly string[] = ["agents_next"];
 /** Listed for a CLI engine from the start: "make me a file" is a first-hour ask, and it needs a new file and a place to put it. */
@@ -101,9 +102,12 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     // An outside agent that has not taken a job works in no chat, so its calls name none, and every call it makes is on the audit log, whatever the capability.
     const invoke: Invoke = (cap, input, seed) => {
       const outsideCall = caller.kind === "outside";
+      // the setup grant: a call in its scope that the agent may not make runs as its person (host/src/invoke.ts), read now so a grant taken back counts at once
+      const t = outsideCall ? deps.catalog.all.find((x) => x.cap === cap) : undefined;
+      const setup = t !== undefined && setupCovers(t) && deps.setupGrant?.(caller) === true;
       const { thread, ...rest } = seed;
       // An outside agent stopped at a role its person holds asks that person (docs/ask-the-person.md); the door says 'always' for what only a person does.
-      return deps.invoke(cap, input, { ...rest, principal: caller.principal, origin: "mcp", space: caller.space, ...(thread !== undefined && (!outsideCall || thread.startsWith("thr_")) ? { thread } : {}), ...(outsideCall ? { auditAll: true, askPerson: seed.askPerson ?? "if_refused" } : {}) });
+      return deps.invoke(cap, input, { ...rest, principal: caller.principal, origin: "mcp", space: caller.space, ...(thread !== undefined && (!outsideCall || thread.startsWith("thr_")) ? { thread } : {}), ...(outsideCall ? { auditAll: true, askPerson: seed.askPerson ?? "if_refused", ...(setup ? { setupGrant: true } : {}) } : {}) });
     };
     const tools = createToolSession({
       catalog: deps.catalog, defaults: deps.defaults, invoke,
@@ -178,6 +182,8 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
 
     if (!allowed(s, t)) {
       const door = outsideDoor(t);
+      // with the setup grant, what is in its scope runs as the person, values included; what is not stays where it was
+      if (door !== "open" && setupCovers(t) && deps.setupGrant?.(s.caller) === true) return askThePerson(s, t, args, traceId);
       if (door === "ask") return askThePerson(s, t, args, traceId);
       if (door === "paste") return pasteKey(s, t, args, traceId);
       const message = t.toolset === "vault"
@@ -198,8 +204,13 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       const data: { tools: Array<Record<string, unknown>> } = { tools: found.map((f) => ({ name: f.name, summary: f.summary, toolset: f.toolset, inputSchema: f.inputSchema })) };
       // what only a person does is found too, marked: calling it asks the person this agent acts for
       if (s.caller.kind === "outside") {
-        const asks = searchTools(deps.catalog.all.filter((f) => f.local === "none" && outsideDoor(f) !== "open" && outsideDoor(f) !== "off"), q, SEARCH_LIMIT);
-        for (const f of asks) data.tools.push({ name: f.name, summary: f.summary, toolset: f.toolset, inputSchema: outsideDoor(f) === "paste" ? PASTE_SCHEMA : f.inputSchema, asksPerson: true, note: outsideDoor(f) === "paste" ? PASTE_NOTE : ASK_NOTE });
+        const setup = deps.setupGrant?.(s.caller) === true;
+        const runs = (f: ToolDef): boolean => setup && setupCovers(f);
+        const asks = searchTools(deps.catalog.all.filter((f) => f.local === "none" && outsideDoor(f) !== "open" && (outsideDoor(f) !== "off" || runs(f))), q, SEARCH_LIMIT);
+        for (const f of asks) {
+          if (runs(f)) data.tools.push({ name: f.name, summary: f.summary, toolset: f.toolset, inputSchema: f.inputSchema, note: SETUP_NOTE });
+          else data.tools.push({ name: f.name, summary: f.summary, toolset: f.toolset, inputSchema: outsideDoor(f) === "paste" ? PASTE_SCHEMA : f.inputSchema, asksPerson: true, note: outsideDoor(f) === "paste" ? PASTE_NOTE : ASK_NOTE });
+        }
       }
       deps.onCall?.(s.caller, t.name, "ok");
       return { result: textResult({ data }, false, { data }) };
@@ -240,7 +251,9 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     let out: Awaited<ReturnType<Invoke>> | "gone";
     try { out = await Promise.race([s.invoke(t.cap, args, seed), s.gone]); }
     catch (e) {
-      const error = e instanceof HostError ? e.error : makeError("internal.unexpected", traceId, { message: "Something went wrong on our side." });
+      let error = e instanceof HostError ? e.error : makeError("internal.unexpected", traceId, { message: "Something went wrong on our side." });
+      // a Mine item needs the person's own key, held on the server only while they are signed in: say so plainly (owner ruling 3 Nov)
+      if ((error.details as { reason?: unknown } | undefined)?.reason === "vault_locked") error = { ...error, message: "The person you act for has to sign in to Vyre once so their Vault key is open on the server. Then try again." };
       deps.onCall?.(s.caller, t.name, "error", { cap: t.cap, threadId });
       return { result: textResult({ error }, true, { error }) };
     }
@@ -253,10 +266,10 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       const structured = { held: true, asksPerson: true, taskId: out.taskId, ...(repeat ? { already: true } : {}), message: repeat ? "You already asked for exactly this. It is still waiting for the person you act for. Call agents_next for the answer." : "Only the person you act for can do this here, so it waits for them. Approve runs it as them, once, exactly as you sent it. Call agents_next for the answer." };
       return { result: textResult(structured, true, structured) };
     }
-    // nothing parks a call that ran: an ask always waits for the person
-    const error = makeError("internal.unexpected", traceId, { message: "Something went wrong on our side." });
-    deps.onCall?.(s.caller, t.name, "error", { cap: t.cap, threadId });
-    return { result: textResult({ error }, true, { error }) };
+    // it ran as the person under the setup grant: the answer, as any call's
+    const c = { data: out.output };
+    deps.onCall?.(s.caller, t.name, "ok", { cap: t.cap, threadId, card: workCardOf(t.cap, args, out.output) });
+    return { result: textResult(c, false, c) };
   }
 
   /**

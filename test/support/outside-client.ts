@@ -80,12 +80,13 @@ export class Client {
 }
 
 /** The whole sign-in: a person presses Allow with their own session. */
-export async function signIn(s: FlowSpace, c: Client, person: string): Promise<{ agentId: string; requestId: string }> {
+/** `setup`: the person chooses "Act for me, including setup" on the Allow screen (owner ruling 3 Nov). */
+export async function signIn(s: FlowSpace, c: Client, person: string, o: { setup?: boolean } = {}): Promise<{ agentId: string; requestId: string }> {
   await c.discover();
   await c.register();
   const { requestId, proof } = await c.authorize();
   assert.equal((await c.wait(requestId, proof)).status, "waiting");
-  const allow = expectStatus(await s.call("mcp.oauth.allow", person, { requestId }), 200, "mcp.oauth.allow");
+  const allow = expectStatus(await s.call("mcp.oauth.allow", person, { requestId, ...(o.setup === true ? { setup: true } : {}) }), 200, "mcp.oauth.allow");
   const w = await c.wait(requestId, proof);
   assert.equal(w.status, "allowed");
   const back = new URL(w.redirect);

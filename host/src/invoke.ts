@@ -86,6 +86,11 @@ export interface CtxSeed {
    * Nothing is widened: the agent gets no role and no grant, and the person's access is checked again when the call runs.
    */
   askPerson?: "always" | "if_refused" | undefined;
+  /**
+   * The setup grant (owner ruling 3 Nov): the person gave this outside agent "Act for me, including setup", and the MCP door found the capability in its scope. Where an ask would park, the call runs as
+   * that person instead, without a card: their own access decides, now; an audit row says which agent did it for whom under the grant. Never for an outward act. Set only by the MCP door, with askPerson.
+   */
+  setupGrant?: boolean | undefined;
 }
 
 export interface AuditRow {
@@ -362,6 +367,12 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         if (pd.effect === "deny") {
           await deps.audit?.(audit("deny", `asks_person:${pd.reason}`));
           throw fail(codeForReason(pd.reason), traceId, { message: "The person you act for cannot do this either. Someone whose role allows it, an owner or an admin of this Space, has to do it or give them that role.", details: { cap: c.name, reason: "person_lacks_role", personReason: pd.reason, steps: pd.steps.map((x) => x.text) } });
+        }
+        // the setup grant: the person said yes ahead of time for this kind of call, so it runs as them now. Sends, posts and payments are never in it: they keep the Gate and the chat's rules.
+        if (seed.setupGrant === true && c.effects !== "outward") {
+          await deps.audit?.(audit("allow", "setup_grant"));
+          const asPerson: CtxSeed = { ...seed, principal: { kind: "person", id: seed.actingFor! }, actingFor: undefined, askPerson: undefined, setupGrant: undefined, askFirst: undefined, askable: undefined, chatMode: undefined, auditAll: true };
+          return stepsFour(c, input, asPerson, trace, depth, true);
         }
         return park(c, input, seed, traceId, pd.decisionId, c.gate?.act && c.gate.act !== "none" ? c.gate.act : "approve", audit("hold", "asks_person"), "person");
       }

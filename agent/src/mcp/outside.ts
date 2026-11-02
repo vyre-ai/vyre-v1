@@ -45,3 +45,19 @@ export function outsideDoor(t: Pick<ToolDef, "cap" | "toolset" | "effects" | "lo
 export function outsideAllows(t: Pick<ToolDef, "cap" | "toolset" | "effects" | "local">): boolean {
   return outsideDoor(t) === "open";
 }
+
+/**
+ * The setup grant (owner ruling 3 Nov, docs/ask-the-person.md): "Act for me, including setup". With it, a call in this scope that the agent may not make itself runs as its person, without a card, the person's
+ * role checked on the call. The scope is what setting a Space up takes: sign-in and SSO, members and invites, Connect your company, Console settings, connections and connectors, the Space's AI keys,
+ * and putting keys in the Vault. Outside it, and for anything that goes out (sends, posts, payments), nothing changes. Never here: access, the Gate's rules, agents, MCP sign-ins, devices, the network,
+ * reading a secret back, sharing a Vault item: an agent cannot give itself or another agent more than it has.
+ */
+const SETUP_FAMILIES = /^(members|company|settings|connections|connectors)\.|^(google|ms|microsoft)\.(dwd|tenant|connect|directory)(\.|_|$)/;
+const SETUP_CAPS: ReadonlySet<string> = new Set([
+  "vault.item.put", "vault.item.update", "vault.folders.create", "vault.folders.update", "vault.folders.list", "vault.items.list", "vault.request",
+  "providers.add", "providers.list", "providers.catalog", "providers.test", "providers.set_space_use", "providers.remove",
+]);
+export function setupCovers(t: Pick<ToolDef, "cap" | "effects" | "local">): boolean {
+  if (t.effects === "outward" || t.local !== "none") return false;
+  return SETUP_CAPS.has(t.cap) || SETUP_FAMILIES.test(t.cap);
+}

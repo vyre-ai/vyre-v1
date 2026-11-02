@@ -12,7 +12,7 @@ import { handlers as table } from "./handlers/index.ts";
 import { onAgentDeleted, onHoldAnswered, onKeyAnswered } from "./handlers/oauth.ts";
 import type { OauthCtx } from "./handlers/oauth.ts";
 import type { Handler } from "../../host/src/invoke.ts";
-import { bindEndpoint, bindServer, boundServer, driverForToken, ensure, insertSession, isLive, loadGenerated, mintId, outsideCaller, sessionBy, touchSession } from "./projections.ts";
+import { bindEndpoint, bindServer, boundServer, driverForToken, ensure, hasSetup, insertSession, isLive, loadGenerated, mintId, outsideCaller, sessionBy, touchSession } from "./projections.ts";
 import type { Db, Endpoint, McpCtx } from "./projections.ts";
 import { allowTab, refusalPage } from "./allow-page.ts";
 import { beginAuthorize, challenge, collect, createLimiter, exchange, grantForAccess, protectedResource, registerClient, serverMetadata } from "./oauth.ts";
@@ -179,6 +179,8 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
       // a CLI engine's work shows under its reply as cards, as it does on an API driver: a task, a file, and a send waiting on a yes
       else if (detail?.card && detail.threadId) recordWork(sessionWorkKey(detail.threadId, caller.principal.id), detail.card);
     },
+    // the setup grant (owner ruling 3 Nov): read on every call, so taking it back in Settings or the Console counts at the next one
+    setupGrant: (caller) => caller.kind === "outside" && caller.actingFor !== undefined && hasSetup(o.db, caller.principal.id, caller.actingFor),
     async bindThread(caller, threadId) {
       const read = await withChatMode(o, { ...caller, kind: "driver", threadId });
       return { ...(read.mode ? { mode: read.mode } : {}), ...(read.planMode ? { planMode: true } : {}), ...(read.threadKind ? { threadKind: read.threadKind } : {}), ...(read.scope ? { scope: read.scope } : {}) };

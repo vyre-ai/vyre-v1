@@ -2,7 +2,7 @@
 // tool calls as the agent acting for the person, what stays with people, the Gate, and every way a request can be wrong.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createMcpServer, MAX_RESULT_CHARS, isPersonOnly, outsideAllows, outsideDoor } from "../../../agent/src/mcp/index.ts";
+import { createMcpServer, MAX_RESULT_CHARS, isPersonOnly, outsideAllows, outsideDoor, setupCovers } from "../../../agent/src/mcp/index.ts";
 import type { McpCaller, McpServerDeps } from "../../../agent/src/mcp/index.ts";
 import { fakeInvoke, loadGenerated } from "../../../agent/src/tools/harness.ts";
 import type { Invoke } from "../../../host/src/invoke.ts";
@@ -445,4 +445,35 @@ test("a session that ends fails the call in flight at once", async () => {
   assert.equal(out.result.isError, true);
   assert.equal(out.result.structuredContent.error.code, "permission.revoked");
   release();
+});
+
+test("the setup grant's scope: setting the Space up, never what goes out, never anything that gives an agent more", () => {
+  for (const cap of ["members.sso.set", "members.invites.create", "company.connect", "settings.set_space", "providers.add", "vault.item.put", "connections.create"]) {
+    const t = g.catalog.all.find((x) => x.cap === cap);
+    if (t) assert.equal(setupCovers(t), true, cap);
+  }
+  for (const t of g.catalog.all) {
+    if (t.effects === "outward") assert.equal(setupCovers(t), false, `${t.cap} goes out`);
+    if (/^(access|gate|agents|mcp|devices|network|spaces|identity)\./.test(t.cap)) assert.equal(setupCovers(t), false, `${t.cap} could widen an agent or a sign-in`);
+    if (/^vault\.(item\.reveal|share|unshare|export|items\.export|use|fill|inject)/.test(t.cap)) assert.equal(setupCovers(t), false, `${t.cap} reads or shares a secret`);
+  }
+});
+
+test("with the setup grant, an outside agent's person-only call goes to the pipeline as the agent with setupGrant; without it, as an ask", async () => {
+  const seen: Array<{ cap: string; askPerson?: string | undefined; setupGrant?: boolean | undefined }> = [];
+  const spy: Invoke = async (cap, _input, seed) => { seen.push({ cap, askPerson: seed.askPerson, setupGrant: seed.setupGrant }); return { status: "ok", output: { ok: true }, traceId: "t" }; };
+  let granted = true;
+  const server = createMcpServer({ catalog: g.catalog, defaults: g.defaults, invoke: spy, open: async () => outside(), setupGrant: () => granted });
+  const call = async (name: string) => JSON.parse((await server.handle({ method: "POST", headers: { authorization: "Bearer out" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "use_tool", arguments: { name, arguments: { a: 1 } } } }) })).body).result;
+  const ran = await call("members_sso_set");
+  assert.equal(ran.isError, false);
+  assert.deepEqual(seen.at(-1), { cap: "members.sso.set", askPerson: "always", setupGrant: true });
+  await call("vault_item_put");
+  assert.deepEqual(seen.at(-1), { cap: "vault.item.put", askPerson: "always", setupGrant: true }, "a key goes in as the person, not as a paste request");
+  const before = seen.length;
+  assert.equal((await call("vault_item_reveal")).isError, true, "reading back stays off");
+  assert.equal(seen.length, before);
+  granted = false;
+  await call("members_sso_set");
+  assert.deepEqual(seen.at(-1), { cap: "members.sso.set", askPerson: "always", setupGrant: undefined }, "taken back: an ask again");
 });
