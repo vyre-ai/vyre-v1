@@ -34,7 +34,7 @@ export function ServerKeyLine(): ReactElement | null {
 }
 
 const s = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, paddingTop: 8 },
+  row: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10, paddingTop: 2, paddingBottom: 12 },
   note: { fontSize: 12.5, color: "var(--ink-3)" as string },
   link: { fontSize: 12.5, color: "var(--accent)" as string },
 });

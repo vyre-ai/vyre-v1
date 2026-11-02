@@ -42,9 +42,9 @@ export const door = (d: Daemon, token: string, op: "unlock" | "lock" | "status" 
   fetch(`${d.url}/vault/key/${op}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}`, "x-forwarded-proto": proto, "x-forwarded-for": "203.0.113.7" }, ...(key ? { body: JSON.stringify({ key: Buffer.from(key).toString("base64") }) } : {}) });
 
 /** A member as the invite page makes them: a real bundle under their password; the person key their client unwrapped is returned for the door. */
-export async function join(d: Daemon, username: string): Promise<{ personId: string; token: string; personKey: Uint8Array }> {
+export async function join(d: Daemon, username: string, email?: string): Promise<{ personId: string; token: string; personKey: Uint8Array }> {
   const roles = (await ok(d, d.token, "access.roles.list")).roles as { id: string; name: string }[];
-  const inv = await ok(d, d.token, "members.invites.create", { role: roles.find((r) => r.name === "Member")!.id });
+  const inv = await ok(d, d.token, "members.invites.create", { role: roles.find((r) => r.name === "Member")!.id, ...(email ? { email } : {}) });
   const code = decodeURIComponent(new URL(inv.link).pathname.split("/").pop()!);
   const made = await makeBundle(PASSWORD, "recovery-code-for-the-test", { spaceId: "spc_member_key" });
   const { personKey, ...rest } = made;
