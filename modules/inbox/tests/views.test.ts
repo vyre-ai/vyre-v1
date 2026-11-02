@@ -221,7 +221,7 @@ test("counts give the unread per inbox and number, the total, and how many need 
   const out = await counts(h.ctx);
   assert.deepEqual(contractErrors("inbox.counts", "out", out), []);
   assert.deepEqual(out.byInbox, [
-    { kind: "mailbox", id: "mbx_work1", unread: 2 }, { kind: "mailbox", id: "mbx_hello1", unread: 1 }, { kind: "number", id: "num_main1", unread: 1 },
+    { kind: "mailbox", id: "mbx_work1", unread: 2 }, { kind: "mailbox", id: "mbx_hello1", unread: 1 }, { kind: "number", id: "num_main1", unread: 1 }, { kind: "number", id: "num_voice", unread: 0 },
   ]);
   assert.deepEqual([out.total, out.needsMatch], [4, 1]);
 });

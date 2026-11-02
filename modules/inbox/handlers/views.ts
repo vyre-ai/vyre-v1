@@ -403,6 +403,8 @@ export async function counts(ctx: InboxCtx): Promise<{ byInbox: { kind: "mailbox
     const number = strOrNull(item, "numberId");
     if (number && lines.has(number)) bump("number", number);
   }
+  // a number with nothing unread is still theirs to text and call from: the sidebar and the composer read their numbers from here
+  for (const id of lines) if (!byInbox.has(`number:${id}`)) byInbox.set(`number:${id}`, { kind: "number", id, unread: 0 });
   return {
     byInbox: [...byInbox.values()].sort((a, b) => b.unread - a.unread || a.id.localeCompare(b.id)),
     total: found.reduce((n, { row }) => n + Math.max(0, Math.trunc(num(row, "unreadCount"))), 0),

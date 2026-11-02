@@ -24,7 +24,7 @@ export function TelephonyConnect({onConnected}:{onConnected():void}):ReactElemen
   }finally{setBusy(false);}
  };
  return <View testID="telephony-connect"><Section title="Connect Twilio"><Group>
-  <Row id="tel-intro" title="Bring your Twilio numbers into this Space" note="Both keys are on the first page of your Twilio Console, under Account Info. Vyre tests them, brings in every number and sets up calls and texts. There is nothing to set up number by number."/>
+  <Row id="tel-intro" title="Bring your Twilio numbers into this Space" note="Both keys are on the first page of your Twilio Console. Vyre tests them and brings in every number."/>
   <Field label="Account SID" value={sid} onChange={setSid} testID="telephony-sid"/>
   <Field label="Auth Token" value={token} onChange={setToken} testID="telephony-token" secure/>
  </Group></Section><Button label={busy?'Connecting…':'Connect'} testID="telephony-connect-button" disabled={busy} onPress={()=>void connect()}/>{line?<Note>{line}</Note>:null}{action.note?<Note>{action.note}</Note>:null}</View>;

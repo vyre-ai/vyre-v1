@@ -101,6 +101,8 @@ test("the sidebar counts a person's own numbers, never another's they reach thro
   const { h } = await world();
   h.onLines(["num_front"]);
   assert.deepEqual((await counts(h.ctx)).byInbox.filter((c) => c.kind === "number").map((c) => c.id), ["num_front"]);
+  h.onLines(["num_front", "num_back1"]);
+  assert.deepEqual((await counts(h.ctx)).byInbox.filter((c) => c.kind === "number").map((c) => [c.id, c.unread > 0]), [["num_front", true], ["num_back1", false]], "a number with nothing unread stays listed: it can still send");
   h.onLines([]);
   assert.deepEqual((await counts(h.ctx)).byInbox.filter((c) => c.kind === "number"), []);
 });

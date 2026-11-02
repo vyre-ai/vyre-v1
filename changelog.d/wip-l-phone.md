@@ -3,3 +3,4 @@
 - A message with a known contact is that contact's history, on a new Conversation tab on their page, for anyone who can open them. A text from an unknown number stays with the people on the line until it is linked.
 - Twilio's webhooks reach a Space on a vyre.run address through /p/hooks/twilio. This needs the relay Worker deployed.
 - Calls and texts no longer copy to devices.
+- The Inbox keeps a number in the sidebar when nothing on it is unread, and names it. It no longer falls back to the connect page.
