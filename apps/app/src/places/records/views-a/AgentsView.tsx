@@ -13,6 +13,18 @@ import { useLive, useOnline, useRecordsData } from "../sidebar/data.tsx";
 import { HeadButton } from "../sidebar/parts.tsx";
 import type { TypeDef } from "../table/model.ts";
 
+/** One agent, or one old row, as the shared ui/Row. */
+function Row({ r, onOpen }: { r: AgentsRow; onOpen: () => void }): ReactElement {
+  const agent = r.kind === "agent" ? r.agent : null;
+  const id = agent ? agent.agentId : (r as Extract<AgentsRow, { kind: "old" }>).recordId;
+  const name = agent ? agent.name : (r as Extract<AgentsRow, { kind: "old" }>).name;
+  return (
+    <View style={l.cell} testID={`${agent ? "agent" : "old"}-${id}`}>
+      <UiRow id={`row-${id}`} title={name} note={agent ? agent.role ?? "Agent" : NOT_SET_UP} leading={<View style={l.face}><Avatar name={name} seedId={agent?.face ?? id} kind="agent" size={24} /></View>} onPress={onOpen} />
+    </View>
+  );
+}
+
 const countLine = (n: number): string => `${n.toLocaleString("en-US")} ${n === 1 ? "agent" : "agents"}`;
 
 export function AgentsView({ def }: { def: Pick<TypeDef, "key" | "plural" | "titleField"> }): ReactElement {
@@ -66,13 +78,7 @@ export function AgentsView({ def }: { def: Pick<TypeDef, "key" | "plural" | "tit
           : (
             <VirtualList<AgentsRow>
               data={rows} rowHeight={44} keyOf={(r) => (r.kind === "agent" ? r.agent.agentId : r.recordId)} renderItem={(r) => (
-                <View style={l.cell} testID={r.kind === "agent" ? `agent-${r.agent.agentId}` : `old-${r.recordId}`}>
-                  {r.kind === "agent" ? (
-                    <UiRow id={`agent-row-${r.agent.agentId}`} title={r.agent.name} note={r.agent.role ?? "Agent"} leading={<View style={l.face}><Avatar name={r.agent.name} seedId={r.agent.face ?? r.agent.agentId} kind="agent" size={24} /></View>} onPress={() => data.nav.openAgent?.(r.agent.agentId)} />
-                  ) : (
-                    <UiRow id={`old-row-${r.recordId}`} title={r.name} note={NOT_SET_UP} leading={<View style={l.face}><Avatar name={r.name} seedId={r.recordId} kind="agent" size={24} /></View>} onPress={() => data.nav.openRecord(r.recordId)} />
-                  )}
-                </View>
+                <Row r={r} onOpen={() => { if (r.kind === "agent") data.nav.openAgent?.(r.agent.agentId); else data.nav.openRecord(r.recordId); }} />
               )}
             />
           )}

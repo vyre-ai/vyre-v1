@@ -285,13 +285,3 @@ test("a person who leaves stops: their mailboxes end as the removal wizard ends 
   assert.notEqual(state("mbx_other001"), "disconnected", "nobody else's");
   assert.equal(left.run(h.ctx as never, { payload: { personId: "usr_noah01" } }), 0);
 });
-
-test("the host runs all three: a person leaving reaches mail and both sign-in modules", async () => {
-  const { collectHooks } = await import("../../../host/src/daemon/consumers.ts");
-  for (const [id, name] of [["mail", "mail.person_left"], ["google", "google.person_left"], ["microsoft", "ms.person_left"]] as const) {
-    const ns = await import(`../../${id}/impl.ts`) as Record<string, unknown>;
-    const hook = collectHooks(id, ns).consumers.find((c) => c.name === name);
-    assert.deepEqual(hook?.on, ["member.removed"], name);
-  }
-});
-

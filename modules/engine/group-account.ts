@@ -1,6 +1,5 @@
 // Group setup checks a usable account first (DESIGN-chat-system, Who pays): each turn in a group runs on the account of the person who asked, so someone with no account learns it only when an agent fails to answer them.
 // When a person or an agent joins a group, anyone an agent there could not answer is named in one line. Nothing is refused: they can still read and talk to the people there, and a line appears once.
-import { createHash } from "node:crypto";
 import { BRIDGE_PREFIX } from "./handlers/bridge.ts";
 import type { AgentPost } from "./handlers/bridge.ts";
 
@@ -36,7 +35,7 @@ export async function checkGroupAccount(d: GroupAccountDeps, threadId: string, p
   const nameOf = (id: string): string => list?.principals?.find((p) => p.id === id)?.name?.split(" ")[0] || "This person";
   for (const person of missing) {
     // the same id for the same person in the same chat, so a replay or a second agent joining says it once
-    const clientId = BRIDGE_PREFIX + createHash("sha256").update(`group-account|${threadId}|${person}`).digest("hex").slice(0, 24);
+    const clientId = BRIDGE_PREFIX + `${threadId}${person}`.toLowerCase().replace(/[^a-z0-9]/g, "");
     const actingFor = got.thread.starter ?? person;
     try { await d.postAs(agents[0]!, { actingFor, threadId, body: "", mentions: [], clientId, blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: NO_ACCOUNT_LINE(nameOf(person)) } }] }); }
     catch (e) { d.log?.("the group's account check could not be shown in the chat", { threadId, error: e instanceof Error ? e.message : String(e) }); }

@@ -1,12 +1,12 @@
 // A capability that only refuses (host/src/routes/deferred.ts) is never offered to an agent, on the MCP server or in a turn: the list follows DEFERRED_CAPS, so Sites comes back when its handlers go live, with no name to remove.
 import test from "node:test";
 import assert from "node:assert/strict";
-import "../../sites/impl.ts";
-import "../../vault/impl.ts";
-import { DEFERRED_CAPS } from "../../../host/src/routes/deferred.ts";
-import { toolsFor, searchTools } from "../../../agent/src/tools/access.ts";
-import { createEngineApiTools } from "../../engine/api-tools.ts";
-import { loadGenerated } from "../projections.ts";
+import "../../modules/sites/impl.ts";
+import "../../modules/vault/impl.ts";
+import { DEFERRED_CAPS } from "../src/routes/deferred.ts";
+import { toolsFor, searchTools } from "../../agent/src/tools/access.ts";
+import { createEngineApiTools } from "../../modules/engine/api-tools.ts";
+import { loadGenerated } from "../../modules/mcp/projections.ts";
 
 const ctx = { space: "spc_1", agentId: "agt_1", asker: "per_1", thread: { threadId: "T1", kind: "chat" as const, planMode: false } };
 const offered = (): { names: string[]; searchable: ReturnType<typeof toolsFor>["searchable"] } => {
