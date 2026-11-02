@@ -3,12 +3,12 @@
 // own install or their ~/.claude, ~/.codex and ~/.grok sign-ins: a person's own copy is found first (cli-programs.ts) and this folder is looked in last.
 // A download goes only to the vendor's hosts, is checked against the pinned size and SHA-256 before it is unpacked, and the unpacked program is checked again before it is made executable. Everything is
 // written into a hidden folder beside the final one and renamed into place in one step, so a failed, partial or cut-short install leaves nothing a lookup would pick up.
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import zlib from "node:zlib";
+import { randomHex, sha256Stream } from "../../kernel/src/log/hash.ts";
 import { ENGINE_PINS, pinOf } from "./engine-pins.ts";
 import type { EngineBuild, EnginePin, EnginePlatform } from "./engine-pins.ts";
 
@@ -97,7 +97,7 @@ export async function installEngine(program: string, o: InstallOptions): Promise
   try { fs.mkdirSync(home, { recursive: true, mode: 0o755 }); } catch (e) { throw diskOr(e, "the engines folder could not be made"); }
   sweepParts(home);
   // A hidden folder beside the final one: on the same disk, so the rename below is one step, and never on any PATH.
-  const part = path.join(home, `.part-${process.pid}-${crypto.randomBytes(4).toString("hex")}`);
+  const part = path.join(home, `.part-${process.pid}-${randomHex(4)}`);
   try {
     fs.mkdirSync(part, { mode: 0o700 });
     const packed = path.join(part, `${pin.program}.zst`);
@@ -154,7 +154,7 @@ async function download(build: EngineBuild, hosts: readonly string[], to: string
       res = r;
     }
     if (res === null || res.body === null) throw new EngineInstallError("failed", "the download was redirected too many times");
-    const hash = crypto.createHash("sha256");
+    const hash = sha256Stream();
     let done = 0;
     const meter = new Transform({
       transform(chunk: Buffer, _enc, cb) {
@@ -168,7 +168,7 @@ async function download(build: EngineBuild, hosts: readonly string[], to: string
     });
     try { await pipeline(Readable.fromWeb(res.body as import("node:stream/web").ReadableStream), meter, fs.createWriteStream(to, { flags: "wx", mode: 0o600 }), { signal: abort.signal }); }
     catch (e) { if (e instanceof EngineInstallError) throw e; if (isDisk(e)) throw diskOr(e, "the download could not be written"); throw offline(e, stalled); }
-    if (done !== build.size || hash.digest("hex") !== build.sha256) throw new EngineInstallError("checksum", "the download is not the pinned file, so it was not used");
+    if (done !== build.size || hash.hex() !== build.sha256) throw new EngineInstallError("checksum", "the download is not the pinned file, so it was not used");
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -176,7 +176,7 @@ async function download(build: EngineBuild, hosts: readonly string[], to: string
 
 /** Unpacks the checked file with zstd (Node's own), stopping at the pinned size; the program must hash to the pinned SHA-256. */
 async function unpack(from: string, to: string, build: EngineBuild): Promise<void> {
-  const hash = crypto.createHash("sha256");
+  const hash = sha256Stream();
   let n = 0;
   const cap = new Transform({
     transform(chunk: Buffer, _enc, cb) {
@@ -190,7 +190,7 @@ async function unpack(from: string, to: string, build: EngineBuild): Promise<voi
   if (!unzstd) throw new EngineInstallError("failed", "this Node cannot unpack zstd");
   try { await pipeline(fs.createReadStream(from), unzstd(), cap, fs.createWriteStream(to, { flags: "wx", mode: 0o600 })); }
   catch (e) { if (e instanceof EngineInstallError) throw e; if (isDisk(e)) throw diskOr(e, "the program could not be written"); throw new EngineInstallError("checksum", "the download could not be unpacked, so it was not used"); }
-  if (n !== build.binarySize || hash.digest("hex") !== build.binarySha256) throw new EngineInstallError("checksum", "the unpacked program is not the pinned one, so it was not used");
+  if (n !== build.binarySize || hash.hex() !== build.binarySha256) throw new EngineInstallError("checksum", "the unpacked program is not the pinned one, so it was not used");
 }
 
 /** Hidden folders an install that was cut short left (the process ended mid-download). One younger than an hour may be another Vyre's install in progress and is left alone. */
