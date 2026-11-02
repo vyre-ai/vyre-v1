@@ -9,7 +9,7 @@ import { recordWork, sessionWorkKey } from "../../agent/src/tools/work-cards.ts"
 import type { McpCaller, McpServer, McpServerDeps } from "../../agent/src/mcp/types.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { onAgentDeleted, onHoldAnswered } from "./handlers/oauth.ts";
+import { onAgentDeleted, onHoldAnswered, onKeyAnswered } from "./handlers/oauth.ts";
 import type { OauthCtx } from "./handlers/oauth.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { bindEndpoint, bindServer, boundServer, driverForToken, ensure, insertSession, isLive, loadGenerated, mintId, outsideCaller, sessionBy, touchSession } from "./projections.ts";
@@ -249,7 +249,9 @@ export const consumers = {
   /** An agent went to Trash, whatever the way: its sign-in ends with it. */
   "mcp.agent_gone": { on: ["agent.deleted"], run: (ctx: McpCtx, event: { payload: { agentId?: unknown } }): string[] => onAgentDeleted(ctx, event) },
   /** A person answered a call an outside agent was held on. */
-  "mcp.hold_answered": { on: ["gate.approved", "gate.denied", "gate.expired"], run: (ctx: OauthCtx, event: { name: string; payload: { taskId?: unknown; mode?: unknown; note?: unknown } }): Promise<string[]> => onHoldAnswered(ctx, event) },
+  "mcp.hold_answered": { on: ["gate.approved", "gate.denied", "gate.expired"], run: (ctx: OauthCtx, event: { name: string; payload: { taskId?: unknown; holdId?: unknown; mode?: unknown; note?: unknown; askedBy?: unknown } }): Promise<string[]> => onHoldAnswered(ctx, event) },
+  /** A key an outside agent asked a person to paste was saved or declined. */
+  "mcp.key_answered": { on: ["vault.request_fulfilled", "vault.request_declined"], run: (ctx: OauthCtx, event: { name: string; payload: { requestId?: unknown; name?: unknown; note?: unknown; agentId?: unknown; threadId?: unknown } }): Promise<string[]> => onKeyAnswered(ctx, event) },
 };
 
 export { bindEndpoint, bindServer };

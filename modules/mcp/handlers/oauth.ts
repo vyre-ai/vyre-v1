@@ -155,15 +155,47 @@ export function onAgentDeleted(ctx: McpCtx, event: { payload: { agentId?: unknow
   return ended;
 }
 
+/** The answer of a call an outside agent asked its person for, as text in its queue: cut short, never a secret (the Gate keeps no answer of a vault.* call). */
+const ANSWER_CHARS = 1700;
+async function answerOf(ctx: OauthCtx, holdId: unknown): Promise<string> {
+  if (typeof holdId !== "string" || !ctx.call) return "";
+  try {
+    const got = (await ctx.call("gate.result.take", { holdId })) as { found?: boolean; result?: unknown } | null;
+    if (!got?.found || got.result === undefined || got.result === null) return "";
+    const text = JSON.stringify(got.result);
+    return ` The answer: ${text.length > ANSWER_CHARS ? `${text.slice(0, ANSWER_CHARS - 1)}…` : text}`;
+  } catch { return ""; }
+}
+
 /** A person answered a call an outside agent was held on: the answer waits in its queue, because nothing can reach it. A call that was never an outside agent's finds no row here. Safe to repeat: the queue keeps one job per task and kind. */
-export async function onHoldAnswered(ctx: OauthCtx, event: { name: string; payload: { taskId?: unknown; mode?: unknown; note?: unknown } }): Promise<string[]> {
+export async function onHoldAnswered(ctx: OauthCtx, event: { name: string; payload: { taskId?: unknown; holdId?: unknown; mode?: unknown; note?: unknown; askedBy?: unknown } }): Promise<string[]> {
   ensure(ctx.db);
   const taskId = event.payload.taskId;
   if (typeof taskId !== "string" || !ctx.call) return [];
   const row = (ctx.db.all("SELECT agent_id, person, thread_id, tool FROM mcp_activity WHERE task_id = ? AND outcome = 'held' ORDER BY at DESC LIMIT 1", taskId) as Row[])[0];
   if (!row) return [];
   const yes = event.name === "gate.approved";
-  const text = yes ? `Approved. ${String(row["tool"])} ran.` : event.name === "gate.expired" ? `Nobody answered. ${String(row["tool"])} did not run.` : `Not approved. ${String(row["tool"])} did not run.${typeof event.payload.note === "string" ? ` ${event.payload.note}` : ""}`;
+  // a call the agent asked its person for ran as that person: its answer goes back with the yes (docs/ask-the-person.md)
+  const asked = event.payload.askedBy !== undefined;
+  const ran = asked ? `${String(row["tool"])} ran as the person you act for.${await answerOf(ctx, event.payload.holdId)}` : `${String(row["tool"])} ran.`;
+  const text = yes ? `Approved. ${ran}` : event.name === "gate.expired" ? `Nobody answered. ${String(row["tool"])} did not run.` : `Not approved. ${String(row["tool"])} did not run.${typeof event.payload.note === "string" ? ` ${event.payload.note}` : ""}`;
   await ctx.call("agents.outside.enqueue", { agentId: String(row["agent_id"]), kind: "answer", taskId, ...(row["thread_id"] ? { threadId: String(row["thread_id"]) } : {}), asker: String(row["person"]), title: yes ? "Approved" : "Not approved", text });
   return [taskId];
+}
+
+/**
+ * A key an outside agent asked a person to paste was saved or declined (vault_item_put from outside, docs/ask-the-person.md). An agent in a chat is told there (the engine mentions it); one with no chat is told
+ * in its queue. It gets the key's name to pass as a handle, never the value.
+ */
+export async function onKeyAnswered(ctx: OauthCtx, event: { name: string; payload: { requestId?: unknown; name?: unknown; note?: unknown; agentId?: unknown; threadId?: unknown } }): Promise<string[]> {
+  ensure(ctx.db);
+  const p = event.payload;
+  if (typeof p.agentId !== "string" || typeof p.requestId !== "string" || p.threadId !== undefined || !ctx.call) return [];
+  const owner = (ctx.db.all("SELECT person FROM mcp_oauth_grants WHERE agent_id = ? ORDER BY created_at DESC LIMIT 1", p.agentId) as Row[])[0];
+  if (!owner) return [];
+  const key = typeof p.name === "string" ? p.name : "the key";
+  const yes = event.name === "vault.request_fulfilled";
+  const text = yes ? `The key was saved in the Vault. Pass #${key} where a handle goes; the value stays in the Vault.` : `The key ${key} was not added.${typeof p.note === "string" ? ` ${p.note}` : ""}`;
+  await ctx.call("agents.outside.enqueue", { agentId: p.agentId, kind: "answer", asker: String(owner["person"]), title: yes ? "Key saved" : "Key not added", text });
+  return [p.requestId];
 }

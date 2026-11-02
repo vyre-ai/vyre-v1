@@ -214,9 +214,11 @@ export interface Hold {
   result?: unknown;
   /** The automation step the call came from. */
   step?: StepRef;
+  /** Ask the person: the agent that asked the person this hold runs as (principal). Only that person approves it, and it runs as them. */
+  askedBy?: PrincipalRef;
 }
 export interface StepRef { automationId: string; nodeId: string; defHash: string; ask?: boolean }
-const HOLD_SELECT_EXTRA = ", result, step";
+const HOLD_SELECT_EXTRA = ", result, step, asked_by";
 const HOLD_COLS = `id, act, cap_name, cap_version, input, input_hash, payload_hash, principal_kind, principal_id, acting_for, decision_id, run_id, thread_id, task_id, state, summary, approver, rule,
   created_at, expires_at, backstop_at, backstop_schedule, expire_schedule, escalated_at, sending_at, decided_at, decided_by, possibly_sent, error`;
 
@@ -233,6 +235,7 @@ function holdFrom(r: Raw): Hold {
   };
   const res = str(r.result); if (res) h.result = parse<unknown>(res, null);
   const stp = str(r.step); if (stp) h.step = JSON.parse(stp) as StepRef;
+  const ab = str(r.asked_by); if (ab) h.askedBy = parse<PrincipalRef>(ab, { kind: "agent", id: "" });
   const af = str(r.acting_for); if (af) h.actingFor = af;
   const run = str(r.run_id); if (run) h.runId = run;
   const th = str(r.thread_id); if (th) h.threadId = th;
@@ -263,10 +266,10 @@ export function holdsWhere(db: Db, where = "", ...args: unknown[]): Hold[] {
 const n = (v: unknown): unknown => (v === undefined ? null : v);
 export function insertHold(db: Db, h: Hold): void {
   db.run(
-    `INSERT INTO gate_holds (${HOLD_COLS}, step) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO gate_holds (${HOLD_COLS}, step, asked_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     h.id, h.act, h.capName, h.capVersion, JSON.stringify(h.input ?? null), h.inputHash, h.payloadHash, h.principal.kind, h.principal.id, n(h.actingFor), h.decisionId, n(h.runId), n(h.threadId),
     h.taskId, h.state, h.summary, JSON.stringify(h.approver), JSON.stringify(h.rule), h.createdAt, h.expiresAt, n(h.backstopAt), n(h.backstopSchedule), n(h.expireSchedule), n(h.escalatedAt),
-    n(h.sendingAt), n(h.decidedAt), n(h.decidedBy), h.possiblySent ? 1 : 0, n(h.error), h.step ? JSON.stringify(h.step) : null,
+    n(h.sendingAt), n(h.decidedAt), n(h.decidedBy), h.possiblySent ? 1 : 0, n(h.error), h.step ? JSON.stringify(h.step) : null, h.askedBy ? JSON.stringify(h.askedBy) : null,
   );
 }
 /** Write the mutable columns of a hold. */
@@ -282,7 +285,7 @@ export function saveHold(db: Db, h: Hold): void {
 export function holdOut(h: Hold): Record<string, unknown> {
   return clean({
     id: h.id, act: h.act, capName: h.capName, taskId: h.taskId, runId: h.runId, principal: h.principal, actingFor: h.actingFor, state: h.state, payloadHash: h.payloadHash,
-    createdAt: h.createdAt, expiresAt: h.expiresAt,
+    createdAt: h.createdAt, expiresAt: h.expiresAt, askedBy: h.askedBy,
   });
 }
 
@@ -323,6 +326,41 @@ export function summaryLine(a: ActDef, capName: string, input: unknown): string 
 /** The exact preview (spec 2.14): the whole input, as the act kind's block, so the approver sees what will go out. */
 export function previewBlocks(a: ActDef, capName: string, input: unknown): { type: string; v: number; data: unknown }[] {
   return [{ type: a.block, v: 1, data: { act: a.key, cap: capName, input } }];
+}
+
+// ---- ask the person (docs/ask-the-person.md) ----
+
+/** A field whose name says it holds a secret. In a held call an agent asked for, its value is a Vault handle (#NAME), never the secret itself. */
+const SECRET_KEY = /(secret|password|passwd|passphrase|token|api_?key|private_?key|credential)/i;
+const HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
+
+/** The first path in this input whose name says secret and whose value is not a handle, or null. An agent never carries a secret value into an ask: the card would show it and the log would keep it. */
+export function rawSecretIn(input: unknown, path = ""): string | null {
+  if (Array.isArray(input)) {
+    for (const [i, v] of input.entries()) { const hit = rawSecretIn(v, `${path}/${i}`); if (hit) return hit; }
+    return null;
+  }
+  if (!isObj(input)) return null;
+  for (const [k, v] of Object.entries(input)) {
+    const at = `${path}/${k}`;
+    if (SECRET_KEY.test(k) && !/handle$/i.test(k) && typeof v === "string" && v !== "" && !HANDLE.test(v)) return at;
+    const hit = rawSecretIn(v, at);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** One input value as a line on the card: text as it is, anything else as compact JSON. */
+const shown = (v: unknown): string => (typeof v === "string" ? v : v === undefined ? "" : JSON.stringify(v));
+
+/**
+ * The card of an ask: what will happen, which agent asked, that it runs as you, and every input exactly, one row each (nested values as JSON). Secrets are handles by then (rawSecretIn refused
+ * anything else), so nothing on it is a secret. Drawn by the app as key/value pairs.
+ */
+export function askBlocks(o: { what: string; agentName: string; capName: string; input: unknown }): { type: string; v: number; data: unknown }[] {
+  const rows: [string, string][] = [["What happens", o.what], ["Asked by", o.agentName], ["Runs as", "You, once, exactly as shown"], ["Tool", o.capName]];
+  const inputs: [string, string][] = isObj(o.input) ? Object.entries(o.input).filter(([k]) => k !== "idempotencyKey").map(([k, v]) => [k, cut(shown(v), 400)]) : [["input", cut(shown(o.input), 400)]];
+  return [{ type: "pairs", v: 1, data: { pairs: rows } }, { type: "table", v: 1, data: { columns: ["Input", "Value"], rows: inputs } }];
 }
 
 /** Who approves: the strictest rule names a role or the owner, or the asker (the person the agent works for, else the agent's owner). */

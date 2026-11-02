@@ -7,6 +7,8 @@ import { checkSql } from "../../../host/src/ctx/db.ts";
 import type { Db } from "../projections.ts";
 
 export const MIGRATION = fileURLToPath(new URL("../migrations/0001_vault_requests.sql", import.meta.url));
+/** Later migrations only add columns. */
+export const ADDED = [fileURLToPath(new URL("../migrations/0002_handle_only.sql", import.meta.url))];
 type Cell = string | number | null;
 type Row = Record<string, Cell>;
 interface Col { name: string; notNull: boolean }
@@ -24,12 +26,13 @@ export function columns(sql: string): Map<string, { cols: Col[]; pk: string }> {
     }
     out.set(m[1]!, { cols, pk });
   }
+  for (const m of text.matchAll(/ALTER TABLE (\w+) ADD COLUMN (\w+)([^;]*);/g)) out.get(m[1]!)?.cols.push({ name: m[2]!, notNull: false });
   return out;
 }
 
 export class MemoryDb implements Db {
   private tables = new Map<string, Row[]>();
-  private schema = columns(readFileSync(MIGRATION, "utf8"));
+  private schema = columns([MIGRATION, ...ADDED].map((f) => readFileSync(f, "utf8")).join("\n"));
   /** every statement seen, for the tests that check what was run */
   statements: string[] = [];
 

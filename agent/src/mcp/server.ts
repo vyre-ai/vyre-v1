@@ -13,7 +13,9 @@ import type { Invoke } from "../../../host/src/invoke.ts";
 import { makeError } from "../../../host/src/routes/errors.ts";
 import { INTERNAL_ERROR, INVALID_PARAMS, INVALID_REQUEST, METHOD_NOT_FOUND, PARSE_ERROR, err, isRequest, ok } from "./jsonrpc.ts";
 import type { Id, Request, Response } from "./jsonrpc.ts";
-import { outsideAllows } from "./outside.ts";
+import { outsideAllows, outsideDoor } from "./outside.ts";
+import { searchTools } from "../tools/access.ts";
+import { HostError } from "../../../host/src/routes/errors.ts";
 import { heldCard, workCardOf } from "../tools/work-cards.ts";
 import type { McpCaller, McpHttpRequest, McpHttpResponse, McpServer, McpServerDeps } from "./types.ts";
 
@@ -30,6 +32,10 @@ const OUTSIDE_INSTRUCTIONS = `${INSTRUCTIONS} You are a member of this Space. Ca
 /** The tool a client that lists once uses for everything tool_search found: most MCP clients never list again in a session. */
 const USE_TOOL = "use_tool";
 const USE_TOOL_VIEW = { name: USE_TOOL, description: "Call a tool that tool_search found, by name.", inputSchema: { type: "object", properties: { name: { type: "string" }, arguments: { type: "object" } }, required: ["name"] }, annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true } };
+/** What tool_search shows an outside agent for putting a key in the Vault: names only. */
+const PASTE_SCHEMA = { type: "object", properties: { name: { type: "string", description: "The key's name, like Google_Client_Secret" }, fieldKeys: { type: "array", items: { type: "string" } }, folderId: { type: "string" }, reason: { type: "string" } }, required: ["name"] };
+const PASTE_NOTE = "Asks a person to paste the value in their own app. Send names only; you get the key's name back to pass as a handle, never the value.";
+const ASK_NOTE = "Only a person does this here. Calling it asks the person you act for; it runs as them once they approve.";
 /** Listed for an outside agent from the start, so it can get work and answer without a search. */
 const OUTSIDE_PRELOAD: readonly string[] = ["agents_next"];
 /** Listed for a CLI engine from the start: "make me a file" is a first-hour ask, and it needs a new file and a place to put it. */
@@ -37,6 +43,8 @@ const ENGINE_PRELOAD: readonly string[] = ["files_tree", "files_create", "files_
 
 interface Session {
   caller: McpCaller;
+  /** The pipeline as this caller: the real principal and origin. */
+  invoke: Invoke;
   tools: ToolSession;
   ctx: ToolCtx;
   tokenKey: string;
@@ -92,7 +100,8 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     const invoke: Invoke = (cap, input, seed) => {
       const outsideCall = caller.kind === "outside";
       const { thread, ...rest } = seed;
-      return deps.invoke(cap, input, { ...rest, principal: caller.principal, origin: "mcp", space: caller.space, ...(thread !== undefined && (!outsideCall || thread.startsWith("thr_")) ? { thread } : {}), ...(outsideCall ? { auditAll: true } : {}) });
+      // An outside agent stopped at a role its person holds asks that person (docs/ask-the-person.md); the door says 'always' for what only a person does.
+      return deps.invoke(cap, input, { ...rest, principal: caller.principal, origin: "mcp", space: caller.space, ...(thread !== undefined && (!outsideCall || thread.startsWith("thr_")) ? { thread } : {}), ...(outsideCall ? { auditAll: true, askPerson: seed.askPerson ?? "if_refused" } : {}) });
     };
     const tools = createToolSession({
       catalog: deps.catalog, defaults: deps.defaults, invoke,
@@ -114,7 +123,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     };
     let end = (): void => undefined;
     const gone = new Promise<"gone">((resolve) => { end = () => resolve("gone"); });
-    return { caller, tools, ctx, tokenKey, checkedAt: now(), protocol: PROTOCOL_VERSIONS[0] ?? "2025-06-18", clientName, gone, end };
+    return { caller, invoke, tools, ctx, tokenKey, checkedAt: now(), protocol: PROTOCOL_VERSIONS[0] ?? "2025-06-18", clientName, gone, end };
   }
 
   const dropSession = (s: Session): void => {
@@ -166,7 +175,13 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     const traceId = s.ctx.trace?.traceId ?? hex(16);
 
     if (!allowed(s, t)) {
-      const error = makeError("permission.role_lacks_permission", traceId, { message: "Only a person can do that here. Ask the person you act for.", details: { tool: t.name, reason: "person_only" } });
+      const door = outsideDoor(t);
+      if (door === "ask") return askThePerson(s, t, args, traceId);
+      if (door === "paste") return pasteKey(s, t, args, traceId);
+      const message = t.toolset === "vault"
+        ? "The Vault stays in the person's app. To add a key, call vault_item_put with its name and field names, and the person pastes the value."
+        : "That runs on a Vyre computer. Use your own machine for it.";
+      const error = makeError("permission.role_lacks_permission", traceId, { message, details: { tool: t.name, reason: "not_from_outside" } });
       deps.onCall?.(s.caller, t.name, "error", { cap: t.cap, threadId: s.ctx.thread.threadId });
       return { result: textResult({ error }, true, { error }) };
     }
@@ -178,7 +193,12 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         return { result: textResult({ error }, true, { error }) };
       }
       const found = s.tools.search(s.ctx, q).filter((f) => allowed(s, f)).slice(0, SEARCH_LIMIT);
-      const data = { tools: found.map((f) => ({ name: f.name, summary: f.summary, toolset: f.toolset, inputSchema: f.inputSchema })) };
+      const data: { tools: Array<Record<string, unknown>> } = { tools: found.map((f) => ({ name: f.name, summary: f.summary, toolset: f.toolset, inputSchema: f.inputSchema })) };
+      // what only a person does is found too, marked: calling it asks the person this agent acts for
+      if (s.caller.kind === "outside") {
+        const asks = searchTools(deps.catalog.all.filter((f) => f.local === "none" && outsideDoor(f) !== "open" && outsideDoor(f) !== "off"), q, SEARCH_LIMIT);
+        for (const f of asks) data.tools.push({ name: f.name, summary: f.summary, toolset: f.toolset, inputSchema: outsideDoor(f) === "paste" ? PASTE_SCHEMA : f.inputSchema, asksPerson: true, note: outsideDoor(f) === "paste" ? PASTE_NOTE : ASK_NOTE });
+      }
       deps.onCall?.(s.caller, t.name, "ok");
       return { result: textResult({ data }, false, { data }) };
     }
@@ -206,6 +226,69 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     }
     deps.onCall?.(s.caller, t.name, "error", { cap: t.cap, threadId });
     return { result: textResult({ error: out.error }, true, { error: out.error }) };
+  }
+
+  /**
+   * Ask the person (docs/ask-the-person.md): what only a person does here waits for the person this agent acts for, as an Approve task in Needs you and a card in the chat it works in. The pipeline
+   * checks that person's own access first and refuses when they cannot do it either. On their yes it runs as them, once, with exactly this input, and the answer comes back through agents_next.
+   */
+  async function askThePerson(s: Session, t: ToolDef, args: Record<string, unknown>, traceId: string): Promise<{ result: Record<string, unknown> }> {
+    const threadId = s.ctx.thread.threadId;
+    const seed = { space: s.caller.space, principal: s.caller.principal, actingFor: s.ctx.asker, origin: "mcp", askPerson: "always" as const, ...(s.ctx.trace ? { trace: s.ctx.trace } : { trace: { traceId, spanId: hex(8) } }), ...(threadId.startsWith("thr_") ? { thread: threadId } : {}), ...(s.ctx.provider ? { provider: s.ctx.provider } : {}) };
+    let out: Awaited<ReturnType<Invoke>> | "gone";
+    try { out = await Promise.race([s.invoke(t.cap, args, seed), s.gone]); }
+    catch (e) {
+      const error = e instanceof HostError ? e.error : makeError("internal.unexpected", traceId, { message: "Something went wrong on our side." });
+      deps.onCall?.(s.caller, t.name, "error", { cap: t.cap, threadId });
+      return { result: textResult({ error }, true, { error }) };
+    }
+    if (out === "gone") { const error = makeError("permission.revoked", traceId, { message: "This connection was removed." }); return { result: textResult({ error }, true, { error }) }; }
+    if (out.status === "held") {
+      deps.onCall?.(s.caller, t.name, "held", { cap: t.cap, threadId, taskId: out.taskId, card: { ...heldCard(t.cap, out.taskId, args), lead: "Asks you" } });
+      const structured = { held: true, asksPerson: true, taskId: out.taskId, message: "Only the person you act for can do this here, so it waits for them. Approve runs it as them, once, exactly as you sent it. Call agents_next for the answer." };
+      return { result: textResult(structured, true, structured) };
+    }
+    // nothing parks a call that ran: an ask always waits for the person
+    const error = makeError("internal.unexpected", traceId, { message: "Something went wrong on our side." });
+    deps.onCall?.(s.caller, t.name, "error", { cap: t.cap, threadId });
+    return { result: textResult({ error }, true, { error }) };
+  }
+
+  /**
+   * Putting a key in the Vault from outside becomes a key request (vault.request): a person who manages the folder pastes the value in their own app, where it is encrypted and stored. The agent sends
+   * names only, gets the key's name back to pass as a handle, and is never given Use on it. A value in the call is refused, not stored or echoed.
+   */
+  async function pasteKey(s: Session, t: ToolDef, args: Record<string, unknown>, traceId: string): Promise<{ result: Record<string, unknown> }> {
+    const threadId = s.ctx.thread.threadId;
+    const refuse = (message: string, reason: string): { result: Record<string, unknown> } => {
+      const error = makeError("validation.bad_input", traceId, { message, details: { tool: t.name, reason } });
+      deps.onCall?.(s.caller, t.name, "error", { cap: t.cap, threadId });
+      return { result: textResult({ error }, true, { error }) };
+    };
+    const fields = Array.isArray(args["fields"]) ? (args["fields"] as unknown[]) : [];
+    if (fields.some((f) => f !== null && typeof f === "object" && typeof (f as { value?: unknown }).value === "string" && (f as { value: string }).value !== "")) {
+      return refuse("Never send a secret value. Send the key's name and its field names; the person pastes the values in their own app.", "value_sent");
+    }
+    const keys = [...fields.map((f) => (f !== null && typeof f === "object" ? (f as { key?: unknown }).key : f)), ...(Array.isArray(args["fieldKeys"]) ? (args["fieldKeys"] as unknown[]) : [])].filter((k): k is string => typeof k === "string" && k !== "");
+    if (typeof args["name"] !== "string" || args["name"] === "") return refuse("Name the key, like Google_Client_Secret.", "name_required");
+    const input = {
+      name: args["name"], reason: typeof args["reason"] === "string" && args["reason"].trim() ? args["reason"] : "Asked for by an outside agent you connected.", handleOnly: true,
+      ...(keys.length > 0 ? { fields: [...new Set(keys)] } : {}), ...(typeof args["folderId"] === "string" ? { folderId: args["folderId"] } : {}),
+      idempotencyKey: typeof args["idempotencyKey"] === "string" && args["idempotencyKey"] ? args["idempotencyKey"] : `paste:${hex(12)}`,
+    };
+    const seed = { space: s.caller.space, principal: s.caller.principal, actingFor: s.ctx.asker, origin: "mcp", askPerson: undefined, ...(s.ctx.trace ? { trace: s.ctx.trace } : {}), ...(threadId.startsWith("thr_") ? { thread: threadId } : {}), ...(s.ctx.provider ? { provider: s.ctx.provider } : {}) };
+    let out: Awaited<ReturnType<Invoke>>;
+    try { out = await s.invoke("vault.request", input, seed); }
+    catch (e) {
+      const error = e instanceof HostError ? e.error : makeError("internal.unexpected", traceId, { message: "Something went wrong on our side." });
+      deps.onCall?.(s.caller, t.name, "error", { cap: "vault.request", threadId });
+      return { result: textResult({ error }, true, { error }) };
+    }
+    const request = out.status === "ok" ? (out.output as { request?: { id?: unknown; taskId?: unknown; name?: unknown } } | null)?.request : undefined;
+    const taskId = typeof request?.taskId === "string" ? request.taskId : undefined;
+    deps.onCall?.(s.caller, t.name, "held", { cap: "vault.request", threadId, ...(taskId ? { taskId } : {}) });
+    const structured = { held: true, asksPerson: true, ...(typeof request?.id === "string" ? { requestId: request.id } : {}), handle: `#${String(input.name)}`, message: `Waiting for a person to paste the value in their own app. Once saved, pass #${String(input.name)} where a handle goes. You never get the value. Call agents_next for the answer.` };
+    return { result: textResult(structured, true, structured) };
   }
 
   async function dispatch(s: Session | null, req: Request): Promise<Response | null> {

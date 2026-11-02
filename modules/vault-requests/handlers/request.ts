@@ -67,7 +67,7 @@ async function companyFolder(ctx: VaultReqCtx): Promise<string | undefined> {
   return id ?? undefined;
 }
 
-export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fields?: string[]; reason: string; forRun?: string; folderId?: string; idempotencyKey: string }) {
+export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fields?: string[]; reason: string; forRun?: string; folderId?: string; handleOnly?: boolean; idempotencyKey: string }) {
   const trace = ctx.trace.traceId;
   const requester = requesterOf(ctx);
   const name = input.name.trim();
@@ -115,8 +115,9 @@ export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fie
     taskIds.push(taskId);
   }
   ctx.db.run(
-    `INSERT INTO ${TABLE} (id, name, fields_json, reason, requester_kind, requester_id, for_run, folder_id, state, idem_key, managers_json, task_ids_json, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO ${TABLE} (id, name, fields_json, reason, requester_kind, requester_id, for_run, folder_id, state, idem_key, managers_json, task_ids_json, at, handle_only) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, name, JSON.stringify(fields), input.reason.trim(), requester.kind, requester.id, input.forRun ?? null, input.folderId ?? null, "waiting", input.idempotencyKey, JSON.stringify(managers), JSON.stringify(taskIds), ctx.now(),
+    input.handleOnly === true ? 1 : 0,
   );
   const row = requestById(ctx, id)!;
   ctx.emit("vault.requested", id, { requestId: id, name, fields, requester, ...(input.forRun ? { forRun: input.forRun } : {}), taskId: taskIds[0]! });
@@ -169,6 +170,9 @@ async function closeCards(ctx: VaultReqCtx, row: RequestRow, to: "done" | "cance
   }
 }
 
+/** The agent that asked, when an agent did: an agent outside Vyre has no chat to be told in, so the answer reaches it by its id (modules/mcp). */
+const agentOf = (row: RequestRow): { agentId?: string } => (row.requester_kind === "agent" ? { agentId: row.requester_id } : {});
+
 /** A manager decides a request that is still waiting. */
 function decidable(ctx: VaultReqCtx, requestId: string): { row: RequestRow; me: string } {
   const { row, asManager } = visible(ctx, requestId);
@@ -206,6 +210,8 @@ export async function requestsFulfil(ctx: VaultReqCtx, input: { requestId: strin
 
   // a company key goes on the card from the person to the Vault, into the Restricted folder, and the agent that asked gets nothing: not Use, not the handle's value. It carries on through the connector, on the server
   if (isCompanyKey(`#${row.name}`)) await ctx.call("access.labels.set", { resource: { type: "vault_item", id: itemId }, label: "restricted" });
+  // a requester that asked for the name only (an outside agent) gets no Use on the item: it passes #NAME as a handle to a call a person approves, and holds nothing afterwards
+  else if (row.handle_only === 1) { /* no share */ }
   else try {
     await ctx.call("vault.share", { resource: { type: "vault_item", id: itemId }, subject: { kind: row.requester_kind, id: row.requester_id }, level: "use", idempotencyKey: `${row.id}:use` });
   } catch (e) {
@@ -216,7 +222,7 @@ export async function requestsFulfil(ctx: VaultReqCtx, input: { requestId: strin
   ctx.db.run(`UPDATE ${TABLE} SET state = ?, item_id = ?, decided_by = ?, decided_at = ? WHERE id = ?`, "fulfilled", itemId, me, ctx.now(), row.id);
   const chat = await chatOf(ctx, row);
   // the engine reads the chat, the agent and the asker from this event and tells the agent to carry on there, as the person who asked (the admin who answered may not be in that chat)
-  ctx.emit("vault.request_fulfilled", row.id, { requestId: row.id, itemId, name: row.name, ...(row.for_run ? { forRun: row.for_run } : {}), ...(chat ? { threadId: chat.threadId, ...(chat.agentId ? { agentId: chat.agentId } : {}), ...(chat.asker ? { asker: chat.asker } : {}) } : {}) });
+  ctx.emit("vault.request_fulfilled", row.id, { requestId: row.id, itemId, name: row.name, ...(row.for_run ? { forRun: row.for_run } : {}), ...agentOf(row), ...(chat ? { threadId: chat.threadId, ...(chat.agentId ? { agentId: chat.agentId } : {}), ...(chat.asker ? { asker: chat.asker } : {}) } : {}) });
   await closeCards(ctx, row, "done", "Provided");
   if (row.for_run) {
     try {
@@ -233,7 +239,7 @@ export async function requestsDecline(ctx: VaultReqCtx, input: { requestId: stri
   const note = input.note?.trim() || null;
   ctx.db.run(`UPDATE ${TABLE} SET state = ?, note = ?, decided_by = ?, decided_at = ? WHERE id = ?`, "declined", note, me, ctx.now(), row.id);
   const chat = await chatOf(ctx, row);
-  ctx.emit("vault.request_declined", row.id, { requestId: row.id, name: row.name, ...(row.for_run ? { forRun: row.for_run } : {}), ...(note ? { note } : {}), ...(chat ? { threadId: chat.threadId, ...(chat.agentId ? { agentId: chat.agentId } : {}), ...(chat.asker ? { asker: chat.asker } : {}) } : {}) });
+  ctx.emit("vault.request_declined", row.id, { requestId: row.id, name: row.name, ...(row.for_run ? { forRun: row.for_run } : {}), ...(note ? { note } : {}), ...agentOf(row), ...(chat ? { threadId: chat.threadId, ...(chat.agentId ? { agentId: chat.agentId } : {}), ...(chat.asker ? { asker: chat.asker } : {}) } : {}) });
   await closeCards(ctx, row, "canceled", note ? `Declined: ${note}` : "Declined");
   return { ok: true };
 }

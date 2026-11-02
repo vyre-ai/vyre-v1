@@ -142,11 +142,16 @@ export function createGateHook(d: GateHookDeps): GateHook {
       return { act };
     },
     async park(a) {
+      // Ask the person (docs/ask-the-person.md): the hold is the person's own call, bound to them and this input, and names the agent that asked. gate.release then runs it as the person, never as the agent.
+      const person = a.runAs === "person" && a.seed.actingFor?.startsWith("usr_") ? a.seed.actingFor : undefined;
+      if (a.runAs === "person" && !person) throw fail("internal.unexpected", a.traceId, { message: "Something went wrong on our side.", details: { cap: a.cap.name, why: "ask without a person" } });
+      const runner: Pick<CtxSeed, "principal" | "actingFor"> = person ? { principal: { kind: "person", id: person } } : a.seed;
       const input: Record<string, unknown> = {
-        capName: a.cap.name, capVersion: a.cap.v, input: a.input, payloadHash: payloadHash(a.cap, a.input, a.seed), act: a.act,
-        principal: { kind: a.seed.principal.kind, id: a.seed.principal.id }, decisionId: a.decisionId, idempotencyKey: a.decisionId,
+        capName: a.cap.name, capVersion: a.cap.v, input: a.input, payloadHash: payloadHash(a.cap, a.input, runner), act: a.act,
+        principal: { kind: runner.principal.kind, id: runner.principal.id }, decisionId: a.decisionId, idempotencyKey: a.decisionId,
       };
-      if (a.seed.actingFor) input["actingFor"] = a.seed.actingFor;
+      if (person) input["ask"] = { by: { kind: a.seed.principal.kind, id: a.seed.principal.id }, what: a.cap.summary };
+      else if (a.seed.actingFor) input["actingFor"] = a.seed.actingFor;
       if (a.seed.run) input["runId"] = a.seed.run;
       if (a.seed.thread) input["threadId"] = a.seed.thread;
       if (a.seed.step) input["step"] = a.seed.step;

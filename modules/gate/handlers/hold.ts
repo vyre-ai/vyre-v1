@@ -3,8 +3,8 @@
 // gate.park is called by the invoke pipeline with the payload hash it computed; the Gate stores it with the decision id, writes both onto the task as reserved working notes
 // (tasks.working_notes.set decision_id and payload_hash, once each) and sets two timers: gate.expire at the timeout and one approval.backstop notification at the backstop hour.
 import {
-  ACTS, APPROVER_RANK, RISK_RANK, actOf, allRules, approverFor, clean, effectiveRule, getHold, holdOut, holdsWhere, insertHold, mayHandle, newHoldId, previewBlocks, putRule,
-  raise, readPolicy, saveHold, sha, summaryLine,
+  ACTS, APPROVER_RANK, RISK_RANK, actOf, allRules, approverFor, askBlocks, clean, cut, effectiveRule, getHold, holdOut, holdsWhere, insertHold, mayHandle, newHoldId, previewBlocks, putRule,
+  raise, rawSecretIn, readPolicy, saveHold, sha, summaryLine,
 } from "../projections.ts";
 import { isHostService } from "../../../lib/trust.ts";
 import type { ActDef, GateCtx, Hold, PrincipalRef, RuleRow, Scope } from "../projections.ts";
@@ -29,6 +29,16 @@ async function askerOf(ctx: GateCtx, p: PrincipalRef, actingFor: string | undefi
   return undefined;
 }
 
+/** An agent's name as the person knows it, for the card. Falls back to "An agent". */
+async function nameOf(ctx: GateCtx, p: PrincipalRef): Promise<string> {
+  try {
+    const r = (await ctx.call?.("access.principals.get", { principal: { kind: p.kind, id: p.id } })) as { principal?: { name?: unknown } } | null;
+    const name = r?.principal?.name;
+    if (typeof name === "string" && name.trim()) return cut(name.trim(), 60);
+  } catch { /* the card still says an agent asked */ }
+  return "An agent";
+}
+
 export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   // Only the pipeline parks a call: the Gate hook calls with origin "gate" (as the Space's owner, for the Space itself), the host with svc_host, and only at the top of the call: a capability the Gate hook ran that calls gate.park nested has depth above zero and is refused. The hold names the principal, the capability and the input
   // that gate.release later runs as that principal, so a hold a caller wrote themselves would run anything as anyone (P-SEC_10).
@@ -39,14 +49,24 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   const principal = input.principal as PrincipalRef;
   const a = actOf(input.act);
   const policy = readPolicy(ctx.db);
-  const rule = effectiveRule(ctx.db, principal, a.key, policy);
+  // Ask the person (docs/ask-the-person.md): the hold is the person's own call, so they and only they approve it, whatever rule the act has; nobody else's yes can run something as them.
+  // Unanswered, it is dropped, never passed to a delegate. The agent that asked is named on the card, in the events and on the row.
+  const ask = input.ask as { by: PrincipalRef; what: string } | undefined;
+  if (ask && principal.kind !== "person") raise(ctx, "validation.bad_input", "Only a person is asked.", { reason: "ask_not_person" });
+  if (ask) {
+    const at = rawSecretIn(input.input);
+    if (at) raise(ctx, "validation.bad_input", `Do not send a secret in ${at}. Put it in the Vault first (vault_item_put asks the person to paste it) and pass its handle, like #Google_Client_Secret.`, { reason: "raw_secret", path: at });
+  }
+  const effective = effectiveRule(ctx.db, principal, a.key, policy);
+  const rule = ask ? { ...effective, approvers: "asker", peopleOnly: true, onTimeout: "drop" as const } : effective;
   const now = ctx.now();
   const asker = await askerOf(ctx, principal, input.actingFor);
-  const approver = approverFor(rule.approvers, asker);
+  const approver = ask ? { kind: "person" as const, id: principal.id } : approverFor(rule.approvers, asker);
   const expiresAt = now + rule.afterHours * HOUR;
   const backstopAt = now + rule.emailBackstopHours * HOUR;
   const id = newHoldId();
-  const summary = summaryLine(a, input.capName, input.input);
+  const agentName = ask ? await nameOf(ctx, ask.by) : "";
+  const summary = ask ? cut(`${agentName} asks you to: ${ask.what}`, 120) : summaryLine(a, input.capName, input.input);
 
   const hold: Hold = {
     id, act: a.key, capName: input.capName, capVersion: input.capVersion, input: input.input ?? null, inputHash: await sha(input.input ?? null), payloadHash: input.payloadHash,
@@ -56,13 +76,15 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   if (input.runId) hold.runId = input.runId;
   if (input.threadId) hold.threadId = input.threadId;
   if (input.step) hold.step = input.step;
+  if (ask) hold.askedBy = { kind: ask.by.kind, id: ask.by.id };
   ctx.db.run("UPDATE gate_holds SET result = NULL WHERE result IS NOT NULL AND expires_at < ?", ctx.now());   // an answer nobody collected is not kept past its hold
   insertHold(ctx.db, hold);
 
   let taskId: string;
   try {
     const r = (await ctx.call("tasks.create", clean({
-      kind: "approve", title: `Approve: ${a.title}`, summary, why: rule.reason, assigned: approver, blocks: previewBlocks(a, input.capName, input.input),
+      kind: "approve", title: ask ? cut(`${agentName} asks: ${ask.what}`, 120) : `Approve: ${a.title}`, summary, why: ask ? "Only you can do this here. Approve runs it as you, once, exactly as shown." : rule.reason, assigned: approver,
+      blocks: ask ? askBlocks({ what: ask.what, agentName, capName: input.capName, input: input.input }) : previewBlocks(a, input.capName, input.input),
       source: { kind: "gate", id }, expiresAt, idempotencyKey: `gate:${id}`,
     }))) as { task: { id: string } };
     taskId = r.task.id;
@@ -90,7 +112,7 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   saveHold(ctx.db, hold);
 
   ctx.emit("gate.requested", `task/${taskId}`, clean({
-    holdId: id, act: a.key, capName: input.capName, taskId, principal, actingFor: input.actingFor, runId: input.runId, expiresAt,
+    holdId: id, act: a.key, capName: input.capName, taskId, principal, actingFor: input.actingFor, runId: input.runId, expiresAt, askedBy: hold.askedBy,
   }), { vis: "participants" });
   return clean({ holdId: id, taskId, runId: input.runId });
 }
