@@ -99,6 +99,8 @@ export interface SpanRecord {
 export interface GateHook {
   /** Does a Gate apply to this call (capability `gate` with its `when`)? Null lets the call through. */
   applies(cap: CapabilityDef, input: unknown, seed: CtxSeed): { act: string } | null | Promise<{ act: string } | null>;
+  /** A call the Gate let through on a person's yes failed before it went out: the yes goes back for a corrected retry. */
+  giveBack?(input: unknown): Promise<void>;
   /** Park the call as an approval task (4.6) and return its ids. */
   park(a: { cap: CapabilityDef; input: unknown; seed: CtxSeed; act: string; decisionId: string; traceId: string }): Promise<{ taskId: string; runId?: string }>;
   /**
@@ -373,6 +375,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     try {
       output = await h(ctx, input);   // a throw here is mapped by the outer catch: VyreErr and HostError keep their code, anything else is internal.unexpected
     } catch (e) {
+      // refused before it went out: a person's yes this call spent is handed back, so the corrected retry is still asked for (one successful send per yes)
+      await deps.gate?.giveBack?.(input).catch(() => undefined);
       // events the handler marked afterFailure (a refused sign-in's signin.failed) are written on their own, then the error goes on; nothing else the call buffered is
       const keep = events.filter((ev) => survivors.has(ev));
       if (keep.length) {
@@ -399,7 +403,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
 
     // 7 commit: events, inline projections and the audit row land together
     const finishOutput=SCOPED_RECORD_READS.has(c.name)&&!(seed.preAuth&&isHostService(seed.principal))?await deps.recordAccess?.project(c.name,input,seed,output,traceId):undefined;
-    const audited = shouldAudit(c) || seed.auditAll === true;
+    // an agent's change is audited like any sensitive act, so the log always says which agent did what for whom (a person's own file write is not)
+    const audited = shouldAudit(c) || seed.auditAll === true || (seed.principal.kind === "agent" && c.effects !== "read");
     const targets = audited ? auditTargets(c.name, input, output) : undefined;
     const auditRow: AuditRow | null = audited
       ? { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: did(), reason: "ok", resource, traceId, spanId: trace.spanId, at: t, risk: c.risk, ...(targets ? { targets } : {}) }

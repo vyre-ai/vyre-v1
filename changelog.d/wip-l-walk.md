@@ -19,3 +19,15 @@
 - A thread shows the message it hangs off at the top.
 - A first message sent right after creating your account waits for your Assistant and goes through.
 - Add an agent offers the agents you may add, never another person's Assistant, and one you just made.
+- A Mine Vault folder is yours alone: another person's agent can never reach it, and Who can use it shows only real access.
+- A plain-word yes is spent only when the act goes out. A send refused before it left keeps the yes for a corrected retry in the same turn.
+- An agent acting for you can build Journeys, Automations and record types you may build. They still hold no access until a person turns them on.
+- Share on a Vault item opens a list of people and agents to share it with.
+- Admin activity in Console no longer ends with "Someone".
+- Making a Journey opens it, not the empty Automations page.
+- Every change an agent makes, a file write included, is in the audit log with who it acted for.
+- The /inbox address opens Inbox.
+- Speak to all the agents in a chat, with words like both of you or everyone, and each one answers in its own reply.
+- A Vault item lives in its folder, so a Mine item never inherits the Space's access. Items made before move in once.
+- Opening a Journey works. It crashed the page before.
+- An Automation shows the line Sends from on its page whenever a step sends, not only while it needs something.

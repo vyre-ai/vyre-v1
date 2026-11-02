@@ -85,3 +85,12 @@ test("an invoked listener is a normal turn on its own, and a mentioned listener 
   assert.deepEqual(p.sessions.map((s) => s.spec.agent.id), ["docs"], "the lead did not also answer");
   assert.equal(engine.turns("T")[0]?.asker, "dana");
 });
+
+test("a person who speaks to all the agents gets an answer from each, on its own; plain words still reach only the lead", async () => {
+  const { route } = await import("../../lib/route.ts");
+  const agents = [{ id: "agt_lead", mode: "lead" as const }, { id: "agt_mira", mode: "listen" as const }];
+  const person = { kind: "person" as const, id: "usr_tom" };
+  assert.deepEqual(route({ agents, kind: "chat" }, { author: person, mentions: [], text: "Both of you: one sentence each, please." }).responders, ["agt_lead", "agt_mira"]);
+  assert.deepEqual(route({ agents, kind: "chat" }, { author: person, mentions: [], text: "What should the email say?" }).responders, ["agt_lead"]);
+  assert.deepEqual(route({ agents, kind: "chat" }, { author: { kind: "agent", id: "agt_lead" }, mentions: [], text: "both of you", depth: 1 }).responders, [], "an agent cannot fan a message out");
+});

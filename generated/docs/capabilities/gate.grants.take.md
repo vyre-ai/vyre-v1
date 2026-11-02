@@ -51,6 +51,7 @@ type In = {
 ```ts
 type Out = {
   granted: boolean;
+  spent?: Array<string>;
 };
 ```
 
@@ -93,7 +94,10 @@ type Out = {
     }
   },
   "output": {
-    "granted": true
+    "granted": true,
+    "spent": [
+      "example"
+    ]
   }
 }
 ```

@@ -320,8 +320,8 @@ export function mentionsIn(text: string, candidates: readonly Candidate[]): { ki
 }
 
 /** The agents that will answer a message, from the same function the engine uses (lib/route.ts), so the line under the field never disagrees. */
-export function respondersFor(t: Thread, mentions: readonly { kind: "person" | "agent"; id: string }[], meId: string): string[] {
-  return route({ agents: t.agents.map((a) => ({ id: a.agentId, mode: a.mode })) }, { author: { kind: "person", id: meId }, mentions }).responders;
+export function respondersFor(t: Thread, mentions: readonly { kind: "person" | "agent"; id: string }[], meId: string, text?: string): string[] {
+  return route({ agents: t.agents.map((a) => ({ id: a.agentId, mode: a.mode })) }, { author: { kind: "person", id: meId }, mentions, ...(text === undefined ? {} : { text }) }).responders;
 }
 
 export type SendKind = "queue" | "interrupt";

@@ -202,3 +202,15 @@ test("a rule is removed only by who wrote it or an admin; a person leaving takes
   assert.equal(await granted(allowed(h)), false);
   assert.equal(await granted(take(h, ["lee@acme.test"])), false);
 });
+
+test("a yes spent by a call refused before it went out comes back once, and a send that went out keeps it spent", async () => {
+  const h = harness();
+  await ask(h, "msg_1", [{ act: "send", target: "pat@acme.test" }]);
+  const first = await take(h, ["pat@acme.test"]) as { granted: boolean; spent?: string[] };
+  assert.equal(first.granted, true);
+  assert.equal((await take(h, ["pat@acme.test"]) as { granted: boolean }).granted, false, "one send per yes");
+  assert.deepEqual(await h.call("gate.grants.give_back", { ids: first.spent }, gate), { returned: 1 });
+  assert.equal((await take(h, ["pat@acme.test"]) as { granted: boolean }).granted, true, "the corrected retry goes");
+  assert.equal((await take(h, ["pat@acme.test"]) as { granted: boolean }).granted, false, "and the yes is spent again");
+  await assert.rejects(h.call("gate.grants.give_back", { ids: first.spent }, as(bot)), (e) => codeOf(e) === "permission.role_lacks_permission");
+});

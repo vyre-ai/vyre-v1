@@ -65,7 +65,10 @@ export default defineManifest({
     }),
     write('gate.grants.take', 'System: does a grant cover this call? Asked by the Gate hook at act time, it spends a single-use grant; only the server may call it', {
       in: { act: actKey, targets: t.arr(t.str()), step: t.opt(stepRef), turn: t.opt(t.obj({ person: t.str(), threads: t.arr(id.thread, { minItems: 1 }) })), always: t.opt(t.obj({ person: t.str(), agentId: t.str(), threads: t.arr(id.thread), cap: t.str() })) },
-      out: { granted: t.bool() }, perm: null, level: 'view', idem: 'natural',
+      out: { granted: t.bool(), spent: t.opt(t.arr(t.str())) }, perm: null, level: 'view', idem: 'natural',
+    }),
+    write('gate.grants.give_back', 'System: hand back the turn grants a call spent when the call was refused before it went out; only the server may call it', {
+      in: { ids: t.arr(t.str(), { minItems: 1 }) }, out: { returned: t.int() }, perm: null, level: 'view', idem: 'natural',
     }),
     write('gate.allow.set', 'Always allow: a rule the Gate reads, for one agent or one chat, one act and one target, with an expiry. Local changes are a person\'s to allow; an outward act needs an admin; money is never allowed this way', {
       in: { act: actKey, target: t.str({ minLength: 1 }), agentId: t.opt(id.agent), threadId: t.opt(id.thread), days: t.opt(t.int({ minimum: 1, maximum: 90 })) },

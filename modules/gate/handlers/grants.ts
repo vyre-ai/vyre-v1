@@ -54,19 +54,27 @@ function stepCovered(ctx: GateCtx, step: StepRef, act: string, targets: readonly
 }
 
 /** Spend the person's own ask on this call. Every target must be one they named. A request that named none covers any target, and a call that shows none (a crew push, a saved draft) takes any ask for its act: once, and only in a thread no outside content has reached, because nothing checks where it goes. */
-function turnSpent(ctx: GateCtx, act: string, targets: readonly string[], turn: { person: string; threads: string[] }): boolean {
+function turnSpent(ctx: GateCtx, act: string, targets: readonly string[], turn: { person: string; threads: string[] }): string[] {
   const marks = turn.threads.map(() => "?").join(", ");
   const taint = ctx.db.all(`SELECT cleared_at FROM gate_taint WHERE thread_id IN (${marks})`, ...turn.threads) as unknown as { cleared_at: number | null }[];
-  if (taint.some((t) => t.cleared_at === null)) return false;
+  if (taint.some((t) => t.cleared_at === null)) return [];
   const rows = ctx.db.all(`SELECT id, target FROM gate_grants WHERE kind = 'turn' AND person = ? AND act = ? AND used_at IS NULL AND expires_at > ? AND thread_id IN (${marks}) ORDER BY created_at ASC, id ASC`,
     turn.person, act, ctx.now(), ...turn.threads) as unknown as { id: string; target: string }[];
   const named = targets.map((t) => rows.find((r) => r.target !== "" && namedCovers(r.target, t)));
   const loose = targets.length === 0 ? rows : rows.filter((r) => r.target === "");
   const spend = targets.length > 0 && named.every((r) => r !== undefined) ? named.map((r) => r!.id) : taint.length === 0 ? loose.slice(0, 1).map((r) => r.id) : [];
-  if (spend.length === 0) return false;
-  let won = 0;
-  for (const id of new Set(spend)) won += ctx.db.run("UPDATE gate_grants SET used_at = ? WHERE id = ? AND used_at IS NULL", ctx.now(), id).changes;
-  return won > 0;
+  if (spend.length === 0) return [];
+  const won: string[] = [];
+  for (const id of new Set(spend)) if (ctx.db.run("UPDATE gate_grants SET used_at = ? WHERE id = ? AND used_at IS NULL", ctx.now(), id).changes > 0) won.push(id);
+  return won;
+}
+
+/** A yes is spent only when the act goes out: a call refused before it leaves (bad input, a provider that said no before sending) hands its turn grants back for a corrected retry in the same turn. */
+export async function grantsGiveBack(ctx: GateCtx, input: In): Promise<unknown> {
+  if (!isHostService(ctx.principal) && !(ctx.origin === "gate" && (ctx.depth ?? 0) === 0)) raise(ctx, "permission.role_lacks_permission", "Only the server asks this.", { reason: "system_only" });
+  let back = 0;
+  for (const id of new Set(input.ids as string[])) back += ctx.db.run("UPDATE gate_grants SET used_at = NULL WHERE id = ? AND kind = 'turn' AND used_at IS NOT NULL", id).changes;
+  return { returned: back };
 }
 
 /** An Always allow rule that reads on this call, live: a removed or expired rule stops at the next act. */
@@ -81,7 +89,9 @@ export async function grantsTake(ctx: GateCtx, input: In): Promise<unknown> {
   const targets = input.targets as string[];
   if (input.step) return { granted: stepCovered(ctx, input.step as StepRef, input.act, targets) };
   if (input.always && alwaysCovered(ctx, input.act, targets, input.always)) return { granted: true };
-  return { granted: input.turn ? turnSpent(ctx, input.act, targets, input.turn) : false };
+  if (!input.turn) return { granted: false };
+  const spent = turnSpent(ctx, input.act, targets, input.turn);
+  return spent.length > 0 ? { granted: true, spent } : { granted: false };
 }
 
 const ALWAYS_DAYS = 30;

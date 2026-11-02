@@ -11,6 +11,7 @@ import { askedIn } from "../../../lib/asked.ts";
 import { linksIn } from "../../../lib/grants.ts";
 import { redact } from "../../../agent/src/transcript/sanitize.ts";
 import { sessionWorkKey, workBlocks } from "../../../agent/src/tools/work-cards.ts";
+import { ALL_AGENTS } from "../../../lib/route.ts";
 import { sqlMessages, withMessageId, mintId } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
@@ -409,13 +410,15 @@ export function createBridge(o: BridgeOptions): Bridge {
     // an agent added to the chat after it was opened here (a Space agent @mentioned in a chat between people joins as a listener) is not yet known to the engine: read the chat's line-up once and let
     // the engine know the ones this message names, so the mention reaches them
     const named = mentions.filter((m) => m.kind === "agent").map((m) => m.id);
-    if (named.length > 0) {
+    // a person speaking to all the agents ("both of you") reaches every agent in the chat, so each must be known to the engine, listeners added since included
+    const toAll = a.kind !== "agent" && ALL_AGENTS.test(got.message.body);
+    if (named.length > 0 || toAll) {
       const known = new Set(eng.agents(threadId).map((a) => a.id));
-      if (named.some((id) => !known.has(id))) {
+      if (toAll || named.some((id) => !known.has(id))) {
         try {
           const now = (await reader(ctx, authorId, threadId)("threads.get", { threadId })) as ThreadGet;
           for (const a of now.thread.agents) {
-            if (!named.includes(a.agentId) || known.has(a.agentId)) continue;
+            if ((!toAll && !named.includes(a.agentId)) || known.has(a.agentId)) continue;
             eng.engage(threadId, { id: a.agentId, mode: a.mode, ...(a.model ? { model: a.model } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...((await runsOutside(ctx, a.agentId)) ? { outside: true } : {}) });
           }
         } catch (e) { ctx.log.warn("the bridge could not read who joined the chat", { traceId: ctx.trace.traceId, threadId, error: e instanceof Error ? e.message : String(e) }); }

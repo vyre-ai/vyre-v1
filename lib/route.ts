@@ -3,7 +3,8 @@
 //
 //   1. m @mentions agents A: responders = A (minus the author).
 //   2. else m is addressed to a person (@person, or a reply to someone else's message, no agent mention): nobody.
-//   3. else: the one lead agent of the thread, if any.
+//   3. else a person speaks to every agent in the chat ("both of you", "each of you", "everyone"): every agent answers, each on its own (a discussion).
+//   4. else: the one lead agent of the thread, if any.
 // Listeners never run inference per message: no rule above ever returns one unless it was @mentioned. A message from an agent counts one hop (message.depth);
 // at the agent_hops limit (default 4) nothing runs until a person replies.
 
@@ -19,9 +20,11 @@ export interface RouteMessage {
   replyToPerson?: string | undefined;
   /** A Job's own line, verified by chat.post: its brief or its result. It is work coming back, not agents talking, so it is no hop, and it reaches the lead even when the lead wrote it. */
   job?: boolean;
+  /** The words, when known: a person who speaks to all the agents gets an answer from each. */
+  text?: string;
 }
 export interface RoutePolicy { agentHops?: number }
-export type RouteReason = "mention" | "person_addressed" | "lead" | "no_lead" | "hop_limit";
+export type RouteReason = "mention" | "person_addressed" | "all" | "lead" | "no_lead" | "hop_limit";
 export interface RouteResult {
   responders: string[];
   reason: RouteReason;
@@ -30,6 +33,8 @@ export interface RouteResult {
 }
 
 export const DEFAULT_AGENT_HOPS = 4;
+/** Words that speak to every agent in the chat. */
+export const ALL_AGENTS = /\b(both of you|each of you|all of you|you two|you both|you all|everyone|everybody|all agents)\b/i;
 const PERSON_CHATS: ReadonlySet<string> = new Set(["chat", "ask"]);
 
 export function route(thread: RouteThread, m: RouteMessage, policy: RoutePolicy = {}): RouteResult {
@@ -48,6 +53,10 @@ export function route(thread: RouteThread, m: RouteMessage, policy: RoutePolicy 
   if (m.mentions.some((x) => x.kind === "person")) return done([], "person_addressed");
   // two people talking: a reply to the other person is for them, and the lead stays out of it
   if (m.replyToPerson !== undefined && m.replyToPerson !== m.author.id) return done([], "person_addressed");
+
+  // a person speaks to all the agents: each answers alone, on its own, never one relaying the others
+  const answering = thread.agents.filter((a) => a.watching !== true).map((a) => a.id);
+  if (!fromAgent && answering.length > 1 && typeof m.text === "string" && ALL_AGENTS.test(m.text)) return done(answering, "all");
 
   // the only agent in a person's chat answers that person whatever its mode says: listening means nothing with no one else to lead. Not a message the host posts (a nudge, a baton line, svc_...),
   // not an agent's, not a run, helper, channel or console thread, and never a watcher.

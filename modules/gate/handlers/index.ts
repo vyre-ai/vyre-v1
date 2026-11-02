@@ -1,6 +1,6 @@
 // One handler per gate capability (10). Parking, rules and reads live in hold.ts; release, deny, expire and the sweep in approve.ts.
 import { deny, expire, release } from "./approve.ts";
-import { allowList, allowRemove, allowSet, grantsAsk, grantsSet, grantsTake, linksKnown, taintMark } from "./grants.ts";
+import { allowList, allowRemove, allowSet, grantsAsk, grantsGiveBack, grantsSet, grantsTake, linksKnown, taintMark } from "./grants.ts";
 import { actsList, effectiveRuleOf, holdsGet, holdsList, park, resultTake, rulesList, rulesSet } from "./hold.ts";
 
 export const handlers = {
@@ -14,6 +14,7 @@ export const handlers = {
   "gate.grants.ask": grantsAsk,
   "gate.grants.set": grantsSet,
   "gate.grants.take": grantsTake,
+  "gate.grants.give_back": grantsGiveBack,
   "gate.holds.get": holdsGet,
   "gate.links.known": linksKnown,
   "gate.taint.mark": taintMark,

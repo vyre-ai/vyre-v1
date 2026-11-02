@@ -33,6 +33,13 @@ export function activityTitle(who: string, action: string, resource: string | un
   return `${unnamed ? "Someone" : who} ${actionPhrase(action)}${resource ? ` ${resource}` : ""}`;
 }
 
+/** The name of what an act was on, or nothing: an id the Space has no name for (the Space itself, a row since deleted) is left out, never read as "Someone". */
+export function namedResource(id: string | undefined, name: (id: string) => string): string | undefined {
+  if (!id) return undefined;
+  const n = name(id);
+  return n === "" || n === "Someone" || n === id ? undefined : n;
+}
+
 /** "1 holder", "2 holders": the count with its noun in the right number. */
 export const count = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 /** A section label as a person reads it: "space" is "Space". */
