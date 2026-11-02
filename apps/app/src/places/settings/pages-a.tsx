@@ -214,6 +214,11 @@ export function spaceKeyLine(accounts: readonly Pick<AccountsOut["accounts"][num
     : { label: `Using the Space's ${key.title} key`, sub: "Nothing to set up. Add your own to use it first", own };
 }
 
+/** "and 3 older sign-ins": the quiet line under an account that has older sign-ins of the same provider whose account Vyre cannot read. Null when there are none. */
+export function olderLine(n: number): string | null {
+  return n <= 0 ? null : `and ${n} older sign-in${n === 1 ? "" : "s"}`;
+}
+
 export function AiPage({ rows, found }: PageProps): ReactElement {
   const data = useSettingsData();
   const openConnect = useOpenConnect();
@@ -222,6 +227,12 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
   const models = useScreenQuery<ModelsOut>(MODELS, "models", {});
   const accounts = useScreenQuery<AccountsOut>(MODELS, "accounts", {});
   const usage = useScreenQuery<UsageOut>(MODELS, "usage", { by: "model" });
+  // older sign-ins: shown on request, removed one by one by the person (never by Vyre on its own)
+  const [openOlder, setOpenOlder] = useState<string | null>(null);
+  const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
+  const removeOlder = (providerId: string): void => {
+    void data.call("providers.remove", { providerId }).then(() => { setRemoved((r) => new Set([...r, providerId])); saved.saved("Removed"); }).catch((e: unknown) => saved.failed(e instanceof Error ? e.message : "That did not remove."));
+  };
   const options: { value: string; label: string }[] = [];
   if (models.status === "ready") for (const m of models.data.models) if (m.allowed) options.push({ value: `${m.provider}/${m.model}`, label: m.title });
   const d = defaults.status === "ready" ? defaults.data : null;
@@ -254,12 +265,30 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
         control={line.own ? <Value text="Working" /> : <SmallButton label="Add my own" testID="ctl-space-key-own" onPress={() => (openConnect ? void openConnect({ kind: "ai" }) : data.nav.openVault())} />}
       />,
     );
-    accounts.data.accounts.filter((a) => a.spaceKey !== true).forEach((a, i) => acc.push(
-      <SettingsRow
-        key={a.ref} id={`account.${a.ref}`} label={a.title} first={i === 0 && !line} sub={`${a.kind === "subscription" ? "Sign-in" : "API key"}, ${a.mine ? "yours" : "shared in the Space"}`}
-        control={<Value text={a.status === "ok" ? "Working" : a.status === "expired" ? "Sign in again" : a.status === "failed" ? "Failed" : "Not tested"} accent={a.status !== "ok"} />}
-      />,
-    ));
+    accounts.data.accounts.filter((a) => a.spaceKey !== true).forEach((a, i) => {
+      acc.push(
+        <SettingsRow
+          key={a.ref} id={`account.${a.ref}`} label={a.name ?? a.title} first={i === 0 && !line} sub={`${a.kind === "subscription" ? "Sign-in" : "API key"}, ${a.mine ? "yours" : "shared in the Space"}`}
+          control={<Value text={a.status === "ok" ? "Working" : a.status === "expired" ? "Sign in again" : a.status === "failed" ? "Failed" : "Not tested"} accent={a.status !== "ok"} />}
+        />,
+      );
+      const older = (a.older ?? []).filter((o) => !removed.has(o.providerId));
+      const quiet = olderLine(older.length);
+      if (!quiet) return;
+      const open = openOlder === a.ref;
+      acc.push(
+        <SettingsRow
+          key={`${a.ref}-older`} id={`account.${a.ref}.older`} label={quiet} indent sub="Saved before Vyre could tell your accounts apart. They still work for chats that use them."
+          onPress={() => setOpenOlder(open ? null : a.ref)} control={<Glyph name={open ? "chevD" : "chevR"} size={13} />}
+        />,
+      );
+      if (open) for (const o of older) acc.push(
+        <SettingsRow
+          key={o.ref} id={`account.${o.ref}`} label={o.name} indent sub={o.ref}
+          control={<SmallButton label="Remove" danger testID={`ctl-remove-older-${o.providerId}`} onPress={() => removeOlder(o.providerId)} />}
+        />,
+      );
+    });
   }
   return (
     <>

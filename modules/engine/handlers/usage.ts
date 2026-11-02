@@ -74,7 +74,7 @@ export function modelLimits(db: Db, accountRef: string, now: number): Map<string
   return out;
 }
 
-interface AccountRow { ref: string; driver: string; title: string; name?: string }
+interface AccountRow { ref: string; driver: string; title: string; name?: string; aliases?: string[] }
 const PROVIDER_OF: Readonly<Record<string, string>> = { claude_code: "anthropic", codex: "openai", grok: "xai" };
 
 /** The model the agent runs on in this thread: what Set model chose, else the thread's member row, else the agent's own. */
@@ -104,7 +104,8 @@ export async function usageGet(ctx: EngineCtx, input: { threadId: string; agentI
     const res = (await ctx.call("engine.account.resolve", { threadId: input.threadId, agentId: input.agentId })) as { accountRef: string | null };
     ref = res.accountRef ?? undefined;
   }
-  const row = ref === undefined ? undefined : listed.accounts.find((a) => a.ref === ref);
+  // a pin to a folded handle or an older sign-in is listed as the account it shows under; the provider's readings stay the ref's own
+  const row = ref === undefined ? undefined : listed.accounts.find((a) => a.ref === ref) ?? listed.accounts.find((a) => (a.aliases ?? []).includes(ref as string));
   if (ref !== undefined && !row) raise(ctx, "validation.not_found", "There is no such account.", { accountRef: ref });
 
   const { model, provider } = await modelOf(ctx, input.threadId, input.agentId);
@@ -117,9 +118,9 @@ export async function usageGet(ctx: EngineCtx, input: { threadId: string; agentI
   }
 
   // a model that ran out on this account reads as a full session until it comes back (what the provider refused, not an estimate)
-  const out = row && model ? modelLimits(ctx.db, row.ref, now).get(model) : undefined;
-  const session = out ? { pct: 100, ...(out.resetsAt !== undefined ? { resetsAt: out.resetsAt } : {}) } : row ? readingOf(ctx.db, row.ref, "session", now) : null;
-  const week = row ? readingOf(ctx.db, row.ref, "week", now) : null;
+  const out = row && ref !== undefined && model ? modelLimits(ctx.db, ref, now).get(model) : undefined;
+  const session = out ? { pct: 100, ...(out.resetsAt !== undefined ? { resetsAt: out.resetsAt } : {}) } : row && ref !== undefined ? readingOf(ctx.db, ref, "session", now) : null;
+  const week = row && ref !== undefined ? readingOf(ctx.db, ref, "week", now) : null;
   const source = session || week ? "provider" : context ? "estimate" : "none";
   return {
     account: row ? { ref: row.ref, name: row.name ?? row.title, provider: accountProvider as string } : null,

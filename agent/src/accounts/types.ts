@@ -23,6 +23,8 @@ export interface AccountRow {
   spaceMayUse: boolean;
   /** The Space AI key: one shared API key an owner or admin set for everyone. Any member's turn falls back to it after their own accounts. */
   spaceKey?: boolean;
+  /** An older sign-in of the same provider whose account cannot be read, listed under another row. It still pays when a chat, an agent or a fallback names it; it is never picked on its own. */
+  older?: boolean;
 }
 
 export interface AgentAccountConfig {

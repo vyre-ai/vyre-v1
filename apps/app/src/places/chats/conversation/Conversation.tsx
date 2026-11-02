@@ -38,7 +38,7 @@ import { pluginNames } from "./commands.ts";
 import { composerSuggest, previewOf } from "./suggest.ts";
 import { ThreadParent } from "./ThreadParent.tsx";
 import { isAssistantRow } from "../../../../../../lib/agent-kind.ts";
-import { ChatBrain, compactChat, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, useUsage } from "./brain.tsx";
+import { ChatBrain, compactChat, entryOf, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, useUsage } from "./brain.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
 import { useConnectVersion } from "../../../shell/connect/context.ts";
 import { windowAround } from "./focus.ts";
@@ -270,7 +270,7 @@ function ConversationView(): ReactElement {
   const lastStream = lastLive ? data.streamOf(lastLive.messageId) : undefined;
   const queued = queuedCount(timelineMessages, data.me.id, isWorking);
   const queuedIdsNow = queuedIds(timelineMessages, data.me.id, isWorking);
-  const leadDriver = accounts?.find((a) => a.ref === leadNow?.accountRef)?.provider;
+  const leadDriver = entryOf(accounts, leadNow?.accountRef)?.provider;
   // only the person whose turn it is steers it; anyone else's message goes in after it (the engine holds to this; a turn picked up mid-way names nobody until its next start)
   const runningFor = liveTurns.find((t) => t.state === "writing" && t.agentId === leadNow?.agentId)?.asker;
   const ownTurn = runningFor === undefined || runningFor === data.me.id;

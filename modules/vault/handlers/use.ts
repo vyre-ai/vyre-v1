@@ -12,6 +12,7 @@ import { fail } from "../../../host/src/routes/errors.ts";
 import type { Field } from "./crypto.ts";
 import { ENC_MINE, currentFiller, currentKeyPort, openMine, wrapKeyFromPersonKey } from "./crypto.ts";
 import { filler, live, openFields, reachable, turnFor, visible } from "./items.ts";
+import { aliasTarget } from "./signins.ts";
 import {
   atLeast, bad, denied, ensure, first, isId, levelOn, liveFolder, newId, num, obj, parseJson, patchMeta, record, rowsOf, statements, str,
 } from "../projections.ts";
@@ -57,7 +58,8 @@ export interface SigninPort {
   /** True while the host holds this flow (it is lost when the server restarts). */
   active(id: string): boolean;
   start(p: { id: string; provider: string; person: string }): Promise<{ url: string; userCode?: string; needsCode: boolean; expiresInSec: number }>;
-  step(p: { id: string; person: string; code?: string }): Promise<{ state: "waiting" } | { state: "done"; fields: { key: string; value: string; secret: boolean }[] } | { state: "failed"; message: string }>;
+  /** `identity` names the account the provider says this is (an id compared, a label shown); absent when the answer names nobody. */
+  step(p: { id: string; person: string; code?: string }): Promise<{ state: "waiting" } | { state: "done"; fields: { key: string; value: string; secret: boolean }[]; identity?: { id: string; label?: string } } | { state: "failed"; message: string }>;
   cancel(id: string): void;
 }
 let host: VaultHost | null = null;
@@ -74,7 +76,10 @@ export function secretPort(db: VaultDb): SecretPort {
     ensure({ db });
     const m = HANDLE.exec(handle.startsWith("#") ? handle : `#${handle}`);
     if (!m) throw new Error("A handle looks like #Name or #Name.field.");
-    const named = rowsOf(db.all(`SELECT * FROM vault_meta`)).filter((r) => r["deleted_at"] == null && str(r, "handle").toLowerCase() === `#${m[1]!}`.toLowerCase());
+    const byHandle = (h: string): Row[] => rowsOf(db.all(`SELECT * FROM vault_meta`)).filter((r) => r["deleted_at"] == null && str(r, "handle").toLowerCase() === h.toLowerCase());
+    let named = byHandle(`#${m[1]!}`);
+    // a handle of a sign-in that was folded into another row of the same account leads to that row's item (signins.ts)
+    if (named.length === 0) { const to = aliasTarget(db, m[1]!); if (to) named = byHandle(to); }
     // the asker's own Mine item wins: a Shared item that takes the same handle must never shadow it (that would send the person's turns to whoever made the Shared item). Shared only when they have no Mine item of that name.
     // The caller has already passed vault.use, and a Mine item opens only for its owner with the key they unlocked on this node.
     const meta = (asker ? named.find((r) => str(r, "scope") === "mine" && str(r, "owner") === asker) : undefined) ?? named.find((r) => str(r, "scope") === "shared");
@@ -130,7 +135,9 @@ function itemBy(ctx: VaultCtx, ref: string, forTurn = false): Row {
   if (isId("vit", ref)) return reachable(ctx, ref, "use", { forTurn });
   const want = ref.replace(/^#/, "").toLowerCase();
   const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => visible(ctx, r) || (forTurn && str(r, "scope") === "mine" && live(r) && turnFor(ctx, r)));
-  const hit = rows.find((r) => str(r, "handle").replace(/^#/, "").toLowerCase() === want) ?? rows.find((r) => str(r, "name").toLowerCase() === ref.trim().toLowerCase());
+  const byHandle = (w: string): Row | undefined => rows.find((r) => str(r, "handle").replace(/^#/, "").toLowerCase() === w);
+  const folded = (): Row | undefined => { const to = aliasTarget(ctx.db, want); return to ? byHandle(to.replace(/^#/, "").toLowerCase()) : undefined; };
+  const hit = byHandle(want) ?? rows.find((r) => str(r, "name").toLowerCase() === ref.trim().toLowerCase()) ?? folded();
   if (!hit) throw fail("validation.not_found", ctx.trace.traceId, { message: "That item is not in this Vault, or you cannot use it." });
   return reachable(ctx, str(hit, "id"), "use", { forTurn });
 }

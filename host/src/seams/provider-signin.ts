@@ -11,6 +11,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { SeamFetch } from "./ports.ts";
+import { claudeIdentity, codexIdentity, grokIdentity } from "./signin-identity.ts";
+import type { SigninIdentity } from "./signin-identity.ts";
 
 export type SigninProvider = "claude-code" | "codex" | "grok";
 export interface CredentialField { key: string; value: string; secret: boolean }
@@ -18,7 +20,8 @@ export interface CredentialField { key: string; value: string; secret: boolean }
 export interface SigninStarted { url: string; userCode?: string; needsCode: boolean; expiresInSec: number }
 export type SigninStep =
   | { state: "waiting" }
-  | { state: "done"; fields: CredentialField[] }
+  /** `identity`: the account the provider says this is (never a secret), so signing in again to it refreshes the saved one instead of adding another. Absent when the answer names nobody. */
+  | { state: "done"; fields: CredentialField[]; identity?: SigninIdentity }
   | { state: "failed"; message: string };
 
 export interface ProviderSigninPort {
@@ -157,7 +160,8 @@ export function createProviderSignin(deps: SigninDeps): ProviderSigninPort {
     const token = str(r.json?.["access_token"]);
     if (r.status < 200 || r.status > 299 || token === "") return { state: "failed", message: r.status === 400 || r.status === 401 || r.status === 403 ? "Claude did not accept that code. It may have expired. Start again." : `Claude did not finish the sign-in (${r.status}). Try again in a minute.` };
     if (!/^sk-ant-/.test(token)) return { state: "failed", message: "Claude answered with something that is not a sign-in token. Nothing was saved." };
-    return { state: "done", fields: [{ key: "setup_token", value: token, secret: true }] };
+    const who = claudeIdentity(r.json);
+    return { state: "done", fields: [{ key: "setup_token", value: token, secret: true }], ...(who ? { identity: who } : {}) };
   }
 
   async function startCodex(f: Flow): Promise<SigninStarted> {
@@ -185,7 +189,8 @@ export function createProviderSignin(deps: SigninDeps): ProviderSigninPort {
     if (ex.status < 200 || ex.status > 299 || access === "" || refresh === "") return { state: "failed", message: "ChatGPT approved the sign-in but did not hand over a token. Start again." };
     // the file `codex login` writes, in the place the CLI reads it from
     const auth = { OPENAI_API_KEY: null, tokens: { id_token: idToken, access_token: access, refresh_token: refresh, account_id: accountIdOf(idToken) }, last_refresh: new Date(now()).toISOString() };
-    return { state: "done", fields: [{ key: "credentials", value: JSON.stringify({ ".codex/auth.json": JSON.stringify(auth) }), secret: true }] };
+    const who = codexIdentity(idToken);
+    return { state: "done", fields: [{ key: "credentials", value: JSON.stringify({ ".codex/auth.json": JSON.stringify(auth) }), secret: true }], ...(who ? { identity: who } : {}) };
   }
 
   async function startGrok(f: Flow): Promise<SigninStarted> {
@@ -208,7 +213,8 @@ export function createProviderSignin(deps: SigninDeps): ProviderSigninPort {
     if (proc.exitCode !== 0) { fs.rmSync(proc.home, { recursive: true, force: true }); return { state: "failed", message: "Grok did not finish the sign-in. Start again." }; }
     const files = collectGrokFiles(proc.home);
     if (Object.keys(files).length === 0) return { state: "failed", message: "Grok finished but left no sign-in. Start again." };
-    return { state: "done", fields: [{ key: "credentials", value: JSON.stringify(files), secret: true }] };
+    const who = grokIdentity(files);
+    return { state: "done", fields: [{ key: "credentials", value: JSON.stringify(files), secret: true }], ...(who ? { identity: who } : {}) };
   }
 
   return {

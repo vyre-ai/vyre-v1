@@ -14,6 +14,8 @@ import { readFileSync } from "node:fs";
 import { addressProblem, builtinDefs } from "./provider-defs.ts";
 import { forget as forgetSpaceKey, spaceKeyProviderId } from "./space-key.ts";
 import type { CatalogEntry } from "./provider-defs.ts";
+import { identityOfFields } from "../../../host/src/seams/signin-identity.ts";
+import { aliasesOf, identityOf, learnIdentities, liveSignins, nameForNew, olderOf, setIdentity, shownName, tidySignins } from "./signins.ts";
 
 export type { CatalogEntry } from "./provider-defs.ts";
 
@@ -35,12 +37,14 @@ export interface ProviderProbe { (p: { providerKey: string; connection: string; 
 
 const providersSql = readFileSync(new URL("../migrations/0003_providers.sql", import.meta.url), "utf8");
 const defsSql = readFileSync(new URL("../migrations/0004_provider_defs.sql", import.meta.url), "utf8");
+const identitySql = readFileSync(new URL("../migrations/0006_provider_identity.sql", import.meta.url), "utf8");
 const ready = new WeakSet<object>();
 export function ensureProviders(ctx: VaultCtx): void {
   ensure(ctx);
   if (ready.has(ctx.db)) return;
   try { ctx.db.all(`SELECT "id" FROM vault_provider WHERE "id" = ?`, "probe"); } catch { for (const s of statements(providersSql)) ctx.db.run(s); }
   try { ctx.db.all(`SELECT "key" FROM vault_provider_def WHERE "key" = ?`, "probe"); } catch { for (const s of statements(defsSql)) ctx.db.run(s); }
+  try { ctx.db.all(`SELECT "handle" FROM vault_provider_alias WHERE "handle" = ?`, "probe"); ctx.db.all(`SELECT "providerId" FROM vault_provider_identity WHERE "providerId" = ?`, "probe"); } catch { for (const s of statements(identitySql)) ctx.db.run(s); }
   ready.add(ctx.db);
 }
 
@@ -58,11 +62,18 @@ function viaOf(connection: string, scope: string): string {
   return `${connection === "subscription" ? "Subscription" : "API key"}, ${scope === "mine" ? "yours" : "shared"}`;
 }
 
-function rowOut(ctx: VaultCtx, p: Row, used?: { tokens: number; costCents: number }, spaceKey = spaceKeyProviderId(ctx)): Record<string, unknown> {
+function rowOut(ctx: VaultCtx, p: Row, used?: { tokens: number; costCents: number }, spaceKey = spaceKeyProviderId(ctx), older = olderOf(ctx, str(p, "owner"))): Record<string, unknown> {
   const c = entry(ctx, str(p, "providerKey"));
   const item = itemOf(ctx, str(p, "itemId"));
   const address = first(ctx.db.all(`SELECT "address" FROM vault_provider_extra WHERE "providerId" = ?`, str(p, "id")));
+  // a sign-in reads by its account ("Claude Code, irfad@...") or the name the person gave it, never by a counter; an older sign-in of the same provider names the row it shows under
+  const sub = str(p, "connection") === "subscription";
+  const who = sub ? identityOf(ctx, str(p, "id")) : undefined;
+  const aliases = sub ? aliasesOf(ctx, str(p, "id")) : [];
+  const under = older.get(str(p, "id"));
   return {
+    ...(who?.label ? { identity: who.label } : {}), ...(sub ? { displayName: shownName(c?.name ?? str(p, "providerKey"), item ? str(item, "name") : "", who?.label || undefined) } : {}),
+    ...(aliases.length > 0 ? { aliases } : {}), ...(under ? { olderOf: under } : {}),
     id: str(p, "id"), providerKey: str(p, "providerKey"), name: c?.name ?? str(p, "providerKey"), ...(c?.logo ? { logo: c.logo } : {}),
     connection: str(p, "connection"), via: viaOf(str(p, "connection"), str(p, "scope")), scope: str(p, "scope"), itemId: str(p, "itemId"),
     ...(item && str(item, "name") ? { itemName: str(item, "name") } : {}),
@@ -110,11 +121,14 @@ export async function list(ctx: VaultCtx, _input: Record<string, never>) {
   const out: Record<string, unknown>[] = [];
   // the Space AI key is every member's to run on, though its item is Restricted: listed for all (a handle and a name, never a value)
   const spaceKey = spaceKeyProviderId(ctx);
+  // the person's own Codex and Grok sign-ins saved before accounts were named learn theirs here, while their key is open (a Claude setup token names nobody)
+  try { await learnIdentities(ctx, me(ctx)); } catch { /* the list still answers */ }
+  const older = olderOf(ctx, me(ctx));
   for (const p of rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter(live).sort((a, b) => num(a, "createdAt") - num(b, "createdAt") || str(a, "id").localeCompare(str(b, "id")))) {
     if (!itemOf(ctx, str(p, "itemId"))) continue;
     if (str(p, "scope") === "mine") { if (str(p, "owner") !== me(ctx)) continue; }
     else if (str(p, "owner") !== me(ctx) && str(p, "id") !== spaceKey && !atLeast(levelOn(ctx, "vault_item", str(p, "itemId")), "use")) continue;
-    out.push(rowOut(ctx, p, await usageThisMonth(ctx, str(p, "itemId")), spaceKey));
+    out.push(rowOut(ctx, p, await usageThisMonth(ctx, str(p, "itemId")), spaceKey, older));
   }
   return { providers: out };
 }
@@ -223,13 +237,15 @@ export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: strin
   const f = first(ctx.db.all(`SELECT * FROM vault_provider_flow WHERE id = ?`, input.flowId));
   if (!f || str(f, "person") !== me(ctx)) throw fail("validation.not_found", ctx.trace.traceId, { message: "That sign-in was not started by you." });
   if (ctx.principal.kind === "agent") return bad(ctx, "Signing in is something a person does.");
+  const providerKey = str(f, "providerKey");
   if (f["doneAt"] !== null) {
-    const again = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).find((p) => live(p) && str(p, "owner") === me(ctx) && str(p, "providerKey") === str(f, "providerKey"));
+    // Done pressed again: the account this sign-in saved or refreshed (the one touched last)
+    const again = liveSignins(ctx, me(ctx), providerKey).sort((a, b) => num(itemOf(ctx, str(b, "itemId")), "updatedAt") - num(itemOf(ctx, str(a, "itemId")), "updatedAt"))[0];
     if (again) return { provider: rowOut(ctx, again) };
   }
   const port = hostOf()?.signin;
   const linked = new Set(rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).map((p) => str(p, "itemId")));
-  /** The person's own sign-in saved since this flow began and not yet linked as a provider (their client saved it, or the flow just did). */
+  /** The person's own sign-in saved since this flow began and not yet linked as a provider (their client saved it). */
   const saved = (): Row | undefined => rowsOf(ctx.db.all(`SELECT * FROM vault_meta`)).filter((r) => live(r) && str(r, "kind") === "ai_subscription" && str(r, "owner") === me(ctx) && !linked.has(str(r, "id")))
     .filter((r) => num(first(ctx.db.all(`SELECT * FROM vault_item_x WHERE "itemId" = ?`, str(r, "id"))), "createdAt") >= num(f, "startedAt"))
     .sort((a, b) => num(b, "updatedAt") - num(a, "updatedAt"))[0];
@@ -242,31 +258,81 @@ export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: strin
     const step = await port.step({ id: input.flowId, person: me(ctx), ...(pasted ? { code: input.code as string } : {}) });
     if (step.state === "waiting") return { waiting: true };
     if (step.state === "failed") throw fail("provider.auth_failed", ctx.trace.traceId, { message: step.message });
-    // Signing in again to an account the person already has refreshes THAT item and keeps its provider: no second "Claude Code 2" beside it, and nothing the person set up on the old one (the chat's account,
-    // fallbacks, the Space's use) is left pointing at a dead copy. Their old duplicates are left alone; tidy them by deleting the extra items in the Vault.
-    const existing = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).find((p) => live(p) && str(p, "owner") === me(ctx) && str(p, "providerKey") === str(f, "providerKey") && str(p, "connection") === "subscription" && itemOf(ctx, str(p, "itemId")));
-    if (existing) {
-      await itemUpdate(ctx, { itemId: str(existing, "itemId"), fieldsSet: step.fields as unknown[] });
-      ctx.db.run(`UPDATE vault_provider SET "state" = ? WHERE "id" = ?`, "ok", str(existing, "id"));
-      ctx.db.run(`UPDATE vault_provider_flow SET "doneAt" = ? WHERE "id" = ?`, ctx.now(), input.flowId);
-      port.cancel(input.flowId);
-      return { provider: rowOut(ctx, providerById(ctx, str(existing, "id"))) };
-    }
-    // the credential goes straight into the person's own Mine folder; it is not returned to anyone
-    const c = entry(ctx, str(f, "providerKey"))!;
-    const n = rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter((p) => live(p) && entry(ctx, str(p, "providerKey"))?.name === c.name && str(p, "owner") === me(ctx)).length;
-    await itemPut(ctx, { folderId: await mineFolder(ctx), name: n === 0 ? c.name : `${c.name} ${n + 1}`, kind: "ai_subscription", fields: step.fields, idempotencyKey: `${input.flowId}:item` } as Parameters<typeof itemPut>[1]);
+    const who = step.identity ?? identityOfFields(providerKey, step.fields);
+    const kept = await keepSignin(ctx, providerKey, who, step.fields, input.flowId);
+    ctx.db.run(`UPDATE vault_provider_flow SET "doneAt" = ? WHERE "id" = ?`, ctx.now(), input.flowId);
     // saved: the host may let go of it (until now a retry is answered from the finished flow, never by asking the provider again)
     port.cancel(input.flowId);
+    return { provider: rowOut(ctx, providerById(ctx, kept)) };
   }
   const item = saved();
   if (!item) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "The sign-in has not finished yet. Finish it, then press Done again." });
   const id = newId("prv", ctx.now());
   ctx.db.run(`INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, str(f, "providerKey"), "subscription", "mine", me(ctx), str(item, "id"), 0, "ok", ctx.now(), null);
+    id, providerKey, "subscription", "mine", me(ctx), str(item, "id"), 0, "ok", ctx.now(), null);
   ctx.db.run(`UPDATE vault_provider_flow SET "doneAt" = ? WHERE "id" = ?`, ctx.now(), input.flowId);
-  ctx.emit("provider.added", `entity/${id}`, { providerId: id, providerKey: str(f, "providerKey"), connection: "subscription", scope: "mine" }, { vis: "participants" });
-  return { provider: rowOut(ctx, providerById(ctx, id)) };
+  ctx.emit("provider.added", `entity/${id}`, { providerId: id, providerKey, connection: "subscription", scope: "mine" }, { vis: "participants" });
+  // what the client saved names its account when its files do; a second save of that account folds into the row it already had
+  try { await learnIdentities(ctx, me(ctx)); } catch { /* looked for again on the next list */ }
+  tidySignins(ctx, me(ctx));
+  return { provider: rowOut(ctx, providerById(ctx, aliasedTo(ctx, id))) };
+}
+
+/**
+ * Save a finished sign-in as the person's account and answer its provider id. Signing in again to an account the person already has refreshes THAT item in place: the same provider, handle and name,
+ * so nothing set up on it (a chat's account, an agent's key, a fallback, the Space's use) is left pointing at a dead copy. A sign-in that names an account matches only a row of that account; one that
+ * names nobody refreshes the row that names nobody either (the newest that works). Anything else is a new row, named by its account.
+ */
+async function keepSignin(ctx: VaultCtx, providerKey: string, who: { id: string; label?: string } | null, fields: unknown[], flowId: string): Promise<string> {
+  // rows saved before accounts were named learn theirs first (Codex, Grok) and copies of one account are folded, so a sign-in of the same account finds the one row that keeps it
+  try { await learnIdentities(ctx, me(ctx)); } catch { /* matched on what is known */ }
+  tidySignins(ctx, me(ctx));
+  const mine = liveSignins(ctx, me(ctx), providerKey);
+  const nameless = mine.filter((p) => (identityOf(ctx, str(p, "id"))?.id ?? "") === "");
+  // the nameless row a person sees (the others are listed under it): the one a nameless sign-in refreshes
+  const older = olderOf(ctx, me(ctx));
+  const same = who
+    ? mine.find((p) => identityOf(ctx, str(p, "id"))?.id === who.id)
+    : nameless.find((p) => !older.has(str(p, "id"))) ?? nameless[nameless.length - 1];
+  if (same) {
+    await itemUpdate(ctx, { itemId: str(same, "itemId"), fieldsSet: fields });
+    if (who) setIdentity(ctx, str(same, "id"), who);
+    if (str(same, "state") !== "ok") {
+      ctx.db.run(`UPDATE vault_provider SET "state" = ? WHERE "id" = ?`, "ok", str(same, "id"));
+      ctx.emit("provider.updated", `entity/${str(same, "id")}`, { providerId: str(same, "id"), state: "ok" }, { vis: "participants" });
+    }
+    return str(same, "id");
+  }
+  // the credential goes straight into the person's own Mine folder; it is not returned to anyone
+  const c = entry(ctx, providerKey)!;
+  const folderId = await mineFolder(ctx);
+  // the handle comes from the provider's name alone (an email is never in a handle, which agents and logs carry); the item is then named by its account
+  const made = await itemPut(ctx, { folderId, name: nameForNew(ctx, folderId, c.name), kind: "ai_subscription", fields, idempotencyKey: `${flowId}:item` } as Parameters<typeof itemPut>[1]);
+  const itemId = str((made as unknown as { item: Row }).item, "id");
+  if (who?.label) await itemUpdate(ctx, { itemId, name: nameForNew(ctx, folderId, c.name, who.label) });
+  const id = newId("prv", ctx.now());
+  ctx.db.run(`INSERT INTO vault_provider ("id", "providerKey", "connection", "scope", "owner", "itemId", "spaceMayUse", "state", "createdAt", "deleted_at") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, providerKey, "subscription", "mine", me(ctx), itemId, 0, "ok", ctx.now(), null);
+  setIdentity(ctx, id, who);
+  ctx.emit("provider.added", `entity/${id}`, { providerId: id, providerKey, connection: "subscription", scope: "mine" }, { vis: "participants" });
+  return id;
+}
+
+/** The row a provider id now lives on: itself, or the row it was folded into (the one holding its item now, else the one its handle leads to). */
+function aliasedTo(ctx: VaultCtx, providerId: string): string {
+  const p = first(ctx.db.all(`SELECT * FROM vault_provider WHERE id = ?`, providerId));
+  if (!p || live(p)) return providerId;
+  const holder = rowsOf(ctx.db.all(`SELECT * FROM vault_provider WHERE "itemId" = ?`, str(p, "itemId"))).find(live);
+  if (holder) return str(holder, "id");
+  const handle = str(first(ctx.db.all(`SELECT * FROM vault_meta WHERE id = ?`, str(p, "itemId"))), "handle").toLowerCase();
+  const hit = rowsOf(ctx.db.all(`SELECT * FROM vault_provider_alias`)).find((r) => str(r, "handle").toLowerCase() === handle);
+  return hit ? str(hit, "providerId") : providerId;
+}
+
+/** Fold the sign-ins of one account that were saved twice into one row (a module hook at start and on a timer; signins.ts). */
+export function tidy(ctx: VaultCtx): { folded: number } {
+  ensureProviders(ctx);
+  return { folded: tidySignins(ctx) };
 }
 
 // ---- test

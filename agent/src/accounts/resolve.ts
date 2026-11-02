@@ -39,7 +39,8 @@ function candidates(req: ResolveRequest, payerReason: "starter" | "steerer", pay
     if (req.agent.accountPolicy === "key") add(req.agent.accountKey, payerReason);
     else {
       // The payer's own accounts: subscription sign-ins before keys (already paid for). A shared key is used only when the agent points at it, the thread pins it, or it is a backup.
-      const own = req.accounts.filter((a) => a.mine && a.ownerId === payer && (req.agent.provider === undefined || sameProviderFamily(a.provider, req.agent.provider)));
+      // an older sign-in listed under another row of the provider is not picked on its own: the row it is listed under is
+      const own = req.accounts.filter((a) => a.mine && a.ownerId === payer && a.older !== true && (req.agent.provider === undefined || sameProviderFamily(a.provider, req.agent.provider)));
       for (const a of [...own.filter((a) => a.kind === "subscription"), ...own.filter((a) => a.kind === "api_key")]) add(a.ref, payerReason);
     }
     // the Space AI key: usage is the payer's (whose turn it is), so the reason stays theirs

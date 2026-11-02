@@ -19,6 +19,8 @@ export interface PanelAccount {
   plan?: string;
   /** This account's session use, 0 to 1, when known. */
   session?: number | null;
+  /** Other refs that show as this account (a sign-in folded into it, an older sign-in listed under it): a chat pinned to one shows this account. */
+  aliases?: readonly string[];
 }
 
 export interface PanelModel { id: string; title: string; note?: string; window?: number; allowed?: boolean; reason?: string }
