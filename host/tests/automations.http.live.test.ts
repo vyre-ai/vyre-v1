@@ -181,7 +181,9 @@ test("a POST with Ask before sending On is held by the Gate, then released: it i
     await until("the POST to wait for approval", 12_000, async () => {
       const run = (await ok(d, "/v1/runs/get", { runId }))["run"] as { status?: string };
       if (run.status === "failed" || run.status === "succeeded" || run.status === "stopped") assert.fail(`the run ended ${run.status} before approval: ${await dump(d, runId, id)}`);
-      return run.status === "waiting" ? true : undefined;
+      if (run.status !== "waiting") return undefined;
+      // a busy machine can read the Run as waiting a moment before the Gate's row lands
+      return ((await ok(d, "/v1/gate/holds/list", { states: ["held"], runId }))["holds"] as HoldRow[]).length > 0 ? true : undefined;
     });
     assert.equal(seen.length, 0, "nothing was sent while the Gate held it");
     const holds = (await ok(d, "/v1/gate/holds/list", { states: ["held"], runId }))["holds"] as HoldRow[];
