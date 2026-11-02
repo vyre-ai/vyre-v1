@@ -1,6 +1,7 @@
 // Draws the open place inside the shell (ARCH 7): the place module loads on demand behind its registered loader, and the Space's runtime is handed to it through context.
 // Before the runtime exists (the session is still opening) the place draws its own loading frame, the size of the page. `app.usable` is marked once the place module has drawn.
 import { ConnectInlineHost } from "../connect/ConnectInline.tsx";
+import { TalkHost } from "../talk/TalkHost.tsx";
 import { Component, Suspense, lazy, useCallback, useEffect, useRef } from "react";
 import type { ComponentType, ErrorInfo, LazyExoticComponent, ReactElement, ReactNode } from "react";
 import { States } from "../../../../../ui/src/States/index.tsx";
@@ -93,5 +94,5 @@ export function PlaceHost({ place, runtime, hash = "", opened }: { place: PlaceI
       </PlaceBoundary>
     </PlaceHashProvider>
   );
-  return runtime ? <ShellRuntimeProvider value={runtime}><ConnectInlineHost rt={runtime}>{body}</ConnectInlineHost></ShellRuntimeProvider> : body;
+  return runtime ? <ShellRuntimeProvider value={runtime}><ConnectInlineHost rt={runtime}><TalkHost rt={runtime}>{body}</TalkHost></ConnectInlineHost></ShellRuntimeProvider> : body;
 }

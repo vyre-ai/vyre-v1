@@ -118,7 +118,7 @@ export async function disconnect(ctx: VoiceCtx, _i: Record<string, never>) {
 export async function session(ctx: VoiceCtx, _i: Record<string, never>) {
   const person = personOnly(ctx);
   const prefs = prefsOf(ctx, person);
-  if (!prefs.on) refuse(ctx, "Talk is off. Turn it on in Settings, AI.", "off");
+  if (!prefs.on) refuse(ctx, "Talk is off. Turn it on in Settings, AI, Voice.", "off");
   const p = providerOf(ctx, prefs.provider);
   const own = await ownItem(ctx, p);
   const space = spaceOf(ctx);
@@ -193,7 +193,7 @@ export async function spaceCheck(ctx: VoiceCtx, _i: Record<string, never>) {
   let state: SpaceKey["state"] = "ok";
   try { await needHost(ctx).mint(ctx, { provider: was.provider, handle: `${was.handle}.${providerOf(ctx, was.provider).keyField}`, own: false }); }
   catch (e) {
-    if ((e as { code?: string }).code !== "provider.auth_failed") throw e;
+    if ((e as { error?: { code?: string } }).error?.code !== "provider.auth_failed") throw e;
     state = "failing";
   }
   const next: SpaceKey = { ...was, checkedAt: ctx.now(), state };

@@ -2,7 +2,7 @@
 // DECISION: voice_session mints a short-lived provider token for the page. It is a write because it uses a Vault item, it keeps nothing (idem none) and no agent ever sees it. Each session is an audit row, so use is attributed per person.
 // DECISION: a Space key sits in a Restricted Shared folder (the same way the GitHub sign-in secret does): a Member has no Use on it, so no member, agent or process can fill or read it. Members reach it only through voice.session, which names no value.
 // DECISION: a key enters through a person's press only: the first-press sheet or the voice_key card. voice.connect and voice.space.connect refuse an agent. An agent may post the card, change a person's own choices for them, and ask to change the Space's, which stops at the Gate.
-import { block, defineManifest, ev, read, t, write } from '../packages/contracts/src/index.ts';
+import { block, defineManifest, ev, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id } from './_common.ts';
 
 const scope = t.enm('mine', 'space');
@@ -62,9 +62,17 @@ export default defineManifest({
     write('voice.space.configure', 'Turn Talk for everyone on or off, and keep the key. An agent\'s change stops at the Gate for someone who may approve it', {
       in: { on: t.bool() }, out: spaceRow, perm: 'policy.manage', gate: { act: 'approve', when: "actor.kind != 'person'", reason: 'Changes Talk for everyone in the Space' }, emits: ['voice.space_changed'], audit: 'always', tool: 'meta', deferred: true, offline: 'online', errors: ['validation.precondition_failed'],
     }),
-    write('voice.space.check', 'Check the Space key with the provider now', { in: {}, out: spaceRow, perm: 'policy.manage', emits: ['voice.space_checked'], offline: 'online', errors: ['validation.precondition_failed'] }),
+    write('voice.space.check', 'Check the Space key with the provider now', { in: {}, out: spaceRow, perm: 'policy.manage', emits: ['voice.space_checked'], tool: 'meta', deferred: true, offline: 'online', errors: ['validation.precondition_failed'] }),
     write('voice.space.disconnect', 'Remove the Space key from the Vault; people with their own key keep working', {
       in: {}, out: spaceRow, perm: 'policy.manage', gate: { act: 'delete', when: "actor.kind != 'person'" }, emits: ['voice.disconnected'], audit: 'always', offline: 'online', agent: false,
+    }),
+  ],
+
+  screens: [
+    screen('console.ai-voice', 'console', 'ui:ConsoleAiVoice', {
+      q: { space: ['voice.space.status', {}, true], me: ['voice.status', {}, true] },
+      a: { configure: ['voice.space.configure', {}], check: ['voice.space.check', {}] },
+      needs: ['policy.manage'],
     }),
   ],
 
