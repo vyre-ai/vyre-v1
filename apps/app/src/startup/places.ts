@@ -13,7 +13,7 @@ export type PlaceLoader = () => Promise<PlaceModule>;
 export const DEFAULT_PLACE: PlaceId = "chat";
 
 /** Addresses of places that are gone. The export keeps a page for each, so an old link or an installed app still lands in the shell, which opens Chats. */
-export const OLD_PLACES: readonly string[] = ["home"];
+export const OLD_PLACES: readonly string[] = ["home", "inbox"];
 
 export function isPlace(id: string): id is PlaceId {
   return (PLACES as readonly string[]).includes(id);

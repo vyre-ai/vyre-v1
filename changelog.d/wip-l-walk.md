@@ -26,3 +26,4 @@
 - Admin activity in Console no longer ends with "Someone".
 - Making a Journey opens it, not the empty Automations page.
 - Every change an agent makes, a file write included, is in the audit log with who it acted for.
+- The /inbox address opens Inbox.
