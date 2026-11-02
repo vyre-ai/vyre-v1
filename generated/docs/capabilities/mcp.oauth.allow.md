@@ -19,13 +19,14 @@ A person allows an app to join: it becomes an agent they own, acting for them, a
 | HTTP | POST /v1/mcp/oauth/allow |
 | MCP tool | none |
 | CLI | none |
-| Emits | mcp.client_allowed |
+| Emits | mcp.client_allowed, mcp.setup_changed |
 
 ## Input
 
 ```ts
 type In = {
   requestId: string;
+  setup?: boolean;
 };
 ```
 
@@ -35,6 +36,7 @@ type In = {
 type Out = {
   agentId: string;
   name: string;
+  setup?: boolean;
 };
 ```
 
@@ -53,11 +55,13 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "requestId": "oar_a1b2c3"
+    "requestId": "oar_a1b2c3",
+    "setup": true
   },
   "output": {
     "agentId": "agt_a1b2c3",
-    "name": "example"
+    "name": "example",
+    "setup": true
   }
 }
 ```

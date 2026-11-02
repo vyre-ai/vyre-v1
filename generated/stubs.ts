@@ -1424,6 +1424,9 @@ export function stubs(ctx: CallCtx) {
       sessions: {
         list: call("mcp.sessions.list"),
       },
+      setup: {
+        set: call("mcp.setup.set"),
+      },
       tool: {
         describe: call("mcp.tool.describe"),
         search: call("mcp.tool.search"),
