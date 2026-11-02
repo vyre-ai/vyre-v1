@@ -73,7 +73,7 @@ New-Item -ItemType Directory -Force $w | Out-Null
 Copy-Item "$PSScriptRoot\probe.mjs" $w
 icacls $w /grant "*${sid}:(OI)(CI)F" | Out-Null
 $node = (Get-Command node).Source
-icacls (Split-Path $node) /grant "*${sid}:(OI)(CI)RX" | Out-Null
+icacls (Split-Path $node) /grant "*${sid}:(OI)(CI)RX" /T /Q | Out-Null
 $secret = Join-Path $env:USERPROFILE "vyre-spike-secret.txt"
 Set-Content $secret "a secret outside the folder"
 $portFile = Join-Path $env:RUNNER_TEMP "port.txt"
@@ -95,12 +95,18 @@ $probes = @(
   @("write", (Join-Path $env:RUNNER_TEMP "outside.txt")),
   @("read", (Join-Path $env:WINDIR "win.ini"))
 )
+$cmd = Join-Path $env:WINDIR "System32\cmd.exe"
+"cmd echo: exit $([Ac]::Run($name, "`"$cmd`" /c echo hi> `"$w\echo.txt`"", $w, 30000)) wrote: $(if (Test-Path "$w\echo.txt") { Get-Content "$w\echo.txt" } else { 'nothing' })"
+"node version: exit $([Ac]::Run($name, "`"$cmd`" /c `"`"$node`" --version > `"$w\ver.txt`" 2>&1`"", $w, 30000)) said: $(if (Test-Path "$w\ver.txt") { Get-Content "$w\ver.txt" -Raw } else { 'nothing' })"
+"node dir acl:"; icacls (Split-Path $node) | Select-Object -First 8
+"node exe acl:"; icacls $node | Select-Object -First 8
 $n = 0
 foreach ($p in $probes) {
   $n++
   $out = Join-Path $w "out-$n.json"
-  $code = [Ac]::Run($name, "`"$node`" `"$w\probe.mjs`" $($p[0]) `"$out`" `"$($p[1])`"", $w, 30000)
-  if (Test-Path $out) { "probe $($p[0]) $($p[1]): $(Get-Content $out -Raw)".Trim() } else { "probe $($p[0]) $($p[1]): no answer (exit $code)" }
+  $err = Join-Path $w "err-$n.txt"
+  $code = [Ac]::Run($name, "`"$cmd`" /c `"`"$node`" `"$w\probe.mjs`" $($p[0]) `"$out`" `"$($p[1])`" > `"$err`" 2>&1`"", $w, 30000)
+  if (Test-Path $out) { "probe $($p[0]) $($p[1]): $(Get-Content $out -Raw)".Trim() } else { "probe $($p[0]) $($p[1]): no answer (exit $code) $(if (Test-Path $err) { (Get-Content $err -Raw) })" }
 }
 Stop-Process -Id $host1.Id -Force -ErrorAction SilentlyContinue
 [void][Ac]::DeleteAppContainerProfile($name)
