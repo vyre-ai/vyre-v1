@@ -144,6 +144,13 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
     } catch (e) { fail(e); }
   };
 
+  // Share: the people and agents of the Space who do not have it yet, one press each, at Use (who can change it is set on their row after)
+  const holders = new Set((shares ?? []).map((x) => x.subject.id));
+  const shareEntries: MenuEntry[] = [
+    { head: "Share with" } as MenuEntry,
+    ...names.all.filter((p) => (p.kind === "person" || p.kind === "agent") && p.id !== data.me.id && !holders.has(p.id)).slice(0, 30)
+      .map((p): MenuEntry => ({ label: p.name, onSelect: () => void setLevel({ subject: { kind: p.kind as "person" | "agent", id: p.id }, level: "use" } as Share, "use") })),
+  ];
   const moreItems: MenuEntry[] = [
     ...(canEdit ? [{ label: "Edit…", onSelect: onEdit }] : []),
     { label: "Copy handle", onSelect: () => { void copyText(data, item.handle); } },
@@ -258,7 +265,7 @@ export function ItemEnv({ itemId, onEdit, onAddField, onGone, onNote, onBack, as
           {data.personal === true ? null : (
             <WhoCanUse
             shares={shares ?? []} you={{ name: data.me.name, level: meShare?.level ?? item.yourLevel, owner: meShare?.through === "owner" }} nameOf={subjectName} meId={data.me.id} canManage={item.yourLevel === "manage"}
-            onLevel={(sh, l) => { void setLevel(sh, l); }} onRemove={(sh) => { void stopSharing(sh); }} onShare={() => data.nav.openShare(itemId)}
+            onLevel={(sh, l) => { void setLevel(sh, l); }} onRemove={(sh) => { void stopSharing(sh); }} onShare={(e) => { const r = rectOf(e); menu.show(shareEntries, r.x, r.y, "other"); }}
             onMenu={(entries, x, y) => menu.show(entries, x, y, "other")}
           />
           )}

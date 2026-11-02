@@ -22,3 +22,4 @@
 - A Mine Vault folder is yours alone: another person's agent can never reach it, and Who can use it shows only real access.
 - A plain-word yes is spent only when the act goes out. A send refused before it left keeps the yes for a corrected retry in the same turn.
 - An agent acting for you can build Journeys, Automations and record types you may build. They still hold no access until a person turns them on.
+- Share on a Vault item opens a list of people and agents to share it with.

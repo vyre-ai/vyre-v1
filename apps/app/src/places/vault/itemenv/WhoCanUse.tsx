@@ -41,7 +41,7 @@ export interface WhoCanUseProps {
   canManage: boolean;
   onLevel: (share: Share, level: Share["level"]) => void;
   onRemove: (share: Share) => void;
-  onShare: () => void;
+  onShare: (e?: unknown) => void;
   onMenu: (entries: MenuEntry[], x: number, y: number) => void;
 }
 
@@ -82,7 +82,7 @@ export function WhoCanUse({ shares, you, nameOf, meId, canManage, onLevel, onRem
       <View style={s.head}>
         <Text style={s.h2}>Who can use it</Text>
         <View style={{ flex: 1 }} />
-        {canManage ? <Btn label="Share" icon="share" onPress={onShare} testID="who-share" /> : null}
+        {canManage ? <Btn label="Share" icon="share" onPress={(e: unknown) => onShare(e)} testID="who-share" /> : null}
       </View>
       {rows}
     </View>
