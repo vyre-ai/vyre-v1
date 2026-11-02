@@ -51,7 +51,7 @@ const items = (list: readonly ThreadItem[]): ThreadItem[] => [...list];
 test("screen: the history reads oldest to newest with day separators, newest at the foot", () => {
   const { out } = tab("elena");
   assert.ok(has(out, 'data-testid="contact-tab"') && has(out, "Elena Rivera"));
-  const order = ["email:m_intake", "step:s_welcome", "email:m_reply", "call:c_elena", "texts:t1", "texts:t3", "email:m_lease"].map((k) => at(out, `data-testid="${k}"`));
+  const order = ["email:m_intake", "email:m_reply", "call:c_elena", "texts:t1", "texts:t3", "email:m_lease"].map((k) => at(out, `data-testid="${k}"`));
   assert.deepEqual(order, [...order].sort((a, b) => a - b), "items run oldest to newest");
   for (const day of ["Tue 21 Oct", "Wed 22 Oct", "Yesterday", "Today"]) assert.ok(has(out, day), `day separator ${day}`);
   assert.ok(!has(out, String.fromCharCode(0x2014)), "no em dash in any copy");

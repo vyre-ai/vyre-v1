@@ -150,7 +150,7 @@ test("an Ask on a folder or a place is bounded by the level alone: it holds many
 
 test("what leaves Vyre from an Ask stops for a yes, in Auto too; a plain chat in Auto adds nothing", async () => {
   const { session, calls, loaded } = makeSession({ levels: { "per_dana:folder:fld_1": "manage" } });
-  const outward = loaded.catalog.byName("campaigns_launch")!;
+  const outward = loaded.catalog.byName("mail_send")!;
   assert.equal(outward.effects, "outward");
   const pane = ctx({ thread: thread({ kind: "ask", scope: { type: "folder", id: "fld_1" }, mode: "auto" }) });
   session.search(pane, outward.name);
