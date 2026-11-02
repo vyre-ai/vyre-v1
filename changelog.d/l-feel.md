@@ -4,3 +4,4 @@
 - Your assistant is Assistant in every place until you rename it, and it keeps the name you give it.
 - With many tabs the open one stays in view with its full title, the others share what is left, the strip fades where more waits, and the plus stays beside the tabs.
 - Finish setup counts what is really done, not what was skipped, and a new chat shows the top three steps for this device with how many more wait.
+- Runs on offers Automatic first, says where it lands now, and takes a pin off; This computer no longer reads twice.
