@@ -9,6 +9,7 @@ import type { Finding } from "./finding.ts";
 import { appliesUiRows, checkUiRows } from "./ui-rows.ts";
 import { appliesMenuIcons, checkMenuIcons } from "./menu-icons.ts";
 import { appliesNoRawContextMenu, checkNoRawContextMenu } from "./no-raw-context-menu.ts";
+import { appliesTextInputKeys, checkTextInputKeys } from "./textinput-keys.ts";
 import { appliesListSections, checkListSections } from "./list-sections.ts";
 import { appliesNoContentInLogs, checkNoContentInLogs } from "./no-content-in-logs.ts";
 import { appliesNoEmDashOrSectionSign, checkNoEmDashOrSectionSign } from "./no-em-dash-or-section-sign.ts";
@@ -27,6 +28,7 @@ export const rules: Rule[] = [
   { id: "ui-rows", applies: appliesUiRows, check: checkUiRows },
   { id: "menu-icons", applies: appliesMenuIcons, check: checkMenuIcons },
   { id: "no-raw-context-menu", applies: appliesNoRawContextMenu, check: checkNoRawContextMenu },
+  { id: "textinput-keys", applies: appliesTextInputKeys, check: checkTextInputKeys },
   { id: "list-sections", applies: appliesListSections, check: checkListSections },
   { id: "no-content-in-logs", applies: appliesNoContentInLogs, check: checkNoContentInLogs },
   { id: "no-em-dash-or-section-sign", applies: appliesNoEmDashOrSectionSign, check: checkNoEmDashOrSectionSign },

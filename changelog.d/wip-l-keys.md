@@ -1,0 +1,1 @@
+- Arrow keys, Enter and Escape work again in the search palette and in every text field that handles them (Automations names, journeys, run chat, Settings search and fields, the report sheet). A lint rule keeps them working.

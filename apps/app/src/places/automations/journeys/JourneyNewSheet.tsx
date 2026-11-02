@@ -89,7 +89,7 @@ export function JourneyNewSheet({ onClose, initialName = "", initialSubject = ""
         <TextInput
           accessibilityLabel={`Stage ${i + 1} name`} testID={`stage-name-${g.key}`} value={g.title} onChangeText={(t) => setStages(renameStage(stages, g.key, t))}
           placeholder="Stage name" placeholderTextColor="var(--ink-4)" autoFocus={focusKey === g.key} style={[s.input, s.grow]}
-          {...webOnly({ onKeyDown: (e: KeyEventLike) => { if (e.key === "Enter") { e.preventDefault?.(); add(); } } })}
+          onKeyPress={((e: KeyEventLike) => { if (e.key === "Enter") { e.preventDefault?.(); add(); } }) as never}
         />
         <IconButton icon="arrup" label={`Move ${g.title || "stage"} up`} size={22} testID={`stage-up-${g.key}`} onPress={() => i > 0 && setStages(moveStage(stages, g.key, i - 1))} />
         <IconButton icon="arrdn" label={`Move ${g.title || "stage"} down`} size={22} testID={`stage-down-${g.key}`} onPress={() => i < stages.length - 1 && setStages(moveStage(stages, g.key, i + 1))} />
@@ -147,7 +147,7 @@ export function JourneyNewSheet({ onClose, initialName = "", initialSubject = ""
           <View style={s.inline} testID="new-type-form">
             <TextInput
               accessibilityLabel="New type name" testID="new-type-name" value={newType.name} onChangeText={(t) => setNewType({ name: t })} placeholder="Name, such as Candidates" placeholderTextColor="var(--ink-4)" autoFocus style={[s.input, s.grow]}
-              {...webOnly({ onKeyDown: (e: KeyEventLike) => { if (e.key === "Enter") { e.preventDefault?.(); void addType(); } if (e.key === "Escape") setNewType(null); } })}
+              onKeyPress={((e: KeyEventLike) => { if (e.key === "Enter") { e.preventDefault?.(); void addType(); } if (e.key === "Escape") setNewType(null); }) as never}
             />
             <TextButton label="Add" testID="new-type-add" disabled={!newType.name.trim() || newType.busy === true} onPress={() => void addType()} />
             <TextButton label="Cancel" testID="new-type-cancel" onPress={() => setNewType(null)} />

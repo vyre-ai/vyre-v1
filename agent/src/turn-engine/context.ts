@@ -15,6 +15,7 @@
 //   handoff    one turn only: the chat moved to this engine, with the summary it starts from
 //   screen      what the person has open (ScreenContext)
 //   focus       the focus skill of the place the person is in
+//   about       the about-vyre skill, on a turn whose message asks about Vyre itself (lib/about-vyre.ts)
 //   now         the time, in the person's zone
 //   waiting     what the agent itself is waiting on
 //
@@ -23,9 +24,9 @@
 import type { SystemBlock } from "../drivers/api/types.ts";
 import { fingerprint } from "../drivers/api/prefix.ts";
 
-export type SectionId = "identity" | "rules" | "where" | "memory" | "skills" | "can" | "task" | "parent" | "digest" | "earlier" | "compacted" | "handoff" | "screen" | "focus" | "now" | "waiting";
+export type SectionId = "identity" | "rules" | "where" | "memory" | "skills" | "can" | "task" | "parent" | "digest" | "earlier" | "compacted" | "handoff" | "screen" | "focus" | "about" | "now" | "waiting";
 
-export const SECTION_ORDER: readonly SectionId[] = ["identity", "rules", "where", "memory", "skills", "can", "task", "parent", "digest", "earlier", "compacted", "handoff", "screen", "focus", "now", "waiting"];
+export const SECTION_ORDER: readonly SectionId[] = ["identity", "rules", "where", "memory", "skills", "can", "task", "parent", "digest", "earlier", "compacted", "handoff", "screen", "focus", "about", "now", "waiting"];
 
 export interface ContextSection {
   id: SectionId;
@@ -149,7 +150,7 @@ export function ordered(sections: readonly ContextSection[]): ContextSection[] {
 const TITLE: Readonly<Record<SectionId, string>> = {
   identity: "", rules: "", where: "Where you are", memory: "", skills: "", can: "What you can do here", task: "Your task", earlier: "Earlier in this chat (a summary of turns before the recent ones below; search the transcript for exact words)",
   compacted: "This chat was compacted (this stands for everything before the messages below; search the transcript for exact words)", handoff: "You are taking over this chat",
-  screen: "On the person's screen", focus: "Focus for this place", now: "", waiting: "You are waiting on",
+  screen: "On the person's screen", focus: "Focus for this place", about: "About Vyre (the person asked about Vyre itself: answer from this, and check this Space with tools where it says to)", now: "", waiting: "You are waiting on",
 };
 
 const bodyOf = (s: ContextSection): string => (TITLE[s.id] ? `${TITLE[s.id]}:\n${s.text}` : s.text);

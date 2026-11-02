@@ -183,7 +183,7 @@ export function Field({ value, onCommit, label, placeholder, mono = false, patte
       <TextField
         accessibilityLabel={label} testID={testID} value={shown} placeholder={placeholder} secureTextEntry={secureTextEntry}
         onChangeText={(t) => { setDraft(t); setErr(false); }} onBlur={done} onSubmitEditing={done}
-        {...webOnly({ onKeyDown: (e: KeyEventLike) => { if (e.key === "Escape") { setDraft(null); setErr(false); } } })}
+        onKeyPress={((e: KeyEventLike) => { if (e.key === "Escape") { setDraft(null); setErr(false); } }) as never}
         style={[{ width, height: 32, borderRadius: 7, paddingHorizontal: 10, fontSize: 13 }, mono && s.mono, err && { borderColor: "var(--danger)" as string }]}
       />
     </View>
