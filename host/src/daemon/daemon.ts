@@ -1416,6 +1416,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // Register each one that is missing, owned by the person the row names. A folder that is already registered is left alone.
       try {
         for (const row of db!.all("SELECT id, owner, scope FROM vault_folder WHERE deleted_at IS NULL") as { id: string; owner: string | null; scope: string | null }[]) await registerVaultFolder(row.id, row.owner, row.scope === "mine");
+        // a Vault item registered under the Space before items lived in their folder moves into its folder once, so a Mine folder's privacy covers it
+        for (const row of db!.all(`SELECT "id", "folderId" FROM vault_meta WHERE "folderId" IS NOT NULL`) as { id: string; folderId: string }[]) {
+          const r = access.snap.resource(row.id);
+          if (!r || r.parent_id === row.folderId || !access.snap.resource(row.folderId)) continue;
+          const moved = await spaceLog.appendResult({ id: `evt_vault_item_home_${row.id}`, type: "resource.created", sv: 1, trace_id: "c0".repeat(16), actor: "svc_host", vis: "space", entity: "resource", entity_id: row.id, payload: { ...r, parent_id: row.folderId } });
+          if (moved.ok && !moved.duplicate) { access.fold(moved.event); accessPending.push(toAccessEvent(moved.event)); headSeq = Math.max(headSeq, moved.event.seq); await syncAccess(); }
+        }
       } catch { /* a Space without a Vault has no table to repair */ }
 
       // Conversations opened before their births registered them (an older Space): make each nameable, as a new one is. Mail messages are registered the first time a call names one.

@@ -28,3 +28,4 @@
 - Every change an agent makes, a file write included, is in the audit log with who it acted for.
 - The /inbox address opens Inbox.
 - Speak to all the agents in a chat, with words like both of you or everyone, and each one answers in its own reply.
+- A Vault item lives in its folder, so a Mine item never inherits the Space's access. Items made before move in once.
