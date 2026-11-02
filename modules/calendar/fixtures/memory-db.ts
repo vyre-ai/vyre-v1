@@ -17,6 +17,7 @@ export function memoryDb(): CalDb {
     const head = s.slice(0, 24).toLowerCase();
     if (head.startsWith("create table")) return createTable(tables, s);
     if (head.startsWith("create index") || head.startsWith("create unique index")) return { changes: 0 };
+    if (head.startsWith("alter table")) return { changes: 0 };   // rows here have no fixed columns, so a new column needs nothing
     if (head.startsWith("insert")) return insert(tables, s, args);
     if (head.startsWith("update")) return update(tables, s, args);
     if (head.startsWith("delete")) return remove(tables, s, args);

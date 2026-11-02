@@ -11,6 +11,8 @@ function calendarOut(r: SqlRow): Record<string, unknown> {
     ownerId: str(r["ownerId"]), personal: flag(r["personal"]), state: optStr(r["state"]) ?? "syncing",
   };
   put(o, "connectionId", optStr(r["connectionId"]));
+  const synced = Number(r["lastSyncAt"] ?? 0);
+  if (Number.isFinite(synced) && synced > 0) o["lastSyncAt"] = synced;
   return o;
 }
 

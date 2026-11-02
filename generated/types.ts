@@ -4440,6 +4440,7 @@ export type CalendarCreateCalendarOut = {
     ownerId: string;
     personal: boolean;
     state: "syncing" | "paused" | "error";
+    lastSyncAt?: number;
   };
 };
 export type CalendarCreateEventIn = {
@@ -4660,6 +4661,7 @@ export type CalendarListCalendarsOut = {
       ownerId: string;
       personal: boolean;
       state: "syncing" | "paused" | "error";
+      lastSyncAt?: number;
     }>;
 };
 export type CalendarListEventsIn = {
@@ -4817,6 +4819,7 @@ export type CalendarUpdateCalendarOut = {
     ownerId: string;
     personal: boolean;
     state: "syncing" | "paused" | "error";
+    lastSyncAt?: number;
   };
 };
 export type CalendarUpdateEventIn = {

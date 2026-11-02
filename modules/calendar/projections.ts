@@ -183,6 +183,8 @@ export interface CalendarOut {
   ownerId: string;
   personal: boolean;
   state: "syncing" | "paused" | "error";
+  /** When the last pull from the provider worked; absent until the first one has. */
+  lastSyncAt?: number;
 }
 
 export function toCalendar(row: Row): CalendarOut {
@@ -196,6 +198,8 @@ export function toCalendar(row: Row): CalendarOut {
   };
   const connection = strOrNull(row, "connectionId");
   if (connection) out.connectionId = connection;
+  const synced = num(row, "lastSyncAt");
+  if (synced > 0) out.lastSyncAt = synced;
   return out;
 }
 
@@ -346,7 +350,7 @@ export function graphTime(value: unknown): number | undefined {
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_calendar_core.sql", "0002_calendar_account.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
+const migrationSql = ["0001_calendar_core.sql", "0002_calendar_account.sql", "0003_calendar_last_sync.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];

@@ -45,6 +45,7 @@ type Out = {
     ownerId: string;
     personal: boolean;
     state: "syncing" | "paused" | "error";
+    lastSyncAt?: number;
   };
 };
 ```
@@ -72,6 +73,7 @@ type Out = {
       "color": "#4f6bed",
       "connectionId": "con_a1b2c3",
       "id": "cld_a1b2c3",
+      "lastSyncAt": 1760000000000,
       "ownerId": "usr_a1b2c3",
       "personal": true,
       "provider": "google",

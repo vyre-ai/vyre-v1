@@ -22,7 +22,7 @@ test("connect_provider puts the member's primary Google calendar in Calendar, ow
   assert.equal(out.created, true);
   assert.deepEqual(h.named("calendar.created").map((e) => [e.subject, e.payload]), [[`calendar/${out.calendarId}`, { calendarId: out.calendarId, provider: "google", ownerId: MAYA, private: true }]]);
   const row = h.rows(`SELECT * FROM calendar_list WHERE id = ?`, out.calendarId!)[0]!;
-  assert.deepEqual([row.provider, row.ownerId, row.connectionId, row.remoteId, row.title, row.personal, row.state], ["google", MAYA, "con_g01", "primary", "Google Calendar", 0, "syncing"]);
+  assert.deepEqual([row.provider, row.ownerId, row.connectionId, row.remoteId, row.title, row.personal, row.state], ["google", MAYA, "con_g01", "primary", "maya@vyre.test", 0, "syncing"], "named for the account it is read as");
   assert.deepEqual(h.rows(`SELECT * FROM calendar_account`), [{ calendarId: out.calendarId, account: "maya@vyre.test" }]);
   const again = await connectProvider(h.ctx, { ...ARGS });
   assert.deepEqual(again, { calendarId: out.calendarId, created: false });
@@ -37,10 +37,52 @@ test("a Microsoft default calendar has no remote id of its own, and refusals nam
   const h = admin();
   const ms = await connectProvider(h.ctx, { provider: "microsoft", ownerId: MAYA, account: "maya@vyre.test", connectionId: "con_m01" });
   assert.equal(h.rows(`SELECT "remoteId", title FROM calendar_list WHERE id = ?`, ms.calendarId!)[0]!.remoteId, "default");
-  assert.equal(h.rows(`SELECT title FROM calendar_list WHERE id = ?`, ms.calendarId!)[0]!.title, "Outlook Calendar");
+  assert.equal(h.rows(`SELECT title FROM calendar_list WHERE id = ?`, ms.calendarId!)[0]!.title, "maya@vyre.test");
   for (const bad of [{ ...ARGS, provider: "icloud" }, { ...ARGS, ownerId: "maya" }, { ...ARGS, account: "nobody" }, { ...ARGS, connectionId: "g1" }]) {
     await assert.rejects(() => connectProvider(h.ctx, bad as never), (e) => codeOf(e) === "validation.bad_input");
   }
+});
+
+test("a calendar connected while it was still called Google Calendar takes its account's name when connected again; a title given to it stays", async () => {
+  const h = admin();
+  const { calendarId } = await connectProvider(h.ctx, { ...ARGS });
+  h.ctx.db.run(`UPDATE calendar_list SET title = ? WHERE id = ?`, "Google Calendar", calendarId!);
+  await connectProvider(h.ctx, { ...ARGS });
+  assert.equal(h.rows(`SELECT title FROM calendar_list WHERE id = ?`, calendarId!)[0]!.title, "maya@vyre.test");
+  h.ctx.db.run(`UPDATE calendar_list SET title = ? WHERE id = ?`, "Work", calendarId!);
+  await connectProvider(h.ctx, { ...ARGS });
+  assert.equal(h.rows(`SELECT title FROM calendar_list WHERE id = ?`, calendarId!)[0]!.title, "Work", "a name the person chose is theirs");
+  const named = await connectProvider(h.ctx, { ...ARGS, ownerId: "usr_omar01", account: "omar@vyre.test", title: "Consults" });
+  assert.equal(h.rows(`SELECT title FROM calendar_list WHERE id = ?`, named.calendarId!)[0]!.title, "Consults");
+});
+
+test("a member may sync their own connected calendar now, with no grant: it is theirs", async () => {
+  const h = admin();
+  const { calendarId } = await connectProvider(h.ctx, { ...ARGS });
+  h.denied.add(`calendar:${calendarId!}`);   // no grant at all: owning it is enough
+  h.google.pages = [{ events: [], nextSyncToken: "s1" }];
+  const out = await syncNow(h.as({ kind: "person", id: MAYA }), { calendarId: calendarId! });
+  assert.deepEqual(contractErrors("calendar.sync_now", "out", out), []);
+  assert.equal(h.calls("google.calendar.list_events").length, 1);
+  await assert.rejects(() => syncNow(h.as({ kind: "person", id: "usr_omar01" }), { calendarId: calendarId! }), (e) => codeOf(e) === "permission.no_grant", "someone else's private calendar is not theirs to sync");
+});
+
+test("a provider calendar has no last sync until a pull works, then carries when; a failed pull keeps the last good time", async () => {
+  const h = admin();
+  const { calendarId } = await connectProvider(h.ctx, { ...ARGS });
+  const maya = h.as({ kind: "person", id: MAYA });
+  const read = async () => (await listCalendars(maya, {})).calendars[0]!;
+  assert.equal((await read()).lastSyncAt, undefined, "not pulled yet: the sidebar says Syncing");
+  h.google.pages = [{ events: [], nextSyncToken: "s1" }];
+  await syncNow(maya, { calendarId: calendarId! });
+  const first = await read();
+  assert.equal(first.lastSyncAt, h.ctx.now());
+  assert.deepEqual(contractErrors("calendar.list_calendars", "out", { calendars: [first] }), []);
+  h.advance(5 * 60_000);
+  h.ctx.db.run(`UPDATE calendar_list SET "remoteId" = ? WHERE id = ?`, null, calendarId!);
+  await syncNow(maya, { calendarId: calendarId! });
+  const after = await read();
+  assert.deepEqual([after.state, after.lastSyncAt], ["error", first.lastSyncAt], "the failure is the state; the last good pull is still when it was");
 });
 
 test("the Google pull is made as the calendar's account, even when the server runs it", async () => {
