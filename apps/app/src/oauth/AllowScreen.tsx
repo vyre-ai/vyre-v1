@@ -2,7 +2,7 @@
 // already signed in, and the press is a capability call with their session (mcp.oauth.allow): no other site can send that, and no frame may hold this page. What the client says about itself is marked as its own words, and the host a
 // code would go to is named when it is not this computer. After the press the tab that asked collects the sign-in by itself: this screen never holds a code.
 import { useEffect, useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Text, View } from "react-native";
 import type { CapMap } from "../../../../generated/types.ts";
 import { Bar, Button, ErrorLine, JoinFrame, Links, Opening, Panel, Step, TextButton, Title, useJoin } from "../join/kit.tsx";
@@ -27,9 +27,14 @@ export const framed = (g: { top?: unknown; self?: unknown } = globalThis as { to
   try { return g.top !== undefined && g.top !== g.self; } catch { return true; }
 };
 
-function Fact({ children, warn }: { children: string; warn?: boolean }): ReactElement {
+function Fact({ children, warn, first }: { children: string; warn?: boolean; first?: boolean }): ReactElement {
   const { p } = useJoin();
-  return <Text style={{ fontSize: 13.5, lineHeight: 18, color: warn ? p.danger : p.ink2, paddingVertical: 5 }}>{children}</Text>;
+  return <Text style={{ fontSize: 13.5, lineHeight: 18, color: warn ? p.danger : p.ink2, paddingVertical: 11, paddingHorizontal: 12, ...(first ? {} : { borderTopWidth: 1, borderTopColor: p.line }) }}>{children}</Text>;
+}
+
+function Facts({ children }: { children: ReactNode }): ReactElement {
+  const { p } = useJoin();
+  return <View testID="allow-facts" style={{ marginTop: 20, width: "100%", borderRadius: 12, backgroundColor: p.field, overflow: "hidden" }}>{children}</View>;
 }
 
 export interface AllowProps {
@@ -75,14 +80,14 @@ export function AllowScreen({ call, requestId, me, onDone }: AllowProps): ReactE
       >
         <Step id="allow">
           <Title title={`${req.clientName} wants to join ${req.spaceName}`} sub={SELF_DECLARED} />
-          <View testID="allow-facts" style={{ marginTop: 16, width: "100%" }}>
-            {away ? <Fact warn>{`When you allow this, it goes to ${req.redirectHost as string}, not an app on this computer.`}</Fact> : null}
-            <Fact>{`Acts for you, ${me}. ${ONLY_YOU}`}</Fact>
+          <Facts>
+            {away ? <Fact warn first>{`When you allow this, it goes to ${req.redirectHost as string}, not an app on this computer.`}</Fact> : null}
+            <Fact first={!away}>{`Acts for you, ${me}. ${ONLY_YOU}`}</Fact>
             <Fact>{CAN_DO}</Fact>
             <Fact>{STOPS}</Fact>
             <Fact>{`Your browser tab shows this code: ${req.match}`}</Fact>
             <Fact>{YOURS}</Fact>
-          </View>
+          </Facts>
           {busy ? null : <ErrorLine testID="allow-error" />}
         </Step>
       </Panel>
