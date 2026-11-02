@@ -42,6 +42,7 @@ export const PAGES: readonly PageDef[] = [
   p("erase", "Erase a person", "Data", "x", "policy.manage", "governance.erase"),
   p("backups", "Backups", "Data", "box", "server.backups", "console.backups"),
   p("models", "Models and providers", "AI", "ai", "ai.models", "console.ai-models"),
+  p("voice", "Voice", "AI", "mic", "policy.manage", "console.ai-voice"),
   p("gate", "Gate rules", "AI", "filter", "policy.manage", "gate.rules"),
   p("spend", "Spend and limits", "AI", "coins", "ai.spend", "console.ai-spend"),
   p("review", "Review sampling", "AI", "eye", "ai.incidents", "console.ai-review"),

@@ -28,10 +28,13 @@ import { composerSymbols } from "./props.ts";
 import { closeEmoji, findEmoji } from "./emoji.ts";
 import type { ComposerAttachment, ComposerChip, ComposerRef, ComposerShellProps, ComposerSymbol } from "./props.ts";
 import { Glyph, plainText } from "./shared.tsx";
+import { TalkButton, TalkLine, useTalk } from "./Talk.tsx";
 
 export type { ComposerAttachment, ComposerChip, ComposerRef, ComposerShellProps, ComposerSymbol } from "./props.ts";
 export { COMPOSER_SYMBOLS, composerSymbols, symbolMark } from "./props.ts";
 export { Glyph, ICON_UP, plainText } from "./shared.tsx";
+export { TalkContext } from "./Talk.tsx";
+export type { TalkPort } from "./Talk.tsx";
 export { EFFORTS, MODES, answering, contextRing, deleteToken, effortBars, effortForKey, modeInfo, nextMode, sendControl, sizeLabel, stripName, tokenRanges } from "./brain.ts";
 export type { ChatMode, ComposerAgent, Effort, SendControl, TokenRange } from "./brain.ts";
 export { ModelPanel, contextFor, lowSuggestion, resetLabel } from "./ModelPanel.tsx";
@@ -814,8 +817,19 @@ export function Composer(props: ComposerProps): ReactElement {
   const showMode = ai && props.mode !== undefined && props.onMode !== undefined;
 
   const patch = useCallback((next: Partial<ComposerState>) => setState((s) => ({ ...s, ...next })), []);
+  const talk = useTalk({
+    read: () => ({ text: stateRef.current.text, cursor: Math.min(stateRef.current.cursor, stateRef.current.text.length) }),
+    write: (text, cursor) => {
+      const next = { ...stateRef.current, text, cursor };
+      stateRef.current = next;
+      setState(next);
+      props.onChange?.(text);
+    },
+    focus: () => input.current?.focus?.(),
+  });
 
   const submit = useCallback((mode: SendMode) => {
+    talk.finish();
     const cur = stateRef.current;
     const answers = answerLine(cur.text, props.whoWillAnswer, whoCtx).line;
     const sent = sendNow(cur, answers, mode);
@@ -826,7 +840,7 @@ export function Composer(props: ComposerProps): ReactElement {
     props.onSend?.(sent.payload.text);
     if (mode === "interrupt") props.onInterrupt?.(sent.payload);
     else props.onSubmit?.(sent.payload);
-  }, [props.onSend, props.onSubmit, props.onInterrupt, props.whoWillAnswer, props.lead, props.listening, props.lists]);
+  }, [props.onSend, props.onSubmit, props.onInterrupt, props.whoWillAnswer, props.lead, props.listening, props.lists, talk.finish]);
 
   const pick = useCallback((entry: PopupEntry | undefined) => {
     const cur = stateRef.current;
@@ -965,6 +979,7 @@ export function Composer(props: ComposerProps): ReactElement {
     const text = closed?.text ?? typed;
     const cursor = closed?.cursor ?? typedAt;
     setState((s) => ({ ...s, text, cursor, active: -1, dismissedAt: -1 }));
+    talk.edited(text, cursor);
     props.onChange?.(text);
   };
 
@@ -1210,6 +1225,7 @@ export function Composer(props: ComposerProps): ReactElement {
           {stripNode_}
           {props.barExtra}
           {props.whoExtra}
+          <TalkButton talk={talk} />
           {sendNode}
         </View>
       ) : (
@@ -1221,10 +1237,12 @@ export function Composer(props: ComposerProps): ReactElement {
             {props.barExtra}
             {props.whoExtra}
             <View style={styles.spacer} />
+            <TalkButton talk={talk} />
             {sendNode}
           </View>
         </>
       )}
+      <TalkLine talk={talk} />
       {plusOpen ? (
         <Pop testID="composer-plus" label="Add" style={[popLeft, styles.plusPop] as ViewStyle[]} nodeRef={(n) => { plusNode.current = n; }}>
           <View style={styles.scr}>{plusRows}</View>

@@ -17,7 +17,7 @@ export interface BlockHostB extends BlockHost {
   nameOf?: (id: string) => string | undefined;
 }
 
-export const PART_TWO_TYPES = ["memory_saved", "vault_used", "access_request", "secret_input", "model_switch", "helper", "diff_card"] as const;
+export const PART_TWO_TYPES = ["memory_saved", "vault_used", "access_request", "secret_input", "voice_key", "model_switch", "helper", "diff_card"] as const;
 export type PartTwoType = (typeof PART_TWO_TYPES)[number];
 
 export interface BlockSpecB {
@@ -47,6 +47,13 @@ export const BLOCK_SPECS_B: Readonly<Record<PartTwoType, BlockSpecB>> = {
   secret_input: {
     type: "secret_input",
     actions: [{ key: "save", label: "Save to Vault", cap: "vault.item.put", input: { folderId: "/folderId", kind: "/kind", name: "/name" } }],
+  },
+  voice_key: {
+    type: "voice_key",
+    actions: [
+      { key: "save", label: "Turn on Talk", cap: "voice.connect", input: { provider: "/provider" } },
+      { key: "save_space", label: "Turn on for everyone", cap: "voice.space.connect", input: { provider: "/provider" } },
+    ],
   },
   model_switch: { type: "model_switch", actions: [] },
   helper: {

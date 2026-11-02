@@ -13,7 +13,7 @@ export interface VoiceHostSeam {
 }
 
 const refused = (trace: string, name: string, why: GrantFailure, stored: { own: boolean } | null): never => {
-  if (why === "key") throw fail("provider.auth_failed", trace, { message: stored === null ? `${name} did not accept that key. Check it and try again.` : stored.own ? `${name} no longer accepts your key. Add a new one in Settings, AI, Talk.` : `${name} no longer accepts your Space's key. An admin can replace it in Console, Voice.`, details: { reason: "revoked" } });
+  if (why === "key") throw fail("provider.auth_failed", trace, { message: stored === null ? `${name} did not accept that key. Check it and try again.` : stored.own ? `${name} no longer accepts your key. Add a new one in Settings, AI, Voice.` : `${name} no longer accepts your Space's key. An admin can replace it in Console, Voice.`, details: { reason: "revoked" } });
   if (why === "role") throw fail("provider.auth_failed", trace, { message: "That key cannot make short-lived tokens. Make one with the Member role.", details: { reason: "role" } });
   if (why === "busy") throw fail("provider.rate_limited", trace, { message: `${name} is busy. Try again in a moment.` });
   throw fail("provider.unavailable", trace, { message: `${name} is not answering. Try again in a moment.` });
