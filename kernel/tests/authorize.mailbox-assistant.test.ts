@@ -80,7 +80,7 @@ test("an agent builds definitions its person may build, never more", () => {
     const person = (who: string) => authorize(snap, { principal: who, action: { perm: "journeys.manage", level: "view" }, resource: { type: "folder", id: "root" }, now: NOW }).effect;
     if (person("p1") === "allow" && authorize(snap, { principal: AGENT, actingFor: "p1", action: act("view"), resource: { type: "folder", id: "root" }, now: NOW }).effect === "allow") assert.equal(build("p1"), "allow", `seed ${seed}: the person's role is the ceiling`);
     if (person("p2") === "deny") assert.equal(build("p2"), "deny", `seed ${seed}: never above the person`);
-    assert.equal(authorize(snap, { principal: AGENT, actingFor: "p1", action: { perm: "records.export", level: "view" }, resource: { type: "folder", id: "root" }, now: NOW }).effect === "allow" ? person("p1") : "deny", person("p1") === "allow" ? "allow" : "deny");
+    assert.equal(authorize(snap, { principal: AGENT, actingFor: "p1", action: { perm: "access.manage", level: "view" }, resource: { type: "folder", id: "root" }, now: NOW }).effect, "deny", `seed ${seed}: only definitions, never access.manage`);
   }
   assert.ok(worlds >= 20, `worlds exercised: ${worlds}`);
 });
