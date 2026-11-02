@@ -8,3 +8,4 @@
 - The Add button at the top of the Vault list works. The Hide the sidebar button no longer sits on top of it.
 - An access request has an Approve button on its task page, and it names "this folder", not an id.
 - Notification settings read as words, not {{title}} templates.
+- An agent acting for you can send email, texts and calls from anything you may send from. It needs no role of its own, and the Gate still holds what you did not ask for. An admin can turn agent sending off for the Space in Console.

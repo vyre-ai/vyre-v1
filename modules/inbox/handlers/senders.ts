@@ -78,8 +78,8 @@ async function emailSenders(ctx: InboxCtx): Promise<Sender[]> {
     const address = text(m.address);
     if (!id || !address) continue;
     const kind = text(m.kind);
-    // the same permission mail.send asks: comms.agent_send for an agent, comms.shared_send on a shared inbox, otherwise use of the mailbox
-    const perm = ctx.principal.kind === "agent" ? "comms.agent_send" : kind === "shared" ? "comms.shared_send" : null;
+    // the same permission mail.send asks: comms.shared_send on a shared inbox, otherwise use of the mailbox
+    const perm = kind === "shared" ? "comms.shared_send" : null;
     if (ctx.authorize({ perm, level: "use" }, { type: "mailbox", id }).effect !== "allow") continue;
 
     const provider = text(m.provider);

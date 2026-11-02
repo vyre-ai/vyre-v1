@@ -13,6 +13,7 @@ import { HostError, fail } from "../../../host/src/routes/errors.ts";
 import {
   actorOf, bad, ensure, first, isId, isInt, keyOf, liveNumber, list, newId, seesNumber, num, obj, pageOf, paging, parseJson, patch, phone, refuse, rowsOf, setting, smsOut, str, strOrNull, strOrUndef, text, validZone,
 } from "../projections.ts";
+import { agentsMaySend } from "../projections.ts";
 import type { Json, Row, TelCtx } from "../projections.ts";
 import { zoneOfNumber } from "./zones.ts";
 
@@ -141,6 +142,7 @@ export async function sendSms(ctx: TelCtx, input: SendIn): Promise<SendOut> {
   ensure(ctx);
   check(ctx, input);
   if ((input.mediaFileIds ?? []).length > 0) refuse(ctx, "Texts with pictures are not available yet. Send the text on its own, or email the file.");
+  await agentsMaySend(ctx);
   const n = liveNumber(ctx, input.numberId);
   if (str(n, "state") !== "active") refuse(ctx, "That number is not active.");
   if (!parseJson<string[]>(n.capabilities, []).includes("sms")) refuse(ctx, "That number cannot send texts.");

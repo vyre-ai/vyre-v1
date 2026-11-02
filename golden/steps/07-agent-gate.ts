@@ -89,23 +89,6 @@ export function makeHoldDue(s: FlowSpace, holdId: string): void {
   s.d.db!.run("UPDATE gate_holds SET expires_at = 0 WHERE id = ?", holdId);
 }
 
-/** Agent sends are high-risk: the asker must explicitly give the agent an
- * assignable role carrying comms.agent_send before Gate approval can resume it. */
-export async function allowAgentSending(s: FlowSpace, admin: string, agent: string, key: string): Promise<void> {
-  const made = expectStatus(await s.call("access.roles.create", admin, {
-    idempotencyKey: `${key}-role`, name: `Agent sender ${agent.slice(-6)}`, cloneFrom: "rol_guest", assignableToAgents: true,
-  }), 200, "access.roles.create").role as { id: string };
-  const preview = expectStatus(await s.call("access.roles.preview", admin, {
-    roleId: made.id, permissions: ["comms.agent_send"],
-  }), 200, "access.roles.preview") as { previewHash: string };
-  expectStatus(await s.call("access.roles.apply", admin, {
-    roleId: made.id, permissions: ["comms.agent_send"], previewHash: preview.previewHash,
-  }), 200, "access.roles.apply");
-  expectStatus(await s.call("access.roles.assign", admin, {
-    subject: { kind: "agent", id: agent }, roleId: made.id,
-  }), 200, "access.roles.assign");
-}
-
 export async function runAgentGate(live: readonly string[], opts: Parameters<typeof bootFlowSpace>[1] = {}): Promise<{ events: Observed[]; trail: Trail }> {
   const s = await bootAgentGateSpace(live, opts);
   const trail = new Trail();
@@ -140,12 +123,11 @@ export async function runAgentGate(live: readonly string[], opts: Parameters<typ
     await trail.step("a sending domain is added and verifies", async () => addVerifiedSendingDomain(s, admin, "golden-7g"));
     await trail.step("she delegates unanswered approvals to the admin role", async () => configureApprovalDelegate(s, admin));
     const agent = await trail.step("an agent exists", async () => expectStatus(await s.call("agents.create", admin, { idempotencyKey: "golden-7g-agent", name: "Mailer", role: "Writes the weekly note" }), 200, "agents.create").agent.agentId as string);
-    await trail.step("she allows the agent to send outside", async () => allowAgentSending(s, admin, agent!, "golden-7g"), ["an agent exists"]);
     const thread = await trail.step("she starts a chat with it and the engine is bound", async () => {
       const id = expectStatus(await s.call("chat.start", admin, { idempotencyKey: "golden-7g-chat", kind: "chat", agentIds: [agent!] }), 200, "chat.start").thread.threadId as string;
       expectStatus(await s.call("engine.pool.status", admin, {}), 200, "engine.pool.status");
       return id;
-    }, ["an agent exists", "she allows the agent to send outside"]);
+    }, ["an agent exists"]);
     const mailbox = await trail.step("the agent has a mailbox to send from", async () => {
       const m = expectStatus(await s.call("mail.mailbox.create", admin, { idempotencyKey: "golden-7g-mailbox", kind: "agent", address: `mailer@${DOMAIN}`, title: "Mailer", agentId: agent! }), 200, "mail.mailbox.create").mailbox;
       return (m.mailboxId ?? m.id) as string;

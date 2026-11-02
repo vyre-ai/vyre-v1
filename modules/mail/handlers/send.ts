@@ -234,10 +234,10 @@ function loadMailbox(ctx: SendCtx, id: string): Row {
   return box ?? missing(ctx, "Mailbox does not exist.");
 }
 
-/** Use of the mailbox, plus the sender's own permission: comms.agent_send for an agent, comms.shared_send for a person on a shared inbox. */
+/** Use of the mailbox, plus comms.shared_send on a shared inbox. An agent acting for a person sends from what that person may send from (the kernel's ceiling); a Space rule can turn agent sending off. */
 function authorizeSender(ctx: SendCtx, box: Row): void {
   // a Space Automation holds `use` on the mailboxes a person's press gave it (modules/automations/grants.ts), so that grant is the whole answer: it has no role to carry comms.shared_send
-  const perm = ctx.principal.kind === "agent" ? "comms.agent_send" : str(box, "kind") === "shared" && !isTenantService(ctx.principal) ? "comms.shared_send" : null;
+  const perm = str(box, "kind") === "shared" && !isTenantService(ctx.principal) ? "comms.shared_send" : null;
   const resource = { type: "mailbox", id: str(box, "id") };
   if (!perm) return allow(ctx, "use", resource);
   const decision = ctx.authorize({ perm, level: "use" }, resource);
@@ -254,7 +254,8 @@ function resolveRoute(ctx: SendCtx, box: Row, actor: Actor, requested: Route | u
   }
   if (requested === "space_domain") return "space_domain";
   // a Personal Automation runs as its owner, so their own Gmail or Outlook is theirs to send from; a Space Automation goes through the Space domain
-  return memberProvider(box) && (actor === "person" || ctx.principal.kind === "person") ? "mailbox" : "space_domain";
+  const asked = ctx.principal.kind === "agent" && ctx.actingFor === strOrNull(box, "ownerId");   // an agent sends from its person's own Gmail or Outlook as that person would
+  return memberProvider(box) && (actor === "person" || ctx.principal.kind === "person" || asked) ? "mailbox" : "space_domain";
 }
 
 function pickDomain(ctx: SendCtx, provider: string, mailboxAddress: string): Row | null {
@@ -325,6 +326,7 @@ function agreeSender(ctx: SendCtx, input: { mailboxId: string; senderId?: string
 async function makePlan(ctx: SendCtx, input: SendIn | PreviewIn | SendAsIn, composed: Composed, requested: Route | undefined, enforce: boolean): Promise<Plan> {
   agreeSender(ctx, input);
   const box = loadMailbox(ctx, input.mailboxId);
+  if (ctx.principal.kind === "agent" && !(await setting(ctx, "comms.agents_may_send", true, (v): v is boolean => typeof v === "boolean"))) refuse(ctx, "Agent sending is off in this Space. An admin can turn it on in Console.");
   authorizeSender(ctx, box);
   if (input.senderId !== undefined && enforce) checkChosenSender(ctx, box);
   const actor = actorOf(ctx.principal.kind, ctx.origin);
