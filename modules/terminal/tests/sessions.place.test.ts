@@ -31,7 +31,7 @@ function setup(place: TurnPlace | null | "unbound", scripts: Parameters<typeof f
   const host = fakeHost(scripts);
   bindHost(host.host);
   const asked: Array<{ space: string; threadId?: string; agentId: string; person: string }> = [];
-  if (place !== "unbound") bindPlace(async (a) => { asked.push(a); return place; });
+  if (place !== "unbound") { const answer: TurnPlace | null = place; bindPlace(async (a) => { asked.push(a); return answer; }); }
   const agent: TermCtx = { ...hn.as(AGENT, "usr_dana", "run_1"), thread: "thr_chat" };
   return { hn, host, asked, agent };
 }
