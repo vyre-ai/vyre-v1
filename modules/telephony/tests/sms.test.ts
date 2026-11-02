@@ -101,11 +101,49 @@ test("a reply to a text they sent counts as consent for that conversation, a rep
   assert.equal(sentOut.status, "suppressed", "replying to our own text is not consent");
 });
 
+test("the default window is every day, 8 to 21, in the recipient's zone from their number", async () => {
+  const t = harness();
+  const numberId = await setup(t);
+  t.actAs("service", "svc_automations", "automation:aut_1");
+  const saturdayNoonLA = Date.UTC(2025, 9, 11, 19, 0, 0);
+  t.setNow(saturdayNoonLA);
+  assert.equal(CALLER.slice(0, 5), "+1415", "the fixture is a San Francisco number");
+  assert.equal(out(await send(t, numberId, { body: "Saturday noon there." })).status, "queued");
+  assert.equal(t.calls("twilio.sms.send").length, 1, "a Saturday is an ordinary day");
+  assert.equal(t.scheduled.length, 0);
+  const lateLA = Date.UTC(2025, 9, 12, 5, 0, 0);   // 22:00 Saturday in Los Angeles, already Sunday in UTC
+  t.setNow(lateLA);
+  assert.equal(out(await send(t, numberId, { body: "Too late there." })).status, "queued");
+  assert.equal(t.calls("twilio.sms.send").length, 1, "nothing leaves at 22:00 their time");
+  assert.equal(t.scheduled[0]?.at, Date.UTC(2025, 9, 12, 15, 0, 0), "it goes at 08:00 their time");
+});
+
+test("a one-to-one transactional text from an Automation goes at once, past the window and the cap, and never past consent", async () => {
+  const t = harness();
+  const numberId = await setup(t);
+  t.settings.set("telephony.sender_caps", { perHour: 1, perDay: 1 });
+  t.actAs("service", "svc_automations", "automation:aut_1");
+  t.setNow(Date.UTC(2025, 9, 12, 10, 0, 0));   // 03:00 Sunday in Los Angeles
+  for (const body of ["Your appointment is confirmed.", "And a second one."]) {
+    await send(t, numberId, { body, transactional: true });
+  }
+  assert.equal(t.calls("twilio.sms.send").length, 2, "neither waited");
+  assert.equal(t.scheduled.length, 0);
+  t.actAs("agent", AGENT);
+  await send(t, numberId, { body: "An agent asked for the same.", transactional: true });
+  assert.equal(t.calls("twilio.sms.send").length, 2, "an agent's text waits for the window");
+  t.actAs("service", "svc_automations", "automation:aut_1");
+  t.prefs.set(PAT, { smsConsent: "denied" });
+  assert.equal(out(await send(t, numberId, { body: "No consent.", transactional: true })).status, "suppressed");
+  assert.equal(t.calls("twilio.sms.send").length, 2);
+});
+
 test("send windows and caps apply to agents and automations, not to a person typing a text", async () => {
   const t = harness();
   const numberId = await setup(t);
   t.actAs("agent", AGENT);
-  // Thursday 08:53 UTC is inside the default window (Monday to Friday, 08:00 to 18:00)
+  t.settings.set("telephony.send_window", { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 18, zone: "space" });
+  // Thursday 08:53 UTC is inside this Space's window (Monday to Friday, 08:00 to 18:00, its own zone)
   assert.equal(out(await send(t, numberId, { body: "Inside the window." })).status, "queued");
   assert.equal(t.rows(`SELECT * FROM telephony_send_log`).length, 1, "an agent's text is counted");
 
@@ -161,6 +199,7 @@ test("caps per number: over the hourly limit is refused with when it resets, and
   const t = harness();
   const numberId = await setup(t);
   t.settings.set("telephony.sender_caps", { perHour: 2, perDay: 3 });
+  t.settings.set("telephony.send_window", { days: [1, 2, 3, 4, 5, 6, 7], startHour: 0, endHour: 24, zone: "space" });
   t.actAs("agent", AGENT);
   await send(t, numberId);
   await send(t, numberId);

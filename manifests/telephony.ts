@@ -166,7 +166,8 @@ export default defineManifest({
     // ---- texts
     outward('telephony.send_sms', 'Send a text through the single send API: suppression, SMS consent, send window, caps, Gate for agents and automations', {
       in: {
-        numberId: id.number, senderId: t.opt(t.str({ description: 'An id from comms.senders.list. For a text it is the number id and must equal numberId', examples: ['num_a1b2c3'] })), to: phone, body: t.str(), mediaFileIds: t.opt(t.arr(id.file)), contactId: t.opt(id.record), replyToId: t.opt(smsId), sendAt: t.opt(t.ts()),
+        numberId: id.number, senderId: t.opt(t.str({ description: 'An id from comms.senders.list. For a text it is the number id and must equal numberId', examples: ['num_a1b2c3'] })), to: phone, body: t.str(), mediaFileIds: t.opt(t.arr(id.file)), contactId: t.opt(id.record), replyToId: t.opt(smsId), sendAt: t.opt(t.ts()), transactional: t.opt(t.bool()),   // one text to one person from an Automation, such as an appointment confirmation: no window, no cap
+       
       },
       out: { smsId: t.opt(smsId), status: t.enm('queued', 'sent', 'held', 'suppressed'), taskId: t.opt(id.task) },
       on: ['number', '/numberId'], level: 'use', gate: 'send', emits: ['message.sent', 'message.suppressed', 'message.failed'], tool: 'inbox', offline: 'queue', cli: 'vyre sms send',
@@ -244,7 +245,7 @@ export default defineManifest({
   settings: [
     // quiet hours and caps for texts an agent or an automation sends
     setting('telephony.sender_caps', 'space', 'comms', 'Texts per number', t.obj({ perHour: t.int({ minimum: 1 }), perDay: t.int({ minimum: 1 }) }), { perHour: 30, perDay: 150 }),
-    setting('telephony.send_window', 'space', 'comms', 'Text send window', t.obj({ days: t.arr(t.int({ minimum: 1, maximum: 7 })), startHour: t.int({ minimum: 0, maximum: 23 }), endHour: t.int({ minimum: 1, maximum: 24 }), zone: t.enm('recipient', 'space') }), { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 18, zone: 'recipient' }),
+    setting('telephony.send_window', 'space', 'comms', 'Text send window', t.obj({ days: t.arr(t.int({ minimum: 1, maximum: 7 })), startHour: t.int({ minimum: 0, maximum: 23 }), endHour: t.int({ minimum: 1, maximum: 24 }), zone: t.enm('recipient', 'space') }), { days: [1, 2, 3, 4, 5, 6, 7], startHour: 8, endHour: 21, zone: 'recipient' }),
     setting('telephony.recording_default', 'space', 'comms', 'Default recording policy for new numbers', recordingPolicy, 'off'),
   ],
 });

@@ -1,4 +1,5 @@
 - Campaigns and cold email are gone from Vyre: no sequences, A/B variants, warmup, mailbox caps, sending windows or reply tracking, in the app, the agent tools or the plans. Regular email is an Automation.
 - Every email an Automation sends carries its own unsubscribe link and the one-click headers, and the address it leaves goes on the suppression list.
 - Turning on a Space Automation now gives it the mailbox or number its send steps name, recorded as yours and shown as "Sends from hello@firm.com". If nothing can send, Turn on says so and offers Connect.
+- A text from an Automation now waits only outside 8 to 21 in the recipient's time zone, every day. A text you mark Send at once, or one a booking starts, goes straight away. A window or cap a Space set before carries over.
 - An email from an Automation now leaves when the flow says, with no waiting for a window or a mailbox cap.

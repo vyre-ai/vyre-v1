@@ -79,7 +79,7 @@ export default defineManifest({
     step('send_sms', 'Send a text message', 'send', 'capability', {
       cap: 'telephony.send_sms', effects: 'outward', gateAct: 'send', idempotency: 'key', retry: { max: 3, backoff: 'exp', baseMs: 1000 },
       errors: ['validation.bad_input', 'internal.unexpected', 'provider.unavailable', 'provider.network', 'permission.needs_approval'],
-      in: { numberId: t.opt(id.number), to: tpl('Phone number'), body: tpl('Message'), recordId: t.opt(id.record) }, out: { messageId: t.str() },
+      in: { numberId: t.opt(id.number), to: tpl('Phone number'), body: tpl('Message'), recordId: t.opt(id.record), sendAtOnce: t.opt(t.bool()) }, out: { messageId: t.str() },
     }),
     step('post_message', 'Post a chat message', 'send', 'capability', {
       cap: 'chat.post', effects: 'outward', gateAct: 'post', idempotency: 'key',
