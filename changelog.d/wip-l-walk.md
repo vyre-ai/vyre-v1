@@ -14,3 +14,4 @@
 - A notice on the Automation canvas no longer covers the zoom control.
 - A member at the Console address gets one plain line: Console is for admins and owners.
 - Joining a Space names your device for you, so Continue is never stuck on an empty field.
+- A mention keeps the agent's whole name.

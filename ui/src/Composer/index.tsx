@@ -413,7 +413,7 @@ export function applyPick(state: ComposerState, trigger: Trigger, item: PopupIte
   const after = state.text.slice(trigger.end);
   const place = (text: string, insertAt: number): ComposerState => ({ ...state, text, cursor: insertAt, active: -1, dismissedAt: -1 });
   if (trigger.ch === "@") {
-    const insert = `@${firstWord(item.label)} `;
+    const insert = `@${item.kind === "Agent" ? item.label : firstWord(item.label)} `;   // an agent's whole name; a person's first name, as people say it
     return { next: place(before + insert + after, before.length + insert.length), effect: { kind: "none" } };
   }
   if (trigger.ch === ":") {
