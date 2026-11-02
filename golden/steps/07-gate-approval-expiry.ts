@@ -1,4 +1,4 @@
-// Golden flow 7: Gate approval and expiry (spec 2.14; ARCH 4.6). An agent's mail send is held by the Gate; a person approves one, and another expires untouched. The agent's send comes from a real
+// Golden flow 7: Gate approval and expiry (spec 2.14; ARCH 4.6). A send the person asked for goes out; an agent's mail send nobody asked for is held by the Gate; a person approves one, and another expires untouched. The agent's send comes from a real
 // engine turn (the CLI calling the mail tool over the loopback MCP session), so the whole flow lives in 07-agent-gate.ts and runs in the l2-heavy job (07-gate.heavy.test.ts) where the sandbox,
 // bwrap and the fake CLI exist. The harness entry below runs the same steps when the heavy environment is on.
 import path from "node:path";
