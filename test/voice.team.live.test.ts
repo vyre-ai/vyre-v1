@@ -91,8 +91,10 @@ test("Team: one Space key covers everyone, a member cannot read it, an own key w
     assert.ok(refusedKinds((await api("usr_mia", "voice.space.status")).status));
 
     // use is attributed per person in the audit log
-    const audit = await api("usr_olivia", "audit.query", { cap: "voice.session", limit: 20 });
-    if (audit.status === 200) assert.ok(JSON.stringify(audit.data).includes("usr_mia"), "the audit log names who talked");
+    const audit = await api("usr_olivia", "audit.list", { action: "voice.session", limit: 20 });
+    assert.equal(audit.status, 200, JSON.stringify(audit));
+    assert.ok(JSON.stringify(audit.data).includes("usr_mia"), `the audit log names who talked: ${JSON.stringify(audit.data).slice(0, 400)}`);
+    assert.ok(!JSON.stringify(audit.data).includes(SPACE_KEY));
 
     // an own key wins, for whoever has one (Mine items seal on the person's own node, so this is the owner, on theirs; a member reaching a remote Space gets the plain locked line)
     const unlock = await fetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
@@ -152,6 +154,7 @@ test("Personal-style: an agent changes the person's own Talk, posts the card, an
     const blocks = ((await api("chat.messages.list", { threadId })).data.messages as { blocks: { type: string }[] }[]).flatMap((m) => m.blocks);
     assert.ok(blocks.some((b) => b.type === "voice_key"), `the card is in the chat: ${JSON.stringify(seen["askKey"])}`);
     assert.equal((seen["connect"] as { ok?: boolean } | undefined)?.ok, false, "there is no tool that takes a key");
+    assert.equal((await api("voice.space.status")).data.set, false, "nor did the agent change the Space");
     assert.equal(dg.grants.length, 0, "no key ever reached the provider from an agent");
   } finally {
     await stop(d);
