@@ -50,7 +50,7 @@ test("setting preferences writes the changed fields, stamps the source and the t
   assert.deepEqual(out, { emailConsent: "granted", smsConsent: "unknown", doNotContact: false, optedOut: ["sms"], source: "form", at: NOW });
   assert.deepEqual(contractErrors("contacts.preferences.set", "out", out), []);
   assert.deepEqual(h.calls("records.update").map((c) => c.input), [
-    { type: "contact", recordId: "rec_pat01", patch: { pref_email_consent: "granted", pref_opt_outs: ["sms"], pref_source: "form", pref_at: NOW } },
+    { type: "contact", recordId: "rec_pat01", patch: { pref_email_consent: "granted", pref_opt_outs: ["sms"], pref_source: "form", pref_at: new Date(NOW).toISOString() } },
   ]);
   assert.deepEqual(h.named("contact.preferences_changed").map((e) => [e.subject, e.payload]), [
     ["record/rec_pat01", { contactId: "rec_pat01", changed: ["emailConsent", "optedOut"], source: "form" }],

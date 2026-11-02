@@ -124,8 +124,8 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
       const checked = expectStatus(await s.call("mail.domain.check", admin, { domainId: id }), 200, "mail.domain.check");
       assert.equal((checked.domain ?? checked).verified, true, `the domain verifies: ${short(checked)}`);
     });
-    const mailbox = await trail.step("a shared mailbox sends from that domain", async () => {
-      const m = expectStatus(await s.call("mail.mailbox.create", admin, { idempotencyKey: "golden-5-mailbox", kind: "shared", address: `hello@${DOMAIN}`, title: "Acme" }), 200, "mail.mailbox.create").mailbox;
+    const mailbox = await trail.step("a service mailbox sends from that domain", async () => {
+      const m = expectStatus(await s.call("mail.mailbox.create", admin, { idempotencyKey: "golden-5-mailbox", kind: "service", address: `hello@${DOMAIN}`, title: "Acme" }), 200, "mail.mailbox.create").mailbox;
       return (m.mailboxId ?? m.id) as string;
     }, ["a sending domain is added and verifies"]);
 
@@ -140,10 +140,11 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
       }), 200, "automations.update");
       expectStatus(await s.call("automations.promote", admin, { automationId, confirm: true }), 200, "automations.promote");
       const service = { kind: "service", id: `svc_${automationId.slice(4)}` };
-      expectStatus(await s.call("access.share", admin, { idempotencyKey: "golden-5-share-space", resource: { type: "space", id: "spc_core" }, subject: service, level: "view" }), 200, "access.share");
+      // a Space Automation runs as its own service, which holds nothing until a person shares: `use` on the Space reaches the sending provider, `use` on the mailbox sends from it
+      expectStatus(await s.call("access.share", admin, { idempotencyKey: "golden-5-share-space", resource: { type: "space", id: "spc_core" }, subject: service, level: "use" }), 200, "access.share");
       expectStatus(await s.call("access.share", admin, { idempotencyKey: "golden-5-share-box", resource: { type: "mailbox", id: mailbox! }, subject: service, level: "use" }), 200, "access.share");
       return automationId;
-    }, ["a lead is made", "a shared mailbox sends from that domain"]);
+    }, ["a lead is made", "a service mailbox sends from that domain"]);
 
     const started = await trail.step("the send is held by the Gate for approval", async () => {
       const runId = expectStatus(await s.call("automations.run", admin, { automationId: flow!, idempotencyKey: "golden-5-run" }), 200, "automations.run").runId as string;
@@ -231,9 +232,9 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
     await trail.step("the lead picks up and Twilio reports it through the signed hook", async () => {
       // what Twilio sends: a form body, and a signature of the full address and the sorted fields made with the account's auth token
       const params = { CallSid: "CAfake1", CallStatus: "in-progress" };
-      const url = `${s.d.url}/hooks/twilio/status`;
-      const res = await fetch(url, {
-        method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", "x-twilio-signature": await signatureOf("fake-Twilio_Auth", url, params) },
+      // Twilio signs the public address this Space gave it, whatever socket the request arrives on
+      const res = await fetch(`${s.d.url}/hooks/twilio/status`, {
+        method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", "x-twilio-signature": await signatureOf("fake-Twilio_Auth", `https://${PUBLIC}/hooks/twilio/status`, params) },
         body: new URLSearchParams(params).toString(),
       });
       assert.equal(res.status, 200, `the hook is accepted: ${res.status} ${(await res.text()).slice(0, 300)}`);

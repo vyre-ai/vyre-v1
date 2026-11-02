@@ -32,7 +32,9 @@ export function prefsOf(fields: Record<string, unknown>): Prefs {
   };
   const source = text(fields.pref_source);
   if (source) out.source = source;
+  // pref_at is a datetime field, so the record holds ISO text; a number is an older row
   if (typeof fields.pref_at === "number") out.at = fields.pref_at;
+  else if (typeof fields.pref_at === "string" && Number.isFinite(Date.parse(fields.pref_at))) out.at = Date.parse(fields.pref_at);
   return out;
 }
 
@@ -70,7 +72,7 @@ export async function preferencesSet(
 
   const source = input.source ?? "manual";
   patch.pref_source = source;
-  patch.pref_at = ctx.now();
+  patch.pref_at = new Date(ctx.now()).toISOString();
   const updated = obj(obj(await ctx.call("records.update", { type: "contact", recordId: rec.id, patch })).record);
   const after = prefsOf(Object.keys(obj(updated.fields)).length ? obj(updated.fields) : { ...rec.fields, ...patch });
   ctx.emit("contact.preferences_changed", `record/${rec.id}`, { contactId: rec.id, changed, source });
