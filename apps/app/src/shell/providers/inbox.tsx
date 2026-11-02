@@ -25,6 +25,7 @@ import { CallTitlePill } from "../../places/inbox/softphone/pill.tsx";
 import { inboxData } from "./inbox-data.ts";
 import { capLive } from "./records-live.ts";
 import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
+import { SIDEBAR_DEFAULT } from "../sidebar/index.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
@@ -105,7 +106,7 @@ function InboxFrame({ rt, openId, close }: { rt: ShellRuntime; openId: string | 
   if (!phone) {
     return (
       <View testID="inbox-place" style={st.row}>
-        <ResizableColumn paneKey="inbox-sidebar" defaultWidth={SIDEBAR_W} grow="right" min={200} maxFraction={0.5} style={st.sideCol} testID="inbox-sidebar-col"><InboxSidebar /></ResizableColumn>
+        <ResizableColumn paneKey="place-sidebar" defaultWidth={SIDEBAR_DEFAULT} grow="right" min={200} maxFraction={0.5} maxWidth={380} style={st.sideCol} testID="inbox-sidebar-col"><InboxSidebar /></ResizableColumn>
         <View style={st.main}><Main rt={rt} openId={openId} close={close} /></View>
       </View>
     );

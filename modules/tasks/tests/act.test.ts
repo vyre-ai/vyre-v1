@@ -36,7 +36,7 @@ test("approve closes an Approve request and says who approved", async () => {
   assert.deepEqual(names(h), ["task.transitioned", "task.completed", "task.approved"]);
   assert.equal(h.events[2]!.payload.by, bob.id);
   const hist = await h.call("tasks.history", { taskId: id }, { id: bob.id });
-  assert.deepEqual(hist.entries.map((e: { type: string }) => e.type).slice(0, 3), ["approved", "completed", "transitioned"]);
+  assert.deepEqual(hist.entries.map((e: { type: string }) => e.type).slice(0, 3), ["approved", "completed", "transitioned:done"]);
 });
 
 test("sending back needs a note and carries it", async () => {

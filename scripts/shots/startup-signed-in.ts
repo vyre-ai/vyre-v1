@@ -1,5 +1,5 @@
 // Signed-in cold start of the production web export (apps/app/dist), the number the signed-out probe (startup.mjs) cannot see: a seeded Space booted as a real daemon, the owner's
-// stored session in the browser, app.start to app.usable at /home on a phone at 4x CPU, seven cold runs, median. Reported, not gated: the budget is the signed-out cold start.
+// stored session in the browser, app.start to app.usable at /chat on a phone at 4x CPU, seven cold runs, median. Reported, not gated: the budget is the signed-out cold start.
 //   node scripts/shots/startup-signed-in.ts [--dist apps/app/dist] [--runs 7]
 import fs from "node:fs";
 import path from "node:path";
@@ -36,7 +36,7 @@ try {
     const page = await ctx.newPage();
     const cdp = await ctx.newCDPSession(page);
     await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
-    await page.goto(web.origin + "/home", { waitUntil: "load" });
+    await page.goto(web.origin + "/chat", { waitUntil: "load" });
     await page.waitForFunction(() => performance.getEntriesByName("app.usable").length > 0, null, { timeout: 30000 }).catch(() => {});
     cold.push(await page.evaluate(() => { const a = performance.getEntriesByName("app.start")[0], b = performance.getEntriesByName("app.usable")[0]; return a && b ? Math.round(b.startTime - a.startTime) : null; }));
     // proof the run was signed in: the phone shell draws (a sign-in screen would also mark usable)

@@ -286,3 +286,14 @@ test("the text list: by number, contact and direction, newest first, in pages", 
   assert.equal(await refusedWith(h.smsList(t.ctx, { direction: "up" })), "validation.bad_input");
   assert.equal(await refusedWith(h.smsList(t.ctx, { limit: 501 })), "validation.bad_input");
 });
+
+test("texts on a line you cannot see are not listed", async () => {
+  const t = harness();
+  const numberId = await setup(t);
+  await send(t, numberId);
+  (t.ctx as unknown as { authorize: unknown }).authorize = () => ({ effect: "deny" });
+  assert.equal(out(await h.smsList(t.ctx, {})).total, 1, "Maya is assigned the number");
+  t.actAs("person", "usr_rob00002");
+  assert.equal(out(await h.smsList(t.ctx, {})).total, 0);
+});
+

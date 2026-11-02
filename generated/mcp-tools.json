@@ -3858,6 +3858,75 @@
       "v": 1
     },
     {
+      "blocks": [],
+      "cap": "sites.artifact_publish",
+      "deferred": false,
+      "description": "THE way to show something you made: publish it privately to a link that opens in a tab. Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "artifactId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          },
+          "computerId": {
+            "examples": [
+              "cmt_a1b2c3"
+            ],
+            "pattern": "^cmt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "port": {
+            "maximum": 65535,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "artifact_publish",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
       "blocks": [
         "question"
       ],
@@ -12508,8 +12577,9 @@
             "type": "string"
           },
           "idleSleepMinutes": {
+            "description": "0 keeps it awake (it serves a site)",
             "maximum": 1440,
-            "minimum": 1,
+            "minimum": 0,
             "type": "integer"
           },
           "tabLimit": {
@@ -15620,6 +15690,13 @@
             "type": "string"
           },
           "provider": {
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
             "type": "string"
           },
           "teammateId": {
@@ -46880,6 +46957,32 @@
     },
     {
       "blocks": [],
+      "cap": "sites.artifact_open",
+      "deferred": false,
+      "description": "A short-lived address that opens an artifact for the person asking, in a tab or the browser",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "artifactId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_artifact_open",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sites.build",
       "deferred": false,
       "description": "Build the site from its repo (the site agent runs in the repo); test and verify",
@@ -46911,10 +47014,26 @@
       "blocks": [],
       "cap": "sites.create",
       "deferred": false,
-      "description": "Create a site with its root folder under Deployments/",
+      "description": "Create a site: a name, and where it runs (a port on a computer, or a folder in Files). Nothing is served until it is published",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "access": {
+            "enum": [
+              "public",
+              "password",
+              "space",
+              "private"
+            ],
+            "type": "string"
+          },
+          "computerId": {
+            "examples": [
+              "cmt_a1b2c3"
+            ],
+            "pattern": "^cmt_[a-z0-9]+$",
+            "type": "string"
+          },
           "folderId": {
             "examples": [
               "fld_a1b2c3"
@@ -46942,7 +47061,15 @@
           "name": {
             "type": "string"
           },
+          "port": {
+            "maximum": 65535,
+            "minimum": 1,
+            "type": "integer"
+          },
           "repoUrl": {
+            "type": "string"
+          },
+          "slug": {
             "type": "string"
           },
           "templateKit": {
@@ -46955,7 +47082,6 @@
         },
         "required": [
           "name",
-          "kind",
           "idempotencyKey"
         ],
         "type": "object"
@@ -47054,6 +47180,74 @@
         "type": "object"
       },
       "name": "sites_deployments",
+      "planMode": "allowed",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.domain_add",
+      "deferred": false,
+      "description": "Add a custom domain to a site: returns the exact DNS records to set and adds the Caddy route with automatic TLS",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId",
+          "domain",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "sites_domain_add",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.domain_check",
+      "deferred": false,
+      "description": "The state of a custom domain: waiting for DNS, issuing the certificate, or live",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId",
+          "domain"
+        ],
+        "type": "object"
+      },
+      "name": "sites_domain_check",
       "planMode": "allowed",
       "toolset": "sites",
       "v": 1
@@ -47220,9 +47414,24 @@
     },
     {
       "blocks": [],
+      "cap": "sites.host",
+      "deferred": false,
+      "description": "What this Space can host: its address, whether it is a phone address, and what a custom domain needs",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "sites_host",
+      "planMode": "allowed",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sites.list",
       "deferred": false,
-      "description": "List sites by section (Personal, Shared with me, Space) and folder",
+      "description": "List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -47234,6 +47443,13 @@
               "fld_a1b2c3"
             ],
             "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "site",
+              "artifact"
+            ],
             "type": "string"
           },
           "limit": {
@@ -47383,17 +47599,10 @@
       "blocks": [],
       "cap": "sites.promote",
       "deferred": false,
-      "description": "Promote a staging build to production (merges the pull request first when there is one)",
+      "description": "Put a site on the public internet at its address. Held for approval unless the person asked for it this turn",
       "effects": "outward",
       "inputSchema": {
         "properties": {
-          "deploymentId": {
-            "examples": [
-              "dpl_a1b2c3"
-            ],
-            "pattern": "^dpl_[a-z0-9]+$",
-            "type": "string"
-          },
           "idempotencyKey": {
             "examples": [
               "idem_1"
@@ -47411,12 +47620,37 @@
         },
         "required": [
           "siteId",
-          "deploymentId",
           "idempotencyKey"
         ],
         "type": "object"
       },
       "name": "sites_promote",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.publish",
+      "deferred": false,
+      "description": "Serve a site that is not public: space or private access, or a password on its own domain",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_publish",
       "planMode": "blocked",
       "toolset": "sites",
       "v": 1
@@ -47518,6 +47752,58 @@
         "type": "object"
       },
       "name": "sites_staging_password_set",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.status",
+      "deferred": false,
+      "description": "Is the port answering? Where it runs, the address, and what is wrong when something is",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_status",
+      "planMode": "allowed",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.stop",
+      "deferred": false,
+      "description": "Stop serving a site. Its address answers nothing; the process on the computer keeps running",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_stop",
       "planMode": "blocked",
       "toolset": "sites",
       "v": 1
@@ -47643,12 +47929,40 @@
       "blocks": [],
       "cap": "sites.update",
       "deferred": false,
-      "description": "Rename a site or change its settings",
+      "description": "Rename a site, change its settings, where it runs or who may reach it. Making it public takes it down until it is published again",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "access": {
+            "enum": [
+              "public",
+              "password",
+              "space",
+              "private"
+            ],
+            "type": "string"
+          },
+          "computerId": {
+            "examples": [
+              "cmt_a1b2c3"
+            ],
+            "pattern": "^cmt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
           "name": {
             "type": "string"
+          },
+          "port": {
+            "maximum": 65535,
+            "minimum": 1,
+            "type": "integer"
           },
           "settings": {
             "additionalProperties": true,
@@ -49753,6 +50067,13 @@
             "type": "string"
           },
           "provider": {
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
             "type": "string"
           },
           "threadId": {
@@ -53042,6 +53363,254 @@
     },
     {
       "blocks": [],
+      "cap": "tasks.plan",
+      "deferred": false,
+      "description": "Break work into tasks in one step: a parent (new, or one that exists) and its children, each with its brief, what done means, who does it and which others it waits on. A child starts by itself when what it waits on is done; the parent hears only when all are done, or one is blocked or asks",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "children": {
+            "items": {
+              "properties": {
+                "approver": {
+                  "properties": {
+                    "id": {
+                      "examples": [
+                        "usr_a1b2c3"
+                      ],
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "person",
+                        "agent",
+                        "group",
+                        "role",
+                        "automation"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "assigned": {
+                  "properties": {
+                    "id": {
+                      "examples": [
+                        "usr_a1b2c3"
+                      ],
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "person",
+                        "agent",
+                        "group",
+                        "role",
+                        "automation"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "brief": {
+                  "type": "string"
+                },
+                "dependsOn": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 50,
+                  "type": "array"
+                },
+                "doneMeans": {
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "maxItems": 20,
+                  "type": "array"
+                },
+                "due": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "key": {
+                  "examples": [
+                    "draft"
+                  ],
+                  "maxLength": 60,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "priority": {
+                  "enum": [
+                    "urgent",
+                    "high",
+                    "normal",
+                    "low"
+                  ],
+                  "type": "string"
+                },
+                "projectId": {
+                  "examples": [
+                    "prj_a1b2c3"
+                  ],
+                  "pattern": "^prj_[a-z0-9]+$",
+                  "type": "string"
+                },
+                "reviewer": {
+                  "properties": {
+                    "id": {
+                      "examples": [
+                        "usr_a1b2c3"
+                      ],
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "person",
+                        "agent",
+                        "group",
+                        "role",
+                        "automation"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "title": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "worker": {
+                  "enum": [
+                    "thread",
+                    "crew"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "title",
+                "assigned"
+              ],
+              "type": "object"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "parent": {
+            "properties": {
+              "assigned": {
+                "properties": {
+                  "id": {
+                    "examples": [
+                      "usr_a1b2c3"
+                    ],
+                    "type": "string"
+                  },
+                  "kind": {
+                    "enum": [
+                      "person",
+                      "agent",
+                      "group",
+                      "role",
+                      "automation"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "type": "object"
+              },
+              "brief": {
+                "type": "string"
+              },
+              "doneMeans": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              "due": {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              "recordId": {
+                "examples": [
+                  "rec_a1b2c3"
+                ],
+                "pattern": "^rec_[a-z0-9]+$",
+                "type": "string"
+              },
+              "title": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "title"
+            ],
+            "type": "object"
+          },
+          "parentTaskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "children",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "task_plan",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.review",
       "deferred": false,
       "description": "Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)",
@@ -53235,6 +53804,32 @@
     },
     {
       "blocks": [],
+      "cap": "tasks.by_key",
+      "deferred": false,
+      "description": "Find a task by its short key, such as VY-123",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "key": {
+            "examples": [
+              "VY-123"
+            ],
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_by_key",
+      "planMode": "allowed",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.count_needs_you",
       "deferred": false,
       "description": "Count of Ready requests for the rail badge and the Space switcher dot",
@@ -53395,6 +53990,10 @@
             "minimum": 0,
             "type": "integer"
           },
+          "fields": {
+            "additionalProperties": true,
+            "type": "object"
+          },
           "fileIds": {
             "items": {
               "examples": [
@@ -53423,6 +54022,12 @@
             ],
             "type": "string"
           },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "notes": {
             "additionalProperties": {
               "type": "string"
@@ -53439,12 +54044,42 @@
           "payloadHash": {
             "type": "string"
           },
+          "priority": {
+            "enum": [
+              "urgent",
+              "high",
+              "normal",
+              "low"
+            ],
+            "type": "string"
+          },
           "recordId": {
             "examples": [
               "rec_a1b2c3"
             ],
             "pattern": "^rec_[a-z0-9]+$",
             "type": "string"
+          },
+          "recur": {
+            "properties": {
+              "every": {
+                "enum": [
+                  "day",
+                  "week",
+                  "month"
+                ],
+                "type": "string"
+              },
+              "n": {
+                "maximum": 365,
+                "minimum": 1,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "every"
+            ],
+            "type": "object"
           },
           "reviewer": {
             "properties": {
@@ -53495,6 +54130,14 @@
               "id"
             ],
             "type": "object"
+          },
+          "start": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
           },
           "summary": {
             "type": "string"
@@ -53570,6 +54213,32 @@
         "type": "object"
       },
       "name": "tasks_delegate",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.delete",
+      "deferred": false,
+      "description": "Delete a task; Undo brings it back. A held act and a task a Run waits on are canceled instead",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_delete",
       "planMode": "blocked",
       "toolset": "tasks",
       "v": 1
@@ -53764,6 +54433,53 @@
         "type": "object"
       },
       "name": "tasks_history",
+      "planMode": "allowed",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.index",
+      "deferred": false,
+      "description": "The long list of a scope in one read: a light row per task with its rollup, ordered newest first; pass the last rev and an unchanged list answers nothing",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "done": {
+            "type": "boolean"
+          },
+          "parentTaskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "rev": {
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "mine",
+              "given",
+              "everyone"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "scope"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_index",
       "planMode": "allowed",
       "toolset": "tasks",
       "v": 1
@@ -54038,9 +54754,50 @@
     },
     {
       "blocks": [],
+      "cap": "tasks.restore",
+      "deferred": false,
+      "description": "Bring a deleted task back",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_restore",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.rev",
+      "deferred": false,
+      "description": "A short mark that changes whenever any task changes, for a screen that holds a long list",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "tasks_rev",
+      "planMode": "allowed",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.snooze",
       "deferred": false,
-      "description": "Snooze a request until a time, or clear the snooze with null",
+      "description": "Snooze an open task until a time, or clear the snooze with null",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -54214,6 +54971,89 @@
               }
             ]
           },
+          "fields": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "parentTaskId": {
+            "anyOf": [
+              {
+                "examples": [
+                  "tsk_a1b2c3"
+                ],
+                "pattern": "^tsk_[a-z0-9]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "enum": [
+                  "urgent",
+                  "high",
+                  "normal",
+                  "low"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recur": {
+            "anyOf": [
+              {
+                "properties": {
+                  "every": {
+                    "enum": [
+                      "day",
+                      "week",
+                      "month"
+                    ],
+                    "type": "string"
+                  },
+                  "n": {
+                    "maximum": 365,
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "every"
+                ],
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "start": {
+            "anyOf": [
+              {
+                "description": "Milliseconds since the Unix epoch",
+                "examples": [
+                  1760000000000
+                ],
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "summary": {
             "type": "string"
           },
@@ -54235,6 +55075,13 @@
             "type": "string"
           },
           "why": {
+            "type": "string"
+          },
+          "workerThread": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
             "type": "string"
           }
         },

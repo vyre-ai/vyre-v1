@@ -2,7 +2,7 @@
   "name": "Vyre",
   "short_name": "Vyre",
   "description": "The calm operating space for your work and the agents that help you run it.",
-  "start_url": "/home",
+  "start_url": "/chat",
   "scope": "/",
   "display": "standalone",
   "display_override": ["standalone"],

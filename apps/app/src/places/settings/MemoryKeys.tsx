@@ -4,7 +4,7 @@
 import type { ReactElement } from "react";
 import type { CapMap } from "../../../../../generated/types.ts";
 import type { ConnectNeed } from "../../shell/connect/model.ts";
-import { MEMORY_KEYS, useScreenQuery, useSettingsData } from "./data.tsx";
+import { MEMORY_KEYS, useIsPersonal, useScreenQuery, useSettingsData } from "./data.tsx";
 import { useSaved } from "./saved.tsx";
 import { MemorySpend } from "./MemorySpend.tsx";
 import { Choice, Section, SettingsRow } from "./ui.tsx";
@@ -22,8 +22,10 @@ const optionsOf = (p: Picker, none: string): { value: string; label: string }[] 
 ];
 export const sub = (p: Picker, none: string): string => (p.accountRef === null ? none : p.choices.some((c) => c.ref === p.accountRef) ? "Pays for the model pass that tidies this memory" : "This account is no longer available; upkeep follows rules only until you pick another");
 
-export function MemoryKeys(): ReactElement | null {
+/** `you`: your own memory, in Settings. `space`: the Space's account, its projects and the cap, in the Console. A Personal Space has no Console, so its Settings holds both. */
+export function MemoryKeys({ tier = "you" }: { tier?: "you" | "space" }): ReactElement | null {
   const data = useSettingsData();
+  const personal = useIsPersonal();
   const saved = useSaved();
   const keys = useScreenQuery<KeysOut>(MEMORY_KEYS, "keys", {});
   const projects = useScreenQuery<ProjectsOut>(MEMORY_KEYS, "projects", {});
@@ -37,6 +39,8 @@ export function MemoryKeys(): ReactElement | null {
     );
   };
   const personalNone = "None (rules only)";
+  const showYou = tier === "you";
+  const showSpace = tier === "space" || personal;
   const projectRows: ReactElement[] = [];
   if (k.space && projects.status === "ready") {
     projects.data.projects.forEach((p, i) => {
@@ -51,24 +55,24 @@ export function MemoryKeys(): ReactElement | null {
   }
   return (
     <>
-      <Section title="Who pays for memory" help="Memory upkeep merges duplicates, dates facts and tidies pages. With no account it follows rules only; nothing is sent to a model.">
-        <SettingsRow
+      {showYou || (showSpace && k.space) ? <Section title="Who pays for memory" help="Memory upkeep merges duplicates, dates facts and tidies pages. With no account it follows rules only; nothing is sent to a model.">
+        {showYou ? <SettingsRow
           id="memory.key.person" label="Your memory" first
-          control={<Choice value={k.personal.accountRef ?? NONE} options={optionsOf(k.personal, personalNone)} label="Your memory account" testID="ctl-memory-key-person" onChange={(v) => set("person", v === NONE ? null : v, k.personal.accountRef)} connect={{ need: AI, empty: k.personal.choices.length === 0, onConnected: (made) => set("person", made.ref ?? made.id, k.personal.accountRef) }} />}
-        />
-        {k.space ? (
+          control={<Choice value={k.personal.accountRef ?? NONE} options={optionsOf(k.personal, personalNone)} label="Your memory account" testID="ctl-memory-key-person" onChange={(v) => set("person", v === NONE ? null : v, k.personal.accountRef)} />}
+        /> : null}
+        {showSpace && k.space ? (
           <SettingsRow
-            id="memory.key.space" label="Space memory"
-            control={<Choice value={k.space.accountRef ?? NONE} options={optionsOf(k.space, personalNone)} label="Space memory account" testID="ctl-memory-key-space" onChange={(v) => set("space", v === NONE ? null : v, k.space?.accountRef ?? null)} connect={{ need: AI, empty: k.space.choices.length === 0, onConnected: (made) => set("space", made.ref ?? made.id, k.space?.accountRef ?? null) }} />}
+            id="memory.key.space" label="Space memory" first={!showYou}
+            control={<Choice value={k.space.accountRef ?? NONE} options={optionsOf(k.space, personalNone)} label="Space memory account" testID="ctl-memory-key-space" onChange={(v) => set("space", v === NONE ? null : v, k.space?.accountRef ?? null)} />}
           />
         ) : null}
-      </Section>
-      {k.space && projects.status === "ready" && projects.data.projects.length > 0 ? (
+      </Section> : null}
+      {showSpace && k.space && projects.status === "ready" && projects.data.projects.length > 0 ? (
         <Section title="Project memory" help="A project without its own account uses the Space's.">
           {projectRows}
         </Section>
       ) : null}
-      {k.admin ? <MemorySpend /> : null}
+      {showSpace && k.admin ? <MemorySpend /> : null}
     </>
   );
 }

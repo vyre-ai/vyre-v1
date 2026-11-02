@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Startup of the production web export (apps/app: the app entry only, no shots mounts, no samples), measured the way a person feels it: app.start to app.usable.
-//   node scripts/shots/startup.mjs [--skip-export] [--route /home] [--runs 7] [--enforce]
+//   node scripts/shots/startup.mjs [--skip-export] [--route /chat] [--runs 7] [--enforce]
 // Prints (1) the bundle size of every JS chunk, raw and gzip, sorted, with the total and what the first screen loads, and (2) startup per size (desktop 1x CPU, phone 4x CPU), cold and warm, median of --runs.
 // Budgets (V1-SPEC): desktop under 1000 ms, phone under 1500 ms at 4x CPU. --enforce exits 1 over budget. Run on the pinned v1-perf runners (ruling 46).
 import fs from "node:fs";
@@ -142,7 +142,7 @@ export async function main(argv) {
         await cdp.send("Emulation.setCPUThrottlingRate", { rate: CPU[size] });
         // the bytes come from the page's resource timing after the load, not by fetching every response body over CDP while the measured load is running
         for (const kind of ["cold", "warm"]) {
-          await page.goto(server.origin + (args.route || "/home"), { waitUntil: "load" });
+          await page.goto(server.origin + (args.route || "/chat"), { waitUntil: "load" });
           await page.waitForFunction(() => performance.getEntriesByName("app.usable").length > 0, null, { timeout: 30000 }).catch(() => {});
           const marks = await page.evaluate(() => performance.getEntriesByType("mark").map((m) => ({ name: m.name, startTime: m.startTime })));
           const a = marks.find((m) => m.name === "app.start"), b = marks.find((m) => m.name === "app.usable");

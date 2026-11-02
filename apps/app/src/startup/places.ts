@@ -3,14 +3,17 @@
 import type { ComponentType } from "react";
 
 export const PLACES = [
-  "home", "chat", "files", "records", "mail", "calendar", "tasks", "sites", "forms", "campaigns", "automations", "agents", "vault", "settings", "console",
+  "chat", "files", "records", "mail", "calendar", "tasks", "sites", "forms", "campaigns", "automations", "agents", "vault", "settings", "console",
 ] as const;
 
 export type PlaceId = (typeof PLACES)[number];
 export type PlaceModule = { default: ComponentType<{ place: string }> };
 export type PlaceLoader = () => Promise<PlaceModule>;
 
-export const DEFAULT_PLACE: PlaceId = "home";
+export const DEFAULT_PLACE: PlaceId = "chat";
+
+/** Addresses of places that are gone. The export keeps a page for each, so an old link or an installed app still lands in the shell, which opens Chats. */
+export const OLD_PLACES: readonly string[] = ["home"];
 
 export function isPlace(id: string): id is PlaceId {
   return (PLACES as readonly string[]).includes(id);
@@ -27,7 +30,7 @@ export function loaderFor(id: string): PlaceLoader {
   return loaders.get(id) ?? (() => import("./PlaceholderPlace.tsx"));
 }
 
-/** The place to open: the persisted last place if it is a real one, else Home. */
+/** The place to open: the persisted last place if it is a real one, else Chats. */
 export function resolveLastPlace(persisted: string | null | undefined): PlaceId {
   return persisted && isPlace(persisted) ? persisted : DEFAULT_PLACE;
 }

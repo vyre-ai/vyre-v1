@@ -4,6 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import http from "node:http";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -118,6 +119,8 @@ function standIn(nodeDir: string): { make(link: HomeLink): { run(kind: string, i
             case "start": { agentOf.set(String(a["computerId"]), String(a["agentId"] ?? agentOf.get(String(a["computerId"])))); await (await syncFor(String(a["computerId"]))).pass(); return {}; }
             case "stop": { const r = await (await syncFor(String(a["computerId"]))).pass(); return { sessions: [], diskBytes: 2048, homeSynced: r.failed === 0 }; }
             case "probe": return { running: true, busy: false, tabs: 1 };
+            case "address": return "127.0.0.1";
+            case "siteLogs": return ["listening", String(a["slug"])];
             case "takeover": state.taken.on = true; return {};
             case "giveBack": state.taken.on = false; return {};
             case "stream": {
@@ -393,4 +396,44 @@ test("a computer on a node can be watched, taken over and recorded from the Spac
     await d.stop();
     for (const p of [nodeDir, otherDir, dir]) fs.rmSync(p, { recursive: true, force: true });
   }
+});
+
+test("a site on a computer on a node: a visitor's request crosses the node's socket, in both directions, with nothing of the visitor's identity", async () => {
+  const { d, owner } = await boot();
+  const nodeDir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-stream-site-"));
+  const mine = standIn(nodeDir);
+  const { nodeId, running, node } = await enroll(d, owner, nodeDir, mine.make);
+  const seen: { url?: string | undefined; cookie?: string | undefined; prefix?: string | string[] | undefined; body?: string }[] = [];
+  const big = "x".repeat(5 * 1024 * 1024);
+  const app = http.createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (c: Buffer) => chunks.push(c));
+    req.on("end", () => {
+      seen.push({ url: req.url, cookie: req.headers.cookie, prefix: req.headers["x-forwarded-prefix"], body: Buffer.concat(chunks).toString() });
+      res.writeHead(200, { "content-type": "text/plain", "set-cookie": "x=1" });
+      res.end(req.url?.includes("big") ? big : "hello from the node");
+    });
+  });
+  await new Promise<void>((r) => app.listen(0, "127.0.0.1", r));
+  const port = (app.address() as { port: number }).port;
+  try {
+    const a = await agent(d, owner, "Scout");
+    const made = await post(d, "/v1/computers/provision", { agentId: a.agentId, nodeId, idempotencyKey: "pv-site" }, owner);
+    assert.equal(made.status, 200, JSON.stringify(made.json));
+    const computerId = made.json.data.computer.computerId as string;
+    const site = await post(d, "/v1/sites/create", { idempotencyKey: "s-site", name: "Node shop", computerId, port }, owner);
+    assert.equal(site.status, 200, JSON.stringify(site.json));
+    const { siteId, slug } = site.json.data.site as { siteId: string; slug: string };
+    const status = await until("the node's socket", async () => { const r = await post(d, "/v1/sites/status", { siteId }, owner); return r.json.data.answering ? r : undefined; }, 15_000);
+    assert.equal(status.json.data.answering, true, JSON.stringify(status.json));
+    assert.equal((await post(d, "/v1/sites/promote", { idempotencyKey: "s-pub", siteId }, owner)).status, 200);
+    const r = await fetch(`${d.url}/p/${slug}/page?x=1`, { method: "POST", body: "form=1", headers: { cookie: "s=1", "content-type": "application/x-www-form-urlencoded" } });
+    assert.equal(await r.text(), "hello from the node");
+    assert.equal(r.headers.get("set-cookie"), null);
+    assert.match(String(r.headers.get("content-security-policy")), /sandbox allow-scripts/);
+    assert.deepEqual(seen.at(-1), { url: `/p/${slug}/page?x=1`, cookie: undefined, prefix: `/p/${slug}`, body: "form=1" });
+    assert.equal((await (await fetch(`${d.url}/p/${slug}/big`)).text()).length, big.length, "more than one frame comes back whole");
+    assert.deepEqual((await post(d, "/v1/sites/logs", { siteId, tail: 10 }, owner)).json.data.lines, ["listening", slug]);
+    assert.ok(mine.state.executed.includes("address"), "the node found its own computer");
+  } finally { app.close(); node.abort.abort(); await running.catch(() => undefined); mine.state.stop(); await d.stop(); }
 });

@@ -5986,6 +5986,7 @@ export type ChatHelperStartIn = {
   provider?: string;
   effort?: "low" | "medium" | "high" | "max";
   crew?: boolean;
+  taskId?: string;
 };
 export type ChatHelperStartOut = {
   helper: {
@@ -9437,6 +9438,7 @@ export type EngineCrewStartIn = {
   model?: string;
   provider?: string;
   effort?: "low" | "medium" | "high" | "max";
+  taskId?: string;
   idempotencyKey: string;
 };
 export type EngineCrewStartOut = {
@@ -25465,6 +25467,30 @@ export type SheetsUpsertRowOut = {
   created: boolean;
   versionId?: string;
 };
+export type SitesArtifactOpenIn = {
+  artifactId: string;
+};
+export type SitesArtifactOpenOut = {
+  path: string;
+  url?: string;
+  expiresAt: number;
+};
+export type SitesArtifactPublishIn = {
+  title: string;
+  html?: string;
+  fileId?: string;
+  folderId?: string;
+  path?: string;
+  port?: number;
+  computerId?: string;
+  artifactId?: string;
+  idempotencyKey: string;
+};
+export type SitesArtifactPublishOut = {
+  artifactId: string;
+  url?: string;
+  updated: boolean;
+};
 export type SitesBuildIn = {
   siteId: string;
   branch?: string;
@@ -25475,9 +25501,13 @@ export type SitesBuildOut = {
 };
 export type SitesCreateIn = {
   name: string;
-  kind: "site" | "app" | "api" | "worker" | "artifact";
+  kind?: "site" | "app" | "api" | "worker" | "artifact";
   repoUrl?: string;
   templateKit?: string;
+  slug?: string;
+  access?: "public" | "password" | "space" | "private";
+  computerId?: string;
+  port?: number;
   folderId?: string;
   idempotencyKey: string;
 };
@@ -25491,6 +25521,15 @@ export type SitesCreateOut = {
     stagingUrl?: string;
     productionUrl?: string;
     state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
+    url?: string;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
   };
 };
 export type SitesDeleteIn = {
@@ -25533,6 +25572,33 @@ export type SitesDeploymentsOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type SitesDomainAddIn = {
+  siteId: string;
+  domain: string;
+  idempotencyKey: string;
+};
+export type SitesDomainAddOut = {
+  domain: string;
+  records: Array<{
+      type: "CNAME" | "A";
+      name: string;
+      value: string;
+    }>;
+  state: "waiting_dns" | "issuing" | "live";
+};
+export type SitesDomainCheckIn = {
+  siteId: string;
+  domain: string;
+};
+export type SitesDomainCheckOut = {
+  domain: string;
+  records: Array<{
+      type: "CNAME" | "A";
+      name: string;
+      value: string;
+    }>;
+  state: "waiting_dns" | "issuing" | "live";
 };
 export type SitesDomainSetIn = {
   siteId: string;
@@ -25585,11 +25651,29 @@ export type SitesGetOut = {
     stagingUrl?: string;
     productionUrl?: string;
     state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
+    url?: string;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
   };
+};
+export type SitesHostIn = Record<string, unknown>;
+export type SitesHostOut = {
+  origin?: string;
+  relay: boolean;
+  computers: boolean;
+  domains: boolean;
+  domainsNeed?: string;
 };
 export type SitesListIn = {
   section?: "personal" | "shared" | "space";
   folderId?: string;
+  kind?: "site" | "artifact";
   cursor?: string;
   limit?: number;
 };
@@ -25603,6 +25687,15 @@ export type SitesListOut = {
       stagingUrl?: string;
       productionUrl?: string;
       state: "queued" | "building" | "ready" | "failed" | "stopped";
+      slug?: string;
+      url?: string;
+      computerId?: string;
+      port?: number;
+      folderId?: string;
+      access?: "public" | "password" | "space" | "private";
+      live?: boolean;
+      blocked?: boolean;
+      updatedAt?: number;
     }>;
   next?: string;
   total?: number;
@@ -25655,19 +25748,51 @@ export type SitesPreviewsOut = {
 };
 export type SitesPromoteIn = {
   siteId: string;
-  deploymentId: string;
   idempotencyKey: string;
 };
 export type SitesPromoteOut = {
-  deployment: {
-    deploymentId: string;
+  site: {
     siteId: string;
-    env: "staging" | "preview" | "production";
+    name: string;
+    kind: "site" | "app" | "api" | "worker" | "artifact";
+    owner: string;
+    repoFolderId?: string;
+    stagingUrl?: string;
+    productionUrl?: string;
     state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
     url?: string;
-    branch?: string;
-    commit?: string;
-    at: number;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
+  };
+};
+export type SitesPublishIn = {
+  siteId: string;
+};
+export type SitesPublishOut = {
+  site: {
+    siteId: string;
+    name: string;
+    kind: "site" | "app" | "api" | "worker" | "artifact";
+    owner: string;
+    repoFolderId?: string;
+    stagingUrl?: string;
+    productionUrl?: string;
+    state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
+    url?: string;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
   };
 };
 export type SitesRollbackIn = {
@@ -25704,6 +25829,40 @@ export type SitesStagingPasswordSetIn = {
 export type SitesStagingPasswordSetOut = {
   ok: boolean;
 };
+export type SitesStatusIn = {
+  siteId: string;
+};
+export type SitesStatusOut = {
+  answering: boolean;
+  detail?: string;
+  url?: string;
+  live: boolean;
+  blocked: boolean;
+};
+export type SitesStopIn = {
+  siteId: string;
+};
+export type SitesStopOut = {
+  site: {
+    siteId: string;
+    name: string;
+    kind: "site" | "app" | "api" | "worker" | "artifact";
+    owner: string;
+    repoFolderId?: string;
+    stagingUrl?: string;
+    productionUrl?: string;
+    state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
+    url?: string;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
+  };
+};
 export type SitesTableCreateIn = {
   siteId: string;
   key: string;
@@ -25737,6 +25896,10 @@ export type SitesUpdateIn = {
   siteId: string;
   name?: string;
   settings?: Record<string, unknown>;
+  access?: "public" | "password" | "space" | "private";
+  computerId?: string;
+  port?: number;
+  folderId?: string;
 };
 export type SitesUpdateOut = {
   site: {
@@ -25748,6 +25911,15 @@ export type SitesUpdateOut = {
     stagingUrl?: string;
     productionUrl?: string;
     state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
+    url?: string;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
   };
 };
 export type SkillsAddIn = {
@@ -27971,6 +28143,7 @@ export type TasksActIn = {
 export type TasksActOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28018,6 +28191,15 @@ export type TasksActOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
   result?: unknown;
 };
@@ -28032,6 +28214,7 @@ export type TasksAskIn = {
 export type TasksAskOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28079,6 +28262,15 @@ export type TasksAskOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
   answerTaskId: string;
 };
@@ -28093,6 +28285,7 @@ export type TasksAssignIn = {
 export type TasksAssignOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28140,6 +28333,15 @@ export type TasksAssignOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksBlockIn = {
@@ -28149,6 +28351,7 @@ export type TasksBlockIn = {
 export type TasksBlockOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28196,8 +28399,23 @@ export type TasksBlockOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
   unblockTaskId: string;
+};
+export type TasksByKeyIn = {
+  key: string;
+};
+export type TasksByKeyOut = {
+  taskId: string | null;
 };
 export type TasksCountNeedsYouIn = Record<string, unknown>;
 export type TasksCountNeedsYouOut = {
@@ -28227,6 +28445,14 @@ export type TasksCreateIn = {
   };
   due?: number;
   effort?: number;
+  priority?: "urgent" | "high" | "normal" | "low";
+  labels?: Array<string>;
+  start?: number;
+  fields?: Record<string, unknown>;
+  recur?: {
+    every: "day" | "week" | "month";
+    n?: number;
+  };
   recordId?: string;
   fileIds?: Array<string>;
   source?: {
@@ -28249,6 +28475,7 @@ export type TasksCreateIn = {
 export type TasksCreateOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28296,6 +28523,15 @@ export type TasksCreateOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksDecideIn = {
@@ -28306,6 +28542,7 @@ export type TasksDecideIn = {
 export type TasksDecideOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28353,6 +28590,15 @@ export type TasksDecideOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
   next: "done" | "fixes";
 };
@@ -28367,6 +28613,7 @@ export type TasksDelegateIn = {
 export type TasksDelegateOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28414,11 +28661,26 @@ export type TasksDelegateOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
   passedTo: {
     kind: "person" | "agent" | "group" | "role" | "automation";
     id: string;
   };
+};
+export type TasksDeleteIn = {
+  taskId: string;
+};
+export type TasksDeleteOut = {
+  deleted: boolean;
 };
 export type TasksDependenciesAddIn = {
   taskId: string;
@@ -28427,6 +28689,7 @@ export type TasksDependenciesAddIn = {
 export type TasksDependenciesAddOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28474,6 +28737,15 @@ export type TasksDependenciesAddOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksDependenciesRemoveIn = {
@@ -28483,6 +28755,7 @@ export type TasksDependenciesRemoveIn = {
 export type TasksDependenciesRemoveOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28530,7 +28803,25 @@ export type TasksDependenciesRemoveOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
+};
+export type TasksDigestIn = {
+  agentId: string;
+  threadId?: string;
+};
+export type TasksDigestOut = {
+  text: string;
+  hash: string;
+  boundTaskId?: string;
 };
 export type TasksEscalateIn = {
   taskId: string;
@@ -28539,6 +28830,7 @@ export type TasksEscalateIn = {
 export type TasksEscalateOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28586,6 +28878,15 @@ export type TasksEscalateOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksFollowersAddIn = {
@@ -28595,6 +28896,7 @@ export type TasksFollowersAddIn = {
 export type TasksFollowersAddOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28642,6 +28944,15 @@ export type TasksFollowersAddOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksFollowersRemoveIn = {
@@ -28651,6 +28962,7 @@ export type TasksFollowersRemoveIn = {
 export type TasksFollowersRemoveOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28698,6 +29010,15 @@ export type TasksFollowersRemoveOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksGetIn = {
@@ -28706,6 +29027,7 @@ export type TasksGetIn = {
 export type TasksGetOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28753,6 +29075,15 @@ export type TasksGetOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksHistoryIn = {
@@ -28771,6 +29102,62 @@ export type TasksHistoryOut = {
   next?: string;
   total?: number;
 };
+export type TasksIndexIn = {
+  scope: "mine" | "given" | "everyone";
+  recordId?: string;
+  parentTaskId?: string;
+  done?: boolean;
+  rev?: string;
+};
+export type TasksIndexOut = {
+  rev: string;
+  unchanged: boolean;
+  rows: Array<{
+      id: string;
+      key?: string;
+      kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+      title: string;
+      state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+      blocked: boolean;
+      assigned: {
+        kind: "person" | "agent" | "group" | "role" | "automation";
+        id: string;
+      };
+      reviewer?: {
+        kind: "person" | "agent" | "group" | "role" | "automation";
+        id: string;
+      };
+      approver?: {
+        kind: "person" | "agent" | "group" | "role" | "automation";
+        id: string;
+      };
+      takenBy?: string;
+      due?: number;
+      start?: number;
+      effort?: number;
+      priority?: "urgent" | "high" | "normal" | "low";
+      labels: Array<string>;
+      recordId?: string;
+      parentTaskId?: string;
+      dependsOn: Array<string>;
+      threadId?: string;
+      workerThread?: string;
+      source?: {
+        kind: "chat" | "run" | "gate" | "journey" | "manual";
+        id: string;
+      };
+      snoozedUntil?: number;
+      children?: {
+        total: number;
+        done: number;
+      };
+      createdBy: string;
+      createdAt: number;
+      updatedAt: number;
+    }>;
+  doneThisWeek: number;
+  total: number;
+};
 export type TasksLinksAddIn = {
   taskId: string;
   recordId?: string;
@@ -28779,6 +29166,7 @@ export type TasksLinksAddIn = {
 export type TasksLinksAddOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28826,6 +29214,15 @@ export type TasksLinksAddOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksLinksRemoveIn = {
@@ -28836,6 +29233,7 @@ export type TasksLinksRemoveIn = {
 export type TasksLinksRemoveOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28883,6 +29281,15 @@ export type TasksLinksRemoveOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksListIn = {
@@ -28902,6 +29309,7 @@ export type TasksListIn = {
 export type TasksListOut = {
   tasks: Array<{
       id: string;
+      key?: string;
       kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
       title: string;
       summary?: string;
@@ -28949,6 +29357,15 @@ export type TasksListOut = {
       createdBy: string;
       createdAt: number;
       updatedAt: number;
+      priority?: "urgent" | "high" | "normal" | "low";
+      labels?: Array<string>;
+      start?: number;
+      fields?: Record<string, unknown>;
+      recur?: {
+        every: "day" | "week" | "month";
+        n?: number;
+      };
+      workerThread?: string;
     }>;
   next?: string;
   total?: number;
@@ -28961,6 +29378,7 @@ export type TasksMyWorkIn = {
 export type TasksMyWorkOut = {
   tasks: Array<{
       id: string;
+      key?: string;
       kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
       title: string;
       summary?: string;
@@ -29008,6 +29426,15 @@ export type TasksMyWorkOut = {
       createdBy: string;
       createdAt: number;
       updatedAt: number;
+      priority?: "urgent" | "high" | "normal" | "low";
+      labels?: Array<string>;
+      start?: number;
+      fields?: Record<string, unknown>;
+      recur?: {
+        every: "day" | "week" | "month";
+        n?: number;
+      };
+      workerThread?: string;
     }>;
   counts: {
     open: number;
@@ -29024,6 +29451,7 @@ export type TasksNeedsYouOut = {
   items: Array<{
       task: {
         id: string;
+        key?: string;
         kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
         title: string;
         summary?: string;
@@ -29071,18 +29499,63 @@ export type TasksNeedsYouOut = {
         createdBy: string;
         createdAt: number;
         updatedAt: number;
+        priority?: "urgent" | "high" | "normal" | "low";
+        labels?: Array<string>;
+        start?: number;
+        fields?: Record<string, unknown>;
+        recur?: {
+          every: "day" | "week" | "month";
+          n?: number;
+        };
+        workerThread?: string;
       };
       reason: "ready" | "due_today" | "overdue" | "blocking";
       handledBy?: string;
     }>;
   total: number;
 };
-export type TasksReleaseIn = {
-  taskId: string;
+export type TasksPlanIn = {
+  parentTaskId?: string;
+  parent?: {
+    title: string;
+    brief?: string;
+    doneMeans?: Array<string>;
+    assigned?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    recordId?: string;
+    due?: number;
+  };
+  children: Array<{
+      key: string;
+      title: string;
+      brief?: string;
+      doneMeans?: Array<string>;
+      assigned: {
+        kind: "person" | "agent" | "group" | "role" | "automation";
+        id: string;
+      };
+      reviewer?: {
+        kind: "person" | "agent" | "group" | "role" | "automation";
+        id: string;
+      };
+      approver?: {
+        kind: "person" | "agent" | "group" | "role" | "automation";
+        id: string;
+      };
+      dependsOn?: Array<string>;
+      due?: number;
+      priority?: "urgent" | "high" | "normal" | "low";
+      worker?: "thread" | "crew";
+      projectId?: string;
+    }>;
+  idempotencyKey: string;
 };
-export type TasksReleaseOut = {
-  task: {
+export type TasksPlanOut = {
+  parent: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -29130,7 +29603,156 @@ export type TasksReleaseOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
+  children: Array<{
+      key: string;
+      taskId: string;
+      shortKey?: string;
+      created: boolean;
+    }>;
+};
+export type TasksReleaseIn = {
+  taskId: string;
+};
+export type TasksReleaseOut = {
+  task: {
+    id: string;
+    key?: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
+  };
+};
+export type TasksRestoreIn = {
+  taskId: string;
+};
+export type TasksRestoreOut = {
+  task: {
+    id: string;
+    key?: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
+  };
+};
+export type TasksRevIn = Record<string, unknown>;
+export type TasksRevOut = {
+  rev: string;
 };
 export type TasksReviewIn = {
   taskId: string;
@@ -29141,6 +29763,7 @@ export type TasksReviewIn = {
 export type TasksReviewOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -29188,6 +29811,15 @@ export type TasksReviewOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
   next: "approval" | "done" | "fixes" | "person";
 };
@@ -29198,6 +29830,7 @@ export type TasksSnoozeIn = {
 export type TasksSnoozeOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -29245,6 +29878,15 @@ export type TasksSnoozeOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksSubmitIn = {
@@ -29255,6 +29897,7 @@ export type TasksSubmitIn = {
 export type TasksSubmitOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -29302,6 +29945,15 @@ export type TasksSubmitOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
   next: "review" | "approval" | "done";
 };
@@ -29311,6 +29963,7 @@ export type TasksTakeIn = {
 export type TasksTakeOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -29358,6 +30011,15 @@ export type TasksTakeOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksTransitionIn = {
@@ -29369,6 +30031,7 @@ export type TasksTransitionIn = {
 export type TasksTransitionOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -29416,6 +30079,15 @@ export type TasksTransitionOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksUpdateIn = {
@@ -29431,10 +30103,21 @@ export type TasksUpdateIn = {
       data: unknown;
     }>;
   threadId?: string;
+  priority?: ("urgent" | "high" | "normal" | "low") | null;
+  labels?: Array<string>;
+  start?: number | null;
+  fields?: Record<string, unknown>;
+  recur?: ({
+    every: "day" | "week" | "month";
+    n?: number;
+  }) | null;
+  parentTaskId?: string | null;
+  workerThread?: string;
 };
 export type TasksUpdateOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -29482,6 +30165,15 @@ export type TasksUpdateOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksWithdrawIn = {
@@ -29500,6 +30192,7 @@ export type TasksWorkingNotesDeleteIn = {
 export type TasksWorkingNotesDeleteOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -29547,6 +30240,15 @@ export type TasksWorkingNotesDeleteOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksWorkingNotesSetIn = {
@@ -29557,6 +30259,7 @@ export type TasksWorkingNotesSetIn = {
 export type TasksWorkingNotesSetOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -29604,6 +30307,15 @@ export type TasksWorkingNotesSetOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TelephonyAnswerIn = {
@@ -34369,25 +35081,33 @@ export interface CapMap {
   "sheets.read_rows": { in: SheetsReadRowsIn; out: SheetsReadRowsOut };
   "sheets.update_row": { in: SheetsUpdateRowIn; out: SheetsUpdateRowOut };
   "sheets.upsert_row": { in: SheetsUpsertRowIn; out: SheetsUpsertRowOut };
+  "sites.artifact_open": { in: SitesArtifactOpenIn; out: SitesArtifactOpenOut };
+  "sites.artifact_publish": { in: SitesArtifactPublishIn; out: SitesArtifactPublishOut };
   "sites.build": { in: SitesBuildIn; out: SitesBuildOut };
   "sites.create": { in: SitesCreateIn; out: SitesCreateOut };
   "sites.delete": { in: SitesDeleteIn; out: SitesDeleteOut };
   "sites.deploy": { in: SitesDeployIn; out: SitesDeployOut };
   "sites.deployments": { in: SitesDeploymentsIn; out: SitesDeploymentsOut };
+  "sites.domain_add": { in: SitesDomainAddIn; out: SitesDomainAddOut };
+  "sites.domain_check": { in: SitesDomainCheckIn; out: SitesDomainCheckOut };
   "sites.domain_set": { in: SitesDomainSetIn; out: SitesDomainSetOut };
   "sites.domains_get": { in: SitesDomainsGetIn; out: SitesDomainsGetOut };
   "sites.env_list": { in: SitesEnvListIn; out: SitesEnvListOut };
   "sites.env_set": { in: SitesEnvSetIn; out: SitesEnvSetOut };
   "sites.get": { in: SitesGetIn; out: SitesGetOut };
+  "sites.host": { in: SitesHostIn; out: SitesHostOut };
   "sites.list": { in: SitesListIn; out: SitesListOut };
   "sites.logs": { in: SitesLogsIn; out: SitesLogsOut };
   "sites.preview_rebuild": { in: SitesPreviewRebuildIn; out: SitesPreviewRebuildOut };
   "sites.preview_remove": { in: SitesPreviewRemoveIn; out: SitesPreviewRemoveOut };
   "sites.previews": { in: SitesPreviewsIn; out: SitesPreviewsOut };
   "sites.promote": { in: SitesPromoteIn; out: SitesPromoteOut };
+  "sites.publish": { in: SitesPublishIn; out: SitesPublishOut };
   "sites.rollback": { in: SitesRollbackIn; out: SitesRollbackOut };
   "sites.service_identity": { in: SitesServiceIdentityIn; out: SitesServiceIdentityOut };
   "sites.staging_password_set": { in: SitesStagingPasswordSetIn; out: SitesStagingPasswordSetOut };
+  "sites.status": { in: SitesStatusIn; out: SitesStatusOut };
+  "sites.stop": { in: SitesStopIn; out: SitesStopOut };
   "sites.table_create": { in: SitesTableCreateIn; out: SitesTableCreateOut };
   "sites.table_promote": { in: SitesTablePromoteIn; out: SitesTablePromoteOut };
   "sites.tables": { in: SitesTablesIn; out: SitesTablesOut };
@@ -34502,23 +35222,30 @@ export interface CapMap {
   "tasks.ask": { in: TasksAskIn; out: TasksAskOut };
   "tasks.assign": { in: TasksAssignIn; out: TasksAssignOut };
   "tasks.block": { in: TasksBlockIn; out: TasksBlockOut };
+  "tasks.by_key": { in: TasksByKeyIn; out: TasksByKeyOut };
   "tasks.count_needs_you": { in: TasksCountNeedsYouIn; out: TasksCountNeedsYouOut };
   "tasks.create": { in: TasksCreateIn; out: TasksCreateOut };
   "tasks.decide": { in: TasksDecideIn; out: TasksDecideOut };
   "tasks.delegate": { in: TasksDelegateIn; out: TasksDelegateOut };
+  "tasks.delete": { in: TasksDeleteIn; out: TasksDeleteOut };
   "tasks.dependencies.add": { in: TasksDependenciesAddIn; out: TasksDependenciesAddOut };
   "tasks.dependencies.remove": { in: TasksDependenciesRemoveIn; out: TasksDependenciesRemoveOut };
+  "tasks.digest": { in: TasksDigestIn; out: TasksDigestOut };
   "tasks.escalate": { in: TasksEscalateIn; out: TasksEscalateOut };
   "tasks.followers.add": { in: TasksFollowersAddIn; out: TasksFollowersAddOut };
   "tasks.followers.remove": { in: TasksFollowersRemoveIn; out: TasksFollowersRemoveOut };
   "tasks.get": { in: TasksGetIn; out: TasksGetOut };
   "tasks.history": { in: TasksHistoryIn; out: TasksHistoryOut };
+  "tasks.index": { in: TasksIndexIn; out: TasksIndexOut };
   "tasks.links.add": { in: TasksLinksAddIn; out: TasksLinksAddOut };
   "tasks.links.remove": { in: TasksLinksRemoveIn; out: TasksLinksRemoveOut };
   "tasks.list": { in: TasksListIn; out: TasksListOut };
   "tasks.my_work": { in: TasksMyWorkIn; out: TasksMyWorkOut };
   "tasks.needs_you": { in: TasksNeedsYouIn; out: TasksNeedsYouOut };
+  "tasks.plan": { in: TasksPlanIn; out: TasksPlanOut };
   "tasks.release": { in: TasksReleaseIn; out: TasksReleaseOut };
+  "tasks.restore": { in: TasksRestoreIn; out: TasksRestoreOut };
+  "tasks.rev": { in: TasksRevIn; out: TasksRevOut };
   "tasks.review": { in: TasksReviewIn; out: TasksReviewOut };
   "tasks.snooze": { in: TasksSnoozeIn; out: TasksSnoozeOut };
   "tasks.submit": { in: TasksSubmitIn; out: TasksSubmitOut };
@@ -37430,6 +38157,7 @@ export type SiteBuildFailedPayload = {
 export type SiteCreatedPayload = {
   siteId: string;
   name: string;
+  private?: boolean;
 };
 export type SiteDeployedPayload = {
   siteId: string;
@@ -37453,9 +38181,17 @@ export type SitePromotedPayload = {
   siteId: string;
   deploymentId: string;
 };
+export type SitePublishedPayload = {
+  siteId: string;
+  url?: string;
+  access: "public" | "password" | "space" | "private";
+};
 export type SiteRolledBackPayload = {
   siteId: string;
   toDeploymentId: string;
+};
+export type SiteStoppedPayload = {
+  siteId: string;
 };
 export type SiteTableCreatedPayload = {
   siteId: string;
@@ -37756,6 +38492,11 @@ export type TaskAssignedPayload = {
     id: string;
   }) | null;
 };
+export type TaskChildrenSettledPayload = {
+  taskId: string;
+  reason: "finished" | "blocked" | "asked";
+  childId?: string;
+};
 export type TaskCompletedPayload = {
   taskId: string;
   kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
@@ -37791,6 +38532,10 @@ export type TaskDelegatedPayload = {
     id: string;
   };
 };
+export type TaskDeletedPayload = {
+  taskId: string;
+  title: string;
+};
 export type TaskEscalatedPayload = {
   taskId: string;
   to: {
@@ -37822,6 +38567,9 @@ export type TaskNoteSetPayload = {
   key: string;
   by: string;
 };
+export type TaskReadyPayload = {
+  taskId: string;
+};
 export type TaskRejectedPayload = {
   taskId: string;
   by: string;
@@ -37840,6 +38588,9 @@ export type TaskRequestedPayload = {
     id: string;
   };
   expiresAt?: number;
+};
+export type TaskRestoredPayload = {
+  taskId: string;
 };
 export type TaskSentBackPayload = {
   taskId: string;
@@ -38816,7 +39567,9 @@ export interface EventMap {
   "site.preview_created": SitePreviewCreatedPayload;
   "site.preview_removed": SitePreviewRemovedPayload;
   "site.promoted": SitePromotedPayload;
+  "site.published": SitePublishedPayload;
   "site.rolled_back": SiteRolledBackPayload;
+  "site.stopped": SiteStoppedPayload;
   "site.table_created": SiteTableCreatedPayload;
   "site.table_promoted": SiteTablePromotedPayload;
   "skill.added": SkillAddedPayload;
@@ -38870,18 +39623,22 @@ export interface EventMap {
   "tab.opened": TabOpenedPayload;
   "task.approved": TaskApprovedPayload;
   "task.assigned": TaskAssignedPayload;
+  "task.children_settled": TaskChildrenSettledPayload;
   "task.completed": TaskCompletedPayload;
   "task.created": TaskCreatedPayload;
   "task.delegated": TaskDelegatedPayload;
+  "task.deleted": TaskDeletedPayload;
   "task.escalated": TaskEscalatedPayload;
   "task.follower_added": TaskFollowerAddedPayload;
   "task.follower_removed": TaskFollowerRemovedPayload;
   "task.handled": TaskHandledPayload;
   "task.link_changed": TaskLinkChangedPayload;
   "task.note_set": TaskNoteSetPayload;
+  "task.ready": TaskReadyPayload;
   "task.rejected": TaskRejectedPayload;
   "task.released": TaskReleasedPayload;
   "task.requested": TaskRequestedPayload;
+  "task.restored": TaskRestoredPayload;
   "task.sent_back": TaskSentBackPayload;
   "task.snoozed": TaskSnoozedPayload;
   "task.taken": TaskTakenPayload;

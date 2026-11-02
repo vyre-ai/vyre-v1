@@ -48,3 +48,9 @@ limits, for tests only.
 
 See the Cost section of `docs/adr/0026-relay.md`: an idle box costs nothing, and a heavy user is
 well under a dollar a month on Workers Paid.
+
+## The public path
+
+`<name>.vyre.run/p/*` and an artifact's `/a/<id>/k/<token>/*` are the one thing a claimed name does besides the shell. A visitor with no session reaches the Space over the box's control socket (`p.req`, `p.body`, `p.res`, `p.data`, `p.end`, `p.err`, base64 in JSON). The page has an opaque origin: requests keep a short list of headers (no Cookie, no Authorization), responses keep a short list (no Set-Cookie, nothing the browser applies to the whole origin), and every answer carries `sandbox allow-scripts allow-forms allow-popups allow-downloads`. Limits are in `PUBLIC` in `phone.js`: 8 MiB in, 32 MiB out, 600 requests a minute per route, 120 per address, 32 at once, 30 s.
+
+Kill switch: the `P_BLOCKED` secret, comma separated, `name` or `name/site`. The answer is 451. Each request logs host, site and status, never a path below the site, a query or a body.

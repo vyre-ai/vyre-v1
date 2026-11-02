@@ -2,6 +2,7 @@
 // A mailbox is an inbox. These tests drive the handlers on an in-memory database and check every answer against the frozen contract
 // and every event against its frozen payload schema.
 import test from "node:test";
+import { consumers } from "../impl.ts";
 import assert from "node:assert/strict";
 import {
   autoConnectMembers, mailboxCreate, mailboxDisconnect, mailboxGet, mailboxList, mailboxPause, mailboxResume, mailboxSetPrivacy, mailboxSetSyncState, mailboxUpdate,
@@ -207,6 +208,7 @@ test("disconnect removes the connection, drops the IMAP sign-in, keeps the filed
   // A retry succeeds quietly and the address can be connected again.
   assert.deepEqual(await mailboxDisconnect(h.ctx, { mailboxId: "mbx_maya" }), { disconnected: true });
   assert.equal(h.named("mailbox.disconnected").length, 1);
+  h.matchTo("maya@vyre.test");
   const again = await connect(h.ctx, { provider: "google", address: "maya@vyre.test", idempotencyKey: key() });
   assert.equal(again.mailbox.state, "pending");
   await assert.rejects(mailboxDisconnect(h.ctx, { mailboxId: "mbx_unknown" }), (e) => codeOf(e) === "validation.not_found");
@@ -235,6 +237,7 @@ test("auto-connect creates one Pending mailbox and one notice for each new membe
   ]);
   const notices = h.named("mailbox.connected");
   assert.equal(notices.length, 2);
+  assert.ok(notices.every((e) => e.payload.private === undefined), "the row is shared with the Space until the member marks it private, so the notice cannot say private");
   assert.deepEqual(notices.map((e) => [e.payload.memberId, e.payload.provider, e.payload.auto, e.vis]).sort(), [
     ["usr_lee01", "google", true, "participants"], ["usr_pat01", "google", true, "participants"],
   ]);
@@ -268,4 +271,17 @@ test("set_sync_state: a connection that lost its sign-in marks the mailbox Needs
   await mailboxPause(h.ctx, { mailboxId: "mbx_maya" });
   assert.equal((await mailboxSetSyncState(h.ctx, { mailboxId: "mbx_maya", state: "error" })).mailbox.state, "paused");
   conforms(h);
+});
+
+test("a person who leaves stops: their mailboxes end as the removal wizard ends them, and a repeat changes nothing", async () => {
+  const h = harness();
+  seedMailbox(h, "mbx_mine0001", "noah@vyre.test", { ownerId: "usr_noah01" });
+  seedMailbox(h, "mbx_other001", "maya@vyre.test", { ownerId: "usr_maya01" });
+  const left = consumers["mail.person_left"];
+  assert.ok(left.on.includes("member.removed"));
+  assert.equal(left.run(h.ctx as never, { payload: { personId: "usr_noah01" } }), 1);
+  const state = (id: string): unknown => h.rows("SELECT state FROM mail_mailbox WHERE id = ?", id)[0]?.["state"];
+  assert.equal(state("mbx_mine0001"), "disconnected");
+  assert.notEqual(state("mbx_other001"), "disconnected", "nobody else's");
+  assert.equal(left.run(h.ctx as never, { payload: { personId: "usr_noah01" } }), 0);
 });

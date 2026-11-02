@@ -44,10 +44,10 @@ test("a long thought is shown as its last stretch on one line, and time shows on
   assert.equal(elapsedWords(75), "1m 15s");
 });
 
-test("a finished reply folds its steps into \"Worked for 14s\" from the blocks the host recorded; they are not cards", () => {
+test("a finished reply folds its steps into \"Worked 14s\" from the blocks the host recorded; they are not cards", () => {
   const b = (type: string, data: Record<string, unknown>, id: string) => ({ id, type, v: 1, state: "done", data });
   const m = { blocks: [b("tool_call", { id: "t1", name: "Read" }, "b1"), b("tool_result", { id: "t1", ok: true, secs: 2 }, "b2"), b("tool_call", { id: "t2", name: "WebSearch" }, "b3"), b("tool_result", { id: "t2", ok: true, secs: 3, turnSecs: 14 }, "b4")] } as unknown as Message;
   const w = workOf(m)!;
-  assert.equal(w.summary, "Worked for 14s, 2 steps");
+  assert.equal(w.summary, "Worked 14s · 2 steps");
   assert.deepEqual(w.steps.map((s) => s.title), ["Reading", "Searching the web"]);
 });

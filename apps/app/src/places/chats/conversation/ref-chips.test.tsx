@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { idsIn, refOfHref, withNames } from "./ref-chips.tsx";
+import { idsIn, keysIn, refOfHref, withKeys, withNames } from "./ref-chips.tsx";
 
 const REC = "rec_01a1b2c3d4e5f6g7h8";
 
@@ -35,4 +35,12 @@ test("blocks of a streaming reply: an id or [[Name|id]] in a text node becomes a
   assert.deepEqual(inl.filter((n) => n.t === "link").map((n) => n.c![0]!.v), ["Dana Fox", "Dana Fox"]);
   assert.ok(inl.some((n) => n.t === "code" && n.v === REC), "code stays as written");
   assert.ok(!JSON.stringify(inl.filter((n) => n.t === "text")).includes("rec_"), "no raw id in the words");
+});
+
+test("a task's short key in chat is a link to it; a word that only looks like one, and code, stay as they are", () => {
+  assert.deepEqual(keysIn("See VY-142 and VY-142, then ISO-9001. `VY-7` is code"), ["VY-142", "ISO-9001"]);
+  const out = withKeys("See VY-142, not ISO-9001, and `VY-142`", new Map([["VY-142", "tsk_abc"]]));
+  assert.ok(out.includes("[VY-142](https://ref.vyre.invalid/task/tsk_abc)"));
+  assert.ok(out.includes("ISO-9001") && !out.includes("[ISO-9001]"));
+  assert.ok(out.endsWith("`VY-142`"));
 });

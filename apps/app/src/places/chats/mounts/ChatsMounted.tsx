@@ -10,7 +10,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
-import { States } from "../../../../../../ui/src/States/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { Principal } from "../../home/sections-a/data.tsx";
@@ -26,7 +25,7 @@ import type { ComposerFill } from "../conversation/data.tsx";
 import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { NeedsYou } from "../needsyou/NeedsYou.tsx";
 import { AgentPane } from "../AgentPane.tsx";
-import { ChatsSidebarSlot } from "../sidebar/ChatsSidebar.tsx";
+import { ChatsSidebar, ChatsSidebarSlot } from "../sidebar/ChatsSidebar.tsx";
 import { TerminalList } from "../terminal/TerminalList.tsx";
 import { TerminalRules } from "../terminal/TerminalRules.tsx";
 import { TerminalTab } from "../terminal/TerminalTab.tsx";
@@ -39,8 +38,18 @@ import { copy, agentPageData, askWith, chatOpening, chatWith, createCapture, cre
 import type { CaptureCounter, Go, LineAction } from "./data.ts";
 import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
-import { START, fromHash, newestThread, step, workOf } from "./route.ts";
+import { START, fromHash, step, workOf } from "./route.ts";
+import { Landing } from "../landing/Landing.tsx";
+import { ThreadsPage } from "./ThreadsPage.tsx";
+import { AgentForm } from "../agentform/AgentForm.tsx";
+import { setAgentFaces } from "../../../../../../ui/src/Avatar/assistant.ts";
+import { useDirectory } from "../../../shell/providers/automations-parts.tsx";
+import { ProfilePane, afterClose, profileTab, withTab } from "../rightpane/ProfilePane.tsx";
+import type { ProfileTab } from "../rightpane/ProfilePane.tsx";
+import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { WORKSPACE_MIN_W, Workspace } from "./Workspace.tsx";
+import { TasksPage } from "../tasks/TasksPage.tsx";
+import { TaskDetail } from "../tasks/TaskDetail.tsx";
 import type { Act, Shown } from "./route.ts";
 import { nameOr } from "../names.ts";
 
@@ -70,9 +79,17 @@ export interface ChatsMountedProps {
   initial?: Shown;
   /** Pins which rows are drawn (tests and screenshots draw them all). */
   window?: VirtualWindow;
+  /** What is open, as a hash, for the tab strip and the address: a chat is a tab of its own. */
+  opened?: (target: { subject?: { type: string; id: string }; screen?: string; args?: Record<string, unknown> }) => void;
+  /** The middle is about to change: the shell keeps a still copy on screen until the next view is ready. */
+  onSwitch?: () => void;
+  /** Closes the tab this page sits in: a page that is finished leaves no stale tab behind. */
+  closeSelf?: () => void;
+  /** A phone: what opens from the first screen goes on top of its history, so Back returns here. */
+  stacked?: boolean;
 }
 
-export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedProps): ReactElement {
+export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch, closeSelf, stacked = false }: ChatsMountedProps): ReactElement {
   const [shown, setShown] = useState<Shown>(() => initial ?? (hash === "" ? START : fromHash(hash)));
   const [line, setLineState] = useState<{ text: string; action?: LineAction } | null>(null);
   const setLine = useCallback((text: string, action?: LineAction): void => setLineState(action ? { text, action } : { text }), []);
@@ -85,20 +102,48 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   const byId = useMemo(() => new Map(list.map((p) => [p.id, p] as const)), [list]);
   const nameOf = useCallback((id: string): string => (id === rt.assistant.id ? rt.assistant.name : nameOr(byId.get(id)?.name, id)), [byId, rt.assistant.id, rt.assistant.name]);
 
+  // what someone picked on an agent's page shows on every face of that agent
+  useEffect(() => {
+    let live = true;
+    void Promise.resolve(rt.call("agents.list", { section: "space" })).then((o) => { if (live) setAgentFaces((o as CapMap["agents.list"]["out"]).agents.map((a) => ({ id: a.agentId, face: a.face }))); }, () => undefined);
+    return () => { live = false; };
+  }, [rt, shown.route.view]);
+
   useEffect(() => {
     if (line === null) return undefined;
     const t = setTimeout(() => setLineState(null), LINE_MS);
     return () => clearTimeout(t);
   }, [line]);
 
-  const act = useCallback((a: Act): void => setShown((s) => step(s, a)), []);
+  const routeNow = useRef(shown.route.view);
+  routeNow.current = shown.route.view;
+  const act = useCallback((a: Act): void => {
+    if (stacked && a.t === "chat" && routeNow.current === "new" && a.threadId !== "") { opened?.({ subject: { type: "thread", id: a.threadId } }); return; }
+    if (a.t === "chat" || a.t === "new" || a.t === "tasks" || a.t === "task" || a.t === "threads" || a.t === "agent-form" || a.t === "agent" || a.t === "needs") onSwitch?.();
+    setShown((s) => step(s, a));
+  }, [onSwitch, stacked, opened]);
   // a link from another place, a notification or the Space menu while Chats is already open
   const linked = useRef(hash);
   useEffect(() => {
     if (hash === linked.current) return;
     linked.current = hash;
-    if (hash !== "") setShown(fromHash(hash));
+    // a tab switch or a link: the same thing already on screen keeps its pane and its place
+    setShown((s) => { const next = hash === "" ? START : fromHash(hash); return JSON.stringify(next.route) === JSON.stringify(s.route) ? s : { ...next, pane: s.pane, terminalId: s.terminalId }; });
   }, [hash]);
+  // what is open follows into the tab strip and the address, so each chat is a tab and coming back lands on it
+  const openedRef = useRef(opened);
+  openedRef.current = opened;
+  const routeKey = shown.route.view === "agent-form" ? `a:${shown.route.agentId ?? ""}` : shown.route.view === "chat" ? `t:${shown.route.threadId ?? ""}` : shown.route.view === "new" ? "new" : shown.route.view === "task" ? `k:${shown.route.taskId}` : shown.route.view === "tasks" ? "tasks" : shown.route.view === "threads" ? "threads" : "";
+  useEffect(() => {
+    const report = openedRef.current;
+    if (!report || routeKey === "") return;
+    if (routeKey === "new") report({});
+    else if (routeKey === "tasks") report({ screen: "tasks.my-work" });
+    else if (routeKey === "threads") report({ screen: "chats.threads" });
+    else if (routeKey.startsWith("a:")) report({ screen: "chats.agent-form", ...(routeKey.length > 2 ? { args: { agentId: routeKey.slice(2) } } : {}) });
+    else if (routeKey.startsWith("t:") && routeKey !== "t:") report({ subject: { type: "thread", id: routeKey.slice(2) } });
+    else if (routeKey.startsWith("k:")) report({ subject: { type: "task", id: routeKey.slice(2) } });
+  }, [routeKey]);
   // An Ask link names an agent and an object; the thread it opens is found or made, then shown as a chat.
   const asking = shown.route.view === "ask" ? shown.route : null;
   useEffect(() => {
@@ -114,6 +159,19 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
     return () => { live = false; };
   }, [asking?.agentId, asking?.scopeType, asking?.scopeId, asking?.bringFrom, asking?.draft, asking?.first, rt, act, fill]);
   const go = useMemo<Go>(() => createGo(rt, act, nameOf, setLine), [rt, act, nameOf]);
+  // right tabs: what was opened from a chat, closable, after the pane's own. Pressing any face or name opens that profile here, person or agent.
+  const [rightTabs, setRightTabs] = useState<readonly ProfileTab[]>([]);
+  const [rightOn, setRightOn] = useState<string | null>(null);
+  const profile = useCallback((id: string): void => {
+    const agent = id === rt.assistant.id ? "assistant" as const : byId.get(id)?.kind === "person" ? "person" as const : "agent" as const;
+    const tab = profileTab(id, nameOf(id), agent);
+    setRightTabs((t) => withTab(t, tab));
+    setRightOn(tab.key);
+  }, [rt.assistant.id, byId, nameOf]);
+  const closeRight = useCallback((key: string): void => {
+    setRightOn((on) => { if (on !== key) return on; return afterClose(rightTabs, key); });
+    setRightTabs((t) => t.filter((x) => x.key !== key));
+  }, [rightTabs]);
   const route = shown.route;
   // Cmd/Ctrl+Shift+F searches every chat, from anywhere in the place
   useEffect(() => {
@@ -126,13 +184,17 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
   }, [go]);
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < WIDE;
+  const directory = useDirectory(rt);
 
   /* ---------- the sidebar: registered in the shell's shared place sidebar slot (collapse, search and the phone list are the slot's) ---------- */
-  const side = useMemo(() => wireSidebar(rt, go), [rt, go]);
+  const side = useMemo(() => {
+    const base = wireSidebar(rt, go);
+    return { ...base, people: list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name })), nav: { ...base.nav, openTasks: () => act({ t: "tasks" }), openThreads: () => act({ t: "threads" }), openNew: () => act({ t: "new" }), openNewAgent: () => act({ t: "agent-form" }) } };
+  }, [rt, go, act, list]);
 
   /* ---------- the open chat ---------- */
   const recent = useLive<RecentOut>(rt.screens, "chats.sidebar", "recent", { filter: "all" });
-  const threadId = route.view === "chat" ? (route.threadId ?? newestThread(recent.status === "ready" ? recent.data : undefined)) : null;
+  const threadId = route.view === "chat" ? route.threadId : null;
   const thread = useLive<ThreadOut>(rt.screens, "chats.conversation", "thread", threadId === null ? null : { threadId });
   if (thread.status === "ready" && threadId !== null) noteThreadKind(threadId, thread.data.thread.kind);
   const lead = thread.status === "ready" && threadId !== null ? (thread.data.thread.agents.find((a) => a.mode === "lead") ?? thread.data.thread.agents[0]) : undefined;
@@ -146,9 +208,14 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
 
   const focus = route.view === "chat" ? route.focus : undefined;
   const conv = useMemo(
-    () => (threadId === null ? null : wireConversation(rt, go, { threadId, list, nameOf, leadId, fill, ...(focus ? { focus } : {}) })),
-    [rt, go, threadId, list, nameOf, leadId, fill, focus],
+    () => {
+      if (threadId === null) return null;
+      const wired = wireConversation(rt, go, { threadId, list, nameOf, leadId, fill, ...(focus ? { focus } : {}) });
+      return { ...wired, nav: { ...wired.nav, openAgent: profile } };
+    },
+    [rt, go, threadId, list, nameOf, leadId, fill, focus, profile],
   );
+  const conversationFor = useCallback((id: string) => wireConversation(rt, go, { threadId: id, list, nameOf, leadId: rt.assistant.id, fill }), [rt, go, list, nameOf, fill]);
   const searchData = useMemo<SearchData>(() => ({
     call: rt.call, me: { id: rt.me.id, name: rt.me.name }, nameOf, kindOf: (id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person"), clock: rt.clock,
     query: route.view === "search" ? route.q : "", openMessage: go.message, openThread: go.chat, close: go.closeSearch, copy,
@@ -172,23 +239,37 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
 
   /* ---------- the middle ---------- */
   let main: ReactElement;
-  if (route.view === "search") main = <SearchPage key={route.q} data={searchData} />;
+  if (route.view === "tasks") main = <TasksPage rt={rt} openTask={go.task} openAgent={(id) => go.agent(id)} openChat={(text) => rt.open({ screen: "chats.ask", args: { with: "assistant", first: text } })} {...(window ? { window } : {})} />;
+  else if (route.view === "task") main = <TaskDetail key={route.taskId} rt={rt} taskId={route.taskId} conversationFor={conversationFor} openTask={go.task} openAgent={(id) => go.agent(id)} openChat={(id) => rt.open({ screen: "chats.conversation", args: { threadId: id } })} />;
+  else if (route.view === "search") main = <SearchPage key={route.q} data={searchData} />;
   else if (route.view === "needs") main = <NeedsYou data={needs} {...(route.taskId ? { initialSelected: route.taskId } : {})} {...(window ? { window } : {})} />;
   else if (route.view === "imported") main = <ImportedSession key={route.conversationId} conversationId={route.conversationId} data={importedData} />;
   else if (route.view === "helper") main = helperId === "" ? <HelperChatLoading /> : <HelperChat key={helperId} data={helper} />;
   else if (route.view === "agent") main = agentId === "" ? <AgentPageLoading /> : <AgentPage key={agentId} data={agentPage} initialTab={route.tab ?? "chats"} {...(window ? { window } : {})} />;
+  else if (route.view === "agent-form") main = <AgentForm key={route.agentId ?? "new"} agentId={route.agentId} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} newKey={newKey} onDone={(id) => { closeSelf?.(); go.agentChat(id); }} onCancel={() => act({ t: "new" })} say={setLine} {...(rt.space.kind === "personal" ? {} : { sharing: { directory, meName: rt.me.name, meId: rt.me.id, nameOf } })} />;
+  else if (route.view === "threads") main = <ThreadsPage rt={rt} nameOf={nameOf} openChat={go.thread} />;
+  else if (route.view === "new") {
+    const agentRows = list.filter((p) => p.kind === "agent").map((p) => ({ id: p.id, name: p.name }));
+    const people = list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name }));
+    main = <Landing rt={rt} nameOf={nameOf} kindOf={(id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person")} agents={agentRows} people={people} openChat={go.chat} openTasks={() => act({ t: "tasks" })} openNeed={(id) => go.needs(id)} openProfile={profile} fill={(t) => fill.set(t)} newKey={newKey} say={setLine} {...(stacked ? { list: <ChatsSidebar data={side} {...(window ? { window } : {})} /> } : {})} />;
+  }
   else if (conv) {
     const work = thread.status === "ready" ? workOf(thread.data.thread) : null;
     main = work && width >= WORKSPACE_MIN_W ? <Workspace rt={rt} work={work}><Conversation key={conv.threadId} data={conv} /></Workspace> : <Conversation key={conv.threadId} data={conv} />;
   }
-  else if (threadId === null && recent.status === "ready") {
-    // A Space with no chats yet: the shared empty state with the way to start one, not a skeleton for ever.
-    main = <States kind="empty" title="No chats yet." icon="chat" action={{ label: "New chat", onPress: () => go.agentChat(rt.assistant.id) }} />;
-  } else if (threadId === null && recent.status === "loading" && recent.error) {
-    main = <States kind="error" message="Couldn't load your chats" cause={recent.error.message} {...(recent.error.traceId ? { traceId: recent.error.traceId } : {})} retryable />;
-  } else main = <ConversationLoading />;
+  else main = <ConversationLoading />;
 
   /* ---------- the right ---------- */
+  const rightTab = rightTabs.find((t) => t.key === rightOn);
+  const rightSpecs = rightTabs.map((t) => ({ key: t.key, title: t.title, lead: <Avatar {...avatarOf({ id: t.id, name: nameOf(t.id), kind: t.kind })} size={16} /> }));
+  const rightBody = rightTab ? (
+    <ProfilePane
+      key={rightTab.key} tab={rightTab} name={nameOf(rightTab.id)} call={rt.call as (cap: string, input: unknown) => Promise<unknown>}
+      onMessage={() => { if (rightTab.kind === "person") void Promise.resolve(rt.call("chat.start", { kind: "chat", agentIds: [], personId: rightTab.id, idempotencyKey: `dm_${rightTab.id}` })).then((o) => { const id = (o as { thread?: { threadId?: string } }).thread?.threadId; if (id) go.chat(id); }, () => setLine("Could not start the chat. Try again.")); else go.agentChat(rightTab.id); }}
+      onMention={() => fill.set(`@${nameOf(rightTab.id)} `)}
+      onEdit={() => act({ t: "agent-form", agentId: rightTab.id })}
+    />
+  ) : null;
   let right: ReactElement | null = null;
   if (shown.terminalId !== null) {
     right = (
@@ -202,7 +283,15 @@ export function ChatsMounted({ rt, hash = "", initial, window }: ChatsMountedPro
       </View>
     );
   } else if (shown.pane && paneCtx && route.view === "chat") {
-    right = <View style={st.pane}><AgentPane data={paneCtx} open onToggle={go.togglePane} {...(window ? { window } : {})} /></View>;
+    right = <View style={st.pane}><AgentPane data={paneCtx} open onToggle={go.togglePane} {...(window ? { window } : {})} extra={{ tabs: rightSpecs, active: rightOn, onSelect: setRightOn, onClose: closeRight, body: rightBody }} /></View>;
+  } else if (rightOn !== null) {
+    right = (
+      <View style={st.pane}>
+        <SidePane paneKey="chats-right-pane" toggle={{ open: true, onPress: () => setRightOn(null) }} title="Profile" tabs={rightSpecs} activeTab={rightOn} onSelectTab={setRightOn} onCloseTab={closeRight} defaultWidth={372}>
+          {rightBody}
+        </SidePane>
+      </View>
+    );
   }
 
   const showMain = !(narrow && right !== null);

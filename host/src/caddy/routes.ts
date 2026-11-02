@@ -59,7 +59,8 @@ export function siteRoute(host: string, upstream: string, auth: BasicAuth | null
 export interface BaseOptions {
   /** listen addresses, default [":443"]; Caddy opens :80 itself for challenges and redirects */
   listen?: string[];
-  acme?: { email?: string; ca?: "production" | "staging" };
+  /** `internal`: Caddy's own CA, for a box with a test hostname that no public CA can reach */
+  acme?: { email?: string; ca?: "production" | "staging" | "internal" };
 }
 
 /** The server Caddy needs before any route exists. */
@@ -70,6 +71,7 @@ export function serverJson(o: BaseOptions = {}): Record<string, unknown> {
 /** A tls automation policy for ACME, or null when the defaults (Let's Encrypt production, no email) are wanted. */
 export function acmePolicy(a: BaseOptions["acme"]): Record<string, unknown> | null {
   if (!a || (!a.email && (a.ca ?? "production") === "production")) return null;
+  if (a.ca === "internal") return { issuers: [{ module: "internal" }] };
   const issuer: Record<string, unknown> = { module: "acme" };
   if (a.email) issuer["email"] = a.email;
   if (a.ca === "staging") issuer["ca"] = LE_STAGING;

@@ -42,10 +42,10 @@ test("a saved list with duplicates loads once per place and item, and keeps the 
   ] });
   const got = readTabs(raw);
   assert.ok(got);
-  assert.deepEqual(got.tabs.map((t) => t.key), ["home", "records", "vault", "chats", "new:1"]);
+  assert.deepEqual(got.tabs.map((t) => t.key), ["chats", "records", "vault", "new:1"], "a saved Home tab reopens as Chats");
   assert.equal(got.active, "chats");
   assert.equal(got.tabs.find((t) => t.key === "vault")?.pinned, true);
-  assert.equal(readTabs(writeTabs(got))?.tabs.length, 5);
+  assert.equal(readTabs(writeTabs(got))?.tabs.length, 4);
 });
 
 test("the controller opens a saved list deduplicated and an open place focuses its tab", () => {
@@ -67,27 +67,27 @@ test("a Personal Space never has an Apps tab, new or saved", () => {
   s.data.set("vyre.tabs.v1:mac:irfad:me", JSON.stringify({ v: 1, active: "apps", tabs: [
     { key: "home", title: "Home", place: "home" }, { key: "apps", title: "Apps", place: "apps" },
   ] }));
-  const c = createTabsController({ deviceId: "mac", personId: "irfad", spaceId: "me", storage: s, start: "home", hidden: ["apps"] });
-  assert.deepEqual(c.state().tabs.map((t) => t.key), ["home"]);
-  assert.equal(c.state().active, "home");
+  const c = createTabsController({ deviceId: "mac", personId: "irfad", spaceId: "me", storage: s, start: "chats", hidden: ["apps"] });
+  assert.deepEqual(c.state().tabs.map((t) => t.key), ["chats"]);
+  assert.equal(c.state().active, "chats");
   c.openPlace("apps");
-  assert.deepEqual(c.state().tabs.map((t) => t.key), ["home"]);
+  assert.deepEqual(c.state().tabs.map((t) => t.key), ["chats"]);
   const only = mem();
   only.data.set("vyre.tabs.v1:mac:irfad:me", JSON.stringify({ v: 1, active: "apps", tabs: [{ key: "apps", title: "Apps", place: "apps" }] }));
-  const d = createTabsController({ deviceId: "mac", personId: "irfad", spaceId: "me", storage: only, start: "home", hidden: ["apps"] });
-  assert.deepEqual(d.state().tabs.map((t) => t.key), ["home"]);
-  const team = createTabsController({ deviceId: "mac", personId: "irfad", spaceId: "nw", storage: null, start: "home" });
+  const d = createTabsController({ deviceId: "mac", personId: "irfad", spaceId: "me", storage: only, start: "chats", hidden: ["apps"] });
+  assert.deepEqual(d.state().tabs.map((t) => t.key), ["chats"]);
+  const team = createTabsController({ deviceId: "mac", personId: "irfad", spaceId: "nw", storage: null, start: "chats" });
   team.openPlace("apps");
   assert.equal(team.state().active, "apps", "a team Space still has Apps");
 });
 
 test("a saved Join tab is dropped on load and Join never opens as a tab", () => {
   const storage = mem();
-  const opts = { deviceId: "d", personId: "p", spaceId: "s", storage, start: "home" as const, hidden: ["join" as const] };
-  storage.data.set(tabsStorageKey("d", "p", "s"), writeTabs({ tabs: [placeTab("home"), placeTab("join"), placeTab("chats")], active: "join" }));
+  const opts = { deviceId: "d", personId: "p", spaceId: "s", storage, start: "chats" as const, hidden: ["join" as const] };
+  storage.data.set(tabsStorageKey("d", "p", "s"), writeTabs({ tabs: [placeTab("files"), placeTab("join"), placeTab("chats")], active: "join" }));
   const c = createTabsController(opts);
-  assert.deepEqual(c.state().tabs.map((t) => t.place), ["home", "chats"]);
+  assert.deepEqual(c.state().tabs.map((t) => t.place), ["files", "chats"]);
   assert.notEqual(c.state().active, "join");
   c.openPlace("join");
-  assert.deepEqual(c.state().tabs.map((t) => t.place), ["home", "chats"]);
+  assert.deepEqual(c.state().tabs.map((t) => t.place), ["files", "chats"]);
 });

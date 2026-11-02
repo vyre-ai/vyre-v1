@@ -75,7 +75,29 @@ export async function ensureWorkspace(dataDir: string, asker: string, threadId: 
   return { dir, created: made.created };
 }
 
-export async function start(ctx: EngineCtx, input: { threadId: string; projectId: string; teammateId: string; title: string; brief: string; model?: string; provider?: string; effort?: string }) {
+/** Every worker that outlives a turn is a task: the one the caller names, else a new one in its name. The worker note keeps the baton from starting a second turn on it. */
+async function taskOfJob(ctx: EngineCtx, input: { taskId?: string; threadId: string; teammateId: string; title: string; brief: string }, n: number): Promise<string | undefined> {
+  if (input.taskId) {
+    await ctx.call("tasks.working_notes.set", { taskId: input.taskId, key: "worker.kind", value: "crew" }).catch((e: unknown) => ctx.log.warn("a crew task could not be marked", { taskId: input.taskId, error: e instanceof Error ? e.message : "error" }));
+    return input.taskId;
+  }
+  try {
+    const made = (await ctx.call("tasks.create", {
+      title: input.title, assigned: { kind: "agent", id: input.teammateId }, source: { kind: "chat", id: input.threadId }, notes: { brief: input.brief, "worker.kind": "crew" }, idempotencyKey: `crew-task:${input.threadId}:${input.teammateId}:${n}`,
+    })) as { task?: { id?: string } };
+    return made.task?.id;
+  } catch (e) { ctx.log.warn("a crew job could not get its task", { error: e instanceof Error ? e.message : "error" }); return undefined; }
+}
+
+/** The task knows where its work happens: the thread, the job and the branch. Best effort: the job runs whether or not this lands. */
+async function bindJob(ctx: EngineCtx, taskId: string, threadId: string, jobId: string, branch: string): Promise<void> {
+  const soft = async (cap: string, i: unknown): Promise<void> => { await ctx.call(cap, i).catch((e: unknown) => ctx.log.warn("a crew job could not be bound to its task", { taskId, cap, error: e instanceof Error ? e.message : "error" })); };
+  await soft("tasks.update", { taskId, workerThread: threadId });
+  await soft("tasks.working_notes.set", { taskId, key: "crew.job", value: jobId });
+  await soft("tasks.working_notes.set", { taskId, key: "crew.branch", value: branch });
+}
+
+export async function start(ctx: EngineCtx, input: { threadId: string; projectId: string; teammateId: string; title: string; brief: string; model?: string; provider?: string; effort?: string; taskId?: string }) {
   ensure(ctx.db);
   const repo = repoRow(ctx, input.projectId);
   if (!repo) raise(ctx, "validation.precondition_failed", "Say where the project's repository is first.");
@@ -89,6 +111,7 @@ export async function start(ctx: EngineCtx, input: { threadId: string; projectId
   const n = Number((ctx.db.all("SELECT COUNT(*) AS n FROM engine_crew_job WHERE project_id = ? AND agent_id = ?", input.projectId, mate.agentId)[0] as Row | undefined)?.["n"] ?? 0) + 1;
   const branch = cleanBranch(`crew/${slug(mate.name)}-${n}`);
   const asker = actorOf(ctx);
+  const taskId = await taskOfJob(ctx, { ...input, title, brief, teammateId: mate.agentId }, n);
   const started = (await ctx.call("chat.helper.start", {
     threadId: input.threadId, title, instruction: brief, agentId: mate.agentId, crew: true,
     ...(input.model ? { model: input.model } : {}), ...(input.provider ? { provider: input.provider } : {}), ...(input.effort ? { effort: input.effort } : {}),
@@ -103,6 +126,7 @@ export async function start(ctx: EngineCtx, input: { threadId: string; projectId
   if (dataDir) {
     try { await ensureWorkspace(dataDir, asker, started.helper.threadId, { repo: repo.path, base: repo.base, branch, name: mate.name }); } catch (e) { ctx.log.warn("the teammate's repository copy could not be made at start", { jobId, error: e instanceof Error ? e.message : String(e) }); }
   }
+  if (taskId) await bindJob(ctx, taskId, started.helper.threadId, jobId, branch);
   ctx.emit("crew.job_started", input.threadId, { jobId, threadId: started.helper.threadId, leadThreadId: input.threadId, projectId: input.projectId, agentId: mate.agentId, branch });
   const row = ctx.db.all("SELECT * FROM engine_crew_job WHERE job_id = ?", jobId)[0] as Row;
   return { job: jobOut(row, mate.name) };

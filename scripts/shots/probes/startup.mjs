@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Startup probe (budget startup): app.start to app.usable on the real app's web export, cold and warm, in headless Chrome.
-//   node scripts/shots/probes/startup.mjs [--skip-export] [--route /home]
+//   node scripts/shots/probes/startup.mjs [--skip-export] [--route /chat]
 // Cold = a new browser context (empty cache and storage). Warm = the same context loaded again (cache and service worker present).
 import fs from "node:fs";
 import path from "node:path";
@@ -45,7 +45,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       page.on("pageerror", (e) => console.log(`pageerror ${e.message}`));
       page.on("response", (r) => { if (r.status() >= 400) console.log(`http ${r.status()} ${r.url()}`); });
       for (const kind of ["cold", "warm"]) {
-        await page.goto(server.origin + (args.route || "/home"), { waitUntil: "load" });
+        await page.goto(server.origin + (args.route || "/chat"), { waitUntil: "load" });
         await page.waitForFunction(() => performance.getEntriesByName("app.usable").length > 0, null, { timeout: 15000 }).catch(() => {});
         const marks = await marksOf(page);
         const ms = startupMs(marks);

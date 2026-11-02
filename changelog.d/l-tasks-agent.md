@@ -1,0 +1,1 @@
+- Tasks are how agents coordinate: `task_plan` breaks work into a parent and children in one call, a child starts by itself when what it waits on is done, the parent's holder hears only when all are finished or one is blocked or asks, and every turn carries a short digest of the tasks in hand.

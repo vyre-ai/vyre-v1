@@ -512,6 +512,12 @@
     },
     {
       "deferred": false,
+      "name": "artifact_publish",
+      "summary": "THE way to show something you made: publish it privately to a link that opens in a tab. Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "ask_question",
       "summary": "Ask the person a structured question (single, multi or free text); the turn parks until it is answered",
       "toolset": "chats"
@@ -7016,6 +7022,12 @@
     },
     {
       "deferred": false,
+      "name": "sites_artifact_open",
+      "summary": "A short-lived address that opens an artifact for the person asking, in a tab or the browser",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_build",
       "summary": "Build the site from its repo (the site agent runs in the repo); test and verify",
       "toolset": "sites"
@@ -7023,7 +7035,7 @@
     {
       "deferred": false,
       "name": "sites_create",
-      "summary": "Create a site with its root folder under Deployments/",
+      "summary": "Create a site: a name, and where it runs (a port on a computer, or a folder in Files). Nothing is served until it is published",
       "toolset": "sites"
     },
     {
@@ -7042,6 +7054,18 @@
       "deferred": false,
       "name": "sites_deployments",
       "summary": "List deployments with state and URL",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_domain_add",
+      "summary": "Add a custom domain to a site: returns the exact DNS records to set and adds the Caddy route with automatic TLS",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_domain_check",
+      "summary": "The state of a custom domain: waiting for DNS, issuing the certificate, or live",
       "toolset": "sites"
     },
     {
@@ -7076,8 +7100,14 @@
     },
     {
       "deferred": false,
+      "name": "sites_host",
+      "summary": "What this Space can host: its address, whether it is a phone address, and what a custom domain needs",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_list",
-      "summary": "List sites by section (Personal, Shared with me, Space) and folder",
+      "summary": "List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder",
       "toolset": "sites"
     },
     {
@@ -7107,7 +7137,13 @@
     {
       "deferred": false,
       "name": "sites_promote",
-      "summary": "Promote a staging build to production (merges the pull request first when there is one)",
+      "summary": "Put a site on the public internet at its address. Held for approval unless the person asked for it this turn",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_publish",
+      "summary": "Serve a site that is not public: space or private access, or a password on its own domain",
       "toolset": "sites"
     },
     {
@@ -7126,6 +7162,18 @@
       "deferred": false,
       "name": "sites_staging_password_set",
       "summary": "Choose the sealed Vault key that protects staging (shared across a site previews)",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_status",
+      "summary": "Is the port answering? Where it runs, the address, and what is wrong when something is",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_stop",
+      "summary": "Stop serving a site. Its address answers nothing; the process on the computer keeps running",
       "toolset": "sites"
     },
     {
@@ -7149,7 +7197,7 @@
     {
       "deferred": false,
       "name": "sites_update",
-      "summary": "Rename a site or change its settings",
+      "summary": "Rename a site, change its settings, where it runs or who may reach it. Making it public takes it down until it is published again",
       "toolset": "sites"
     },
     {
@@ -7700,6 +7748,12 @@
     },
     {
       "deferred": false,
+      "name": "task_plan",
+      "summary": "Break work into tasks in one step: a parent (new, or one that exists) and its children, each with its brief, what done means, who does it and which others it waits on. A child starts by itself when what it waits on is done; the parent hears only when all are done, or one is blocked or asks",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "task_review",
       "summary": "Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)",
       "toolset": "tasks"
@@ -7724,6 +7778,12 @@
     },
     {
       "deferred": false,
+      "name": "tasks_by_key",
+      "summary": "Find a task by its short key, such as VY-123",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "tasks_count_needs_you",
       "summary": "Count of Ready requests for the rail badge and the Space switcher dot",
       "toolset": "tasks"
@@ -7738,6 +7798,12 @@
       "deferred": false,
       "name": "tasks_delegate",
       "summary": "Hand a request to someone else with a note; never widens access, so it walks the delegate chain to the first who can act",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "tasks_delete",
+      "summary": "Delete a task; Undo brings it back. A held act and a task a Run waits on are canceled instead",
       "toolset": "tasks"
     },
     {
@@ -7778,6 +7844,12 @@
     },
     {
       "deferred": false,
+      "name": "tasks_index",
+      "summary": "The long list of a scope in one read: a light row per task with its rollup, ordered newest first; pass the last rev and an unchanged list answers nothing",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "tasks_links_add",
       "summary": "Link a record or a file to a task",
       "toolset": "tasks"
@@ -7814,8 +7886,20 @@
     },
     {
       "deferred": false,
+      "name": "tasks_restore",
+      "summary": "Bring a deleted task back",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "tasks_rev",
+      "summary": "A short mark that changes whenever any task changes, for a screen that holds a long list",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "tasks_snooze",
-      "summary": "Snooze a request until a time, or clear the snooze with null",
+      "summary": "Snooze an open task until a time, or clear the snooze with null",
       "toolset": "tasks"
     },
     {

@@ -32,7 +32,7 @@ const ctx = (s: Sample) => ({ meId: "usr_irfad", nameOf: s.data.nameOf, kindOf: 
 
 test("the page reads: header with title and faces, your bubbles, Intake's folded work, cards, the composer line", () => {
   const out = html(createSample("idle"));
-  inOrder(out, ['data-testid="conversation-head"', 'data-testid="conversation-title"', 'data-testid="conversation-faces"', "New client: Elena Rivera", "Intake is on it", "Worked for 14s, 3 steps", "Tuesday has two openings", "Book 2pm.", "Worked for 6s, 2 steps", 'data-testid="composer"']);
+  inOrder(out, ['data-testid="conversation-head"', 'data-testid="conversation-title"', 'data-testid="conversation-faces"', "New client: Elena Rivera", "Intake is on it", "Worked 14s · 3 steps", "Tuesday has two openings", "Book 2pm.", "Worked 6s · 2 steps", 'data-testid="composer"']);
   assert.ok(has(out, "client-intake.pdf") && has(out, 'data-testid="proposal-b2"'));
   assert.ok(has(out, "Intake will reply") && has(out, "Message Intake…"));
 });
@@ -134,7 +134,7 @@ test("streaming: text is on the page up to the last delta, with the work folded 
   const s = createSample("streaming");
   const out = html(s);
   assert.ok(has(out, 'data-testid="body-m7"') && has(out, "consult fee") && has(out, "retainer is"));
-  assert.ok(has(out, "Worked for 8s, 2 steps") && has(out, 'data-testid="conversation-live"') && has(out, 'data-testid="stop-button"'));
+  assert.ok(has(out, "Worked 8s · 2 steps") && has(out, 'data-testid="conversation-live"') && has(out, 'data-testid="stop-button"'));
   s.push(" Shall I send it to Maya?");
   assert.ok(has(html(s), "Shall I send it to Maya?"));
 });
@@ -219,7 +219,7 @@ test("states: offline, closed, empty frame before data, and no em dash", () => {
 test("work folds, day labels and timeline grouping", () => {
   const s = createSample("idle");
   const m2 = msgs(s).find((m) => m.messageId === "m2")!;
-  assert.equal(workOf(m2)?.summary, "Worked for 14s, 3 steps");
+  assert.equal(workOf(m2)?.summary, "Worked 14s · 3 steps");
   assert.equal(dayLabel(SAMPLE_NOW, s.data.clock()), "Today");
   assert.equal(dayLabel(SAMPLE_NOW - 86_400_000, s.data.clock()), "Yesterday");
   const kinds = timeline(msgs(s), ctx(s)).map((i) => i.kind);
@@ -292,10 +292,10 @@ test("find in chat: matches are ignoring case and accents, counted, and stepped"
   assert.deepEqual(findMatches([{ ...all[0]!, body: "Café Rivera" }], "cafe"), ["m1"]);
 });
 
-test("the composer's agent strip names who answers and on what model (Opus), with the computer button; its placeholder names who answers", () => {
+test("the composer's pill names who answers and on what model (Opus); the computer lives in the pane; its placeholder names who answers", () => {
   const s = createSample("idle");
   const out = html(s);
-  assert.ok(has(out, 'data-testid="composer-strip"') && has(out, "Intake will answer on Opus") && has(out, 'data-testid="computer-button"') && has(out, "Intake's computer"));
+  assert.ok(has(out, 'data-testid="composer-strip"') && has(out, "Intake will answer on Opus") && !has(out, 'data-testid="computer-button"'));
   assert.ok(has(out, "Message Intake…"));
   assert.equal(modelLabel("opus"), "Opus");
   assert.equal(placeholderFor(thread(s), s.data.nameOf, true), "Queue a message for when Intake finishes…");
@@ -372,7 +372,7 @@ test("the hover bar draws Copy, Edit (yours only), Reply and More while the row 
   const s = createSample("idle");
   const m3 = msgs(s).find((m) => m.messageId === "m3")!;
   const m4 = msgs(s).find((m) => m.messageId === "m4")!;
-  const bar = (m: Message, mine: boolean, visible: boolean): string => clean(renderToStaticMarkup(<HoverBar m={m} mine={mine} a={noActions} onEdit={() => undefined} visible={visible} />));
+  const bar = (m: Message, mine: boolean, visible: boolean): string => clean(renderToStaticMarkup(<HoverBar m={m} mine={mine} byAgent={!mine} a={noActions} onEdit={() => undefined} visible={visible} />));
   const mine = bar(m3, true, true);
   assert.ok(has(mine, 'data-testid="act-copy-m3"') && has(mine, 'data-testid="act-edit-m3"') && has(mine, 'data-testid="act-reply-m3"') && has(mine, 'data-testid="act-more-m3"'));
   const theirs = bar(m4, false, true);

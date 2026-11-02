@@ -96,7 +96,16 @@ export async function ingestVoice(ctx: TelCtx, input: { callSid: string; from: s
     return { callId: str(seen, "id"), instruction };
   }
   if (!n || str(n, "state") !== "active") throw fail("validation.not_found", ctx.trace.traceId, { message: "That number is not in this Space." });
-  if (seen) return { callId: str(seen, "id"), instruction: await instructionFor(ctx, n, { record: true }) };
+  if (seen) {
+    // a call in progress asks the voice address again after a transfer or a return from hold: it goes to whoever holds it now, not back through the number's route
+    const holder = str(seen, "state") === "answered" ? parseJson<Party | null>(seen.handledBy, null) : null;
+    if (holder) {
+      const meta = callMeta(ctx, str(seen, "id"));
+      const route: RouteCfg = { ...DEFAULT_ROUTE, ...parseJson<Partial<RouteCfg>>(n.route, {}) };
+      return { callId: str(seen, "id"), instruction: { action: holder.kind === "agent" ? "agent" as const : "ring" as const, targets: [holder], ringSeconds: route.ringSeconds, record: num(meta, "recording") === 1 && !strOrNull(meta, "recordingSid") } };
+    }
+    return { callId: str(seen, "id"), instruction: await instructionFor(ctx, n, { record: true }) };
+  }
 
   const now = ctx.now();
   const id = newId("cal", now);

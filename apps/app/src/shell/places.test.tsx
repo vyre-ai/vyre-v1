@@ -55,10 +55,10 @@ async function mount(id: string, rt: ShellRuntime | null): Promise<string> {
   return out.replaceAll("<!-- -->", "");
 }
 
-test("nine app places and the standalone Console are registered with lazy routes", () => {
+test("eight app places and the standalone Console are registered with lazy routes, and Home is not one of them", () => {
   registerShellPlaces();
   registerShellPlaces();
-  assert.deepEqual(SHELL_PLACES.filter((p) => p.id !== "console").map((p) => p.label), ["Home", "Chats", "Inbox", "Records", "Files", "Apps", "Automations", "Vault", "Settings"]);
+  assert.deepEqual(SHELL_PLACES.filter((p) => p.id !== "console").map((p) => p.label), ["Chats", "Inbox", "Records", "Files", "Apps", "Automations", "Vault", "Settings"]);
   for (const p of SHELL_PLACES) {
     assert.ok((PLACES as readonly string[]).includes(p.id), `${p.id} is an app route`);
     assert.equal(loaderFor(p.id), p.load, `${p.id} routes to its own loader`);
@@ -71,7 +71,7 @@ test("nine app places and the standalone Console are registered with lazy routes
 
 test("every place with a first list reads a live query of a generated screen", () => {
   for (const p of SHELL_PLACES) {
-    if (p.id === "home" || p.id === "console") continue;
+    if (p.id === "console") continue;
     const cfg = FIRST_LISTS[p.id];
     assert.ok(cfg, `${p.id} has a first list`);
     const { rt } = runtimeFor("northwind", true);
@@ -89,8 +89,8 @@ test("each place renders its data from a seeded replica, not its loading frame",
   };
   const firstList = (await import("./providers/first-list.tsx")).default;
   for (const p of SHELL_PLACES) {
-    // A place with its own composed layout (providers/<place>.tsx) is tested beside it; this test covers Home and the places still on the first list.
-    if (p.id !== "home" && (await p.load()).default !== firstList) continue;
+    // A place with its own composed layout (providers/<place>.tsx) is tested beside it; this test covers the places still on the first list.
+    if ((await p.load()).default !== firstList) continue;
     const out = await mount(p.id, rt);
     assert.ok(out.includes(titles[p.id]!), `${p.id} shows ${titles[p.id]}`);
     assert.ok(!out.includes("-loading"), `${p.id} is not a loading frame`);
@@ -130,37 +130,6 @@ test("list items take a key, a title and a quiet second line from whatever the c
     { key: "a", title: "Active", note: "table" }, { key: "b", title: "Marcus" },
   ]);
   assert.deepEqual(listItems(null), []);
-});
-
-test("Home in a Team Space draws the whole page and the checklist, Today, Starred and Ask box around it", async () => {
-  const { rt } = runtimeFor("northwind", false);
-  const out = await mount("home", rt);
-  for (const id of ["s-needs", "s-work", "s-risk", "s-away", "s-routines", "s-today", "s-starred", "s-ask"]) assert.ok(out.includes(`data-testid="${id}"`), id);
-  assert.ok(out.includes("Good morning, Irfad"));
-});
-
-test("Home in a Personal Space draws only the personal variant: checklist, Starred and the Ask box, and Today once a calendar is connected", async () => {
-  publishProgress({ flow: "personal", progress: {} });
-  const out = await mount("home", runtimeFor("personal", false).rt);
-  assert.ok(out.includes('data-testid="home-place"'));
-  assert.ok(out.includes("Good morning, Irfad"));
-  assert.ok(out.includes('data-testid="s-first"'), "the first-run checklist");
-  assert.ok(out.includes('data-testid="s-ask"'));
-  assert.ok(!out.includes('data-testid="s-starred"'), "an empty Starred is not drawn in a Personal Space");
-  assert.ok(!out.includes('data-testid="s-today"'), "Today needs a connected calendar");
-  assert.ok(out.includes("Your Personal Space, on this computer only"), "the subtitle says where the Space lives");
-  for (const id of ["s-needs", "s-work", "s-risk", "s-away", "s-routines"]) assert.ok(!out.includes(`data-testid="${id}"`), `${id} is not in a Personal Space`);
-  assert.ok(!out.includes("Needs you") && !out.includes("My work"));
-  const withCalendar = await mount("home", runtimeFor("personal", false, { calendarConnected: true }).rt);
-  assert.ok(withCalendar.includes('data-testid="s-today"'));
-  assert.ok(!withCalendar.includes('data-testid="s-needs"'));
-});
-
-test("the shell picks the Home variant by the kind of Space and never mixes the two", async () => {
-  const team = await mount("home", runtimeFor("harbor", false).rt);
-  const personal = await mount("home", runtimeFor("personal", false).rt);
-  assert.ok(team.includes('data-testid="s-needs"') && team.includes('data-testid="s-work"'));
-  assert.ok(!personal.includes('data-testid="s-needs"') && !personal.includes('data-testid="s-work"'));
 });
 
 test("every button of the checklist leads somewhere through the shell's one door", () => {
