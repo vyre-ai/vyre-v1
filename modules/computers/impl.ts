@@ -175,6 +175,21 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
   const sleep = o.sleep ?? realSleep;
   const nameOf = (computerId: string): string => `${prefix}${computerId.replace(/^cmt_/, "")}`;
 
+  async function containerAddress(computerId: string): Promise<string | null> {
+    if (!o.http) return null;
+    const r = await o.http({ method: "GET", path: `/containers/${nameOf(computerId)}/json` });
+    if (r.status !== 200) return null;
+    const info = JSON.parse(new TextDecoder().decode(r.body)) as { State?: { Running?: boolean }; NetworkSettings?: { IPAddress?: string; Networks?: Record<string, { IPAddress?: string }> } };
+    if (info.State?.Running !== true) return null;
+    return info.NetworkSettings?.Networks?.["bridge"]?.IPAddress || info.NetworkSettings?.IPAddress || null;
+  }
+
+  async function siteLogs(a: { computerId: string; slug: string; lines: number }): Promise<string[]> {
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(a.slug)) return [];
+    const r = await o.api.exec(nameOf(a.computerId), { cmd: ["sh", "-c", 'tail -n "$1" "$HOME/sites/$2/site.log" 2>/dev/null', "sh", String(Math.max(1, Math.min(a.lines, 1000))), a.slug], env: ["HOME=/home/agent"] });
+    return r.stdout.split("\n").filter((l) => l !== "");
+  }
+
   async function ctl<T>(computerId: string, action: string, body: Record<string, unknown> = {}): Promise<T> {
     const r = await o.api.exec(nameOf(computerId), { cmd: [ctlPath, action, JSON.stringify(body)], env: [], ...(o.user ? { user: `${o.user.uid}:${o.user.gid}` } : {}) });
     if (r.exitCode !== 0) throw new Error(`agentd ${action} failed (${r.exitCode ?? "no exit code"}): ${r.stderr.trim().slice(0, 200)}`);
@@ -233,6 +248,8 @@ export function createDockerComputerHost(o: DockerHostOptions): ComputerHost & T
   }
 
   const host: ComputerHost & ToolHost = {
+    address: containerAddress,
+    siteLogs,
     kind: o.kind ?? "server",
     async create(a) {
       const name = nameOf(a.computerId);
@@ -403,6 +420,10 @@ export function buildComputerHost(c: ComputersHostConfig): ComputerHost & ToolHo
     ...(c.home ? { home: { deps: { callAs: c.home.callAs, putBytes: c.home.putBytes, now: Date.now, log: c.home.log ?? (() => undefined) }, ...(c.home.intervalMs !== undefined ? { intervalMs: c.home.intervalMs } : {}), manifest: c.home.manifest, ...(c.home.announce ? { announce: c.home.announce } : {}) } } : {}),
   });
 }
+
+/** The address of a computer on this machine, for a site served from it; null when there is none or it is not running. */
+export async function localComputerAddress(computerId: string): Promise<string | null> { return (await boundHost()?.address?.(computerId)) ?? null; }
+export async function localSiteLogs(a: { computerId: string; slug: string; lines: number }): Promise<string[]> { return (await boundHost()?.siteLogs?.(a)) ?? []; }
 
 export function setComputerHost(c: ComputersHostConfig | null): void {
   bindHost(c === null ? null : buildComputerHost(c));

@@ -291,7 +291,7 @@ const PUBLIC_METHODS = new Set(["GET", "HEAD", "POST"]);
 
 /** Only the public path, in plain form, ever leaves this function for the gateway: never a session, and never another address on the daemon. */
 export function publicPathOk(p: string): boolean {
-  if (!/^\/p(\/|$)/.test(p) || p.length > 4096) return false;
+  if (!/^\/(p(\/|$)|a\/[a-z0-9_]{1,80}\/k\/[0-9a-f]{48}(\/|$))/.test(p) || p.length > 4096) return false;
   const bare = p.split("?")[0] as string;
   return !/(^|\/)(\.|%2e){1,2}(\/|$)/i.test(bare) && !/%2f|%5c|\\/i.test(bare);
 }

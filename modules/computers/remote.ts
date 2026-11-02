@@ -69,6 +69,9 @@ export async function nodeRun(host: ComputerHost & Partial<ToolHost>, kind: stri
     case "removeRecording": try { await host.removeRecording(a as never); return { removed: true }; } catch { return { removed: false }; }
     // not a job: the node's own relay asks for the address of agentd's live view on this machine (host/src/compute/node.ts), and it stays on this machine
     case "stream": return host.stream(a as never);
+    // not jobs: the live socket's two asks about a site on this machine (host/src/compute/node.ts)
+    case "address": return host.address ? host.address(String(a["computerId"])) : null;
+    case "siteLogs": return host.siteLogs ? host.siteLogs(a as never) : [];
     case "tool": if (typeof host.tool !== "function") throw new Error("This computer cannot run tools."); return host.tool(a as never);
     default: throw new Error(`This computer does not do "${kind}".`);
   }

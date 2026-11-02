@@ -2,12 +2,17 @@
 // Every capability of the manifest has a handler (promote, rollback and site tables came with P-L8_02).
 
 import { deferredHandlers } from "../../host/src/routes/deferred.ts";
-import { handlers as real } from "./handlers/index.ts";
 
 export { inline } from "./projections.ts";
-export { configureSites, handleBranchMerged, sweepMergedPreviews, routeProductionDomains } from "./handlers/index.ts";
+export { routeById, routeBySlug, routeByTicket } from "./handlers/route.ts";
+import { registry } from "../../generated/registry.ts";
+import { configureRoutes, routeHandlers } from "./handlers/route.ts";
+import { domainRouteHandlers } from "./handlers/route-domains.ts";
 
-// Sites is deferred (ruling 60, docs/deferred.md): every capability is registered and refuses with "Not in this version yet" until the host builds the Docker runtime, Caddy router and DNS drivers.
-// The deferred packet swaps this line for `export { handlers } from "./handlers/index.ts"` and brings `consumers` back.
-export const handlers = deferredHandlers(Object.keys(real));
+// A site is a route (owner, 2 Nov): handlers/route.ts is what ships. The build pipeline below it (deploy, previews, staging, promote, site tables) is dormant and deferred: each of its capabilities stays registered and
+// refuses with "Not in this version yet" (ruling 60, docs/deferred.md). Nothing wires configureSites or dockerRuntime.
+const live = { ...routeHandlers, ...domainRouteHandlers };
+const dormant = registry.capabilities.filter((c) => c.module === "sites" && !(c.name in live)).map((c) => c.name);
+export const handlers = { ...deferredHandlers(dormant), ...live };
 export const consumers = {};
+export const hostSeams = { configureRoutes };

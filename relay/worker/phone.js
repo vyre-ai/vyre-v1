@@ -7,7 +7,7 @@
 //   HostSlot      one Durable Object per name (`hn:<name>`): the route that holds it, the box's nickname, and a tombstone once released (only the same route can take it back).
 //   hostControl   what a box's control socket may say about its name: host.claim, host.release, host.status. Called from RouteRelay.onTicket.
 //   onHost        the gateway: the shell for a claimed name, "is asleep" when its box is offline, the old redirect for a name nobody claimed here.
-//   onPublic      `/p/*` of a claimed name, the one thing that is not the shell: visitors with no session reach the Space's forms and sites through the box's control socket, in an opaque origin.
+//   onPublic      `/p/*` and an artifact's `/a/<id>/k/<token>/` of a claimed name, the one thing that is not the shell: visitors with no session reach the Space's forms and sites through the box's control socket, in an opaque origin.
 // No dependencies; WebCrypto and the runtime only.
 
 export const PHONE = Object.freeze({
@@ -41,6 +41,9 @@ export const PUBLIC = Object.freeze({
 });
 const REQUEST_KEEP = new Set(["accept", "accept-language", "content-type", "if-modified-since", "if-none-match", "range", "user-agent", "x-file-name"]);
 const RESPONSE_KEEP = new Set(["accept-ranges", "cache-control", "content-disposition", "content-encoding", "content-language", "content-length", "content-range", "content-security-policy", "content-type", "etag", "expires", "last-modified", "retry-after", "vary"]);
+
+/** An artifact's address for one person: `/a/<id>/k/<token>/...`. The box checks the token and their access on every request. `/a/<id>` alone is the app, which opens it for whoever is signed in. */
+export const ARTIFACT = /^\/a\/[a-z0-9_]{1,80}\/k\/[0-9a-f]{48}(\/|$)/;
 
 /** Hosts that are infrastructure, never a person's phone address. The names directory refuses most of these too; this is the gateway's own fence. */
 /** The labels the deploy fenced from the zone's own records (edge.mjs writes them to the FENCE_HOSTS secret): every host that exists, whatever the static list says. @param {any} env */
@@ -243,7 +246,7 @@ export function publicHeaders(from, url) {
   if (location) {
     let to = null;
     try { to = new URL(location, url); } catch { /* not an address */ }
-    if (to && (to.origin !== url.origin || to.pathname.startsWith("/p/"))) h.set("location", to.href);
+    if (to && (to.origin !== url.origin || to.pathname.startsWith("/p/") || ARTIFACT.test(to.pathname))) h.set("location", to.href);
   }
   // a second policy only narrows: whatever the page sent, this one still applies
   h.append("content-security-policy", PUBLIC.sandbox);
@@ -273,6 +276,7 @@ export function publicBlocked(env, name, site) {
  */
 async function onPublic(request, env, name, info, online) {
   const url = new URL(request.url);
+  // a token never reaches a log
   const site = url.pathname.split("/")[2] || "";
   const done = (/** @type {Response} */ res) => { console.log(JSON.stringify({ p: url.hostname, site, status: res.status })); return res; };
   if (publicBlocked(env, name, site)) return done(publicPage(451, "This page is not available", "It was taken down.", url));
@@ -342,7 +346,7 @@ export async function onHost(request, env, name) {
   const online = async () => {
     try { return Boolean(((await (await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/online")).json())).online); } catch { return false; }
   };
-  if (url.pathname === "/p" || url.pathname.startsWith("/p/")) return onPublic(request, env, name, info, online);
+  if (url.pathname === "/p" || url.pathname.startsWith("/p/") || ARTIFACT.test(url.pathname)) return onPublic(request, env, name, info, online);
   if (url.pathname === "/__vyre/info.json") return json(200, { name, label: info.label || "", route: info.route, relay: relayWss, online: await online() });
   if (url.pathname.startsWith("/__vyre/")) {
     if (!env.ASSETS || (request.method !== "GET" && request.method !== "HEAD")) return new Response(null, { status: 404, headers: { "x-vyre-gateway": "no-assets" } });

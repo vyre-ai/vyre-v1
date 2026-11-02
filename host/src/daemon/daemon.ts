@@ -36,6 +36,8 @@ import { createShareRoute } from "../routes/share.ts";
 import type { SharedView } from "../routes/share.ts";
 import { createFormsPageRoute } from "../routes/forms-page.ts";
 import { createPublicPathRoute } from "../routes/public-path.ts";
+import type { PublicPathDeps, ServedSite } from "../routes/public-path.ts";
+import { createSitesHost, mimeOf } from "../seams/sites-host.ts";
 import type { PublicFormView } from "../routes/forms-page.ts";
 import { deferredCaps, deferredModules } from "../routes/deferred.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
@@ -410,7 +412,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     try { claimed = db?.all("SELECT name, state FROM network_phone WHERE id = 1")[0] as typeof claimed; } catch { /* the table comes with the network module */ }
     return publicOriginOf(cfg.address, claimed?.state === "claimed" ? claimed.name : null);
   };
-  const publicPath = createPublicPathRoute({ forms: () => formsPageRoute, origin: () => publicOrigin()?.origin ?? null });
+  // sites: what the module answers and where the bytes go; set once the modules are loaded and the stream exists
+  let sitesServing: Partial<PublicPathDeps> = {};
+  const publicPath = createPublicPathRoute({
+    forms: () => formsPageRoute, origin: () => publicOrigin()?.origin ?? null,
+    site: (slug) => sitesServing.site?.(slug) ?? null, artifact: (id, token) => sitesServing.artifact?.(id, token) ?? Promise.resolve(null),
+    fetch: (t, r, sink) => sitesServing.fetch ? sitesServing.fetch(t, r, sink) : Promise.resolve(sink.fail("Not available.")), file: (f, rel) => sitesServing.file?.(f, rel) ?? Promise.resolve(null),
+  });
   // GET /exports/<id>?token= (P-L7_16): the vault module checks the token; until it is configured every pull is refused
   let pullVaultExport: (exportId: string, token: string) => string = () => { throw new Error("the Vault is not live on this server"); };
   const exportRoute = createVaultExportRoute({ pull: (id, t) => pullVaultExport(id, t) });
@@ -653,6 +661,25 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // the async projections the live modules export (P-H_07): the events module's webhooks_out turns subscribed events into signed deliveries
       // crash recovery: a webhook delivery row inserted but never dispatched (the daemon died between the two) is sent again; the send is idempotent per attempt
       let dispatchSystem: ((cap: string, input: unknown) => Promise<unknown>) | null = null;
+      // one file of a folder a site or an artifact serves from: the caller already decided the visitor may see it, so this reads as the server. A folder published from disk keeps its paths flat, a/b as a__b
+      const readFolderFile = async (folderId: string, rel: string): Promise<{ bytes: Uint8Array; mime: string } | null> => {
+        const parts = rel.split("/").filter((p) => p !== "");
+        if (!dispatchSystem || parts.length === 0 || parts.some((p) => p === "." || p === "..")) return null;
+        const listOf = async (folder: string): Promise<{ files?: { fileId: string; name: string }[]; folders?: { folderId: string; name: string }[] }> => (await dispatchSystem!("files.list", { folder })) as never;
+        let at = folderId;
+        let found = (await listOf(at)).files?.find((f) => f.name === parts.join("__"));
+        if (!found) {
+          for (const dir of parts.slice(0, -1)) {
+            const next = (await listOf(at)).folders?.find((f) => f.name === dir);
+            if (!next) return null;
+            at = next.folderId;
+          }
+          found = (await listOf(at)).files?.find((f) => f.name === parts[parts.length - 1]);
+        }
+        if (!found) return null;
+        const f = (await dispatchSystem("files.read", { fileId: found.fileId, as: "base64" })) as { base64?: string; mime?: string };
+        return typeof f.base64 === "string" ? { bytes: new Uint8Array(Buffer.from(f.base64, "base64")), mime: f.mime ?? mimeOf(found.name) } : null;
+      };
       const dueDeliveries = loaded.moduleExports.get("events")?.["dueDeliveries"] as ((ctx: { db: unknown }, now: number, limit?: number) => { webhook_id: string; event_id: string; attempts: number; state: string; at: number }[]) | undefined;
       const WEBHOOK_RECOVER_MS = 30_000;
       const projectionRunner = createProjectionRunner({
@@ -1139,6 +1166,31 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           mint: (sessionId: string) => issueSessionToken(db!, sessionId, now),
           end: (sessionId: string) => { db!.run("UPDATE devices_session SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL", now(), sessionId); },
         }),
+        // sites are routes: an address pointing at a port on a computer, or at a folder in Files. Site code never runs here; only its bytes pass
+        configureRoutes: () => {
+          const computers = loaded.moduleExports.get("computers") as { localComputerAddress?: (id: string) => Promise<string | null>; localSiteLogs?: (a: { computerId: string; slug: string; lines: number }) => Promise<string[]> } | undefined;
+          const sitesMod = loaded.moduleExports.get("sites") as { routeBySlug?(c: { db: unknown }, slug: string): ServedSite | null; routeByTicket?(c: { db: unknown }, id: string, token: string, now: number): Promise<{ route: ServedSite; principal: string; owner: string } | null> } | undefined;
+          const made = createSitesHost({
+            origin: publicOrigin, contained: fs.existsSync("/.dockerenv"),
+            nodeOf: (id) => (db!.all("SELECT node_id FROM computers_computers WHERE computer_id = ?", id)[0] as { node_id?: string | null } | undefined)?.node_id ?? null,
+            localAddress: (id) => computers?.localComputerAddress?.(id) ?? Promise.resolve(null),
+            localLogs: (computerId, slug, lines) => computers?.localSiteLogs?.({ computerId, slug, lines }) ?? Promise.resolve([]),
+            stream: { portFetch: (n, a, sink) => computeStream.portFetch(n, a, sink), ask: (n, k, i) => computeStream.ask(n, k, i), connected: (n) => computeStream.connected(n) },
+          });
+          sitesServing = {
+            site: (slug) => sitesMod?.routeBySlug?.({ db: db! }, slug) ?? null,
+            artifact: async (id, token) => {
+              const got = await sitesMod?.routeByTicket?.({ db: db! }, id, token, now());
+              if (!got) return null;
+              // access is asked on every request, so ending a share ends the link
+              const may = got.principal === got.owner || (got.route.access === "space" && access.snap.principal(got.principal)?.status === "active") || (!staleFor(got.principal) && authorize(access.snap, { principal: got.principal, action: { perm: null, level: "view" }, resource: { type: "site", id } }).effect === "allow");
+              return may ? got.route : null;
+            },
+            fetch: (t, r, sink) => made.fetchTarget(t, r, sink),
+            file: (folderId, rel) => readFolderFile(folderId, rel),
+          };
+          return made.host;
+        },
         setComputerHost: () => createComputersHost({
           dataDir: paths.root,
           ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : {}),
