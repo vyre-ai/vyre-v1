@@ -2,7 +2,7 @@
 
 Lane L6. Kind module. Version 0.1.0.
 
-Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
+Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
 ## Capabilities (60)
 

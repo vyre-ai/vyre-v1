@@ -1,6 +1,6 @@
 # contacts.dnd_screen
 
-Screen candidates before they are ADDED to an audience, campaign, Journey enrolment or import. Adds only: it never removes, unsubscribes or deletes anyone already present
+Screen candidates before they are ADDED to an audience, Journey enrolment or import. Adds only: it never removes, unsubscribes or deletes anyone already present
 
 | | |
 |---|---|
@@ -25,7 +25,7 @@ Screen candidates before they are ADDED to an audience, campaign, Journey enrolm
 
 ```ts
 type In = {
-  context: "audience" | "campaign" | "journey_enrol" | "import";
+  context: "audience" | "journey_enrol" | "import";
   contextId?: string;
   candidates: Array<{
       ref: string;

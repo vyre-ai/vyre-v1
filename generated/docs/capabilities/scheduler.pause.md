@@ -37,7 +37,7 @@ type Out = {
   schedule: {
     id: string;
     owner: {
-      kind: "automation" | "journey" | "agent_routine" | "campaign" | "gate" | "task" | "system";
+      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
       id: string;
     };
     principal: string;

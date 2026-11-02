@@ -41,4 +41,5 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "mail.send_preview": Handler<"mail.send_preview", X>;
   "mail.status_update": Handler<"mail.status_update", X>;
   "mail.sync_now": Handler<"mail.sync_now", X>;
+  "mail.unsubscribe": Handler<"mail.unsubscribe", X>;
 }

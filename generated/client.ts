@@ -293,26 +293,6 @@ export function createClient(transport: Transport) {
       update_calendar: call("calendar.update_calendar", 1),
       update_event: call("calendar.update_event", 1),
     },
-    campaigns: {
-      audience_set: call("campaigns.audience_set", 1),
-      create: call("campaigns.create", 1),
-      delete: call("campaigns.delete", 1),
-      get: call("campaigns.get", 1),
-      launch: call("campaigns.launch", 1),
-      link_build: call("campaigns.link_build", 1),
-      list: call("campaigns.list", 1),
-      pause: call("campaigns.pause", 1),
-      preview: call("campaigns.preview", 1),
-      replies: call("campaigns.replies", 1),
-      resume: call("campaigns.resume", 1),
-      schedule_set: call("campaigns.schedule_set", 1),
-      stats: call("campaigns.stats", 1),
-      steps_set: call("campaigns.steps_set", 1),
-      stop: call("campaigns.stop", 1),
-      unsubscribe: call("campaigns.unsubscribe", 1),
-      update: call("campaigns.update", 1),
-      variants_set: call("campaigns.variants_set", 1),
-    },
     changesets: {
       approve: call("changesets.approve", 1),
       comments: {
@@ -1367,6 +1347,7 @@ export function createClient(transport: Transport) {
       send_preview: call("mail.send_preview", 1),
       status_update: call("mail.status_update", 1),
       sync_now: call("mail.sync_now", 1),
+      unsubscribe: call("mail.unsubscribe", 1),
     },
     mailgun: {
       domains: {
@@ -2523,11 +2504,6 @@ export function createClient(transport: Transport) {
       publish: call("views.publish", 1),
       save: call("views.save", 1),
       share_external: call("views.share_external", 1),
-    },
-    warmup: {
-      pool_optin_set: call("warmup.pool_optin_set", 1),
-      start: call("warmup.start", 1),
-      status: call("warmup.status", 1),
     },
     webhooks: {
       create: call("webhooks.create", 1),

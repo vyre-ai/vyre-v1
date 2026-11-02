@@ -10,9 +10,9 @@ Requires: calendar, mail, telephony.
 - [comms.senders.set_default](../capabilities/comms.senders.set_default.md): Choose the default sender of a channel for me; it must be a usable sender from comms.senders.list
 - [inbox.counts](../capabilities/inbox.counts.md): Unread counts for the sidebar: per inbox, per number and the Needs a match total
 - [inbox.follow_set](../capabilities/inbox.follow_set.md): Follow a contact or set Alert me on replies (the follow itself is stored with stars and follows)
-- [inbox.following](../capabilities/inbox.following.md): Contacts that reach your Inbox and why: owner, project, follow, campaign or shared inbox
+- [inbox.following](../capabilities/inbox.following.md): Contacts that reach your Inbox and why: owner, project, follow or shared inbox
 - [inbox.item.erase](../capabilities/inbox.item.erase.md): Erase the conversation entries of one message, text or call for good: previews, subjects and participants go, the conversation keeps only what other items still say (governance erase)
-- [inbox.link_message](../capabilities/inbox.link_message.md): Shared linking step for a stored message, text or call: sure matches link, unsure go to Needs you, unowned replies route to the campaign owner then the shared inbox
+- [inbox.link_message](../capabilities/inbox.link_message.md): Shared linking step for a stored message, text or call: sure matches link, unsure go to Needs you, unowned replies route to the shared inbox
 - [inbox.list_by_contact](../capabilities/inbox.list_by_contact.md): Inbox default view: one row per person, newest message across email, text and calls
 - [inbox.list_by_thread](../capabilities/inbox.list_by_thread.md): Inbox thread view: one row per email thread or text thread
 - [inbox.mark_read](../capabilities/inbox.mark_read.md): Mark a conversation read or unread
@@ -22,13 +22,12 @@ Requires: calendar, mail, telephony.
 - [inbox.needs_match](../capabilities/inbox.needs_match.md): The Needs a match filter: unsure senders with suggested records
 - [inbox.recipients_search](../capabilities/inbox.recipients_search.md): Ranked recipient search across contacts, members, inboxes and groups (the shared Recipients field)
 - [inbox.send_options](../capabilities/inbox.send_options.md): Channels and sending inboxes for a contact; the default is the inbox the thread came in on
-- [inbox.thread](../capabilities/inbox.thread.md): The whole history of one contact: emails, texts, calls, meetings, campaign lines and record chips
+- [inbox.thread](../capabilities/inbox.thread.md): The whole history of one contact: emails, texts, calls, meetings and record chips
 - [inbox.unmatch](../capabilities/inbox.unmatch.md): Undo a match; the sender goes back to Unmatched
 - [inbox.unmatched](../capabilities/inbox.unmatched.md): The Unmatched list: senders with no record that did not raise Needs a match
 
-## Events (8)
+## Events (7)
 
-- [conversation.campaign_reply](../events/conversation.campaign_reply.md): A contact on a campaign replied; it lands in the owner Inbox marked with the campaign
 - [conversation.created](../events/conversation.created.md): A conversation row was opened for a new address or contact
 - [conversation.follow_changed](../events/conversation.follow_changed.md): A person followed or unfollowed a contact conversation
 - [conversation.matched](../events/conversation.matched.md): A sender was linked to a contact or company record

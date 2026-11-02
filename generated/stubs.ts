@@ -293,26 +293,6 @@ export function stubs(ctx: CallCtx) {
       update_calendar: call("calendar.update_calendar"),
       update_event: call("calendar.update_event"),
     },
-    campaigns: {
-      audience_set: call("campaigns.audience_set"),
-      create: call("campaigns.create"),
-      delete: call("campaigns.delete"),
-      get: call("campaigns.get"),
-      launch: call("campaigns.launch"),
-      link_build: call("campaigns.link_build"),
-      list: call("campaigns.list"),
-      pause: call("campaigns.pause"),
-      preview: call("campaigns.preview"),
-      replies: call("campaigns.replies"),
-      resume: call("campaigns.resume"),
-      schedule_set: call("campaigns.schedule_set"),
-      stats: call("campaigns.stats"),
-      steps_set: call("campaigns.steps_set"),
-      stop: call("campaigns.stop"),
-      unsubscribe: call("campaigns.unsubscribe"),
-      update: call("campaigns.update"),
-      variants_set: call("campaigns.variants_set"),
-    },
     changesets: {
       approve: call("changesets.approve"),
       comments: {
@@ -1367,6 +1347,7 @@ export function stubs(ctx: CallCtx) {
       send_preview: call("mail.send_preview"),
       status_update: call("mail.status_update"),
       sync_now: call("mail.sync_now"),
+      unsubscribe: call("mail.unsubscribe"),
     },
     mailgun: {
       domains: {
@@ -2523,11 +2504,6 @@ export function stubs(ctx: CallCtx) {
       publish: call("views.publish"),
       save: call("views.save"),
       share_external: call("views.share_external"),
-    },
-    warmup: {
-      pool_optin_set: call("warmup.pool_optin_set"),
-      start: call("warmup.start"),
-      status: call("warmup.status"),
     },
     webhooks: {
       create: call("webhooks.create"),

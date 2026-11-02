@@ -32,7 +32,6 @@ type In = {
   mediaFileIds?: Array<string>;
   contactId?: string;
   replyToId?: string;
-  campaignId?: string;
   sendAt?: number;
   idempotencyKey: string;
 };
@@ -70,7 +69,6 @@ type Out = {
   "name": "example",
   "input": {
     "body": "example",
-    "campaignId": "cmp_a1b2c3",
     "contactId": "rec_a1b2c3",
     "idempotencyKey": "idem_1",
     "mediaFileIds": [

@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS "inbox_conversation" (
   "ownerId" TEXT,
   "mailboxIds" TEXT,
   "numberIds" TEXT,
-  "campaignId" TEXT,
   "version" INTEGER NOT NULL DEFAULT 0,
   "updated_at" INTEGER,
   "deleted_at" INTEGER

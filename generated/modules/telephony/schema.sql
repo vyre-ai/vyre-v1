@@ -72,7 +72,6 @@ CREATE TABLE IF NOT EXISTS "telephony_sms" (
   "status" TEXT,
   "contactId" TEXT,
   "mediaFileIds" TEXT,
-  "campaignId" TEXT,
   "at" INTEGER,
   "twilioSid" TEXT,
   "traceId" TEXT,

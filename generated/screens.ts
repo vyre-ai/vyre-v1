@@ -344,81 +344,6 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
-    "id": "apps.campaign-builder",
-    "module": "campaigns",
-    "place": "apps",
-    "slot": "main",
-    "builtin": "ui:CampaignBuilder",
-    "caller": "principal",
-    "queries": {
-      "campaign": {
-        "cap": "campaigns.get",
-        "input": {
-          "campaignId": "/selected"
-        },
-        "live": true
-      },
-      "preview": {
-        "cap": "campaigns.preview",
-        "input": {
-          "campaignId": "/selected"
-        },
-        "live": true
-      }
-    },
-    "actions": {
-      "launch": {
-        "cap": "campaigns.launch",
-        "input": {
-          "campaignId": "/selected"
-        },
-        "confirm": "Launch this campaign?"
-      },
-      "steps": {
-        "cap": "campaigns.steps_set",
-        "input": {
-          "campaignId": "/selected"
-        }
-      }
-    },
-    "needs": [],
-    "perf": {
-      "firstPaintMs": 50,
-      "completeMs": 100
-    }
-  },
-  {
-    "id": "apps.campaigns",
-    "module": "campaigns",
-    "place": "apps",
-    "slot": "main",
-    "builtin": "ui:CampaignsList",
-    "caller": "principal",
-    "queries": {
-      "campaigns": {
-        "cap": "campaigns.list",
-        "input": {
-          "section": "/section",
-          "folderId": "/folder"
-        },
-        "live": true
-      }
-    },
-    "actions": {
-      "create": {
-        "cap": "campaigns.create",
-        "input": {}
-      }
-    },
-    "needs": [
-      "automations.space"
-    ],
-    "perf": {
-      "firstPaintMs": 50,
-      "completeMs": 100
-    }
-  },
-  {
     "id": "apps.email-builder",
     "module": "email-builder-api",
     "place": "apps",
@@ -575,36 +500,6 @@ export const screens: ScreenIndexEntry[] = [
     },
     "needs": [
       "kits.publish"
-    ],
-    "perf": {
-      "firstPaintMs": 50,
-      "completeMs": 100
-    }
-  },
-  {
-    "id": "apps.sending-domains",
-    "module": "campaigns",
-    "place": "apps",
-    "slot": "main",
-    "builtin": "ui:SendingDomains",
-    "caller": "principal",
-    "queries": {
-      "warmup": {
-        "cap": "warmup.status",
-        "input": {},
-        "live": true
-      }
-    },
-    "actions": {
-      "start": {
-        "cap": "warmup.start",
-        "input": {
-          "mailboxId": "/selected"
-        }
-      }
-    },
-    "needs": [
-      "comms.domains"
     ],
     "perf": {
       "firstPaintMs": 50,

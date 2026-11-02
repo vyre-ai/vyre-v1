@@ -8,7 +8,6 @@ HTTP 429. Retryable: yes.
 
 - access.request
 - forms.submit
-- mail.send
 - notifications.send
 - portal.sign_in
 - reports.send_to_vyre

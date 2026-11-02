@@ -1,6 +1,6 @@
 # inbox.thread
 
-The whole history of one contact: emails, texts, calls, meetings, campaign lines and record chips
+The whole history of one contact: emails, texts, calls, meetings and record chips
 
 | | |
 |---|---|
@@ -49,7 +49,6 @@ type Out = {
     needsMatch: boolean;
     ownerId?: string;
     mailboxIds: Array<string>;
-    campaignId?: string;
     followed: boolean;
     alertOnReplies: boolean;
     starred?: boolean;
@@ -60,13 +59,12 @@ type Out = {
     draftReady?: boolean;
   };
   items: Array<{
-      kind: "email" | "sms" | "call" | "meeting" | "campaign_step" | "record_chip" | "note";
+      kind: "email" | "sms" | "call" | "meeting" | "record_chip" | "note";
       id: string;
       at: number;
       direction?: "in" | "out";
       title?: string;
       preview?: string;
-      campaignId?: string;
       recordId?: string;
       ref?: unknown;
     }>;
@@ -99,7 +97,6 @@ type Out = {
       "address": "maya@example.com",
       "alertOnReplies": true,
       "bounced": true,
-      "campaignId": "cmp_a1b2c3",
       "contactId": "rec_a1b2c3",
       "displayName": "example",
       "dnd": true,
@@ -122,7 +119,6 @@ type Out = {
     "items": [
       {
         "at": 1760000000000,
-        "campaignId": "cmp_a1b2c3",
         "direction": "in",
         "id": "example",
         "kind": "email",

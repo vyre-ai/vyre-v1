@@ -18,7 +18,7 @@ A Do-not-contact screening ran over new adds (never removes anyone)
 
 ```ts
 type Payload = {
-  context: "audience" | "campaign" | "journey_enrol" | "import";
+  context: "audience" | "journey_enrol" | "import";
   contextId?: string;
   screened: number;
   refused: number;

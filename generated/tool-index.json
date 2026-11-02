@@ -1064,108 +1064,6 @@
     },
     {
       "deferred": false,
-      "name": "campaigns_audience_set",
-      "summary": "Set the audience from a record view; adds go through DND screening (adds only)",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_create",
-      "summary": "Create a campaign (one-time, sequence or triggered)",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_delete",
-      "summary": "Delete a draft campaign",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_get",
-      "summary": "Read a campaign with steps, audience, windows, throttle and A/B variants",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_launch",
-      "summary": "Launch a campaign (Gate act for agents, automations and humans alike)",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_link_build",
-      "summary": "Campaign link builder: UTM and click-id parameters for a destination",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_list",
-      "summary": "List campaigns by section and folder",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_pause",
-      "summary": "Pause a running campaign",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_preview",
-      "summary": "Launch preview: a sample message, counts and exclusions",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_replies",
-      "summary": "Replies that landed in owners Inboxes, marked with the campaign",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_resume",
-      "summary": "Resume a paused campaign",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_schedule_set",
-      "summary": "Set send windows per recipient time zone, throttling per sending domain and stop on reply",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_stats",
-      "summary": "Sent, delivered, bounced, complained, replied, unsubscribed",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_steps_set",
-      "summary": "Replace the steps: email, wait, branch on reply/open/click, SMS, task, call task",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_stop",
-      "summary": "Stop a campaign for good",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_update",
-      "summary": "Rename or change settings",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_variants_set",
-      "summary": "Set A/B variants",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
       "name": "changesets_approve",
       "summary": "Approve and commit a changeset: 3-way merge on the recorded base, conflicts go to the reviewer; optionally push",
       "toolset": "files"
@@ -2151,7 +2049,7 @@
     {
       "deferred": false,
       "name": "contacts_dnd_screen",
-      "summary": "Screen candidates before they are ADDED to an audience, campaign, Journey enrolment or import. Adds only: it never removes, unsubscribes or deletes anyone already present",
+      "summary": "Screen candidates before they are ADDED to an audience, Journey enrolment or import. Adds only: it never removes, unsubscribes or deletes anyone already present",
       "toolset": "inbox"
     },
     {
@@ -2421,7 +2319,7 @@
     {
       "deferred": false,
       "name": "email_builder_list",
-      "summary": "List email designs (campaigns, inbox templates, automation steps share them)",
+      "summary": "List email designs (inbox templates and automation steps share them)",
       "toolset": "inbox"
     },
     {
@@ -4203,7 +4101,7 @@
     {
       "deferred": false,
       "name": "inbox_following",
-      "summary": "Contacts that reach your Inbox and why: owner, project, follow, campaign or shared inbox",
+      "summary": "Contacts that reach your Inbox and why: owner, project, follow or shared inbox",
       "toolset": "inbox"
     },
     {
@@ -4263,7 +4161,7 @@
     {
       "deferred": false,
       "name": "inbox_thread",
-      "summary": "The whole history of one contact: emails, texts, calls, meetings, campaign lines and record chips",
+      "summary": "The whole history of one contact: emails, texts, calls, meetings and record chips",
       "toolset": "inbox"
     },
     {
@@ -4677,13 +4575,13 @@
     {
       "deferred": false,
       "name": "mail_send",
-      "summary": "Send an email through the single send API: caps per sender, send windows, throttling, suppression, consent, trace id header, agent footer line",
+      "summary": "Send an email through the single send API: suppression, consent, trace id header, agent footer line, an unsubscribe link when asked",
       "toolset": "inbox"
     },
     {
       "deferred": false,
       "name": "mail_send_preview",
-      "summary": "Dry run of a send: suppressed recipients, window, caps and throttle, without sending (campaign launch preview uses it)",
+      "summary": "Dry run of a send: who would be reached and who is suppressed, without sending",
       "toolset": "inbox"
     },
     {
@@ -8669,24 +8567,6 @@
       "name": "wait_for",
       "summary": "Wait in the background for an event, another Run or a time; ends the turn and wakes the thread on a match (default timeout 30 days)",
       "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "warmup_pool_optin_set",
-      "summary": "Opt the Space in or out of the shared warmup pool (out: own seed inboxes only)",
-      "toolset": "inbox"
-    },
-    {
-      "deferred": false,
-      "name": "warmup_start",
-      "summary": "Start warming a new domain or mailbox",
-      "toolset": "inbox"
-    },
-    {
-      "deferred": false,
-      "name": "warmup_status",
-      "summary": "Warmup state and health per mailbox: bounce, spam placement, reply",
-      "toolset": "inbox"
     },
     {
       "deferred": false,

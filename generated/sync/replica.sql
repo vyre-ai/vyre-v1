@@ -161,7 +161,6 @@ CREATE TABLE IF NOT EXISTS "inbox_conversation" (
   "ownerId" TEXT,
   "mailboxIds" TEXT,
   "numberIds" TEXT,
-  "campaignId" TEXT,
   "version" INTEGER NOT NULL DEFAULT 0,
   "updated_at" INTEGER,
   "deleted_at" INTEGER
@@ -409,7 +408,6 @@ CREATE TABLE IF NOT EXISTS "mail_message" (
   "sentAt" INTEGER,
   "contactId" TEXT,
   "isPrivate" INTEGER,
-  "campaignId" TEXT,
   "attachments" TEXT,
   "draftedByAgent" TEXT,
   "traceId" TEXT,
@@ -677,7 +675,6 @@ CREATE TABLE IF NOT EXISTS "telephony_sms" (
   "status" TEXT,
   "contactId" TEXT,
   "mediaFileIds" TEXT,
-  "campaignId" TEXT,
   "at" INTEGER,
   "twilioSid" TEXT,
   "traceId" TEXT,

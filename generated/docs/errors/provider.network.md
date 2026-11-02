@@ -10,7 +10,6 @@ HTTP 502. Retryable: yes.
 - automations.http_read
 - automations.http_send
 - backup.run
-- campaigns.launch
 - computers.chrome.api
 - computers.chrome.send
 - connections.complete_auth
@@ -31,3 +30,4 @@ HTTP 502. Retryable: yes.
 - git.sync
 - github.issue.close
 - github.issue.comment
+- github.issue.create
