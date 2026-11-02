@@ -167,7 +167,7 @@ $env:USERPROFILE = $home2; $env:HOME = $home2; $env:TEMP = "$home2\tmp"; $env:TM
 $cmd = Join-Path $env:WINDIR "System32\cmd.exe"
 # which part of starting a child is denied: a small native program run inside the container
 $bx = Join-Path $bin "bisect.exe"
-Add-Type -Path "$PSScriptRoot\bisect.cs" -OutputAssembly $bx -OutputType ConsoleApplication -ErrorAction SilentlyContinue
+& "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /out:$bx "$PSScriptRoot\bisect.cs"
 icacls $bx /grant "*${sid}:RX" /Q | Out-Null
 $bo = "$w\bisect.out"
 $code = [Ac]::Run($name, (Q $cmd) + ' /c "' + (Q $bx) + ' ' + (Q "$home2\.codex") + ' ' + (Q $w) + ' > ' + (Q $bo) + ' 2>&1"', $w, 120000)
