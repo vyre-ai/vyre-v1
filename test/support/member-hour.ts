@@ -139,9 +139,10 @@ export const model: OpenSession = async (spec) => {
         yield { type: "text", text: r.ok ? "I asked for the Fathom key." : `FAILED ${JSON.stringify(r.content).slice(0, 300)}` };
       } else if (/Carry on/.test(body)) {
         const found = yield* run("tool_search", { query: "vault use" });
-        const r = found.ok ? yield* run("vault_use", { item: "Fathom", purpose: "Read the meetings" }) : found;
-        const c = r.content as { handle?: string; data?: { handle?: string } } | null;
-        yield { type: "text", text: r.ok ? `USED ${c?.data?.handle ?? c?.handle ?? JSON.stringify(r.content)}` : `FAILED ${JSON.stringify(r.content).slice(0, 300)}` };
+        // as a model would: the handle the person's line names (another item may hold the name), else the name it asked for
+        const r = found.ok ? yield* run("vault_use", { item: /as (#[A-Za-z0-9_]+)/.exec(body)?.[1] ?? "Fathom", purpose: "Read the meetings" }) : found;
+        const c = (r.content as { data?: { handle?: string; itemId?: string } } | null)?.data;
+        yield { type: "text", text: r.ok ? `USED ${c?.handle ?? JSON.stringify(r.content)} ${c?.itemId ?? ""}` : `FAILED ${JSON.stringify(r.content).slice(0, 300)}` };
       } else {
         yield { type: "text", text: accountWords(spec.account as Parameters<typeof accountWords>[0]) };
       }

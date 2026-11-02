@@ -47,12 +47,21 @@ test("2 Aina joins by password in a browser; Bilal joins with Google in the Wind
   assert.ok([a, b].every((p) => joined.some((x) => x.id === p.personId)), "both are people of the Space");
 });
 
-test.todo("2b the Windows and Mac apps take the Space's own vyre.run address, which answers directly, and Bilal's invite opens in the app (l-directaddr)", async () => {
-  // 3 Nov: the desktop app refused mla.vyre.run as a relay (phone) address, so a member on the Windows app could not join or sign in there
-  const { inviteAppLink, isPhoneAddress } = await import("../apps/app/src/shell/session/entry.ts");
-  const address = "https://mla.vyre.run";
-  assert.equal(isPhoneAddress(address), false, "a Space's own address is not refused as a phone address");
-  assert.ok(inviteAppLink({ kind: "join", address, code: codes["b"]!, fingerprint: "" } as never), "the invite page offers to open it in the app");
+test("2b the Windows and Mac apps take the Space's own vyre.run name, which answers directly, and Bilal's invite opens in the app (l-directaddr)", async () => {
+  // 3 Nov: the desktop app refused mla.vyre.run as a relay (phone) address, so a member on the Windows app could not join or sign in there. Now the name is asked what it is.
+  const { desktopEntryRefusal, forgetAddressChecks, inviteAppLink, isRelayAddress } = await import("../apps/app/src/shell/session/entry.ts");
+  const { probeDirectSpace } = await import("../client/src/gateway/space-probe.ts");
+  const own = "https://mla.vyre.run";
+  const viaEdge = ((url: string, init?: RequestInit) => h.edge()(String(url).replace(own, ADDRESS), init)) as typeof fetch;
+  const check = { probe: (origin: string) => probeDirectSpace(origin, { fetch: viaEdge }), page: undefined };
+  forgetAddressChecks();
+  assert.equal(await isRelayAddress(own, check), false, "the Space answers at its own vyre.run name");
+  assert.equal(await desktopEntryRefusal({ kind: "signin", address: own } as never, check), null, "the app signs in there");
+  assert.equal(await desktopEntryRefusal({ kind: "join", address: own, code: codes["b"]!, fingerprint: "" } as never, check), null, "and joins there");
+  assert.ok(inviteAppLink({ kind: "join", address: own, code: codes["b"]!, fingerprint: "" } as never, false), "the invite page offers to open it in the app");
+  // a vyre.run name nothing answers at as a Space is still the relay's
+  forgetAddressChecks();
+  assert.equal(await isRelayAddress("https://nobody.vyre.run", { probe: async () => false, page: undefined }), true);
 });
 
 test("3 each signs in again later, Aina by password and Bilal by Google; the Vault is open with no prompt; they add a key and a login and every section answers", async () => {

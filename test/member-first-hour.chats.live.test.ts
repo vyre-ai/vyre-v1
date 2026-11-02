@@ -29,35 +29,43 @@ async function cardAsked(hh: { d: Hour["d"] }, p: Person, agentId: string): Prom
   return { threadId, requestId: card.data.requestId as string };
 }
 
-/** Once the key is in, the agent carries on in that chat by itself and uses the key by its handle; the value is in no message. */
-async function carriesOn(hh: { d: Hour["d"] }, p: Person, threadId: string): Promise<void> {
+/** Once the key is in, the agent carries on in that chat by itself and uses that very item by its handle; the value is in no message. */
+async function carriesOn(hh: { d: Hour["d"] }, p: Person, threadId: string, itemId: string): Promise<void> {
   const used = await waitFor(async () => (await messages(hh as Hour, p, threadId)).find((m) => m.author?.kind === "agent" && /^(USED|FAILED)/.test(m.body ?? ""))?.body ?? null, 20_000, "the agent carries on");
-  assert.match(used, /^USED #Fathom/, used);
+  assert.match(used, new RegExp(`^USED #Fathom(_\\d+)? ${itemId}$`), "the agent used that very item");
   assert.ok(!JSON.stringify(await messages(hh as Hour, p, threadId)).includes(SECRET), "the key never reaches a message or a block");
 }
 
-test("5 a key the agent asks for in Aina's chat: her card shows it waits on an admin, the owner adds it, and the agent uses it by its handle", async () => {
-  // team Space: Aina reads her card (keyrequest.tsx: vault.requests.get, then whether she decides it); a Member does not decide a key request, an admin does (ruling 74)
+test("5 a key the agent asks for in Aina's chat shows on her card, and when the owner adds it for the team the agent uses it by its handle", async () => {
+  // Aina's card reads the request and whether she can add it (keyrequest.tsx); she leaves it, and the owner adds it from Needs you into the team's folder
   const team = await cardAsked(h, a, h.agentId);
-  const seen = await addTheKey(a, team.requestId, SECRET);
-  assert.equal(seen.canDecide, false, "Aina's card says it asked an admin");
+  assert.equal((await a.call("vault.requests.get", { requestId: team.requestId })).request.state, "waiting");
+  assert.ok(((await a.call("vault.requests.list", { mine: false })).requests as Array<{ id: string }>).some((r) => r.id === team.requestId), "her card would take the key from her too");
   const row = ((await h.owner.call("tasks.list", { scope: "mine", kinds: ["unblock"], states: ["todo", "doing"] })).tasks as Array<{ title: string; workingNotes: Record<string, string> }>).find((t) => t.title === "Fathom key needed");
   assert.equal(row?.workingNotes["thread"], team.threadId, "the owner's Needs you row links Aina's chat");
   const keys = ((await h.owner.call("vault.folders.list", { scope: "shared" })).folders as Array<{ id: string; name: string }>).find((f) => f.name === "Team keys")!.id;
-  assert.equal((await h.owner.call("vault.requests.fulfil", { requestId: team.requestId, folderId: keys, fields: [{ key: "api_key", value: SECRET }] })).request.state, "fulfilled");
-  await carriesOn(h, a, team.threadId);
+  const teamItem = (await h.owner.call("vault.requests.fulfil", { requestId: team.requestId, folderId: keys, fields: [{ key: "api_key", value: SECRET }] })).request as { state: string; itemId: string };
+  assert.equal(teamItem.state, "fulfilled");
+  await carriesOn(h, a, team.threadId, teamItem.itemId);
   assert.equal((await a.call("vault.requests.get", { requestId: team.requestId })).request.state, "fulfilled", "Aina's card turns to Added");
-
 });
 
-test.todo("5b in the team Space Bilal adds his own key from his card into his Mine and the agent uses it (needs an owner ruling: today only an admin decides a Member's key request)", async () => {
+test("5b in the team Space Bilal adds his own key from his card into his Mine, the owner's row closes, and the agent uses his key, not the team's of the same name, on his turns only (owner ruling 3 Nov)", async () => {
   const own = await cardAsked(h, b, h.agentId);
-  const added = await addTheKey(b, own.requestId, SECRET);
-  assert.deepEqual([added.canDecide, added.request?.state], [true, "fulfilled"]);
-  await carriesOn(h, b, own.threadId);
+  const added = await addTheKey(b, own.requestId, SECRET.replace("member", "bilal"));
+  assert.deepEqual([added.canDecide, added.request?.state], [true, "fulfilled"], "Add the key on his own card");
+  const item = (await b.call("vault.item.get", { itemId: added.request.itemId })).item as { scope: string; owner: string };
+  assert.deepEqual([item.scope, item.owner], ["mine", b.personId], "it went into his own Mine, though the card offered the team's folder");
+  await carriesOn(h, b, own.threadId, added.request.itemId);
+  await h.d.hooks?.pump?.();
+  const open = ((await h.owner.call("tasks.list", { scope: "mine", kinds: ["unblock"], states: ["todo", "doing"] })).tasks as Array<{ title: string }>).filter((t) => t.title === "Fathom key needed");
+  assert.deepEqual(open, [], "the owner's Needs you row for it closed");
+  // nobody else reaches it: not Aina, not the agent working for Aina
+  await a.refused("vault.item.get", { itemId: added.request.itemId }, /^(permission|validation)\./, "Bilal's own key is his");
+  assert.equal(await say(h, a, (await a.call("chat.start", { kind: "chat", agentIds: [h.agentId] })).thread.threadId as string, "Carry on", h.agentId).then((x) => x.includes(added.request.itemId)), false, "the agent working for Aina never uses Bilal's key");
 });
 
-test.todo("7 a DM from Aina makes Bilal's sidebar unread; opening it clears it; Aina never sees her own message as unread (l-unread)", async () => {
+test("7 a DM from Aina makes Bilal's sidebar unread; opening it clears it; Aina never sees her own message as unread", async () => {
   const threadId = (await a.call("chat.start", { kind: "chat", agentIds: [], personId: b.personId })).thread.threadId as string;
   await a.call("chat.post", { threadId, body: "Welcome aboard, Bilal." });
   await h.d.hooks?.pump?.();
@@ -112,6 +120,6 @@ test("5c in her own Personal Space on her computer the same person adds the key 
     const own = await cardAsked({ d: mine.d }, mine.me, agentId);
     const added = await addTheKey(mine.me, own.requestId, SECRET);
     assert.deepEqual([added.canDecide, added.request.state], [true, "fulfilled"], "Add the key on her own card");
-    await carriesOn({ d: mine.d }, mine.me, own.threadId);
+    await carriesOn({ d: mine.d }, mine.me, own.threadId, added.request.itemId);
   } finally { await mine.stop(); }
 });
