@@ -125,3 +125,16 @@ test("a ticket opens one artifact, for its person, until it ends", async () => {
     await assert.rejects(() => h["sites.artifact_open"]!({ ...w.ctx, principal: { kind: "agent", id: "agt_x" } }, { artifactId: made.site.siteId }), /Only a person/);
   } finally { configureRoutes(null); }
 });
+
+test("a site cannot point at what its maker could not use: the server reads for it, so the caller is asked first", async () => {
+  const w = harness();
+  configureRoutes(host() as never);
+  const ctx = { ...w.ctx, authorize: () => ({ effect: "deny", reason: "no_grant", decisionId: "d" }) };
+  try {
+    await assert.rejects(() => h["sites.create"]!(ctx, { name: "Leak", folderId: "fld_private" }), /cannot read that folder/);
+    await assert.rejects(() => h["sites.create"]!(ctx, { name: "Leak", computerId: "cmt_other", port: 3000 }), /cannot use that computer/);
+    await assert.rejects(() => h["sites.artifact_publish"]!(ctx, { title: "Leak", folderId: "fld_private" }), /cannot read that folder/);
+    const made = await h["sites.create"]!(w.ctx, { name: "Mine", port: 3000 });
+    await assert.rejects(() => h["sites.update"]!(ctx, { siteId: made.site.siteId, folderId: "fld_private" }), /cannot read that folder/);
+  } finally { configureRoutes(null); }
+});

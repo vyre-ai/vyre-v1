@@ -128,9 +128,16 @@ function accessOf(ctx: Ctx, raw: string | undefined, fallback: Access): Access {
   return raw as Access;
 }
 
+/** Serving reads as the server, so what a site points at is checked against the caller here: nobody puts up a computer or a folder they could not use themselves. */
 async function mustComputer(ctx: Ctx, computerId: string | undefined): Promise<void> {
   if (computerId === undefined) return;
   await ctx.call("computers.get", { computerId });
+  if (ctx.authorize({ perm: null, level: "use" }, { type: "computer", id: computerId }).effect !== "allow") fail(ctx, "permission.no_grant", "You cannot use that computer.", { computerId });
+}
+
+function mustFolder(ctx: Ctx, folderId: string | undefined): void {
+  if (folderId === undefined) return;
+  if (ctx.authorize({ perm: null, level: "view" }, { type: "folder", id: folderId }).effect !== "allow") fail(ctx, "permission.no_grant", "You cannot read that folder.", { folderId });
 }
 
 function needsTarget(ctx: Ctx, r: Row): void {
@@ -148,6 +155,7 @@ async function sitesCreate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
   const computerId = optStr(ctx, o, "computerId");
   const port = cleanPort(ctx, optInt(ctx, o, "port"));
   await mustComputer(ctx, computerId);
+  mustFolder(ctx, optStr(ctx, o, "folderId"));
   const rawSlug = optStr(ctx, o, "slug");
   const slug = kind === "artifact" ? null : freeSlug(ctx, rawSlug === undefined ? slugOf(name) : cleanSlug(ctx, rawSlug), null);
   const id = nid(ctx, "sit");
@@ -194,6 +202,7 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
   const computerId = optStr(ctx, o, "computerId");
   await mustComputer(ctx, computerId);
   const folderId = optStr(ctx, o, "folderId");
+  mustFolder(ctx, folderId);
   // becoming public is an outward act: it comes down here and goes back up through sites.promote and the Gate
   const live = flag(site.live) && !(access === "public" && site.access !== "public");
   // and a site that stops being public takes its custom domains down with it
@@ -318,9 +327,14 @@ async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: 
   const folderIn = optStr(ctx, o, "folderId");
   const localPath = optStr(ctx, o, "path");
   const port = cleanPort(ctx, optInt(ctx, o, "port"));
-  const computerId = optStr(ctx, o, "computerId");
+  let computerId = optStr(ctx, o, "computerId");
   if ([html, fileId, folderIn, localPath, port].filter((v) => v !== undefined).length !== 1) fail(ctx, "validation.bad_input", "Give one of html, fileId, folderId, path or port.", { field: "html" });
+  // a port with no computer named is on the agent's own computer, when it has one
+  if (port !== undefined && computerId === undefined && ctx.principal.kind === "agent") {
+    try { computerId = ((await ctx.call("computers.list", {})) as { computers?: { computerId?: string; agentId?: string }[] }).computers?.find((c) => c.agentId === ctx.principal.id)?.computerId; } catch { /* no computers here: the port is on this machine */ }
+  }
   await mustComputer(ctx, computerId);
+  mustFolder(ctx, folderIn);
   const me = ctx.actingFor ?? ctx.principal.id;
   const wanted = optStr(ctx, o, "artifactId");
   let row: Row | undefined = wanted !== undefined ? mustSite(ctx, wanted)
