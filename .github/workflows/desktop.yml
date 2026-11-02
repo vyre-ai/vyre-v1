@@ -123,6 +123,7 @@ jobs:
           hdiutil detach "$mount"
           attached=0
           codesign --verify --deep --strict "$installed"
+          /usr/libexec/PlistBuddy -c "Print :NSMicrophoneUsageDescription" "$installed/Contents/Info.plist"
           codesign -dvvv "$installed" 2>&1 | tee -a proof-codesign.txt
           grep -F "Signature=adhoc" proof-codesign.txt
           # Ad-hoc signing proves bundle integrity but has no Developer ID or notarization ticket.

@@ -45,7 +45,7 @@ export interface TalkControl {
   phase: "idle" | "starting" | "listening";
   line: string | null;
   pressIn(): void;
-  pressOut(): void;
+  pressOut(e?: { pointerType?: string }): void;
   /** The click a pointer press also makes is spent; a click with no pointer is the keyboard, which toggles. */
   tapped(): void;
   /** The person typed while it listens: what is there stays, and the words carry on from the new end. */
@@ -136,12 +136,12 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
     pressed.current = { at: Date.now(), started: true };
     begin();
   }, [begin]);
-  const pressOut = useCallback(() => {
+  const pressOut = useCallback((e?: { pointerType?: string }) => {
     const p = pressed.current;
     pressed.current = null;
     clicked.current = p !== null;
     if (p?.started && Date.now() - p.at >= HOLD_MS) run.current?.stop();
-    latest.current.focus();
+    if (e?.pointerType !== "touch") latest.current.focus();   // on a phone the keyboard would rise and move everything
   }, []);
   const tapped = useCallback(() => {
     if (clicked.current) { clicked.current = false; return; }

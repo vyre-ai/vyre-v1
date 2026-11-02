@@ -303,6 +303,7 @@ export const DRAWN_ROWS: readonly { key: string; page: PageKey; title: string; s
   { key: "signin.spaces", page: "signin", title: "Your Spaces", sub: "Open or leave a Space", words: "switch leave" },
   { key: "shortcuts", page: "appearance", title: "Keyboard shortcuts", sub: "Every shortcut, in one list", words: "keys hotkey keybinding" },
   { key: "model.default", page: "ai", title: "Default model", sub: "For new chats", words: "claude sonnet opus gpt" },
+  { key: "voice.cover", page: "ai", title: "Voice", sub: "What covers your Talk, language and model", words: "talk mic microphone speech dictation deepgram transcription language" },
   { key: "model.fallback", page: "ai", title: "Fallback model", sub: "When the default is unavailable", words: "backup" },
   { key: "usage", page: "ai", title: "Usage this month", sub: "You and your agents", words: "limit cost tokens spend" },
   { key: "open-vault", page: "ai", title: "AI accounts", sub: "Sign-ins and keys live in the Vault", words: "provider api key openai anthropic subscription" },
