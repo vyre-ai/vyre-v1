@@ -16,9 +16,9 @@ export const STOPS = "Sends, posts and payments still wait for your yes.";
 export const ONLY_YOU = "Only you can use it.";
 export const YOURS = "Allow this only if you just connected this app yourself.";
 /** The two choices of an owner or admin (owner ruling 3 Nov), and the one line that says what the first means. */
-export const SETUP_TITLE = "Act for me, including setup";
+export const SETUP_TITLE = "Act for me";
 export const ASK_TITLE = "Ask me first";
-export const SETUP_LINE = "It can set up sign-in, Connect your company, AI keys, Vault items, invites and Console settings as you, with no card. It never reads a secret back.";
+export const SETUP_LINE = "Act for me, including setup: it can set up sign-in, Connect your company, AI keys, Vault items, invites and Console settings as you, with no card. It never reads a secret back.";
 export const ASK_LINE = "Anything only you can do here waits for your yes in Needs you.";
 
 /** Words a request can end in. Everything that means "start again" reads the same. */
