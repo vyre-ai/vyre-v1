@@ -5,6 +5,7 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "google.access_log": Handler<"google.access_log", X>;
   "google.calendar.create_event": Handler<"google.calendar.create_event", X>;
   "google.calendar.delete_event": Handler<"google.calendar.delete_event", X>;
   "google.calendar.free_busy": Handler<"google.calendar.free_busy", X>;
@@ -17,6 +18,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "google.calendar.watch": Handler<"google.calendar.watch", X>;
   "google.directory.import": Handler<"google.directory.import", X>;
   "google.directory.list": Handler<"google.directory.list", X>;
+  "google.directory.reconcile": Handler<"google.directory.reconcile", X>;
   "google.docs.batch_update": Handler<"google.docs.batch_update", X>;
   "google.docs.create_document": Handler<"google.docs.create_document", X>;
   "google.docs.get_document": Handler<"google.docs.get_document", X>;
@@ -38,12 +40,15 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "google.drive.trash_file": Handler<"google.drive.trash_file", X>;
   "google.drive.upload_file": Handler<"google.drive.upload_file", X>;
   "google.drive.watch_changes": Handler<"google.drive.watch_changes", X>;
+  "google.dwd.check_key": Handler<"google.dwd.check_key", X>;
+  "google.dwd.connect_all": Handler<"google.dwd.connect_all", X>;
   "google.dwd.disable": Handler<"google.dwd.disable", X>;
   "google.dwd.map_member": Handler<"google.dwd.map_member", X>;
   "google.dwd.members": Handler<"google.dwd.members", X>;
   "google.dwd.my_account": Handler<"google.dwd.my_account", X>;
   "google.dwd.probe": Handler<"google.dwd.probe", X>;
   "google.dwd.scopes": Handler<"google.dwd.scopes", X>;
+  "google.dwd.set_data": Handler<"google.dwd.set_data", X>;
   "google.dwd.set_excluded": Handler<"google.dwd.set_excluded", X>;
   "google.dwd.setup": Handler<"google.dwd.setup", X>;
   "google.dwd.status": Handler<"google.dwd.status", X>;

@@ -2125,6 +2125,54 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "company.setup",
+    "module": "members",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConnectCompany",
+    "caller": "principal",
+    "queries": {
+      "status": {
+        "cap": "company.status",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "start": {
+        "cap": "company.start",
+        "input": {
+          "provider": "/state/provider"
+        }
+      },
+      "check": {
+        "cap": "company.check",
+        "input": {}
+      },
+      "probe": {
+        "cap": "company.probe",
+        "input": {}
+      },
+      "connect": {
+        "cap": "company.connect",
+        "input": {},
+        "confirm": "Bring everyone included in?"
+      },
+      "disconnect": {
+        "cap": "company.disconnect",
+        "input": {},
+        "confirm": "Stop every member sync?"
+      }
+    },
+    "needs": [
+      "connectors.manage"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "console.agent-computers",
     "module": "computers",
     "place": "console",

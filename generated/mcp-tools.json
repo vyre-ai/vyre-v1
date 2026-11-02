@@ -12324,6 +12324,228 @@
     },
     {
       "blocks": [],
+      "cap": "company.access_log",
+      "deferred": false,
+      "description": "Who reached whose mail, calendar or files: who made the call, the person an agent worked for, which mailbox, when",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "mailbox": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "company_access_log",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.check",
+      "deferred": false,
+      "description": "Prove the key now in the Vault works, with no person involved. Answers what is wrong in plain words, or who it is; never the key. A key that works is remembered",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "company_check",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.connect",
+      "deferred": false,
+      "description": "The one confirmation: everyone included comes in, and the directory is watched from here on",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "company_connect",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.disconnect",
+      "deferred": false,
+      "description": "Undo: every member sync stops at once; what already came in stays with its owner",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "company_disconnect",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.people_done",
+      "deferred": false,
+      "description": "A person has looked at who is in; the flow moves on to the one confirmation",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "company_people_done",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.probe",
+      "deferred": false,
+      "description": "The read-only check of what the company allowed, as one line a person can act on",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "company_probe",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.script",
+      "deferred": false,
+      "description": "The one paste that does the provider's side: which shell to open and the script. It holds no secret; the admin runs it under their own account",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "provider": {
+            "enum": [
+              "google",
+              "microsoft"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "type": "object"
+      },
+      "name": "company_script",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.start",
+      "deferred": false,
+      "description": "Start Connect your company for Google Workspace or Microsoft 365 and choose Mail, Calendar and Files, or pick it up where it stands",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "data": {
+            "properties": {
+              "calendar": {
+                "type": "boolean"
+              },
+              "files": {
+                "type": "boolean"
+              },
+              "mail": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "mail",
+              "calendar",
+              "files"
+            ],
+            "type": "object"
+          },
+          "provider": {
+            "enum": [
+              "google",
+              "microsoft"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "type": "object"
+      },
+      "name": "company_start",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.status",
+      "deferred": false,
+      "description": "Where Connect your company stands: the provider, each step and whether it is done, the next step, and which doc section explains it. Read this first; it never asks twice",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "company_status",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "company.sweep",
+      "deferred": false,
+      "description": "Check the directory: a person gone from it stops and loses access. Runs on a schedule; a person confirms a change large enough to be held",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "confirmed": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "company_sweep",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "computers.files.delete",
       "deferred": false,
       "description": "Delete a file from the agent Files folder; always asks outside work/",
@@ -23753,6 +23975,37 @@
     },
     {
       "blocks": [],
+      "cap": "google.access_log",
+      "deferred": false,
+      "description": "Who reached whose Google data: who made the call, the person an agent worked for, which mailbox, which capability, when",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "mailbox": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "google_access_log",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "google.calendar.create_event",
       "deferred": true,
       "description": "Create an event; Google invites the attendees",
@@ -24320,6 +24573,25 @@
       },
       "name": "google_directory_list",
       "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "google.directory.reconcile",
+      "deferred": false,
+      "description": "Compare the directory with who is matched: a person gone or suspended stops, and the Space suspends them. Every page must read, and a large change waits for a person",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "confirmed": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "google_directory_reconcile",
+      "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
     },
@@ -25145,6 +25417,58 @@
     },
     {
       "blocks": [],
+      "cap": "google.dwd.check_key",
+      "deferred": false,
+      "description": "Prove the service-account key in the Vault works, with no person involved: its shape, its signature, and that Google still knows it. Answers what is wrong in plain words; never the key",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "vaultItem": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vaultItem"
+        ],
+        "type": "object"
+      },
+      "name": "google_dwd_check_key",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "google.dwd.connect_all",
+      "deferred": false,
+      "description": "Everyone included comes in: mail, calendar and the first pull, for what the company chose. Repeating it adds nobody twice",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "google_dwd_connect_all",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "google.dwd.disable",
       "deferred": false,
       "description": "Turn delegation off and stop every member sync",
@@ -25263,6 +25587,52 @@
     },
     {
       "blocks": [],
+      "cap": "google.dwd.set_data",
+      "deferred": false,
+      "description": "Choose Mail, Calendar and Files separately after setup. What is turned off stops for everyone; what is turned on comes in for everyone included",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "data": {
+            "properties": {
+              "calendar": {
+                "type": "boolean"
+              },
+              "files": {
+                "type": "boolean"
+              },
+              "mail": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "mail",
+              "calendar",
+              "files"
+            ],
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "google_dwd_set_data",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "google.dwd.set_excluded",
       "deferred": false,
       "description": "Exclude a member from delegation, or include them again (excluded members never get a connection)",
@@ -25306,8 +25676,30 @@
             "pattern": "^[^@\\s]+@[^@\\s]+$",
             "type": "string"
           },
+          "data": {
+            "properties": {
+              "calendar": {
+                "type": "boolean"
+              },
+              "files": {
+                "type": "boolean"
+              },
+              "mail": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "mail",
+              "calendar",
+              "files"
+            ],
+            "type": "object"
+          },
           "domain": {
             "type": "string"
+          },
+          "hold": {
+            "type": "boolean"
           },
           "idempotencyKey": {
             "examples": [
@@ -35904,6 +36296,37 @@
     },
     {
       "blocks": [],
+      "cap": "ms.access_log",
+      "deferred": false,
+      "description": "Who reached whose Microsoft data: who made the call, the person an agent worked for, which mailbox, which capability, when",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "mailbox": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "ms_access_log",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "ms.calendar.create_event",
       "deferred": true,
       "description": "Create an event; Exchange invites the attendees",
@@ -36408,6 +36831,58 @@
     },
     {
       "blocks": [],
+      "cap": "ms.consent.check_app",
+      "deferred": false,
+      "description": "Prove the app registration in the Vault signs in to its tenant, with no person involved. Answers what is wrong in plain words; never the secret",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "vaultItem": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vaultItem"
+        ],
+        "type": "object"
+      },
+      "name": "ms_consent_check_app",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ms.consent.connect_all",
+      "deferred": false,
+      "description": "Everyone included comes in: mail, calendar and the first pull, for what the company chose. Repeating it adds nobody twice",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "ms_consent_connect_all",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "ms.consent.disable",
       "deferred": false,
       "description": "Turn the Microsoft connection off and stop every member sync",
@@ -36522,6 +36997,52 @@
     },
     {
       "blocks": [],
+      "cap": "ms.consent.set_data",
+      "deferred": false,
+      "description": "Choose Mail, Calendar and Files separately after setup. What is turned off stops for everyone; what is turned on comes in for everyone included",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "data": {
+            "properties": {
+              "calendar": {
+                "type": "boolean"
+              },
+              "files": {
+                "type": "boolean"
+              },
+              "mail": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "mail",
+              "calendar",
+              "files"
+            ],
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "data",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "ms_consent_set_data",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "ms.consent.set_excluded",
       "deferred": false,
       "description": "Exclude a member from the connection, or include them again (excluded members never get a connection)",
@@ -36558,8 +37079,30 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "data": {
+            "properties": {
+              "calendar": {
+                "type": "boolean"
+              },
+              "files": {
+                "type": "boolean"
+              },
+              "mail": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "mail",
+              "calendar",
+              "files"
+            ],
+            "type": "object"
+          },
           "domain": {
             "type": "string"
+          },
+          "hold": {
+            "type": "boolean"
           },
           "idempotencyKey": {
             "examples": [
@@ -36732,6 +37275,25 @@
       },
       "name": "ms_directory_list",
       "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ms.directory.reconcile",
+      "deferred": false,
+      "description": "Compare the directory with who is matched: a person gone or turned off stops, and the Space suspends them. Every page must read, and a large change waits for a person",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "confirmed": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "ms_directory_reconcile",
+      "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
     },
