@@ -1,0 +1,147 @@
+// The Calendars section of the Inbox sidebar: one ui/Row per calendar. The dot is the calendar's own colour, filled when the calendar is shown in the view and hollow when it is hidden.
+// Click toggles it; right-click and the "..." (on hover or focus) open its ui/Menu; Up and Down move between rows, Space toggles, Enter shows only it. A provider calendar carries the
+// provider's mark after its name, and while a pull the person started runs, or after the last pull failed, a quiet line sits under the row ("Syncing...", "Couldn't sync, Retry").
+import { useState } from "react";
+import type { ReactElement } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { AppIcon } from "../../../../../../ui/src/AppIcon/index.tsx";
+import { injectCss } from "../../../../../../ui/src/theme/css.ts";
+import { useInboxData } from "./data.tsx";
+import { Glyph, pointOf } from "./parts.tsx";
+import { calendarIds } from "./model.ts";
+import type { CalendarRow, Mailbox } from "./model.ts";
+import { calendarRowKey, calendarRowMenu, calendarName, calendarStatus, calendarColourMenu, providerApp } from "./calendars.ts";
+import { useInboxState } from "./state.tsx";
+
+// the "..." shows on hover and on keyboard focus only; it is always in the tree, so a screen reader and the keyboard reach it
+let cssDone = false;
+function ensureCss(): void {
+  if (cssDone) return;
+  const d = (globalThis as { document?: Parameters<typeof injectCss>[0] }).document;
+  if (!d || !d.head) return;
+  injectCss(d, "vyre-inbox-calrow", ".vyre-calrow [data-calmore]{opacity:0}.vyre-calrow:hover [data-calmore],.vyre-calrow:focus-within [data-calmore]{opacity:1}");
+  cssDone = true;
+}
+
+interface KeyEv { key?: string; target?: unknown; currentTarget?: unknown; preventDefault?: () => void }
+interface El { closest?: (s: string) => { querySelectorAll?: (s: string) => ArrayLike<{ focus?: () => void }> } | null }
+
+/** Focus the calendar row at `to` in the same section (web). */
+function focusRow(from: unknown, to: number): void {
+  const list = (from as El | null)?.closest?.("[data-calrows]")?.querySelectorAll?.("[data-calrow]");
+  list?.[to]?.focus?.();
+}
+
+export function CalendarRows({ calendars, mailboxes }: { calendars: readonly CalendarRow[]; mailboxes: readonly Mailbox[] }): ReactElement {
+  ensureCss();
+  const data = useInboxData();
+  const { state, dispatch } = useInboxState();
+  const menu = useMenu();
+  const [running, setRunning] = useState<readonly string[]>([]);
+  const [failed, setFailed] = useState<readonly string[]>([]);
+  const all = calendarIds(calendars);
+
+  const toggle = (id: string): void => dispatch({ type: "calendarVisible", id });
+  const only = (id: string): void => dispatch({ type: "calendarOnly", id, all });
+  const syncNow = (id: string): void => {
+    if (running.includes(id)) return;
+    setRunning((r) => [...r, id]);
+    setFailed((f) => f.filter((x) => x !== id));
+    void data.call("calendar.sync_now", { calendarId: id })
+      .catch(() => setFailed((f) => (f.includes(id) ? f : [...f, id])))
+      .finally(() => setRunning((r) => r.filter((x) => x !== id)));
+  };
+  const colour = (c: CalendarRow, x: number, y: number): void => {
+    menu.show(calendarColourMenu(c.color, (hex) => { void data.call("calendar.update_calendar", { calendarId: c.id, color: hex }).catch(() => undefined); }), x, y, "other");
+  };
+  const open = (c: CalendarRow, name: string, x: number, y: number): void => {
+    menu.show(calendarRowMenu(c, name, data.me, {
+      only: () => only(c.id),
+      colour: () => colour(c, x, y),
+      syncNow: () => syncNow(c.id),
+      openIn: (url) => data.nav.openExternal?.(url),
+      settings: () => (data.nav.openCalendarSettings ? data.nav.openCalendarSettings() : data.nav.connect("gmail")),
+    }, data.nav.openExternal !== undefined), x, y);
+  };
+
+  const rows: ReactElement[] = [];
+  calendars.forEach((c, i) => {
+    const shown = !state.hiddenCalendars.includes(c.id);
+    const name = calendarName(c, mailboxes);
+    const app = providerApp(c);
+    const status = calendarStatus(c, running.includes(c.id), failed.includes(c.id));
+    const onKeyDown = (e: KeyEv): void => {
+      if (e.target !== undefined && e.currentTarget !== undefined && e.target !== e.currentTarget) return;   // a key on the "..." is the button's
+      const k = calendarRowKey(e.key ?? "", i, calendars.length);
+      if (k === null) return;
+      e.preventDefault?.();
+      if (k.type === "move") focusRow(e.currentTarget, k.to);
+      else if (k.type === "toggle") toggle(c.id);
+      else only(c.id);
+    };
+    rows.push(
+      <View key={c.id} {...menuTrigger((x, y) => open(c, name, x, y))} testID={`cal-row-${c.id}`}>
+        <Row
+          id={`nav:cal:${c.id}`}
+          title={name}
+          titleMarks={app || c.personal ? (
+            <>
+              {app ? <View testID={`cal-mark-${c.id}`}><AppIcon brand={app.brand} size={14} name={app.name} /></View> : null}
+              {c.personal ? <Glyph name="lock" size={11} /> : null}
+            </>
+          ) : undefined}
+          leading={
+            <View style={st.lead}>
+              <View testID={`cal-dot-${c.id}`} accessibilityLabel={shown ? "Shown" : "Hidden"}
+                style={[st.dot, { borderColor: c.color }, shown ? { backgroundColor: c.color } : st.hollow]} />
+            </View>
+          }
+          trailing={
+            <Pressable accessibilityRole="button" accessibilityLabel={`More for ${name}`} testID={`cal-more-${c.id}`} {...{ dataSet: { calmore: "1" } }}
+              onPress={(e) => { (e as { stopPropagation?: () => void }).stopPropagation?.(); const p = pointOf(e); open(c, name, p.x, p.y); }}
+              style={(state) => [st.more, (state as { hovered?: boolean }).hovered === true && st.moreOver]}>
+              <Glyph name="more" size={14} />
+            </Pressable>
+          }
+          onPress={() => toggle(c.id)}
+          domProps={{ className: "vyre-row vyre-calrow", "data-calrow": c.id, "aria-pressed": shown, onKeyDown }}
+        />
+        {status === null ? null : (
+          <View style={st.status} testID={`cal-status-${c.id}`}>
+            <Text style={[st.statusText, status.kind === "failed" && st.warn]}>{status.text}</Text>
+            {status.kind === "failed" ? (
+              <>
+                <Text style={st.statusText}>{" · "}</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel={`Retry syncing ${name}`} testID={`cal-retry-${c.id}`} onPress={() => syncNow(c.id)}>
+                  {(state) => <Text style={[st.retry, (state as { hovered?: boolean }).hovered === true && st.retryOver]}>{status.action}</Text>}
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+        )}
+      </View>,
+    );
+  });
+
+  return (
+    <View testID="inbox-calendars" {...{ dataSet: { calrows: "1" } }}>
+      {rows}
+      {menu.element}
+    </View>
+  );
+}
+
+const st = StyleSheet.create({
+  lead: { width: 20, alignItems: "center", justifyContent: "center", marginRight: 6 },
+  dot: { width: 10, height: 10, borderRadius: 10, borderWidth: 1.5 },
+  hollow: { backgroundColor: "transparent" },
+  more: { width: 22, height: 22, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  moreOver: { backgroundColor: "var(--hover)" as string },
+  status: { flexDirection: "row", alignItems: "center", paddingLeft: 34, paddingRight: 8, marginTop: -4, marginBottom: 4 },
+  statusText: { fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string },
+  warn: { color: "var(--warn)" as string },
+  retry: { fontSize: 11.5, lineHeight: 16, color: "var(--accent)" as string },
+  retryOver: { textDecorationLine: "underline" },
+});

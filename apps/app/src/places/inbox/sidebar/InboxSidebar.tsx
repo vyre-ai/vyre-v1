@@ -1,6 +1,6 @@
 // Inbox > sidebar (spec 3.3): By contact and All inboxes, Calendar, then Mine, Shared and Agents with their unread counts, the Lists (Starred, Following) and the Calendars with
-// a colour dot each. Every row is a ui/Row with a leading glyph and a trailing count. Click selects; right-click opens the row's menu; a calendar's click hides or shows it and its
-// menu offers Show Only This. The dialer sits at the foot.
+// a colour dot each. Every row is a ui/Row with a leading glyph and a trailing count. Click selects; right-click opens the row's menu; the calendar rows are ./CalendarRows.tsx
+// (click shows or hides, a menu, a status line, arrow keys). The dialer sits at the foot.
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
@@ -9,7 +9,8 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useCanSend, useInboxData, useOptionalInboxData, useScreenQuery } from "./data.tsx";
-import { SCREENS, calendarIds, navGroups, sameScope } from "./model.ts";
+import { SCREENS, navGroups, sameScope } from "./model.ts";
+import { CalendarRows } from "./CalendarRows.tsx";
 import type { ContactRow, NavInbox, Scope, View as ViewKind } from "./model.ts";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Glyph, IconButton, Unread } from "./parts.tsx";
@@ -23,12 +24,12 @@ type RowsOut = CapMap["inbox.list_by_contact"]["out"];
 
 const withMenu = (open: (x: number, y: number) => void): Record<string, unknown> => menuTrigger(open);
 
-function SideRow({ id, title, glyph, selected, count, trailing, dim = false, onPress, onMenu }: {
-  id: string; title: string; glyph: ReactElement; selected: boolean; count?: number; trailing?: ReactElement | null; dim?: boolean; onPress: () => void; onMenu?: (x: number, y: number) => void;
+function SideRow({ id, title, glyph, selected, count, trailing, onPress, onMenu }: {
+  id: string; title: string; glyph: ReactElement; selected: boolean; count?: number; trailing?: ReactElement | null; onPress: () => void; onMenu?: (x: number, y: number) => void;
 }): ReactElement {
   const trig = onMenu ? withMenu(onMenu) : {};
   return (
-    <View {...trig} style={dim ? { opacity: 0.45 } : undefined}>
+    <View {...trig}>
       <Row
         id={`nav:${id}`}
         title={title}
@@ -105,12 +106,6 @@ function Sidebar(): ReactElement {
       { label: "Claim a Twilio number", onSelect: () => data.nav.connect("number") },
     ], x, y);
   };
-  const calendarMenu = (id: string, x: number, y: number): void => {
-    menu.show([
-      { label: "Show Only This", onSelect: () => dispatch({ type: "calendarOnly", id, all: calendarIds(calendars) }) },
-      { label: "Show All Calendars", onSelect: () => { for (const hidden of state.hiddenCalendars) dispatch({ type: "calendarVisible", id: hidden }); } },
-    ], x, y);
-  };
 
   const sections: ReactElement[] = [];
   for (const g of groups) {
@@ -127,20 +122,6 @@ function Sidebar(): ReactElement {
         />,
       );
     }
-  }
-
-  const calendarRows: ReactElement[] = [];
-  for (const c of calendars) {
-    const off = state.hiddenCalendars.includes(c.id);
-    calendarRows.push(
-      <SideRow
-        key={c.id} id={`cal:${c.id}`} title={c.title} selected={false} dim={off}
-        glyph={<View testID={`cal-dot-${c.id}`} style={[styles.dot, { backgroundColor: c.color }]} />}
-        trailing={c.personal ? <Glyph name="lock" size={12} /> : null}
-        onPress={() => dispatch({ type: "calendarVisible", id: c.id })}
-        onMenu={(x, y) => calendarMenu(c.id, x, y)}
-      />,
-    );
   }
 
   const list = (key: "starred" | "follow", label: string, glyph: IconName, f: (r: ContactRow) => boolean): ReactElement => (
@@ -185,7 +166,7 @@ function Sidebar(): ReactElement {
           list("follow", "Following", "bell", (r) => r.followed),
         ]}
         {calendars.length > 0 ? <SectionHead id="cals" label="Calendars" closed={closed("cals")} onToggle={() => dispatch({ type: "section", key: "cals" })} /> : null}
-        {closed("cals") ? null : calendarRows}
+        {closed("cals") || calendars.length === 0 ? null : <CalendarRows calendars={calendars} mailboxes={mailboxes} />}
       </ScrollView>
       {dialNumber === null ? null : (
         <View style={styles.foot}>
@@ -220,7 +201,6 @@ const styles = StyleSheet.create({
   scrollIn: { paddingHorizontal: 6, paddingBottom: 12 },
   glyph: { width: 20, alignItems: "center", justifyContent: "center", marginRight: 6 },
   trail: { flexDirection: "row", alignItems: "center", gap: 6 },
-  dot: { width: 9, height: 9, borderRadius: 9 },
   sec: { flexDirection: "row", alignItems: "center", gap: 5, height: 26, marginTop: 10, paddingHorizontal: 8, borderRadius: 6 },
   secOver: { backgroundColor: "var(--hover)" as string },
   secText: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },

@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "CALROWS_01-calendar",
+      "route": "/m/CALROWS_01",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid='inbox-calendars']",
+      "note": "Inbox > Calendar: each Calendars row is named for the calendar (the Google one for its account, not \"Google Calendar\"), with the provider's mark and a filled dot in its colour. Consults' last pull failed: a quiet Couldn't sync line with Retry under it."
+    },
+    {
+      "id": "CALROWS_01-hidden",
+      "route": "/m/CALROWS_01?hidden=cal_ms",
+      "proto": "inbox,{skin}",
+      "waitFor": "[data-testid='inbox-calendars']",
+      "note": "Consults hidden: its dot is hollow in its own colour and its events leave the week. A click on the row toggles it back."
+    }
+  ]
+}
