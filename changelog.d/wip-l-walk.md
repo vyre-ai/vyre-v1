@@ -8,3 +8,14 @@
 - The Add button at the top of the Vault list works. The Hide the sidebar button no longer sits on top of it.
 - An access request has an Approve button on its task page, and it names "this folder", not an id.
 - Notification settings read as words, not {{title}} templates.
+- An agent acting for you can send email, texts and calls from anything you may send from. It needs no role of its own, and the Gate still holds what you did not ask for. An admin can turn agent sending off for the Space in Console.
+- The A/B test button is gone from the email step.
+- The Test button on an Automation works.
+- A notice on the Automation canvas no longer covers the zoom control.
+- A member at the Console address gets one plain line: Console is for admins and owners.
+- Joining a Space names your device for you, so Continue is never stuck on an empty field.
+- A mention keeps the agent's whole name.
+- An agent on Claude, Codex or Grok now shows its work as cards under its reply, and a send waiting on a yes shows its Approve card in the chat.
+- A thread shows the message it hangs off at the top.
+- A first message sent right after creating your account waits for your Assistant and goes through.
+- Add an agent offers the agents you may add, never another person's Assistant, and one you just made.

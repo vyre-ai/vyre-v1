@@ -10,7 +10,7 @@
 import { askedIn } from "../../../lib/asked.ts";
 import { linksIn } from "../../../lib/grants.ts";
 import { redact } from "../../../agent/src/transcript/sanitize.ts";
-import { workBlocks } from "../../../agent/src/tools/work-cards.ts";
+import { sessionWorkKey, workBlocks } from "../../../agent/src/tools/work-cards.ts";
 import { sqlMessages, withMessageId, mintId } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
@@ -190,7 +190,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         writing.delete(e.turnId);
         emit({ kind: "end", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, state: "done" });
         // what the turn started (a task, a Run, a file...) goes under its reply as cards, one group
-        seg.blocks.push(...workBlocks(e.turnId));
+        seg.blocks.push(...workBlocks(e.turnId), ...workBlocks(sessionWorkKey(e.threadId, e.agentId)));
         // how long the whole turn took (thinking and writing too), for "Worked for 14s" under the reply
         if (seg.t0 !== undefined) { const last = [...seg.blocks].reverse().find((x) => x.type === "tool_result" || x.type === "tool_call"); if (last) last.data = { ...(last.data as Record<string, unknown>), turnSecs: Math.max(0, Math.round(((o.now ?? Date.now)() - seg.t0) / 1000)) }; }
         if (seg.text !== "" || seg.mentions > 0) {
@@ -211,7 +211,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         const seg = live.get(e.turnId);
         const routineOwner = turns.get(e.turnId)?.routineOwner ?? null;
         if (!parked) { live.delete(e.turnId); turns.delete(e.turnId); }
-        const blocks = [...(seg?.blocks ?? []), ...workBlocks(e.turnId), status(e)];
+        const blocks = [...(seg?.blocks ?? []), ...workBlocks(e.turnId), ...workBlocks(sessionWorkKey(e.threadId, e.agentId)), status(e)];
         writing.delete(e.turnId);
         emit({ kind: "end", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, state: e.type === "turn.failed" ? "failed" : e.type === "turn.cancelled" ? "cancelled" : "waiting", ...(e.type === "turn.failed" ? { code: e.code } : {}) });
         enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: seg?.text ?? "", blocks, mentions: askerMention(e.threadId, e.agentId), clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) }, e.turnId);

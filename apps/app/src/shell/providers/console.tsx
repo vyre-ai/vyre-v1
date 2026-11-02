@@ -131,12 +131,13 @@ export default function ConsolePlace(): ReactElement {
   const { target } = usePlaceHash();
   const [allowed, setAllowed] = useState<ReadonlySet<string> | null>(null);
   const [failed, setFailed] = useState(false);
+  const [refused, setRefused] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [skin, setSkin] = useState("system");
   useEffect(() => {
     if (!rt || rt.space.kind === "personal") return;
     let live = true;
-    void rt.call("console.nav", {}).then((out) => { if (live) { setAllowed(consolePagesFromNav(out as Parameters<typeof consolePagesFromNav>[0])); setFailed(false); } }, () => { if (live) { setAllowed(null); setFailed(true); } });
+    void rt.call("console.nav", {}).then((out) => { if (live) { setAllowed(consolePagesFromNav(out as Parameters<typeof consolePagesFromNav>[0])); setFailed(false); setRefused(false); } }, (e: unknown) => { if (live) { setAllowed(null); setRefused(String((e as { code?: unknown } | null)?.code ?? "").startsWith("permission.")); setFailed(true); } });
     return () => { live = false; };
   }, [rt, attempt, target.screen]);
   const theme = useMemo(() => {
@@ -150,6 +151,7 @@ export default function ConsolePlace(): ReactElement {
   const data = useMemo<ConsoleData | null>(() => rt && allowed ? consoleData(rt, allowed, (id, args) => { const page = pageById(id); if (page) rt.open({ screen: page.screen, args: { ...args, page: id } }); }) : null, [rt, allowed]);
   // no door leads here from a Personal Space and the shell sends a stale address Home; if this page is ever shown it follows the theme and has a way back
   if (rt?.space.kind === "personal") return <OutsideShell rt={rt ?? null} testID="console-needs-team"><States kind="empty" title="Needs a Team Space" icon="search" /></OutsideShell>;
+  if (failed && refused) return <OutsideShell rt={rt ?? null} testID="console-refused"><States kind="empty" title="Console is for admins and owners" icon="search" /></OutsideShell>;
   if (failed) return <OutsideShell rt={rt ?? null}><States kind="error" message="Couldn’t open the Console" cause="You may not have console access, or the server is unavailable." retryable onRetry={() => setAttempt((n) => n + 1)} /></OutsideShell>;
   if (!rt || !data) return <OutsideShell rt={rt ?? null}><States kind="empty" title="Opening the Console…" icon="search" /></OutsideShell>;
   const requestedPage = target.args.page && pageById(target.args.page)?.screen === target.screen ? target.args.page : null;

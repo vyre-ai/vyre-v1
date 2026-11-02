@@ -181,10 +181,12 @@ export function authorize(snap: AccessSnapshot, req: Req): Decision {
   if (req.fields) for (const f of req.fields) { const fl = snap.fieldLabel(res.type, f); if (fl > label) label = fl; }
 
   const first = evalSubject(snap, me, req, res, chain, label, steps);
-  if (typeof first === "string") return denied(snap, first, name, steps);
-  let scope: Scope = first;
+  // an agent acting for a person may send from whatever that person may send from: on a mailbox or a number, at Use (the level a send asks for, reading stays as it is), the person's access is the ceiling in place of a grant of the agent's own
+  const sendsAs = kind === "agent" && others !== null && (res.type === "mailbox" || res.type === "number") && res.id !== "" && req.action.level === "use" && first === "no_grant";
+  if (typeof first === "string" && !sendsAs) return denied(snap, first, name, steps);
+  let scope: Scope = typeof first === "string" ? ownerScope(0) : first;
   if (others) {
-    const all: Scope[] = [first];
+    const all: Scope[] = typeof first === "string" ? [] : [first];
     for (const o of others) {
       const r = evalSubject(snap, o, req, res, chain, label, steps);
       if (typeof r === "string") return denied(snap, r, o.p.name ?? o.p.id, steps);

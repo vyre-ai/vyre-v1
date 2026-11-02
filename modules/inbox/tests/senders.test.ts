@@ -135,7 +135,7 @@ test("an agent sends through the Space domain even from a Gmail mailbox, and sha
   const agent = setup({ boxes: [{ ...GMAIL, ownerId: undefined, agentId: "agt_bot" }, HELLO], domains: [DOMAIN], principal: { kind: "agent", id: "agt_bot" } });
   const r = await sendersList(agent.ctx, { channel: "email" });
   assert.equal(byId(r.senders, "mbx_maya").via, "Resend");
-  assert.deepEqual(agent.authz.map((a) => a.perm), ["comms.agent_send", "comms.agent_send"]);
+  assert.deepEqual(agent.authz.map((a) => a.perm), [null, "comms.shared_send"]);
 
   const person = setup({ boxes: [GMAIL, HELLO], domains: [DOMAIN] });
   await sendersList(person.ctx, { channel: "email" });

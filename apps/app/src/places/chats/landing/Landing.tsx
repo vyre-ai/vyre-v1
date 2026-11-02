@@ -24,7 +24,7 @@ import { commandItems } from "../conversation/commands.ts";
 import { each } from "../../../shell/sidebar/model.ts";
 import { Glyph } from "../sidebar/parts.tsx";
 import { useLive } from "../mounts/live.ts";
-import { LANDING_NEEDS, moreLine, startInput, workingChats, workingLine } from "./model.ts";
+import { LANDING_NEEDS, moreLine, realAssistant, startInput, workingChats, workingLine } from "./model.ts";
 import type { NeedItem, NeedsOut, RecentOut, WithEntry } from "./model.ts";
 
 export interface LandingProps {
@@ -68,11 +68,13 @@ export function Landing(p: LandingProps): ReactElement {
   const start = useCallback((payload: ComposerSend): void => {
     const text = payload.text.trim();
     const slash = text.startsWith("/");
-    const who = startInput(picked, rt.assistant.id);
     const words = text.split(/\s+/).slice(0, 6).join(" ");
-    void Promise.resolve(rt.call("chat.start", {
-      kind: "chat", ...who, ...(slash || text === "" ? {} : { first: text, title: words }), ...(choice.model ? { model: choice.model } : {}), ...(choice.provider ? { provider: choice.provider } : {}), ...(choice.effort ? { effort: choice.effort } : {}), idempotencyKey: p.newKey(),
-    })).then(async (out) => {
+    void realAssistant(rt.assistant.id, (cap, input) => rt.call(cap as never, input as never)).then((assistantId) => {
+      if (assistantId === null) throw new Error("no assistant yet");
+      return rt.call("chat.start", {
+      kind: "chat", ...startInput(picked, assistantId), ...(slash || text === "" ? {} : { first: text, title: words }), ...(choice.model ? { model: choice.model } : {}), ...(choice.provider ? { provider: choice.provider } : {}), ...(choice.effort ? { effort: choice.effort } : {}), idempotencyKey: p.newKey(),
+      });
+    }).then(async (out) => {
       const id = (out as CapMap["chat.start"]["out"]).thread.threadId;
       if (choice.mode !== "auto") await rt.call("threads.set_mode", { threadId: id, mode: choice.mode });
       if (slash) p.fill(text);

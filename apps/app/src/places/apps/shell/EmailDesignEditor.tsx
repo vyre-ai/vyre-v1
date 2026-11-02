@@ -20,7 +20,7 @@ export function EmailDesignEditor({ step, onChange, title = "Email design", intr
   const d = useAppsData(), online = useOnline();
   const [emailId, setEmailId] = useState<string | null>(typeof step.config.emailId === "string" ? step.config.emailId : null);
   const [mode, setMode] = useState<EmailMode>((step.config.designMode as EmailMode | undefined) ?? "plain");
-  const [snapshot, setSnapshot] = useState<EmailSnapshot>({ subject: String(step.config.subject ?? ""), previewText: "", blocks: (step.config.designBlocks as EmailBlock[] | undefined) ?? [], html: String(step.config.html ?? ""), plain: String(step.config.text ?? ""), subjectB: typeof step.config.subjectB === "string" ? step.config.subjectB : null });
+  const [snapshot, setSnapshot] = useState<EmailSnapshot>({ subject: String(step.config.subject ?? ""), previewText: "", blocks: (step.config.designBlocks as EmailBlock[] | undefined) ?? [], html: String(step.config.html ?? ""), plain: String(step.config.text ?? "") });
   const [dirty, setDirty] = useState(false), [status, setStatus] = useState("No changes"), [error, setError] = useState("");
   const [testTo, setTestTo] = useState("");
   const library = useRead<CapMap["email_builder.saved_blocks.list"]["out"]>("email_builder.saved_blocks.list", {}, "templates");
@@ -93,7 +93,7 @@ export function EmailDesignEditor({ step, onChange, title = "Email design", intr
     const saved = await mutate(d, "email_builder.save", { emailId: id, email }, actionKey());
     const html = mode === "visual" ? compileEmail(snapshot.blocks, { mode: "send" }) : mode === "html" ? snapshot.html : "";
     const text = mode === "visual" ? blocksToPlain(snapshot.blocks) : snapshot.plain;
-    onSaved.current({ emailId: id, subject: snapshot.subject, text, html, designMode: mode, designBlocks: snapshot.blocks, subjectB: snapshot.subjectB ?? null });
+    onSaved.current({ emailId: id, subject: snapshot.subject, text, html, designMode: mode, designBlocks: snapshot.blocks });
     setStatus(`Saved v${saved.version}`); if (editRevision.current === renderedRevision) setDirty(false); setError(""); versions.refresh(); return id;
   };
   useEffect(() => {
@@ -109,7 +109,7 @@ export function EmailDesignEditor({ step, onChange, title = "Email design", intr
   };
   return <View style={{ gap: 12 }}><Text style={s.text}>{intro}</Text>
     <Field label="Your email address for test sends" value={testTo} onChange={setTestTo} />
-    <View style={{ minHeight: 620 }}><EmailBuilder id={emailId ?? step.key} title={title} subject={snapshot.subject} subjectB={snapshot.subjectB ?? undefined} plain={snapshot.plain} html={snapshot.html} blocks={snapshot.blocks} mode={mode} saveState={online ? dirty ? "Unsaved changes" : status : "Offline: not saved"}
+    <View style={{ minHeight: 620 }}><EmailBuilder id={emailId ?? step.key} title={title} subject={snapshot.subject} plain={snapshot.plain} html={snapshot.html} blocks={snapshot.blocks} mode={mode} saveState={online ? dirty ? "Unsaved changes" : status : "Offline: not saved"}
       savedBlocks={(library.data?.blocks ?? []).map((block) => ({ id: block.blockId, name: block.name, block: visibleBlock(block.block, block.blockId), shared: block.shared }))}
       savedVersions={versions.data?.versions}
       onRestoreSavedVersion={async (version) => {

@@ -404,7 +404,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const statusLabel = a.status === "on" ? "On" : a.status === "paused" ? "Paused" : a.status === "draft" ? "Draft" : "Off";
   const test = async (): Promise<void> => {
     if (errors.length > 0) { flash(`Fix ${errors.length === 1 ? "the problem" : `the ${errors.length} problems`} first, then test.`); setTab("steps"); return; }
-    try { await data.call("automations.test", { automationId: a.id, sample: true }); flash("Test run started with sample data"); }
+    try { await data.call("automations.test", { automationId: a.id, sample: {} }); flash("Test run started with sample data"); }
     catch (e) { flash(e instanceof Error ? e.message : "The test did not start."); }
   };
   const hasManual = startsByHand(def);
@@ -869,7 +869,7 @@ const s = StyleSheet.create({
   fitText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   runChip: { position: "absolute", left: 14, top: 12, height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 12, paddingRight: 4, borderRadius: 10, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
   runChipText: { fontSize: 12.5, color: "var(--ink)" as string, maxWidth: 260 },
-  toast: { position: "absolute", alignSelf: "center", bottom: 18, left: 120, right: 120, alignItems: "center", gap: 4 },
+  toast: { position: "absolute", alignSelf: "center", bottom: 62, left: 120, right: 120, alignItems: "center", gap: 4 },
   toastLink: { fontSize: 12.5, fontWeight: "600", color: "var(--accent)" as string },
   sendsFrom: { fontSize: 11.5, color: "var(--ink-2)" as string },
   toastText: { fontSize: 12.5, color: "var(--ink)" as string, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 7, overflow: "hidden" },

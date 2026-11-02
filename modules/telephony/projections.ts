@@ -162,6 +162,13 @@ export async function setting<T>(ctx: TelCtx, key: string, fallback: T, ok: (v: 
   }
 }
 
+/** The Space rule that turns agent sending off, for texts and calls as for email. */
+export async function agentsMaySend(ctx: TelCtx): Promise<void> {
+  if (ctx.principal.kind !== "agent") return;
+  if (await setting(ctx, "comms.agents_may_send", true, (v): v is boolean => typeof v === "boolean")) return;
+  throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Agent sending is off in this Space. An admin can turn it on in Console." });
+}
+
 // ---- who is acting (the same rule as the single send API)
 
 export type Actor = "person" | "agent" | "automation";

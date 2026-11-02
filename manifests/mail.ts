@@ -294,6 +294,7 @@ const manifest = defineManifest({
   ],
   settings: [
     setting('mail.provider', 'space', 'comms', 'Space sending provider', t.enm('resend', 'mailgun'), 'resend'),
+    setting('comms.agents_may_send', 'space', 'comms', 'Agents can send email, texts and calls for the person who asked', t.bool(), true),
   ],
 });
 

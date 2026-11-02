@@ -10,6 +10,7 @@ import { fail } from "../../../host/src/routes/errors.ts";
 import {
   bad, callMeta, callOut, ensure, isId, liveCall, liveNumber, seenCall, seesCall, list, newId, numOrNull, num, obj, pageOf, paging, parseJson, partyOf, patch, refuse, rowsOf, setMeta, str, strOrNull, text, phone, strOrUndef, keyOf,
 } from "../projections.ts";
+import { agentsMaySend } from "../projections.ts";
 import type { Party, Row, TelCtx } from "../projections.ts";
 
 const live = (r: Row): boolean => r.deleted_at === null || r.deleted_at === undefined;
@@ -50,6 +51,7 @@ export async function linkCall(ctx: TelCtx, row: Row, address: string, preview: 
 
 export async function dial(ctx: TelCtx, input: { numberId: string; to: string; contactId?: string; record?: boolean; idempotencyKey: string }) {
   ensure(ctx);
+  await agentsMaySend(ctx);
   const key = keyOf(ctx, input);
   if (!isId("num", input.numberId)) bad(ctx, "Number id is not valid.");
   const to = phone(ctx, input.to, "The number to call");

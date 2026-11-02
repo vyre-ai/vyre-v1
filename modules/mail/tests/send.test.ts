@@ -304,12 +304,12 @@ test("a Personal Automation runs as its owner and sends from their own Gmail; a 
   assert.equal(space.calls("resend.send_email").length, 1);
 });
 
-test("sending needs use of the mailbox, comms.shared_send on a shared inbox, and comms.agent_send for an agent", async () => {
+test("sending needs use of the mailbox and comms.shared_send on a shared inbox; an agent needs what its person needs", async () => {
   const shared = rig({ deniedPerms: ["comms.shared_send"] });
   await refused(send(shared.ctx, sendIn({ mailboxId: "mbx_hello" })), "permission.no_grant");
   assert.equal((await send(shared.ctx, sendIn({ mailboxId: "mbx_maya", route: "space_domain" }))).status, "sent");
 
-  const agent = rig({ principal: { kind: "agent", id: "agt_scout01" }, deniedPerms: ["comms.agent_send"] });
+  const agent = rig({ principal: { kind: "agent", id: "agt_scout01" }, denied: new Set(["mbx_maya"]) });
   await refused(send(agent.ctx, sendIn({ mailboxId: "mbx_maya" })), "permission.no_grant");
   assert.equal(agent.sent().length, 0);
 

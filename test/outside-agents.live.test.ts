@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
 import http from "node:http";
-import { addVerifiedSendingDomain, allowAgentSending, bootAgentGateSpace, LIVE_FOR_GATE_REPLY } from "../golden/steps/07-agent-gate.ts";
+import { addVerifiedSendingDomain, bootAgentGateSpace, LIVE_FOR_GATE_REPLY } from "../golden/steps/07-agent-gate.ts";
 import { expectStatus } from "../golden/steps/02-space.ts";
 import type { FlowSpace } from "../golden/steps/02-space.ts";
 
@@ -214,7 +214,6 @@ withSpace("outward act held: a send stops for a person's yes, as that agent, and
   await addVerifiedSendingDomain(s, admin, "out");
   const c = new Client(mcp);
   const { agentId } = await signIn(s, c, owner);
-  await allowAgentSending(s, admin, agentId, "out");
   const made = expectStatus(await s.call("mail.mailbox.create", admin, { idempotencyKey: "out-mailbox", kind: "agent", address: "out@send.agent-gate.test", title: "Out", agentId }), 200, "mail.mailbox.create").mailbox;
   const mailboxId = (made.mailboxId ?? made.id) as string;
   await c.rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "claude-code", version: "2.1" } });

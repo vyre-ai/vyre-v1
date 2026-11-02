@@ -31,3 +31,21 @@ test("the assistant of a mailbox's owner may view and use it, never manage it; a
   }
   assert.ok(worlds >= 20, `worlds exercised: ${worlds}`);
 });
+
+test("an agent sends from a mailbox or number its person may use, with no grant of its own; never above the person, never Manage", () => {
+  let worlds = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    const { snap } = buildWorld(seed);
+    if (snap.info("p1")?.p.status !== "active" || snap.info("p2")?.p.status !== "active" || snap.info(AGENT)?.p.status !== "active") continue;
+    worlds++;
+    for (const [id, type] of [["mbx_team", "mailbox"], ["num_team", "number"]] as const) {
+      snap.putResource({ id, type, parent_id: null, label: 0, owner_id: "p2", holds: 0 });
+      const as = (acting: string, level: "use" | "manage") => authorize(snap, { principal: AGENT, actingFor: acting, action: act(level), resource: { type, id }, now: NOW }).effect;
+      assert.equal(as("p2", "use"), "allow", `seed ${seed}: the owner's agent uses the ${type}`);
+      assert.equal(as("p2", "manage"), "deny", `seed ${seed}: Manage stays with the person`);
+      assert.equal(as("p1", "use"), authorize(snap, { principal: "p1", action: act("use"), resource: { type, id }, now: NOW }).effect, `seed ${seed}: the person is the ceiling`);
+      assert.equal(authorize(snap, { principal: AGENT, action: act("use"), resource: { type, id }, now: NOW }).effect, "deny", `seed ${seed}: an agent alone has no person's ceiling`);
+    }
+  }
+  assert.ok(worlds >= 20, `worlds exercised: ${worlds}`);
+});

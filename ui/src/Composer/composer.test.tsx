@@ -290,3 +290,10 @@ test("one agent that is set to listen still answers, and the line says so", () =
   const w = whoAnswers("hello", { listening: ["Docs"], agents: ["Docs"], people: [] });
   assert.equal(w.line, "Docs will reply");
 });
+
+test("a picked agent keeps its whole name, and the mention still counts", () => {
+  const trigger = { ch: "@" as const, start: 0, end: 2, q: "Na" };
+  const state = { text: "@Na", cursor: 3, active: 0, dismissedAt: -1 } as never;
+  const r = applyPick(state, trigger as never, { group: "Agents", label: "Nadia’s Assistant", kind: "Agent" } as never);
+  assert.equal(r.next.text.startsWith("@Nadia’s Assistant "), true);
+});

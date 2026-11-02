@@ -107,6 +107,7 @@ export const SPACE_ROWS: readonly SpaceRowDef[] = [
   sr("gate.timeout_hours", "agents", "Approvals", "A waiting approval times out after", { kind: "number", min: 1, max: 720, unit: "hours" }, "A held action nobody answers is dropped after this long. A Gate rule can set its own.", "gate hold"),
   sr("gate.email_backstop_hours", "agents", "Approvals", "Email the approver after", { kind: "number", min: 1, max: 72, unit: "hours" }, "One email to the approver if a hold is still waiting.", "gate hold reminder"),
   sr("gate.drafted_by_label", "agents", "Approvals", "Label messages an agent drafted", { kind: "switch" }, "Adds a line saying an agent drafted it to messages that leave Vyre."),
+  sr("comms.agents_may_send", "agents", "Approvals", "Agents can send", { kind: "switch" }, "Agents send email, texts and calls for the person who asked, from what that person may use. Off, no agent sends in this Space."),
   sr("tasks.require_human_approver", "agents", "Approvals", "Only people can approve", { kind: "switch" }, "An agent can never be the approver of a task."),
   sr("tasks.allow_self_review", "agents", "Approvals", "A reviewer can also be the assignee", { kind: "switch" }, "Off, whoever does the work cannot also review or approve it."),
   sr("changesets.different_person", "agents", "Approvals", "The approver must be someone else", { kind: "switch" }, "The person who asked an agent for file changes cannot approve them."),
