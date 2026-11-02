@@ -6,5 +6,5 @@ export default defineFlow({
   name: "lead-automation-reply-call",
   title: "Lead to Automation email to reply to call",
   needs: ["automations", "gate", "mail", "telephony", "contacts-link"],
-  events: ["gate.requested", "message.sent", "mail.received", "call.started"],
+  events: ["automation.run_started", "message.sent", "gate.approved", "mail.received", "message.suppressed", "call.started"],
 });
