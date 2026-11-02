@@ -2,7 +2,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Avatar, avatarOf, resetAssistant, setAssistantId, setAssistantLook } from "./index.tsx";
+import { pickedFace, setAgentFaces, Avatar, avatarOf, resetAssistant, setAssistantId, setAssistantLook } from "./index.tsx";
+import { agentName, assistantName } from "./assistant.ts";
 
 const html = (p: Parameters<typeof Avatar>[0]): string => renderToStaticMarkup(<Avatar {...p} />);
 
@@ -33,6 +34,24 @@ test("a person keeps their own avatar and photo", () => {
   assert.match(html({ ...avatarOf({ id: "usr_2", name: "Omar" }), size: 20 }), /data-avatar="person"/);
 });
 
+test("a face picked on an agent's page wins over its id everywhere; a stored slug does not", () => {
+  setAgentFaces([{ id: "agt_a", face: "pick-abc" }, { id: "agt_b", face: "intake" }]);
+  assert.equal(pickedFace("agt_a"), "pick-abc");
+  assert.equal(pickedFace("agt_b"), "");
+  assert.equal(pickedFace(undefined), "");
+  resetAssistant();
+  assert.equal(pickedFace("agt_a"), "");
+});
+
+test("a face picked on an agent's page wins over its id everywhere; a stored slug does not", () => {
+  setAgentFaces([{ id: "agt_a", face: "pick-abc" }, { id: "agt_b", face: "intake" }]);
+  assert.equal(pickedFace("agt_a"), "pick-abc");
+  assert.equal(pickedFace("agt_b"), "");
+  assert.equal(pickedFace(undefined), "");
+  resetAssistant();
+  assert.equal(pickedFace("agt_a"), "");
+});
+
 test("a look set in Settings replaces the mark, and clearing it brings the mark back", () => {
   resetAssistant(); setAssistantId("agt_a");
   setAssistantLook("look-tide");
@@ -40,4 +59,19 @@ test("a look set in Settings replaces the mark, and clearing it brings the mark 
   assert.doesNotMatch(looked, /class="vmark"/);
   setAssistantLook(null);
   assert.match(html({ ...avatarOf({ id: "agt_a", name: "Irfad’s Assistant", kind: "agent" }), size: 20 }), /class="vmark"/);
+});
+
+test("the assistant has one name: Assistant until its person renames it, whatever the server filed it under", () => {
+  for (const filed of ["Assistant", "Assistant 3f9a2b", "My Assistant", "Nadia\u2019s Assistant", "Nadia's Assistant", "nadia\u2019s assistant", "Nadia\u2019s Assistant 3f9a", "Nadia Assistant"]) assert.equal(assistantName(filed, "Nadia Noor"), "Assistant", filed);
+  assert.equal(assistantName("James\u2019 Assistant", "James Cross"), "Assistant");
+  for (const chosen of ["Jarvis", "Billing Assistant", "Sam\u2019s Assistant", "Assistant to the regional manager"]) assert.equal(assistantName(chosen, "Nadia Noor"), chosen, chosen);
+  assert.equal(assistantName("Assistant", ""), "Assistant", "a person with no name yet");
+});
+
+test("a list read straight from the server shows that one name for the assistant and nobody else's changes", () => {
+  resetAssistant();
+  setAssistantId("agt_me", "Assistant");
+  assert.equal(agentName("agt_me", "Nadia\u2019s Assistant"), "Assistant");
+  assert.equal(agentName("agt_other", "Scout"), "Scout");
+  resetAssistant();
 });

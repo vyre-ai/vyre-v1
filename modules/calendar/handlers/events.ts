@@ -2,7 +2,7 @@
 // meeting, and the provider pull. Calendar is a view in Inbox; its rows live here and nowhere else.
 //
 // DECISION: create, update, delete and respond are plain local writes. The provider sends invitations when the outbox syncs (the manifest says so); for agents,
-// automations and campaigns the host holds the call at the Gate act `send` when the event has attendees, before these handlers run.
+// automations the host holds the call at the Gate act `send` when the event has attendees, before these handlers run.
 // DECISION: the 15 minute step belongs to the view and to Find a time. A drag in the Calendar view snaps to STEP_MS (snapToStep) before it calls create_event or
 // update_event; the server stores the times it is given, because events that arrive from Google and Microsoft are not on the grid. Find a time answers on the grid.
 // DECISION: a person is a member id (usr_) or an email address. A member's calendars are the ones they own; their addresses are those of their personal mailboxes

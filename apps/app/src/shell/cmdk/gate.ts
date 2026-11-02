@@ -2,7 +2,8 @@
 // in the same task as the keystroke; the server is search.query behind the capability caller; Recent is search.recent.list read ahead of the sheet opening.
 import type { ShellRuntime } from "../providers/runtime.tsx";
 import type { PlaceId } from "../rail/kits.ts";
-import { skins } from "../../../../../ui/src/tokens/skins.ts";
+import { skins, system } from "../../../../../ui/src/tokens/skins.ts";
+import { applySkinToWindow } from "../providers/settings-skin.ts";
 import type { CmdKData } from "./controller.ts";
 import type { CmdAction, Hit, HitKind } from "./model.ts";
 import { requestChannelSheet } from "../../places/chats/channels/request.ts";
@@ -87,10 +88,11 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
     },
     recent: d.recent,
     actions: (text) => gateActions(state, rt.space.kind === "team").filter((a) => !text || a.title.toLowerCase().includes(text.toLowerCase())),
-    skins: () => skins.map((s) => ({ id: s.id, name: s.name, swatch: s.palette.accent })),
-    currentSkin: () => "system",
+    skins: () => [{ id: system.id, name: system.name }, ...skins.map((s) => ({ id: s.id, name: s.name, swatch: s.palette.accent }))],
+    currentSkin: () => (globalThis as { document?: { documentElement?: { getAttribute(k: string): string | null } } }).document?.documentElement?.getAttribute("data-skin") ?? "system",
     previewSkin: () => undefined,
-    setSkin: () => { nav.go("settings", "page=appearance"); nav.flash("Pick the skin under Appearance"); },
+    // it opens where you pressed: the window changes at once, the setting follows, and you stay on the page you are on
+    setSkin: (id) => { applySkinToWindow(rt, id); void Promise.resolve(rt.call("settings.set", { key: "appearance.skin", value: id })).catch(() => nav.flash("Could not save the skin")); },
     open,
     copyLink: (hit) => {
       const clip = (globalThis as { navigator?: { clipboard?: { writeText(s: string): Promise<void> } } }).navigator?.clipboard;

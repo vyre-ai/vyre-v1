@@ -14,6 +14,11 @@ export type { MsHost } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = {
   "ms.consent.status": (ctx) => h.consentStatus(ctx),
+  "ms.consent.check_app": (ctx, i) => h.consentCheckApp(ctx, i),
+  "ms.consent.connect_all": (ctx, i) => h.consentConnectAll(ctx, i),
+  "ms.consent.set_data": (ctx, i) => h.consentSetData(ctx, i),
+  "ms.access_log": (ctx, i) => h.accessLog(ctx, i),
+  "ms.directory.reconcile": (ctx, i) => h.directoryReconcile(ctx, i),
   "ms.consent.link": (ctx, i) => h.consentLink(ctx, i),
   "ms.consent.policy_snippet": (ctx) => h.consentSnippet(ctx),
   "ms.consent.setup": (ctx, i) => h.consentSetup(ctx, i),
@@ -93,7 +98,17 @@ const joinConsumers = {
   },
 };
 
-const consumersAll = { ...consumers, ...joinConsumers };
+/** Leaving a Space ends a person's own sign-ins as the removal wizard does: spaces.leave has only this event. */
+const personLeft = {
+  "ms.person_left": {
+    on: ["member.removed"],
+    run: async (ctx: Ctx, event: { payload: { personId?: unknown } }): Promise<number> => {
+      await h.personLeft(ctx as never, event as never);   // their delegated mail, calendar and files stop being read
+      return (typeof event.payload.personId === "string" ? h.dropAccountsOf(ctx as never, event.payload.personId) : Promise.resolve(0));
+    },
+  },
+};
+const consumersAll = { ...consumers, ...joinConsumers, ...personLeft };
 export const projections = { inline, consumers: consumersAll };
 export { codecs, inline };
 export { consumersAll as consumers };

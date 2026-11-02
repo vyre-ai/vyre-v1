@@ -1,11 +1,28 @@
 // How a turn that ended without a reply reads in a chat. The engine bridge posts it as a turn_status block (modules/engine/handlers/bridge.ts); its name and codes are internal and never shown.
-import type { MessageBlock } from "./model.ts";
+import type { Message, MessageBlock } from "./model.ts";
 
 const str = (v: unknown): string => (typeof v === "string" || typeof v === "number" ? String(v) : "");
 const dataOf = (b: MessageBlock): Record<string, unknown> => (typeof b.data === "object" && b.data !== null && !Array.isArray(b.data) ? (b.data as Record<string, unknown>) : {});
 
 /** The block the engine bridge posts when a turn ends without a reply (failed, stopped, parked on an approval). It is never drawn as a card with its own name. */
 export const isTurnStatus = (b: Pick<MessageBlock, "type">): boolean => b.type === "turn_status";
+
+/** A message that only says a turn failed: no words of its own. A failure that kept the reply's words is never dropped. */
+const onlyFailure = (m: Pick<Message, "body" | "blocks">): boolean => m.body === "" && m.blocks.length > 0 && m.blocks.every((b) => isTurnStatus(b) && str(dataOf(b).state) === "failed");
+
+/** The messages without any failure the same agent has since answered, by a reply or by a newer failure, with no person speaking in between. So a retry that works takes the card away, one that fails shows one card, and a failure someone talked past stays. Oldest first in and out; the same array when nothing goes. */
+export function withoutAnswered<M extends Pick<Message, "messageId" | "author" | "body" | "blocks">>(messages: readonly M[]): readonly M[] {
+  const gone = new Set<string>();
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i]!;
+    if (m.author.kind !== "agent" || !onlyFailure(m)) continue;
+    for (const after of messages.slice(i + 1)) {
+      if (after.author.kind === "person") break;
+      if (after.author.id === m.author.id) { gone.add(m.messageId); break; }
+    }
+  }
+  return gone.size === 0 ? messages : messages.filter((m) => !gone.has(m.messageId));
+}
 
 /** The engines a person can install, and the exact command (the same as images/vyred/Dockerfile installs). Grok has none we can name. */
 const ENGINES: Record<string, { name: string; command?: string }> = {
@@ -27,6 +44,10 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
   "sandbox.unavailable": { message: "Your server cannot sandbox the engine.", retryable: true },
   "engine.post_failed": { message: "The reply was written but could not be shown.", cause: "Try again.", retryable: true },
   turn_timeout: { message: "That took too long, so it was stopped.", retryable: true },
+  paid_fallback: { message: "This account is out for now.", cause: "A paid key could answer. It is in your Tasks for you to say yes.", retryable: false },
+  host_lost: { message: "The server stopped while this was running.", cause: "It may have done part of the work. Check before running it again.", retryable: true },
+  agent_paused: { message: "This agent is paused, so it did not answer.", cause: "Resume it from its page, then try again.", retryable: true },
+  agent_gone: { message: "This agent was deleted, so it did not answer.", retryable: false },
 };
 
 /** How a turn_status block reads: a failed turn is the inline error row with a plain sentence and one action; a stopped or parked turn is a quiet line. */
@@ -46,6 +67,6 @@ export function statusView(b: MessageBlock): StatusView {
     w = { message: `${engine.name} is not installed here.`, ...(engine.command ? { cause: `Run ${engine.command}, then try again.` } : {}), next: [...(engine.command ? [{ key: `install:${str(d.program)}`, label: `Install ${engine.name}` }] : []), ...(w.next ?? [])], retryable: true };
   }
   if (str(d.code) === "engine.vault_unreadable" && str(d.reason) !== "") w = { ...w, cause: `The Vault answered: ${str(d.reason)}.` };
-  return { kind: "error", block: { ...b, type: "error", data: { code: str(d.code), message: w.message, ...(w.cause ? { cause: w.cause } : {}), next: w.next ?? [], retryable: w.retryable, turnId: str(d.turnId) } } };
+  return { kind: "error", block: { ...b, type: "error", data: { code: str(d.code), message: w.message, ...(w.cause ? { cause: w.cause } : {}), next: w.next ?? [], retryable: w.retryable, turnId: str(d.turnId), steps: [...(str(d.code) ? [["Code", str(d.code)]] : []), ["Reply", str(d.turnId)]] } } };
 }
 

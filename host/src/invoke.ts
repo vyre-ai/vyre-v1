@@ -10,7 +10,7 @@ import {isHostService} from "../../lib/trust.ts";
 import { mintEventId } from "./ids.ts";
 import type { Decision as KernelDecision, Req as AuthReq, ResourceRef } from "../../kernel/src/authorize/index.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
-import type { CallOpts, Ctx, Decision, EmitOpts, Logger } from "../../packages/contracts/src/ctx.ts";
+import type { CallOpts, Ctx, Decision, EmitOpts, Logger, StepRef } from "../../packages/contracts/src/ctx.ts";
 import type { CapabilityDef, CapName, EventName, TraceContext } from "../../packages/contracts/src/types.ts";
 import { BindingError, resolveResource } from "./routes/resource.ts";
 import { auditTargets } from "./routes/audit-targets.ts";
@@ -53,6 +53,8 @@ export interface CtxSeed {
   device?: string | undefined;
   /** AI provider of the active model when the result goes to one (label vs provider, 4.5) */
   provider?: string | undefined;
+  /** A key of the Space paid for this agent's turn, not the person it acts for. Set only by the engine's post, so a chat never says the reply was on their account. */
+  sharedKey?: boolean | undefined;
   /** an approval token for exactly this payload, from the Gate resume path */
   approval?: string | undefined;
   /** contract version; latest when omitted */
@@ -66,8 +68,18 @@ export interface CtxSeed {
   preAuth?: boolean | undefined;
   /** set by a caller that wants the Gate to hold only on an explicit rule (a step with Ask before sending Off); it follows every nested call */
   gateMode?: "admin_only" | undefined;
+  /** the automation step this call is, set by steps-core through CallOpts: an outward act needs a grant for it, whoever the Run runs as; it follows every nested call */
+  step?: StepRef | undefined;
   /** Ask first (chat mode): a call that changes or sends something is parked for a yes before its handler runs. Set only by the tool session of a chat in Ask first mode; it follows no nested call. */
   askFirst?: boolean | undefined;
+  /** The chat's mode, set only by the tool session of a chat. In Auto a grant from the person's own message can lift a default hold (host/src/daemon/gate-hook.ts). */
+  chatMode?: "auto" | "ask" | "plan" | undefined;
+  /** This tool waits in Ask first and stops in Plan: the pipeline reads the chat's mode again at the moment of the act, so a change of mode during a turn counts at once. */
+  askable?: boolean | undefined;
+  /** A local tool's hard rule asked (a delete outside work/): no Always allow lets this through. */
+  mustAsk?: boolean | undefined;
+  /** Every call of this caller goes on the audit log, whatever the capability says. Set only by the MCP door for an outside agent; it follows no nested call. */
+  auditAll?: boolean | undefined;
 }
 
 export interface AuditRow {
@@ -87,6 +99,8 @@ export interface SpanRecord {
 export interface GateHook {
   /** Does a Gate apply to this call (capability `gate` with its `when`)? Null lets the call through. */
   applies(cap: CapabilityDef, input: unknown, seed: CtxSeed): { act: string } | null | Promise<{ act: string } | null>;
+  /** A call the Gate let through on a person's yes failed before it went out: the yes goes back for a corrected retry. */
+  giveBack?(input: unknown): Promise<void>;
   /** Park the call as an approval task (4.6) and return its ids. */
   park(a: { cap: CapabilityDef; input: unknown; seed: CtxSeed; act: string; decisionId: string; traceId: string }): Promise<{ taskId: string; runId?: string }>;
   /**
@@ -96,6 +110,12 @@ export interface GateHook {
   resume?(a: { token: string; onBehalfOf: string; cap: CapabilityDef; input: unknown }): Promise<{ principal: PrincipalSeed; actingFor?: string | undefined; run?: string | undefined; thread?: string | undefined } | null>;
   /** Is the approval token valid for exactly this call? */
   verify(token: string, a: { cap: CapabilityDef; input: unknown; seed: CtxSeed }): boolean;
+  /** The chat's mode right now: the strictest of the thread and the threads above it, read at act time. Undefined when there is no such chat. */
+  mode?(thread: string): "auto" | "ask" | "plan" | undefined;
+  /** Does an Always allow rule let this call past Ask first? Read at act time. */
+  allowed?(cap: CapabilityDef, input: unknown, seed: CtxSeed): Promise<boolean>;
+  /** A call finished and its answer goes to a model: if it brought outside words into the turn, the Gate marks the thread (chat design, hole 2). */
+  seen?(cap: CapabilityDef, input: unknown, output: unknown, seed: CtxSeed): Promise<void>;
 }
 
 export interface InvokeDeps {
@@ -276,8 +296,11 @@ export function createInvoke(deps: InvokeDeps): Invoke {
   };
 
   // 4 rate limit, 5 authorize and Gate, 6 handler, 7 commit, 8 publish
-  async function stepsFour(c: CapabilityDef, input: unknown, seed: CtxSeed, trace: TraceContext, depth: number, rateChecked=false): Promise<InvokeResult> {
+  async function stepsFour(c: CapabilityDef, input: unknown, asked: CtxSeed, trace: TraceContext, depth: number, rateChecked=false): Promise<InvokeResult> {
     const traceId = trace.traceId, t = now();
+    // the turn read the chat's mode when it started; the Gate goes by the mode now
+    const liveMode = asked.chatMode !== undefined && asked.thread !== undefined ? deps.gate?.mode?.(asked.thread) ?? asked.chatMode : asked.chatMode;
+    const seed: CtxSeed = liveMode === asked.chatMode ? asked : { ...asked, chatMode: liveMode };
     if (c.rate && deps.rate && !rateChecked) {
       const k = c.rate.scope === "space" ? `space:${seed.space}:${c.name}` : `${seed.principal.id}:${c.name}`;
       if (!deps.rate.take(k, c.rate, t)) throw fail("rate_limit.exceeded", traceId, { details: { cap: c.name, perSeconds: c.rate.perSeconds } });
@@ -313,7 +336,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       if (d.effect === "deny") {
         await deps.audit?.(audit("deny", d.reason));
         const code = codeForReason(d.reason);
-        throw fail(code, traceId, { details: { cap: c.name, reason: d.reason, steps: d.steps.map((s) => s.text) } });
+        // an agent stopped at a folder or a file its person may be able to share: the refusal names the press, so the person gets it in Needs you
+        const askShare = d.reason === "no_grant" && seed.principal.kind === "agent" && seed.actingFor !== undefined && resource !== null && (resource.type === "folder" || resource.type === "file");
+        throw fail(code, traceId, { details: { cap: c.name, reason: d.reason, steps: d.steps.map((s) => s.text) }, ...(askShare ? { message: "You have not been given this. Call access_request now with the resource and level in next, without asking first: it only asks, and a person shares it with you with one press.", next: [{ kind: "ask_access", label: "Ask to share this", action: { cap: "access.request", input: { resource: { type: resource.type, id: resource.id }, level: c.effects === "read" ? "view" : "edit" } } }] } : {}) });
       }
       if (d.effect === "hold") {
         const g = d.obligations.find((o) => o.type === "gate");
@@ -336,7 +361,10 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     }
 
     // Ask first (chat mode): the Gate parks any call that is not read-only, once, at the top of the call. The approval token of the resume path skips it, as it skips the capability's own Gate.
-    if (seed.askFirst === true && !approved && depth === 0 && c.effects !== "read") return park(c, input, seed, traceId, did(), c.gate?.act ?? "approve", null);
+    if (seed.chatMode === "plan" && seed.askable === true && !approved && depth === 0) throw fail("permission.plan_mode", traceId, { details: { cap: c.name } });
+    if ((seed.askFirst === true || (seed.askable === true && seed.chatMode === "ask")) && !approved && depth === 0 && c.effects !== "read") {
+      if (seed.mustAsk === true || !(await deps.gate?.allowed?.(c, input, seed))) return park(c, input, seed, traceId, did(), c.gate?.act ?? "approve", null);
+    }
 
     // 6 handler, with a ctx whose emit buffers events for the one commit
     const h = deps.handler(c.name, c.v);
@@ -347,6 +375,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     try {
       output = await h(ctx, input);   // a throw here is mapped by the outer catch: VyreErr and HostError keep their code, anything else is internal.unexpected
     } catch (e) {
+      // refused before it went out: a person's yes this call spent is handed back, so the corrected retry is still asked for (one successful send per yes)
+      await deps.gate?.giveBack?.(input).catch(() => undefined);
       // events the handler marked afterFailure (a refused sign-in's signin.failed) are written on their own, then the error goes on; nothing else the call buffered is
       const keep = events.filter((ev) => survivors.has(ev));
       if (keep.length) {
@@ -373,14 +403,18 @@ export function createInvoke(deps: InvokeDeps): Invoke {
 
     // 7 commit: events, inline projections and the audit row land together
     const finishOutput=SCOPED_RECORD_READS.has(c.name)&&!(seed.preAuth&&isHostService(seed.principal))?await deps.recordAccess?.project(c.name,input,seed,output,traceId):undefined;
-    const targets = shouldAudit(c) ? auditTargets(c.name, input, output) : undefined;
-    const auditRow: AuditRow | null = shouldAudit(c)
+    // an agent's change is audited like any sensitive act, so the log always says which agent did what for whom (a person's own file write is not)
+    const audited = shouldAudit(c) || seed.auditAll === true || (seed.principal.kind === "agent" && c.effects !== "read");
+    const targets = audited ? auditTargets(c.name, input, output) : undefined;
+    const auditRow: AuditRow | null = audited
       ? { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: did(), reason: "ok", resource, traceId, spanId: trace.spanId, at: t, risk: c.risk, ...(targets ? { targets } : {}) }
       : null;
     let stored = events;
     if (events.length || auditRow) stored = await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events, audit: auditRow });
     // 8 publish after commit
     if (stored.length) deps.publish?.(stored);
+    // Before the answer reaches the model: a failure to mark costs the next outward act nothing it should have, so it is logged and the answer still goes. The grant check reads the mark.
+    if (deps.gate?.seen && (depth === 0 || approved)) await deps.gate.seen(c, input, output, seed).catch((e: unknown) => log.warn("the Gate did not hear what a call brought in", { cap: c.name, traceId, error: e instanceof Error ? e.message : String(e) }));
     return { status: "ok", output:finishOutput?await finishOutput():output, traceId };
   }
 
@@ -412,6 +446,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       space: seed.space, principal: seed.principal, ...(seed.actingFor ? { actingFor: seed.actingFor } : {}), trace,
       ...(seed.run ? { run: seed.run } : {}), ...(seed.thread ? { thread: seed.thread } : {}), origin: seed.origin ?? "user", depth,
       ...(seed.device ? { device: seed.device } : {}), now,
+      ...(seed.sharedKey ? { sharedKey: true } : {}),
       ...(seed.sessionId ? { sessionId: seed.sessionId } : {}),
       db: svc.db ?? { all: unavailable("db"), run: unavailable("db") },
       emit<T>(name: EventName, subject: string, payload: T, opts?: EmitOpts): EventEnvelope<T> {
@@ -435,7 +470,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         }
         // CallOpts.traceId: a call that continues earlier work (a provider's callback about a call a person placed) runs on that work's trace
         const nested: TraceContext = opts?.traceId !== undefined && /^[0-9a-f]{32}$/.test(opts.traceId) && !/^0+$/.test(opts.traceId) ? { ...trace, traceId: opts.traceId } : trace;
-        const r = await invoke(name, callInput, { ...base, depth: depth + 1, trace: nested, approval: resume?.approvalToken, v: undefined, clearedActs: resume ? undefined : cleared, gateMode: opts?.gate ?? seed.gateMode });
+        const r = await invoke(name, callInput, { ...base, depth: depth + 1, trace: nested, approval: resume?.approvalToken, v: undefined, clearedActs: resume ? undefined : cleared, gateMode: opts?.gate ?? seed.gateMode, step: opts?.step ?? base.step });
         if (r.status === "held") throw fail("permission.needs_approval", trace.traceId, { details: { taskId: r.taskId, cap: name } });
         return r.output;
       },

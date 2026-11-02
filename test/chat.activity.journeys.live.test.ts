@@ -30,7 +30,7 @@ test("a reply being written says what the agent is doing, from its real steps an
     await open(me, s, route);
     const field = me.page.getByTestId("composer-field");
     await field.click();
-    await field.fill("think 900");
+    await field.fill("think 2500");
     await me.page.getByTestId("composer-send").click();
 
     // before the first word: one line, "Thinking", with the last of its thinking
@@ -42,10 +42,10 @@ test("a reply being written says what the agent is doing, from its real steps an
     await shoot(me.page, dir, "thinking", { phone: false });
 
     // then its steps, as they happen
-    await me.page.getByText("Reading model.ts", { exact: false }).first().waitFor({ timeout: 15_000 });   // what it touches: the file's name, not its folders
+    await me.page.getByText("Reading model.ts", { exact: false }).first().waitFor({ timeout: 25_000 });   // what it touches: the file's name, not its folders
     assert.match(await line.innerText(), /Reading model\.ts/);
-    await me.page.getByText(/Searching the web: stream pacing/).first().waitFor({ timeout: 15_000 });
-    await me.page.getByText(/Running a command/).first().waitFor({ timeout: 15_000 });
+    await me.page.getByText(/Searching the web: stream pacing/).first().waitFor({ timeout: 25_000 });
+    await me.page.getByText(/Running a command/).first().waitFor({ timeout: 25_000 });
 
     // open the trail while it works, then fold it
     await line.click();
@@ -74,7 +74,7 @@ test("a reply being written says what the agent is doing, from its real steps an
     await me.page.setViewportSize({ width: 390, height: 844 });
     await open(me, s, route);
     await me.page.getByTestId("composer-field").click();
-    await me.page.getByTestId("composer-field").fill("think 900");
+    await me.page.getByTestId("composer-field").fill("think 2500");
     await me.page.getByTestId("composer-send").click();
     await me.page.getByTestId("activity-line").waitFor({ timeout: 10_000 });
     await me.page.getByTestId("activity-excerpt").waitFor({ timeout: 10_000 }).catch(() => undefined);

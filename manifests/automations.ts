@@ -212,6 +212,9 @@ export default defineManifest({
       },
       tool: 'automations',
     }),
+    read('automations.senders', 'What this Automation sends from: the mailboxes and numbers its steps name, and whether each can send now', {
+      in: target, out: { senders: t.arr(t.obj({ id: t.str(), channel: t.enm('email', 'text'), address: t.str(), usable: t.bool(), why: t.opt(t.str()) })) }, on: ['automation', '/automationId'], tool: 'automations',
+    }),
     read('automations.get', 'Read an Automation with its definition, alerts and followers', { in: target, out: { automation: row }, on: ['automation', '/automationId'], tool: 'automations', label: 'check', cli: 'vyre automations get' }),
     read('automations.migration_preview', 'Group active runs by the step they are on before moving them to a definition version', {
       in: { ...target, toVersion: t.int({ minimum: 1 }) },
@@ -241,6 +244,9 @@ export default defineManifest({
     write('automations.set_enabled', 'Turn an Automation on or off', {
       in: { ...target, enabled: t.bool() }, out: { automation: row }, on: ['automation', '/automationId'], emits: ['automation.enabled', 'automation.disabled'], tool: 'automations',
       errors: ['validation.precondition_failed'],
+    }),
+    outward('automations.code_reach', 'System: a code step that names hosts asks the Gate before the sandbox opens to them. It does nothing itself', {
+      in: { hosts: t.arr(t.str(), { minItems: 1 }) }, out: { ok: t.bool() }, perm: null, level: 'view', risk: 'medium', idem: 'key', gate: { act: 'send' },
     }),
     write('automations.schedule_choose', 'Apply one recovery choice to a schedule whose backlog is over its cap', {
       in: {
@@ -381,10 +387,15 @@ export default defineManifest({
       errors: ['permission.needs_approval', 'provider.network', 'validation.precondition_failed', 'validation.too_large', 'permission.no_grant'],
       agent: false,
     }),
+    read('automations.read_link', 'Open a web page from the server and read it as plain text, with its links. Use it for any link the person gave or a page you read links to. A link you put together yourself waits for the person, because its address can carry data. GET only, no key, public hosts only', {
+      in: { url: t.str(), focus: t.opt(t.str()) },
+      out: { ok: t.bool(), reason: t.opt(t.str()), finalUrl: t.opt(t.str()), kind: t.opt(t.enm('openapi', 'html', 'text')), text: t.opt(t.str()), links: t.opt(t.arr(t.obj({ text: t.str(), url: t.str() }))), truncated: t.opt(t.bool()) },
+      gate: { act: 'send', when: 'links.is_composed(input.url)' }, tool: 'automations', mcpName: 'read_link', agent: { planMode: 'allowed' }, errors: ['permission.needs_approval'],
+    }),
     read('automations.read_docs', 'Read one public API docs page as plain text, with its same-site links. For an OpenAPI document, one line per operation. GET only, no key, public hosts only. Give focus to get just the passages around a word.', {
       in: { url: t.str(), focus: t.opt(t.str()) },
       out: { ok: t.bool(), reason: t.opt(t.str()), finalUrl: t.opt(t.str()), kind: t.opt(t.enm('openapi', 'html', 'text')), text: t.opt(t.str()), links: t.opt(t.arr(t.obj({ text: t.str(), url: t.str() }))), truncated: t.opt(t.bool()) },
-      tool: 'automations', agent: { planMode: 'allowed' },
+      gate: { act: 'send', when: 'links.is_composed(input.url)' }, tool: 'automations', agent: { planMode: 'allowed' }, errors: ['permission.needs_approval'],
     }),
     write('automations.connector_card', 'Post a compact card in the chat: a title and up to 20 rows, each done or not. Used for connector test results and the review before publish. A key is refused.', {
       in: { threadId: id.thread, title: t.str(), items: t.arr(t.obj({ text: t.str(), done: t.bool() }), { minItems: 1, maxItems: 20 }) },
@@ -471,7 +482,7 @@ export default defineManifest({
     trigger('form_submit', 'A form is submitted', { event: 'form.submitted' },
       { formId: id.form, recordId: id.record, type: id.recordType, matched: t.bool() }),
     trigger('email_received', 'An email is received', { events: ['mail.received', 'sms.received'] },
-      { messageId: t.str(), mailboxId: id.mailbox, from: t.str(), subject: t.str(), contactId: t.opt(id.record), campaignId: t.opt(id.campaign) }),
+      { messageId: t.str(), mailboxId: id.mailbox, from: t.str(), subject: t.str(), contactId: t.opt(id.record) }),
     trigger('chat_message', 'A chat message is posted', { event: 'message.received' },
       { messageId: id.message, threadId: id.thread, threadSeq: t.int(), author: t.obj({ kind: t.str(), id: t.str() }), kind: t.str(), depth: t.int() }),
     trigger('spreadsheet_row', 'A spreadsheet row is added or changed', { events: ['sheet.row_appended', 'sheet.row_updated'], filter: rowFilter },
@@ -484,8 +495,6 @@ export default defineManifest({
       { journeyId: id.journey, recordId: id.record, stage: t.str(), previousStage: t.opt(t.str()), manual: t.bool() }),
     trigger('journey_stage_left', 'A Journey record leaves a stage', { event: 'journey.stage_exited' },
       { journeyId: id.journey, recordId: id.record, stage: t.str(), toStage: t.opt(t.str()) }),
-    trigger('campaign_reply', 'A campaign gets a reply', { event: 'campaign.replied' },
-      { campaignId: id.campaign, recordId: id.record, messageId: id.message }),
     trigger('button', 'A button is pressed', { button: true },
       { recordId: t.opt(id.record), type: t.opt(id.recordType), pressedBy: t.str(), label: t.opt(t.str()) }),
     trigger('manual', 'Run by hand', { manual: true },

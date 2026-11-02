@@ -28,6 +28,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "mail.mailbox.set_privacy": Handler<"mail.mailbox.set_privacy", X>;
   "mail.mailbox.set_sync_state": Handler<"mail.mailbox.set_sync_state", X>;
   "mail.mailbox.update": Handler<"mail.mailbox.update", X>;
+  "mail.member_pause": Handler<"mail.member_pause", X>;
   "mail.message.erase": Handler<"mail.message.erase", X>;
   "mail.message.get": Handler<"mail.message.get", X>;
   "mail.message.list": Handler<"mail.message.list", X>;
@@ -41,4 +42,5 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "mail.send_preview": Handler<"mail.send_preview", X>;
   "mail.status_update": Handler<"mail.status_update", X>;
   "mail.sync_now": Handler<"mail.sync_now", X>;
+  "mail.unsubscribe": Handler<"mail.unsubscribe", X>;
 }

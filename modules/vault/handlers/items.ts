@@ -7,6 +7,7 @@
 // Shared items other people own, space is every Shared item I can see; starred and following belong to spaces and come back empty here.
 // DECISION: a Mine item cannot be shared; to share it, move it into a Shared folder (that re-encrypts it under the filler). A subscription sign-in (kind ai_subscription) stays Mine for ever.
 // DECISION: Trash keeps the sealed row; restore brings it back whole. Deleting a folder, Space policy, export and import are other packets.
+import { isCompanyKey } from "../../../lib/company-keys.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import { ENC_MINE, ENC_SHARED, currentFiller, currentKeyPort, openMine, sealMine, wrapKeyFromPersonKey } from "./crypto.ts";
 import type { Field, SealedFields } from "./crypto.ts";
@@ -267,8 +268,8 @@ export async function itemUpdate(ctx: VaultCtx, input: {
     const name = nameOf(ctx, input.name);
     if (name !== str(r, "name")) {
       if (nameTaken(ctx, str(r, "folderId"), name, str(r, "id"))) throw fail("validation.duplicate", ctx.trace.traceId, { message: "This folder already has an item with that name." });
+      // the handle stays: agents, chats and automations hold it, and renaming must not cut them off from the key
       changed["name"] = name;
-      changed["handle"] = uniqueHandle(ctx, name, str(r, "id"));
       settings.push("name");
     }
   }
@@ -298,6 +299,8 @@ export async function itemUpdate(ctx: VaultCtx, input: {
     ctx.db.run(`UPDATE vault_item_x SET "secrets" = ? WHERE "itemId" = ?`, JSON.stringify(Object.fromEntries(next.map((f) => [f.key, f.secret]))), str(r, "id"));
     fieldsChanged.push(...new Set([...set.map((f) => f.key), ...remove]));
     for (const k of fieldsChanged) record(ctx, str(r, "id"), "edited", { field: k });
+    // a new value is a rotation: a reminder that keeps nagging after the key was changed teaches people to ignore it
+    if (set.length > 0) ctx.db.run(`UPDATE vault_item_x SET "lastRotatedAt" = ? WHERE "itemId" = ?`, ctx.now(), str(r, "id"));
   }
   if (!fieldsChanged.length && !settings.length) return { item: metaOut(ctx, r) };
   patchMeta(ctx, str(r, "id"), changed);
@@ -391,6 +394,7 @@ export async function share(ctx: VaultCtx, input: { resource: ResourceIn; subjec
   if (t.kind === "vault_item") {
     if (str(t.row, "scope") === "mine") refuse(ctx, "A Mine item is private. Move it to a Shared folder to share it.");
     if (NEVER_SHARED.has(str(t.row, "kind") as never)) refuse(ctx, "A subscription sign-in is never shared.");
+    if (isCompanyKey(str(t.row, "handle")) && obj(input.subject)["kind"] !== "person") refuse(ctx, "This key is for the server alone. Agents and automations never get it.");
   } else {
     if (str(t.row, "scope") === "mine") refuse(ctx, "A Mine folder is private. Make a Shared folder to share items.");
     if (!atLeast(levelOn(ctx, "vault_folder", str(t.row, "id")), "manage") && str(t.row, "owner") !== ctx.principal.id) return denied(ctx, "Sharing a folder needs manage access.");

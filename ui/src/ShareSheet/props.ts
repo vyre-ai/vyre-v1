@@ -40,6 +40,8 @@ export interface ShareSheetProps {
   resourceName: string;
   /** Folder sharing covers the children. An item share sits on top of its folder. */
   target: "folder" | "item";
+  /** The second line, when the thing is neither a folder nor an item (an artifact says what sharing it does). */
+  subtitle?: string;
   ownerName: string;
   /** The owner's id: the face is seeded by it (the name is the fallback). */
   ownerId?: string;

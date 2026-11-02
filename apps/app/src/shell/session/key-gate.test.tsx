@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { KeyGate, LockScreen, NoPasswordKey } from "./KeyGate.tsx";
+import { lockName } from "./stored.ts";
 import { forgetKey, keepKey, keyIsKept, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
 
 const text = (h: string): string => h.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
@@ -19,9 +20,10 @@ test("a Space that is not on this computer never shows the lock: it keeps its ex
 });
 
 test("on this computer a calm loading state shows until the daemon answers: no blank page, no shell flash behind the lock", () => {
-  const t = text(renderToStaticMarkup(<KeyGate baseUrl="http://127.0.0.1:1" token="t" name="Irfad"><p>the shell</p></KeyGate>));
-  assert.match(t, /Opening your Vault/);
-  assert.doesNotMatch(t, /the shell/);
+  const html = renderToStaticMarkup(<KeyGate baseUrl="http://127.0.0.1:1" token="t" name="Irfad"><p>the shell</p></KeyGate>);
+  assert.match(html, /data-testid="lock-checking"/);
+  assert.match(html, /data-icon="vyre-mark"/, "the mark, not a blank page");
+  assert.doesNotMatch(text(html), /the shell/);
 });
 
 test("the lock screen has a quiet way out: Forgot password and Sign out; an account with no password key is told so and can go on", () => {
@@ -29,7 +31,7 @@ test("the lock screen has a quiet way out: Forgot password and Sign out; an acco
   assert.match(t, /Forgot password/);
   assert.match(t, /Sign out/);
   const n = text(renderToStaticMarkup(<NoPasswordKey onContinue={() => undefined} onSignOut={() => undefined} />));
-  assert.match(n, /no password here/);
+  assert.match(n, /No password here/);
   assert.match(n, /Continue/);
 });
 
@@ -39,4 +41,11 @@ test("the key is kept in memory only for the session and dropped on sign-out; a 
   assert.equal(await rehandKey("https://team.example.com", "t"), false);
   forgetKey();
   assert.equal(keyIsKept(), false);
+});
+
+test("the lock greets the first name of the display name, and the username only for a session saved before that was kept", () => {
+  assert.equal(lockName({ displayName: "Nadia Noor", username: "nadia" }), "Nadia");
+  assert.equal(lockName({ username: "nadia" }), "nadia");
+  assert.equal(lockName({}), "");
+  assert.equal(lockName({ displayName: "  ", username: "nadia" }), "nadia");
 });

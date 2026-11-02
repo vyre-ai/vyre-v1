@@ -2,6 +2,8 @@
 // Parallel fan out into lanes and come back together, a Loop wraps its body, Wait, Approval and Stop are cards like any other. A run lights the lane it took. Errors show on the card
 // and in a line under the tabs while someone builds. Edits are a draft: Save (or Cmd-S) writes one version; Undo (Cmd-Z) takes back the latest edit.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { needsConnecting, sendsFromLine } from "./senders.ts";
+import type { SenderLine } from "./senders.ts";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { LayoutChangeEvent } from "react-native";
@@ -152,6 +154,13 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const [view, setView] = useState({ w: 0, h: 0 });
   const [graphView, setGraphView] = useState({ w: 0, h: 0 });
   const [note, setNote] = useState<string | null>(null);
+  const [senders, setSenders] = useState<readonly SenderLine[]>([]);
+  useEffect(() => {
+    let live = true;
+    void data.call("automations.senders", { automationId: a.id }).then((o) => { if (live) setSenders((o as { senders: SenderLine[] }).senders); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [data, a.id, a.version, a.status]);
+  const sendsFrom = sendsFromLine(senders);
   const [promoteOpen, setPromoteOpen] = useState(initialPromote);
   const [catalog, setCatalog] = useState<CatalogPhase>({ phase: "loading" });
   const [samples, setSamples] = useState<Record<string, unknown>>({});
@@ -395,7 +404,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const statusLabel = a.status === "on" ? "On" : a.status === "paused" ? "Paused" : a.status === "draft" ? "Draft" : "Off";
   const test = async (): Promise<void> => {
     if (errors.length > 0) { flash(`Fix ${errors.length === 1 ? "the problem" : `the ${errors.length} problems`} first, then test.`); setTab("steps"); return; }
-    try { await data.call("automations.test", { automationId: a.id, sample: true }); flash("Test run started with sample data"); }
+    try { await data.call("automations.test", { automationId: a.id, sample: {} }); flash("Test run started with sample data"); }
     catch (e) { flash(e instanceof Error ? e.message : "The test did not start."); }
   };
   const hasManual = startsByHand(def);
@@ -507,7 +516,7 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
   const graphCards: ReactElement[] = [];
   for (const card of lay.cards) if (card.type === "step") graphCards.push(<StepCard key={card.id} card={card} selected={false} hovered={false} handlers={still} agent={agentOf(card)} onHover={() => undefined} />);
   const runGraph = tab === "runs" && tabBodies.runs ? (
-    <ResizableColumn paneKey="automation-run-graph" defaultWidth={250} grow="left" min={200} style={s.graphCol as never} testID="run-graph" label="Steps of the run" onLayout={(e: LayoutChangeEvent) => setGraphView({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
+    <ResizableColumn inline paneKey="automation-run-graph" defaultWidth={250} grow="left" min={200} style={s.graphCol as never} testID="run-graph" label="Steps of the run" onLayout={(e: LayoutChangeEvent) => setGraphView({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
       <View pointerEvents="none" style={{ flex: 1 }}>
         <Surface lay={lay} zoom={graphView.w > 0 ? fitScale(lay, graphView.w, graphView.h) : 0.4} view={graphView}>
           <TriggerCard card={lay.cards[0]!} triggers={def.triggers} selected={false} hovered={false} onHover={() => undefined} handlers={still} selectedIndex={null} onSelectTrigger={() => undefined} onOpenTrigger={() => undefined} onAddTrigger={() => undefined} onTriggerMenu={() => undefined} describe={describe} />
@@ -535,7 +544,9 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
           <Text testID="definition-version" style={s.kindText}>{definitionLabel(a, dirty)}</Text>
         </View>
         <View style={s.kind} testID="kind"><Glyph name={a.kind === "space" ? "users" : "key"} size={13} color="var(--ink-3)" /><Text style={s.kindText}>{a.kind === "space" ? "Space" : "Personal"}</Text></View>
-        {needs ? (<><View style={s.sep} /><View style={s.needs}><Dot tone="warn" size={6} /><Text numberOfLines={1} style={s.needsText}>{needs.replace(/^needs/i, "Needs")}</Text></View></>) : null}
+        {needs ? (<><View style={s.sep} /><View style={s.needs}><Dot tone="warn" size={6} /><Text numberOfLines={1} style={s.needsText}>{needs.replace(/^needs/i, "Needs")}</Text>
+        </View></>) : null}
+        {sendsFrom ? (<><View style={s.sep} /><Text testID="sends-from" numberOfLines={1} style={[s.sendsFrom, !sendsFrom.ok && { color: "var(--warn)" as string }]}>{sendsFrom.text}</Text></>) : null}
         <View style={{ flex: 1 }} />
         {phone ? null : <View accessibilityLabel="Builder mode" testID="builder-mode" style={s.seg} {...webOnly({ title: "Basic shows each step as a form. Advanced adds the step or trigger as JSON under the form." })}>
           {/* ui-rows-lint: not a list (Basic and Advanced toggle) */}
@@ -616,7 +627,12 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
                   <IconButton icon="x" label="Stop showing this run" size={20} onPress={() => { setLitRun(null); onClearRun?.(); }} />
                 </View>
               ) : null}
-              {note ? <View style={s.toast} accessibilityLiveRegion="polite" testID="note"><Text style={s.toastText}>{note}</Text></View> : null}
+              {note ? (
+                <View style={s.toast} accessibilityLiveRegion="polite" testID="note">
+                  <Text style={s.toastText}>{note}</Text>
+                  {needsConnecting(note) ? <Text accessibilityRole="button" testID="note-connect" onPress={() => data.nav.connect({ service: "mailbox" })} style={s.toastLink}>Connect</Text> : null}
+                </View>
+              ) : null}
             </View>
             {stack && inspectorPane ? (
               <View testID="inspector-stack" accessibilityLabel={COMPACT_REGIONS.slice(1).join(", ")} style={s.inspectorStack}>
@@ -854,7 +870,9 @@ const s = StyleSheet.create({
   fitText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   runChip: { position: "absolute", left: 14, top: 12, height: 30, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 12, paddingRight: 4, borderRadius: 10, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
   runChipText: { fontSize: 12.5, color: "var(--ink)" as string, maxWidth: 260 },
-  toast: { position: "absolute", alignSelf: "center", bottom: 18, left: 120, right: 120, alignItems: "center" },
+  toast: { position: "absolute", alignSelf: "center", bottom: 62, left: 120, right: 120, alignItems: "center", gap: 4 },
+  toastLink: { fontSize: 12.5, fontWeight: "600", color: "var(--accent)" as string },
+  sendsFrom: { fontSize: 11.5, color: "var(--ink-2)" as string },
   toastText: { fontSize: 12.5, color: "var(--ink)" as string, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 7, overflow: "hidden" },
   chip: { height: 22, maxWidth: 240, paddingHorizontal: 9, borderRadius: 7, justifyContent: "center", backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
   chipText: { fontSize: 11.5, color: "var(--ink-2)" as string },

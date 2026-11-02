@@ -15,7 +15,7 @@ const spaceRow = t.obj({
 const stepKey = t.enm('photo_title', 'connect_mailbox', 'meet_assistant', 'first_project', 'import');
 const flowKind = t.enm('personal', 'team', 'member');
 const flowStep = t.str({ examples: ['ai'] });
-const featureKey = t.enm('apps_public', 'campaign_sending', 'console', 'webhooks', 'always_on_runs', 'sharing', 'members');
+const featureKey = t.enm('apps_public', 'console', 'webhooks', 'always_on_runs', 'sharing', 'members');
 
 export default defineManifest({
   id: 'spaces',
@@ -104,8 +104,6 @@ export default defineManifest({
   ],
 
   settings: [
-    setting('space.allowed_ai_accounts', 'space', 'console.space', 'Allowed AI accounts', t.enm('any', 'company'), 'any', { floorable: true }),
     setting('space.skin_default', 'space', 'console.space', 'Default skin', t.str(), 'classic'),
-    setting('space.data_location', 'space', 'console.space', 'Data location', t.str({ examples: ['EU'] }), 'where the Space server runs'),
   ],
 });

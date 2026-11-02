@@ -16,10 +16,6 @@ export async function runAction(d: AppsData, action: RowAction, row: AppRow): Pr
   switch (action) {
     case "publish": { const out = await d.call("forms.publish", { formId: row.id }); return held(out, "Publishing") ?? { text: `Published ${row.title}.` }; }
     case "unpublish": await d.call("forms.unpublish", { formId: row.id }); return { text: `${row.title} is no longer public.` };
-    case "launch": { const out = await d.call("campaigns.launch", { campaignId: row.id, idempotencyKey: key("launch", row.id, now) }); return held(out, "Launching") ?? { text: `Launched ${row.title}.` }; }
-    case "pause": await d.call("campaigns.pause", { campaignId: row.id }); return { text: `Paused ${row.title}.` };
-    case "resume": await d.call("campaigns.resume", { campaignId: row.id }); return { text: `Resumed ${row.title}.` };
-    case "stop": await d.call("campaigns.stop", { campaignId: row.id }); return { text: `Stopped ${row.title}.` };
     case "install": { const out = (await d.call("templates.install", { templateId: row.id })) as { installed?: unknown[] }; return held(out, "Installing") ?? { text: `Installed ${row.title}. It added ${out.installed?.length ?? 0}.` }; }
     case "check": { await d.call("mail.domain.check", { domainId: row.id }); return { text: `Checked the records for ${row.title}.` }; }
     case "open": d.nav.open(row.group, row.id); return { text: "" };

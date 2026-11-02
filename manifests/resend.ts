@@ -1,4 +1,4 @@
-// resend (lane L5): Resend connector, one of the two `send.email` backends for Space sending (campaigns, automations,
+// resend (lane L5): Resend connector, one of the two `send.email` backends for Space sending (automations,
 // agents, shared inboxes). Domains with SPF/DKIM/DMARC records, delivery webhooks, inbound routes. ARCHITECTURE 8 table, 8.2.
 // DECISION: mail.send is the only door for sending. resend.send_email has no MCP tool; people and agents call mail.send,
 // which applies caps, windows, throttling, suppression and the Gate before it reaches this backend.
@@ -17,10 +17,11 @@ const quiet = (what: string) => ({ act: 'none', reason: what });
 const capabilities = [
   outward('resend.send_email', 'Send one email through Resend (the send.email backend behind mail.send)', {
     in: {
-      from: email, fromName: t.opt(t.str()), to: t.arr(email, { minItems: 1 }), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), replyTo: t.opt(email), subject: t.str(),
+      mailboxId: id.mailbox, from: email, fromName: t.opt(t.str()), to: t.arr(email, { minItems: 1 }), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), replyTo: t.opt(email), subject: t.str(),
       text: t.opt(t.str()), html: t.opt(t.str()), attachments: t.opt(t.arr(t.obj({ name: t.str(), fileId: id.file }))), headers: t.opt(t.rec(t.str())), tags: t.opt(t.arr(t.obj({ name: t.str(), value: t.str() }))),
     },
-    out: { providerId: t.str() }, gate: 'send', errors: ['provider.auth_failed', 'provider.rate_limited', 'provider.bad_response'],
+    // the mail.send caller's right to this mailbox is the right to its provider: a Space Automation needs no reach over the whole Space to send from one mailbox
+    out: { providerId: t.str() }, on: ['mailbox', '/mailboxId'], level: 'use', gate: 'send', errors: ['provider.auth_failed', 'provider.rate_limited', 'provider.bad_response'],
   }),
   read('resend.get_email', 'Look up the delivery status of a sent email', { in: { providerId: t.str() }, out: { status: t.str(), lastEvent: t.opt(eventType), at: t.opt(t.ts()) } }),
   read('resend.domains.list', 'List domains in the Resend account', { in: {}, out: { domains: t.arr(domainRow) }, perm: 'comms.domains' }),

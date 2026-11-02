@@ -6,6 +6,7 @@ import type { ReactElement, ReactNode } from "react";
 import { States } from "../../../../ui/src/States/index.tsx";
 import { claimToken } from "../claim/logic.ts";
 import { SessionGate } from "../shell/session/SessionGate.tsx";
+import { FirstFrame, Opening } from "../join/kit.tsx";
 import { hydrationBaseUrl } from "../shell/session/hydration.ts";
 import { UrlSync } from "../shell/session/UrlSync.tsx";
 import type { ShellHub } from "../shell/spaces/hub.ts";
@@ -16,11 +17,12 @@ registerShellPlaces();
 
 /** /claim/<token>: the first screen on a fresh install (ruling 71). Loaded only when that address is opened. */
 const OAuthRoute = lazy(() => import("../oauth/OAuthRoute.tsx").then((m) => ({ default: m.OAuthRoute })));
+const AllowRoute = lazy(() => import("../oauth/AllowRoute.tsx").then((m) => ({ default: m.AllowRoute })));
 const ClaimRoute = lazy(() => import("../claim/ClaimRoute.tsx").then((m) => ({ default: m.ClaimRoute })));
 
 const currentPath = (): string => (globalThis as { location?: { pathname?: string } }).location?.pathname ?? "/";
 
-/** Leave the claim address for Home without a router: replace the history entry and read the path again. */
+/** Leave the claim address for Chats without a router: replace the history entry and read the path again. */
 function replacePath(path: string): void {
   const h = (globalThis as { history?: { state: unknown; replaceState(state: unknown, title: string, url: string): void } }).history;
   h?.replaceState(h.state, "", path);
@@ -38,7 +40,7 @@ class RootBoundary extends Component<{ children: ReactNode }, { failed: boolean 
 }
 
 export function AppRoot(): ReactElement {
-  return <RootBoundary><AppRoute /></RootBoundary>;
+  return <RootBoundary><AppRoute /><FirstFrame /></RootBoundary>;
 }
 
 function AppRoute(): ReactElement {
@@ -48,12 +50,14 @@ function AppRoute(): ReactElement {
   const [path, setPath] = useState<string | null>(null);
   useEffect(() => setPath(currentPath()), []);
   const token = path === null ? null : claimToken(path);
-  const home = (): void => { replacePath("/home"); setPath("/home"); };
+  const home = (): void => { replacePath("/chat"); setPath("/chat"); };
   // /oauth/callback: where an app sends a person back after approving a connection; it finishes the sign-in as the signed-in person
-  if (path === "/oauth/callback") return <Suspense fallback={null}><OAuthRoute /></Suspense>;
+  if (path === "/oauth/callback") return <Suspense fallback={<Opening />}><OAuthRoute /></Suspense>;
+  // /oauth/allow: an app outside Vyre asked to join; the normal sign-in, then the one press
+  if (path === "/oauth/allow") return <Suspense fallback={<Opening />}><AllowRoute /></Suspense>;
   if (token) {
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<Opening />}>
         <ClaimRoute token={token} onDone={home} onSignIn={home} />
       </Suspense>
     );

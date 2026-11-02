@@ -20,10 +20,7 @@ export async function messageErase(ctx: MailCtx, input: { messageId: string; ide
   if (rfc) ctx.db.run(`DELETE FROM mail_rfc WHERE "rfcMessageId" = ?`, rfc);
   ctx.db.run(`DELETE FROM mail_body WHERE "messageId" = ?`, id);
   ctx.db.run(`DELETE FROM mail_link WHERE "messageId" = ?`, id);
-  for (const t of ["mail_send_log", "mail_idem"] as const) {
-    const col = t === "mail_idem" ? "refId" : "messageId";
-    try { ctx.db.run(`DELETE FROM ${t} WHERE "${col}" = ?`, id); } catch (e) { if (!/no (such )?table/i.test(e instanceof Error ? e.message : String(e))) throw e; }   // created by a later migration
-  }
+  try { ctx.db.run(`DELETE FROM mail_idem WHERE "refId" = ?`, id); } catch (e) { if (!/no (such )?table/i.test(e instanceof Error ? e.message : String(e))) throw e; }
   ctx.db.run(`DELETE FROM mail_message WHERE id = ?`, id);
   ctx.emit("mail.message_erased", `entity/${id}`, { messageId: id });
   return { erased: true };

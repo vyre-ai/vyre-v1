@@ -1,6 +1,6 @@
 # health.paused
 
-An unhealthy dependency paused automations, sync, sends or campaigns
+An unhealthy dependency paused automations, sync or sends
 
 | | |
 |---|---|
@@ -19,7 +19,7 @@ An unhealthy dependency paused automations, sync, sends or campaigns
 ```ts
 type Payload = {
   key: string;
-  paused: Array<"automations" | "sync" | "sends" | "campaigns">;
+  paused: Array<"automations" | "sync" | "sends">;
   reason: string;
 };
 ```

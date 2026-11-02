@@ -6,16 +6,19 @@
 //   snapshot.take / versions / restore_version             the files a run uses, and rolling back
 // A broken agent.toml never stops an agent: the last good configuration stays in agents_agent.config and is what every read here returns.
 import {
-  AGENT_MD_DEFAULT, isAgentMdV1, AWAKE_MS, agentView, markTeammate, teammateOf, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, allows, applyPatch, askerOf, call, canSee, checkToml,
+  AGENT_MD_DEFAULT, isAgentMdV1, AWAKE_MS, agentFor, agentView, seesSetup, withoutSetup, teammateOf, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, allows, applyPatch, askerOf, call, canSee, checkToml,
   codeOf, ensure, insertAgent, makeFile, makeFolder, meta, mintId, newConfig, nameKey, parseToml, raise, saveFile, setMeta, slug, statusOf, storeConfig, textOf, tolerant, tomlFor, versionsOf, visible, widenings,
   writeConfig,
 } from "../projections.ts";
-import type { AgentConfig, AgentRec, AgentsCtx, FolderOut, Limits, VersionOut } from "../projections.ts";
+import type { AgentConfig, AgentKind, AgentRec, AgentRuntime, AgentsCtx, FolderOut, Limits, VersionOut } from "../projections.ts";
+import { isOutside, outsideFace, outsideName } from "./outside.ts";
 import { readTemplate, templateVersion } from "./routines.ts";
 import { isHostService } from "../../../lib/trust.ts";
 
 type Row = Record<string, unknown>;
 const by = (ctx: AgentsCtx): string => ctx.actingFor ?? ctx.principal.id;
+/** Why an agent stopped when the person who owned it is no longer here. */
+export const OWNER_LEFT = "The owner left this Space";
 
 // ---- reads ---------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -31,16 +34,16 @@ export async function list(ctx: AgentsCtx, input: { section?: "personal" | "shar
   if (input.status && input.status.length > 0) rows = rows.filter((a) => input.status!.includes(statusOf(a, now)));
   // teammates belong to a project: the Agents page does not list them unless asked
   const mode = input.projectId !== undefined ? "only" : input.teammates ?? "hide";
-  if (mode === "hide") rows = rows.filter((a) => teammateOf(ctx.db, a.id) === undefined);
-  else if (mode === "only") rows = rows.filter((a) => { const p = teammateOf(ctx.db, a.id); return p !== undefined && (input.projectId === undefined || p === input.projectId); });
+  if (mode === "hide") rows = rows.filter((a) => teammateOf(a) === undefined);
+  else if (mode === "only") rows = rows.filter((a) => { const p = teammateOf(a); return p !== undefined && (input.projectId === undefined || p === input.projectId); });
   const offset = input.cursor !== undefined && /^\d+$/.test(input.cursor) ? Number(input.cursor) : 0;
   const limit = input.limit ?? 100;
   const page = rows.slice(offset, offset + limit);
-  return { agents: page.map((a) => agentView(ctx.db, a, now)), ...(offset + limit < rows.length ? { next: String(offset + limit) } : {}), total: rows.length };
+  return { agents: page.map((a) => agentFor(ctx, a, now)), ...(offset + limit < rows.length ? { next: String(offset + limit) } : {}), total: rows.length };
 }
 
 export async function get(ctx: AgentsCtx, input: { agentId: string }) {
-  return { agent: agentView(ctx.db, visible(ctx, input.agentId), ctx.now()) };
+  return { agent: agentFor(ctx, visible(ctx, input.agentId), ctx.now()) };
 }
 
 /** The keys that pay for an agent's memory upkeep and its chat fallbacks. The server reads them for the nightly job, which runs as itself and sees no agents; a person needs to be able to see the agent. */
@@ -48,7 +51,7 @@ export async function memoryKeyGet(ctx: AgentsCtx, input: { agentId: string }) {
   ensure(ctx.db);
   const a = isHostService(ctx.principal) ? agentBy(ctx.db, input.agentId) : visible(ctx, input.agentId);
   if (!a) raise(ctx, "validation.not_found", "That agent does not exist.");
-  return { ...(a.config.memoryKey !== undefined ? { memoryKey: a.config.memoryKey } : {}), ownerId: a.ownerId };
+  return { ...(a.config.memoryKey !== undefined && (isHostService(ctx.principal) || seesSetup(ctx, a)) ? { memoryKey: a.config.memoryKey } : {}), ownerId: a.ownerId };
 }
 
 export async function status(ctx: AgentsCtx, input: { agentId: string }) {
@@ -170,9 +173,21 @@ async function createTree(ctx: AgentsCtx, agentId: string, name: string, tomlTex
   return { folderId: home.folderId, tomlFileId: toml.fileId, agentMdFileId: md.fileId };
 }
 
-export async function create(ctx: AgentsCtx, input: {
-  name: string; role?: string; face?: string; model?: string; ownerId?: string; computer?: boolean; templateKey?: string; tools?: { allowed: string[]; denied: string[] }; limits?: Limits; projectId?: string; idempotencyKey?: string;
-}) {
+type CreateInput = { name: string; role?: string; face?: string; model?: string; ownerId?: string; computer?: boolean; templateKey?: string; tools?: { allowed: string[]; denied: string[] }; limits?: Limits; projectId?: string; idempotencyKey?: string };
+
+/** agents.create: a teammate when it names a project, otherwise an agent of the Space. A private assistant is never asked for: only a person's account makes one (onPersonCreated). */
+export const create = (ctx: AgentsCtx, input: CreateInput) => make(ctx, input, input.projectId !== undefined ? "teammate" : "agent");
+
+/** agents.outside.connect: the agent an app becomes when a person allows it. Only the sign-in reaches this: a nested call from mcp.oauth.allow, as that person. */
+export async function connectOutside(ctx: AgentsCtx, input: { clientName: string }) {
+  if ((ctx.depth ?? 0) < 1 || ctx.principal.kind !== "person") raise(ctx, "permission.no_grant", "An outside agent is made by a person allowing it to join.");
+  ensure(ctx.db);
+  const made = await make(ctx, { name: await outsideName(ctx, input.clientName), role: "Runs outside Vyre", face: outsideFace(ctx) }, "agent", "outside");
+  const agent = made.agent as { agentId: string; name: string };
+  return { agentId: agent.agentId, name: agent.name };
+}
+
+async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind, runtime: AgentRuntime = "vyre") {
   ensure(ctx.db);
   const name = input.name.trim().replace(/\s+/g, " ");
   if (name === "" || name.length > MAX_NAME || NAME_BAD.test(name) || name.startsWith(".")) raise(ctx, "validation.bad_input", `An agent's name is up to ${MAX_NAME} characters with none of / \\ : * ? " < > | and no dot at the start.`);
@@ -195,16 +210,15 @@ export async function create(ctx: AgentsCtx, input: {
   const template = await readTemplate(ctx);
   const starter = template.items.find((i) => i.kind === "file" && i.path === "AGENT.md")?.text;
   // the private assistant is the person's own, above any one Space: it starts from its own AGENT.md, never from the Space's Agent template
-  const agentMd = starter !== undefined && input.role?.trim() !== "assistant" ? starter.replaceAll("{{name}}", name).replaceAll("{{role}}", input.role?.trim() ?? "") : AGENT_MD_DEFAULT(name, input.role);
+  const agentMd = starter !== undefined && kind !== "assistant" ? starter.replaceAll("{{name}}", name).replaceAll("{{role}}", input.role?.trim() ?? "") : AGENT_MD_DEFAULT(name, input.role, kind);
   const tree = await createTree(ctx, id, name, tomlText, agentMd);
   const rec: AgentRec = {
-    id, name, face: input.face?.trim() || slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: input.computer === true,
+    id, name, kind, runtime, ...(input.projectId !== undefined ? { projectId: input.projectId } : {}), face: input.face?.trim() || slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: input.computer === true,
     templateVersion: await templateVersion(ctx, template), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
   };
   insertAgent(ctx.db, rec);
-  if (input.projectId !== undefined) markTeammate(ctx.db, id, input.projectId);
   ctx.emit("agent.created", id, { agentId: id, name, ownerId: owner, folderId: tree.folderId, templateVersion: rec.templateVersion });
-  return { agent: agentView(ctx.db, rec, now) };
+  return { agent: agentView(rec, now) };
 }
 
 // ---- update ------------------------------------------------------------------------------------------------------------------------------------------------
@@ -273,6 +287,7 @@ export async function roleLineSet(ctx: AgentsCtx, input: { agentId: string; desc
 
 export async function pause(ctx: AgentsCtx, input: { agentId: string; reason?: string }) {
   const a = visible(ctx, input.agentId);
+  if (isOutside(a)) raise(ctx, "validation.precondition_failed", "An outside agent runs on its own computer, so it cannot be paused from here. Remove it to end its access.", { reason: "outside" });
   if (a.paused) return { agent: agentOut(a, ctx.now()) };
   const now = ctx.now();
   const reason = input.reason?.trim() || undefined;
@@ -290,13 +305,20 @@ export async function resume(ctx: AgentsCtx, input: { agentId: string }) {
   return { agent: agentOut(agentBy(ctx.db, a.id)!, now) };
 }
 
-export async function remove(ctx: AgentsCtx, input: { agentId: string }) {
-  const a = visible(ctx, input.agentId);
+/** The one way an agent ends: the row goes to Trash with its folder and everything downstream hears agent.deleted, so its Jobs stop, its holds drop, its Needs close and its chats get one line (hole 10). */
+export async function retire(ctx: AgentsCtx, a: AgentRec, who: string): Promise<void> {
   const now = ctx.now();
-  ctx.db.run("UPDATE agents_agent SET deletedAt = ?, updatedAt = ? WHERE id = ?", now, now, a.id);
+  ctx.db.run("UPDATE agents_agent SET deletedAt = ?, updatedAt = ?, working = 0 WHERE id = ?", now, now, a.id);
   // The folder follows the Trash rules of Files; the agent's chats and memory stay where they are until the folder is emptied.
   if (a.folderId !== undefined) await tolerant(ctx, "files.folder.delete", { folderId: a.folderId }, null);
-  ctx.emit("agent.deleted", a.id, { agentId: a.id, by: by(ctx) });
+  ctx.emit("agent.deleted", a.id, { agentId: a.id, name: a.name, by: who });
+}
+
+export async function remove(ctx: AgentsCtx, input: { agentId: string }) {
+  const a = visible(ctx, input.agentId);
+  // every person has one assistant for as long as they are here; it ends with them (onPersonLeft), never by a press or by an agent
+  if (isAssistant(a)) raise(ctx, "validation.precondition_failed", "Your assistant stays with you. Rename it or change what it does instead.", { reason: "assistant_stays" });
+  await retire(ctx, a, by(ctx));
   return { deleted: true };
 }
 
@@ -305,6 +327,8 @@ export async function setOwner(ctx: AgentsCtx, input: { agentId: string; ownerId
   const a = visible(ctx, input.agentId);
   if (!input.ownerId.startsWith("usr_")) raise(ctx, "validation.bad_input", "An agent's owner is a person.", { ownerId: input.ownerId });
   if (input.ownerId === a.ownerId) return { agent: agentOut(a, ctx.now()) };
+  // it acts for the person who pressed Allow, on that person's machine: it cannot change hands
+  if (isOutside(a)) raise(ctx, "validation.precondition_failed", "An outside agent stays with the person who connected it.", { reason: "outside" });
   const who = await tolerant<{ principal?: { status?: string; kind?: string } }>(ctx, "access.principals.get", { principal: { kind: "person", id: input.ownerId } }, {});
   if (who.principal?.kind !== "person" || who.principal.status !== "active") raise(ctx, "validation.bad_input", "The new owner has to be an active person in this Space.", { ownerId: input.ownerId });
   const from = a.ownerId, now = ctx.now();
@@ -363,7 +387,7 @@ export async function configGet(ctx: AgentsCtx, input: { agentId: string }) {
   const space = await tolerant<{ files?: Array<{ fileId: string; name: string }> }>(ctx, "files.list", { section: "space", limit: 200 }, {});
   const vyre = (space.files ?? []).find((f) => f.name === "VYRE.md");
   return {
-    effective: cur.config as unknown as Record<string, unknown>,
+    effective: (seesSetup(ctx, a) ? cur.config : withoutSetup(cur.config)) as unknown as Record<string, unknown>,
     ...(a.lastGoodVersionId !== undefined ? { lastGoodVersionId: a.lastGoodVersionId } : {}),
     ...(cur.error ? { error: { ...(cur.error.line !== undefined ? { line: cur.error.line } : {}), message: cur.error.message } } : {}),
     lines: { agentMd: lineCount(await readText(a.agentMdFileId)), vyreMd: lineCount(await readText(vyre?.fileId)) },
@@ -383,6 +407,7 @@ export async function configValidate(ctx: AgentsCtx, input: { agentId: string; t
 
 export async function limitsGet(ctx: AgentsCtx, input: { agentId: string }) {
   const a = visible(ctx, input.agentId);
+  if (!seesSetup(ctx, a)) return { limits: {}, source: {} };
   const caps = async (scope: "space" | "person", scopeId?: string) => (await tolerant<{ caps?: { run?: number; dayMicros?: number; monthMicros?: number; turnsPerDay?: number; timeMinutesPerRun?: number } }>(ctx, "engine.spend.get", { scope, ...(scopeId ? { scopeId } : {}) }, {})).caps ?? {};
   const space = await caps("space"), person = await caps("person", a.ownerId);
   const capFor = (c: typeof space, k: keyof Limits): number | undefined =>
@@ -579,17 +604,39 @@ export async function onPersonCreated(ctx: AgentsCtx, event: PrincipalEvent): Pr
   ensure(ctx.db);
   const person = event.payload.principalId;
   if (event.payload.kind !== "person" || typeof person !== "string" || !person.startsWith("usr_")) return [];
-  // the role line is the agent's description in its config; the console assistant finds the assistant by the same word
   const have = allAgents(ctx.db).find((a) => a.ownerId === person && isAssistant(a));
   if (have) return [have.id];
   const names = assistantNames(person, event.payload.name);
   for (const name of names) {
     if (agentByName(ctx.db, name)) continue;
     // the person is the asker, so the maker and the owner are the same and no one is asked to manage access
-    const made = await create({ ...ctx, actingFor: person }, { name, role: "assistant", ownerId: person, idempotencyKey: `assistant-${person}` });
+    const made = await make({ ...ctx, actingFor: person }, { name, role: "assistant", ownerId: person, idempotencyKey: `assistant-${person}` }, "assistant");
     return [made.agent.agentId];
   }
   return [];
+}
+
+export interface PersonLeftEvent { payload: { personId?: string } }
+
+/**
+ * A person was removed from the Space or left it (member.removed, at least once). Their assistant goes with them, even when they owned nothing else and the removal wizard had nothing to do for agents.
+ * Anything of theirs still running here was not handed on, which is what leaving by themselves does: their agents pause with the reason shown, and their routines stop, so nothing acts for someone who is gone.
+ */
+export async function onPersonLeft(ctx: AgentsCtx, event: PersonLeftEvent): Promise<string[]> {
+  ensure(ctx.db);
+  const person = event.payload.personId;
+  if (typeof person !== "string" || !person.startsWith("usr_")) return [];
+  const touched: string[] = [];
+  const now = ctx.now();
+  for (const a of allAgents(ctx.db).filter((x) => x.ownerId === person)) {
+    if (isAssistant(a) || isOutside(a)) { await retire(ctx, a, person); touched.push(a.id); continue; }
+    if (a.paused) continue;
+    ctx.db.run("UPDATE agents_agent SET paused = 1, pausedReason = ?, pausedBy = ?, pausedAt = ?, updatedAt = ? WHERE id = ?", OWNER_LEFT, person, now, now, a.id);
+    ctx.emit("agent.paused", a.id, { agentId: a.id, reason: OWNER_LEFT, by: person });
+    touched.push(a.id);
+  }
+  ctx.db.run("UPDATE agents_routine SET enabled = 0, updatedAt = ? WHERE ownerId = ? AND enabled = 1", now, person);
+  return touched;
 }
 
 export interface FileVersionEvent { payload: { fileId: string; versionId: string; n?: number; by?: string } }
@@ -651,7 +698,7 @@ export async function restoreAgentFiles(ctx: AgentsCtx): Promise<string[]> {
     if (a.folderId === undefined) {
       // a record with no home: make Agents/<name> with the decided tree and both files, and point the record at them
       try {
-        const tree = await createTree(ctx, a.id, a.name, a.tomlText, AGENT_MD_DEFAULT(a.name, a.config.description));
+        const tree = await createTree(ctx, a.id, a.name, a.tomlText, AGENT_MD_DEFAULT(a.name, a.config.description, a.kind));
         ctx.db.run("UPDATE agents_agent SET folderId = ?, tomlFileId = ?, agentMdFileId = ?, updatedAt = ? WHERE id = ?", tree.folderId, tree.tomlFileId, tree.agentMdFileId, ctx.now(), a.id);
         put.push(`${a.name}/agent.toml`, `${a.name}/AGENT.md`);
         ctx.log.warn("agents: an agent had no folder and has been given one", { agent: a.id });
@@ -670,7 +717,7 @@ export async function restoreAgentFiles(ctx: AgentsCtx): Promise<string[]> {
     }
     const wanted: Array<{ name: "agent.toml" | "AGENT.md"; id: string | undefined; column: "tomlFileId" | "agentMdFileId"; text: () => string }> = [
       { name: "agent.toml", id: a.tomlFileId, column: "tomlFileId", text: () => a.tomlText },
-      { name: "AGENT.md", id: a.agentMdFileId, column: "agentMdFileId", text: () => AGENT_MD_DEFAULT(a.name, a.config.description) },
+      { name: "AGENT.md", id: a.agentMdFileId, column: "agentMdFileId", text: () => AGENT_MD_DEFAULT(a.name, a.config.description, a.kind) },
     ];
     for (const w of wanted) {
       try {
@@ -719,7 +766,7 @@ async function adoptAgentPrincipals(ctx: AgentsCtx, put: string[]): Promise<void
       const tree = await createTree(ctx, p.id, name, tomlText, AGENT_MD_DEFAULT(name, undefined));
       const now = ctx.now();
       insertAgent(ctx.db, {
-        id: p.id, name, face: slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: false,
+        id: p.id, name, kind: "agent", runtime: "vyre", face: slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: false,
         templateVersion: await templateVersion(ctx), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
       });
       await ensureHomeGrants(ctx, p.id, owner, tree.folderId);
@@ -751,7 +798,7 @@ export async function upgradeStarterAgentMd(ctx: AgentsCtx): Promise<string[]> {
       const versions = await versionsOf(ctx, a.agentMdFileId);
       const text = versions.length === 1 ? await textOf(ctx, a.agentMdFileId) : "";
       if (versions.length !== 1 || !isAgentMdV1(text)) { setMeta(ctx.db, key, "kept"); continue; }
-      await saveFile(ctx, a.agentMdFileId, AGENT_MD_DEFAULT(a.name, a.config.description), "Vyre wrote a fuller starter AGENT.md");
+      await saveFile(ctx, a.agentMdFileId, AGENT_MD_DEFAULT(a.name, a.config.description, a.kind), "Vyre wrote a fuller starter AGENT.md");
       setMeta(ctx.db, key, "upgraded");
       done.push(a.id);
     } catch (e) {

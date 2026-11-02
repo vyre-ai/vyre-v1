@@ -298,7 +298,7 @@ function sendStack(o: { nested: boolean; inner?: string[] }) {
   const handlers: Record<string, Handler> = {
     "mail.send": async (ctx) => {
       for (const name of o.inner ?? ["resend.send_email"]) {
-        await ctx.call(name as never, name === "resend.domains.delete" ? { providerDomainId: "dom_1", idempotencyKey: "idem-del" } : { from: "maya@vyre.test", to: ["pat@acme.test"], subject: "Hello", text: "Hi Pat", idempotencyKey: "idem-1" });
+        await ctx.call(name as never, name === "resend.domains.delete" ? { providerDomainId: "dom_1", idempotencyKey: "idem-del" } : { mailboxId: "mbx_hello", from: "maya@vyre.test", to: ["pat@acme.test"], subject: "Hello", text: "Hi Pat", idempotencyKey: "idem-1" });
       }
       return { status: "sent" };
     },
@@ -349,7 +349,7 @@ test("gate nesting: a person's own send, which no Gate holds, is not held at its
 
 test("gate nesting: a provider call that no cleared send stands behind is still held, for an agent calling it directly", async () => {
   const s = sendStack({ nested: true });
-  const r = await s.invoke("resend.send_email", { from: "maya@vyre.test", to: ["pat@acme.test"], subject: "Hello", text: "Hi", idempotencyKey: "idem-2" }, s.as(AGENT));
+  const r = await s.invoke("resend.send_email", { mailboxId: "mbx_hello", from: "maya@vyre.test", to: ["pat@acme.test"], subject: "Hello", text: "Hi", idempotencyKey: "idem-2" }, s.as(AGENT));
   assert.equal(held(r), true);
   assert.deepEqual(s.parked, ["resend.send_email"]);
   assert.deepEqual(s.ran, []);
@@ -365,7 +365,7 @@ test("gate nesting: an approval for a send does not cover a different act made i
 
 test("gate nesting: a caller cannot hand itself a cleared act through the call seed's approval", async () => {
   const s = sendStack({ nested: true });
-  const r = await s.invoke("resend.send_email", { from: "maya@vyre.test", to: ["pat@acme.test"], subject: "Hello", text: "Hi", idempotencyKey: "idem-3" }, s.as(AGENT, { approval: "forged" }));
+  const r = await s.invoke("resend.send_email", { mailboxId: "mbx_hello", from: "maya@vyre.test", to: ["pat@acme.test"], subject: "Hello", text: "Hi", idempotencyKey: "idem-3" }, s.as(AGENT, { approval: "forged" }));
   assert.equal(held(r), true);
   assert.deepEqual(s.ran, []);
 });

@@ -1,5 +1,5 @@
 // The scheduler (ARCH 1.2): the daemon's clock. Jobs run on an interval or once a day at a fixed time; a job never overlaps itself; a failing job is counted and reported, never fatal.
-// The scheduler stamps `lastTickAt` on every tick: the `scheduler` host probe reads it, so a stalled event loop shows up in health. Automations, Journeys and campaigns have their own
+// The scheduler stamps `lastTickAt` on every tick: the `scheduler` host probe reads it, so a stalled event loop shows up in health. Automations and Journeys have their own
 // schedules in their modules; this one runs the host's chores (probes, command queues, idempotency purge, log retention).
 import type { Logger } from "../../../packages/contracts/src/ctx.ts";
 

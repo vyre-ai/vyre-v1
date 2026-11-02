@@ -1,16 +1,15 @@
 // The MCP endpoint (spec 2.2, 4.12, "native"; ARCH 6.6, 6.7): JSON-RPC over HTTP for outside tools and for the loopback session of a CLI engine. Auth, the tool list a caller sees, tool_search,
-// tool calls as the actor acting for the person, scopes, the Gate, and every way a request can be wrong.
+// tool calls as the agent acting for the person, what stays with people, the Gate, and every way a request can be wrong.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createMcpServer, MAX_RESULT_CHARS } from "../../../agent/src/mcp/index.ts";
-import type { McpCaller, McpServerDeps, Scopes } from "../../../agent/src/mcp/index.ts";
+import { createMcpServer, MAX_RESULT_CHARS, isPersonOnly, outsideAllows } from "../../../agent/src/mcp/index.ts";
+import type { McpCaller, McpServerDeps } from "../../../agent/src/mcp/index.ts";
 import { fakeInvoke, loadGenerated } from "../../../agent/src/tools/harness.ts";
 import type { Invoke } from "../../../host/src/invoke.ts";
 
 const g = loadGenerated();
-const FULL: Scopes = { read: true, post: true, readChangesets: true, writeBranch: false };
 const outside = (over: Partial<McpCaller> = {}): McpCaller => ({
-  kind: "outside", sessionId: "ses_out", space: "spc_1", principal: { kind: "actor", id: "act_cc" }, actingFor: "usr_dana", scopes: FULL, name: "Claude Code", ...over,
+  kind: "outside", sessionId: "ses_out", space: "spc_1", principal: { kind: "agent", id: "agt_cc" }, actingFor: "usr_dana", name: "Claude Code", ...over,
 });
 const driver = (over: Partial<McpCaller> = {}): McpCaller => ({
   kind: "driver", sessionId: "ses_drv", space: "spc_1", principal: { kind: "agent", id: "agt_intake" }, actingFor: "usr_dana", threadId: "thr_1", runId: "run_1", traceId: "a".repeat(32), ...over,
@@ -121,19 +120,21 @@ test("a batch answers each request and skips notifications; a batch of only noti
   assert.equal(only.status, 202);
 });
 
-test("one token, one session: auth runs once, DELETE ends it, the next request opens a new one", async () => {
+test("one token, one session: a CLI engine's auth runs once, an outside agent's on every request, DELETE ends it, the next request opens a new one", async () => {
   const r = rig();
+  await r.rpc("drv", "ping");
+  await r.rpc("drv", "ping");
+  assert.deepEqual(r.opened, ["drv"]);
   await r.rpc("out", "ping");
   await r.rpc("out", "ping");
-  assert.deepEqual(r.opened, ["out"]);
-  assert.equal(r.server.sessions(), 1);
+  assert.deepEqual(r.opened, ["drv", "out", "out"]);
+  assert.equal(r.server.sessions(), 2);
   const del = await r.server.handle({ method: "DELETE", headers: { authorization: "Bearer out" }, body: "" });
   assert.equal(del.status, 204);
   assert.deepEqual(r.closed, ["ses_out"]);
-  assert.equal(r.server.sessions(), 0);
+  assert.equal(r.server.sessions(), 1);
   await r.rpc("out", "ping");
-  assert.deepEqual(r.opened, ["out", "out"]);
-  assert.equal((await r.server.handle({ method: "DELETE", headers: { authorization: "Bearer zzz" }, body: "" })).status, 404);
+  assert.deepEqual(r.opened, ["drv", "out", "out", "out"]);
 });
 
 test("a wrong Mcp-Session-Id is 404; ending the session from outside (close, revoke) drops it", async () => {
@@ -146,29 +147,36 @@ test("a wrong Mcp-Session-Id is 404; ending the session from outside (close, rev
   assert.equal(r.server.sessions(), 0);
 });
 
-test("a revoked connection is cut within the recheck interval, before its next call", async () => {
+test("a closed engine session is cut within the recheck interval, before its next call", async () => {
   let valid = true;
   const r = rig({ stillValid: async () => valid });
-  assert.equal((await r.rpc("out", "ping")).status, 200);
+  assert.equal((await r.rpc("drv", "ping")).status, 200);
   valid = false;
-  assert.equal((await r.rpc("out", "ping")).status, 200, "not asked again yet");
-  r.callers.delete("out");
+  assert.equal((await r.rpc("drv", "ping")).status, 200, "not asked again yet");
+  r.callers.delete("drv");
   r.clock.t += 31_000;
-  const cut = await r.rpc("out", "ping");
+  const cut = await r.rpc("drv", "ping");
   assert.equal(cut.status, 401, "asked again, no longer valid, and the token no longer opens");
-  assert.deepEqual(r.closed, ["ses_out"]);
+  assert.deepEqual(r.closed, ["ses_drv"]);
   assert.equal(r.server.sessions(), 0);
+});
+
+test("an outside agent's token that stops working is refused at its very next request", async () => {
+  const r = rig();
+  assert.equal((await r.rpc("out", "ping")).status, 200);
+  r.callers.delete("out");
+  assert.equal((await r.rpc("out", "ping")).status, 401);
 });
 
 // ---- the tool list
 
-test("tools/list for an outside tool: common tools it may use, none of the vault, terminal or computer tools, with schemas and hints", async () => {
+test("tools/list for an outside agent: common tools it may use, none of the vault, terminal or computer tools, with schemas and hints", async () => {
   const r = rig();
-  const tools = await r.list("out");
+  const tools = (await r.list("out")).filter((t) => t.name !== "use_tool");
   const names = new Set(tools.map((t) => t.name));
   assert.ok(names.has("tool_search") && names.has("records_query") && names.has("chat_post"));
-  assert.ok(tools.length >= 20 && tools.length < g.defaults.size, `${tools.length} tools`);
-  for (const n of names) assert.ok(g.defaults.has(n), `${n} is in the frozen default set`);
+  assert.ok(tools.length >= 20 && tools.length < g.defaults.size + 1, `${tools.length} tools`);
+  for (const n of names) assert.ok(g.defaults.has(n) || n === "agents_next", `${n} is in the frozen default set`);
   for (const t of tools) {
     const def = g.catalog.byName(t.name)!;
     assert.notEqual(def.toolset, "vault", t.name);
@@ -184,8 +192,19 @@ test("tools/list for an outside tool: common tools it may use, none of the vault
 test("tools/list for a CLI engine's session is the whole default set (the agent's own rules apply), not the outside tool's cut", async () => {
   const r = rig();
   const names = new Set((await r.list("drv")).map((t) => t.name));
-  assert.equal(names.size, g.defaults.size);
-  assert.ok(names.has("terminal_run") && names.has("vault_use") && names.has("screen_screenshot"));
+  assert.equal(names.size, g.defaults.size + 4);
+  assert.ok(names.has("terminal_run") && names.has("vault_use") && names.has("screen_screenshot") && names.has("use_tool") && names.has("files_create") && names.has("files_tree"));
+});
+
+test("a CLI engine lists once, so use_tool calls what tool_search found; a tool it never searched for stays refused", async () => {
+  const r = rig();
+  const deferred = g.catalog.all.find((t) => !g.defaults.has(t.name) && t.toolset !== "engineer")!;
+  const before = await r.callTool("drv", "use_tool", { name: deferred.name, arguments: {} });
+  assert.equal(before.result.isError, true);
+  assert.equal(before.result.structuredContent.error.details.reason, "not_loaded");
+  await r.callTool("drv", "tool_search", { query: deferred.name });
+  const after = await r.callTool("drv", "use_tool", { name: deferred.name, arguments: {} });
+  assert.notEqual(after.result.structuredContent?.error?.details?.reason, "not_loaded");
 });
 
 test("agent rules and plan mode narrow a CLI session's list and its calls", async () => {
@@ -234,14 +253,13 @@ test("a deferred tool must be found with tool_search before it can be called, an
   assert.equal(r.fake.calls.at(-1)?.cap, deferred.cap);
 });
 
-test("tool_search for an outside tool never returns what its scopes would refuse, and needs a query", async () => {
+test("tool_search for an outside agent never returns what stays with people, and needs a query", async () => {
   const r = rig();
   const found = await r.callTool("out", "tool_search", { query: "vault secret terminal run command chat post delete" });
   const tools = found.result.structuredContent.data.tools as Array<{ name: string; toolset: string }>;
   for (const t of tools) {
     assert.ok(!["vault", "terminal", "computer", "engineer"].includes(t.toolset), `${t.name} (${t.toolset}) leaked to an outside tool`);
-    const def = g.catalog.byName(t.name)!;
-    assert.equal(def.effects, "read", `${t.name} is outside the scopes`);
+    assert.equal(outsideAllows(g.catalog.byName(t.name)!), true, `${t.name} stays with people`);
   }
   const noQuery = await r.callTool("out", "tool_search", {});
   assert.equal(noQuery.result.isError, true);
@@ -250,13 +268,13 @@ test("tool_search for an outside tool never returns what its scopes would refuse
 
 // ---- tool calls
 
-test("a call is one invoke, as the actor acting for the person who connected it", async () => {
+test("a call is one invoke, as the agent acting for the person who allowed it", async () => {
   const r = rig();
   const out = await r.callTool("out", "records_query", { type: "lead" });
   assert.equal(out.result.isError, false);
   assert.deepEqual(out.result.structuredContent, { data: { cap: "records.query" } });
   assert.equal(JSON.parse(out.result.content[0].text).data.cap, "records.query");
-  assert.deepEqual(r.fake.calls, [{ cap: "records.query", principal: "act_cc", actingFor: "usr_dana", approval: undefined, preAuth: undefined }]);
+  assert.deepEqual(r.fake.calls, [{ cap: "records.query", principal: "agt_cc", actingFor: "usr_dana", approval: undefined, preAuth: undefined }]);
   assert.deepEqual(r.calls, [{ tool: "records_query", outcome: "ok" }]);
 
   const seeds: Array<{ kind: string; origin: string | undefined; thread: string | undefined; run: string | undefined }> = [];
@@ -265,7 +283,7 @@ test("a call is one invoke, as the actor acting for the person who connected it"
   await r2.callTool("out", "records_query", { type: "lead" });
   await r2.callTool("drv", "records_query", { type: "lead" });
   assert.deepEqual(seeds, [
-    { kind: "actor", origin: "mcp", thread: "ses_out", run: undefined },
+    { kind: "agent", origin: "mcp", thread: undefined, run: undefined },
     { kind: "agent", origin: "mcp", thread: "thr_1", run: "run_1" },
   ]);
 });
@@ -322,38 +340,75 @@ test("tools/call with a missing name, bad arguments or an unknown tool is invali
   assert.equal(r.fake.calls.length, 0);
 });
 
-// ---- scopes
+// ---- outside agents
 
-test("scopes: read-only lists and runs read tools; posting needs the post scope; branch writes need their scope and still go through the Gate", async () => {
-  const readOnly: Scopes = { read: true, post: false, readChangesets: false, writeBranch: false };
-  const r = rig({ callers: { ro: outside({ scopes: readOnly }), full: outside({ sessionId: "ses_full", scopes: FULL }), branch: outside({ sessionId: "ses_b", scopes: { ...FULL, writeBranch: true } }) } });
-  const ro = new Set((await r.list("ro")).map((t) => t.name));
-  assert.ok(ro.has("records_query") && !ro.has("chat_post") && !ro.has("files_write") && !ro.has("records_create"));
-  for (const n of ro) assert.equal(g.catalog.byName(n)!.effects, "read", `${n} is not a read tool`);
-  const refused = await r.callTool("ro", "chat_post", { threadId: "thr_1", body: "hi" });
-  assert.equal(refused.result.isError, true);
-  assert.equal(refused.result.structuredContent.error.code, "permission.role_lacks_permission");
-  assert.equal(refused.result.structuredContent.error.details.reason, "scope");
-  assert.equal(r.fake.calls.length, 0);
-
-  const full = new Set((await r.list("full")).map((t) => t.name));
-  assert.ok(full.has("chat_post") && !full.has("files_write") && !full.has("records_create"));
-  assert.equal((await r.callTool("full", "chat_post", { threadId: "thr_1", body: "hi" })).result.isError, false);
-  assert.equal(r.fake.calls.at(-1)?.cap, "chat.post");
-  const rc = await r.callTool("full", "records_create", {});
-  assert.equal(rc.result.structuredContent.error.details.reason, "scope", "writes other than posts are not a scope of an outside tool");
-
-  const branch = new Set((await r.list("branch")).map((t) => t.name));
-  assert.ok(branch.has("files_write"));
-  assert.equal((await r.callTool("branch", "files_write", { path: "a.md", content: "x" })).result.isError, false);
+test("an outside agent has no scope list: it can write, and what stays with people is refused before anything runs", async () => {
+  const r = rig();
+  const names = new Set((await r.list("out")).map((t) => t.name));
+  assert.ok(names.has("records_query") && names.has("chat_post") && names.has("records_create") && names.has("use_tool") && names.has("agents_next"), [...names].join(" "));
+  assert.equal((await r.callTool("out", "chat_post", { threadId: "thr_1", body: "hi" })).result.isError, false);
+  for (const tool of ["terminal_run", "vault_item_reveal", "access_share", "members_invites_create", "connections_create", "gate_rules_set"]) {
+    const def = g.catalog.byName(tool);
+    if (!def) continue;
+    const before = r.fake.calls.length;
+    const refused = await r.callTool("out", "use_tool", { name: tool, arguments: {} });
+    assert.equal(refused.result.isError, true, tool);
+    assert.equal(refused.result.structuredContent.error.details.reason, "person_only", tool);
+    assert.equal(r.fake.calls.length, before, `${tool} reached the pipeline`);
+  }
 });
 
-test("scopes: a changeset reader without general read sees changesets and nothing else, and tool_search stays available to every scope", async () => {
-  const cs: Scopes = { read: false, post: false, readChangesets: true, writeBranch: false };
-  const r = rig({ callers: { cs: outside({ scopes: cs }), none: outside({ sessionId: "ses_none", scopes: { read: false, post: false, readChangesets: false, writeBranch: false } }) } });
-  const names = (await r.list("cs")).map((t) => t.name);
-  assert.ok(names.includes("changesets_get") && names.includes("changesets_diff") && names.includes("tool_search"));
-  for (const n of names) assert.ok(g.catalog.byName(n)!.cap.startsWith("changesets.") || g.catalog.byName(n)!.cap === "mcp.tool.search", `${n} is not a changeset tool`);
-  const nothing = (await r.list("none")).map((t) => t.name);
-  assert.deepEqual(nothing, ["tool_search"]);
+test("use_tool calls what tool_search found, for a client that lists once", async () => {
+  const r = rig();
+  const deferred = g.catalog.all.find((t) => !g.defaults.has(t.name) && t.effects === "read" && outsideAllows(t) && t.local === "none")!;
+  const out = await r.callTool("out", "use_tool", { name: deferred.name, arguments: {} });
+  assert.equal(out.result.isError, false);
+  assert.equal(r.fake.calls.at(-1)?.cap, deferred.cap);
+  assert.equal(r.fake.calls.at(-1)?.principal, "agt_cc");
+});
+
+test("the families a person keeps: nothing that changes sign-in, access or the company's connections is an outside tool", () => {
+  for (const t of g.catalog.all) {
+    if (t.effects === "read") continue;
+    if (/^(identity|members|devices|access|connections|network|mcp|gate)\./.test(t.cap) && !["access.request"].includes(t.cap)) assert.equal(isPersonOnly(t.cap, t.effects), true, t.cap);
+  }
+  assert.equal(outsideAllows({ cap: "mcp.tool.search", toolset: "meta", effects: "read", local: "none" }), true);
+  assert.equal(outsideAllows({ cap: "access.request", toolset: "meta", effects: "write", local: "none" }), true, "asking is not doing");
+});
+
+test("a 401 names where to sign in, with no token and with a bad one", async () => {
+  const server = createMcpServer({ catalog: g.catalog, defaults: g.defaults, invoke: fakeInvoke(g.caps).invoke, open: async () => null, challenge: (origin, error) => `Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource/mcp"${error ? `, error="${error}"` : ""}` });
+  const none = await server.handle({ method: "POST", headers: {}, body: "{}", origin: "https://acme.vyre.run" });
+  assert.equal(none.status, 401);
+  assert.equal(none.headers["www-authenticate"], 'Bearer resource_metadata="https://acme.vyre.run/.well-known/oauth-protected-resource/mcp"');
+  const bad = await server.handle({ method: "POST", headers: { authorization: "Bearer nope" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }), origin: "https://acme.vyre.run" });
+  assert.equal(bad.status, 401);
+  assert.match(bad.headers["www-authenticate"]!, /error="invalid_token"/);
+});
+
+test("a rotated token keeps its session, and a token that stops working stops at the next request", async () => {
+  const caller = outside({ sessionId: "ses_keep" });
+  const live = new Set(["t1", "t2"]);
+  const server = createMcpServer({ catalog: g.catalog, defaults: g.defaults, invoke: fakeInvoke(g.caps).invoke, open: async (token) => (live.has(token) ? caller : null) });
+  const post = (token: string, session?: string) => server.handle({ method: "POST", headers: { authorization: `Bearer ${token}`, ...(session ? { "mcp-session-id": session } : {}) }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }) });
+  assert.equal((await post("t1")).status, 200);
+  assert.equal(server.sessions(), 1);
+  assert.equal((await post("t2", "ses_keep")).status, 200, "the session id the client holds still works");
+  assert.equal(server.sessions(), 1);
+  live.delete("t2");
+  assert.equal((await post("t2", "ses_keep")).status, 401, "no recheck window for an outside agent");
+});
+
+test("a session that ends fails the call in flight at once", async () => {
+  let release = (): void => undefined;
+  const slow: Invoke = () => new Promise((resolve) => { release = () => resolve({ status: "ok", output: { late: true }, traceId: "t" }); });
+  const caller = outside({ sessionId: "ses_slow" });
+  const server = createMcpServer({ catalog: g.catalog, defaults: g.defaults, invoke: slow, open: async () => caller });
+  const call = server.handle({ method: "POST", headers: { authorization: "Bearer t" }, body: JSON.stringify({ jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "records_query", arguments: { type: "lead" } } }) });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(server.end("ses_slow"), true);
+  const out = JSON.parse((await call).body) as { result: { isError: boolean; structuredContent: { error: { code: string } } } };
+  assert.equal(out.result.isError, true);
+  assert.equal(out.result.structuredContent.error.code, "permission.revoked");
+  release();
 });

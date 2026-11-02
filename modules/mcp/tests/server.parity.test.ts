@@ -7,8 +7,8 @@ import { toolSearch, toolDescribe, toolsList, toolsetsList, health } from "../ha
 import { harness } from "../fixtures/harness.ts";
 import { createHash } from "node:crypto";
 import { loadGenerated as moduleGenerated, registryHash } from "../projections.ts";
-import { createMcpServer, scopeAllows } from "../../../agent/src/mcp/index.ts";
-import type { McpCaller, Scopes } from "../../../agent/src/mcp/index.ts";
+import { createMcpServer, outsideAllows } from "../../../agent/src/mcp/index.ts";
+import type { McpCaller } from "../../../agent/src/mcp/index.ts";
 import { fakeInvoke, loadGenerated } from "../../../agent/src/tools/harness.ts";
 import type { McpToolRow } from "../../../agent/src/tools/types.ts";
 
@@ -113,21 +113,18 @@ test("the capability and the server agree: tool_search over MCP finds what mcp.t
   }
 });
 
-test("the outside tool's list is the default set cut by its scopes, for every combination of scopes", async () => {
-  const bools = [false, true];
-  for (const read_ of bools) for (const post of bools) for (const cs of bools) for (const wb of bools) {
-    const scopes: Scopes = { read: read_, post, readChangesets: cs, writeBranch: wb };
-    const caller: McpCaller = { kind: "outside", sessionId: "ses_o", space: "spc_1", principal: { kind: "actor", id: "act_cc" }, actingFor: "usr_dana", scopes };
-    const server = createMcpServer({ catalog: g.catalog, defaults: g.defaults, invoke: fakeInvoke(g.caps).invoke, open: async () => caller });
-    const r = await server.handle({ method: "POST", headers: { authorization: "Bearer t" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
-    const listed = new Set(((JSON.parse(r.body) as any).result.tools as Array<{ name: string }>).map((t) => t.name));
-    const expected = new Set([...g.defaults].filter((n) => scopeAllows(scopes, g.catalog.byName(n)!)));
-    assert.deepEqual(listed, expected, JSON.stringify(scopes));
-    for (const n of listed) {
-      const t = g.catalog.byName(n)!;
-      assert.ok(!["vault", "terminal", "computer", "engineer"].includes(t.toolset), `${n} (${t.toolset}) listed for ${JSON.stringify(scopes)}`);
-      if (!post && !wb) assert.ok(t.effects === "read", `${n} is not a read tool and nothing but read is on`);
-    }
+test("an outside agent's list is the default set cut by what stays with people, plus use_tool and agents_next", async () => {
+  const caller: McpCaller = { kind: "outside", sessionId: "ses_o", space: "spc_1", principal: { kind: "agent", id: "agt_cc" }, actingFor: "usr_dana" };
+  const server = createMcpServer({ catalog: g.catalog, defaults: g.defaults, invoke: fakeInvoke(g.caps).invoke, open: async () => caller });
+  const r = await server.handle({ method: "POST", headers: { authorization: "Bearer t" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
+  const listed = new Set(((JSON.parse(r.body) as any).result.tools as Array<{ name: string }>).map((t) => t.name));
+  const expected = new Set([...[...g.defaults].filter((n) => outsideAllows(g.catalog.byName(n)!)), "use_tool", "agents_next"]);
+  assert.deepEqual(listed, expected);
+  for (const n of listed) {
+    if (n === "use_tool") continue;
+    const t = g.catalog.byName(n)!;
+    assert.ok(!["vault", "terminal", "computer", "engineer"].includes(t.toolset), `${n} (${t.toolset}) listed`);
+    assert.equal(t.local, "none", `${n} runs on a machine of ours`);
   }
 });
 

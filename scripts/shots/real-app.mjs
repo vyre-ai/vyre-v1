@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Screenshots of the REAL app: the production web export, signed in as the owner of a booted daemon on the seeded Space (not the sample mounts of shots.mjs). Home, Chats, Records and Files,
+// Screenshots of the REAL app: the production web export, signed in as the owner of a booted daemon on the seeded Space (not the sample mounts of shots.mjs). Chats, Records and Files,
 // paper and graphite, desktop and phone. Nothing is staged: a place whose module is still a stub in host/modules.json shows what the real app shows for it (sign-in failure, a loading
 // frame, an empty list), and index.md says so per place, with the packet that makes it live, so a reviewer never mistakes a frame for finished data.
 //   node scripts/shots/real-app.mjs --dist apps/app/dist [--out shots-out/real-app] [--skins paper,graphite] [--sizes desktop,phone]
@@ -11,8 +11,7 @@ import { parseArgs, SKINS, SIZES } from "./lib.mjs";
 import { bootFreshSpace, claimOnEdge, edge, liveModules, ownerSession, todoFor } from "../../apps/app/tests/real-app-harness.test.ts";
 
 export const PLACES = [
-  { id: "home", route: "home", rail: "rail-home", drew: "[data-testid='s-needs'], [data-testid='home-place']", needs: ["sign in", "home"] },
-  { id: "chats", route: "chat", rail: "rail-chats", drew: "[data-testid='chats-place']", needs: ["sign in", "chats"] },
+  { id: "chats", route: "chat", rail: "rail-chats", drew: "[data-testid='chats-place']", needs: ["sign in", "chats", "home"] },
   { id: "records", route: "records", rail: "rail-records", drew: "[data-testid='records-place']", needs: ["sign in", "records"] },
   { id: "files", route: "files", rail: "rail-files", drew: "[data-testid='files-place']", needs: ["sign in", "files"] },
   { id: "inbox", route: "mail", rail: "rail-inbox", drew: "[data-testid='inbox-place']", needs: ["sign in", "inbox"] },
@@ -22,11 +21,11 @@ export const PLACES = [
   { id: "settings", route: "settings", rail: "rail-settings", drew: "[data-testid='settings-place']", needs: ["sign in", "settings"] },
 ];
 
-/** The phone has five tabs: Chats, Inbox, Records, Files and You (Home is reached through You). Places without a tab are not shot at phone width. */
-/** What proves a place drew at phone width, where it differs: Home is the You screen. */
-export const PHONE_DREW = { home: "[data-testid='you-screen']" };
+/** The phone has five tabs: Chats, Inbox, Records, Files and You. Places without a tab are not shot at phone width. */
+/** What proves a place drew at phone width, where it differs. */
+export const PHONE_DREW = {};
 
-export const PHONE_TAB = { home: "you", chats: "chats", inbox: "inbox", records: "records", files: "files" };
+export const PHONE_TAB = { chats: "chats", inbox: "inbox", records: "records", files: "files" };
 
 /** One index.md row: what was shot, whether the place drew, and which stub modules it is still waiting on. */
 export function rowFor({ place, skin, sizeName, vp, file, drew, gaps }) {

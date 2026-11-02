@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
+import { injectCss } from "../theme/css.ts";
 import { MenuIcon, menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 import { activeTab } from "./props.ts";
@@ -131,11 +132,28 @@ function focusNode(node: unknown): void {
   if (typeof focusable.focus === "function") focusable.focus({ preventScroll: true });
 }
 
+/** How wide a tab that is not the open one may be. The open tab keeps its full title; the others give up room evenly, down to a width that still reads, and only then does the strip scroll. */
+export function tabCap(room: number, count: number, plain = TAB_MAX_WIDTH, least = TAB_MIN_WIDTH): number {
+  if (count < 2 || room <= 0) return plain;
+  return Math.min(plain, Math.max(least, Math.floor((room - plain) / (count - 1)) - TAB_GAP));
+}
+
+/** A strip that overflows fades out at the edge with more behind it, so a cut tab reads as more to come. */
+const FADE_CSS = [
+  "[data-tabfade=right]{-webkit-mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(to right,#000 calc(100% - 24px),transparent)}",
+  "[data-tabfade=left]{-webkit-mask-image:linear-gradient(to left,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(to left,#000 calc(100% - 24px),transparent)}",
+  "[data-tabfade=both]{-webkit-mask-image:linear-gradient(to right,transparent,#000 24px,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(to right,transparent,#000 24px,#000 calc(100% - 24px),transparent)}",
+].join("\n");
+
 /* ---------- the strip ---------- */
 
 export const TAB_STRIP_HEIGHT = 38;
-export const TAB_HEIGHT = 32;
-const TAB_MAX_WIDTH = 210;
+export const TAB_HEIGHT = 30;
+const TAB_MAX_WIDTH = 200;
+const TAB_MIN_WIDTH = 112;
+const TAB_GAP = 2;
+/** The strip's padding and its two buttons, which stay beside the tabs. */
+const STRIP_CHROME = 8 + 8 + 30 + 30;
 
 export interface TabStripViewProps extends TabStripProps {
   /** Accessible name for the strip. */
@@ -146,6 +164,8 @@ export interface TabStripViewProps extends TabStripProps {
   bare?: boolean;
   /** A lone tab has no Close button. Only the main tab strip sets it: closing its last tab just reopens the start place. A pane keeps its Close (that is how the pane closes). */
   hideLoneClose?: boolean;
+  /** No options button at the end: the strip's menu is the right-click on a tab. */
+  noOptions?: boolean;
 }
 
 export function TabStrip(props: TabStripViewProps): ReactElement {
@@ -156,6 +176,9 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
   const scroller = useRef<{ scrollTo?: (options: { x: number; animated: boolean }) => void } | null>(null);
   const spans = useRef<Record<string, { x: number; w: number }>>({});
   const view = useRef<{ x: number; w: number }>({ x: 0, w: 0 });
+  const content = useRef(0);
+  const [room, setRoom] = useState(0);
+  const [fade, setFade] = useState<"none" | "left" | "right" | "both">("none");
   const [drag, setDrag] = useState<{ from: string; over: string | null } | null>(null);
 
   const extrasFor = useCallback((key: string | undefined): TabMenuExtra[] => {
@@ -178,13 +201,22 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
     focusNode(nodes.current[key]);
   }, [onSelect]);
 
-  useEffect(() => {
+  // The open tab is always in view: measured again when it is laid out, because a new tab's place is not known when it is chosen.
+  const reveal = useCallback(() => {
     const span = spans.current[active];
     const box = scroller.current;
     if (span === undefined || box === null || typeof box.scrollTo !== "function") return;
-    if (span.x < view.current.x) box.scrollTo({ x: Math.max(0, span.x - 8), animated: false });
-    else if (span.x + span.w > view.current.x + view.current.w && view.current.w > 0) box.scrollTo({ x: span.x + span.w - view.current.w + 8, animated: false });
-  }, [active, tabs.length]);
+    const x = span.x + 8;   // spans are inside the tab row, which sits after the strip's padding
+    if (x < view.current.x + 24) box.scrollTo({ x: Math.max(0, x - 24), animated: false });
+    else if (x + span.w > view.current.x + view.current.w - 24 && view.current.w > 0) box.scrollTo({ x: x + span.w - view.current.w + 24, animated: false });
+  }, [active]);
+  useEffect(() => { reveal(); }, [reveal, tabs.length, room]);
+  const edges = useCallback(() => {
+    const { x, w } = view.current, more = content.current - (x + w);
+    const left = x > 2, right = more > 2;
+    setFade(left && right ? "both" : left ? "left" : right ? "right" : "none");
+  }, []);
+  useEffect(() => { if (Platform.OS === "web") injectCss((globalThis as { document?: Parameters<typeof injectCss>[0] }).document, "vyre-ui-tabfade", FADE_CSS); }, []);
 
   const onKeyDown = (key: string, event: EventLike): void => {
     const k = event.key ?? "";
@@ -218,6 +250,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
     setDrag(null);
   };
 
+  const cap = tabCap(room - STRIP_CHROME, tabs.length);
   const tabNodes: ReactNode[] = [];
   for (const tab of tabs) {
     const on = tab.key === active;
@@ -227,6 +260,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
         tab={tab}
         on={on}
         tight={props.tight === true}
+        widest={on ? TAB_MAX_WIDTH : cap}
         dropTarget={drag !== null && drag.over === tab.key && drag.from !== tab.key}
         canClose={onClose !== undefined}
         only={props.hideLoneClose === true && tabs.length === 1}
@@ -242,31 +276,39 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
         onDragStart={() => { if (tab.pinned !== true && onReorder) setDrag({ from: tab.key, over: null }); }}
         onDragOver={() => { if (drag !== null && drag.over !== tab.key) setDrag({ from: drag.from, over: tab.key }); }}
         onDragEnd={finishDrag}
-        onLayout={(x, w) => { spans.current[tab.key] = { x, w }; }}
+        onLayout={(x, w) => { spans.current[tab.key] = { x, w }; if (on) reveal(); }}
       />,
     );
   }
 
   const current = activeTab(props);
   return (
-    <View style={[styles.strip, props.bare === true ? styles.stripBare : null]} testID="tab-strip" {...webProps({ onPointerLeave: () => setDrag(null), onPointerUp: finishDrag })}>
+    <View
+      style={[styles.strip, props.bare === true ? styles.stripBare : null]} testID="tab-strip"
+      onLayout={(event) => setRoom(event.nativeEvent.layout.width)}
+      {...webProps({ onPointerLeave: () => setDrag(null), onPointerUp: finishDrag })}
+    >
       <ScrollView
         ref={(node) => { scroller.current = node as unknown as typeof scroller.current; }}
         horizontal
         showsHorizontalScrollIndicator={false}
         style={styles.scroll}
         contentContainerStyle={styles.content}
-        onScroll={(event) => { view.current = { x: event.nativeEvent.contentOffset.x, w: event.nativeEvent.layoutMeasurement.width }; }}
+        onScroll={(event) => { view.current = { x: event.nativeEvent.contentOffset.x, w: event.nativeEvent.layoutMeasurement.width }; edges(); }}
+        onContentSizeChange={(w) => { content.current = w; edges(); reveal(); }}
         scrollEventThrottle={64}
-        onLayout={(event) => { view.current = { x: view.current.x, w: event.nativeEvent.layout.width }; }}
+        onLayout={(event) => { view.current = { x: view.current.x, w: event.nativeEvent.layout.width }; edges(); reveal(); }}
+        {...webProps({ dataSet: { tabfade: fade } })}
       >
         <View role="tablist" aria-label={props.label ?? current?.title ?? "Tabs"} style={styles.tabs}>
           {tabNodes}
         </View>
-        {onPlus === undefined ? null : (
-          <IconButton name="plus" label={plusTitle ?? "Open"} onPress={() => onPlus()} />
-        )}
-        <View style={styles.spacer} />
+      </ScrollView>
+      {onPlus === undefined ? null : (
+        <IconButton name="plus" label={plusTitle ?? "Open"} onPress={() => onPlus()} />
+      )}
+      <View style={styles.spacer} />
+      {props.noOptions === true ? null : (
         <IconButton
           name="more"
           label="Tab options"
@@ -277,7 +319,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
             else openFor(active, 0, TAB_STRIP_HEIGHT);
           }}
         />
-      </ScrollView>
+      )}
       {element}
     </View>
   );
@@ -302,10 +344,12 @@ function IconButton({ name, label, onPress: press, nodeRef }: { name: string; la
   );
 }
 
-function TabItem({ tab, on, tight, dropTarget, canClose, only, nodeRef, onPress: press, onClose, trigger, onKeyDown, onDragStart, onDragOver, onDragEnd, onLayout }: {
+function TabItem({ tab, on, tight, widest, dropTarget, canClose, only, nodeRef, onPress: press, onClose, trigger, onKeyDown, onDragStart, onDragOver, onDragEnd, onLayout }: {
   tab: TabSpec;
   on: boolean;
   tight: boolean;
+  /** The most this tab may take. */
+  widest: number;
   dropTarget: boolean;
   canClose: boolean;
   /** the strip has this one tab only: closing it would reopen the start place, so there is no Close button */
@@ -337,7 +381,7 @@ function TabItem({ tab, on, tight, dropTarget, canClose, only, nodeRef, onPress:
       onHoverIn={() => setOver(true)}
       onHoverOut={() => setOver(false)}
       onLayout={(event) => onLayout(event.nativeEvent.layout.x, event.nativeEvent.layout.width)}
-      style={[styles.tab, pinned ? styles.tabPinned : null, pinned && tight ? styles.tabTight : null, over && !on ? HOVER : null, on ? ACTIVE : null, dropTarget ? DROP : null]}
+      style={[styles.tab, { maxWidth: widest }, pinned ? styles.tabPinned : null, pinned && tight ? styles.tabTight : null, over && !on ? HOVER : null, on ? ACTIVE : null, dropTarget ? DROP : null]}
       {...trigger}
       {...webProps({
         title: name,
@@ -376,34 +420,21 @@ function TabItem({ tab, on, tight, dropTarget, canClose, only, nodeRef, onPress:
 
 // Plain objects (not StyleSheet ids) so the painted token is visible in the element's inline style.
 const HOVER = { backgroundColor: "var(--hover)" };
-const ACTIVE = { backgroundColor: "var(--win)", borderColor: "var(--line)" };
+const ACTIVE = { backgroundColor: "var(--sel)" };
 const DROP = { boxShadow: "inset 2px 0 0 var(--accent)" } as unknown as ViewStyle;
 const HIDDEN = { opacity: 0 };
 
 const styles = StyleSheet.create({
-  strip: { height: TAB_STRIP_HEIGHT, flexDirection: "row", backgroundColor: "var(--side)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
-  stripBare: { backgroundColor: "transparent", borderBottomWidth: 0 },
-  scroll: { flex: 1 },
-  content: { flexGrow: 1, alignItems: "flex-end", paddingHorizontal: 6, gap: 2 },
-  tabs: { flexDirection: "row", alignItems: "flex-end", gap: 2 },
+  strip: { height: TAB_STRIP_HEIGHT, flexDirection: "row", alignItems: "center", paddingTop: 6, paddingRight: 8 },
+  stripBare: { paddingTop: 0, height: 34 },
+  scroll: { flexGrow: 0, flexShrink: 1, minWidth: 0 },
+  content: { alignItems: "center", paddingLeft: 8, paddingRight: 4 },
+  tabs: { flexDirection: "row", alignItems: "center", gap: 2 },
   spacer: { flexGrow: 1 },
-  tab: {
-    height: TAB_HEIGHT,
-    maxWidth: TAB_MAX_WIDTH,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    paddingLeft: 10,
-    paddingRight: 6,
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: "transparent",
-  },
+  tab: { height: TAB_HEIGHT, flexDirection: "row", alignItems: "center", gap: 7, paddingLeft: 10, paddingRight: 5, borderRadius: 10 },
   tabPinned: { paddingRight: 10 },
   tabTight: { paddingLeft: 7, paddingRight: 7 },
   title: { flexShrink: 1, fontSize: 12.5, lineHeight: 16 },
-  close: { width: 18, height: 18, borderRadius: 5, alignItems: "center", justifyContent: "center" },
-  iconButton: { width: 26, height: 26, marginBottom: 4, borderRadius: 7, alignItems: "center", justifyContent: "center" },
+  close: { width: 20, height: 20, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  iconButton: { width: 28, height: 28, borderRadius: 9, alignItems: "center", justifyContent: "center" },
 });

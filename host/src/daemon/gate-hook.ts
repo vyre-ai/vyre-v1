@@ -8,6 +8,7 @@
 // The daemon wraps this hook with withGateNesting, so one approval covers one send and not its provider call.
 import { canonical, sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
+import { OUTWARD_ACTS, bringsOutside, linksIn, targetsOf } from "../../../lib/grants.ts";
 import { fail } from "../routes/errors.ts";
 import type { CtxSeed, GateHook } from "../invoke.ts";
 import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
@@ -23,8 +24,16 @@ export interface GateHookDeps {
    * Conditions a module answers itself, by the function name in a capability's `when` (for example `git.is_protected(input.branch)`, which needs the folder's git settings). The
    * expression language has no such functions, so the Gate asks the module; an evaluator that throws counts as holding, like an unreadable expression.
    */
-  evaluators?: Record<string, (input: unknown, seed: Pick<CtxSeed, "principal">) => boolean | Promise<boolean>>;
+  evaluators?: Record<string, (input: unknown, seed: Pick<CtxSeed, "principal" | "thread">) => boolean | Promise<boolean>>;
   /** The held row an approval names (the host owns modules.db): who asked, whom for, run and thread, the stored payload hash and its state. Null when there is none. */
+  /** What a capability that can go out without saying so does on this call: the act and where it goes. Null when this call stays here. */
+  outward?(cap: string, input: unknown): { act: string; targets: string[] } | null;
+  /** A command that downloads something: outside words enter the turn though the capability is not a read. */
+  fetches?(cap: string, input: unknown): boolean;
+  /** The chat's mode now: the strictest of the thread and the threads above it. */
+  mode?(id: string): "auto" | "ask" | "plan" | undefined;
+  /** A thread and the threads above it, nearest first: a Job works under the chat that asked for it. */
+  threads?(id: string): string[];
   hold(id: string): { state: string; principalKind: string; principalId: string; actingFor?: string | undefined; run?: string | undefined; thread?: string | undefined; payloadHash: string } | null;
 }
 
@@ -50,7 +59,7 @@ export function whenHolds(when: string | undefined, input: unknown, seed: Pick<C
 /** `fn.name(input.field)`: a condition the module behind `fn.name` evaluates. */
 const MODULE_WHEN = /^\s*([a-z_]+\.[a-z_]+)\(\s*input(?:\.[A-Za-z_]+)*\s*\)\s*$/;
 
-async function appliesWhen(d: Pick<GateHookDeps, "evaluators">, when: string | undefined, input: unknown, seed: Pick<CtxSeed, "principal">): Promise<boolean> {
+async function appliesWhen(d: Pick<GateHookDeps, "evaluators">, when: string | undefined, input: unknown, seed: Pick<CtxSeed, "principal" | "thread">): Promise<boolean> {
   const fn = when === undefined ? undefined : MODULE_WHEN.exec(when)?.[1];
   const evaluate = fn === undefined ? undefined : d.evaluators?.[fn];
   if (!evaluate) return whenHolds(when, input, seed);
@@ -66,13 +75,71 @@ function claimsOf(d: Pick<GateHookDeps, "unseal">, token: string): Claims | null
 }
 
 export function createGateHook(d: GateHookDeps): GateHook {
+  const threads = (id: string): string[] => d.threads?.(id) ?? [id];
+  // A link the person gave, or one found on a page already read, is a read. One the model put together can carry anything in its address, so it is outward (chat design, hole 2).
+  const composed = async (input: unknown, seed: Pick<CtxSeed, "principal" | "thread">): Promise<boolean> => {
+    if (seed.principal.kind === "person") return false;
+    const url = (input as { url?: unknown } | null)?.url;
+    if (typeof url !== "string" || !seed.thread) return true;
+    const r = (await d.call("gate.links.known", { url, threads: threads(seed.thread) })) as { known?: unknown } | null;
+    return r?.known !== true;
+  };
+  const conditions = { evaluators: { ...d.evaluators, "links.is_composed": composed } } as Pick<GateHookDeps, "evaluators">;
+  const always = (cap: CapabilityDef, seed: CtxSeed): { person: string; agentId: string; threads: string[]; cap: string } | undefined =>
+    (seed.actingFor?.startsWith("usr_") && seed.principal.kind === "agent" ? { person: seed.actingFor, agentId: seed.principal.id, threads: seed.thread ? threads(seed.thread) : [], cap: cap.name } : undefined);
+  /** The turn grants a call let through spent, by its input, until the call ends: a call refused before it goes out hands them back. */
+  const spentBy = new WeakMap<object, string[]>();
   return {
+    async giveBack(input) {
+      const ids = input !== null && typeof input === "object" ? spentBy.get(input) : undefined;
+      if (!ids) return;
+      spentBy.delete(input as object);
+      await d.call("gate.grants.give_back", { ids });
+    },
+    mode: (thread) => d.mode?.(thread),
+    async allowed(cap, input, seed) {
+      const a = always(cap, seed);
+      if (!a) return false;
+      const g = (await d.call("gate.grants.take", { act: cap.gate?.act && cap.gate.act !== "none" ? cap.gate.act : "approve", targets: targetsOf(input), always: a })) as { granted?: unknown } | null;
+      return g?.granted === true;
+    },
+    async seen(cap, input, output, seed) {
+      if (!seed.thread || seed.principal.kind !== "agent") return;
+      if (!bringsOutside(cap.name, cap.effects) && d.fetches?.(cap.name, input) !== true) return;
+      const text = typeof (output as { text?: unknown } | null)?.text === "string" ? (output as { text: string }).text : "";
+      const listed = (output as { links?: { url?: unknown }[] } | null)?.links;
+      const links = [...(Array.isArray(listed) ? listed.flatMap((l) => (typeof l?.url === "string" ? [l.url] : [])) : []), ...linksIn(text)].slice(0, 200);
+      await d.call("gate.taint.mark", { threads: threads(seed.thread), source: cap.name, links });
+    },
     async applies(cap, input, seed) {
-      const act = cap.gate?.act;
-      if (!act || act === "none") return null;
-      if (!(await appliesWhen(d, cap.gate?.when, input, seed))) return null;
-      const r = (await d.call("gate.effective_rule", { principal: { kind: seed.principal.kind, id: seed.principal.id }, act, ...(seed.gateMode === "admin_only" ? { adminOnly: true } : {}) })) as { hold?: unknown } | null;
-      return r?.hold === true ? { act } : null;
+      const declared = cap.gate?.act;
+      if (!declared || declared === "none") return null;
+      // A step of an automation is the automation's act, not a person's, even when the Run runs as its owner: a condition that lets a person's own act through does not let a step through, and an outward
+      // act needs a grant. Only a person's press makes one, so an automation an agent made or edited stops here (chat design, hole 1).
+      const asked = seed.step ? { principal: { kind: "service" as const, id: seed.step.automationId } } : seed;
+      const held = await appliesWhen(conditions, cap.gate?.when, input, { ...asked, thread: seed.thread });
+      // A capability that can go out without saying so (a terminal command) names what this call does. A person's own command is their own act.
+      const said = held ? null : d.outward?.(cap.name, input) ?? null;
+      if (!held && (said === null || (seed.principal.kind === "person" && !seed.step))) return null;
+      const act = said?.act ?? declared;
+      const targets = said?.targets ?? targetsOf(input);
+      if (seed.step && OUTWARD_ACTS.has(act)) {
+        if (seed.step.ask === true) return { act };
+        const g = (await d.call("gate.grants.take", { act, targets, step: seed.step })) as { granted?: unknown } | null;
+        if (g?.granted !== true) return { act };
+      }
+      const r = (await d.call("gate.effective_rule", { principal: { kind: seed.principal.kind, id: seed.principal.id }, act, ...(seed.gateMode === "admin_only" ? { adminOnly: true } : {}) })) as { hold?: unknown; adminRule?: unknown } | null;
+      if (r?.hold !== true) return null;
+      // Auto, and the person's own message this turn asked for this act and target: the default hold lifts, once. A rule somebody wrote still holds. Money stays a Need in every mode (chat design, hole 3).
+      if (r.adminRule !== true) {
+        const turn = seed.chatMode === "auto" && act !== "pay" && OUTWARD_ACTS.has(act) && seed.actingFor?.startsWith("usr_") && seed.thread ? { person: seed.actingFor, threads: threads(seed.thread) } : undefined;
+        const rule = always(cap, seed);
+        if (turn || rule) {
+          const g = (await d.call("gate.grants.take", { act, targets, ...(turn ? { turn } : {}), ...(rule ? { always: rule } : {}) })) as { granted?: unknown; spent?: unknown } | null;
+          if (g?.granted === true) { if (Array.isArray(g.spent) && g.spent.length > 0 && input !== null && typeof input === "object") spentBy.set(input, g.spent as string[]); return null; }
+        }
+      }
+      return { act };
     },
     async park(a) {
       const input: Record<string, unknown> = {
@@ -82,6 +149,7 @@ export function createGateHook(d: GateHookDeps): GateHook {
       if (a.seed.actingFor) input["actingFor"] = a.seed.actingFor;
       if (a.seed.run) input["runId"] = a.seed.run;
       if (a.seed.thread) input["threadId"] = a.seed.thread;
+      if (a.seed.step) input["step"] = a.seed.step;
       // the park runs in the held call's trace, so gate.requested sits in the asker's event chain
       const r = (await d.call("gate.park", input, { traceId: a.traceId, spanId: "0".repeat(16) })) as { taskId?: unknown; runId?: unknown } | null;
       if (typeof r?.taskId !== "string") throw fail("internal.unavailable", a.traceId, { message: "Approvals are not available right now.", details: { cap: a.cap.name } });
@@ -105,10 +173,28 @@ export function createGateHook(d: GateHookDeps): GateHook {
 }
 
 /** The Gate's module conditions for the live modules that export one: `git.is_protected` over the git module's `isProtectedCall`, `terminal.is_danger` over the terminal module's `isDangerCall`. Called as the Space itself. */
+/** What a terminal command sends out, from the terminal module's reading of its words. */
+export function moduleOutward(exports: ReadonlyMap<string, Record<string, unknown>>): NonNullable<GateHookDeps["outward"]> {
+  const read = exports.get("terminal")?.["outwardOf"];
+  return (cap, input) => {
+    if (cap !== "terminal.run" || typeof read !== "function") return null;
+    const command = (input as { command?: unknown } | null)?.command;
+    return typeof command === "string" ? (read as (c: string) => { act: string; targets: string[] } | null)(command) : null;
+  };
+}
+
+/** Does a terminal command download something, by the terminal module's reading of its words. */
+export function moduleFetches(exports: ReadonlyMap<string, Record<string, unknown>>): NonNullable<GateHookDeps["fetches"]> {
+  const read = exports.get("terminal")?.["fetchesOutside"];
+  return (cap, input) => cap === "terminal.run" && typeof read === "function" && (read as (c: string) => boolean)(String((input as { command?: unknown } | null)?.command ?? ""));
+}
+
 export function moduleWhens(
   exports: ReadonlyMap<string, Record<string, unknown>>, db: () => ScopedDb | null, call: (cap: string, input: unknown) => Promise<unknown>,
 ): NonNullable<GateHookDeps["evaluators"]> {
   const out: NonNullable<GateHookDeps["evaluators"]> = {};
+  // an agent's delete inside work/ on its own computer is its own change; anywhere else asks
+  out["computers.deletes_outside_work"] = (input, seed) => seed.principal.kind !== "person" && !/^work\/(?!.*\.\.)/.test(String((input as { path?: unknown } | null)?.path ?? ""));
   const fn = exports.get("git")?.["isProtectedCall"];
   if (typeof fn === "function") {
     const isProtected = fn as (ctx: { db: ScopedDb; call: typeof call }, input: unknown) => Promise<boolean>;

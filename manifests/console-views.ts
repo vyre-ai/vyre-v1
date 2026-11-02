@@ -89,18 +89,12 @@ export default defineManifest({
       a: { set: ['access.labels.set', { label: '/draft/label', resource: '/state/resource' }], scan: ['schema.sensitivity.scan', { type: '/state/type' }] },
       empty: 'No labels set',
     }),
-    screen('console.logging', 'console', 'ui:ConsoleLogging', {
-      needs: ['server.logs'],
-      q: { settings: ['logs.settings_get'] },
-      a: { set: ['logs.settings_set', { level: '/draft/level', fullDays: '/draft/fullDays', aggregateDays: '/draft/aggregateDays' }] },
-      empty: 'Logging is on its defaults',
-    }),
     screen('console.outside-actors', 'console', 'ui:ConsoleOutsideActors', {
       needs: ['access.manage'],
       q: { actors: ['access.actors.list'] },
       a: {
         create: ['access.actors.create', { name: '/draft/name', provider: '/draft/provider', roleIds: '/draft/roleIds' }], update: ['access.actors.update', { actorId: '/state/actorId', provider: '/draft/provider', roleIds: '/draft/roleIds' }],
-        engineer: ['access.actors.set_engineer_mcp', { actorId: '/state/actorId', enabled: '/draft/enabled' }], scopes: ['mcp.scopes.set', { actorId: '/state/actorId', scopes: '/draft/scopes' }],
+        engineer: ['access.actors.set_engineer_mcp', { actorId: '/state/actorId', enabled: '/draft/enabled' }],
         revoke: ['access.actors.revoke', { actorId: '/state/actorId' }, 'Revoke this token?'],
       },
       empty: 'No outside actors or API keys yet', primary: 'Connect an outside tool',

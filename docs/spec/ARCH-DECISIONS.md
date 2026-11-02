@@ -1,6 +1,6 @@
 # Lead decisions for the v1 architecture (binding inputs for ARCHITECTURE-V1.md)
 
-Scope override: the 23 Oct DESIGN.md "defer" list is superseded by the owner's 24 Oct full scope and V1-SPEC.md. Agent computers, Chrome, Sites, mail, calendar, Google/Microsoft/GitHub, mounts, Inbox, console, mobile are ALL v1. Only Forms and Campaigns may land after the 12-hour window (they build on primitives). Voice and Mac/Windows desktop control stay out.
+Scope override: the 23 Oct DESIGN.md "defer" list is superseded by the owner's 24 Oct full scope and V1-SPEC.md. Agent computers, Chrome, Sites, mail, calendar, Google/Microsoft/GitHub, mounts, Inbox, console, mobile are ALL v1. Only Forms may land after the 12-hour window (they build on primitives). Voice and Mac/Windows desktop control stay out.
 
 1. Repository: a fresh lean monorepo for v1 (new repo, e.g. vyre-ai/vyre-v1, or a clean `v1` root in vyre-ai/vyre; architecture picks one with reasons). Copy KEEP code from 0.6 (kernel core/gateway/store/grants/seal/audit/door/contracts/conformance/modules/flows/golden, core/gate, lib/one-yes, relay client+node, module-sdk, core/mcp, harness/mcp, modules/hands-chrome, signing/release scripts) as starting files, then CLEAN. No guard machinery copied unless listed as kept. History not carried.
 2. Runtime: Node 24 only, TypeScript via type stripping, node:sqlite (no native optional deps). One Space per server, one daemon `vyred`.

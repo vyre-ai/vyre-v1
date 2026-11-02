@@ -1,5 +1,5 @@
 // The conversation's logic, with no renderer (spec 3.2 Chats, 2.5 Chat, 4.13 Agents lead and listen): which messages are on the page (the last 50, older ones stream in),
-// how they group into a timeline, how an agent's work folds into "Worked for 14s, 3 steps", who leads and who listens, what a send does while an agent works (queue it, or
+// how they group into a timeline, how an agent's work folds into "Worked 14s · 3 steps", who leads and who listens, what a send does while an agent works (queue it, or
 // interrupt), and the optimistic message that shows in the same frame as the send.
 import { stepLabel } from "./activity.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -100,7 +100,7 @@ export const isErrorBlock = (b: MessageBlock): boolean => b.type === "error";
 /** Blocks that are data for the page, not a card: the links of a message (drawn inside its text) and the line a fork starts with (drawn as a link). */
 const QUIET_BLOCKS = new Set(["refs", "fork_origin"]);
 export const isCard = (b: MessageBlock): boolean => !isStep(b) && !isToolStep(b) && !isErrorBlock(b) && !isTurnStatus(b) && !QUIET_BLOCKS.has(b.type);
-export { isTurnStatus, statusView } from "./status.ts";
+export { isTurnStatus, statusView, withoutAnswered } from "./status.ts";
 export type { StatusView } from "./status.ts";
 
 export interface StepLine { id: string; title: string; sub: string; state: MessageBlock["state"] }
@@ -110,9 +110,16 @@ export function stepLine(b: MessageBlock): StepLine {
   return { id: b.id, title: str(d.title) || b.type.replaceAll("_", " "), sub: str(d.sub), state: b.state };
 }
 
-export interface Work { steps: StepLine[]; secs: number; live: boolean; summary: string; now: string }
+export interface Work { steps: StepLine[]; secs: number; live: boolean; summary: string; now: string; /** Quick work: under 30 s and under 5 steps. It stays out of the way until you hover the message. */ short: boolean }
 
-/** "Worked for 14s, 3 steps" once done; "Working, 2 steps so far" while a step is live. */
+/** How long, in words: "14s", "4m", "1h 12m". */
+export function workTime(secs: number): string {
+  if (secs < 60) return `${secs}s`;
+  if (secs < 3600) return `${Math.floor(secs / 60)}m`;
+  return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`;
+}
+
+/** "Worked 14s · 3 steps" once done; "Working, 2 steps so far" while a step is live. */
 export function workOf(m: Message): Work | null {
   const tools = m.blocks.filter(isToolStep);
   const steps = [...m.blocks.filter(isStep), ...tools.filter((b) => b.type === "tool_call" || b.type === "tool_steps")];
@@ -124,9 +131,9 @@ export function workOf(m: Message): Work | null {
   const secs = Math.max(steps.reduce((n, b) => n + num(dataOf(b).secs), 0), steps.reduce((n, b) => Math.max(n, num(dataOf(b).turnSecs)), 0));
   const n = lines.length;
   const count = `${n} ${n === 1 ? "step" : "steps"}`;
-  const summary = live ? `Working, ${count} so far` : secs > 0 ? `Worked for ${secs}s, ${count}` : `Worked ${count}`;
+  const summary = live ? `Working, ${count} so far` : secs > 0 ? `Worked ${workTime(secs)} · ${count}` : `Worked ${count}`;
   const current = [...lines].reverse().find((l) => l.state === "live");
-  return { steps: lines, secs, live, summary, now: current ? current.title : "" };
+  return { steps: lines, secs, live, summary, now: current ? current.title : "", short: !live && secs < 30 && n < 5 };
 }
 
 export interface CardLine { id: string; type: string; v: number; title: string; sub: string; state: MessageBlock["state"]; data: Record<string, unknown> }
@@ -206,16 +213,24 @@ export interface TimelineCtx {
   nameOf(id: string): string;
   kindOf(id: string): "person" | "agent";
   clock: Clock;
+  /** More than one person is here, so whose turn each reply ran on is worth saying (hole 7). */
+  shared?: boolean;
 }
 
 export type Item =
   | { kind: "day"; key: string; label: string }
   | { kind: "event"; key: string; message: Message; text: string; time: string }
   | { kind: "me"; key: string; message: Message; time: string; newgroup: boolean }
-  | { kind: "other"; key: string; message: Message; who: Who; time: string; newgroup: boolean };
+  | { kind: "other"; key: string; message: Message; who: Who; time: string; newgroup: boolean; /** "On Sara's account": set only where more than one person shares the chat. */ paidLine?: string };
 
 /** System and quiet messages are one-line events ("Switched to Codex, picked up from the summary and the last 20 turns"). */
 export const isEvent = (m: Message): boolean => m.kind === "system" || m.kind === "quiet";
+
+const paidLine = (person: string, ctx: Pick<TimelineCtx, "meId" | "nameOf">): string => {
+  if (person === ctx.meId) return "On your account";
+  const name = ctx.nameOf(person).split(" ")[0] ?? "";
+  return `On ${/s$/i.test(name) ? `${name}’` : `${name}’s`} account`;
+};
 
 /** Day separators, then each message: a line for an event, a bubble for yours, a header-and-body for anyone else. A header shows when the author changes. */
 export function timeline(messages: readonly Message[], ctx: TimelineCtx): Item[] {
@@ -237,7 +252,7 @@ export function timeline(messages: readonly Message[], ctx: TimelineCtx): Item[]
     }
     const newgroup = prev === null || prev.author.id !== m.author.id || prev.author.kind !== m.author.kind;
     if (m.author.id === ctx.meId && m.author.kind === "person") out.push({ kind: "me", key: m.messageId, message: m, time, newgroup });
-    else out.push({ kind: "other", key: m.messageId, message: m, who: { id: m.author.id, name: ctx.nameOf(m.author.id), kind: ctx.kindOf(m.author.id) }, time, newgroup });
+    else out.push({ kind: "other", key: m.messageId, message: m, who: { id: m.author.id, name: ctx.nameOf(m.author.id), kind: ctx.kindOf(m.author.id) }, time, newgroup, ...(ctx.shared && m.paidBy ? { paidLine: paidLine(m.paidBy, ctx) } : {}) });
     prev = m;
   }
   return out;
@@ -305,8 +320,8 @@ export function mentionsIn(text: string, candidates: readonly Candidate[]): { ki
 }
 
 /** The agents that will answer a message, from the same function the engine uses (lib/route.ts), so the line under the field never disagrees. */
-export function respondersFor(t: Thread, mentions: readonly { kind: "person" | "agent"; id: string }[], meId: string): string[] {
-  return route({ agents: t.agents.map((a) => ({ id: a.agentId, mode: a.mode })) }, { author: { kind: "person", id: meId }, mentions }).responders;
+export function respondersFor(t: Thread, mentions: readonly { kind: "person" | "agent"; id: string }[], meId: string, text?: string): string[] {
+  return route({ agents: t.agents.map((a) => ({ id: a.agentId, mode: a.mode })) }, { author: { kind: "person", id: meId }, mentions, ...(text === undefined ? {} : { text }) }).responders;
 }
 
 export type SendKind = "queue" | "interrupt";
@@ -403,8 +418,9 @@ export function postInput(threadId: string, body: string, mentions: readonly { k
 }
 
 /** The line under the header while a send waits for the agent's next step. */
-export function queueNote(n: number, leadName: string, steers = false): string {
+export function queueNote(n: number, leadName: string, steers = false, ownTurn = true): string {
   if (n <= 0) return "";
+  if (!ownTurn) return "After this: it goes in when this turn ends";
   if (steers) return "Goes in at the next step";
   return `${n} ${n === 1 ? "message" : "messages"} queued for ${leadName || "the agent"}'s next step`;
 }

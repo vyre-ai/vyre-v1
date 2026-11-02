@@ -239,7 +239,7 @@ test("the live socket answers example.echo on the same server with the same trac
   const d = await boot(dir);
   try {
     const head = (await (await fetch(`${d.url}/healthz`)).json() as { head: number }).head;
-    const ws = new WebSocket(`ws://127.0.0.1:${d.port}/sync/v1/ws?token=${d.token}&device=dev1`);
+    const ws = new WebSocket(`ws://127.0.0.1:${d.port}/sync/v1/ws?device=dev1`, { headers: { authorization: `Bearer ${d.token}` } } as never);
     const frames: Record<string, unknown>[] = [];
     const waiting: ((f: Record<string, unknown>) => void)[] = [];
     ws.addEventListener("message", (m) => { const f = JSON.parse(String(m.data)) as Record<string, unknown>; const w = waiting.shift(); if (w) w(f); else frames.push(f); });
@@ -267,8 +267,8 @@ test("the live socket answers example.echo on the same server with the same trac
     assert.equal(d.sink.trace("a1".repeat(16)).logs.some((l) => l.msg === "ws.call"), true, "and the log has the call");
     ws.close();
 
-    // a socket without the token is refused
-    const closed = new WebSocket(`ws://127.0.0.1:${d.port}/sync/v1/ws?token=nope&device=dev2`);
+    // a socket without a token or a ticket is refused
+    const closed = new WebSocket(`ws://127.0.0.1:${d.port}/sync/v1/ws?ticket=nope&device=dev2`);
     await new Promise<void>((resolve) => { closed.addEventListener("error", () => resolve()); closed.addEventListener("close", () => resolve()); });
   } finally {
     await d.stop();

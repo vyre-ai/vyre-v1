@@ -1,19 +1,21 @@
 // The MCP endpoint (Streamable HTTP, request/response form): one POST per JSON-RPC message or batch.
-//   auth        Authorization: Bearer <token>; the token is an outside actor's credential or the session token of a CLI engine (types.ts open)
+//   auth        Authorization: Bearer <token>; the token is an outside agent's access token (modules/mcp/oauth.ts) or the session token of a CLI engine (types.ts open). No token, or a bad one, answers 401 naming where to sign in.
 //   tools/list  the default listed set the caller may use, plus the deferred tools it found with tool_search in this session
-//   tools/call  one capability invoke, as the principal acting for the person; scopes narrow an outside actor first, then the same ToolSession the API drivers use refuses
+//   tools/call  one capability invoke, as the agent acting for the person; outside.ts narrows an outside agent first, then the same ToolSession the API drivers use refuses
 //               what was never offered, and the invoke pipeline intersects access, applies the Gate and writes the audit row
 // Nothing here decides access. A tool being listed grants nothing.
 import { createToolSession } from "../tools/call.ts";
+import { decideLocal, dialFor } from "../tools/local.ts";
+import { localFacts } from "../tools/local-facts.ts";
 import type { ToolSession } from "../tools/call.ts";
 import type { ToolCtx, ToolDef } from "../tools/types.ts";
 import type { Invoke } from "../../../host/src/invoke.ts";
 import { makeError } from "../../../host/src/routes/errors.ts";
 import { INTERNAL_ERROR, INVALID_PARAMS, INVALID_REQUEST, METHOD_NOT_FOUND, PARSE_ERROR, err, isRequest, ok } from "./jsonrpc.ts";
 import type { Id, Request, Response } from "./jsonrpc.ts";
-import { scopeAllows } from "./scopes.ts";
-import { DEFAULT_SCOPES } from "./types.ts";
-import type { McpCaller, McpHttpRequest, McpHttpResponse, McpServer, McpServerDeps, Scopes } from "./types.ts";
+import { outsideAllows } from "./outside.ts";
+import { heldCard, workCardOf } from "../tools/work-cards.ts";
+import type { McpCaller, McpHttpRequest, McpHttpResponse, McpServer, McpServerDeps } from "./types.ts";
 
 export const PROTOCOL_VERSIONS: readonly string[] = ["2025-06-18", "2025-03-26", "2024-11-05"];
 export const MAX_RESULT_CHARS = 512 * 1024;
@@ -23,17 +25,27 @@ const SEARCH_LIMIT = 8;
 
 const INSTRUCTIONS =
   "Vyre tools. The list shows the common ones. Call tool_search with what you want to do to find the rest; the tools it returns can then be called. " +
-  "Every call runs as you acting for the person who connected you, with the access you both have and no more. Some actions wait for a person to approve them.";
+  "Every call runs as you acting for the person who connected you, with the access you both have and no more. Some actions wait for a person to approve them. Call a tool that is not in your list with use_tool.";
+const OUTSIDE_INSTRUCTIONS = `${INSTRUCTIONS} You are a member of this Space. Call agents_next to take the next mention or task; it tells you the chat to work in, and what you do there shows in that chat.`;
+/** The tool a client that lists once uses for everything tool_search found: most MCP clients never list again in a session. */
+const USE_TOOL = "use_tool";
+const USE_TOOL_VIEW = { name: USE_TOOL, description: "Call a tool that tool_search found, by name.", inputSchema: { type: "object", properties: { name: { type: "string" }, arguments: { type: "object" } }, required: ["name"] }, annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true } };
+/** Listed for an outside agent from the start, so it can get work and answer without a search. */
+const OUTSIDE_PRELOAD: readonly string[] = ["agents_next"];
+/** Listed for a CLI engine from the start: "make me a file" is a first-hour ask, and it needs a new file and a place to put it. */
+const ENGINE_PRELOAD: readonly string[] = ["files_tree", "files_create", "files_folder_create"];
 
 interface Session {
   caller: McpCaller;
   tools: ToolSession;
   ctx: ToolCtx;
   tokenKey: string;
-  scopes: Scopes | null;
   checkedAt: number;
   protocol: string;
   clientName: string | undefined;
+  /** Settles when the session ends: a call in flight stops waiting and fails. */
+  gone: Promise<"gone">;
+  end: () => void;
 }
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}): McpHttpResponse =>
@@ -75,34 +87,57 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
 
   function newSession(caller: McpCaller, tokenKey: string, clientName: string | undefined): Session {
     const asker = caller.actingFor ?? caller.principal.id;
-    const scopes = caller.kind === "outside" ? (caller.scopes ?? DEFAULT_SCOPES) : null;
-    // The pipeline sees the real principal (an outside actor is an 'actor', not an 'agent') and the real origin.
-    const invoke: Invoke = (cap, input, seed) => deps.invoke(cap, input, { ...seed, principal: caller.principal, origin: "mcp", space: caller.space });
+    // The pipeline sees the real principal and the real origin.
+    // An outside agent that has not taken a job works in no chat, so its calls name none, and every call it makes is on the audit log, whatever the capability.
+    const invoke: Invoke = (cap, input, seed) => {
+      const outsideCall = caller.kind === "outside";
+      const { thread, ...rest } = seed;
+      return deps.invoke(cap, input, { ...rest, principal: caller.principal, origin: "mcp", space: caller.space, ...(thread !== undefined && (!outsideCall || thread.startsWith("thr_")) ? { thread } : {}), ...(outsideCall ? { auditAll: true } : {}) });
+    };
     const tools = createToolSession({
       catalog: deps.catalog, defaults: deps.defaults, invoke,
-      levelFor: () => null,
-      canEngineer: () => caller.engineer === true,
+      levelFor: () => caller.askLevel ?? null,
+      canEngineer: () => false,
+      // A CLI engine's session works for one chat, so a local tool follows that chat's mode, under the owner's floor. An outside agent has none: outside.ts refuses local tools before they get here.
+      ...(caller.kind === "driver" ? { localPolicy: (t: ToolDef, c: ToolCtx, input: unknown) => { const dial = dialFor(c.thread.mode, caller.localFloor); return decideLocal(t, dial.person, dial.floor, localFacts(t, input)); } } : {}),
     });
     const threadId = caller.threadId ?? caller.sessionId;
     if (caller.preload) tools.preload(threadId, caller.preload);
+    tools.preload(threadId, caller.kind === "outside" ? OUTSIDE_PRELOAD : ENGINE_PRELOAD);
     const ctx: ToolCtx = {
       space: caller.space, agentId: caller.principal.id, asker,
-      thread: { threadId, kind: "chat", planMode: caller.planMode === true || caller.mode === "plan", ...(caller.mode !== undefined ? { mode: caller.mode } : {}) },
+      thread: { threadId, kind: caller.threadKind ?? "chat", planMode: caller.planMode === true || caller.mode === "plan", ...(caller.mode !== undefined ? { mode: caller.mode } : {}), ...(caller.scope ? { scope: caller.scope } : {}) },
       ...(caller.rules ? { rules: caller.rules } : {}),
       ...(caller.provider ? { provider: caller.provider } : {}),
       ...(caller.runId ? { runId: caller.runId } : {}),
       ...(caller.traceId ? { trace: { traceId: caller.traceId, spanId: hex(8) } } : {}),
     };
-    return { caller, tools, ctx, tokenKey, scopes, checkedAt: now(), protocol: PROTOCOL_VERSIONS[0] ?? "2025-06-18", clientName };
+    let end = (): void => undefined;
+    const gone = new Promise<"gone">((resolve) => { end = () => resolve("gone"); });
+    return { caller, tools, ctx, tokenKey, checkedAt: now(), protocol: PROTOCOL_VERSIONS[0] ?? "2025-06-18", clientName, gone, end };
   }
 
   const dropSession = (s: Session): void => {
     byToken.delete(s.tokenKey);
     bySession.delete(s.caller.sessionId);
+    s.end();
     deps.onClose?.(s.caller);
   };
 
-  const allowed = (s: Session, t: ToolDef): boolean => s.scopes === null || scopeAllows(s.scopes, t);
+  const unauthorized = (origin: string | undefined, error?: "invalid_token"): McpHttpResponse => empty(401, { "www-authenticate": deps.challenge ? deps.challenge(origin, error) : error ? `Bearer error="${error}"` : "Bearer" });
+
+  const allowed = (s: Session, t: ToolDef): boolean => s.caller.kind !== "outside" || outsideAllows(t);
+
+  /** An outside agent took a job: from here its tools work in that chat, under the chat's mode. Auto never reaches it: "asked this turn" needs a turn Vyre can see, so an outward act stops for a person unless they gave a standing yes. */
+  async function bind(s: Session, threadId: string): Promise<void> {
+    if (s.ctx.thread.threadId === threadId) return;
+    const facts: Partial<Pick<McpCaller, "mode" | "planMode" | "threadKind" | "scope">> = (await deps.bindThread?.(s.caller, threadId).catch(() => null)) ?? {};
+    const was = s.tools.loaded(s.ctx.thread.threadId);
+    s.tools.preload(threadId, [...was]);
+    s.ctx = { ...s.ctx, thread: {
+      threadId, kind: facts.threadKind ?? "chat", planMode: facts.planMode === true || facts.mode === "plan", ...(facts.mode === "ask" || facts.mode === "plan" ? { mode: facts.mode } : {}), ...(facts.scope ? { scope: facts.scope } : {}),
+    } };
+  }
 
   function listTools(s: Session): ToolDef[] {
     const set = s.tools.toolsFor(s.ctx);
@@ -110,6 +145,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     const out = [...set.listed, ...set.searchable.filter((t) => loaded.has(t.name))];
     return out.filter((t) => allowed(s, t));
   }
+  const toolViews = (s: Session): unknown[] => [...listTools(s).map(toolView), ...(s.caller.kind === "outside" || !s.ctx.thread.planMode ? [USE_TOOL_VIEW] : [])];
 
   /** The text a model reads. The same data also travels as structuredContent unless it had to be cut: a cut answer is never sent twice. */
   const textResult = (value: unknown, isError: boolean, structured?: unknown): Record<string, unknown> => {
@@ -124,13 +160,14 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     if (!p || typeof p.name !== "string" || p.name === "") return { invalid: "tools/call needs a tool name" };
     if (p.arguments !== undefined && (p.arguments === null || typeof p.arguments !== "object" || Array.isArray(p.arguments))) return { invalid: "arguments must be an object" };
     const args = (p.arguments ?? {}) as Record<string, unknown>;
+    if (p.name === USE_TOOL) return callTool(s, { name: args["name"], arguments: args["arguments"] ?? {} });
     const t = deps.catalog.byName(p.name);
     if (!t) return { invalid: `Unknown tool: ${p.name}` };
     const traceId = s.ctx.trace?.traceId ?? hex(16);
 
     if (!allowed(s, t)) {
-      const error = makeError("permission.role_lacks_permission", traceId, { message: "This connection is not allowed to use that tool.", details: { tool: t.name, reason: "scope" } });
-      deps.onCall?.(s.caller, t.name, "error");
+      const error = makeError("permission.role_lacks_permission", traceId, { message: "Only a person can do that here. Ask the person you act for.", details: { tool: t.name, reason: "person_only" } });
+      deps.onCall?.(s.caller, t.name, "error", { cap: t.cap, threadId: s.ctx.thread.threadId });
       return { result: textResult({ error }, true, { error }) };
     }
 
@@ -146,18 +183,28 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       return { result: textResult({ data }, false, { data }) };
     }
 
-    const out = await s.tools.call(s.ctx, t.name, args);
+    // the session can end while the call runs (Remove on the agent's profile): it fails here at once, whatever the call is still waiting on
+    if (s.caller.kind === "outside" && !deps.defaults.has(t.name)) s.tools.preload(s.ctx.thread.threadId, [t.name]);
+    const run = s.tools.call(s.ctx, t.name, args);
+    const out = s.caller.kind === "outside" ? await Promise.race([run, s.gone]) : await run;
+    if (out === "gone") {
+      const error = makeError("permission.revoked", traceId, { message: "This connection was removed." });
+      return { result: textResult({ error }, true, { error }) };
+    }
+    const threadId = s.ctx.thread.threadId;
     if (out.kind === "result") {
-      deps.onCall?.(s.caller, t.name, "ok");
       const c = out.result.content as { data?: unknown; blocks?: string[] };
+      const job = t.cap === "agents.next" ? (c.data as { job?: { threadId?: unknown } | null } | null)?.job : undefined;
+      if (typeof job?.threadId === "string") await bind(s, job.threadId);
+      deps.onCall?.(s.caller, t.name, "ok", { cap: t.cap, threadId, ...(typeof job?.threadId === "string" ? { threadId: job.threadId } : {}), card: workCardOf(t.cap, args, c.data) });
       return { result: textResult(c, false, c) };
     }
     if (out.kind === "held") {
-      deps.onCall?.(s.caller, t.name, "held");
+      deps.onCall?.(s.caller, t.name, "held", { cap: t.cap, threadId, taskId: out.taskId, card: heldCard(t.cap, out.taskId, args) });
       const structured = { held: true, taskId: out.taskId, ...(out.runId === undefined ? {} : { runId: out.runId }), message: "Waiting for a person to approve this." };
       return { result: textResult(structured, true, structured) };
     }
-    deps.onCall?.(s.caller, t.name, "error");
+    deps.onCall?.(s.caller, t.name, "error", { cap: t.cap, threadId });
     return { result: textResult({ error: out.error }, true, { error: out.error }) };
   }
 
@@ -165,13 +212,13 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     const id: Id = req.id ?? null;
     const isNote = req.id === undefined;
     switch (req.method) {
-      case "initialize": return isNote ? null : ok(id, { protocolVersion: s?.protocol, capabilities: { tools: { listChanged: false } }, serverInfo: info, instructions: INSTRUCTIONS });
+      case "initialize": return isNote ? null : ok(id, { protocolVersion: s?.protocol, capabilities: { tools: { listChanged: false } }, serverInfo: info, instructions: s?.caller.kind === "outside" ? OUTSIDE_INSTRUCTIONS : INSTRUCTIONS });
       case "notifications/initialized":
       case "notifications/cancelled": return null;
       case "ping": return isNote ? null : ok(id, {});
       case "tools/list":
         if (isNote) return null;
-        return s ? ok(id, { tools: listTools(s).map(toolView) }) : err(id, INVALID_REQUEST, "No session.");
+        return s ? ok(id, { tools: toolViews(s) }) : err(id, INVALID_REQUEST, "No session.");
       case "tools/call": {
         if (isNote) return null;
         if (!s) return err(id, INVALID_REQUEST, "No session.");
@@ -187,11 +234,35 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     }
   }
 
+  /** The session this token belongs to, or null. An outside agent's token is read on every request: it may have expired, or its sign-in may have ended, since the last one. */
+  async function sessionFor(token: string, tokenKey: string, clientName: string | undefined, origin: string | undefined): Promise<Session | null> {
+    let s = byToken.get(tokenKey) ?? null;
+    if (s?.caller.kind === "outside") {
+      if (await deps.open(token, undefined, origin)) return s;
+      byToken.delete(tokenKey);
+      return null;
+    }
+    if (s && now() - s.checkedAt > recheckMs && deps.stillValid) {
+      if (await deps.stillValid(s.caller)) s.checkedAt = now();
+      else { dropSession(s); s = null; }
+    }
+    if (s) return s;
+    const caller = await deps.open(token, clientName, origin);
+    if (!caller) return null;
+    // a rotated token keeps its session: the client goes on with the session id it holds
+    const kept = bySession.get(caller.sessionId);
+    if (kept) { byToken.delete(kept.tokenKey); kept.tokenKey = tokenKey; byToken.set(tokenKey, kept); return kept; }
+    const made = newSession(caller, tokenKey, clientName);
+    byToken.set(tokenKey, made);
+    bySession.set(caller.sessionId, made);
+    return made;
+  }
+
   async function handle(req: McpHttpRequest): Promise<McpHttpResponse> {
     if (!originOk(req.headers["origin"])) return json(403, { error: "origin not allowed" });
     if (req.method === "DELETE") {
       const token = bearer(req.headers["authorization"]);
-      if (!token) return empty(401, { "www-authenticate": "Bearer" });
+      if (!token) return unauthorized(req.origin);
       const s = byToken.get(await sha256(token));
       if (!s) return empty(404);
       dropSession(s);
@@ -200,7 +271,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     // No server-initiated messages: a GET for an event stream is answered with the standard "not offered".
     if (req.method !== "POST") return empty(405, { allow: "POST, DELETE" });
     const token = bearer(req.headers["authorization"]);
-    if (!token) return empty(401, { "www-authenticate": "Bearer" });
+    if (!token) return unauthorized(req.origin);
     if (req.body.length > maxBody) return json(413, err(null, INVALID_REQUEST, "The request is too large."));
 
     let parsed: unknown;
@@ -210,22 +281,12 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     if (items.length === 0) return json(400, err(null, INVALID_REQUEST, "Empty batch"));
 
     const tokenKey = await sha256(token);
-    let s = byToken.get(tokenKey) ?? null;
-    if (s && now() - s.checkedAt > recheckMs && deps.stillValid) {
-      if (await deps.stillValid(s.caller)) s.checkedAt = now();
-      else { dropSession(s); s = null; }
-    }
     const init = items.find((i): i is Request => isRequest(i) && i.method === "initialize");
     const initializing = init !== undefined;
     const named = (init?.params as { clientInfo?: { name?: unknown } } | null | undefined)?.clientInfo?.name;
     const clientName = typeof named === "string" ? named.slice(0, 120) : undefined;
-    if (!s) {
-      const caller = await deps.open(token, clientName);
-      if (!caller) return empty(401, { "www-authenticate": 'Bearer error="invalid_token"' });
-      s = newSession(caller, tokenKey, clientName);
-      byToken.set(tokenKey, s);
-      bySession.set(caller.sessionId, s);
-    }
+    const s = await sessionFor(token, tokenKey, clientName, req.origin);
+    if (!s) return unauthorized(req.origin, "invalid_token");
     const header = req.headers["mcp-session-id"];
     if (header !== undefined && header !== s.caller.sessionId && !initializing) return empty(404);
 

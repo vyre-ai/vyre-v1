@@ -2,14 +2,15 @@
 
 Lane L6. Kind module. Version 0.1.0.
 
-Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
+Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (58)
+## Capabilities (61)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
 - [automations.alerts.set](../capabilities/automations.alerts.set.md): Set error alerts: who, when (every failure or after N in a row), where (Needs you, DM, channel), and the escalation chain
 - [automations.analytics](../capabilities/automations.analytics.md): Outcomes from runs: totals, success rate, a daily series, the busiest automations and where failures stop
+- [automations.code_reach](../capabilities/automations.code_reach.md): System: a code step that names hosts asks the Gate before the sandbox opens to them. It does nothing itself
 - [automations.connector_card](../capabilities/automations.connector_card.md): Post a compact card in the chat: a title and up to 20 rows, each done or not. Used for connector test results and the review before publish. A key is refused.
 - [automations.connector_levels](../capabilities/automations.connector_levels.md): Which connector actions were tried against the real app (tested) and which were not (draft). Keys only.
 - [automations.connector_offer.accept](../capabilities/automations.connector_offer.accept.md): Accept a connector setup offer. Accepting is final for that Vault item.
@@ -44,11 +45,13 @@ Requires: campaigns, chat, files, forms, github, journeys, mail, meetings, recor
 - [automations.preview_promote](../capabilities/automations.preview_promote.md): Show what Promote to Space grants as an access diff, and which subscription keys must be replaced by shared API keys
 - [automations.promote](../capabilities/automations.promote.md): Promote a Personal Automation to the Space: keeps history and versions, runs on access granted to the automation itself
 - [automations.read_docs](../capabilities/automations.read_docs.md): Read one public API docs page as plain text, with its same-site links. For an OpenAPI document, one line per operation. GET only, no key, public hosts only. Give focus to get just the passages around a word.
+- [automations.read_link](../capabilities/automations.read_link.md): Open a web page from the server and read it as plain text, with its links. Use it for any link the person gave or a page you read links to. A link you put together yourself waits for the person, because its address can carry data. GET only, no key, public hosts only
 - [automations.replay](../capabilities/automations.replay.md): Live rerun of a past run on the same definition version or the current one, not a sandbox replay
 - [automations.restore_version](../capabilities/automations.restore_version.md): Restore an Automation to an earlier version (saved as a new version)
 - [automations.retry](../capabilities/automations.retry.md): Retry a failed run of this Automation from the start or from a step
 - [automations.run](../capabilities/automations.run.md): Run an Automation now with a payload (the manual trigger or a button)
 - [automations.schedule_choose](../capabilities/automations.schedule_choose.md): Apply one recovery choice to a schedule whose backlog is over its cap
+- [automations.senders](../capabilities/automations.senders.md): What this Automation sends from: the mailboxes and numbers its steps name, and whether each can send now
 - [automations.set_enabled](../capabilities/automations.set_enabled.md): Turn an Automation on or off
 - [automations.steps.list](../capabilities/automations.steps.list.md): The step palette: every step kind with category, input and output schema, effects and Gate act
 - [automations.stop](../capabilities/automations.stop.md): Stop one run of an Automation, or all its running runs and pause it

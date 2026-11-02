@@ -145,7 +145,7 @@ Fields: `e164` phone, `title` text, `capabilities` multichoice, `assigneeKind` c
 
 Profile desktop `all`, phone `window`, web `window`. Window 90 days or 300 recent rows. Protected field `needsMatch`. Access falls back to the mailbox when the contact is empty. No `conversation.versions` or `conversation.restore_version`.
 
-Fields: `contactId` text, `address` text, `displayName` text, `lastMessageAt` datetime, `lastChannel` choice, `lastPreview` text, `unreadCount` number, `needsMatch` checkbox, `ownerId` person, `mailboxIds` text, `numberIds` text, `campaignId` text.
+Fields: `contactId` text, `address` text, `displayName` text, `lastMessageAt` datetime, `lastChannel` choice, `lastPreview` text, `unreadCount` number, `needsMatch` checkbox, `ownerId` person, `mailboxIds` text, `numberIds` text.
 
 ### call (`telephony`, `telephony_call`, id `cal_`)
 
@@ -157,7 +157,7 @@ Fields: `numberId` text, `direction` choice, `from` text, `to` text, `contactId`
 
 Profile desktop `window`, phone `window`, web `window`. Window 90 days or 500 recent rows. `maxLabel` `confidential`. Parent is `number`. Body label is `confidential`. No `sms.versions` or `sms.restore_version`.
 
-Fields: `numberId` text, `direction` choice, `from` text, `to` text, `body` longtext (confidential), `status` status, `contactId` text, `mediaFileIds` files, `campaignId` text, `at` datetime, `twilioSid` text, `traceId` text.
+Fields: `numberId` text, `direction` choice, `from` text, `to` text, `body` longtext (confidential), `status` status, `contactId` text, `mediaFileIds` files, `at` datetime, `twilioSid` text, `traceId` text.
 
 ### calendar_event (`calendar`, `calendar_event`, id `cev_`)
 

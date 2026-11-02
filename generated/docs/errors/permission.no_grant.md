@@ -13,6 +13,7 @@ HTTP 403. Retryable: no.
 - access.actors.set_engineer_mcp
 - access.actors.update
 - access.audience_set
+- access.automation_senders
 - access.check
 - access.connector_builder.grant
 - access.connector_builder.status
@@ -30,4 +31,3 @@ HTTP 403. Retryable: no.
 - access.groups.update
 - access.labels.list
 - access.labels.set
-- access.lists

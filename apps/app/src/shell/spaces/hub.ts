@@ -3,9 +3,9 @@
 // subscriptions close, and nothing keyed by another Space is accepted afterwards. The previous replica stays open read-only so an Interrupt from that Space
 // can still reach you. Budget: space_switch 500 ms with the skeleton.
 import type { ThemeController } from "../../../../../ui/src/theme/index.ts";
-import { NO_SCREEN_PLACES, PLACE_TITLE, kitById, railFor } from "../rail/kits.ts";
+import { NO_SCREEN_PLACES, PLACE_TITLE, kitById, livePlace, railFor } from "../rail/kits.ts";
 import type { KitDef, PlaceId, RailGroups } from "../rail/kits.ts";
-import { activeEntry, createTabsController } from "../tabs/store.ts";
+import { activeEntry, createTabsController, screenTitle } from "../tabs/store.ts";
 import type { TabEntry, TabsController, TabsStorage } from "../tabs/store.ts";
 import type { SpaceDef } from "./model.ts";
 
@@ -27,7 +27,7 @@ export interface ReplicaSlot {
 }
 
 export interface SpaceSession {
-  readonly def: SpaceDef;
+  def: SpaceDef;
   readonly kit: KitDef;
   readonly tabs: TabsController;
   readonly replica: ReplicaSlot;
@@ -98,8 +98,13 @@ export interface ShellHub {
   retry(): void;
   /** Navigate: open a place (or an item in it) as a tab and show it. */
   go(place: PlaceId, hash?: string, background?: boolean): void;
+  /** The view is about to change: whoever draws the frame keeps a still copy until the next one is ready. */
+  hold(): void;
+  setHolder(fn: (() => void) | null): void;
   /** Name a tab for the item it holds (its title arrives after the tab opens). */
   retitle(key: string, title: string): void;
+  /** The count on a place of the open Space, from what it counts live (the rail reads it, and only redraws when it changes). */
+  count(place: PlaceId, n: number): void;
   /** Show a tab the strip selected. */
   showTab(tab: TabEntry): void;
   newTab(): TabEntry;
@@ -176,6 +181,7 @@ export function createShellHub(options: HubOptions): ShellHub {
   let refusals = 0;
   const probeLog: SwitchProbe[] = [];
   const listeners = new Set<() => void>();
+  let holder: (() => void) | null = null;
   const waiters: (() => void)[] = [];
   const subs = new Map<string, Map<string, readonly string[]>>();
   let snap: HubState;
@@ -288,6 +294,12 @@ export function createShellHub(options: HubOptions): ShellHub {
       begin();
       emit();
     },
+    count(place, n) {
+      const s = open();
+      if ((s.def.counts[place] ?? 0) === n) return;
+      s.def = { ...s.def, counts: { ...s.def.counts, [place]: n } };
+      emit();
+    },
     retitle(key, title) {
       const s = open();
       if (s.tabs.state().tabs.find((t) => t.key === key)?.title === title) return;
@@ -295,25 +307,31 @@ export function createShellHub(options: HubOptions): ShellHub {
       emit();
     },
     go(requested, hash, background = false) {
-      // a place with no screen (the old Join) opens Home instead of an empty page
-      const place = NO_SCREEN_PLACES.includes(requested) ? "home" : requested;
-      if (place !== requested) hash = undefined;
+      // a place with no screen (the old Join) opens Chats instead of an empty page; Home's links land in Chats with their hash
+      const gone = NO_SCREEN_PLACES.includes(requested);
+      const place = gone ? "chats" : livePlace(requested);
+      if (gone) hash = undefined;
       const s = open();
-      s.tabs.openPlace(place, hash, undefined, background);
+      if (!background && (place !== s.place || (hash ?? "") !== s.hash)) holder?.();
+      s.tabs.openPlace(place, hash, screenTitle(hash), background);
       if (!background) {
         s.place = place;
         s.hash = hash ?? "";
       }
       emit();
     },
+    hold() { holder?.(); },
+    setHolder(fn) { holder = fn; },
     showTab(tab) {
       const s = open();
+      holder?.();
       s.place = tab.place;
       s.hash = tab.hash ?? "";
       emit();
     },
     closeTab(key) {
       const s = open();
+      holder?.();
       s.tabs.close(key ?? s.tabs.state().active);
       const now = s.tabs.state();
       const t = now.tabs.find((x) => x.key === now.active);

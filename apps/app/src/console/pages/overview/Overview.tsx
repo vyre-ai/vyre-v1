@@ -5,7 +5,7 @@ import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useConsoleData, useScreenQuery } from "../../shell/data.tsx";
-import { activityTitle, ago, money } from "../../shell/format.ts";
+import { activityTitle, ago, money, namedResource } from "../../shell/format.ts";
 import { Dot, Glyph } from "../../shell/glyphs.tsx";
 import type { Tone } from "../../shell/glyphs.tsx";
 import { Empty, Group, Lead, LinkButton, Section, pointer } from "../../shell/ui.tsx";
@@ -88,7 +88,7 @@ export function Overview(): ReactElement {
               <Row
                 key={`${e.at}-${i}`}
                 id={`act-${i}`}
-                title={activityTitle(who, e.action, e.resource ? data.name(e.resource) : undefined)}
+                title={activityTitle(who, e.action, namedResource(e.resource, data.name))}
                 leading={<Lead><Avatar name={who} size={22} /></Lead>}
                 trailing={<Text style={s.time}>{ago(now, e.at)}</Text>}
                 onPress={() => data.nav.openPage("audit")}

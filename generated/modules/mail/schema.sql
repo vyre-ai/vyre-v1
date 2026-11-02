@@ -39,7 +39,6 @@ CREATE TABLE IF NOT EXISTS "mail_message" (
   "sentAt" INTEGER,
   "contactId" TEXT,
   "isPrivate" INTEGER,
-  "campaignId" TEXT,
   "attachments" TEXT,
   "draftedByAgent" TEXT,
   "traceId" TEXT,

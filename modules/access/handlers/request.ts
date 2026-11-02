@@ -68,7 +68,7 @@ export function approversFor(ctx: AccessCtx, store: AccessStore, resource: Resou
 
 const titleOf = (store: AccessStore, resource: ResourceRef): string => {
   const row = store.resources.get(resource.id)?.row;
-  return strOf(row?.["name"]) ?? strOf(row?.["title"]) ?? `${resource.type} ${resource.id}`;
+  return strOf(row?.["name"]) ?? strOf(row?.["title"]) ?? `this ${resource.type}`;
 };
 
 /** Asks per requester in the last hour, real or not. Memory only: a restart forgets it, which costs a requester a fresh allowance and leaks nothing. */
@@ -88,8 +88,10 @@ export const resetAskLimit = (): void => asks.clear();
 const exists = (store: AccessStore, r: ResourceRef): boolean => r.type === "space" || store.resources.get(r.id)?.type === r.type;
 
 export async function requestCreate(ctx: AskCtx, input: { resource: ResourceRef; level: Level; note?: string; idempotencyKey: string }) {
-  const requester = personOf(ctx);
   const store = storeOf(ctx);
+  // an agent asks for itself when its person already has that level: the person who decides shares the thing with the agent, one press. An agent never asks for more than its person has; then the ask is the person's, as before
+  const asker = personOf(ctx);
+  const requester = ctx.principal.kind === "agent" && exists(store, input.resource) && allows(ctx, store, asker, null, input.level, input.resource) ? ctx.principal.id : asker;
   if (!LEVELS.includes(input.level)) raise(ctx.trace.traceId, "validation.bad_input", "level is view, use, edit or manage");
   const roles = store.rolesOf(requester);
   if (roles.length > 0 && roles.every((r) => r === "rol_guest")) raise(ctx.trace.traceId, "permission.guest_cannot_request", "Guests work inside the access they were given and cannot ask for more.");
@@ -113,7 +115,7 @@ export async function requestCreate(ctx: AskCtx, input: { resource: ResourceRef;
   const resourceTitle = titleOf(store, input.resource);
   const block = {
     type: "access_request", v: 1,
-    data: { requestId: id, requester, resource: { type: input.resource.type, id: input.resource.id }, resourceTitle, level: input.level, ...(input.note ? { note: input.note } : {}), state: "waiting" },
+    data: { requestId: id, requester, resource: { type: input.resource.type, id: input.resource.id }, resourceTitle, level: input.level, ...(input.note ? { note: input.note } : {}), state: "waiting", ...(ctx.thread ? { threadId: ctx.thread } : {}), ...(ctx.thread && ctx.principal.kind === "agent" ? { agentId: ctx.principal.id } : {}) },
   };
   const taskIds: string[] = [];
   for (const approver of approvers) {
@@ -162,8 +164,21 @@ function decidable(ctx: AskCtx, requestId: string): { row: RequestRow; me: strin
   const store = storeOf(ctx);
   const may = row && ((JSON.parse(row.approvers_json) as string[]).includes(me) || (row.requester !== me && approversFor(ctx, store, { type: row.resource_type, id: row.resource_id }, row.requester).includes(me)));
   if (!row || !may) return raise(ctx.trace.traceId, "validation.not_found", "No such request.");
-  if (row.state !== "waiting") return raise(ctx.trace.traceId, "validation.precondition_failed", `This request was already ${row.state}.`);
+  if (row.state !== "waiting") return raise(ctx.trace.traceId, "validation.precondition_failed", "Already decided.");
   return { row, me };
+}
+
+/** The chat an agent asked in, read back from the request's own card: the caller holds one of the tasks, not necessarily the first. Empty for a request made anywhere else. */
+async function chatOf(ctx: AskCtx, row: RequestRow): Promise<{ threadId?: string; agentId?: string }> {
+  for (const taskId of JSON.parse(row.task_ids_json) as string[]) {
+    try {
+      const t = asRow(asRow(await ctx.call("tasks.get", { taskId }))?.["task"]);
+      const d = asRow(asRow(Array.isArray(t?.["blocks"]) ? (t!["blocks"] as unknown[])[0] : undefined)?.["data"]);
+      const threadId = strOf(d?.["threadId"]), agentId = strOf(d?.["agentId"]);
+      return { ...(threadId ? { threadId } : {}), ...(agentId ? { agentId } : {}) };
+    } catch { /* another approver's card: the next one is the caller's */ }
+  }
+  return {};
 }
 
 /** Close the cards of a decided request for everyone who held one. A card that cannot close is logged; the decision stands. */
@@ -188,7 +203,7 @@ export async function requestsApprove(ctx: AskCtx, input: { requestId: string; l
   if (RANK[level]! > ownLevel) raise(ctx.trace.traceId, "permission.not_contained", "You cannot give more access than you hold yourself.");
 
   const grant: GrantRec = {
-    id: nid("gnt"), subject: { kind: "person", id: row.requester }, resource, level, conditions: {}, by: me, source: `request:${row.id}`, createdAt: ctx.now(),
+    id: nid("gnt"), subject: { kind: row.requester.startsWith("agt_") ? "agent" : "person", id: row.requester }, resource, level, conditions: {}, by: me, source: `request:${row.id}`, createdAt: ctx.now(),
   };
   store.grants.set(grant.id, grant);
   store.bump();
@@ -196,7 +211,7 @@ export async function requestsApprove(ctx: AskCtx, input: { requestId: string; l
   ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what: "assignment", by: me });
   try { store.persist(ctx.db); } catch (e) { store.grants.delete(grant.id); store.bump(); throw e; }
   ctx.db.run(`UPDATE access_requests SET state = ?, decided_by = ?, decided_at = ?, grant_id = ? WHERE id = ?`, "granted", me, ctx.now(), grant.id, row.id);
-  ctx.emit("access.granted", row.id, { requestId: row.id, resource, level, requester: row.requester, grantId: grant.id });
+  ctx.emit("access.granted", row.id, { requestId: row.id, resource, level, requester: row.requester, grantId: grant.id, ...(await chatOf(ctx, row)) });
   await closeCards(ctx, row, "done", "Approved");
   return { grant: grantView(grant) };
 }
@@ -204,7 +219,7 @@ export async function requestsApprove(ctx: AskCtx, input: { requestId: string; l
 export async function requestsDecline(ctx: AskCtx, input: { requestId: string; note?: string }) {
   const { row, me } = decidable(ctx, input.requestId);
   ctx.db.run(`UPDATE access_requests SET state = ?, decided_by = ?, decided_at = ?, decision_note = ? WHERE id = ?`, "declined", me, ctx.now(), input.note ?? null, row.id);
-  ctx.emit("access.declined", row.id, { requestId: row.id, resource: { type: row.resource_type, id: row.resource_id }, requester: row.requester, ...(input.note ? { note: input.note } : {}) });
+  ctx.emit("access.declined", row.id, { requestId: row.id, resource: { type: row.resource_type, id: row.resource_id }, requester: row.requester, ...(input.note ? { note: input.note } : {}), ...(await chatOf(ctx, row)) });
   await closeCards(ctx, row, "canceled", input.note ? `Declined: ${input.note}` : "Declined");
   return { ok: true };
 }

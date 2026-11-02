@@ -1,6 +1,6 @@
 # mail.send
 
-Send an email through the single send API: caps per sender, send windows, throttling, suppression, consent, trace id header, agent footer line
+Send an email through the single send API: suppression, consent, trace id header, agent footer line, an unsubscribe link when asked
 
 | | |
 |---|---|
@@ -49,9 +49,9 @@ type In = {
   attachments?: Array<string>;
   replyToMessageId?: string;
   contactId?: string;
-  campaignId?: string;
   draftId?: string;
   sendAt?: number;
+  unsubscribe?: boolean;
   idempotencyKey: string;
 };
 ```
@@ -77,7 +77,6 @@ type Out = {
 - provider.network
 - provider.rate_limited
 - provider.unavailable
-- rate_limit.exceeded
 - validation.bad_input
 - validation.not_found
 - validation.precondition_failed

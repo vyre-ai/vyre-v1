@@ -5,14 +5,14 @@ import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { makeId } from "../../packages/contracts/src/ids.ts";
 
-export type RunKind = "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "runbook" | "wait" | "terminal" | "replay" | "other";
+export type RunKind = "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "deployment" | "runbook" | "wait" | "terminal" | "replay" | "other";
 export type RunStatus = "queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped";
 export type WaitReason = "approval" | "background" | "key";
 export type StepState = "pending" | "running" | "succeeded" | "failed" | "skipped" | "waiting" | "stopped";
 export interface ResourceRef { type: string; id: string }
 export interface StepError { code: string; message: string }
 
-export const RUN_KINDS: readonly RunKind[] = ["automation", "automation_test", "journey", "journey_migrate", "routine", "campaign", "deployment", "runbook", "wait", "terminal", "replay", "other"];
+export const RUN_KINDS: readonly RunKind[] = ["automation", "automation_test", "journey", "journey_migrate", "routine", "deployment", "runbook", "wait", "terminal", "replay", "other"];
 export const ACTIVE: readonly RunStatus[] = ["queued", "running", "waiting"];
 export const isActive = (s: RunStatus): boolean => s === "queued" || s === "running" || s === "waiting";
 export const isTerminalStep = (s: StepState): boolean => s === "succeeded" || s === "failed" || s === "skipped" || s === "stopped";

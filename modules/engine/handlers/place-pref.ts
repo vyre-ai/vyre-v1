@@ -62,10 +62,12 @@ async function daemons(ctx: CallCtx): Promise<{ any: boolean; online: boolean }>
   return { any: mine.length > 0, online: mine.some((x) => x.lastSeenAt !== undefined && ctx.now() - x.lastSeenAt <= ONLINE_MS) };
 }
 
-export async function placementSet(ctx: CallCtx, input: { threadId: string; target: Target; serverId?: string }): Promise<{ target: Target; serverId?: string }> {
+export async function placementSet(ctx: CallCtx, input: { threadId: string; target: Target | "auto"; serverId?: string }): Promise<{ target: Target | "auto"; serverId?: string }> {
   ensurePlace(ctx.db);
   const asker = askerOf(ctx);
   if (!(await privateThread(ctx, input.threadId))) raise(ctx, "validation.precondition_failed", "Only a private chat chooses where it runs.", { threadId: input.threadId });
+  // Automatic is no place: the pin goes, and the rules decide the next turn
+  if (input.target === "auto") { ctx.db.run("DELETE FROM engine_thread_place WHERE thread_id = ?", input.threadId); return { target: "auto" }; }
   if (input.target === "server") {
     const s = input.serverId === undefined ? undefined : (await myServers(ctx)).find((x) => x.serverId === input.serverId && x.enrollment === "approved");
     if (!s) raise(ctx, "permission.no_grant", "That is not one of your servers. A chat runs only on your own computers.", { serverId: input.serverId ?? null });
@@ -82,7 +84,7 @@ export async function placementSet(ctx: CallCtx, input: { threadId: string; targ
 
 export interface Option { target: Target; serverId?: string; name: string; online: boolean; reason?: string }
 
-export async function placementOptions(ctx: CallCtx, input: { threadId: string; agentId?: string }): Promise<{ private: boolean; effective: { target: Target; serverId?: string }; options: Option[] }> {
+export async function placementOptions(ctx: CallCtx, input: { threadId: string; agentId?: string }): Promise<{ private: boolean; pinned: boolean; effective: { target: Target; serverId?: string }; options: Option[] }> {
   ensurePlace(ctx.db);
   askerOf(ctx);
   const priv = await privateThread(ctx, input.threadId);
@@ -101,5 +103,5 @@ export async function placementOptions(ctx: CallCtx, input: { threadId: string; 
     const dec = input.agentId === undefined ? null : (await ctx.call("engine.placement.decide", { threadId: input.threadId, agentId: input.agentId, kind: "message" }).catch(() => null)) as { placement?: string } | null;
     effective = { target: dec?.placement === "host" ? "space" : "device" };
   }
-  return { private: priv, effective, options };
+  return { private: priv, pinned: priv && pin !== undefined, effective, options };
 }

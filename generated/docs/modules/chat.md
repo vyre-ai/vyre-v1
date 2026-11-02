@@ -2,15 +2,14 @@
 
 Lane L2. Kind module. Version 0.1.0.
 
-Requires: engine.
+Requires: engine, mcp.
 
-## Capabilities (84)
+## Capabilities (83)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
 - [channels.agents.remove](../capabilities/channels.agents.remove.md): Remove an agent from a channel
 - [channels.archive](../capabilities/channels.archive.md): Archive a channel (project and Journey channels archive when the record completes)
-- [channels.connect_outside_agent](../capabilities/channels.connect_outside_agent.md): Connect an outside agent (Claude Code, Codex) to a channel: returns the MCP address, a one-time token (once, 10 minutes) and the run command
 - [channels.create](../capabilities/channels.create.md): Create a channel: public to the Team Space or invite-only, with any mix of people and agents
 - [channels.erase](../capabilities/channels.erase.md): Erase one channel for good with all its messages (governance erase)
 - [channels.get](../capabilities/channels.get.md): Read one channel with members, agents and unread count
@@ -132,5 +131,5 @@ Requires: engine.
 - [thread.restored](../events/thread.restored.md): A person undid the delete of their chat
 - [thread.started](../events/thread.started.md): A thread, chat or channel main thread was started
 - [thread.unarchived](../events/thread.unarchived.md): A chat came back into a person's list: they unarchived it, or someone @mentioned them in it
-- [thread.updated](../events/thread.updated.md): A thread title, folder or listing changed
+- [thread.updated](../events/thread.updated.md): A thread title, folder, listing or owner changed
 - [transcripts.purged](../events/transcripts.purged.md): Chat transcripts past their retention were removed (a count)

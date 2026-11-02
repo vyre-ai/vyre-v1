@@ -15,6 +15,7 @@ export interface ChatCommandDef {
 export const CHAT_COMMANDS: readonly ChatCommandDef[] = Object.freeze([
   { id: "btw", detail: "Ask a side question while the agent works", arg: "your question", argRequired: true },
   { id: "plan", detail: "Turn plan mode on or off for this chat", arg: "on or off" },
+  { id: "permissions", detail: "See what may go without asking, or take one back", arg: "remove and a number" },
   { id: "helper", detail: "Start a helper chat for a side task", arg: "what it should do", argRequired: true },
   { id: "handoff", detail: "Hand the work to another agent", arg: "@agent and a note", argRequired: true },
   { id: "pin", detail: "Pin the last message" },
@@ -29,7 +30,7 @@ export const CHAT_COMMANDS: readonly ChatCommandDef[] = Object.freeze([
   { id: "stop", detail: "Stop what the agent is doing" },
 ] satisfies readonly ChatCommandDef[]);
 
-export type ChatCommandId = "plan" | "helper" | "handoff" | "pin" | "fork" | "export" | "continue" | "task" | "remember" | "find" | "search" | "model" | "btw" | "stop";
+export type ChatCommandId = "plan" | "permissions" | "helper" | "handoff" | "pin" | "fork" | "export" | "continue" | "task" | "remember" | "find" | "search" | "model" | "btw" | "stop";
 
 const BY_ID = new Map(CHAT_COMMANDS.map((c) => [c.id, c] as const));
 export const chatCommand = (id: string): ChatCommandDef | undefined => BY_ID.get(id);

@@ -37,6 +37,15 @@ export async function startChat(d: PageDeps, agentId: string, name: string): Pro
   } catch { d.note(`Could not start a chat with ${name}. Try again.`); return null; }
 }
 
+/** Remove an outside agent: its sign-in ends at once, a call in flight fails, and it goes to Trash. Nothing to undo: connecting again is one press. */
+export function removeOutside(d: PageDeps, agentId: string, name: string, done: () => void): Promise<boolean> {
+  return attempt(d, `remove ${name}`, async () => {
+    await d.call("mcp.connected.remove", { agentId } satisfies CapMap["mcp.connected.remove"]["in"]);
+    d.note(`${name} was removed. Its sign-in has ended.`);
+    done();
+  });
+}
+
 export function pause(d: PageDeps, agentId: string, name: string, reason: string): Promise<boolean> {
   return attempt(d, `pause ${name}`, async () => {
     await d.call("agents.pause", { agentId, reason } satisfies CapMap["agents.pause"]["in"]);

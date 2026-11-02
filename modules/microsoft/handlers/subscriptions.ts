@@ -8,10 +8,10 @@
 import { isTrustedService } from "../../../lib/trust.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
-  api, apiRaw, bad, CONFIG_ID, config, EMAIL, enc, ensure, first, forgetTokens, GRAPH, int, needHost, newId, normalizeEmail, num, obj, PERMISSIONS, refusal, resolveSubject, rowsOf,
+  api, apiRaw, bad, CONFIG_ID, config, dataOf, EMAIL, enc, ensure, first, forgetTokens, GRAPH, int, needHost, newId, normalizeEmail, num, obj, permissionsFor, refusal, resolveSubject, rolesFor, rowsOf, UNSCOPED,
   str, strOrNull, text, codeOf, userAccountByEmail, userUrl,
 } from "../projections.ts";
-import type { MsCtx } from "../projections.ts";
+import type { DataChoice, MsCtx } from "../projections.ts";
 import { ensureMailbox, pollInterval, pullMailbox } from "./graph.ts";
 import { userSigninLost } from "./personal.ts";
 import { pullTeams } from "./teams.ts";
@@ -110,7 +110,9 @@ export async function unsubscribe(ctx: MsCtx, a: Act & { subscriptionId: string 
   const row = first(ctx.db.all(`SELECT * FROM microsoft_subscription WHERE id = ?`, a.subscriptionId));
   if (!row) throw fail("validation.not_found", ctx.trace.traceId, { message: "No such subscription." });
   const owner = strOrNull(row, "mailbox");
-  const sub = resolveSubject(ctx, { connectionId: a.connectionId, ...(a.as ? { as: a.as } : {}) });
+  // a subscription is the tenant's, not a mailbox's content: removing one reaches no one, so an admin may, without acting as the person it watches
+  const person = isTrustedService(ctx.principal) ? null : (ctx.actingFor ?? ctx.principal.id);
+  const sub = person ? strOrNull(first(ctx.db.all(`SELECT email FROM microsoft_member WHERE "userId" = ? AND mapped = ?`, person, 1)), "email") : null;
   if ((owner === null || owner !== sub) && !isTrustedService(ctx.principal) &&
     ctx.authorize({ perm: "connectors.manage", level: "manage" }, { type: "connection", id: a.connectionId }).effect !== "allow") {
     throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only the member it watches or an admin can remove this subscription." });
@@ -119,6 +121,12 @@ export async function unsubscribe(ctx: MsCtx, a: Act & { subscriptionId: string 
   if (r.status >= 300 && r.status !== 404) throw refusal(ctx, r.status, r.json);
   ctx.db.run(`DELETE FROM microsoft_subscription WHERE id = ?`, a.subscriptionId);
   return { removed: true };
+}
+
+async function dropSubscription(ctx: MsCtx, connectionId: string, id: string): Promise<void> {
+  try { await apiRaw(ctx, { cap: "ms.subscriptions.renew", connectionId, tenant: true, method: "DELETE", url: `${GRAPH}/subscriptions/${enc(id)}` }); }
+  catch (e) { ctx.log.warn("microsoft subscription was not removed", { code: codeOf(e) }); }
+  ctx.db.run(`DELETE FROM microsoft_subscription WHERE id = ?`, id);
 }
 
 export const mailUnsubscribe = (ctx: MsCtx, a: Act & { subscriptionId: string }) => unsubscribe(ctx, a, "ms.mail.unsubscribe");
@@ -137,6 +145,10 @@ export async function renew(ctx: MsCtx): Promise<{ runId: string }> {
   for (const row of rowsOf(ctx.db.all(`SELECT * FROM microsoft_subscription ORDER BY "expiresAt" ASC`))) {
     const id = str(row, "id");
     const expiresAt = num(row, "expiresAt");
+    // a watch on someone excluded or gone is not renewed: it is taken down
+    const watched = strOrNull(row, "mailbox");
+    const member = watched ? first(ctx.db.all(`SELECT mapped, excluded FROM microsoft_member WHERE email = ?`, watched)) : null;
+    if (member && (num(member, "excluded") === 1 || num(member, "mapped") !== 1)) { await dropSubscription(ctx, str(row, "connectionId"), id); continue; }
     if (expiresAt - now > Math.min(RENEW_WITHIN_MS, (num(row, "maxMinutes") * MINUTE) / 2)) continue;
     const next = now + num(row, "maxMinutes") * MINUTE - MARGIN_MS;
     try {
@@ -266,9 +278,13 @@ export async function consentStatus(ctx: MsCtx) {
   const cfg = config(ctx);
   const members = rowsOf(ctx.db.all(`SELECT email, mapped, excluded FROM microsoft_member`));
   const out: {
-    configured: boolean; tenantId?: string; consentGiven: boolean; policyConfirmed: boolean; lastVerifyAt?: number; autoConnect: boolean; mappedMembers: number; excluded: string[];
+    configured: boolean; tenantId?: string; consentGiven: boolean; policyConfirmed: boolean; lastVerifyAt?: number; autoConnect: boolean; mappedMembers: number; excluded: string[]; data: DataChoice; appStored: boolean; clientId?: string; permissions: string[]; exchangeRoles: string[];
   } = {
     configured: num(cfg, "configured") === 1,
+    data: dataOf(cfg),
+    appStored: !!strOrNull(cfg, "vaultItem"),
+    permissions: permissionsFor(dataOf(cfg)),
+    exchangeRoles: rolesFor(dataOf(cfg)),
     consentGiven: num(cfg, "consentGiven") === 1,
     policyConfirmed: num(cfg, "policyConfirmed") === 1,
     autoConnect: cfg ? num(cfg, "autoConnect") === 1 : true,
@@ -277,7 +293,13 @@ export async function consentStatus(ctx: MsCtx) {
   };
   if (strOrNull(cfg, "tenantId")) out.tenantId = str(cfg, "tenantId");
   if (typeof cfg?.lastVerifyAt === "number") out.lastVerifyAt = cfg.lastVerifyAt;
+  if (strOrNull(cfg, "clientId")) out.clientId = str(cfg, "clientId");
   return out;
+}
+
+export async function consentCheckApp(ctx: MsCtx, input: { vaultItem: string }) {
+  ensure(ctx);
+  return needHost(ctx).checkApp(ctx, input.vaultItem);
 }
 
 export async function consentLink(ctx: MsCtx, input: { tenantId?: string }) {
@@ -287,7 +309,7 @@ export async function consentLink(ctx: MsCtx, input: { tenantId?: string }) {
   if (!clientId) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Store the app registration first; the consent link needs its client id." });
   const tenant = input.tenantId ?? strOrNull(cfg, "tenantId") ?? "organizations";
   if (!TENANT.test(tenant)) bad(ctx, "The tenant is not valid.");
-  return { url: `https://login.microsoftonline.com/${tenant}/adminconsent?client_id=${encodeURIComponent(clientId)}`, permissions: [...PERMISSIONS] };
+  return { url: `https://login.microsoftonline.com/${tenant}/adminconsent?client_id=${encodeURIComponent(clientId)}`, permissions: permissionsFor(dataOf(cfg)) };
 }
 
 export async function consentSnippet(ctx: MsCtx) {
@@ -298,19 +320,30 @@ export async function consentSnippet(ctx: MsCtx) {
   const domain = strOrNull(cfg, "domain") ?? "yourcompany.com";
   const group = `${GROUP_NAME.toLowerCase()}@${domain}`;
   const members = mapped.length ? mapped.map((e) => `"${e}"`).join(",") : `"first.member@${domain}"`;
+  const objectId = strOrNull(cfg, "servicePrincipalId") ?? "<Object ID from Entra, Enterprise applications>";
+  const data = dataOf(cfg);
+  const one = mapped[0] ? `"${mapped[0]}"` : `"first.member@${domain}"`;
   const snippet = [
-    "# Run in Exchange Online PowerShell as a tenant administrator.",
-    "# It limits Vyre's app to the mailboxes of the members mapped in Vyre; every other mailbox stays out of its reach.",
-    `New-DistributionGroup -Name "${GROUP_NAME}" -Alias "${GROUP_NAME.toLowerCase()}" -Type Security -PrimarySmtpAddress "${group}" -Members ${members}`,
-    `New-ApplicationAccessPolicy -AppId "${clientId}" -PolicyScopeGroupId "${group}" -AccessRight RestrictAccess -Description "Vyre: only the mapped members"`,
-    `# Check one mapped member (should say Granted) and one who is not mapped (should say Denied):`,
-    `Test-ApplicationAccessPolicy -AppId "${clientId}" -Identity ${mapped[0] ? `"${mapped[0]}"` : `"first.member@${domain}"`}`,
-    `Test-ApplicationAccessPolicy -AppId "${clientId}" -Identity "someone.else@${domain}"`,
-    "",
-    "# Run in Microsoft Teams PowerShell (Install-Module MicrosoftTeams; Connect-MicrosoftTeams) as a tenant administrator.",
-    "# Teams transcripts need their own policy, granted to each mapped member one by one, so a meeting organized by anyone else stays out of reach.",
-    `New-CsApplicationAccessPolicy -Identity "${GROUP_NAME}" -AppIds "${clientId}" -Description "Vyre: transcripts of the mapped members' meetings"`,
-    ...(mapped.length ? mapped : [`first.member@${domain}`]).map((e) => `Grant-CsApplicationAccessPolicy -PolicyName "${GROUP_NAME}" -Identity "${e}"`),
+    ...(data.mail || data.calendar ? [
+      "# Run in Exchange Online PowerShell as an Exchange administrator: Connect-ExchangeOnline -Device",
+      "# It limits Vyre's app to the mailboxes of the included members; every other mailbox stays out of its reach, at Microsoft.",
+      `New-DistributionGroup -Name "${GROUP_NAME}" -Alias "${GROUP_NAME.toLowerCase()}" -Type Security -PrimarySmtpAddress "${group}" -Members ${members}`,
+      `New-ServicePrincipal -AppId "${clientId}" -ObjectId "${objectId}" -DisplayName "Vyre"`,
+      `$group = (Get-DistributionGroup "${GROUP_NAME}").DistinguishedName`,
+      `New-ManagementScope -Name "${GROUP_NAME}" -RecipientRestrictionFilter "MemberOfGroup -eq '$group'"`,
+      ...rolesFor(data).map((role) => `New-ManagementRoleAssignment -App "${clientId}" -Role "${role}" -CustomResourceScope "${GROUP_NAME}"`),
+      "# Check one included member (InScope should say True) and one who is not (False):",
+      `Test-ServicePrincipalAuthorization -Identity "${clientId}" -Resource ${one}`,
+      `Test-ServicePrincipalAuthorization -Identity "${clientId}" -Resource "someone.else@${domain}"`,
+      "# Microsoft takes 30 minutes to 2 hours to apply this to a running app. The test above shows the result at once.",
+    ] : []),
+    ...(data.calendar ? [
+      "",
+      "# Run in Microsoft Teams PowerShell (Install-Module MicrosoftTeams; Connect-MicrosoftTeams) as a tenant administrator.",
+      "# Teams transcripts need their own policy, granted to each included member one by one, so a meeting organized by anyone else stays out of reach.",
+      `New-CsApplicationAccessPolicy -Identity "${GROUP_NAME}" -AppIds "${clientId}" -Description "Vyre: transcripts of the included members' meetings"`,
+      ...(mapped.length ? mapped : [`first.member@${domain}`]).map((e) => `Grant-CsApplicationAccessPolicy -PolicyName "${GROUP_NAME}" -Identity "${e}"`),
+    ] : []),
   ].join("\n");
   return { language: "powershell" as const, snippet, groupName: GROUP_NAME };
 }
@@ -324,7 +357,21 @@ async function autoConnectPolicy(ctx: MsCtx): Promise<boolean> {
   }
 }
 
-export async function consentSetup(ctx: MsCtx, input: { vaultItem: string; tenantId: string; domain?: string; idempotencyKey: string }) {
+/** Everyone included comes in, now that a person chose who that is. Repeating it adds nobody twice. */
+export async function consentConnectAll(ctx: MsCtx, input: { idempotencyKey: string }) {
+  ensure(ctx);
+  const cfg = config(ctx);
+  const connectionId = strOrNull(cfg, "connectionId");
+  if (!cfg || num(cfg, "configured") !== 1 || !connectionId) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Microsoft 365 is not set up." });
+  const people = rowsOf(ctx.db.all(`SELECT email, "userId" FROM microsoft_member WHERE mapped = ? AND excluded = ? AND "userId" IS NOT NULL ORDER BY email ASC`, 1, 0));
+  let connected = 0;
+  for (const [i, m] of people.entries()) {
+    if (await connectMember(ctx, { connectionId, userId: str(m, "userId"), email: str(m, "email"), key: `${input.idempotencyKey}:${str(m, "email")}`, wait: i })) connected += 1;
+  }
+  return { connected, included: people.length };
+}
+
+export async function consentSetup(ctx: MsCtx, input: { vaultItem: string; tenantId: string; domain?: string; data?: DataChoice; hold?: boolean; idempotencyKey: string }) {
   ensure(ctx);
   if (!HANDLE.test(input.vaultItem ?? "")) bad(ctx, "The Vault item is not a valid handle.");
   if (!TENANT.test(input.tenantId ?? "")) bad(ctx, "The tenant is not valid.");
@@ -360,6 +407,8 @@ export async function consentSetup(ctx: MsCtx, input: { vaultItem: string; tenan
       CONFIG_ID, connectionId, input.vaultItem, input.tenantId, domain, app.clientId, 0, 0, 0, autoConnect ? 1 : 0, null, null, now,
     );
   }
+  const data = input.data ?? dataOf(cfg);
+  ctx.db.run(`UPDATE microsoft_config SET "dataMail" = ?, "dataCalendar" = ?, "dataFiles" = ? WHERE id = ?`, data.mail ? 1 : 0, data.calendar ? 1 : 0, data.files ? 1 : 0, CONFIG_ID);
   try {
     await host.mintToken(ctx, { connectionId });   // proves the client id and secret before anything is mapped; consent itself is checked by verify
   } catch (e) {
@@ -386,11 +435,16 @@ export async function consentSetup(ctx: MsCtx, input: { vaultItem: string; tenan
     if (!prior || num(prior, "excluded") === 0) mapped.push({ userId: m.userId, email });
   }
   let connected = 0;
-  if (autoConnect && mapped.length > 0) {
-    const out = obj(await ctx.call("mail.auto_connect_members", { provider: "microsoft", members: mapped, idempotencyKey: `${input.idempotencyKey}:members` }));
-    connected = int(out.created) ?? 0;
-    for (const m of mapped) ctx.db.run(`UPDATE microsoft_member SET "mailboxState" = ? WHERE email = ?`, "pending", m.email);
-    for (const m of mapped) await connectCalendar(ctx, { connectionId, userId: m.userId, email: m.email });   // their calendars come in with their mail
+  if (autoConnect && mapped.length > 0 && input.hold !== true) {
+    if (data.mail) {
+      const out = obj(await ctx.call("mail.auto_connect_members", { provider: "microsoft", members: mapped, idempotencyKey: `${input.idempotencyKey}:members` }));
+      connected = int(out.created) ?? 0;
+      for (const [i, m] of mapped.entries()) {
+        ctx.db.run(`UPDATE microsoft_member SET "mailboxState" = ? WHERE email = ?`, "pending", m.email);
+        await queueFirstPull(ctx, connectionId, m.email, i);
+      }
+    }
+    if (data.calendar) for (const m of mapped) await connectCalendar(ctx, { connectionId, userId: m.userId, email: m.email });   // their calendars come in with their mail
   }
   ctx.emit("microsoft.consent_configured", "connector/microsoft", { connector: "microsoft", tenantId: input.tenantId, mappedMembers: mapped.length, autoConnect });
   // Subscriptions live about three days: queue the first renewal Run now.
@@ -402,7 +456,46 @@ export async function consentSetup(ctx: MsCtx, input: { vaultItem: string; tenan
   return { configured: true, mappedMembers: mapped.length, connected };
 }
 
+/** Nothing else starts a member's mail: a notification needs a subscription, and a poll needs a pass before it. People are spaced out so a big company does not arrive at Microsoft at once. */
+async function queueFirstPull(ctx: MsCtx, connectionId: string, email: string, wait: number): Promise<void> {
+  const at = ctx.now() + 1000 + wait * 2000;
+  ensureMailbox(ctx, email, connectionId);
+  if (num(first(ctx.db.all(`SELECT "nextPollAt" FROM microsoft_mailbox WHERE email = ?`, email)), "nextPollAt") > ctx.now()) return;   // one chain per mailbox
+  ctx.db.run(`UPDATE microsoft_mailbox SET "nextPollAt" = ? WHERE email = ?`, at, email);
+  await ctx.schedule(at, "ms.receive_notification", { notificationId: `first:${email}:${at}`, subscriptionId: "poll", resource: `users/${email}/messages`, changeType: "updated", clientStateOk: true });
+}
+
+/** One person comes in: their mailbox, their calendar and the first pull, for what the company chose. Their Files come in the first time they open Files, as themselves (mounts.company_drive). */
+async function connectMember(ctx: MsCtx, a: { connectionId: string; userId: string; email: string; key: string; wait: number }): Promise<boolean> {
+  const d = dataOf(config(ctx));
+  let connected = false;
+  if (d.mail) {
+    const out = obj(await ctx.call("mail.auto_connect_members", { provider: "microsoft", members: [{ userId: a.userId, email: a.email }], idempotencyKey: a.key }));
+    connected = (int(out.created) ?? 0) > 0 || (int(out.skipped) ?? 0) > 0;
+    ctx.db.run(`UPDATE microsoft_member SET "mailboxState" = ? WHERE email = ?`, "pending", a.email);
+    await queueFirstPull(ctx, a.connectionId, a.email, a.wait);
+  }
+  if (d.calendar) await connectCalendar(ctx, { connectionId: a.connectionId, userId: a.userId, email: a.email });
+  return connected;
+}
+
+/** A person stops: excluded, gone from the directory, or removed from the Space. What is already in Vyre stays theirs; nothing new comes in. Each stop is best effort, because the exclusion row is what every call checks. */
+export async function stopMember(ctx: MsCtx, a: { email: string; userId: string | null; connectionId: string | null }): Promise<void> {
+  ctx.db.run(`UPDATE microsoft_mailbox SET "nextPollAt" = ? WHERE email = ?`, null, a.email);
+  ctx.db.run(`UPDATE microsoft_member SET "mailboxState" = ?, updated_at = ? WHERE email = ?`, "paused", ctx.now(), a.email);
+  forgetTokens();
+  if (a.connectionId) for (const row of rowsOf(ctx.db.all(`SELECT id FROM microsoft_subscription WHERE mailbox = ?`, a.email))) await dropSubscription(ctx, a.connectionId, str(row, "id"));
+  await ctx.call("mail.member_pause", { provider: "microsoft", address: a.email, paused: true }).catch((e: unknown) => ctx.log.warn("microsoft member mailbox was not paused", { code: codeOf(e) }));
+  await ctx.call("mounts.account_pause", { account: a.email, paused: true }).catch((e: unknown) => ctx.log.warn("microsoft member mounts were not paused", { code: codeOf(e) }));
+  if (a.connectionId && a.userId) await connectCalendar(ctx, { connectionId: a.connectionId, userId: a.userId, email: a.email, connected: false });
+}
+
 /** The application permissions a token carries (its roles claim). The payload is read, not verified: Microsoft issued it to us a moment ago. */
+/** The app's object id in the tenant, from the oid claim of its own token. */
+export function objectIdOf(token: string): string | null {
+  try { const oid = (JSON.parse(Buffer.from(token.split(".")[1] ?? "", "base64url").toString("utf8")) as { oid?: unknown }).oid; return typeof oid === "string" && /^[0-9a-f-]{36}$/i.test(oid) ? oid : null; } catch { return null; }
+}
+
 export function rolesOf(token: string): string[] | null {
   const part = token.split(".")[1];
   if (!part) return null;
@@ -423,27 +516,36 @@ export async function consentVerify(ctx: MsCtx, input: { as?: string; policyConf
   const org = await apiRaw(ctx, { cap: "ms.consent.verify", connectionId, tenant: true, url: `${GRAPH}/organization`, query: { $select: "id" } });
   const token = org.token;
   const roles = rolesOf(token);
-  const missing = roles === null ? [] : PERMISSIONS.filter((p) => !roles.includes(p));
+  const data = dataOf(cfg);
+  const missing = roles === null ? [] : permissionsFor(data).filter((p) => !roles.includes(p));
+  const unscoped = roles === null ? [] : UNSCOPED.filter((p) => roles.includes(p));
+  const objectId = objectIdOf(token);
   const details: string[] = [];
   const orgOk = org.status < 300;
   if (!orgOk) details.push("Microsoft refused the organization check. Open the consent link as a tenant admin.");
   if (roles === null) details.push("The token could not be read, so the permission list was not checked.");
   if (missing.length) details.push(`Grant admin consent for: ${missing.join(", ")}.`);
+  if (unscoped.length) details.push(`Remove ${unscoped.join(", ")} from the app in Entra. Consented there, it reaches every mailbox and the Exchange limit does nothing.`);
 
-  const probe = input.as ? normalizeEmail(input.as) : strOrNull(first(ctx.db.all(`SELECT email FROM microsoft_member WHERE mapped = ? AND excluded = ?`, 1, 0)), "email");
+  // the mailbox folder list says yes or no and reads nothing; the caller's own mailbox when they have one
+  const person = ctx.actingFor ?? ctx.principal.id;
+  const included = rowsOf(ctx.db.all(`SELECT email, "userId" FROM microsoft_member WHERE mapped = ? AND excluded = ?`, 1, 0));
+  const probe = !data.mail && !data.calendar ? null : input.as ? normalizeEmail(input.as) : strOrNull(included.find((m) => strOrNull(m, "userId") === person) ?? included[0] ?? null, "email");
   let probeOk = true;
   if (probe) {
     if (!EMAIL.test(probe)) bad(ctx, "The address is not an email.");
+    if (!included.some((m) => str(m, "email") === probe)) throw fail("permission.no_grant", ctx.trace.traceId, { message: "That address is not an included member." });
     const p = await apiRaw(ctx, { cap: "ms.consent.verify", connectionId, as: probe, open: true, url: userUrl(probe, "/mailFolders/inbox"), query: { $select: "id" } });
     probeOk = p.status < 300;
-    if (!probeOk) details.push(`The app cannot reach ${probe}. Run the access policy snippet, then verify again.`);
+    if (!probeOk) details.push(`The app cannot reach ${probe}. Run the Exchange snippet, then verify again. Microsoft can take up to 2 hours to apply it.`);
   }
+  if (objectId) ctx.db.run(`UPDATE microsoft_config SET "servicePrincipalId" = ? WHERE id = ?`, objectId, CONFIG_ID);
   const consentGiven = orgOk && missing.length === 0;
   const ok = consentGiven && probeOk;
   const policy = input.policyConfirmed === true || (probe !== null && probeOk);
   ctx.db.run(`UPDATE microsoft_config SET "consentGiven" = ?, "policyConfirmed" = ?, "lastVerifyAt" = ?, updated_at = ? WHERE id = ?`, consentGiven ? 1 : 0, policy ? 1 : 0, ctx.now(), ctx.now(), CONFIG_ID);
   ctx.emit("microsoft.consent_verified", "connector/microsoft", { connector: "microsoft", ok, missingPermissions: missing });
-  const out: { ok: boolean; missingPermissions: string[]; detail?: string } = { ok, missingPermissions: missing };
+  const out: { ok: boolean; missingPermissions: string[]; unscoped: string[]; detail?: string } = { ok, missingPermissions: missing, unscoped };
   if (details.length) out.detail = details.join(" ");
   return out;
 }
@@ -477,12 +579,16 @@ export async function consentExclude(ctx: MsCtx, input: { email: string; exclude
   } else {
     ctx.db.run(`INSERT INTO microsoft_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, email, null, 0, input.excluded ? 1 : 0, null, now);
   }
-  // An excluded member's calendar leaves Calendar; including them again brings a fresh one in.
+  // An excluded member stops at once; including them again brings them back in.
   const member = first(ctx.db.all(`SELECT "userId", mapped FROM microsoft_member WHERE email = ?`, email));
-  const connectionId = strOrNull(config(ctx), "connectionId");
+  const cfg = config(ctx);
+  const connectionId = strOrNull(cfg, "connectionId");
   const userId = strOrNull(member, "userId");
-  if (connectionId && userId && num(member, "mapped") === 1 && (input.excluded || num(config(ctx), "autoConnect") === 1)) {
-    await connectCalendar(ctx, { connectionId, userId, email, connected: !input.excluded });
+  if (input.excluded) await stopMember(ctx, { email, userId: num(member, "mapped") === 1 ? userId : null, connectionId });
+  else if (connectionId && userId && num(member, "mapped") === 1 && num(cfg, "autoConnect") === 1) {
+    await ctx.call("mail.member_pause", { provider: "microsoft", address: email, paused: false }).catch((e: unknown) => ctx.log.warn("microsoft member mailbox was not resumed", { code: codeOf(e) }));
+    await ctx.call("mounts.account_pause", { account: email, paused: false }).catch((e: unknown) => ctx.log.warn("microsoft member mounts were not resumed", { code: codeOf(e) }));
+    await connectMember(ctx, { connectionId, userId, email, key: `include:${email}:${ctx.now()}`, wait: 0 });
   }
   return { excluded: rowsOf(ctx.db.all(`SELECT email FROM microsoft_member WHERE excluded = ?`, 1)).map((r) => str(r, "email")).sort() };
 }
@@ -517,13 +623,60 @@ export async function consentMapMember(ctx: MicrosoftCtx, input: { email: string
   else ctx.db.run(`INSERT INTO microsoft_member (email, "userId", mapped, excluded, "mailboxState", updated_at) VALUES (?, ?, ?, ?, ?, ?)`, email, input.userId, 1, 0, null, now);
   const excluded = num(have, "excluded") === 1;
   let connected = false;
-  if (!excluded && num(cfg, "autoConnect") === 1) {
-    const out = obj(await ctx.call("mail.auto_connect_members", { provider: "microsoft", members: [{ userId: input.userId, email }], idempotencyKey: `map:${email}:${input.userId}` }));
-    ctx.db.run(`UPDATE microsoft_member SET "mailboxState" = ? WHERE email = ?`, "pending", email);
-    await connectCalendar(ctx, { connectionId, userId: input.userId, email });
-    connected = (int(out.created) ?? 0) > 0 || (int(out.skipped) ?? 0) > 0;
-  }
+  if (!excluded && num(cfg, "autoConnect") === 1) connected = await connectMember(ctx, { connectionId, userId: input.userId, email, key: `map:${email}:${input.userId}`, wait: 0 });
   return { email, userId: input.userId, mapped: true, connected };
+}
+
+/** Choose Mail, Calendar and Files separately, after setup too. What is turned off stops for everyone at once; what is turned on comes in for everyone included. A wider choice needs its permission added at Microsoft, and the next check says so. */
+export async function consentSetData(ctx: MsCtx, input: { data: DataChoice; idempotencyKey: string }) {
+  ensure(ctx);
+  const cfg = config(ctx);
+  const connectionId = strOrNull(cfg, "connectionId");
+  if (!cfg || num(cfg, "configured") !== 1 || !connectionId) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Microsoft 365 is not set up." });
+  const before = dataOf(cfg), next = input.data;
+  ctx.db.run(`UPDATE microsoft_config SET "dataMail" = ?, "dataCalendar" = ?, "dataFiles" = ?, updated_at = ? WHERE id = ?`, next.mail ? 1 : 0, next.calendar ? 1 : 0, next.files ? 1 : 0, ctx.now(), CONFIG_ID);
+  forgetTokens();
+  const people = rowsOf(ctx.db.all(`SELECT email, "userId" FROM microsoft_member WHERE mapped = ? AND excluded = ? AND "userId" IS NOT NULL`, 1, 0));
+  for (const [i, m] of people.entries()) {
+    const email = str(m, "email"), userId = str(m, "userId");
+    if (before.mail !== next.mail) {
+      await ctx.call("mail.member_pause", { provider: "microsoft", address: email, paused: !next.mail }).catch((e: unknown) => ctx.log.warn("microsoft mailbox change failed", { code: codeOf(e) }));
+      if (next.mail) {
+        await ctx.call("mail.auto_connect_members", { provider: "microsoft", members: [{ userId, email }], idempotencyKey: `${input.idempotencyKey}:${email}` });
+        await queueFirstPull(ctx, connectionId, email, i);
+      } else ctx.db.run(`UPDATE microsoft_mailbox SET "nextPollAt" = ? WHERE email = ?`, null, email);
+    }
+    if (before.calendar !== next.calendar) await connectCalendar(ctx, { connectionId, userId, email, connected: next.calendar });
+    if (before.files !== next.files) await ctx.call("mounts.account_pause", { account: email, paused: !next.files }).catch((e: unknown) => ctx.log.warn("microsoft mount change failed", { code: codeOf(e) }));
+  }
+  return { data: next, permissions: permissionsFor(next), exchangeRoles: rolesFor(next) };
+}
+
+/** The removal wizard ended this person: nothing of theirs is read any more. */
+export async function personLeft(ctx: MsCtx, event: { payload: { personId?: string } }): Promise<string[]> {
+  const gone = event.payload.personId;
+  if (typeof gone !== "string" || !/^usr_[a-z0-9]+$/.test(gone)) return [];
+  ensure(ctx);
+  const rows = rowsOf(ctx.db.all(`SELECT email FROM microsoft_member WHERE "userId" = ? AND mapped = ?`, gone, 1)).map((r) => str(r, "email"));
+  for (const email of rows) {
+    ctx.db.run(`UPDATE microsoft_member SET mapped = ?, "mailboxState" = ?, updated_at = ? WHERE email = ?`, 0, "paused", ctx.now(), email);
+    ctx.db.run(`UPDATE microsoft_mailbox SET "nextPollAt" = ? WHERE email = ?`, null, email);
+  }
+  if (rows.length) forgetTokens();
+  return [];
+}
+
+/** Who reached whose Microsoft data: newest first, a page at a time. `onBehalf` is the person an agent worked for. */
+export async function accessLog(ctx: MsCtx, input: { cursor?: string; limit?: number; mailbox?: string }) {
+  ensure(ctx);
+  const limit = input.limit ?? 100;
+  const offset = input.cursor === undefined ? 0 : Number(input.cursor);
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) bad(ctx, "Limit must be from 1 to 500.");
+  if (!Number.isSafeInteger(offset) || offset < 0) bad(ctx, "Cursor is not valid.");
+  const mailbox = input.mailbox === undefined ? undefined : normalizeEmail(input.mailbox);
+  const rows = rowsOf(mailbox ? ctx.db.all(`SELECT * FROM microsoft_read_log WHERE subject = ? ORDER BY at DESC, id DESC LIMIT ? OFFSET ?`, mailbox, limit + 1, offset) : ctx.db.all(`SELECT * FROM microsoft_read_log ORDER BY at DESC, id DESC LIMIT ? OFFSET ?`, limit + 1, offset));
+  const entries = rows.slice(0, limit).map((r) => ({ who: str(r, "actor"), ...(strOrNull(r, "onBehalf") ? { onBehalf: str(r, "onBehalf") } : {}), mailbox: str(r, "subject"), cap: str(r, "cap"), at: num(r, "at") }));
+  return { entries, ...(rows.length > limit ? { next: String(offset + limit) } : {}) };
 }
 
 export async function consentDisable(ctx: MsCtx) {
@@ -561,7 +714,12 @@ export async function health(ctx: MsCtx) {
 export async function consentMyAccount(ctx: MsCtx) {
   const person = ctx.actingFor ?? ctx.principal.id;
   const row = first(ctx.db.all(`SELECT email, excluded FROM microsoft_member WHERE "userId" = ? AND mapped = ?`, person, 1));
-  const out: { email?: string } = {};
-  if (row && num(row, "excluded") !== 1) out.email = str(row, "email");
+  const out: { email?: string; connectionId?: string; files?: boolean } = {};
+  if (row && num(row, "excluded") !== 1) {
+    out.email = str(row, "email");
+    const cfg = config(ctx);
+    const connectionId = strOrNull(cfg, "connectionId");
+    if (connectionId && num(cfg, "configured") === 1) { out.connectionId = connectionId; out.files = dataOf(cfg).files; }
+  }
   return out;
 }

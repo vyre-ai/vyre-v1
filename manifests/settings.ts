@@ -29,8 +29,8 @@ export default defineManifest({
   ],
 
   capabilities: [
-    read('settings.pages', 'The ten settings pages in their two groups (named after the Space, and Everywhere) with row counts', {
-      ...V, in: {}, out: { pages: t.arr(t.obj({ key: t.str(), title: t.str(), group: t.enm('space', 'everywhere'), rows: t.int({ minimum: 0 }) })) }, tool: 'meta',
+    read('settings.pages', 'The settings pages a person has, with row counts', {
+      ...V, in: {}, out: { pages: t.arr(t.obj({ key: t.str(), title: t.str(), group: t.enm('you', 'space'), rows: t.int({ minimum: 0 }) })) }, tool: 'meta',
     }),
     read('settings.list', 'Rows of one page (or all) with the value that applies to me', { ...V, in: { page: t.opt(t.str()), scope: t.opt(scope) }, out: { rows: t.arr(settingRow) }, tool: 'meta' }),
     read('settings.get', 'One setting with its value, default and floor', { ...V, in: { key }, out: { row: settingRow }, tool: 'meta' }),
@@ -69,7 +69,6 @@ export default defineManifest({
   ],
 
   settings: [
-    setting('security.level', 'person', 'This computer', 'Security level', t.enm('relaxed', 'standard', 'strict'), 'standard', { floorable: true }),
     setting('security.terminal_mode', 'person', 'This computer', 'Terminal prompts on this computer (Ask, Allow or Auto; one value per Space)', t.obj({ base: t.enm('ask', 'allow', 'auto'), spaces: t.rec(t.enm('ask', 'allow', 'auto')) }), { base: 'ask', spaces: {} }, { floorable: true }),
     setting('security.chrome_mode', 'person', 'This computer', 'Chrome prompts on this computer (Ask, Allow or Auto; one value per Space)', t.obj({ base: t.enm('ask', 'allow', 'auto'), spaces: t.rec(t.enm('ask', 'allow', 'auto')) }), { base: 'ask', spaces: {} }, { floorable: true }),
     setting('security.team_agents_on_my_computer', 'person', 'This computer', 'Let team agents use my terminal (per Space, locked to a work folder)', t.rec(t.bool()), {}),
@@ -82,11 +81,6 @@ export default defineManifest({
     setting('profile.working_hours', 'person', 'profile', 'Working hours', t.obj({ days: t.arr(t.int({ minimum: 0, maximum: 6 })), from: t.str({ pattern: '^[0-2][0-9]:[0-5][0-9]$' }), to: t.str({ pattern: '^[0-2][0-9]:[0-5][0-9]$' }) }), { days: [1, 2, 3, 4, 5], from: '09:00', to: '17:00' }),
     setting('profile.contact', 'person', 'profile', 'Contact', t.obj({ email: t.opt(t.str()), phone: t.opt(t.str()) }), {}),
     setting('appearance.skin', 'person', 'appearance', 'Skin', t.str(), 'classic'),
-    setting('appearance.mode', 'person', 'appearance', 'Light or dark', t.enm('system', 'light', 'dark'), 'system'),
-    setting('appearance.density', 'person', 'appearance', 'Density', t.enm('comfortable', 'compact'), 'comfortable'),
-    setting('appearance.text_size', 'person', 'appearance', 'Text size (percent)', t.int({ minimum: 90, maximum: 120 }), 100),
-    setting('appearance.reduce_motion', 'person', 'appearance', 'Reduce motion', t.bool(), false),
-    setting('keyboard.overrides', 'person', 'keyboard', 'Shortcuts', t.rec(t.str()), {}),
     setting('kit.person_choice', 'person', 'appearance', 'My Kit', t.nullable(id.kit), null),
     setting('kit.space_choice', 'space', 'spaces', 'Space Kit', t.nullable(id.kit), null),
   ],

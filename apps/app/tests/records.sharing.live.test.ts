@@ -81,7 +81,7 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
       const ctx = await browser.newContext({ viewport: phone ? { width: 390, height: 780 } : { width: 1280, height: 800 }, colorScheme: "light", ...(phone ? { isMobile: true, hasTouch: true, deviceScaleFactor: 2 } : {}) });
       const page = await ctx.newPage();
       page.on("pageerror", (e: Error) => consoleErrors.push(`${who.name}: ${e.message}`));
-      await page.goto(`${web.origin}/home`, { waitUntil: "load" });
+      await page.goto(`${web.origin}/chat`, { waitUntil: "load" });
       await page.getByTestId("si-user").waitFor({ timeout: 20_000 });
       await page.getByTestId("si-user").fill(who.username);
       await page.getByTestId("si-password").fill(PASSWORD);

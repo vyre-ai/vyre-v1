@@ -1,6 +1,6 @@
 // The rig the send tests share: the mail harness plus scripted stand-ins for every capability the single send API calls
 // (settings.get, the suppression list and contact preferences, Resend, Mailgun, Gmail, Graph, Files). Nothing leaves the process.
-// Also holds the one test of the rig itself. The test files send.test.ts, send.window.test.ts and send.gate.test.ts import from here.
+// Also holds the one test of the rig itself. The test files send.test.ts, send.schedule.test.ts and send.gate.test.ts import from here.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fail } from "../../../host/src/routes/errors.ts";

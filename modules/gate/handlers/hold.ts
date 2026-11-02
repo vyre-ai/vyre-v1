@@ -55,6 +55,7 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   if (input.actingFor) hold.actingFor = input.actingFor;
   if (input.runId) hold.runId = input.runId;
   if (input.threadId) hold.threadId = input.threadId;
+  if (input.step) hold.step = input.step;
   ctx.db.run("UPDATE gate_holds SET result = NULL WHERE result IS NOT NULL AND expires_at < ?", ctx.now());   // an answer nobody collected is not kept past its hold
   insertHold(ctx.db, hold);
 
@@ -173,6 +174,7 @@ export async function rulesSet(ctx: GateCtx, input: In): Promise<unknown> {
   if (scope !== "agent" && agentId) raise(ctx, "validation.precondition_failed", "Only an agent rule names an agent.", { reason: "agent_not_allowed" });
   if (scope === "floor" && input.mode === "allow") raise(ctx, "validation.precondition_failed", "The owner floor only asks. To let something through, change the Space rule.", { reason: "floor_holds_only" });
   if (input.approvers !== undefined && !APPROVERS.test(input.approvers)) raise(ctx, "validation.precondition_failed", "Approvers are owner, asker or role:<name>.", { reason: "bad_approvers" });
+  if (a.alwaysStops && (input.mode === "allow" || input.agentOkFor !== undefined || input.approvers === "asker")) raise(ctx, "validation.precondition_failed", "A company connection or a sign-in change always waits for a person with the right role.", { reason: "always_stops" });
 
   // a rule can never loosen the strictest level: below the Space, it can only tighten what the Space says
   if (scope !== "space") {
@@ -219,6 +221,7 @@ export async function recover(ctx: Pick<GateCtx, "db" | "now" | "call">): Promis
 
 /** A person was removed: everything they asked the Gate to send is dropped, never sent. */
 export async function rejectAllOf(ctx: GateCtx, person: string, reason: string): Promise<string[]> {
+  ctx.db.run("DELETE FROM gate_grants WHERE person = ? AND kind IN ('turn', 'always')", person);   // what they asked for and allowed goes with them; an automation's permission stays with the automation
   const mine = holdsWhere(ctx.db, "state = 'held' AND (principal_id = ? OR acting_for = ?)", person, person);
   const done: string[] = [];
   for (const h of mine) {

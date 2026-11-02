@@ -8,11 +8,6 @@ export async function createForm(data: AppsData, input: { name: string; recordTy
   return out.form.formId;
 }
 
-export async function createCampaign(data: AppsData, input: { name: string; kind: "one_time" | "sequence" | "triggered" }): Promise<string> {
-  const out = await data.call("campaigns.create", { ...input, idempotencyKey: key("campaign", input.name, data.clock().now) }) as { campaign: { campaignId: string } };
-  return out.campaign.campaignId;
-}
-
 export async function addSendingDomain(data: AppsData, input: { name: string; provider: "resend" | "mailgun" }): Promise<string> {
   const out = await data.call("mail.domain.add", { ...input, idempotencyKey: key("domain", input.name, data.clock().now) }) as { domain: { id: string } };
   return out.domain.id;

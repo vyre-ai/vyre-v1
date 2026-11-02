@@ -22,6 +22,5 @@ type Payload = {
   channel: "email" | "sms";
   mailboxId?: string;
   contactId?: string;
-  campaignId?: string;
 };
 ```

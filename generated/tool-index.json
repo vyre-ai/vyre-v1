@@ -374,6 +374,12 @@
     },
     {
       "deferred": false,
+      "name": "agents_next",
+      "summary": "Take your next job: a mention or a task. It names the chat to work in; what you do afterwards shows there. Nothing waiting answers job null. Only an outside agent has a queue",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "agents_pause",
       "summary": "Pause an agent with a reason; the status shows who paused it",
       "toolset": "agents"
@@ -509,6 +515,12 @@
       "name": "agents_visibility_set",
       "summary": "Admin toggle \"All in the Space\" for agent lists (logged)",
       "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "artifact_publish",
+      "summary": "THE way to show something you made: publish it privately to a link that opens in a tab. Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link",
+      "toolset": "sites"
     },
     {
       "deferred": false,
@@ -794,6 +806,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_senders",
+      "summary": "What this Automation sends from: the mailboxes and numbers its steps name, and whether each can send now",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_set_enabled",
       "summary": "Turn an Automation on or off",
       "toolset": "automations"
@@ -1058,108 +1076,6 @@
     },
     {
       "deferred": false,
-      "name": "campaigns_audience_set",
-      "summary": "Set the audience from a record view; adds go through DND screening (adds only)",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_create",
-      "summary": "Create a campaign (one-time, sequence or triggered)",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_delete",
-      "summary": "Delete a draft campaign",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_get",
-      "summary": "Read a campaign with steps, audience, windows, throttle and A/B variants",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_launch",
-      "summary": "Launch a campaign (Gate act for agents, automations and humans alike)",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_link_build",
-      "summary": "Campaign link builder: UTM and click-id parameters for a destination",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_list",
-      "summary": "List campaigns by section and folder",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_pause",
-      "summary": "Pause a running campaign",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_preview",
-      "summary": "Launch preview: a sample message, counts and exclusions",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_replies",
-      "summary": "Replies that landed in owners Inboxes, marked with the campaign",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_resume",
-      "summary": "Resume a paused campaign",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_schedule_set",
-      "summary": "Set send windows per recipient time zone, throttling per sending domain and stop on reply",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_stats",
-      "summary": "Sent, delivered, bounced, complained, replied, unsubscribed",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_steps_set",
-      "summary": "Replace the steps: email, wait, branch on reply/open/click, SMS, task, call task",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_stop",
-      "summary": "Stop a campaign for good",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_update",
-      "summary": "Rename or change settings",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "campaigns_variants_set",
-      "summary": "Set A/B variants",
-      "toolset": "automations"
-    },
-    {
-      "deferred": false,
       "name": "changesets_approve",
       "summary": "Approve and commit a changeset: 3-way merge on the recorded base, conflicts go to the reviewer; optionally push",
       "toolset": "files"
@@ -1246,12 +1162,6 @@
       "deferred": false,
       "name": "channels_archive",
       "summary": "Archive a channel (project and Journey channels archive when the record completes)",
-      "toolset": "chats"
-    },
-    {
-      "deferred": false,
-      "name": "channels_connect_outside_agent",
-      "summary": "Connect an outside agent (Claude Code, Codex) to a channel: returns the MCP address, a one-time token (once, 10 minutes) and the run command",
       "toolset": "chats"
     },
     {
@@ -1661,6 +1571,72 @@
       "name": "comms_senders_set_default",
       "summary": "Choose the default sender of a channel for me; it must be a usable sender from comms.senders.list",
       "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "company_access_log",
+      "summary": "Who reached whose mail, calendar or files: who made the call, the person an agent worked for, which mailbox, when",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_check",
+      "summary": "Prove the key now in the Vault works, with no person involved. Answers what is wrong in plain words, or who it is; never the key. A key that works is remembered",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_connect",
+      "summary": "The one confirmation: everyone included comes in, and the directory is watched from here on",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_disconnect",
+      "summary": "Undo: every member sync stops at once; what already came in stays with its owner",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_guide",
+      "summary": "The guide for a step of Connect your company, or all of it: the doc page itself",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_people_done",
+      "summary": "A person has looked at who is in; the flow moves on to the one confirmation",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_probe",
+      "summary": "The read-only check of what the company allowed, as one line a person can act on",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_script",
+      "summary": "The one paste that does the provider's side: which shell to open and the script. It holds no secret; the admin runs it under their own account",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_start",
+      "summary": "Start Connect your company for Google Workspace or Microsoft 365 and choose Mail, Calendar and Files, or pick it up where it stands",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_status",
+      "summary": "Where Connect your company stands: the provider, each step and whether it is done, the next step, and which doc section explains it. Read this first; it never asks twice",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_sweep",
+      "summary": "Check the directory: a person gone from it stops and loses access. Runs on a schedule; a person confirms a change large enough to be held",
+      "toolset": "engineer"
     },
     {
       "deferred": false,
@@ -2145,7 +2121,7 @@
     {
       "deferred": false,
       "name": "contacts_dnd_screen",
-      "summary": "Screen candidates before they are ADDED to an audience, campaign, Journey enrolment or import. Adds only: it never removes, unsubscribes or deletes anyone already present",
+      "summary": "Screen candidates before they are ADDED to an audience, Journey enrolment or import. Adds only: it never removes, unsubscribes or deletes anyone already present",
       "toolset": "inbox"
     },
     {
@@ -2217,7 +2193,7 @@
     {
       "deferred": false,
       "name": "crew_merge",
-      "summary": "Land a teammate's branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. A person presses Merge; an agent asking holds at the Gate",
+      "summary": "Land a teammate's branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. It is local: it leaves this computer only when it is pushed",
       "toolset": "chats"
     },
     {
@@ -2229,7 +2205,7 @@
     {
       "deferred": false,
       "name": "crew_push",
-      "summary": "Push the project repository's base branch, with a teammate's merged work in it, to its remote. It is an outward act from the host and always holds at the Gate for a person's approval",
+      "summary": "Push the project repository's base branch, with a teammate's merged work in it, to its remote. It is an outward act: a person pressing Push is their own act; an agent goes only when the person's own message this turn asked for it, else it holds at the Gate",
       "toolset": "chats"
     },
     {
@@ -2415,7 +2391,7 @@
     {
       "deferred": false,
       "name": "email_builder_list",
-      "summary": "List email designs (campaigns, inbox templates, automation steps share them)",
+      "summary": "List email designs (inbox templates and automation steps share them)",
       "toolset": "inbox"
     },
     {
@@ -2577,13 +2553,13 @@
     {
       "deferred": false,
       "name": "engine_placement_options",
-      "summary": "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; and where the chat runs now",
+      "summary": "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now, and whether the person pinned it (not pinned is Automatic)",
       "toolset": "chats"
     },
     {
       "deferred": false,
       "name": "engine_placement_set",
-      "summary": "Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers. The next turn goes there; a teammate's machine is never a choice",
+      "summary": "Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers, or auto to take the pin off. The next turn goes there; a teammate's machine is never a choice",
       "toolset": "chats"
     },
     {
@@ -3535,6 +3511,12 @@
       "toolset": "records"
     },
     {
+      "deferred": false,
+      "name": "google_access_log",
+      "summary": "Who reached whose Google data: who made the call, the person an agent worked for, which mailbox, which capability, when",
+      "toolset": "engineer"
+    },
+    {
       "deferred": true,
       "name": "google_calendar_create_event",
       "summary": "Create an event; Google invites the attendees",
@@ -3592,6 +3574,12 @@
       "deferred": false,
       "name": "google_directory_list",
       "summary": "The people in the Google Workspace directory (admin only), with the Space member each is matched to, for choosing who to bring in",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "google_directory_reconcile",
+      "summary": "Compare the directory with who is matched: a person gone or suspended stops, and the Space suspends them. Every page must read, and a large change waits for a person",
       "toolset": "engineer"
     },
     {
@@ -3698,6 +3686,18 @@
     },
     {
       "deferred": false,
+      "name": "google_dwd_check_key",
+      "summary": "Prove the service-account key in the Vault works, with no person involved: its shape, its signature, and that Google still knows it. Answers what is wrong in plain words; never the key",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "google_dwd_connect_all",
+      "summary": "Everyone included comes in: mail, calendar and the first pull, for what the company chose. Repeating it adds nobody twice",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "google_dwd_disable",
       "summary": "Turn delegation off and stop every member sync",
       "toolset": "engineer"
@@ -3724,6 +3724,12 @@
       "deferred": false,
       "name": "google_dwd_scopes",
       "summary": "The scope list and client id to paste into the Google Admin console",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "google_dwd_set_data",
+      "summary": "Choose Mail, Calendar and Files separately after setup. What is turned off stops for everyone; what is turned on comes in for everyone included",
       "toolset": "engineer"
     },
     {
@@ -4197,7 +4203,7 @@
     {
       "deferred": false,
       "name": "inbox_following",
-      "summary": "Contacts that reach your Inbox and why: owner, project, follow, campaign or shared inbox",
+      "summary": "Contacts that reach your Inbox and why: owner, project, follow or shared inbox",
       "toolset": "inbox"
     },
     {
@@ -4257,7 +4263,7 @@
     {
       "deferred": false,
       "name": "inbox_thread",
-      "summary": "The whole history of one contact: emails, texts, calls, meetings, campaign lines and record chips",
+      "summary": "The whole history of one contact: emails, texts, calls, meetings and record chips",
       "toolset": "inbox"
     },
     {
@@ -4671,13 +4677,13 @@
     {
       "deferred": false,
       "name": "mail_send",
-      "summary": "Send an email through the single send API: caps per sender, send windows, throttling, suppression, consent, trace id header, agent footer line",
+      "summary": "Send an email through the single send API: suppression, consent, trace id header, agent footer line, an unsubscribe link when asked",
       "toolset": "inbox"
     },
     {
       "deferred": false,
       "name": "mail_send_preview",
-      "summary": "Dry run of a send: suppressed recipients, window, caps and throttle, without sending (campaign launch preview uses it)",
+      "summary": "Dry run of a send: who would be reached and who is suppressed, without sending",
       "toolset": "inbox"
     },
     {
@@ -4688,9 +4694,15 @@
     },
     {
       "deferred": false,
-      "name": "mcp_scopes_set",
-      "summary": "Change the scopes of an outside actor (read, post in threads, read changesets, write on a branch with approval)",
-      "toolset": "engineer"
+      "name": "mcp_activity_list",
+      "summary": "What an outside agent did: the tool, how it ended and where, never an input or an answer",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "mcp_connected_link",
+      "summary": "The address to paste into an MCP app, and the one line for Claude Code",
+      "toolset": "meta"
     },
     {
       "deferred": false,
@@ -4702,18 +4714,6 @@
       "deferred": false,
       "name": "mcp_sessions_list",
       "summary": "Active and recent MCP sessions for the Console (outside actors and CLI engines)",
-      "toolset": "engineer"
-    },
-    {
-      "deferred": false,
-      "name": "mcp_token_issue",
-      "summary": "Issue a one-time registration token for an outside agent: works once, within 10 minutes; reveal and copy are logged",
-      "toolset": "meta"
-    },
-    {
-      "deferred": false,
-      "name": "mcp_token_log_reveal",
-      "summary": "Log that a one-time token was revealed or copied in the connect sheet",
       "toolset": "engineer"
     },
     {
@@ -5329,6 +5329,12 @@
       "toolset": "files"
     },
     {
+      "deferred": false,
+      "name": "ms_access_log",
+      "summary": "Who reached whose Microsoft data: who made the call, the person an agent worked for, which mailbox, which capability, when",
+      "toolset": "engineer"
+    },
+    {
       "deferred": true,
       "name": "ms_calendar_create_event",
       "summary": "Create an event; Exchange invites the attendees",
@@ -5384,6 +5390,18 @@
     },
     {
       "deferred": false,
+      "name": "ms_consent_check_app",
+      "summary": "Prove the app registration in the Vault signs in to its tenant, with no person involved. Answers what is wrong in plain words; never the secret",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ms_consent_connect_all",
+      "summary": "Everyone included comes in: mail, calendar and the first pull, for what the company chose. Repeating it adds nobody twice",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "ms_consent_disable",
       "summary": "Turn the Microsoft connection off and stop every member sync",
       "toolset": "engineer"
@@ -5410,6 +5428,12 @@
       "deferred": false,
       "name": "ms_consent_policy_snippet",
       "summary": "PowerShell for the Exchange application access policy, limited to the mapped members, for a tenant admin to run",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ms_consent_set_data",
+      "summary": "Choose Mail, Calendar and Files separately after setup. What is turned off stops for everyone; what is turned on comes in for everyone included",
       "toolset": "engineer"
     },
     {
@@ -5452,6 +5476,12 @@
       "deferred": false,
       "name": "ms_directory_list",
       "summary": "The people in the Microsoft 365 directory (admin only), with the Space member each is matched to, for choosing who to bring in",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ms_directory_reconcile",
+      "summary": "Compare the directory with who is matched: a person gone or turned off stops, and the Space suspends them. Every page must read, and a large change waits for a person",
       "toolset": "engineer"
     },
     {
@@ -6254,6 +6284,12 @@
     },
     {
       "deferred": false,
+      "name": "read_link",
+      "summary": "Open a web page from the server and read it as plain text, with its links. Use it for any link the person gave or a page you read links to. A link you put together yourself waits for the person, because its address can carry data. GET only, no key, public hosts only",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "read_note",
       "summary": "Read one memory note as Markdown",
       "toolset": "memory"
@@ -6927,7 +6963,7 @@
     {
       "deferred": false,
       "name": "settings_pages",
-      "summary": "The ten settings pages in their two groups (named after the Space, and Everywhere) with row counts",
+      "summary": "The settings pages a person has, with row counts",
       "toolset": "meta"
     },
     {
@@ -7010,6 +7046,12 @@
     },
     {
       "deferred": false,
+      "name": "sites_artifact_open",
+      "summary": "A short-lived address that opens an artifact for the person asking, in a tab or the browser",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_build",
       "summary": "Build the site from its repo (the site agent runs in the repo); test and verify",
       "toolset": "sites"
@@ -7017,7 +7059,7 @@
     {
       "deferred": false,
       "name": "sites_create",
-      "summary": "Create a site with its root folder under Deployments/",
+      "summary": "Create a site: a name, and where it runs (a port on a computer, or a folder in Files). Nothing is served until it is published",
       "toolset": "sites"
     },
     {
@@ -7036,6 +7078,18 @@
       "deferred": false,
       "name": "sites_deployments",
       "summary": "List deployments with state and URL",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_domain_add",
+      "summary": "Add a custom domain to a site: returns the exact DNS records to set and adds the Caddy route with automatic TLS",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_domain_check",
+      "summary": "The state of a custom domain: waiting for DNS, issuing the certificate, or live",
       "toolset": "sites"
     },
     {
@@ -7070,8 +7124,14 @@
     },
     {
       "deferred": false,
+      "name": "sites_host",
+      "summary": "What this Space can host: its address, whether it is a phone address, and what a custom domain needs",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_list",
-      "summary": "List sites by section (Personal, Shared with me, Space) and folder",
+      "summary": "List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder",
       "toolset": "sites"
     },
     {
@@ -7101,7 +7161,13 @@
     {
       "deferred": false,
       "name": "sites_promote",
-      "summary": "Promote a staging build to production (merges the pull request first when there is one)",
+      "summary": "Put a site on the public internet at its address. Held for approval unless the person asked for it this turn",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_publish",
+      "summary": "Serve a site that is not public: space or private access, or a password on its own domain",
       "toolset": "sites"
     },
     {
@@ -7120,6 +7186,18 @@
       "deferred": false,
       "name": "sites_staging_password_set",
       "summary": "Choose the sealed Vault key that protects staging (shared across a site previews)",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_status",
+      "summary": "Is the port answering? Where it runs, the address, and what is wrong when something is",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_stop",
+      "summary": "Stop serving a site. Its address answers nothing; the process on the computer keeps running",
       "toolset": "sites"
     },
     {
@@ -7143,7 +7221,7 @@
     {
       "deferred": false,
       "name": "sites_update",
-      "summary": "Rename a site or change its settings",
+      "summary": "Rename a site, change its settings, where it runs or who may reach it. Making it public takes it down until it is published again",
       "toolset": "sites"
     },
     {
@@ -7694,6 +7772,12 @@
     },
     {
       "deferred": false,
+      "name": "task_plan",
+      "summary": "Break work into tasks in one step: a parent (new, or one that exists) and its children, each with its brief, what done means, who does it and which others it waits on. A child starts by itself when what it waits on is done; the parent hears only when all are done, or one is blocked or asks",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "task_review",
       "summary": "Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)",
       "toolset": "tasks"
@@ -7718,6 +7802,12 @@
     },
     {
       "deferred": false,
+      "name": "tasks_by_key",
+      "summary": "Find a task by its short key, such as VY-123",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "tasks_count_needs_you",
       "summary": "Count of Ready requests for the rail badge and the Space switcher dot",
       "toolset": "tasks"
@@ -7732,6 +7822,12 @@
       "deferred": false,
       "name": "tasks_delegate",
       "summary": "Hand a request to someone else with a note; never widens access, so it walks the delegate chain to the first who can act",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "tasks_delete",
+      "summary": "Delete a task; Undo brings it back. A held act and a task a Run waits on are canceled instead",
       "toolset": "tasks"
     },
     {
@@ -7772,6 +7868,12 @@
     },
     {
       "deferred": false,
+      "name": "tasks_index",
+      "summary": "The long list of a scope in one read: a light row per task with its rollup, ordered newest first; pass the last rev and an unchanged list answers nothing",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "tasks_links_add",
       "summary": "Link a record or a file to a task",
       "toolset": "tasks"
@@ -7808,8 +7910,20 @@
     },
     {
       "deferred": false,
+      "name": "tasks_restore",
+      "summary": "Bring a deleted task back",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "tasks_rev",
+      "summary": "A short mark that changes whenever any task changes, for a screen that holds a long list",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "tasks_snooze",
-      "summary": "Snooze a request until a time, or clear the snooze with null",
+      "summary": "Snooze an open task until a time, or clear the snooze with null",
       "toolset": "tasks"
     },
     {
@@ -8579,24 +8693,6 @@
       "name": "wait_for",
       "summary": "Wait in the background for an event, another Run or a time; ends the turn and wakes the thread on a match (default timeout 30 days)",
       "toolset": "automations"
-    },
-    {
-      "deferred": false,
-      "name": "warmup_pool_optin_set",
-      "summary": "Opt the Space in or out of the shared warmup pool (out: own seed inboxes only)",
-      "toolset": "inbox"
-    },
-    {
-      "deferred": false,
-      "name": "warmup_start",
-      "summary": "Start warming a new domain or mailbox",
-      "toolset": "inbox"
-    },
-    {
-      "deferred": false,
-      "name": "warmup_status",
-      "summary": "Warmup state and health per mailbox: bounce, spam placement, reply",
-      "toolset": "inbox"
     },
     {
       "deferred": false,

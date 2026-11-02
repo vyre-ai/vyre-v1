@@ -239,7 +239,7 @@ test("live: a revoked device (purge) tells the session", async () => {
 test("live: the socket address swaps http for ws, drops the path and carries the token", () => {
   assert.equal(socketBase("http://127.0.0.1:7777/x?y=1"), "ws://127.0.0.1:7777");
   assert.equal(socketBase("https://s.test"), "wss://s.test");
-  assert.equal(socketPath("ws://127.0.0.1:7777", "a b"), "ws://127.0.0.1:7777/sync/v1/ws?token=a%20b");
+  assert.equal(socketPath("ws://127.0.0.1:7777", "a b"), "ws://127.0.0.1:7777/sync/v1/ws?ticket=a%20b");
 });
 
 const WHOAMI = { principal: { kind: "person", id: "usr_irfad" }, name: "Irfad Imtiaz", roles: ["owner"], groups: [], epoch: 1, spaceId: "spc_nw" };
@@ -264,7 +264,7 @@ test("session: opens the Space as the signed-in person and builds the card the s
   assert.equal(s.def.role, "Owner");
   assert.equal(s.def.needsYou, true);
   assert.equal(s.def.console, true);
-  assert.deepEqual(s.def.counts, { chats: 3 });
+  assert.deepEqual(s.def.counts, {}, "the Chats badge is Needs you, followed live, never an unread snapshot");
   assert.equal(s.runtime.space.kind, "team");
   assert.equal(gw.seen[0]!.headers["authorization"], "Bearer vst_1");
   s.close();

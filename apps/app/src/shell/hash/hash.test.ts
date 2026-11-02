@@ -28,6 +28,6 @@ test("hash: every subject type that a place shows maps to its place, an unknown 
   assert.equal(placeForSubject("record"), "records");
   assert.equal(placeForSubject("file"), "files");
   assert.equal(placeForSubject("thread"), "chats");
-  assert.equal(placeForSubject("task"), "home");
+  assert.equal(placeForSubject("task"), "chats");
   assert.equal(placeForSubject("spaceship"), null);
 });

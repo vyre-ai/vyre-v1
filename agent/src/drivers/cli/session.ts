@@ -11,7 +11,7 @@
 //   cancel     the process is stopped (TERM, then KILL after the grace time). A cancelled session is dirty: the pool closes it instead of reusing it, and the next one resumes by id.
 import type { ChatMode, DriverEvent, Effort, EngineSession, SessionSpec, StoredMessage, ToolResult, TurnInput } from "../../turn-engine/types.ts";
 import { scrub } from "../api/errors.ts";
-import { classifyCli } from "./errors.ts";
+import { classifyCli, missingProgram } from "./errors.ts";
 import { channel, lines } from "./lines.ts";
 import type { Channel } from "./lines.ts";
 import { defaultPrompt } from "./prompt.ts";
@@ -202,6 +202,8 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
             const t = pause(graceMs);
             try { await Promise.race([r.proc.exited, t.done]); } finally { t.stop(); }
             const tail = clean(r.proc.stderrTail()).trim();
+            const absent = missingProgram(tail);
+            if (absent !== null) { yield { type: "error", code: "engine.cli_missing", message: `${absent} is not installed here.` }; return "stop"; }
             yield { type: "error", code: classifyCli(tail), message: tail !== "" ? tail : "The engine ended before it answered." };
             return "stop";
           }

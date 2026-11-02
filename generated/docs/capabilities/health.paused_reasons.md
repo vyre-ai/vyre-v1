@@ -1,6 +1,6 @@
 # health.paused_reasons
 
-What is paused and why (shown on the paused automation, sync or campaign)
+What is paused and why (shown on the paused automation or sync)
 
 | | |
 |---|---|
@@ -32,7 +32,7 @@ type In = Record<string, unknown>;
 ```ts
 type Out = {
   paused: Array<{
-      area: "automations" | "sync" | "sends" | "campaigns";
+      area: "automations" | "sync" | "sends";
       key: string;
       reason: string;
     }>;

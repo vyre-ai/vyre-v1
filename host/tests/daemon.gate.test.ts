@@ -79,7 +79,7 @@ const SEND = (key: string) => ({ mailboxId: MAILBOX, to: [{ address: "pat@acme.t
 const ranAs: { cap: string; principal: string; actingFor: string | undefined; run: string | undefined }[] = [];
 const sendHandler = (async (ctx: { principal: { id: string }; actingFor?: string; run?: string; call(cap: string, input: unknown): Promise<unknown> }, input: { subject: string; text: string; idempotencyKey: string }) => {
   ranAs.push({ cap: "mail.send", principal: ctx.principal.id, actingFor: ctx.actingFor, run: ctx.run });
-  const out = (await ctx.call("resend.send_email", { from: "maya@vyre.test", to: ["pat@acme.test"], subject: input.subject, text: input.text, idempotencyKey: `${input.idempotencyKey}:out` })) as { providerId: string };
+  const out = (await ctx.call("resend.send_email", { mailboxId: MAILBOX, from: "maya@vyre.test", to: ["pat@acme.test"], subject: input.subject, text: input.text, idempotencyKey: `${input.idempotencyKey}:out` })) as { providerId: string };
   return { status: "sent", messageId: "eml_a1b2c3", providerId: out.providerId };
 }) as never;
 

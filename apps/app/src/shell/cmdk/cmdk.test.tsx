@@ -99,6 +99,17 @@ test("offline or device scope searches the replica only and says so", () => {
   c.dispose(); phone.dispose();
 });
 
+test("nothing typed and nothing recent draws the field alone; No results is only for a search that found nothing", () => {
+  const { data } = createSampleData();
+  const c = new CmdKController({ ...data, recent: () => [], local: () => [], server: async () => [] });
+  assert.deepEqual(c.getState().rows, [], "not a search yet: nothing to say");
+  assert.doesNotMatch(renderToStaticMarkup(<CmdKBody controller={c} autoFocus={false} />), /data-testid="cmdk-list"|No results/);
+  c.setRaw("zzzz");
+  assert.deepEqual(c.getState().rows.map((r) => r.type), ["empty"]);
+  assert.match(renderToStaticMarkup(<CmdKBody controller={c} autoFocus={false} />), /No results/);
+  c.dispose();
+});
+
 test("before typing the sheet shows Recent; @ browses people and agents; > lists actions", () => {
   const { data } = createSampleData();
   const c = new CmdKController(data);
@@ -183,7 +194,7 @@ test("Switch skin previews each skin as you arrow through; Esc restores yours; E
   c.hover(at);
   c.choose(at);
   assert.equal(c.getState().raw, "> skin ");
-  assert.equal(c.getState().rows.filter((r) => r.type === "skin").length, 13);
+  assert.equal(c.getState().rows.filter((r) => r.type === "skin").length, 15);
   const firstSkin = c.getState().rows[c.getState().active];
   assert.equal(firstSkin?.type, "skin");
   assert.equal(calls.previews.at(-1), firstSkin?.type === "skin" ? firstSkin.id : "");

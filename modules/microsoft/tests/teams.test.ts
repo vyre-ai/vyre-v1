@@ -25,7 +25,7 @@ const event = (o: Record<string, unknown> = {}) => ({
 });
 
 function world(o: { events?: unknown[]; transcripts?: unknown[]; excluded?: string[] } = {}): Harness {
-  const h = harness({ admin: true });
+  const h = harness({ principal: { kind: "service", id: "svc_ms" } });   // the pass runs as the host, which alone reads an organizer's meeting from a teammate's calendar pass
   ensure(h.ctx);
   seedConsent(h, { members: [{ email: MAYA, userId: "usr_maya01", ...(o.excluded?.includes(MAYA) ? { excluded: true } : {}) }, { email: SAM, userId: "usr_sam01", ...(o.excluded?.includes(SAM) ? { excluded: true } : {}) }] });
   h.on("GET", `${G}/users/${encodeURIComponent(SAM)}/calendar/calendarView`, { body: { value: o.events ?? [event()] } });

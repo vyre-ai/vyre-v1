@@ -1,7 +1,7 @@
 // The rules of ARCH 4.5 and the 4.5.1 mapping, one at a time.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { authorize, viewAs, authorizeAsync, AccessSnapshot } from "../src/authorize/index.ts";
+import { authorize, viewAs, authorizeAsync, AccessSnapshot, OUTSIDE_PROVIDER } from "../src/authorize/index.ts";
 import type { Req } from "../src/authorize/index.ts";
 
 function base() {
@@ -157,4 +157,30 @@ test("View as: needs access.view_as, cannot look through a higher clearance, alw
   s.putPrincipal({ id: "low", kind: "person", status: "active", name: "Low" }); s.addPrincipalRole({ holder: "low", role: "none" });
   s.putRole({ id: "none", clearance: 0, perms: ["access.view_as"], name: "None" });
   assert.equal(viewAs(s, "low", "boss", rest).reason, "above_clearance");
+});
+
+test("an outside actor never reaches past the person who made it, on any door", () => {
+  const s = base(); grant(s, "g1");
+  s.putPrincipal({ id: "act_out", kind: "actor", owner: "low", status: "active", name: "Outside" });
+  s.putPrincipal({ id: "low", kind: "person", status: "active", name: "Low" });
+  s.addPrincipalRole({ holder: "act_out", role: "member" });
+  s.putGrant({ id: "g2", subject_kind: "actor", subject_id: "act_out", resource_type: "folder", resource_id: "fold", level: "edit" } as never);
+  const d = authorize(s, req({ principal: "act_out", resource: { type: "deal", id: "rec1" } }));
+  assert.equal(d.effect, "deny", "its own grant does not help: the person holds nothing here");
+  s.putPrincipal({ id: "act_gone", kind: "actor", owner: "nobody", status: "active", name: "Orphan" });
+  assert.equal(authorize(s, req({ principal: "act_gone", resource: { type: "deal", id: "rec1" } })).reason, "not_a_member");
+});
+
+test("an outside agent reads as the strictest provider a policy names", () => {
+  const s = base(); grant(s, "g1");
+  s.setPolicies([{ key: "pl", kind: "provider_label", allow: { cloud: 0, local: 3 } }]);
+  s.putResource({ id: "lab1", type: "deal", parent_id: "fold", label: 1, owner_id: null, holds: 0 });
+  const r = (id: string, provider: string) => authorize(s, req({ principal: "dana", resource: { type: "deal", id }, provider }));
+  assert.equal(r("lab1", OUTSIDE_PROVIDER).reason, "provider_label");
+  assert.equal(r("rec1", OUTSIDE_PROVIDER).effect, "allow");
+  assert.equal(r("lab1", "local").effect, "allow", "a provider the policy names keeps its own line");
+  s.setPolicies([{ key: "pl", kind: "provider_label", allow: { local: 3 }, defaultMax: 0 }]);
+  assert.equal(r("lab1", OUTSIDE_PROVIDER).reason, "provider_label", "the default counts as a line too");
+  s.setPolicies([{ key: "pl", kind: "provider_label", allow: { [OUTSIDE_PROVIDER]: 1, cloud: 0 } }]);
+  assert.equal(r("lab1", OUTSIDE_PROVIDER).effect, "allow", "an admin can name it");
 });

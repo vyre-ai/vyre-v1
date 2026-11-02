@@ -205,13 +205,13 @@ test("Personal Space shows Needs a Team Space where a starred thing needs one, a
   const out = html(createSampleHomeB("personal", {
     stars: [
       { resource: { type: "computer", id: "cmp_1" }, title: "Intake computer", at: 3 },
-      { resource: { type: "campaign", id: "cmp_2" }, title: "Spring mailer", at: 2 },
+      { resource: { type: "form", id: "frm_2" }, title: "Spring intake", at: 2 },
       { resource: { type: "terminal", id: "trm_1" }, title: "Local shell", at: 1 },
     ],
     terminals: [{ terminalId: "trm_1", state: "running", exitCode: null }],
   }));
   assert.ok(has(out, 'data-testid="needs-team-space"'));
-  assert.ok(has(out, "Needs a Team Space") && has(out, "campaigns") && !has(out, "Agent computers"));
+  assert.ok(has(out, "Needs a Team Space") && has(out, "forms") && !has(out, "Agent computers"));
   assert.ok(has(out, "Create or join a Team Space"));
   assert.ok(has(out, "Intake computer") && !has(out, "Spring mailer"));
   assert.ok(has(out, "Local shell") && has(out, "Running"));

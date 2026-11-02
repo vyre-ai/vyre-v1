@@ -3,14 +3,12 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 
 export type SiteRow = CapMap["sites.list"]["out"]["sites"][number];
 export type FormRow = CapMap["forms.list"]["out"]["forms"][number];
-export type CampaignRow = CapMap["campaigns.list"]["out"]["campaigns"][number];
 export type TemplateRow = CapMap["templates.list"]["out"]["templates"][number];
 export type DomainRow = CapMap["mail.domain.list"]["out"]["domains"][number];
 
 export const GROUPS = [
-  { key: "sites", title: "Sites", one: "site", empty: "No sites yet." },
+  { key: "sites", title: "Sites", one: "site", empty: "No sites yet. An agent can build and run one for you." },
   { key: "forms", title: "Forms", one: "form", empty: "No forms yet." },
-  { key: "campaigns", title: "Campaigns", one: "campaign", empty: "No campaigns yet." },
   { key: "templates", title: "Templates", one: "template", empty: "No templates yet." },
   { key: "domains", title: "Sending domains", one: "sending domain", empty: "No sending domain yet." },
 ] as const;
@@ -18,16 +16,14 @@ export type GroupKey = (typeof GROUPS)[number]["key"];
 export const groupOf = (key: GroupKey): (typeof GROUPS)[number] => GROUPS.find((g) => g.key === key)!;
 
 /** One row of any group: what the list draws and what the menu acts on. */
-export interface AppRow { group: GroupKey; id: string; title: string; note: string; state?: string; /** Counts shown at the right ("14", "3 sent"). */ count?: string }
+export interface AppRow { group: GroupKey; id: string; title: string; note: string; state?: string; /** Counts shown at the right ("14"). */ count?: string }
 
 const KIND_WORDS = { public: "Public form", one_use: "One-use link", booking: "Booking page", survey: "Survey" } as const;
-const CAMPAIGN_KIND = { one_time: "One time", sequence: "Sequence", triggered: "Triggered" } as const;
 export const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 const cap = (s: string): string => s.slice(0, 1).toUpperCase() + s.slice(1);
 
-export function siteRow(s: SiteRow): AppRow { return { group: "sites", id: s.siteId, title: s.name, note: `${cap(s.kind)} · ${s.productionUrl ? "live" : s.stagingUrl ? "on staging" : s.state}`, state: s.state }; }
+export function siteRow(s: SiteRow): AppRow { return { group: "sites", id: s.siteId, title: s.name, note: s.blocked ? "Taken down" : s.live ? s.url ?? "Live" : "Not published", state: s.state }; }
 export function formRow(f: FormRow): AppRow { return { group: "forms", id: f.formId, title: f.name, note: `${KIND_WORDS[f.kind]} · ${cap(f.state)}`, state: f.state, count: plural(f.submissions, "answer") }; }
-export function campaignRow(c: CampaignRow): AppRow { return { group: "campaigns", id: c.campaignId, title: c.name, note: `${CAMPAIGN_KIND[c.kind]} · ${cap(c.state)}`, state: c.state, count: c.sent > 0 ? `${c.sent} sent` : plural(c.audienceCount, "person", "people") }; }
 export function templateRow(t: TemplateRow): AppRow { return { group: "templates", id: t.templateId, title: t.title, note: `${cap(t.kind.replace("_", " "))} · v${t.version}`, count: t.adds.length ? `Adds ${t.adds.length}` : "" }; }
 export function domainRow(d: DomainRow): AppRow {
   const ok = d.spf === "pass" && d.dkim === "pass" && d.dmarc === "pass";
@@ -42,17 +38,16 @@ export function matches(r: AppRow, q: string): boolean {
 }
 
 /** What a row's menu offers, by group and state. Each is one capability call (see actions.ts). */
-export type RowAction = "publish" | "unpublish" | "launch" | "pause" | "resume" | "stop" | "install" | "check" | "open";
+export type RowAction = "publish" | "unpublish" | "install" | "check" | "open";
 export function actionsFor(r: AppRow): readonly RowAction[] {
   if (r.group === "forms") return r.state === "published" ? ["open", "unpublish"] : ["open", "publish"];
-  if (r.group === "campaigns") return r.state === "running" ? ["open", "pause", "stop"] : r.state === "paused" ? ["open", "resume", "stop"] : r.state === "draft" || r.state === "scheduled" ? ["open", "launch"] : ["open"];
   if (r.group === "templates") return ["open", "install"];
   if (r.group === "domains") return ["check"];
   return ["open"];
 }
-export const ACTION_LABEL: Readonly<Record<RowAction, string>> = { publish: "Publish", unpublish: "Unpublish", launch: "Launch", pause: "Pause", resume: "Resume", stop: "Stop", install: "Install", check: "Check the records", open: "Open" };
-/** Actions that need a person's yes first (Gate): launching sends mail, publishing makes a form public. */
-export const NEEDS_YES: ReadonlySet<RowAction> = new Set<RowAction>(["launch", "publish"]);
+export const ACTION_LABEL: Readonly<Record<RowAction, string>> = { publish: "Publish", unpublish: "Unpublish", install: "Install", check: "Check the records", open: "Open" };
+/** Actions that need a person's yes first (Gate): publishing makes a form public. */
+export const NEEDS_YES: ReadonlySet<RowAction> = new Set<RowAction>(["publish"]);
 
 /** A held call (ARCH 4.6): the capability parked it for approval. */
 export function heldOf(out: unknown): { taskId: string } | null {

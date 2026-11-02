@@ -345,7 +345,7 @@ export function ShareSheet(props: ShareSheetViewProps): ReactElement {
       <View style={styles.head}>
         <View style={styles.headText}>
           <Text style={styles.title} numberOfLines={1}>{`Share “${props.resourceName}”`}</Text>
-          <Text style={styles.sub}>{rec ? rec.subtitle : sheetSubtitle(props, props.folderName)}</Text>
+          <Text style={styles.sub}>{rec ? rec.subtitle : props.subtitle ?? sheetSubtitle(props, props.folderName)}</Text>
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={props.onClose} testID="share-close" {...webProps({ title: "Close" })} style={({ hovered }: { hovered?: boolean }) => [styles.x, hovered === true && styles.xHover]}>
           <MenuIcon icon="x" size={14} color="var(--ink-3)" />

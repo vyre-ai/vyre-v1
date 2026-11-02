@@ -1,10 +1,11 @@
-// The title bar (spec 3.0): title, tiny confirmations with Undo, the sync chip, Search, the skin dropdown (13 skins plus System, seven dark and six light).
+// The title bar (spec 3.0): title, tiny confirmations with Undo, the sync chip, Search, the skin dropdown (15 skins plus Vyre, eight dark and seven light).
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { isHead, isItem } from "../../../../../ui/src/Menu/props.ts";
 import { createShellHub, titleText } from "../spaces/hub.ts";
 import { SEED_DEFS } from "../spaces/model.ts";
+import { Toast } from "../spaces/Toast.tsx";
 import { TitleBar } from "./TitleBar.tsx";
 import { ResumeContext } from "../../onboarding/resume-context.ts";
 import { ResumeChip } from "../../onboarding/ResumeChip.tsx";
@@ -26,41 +27,46 @@ test("the sync chip says Connected, Sending or Offline with the count, and only 
   assert.deepEqual(syncLabel(false, 0), { text: "Offline", tone: "offline", opens: false });
 });
 
-test("the bar shows the title, the sync chip, Search with its key and the skin's name", () => {
+test("a calm bar is one search field; the connection shows only when it is broken, and the title is for screen readers", () => {
   const out = html(props());
-  assert.ok(out.includes("Vyre · Northwind · Chats"));
-  assert.ok(out.includes("Connected") && out.includes("Search") && out.includes("⌘K") && out.includes("Paper"));
+  assert.ok(out.includes('aria-label="Vyre · Northwind · Chats"'));
+  assert.ok(out.includes("Search or run a command") && out.includes("⌘K"));
+  assert.ok(!out.includes("Connected") && !out.includes('data-testid="title-sync"'), "never shown while fine");
+  assert.ok(!out.includes('data-testid="title-skin"'), "the skin lives in Settings and Cmd-K");
   assert.ok(html(props({ online: false, waiting: 3 })).includes("Offline, 3 changes waiting"));
-  assert.ok(html(props({ skin: SYSTEM_SKIN })).includes("System"));
+  assert.ok(html(props({ waiting: 2 })).includes("Sending 2 changes"));
 });
 
-test("a tiny confirmation replaces the title, with Undo when it can be taken back", () => {
-  const plain = html(props({ status: { id: 1, text: "Saved", undo: false } }));
-  assert.ok(plain.includes("Saved") && !plain.includes("Vyre · Northwind") && !plain.includes('data-testid="title-undo"'));
-  const undo = html(props({ status: { id: 2, text: "Task moved to Friday", undo: true } }));
-  assert.ok(undo.includes("Task moved to Friday") && undo.includes('data-testid="title-undo"'));
+test("a confirmation is a toast with Undo when it can be taken back, not a line in the title bar", () => {
+  const plain = renderToStaticMarkup(<Toast status={{ id: 1, text: "Saved", undo: false }} onUndo={() => undefined} />);
+  assert.ok(plain.includes("Saved") && !plain.includes('data-testid="toast-undo"'));
+  const undo = renderToStaticMarkup(<Toast status={{ id: 2, text: "Task moved to Friday", undo: true }} onUndo={() => undefined} />);
+  assert.ok(undo.includes("Task moved to Friday") && undo.includes('data-testid="toast-undo"'));
+  assert.equal(renderToStaticMarkup(<Toast status={null} onUndo={() => undefined} />), "");
 });
 
-test("a phone-width window keeps the icons and drops the labels", () => {
+test("a phone-width window keeps the icon and drops the words", () => {
   const out = html(props({ compact: true }));
-  assert.ok(!out.includes(">Search<") && !out.includes("⌘K") && !out.includes(">Paper<"));
-  assert.ok(out.includes('data-testid="title-search"') && out.includes('data-testid="title-skin"'));
+  assert.ok(!out.includes("Search or run a command") && !out.includes("⌘K"));
+  assert.ok(out.includes('data-testid="title-search"'));
 });
 
-test("the skin menu lists System, seven dark skins, six light skins, checks the open one and applies a choice", () => {
+test("the skin menu lists Vyre, eight dark skins, seven light skins, checks the open one and applies a choice", () => {
   const chosen: string[] = [];
   const entries = skinMenuEntries("graphite", (id) => chosen.push(id), { space: "Northwind", onMore: () => chosen.push("more") });
   const heads = entries.filter(isHead).map((e) => e.head);
   assert.deepEqual(heads, ["Your skin in Northwind", "Dark", "Light"]);
   const items = entries.filter(isItem);
-  assert.equal(items.length, 15, "System, thirteen skins and More in Appearance");
-  assert.equal(items[14]?.label, "More in Appearance");
-  assert.equal(items[0]?.label, "System");
+  assert.equal(items.length, 17, "Vyre, fifteen skins and More in Appearance");
+  assert.equal(items[16]?.label, "More in Appearance");
+  assert.equal(items[0]?.label, "Vyre");
   assert.equal(entries.findIndex((e) => isHead(e) && e.head === "Dark") < entries.findIndex((e) => isHead(e) && e.head === "Light"), true, "dark skins first");
-  const dark = items.slice(1, 8).map((e) => e.label);
-  const light = items.slice(8, 14).map((e) => e.label);
-  assert.equal(dark.length, 7);
-  assert.equal(light.length, 6);
+  const dark = items.slice(1, 9).map((e) => e.label);
+  const light = items.slice(9, 16).map((e) => e.label);
+  assert.equal(dark.length, 8);
+  assert.equal(dark[0], "Vyre Black");
+  assert.equal(light[0], "Vyre Light");
+  assert.equal(light.length, 7);
   assert.ok(dark.includes("Graphite") && light.includes("Paper"));
   assert.deepEqual(items.filter((e) => e.checked === true).map((e) => e.label), ["Graphite"]);
   assert.ok(items.every((e) => typeof e.icon === "string" && e.icon.startsWith("<svg")), "every row has an icon, System included");
@@ -70,7 +76,7 @@ test("the skin menu lists System, seven dark skins, six light skins, checks the 
   items.find((e) => e.label === "Paper")?.onSelect?.();
   assert.deepEqual(chosen, ["paper"]);
   assert.equal(skinName("graphite"), "Graphite");
-  assert.equal(skinName("unknown"), "System");
+  assert.equal(skinName("unknown"), "Vyre");
 });
 
 test("the title names the Space and the place, and Away when you set yourself away", () => {
@@ -100,10 +106,10 @@ test("the hub keeps a confirmation for a moment, undo takes the action back, off
 
 test("unfinished setup is a pill in the title bar, not a floating chip over the rail: it sits in the bar's flow and never takes a position", () => {
   const pill = <ResumeChip flow="personal" progress={{ ai: "done" }} device="mac" compact={false} onOpen={() => undefined} />;
-  const withSetup = renderToStaticMarkup(<ResumeContext.Provider value={{ handled: 1, total: 6, open: () => undefined, pill }}><TitleBar {...props()} /></ResumeContext.Provider>).replaceAll("<!-- -->", "");
+  const withSetup = renderToStaticMarkup(<ResumeContext.Provider value={{ done: 1, total: 6, open: () => undefined, pill }}><TitleBar {...props()} /></ResumeContext.Provider>).replaceAll("<!-- -->", "");
   assert.ok(withSetup.includes('data-testid="title-setup"') && withSetup.includes("Finish setup, 1 of"), "the bar carries the entry");
   const bar = withSetup.slice(withSetup.indexOf('data-testid="shell-titlebar"'));
-  assert.ok(bar.indexOf('data-testid="title-setup"') < bar.indexOf('data-testid="title-sync"'), "it sits before the connection chip, inside the bar");
-  assert.ok(!/position:\s*absolute/.test(withSetup.slice(withSetup.indexOf('data-testid="title-setup"'), withSetup.indexOf('data-testid="title-sync"'))), "nothing in it is positioned over the page");
+  assert.ok(bar.indexOf('data-testid="title-setup"') < bar.indexOf('data-testid="title-search"'), "it sits left of the search, inside the bar");
+  assert.ok(!/position:\s*absolute/.test(withSetup.slice(withSetup.indexOf('data-testid="title-setup"'), withSetup.indexOf('data-testid="title-search"'))), "nothing in it is positioned over the page");
   assert.ok(!html(props()).includes("title-setup"), "no unfinished setup, no entry");
 });

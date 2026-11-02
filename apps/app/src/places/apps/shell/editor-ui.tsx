@@ -55,8 +55,8 @@ export function Select({ label, value, options, onChange, disabled, compact }: {
     show(options.map((o) => ({ label: o.title, onSelect: () => onChange(o.key) })), rect?.left ?? e.nativeEvent?.pageX ?? 20, rect?.bottom ?? e.nativeEvent?.pageY ?? 100, "other");
   }}><Text style={s.buttonText}>{options.find((o) => o.key === value)?.title ?? (value || "Choose…")}</Text></Pressable>{element}</View>;
 }
-export function Frame({ title, children, error, loading, retry, back, offline, testID = "apps-editor" }: { title: string; children: ReactNode; testID?: string; error?: string | null; loading?: boolean; retry?(): void; back(): void; offline?: boolean }): ReactElement {
-  return <View style={s.page} testID={testID}><View style={s.head}><Button title="Back to Apps" onPress={back} /><Text accessibilityRole="header" style={s.heading}>{title}</Text></View><ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled"><View style={s.column}>
+export function Frame({ title, children, error, loading, retry, back, offline, testID = "apps-editor", backTitle = "Back to Apps" }: { title: string; children: ReactNode; testID?: string; backTitle?: string; error?: string | null; loading?: boolean; retry?(): void; back(): void; offline?: boolean }): ReactElement {
+  return <View style={s.page} testID={testID}><View style={s.head}><Button title={backTitle} onPress={back} /><Text accessibilityRole="header" style={s.heading}>{title}</Text></View><ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled"><View style={s.column}>
     {offline ? <States kind="offline" title="Reconnect to this Space to save or send." /> : null}
     {error ? <States kind="error" message={error} {...(retry ? { onRetry: retry } : {})} /> : null}
     {loading ? <Text>Loading…</Text> : children}

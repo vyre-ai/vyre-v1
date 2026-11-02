@@ -9,6 +9,7 @@ import type { Handler } from "../../host/src/invoke.ts";
 import { connect, draft, draftsDiscard, draftsList, ingest, messageErase, send, sendAs, sendPreview, syncNow } from "./handlers/index.ts";
 import { extraHandlers } from "./handlers/extra/index.ts";
 import { setDefaultImapSession } from "./handlers/ingest.ts";
+import { setMailLinksHost, unsubscribe } from "./handlers/unsubscribe.ts";
 import type { ImapConfig, ImapMessage, ImapSession, ImapSessionFactory } from "./handlers/ingest.ts";
 import type { MailCtx, Party } from "./projections.ts";
 import { codecs, consumers, inline } from "./projections.ts";
@@ -23,13 +24,35 @@ export const handlers: Record<string, Handler> = {
   "mail.send": (ctx, input) => send(ctx, input),
   "mail.send_as": (ctx, input) => sendAs(ctx, input),
   "mail.send_preview": (ctx, input) => sendPreview(ctx, input),
+  "mail.unsubscribe": (ctx, input) => unsubscribe(ctx, input as { token?: unknown }),
   "mail.message.erase": (ctx, input) => messageErase(ctx, input),
   // mailbox admin, message reads, attachment save, health, status updates, auto-connect, sending domains and routes (P-L5_01c)
   ...extraHandlers,
 };
 
-export const projections = { inline, consumers };
-export { codecs, inline, consumers };
+/** A person's mailbox connections end: nothing more syncs or files, the IMAP settings go, and mail already filed to records stays. Answers how many ended. A second run changes nothing. */
+function revokeOwned(ctx: { now(): number; db: { all(sql: string, ...a: unknown[]): unknown[]; run(sql: string, ...a: unknown[]): unknown } }, person: string): number {
+  try {
+    const live = (ctx.db.all(`SELECT id, state FROM mail_mailbox WHERE "ownerId" = ? AND deleted_at IS NULL`, person) as { id: string; state: string }[]).filter((r) => r.state !== "disconnected");
+    for (const { id } of live) {
+      ctx.db.run(`DELETE FROM mail_imap WHERE "mailboxId" = ?`, id);
+      ctx.db.run(`UPDATE mail_mailbox SET state = ?, paused = ?, "connectionId" = ?, updated_at = ? WHERE id = ?`, "disconnected", 1, null, ctx.now(), id);
+    }
+    return live.length;
+  } catch { return 0; }   // a Space that never used mail has no tables yet
+}
+
+/** Leaving a Space ends a person's connections as the removal wizard does: spaces.leave has no wizard, only this event, and a person who left must not go on filing mail into it. */
+const consumersAll = {
+  ...consumers,
+  "mail.person_left": {
+    on: ["member.removed"],
+    run: (ctx: Parameters<typeof revokeOwned>[0], event: { payload: { personId?: unknown } }): number => (typeof event.payload.personId === "string" ? revokeOwned(ctx, event.payload.personId) : 0),
+  },
+};
+
+export const projections = { inline, consumers: consumersAll };
+export { codecs, inline, consumersAll as consumers };
 
 // ---- live IMAP over imapflow
 
@@ -213,7 +236,7 @@ export function createLiveImapFactory(deps: LiveImapDeps = defaultDeps): ImapSes
 setDefaultImapSession(createLiveImapFactory());
 
 /** Where the host registers the IMAP secret resolver at boot (ruling 31): the loader reads this export. */
-export const hostSeams: import("../../host/src/seams/index.ts").SeamSetters = { setImapSecretResolver };
+export const hostSeams: import("../../host/src/seams/index.ts").SeamSetters = { setImapSecretResolver, setMailLinksHost };
 
 /**
  * Host calls for the removal wizard (members.owned, host/src/seams/people.ts): what a person owns here and what happens to it (P-L7_21). The host runs them with this module's ctx, so no other module
@@ -226,10 +249,7 @@ export const hostCalls = {
   "mail.owned_by": (ctx: { db: { all(sql: string, ...a: unknown[]): unknown[] } }, i: { person: string }) => ({
     mailbox_connections: ownedKept(ownedRows(ctx, `SELECT "id", COALESCE("title", "address") AS "title" FROM mail_mailbox WHERE "ownerId" = ? AND "deleted_at" IS NULL AND "state" <> 'disconnected'`, i.person), "mailbox", "title"),
   }),
-  "mail.reassign_owned": (ctx: { now(): number; db: { run(sql: string, ...a: unknown[]): { changes: number } } }, i: { person: string; kind: string; action: string }): number => {
-    if (i.kind !== "mailbox_connections" || i.action !== "revoke") return 0;   // the connection ends; mail already filed to records stays
-    try {
-      return ctx.db.run(`UPDATE mail_mailbox SET "state" = 'disconnected', "paused" = 1, "connectionId" = NULL, "updated_at" = ? WHERE "ownerId" = ? AND "deleted_at" IS NULL AND "state" <> 'disconnected'`, ctx.now(), i.person).changes;
-    } catch { return 0; }
+  "mail.reassign_owned": (ctx: Parameters<typeof revokeOwned>[0], i: { person: string; kind: string; action: string }): number => {
+    return i.kind === "mailbox_connections" && i.action === "revoke" ? revokeOwned(ctx, i.person) : 0;   // the connection ends; mail already filed to records stays
   },
 };

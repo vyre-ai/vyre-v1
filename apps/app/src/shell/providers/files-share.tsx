@@ -14,17 +14,19 @@ import type { ShellRuntime } from "./runtime.tsx";
 
 const FIXED = (Platform.OS === "web" ? "fixed" : "absolute") as ViewStyle["position"];
 
-export function FolderShareSheet({ rt, folderId, onClose }: { rt: ShellRuntime; folderId: string; onClose(): void }): ReactElement {
+export function FolderShareSheet({ rt, folderId, resource, onClose }: { rt: ShellRuntime; folderId: string; /** another resource than a folder (a site, an artifact), with its name */ resource?: { type: string; id: string; name: string }; onClose(): void }): ReactElement {
   // the sheet is titled with the folder's own name
-  const [name, setName] = useState("Folder");
+  const [name, setName] = useState(resource?.name ?? "Folder");
+  const type = resource?.type ?? "folder";
   useEffect(() => {
+    if (resource) return undefined;
     let live = true;
     void Promise.resolve(rt.call("files.list", {})).then((o) => { const f = (o as { folders?: Array<{ folderId?: string; id?: string; name: string }> }).folders?.find((x) => (x.folderId ?? x.id) === folderId); if (live && f) setName(f.name); }, () => undefined);
     return () => { live = false; };
-  }, [rt, folderId]);
+  }, [rt, folderId, resource]);
   const directory = useDirectory(rt);
   const nameOf = useMemo(() => nameLookup(rt), [rt]);
-  const q = useMemo(() => capLive<SharesOut>(rt, "access.shares_of", { resource: { type: "folder", id: folderId } }), [rt, folderId]);
+  const q = useMemo(() => capLive<SharesOut>(rt, "access.shares_of", { resource: { type, id: folderId } }), [rt, type, folderId]);
   const state = useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
   const [failed, setFailed] = useState<string | null>(null);
   const run = (call: Promise<unknown>): void => { setFailed(null); call.catch((e: unknown) => { const x = e as { error?: { message?: string }; message?: string }; setFailed(x?.error?.message ?? x?.message ?? "That did not go through."); }); };
@@ -36,11 +38,11 @@ export function FolderShareSheet({ rt, folderId, onClose }: { rt: ShellRuntime; 
   );
   if (state.status !== "ready") return shell(<View style={s.card}>{state.status === "error" ? <States kind="error" message="This could not be opened." /> : <States kind="loading" title="Opening" icon="files" />}</View>);
   const m = sheetModel(state.data, nameOf);
-  const res = { type: "folder", id: folderId };
+  const res = { type, id: folderId };
   return shell(
     <View style={s.stack}>
       <ShareSheet
-        resourceType="folder" resourceId={folderId} resourceName={name} target="folder" ownerName={m.owner?.name ?? "Space owner"} {...(m.owner ? { ownerId: m.owner.id } : {})}
+        resourceType={type as "folder"} resourceId={folderId} resourceName={name} target="folder" {...(type === "site" ? { subtitle: "Artifact. The people you add can open it in Vyre." } : {})} ownerName={m.owner?.name ?? "Space owner"} {...(m.owner ? { ownerId: m.owner.id } : {})}
         levels={RECORD_LEVELS} shares={m.rows} allowExternal={false} density="regular" directory={directory}
         onShare={(i: ShareInput) => run(rt.call("access.share", { resource: res, subject: i.subject, level: i.level }))}
         onUnshare={(i: UnshareInput) => run(rt.call("access.unshare", { resource: i.resource, subject: i.subject }))}

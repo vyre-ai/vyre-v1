@@ -10,11 +10,14 @@ import type { ViewStyle } from "react-native";
 import { MenuIcon } from "../Menu/index.tsx";
 import { TabStrip } from "../TabStrip/index.tsx";
 import type { TabMenuExtra } from "../TabStrip/index.tsx";
+import { RAIL_OVERLAY, SHEET, SHEET_GAP, intoSheet, sq, useRailOverlay, useSheetHost } from "./host.tsx";
+import { useEdgeDrag } from "./drag.ts";
 import { PANE_HEADER_ORDER, SIDE_PANE_MAX, SIDE_PANE_MIN, paneToggleLabel, sidePaneMax, sidePaneMin } from "./props.ts";
 import type { PaneProps, PaneTab, SidePaneProps } from "./props.ts";
 
 export type { PaneProps, PaneTab, PaneToggle, SidePaneProps } from "./props.ts";
 export { PANE_HEADER_ORDER, SIDE_PANE_MAX, SIDE_PANE_MIN, paneToggleLabel } from "./props.ts";
+export { SheetHostProvider, useSheetHost, useSquircle, sq } from "./host.tsx";
 
 /* ---------- width memory ---------- */
 
@@ -165,6 +168,7 @@ function PaneHeader(props: PaneViewProps & { innerToggleHidden: boolean }): Reac
       tabs={list}
       active={activeTab ?? list[0]?.key ?? ""}
       label={title}
+      noOptions
       {...(props.tight === true ? { tight: true } : {})}
       {...(props.onSelectTab === undefined ? {} : { onSelect: props.onSelectTab })}
       {...(props.onCloseTab === undefined ? {} : { onClose: props.onCloseTab })}
@@ -217,6 +221,8 @@ export function Pane(props: PaneViewProps): ReactElement {
 
 export function SidePane(props: SidePaneViewProps): ReactElement | null {
   const { paneKey, toggle, onWidthChange } = props;
+  const host = useSheetHost();
+  const overlay = useRailOverlay();
   const window = useWindowDimensions();
   const min = sidePaneMin(props);
   const maxFraction = sidePaneMax(props);
@@ -249,29 +255,29 @@ export function SidePane(props: SidePaneViewProps): ReactElement | null {
     if (onWidthChange) onWidthChange(clampPaneWidth(first, windowRef.current, min, maxFraction));
   }, [paneKey, first, min, maxFraction, onWidthChange]);
 
+  const begin = (): void => { startWidth.current = widthRef.current; setDragging(true); };
+  const finish = (dx: number): void => {
+    setDragging(false);
+    if (Math.abs(dx) < 2) {
+      const now = Date.now();
+      if (now - lastTap.current < 450) {
+        lastTap.current = 0;
+        reset();
+      } else {
+        lastTap.current = now;
+      }
+      return;
+    }
+    apply(startWidth.current - dx, true);
+  };
+  const edgeRef = useEdgeDrag({ onStart: begin, onMove: (dx) => apply(startWidth.current - dx, false), onEnd: finish, onCancel: () => setDragging(false) });
   const responder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => {
-      startWidth.current = widthRef.current;
-      setDragging(true);
-    },
+    onPanResponderGrant: begin,
     onPanResponderMove: (_event, gesture) => apply(startWidth.current - gesture.dx, false),
-    onPanResponderRelease: (_event, gesture) => {
-      setDragging(false);
-      if (Math.abs(gesture.dx) < 2) {
-        const now = Date.now();
-        if (now - lastTap.current < 450) {
-          lastTap.current = 0;
-          reset();
-        } else {
-          lastTap.current = now;
-        }
-        return;
-      }
-      apply(startWidth.current - gesture.dx, true);
-    },
+    onPanResponderRelease: (_event, gesture) => finish(gesture.dx),
     onPanResponderTerminate: () => setDragging(false),
-  }), [apply, reset]);
+  }), [apply, reset]); // eslint-disable-line react-hooks/exhaustive-deps -- begin and finish read only refs and these
 
   if (!toggle.open) return null;
 
@@ -283,27 +289,41 @@ export function SidePane(props: SidePaneViewProps): ReactElement | null {
     else apply(next, true);
   };
 
-  return (
-    <View style={[styles.side, { width }]} testID="side-pane" role="complementary" aria-label={props.title ?? paneKey} {...webProps({ dataSet: { paneKey, min: String(min), max: String(maxFraction) } })}>
-      <View
-        {...responder.panHandlers}
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize the side pane"
-        aria-valuenow={width}
-        aria-valuemin={min}
-        aria-valuemax={Math.max(min, Math.round(window.width * maxFraction))}
-        testID="side-pane-resize"
-        focusable
-        onPointerEnter={() => setLit(true)}
-        onPointerLeave={() => setLit(false)}
-        style={styles.edge}
-        {...webProps({ tabIndex: 0, title: "Drag to resize, double-click to reset", onKeyDown, onDoubleClick: () => reset(), onFocus: () => setLit(true), onBlur: () => setLit(false) })}
-      >
-        <View style={[styles.edgeLine, lit || dragging ? EDGE_ON : null]} />
+  const edge = (
+    <View
+      ref={edgeRef as never}
+      {...(Platform.OS === "web" ? {} : responder.panHandlers)}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize the side pane"
+      aria-valuenow={width}
+      aria-valuemin={min}
+      aria-valuemax={Math.max(min, Math.round(window.width * maxFraction))}
+      testID="side-pane-resize"
+      focusable
+      onPointerEnter={() => setLit(true)}
+      onPointerLeave={() => setLit(false)}
+      style={styles.edge}
+      {...webProps({ tabIndex: 0, title: "Drag to resize, double-click to reset", onKeyDown, onDoubleClick: () => reset(), onFocus: () => setLit(true), onBlur: () => setLit(false) })}
+    >
+      <View style={[styles.edgeLine, lit || dragging ? EDGE_ON : null]} />
+    </View>
+  );
+  const inner = <><PaneHeader {...props} innerToggleHidden={false} /><View style={styles.body}>{props.children}</View></>;
+  const a11y = { testID: "side-pane", role: "complementary" as const, "aria-label": props.title ?? paneKey, ...webProps({ dataSet: { paneKey, min: String(min), max: String(maxFraction) } }) };
+  if (host !== null) {
+    // the right rail: a sheet of its own beside the main view, full height, the edge outside its clip
+    return <>{intoSheet(host.right, (
+      <View style={[styles.onSheet, { width, marginLeft: SHEET_GAP }, overlay ? RAIL_OVERLAY : null]} {...a11y} {...webProps({ dataSet: { paneKey, min: String(min), max: String(maxFraction), panelIn: "1" } })}>
+        <View style={SHEET} {...sq("sheet")}>{inner}</View>
+        {overlay ? null : edge}
       </View>
-      <PaneHeader {...props} innerToggleHidden={false} />
-      <View style={styles.body}>{props.children}</View>
+    ))}</>;
+  }
+  return (
+    <View style={[styles.side, { width }]} {...a11y}>
+      {edge}
+      {inner}
     </View>
   );
 }
@@ -317,14 +337,15 @@ const COL_RESIZE = (Platform.OS === "web" ? "col-resize" : undefined) as unknown
 
 const styles = StyleSheet.create({
   header: { height: PANE_HEADER_HEIGHT, flexDirection: "row", alignItems: "center", backgroundColor: "var(--side)" as string },
-  toggleCell: { height: PANE_HEADER_HEIGHT, justifyContent: "center", borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  toggleCell: { height: PANE_HEADER_HEIGHT, justifyContent: "center", paddingTop: 6 },
   toggle: { width: 28, height: 28, marginLeft: 6, marginRight: 2, borderRadius: 7, alignItems: "center", justifyContent: "center" },
   tabsSlot: { flex: 1, minWidth: 0 },
-  titleBox: { height: PANE_HEADER_HEIGHT, justifyContent: "center", paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  titleBox: { height: PANE_HEADER_HEIGHT, justifyContent: "center", paddingHorizontal: 8 },
   title: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "500" },
   pane: { flex: 1, minWidth: 0, minHeight: 0, backgroundColor: "var(--side)" as string, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, overflow: "hidden" },
+  onSheet: { position: "relative", height: "100%", minWidth: 0, flexShrink: 0 },
   side: { height: "100%", minWidth: 0, minHeight: 0, backgroundColor: "var(--side)" as string, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, overflow: "visible" },
   body: { flex: 1, minHeight: 0 },
-  edge: { position: "absolute", top: 0, bottom: 0, left: -4, width: 7, zIndex: 6, alignItems: "center", cursor: COL_RESIZE },
+  edge: { position: "absolute", top: 0, bottom: 0, left: -4, width: 7, zIndex: 6, alignItems: "center", cursor: COL_RESIZE, ...(Platform.OS === "web" ? ({ userSelect: "none", touchAction: "none" } as object) : {}) },
   edgeLine: { height: "100%", width: 1, backgroundColor: "transparent" },
 });

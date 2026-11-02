@@ -206,14 +206,14 @@ test("Cmd-K offers New channel in a Team Space and not in a Personal one", () =>
   assert.ok(!gateActions(state, false).some((a) => a.key === "channel.new"));
 });
 
-test("Personal has no Channels, no Browse, no new menu and no Create row", async () => {
+test("Personal has no Channels, no Browse and no Create row", async () => {
   installDom();
   requestChannelSheet("new");
   const s = createSampleSidebar(personal);
   const root = await mount(createRoot, <ChatsSidebar data={s.data} window={window500} />);
   const all = ids(root);
-  for (const gone of ["head-channels", "row-a:new-channel", "new-menu", "browse-channels-tool", "new-channel", "new-channel-sheet"]) assert.ok(!all.includes(gone), `${gone} is hidden`);
-  assert.ok(find(root, "new-chat"), "the New chat button stays");
+  for (const gone of ["head-channels", "row-a:new-channel", "browse-channels-tool", "new-channel", "new-channel-sheet"]) assert.ok(!all.includes(gone), `${gone} is hidden`);
+  assert.ok(find(root, "new-menu"), "New stays: a chat or an agent");
   assert.equal(takeChannelRequest(), null, "a Personal Space took the request and dropped it");
 });
 

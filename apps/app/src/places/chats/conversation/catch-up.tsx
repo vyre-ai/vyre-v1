@@ -1,6 +1,7 @@
 // "Catch me up" (rc.9 flow 3): one line at the top of a thread with things you have not read: who wrote, what was decided, what was made into a task, and who @named you. It reads the server's
-// plain summary (chat.catch_up), shows once on open, and goes away with one tap that also marks the thread read. Nothing here calls a model.
-import { useEffect, useState } from "react";
+// plain summary (chat.catch_up) as the chat opens, and goes away with one tap. Nothing here calls a model.
+// An open chat is read: the summary is taken first, then the read cursor moves, and it follows each new message for as long as the chat is on screen in a window that is showing.
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { TextButton } from "./parts.tsx";
@@ -27,7 +28,8 @@ export function catchUpLine(c: CatchUp, nameOf: (id: string) => string, mine: nu
   const first = c.people[0];
   if (!first) return `${c.unread} new messages.`;
   const rest = c.people.length - 1;
-  const who = nameOf(first.id).split(" ")[0]!;
+  // a person goes by their first name; an agent's name is one name
+  const who = o.kindOf?.(first.id) === "agent" ? nameOf(first.id) : nameOf(first.id).split(" ")[0]!;
   const parts = [`${rest === 0 ? who : `${who} and ${plural(rest, "other", "others")}`} ${o.kindOf?.(first.id) === "agent" ? "replied" : "wrote"}.`];
   const work: string[] = [];
   if (c.decisions.length > 0) work.push(plural(c.decisions.length, "decision", "decisions"));
@@ -38,14 +40,37 @@ export function catchUpLine(c: CatchUp, nameOf: (id: string) => string, mine: nu
   return parts.join(" ");
 }
 
-export function CatchUpLine({ onJump }: { onJump: (messageId: string) => void }): ReactElement | null {
+/** Is the page in front of the person? Anything without a document (a test, native) counts as showing. */
+const showing = (): boolean => (globalThis as { document?: { visibilityState?: string } }).document?.visibilityState !== "hidden";
+
+export function CatchUpLine({ onJump, newest }: { onJump: (messageId: string) => void; /** the last message on screen: a new one moves the read cursor again */ newest: string }): ReactElement | null {
   const data = useConversationData();
   const [c, setC] = useState<CatchUp | null>(null);
+  const read = useRef({ opened: false, marked: "", newest });
+  read.current.newest = newest;
+  const mark = useRef((): void => undefined);
+  mark.current = (): void => {
+    const r = read.current;
+    if (!r.opened || !showing() || r.marked === r.newest) return;
+    const was = r.marked;
+    r.marked = r.newest;
+    Promise.resolve(data.call("threads.mark_read", { threadId: data.threadId })).catch(() => { r.marked = was; });
+  };
   useEffect(() => {
     let live = true;
-    void data.call("chat.catch_up", { threadId: data.threadId }).then((r) => { if (live) setC(r as CatchUp); }, () => undefined);
+    read.current.opened = false; read.current.marked = "";
+    setC(null);
+    const opened = (): void => { if (live) { read.current.opened = true; mark.current(); } };
+    Promise.resolve(data.call("chat.catch_up", { threadId: data.threadId })).then((r) => { if (live) setC(r as CatchUp); opened(); }, opened);
     return () => { live = false; };
-  }, [data, data.threadId]);
+  }, [data.threadId]); // eslint-disable-line react-hooks/exhaustive-deps -- once per chat, not per render of its data
+  useEffect(() => { mark.current(); }, [newest]);
+  useEffect(() => {
+    const page = (globalThis as { document?: { addEventListener?(t: string, l: () => void): void; removeEventListener?(t: string, l: () => void): void } }).document;
+    const back = (): void => { mark.current(); };
+    page?.addEventListener?.("visibilitychange", back);
+    return () => { page?.removeEventListener?.("visibilitychange", back); };
+  }, []);
   if (!c) return null;
   const me = [{ kind: "person" as const, id: data.me.id, name: data.me.name }];
   const mine = c.at.filter((m) => m.author !== data.me.id && mentionsIn(m.text, me).length > 0).length;
@@ -55,7 +80,7 @@ export function CatchUpLine({ onJump }: { onJump: (messageId: string) => void })
     <View testID="catch-up" accessibilityRole="summary" style={s.box}>
       <Text testID="catch-up-line" style={s.text}>{line}</Text>
       {c.firstMessageId ? <TextButton link label="Jump to first" testID="catch-up-jump" onPress={() => onJump(c.firstMessageId!)} /> : null}
-      <TextButton link label="Got it" testID="catch-up-done" onPress={() => { setC(null); void data.call("threads.mark_read", { threadId: data.threadId }).catch(() => undefined); }} />
+      <TextButton link label="Got it" testID="catch-up-done" onPress={() => { setC(null); }} />
     </View>
   );
 }

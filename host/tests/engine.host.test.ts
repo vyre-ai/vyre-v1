@@ -30,6 +30,10 @@ test("postAs posts into chat as the agent, and a call held at the Gate is an err
   await h.postAs("agt_1", { threadId: "thr_1", body: "hi", blocks: [], mentions: [], clientId: "msg_1" });
   assert.equal(w.calls[0]!.cap, "chat.post");
   assert.deepEqual(w.calls[0]!.seed.principal, { kind: "agent", id: "agt_1" });
+  assert.equal(w.calls[0]!.seed.sharedKey, undefined);
+  await h.postAs("agt_1", { actingFor: "usr_1", sharedKey: true, threadId: "thr_1", body: "hi", blocks: [], mentions: [], clientId: "msg_2" });
+  assert.equal(w.calls[1]!.seed.sharedKey, true, "the engine says a key of the Space paid, on the call and never in its input");
+  assert.equal("sharedKey" in (w.calls[1]!.input as object), false);
   const held = createEngineHost({ space: "spc_1", invoke: (async () => ({ status: "held", traceId: "b".repeat(32) })) as unknown as Invoke });
   await assert.rejects(held.call("agents.get", {}, "usr_dana"), /held for approval/);
 });
@@ -46,4 +50,16 @@ test("the daemon's options reach the module unchanged: data directory, sandbox p
   assert.equal(seam["invoke"], w.invoke);
   assert.equal(seam["space"], "spc_1");
   assert.equal(h.session, undefined, "no Vault, no real session opener");
+});
+
+test("what the model thought goes to the person whose turn it is and nobody else; everything else goes to whoever may read the thread", async () => {
+  const w = world();
+  const frames: Array<{ kind: unknown; allow: (p: string) => boolean | Promise<boolean> }> = [];
+  const h = createEngineHost({ space: "spc_1", invoke: w.invoke, publishTurn: () => (frame, allow) => { frames.push({ kind: frame.delta["kind"], allow }); } });
+  h.stream!({ kind: "thinking", threadId: "thr_1", turnId: "trn_1", agentId: "agt_1", text: "She mentioned the surgery privately", asker: "usr_dana" });
+  h.stream!({ kind: "delta", threadId: "thr_1", turnId: "trn_1", agentId: "agt_1", text: "Done" });
+  assert.equal(await frames[0]!.allow("usr_dana"), true);
+  assert.equal(await frames[0]!.allow("usr_maya"), false, "a member of the same chat does not get it");
+  assert.equal(await frames[1]!.allow("usr_maya"), true, "the words themselves are for the chat");
+  assert.equal(w.calls.filter((c) => c.cap === "threads.get").length, 1, "thinking asked nobody: only the words read the thread");
 });

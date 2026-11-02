@@ -1,6 +1,6 @@
 # tasks.withdraw
 
-Withdraw open requests whose source chat or run stopped or whose item changed, with a note
+Withdraw open requests whose source chat or run stopped or whose item changed, or let one task go, with a note
 
 | | |
 |---|---|

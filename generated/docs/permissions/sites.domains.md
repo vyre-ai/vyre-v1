@@ -14,4 +14,5 @@ Area: sites. Risk: medium. Applies to: site, domain.
 
 ## Capabilities that need it
 
+- sites.domain_add
 - sites.domain_set

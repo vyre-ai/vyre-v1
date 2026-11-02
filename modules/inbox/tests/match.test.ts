@@ -273,25 +273,15 @@ test("suggestions list the sure and unsure records with the reason, and a matche
   await refused(matchSuggestions(h.ctx, { conversationId: "cnv_missing1" }), "validation.not_found");
 });
 
-// ---- replies reach followers and campaign owners
+// ---- replies reach followers
 
-test("a reply from a followed contact raises the follow event; a campaign reply says which campaign; our own message raises neither", async () => {
+test("a reply from a followed contact raises the follow event; our own message does not", async () => {
   const h = setup();
   await followSet(h.ctx, { contactId: LEE.id, follow: true, alertOnReplies: true });
-  await linkMessage(h.ctx, link({ address: "pat@acme.test", campaignId: "cmp_spring" }));
+  await linkMessage(h.ctx, link({ address: "pat@acme.test" }));
   assert.deepEqual(h.named("conversation.reply_received").map((e) => [e.subject, e.vis]), [[`record/${LEE.id}`, "participants"]]);
-  assert.deepEqual(h.named("conversation.campaign_reply").map((e) => e.payload.campaignId), ["cmp_spring"]);
-  await linkMessage(h.ctx, link({ address: "pat@acme.test", direction: "out", campaignId: "cmp_spring" }));
+  await linkMessage(h.ctx, link({ address: "pat@acme.test", direction: "out" }));
   assert.equal(h.named("conversation.reply_received").length, 1);
-  assert.equal(h.named("conversation.campaign_reply").length, 1);
-});
-
-test("an unowned reply goes to the campaign owner", async () => {
-  const h = setup();
-  h.campaigns.set("cmp_spring", "usr_omar01");
-  await linkMessage(h.ctx, link({ address: "dana@fox.test", campaignId: "cmp_spring" }));
-  assert.equal(convs(h)[0]!.ownerId, "usr_omar01");
-  assert.equal(convs(h)[0]!.campaignId, "cmp_spring");
 });
 
 // ---- read state and follows

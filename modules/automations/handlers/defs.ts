@@ -12,6 +12,7 @@ import {
   raise, readPolicy, saveAutomation, saveVersion, touch, versionById,
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
+import { regrant, sendersOf, shareSenders } from "../grants.ts";
 import { publishAllowed } from "../connector-breadth.ts";
 import { storedLevel } from "../connector-level.ts";
 import { admit, contractOf } from "../val.ts";
@@ -25,6 +26,7 @@ type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-ex
 const STEPS = new Map(registry.steps.map((s) => [s.key, s] as const));
 const TRIGGERS = new Map(registry.triggers.map((t) => [t.key, t] as const));
 export interface Issue { nodeId?: string; severity: "error" | "warning"; message: string }
+interface Sender { id: string; channel: string; address: string; usable: boolean; why?: string }
 const issue = (severity: Issue["severity"], message: string, nodeId?: string): Issue => clean({ nodeId, severity, message });
 const requiredOf = (schema: unknown): string[] => {
   const r = (schema as { required?: unknown } | null)?.required;
@@ -362,8 +364,47 @@ function draftedActionIssues(def: Definition, db: Db): Issue[] {
   return out;
 }
 
+/** Turn on says it plainly when a send step has nothing to send from, in the words the Inbox uses for the same sender. A person's own list decides: their access is what the Automation will get. */
+async function senderIssues(ctx: AutoCtx, def: Definition): Promise<Issue[]> {
+  const steps = def.nodes.filter((n) => (n.key === "send_email" && n.input?.["draftOnly"] !== true) || n.key === "send_sms");
+  if (steps.length === 0 || ctx.principal.kind !== "person" || !ctx.call) return [];
+  let senders: Sender[];
+  try { senders = ((await ctx.call("comms.senders.list", {})) as { senders: Sender[] }).senders; } catch { return []; }   // no list, no verdict: the send itself still checks
+  const out: Issue[] = [];
+  const named = new Map(sendersOf(def).map((s) => [s.stepId, s.resource.id] as const));
+  for (const n of steps) {
+    const email = n.key === "send_email";
+    const ofKind = senders.filter((s) => s.channel === (email ? "email" : "text"));
+    const id = named.get(n.id);
+    if (ofKind.length === 0) out.push(issue("error", email ? "No mailbox is connected yet. Connect one in Console, Comms, then turn this on." : "No texting number is connected yet. Connect one in Console, Comms, then turn this on.", n.id));
+    else if (id === undefined) continue;   // validation names the missing pick
+    else {
+      const s = ofKind.find((x) => x.id === id);
+      if (!s) out.push(issue("error", `You cannot send from the ${email ? "mailbox" : "number"} this step names. Pick another, or ask for access to it.`, n.id));
+      else if (!s.usable) out.push(issue("error", `${s.address} cannot send right now. ${s.why ?? ""}`.trim(), n.id));
+    }
+  }
+  return out;
+}
+
+export async function senders(ctx: AutoCtx, input: In): Promise<unknown> {
+  const a = visible(ctx, getAutomation(ctx, input.automationId));
+  const named = sendersOf(a.definition);
+  if (named.length === 0 || !ctx.call) return { senders: [] };
+  const known = await ctx.call("comms.senders.list", {}).then((o) => (o as { senders: Sender[] }).senders, () => [] as Sender[]);
+  const seen = new Set<string>();
+  const out: Record<string, unknown>[] = [];
+  for (const { resource } of named) {
+    if (seen.has(resource.id)) continue;
+    seen.add(resource.id);
+    const s = known.find((x) => x.id === resource.id);
+    out.push(clean({ id: resource.id, channel: resource.type === "mailbox" ? "email" : "text", address: s?.address ?? resource.id, usable: s?.usable === true, why: s ? s.why : "You cannot see this sender." }));
+  }
+  return { senders: out };
+}
+
 async function blocksGoingLive(ctx: AutoCtx, kind: Automation["kind"], def: Definition, policy: Policy): Promise<Issue[]> {
-  return [...validateDefinition(def, policy), ...admissionIssues(def), ...draftedActionIssues(def, ctx.db), ...(await liveStepIssues(ctx, kind, def))];
+  return [...(await senderIssues(ctx, def)), ...validateDefinition(def, policy), ...admissionIssues(def), ...draftedActionIssues(def, ctx.db), ...(await liveStepIssues(ctx, kind, def))];
 }
 
 // ---- reads ----
@@ -472,6 +513,7 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
   saveAutomation(ctx.db, a);
   saveVersion(ctx, a, "Created");
   rememberAccountPicks(ctx.db, owner, def, now);
+  await regrant(ctx, a, "save");
   emitAuto(ctx, "automation.created", a.id, { name: a.name, kind: a.kind });
   return { automation: out(a) };
 }
@@ -487,6 +529,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   if (typeof input.name === "string" && input.name.trim() && input.name.trim() !== a.name) { a.name = input.name.trim(); fields.push("name"); }
   if (typeof input.description === "string" && input.description !== (a.description ?? "")) { a.description = input.description; fields.push("description"); }
   let definitionChanged = false;
+  let before: Definition | undefined;
   if (input.definition !== undefined && !same(input.definition, a.definition)) {
     checkStructure(ctx, input.definition);
     refuseSecret(ctx, input.definition);
@@ -495,6 +538,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
     if (a.status === "on" && hasErrors(blocking)) {
       raise(ctx, "validation.precondition_failed", "Turn the automation off before saving a definition with errors.", { reason: "invalid_definition" });
     }
+    before = a.definition;
     a.definition = input.definition;
     a.version += 1;
     fields.push("definition");
@@ -505,6 +549,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   if (definitionChanged) {
     saveVersion(ctx, a);
     rememberAccountPicks(ctx.db, me(ctx), a.definition, ctx.now());
+    await regrant(ctx, a, "save", before);
   }
   emitAuto(ctx, "automation.updated", a.id, { version: a.version, fields });
   return { automation: out(a) };
@@ -513,7 +558,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
 export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   if (input.enabled) {
-    if (a.status === "on") return { automation: out(a) };
+    if (a.status === "on") { await regrant(ctx, a, "on"); return { automation: out(a) }; }
     const issues = await blocksGoingLive(ctx, a.kind, a.definition, readPolicy(ctx.db));
     if (hasErrors(issues)) {
       const live = await liveStepIssues(ctx, a.kind, a.definition);
@@ -524,6 +569,7 @@ export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
     a.status = "on";
     delete a.pausedReason;
     touch(ctx, a);
+    await regrant(ctx, a, "on");
     emitAuto(ctx, "automation.enabled", a.id, {});
   } else {
     if (a.status === "off" || a.status === "draft") return { automation: out(a) };
@@ -568,10 +614,12 @@ export async function restoreVersion(ctx: AutoCtx, input: In): Promise<unknown> 
   if (a.status === "on" && hasErrors(restored)) {
     raise(ctx, "validation.precondition_failed", "Turn the automation off before restoring a version with errors.", { reason: "invalid_definition" });
   }
+  const before = a.definition;
   a.definition = v.definition;
   a.version += 1;
   touch(ctx, a);
   const row = saveVersion(ctx, a, `Restored version ${v.n}`);
+  await regrant(ctx, a, "save", before);
   emitAuto(ctx, "automation.version_restored", a.id, { versionId: row.versionId, version: a.version });
   emitAuto(ctx, "automation.updated", a.id, { version: a.version, fields: ["definition"] });
   return { automation: out(a) };
@@ -694,7 +742,7 @@ export function webhookSecretMatches(ctx: AutoCtx, automationId: string, secret:
 // ---- Promote and the Personal copy ----
 
 const HANDLE = /#[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)?/g;
-const RESOURCE_PREFIX: Record<string, string> = { rec: "record", fil: "file", fld: "folder", chn: "channel", prj: "project", frm: "form", sit: "site", kit: "kit", cmp: "campaign", mbx: "mailbox", num: "number" };
+const RESOURCE_PREFIX: Record<string, string> = { rec: "record", fil: "file", fld: "folder", chn: "channel", prj: "project", frm: "form", sit: "site", kit: "kit", mbx: "mailbox", num: "number" };
 const LEVELS = ["view", "use", "edit", "manage"] as const;
 
 function walk(v: unknown, f: (s: string) => void): void {
@@ -798,11 +846,12 @@ export async function promote(ctx: AutoCtx, input: In): Promise<unknown> {
   a.kind = "space";
   a.ownerId = typeof input.ownerId === "string" && input.ownerId ? input.ownerId : me(ctx);
   touch(ctx, a);
-  if (replaced > 0) saveVersion(ctx, a, "Promoted to the Space: shared keys");
+  if (replaced > 0) { saveVersion(ctx, a, "Promoted to the Space: shared keys"); await regrant(ctx, a, "save", a.definition); }
   ctx.db.run("DELETE FROM automations_access WHERE automation_id = ?", a.id);
   for (const g of diff.grants) ctx.db.run("INSERT INTO automations_access (automation_id, resource, level, via) VALUES (?, ?, ?, ?)", a.id, g.resource, g.level, g.via);
   ctx.db.run("DELETE FROM automations_vault WHERE automation_id = ?", a.id);
   for (const v of diff.vaultNames) ctx.db.run("INSERT INTO automations_vault (automation_id, name) VALUES (?, ?)", a.id, v);
+  await shareSenders(ctx, a, "on");   // Promote says it will run on the access shown, and the person confirmed it; the service is registered when this call commits
   emitAuto(ctx, "automation.promoted", a.id, { ownerId: a.ownerId, grants: diff.grants.length, keysReplaced: replaced });
   return { automation: out(a), diff };
 }

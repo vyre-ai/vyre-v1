@@ -1,4 +1,4 @@
-// ui/EmailBuilder: the one email editor (spec 2.19, 3.6; ARCH 7.6) for campaigns, Inbox templates and Automation email steps.
+// ui/EmailBuilder: the one email editor (spec 2.19, 3.6; ARCH 7.6) for Inbox templates and Automation email steps.
 // Three modes (Visual blocks, HTML, Plain text), Focus mode (Cmd-Shift-F, Esc), preview frames (desktop, mobile, dark), an Ask pane where each suggested
 // change is accepted on its own, checks, and autosaved versions (undo and redo walk them). The look follows the prototype's vy-em editor.
 // The compile step is `email_builder.render`; this file holds the same rules as pure functions so the preview, the checks and the tests share them.
@@ -200,7 +200,7 @@ export function editBlock(blocks: readonly EmailBlock[], id: string, patch: Part
 }
 
 /** What undo and redo walk: one entry per edit, coalesced by the caller. */
-export interface EmailSnapshot { subject: string; previewText: string; blocks: readonly EmailBlock[]; html: string; plain: string; style?: EmailStyle; subjectB?: string | null }
+export interface EmailSnapshot { subject: string; previewText: string; blocks: readonly EmailBlock[]; html: string; plain: string; style?: EmailStyle }
 export interface EmailHistory { entries: readonly EmailSnapshot[]; at: number }
 
 export function pushHistory(h: EmailHistory, s: EmailSnapshot): EmailHistory {
@@ -377,9 +377,6 @@ export interface EmailBuilderViewProps extends Omit<EmailBuilderProps, "onTestSe
   /** The agent's subject lines for "Suggest 5", and the call that asks for them. */
   subjectIdeas?: readonly string[];
   onSuggest?: () => void;
-  /** The second subject of an A/B test, when one is running. */
-  subjectB?: string;
-  onSubjectB?: (subject: string | null) => void;
   /** Saved blocks (email_builder.saved_blocks.list): the Saved button on the rail drops one into the design. */
   savedBlocks?: readonly SavedBlock[];
   /** Called when "Save selected block" is chosen: the name typed and the block (email_builder.saved_blocks.save). */
@@ -466,7 +463,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   const [accepted, setAccepted] = useState<ReadonlySet<string>>(() => new Set((props.diffs ?? []).filter((d) => d.accepted === true).map((d) => d.id)));
   const [rejected, setRejected] = useState<ReadonlySet<string>>(() => new Set());
   const [version, setVersion] = useState(props.version ?? 1);
-  const initial: EmailSnapshot = { subjectB: props.subjectB ?? null, subject: props.subject, previewText: props.previewText ?? "", blocks: props.blocks ?? [], html: props.html ?? "", plain: props.plain ?? "" };
+  const initial: EmailSnapshot = { subject: props.subject, previewText: props.previewText ?? "", blocks: props.blocks ?? [], html: props.html ?? "", plain: props.plain ?? "" };
   const [hist, setHist] = useState<EmailHistory>({ entries: [initial], at: 0 });
   const [sent, setSent] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -484,7 +481,6 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   const menu = useMenu();
   const fontBtn = useRef<{ measureInWindow?: (cb: (x: number, y: number, w: number, h: number) => void) => void } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
-  const [subjectB, setSubjectB] = useState<string | null>(props.subjectB ?? null);
   const [contactId, setContactId] = useState<string | null>(props.contactId ?? props.contacts?.[0]?.id ?? null);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [savedNote, setSavedNote] = useState<string | null>(null);
@@ -501,7 +497,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
   useEffect(() => setFocus(props.focus === true), [props.focus]);
   useEffect(() => { if (props.preview !== undefined) setPreview(props.preview); }, [props.preview]);
 
-  const snap = useMemo<EmailSnapshot>(() => ({ subject, subjectB, previewText, blocks, html, plain, style }), [subject, subjectB, previewText, blocks, html, plain, style]);
+  const snap = useMemo<EmailSnapshot>(() => ({ subject, previewText, blocks, html, plain, style }), [subject, previewText, blocks, html, plain, style]);
   const compiled = useMemo(() => (mode === "html" && html !== "" ? html : formatHtml(compileEmail(blocks, { mode: "send", style }))), [mode, html, blocks]);
   const plainText = plain !== "" ? plain : blocksToPlain(blocks);
   const checks = useMemo(() => runChecks({ subject, previewText, html: compiled, plain: plainText }), [subject, previewText, compiled, plainText]);
@@ -527,7 +523,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
     const h = stepHistory(hist, d);
     const e = h.entries[h.at];
     if (e === undefined || h.at === hist.at) return;
-    setHist(h); setSubject(e.subject); setSubjectB(e.subjectB ?? null); setPreviewText(e.previewText); setBlocks(e.blocks); setHtml(e.html); setPlain(e.plain); setStyle(e.style ?? DEFAULT_EMAIL_STYLE);
+    setHist(h); setSubject(e.subject); setPreviewText(e.previewText); setBlocks(e.blocks); setHtml(e.html); setPlain(e.plain); setStyle(e.style ?? DEFAULT_EMAIL_STYLE);
     onChange?.(e, d < 0 ? "Undo" : "Redo");
   };
 
@@ -570,7 +566,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
     { head: "Versions" },
     ...(props.savedVersions ?? []).map((v) => ({ label: `Saved version ${v.version}`, onSelect: () => { if (props.onRestoreSavedVersion) void props.onRestoreSavedVersion(v.version).catch((e) => setSendError(e instanceof Error ? e.message : "Could not restore that version.")); } })),
     ...each(hist.entries, (e, i) => ({ label: `Version ${i + 1}${i === hist.at ? " (current)" : ""}`, checked: i === hist.at, onSelect: () => {
-      setHist({ entries: hist.entries, at: i }); setSubject(e.subject); setSubjectB(e.subjectB ?? null); setPreviewText(e.previewText); setBlocks(e.blocks); setHtml(e.html); setPlain(e.plain); setStyle(e.style ?? DEFAULT_EMAIL_STYLE);
+      setHist({ entries: hist.entries, at: i }); setSubject(e.subject); setPreviewText(e.previewText); setBlocks(e.blocks); setHtml(e.html); setPlain(e.plain); setStyle(e.style ?? DEFAULT_EMAIL_STYLE);
       onChange?.(e, `Restored version ${i + 1}`);
     } })).reverse(),
   ]);
@@ -579,11 +575,6 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
     setTab("ask");
     const ideas = props.subjectIdeas ?? [];
     if (ideas.length > 0) anchorMenu("suggest", [{ head: "Subject lines" }, ...each(ideas.slice(0, SUBJECT_IDEAS), (line) => ({ label: line, onSelect: () => { setSubject(line); commit({ ...snap, subject: line }, "Picked a suggested subject"); } }))]);
-  };
-  const toggleAB = (): void => {
-    const next = subjectB === null ? subject : null;
-    setSubjectB(next); props.onSubjectB?.(next);
-    commit({ ...snap, subjectB: next }, next === null ? "Removed the A/B test" : "Started an A/B test");
   };
   const allComments = [...(props.comments ?? []), ...localComments];
   const postComment = (): void => {
@@ -688,17 +679,8 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
         <Pressable ref={refOf("suggest")} accessibilityRole="button" accessibilityLabel={`Suggest ${SUBJECT_IDEAS} subject lines`} testID="em-suggest" onPress={suggest} style={(state) => [s.suggest, (state as { hovered?: boolean }).hovered === true && s.btnOver]}>
           <Text style={s.suggestText}>{`Suggest ${SUBJECT_IDEAS}`}</Text>
         </Pressable>
-        <Btn label="A/B test" strong on={subjectB !== null} onPress={toggleAB} testID="em-ab" />
         <Text style={[s.cnt, subject.length > SUBJECT_LIMIT && s.cntWarn]}>{`${subject.length}/${SUBJECT_LIMIT}`}</Text>
       </View>
-      {subjectB !== null ? (
-        <View style={s.envRow} testID="em-subjectb">
-          <Text style={s.envLabel}>Subject B</Text>
-          <TextInput accessibilityLabel="Subject B" testID="em-subject-b" value={subjectB} placeholder="The second subject" placeholderTextColor="var(--ink-4)" style={s.envInput}
-            onChangeText={(v) => { setSubjectB(v); props.onSubjectB?.(v); commit({ ...snap, subjectB: v }, "Changed subject B"); }} />
-          <Text style={[s.cnt, subjectB.length > SUBJECT_LIMIT && s.cntWarn]}>{`${subjectB.length}/${SUBJECT_LIMIT}`}</Text>
-        </View>
-      ) : null}
       <View style={s.envRow}>
         <Text style={s.envLabel}>Preview text</Text>
         <TextInput accessibilityLabel="Preview text" testID="em-preview-text" value={previewText} placeholder="The grey line after the subject in the inbox" placeholderTextColor="var(--ink-4)" style={s.envInput}

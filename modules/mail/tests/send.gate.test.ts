@@ -1,5 +1,5 @@
 // The Gate on the single send API (spec 2.14, 4.4; ARCH 8.2), through the real invoke pipeline: a person's own send skips the Gate;
-// an agent's, an automation's and a campaign's is held as an Approve task, runs once approved, and never reaches the provider before.
+// an agent's and an automation's is held as an Approve task, runs once approved, and never reaches the provider before.
 // The pipeline is host/src/invoke.ts over the real registry and validators; the Gate hook asks `sendGateApplies`, the rule this module
 // exports for it. Authorize is a stand-in that allows, so the only thing that can hold a call here is the Gate.
 import test from "node:test";
@@ -75,7 +75,7 @@ function done(res: InvokeResult): { output: Record<string, unknown>; traceId: st
 
 // ---- the rule
 
-test("the Gate rule: a person at a screen skips it; an agent, an automation, a campaign and an outside actor do not", () => {
+test("the Gate rule: a person at a screen skips it; an agent, an automation and an outside actor do not", () => {
   const cases: [Parameters<typeof sendGateApplies>[0], boolean][] = [
     [{ principalKind: "person" }, false],
     [{ principalKind: "person", origin: "user" }, false],
@@ -84,8 +84,7 @@ test("the Gate rule: a person at a screen skips it; an agent, an automation, a c
     [{ principalKind: "service", origin: "user" }, true],
     [{ principalKind: "actor", origin: "user" }, true],
     [{ principalKind: "person", origin: "automation:aut_1" }, true],
-    [{ principalKind: "person", origin: "campaign:cmp_1" }, true],
-    [{ principalKind: "service", origin: "campaign:cmp_1" }, true],
+    [{ principalKind: "service", origin: "automation:aut_1" }, true],
   ];
   for (const [call, held] of cases) assert.deepEqual(sendGateApplies(call), held ? { act: "send" } : null, JSON.stringify(call));
 });
@@ -132,13 +131,12 @@ test("an approval token the Gate does not accept holds the send again", async ()
   assert.equal(s.r.sent().length, 0);
 });
 
-test("automations and campaigns are held like agents; the same call from a person at a screen is not", async () => {
+test("automations are held like agents; the same call from a person at a screen is not", async () => {
   const s = stack();
   const auto = await s.invoke("mail.send", sendIn(), s.as(SERVICE, { origin: "automation:aut_1" }));
-  const camp = await s.invoke("mail.send", sendIn(), s.as(SERVICE, { origin: "campaign:cmp_spring" }));
   const asPerson = await s.invoke("mail.send", sendIn(), s.as(PERSON, { origin: "automation:aut_1" }));
-  assert.deepEqual([auto.status, camp.status, asPerson.status], ["held", "held", "held"]);
-  assert.equal(s.parked.length, 3);
+  assert.deepEqual([auto.status, asPerson.status], ["held", "held"]);
+  assert.equal(s.parked.length, 2);
   assert.equal(s.r.sent().length, 0);
   const screen = await s.invoke("mail.send", sendIn(), s.as(PERSON, { origin: "user" }));
   assert.equal(screen.status, "ok");

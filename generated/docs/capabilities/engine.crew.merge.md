@@ -1,6 +1,6 @@
 # engine.crew.merge
 
-Land a teammate's branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. A person presses Merge; an agent asking holds at the Gate
+Land a teammate's branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. It is local: it leaves this computer only when it is pushed
 
 | | |
 |---|---|
@@ -11,7 +11,7 @@ Land a teammate's branch in the project repository: it is merged into the base b
 | Grant level | use |
 | Risk | high |
 | Resource | space |
-| Gate | push_protected when actor.kind != 'person' |
+| Gate | none |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
@@ -44,7 +44,7 @@ type Out = {
     title: string;
     branch: string;
     base: string;
-    state: "working" | "waiting" | "done" | "failed" | "stopped" | "merged";
+    state: "working" | "waiting" | "paused" | "lost" | "done" | "failed" | "stopped" | "merged";
     startedAt: number;
     endedAt?: number;
     result?: Record<string, unknown>;
@@ -59,7 +59,6 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
-- permission.needs_approval
 - permission.no_grant
 - validation.bad_input
 - validation.not_found

@@ -223,6 +223,8 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         const message = (e as { error?: { message?: string } }).error?.message ?? (e instanceof Error ? e.message : String(e));
         if (code === "provider.auth_failed") return { state: "down" as const, detail: message };
         if (code === "provider.rate_limited" || code === "rate_limit.exceeded") return { state: "degraded" as const, detail: message };
+        // a key this connection may not use (someone's Mine item) never reaches the provider: the connection is down, as when the Vault itself says no
+        if (code === "permission.no_grant" && (e as { error?: { details?: { cap?: string } } }).error?.details?.cap === "vault.fill") return { state: "down" as const, detail: "This connection cannot use that key." };
         if (code === "permission.no_grant" || code === "validation.precondition_failed" || code === "validation.bad_input") throw e;
         if (r.state === "active") tx.run("UPDATE cn_connections SET state = 'failing' WHERE connection_id = ?", r.connection_id);
         return { state: "down" as const, detail: message };

@@ -10,11 +10,11 @@ import type { Pointers, Turn } from "./types.ts";
 export const ROLL = Object.freeze({
   /** Roll at this share of the window, at the first turn boundary where nothing is running. */
   at: 0.8,
-  /** Roll at this share whatever is running: a background job is stopped rather than let the window fill. */
+  /** Roll at this share whatever a turn is doing. A running Job is the exception: rolling ends the session, so with one running the window is left to the engine's own compaction, the backstop below. */
   force: 0.9,
   /** Before a message is sent: if the share used plus this message would reach it, roll first. The engine's own compaction stays on as the backstop. */
   guard: 0.92,
-  /** How many turn boundaries to wait for a running tool or background job before rolling anyway. */
+  /** How many turn boundaries to wait for a running tool or a queued message before rolling anyway. */
   wait: 3,
   /** At most one rollover per this many turns: a seed already over the threshold must never roll again at once. */
   gap: 10,
@@ -49,10 +49,11 @@ export interface RollDecision { roll: boolean; why: string; wait?: boolean }
 
 /**
  * Whether to roll at this turn boundary.
- * `blocked` says why something is running (a tool, a background job, a question, a queued message), or null; `waited` is the boundaries already passed over for that;
+ * `blocked` says why something is running (a tool, a question, a queued message), or null; `waited` is the boundaries already passed over for that;
+ * `jobs` is the Jobs running in this session's process: rollover ends the session, so it never rolls over one, however full the window;
  * `sinceRoll` is the turns since the last rollover, null if there has been none.
  */
-export function decide(o: { ctx: Pick<Context, "share" | "source">; blocked?: string | null; waited?: number; sinceRoll?: number | null; limits?: RollLimits }): RollDecision {
+export function decide(o: { ctx: Pick<Context, "share" | "source">; blocked?: string | null; jobs?: number; waited?: number; sinceRoll?: number | null; limits?: RollLimits }): RollDecision {
   const L = { ...ROLL, ...o.limits };
   const blocked = o.blocked ?? null;
   const waited = o.waited ?? 0;
@@ -61,6 +62,7 @@ export function decide(o: { ctx: Pick<Context, "share" | "source">; blocked?: st
   const scale = o.ctx.source === "estimated" ? 5 / 6 : 1;
   const lo = L.at * scale, hi = L.force * scale;
   if (o.ctx.share < lo) return { roll: false, why: "below the threshold" };
+  if ((o.jobs ?? 0) > 0) return { roll: false, why: `a Job is running (${o.jobs})`, wait: true };
   if (sinceRoll !== null && sinceRoll < L.gap) return { roll: false, why: `rolled ${sinceRoll} turns ago` };
   if (!blocked) return { roll: true, why: o.ctx.share >= hi ? "forced" : "at the threshold" };
   if (o.ctx.share >= hi) return { roll: true, why: `forced (${blocked})` };

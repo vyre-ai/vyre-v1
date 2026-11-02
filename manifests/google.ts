@@ -24,6 +24,7 @@ const SCOPES = [
   'https://www.googleapis.com/auth/meetings.space.readonly',
   'https://www.googleapis.com/auth/admin.directory.user.readonly',
 ];
+const dataChoice = t.obj({ mail: t.bool(), calendar: t.bool(), files: t.bool() });
 const healthOut = { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) };
 const gmailMessage = t.obj({ id: t.str(), threadId: t.str(), labelIds: t.arr(t.str()), snippet: t.opt(t.str()), historyId: t.opt(t.str()), internalDate: t.opt(t.ts()), payload: t.opt(t.rec()) });
 const driveFile = t.obj({ id: t.str(), name: t.str(), mimeType: t.str(), parents: t.opt(t.arr(t.str())), modifiedTime: t.opt(t.str()), size: t.opt(t.int()), webViewLink: t.opt(t.str()), driveId: t.opt(t.str()), headRevisionId: t.opt(t.str()), lastModifyingUser: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })) });
@@ -44,7 +45,7 @@ const capabilities = [
   // ---- delegation setup (Console > Integrations)
   read('google.dwd.status', 'State of domain-wide delegation: key stored, scopes, last probe, mapped members', {
     in: {}, out: {
-      configured: t.bool(), adminEmail: t.opt(email), domain: t.opt(t.str()), lastProbeAt: t.opt(t.ts()), lastProbeOk: t.opt(t.bool()), autoConnect: t.bool(), mappedMembers: t.int(), excluded: t.arr(email), pushToken: t.opt(t.str()),
+      configured: t.bool(), adminEmail: t.opt(email), domain: t.opt(t.str()), lastProbeAt: t.opt(t.ts()), lastProbeOk: t.opt(t.bool()), autoConnect: t.bool(), mappedMembers: t.int(), excluded: t.arr(email), pushToken: t.opt(t.str()), data: dataChoice, keyStored: t.bool(), clientId: t.opt(t.str()),
     },
     perm: 'connectors.manage', tool: 'engineer',
   }),
@@ -52,15 +53,30 @@ const capabilities = [
     in: {}, out: { scopes: t.arr(t.str()), clientId: t.opt(t.str()), adminConsoleUrl: t.str() }, perm: 'connectors.manage', tool: 'engineer',
   }),
   write('google.dwd.setup', 'Store the service account JSON (Vault item Google_DWD), map members by email and, with auto-connect on, create their Pending mail and calendar connections', {
-    in: { vaultItem: id.handle, adminEmail: email, domain: t.opt(t.str()) }, out: { configured: t.bool(), scopes: t.arr(t.str()), mappedMembers: t.int(), connected: t.int() },
+    in: { vaultItem: id.handle, adminEmail: email, domain: t.opt(t.str()), data: t.opt(dataChoice), hold: t.opt(t.bool()) }, out: { configured: t.bool(), scopes: t.arr(t.str()), mappedMembers: t.int(), connected: t.int() },
     perm: 'connectors.manage', risk: 'high', emits: ['google.dwd_configured'], idem: 'key', audit: 'always', tool: 'engineer', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['provider.auth_failed', 'validation.precondition_failed', 'permission.on_hold'],
+  }),
+  read('google.dwd.check_key', 'Prove the service-account key in the Vault works, with no person involved: its shape, its signature, and that Google still knows it. Answers what is wrong in plain words; never the key', {
+    in: { vaultItem: id.handle }, out: { ok: t.bool(), clientId: t.opt(t.str()), clientEmail: t.opt(t.str()), projectId: t.opt(t.str()), problem: t.opt(t.str()) }, perm: 'connectors.manage', tool: 'engineer',
+  }),
+  write('google.dwd.connect_all', 'Everyone included comes in: mail, calendar and the first pull, for what the company chose. Repeating it adds nobody twice', {
+    in: {}, out: { connected: t.int(), included: t.int() }, perm: 'connectors.manage', risk: 'high', audit: 'always', tool: 'engineer', idem: 'key', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['validation.precondition_failed', 'permission.on_hold'],
+  }),
+  write('google.dwd.set_data', 'Choose Mail, Calendar and Files separately after setup. What is turned off stops for everyone; what is turned on comes in for everyone included', {
+    in: { data: dataChoice }, out: { data: dataChoice, scopes: t.arr(t.str()) }, perm: 'connectors.manage', risk: 'high', audit: 'always', tool: 'engineer', idem: 'key', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['validation.precondition_failed', 'permission.on_hold'],
+  }),
+  read('google.access_log', 'Who reached whose Google data: who made the call, the person an agent worked for, which mailbox, which capability, when', {
+    in: { ...pageIn, mailbox: t.opt(email) }, out: { entries: t.arr(t.obj({ who: t.str(), onBehalf: t.opt(t.str()), mailbox: email, cap: t.str(), at: t.ts() })), next: t.opt(t.str()) }, perm: 'connectors.manage', tool: 'engineer',
+  }),
+  write('google.directory.reconcile', 'Compare the directory with who is matched: a person gone or suspended stops, and the Space suspends them. Every page must read, and a large change waits for a person', {
+    in: { confirmed: t.opt(t.bool()) }, out: { checked: t.int(), gone: t.arr(email), held: t.opt(t.str()) }, perm: 'connectors.manage', audit: 'always', tool: 'engineer', errors: ['provider.auth_failed', 'validation.precondition_failed'],
   }),
   write('google.dwd.probe', 'Mint a token for a probe user and call users.getProfile to prove the delegation and scopes', {
     in: { as: t.opt(email) }, out: { ok: t.bool(), email: t.opt(email), scopesMissing: t.arr(t.str()), detail: t.opt(t.str()) },
     perm: 'connectors.manage', emits: ['google.dwd_probed'], audit: 'always', tool: 'engineer', errors: ['provider.auth_failed'],
   }),
   read('google.dwd.my_account', 'The Workspace address the caller is matched to, if any (a Drive mount names it so it syncs as the person, not as an admin)', {
-    in: {}, out: { email: t.opt(email) },
+in: {}, out: { email: t.opt(email), connectionId: t.opt(id.connection), files: t.opt(t.bool()) },
   }),
   read('google.dwd.members', 'Workspace users mapped to Space members by email, with exclusion and mailbox state', {
     in: { ...pageIn }, out: { members: t.arr(t.obj({ email, userId: t.opt(id.user), mapped: t.bool(), excluded: t.bool(), mailboxState: t.opt(t.str()) })), ...pageOut }, perm: 'connectors.manage', tool: 'engineer',
@@ -94,7 +110,7 @@ const capabilities = [
     in: {}, out: { configured: t.bool(), clientId: t.opt(t.str()), vaultItem: t.opt(t.str()), redirectUri: t.opt(t.str()) },
   }),
   write('google.user.app_set', 'Name the Vault item that holds the Google OAuth client (client_id, and client_secret for a web client)', {
-    in: { vaultItem: id.handle }, out: { configured: t.bool(), clientId: t.str() }, perm: 'connectors.manage', audit: 'always', errors: ['provider.auth_failed'],
+    in: { vaultItem: id.handle }, out: { configured: t.bool(), clientId: t.str() }, perm: 'connectors.manage', audit: 'always', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['provider.auth_failed', 'permission.on_hold'],
   }),
   write('google.user.start', 'Start signing in to your own Gmail: the address to approve at', {
     in: { loginHint: t.opt(email) }, out: { authUrl: t.str(), state: t.str() }, idem: 'none', errors: ['validation.precondition_failed'],
@@ -289,6 +305,5 @@ export default defineManifest({
   ],
   settings: [
     setting('google.auto_connect', 'space', 'integrations', 'Connect members mail and calendar when delegation is set', t.bool(), true),
-    setting('google.excluded_members', 'space', 'integrations', 'Members excluded from Google delegation', t.arr(email), []),
   ],
 });

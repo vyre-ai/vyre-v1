@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { TAB_STRIP_HEIGHT, TabStrip, afterClose, closableKeys, reorderKeys, stepKey, tabMenuEntries } from "./index.tsx";
+import { TAB_STRIP_HEIGHT, TabStrip, afterClose, closableKeys, reorderKeys, stepKey, tabCap, tabMenuEntries } from "./index.tsx";
 import type { TabSpec } from "./index.tsx";
 import { isItem, isSeparator } from "../Menu/props.ts";
 
@@ -123,4 +123,13 @@ test("the main strip's lone tab has no Close (it would only reopen the start pla
   const two = renderToStaticMarkup(<TabStrip tabs={[{ key: "home", title: "Home" }, { key: "x", title: "Files" }]} active="home" onClose={() => undefined} hideLoneClose />);
   assert.match(two, /tab-close-home/);
   assert.match(two, /tab-close-x/);
+});
+
+test("the open tab keeps its width and the others give up room evenly, down to a width that still reads", () => {
+  assert.equal(tabCap(1100, 3), 200, "room for all: nobody is cut");
+  assert.equal(tabCap(1100, 1), 200);
+  assert.equal(tabCap(0, 8), 200, "not measured yet");
+  const eight = tabCap(1000, 8);
+  assert.ok(eight < 200 && eight >= 112 && 200 + 7 * (eight + 2) <= 1000, `${eight}`);
+  assert.equal(tabCap(600, 20), 112, "past that the strip scrolls, it never crushes a title");
 });

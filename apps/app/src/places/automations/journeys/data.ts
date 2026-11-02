@@ -2,7 +2,7 @@
 // started from (journeys.design checks it), a write that fails shows why, and a write that works shows a quiet line with Undo, which writes the previous design back.
 import { useCallback } from "react";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { useAutomationsData, useScreenQuery } from "../canvas/data.tsx";
+import { useAutomationsData, useScreenOrRead, useScreenQuery } from "../canvas/data.tsx";
 import { useSaved } from "../config/saved.ts";
 import type { Saved } from "../config/saved.ts";
 import type { Journey, Stage, StageCounts, StartRule } from "./model.ts";
@@ -18,7 +18,8 @@ export interface JourneyState { phase: "loading" | "gone" | "ready"; journey?: J
 export function useJourney(journeyId: string): JourneyState {
   const q = useScreenQuery<GetOut>(DESIGNER, "journey", { journeyId });
   const c = useScreenQuery<CountsOut>(DESIGNER, "counts", { journeyId });
-  const v = useScreenQuery<VersionsOut>(DESIGNER, "versions", { journeyId });
+  // versions is a screen query the registry marks not live: where the host will not serve it live it is read with a plain call, or opening a Journey crashes the place
+  const v = useScreenOrRead<VersionsOut>(DESIGNER, "versions", { journeyId }, "journeys.versions", { journeyId });
   const counts = c.status === "ready" ? c.data.stages : [];
   const versions = v.status === "ready" ? v.data.versions : [];
   if (q.status !== "ready") return { phase: "loading", counts, versions };

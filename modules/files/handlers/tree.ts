@@ -460,13 +460,19 @@ function ensureSpaceRoots(ctx: Ctx): void {
   }
 }
 
+/** Whose Personal root a call means: an agent acting for a person means that person's, never an empty one of its own. */
+export function personalHolder(ctx: Ctx): string {
+  return ctx.principal.kind === "agent" && ctx.actingFor?.startsWith("usr_") ? ctx.actingFor : ctx.principal.id;
+}
+
 function ensurePersonal(ctx: Ctx): Row {
-  const key = `personal:${ctx.principal.id}`;
+  const holder = personalHolder(ctx);
+  const key = `personal:${holder}`;
   const existing = one(ctx, "SELECT * FROM files_folder WHERE root_key = ?", key);
   if (existing) return existing;
   const id = nid(ctx, "fld");
   insertFolder(ctx, {
-    id, parentId: null, name: "Personal", path: "Personal", scope: "personal", owner: ctx.principal.id,
+    id, parentId: null, name: "Personal", path: "Personal", scope: "personal", owner: holder,
     label: 0, git: 0, review: 0, rootKey: key, systemKey: null,
   });
   return mustFolder(ctx, id);
@@ -667,14 +673,19 @@ function liveChildren(ctx: Ctx, folderId: string): { folders: Row[]; files: Row[
   };
 }
 
-function recentCount(ctx: Ctx): number {
-  const rows = many(ctx, "SELECT * FROM files_recent WHERE actor = ?", ctx.principal.id);
-  let n = 0;
+/** Recent is what a person worked on, newest first. An agent's home is not: its AGENT.md and agent.toml are written when the agent is made, in the name of the person who made it. */
+function recentFiles(ctx: Ctx, limit = Number.POSITIVE_INFINITY): Row[] {
+  const rows = many(ctx, "SELECT * FROM files_recent WHERE actor = ?", ctx.principal.id).sort((a, b) => num(b.at) - num(a.at));
+  const files: Row[] = [];
   for (const row of rows) {
+    if (files.length >= limit) break;
     const file = one(ctx, "SELECT * FROM files_file WHERE id = ?", row.file_id);
-    if (file && isNull(file.deleted_at) && canView(ctx, "file", file)) n += 1;
+    if (!file || !isNull(file.deleted_at) || !canView(ctx, "file", file)) continue;
+    const home = one(ctx, "SELECT * FROM files_folder WHERE id = ?", file.folder_id);
+    if (home && subjectOf(ctx, home).kind === "agent") continue;
+    files.push(file);
   }
-  return n;
+  return files;
 }
 
 function trashFresh(ctx: Ctx, deletedAt: number): boolean {
@@ -705,7 +716,7 @@ async function filesTree(ctx: Ctx): Promise<{ roots: { key: string; title: strin
   for (const root of TREE_ROOTS) {
     if (root.kind === "virtual") {
       let count = 0;
-      if (root.key === "recent") count = recentCount(ctx);
+      if (root.key === "recent") count = recentFiles(ctx).length;
       else if (root.key === "trash") count = trashTop(ctx).files.length + trashTop(ctx).folders.length;
       else if (root.key === "shared") {
         // what access lists for the caller; a badge never takes the whole tree down, so an access failure is a warning and a zero
@@ -803,16 +814,7 @@ async function filesRecent(ctx: Ctx, input: unknown): Promise<{ files: FileOut[]
   const o = rec(ctx, input);
   const limit = optInt(ctx, o, "limit") ?? 50;
   if (limit < 1 || limit > 200) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "limit" });
-  const rows = many(ctx, "SELECT * FROM files_recent WHERE actor = ?", ctx.principal.id)
-    .sort((a, b) => num(b.at) - num(a.at));
-  const files: FileOut[] = [];
-  for (const row of rows) {
-    if (files.length >= limit) break;
-    const file = one(ctx, "SELECT * FROM files_file WHERE id = ?", row.file_id);
-    if (!file || !isNull(file.deleted_at) || !canView(ctx, "file", file)) continue;
-    files.push(fileOutC(ctx, file));
-  }
-  return { files };
+  return { files: recentFiles(ctx, limit).map((file) => fileOutC(ctx, file)) };
 }
 
 async function filesResolve(ctx: Ctx, input: unknown): Promise<{ kind: "file" | "folder"; fileId?: string; folderId?: string }> {

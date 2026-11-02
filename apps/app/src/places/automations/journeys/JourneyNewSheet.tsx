@@ -69,7 +69,7 @@ export function JourneyNewSheet({ onClose, initialName = "", initialSubject = ""
     try {
       const id = await makeJourney(data.call, { name, subject, stages });
       data.nav.openJourney(id);
-      onClose();
+      onClose();   // the shell keeps the Journey it just opened: closing the sheet only closes the sheet
     } catch (e) { setErr(e instanceof Error ? e.message : plainError(e)); setBusy(false); }
   };
   const fill = (titles: readonly string[]): void => { setStages(stagesFrom(titles)); setFocusKey(null); };

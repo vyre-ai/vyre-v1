@@ -1,5 +1,5 @@
 // Test harness for the contacts-link handlers: an in-memory database, a recording ctx, and a scripted stand-in for the capabilities this module
-// calls (records.get, records.query, records.update, campaigns.get, files.read). The records stand-in keeps contact and company rows in memory
+// calls (records.get, records.query, records.update, files.read). The records stand-in keeps contact and company rows in memory
 // and answers filters with the RecordStore's own matcher (kernel/src/store/query.ts), so a filter that works here works against the real store.
 // Every call is checked against the frozen input schema of its capability, as the invoke pipeline would.
 import { registry } from "../../../generated/registry.ts";
@@ -35,7 +35,6 @@ export function harness(opts: HarnessOptions = {}) {
   const writes: WriteLog = { statements: [] };
   const records = new Map<string, Rec>();
   const files = new Map<string, string>();
-  const campaigns = new Map<string, { owner: string }>();
   const pageSize = opts.pageSize ?? 500;
   let clock = NOW;
   const db = memoryDb(writes);
@@ -79,11 +78,6 @@ export function harness(opts: HarnessOptions = {}) {
           Object.assign(r.fields, body.patch as Record<string, unknown>);
           return { record: rowOf(r) };
         }
-        case "campaigns.get": {
-          const c = campaigns.get(String(body.campaignId));
-          if (!c) throw fail("validation.not_found", trace);
-          return { campaign: { campaignId: body.campaignId, name: "Spring", owner: c.owner }, steps: [] };
-        }
         case "files.read": {
           const t = files.get(String(body.fileId));
           if (t === undefined) throw fail("validation.not_found", trace);
@@ -97,7 +91,7 @@ export function harness(opts: HarnessOptions = {}) {
   ensure(ctx);
 
   return {
-    ctx, db, emitted, called, writes, records, files, campaigns,
+    ctx, db, emitted, called, writes, records, files,
     advance(ms: number) { clock += ms; },
     rows(sql: string, ...args: unknown[]): Row[] { return ctx.db.all(sql, ...args) as Row[]; },
     named(name: string): Emitted[] { return emitted.filter((e) => e.name === name); },

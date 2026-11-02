@@ -1,3 +1,4 @@
+import { isAssistantRow } from "../../../../../lib/agent-kind.ts";
 import {createRecordsPreview} from "../../../../../client/src/gateway/records-preview.ts";
 // A signed-in Space, open (ARCH 7.0): who you are, the Space's name and kind, the capability caller on its gateway, the screen hooks every place reads, the live link that keeps them fresh, and the
 // ShellRuntime the places are handed. `openRealSession` is the only place the shell touches the network; the places only see the runtime. A call that succeeds re-reads what is on screen,
@@ -23,6 +24,7 @@ import { createTurnStreams } from "./turn-streams.ts";
 import { readStoredSessions } from "./stored.ts";
 import type { LiveLink, LiveStatus } from "./live.ts";
 import { BUILD_REGISTRY_HASH } from "../../../../../client/src/connection/registry-hash.ts";
+import { assistantName } from "../../../../../ui/src/Avatar/assistant.ts";
 import type { Dial, Scheduler } from "../../../../../client/src/connection/index.ts";
 import { PLACE_QUERIES, WARM_ORDER } from "./prefetch.ts";
 import { createRemoteScreenHooks } from "./remote-hooks.ts";
@@ -84,7 +86,18 @@ const loadScreens = (): Promise<ReadonlyMap<string, ScreenIndexEntry>> => import
 
 type Out<C extends keyof CapMap> = CapMap[C]["out"];
 
-/** The rail place a screen belongs to, by the screen's place field. */
+/** Does this person hold one of these built-in roles? identity.whoami's schema says `rol_owner`, a claimed owner really gets `Owner`, so every form counts. */
+export function holdsRole(roles: readonly string[], ...names: readonly string[]): boolean {
+  return roles.some((r) => names.includes(r.toLowerCase().replace(/^rol_/, "")));
+}
+
+/** The rail place a screen belongs to, by the screen's place field. The task screens still say "home": the hub lands them in Chats. */
+/** The built-in roles that hold console.access (manifests/permissions.ts), and the ones that do not. Anything else is a role this Space made, and only the server knows what it holds. */
+const CONSOLE_ROLES = ["owner", "admin", "developer"] as const;
+const PLAIN_ROLES = ["member", "guest"] as const;
+export const roleOpensConsole = (roles: readonly string[]): boolean => holdsRole(roles, ...CONSOLE_ROLES);
+export const roleAsksServer = (roles: readonly string[]): boolean => !roleOpensConsole(roles) && roles.some((r) => !holdsRole([r], ...PLAIN_ROLES));
+
 const RAIL_PLACES: readonly PlaceId[] = ["home", "chats", "inbox", "records", "files", "apps", "automations", "vault", "settings", "console"];
 const railPlace = (p: string): PlaceId | null => (RAIL_PLACES as readonly string[]).includes(p) ? (p as PlaceId) : null;
 
@@ -225,11 +238,12 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   // Keep the shell's own lists warm for the life of the session.
   const keep = [connections, principalsList, groupsList, agentsList].map((q) => q.subscribe(() => undefined));
 
-  const principals = derived<Principal[]>([principalsList, groupsList], ([p, g]) => {
+  const principals = derived<Principal[]>([principalsList, groupsList, agentsList], ([p, g]) => {
+    const own = assistant();
     const list = new Map<string, Principal>([[me.id, me]]);
     if (p?.status === "ready") {
       for (const x of (p.data as Out<"access.principals.list">).principals) {
-        list.set(x.id, { id: x.id, name: x.name, kind: x.kind === "person" ? "person" : "agent" });
+        list.set(x.id, { id: x.id, name: x.id === own.id ? own.name : x.name, kind: x.kind === "person" ? "person" : "agent" });
       }
     }
     if (g?.status === "ready") {
@@ -244,8 +258,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   };
   const assistant = (): { id: string; name: string } => {
     const s = agentsList.getSnapshot();
-    const a = s.status === "ready" ? (s.data.agents.find((x) => x.role === "assistant") ?? s.data.agents.find((x) => /assistant/i.test(x.name))) : undefined;
-    return a ? { id: a.agentId, name: a.name } : { id: "assistant", name: "Assistant" };
+    const a = s.status === "ready" ? s.data.agents.find(isAssistantRow) : undefined;
+    return a ? { id: a.agentId, name: assistantName(a.name, who.name) } : { id: "assistant", name: "Assistant" };
   };
 
   const open = (t: ShellTarget): void => {
@@ -266,16 +280,18 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     skinDefault: typeof space.defaults.skin==="string"?space.defaults.skin:"system",
     starred: true,
     needsYou: (switcher?.needsYou ?? 0) > 0,
-    console: who.roles.some((r) => r === "owner" || r === "admin"),
+    // whoever holds console.access gets the rail button: the same answer as opening the Console by its address
+    console: roleOpensConsole(who.roles) || (roleAsksServer(who.roles) && await reach("console.nav", {}).then(() => true, () => false)),
     // a Personal Space has one person and their own computer: the terminal is always theirs. A Team Space gives it to owners and developers
-    terminal: space.kind === "personal" || who.roles.some((r) => r === "owner" || r === "developer"),
-    counts: switcher && switcher.unread > 0 ? { chats: switcher.unread } : {},
+    terminal: space.kind === "personal" || holdsRole(who.roles, "owner", "developer"),
+    counts: {},   // the Chats badge is Needs you, live: ShellHost follows tasks.count_needs_you
     dots: {},
   };
 
   const runtime: ShellRuntime = {
     createRecordsPreview: ticket => createRecordsPreview({...ticket,baseUrl:o.baseUrl,...(o.fetch?{fetch:o.fetch}:{}),...(o.routes?{routes:o.routes}:{}),now:o.now??Date.now}),
     screens: hooks,
+    changes: { subscribe: (l) => hooks.onInvalidate(l) },
     turns,
     call: (cap, input) => call(cap, input),
     callIn: async (spaceId, cap, input) => {

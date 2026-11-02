@@ -1,7 +1,7 @@
 // Placement (ARCH 6.3, spec b8): where a queued turn runs. A pure function of facts the engine gathers (the thread, the item, the agent, the asker's devices and settings),
 // so the same answer comes from the engine worker, from engine.placement.decide and from a test.
 //
-//   HOST   channels, chats with more than one person, run chats, Ask on a shared record, wakes of non-private threads, routines, automations, Journeys, campaigns,
+//   HOST   channels, chats with more than one person, run chats, Ask on a shared record, wakes of non-private threads, routines, automations, Journeys,
 //          background waits, and any agent that has a computer.
 //   DEVICE a private chat (one person and agents) runs on the asker's own online daemon when that device allows the engine and "run my private chats on this computer" is on.
 //   HOST   a private chat of a phone or web asker (no daemon at all), or of an asker whose computer is off when they opted in to "Let the Space continue my chats when my computer is off".
@@ -11,7 +11,7 @@
 import type { QueueKind, ThreadKind } from "../turn-engine/types.ts";
 
 /** Why a turn started: a message in a chat, or something the Space did on a person's behalf. */
-export type Origin = "message" | "routine" | "automation" | "journey" | "campaign" | "wait";
+export type Origin = "message" | "routine" | "automation" | "journey" | "wait";
 
 export interface PlaceThread {
   kind: ThreadKind;
@@ -71,7 +71,7 @@ export interface Placement {
 export const DEVICE_OFF_LINE = "Your computer is off";
 export const LOCAL_RUNS_OFF_LINE = "Running chats on your computer is off";
 
-const SHARED_BY_ORIGIN: ReadonlySet<Origin> = new Set<Origin>(["routine", "automation", "journey", "campaign", "wait"]);
+const SHARED_BY_ORIGIN: ReadonlySet<Origin> = new Set<Origin>(["routine", "automation", "journey", "wait"]);
 
 /** A private chat: one person and any number of agents, not a channel or a run, and not an Ask on something others can see. */
 export function isPrivate(t: PlaceThread): boolean {

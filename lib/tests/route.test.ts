@@ -68,6 +68,14 @@ test("an agent never answers its own message", () => {
   assert.deepEqual(route(thread, say({ author: agent("docs"), depth: 0 })).responders, ["intake"], "another agent's plain message goes to the lead");
 });
 
+test("a Job's own line reaches the lead even when the lead wrote it, and it is no hop", () => {
+  assert.deepEqual(route(thread, say({ author: agent("intake"), depth: 0, job: true })).responders, ["intake"]);
+  assert.deepEqual(route(thread, say({ author: agent("intake"), mentions: [agent("intake")], depth: 0, job: true })).responders, ["intake"], "a crew card names the lead");
+  assert.deepEqual(route(thread, say({ author: agent("docs"), depth: DEFAULT_AGENT_HOPS, job: true })).responders, ["intake"]);
+  assert.deepEqual(route(thread, say({ author: agent("intake"), depth: 0, job: false })).responders, [], "without the mark nothing changes");
+  assert.deepEqual(route({ kind: "chat", agents: [{ id: "solo", mode: "listen" }] }, say({ author: agent("solo"), depth: 0, job: true })).responders, ["solo"], "the only agent in a person's chat");
+});
+
 test("nextDepth: agents add a hop, persons reset", () => {
   assert.equal(nextDepth({ author: agent("a"), depth: 2 }), 3);
   assert.equal(nextDepth({ author: agent("a") }), 1);

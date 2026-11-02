@@ -49,7 +49,7 @@ async function threadLabel(ctx: EngineCtx, threadId: string | undefined): Promis
 
 function prettyModel(model: string): string {
   const tail = model.includes("/") ? model.slice(model.indexOf("/") + 1) : model;
-  return tail.split(/[-_]/).filter((p) => p !== "").map((p) => (/^\d/.test(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ");
+  return tail.split(/[-_]/).filter((p) => p !== "").map((p) => (/^\d/.test(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ").replace(/(?<=\b\d{1,2}) (?=\d{1,2}\b)/g, ".");
 }
 
 interface ModelInfo {

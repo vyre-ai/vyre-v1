@@ -1,6 +1,6 @@
 // The index side of the search module (spec b11; ARCH 4.3 consumers search.fts and search.vectors): the sources that turn an entity row into a document, search.index.apply, the embeddings
 // consumer, the rebuild, the stats and the health probe, and the two small writes Recent needs. The handler table at the bottom holds all ten capabilities of manifests/search.ts.
-// End-to-end content never reaches the index: a source answers `e2e` for a private chat, a Restricted row or an encrypted message, and apply then removes whatever was there.
+// Private content never reaches the index: a source answers `e2e` (the name of the row's encryption label, not a claim about the chat) for a private chat, a Restricted row or a sealed message, and apply then removes whatever was there.
 import { askerOf, embed, ensure, mintId, num, putDoc, removeDoc, rowsOf, str, vectorsOf, writeVector, sourceFor } from "../projections.ts";
 import type { IndexDoc, Resolved, SearchCtx, Source } from "../projections.ts";
 import { actionsList, query, recentList, related, resolveItem } from "./query.ts";
@@ -93,7 +93,7 @@ const threadSource: Source = async (ctx, id) => {
   const t = got?.thread;
   if (!t) return gone;
   const kind = text(t["kind"]);
-  // a private chat and an Ask pane are end-to-end (enc = 2): their text is not the server's to index
+  // a private chat and an Ask pane (enc = 2) are nobody else's to search, so their text is not indexed
   if (kind === "chat" || kind === "ask") return e2e;
   if (kind !== "channel" && kind !== "thread") return gone;
   const m = await read<{ messages?: Array<Record<string, unknown>> }>(ctx, "chat.messages.list", { threadId: id, limit: 200 });

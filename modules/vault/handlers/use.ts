@@ -3,6 +3,7 @@
 // DECISION: a value leaves the vault only through fill. The place it goes is a sink the host registers per kind (configureVault); a server with no sink for a kind refuses (internal.unavailable) instead of pretending.
 // The one exception is returnValue: a person at View level (never an agent) may ask for the value back; the call is logged as a use like any other.
 // DECISION: an export is sealed by the filler when the link is made; the database keeps only the hash of the pull token. exportPull is what the pull route calls; the route itself belongs to the gateway.
+import { isCompanyKey } from "../../../lib/company-keys.ts";
 import { isSystemCall } from "../../../lib/trust.ts";
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -186,6 +187,7 @@ export async function fill(ctx: VaultCtx, input: { handle: string; target: { kin
   if (typeof t["kind"] !== "string" || t["kind"] === "" || typeof t["ref"] !== "string" || t["ref"] === "") bad(ctx, "Say where the value goes: a kind and a reference.");
   const kind = t["kind"] as string, ref = t["ref"] as string;
   const r = itemBy(ctx, h.name);
+  if (isCompanyKey(str(r, "handle")) && ctx.principal.kind !== "person") return denied(ctx, "This key is for the server alone. Agents and automations never get it, not even by handle.");
   const f = pick(ctx, r, await openFields(ctx, r), h.field);
   const level = levelOn(ctx, "vault_item", str(r, "id"));
   const owner = str(r, "owner") === ctx.principal.id;
@@ -217,7 +219,7 @@ export async function injectEnv(ctx: VaultCtx, input: { folderId: string; purpos
   ensure(ctx);
   if (input.purpose !== undefined && typeof input.purpose !== "string") bad(ctx, "The purpose is text.");
   const f = folderAt(ctx, input.folderId, "use");
-  const items = folderItems(ctx, str(f, "id"));
+  const items = folderItems(ctx, str(f, "id")).filter((r) => ctx.principal.kind === "person" || !isCompanyKey(str(r, "handle")));
   const handles: string[] = [], keys: string[] = [];
   for (const r of items) {
     for (const k of keysOf(r)) { handles.push(`${str(r, "handle")}.${k}`); if (!keys.includes(k)) keys.push(k); }
@@ -242,6 +244,19 @@ async function expiryCap(ctx: VaultCtx): Promise<Expiry> {
   return "1d";
 }
 
+/** The folder's own rule, set in folders.update and until now never read: an empty list leaves it to the permission; a list means those people, and the groups and roles it names. */
+async function mayExport(ctx: VaultCtx, folder: Row): Promise<boolean> {
+  const who = parseJson<Array<{ kind?: string; id?: string }>>(folder["whoCanExport"], []);
+  if (who.length === 0 || str(folder, "owner") === ctx.principal.id) return true;
+  if (who.some((s) => s.kind === ctx.principal.kind && s.id === ctx.principal.id)) return true;
+  if (!who.some((s) => s.kind === "group" || s.kind === "role")) return false;
+  try {
+    const me = obj(obj(await ctx.call("access.principals.get", { principal: { kind: ctx.principal.kind, id: ctx.principal.id } }))["principal"]);
+    const mine = new Set([...(Array.isArray(me["roles"]) ? me["roles"] : []), ...(Array.isArray(me["groups"]) ? me["groups"] : [])].map(String));
+    return who.some((s) => s.id !== undefined && mine.has(s.id));
+  } catch { return false; }
+}
+
 const sha = (s: string): string => crypto.createHash("sha256").update(s).digest("hex");
 
 export async function exportEnv(ctx: VaultCtx, input: { folderId: string; expiresIn: string; itemIds?: string[]; idempotencyKey?: string }) {
@@ -250,9 +265,15 @@ export async function exportEnv(ctx: VaultCtx, input: { folderId: string; expire
   if (input.itemIds !== undefined && (!Array.isArray(input.itemIds) || input.itemIds.some((i) => !isId("vit", i)))) bad(ctx, "Item ids are not valid.");
   const cap = await expiryCap(ctx);
   if (EXPIRIES.indexOf(input.expiresIn as Expiry) > EXPIRIES.indexOf(cap)) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: `This Space limits pull links to ${cap}.` });
+  // a pull link hands over the values themselves: an agent never holds one, and neither does anyone below View, who may use a value but may not see it
+  if (ctx.principal.kind === "agent") return denied(ctx, "Agents use values by handle; they never see them.");
   const f = folderAt(ctx, input.folderId, "use");
-  let items = folderItems(ctx, str(f, "id"));
+  if (!(await mayExport(ctx, f))) return denied(ctx, "This folder names who may export it.");
+  const seeable = folderItems(ctx, str(f, "id")).filter((r) => atLeast(str(r, "owner") === ctx.principal.id ? "manage" : levelOn(ctx, "vault_item", str(r, "id")), "view"));
+  // an item set to fill on the Space only stays on the Space: a .env file is exactly what that rules out
+  let items = seeable.filter((r) => num(r, "spaceOnly") !== 1 && !isCompanyKey(str(r, "handle")));
   if (input.itemIds) items = items.filter((r) => input.itemIds!.includes(str(r, "id")));
+  if (items.length === 0) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Nothing here can be exported by you." });
   const lines: string[] = [], used = new Set<string>();
   for (const r of items) {
     for (const fld of await openFields(ctx, r)) {

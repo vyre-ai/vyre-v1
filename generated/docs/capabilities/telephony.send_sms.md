@@ -32,8 +32,8 @@ type In = {
   mediaFileIds?: Array<string>;
   contactId?: string;
   replyToId?: string;
-  campaignId?: string;
   sendAt?: number;
+  transactional?: boolean;
   idempotencyKey: string;
 };
 ```
@@ -70,7 +70,6 @@ type Out = {
   "name": "example",
   "input": {
     "body": "example",
-    "campaignId": "cmp_a1b2c3",
     "contactId": "rec_a1b2c3",
     "idempotencyKey": "idem_1",
     "mediaFileIds": [
@@ -80,7 +79,8 @@ type Out = {
     "replyToId": "sms_a1b2c3",
     "sendAt": 1760000000000,
     "senderId": "num_a1b2c3",
-    "to": "+14155550123"
+    "to": "+14155550123",
+    "transactional": true
   },
   "output": {
     "smsId": "sms_a1b2c3",

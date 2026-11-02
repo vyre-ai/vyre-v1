@@ -22,6 +22,9 @@ function providers(ctx: MembersCtx): Sso[] {
   return out;
 }
 
+/** What a person can sign in with when everyone must use single sign-on: names only, for the join page. */
+export const enabledProviders = (ctx: MembersCtx): { key: string; title: string }[] => providers(ctx).filter((p) => p.enabled).map((p) => ({ key: p.key, title: p.title }));
+
 async function isOwner(ctx: MembersCtx, personId: string): Promise<boolean> {
   if(ctx.spaceOwner)return ctx.principal?.kind === "person" && ctx.spaceOwner() === personId;
   const out = (await ctx.call("access.principals.get", { principal: { kind: "person", id: personId } })) as { principal: { roles: string[] } };
@@ -30,7 +33,7 @@ async function isOwner(ctx: MembersCtx, personId: string): Promise<boolean> {
 
 export async function policyGetH(ctx: MembersCtx, _input: Record<string, never>) {
  const owner=ctx.spaceOwner?.();const who=ctx.principal?.id;
- return { policy: currentPolicy(ctx),capabilities:{password:true,github:ctx.signInMethods?.github??false,sso:[...(ctx.signInMethods?.sso??[])],newMemberMfaEnrollment:ctx.signInMethods?.newMemberMfaEnrollment??false,ownerHasSecondFactor:!!owner&&!!ctx.factors?.of(owner).length,currentHasSecondFactor:!!who&&!!ctx.factors?.of(who).length} };
+ return { policy: currentPolicy(ctx),capabilities:{password:true,github:ctx.signInMethods?.github??false,sso:[...(ctx.signInMethods?.sso??[])],newMemberMfaEnrollment:ctx.signInMethods?.newMemberMfaEnrollment??false,ownerHasSecondFactor:!!owner&&!!ctx.factors?.of(owner).length,currentHasSecondFactor:!!who&&!!ctx.factors?.of(who).length,ownerSsoLinked:!!owner&&!!ctx.breakGlass?.ssoLinked(owner),ownerHasRecovery:!!owner&&!!ctx.breakGlass?.hasRecovery(owner)} };
 }
 
 export async function policySet(ctx: MembersCtx, input: { policy: Policy }) {
@@ -43,6 +46,13 @@ export async function policySet(ctx: MembersCtx, input: { policy: Policy }) {
   if(next.requireSso&&(!methods||!methods.sso.length))raise(tid,"validation.unsupported","Single sign-on is not implemented by this server. Keep a supported sign-in method enabled.");
   if(!next.allowPassword&&!(next.allowGithub&&methods?.github)&&!(next.requireSso&&methods?.sso.length))raise(tid,"validation.precondition_failed","Password sign-in cannot be disabled without another working sign-in method.");
   if (next.requireSso && !providers(ctx).some((p) => p.enabled && methods?.sso.includes(p.key))) raise(tid, "validation.precondition_failed", "turn on a single sign-on provider before requiring it");
+  // nobody turns this on and locks the owner out: the owner has signed in with the provider once, and holds the recovery key that is the way in when the provider is down
+  if (next.requireSso && !cur.requireSso) {
+    const owner = ctx.spaceOwner?.();
+    if (!owner) raise(tid, "internal.unavailable", "The server cannot verify the Space owner for this policy change.");
+    if (!ctx.breakGlass?.ssoLinked(owner)) raise(tid, "validation.precondition_failed", "The Space owner has to sign in with this provider once first, or requiring it would lock them out.");
+    if (!ctx.breakGlass?.hasRecovery(owner)) raise(tid, "validation.precondition_failed", "The Space owner has to save a recovery key first. It is the way in if the provider is down.");
+  }
   // the owner floor: only the owner may take a requirement away
   const lowers = (cur.secondFactor === "required" && next.secondFactor === "off") || (cur.requireSso && !next.requireSso);
   if (lowers && !(await isOwner(ctx, who.id))) raise(tid, "permission.role_lacks_permission", "only the owner can lower a sign-in requirement");

@@ -192,7 +192,7 @@ const FROZEN: readonly Frozen[] = [
     fields: [
       'contactId|text||', 'address|text||', 'displayName|text||', 'lastMessageAt|datetime||', 'lastChannel|choice||',
       'lastPreview|text||', 'unreadCount|number||', 'needsMatch|checkbox||', 'ownerId|person||', 'mailboxIds|text||',
-      'numberIds|text||', 'campaignId|text||',
+      'numberIds|text||',
     ],
   },
   {
@@ -212,7 +212,7 @@ const FROZEN: readonly Frozen[] = [
     versions: null, restore: null,
     fields: [
       'numberId|text||', 'direction|choice||', 'from|text||', 'to|text||', 'body|longtext||confidential', 'status|status||',
-      'contactId|text||', 'mediaFileIds|files||', 'campaignId|text||', 'at|datetime||', 'twilioSid|text||', 'traceId|text||',
+      'contactId|text||', 'mediaFileIds|files||', 'at|datetime||', 'twilioSid|text||', 'traceId|text||',
     ],
   },
   {

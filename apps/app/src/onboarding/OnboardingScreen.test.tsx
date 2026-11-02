@@ -22,12 +22,12 @@ test("the Assistant says one short sentence per step, and never claims to be liv
   assert.ok(!out.includes("scripted-note") && !out.includes("Connect an AI account to talk to me"));
 });
 
-test("done steps tick, skipped steps say Skipped, and a finished flow shows the summary with Go to Home", () => {
+test("done steps tick, skipped steps say Skipped, and a finished flow shows the summary with Open Vyre", () => {
   const out = html({ progress: { ai: "done", interview: "later" }, stepKey: "sessions" });
   assert.ok(out.includes('data-testid="mark-done"') && out.includes('data-testid="mark-later"') && out.includes(">Skipped<"));
   const all = Object.fromEntries(stepsOf("member").map((st) => [st.key, "done" as const]));
   const end = renderToStaticMarkup(<OnboardingScreen flow="member" spaceName="Acme" progress={all} onStep={noop} onClose={noop} device="mac" />);
-  assert.ok(end.includes("You are set up") && end.includes("All done") && end.includes("Go to Home") && end.includes('data-testid="onboarding-finished"'));
+  assert.ok(end.includes("You are set up") && end.includes("All done") && end.includes("Open Vyre") && !end.includes("Home") && end.includes('data-testid="onboarding-finished"'));
   const some = renderToStaticMarkup(<OnboardingScreen flow="member" spaceName="Acme" progress={{ ...all, apps: "later" }} stepKey="summary" onStep={noop} onClose={noop} device="mac" />);
   assert.ok(some.includes('data-testid="onboarding-finished"') && some.includes('data-testid="done-set-apps"') && some.includes("1 left for later") && some.includes(">Skipped<"), "the summary names what was put off, with Set up");
   assert.ok(!some.includes('data-testid="done-set-mine"'), "a done step has no Set up");
@@ -68,7 +68,7 @@ test("first launch shows the three doors and a way in for people who already hav
   const { FirstLaunch } = await import("./FirstLaunch.tsx");
   const out = renderToStaticMarkup(<FirstLaunch onDoor={async () => undefined} existing={<span>sign in</span>} />);
   for (const id of ["door-me", "door-invited", "door-team", "door-existing"]) assert.ok(out.includes(`data-testid="${id}"`), id);
-  assert.ok(out.includes("Just me") && out.includes("I was invited") && out.includes("My team") && out.includes("Welcome to Vyre") && out.includes("Used Vyre on another computer?"));
+  assert.ok(out.includes("Just me") && out.includes("I was invited") && out.includes("My team") && out.includes("Welcome to Vyre") && out.includes(">Sign in<"));
 });
 
 test("a browser offers two doors and no Just me, a phone offers to join or to email the app, a PC offers all three (journeys, table D)", async () => {
@@ -95,12 +95,12 @@ test("the phone card makes a one-time link on the Space address and the open car
   const { pairFromUrl, pairLink } = await import("../shell/session/desktop.ts");
   const calls: unknown[] = [];
   const made = await makePairLink((async (cap: string, input: unknown) => { calls.push([cap, input]); return { code: "AB12-CD34", expiresAt: 5 }; }) as never, "https://team.example/", "k");
-  assert.equal(made.link, "https://team.example/home?pair=AB12-CD34");
+  assert.equal(made.link, "https://team.example/chat?pair=AB12-CD34");
   assert.deepEqual(calls, [["identity.pair_create", { purpose: "phone", idempotencyKey: "k" }]]);
   assert.deepEqual(pairFromUrl(made.link, "https://team.example"), { kind: "pair", address: "https://team.example", code: "AB12-CD34", phone: true });
-  assert.equal(pairFromUrl("https://team.example/home?pair=<script>", "https://team.example"), null);
+  assert.equal(pairFromUrl("https://team.example/chat?pair=<script>", "https://team.example"), null);
   assert.equal(pairFromUrl("https://team.example/home", "https://team.example"), null);
-  assert.equal(pairLink("https://a.example", "x y"), "https://a.example/home?pair=x%20y");
+  assert.equal(pairLink("https://a.example", "x y"), "https://a.example/chat?pair=x%20y");
   for (const k of ["import_sessions", "local_folders", "chrome", "first_win"]) assert.ok(OPEN_TARGETS[k], k);
 });
 

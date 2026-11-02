@@ -33,6 +33,7 @@ type In = {
   provider?: string;
   effort?: "low" | "medium" | "high" | "max";
   crew?: boolean;
+  taskId?: string;
 };
 ```
 
@@ -101,6 +102,7 @@ type Out = {
     "instruction": "example",
     "model": "example",
     "provider": "example",
+    "taskId": "tsk_a1b2c3",
     "threadId": "thr_a1b2c3",
     "title": "example"
   },

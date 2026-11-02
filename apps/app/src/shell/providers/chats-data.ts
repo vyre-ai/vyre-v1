@@ -76,12 +76,13 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
     openChannel: a.openThread,
     openNeedsYou: (taskId) => rt.open({ screen: "tasks.needs-you", ...(taskId ? { args: { taskId } } : {}) }),
     openAllAgents: () => rt.open({ screen: "chats.all-agents" }),
+    openArtifacts: () => rt.open({ screen: "apps.artifacts" }),
     openSearch: () => rt.open({ screen: "shell.cmdk" }),
     openSpaceSwitcher: () => rt.open({ screen: "spaces.switcher" }),
     openNewChannel: () => requestChannelSheet("new"),
   };
   return {
-    screens: rt.screens, call: rt.call, connection: rt.connection,
+    screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.changes ? { changes: rt.changes } : {}),
     space: { name: rt.space.name, otherNeedsYou: othersNeedingYou(rt.knownSpaces ?? [], rt.space.id).length > 0, ...(rt.space.kind === "personal" ? { personal: true } : {}), assistant: { agentId: rt.assistant.id, name: rt.assistant.name } },
     nav, me: { id: rt.me.id }, clock: rt.clock,
   };
@@ -143,12 +144,12 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
     openThread: a.openThread,
     togglePane: a.togglePane,
-    openBeside: (kind, id) => rt.open({ subject: { type: kind, id } }),
+    openBeside: (kind, id) => (kind === "artifact" ? rt.open({ screen: "apps.artifacts", args: { selected: id } }) : rt.open({ subject: { type: kind, id } })),
     openAiSetup: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),   // the same page the Needs you sign-in opens
     ...(rt.unlockVault ? { unlockVault: () => askVaultUnlock(rt.unlockVault!) } : {}),
   };
   return {
-    screens: rt.screens, call: rt.call, connection: rt.connection, threadId, me: { id: rt.me.id, name: rt.me.name },
+    screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.changes ? { changes: rt.changes } : {}), threadId, me: { id: rt.me.id, name: rt.me.name },
     nameOf: (id) => nameOr(byId.get(id)?.name, id),
     kindOf: (id) => kindOf(byId.get(id)),
     nav, clock: rt.clock, spaceName: rt.space.name, ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}), ...(rt.space.kind === "personal" ? { personal: true } : {}),
@@ -185,7 +186,7 @@ export function paneData(rt: ShellRuntime, a: ChatsActions, threadId: string, ag
     skillFromStep: (computerId, stepId) => rt.open({ screen: "chats.agent-computer", args: { computerId, stepId } }),
   };
   return {
-    screens: rt.screens, call: rt.call, connection: rt.connection, threadId,
+    screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.changes ? { changes: rt.changes } : {}), threadId,
     agent: { agentId: agent.agentId, name: agent.name },
     space: { name: rt.space.name, personal: rt.space.kind === "personal", computers: computersAvailableNow(rt.space) },
     nav, clock: rt.clock,

@@ -2,6 +2,7 @@ import{sessionTheme}from'./space-theme.ts';
 import{sessionCatalogue}from'./space-catalog.ts';
 // The authenticated application shell. Kept behind SessionGate's lazy boundary so a signed-out
 // first paint does not parse the screen registry, virtual lists, command surface, or place chrome.
+import { ConsoleAlone, onConsoleHost } from "../console-host.ts";
 import { speed } from "../../speed/recorder.ts";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
@@ -27,6 +28,7 @@ import { CapError, createCapCaller } from "./caps.ts";
 import { isLoopbackUrl } from "../../../../../client/src/gateway/local-key.ts";
 import { PHONE_BELOW } from "./mobile-map.ts";
 import { openPhone } from "./phone.ts";
+import { readUrlIntoHub } from "./url.ts";
 import type { LoadVoiceDevice, Phone } from "./phone.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
 import { OnboardingHost } from "../../onboarding/OnboardingHost.tsx";
@@ -72,6 +74,9 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const hub = useMemo(() => {
     if (given) { navRef.current = given; return given; }
     const h = createShellHub({ spaces: catalogue.map(item=>({...item.def,starred:item.def.spaceId===stored.def.spaceId})), openId: stored.def.spaceId, personId: stored.personId, personIds:Object.fromEntries(catalogue.map(item=>[item.def.spaceId,item.personId])), deviceId: "web", storage: tabsStorage() });
+    // a link in the address wins over the restored tabs from the first frame, so nothing else is drawn first (UrlSync takes over from here)
+    const page = (globalThis as { location?: { pathname?: string; hash?: string } }).location;
+    if (page?.pathname !== undefined && page.hash !== undefined) readUrlIntoHub(h, { pathname: page.pathname, hash: page.hash });
     navRef.current = h;
     return h;
   }, [given, catalogueKey, stored.def.spaceId, stored.personId]);
@@ -104,7 +109,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
       const space = ((await s.call("spaces.get", {})) as { space: { id: string; fingerprint: string } }).space;
       return { id: space.id, marker: space.fingerprint };
     } })
-      .then((s) => { if (off) { s.close("superseded before it opened"); return; } opened = s; writeStored({...stored,def:s.def,personId:s.me.id});setSession(s); })
+      .then((s) => { if (off) { s.close("superseded before it opened"); return; } opened = s; writeStored({...stored,def:s.def,personId:s.me.id,...(s.me.name?{displayName:s.me.name}:{})});setSession(s); })
       .catch((e: unknown) => {
         if (off) return;
         if ((e instanceof CapError && e.status === 401) || (e instanceof Error && /no longer matches/i.test(e.message))) { signedOutRef.current(); return; }
@@ -166,14 +171,28 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     return () => { off = true; };
   }, [session, hub, location.place, location.hash]);
 
+  // the one badge: what waits on this person, from the one count, on the same tick as everything else on screen
+  const [needsYou, setNeedsYou] = useState(0);
+  useEffect(() => {
+    if (!session) return undefined;
+    const q = session.hooks.capQuery<{ count: number }>("tasks.count_needs_you");
+    const read = (): void => { const s = q.getSnapshot(); if (s.status === "ready") { setNeedsYou(s.data.count); hub.count("chats", s.data.count); } };
+    const off = q.subscribe(read);
+    read();
+    return off;
+  }, [session, hub]);
+
   const purge = useMemo<ShellPurge | undefined>(() => (session ? {
     client: webPurgeClient({ deviceId: "web", call: session.call, wipe: () => { wipeBrowserStorage(); clearStored(); }, done: () => onSignedOut() }),
     subscribe: (l) => session.onPurge(l),
   } : undefined), [session, onSignedOut]);
   useEffect(() => location.place === "console" && purge ? watchPurge(purge, (e) => hub.flash(`Couldn't remove this device's data: ${e instanceof Error ? e.message : "try again"}`)) : undefined, [location.place, purge, hub]);
-  // The Console is a Team Space place with a shell of its own. A Personal Space has none, so a saved or stale address that names it goes Home, never to a page with no way back.
+  // The Console is a Team Space place. A Personal Space has none, so a saved or stale address that names it goes to Chats, never to a page with no way back.
   const deadConsole = location.place === "console" && stored.def.kind === "personal";
-  useEffect(() => { if (deadConsole) hub.go("home"); }, [deadConsole, hub]);
+  useEffect(() => { if (deadConsole) hub.go("chats"); }, [deadConsole, hub]);
+  // console.<address> is the Console's own door: whatever a saved session last had open, this address opens the Console
+  const consoleDoor = onConsoleHost() && stored.def.kind !== "personal";
+  useEffect(() => { if (consoleDoor && location.place !== "console") hub.go("console"); }, [consoleDoor, location.place, hub]);
   const renderPlace = (ctx: PlaceContext): ReactElement => failed !== null && session === null
     ? <States kind="error" message={`Couldn't reach ${stored.def.name}`} cause={failed} next="Try again" retryable onRetry={() => setAttempt((n) => n + 1)} />
     : <PlaceHost place={ctx.place} runtime={session?.runtime ?? null} hash={ctx.hash} opened={(t) => { const next = formatHash(t); if (next !== ctx.hash) hub.go(ctx.place, next); }} />;
@@ -196,11 +215,13 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const personalCall = useMemo(() => { const p = catalogue.find((item) => item.def.kind === "personal" && item.def.spaceId !== stored.def.spaceId && isLoopbackUrl(item.baseUrl)); return p ? createCapCaller({ baseUrl: p.baseUrl, token: () => p.token }) : null; }, [catalogueKey, stored.def.spaceId]);
   const wrap = (el: ReactElement): ReactElement => <OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} runtime={session?.runtime ?? null} person={session?.me.id ?? null} personName={session?.me.name ?? null} address={stored.baseUrl} personalCall={personalCall} onGo={(place, hash) => hub.go(place as PlaceId, hash ?? "")} {...(onAddSpace?{onAddSpace}:{})}><>{el}<VaultUnlockHost /><ReportHost call={session?.call ?? null} place={location.place} /></></OnboardingHost>;
   if (deadConsole) return <View testID="console-redirect" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  if (location.place === "console") return wrap(<HubProvider hub={hub}>{renderPlace({ place: "console", hash: location.hash } as PlaceContext)}</HubProvider>);
-  if (narrow) return wrap(<Suspense fallback={<View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />}><PhoneHost session={session} location={{ place: location.place, hash: location.hash }} needsYou={stored.def.counts.chats ?? 0} registerGo={registerGo} onSignOut={signOut} onLock={lock} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} {...(onAddSpace?{onAddSpace}:{})} /></Suspense>);
+  // on a computer the Console is a place in the shell; on a phone and at its own address nothing surrounds it
+  if (consoleDoor && location.place !== "console") return <View testID="console-redirect" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
+  if (location.place === "console" && (narrow || consoleDoor)) return wrap(<ConsoleAlone value><HubProvider hub={hub}>{renderPlace({ place: "console", hash: location.hash } as PlaceContext)}</HubProvider></ConsoleAlone>);
+  if (narrow) return wrap(<Suspense fallback={<View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />}><PhoneHost session={session} location={{ place: location.place, hash: location.hash }} needsYou={needsYou} registerGo={registerGo} onSignOut={signOut} onLock={lock} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} {...(onAddSpace?{onAddSpace}:{})} /></Suspense>);
   return wrap(
     <>
-      <Shell hub={hub} {...(runsOnProp ? { runsOn: runsOnProp } : {})} {...(theme?{theme}:{})} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} onSpaceAction={(a) => { if (a === "sign-out") signOut(); else if(a==='lock')lock();else if(a==='add')onAddSpace?.(); }} {...(phone ? { phone: { device: phone.device, data: phone.data } } : {})} {...(purge ? { purge } : {})} />
+      <Shell hub={hub} {...(session ? { me: { id: session.me.id, name: session.me.name } } : {})} onOpenMe={() => hub.go("settings", "profile")} {...(runsOnProp ? { runsOn: runsOnProp } : {})} {...(theme?{theme}:{})} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} onSpaceAction={(a) => { if (a === "sign-out") signOut(); else if(a==='lock')lock();else if(a==='add')onAddSpace?.(); }} {...(phone ? { phone: { device: phone.device, data: phone.data } } : {})} {...(purge ? { purge } : {})} />
       {searchOpen && search ? <CmdK data={search} onClose={() => setSearchOpen(false)} onTiming={(name, ms) => { if (name === "local" && session) speed.record(session.runtime.space.id, "search", ms); }} /> : null}
     </>
   );

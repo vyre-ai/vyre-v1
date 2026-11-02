@@ -50,6 +50,8 @@ export interface MsHost {
   memberEmails(ctx: MsCtx): Promise<{ userId: string; email: string }[]>;
   /** The non-secret identity of the app registration stored under a Vault handle. */
   appRegistration(ctx: MsCtx, handle: string): Promise<{ clientId: string; tenantId: string }>;
+  /** Proves the app under a handle signs in to its tenant, with no person involved. Answers what is wrong in words an admin can act on. */
+  checkApp(ctx: MsCtx, handle: string): Promise<{ ok: boolean; clientId?: string; tenantId?: string; credential?: "certificate" | "secret"; problem?: string }>;
   /** A Space file's name, type and bytes (for mail attachments). */
   fileBytes(ctx: MsCtx, fileId: string): Promise<{ name: string; mime: string; bytes: Uint8Array }>;
   /** Store bytes as a blob and return its id. */
@@ -79,7 +81,17 @@ export function needHost(ctx: Pick<MsCtx, "trace">): MsHost {
 
 export const GRAPH = "https://graph.microsoft.com/v1.0";
 export const CONFIG_ID = "microsoft";
-export const PERMISSIONS = ["Mail.ReadWrite", "Mail.Send", "Calendars.ReadWrite", "Files.ReadWrite.All", "User.Read.All", "OnlineMeetingRecording.Read.All", "OnlineMeetingTranscript.Read.All"];
+/** What the app is consented for in Entra. Mail and Calendars are deliberately not here: consent there reaches every mailbox, and Exchange's scope cannot narrow it. They are the Exchange roles below. */
+export const PERMISSIONS = ["Files.ReadWrite.All", "User.Read.All", "OnlineMeetingRecording.Read.All", "OnlineMeetingTranscript.Read.All"];
+export const DATA_PERMISSIONS = { calendar: ["OnlineMeetingRecording.Read.All", "OnlineMeetingTranscript.Read.All"], files: ["Files.ReadWrite.All"] } as const;
+/** RBAC for Applications in Exchange: these are assigned against a management scope, so the mailboxes outside it stay out of reach at Microsoft. */
+export const EXCHANGE_ROLES = { mail: ["Application Mail.ReadWrite", "Application Mail.Send"], calendar: ["Application Calendars.ReadWrite"] } as const;
+/** Consented in Entra, one of these makes the Exchange scope mean nothing, because the two grants add up. */
+export const UNSCOPED = ["Mail.Read", "Mail.ReadWrite", "Mail.Send", "Calendars.Read", "Calendars.ReadWrite"];
+export type DataChoice = { mail: boolean; calendar: boolean; files: boolean };
+export const dataOf = (cfg: Row | null): DataChoice => ({ mail: !cfg || num(cfg, "dataMail") === 1, calendar: !cfg || num(cfg, "dataCalendar") === 1, files: !cfg || num(cfg, "dataFiles") === 1 });
+export const permissionsFor = (d: DataChoice): string[] => { const want = new Set<string>(["User.Read.All", ...(d.calendar ? DATA_PERMISSIONS.calendar : []), ...(d.files ? DATA_PERMISSIONS.files : [])]); return PERMISSIONS.filter((p) => want.has(p)); };
+export const rolesFor = (d: DataChoice): string[] => [...(d.mail ? EXCHANGE_ROLES.mail : []), ...(d.calendar ? EXCHANGE_ROLES.calendar : [])];
 
 // ---- ids and rows
 
@@ -112,7 +124,7 @@ export function bad(ctx: Pick<MsCtx, "trace">, message: string): never {
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_microsoft_core.sql", "0002_microsoft_teams.sql", "0003_microsoft_calendar.sql", "0004_microsoft_user.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
+const migrationSql = ["0001_microsoft_core.sql", "0002_microsoft_teams.sql", "0003_microsoft_calendar.sql", "0004_microsoft_user.sql", "0005_microsoft_company.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
@@ -232,7 +244,7 @@ async function userToken(ctx: MsCtx, accountId: string, fresh: boolean): Promise
   return (await needHost(ctx).userRefresh(ctx, { appHandle: userAppHandle(ctx), refreshToken, cacheKey: accountId, ...(fresh ? { fresh: true } : {}) })).token;
 }
 
-/** Who the call acts as: the caller's mapped address, or another mapped member for an admin or a service. */
+/** Who the call acts as: the caller's own mapped address. Only the host's own services act for a named member, and the setup check reads one included mailbox. A role never reaches a teammate's mailbox. */
 export function subjectFor(ctx: MsCtx, c: Pick<Call, "connectionId" | "as" | "open">): string {
   if (isUserConnection(c.connectionId)) {
     // a person's own sign-in is one mailbox: theirs, and nobody else's
@@ -245,13 +257,9 @@ export function subjectFor(ctx: MsCtx, c: Pick<Call, "connectionId" | "as" | "op
   const own = person ? strOrNull(first(ctx.db.all(`SELECT email FROM microsoft_member WHERE "userId" = ? AND mapped = ?`, person, 1)), "email") : null;
   const target = c.as ? normalizeEmail(c.as) : own;
   if (!target) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "You are not mapped to a Microsoft 365 user." });
-  // Acting as someone else takes an admin or a service. The verify probe may always act as the member it names.
   if (c.as && target !== own && !isTrustedService(ctx.principal) && !c.open) {
-    if (ctx.authorize({ perm: "connectors.manage", level: "manage" }, { type: "connection", id: c.connectionId }).effect !== "allow") {
-      throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only an admin can act as another member." });
-    }
+    throw fail("permission.no_grant", ctx.trace.traceId, { message: "Vyre reaches a person's mail, calendar and files only for that person." });
   }
-  if (c.open) return target;
   if (!cfg || num(cfg, "configured") !== 1) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Microsoft 365 is not set up." });
   const member = first(ctx.db.all(`SELECT excluded, mapped FROM microsoft_member WHERE email = ?`, target));
   if (!member || num(member, "mapped") !== 1) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "That address is not a mapped Microsoft 365 user." });
@@ -272,11 +280,11 @@ async function tokenFor(ctx: MsCtx, connectionId: string, fresh: boolean): Promi
   return minted.token;
 }
 
-/** One read log row per call, keyed by the person whose data was reached. */
+/** One read log row per call: who made it, whom it was for, and whose data it reached. */
 function logCall(ctx: MsCtx, subject: string, cap: string, bulk: boolean): void {
   ctx.db.run(
-    `INSERT INTO microsoft_read_log (id, subject, actor, cap, bulk, at) VALUES (?, ?, ?, ?, ?, ?)`,
-    newId("mrl", ctx.now()), subject, ctx.actingFor ?? ctx.principal.id, cap, bulk ? 1 : 0, ctx.now(),
+    `INSERT INTO microsoft_read_log (id, subject, actor, "onBehalf", cap, bulk, at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    newId("mrl", ctx.now()), subject, ctx.principal.id, ctx.actingFor ?? null, cap, bulk ? 1 : 0, ctx.now(),
   );
 }
 

@@ -3,6 +3,7 @@
 // DECISION: a request carries names, never values. A manager supplies the key in the fulfil call; the value goes straight to vault.item.put (or the item they name is shared) and is not stored here,
 // not echoed back, not in an event, a card, a log line or the thread. The requester gets Use on the item, which hands out a handle and never the value.
 // DECISION: the requester never decides their own request. Anyone who is neither the requester nor a manager gets "not found", so request ids leak nothing.
+import { isCompanyKey } from "../../../lib/company-keys.ts";
 import { TABLE, asRow, idsOf, nid, page, raise, requestById, requestOut, strOf } from "../projections.ts";
 import type { Ref, RequestRow, State, VaultReqCtx } from "../projections.ts";
 
@@ -44,15 +45,26 @@ export function neededTitle(name: string): string {
 
 /** The chat the agent asked in and the agent's id, read back from the request's own card (no column holds them). */
 async function chatOf(ctx: VaultReqCtx, row: RequestRow): Promise<{ threadId: string; agentId?: string; asker?: string } | null> {
-  const taskId = idsOf(row.task_ids_json)[0];
-  if (!taskId) return null;
-  try {
-    const t = asRow(asRow(await ctx.call("tasks.get", { taskId }))?.["task"]);
-    const blocks = Array.isArray(t?.["blocks"]) ? (t!["blocks"] as unknown[]) : [];
-    const d = asRow(asRow(blocks[0])?.["data"]);
-    const threadId = strOf(d?.["threadId"]);
-    return threadId ? { threadId, ...(strOf(d?.["agentId"]) ? { agentId: strOf(d?.["agentId"])! } : {}), ...(strOf(d?.["asker"]) ? { asker: strOf(d?.["asker"])! } : {}) } : null;
-  } catch { return null; }
+  // the caller holds one of the cards, not necessarily the first: another manager's card is not theirs to read
+  for (const taskId of idsOf(row.task_ids_json)) {
+    try {
+      const t = asRow(asRow(await ctx.call("tasks.get", { taskId }))?.["task"]);
+      const blocks = Array.isArray(t?.["blocks"]) ? (t!["blocks"] as unknown[]) : [];
+      const d = asRow(asRow(blocks[0])?.["data"]);
+      const threadId = strOf(d?.["threadId"]);
+      return threadId ? { threadId, ...(strOf(d?.["agentId"]) ? { agentId: strOf(d?.["agentId"])! } : {}), ...(strOf(d?.["asker"]) ? { asker: strOf(d?.["asker"])! } : {}) } : null;
+    } catch { /* the next card */ }
+  }
+  return null;
+}
+
+/** Where a company key lives: the shared folder Connect your company uses, Restricted before anything goes in, so a Member and every agent can neither list, use nor change it. */
+async function companyFolder(ctx: VaultReqCtx): Promise<string | undefined> {
+  const name = "Company connections";
+  const have = (asRow(await ctx.call("vault.folders.list", { scope: "shared" }))?.["folders"] as { id?: string; name?: string }[] | undefined ?? []).find((f) => f.name === name);
+  const id = have?.id ?? strOf(asRow(asRow(await ctx.call("vault.folders.create", { name, scope: "shared", idempotencyKey: `company-folder:${ctx.now()}` }))?.["folder"])?.["id"]);
+  if (id) await ctx.call("access.labels.set", { resource: { type: "vault_folder", id }, label: "restricted" });
+  return id ?? undefined;
 }
 
 export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fields?: string[]; reason: string; forRun?: string; folderId?: string; idempotencyKey: string }) {
@@ -148,7 +160,7 @@ function decidable(ctx: VaultReqCtx, requestId: string): { row: RequestRow; me: 
   const { row, asManager } = visible(ctx, requestId);
   const me = personOf(ctx);
   if (!asManager || !me) return raise(ctx.trace.traceId, "permission.no_grant", "Only a manager of this Vault can decide this request.");
-  if (row.state !== "waiting") return raise(ctx.trace.traceId, "validation.precondition_failed", `This request was already ${row.state}.`);
+  if (row.state !== "waiting") return raise(ctx.trace.traceId, "validation.precondition_failed", "Already decided.");
   return { row, me };
 }
 
@@ -169,7 +181,7 @@ export async function requestsFulfil(ctx: VaultReqCtx, input: { requestId: strin
     const given = new Map((input.fields ?? []).map((f) => [f.key, f.value] as const));
     const missing = wanted.filter((f) => !(given.get(f)?.length));
     if (missing.length > 0) raise(trace, "validation.precondition_failed", `The key needs a value for ${missing.join(", ")}.`);
-    const folderId = input.folderId ?? row.folder_id ?? undefined;
+    const folderId = input.folderId ?? row.folder_id ?? (isCompanyKey(`#${row.name}`) ? await companyFolder(ctx) : undefined);
     if (!folderId) raise(trace, "validation.precondition_failed", "Choose the folder the new item goes in.");
     const made = asRow(await ctx.call("vault.item.put", {
       folderId, name: row.name, kind: "api_key", fields: (input.fields ?? []).map((f) => ({ key: f.key, value: f.value, secret: true })), idempotencyKey: `${row.id}:put`,
@@ -178,8 +190,9 @@ export async function requestsFulfil(ctx: VaultReqCtx, input: { requestId: strin
     if (!itemId) raise(trace, "internal.unexpected", "The item was not saved.");
   }
 
-  // the requester gets Use: a handle to fill, never the value
-  try {
+  // a company key goes on the card from the person to the Vault, into the Restricted folder, and the agent that asked gets nothing: not Use, not the handle's value. It carries on through the connector, on the server
+  if (isCompanyKey(`#${row.name}`)) await ctx.call("access.labels.set", { resource: { type: "vault_item", id: itemId }, label: "restricted" });
+  else try {
     await ctx.call("vault.share", { resource: { type: "vault_item", id: itemId }, subject: { kind: row.requester_kind, id: row.requester_id }, level: "use", idempotencyKey: `${row.id}:use` });
   } catch (e) {
     // a Mine item is private to its owner: an agent acting for that person already works as them, so there is nothing to share. Any other refusal stands.

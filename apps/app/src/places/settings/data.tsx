@@ -8,10 +8,11 @@ export interface SpaceTile { id: string; name: string; addr: string; kind: "pers
 
 export interface SettingsNav {
   openVault(): void;
-  openConsole(): void;
   openSpace(id: string): void;
   /** Provider or mailbox sign-in lives in the Vault or the Connections flow. */
   connect(kind: "mailbox" | "calendar" | "twilio"): void;
+  /** An agent's page. Absent where the shell has no way there: the row then only reads. */
+  openAgent?(agentId: string): void;
   /** The shell's file picker for a profile photo: the file id, or null when nothing was chosen. */
   choosePhoto(): Promise<string | null>;
   /** Applies a skin to the window at once, before it is saved. */
@@ -35,7 +36,12 @@ export interface DesktopUpdater {
   install(): Promise<void>;
 }
 
+/** What this person may do for the Space: which Console pages they can open and whether they can change Space-wide rows. Absent in a Personal Space and for someone with neither. */
 export interface SettingsData {
+  /** Opens the Console, for a person who may. */
+  openConsole?(): void;
+  /** Opens Connect your company, for a person who may change the company's connection. */
+  openCompany?(): void;
   sessionImporter?: import("../../../../../client/src/session-import/desktop.ts").SessionImporter | undefined;
   /** Update this desktop app (This computer). Absent in a browser. */
   desktopUpdater?: DesktopUpdater | undefined;

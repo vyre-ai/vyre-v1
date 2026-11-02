@@ -69,3 +69,15 @@ export function findEmoji(query: string, limit = 8): EmojiEntry[] {
   const short = (a: EmojiEntry, b: EmojiEntry): number => a.name.length - b.name.length;
   return [...starts.sort(short), ...inside, ...words].slice(0, limit);
 }
+
+/** A whole ":name:" typed up to the cursor becomes its emoji; anything that is not an exact name stays as typed. */
+export function closeEmoji(text: string, cursor: number): { text: string; cursor: number } | null {
+  const before = text.slice(0, cursor);
+  const m = /(^|\s):([a-zA-Z0-9_+-]{2,}):$/.exec(before);
+  if (!m) return null;
+  const name = (m[2] ?? "").toLowerCase();
+  const hit = EMOJI.find((e) => e.name === name);
+  if (!hit) return null;
+  const head = before.slice(0, before.length - name.length - 2) + hit.char;
+  return { text: head + text.slice(cursor), cursor: head.length };
+}

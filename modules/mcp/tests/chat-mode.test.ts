@@ -15,14 +15,14 @@ test("the session of a chat opens with the chat's mode, read as the agent for th
   const seen: Array<{ cap: string; principal: string; actingFor?: string }> = [];
   const c = await withChatMode(runtime("plan", seen), caller());
   assert.deepEqual([c.mode, c.planMode], ["plan", true]);
-  assert.deepEqual(seen, [{ cap: "threads.get", principal: "agt_1", actingFor: "usr_dana" }]);
+  assert.deepEqual(seen, [{ cap: "threads.get", principal: "agt_1", actingFor: "usr_dana" }, { cap: "settings.get", principal: "agt_1", actingFor: "usr_dana" }], "the chat, then the owner's floor on local tools");
   const ask = await withChatMode(runtime("ask"), caller());
   assert.deepEqual([ask.mode, ask.planMode], ["ask", false]);
   assert.equal((await withChatMode(runtime("auto"), caller())).mode, "auto");
 });
 
-test("an outside actor, a session with no chat, and a chat that cannot be read are left as they were", async () => {
-  const outside = caller({ kind: "outside", principal: { kind: "actor", id: "act_1" } });
+test("an outside agent, a session with no chat, and a chat that cannot be read are left as they were", async () => {
+  const outside = caller({ kind: "outside", principal: { kind: "agent", id: "agt_1" } });
   assert.equal(await withChatMode(runtime("plan"), outside), outside);
   const nochat = caller(); delete (nochat as { threadId?: string }).threadId;
   assert.equal(await withChatMode(runtime("plan"), nochat), nochat);
@@ -53,4 +53,15 @@ test("a chat inside a project lists the crew tools from its first turn, so a pla
   assert.ok((await withChatMode(scoped("project"), caller())).preload?.includes("crew_start"));
   assert.ok((await withChatMode(scoped(undefined), caller())).preload?.includes("crew_start"), "a plain chat reaches crew too: the lead finds the project");
   assert.equal((await withChatMode(scoped("project", "helper"), caller())).preload, undefined, "a teammate's own thread does not start more teammates");
+});
+
+test("a CLI session knows the chat the way an API turn does: an Ask's scope and the person's level on it, a task thread's scope", async () => {
+  const facts = (thread: Record<string, unknown>, level: unknown) => ({ ...runtime("auto"), invoke: (async (cap: string) => ({ status: "ok", output: cap === "chat.ask_level" ? { level } : { thread: { mode: "auto", ...thread } } })) as unknown as Invoke });
+  const ask = await withChatMode(facts({ kind: "ask", scopeType: "record", scopeId: "rec_1" }, "view"), caller());
+  assert.deepEqual([ask.threadKind, ask.scope, ask.askLevel], ["ask", { type: "record", id: "rec_1" }, "view"]);
+  const none = await withChatMode(facts({ kind: "ask", scopeType: "record", scopeId: "rec_1" }, null), caller());
+  assert.equal(none.askLevel, null, "no level is no tools, never every tool");
+  const task = await withChatMode(facts({ kind: "thread", scopeType: "task", scopeId: "tsk_1" }, "manage"), caller());
+  assert.deepEqual([task.threadKind, task.scope], ["thread", { type: "task", id: "tsk_1" }]);
+  assert.equal(task.askLevel, undefined);
 });

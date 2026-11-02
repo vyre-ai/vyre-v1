@@ -30,7 +30,6 @@ test("the Call tab's last interactions are the newest four emails, texts and cal
     item("email", "e1", 4300, { title: "Client intake form", preview: "Hi" }),
     item("call", "c1", 2900, { title: "Incoming call", preview: "Elena sends the lease Thursday" }),
     item("sms", "s1", 1500, { preview: "Running ten minutes late tomorrow." }),
-    item("campaign_step", "x", 4200, { title: "Welcome series" }),
     item("email", "e2", 25, { title: "Lease documents for Thursday", preview: "Attached is draft 3" }),
     item("sms", "s2", 1450, { preview: "No problem. See you then." }),
   ];

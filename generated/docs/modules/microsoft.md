@@ -4,8 +4,9 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: mail.
 
-## Capabilities (67)
+## Capabilities (72)
 
+- [ms.access_log](../capabilities/ms.access_log.md): Who reached whose Microsoft data: who made the call, the person an agent worked for, which mailbox, which capability, when
 - [ms.calendar.create_event](../capabilities/ms.calendar.create_event.md): Create an event; Exchange invites the attendees
 - [ms.calendar.delete_event](../capabilities/ms.calendar.delete_event.md): Delete an event; Exchange tells the attendees
 - [ms.calendar.delta](../capabilities/ms.calendar.delta.md): Changes in a calendar view since a delta link
@@ -18,12 +19,15 @@ Requires: mail.
 - [ms.calendar.subscribe](../capabilities/ms.calendar.subscribe.md): Subscribe to change notifications for a calendar
 - [ms.calendar.unsubscribe](../capabilities/ms.calendar.unsubscribe.md): Remove a calendar change subscription
 - [ms.calendar.update_event](../capabilities/ms.calendar.update_event.md): Change an event; Exchange updates the attendees
+- [ms.consent.check_app](../capabilities/ms.consent.check_app.md): Prove the app registration in the Vault signs in to its tenant, with no person involved. Answers what is wrong in plain words; never the secret
+- [ms.consent.connect_all](../capabilities/ms.consent.connect_all.md): Everyone included comes in: mail, calendar and the first pull, for what the company chose. Repeating it adds nobody twice
 - [ms.consent.disable](../capabilities/ms.consent.disable.md): Turn the Microsoft connection off and stop every member sync
 - [ms.consent.link](../capabilities/ms.consent.link.md): The admin consent link to open as a tenant admin, with the application permissions it grants
 - [ms.consent.map_member](../capabilities/ms.consent.map_member.md): Match a Microsoft address to a person in the Space (or, with no person, take the match away), so their mail, calendar and Teams come in
 - [ms.consent.members](../capabilities/ms.consent.members.md): Tenant users mapped to Space members by email, with exclusion and mailbox state
 - [ms.consent.my_account](../capabilities/ms.consent.my_account.md): The Microsoft 365 address the caller is matched to, if any (a OneDrive or SharePoint mount names it so it syncs as the person, not as an admin)
 - [ms.consent.policy_snippet](../capabilities/ms.consent.policy_snippet.md): PowerShell for the Exchange application access policy, limited to the mapped members, for a tenant admin to run
+- [ms.consent.set_data](../capabilities/ms.consent.set_data.md): Choose Mail, Calendar and Files separately after setup. What is turned off stops for everyone; what is turned on comes in for everyone included
 - [ms.consent.set_excluded](../capabilities/ms.consent.set_excluded.md): Exclude a member from the connection, or include them again (excluded members never get a connection)
 - [ms.consent.setup](../capabilities/ms.consent.setup.md): Store the app registration (Vault item Microsoft_App), map members by email and, with auto-connect on, create their Pending mail and calendar connections
 - [ms.consent.status](../capabilities/ms.consent.status.md): State of the Microsoft 365 connection: app registered, consent given, access policy checked, mapped members
@@ -31,6 +35,7 @@ Requires: mail.
 - [ms.consent.verify](../capabilities/ms.consent.verify.md): Call GET /organization and check consent and the access policy for a probe member
 - [ms.directory.import](../capabilities/ms.directory.import.md): Invite chosen people from the directory: one invitation each with their work address and role, returned as links to send once a person approves
 - [ms.directory.list](../capabilities/ms.directory.list.md): The people in the Microsoft 365 directory (admin only), with the Space member each is matched to, for choosing who to bring in
+- [ms.directory.reconcile](../capabilities/ms.directory.reconcile.md): Compare the directory with who is matched: a person gone or turned off stops, and the Space suspends them. Every page must read, and a large change waits for a person
 - [ms.drive.create_folder](../capabilities/ms.drive.create_folder.md): Create a folder
 - [ms.drive.delete_item](../capabilities/ms.drive.delete_item.md): Delete an item
 - [ms.drive.delta](../capabilities/ms.drive.delta.md): Item changes since a delta link (mount sync and mount lag)

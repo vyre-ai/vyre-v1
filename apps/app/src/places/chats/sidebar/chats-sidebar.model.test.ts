@@ -31,12 +31,11 @@ test("a row knows who it is with: an agent or a person", () => {
   assert.equal(rowOf(recent.today[2]!, name).working, true);
 });
 
-test("filters All, Unread, People, Agents with their counts", () => {
-  const c = filterCounts(recent, [], name);
-  assert.deepEqual(c, { all: 5, unread: 2, people: 2, agents: 3 });
-  const rows = groupRecent(recent, [], name).flatMap((g) => g.rows);
-  assert.deepEqual(rows.filter((r) => matchesFilter(r, "unread")).map((r) => r.threadId), ["t1", "t2"]);
-  assert.deepEqual(rows.filter((r) => matchesFilter(r, "people")).map((r) => r.threadId), ["t2", "y1"]);
+test("filters All, Unread, Needs you and Running with their counts", () => {
+  const rows = [{ ...newLocalRow("A", "agent", 1), unread: 2 }, { ...newLocalRow("B", "agent", 1), working: true }, { ...newLocalRow("C", "agent", 1), waiting: true }];
+  assert.deepEqual(filterCounts(rows), { all: 3, unread: 1, needs: 1, running: 1 });
+  assert.ok(matchesFilter(rows[0]!, "unread") && matchesFilter(rows[1]!, "running") && matchesFilter(rows[2]!, "needs") && matchesFilter(rows[2]!, "all"));
+  assert.ok(!matchesFilter(rows[0]!, "needs"));
 });
 
 test("Cmd-1..9 map to the first nine starred faces, in order", () => {
@@ -65,29 +64,29 @@ const channel = (id: string, o: Partial<Channel> = {}): Channel => ({ channelId:
 const need = (id: string, kind: string, blocked = false): NeedsItem => ({ reason: "ready", task: { id, kind, title: id, blocked, actions: [] } } as unknown as NeedsItem);
 const base = { needs: [] as NeedsItem[], needsTotal: 0, faces: [agent("a1"), agent("a2")], workingAgents: new Set<string>(), groups: groupRecent(recent, [], name), channels: [] as Channel[], filter: "all" as const, closed: new Set<never>() };
 
-test("the list runs Needs you (only when something waits), Agents, Channels with Projects, then Chats (ruling 45)", () => {
-  const e = buildEntries({ ...base, needs: [need("n1", "approve")], needsTotal: 7, channels: [channel("intake"), channel("pruitt", { recordId: "r1" }), channel("old", { archived: true })] });
-  const kinds = e.map((x) => `${x.type}:${x.key}`);
-  assert.equal(kinds[0], "head:h:needs");
-  assert.ok(kinds.indexOf("head:h:faces") < kinds.indexOf("head:h:channels") && kinds.indexOf("head:h:channels") < kinds.indexOf("head:h:recent"));
-  const head = e[0]!;
-  assert.equal(head.type === "head" ? head.count : -1, 7, "the header counts all that wait, not the three listed");
-  assert.ok(!kinds.includes("more:f:all"), "the prototype has no All agents row; it sits in the Agents header menu");
-  assert.ok(kinds.indexOf("group:g:projects") > kinds.indexOf("channel:ch:intake"), "Projects sit below the plain channels");
-  assert.ok(!kinds.includes("channel:ch:old"), "archived channels stay out");
-  const none = buildEntries(base);
-  assert.ok(!none.some((x) => x.key === "h:needs"), "no Needs you header when nothing waits");
-  assert.ok(none.some((x) => x.key === "h:channels"), "a Team Space with no channels still has the header, so the first one can be made");
-  assert.ok(none.some((x) => x.type === "action" && x.to === "new-channel" && x.label === "Create a channel"), "and a row that makes it");
-  assert.ok(!e.some((x) => x.type === "action"), "the row is for the empty section only");
-  assert.ok(!buildEntries({ ...base, personal: true }).some((x) => x.key === "h:channels" || x.type === "action"), "a Personal Space has no channels section");
+test("the list runs Tasks, Threads, Now, Recent, Channels with Projects, People, Agents; running and waiting rise to Now", () => {
+  const row = (threadId: string, o = {}) => ({ ...newLocalRow("Mira", "agent", 1), threadId, title: threadId, ...o });
+  const e = buildEntries({ ...base, tasksCount: 9, assistant: { agentId: "me", name: "Assistant" }, groups: [{ key: "today", label: "Today", rows: [row("w", { working: true }), row("n"), row("q"), row("a"), row("b"), row("c")] }], waitingThreads: new Set(["n"]), people: [{ id: "p1", name: "Sara" }], channels: [channel("intake"), channel("pruitt", { recordId: "r1" })] });
+  const heads = e.filter((x) => x.type === "head").map((x) => (x as { label: string }).label);
+  assert.deepEqual(heads, ["Now", "Recent", "Channels", "People", "Agents"]);
+  assert.deepEqual(e.slice(0, 2).map((x) => x.key), ["nav:tasks", "nav:threads"]);
+  const now = e.slice(e.findIndex((x) => x.key === "h:now") + 1, e.findIndex((x) => x.key === "h:recent")).map((x) => x.key);
+  assert.deepEqual(now, ["c:w", "c:n"]);
+  const more = e.find((x) => x.key === "m:recent") as { label: string };
+  assert.equal(more.label, "1 more", "Recent stops at three");
+  assert.ok(e.find((x) => x.key === "g:projects"));
+  assert.ok(e.findIndex((x) => x.key === "f:me") === e.findIndex((x) => x.key === "h:faces") + 1, "the Assistant leads Agents");
+  const none = buildEntries({ ...base, groups: [] });
+  assert.ok(!none.some((x) => x.key === "h:now"), "no Now while nothing moves");
+  assert.ok(!buildEntries({ ...base, personal: true }).some((x) => x.key === "h:channels" || x.type === "action"), "a Personal Space has no channels");
   assert.ok(!buildEntries({ ...base, searching: true }).some((x) => x.key === "h:channels"), "a search with no channel match does not offer the empty section");
 });
 
 test("a closed section keeps its header and drops its rows", () => {
   const e = buildEntries({ ...base, closed: new Set(["recent" as const]) });
   assert.ok(e.some((x) => x.key === "h:recent"));
-  assert.ok(!e.some((x) => x.type === "chat"));
+  const recentOpen = buildEntries(base).filter((x) => x.type === "chat").length;
+  assert.ok(e.filter((x) => x.type === "chat").length < recentOpen);
   assert.ok(e.some((x) => x.type === "face"));
 });
 
@@ -129,14 +128,3 @@ test("a local row is first in Today, marked local, with its own idempotency key"
   assert.equal(splitChannels([channel("p", { recordId: "r" })]).projects.length, 1);
 });
 
-test("on a phone Needs you lists at most three rows, then Show all N; a desktop lists every one it has and no such row", () => {
-  const seven = ["n1", "n2", "n3", "n4", "n5", "n6", "n7"].map((id) => need(id, "approve"));
-  const phone = buildEntries({ ...base, needs: seven, needsTotal: 7, needsLimit: 3 });
-  assert.deepEqual(phone.filter((x) => x.type === "need").map((x) => x.key), ["n:n1", "n:n2", "n:n3"]);
-  const more = phone.find((x) => x.key === "m:needs");
-  assert.ok(more && more.type === "more" && more.label === "Show all 7" && more.to === "needs");
-  const desk = buildEntries({ ...base, needs: seven, needsTotal: 7 });
-  assert.equal(desk.filter((x) => x.type === "need").length, 7);
-  assert.ok(!desk.some((x) => x.key === "m:needs"));
-  assert.ok(!buildEntries({ ...base, needs: seven.slice(0, 2), needsTotal: 2, needsLimit: 3 }).some((x) => x.key === "m:needs"), "nothing hidden, no row");
-});

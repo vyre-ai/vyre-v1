@@ -77,7 +77,10 @@ function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: Resour
   // owning the thing is owning it; for a create (no id yet) it is owning the container or any container above it: the Space owner can create anywhere in the Space, a member in a record they own
   // an owner's assistant acts with its owner's access to what the owner owns, up to Use: "summarize my inbox" works for the person whose mailbox it is, for no one else's. Manage stays with the person.
   // Only mailboxes so far; another kind of private thing joins here when its owner's assistant is decided.
-  const viaOwner = p.kind === "agent" && res.type === "mailbox" && res.id !== "" && req.actingFor !== undefined && res.owner_id === req.actingFor && rankOf(req.action.level) <= rankOf("use");
+  // A Mine Vault folder is its person's alone (a private root): an agent reaches what is in it only when it acts for that person, up to Use, which is how a chat reads that person's own AI account.
+  const root = chain[chain.length - 1];
+  const viaMine = p.kind === "agent" && (res.type === "vault_item" || res.type === "vault_folder") && res.id !== "" && req.actingFor !== undefined && root !== undefined && root.type === "vault_folder" && root.parent_id === null && root.owner_id === req.actingFor && rankOf(req.action.level) <= rankOf("use");
+  const viaOwner = (p.kind === "agent" && res.type === "mailbox" && res.id !== "" && req.actingFor !== undefined && res.owner_id === req.actingFor && rankOf(req.action.level) <= rankOf("use")) || viaMine;
   const isOwner = res.id === "" ? chain.some((r) => r.owner_id === p.id) : res.owner_id === p.id || viaOwner;
   // rule 2: grants on the resource, an ancestor, or the whole type
   const need = rankOf(req.action.level);
@@ -129,6 +132,17 @@ function intersect(scopes: Scope[]): Scope {
   return { level: LEVEL_BY_RANK[level]!, rowFilter: filters.length === 0 ? null : filters.length === 1 ? filters[0]! : { op: "and", args: filters }, hiddenFields: [...hidden], labelCeiling: ceiling };
 }
 
+/** The provider name an outside agent runs under. Vyre cannot see what model is behind it, whatever the client says, so it reads as the strictest provider a policy names unless the policy names it. */
+export const OUTSIDE_PROVIDER = "outside";
+
+/** The highest label a policy lets this provider see. An unnamed provider gets the default, and an outside agent never gets more than the least any provider gets. */
+export function providerMax(p: { allow: Readonly<Record<string, number>>; defaultMax?: number | undefined }, provider: string): number {
+  const named = p.allow[provider];
+  if (named !== undefined) return named;
+  if (provider !== OUTSIDE_PROVIDER) return p.defaultMax ?? Infinity;
+  return Math.min(...Object.values(p.allow), p.defaultMax ?? Infinity);
+}
+
 export function authorize(snap: AccessSnapshot, req: Req): Decision {
   const steps: Step[] | null = req.explain ? [] : null;
   const me = snap.info(req.principal);
@@ -142,7 +156,7 @@ export function authorize(snap: AccessSnapshot, req: Req): Decision {
     if (!a || a.p.kind !== "person") return denied(snap, "agent_needs_actor", name, steps);
     others = [a];
   } else {
-    if (kind === "svc") {   // a Service's grants are capped by its owner's, re-checked on every call
+    if (kind === "svc" || (kind === "actor" && me.p.owner)) {   // a Service's grants, and an outside actor's, are capped by its owner's, re-checked on every call. A visitor (act_anon) has no owner and no grants to cap.
       const o = me.p.owner ? snap.info(me.p.owner) : null;
       if (!o) return denied(snap, "not_a_member", name, steps);
       others = [o];
@@ -169,11 +183,15 @@ export function authorize(snap: AccessSnapshot, req: Req): Decision {
   let label = res.label;
   if (req.fields) for (const f of req.fields) { const fl = snap.fieldLabel(res.type, f); if (fl > label) label = fl; }
 
+  // An agent holds only its own role's permissions, never more through its person or a group (ARCH 4.5: agents never hold Owner or Admin, nor what only they carry). Building Journeys,
+  // record types or Space Automations takes a role that carries it, given to the agent by a person.
   const first = evalSubject(snap, me, req, res, chain, label, steps);
-  if (typeof first === "string") return denied(snap, first, name, steps);
-  let scope: Scope = first;
+  // an agent acting for a person may send from whatever that person may send from: on a mailbox or a number, at Use (the level a send asks for, reading stays as it is), the person's access is the ceiling in place of a grant of the agent's own
+  const sendsAs = kind === "agent" && others !== null && (res.type === "mailbox" || res.type === "number") && res.id !== "" && req.action.level === "use" && first === "no_grant";
+  if (typeof first === "string" && !sendsAs) return denied(snap, first, name, steps);
+  let scope: Scope = typeof first === "string" ? ownerScope(0) : first;
   if (others) {
-    const all: Scope[] = [first];
+    const all: Scope[] = typeof first === "string" ? [] : [first];
     for (const o of others) {
       const r = evalSubject(snap, o, req, res, chain, label, steps);
       if (typeof r === "string") return denied(snap, r, o.p.name ?? o.p.id, steps);
@@ -187,7 +205,7 @@ export function authorize(snap: AccessSnapshot, req: Req): Decision {
   for (let i = 0; i < pol.length; i++) {
     const p = pol[i]!;
     if (p.kind === "provider_label") {
-      if (req.provider && label > (p.allow[req.provider] ?? p.defaultMax ?? Infinity)) return denied(snap, "provider_label", name, steps);
+      if (req.provider && label > providerMax(p, req.provider)) return denied(snap, "provider_label", name, steps);
     } else if (p.kind === "spend") {
       if (p.principalKinds && !p.principalKinds.includes(kind)) continue;
       const used = req.spendMicros?.[p.meter];

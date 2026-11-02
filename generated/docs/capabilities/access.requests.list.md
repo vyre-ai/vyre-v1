@@ -40,7 +40,7 @@ type Out = {
       id: string;
       requester: string;
       resource: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       level: "view" | "use" | "edit" | "manage";
@@ -80,7 +80,7 @@ type Out = {
         "id": "arq_a1b2c3",
         "level": "view",
         "note": "example",
-        "requester": "usr_a1b2c3",
+        "requester": "example",
         "resource": {
           "id": "rec_a1b2c3",
           "type": "space"

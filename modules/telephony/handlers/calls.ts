@@ -8,8 +8,9 @@
 // DECISION: decline by one person marks that person in the call's meta; with toVoicemail the call moves to voicemail, otherwise it is missed once nobody else is left ringing.
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
-  bad, callMeta, callOut, ensure, isId, liveCall, liveNumber, list, newId, numOrNull, num, obj, pageOf, paging, parseJson, partyOf, patch, refuse, rowsOf, setMeta, str, strOrNull, text, phone, strOrUndef, keyOf,
+  bad, callMeta, callOut, ensure, isId, liveCall, liveNumber, seenCall, seesCall, list, newId, numOrNull, num, obj, pageOf, paging, parseJson, partyOf, patch, refuse, rowsOf, setMeta, str, strOrNull, text, phone, strOrUndef, keyOf,
 } from "../projections.ts";
+import { agentsMaySend } from "../projections.ts";
 import type { Party, Row, TelCtx } from "../projections.ts";
 
 const live = (r: Row): boolean => r.deleted_at === null || r.deleted_at === undefined;
@@ -50,6 +51,7 @@ export async function linkCall(ctx: TelCtx, row: Row, address: string, preview: 
 
 export async function dial(ctx: TelCtx, input: { numberId: string; to: string; contactId?: string; record?: boolean; idempotencyKey: string }) {
   ensure(ctx);
+  await agentsMaySend(ctx);
   const key = keyOf(ctx, input);
   if (!isId("num", input.numberId)) bad(ctx, "Number id is not valid.");
   const to = phone(ctx, input.to, "The number to call");
@@ -93,6 +95,14 @@ export async function dial(ctx: TelCtx, input: { numberId: string; to: string; c
 
 // ---- answer, decline, hangup, hold
 
+/** Only someone a call rings for may answer it or turn it away. */
+function mustRingFor(ctx: TelCtx, row: Row, who: Party): void {
+  const ringing = parseJson<Party[]>(callMeta(ctx, str(row, "id")).ringing, []);
+  if (ringing.length > 0 && !ringing.some((p) => p.kind === "group" || (p.kind === who.kind && p.id === who.id))) {
+    throw fail("permission.no_grant", ctx.trace.traceId, { message: "This call is not ringing for you." });
+  }
+}
+
 export async function answer(ctx: TelCtx, input: { callId: string }) {
   ensure(ctx);
   const row = liveCall(ctx, callId(ctx, input.callId));
@@ -100,10 +110,7 @@ export async function answer(ctx: TelCtx, input: { callId: string }) {
   if (str(row, "state") !== "ringing") refuse(ctx, "This call is not ringing.");
   if (str(row, "direction") !== "in") refuse(ctx, "You placed this call; it connects when the other person answers.");
   const who = partyOf(ctx);
-  const ringing = parseJson<Party[]>(callMeta(ctx, str(row, "id")).ringing, []);
-  if (ringing.length > 0 && !ringing.some((p) => p.kind === "group" || (p.kind === who.kind && p.id === who.id))) {
-    throw fail("permission.no_grant", ctx.trace.traceId, { message: "This call is not ringing for you." });
-  }
+  mustRingFor(ctx, row, who);
   patch(ctx, "telephony_call", str(row, "id"), { state: "answered", answeredAt: ctx.now(), handledBy: JSON.stringify(who) });
   const base = eventBase(row);
   ctx.emit("call.started", `entity/${base.callId}`, base);
@@ -116,6 +123,7 @@ export async function decline(ctx: TelCtx, input: { callId: string; toVoicemail?
   if (input.toVoicemail !== undefined && typeof input.toVoicemail !== "boolean") bad(ctx, "toVoicemail is true or false.");
   if (str(row, "state") !== "ringing" || str(row, "direction") !== "in") refuse(ctx, "Only a call that is ringing can be declined.");
   const who = partyOf(ctx);
+  mustRingFor(ctx, row, who);
   const meta = callMeta(ctx, str(row, "id"));
   const declined = parseJson<Party[]>(meta.declined, []);
   if (!declined.some((p) => p.kind === who.kind && p.id === who.id)) declined.push(who);
@@ -132,7 +140,7 @@ export async function decline(ctx: TelCtx, input: { callId: string; toVoicemail?
 
 export async function hangup(ctx: TelCtx, input: { callId: string }) {
   ensure(ctx);
-  const row = liveCall(ctx, callId(ctx, input.callId));
+  const row = seenCall(ctx, callId(ctx, input.callId));
   if (!["ringing", "answered"].includes(str(row, "state"))) refuse(ctx, "This call already ended.");
   if (strOrNull(row, "twilioSid")) await ctx.call("twilio.call.update", { sid: str(row, "twilioSid"), action: "hangup", idempotencyKey: `tel:${str(row, "id")}:hangup` });
   const answered = numOrNull(row, "answeredAt") !== null || str(row, "direction") === "out";
@@ -141,7 +149,7 @@ export async function hangup(ctx: TelCtx, input: { callId: string }) {
 
 export async function hold(ctx: TelCtx, input: { callId: string; hold: boolean }) {
   ensure(ctx);
-  const row = liveCall(ctx, callId(ctx, input.callId));
+  const row = seenCall(ctx, callId(ctx, input.callId));
   if (typeof input.hold !== "boolean") bad(ctx, "hold is true or false.");
   if (str(row, "state") !== "answered") refuse(ctx, "Only a call in progress can be put on hold.");
   const meta = callMeta(ctx, str(row, "id"));
@@ -167,7 +175,7 @@ async function voiceUrlOf(ctx: TelCtx, row: Row): Promise<string> {
 
 export async function transfer(ctx: TelCtx, input: { callId: string; to: { kind: string; id: string }; mode: string }) {
   ensure(ctx);
-  const row = liveCall(ctx, callId(ctx, input.callId));
+  const row = seenCall(ctx, callId(ctx, input.callId));
   const to = obj(input.to);
   if (to.kind !== "person" && to.kind !== "agent") refuse(ctx, "A call can be transferred to a teammate or an agent.");
   if (!isId(to.kind === "person" ? "usr" : "agt", to.id)) bad(ctx, "The person or agent to transfer to has an id that is not valid.");
@@ -190,7 +198,7 @@ export async function transfer(ctx: TelCtx, input: { callId: string; to: { kind:
 
 export async function record(ctx: TelCtx, input: { callId: string; action: string; consent?: { announced: boolean; confirmedBy?: string } }) {
   ensure(ctx);
-  const row = liveCall(ctx, callId(ctx, input.callId));
+  const row = seenCall(ctx, callId(ctx, input.callId));
   if (input.action !== "start" && input.action !== "stop") bad(ctx, "Recording starts or stops.");
   if (str(row, "state") !== "answered") refuse(ctx, "Only a call in progress can be recorded.");
   const sid = strOrNull(row, "twilioSid");
@@ -199,7 +207,8 @@ export async function record(ctx: TelCtx, input: { callId: string; action: strin
   const on = num(meta, "recording") === 1;
   if (input.action === "stop") {
     if (!on) refuse(ctx, "This call is not being recorded.");
-    if (strOrNull(meta, "recordingSid")) await ctx.call("twilio.recording.stop", { callSid: sid as string, recordingSid: str(meta, "recordingSid"), idempotencyKey: `tel:${str(row, "id")}:recstop:${ctx.now()}` });
+    // a recording that began with the call (dial, or the number's announce policy) has no Sid here: Twilio names it by call. Saying stopped without asking would leave it recording.
+    await ctx.call("twilio.recording.stop", { callSid: sid as string, recordingSid: strOrNull(meta, "recordingSid") ?? "Twilio.CURRENT", idempotencyKey: `tel:${str(row, "id")}:recstop:${ctx.now()}` });
     setMeta(ctx, str(row, "id"), { recording: 0 });
     ctx.emit("call.recording_changed", `entity/${str(row, "id")}`, { callId: str(row, "id"), recording: false, consentLogged: num(row, "consentLogged") === 1 });
     return { recording: false, consentLogged: num(row, "consentLogged") === 1 };
@@ -225,7 +234,7 @@ export async function callList(ctx: TelCtx, input: { numberId?: string; contactI
   const { cursor, limit } = paging(ctx, obj(input));
   if (input.direction !== undefined && input.direction !== "in" && input.direction !== "out") bad(ctx, "Direction is in or out.");
   if (input.state !== undefined && !["ringing", "answered", "voicemail", "completed", "missed", "failed"].includes(input.state)) bad(ctx, "That call state is not known.");
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM telephony_call`)).filter((r) => live(r)
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM telephony_call`)).filter((r) => live(r) && seesCall(ctx, r)
     && (input.numberId === undefined || str(r, "numberId") === input.numberId) && (input.contactId === undefined || str(r, "contactId") === input.contactId)
     && (input.direction === undefined || str(r, "direction") === input.direction) && (input.state === undefined || str(r, "state") === input.state));
   rows.sort((a, b) => num(b, "startedAt") - num(a, "startedAt") || str(b, "id").localeCompare(str(a, "id")));
@@ -235,7 +244,7 @@ export async function callList(ctx: TelCtx, input: { numberId?: string; contactI
 
 export async function callGet(ctx: TelCtx, input: { callId: string }) {
   ensure(ctx);
-  const row = liveCall(ctx, callId(ctx, input.callId));
+  const row = seenCall(ctx, callId(ctx, input.callId));
   const transcript = strOrNull(row, "transcript");
   return { call: callOut(row), ...(transcript ? { transcript } : {}) };
 }
@@ -243,7 +252,7 @@ export async function callGet(ctx: TelCtx, input: { callId: string }) {
 export async function callLogTask(ctx: TelCtx, input: { callId: string; title: string; assigneeId?: string; dueAt?: number; idempotencyKey: string }) {
   ensure(ctx);
   const key = keyOf(ctx, input);
-  const row = liveCall(ctx, callId(ctx, input.callId));
+  const row = seenCall(ctx, callId(ctx, input.callId));
   if (typeof input.title !== "string" || input.title.trim() === "") bad(ctx, "Give the task a title.");
   if (input.assigneeId !== undefined && !isId("usr", input.assigneeId)) bad(ctx, "The assignee id is not valid.");
   if (input.dueAt !== undefined && !Number.isSafeInteger(input.dueAt)) bad(ctx, "The due time is not valid.");
@@ -258,7 +267,7 @@ export async function callLogTask(ctx: TelCtx, input: { callId: string; title: s
 
 export async function callAttachSummary(ctx: TelCtx, input: { callId: string; transcript?: string; summary?: string }) {
   ensure(ctx);
-  const row = liveCall(ctx, callId(ctx, input.callId));
+  const row = seenCall(ctx, callId(ctx, input.callId));
   if (input.transcript === undefined && input.summary === undefined) bad(ctx, "Send a transcript, a summary or both.");
   for (const [k, v] of [["transcript", input.transcript], ["summary", input.summary]] as const) if (v !== undefined && (typeof v !== "string" || v === "")) bad(ctx, `The ${k} is text.`);
   const fields: Record<string, string> = {};

@@ -1,7 +1,7 @@
 // One handler per automations capability. Definitions, versions, Groups, alerts, followers, webhook and Promote live in defs.ts; Runs and triggers in triggers.ts. An OpenAPI draft lives in draft-connector.ts.
 import {
   alertsGet, alertsSet, create, followersAdd, followersRemove, get, groupsCreate, groupsDelete, groupsList, groupsRename, list, makePersonalCopy, move, previewPromote, promote, remove,
-  restoreVersion, setEnabled, stepsList, triggersList, undelete, update, validate, versions, webhookGet, webhookRotate,
+  restoreVersion, senders, setEnabled, stepsList, triggersList, undelete, update, validate, versions, webhookGet, webhookRotate,
 } from "./defs.ts";
 import { accountPicks } from "./accounts.ts";
 import { draftConnector } from "./draft-connector.ts";
@@ -51,6 +51,7 @@ export const handlers = {
   "automations.followers.add": followersAdd,
   "automations.followers.remove": followersRemove,
   "automations.get": get,
+  "automations.senders": senders,
   "automations.groups.create": groupsCreate,
   "automations.groups.delete": groupsDelete,
   "automations.groups.list": groupsList,
@@ -80,7 +81,9 @@ export const handlers = {
   "automations.vault_usage": vaultUsage,
   "automations.connector_levels": connectorLevels,
   "automations.read_docs": readDocs,
+  "automations.read_link": readDocs,
   "automations.connector_card": connectorCard,
+  "automations.code_reach": () => ({ ok: true }),
   "automations.validate": validate,
   "automations.versions": versions,
   "automations.webhook_url.get": webhookGet,

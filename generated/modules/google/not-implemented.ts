@@ -5,6 +5,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "google.access_log": async (ctx) => { throw new VyreErr(notImplemented("google.access_log", ctx.trace)); },
   "google.calendar.create_event": async (ctx) => { throw new VyreErr(notImplemented("google.calendar.create_event", ctx.trace)); },
   "google.calendar.delete_event": async (ctx) => { throw new VyreErr(notImplemented("google.calendar.delete_event", ctx.trace)); },
   "google.calendar.free_busy": async (ctx) => { throw new VyreErr(notImplemented("google.calendar.free_busy", ctx.trace)); },
@@ -17,6 +18,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "google.calendar.watch": async (ctx) => { throw new VyreErr(notImplemented("google.calendar.watch", ctx.trace)); },
   "google.directory.import": async (ctx) => { throw new VyreErr(notImplemented("google.directory.import", ctx.trace)); },
   "google.directory.list": async (ctx) => { throw new VyreErr(notImplemented("google.directory.list", ctx.trace)); },
+  "google.directory.reconcile": async (ctx) => { throw new VyreErr(notImplemented("google.directory.reconcile", ctx.trace)); },
   "google.docs.batch_update": async (ctx) => { throw new VyreErr(notImplemented("google.docs.batch_update", ctx.trace)); },
   "google.docs.create_document": async (ctx) => { throw new VyreErr(notImplemented("google.docs.create_document", ctx.trace)); },
   "google.docs.get_document": async (ctx) => { throw new VyreErr(notImplemented("google.docs.get_document", ctx.trace)); },
@@ -38,12 +40,15 @@ export const handlers: Handlers<HandlerCtx> = {
   "google.drive.trash_file": async (ctx) => { throw new VyreErr(notImplemented("google.drive.trash_file", ctx.trace)); },
   "google.drive.upload_file": async (ctx) => { throw new VyreErr(notImplemented("google.drive.upload_file", ctx.trace)); },
   "google.drive.watch_changes": async (ctx) => { throw new VyreErr(notImplemented("google.drive.watch_changes", ctx.trace)); },
+  "google.dwd.check_key": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.check_key", ctx.trace)); },
+  "google.dwd.connect_all": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.connect_all", ctx.trace)); },
   "google.dwd.disable": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.disable", ctx.trace)); },
   "google.dwd.map_member": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.map_member", ctx.trace)); },
   "google.dwd.members": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.members", ctx.trace)); },
   "google.dwd.my_account": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.my_account", ctx.trace)); },
   "google.dwd.probe": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.probe", ctx.trace)); },
   "google.dwd.scopes": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.scopes", ctx.trace)); },
+  "google.dwd.set_data": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.set_data", ctx.trace)); },
   "google.dwd.set_excluded": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.set_excluded", ctx.trace)); },
   "google.dwd.setup": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.setup", ctx.trace)); },
   "google.dwd.status": async (ctx) => { throw new VyreErr(notImplemented("google.dwd.status", ctx.trace)); },

@@ -37,6 +37,8 @@ type Out = {
   agent: {
     agentId: string;
     name: string;
+    kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -104,6 +106,7 @@ type Out = {
       "fallbackModel": "example",
       "folderId": "fld_a1b2c3",
       "hasComputer": true,
+      "kind": "assistant",
       "lastActiveAt": 1760000000000,
       "limits": {
         "dayCostMicros": 1,
@@ -120,6 +123,7 @@ type Out = {
       "pausedBy": "example",
       "pausedReason": "example",
       "role": "example",
+      "runtime": "vyre",
       "status": "awake",
       "switchOnLimit": true,
       "teammateOf": "prj_a1b2c3",

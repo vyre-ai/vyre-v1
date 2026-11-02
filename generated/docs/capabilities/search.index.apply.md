@@ -1,6 +1,6 @@
 # search.index.apply
 
-Index consumer: apply one changed entity row to full text and vectors (durable cursor; never sees end-to-end rows)
+Index consumer: apply one changed entity row to full text and vectors (durable cursor; never sees private rows)
 
 | | |
 |---|---|

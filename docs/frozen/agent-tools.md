@@ -8,9 +8,9 @@ ARCH 3.7 output 6 and 6.7. Source of truth: `generated/tool-index.json` and `gen
 - Agent parity: every capability a principal screen query or action reaches is agent-visible or wrapped by an `agentTools` entry. The generator rejects a manifest that breaks this; the test re-checks it from the manifests (all principal screens, more than 500 references).
 - Pre-auth capabilities (anonymous and pending callers, 11 in all) are never agent-visible.
 - Four capabilities set `surfaces.agent: false`, so no MCP tool exists for them: `automations.http_read` and `automations.http_send` (the host side of an Automation's HTTP step), `engine.step_turn` (its AI step) and `access.provider_check` (the label check of the records an AI step read). An agent has its own tools for the same ends. `contracts/agent-optout.json` is not needed. 255 principal capabilities have no MCP surface; none is reached by a screen.
-- A tool with `deferred: true` is found with `tool_search` and called after its schema is returned. The default listed toolset is the 63 tools below (about 60, plus or minus 5). The `engineer` toolset is never in the default list; it needs `engineer.mcp`.
+- A tool with `deferred: true` is found with `tool_search` and called after its schema is returned. The default listed toolset is the 65 tools below (about 60, plus or minus 5). The `engineer` toolset is never in the default list; it needs `engineer.mcp`.
 
-## Default listed toolset (63 tools)
+## Default listed toolset (65 tools)
 
 | Tool | Toolset | Summary |
 |---|---|---|
@@ -43,6 +43,8 @@ ARCH 3.7 output 6 and 6.7. Source of truth: `generated/tool-index.json` and `gen
 | `vault_request` | vault | Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status |
 | `automations_list` | automations | List Automations by section (Personal, Shared with me, Space), folder and Group |
 | `automations_create` | automations | Create an Automation; it starts Personal |
+| `artifact_publish` | sites | THE way to show something you made: publish it privately to a link that opens in a tab. Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link |
+| `read_link` | automations | Open a web page from the server and read it as plain text, with its links. A link you put together yourself waits for the person |
 | `automations_run` | automations | Run an Automation now with a payload (the manual trigger or a button) |
 | `journeys_start` | automations | Start a Journey on a subject record: creates the Journey record with its channel and folder and enters the first stage |
 | `chat_post` | chats | Post a message in a thread or channel; routes to the lead agent or @mentioned agents and records mentions |
@@ -56,6 +58,7 @@ ARCH 3.7 output 6 and 6.7. Source of truth: `generated/tool-index.json` and `gen
 | `mail_send` | inbox | Send an email through the single send API: caps per sender, send windows, throttling, suppression, consent, trace id header, agent footer line |
 | `calendar_list_events` | inbox | Events in a time range for chosen calendars (Day, Week and Month views) |
 | `calendar_create_event` | inbox | Create an event (drag in 15 minute steps); the provider invites attendees |
+| `artifact_publish` | sites | Put a page, dashboard or document on a private link people in the Space can open |
 | `sites_build` | sites | Build the site from its repo (the site agent runs in the repo); test and verify |
 | `sites_tables` | sites | List site tables of a site |
 | `sites_deploy` | sites | Deploy a build to the always-password-protected staging URL |

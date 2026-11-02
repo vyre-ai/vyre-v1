@@ -63,6 +63,53 @@ const EXTERNAL_LINKS: &str = r#"(function () {
   }, true);
 })();"#;
 
+/// Two animation frames after the page starts drawing, tell the shell. rAF stops in a window that cannot be seen, so the timer keeps this from depending on it.
+const FIRST_FRAME: &str = r#"(function () {
+  var sent = false;
+  function go() {
+    if (sent) return;
+    sent = true;
+    var core = window.__TAURI__ && window.__TAURI__.core;
+    if (core) core.invoke("first_frame").catch(function () {});
+  }
+  requestAnimationFrame(function () { requestAnimationFrame(go); });
+  setTimeout(go, 400);
+})();"#;
+
+/// A webview in a hidden window draws nothing, so a window shown when the page finishes loading can open on an empty white frame. On a Mac the window goes on screen almost
+/// transparent, which lets the page draw, and comes up once a frame of the page is really there (FIRST_FRAME). It is never left that way: see the thread in setup.
+#[cfg(target_os = "macos")]
+fn set_window_alpha(window: &tauri::WebviewWindow, alpha: f64) {
+    if let Ok(ns_window) = window.ns_window() {
+        let ns_window = ns_window as *mut objc2::runtime::AnyObject;
+        // SAFETY: ns_window is the live NSWindow of this window, and every caller is on the main thread.
+        unsafe {
+            let _: () = objc2::msg_send![ns_window, setAlphaValue: alpha];
+        }
+    }
+}
+
+/// Almost, not quite, 0: a fully transparent window counts as occluded, and WebKit does not draw for it.
+#[cfg(target_os = "macos")]
+const WAITING_ALPHA: f64 = 0.01;
+
+/// The window at full strength. Idempotent, and harmless where the window was never transparent.
+fn raise_main(app: &AppHandle) {
+    #[cfg(target_os = "macos")]
+    if let Some(w) = app.get_webview_window("main") {
+        let on_main = w.clone();
+        let _ = app.run_on_main_thread(move || set_window_alpha(&on_main, 1.0));
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
+}
+
+/// The page has drawn: the window can come up.
+#[tauri::command]
+fn first_frame(app: AppHandle) {
+    raise_main(&app);
+}
+
 fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
@@ -160,7 +207,9 @@ pub fn run() {
         .on_page_load(|webview, payload| {
             if let tauri::webview::PageLoadEvent::Finished = payload.event() {
                 // The window starts hidden (tauri.conf.json): the page's head script has by now put the saved skin and mode on the root, so the first frame the person sees is already themed.
+                // On a Mac it is still almost transparent here, until FIRST_FRAME reports a drawn frame.
                 let _ = webview.window().show();
+                let _ = webview.eval(FIRST_FRAME);
                 let _ = webview.eval(PAGE_PROBE);
                 let _ = webview.eval(EXTERNAL_LINKS);
                 if std::env::var("VYRE_SHELL_BANNER").is_ok() {
@@ -182,6 +231,7 @@ pub fn run() {
         })
         .manage(AppState { sidecar: shared.clone(), personal: personal.clone(), server: server.clone(), links: Mutex::new(commands::LinkHandoff::default()), native: native::NativeState::default() })
         .invoke_handler(tauri::generate_handler![
+            first_frame,
             commands::desktop_info,
             commands::ensure_personal_space,
             commands::ensure_mac_server,
@@ -205,7 +255,12 @@ pub fn run() {
         .setup(move |app| {
             let handle = app.handle().clone();
 
-            // The window starts hidden so it never shows an unthemed frame (see on_page_load). If the page never finishes loading, it still comes forward after a few seconds.
+            #[cfg(target_os = "macos")]
+            if let Some(w) = app.get_webview_window("main") {
+                set_window_alpha(&w, WAITING_ALPHA);
+            }
+
+            // The window starts hidden so it never shows an unthemed frame (see on_page_load). If the page never finishes loading, it still comes forward after a few seconds, at full strength.
             {
                 let late = app.handle().clone();
                 std::thread::spawn(move || {
@@ -215,6 +270,7 @@ pub fn run() {
                             let _ = w.show();
                         }
                     }
+                    raise_main(&late);
                 });
             }
 

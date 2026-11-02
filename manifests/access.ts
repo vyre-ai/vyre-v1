@@ -60,7 +60,7 @@ const reviewRow = t.obj({
   id: t.id('rvw'), state: t.enm('open', 'closed'), openedAt: t.ts(), closedAt: t.opt(t.ts()), items: t.int({ minimum: 0 }), decided: t.int({ minimum: 0 }),
 });
 const requestRow = t.obj({
-  id: t.id('arq'), requester: id.user, resource: resourceRef, level, note: t.opt(t.str()),
+  id: t.id('arq'), requester: t.str(), resource: resourceRef, level, note: t.opt(t.str()),
   state: t.enm('waiting', 'granted', 'declined'), taskId: id.task, at: t.ts(),
 });
 
@@ -84,9 +84,9 @@ export default defineManifest({
     ev('folder.shared', 'A folder was shared or unshared; everything in it follows', { p: { folderId: id.folder, subject: subjectRef, level: t.opt(level), removed: t.bool() }, subject: ['folder', '/folderId'], retention: 'audit' }),
     // a folder is a Files folder (fld_) or a Vault folder (vfd_): both kinds move items on this one event
     ev('item.moved', 'An item moved into or out of a folder', { p: { resource: resourceRef, fromFolderId: t.opt(t.union(id.folder, id.vaultFolder)), toFolderId: t.opt(t.union(id.folder, id.vaultFolder)) }, subject: ['entity', '/resource/id'] }),
-    ev('access.requested', 'Someone asked for access to a resource', { p: { requestId: t.id('arq'), resource: resourceRef, level, requester: id.user, taskId: id.task }, subject: ['entity', '/requestId'], notify: 'access.requested', trigger: { title: 'Someone asks for access' } }),
-    ev('access.granted', 'An access request was approved', { p: { requestId: t.id('arq'), resource: resourceRef, level, requester: id.user, grantId: id.grant }, subject: ['entity', '/requestId'], notify: 'access.decided', retention: 'audit' }),
-    ev('access.declined', 'An access request was declined; the note goes back to the requester', { p: { requestId: t.id('arq'), resource: resourceRef, requester: id.user, note: t.opt(t.str()) }, subject: ['entity', '/requestId'], notify: 'access.decided' }),
+    ev('access.requested', 'Someone asked for access to a resource', { p: { requestId: t.id('arq'), resource: resourceRef, level, requester: t.str(), taskId: id.task }, subject: ['entity', '/requestId'], notify: 'access.requested', trigger: { title: 'Someone asks for access' } }),
+    ev('access.granted', 'An access request was approved', { p: { requestId: t.id('arq'), resource: resourceRef, level, requester: t.str(), grantId: id.grant, threadId: t.opt(id.thread), agentId: t.opt(id.agent) }, subject: ['entity', '/requestId'], notify: 'access.decided', retention: 'audit' }),
+    ev('access.declined', 'An access request was declined; the note goes back to the requester', { p: { requestId: t.id('arq'), resource: resourceRef, requester: t.str(), note: t.opt(t.str()), threadId: t.opt(id.thread), agentId: t.opt(id.agent) }, subject: ['entity', '/requestId'], notify: 'access.decided' }),
     ev('access_review.opened', 'A quarterly access review opened and made its tasks', { p: { reviewId: t.id('rvw'), items: t.int() }, subject: ['entity', '/reviewId'] }),
     ev('access_review.closed', 'An access review closed', { p: { reviewId: t.id('rvw'), kept: t.int(), removed: t.int() }, subject: ['entity', '/reviewId'], retention: 'audit' }),
     ev('view_as.started', 'An admin previewed what another person sees (audited)', { p: { target: pid, expiresAt: t.ts() }, subject: ['entity', '/target'], retention: 'audit' }),
@@ -126,6 +126,10 @@ export default defineManifest({
     write('access.share', 'Give a person, group, role, agent or automation a level on a resource (flows down; folders cover their items)', {
       ...V, idem: 'key', in: { resource: resourceRef, subject: subjectRef, level, conditions: t.opt(conditions), source: t.opt(t.str({ description: "Source tag, for example 'project:prj_a1b2c3'; removing the member revokes by source" })), export: t.opt(t.bool()), reshare: t.opt(t.bool()) },
       out: { grant: grantRow }, emits: ['grant.created', 'access.changed', 'folder.shared'], audit: 'always', tool: 'meta', errors: ['permission.not_contained', 'validation.precondition_failed'], team: true,
+    }),
+    write('access.automation_senders', "A person's press gives a Space Automation use of the mailboxes and numbers its send steps name, inside that person's own access, and takes back what no step names any more", {
+      ...V, in: { automationId: id.automation, give: t.arr(resourceRef), keep: t.arr(resourceRef) }, out: { granted: t.arr(grantRow), revoked: t.int({ minimum: 0 }), refused: t.arr(resourceRef) },
+      emits: ['grant.created', 'grant.revoked', 'access.changed'], audit: 'always',
     }),
     write('access.unshare', 'Remove a grant, or every grant of one source on a resource', { ...V, in: { grantId: t.opt(id.grant), resource: t.opt(resourceRef), subject: t.opt(subjectRef), source: t.opt(t.str()) }, out: { revoked: t.int({ minimum: 0 }) }, emits: ['grant.revoked', 'access.changed', 'folder.shared'], audit: 'always', tool: 'meta', team: true }),
     read('access.shares_of', 'Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry; for a record type or a record also who it is open to and who may export', { ...V, in: { resource: resourceRef }, out: { shares: t.arr(t.obj({ grant: grantRow, through: t.enm('direct', 'group', 'role', 'folder', 'owner') })), audience: t.opt(audience), exporters: t.opt(exporters), inherits: t.opt(t.str({ description: 'The container this resource follows (the record type of a record), when it follows it' })), outside: t.opt(t.bool()), can: t.opt(rights) }, tool: 'meta' }),
@@ -216,7 +220,7 @@ export default defineManifest({
   ],
 
   blocks: [
-    block('access_request', { requestId: t.id('arq'), requester: id.user, resource: resourceRef, resourceTitle: t.str(), level, note: t.opt(t.str()), state: t.enm('waiting', 'granted', 'declined') },
+    block('access_request', { requestId: t.id('arq'), requester: t.str(), resource: resourceRef, resourceTitle: t.str(), level, note: t.opt(t.str()), state: t.enm('waiting', 'granted', 'declined') },
       'Access request: {{requester}} asks for {{level}} on {{resourceTitle}}. {{note}}', {
         actions: [
           { key: 'approve', label: 'Approve', cap: 'access.requests.approve', input: { requestId: '/requestId', level: '/level' } },
@@ -242,6 +246,5 @@ export default defineManifest({
 
   settings: [
     setting('access.review_every_days', 'space', 'console.access', 'Run an access review every', t.int({ minimum: 7, maximum: 365 }), 90),
-    setting('sharing.public_links', 'space', 'console.access', 'Who may make public read-only links', t.enm('off', 'admins', 'members'), 'admins', { floorable: true }),
   ],
 });

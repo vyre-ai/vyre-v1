@@ -7,8 +7,11 @@
 // One source of truth: chat_message holds the conversation. engine_messages is a mirror keyed by the SAME id (a person's message is stored under the id chat gave it, an agent reply is posted
 // to chat with the id the engine gave it as clientId), written only by the engine's own store, so the two cannot drift (a later edit is copied by the same consumer).
 // No echo: a message.received for a message the engine already holds, or one the bridge posted itself (id prefix BRIDGE_PREFIX), is never fed back to engine.receive.
+import { askedIn } from "../../../lib/asked.ts";
+import { linksIn } from "../../../lib/grants.ts";
 import { redact } from "../../../agent/src/transcript/sanitize.ts";
-import { workBlocks } from "../../../agent/src/tools/work-cards.ts";
+import { sessionWorkKey, workBlocks } from "../../../agent/src/tools/work-cards.ts";
+import { ALL_AGENTS } from "../../../lib/route.ts";
 import { sqlMessages, withMessageId, mintId } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
@@ -24,6 +27,8 @@ export interface PostBlock { type: string; v: number; data: unknown }
 export interface AgentPost {
   /** the person whose turn this is; the agent posts for them */
   actingFor?: string;
+  /** a key of the Space paid for this turn, so the reply is not on that person's account */
+  sharedKey?: boolean;
   threadId: string; body: string; blocks: PostBlock[]; mentions: RouteMention[]; clientId: string;
   via?: { routineOwner: string };
 }
@@ -39,9 +44,11 @@ export type StreamEvent =
   | { kind: "delta"; threadId: string; turnId: string; agentId: string; text: string; /** characters of the turn before this piece, so a reader who also fetched the text so far never doubles or drops a piece */ at: number }
   /** A step of the turn (a tool call or its result): what the agent is doing, for the line under its reply. Names only; no input. */
   | { kind: "step"; threadId: string; turnId: string; agentId: string; phase: "call" | "result" | "input"; id: string; name?: string; ok?: boolean; /** what the call touches, in safe words (a file name, a query): for the live line only */ detail?: string }
-  /** A piece of the thinking the provider sent. It goes only to the people who may read the thread, over the live link; it is never logged and never saved. */
-  | { kind: "thinking"; threadId: string; turnId: string; agentId: string; text: string }
-  | { kind: "end"; threadId: string; turnId: string; agentId: string; state: "done" | "failed" | "cancelled" | "waiting" }
+  /** Steps gathered to about one frame a second for the screens (live-coalesce.ts): what the fan-out sends instead of each `step`. */
+  | { kind: "steps"; threadId: string; turnId: string; agentId: string; steps: Array<{ phase: "call" | "result" | "input"; id: string; name?: string; ok?: boolean; detail?: string }> }
+  /** A piece of the thinking the provider sent. It goes only to the person whose turn it is (hole 8), over the live link; it is never logged and never saved. */
+  | { kind: "thinking"; threadId: string; turnId: string; agentId: string; text: string; asker?: string }
+  | { kind: "end"; threadId: string; turnId: string; agentId: string; state: "done" | "failed" | "cancelled" | "waiting"; /** why a failed turn failed; host_lost means the server stopped under it */ code?: string }
   | { kind: "final"; threadId: string; turnId: string; agentId: string; messageId: string | null };
 
 export interface BridgeOptions {
@@ -55,6 +62,9 @@ export interface BridgeOptions {
   /** An agent whose reply is addressed to the person whose turn it was (an @mention), so it reaches them and no agent answers it: a reviewer's verdict. */
   addressAsker?: (threadId: string, agentId: string) => boolean;
 }
+
+/** Does this agent run outside Vyre? Read as the server: an outside agent is hidden from everyone but its owner, and a teammate's message must not start a turn for it. */
+const runsOutside = (ctx: EngineCtx, agentId: string): Promise<boolean> => ctx.call("agents.get", { agentId }).then((r) => (r as { agent?: { runtime?: string } } | null)?.agent?.runtime === "outside", () => false);
 
 export interface BridgeEvent { name: string; subject?: string; payload: Record<string, unknown> }
 
@@ -82,6 +92,7 @@ export const scrub = (text: string): string => redact(text.slice(0, 600)).text.s
 /** A message carries at most this many blocks (modules/chat/projections.ts MAX_BLOCKS); the bridge keeps to it so a long turn's reply is never refused. */
 const MAX_POST_BLOCKS = 20;
 const STEP_BLOCKS: ReadonlySet<string> = new Set(["tool_call", "tool_result"]);
+const NATIVE_OUTSIDE: ReadonlySet<string> = new Set(["WebSearch", "WebFetch", "web_search", "web_fetch"]);
 
 /**
  * The blocks of one reply, fitted under the limit without losing anything a person reads. Tool steps (a call and its result) are bookkeeping: past the limit they fold into one "tool_steps" block that
@@ -109,6 +120,7 @@ export function createBridge(o: BridgeOptions): Bridge {
   const turns = new Map<string, { routineOwner: string | null }>();
   const emit = (e: StreamEvent): void => { try { o.stream?.(e); } catch { /* a live view must never fail a turn */ } };
   const askerOf = new Map<string, string>();               // threadId -> the person whose turn ran last: the agent speaks for them
+  const onSharedKey = new Set<string>();                 // threadId|agentId: the account of this agent's turn here is a key of the Space
   const chains = new Map<string, Promise<void>>();       // per thread: posts go out one after another, in the order the events arrived
   const warn = (msg: string, attrs?: Record<string, unknown>): void => o.log?.warn(msg, attrs);
 
@@ -121,7 +133,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     const prev = chains.get(threadId) ?? Promise.resolve();
     const next = prev.then(async () => {
       const asker = askerOf.get(threadId);
-      const as = (p: AgentPost): AgentPost => (asker ? { ...p, actingFor: asker } : p);
+      const as = (p: AgentPost): AgentPost => (asker ? { ...p, actingFor: asker, ...(onSharedKey.has(`${threadId}|${agentId}`) ? { sharedKey: true } : {}) } : p);
       let posted = false;
       const [first = [], ...more] = fitBlocks(post.blocks);
       try {
@@ -179,7 +191,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         writing.delete(e.turnId);
         emit({ kind: "end", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, state: "done" });
         // what the turn started (a task, a Run, a file...) goes under its reply as cards, one group
-        seg.blocks.push(...workBlocks(e.turnId));
+        seg.blocks.push(...workBlocks(e.turnId), ...workBlocks(sessionWorkKey(e.threadId, e.agentId)));
         // how long the whole turn took (thinking and writing too), for "Worked for 14s" under the reply
         if (seg.t0 !== undefined) { const last = [...seg.blocks].reverse().find((x) => x.type === "tool_result" || x.type === "tool_call"); if (last) last.data = { ...(last.data as Record<string, unknown>), turnSecs: Math.max(0, Math.round(((o.now ?? Date.now)() - seg.t0) / 1000)) }; }
         if (seg.text !== "" || seg.mentions > 0) {
@@ -193,14 +205,16 @@ export function createBridge(o: BridgeOptions): Bridge {
       }
       case "turn.failed": case "turn.cancelled": case "turn.waiting": {
         if (e.type === "turn.waiting" && e.reason !== "approval") return;
+        // a turn a dead host left has no turn.started here: who it ran for comes with the event, so the agent can still say so in the chat
+        if (e.type === "turn.failed" && e.asker) askerOf.set(e.threadId, e.asker);
         if (e.type === "turn.failed") warn("a turn failed", { threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, code: e.code, ...(e.message ? { why: scrub(e.message) } : {}) });
         const parked = e.type === "turn.waiting";
         const seg = live.get(e.turnId);
         const routineOwner = turns.get(e.turnId)?.routineOwner ?? null;
         if (!parked) { live.delete(e.turnId); turns.delete(e.turnId); }
-        const blocks = [...(seg?.blocks ?? []), ...workBlocks(e.turnId), status(e)];
+        const blocks = [...(seg?.blocks ?? []), ...workBlocks(e.turnId), ...workBlocks(sessionWorkKey(e.threadId, e.agentId)), status(e)];
         writing.delete(e.turnId);
-        emit({ kind: "end", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, state: e.type === "turn.failed" ? "failed" : e.type === "turn.cancelled" ? "cancelled" : "waiting" });
+        emit({ kind: "end", threadId: e.threadId, turnId: e.turnId, agentId: e.agentId, state: e.type === "turn.failed" ? "failed" : e.type === "turn.cancelled" ? "cancelled" : "waiting", ...(e.type === "turn.failed" ? { code: e.code } : {}) });
         enqueuePost(e.threadId, e.agentId, { threadId: e.threadId, body: seg?.text ?? "", blocks, mentions: askerMention(e.threadId, e.agentId), clientId: brgId(), ...(routineOwner ? { via: { routineOwner } } : {}) }, e.turnId);
         return;
       }
@@ -234,7 +248,7 @@ export function createBridge(o: BridgeOptions): Bridge {
           const at = seg.text.length; seg.text += t; if (ev.text !== "") emit({ kind: "delta", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: t, at });
           if (t !== ev.text) { yield { ...ev, text: t }; continue; }
         }
-        else if (ev.type === "thinking") { if (ev.text !== "") emit({ kind: "thinking", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: ev.text }); }
+        else if (ev.type === "thinking") { if (ev.text !== "") emit({ kind: "thinking", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, text: ev.text, asker: input.asker }); }
         else if (ev.type === "block" && ev.kind === "tool_input") {
           // what a call touches goes to the live line only, over the same gated link as the words: it is never saved with the reply
           const p = (ev.payload ?? {}) as { id?: unknown; detail?: unknown };
@@ -252,6 +266,8 @@ export function createBridge(o: BridgeOptions): Bridge {
           if (ev.kind === "tool_call" && id !== "") {
             const name = typeof p.name === "string" ? p.name : "";
             seg.calls?.set(id, { name, at: now });
+            // the engine's own web tools run on the vendor's side, so the Gate never sees them: the words they bring in stop outward acts all the same
+            if (NATIVE_OUTSIDE.has(name)) { try { await o.callAs?.("gate.taint.mark", { threads: [input.threadId], source: name }, input.asker); } catch (e) { warn("a web read was not marked", { threadId: input.threadId, error: e instanceof Error ? e.message : String(e) }); } }
             emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "call", id, ...(name ? { name } : {}) });
           } else if (ev.kind === "tool_result" && id !== "") {
             const call = seg.calls?.get(id);
@@ -281,7 +297,7 @@ export function createBridge(o: BridgeOptions): Bridge {
   }
 
   type ThreadGet = { thread: { kind?: string; starter?: string; agents: Array<{ agentId: string; mode: "lead" | "listen"; model?: string; accountRef?: string; watches?: unknown }> } };
-  type Row = { messageId: string; threadSeq?: number; author: { kind: string; id: string }; body: string; depth?: number; attachments?: string[]; blocks?: Array<{ type: string; data?: unknown }> };
+  type Row = { messageId: string; threadSeq?: number; author: { kind: string; id: string }; body: string; depth?: number; replyTo?: string; attachments?: string[]; blocks?: Array<{ type: string; data?: unknown }> };
 
   /**
    * What a message points at, as plain lines after its words, so the agent sees the files and links the person sent: "[Attached: brief.docx (file fil_1)]", "[Linked: Rivera Holdings (record rec_2)]".
@@ -328,7 +344,9 @@ export function createBridge(o: BridgeOptions): Bridge {
     if (got.thread.agents.length === 0) return false;   // nobody to run; the thread opens on the first message after an agent joins
     // a chat pins no model unless the person picked one for the thread: the agent's own model is then the one the turn runs and is metered on
     const own = new Map<string, string>();
+    const outside = new Set<string>();
     for (const a of got.thread.agents) {
+      if (await runsOutside(ctx, a.agentId)) { outside.add(a.agentId); continue; }
       if (a.model) continue;
       try {
         const m = ((await read("agents.get", { agentId: a.agentId })) as { agent?: { model?: string } } | null)?.agent?.model;
@@ -336,7 +354,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       } catch { /* an agent that cannot be read runs on the account's default */ }
     }
     const agents: EngineAgent[] = got.thread.agents.map((a) => ({
-      id: a.agentId, mode: a.mode, ...(a.model || own.get(a.agentId) ? { model: a.model ?? own.get(a.agentId) as string } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watching: true } : {}),
+      id: a.agentId, mode: a.mode, ...(a.model || own.get(a.agentId) ? { model: a.model ?? own.get(a.agentId) as string } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watching: true } : {}), ...(outside.has(a.agentId) ? { outside: true } : {}),
     }));
     const store = sqlMessages(ctx.db, ctx.now);
     if (store.recent(threadId, 1).length === 0) {
@@ -374,22 +392,41 @@ export function createBridge(o: BridgeOptions): Bridge {
     const got = (await reader(ctx, readAs, threadId)("chat.message.get", { threadId, messageId })) as { message: Row };
     const authorId = str(a.id) || got.message.author.id;
     const note = await pointers(reader(ctx, readAs, threadId), got.message);
+    // The only door for "asked this turn": the words a person typed, read here before the turn starts. Never the pointers, never an agent's post, never a line the server posted in a person's name.
+    if (a.kind === "person" && p["typed"] === true) {
+      try { await reader(ctx, authorId, threadId)("gate.grants.ask", { threadId, messageId, asked: askedIn(str(got.message.body)), links: linksIn(str(got.message.body)) }); }
+      catch (e) { warn("the request in a message was not read, so outward acts will ask", { threadId, messageId, error: e instanceof Error ? e.message : String(e) }); }
+    }
     const mentions = ((p["mentions"] ?? []) as RouteMention[]).map((m) => ({ kind: m.kind, id: m.id }));
+    // a reply to a person is for that person: the engine routes it past the lead
+    let replyToPerson: string | undefined;
+    if (got.message.replyTo) {
+      try {
+        const parent = ((await reader(ctx, readAs, threadId)("chat.message.get", { threadId, messageId: got.message.replyTo })) as { message: Row }).message.author;
+        if (parent.kind === "person") replyToPerson = parent.id;
+      } catch { /* the message it answers is gone: an ordinary message */ }
+    }
     const eng = engine;
     // an agent added to the chat after it was opened here (a Space agent @mentioned in a chat between people joins as a listener) is not yet known to the engine: read the chat's line-up once and let
     // the engine know the ones this message names, so the mention reaches them
     const named = mentions.filter((m) => m.kind === "agent").map((m) => m.id);
-    if (named.length > 0) {
+    // a person speaking to all the agents ("both of you") reaches every agent in the chat, so each must be known to the engine, listeners added since included
+    const toAll = a.kind !== "agent" && ALL_AGENTS.test(got.message.body);
+    if (named.length > 0 || toAll) {
       const known = new Set(eng.agents(threadId).map((a) => a.id));
-      if (named.some((id) => !known.has(id))) {
+      if (toAll || named.some((id) => !known.has(id))) {
         try {
           const now = (await reader(ctx, authorId, threadId)("threads.get", { threadId })) as ThreadGet;
-          for (const a of now.thread.agents) if (named.includes(a.agentId) && !known.has(a.agentId)) eng.engage(threadId, { id: a.agentId, mode: a.mode, ...(a.model ? { model: a.model } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}) });
+          for (const a of now.thread.agents) {
+            if ((!toAll && !named.includes(a.agentId)) || known.has(a.agentId)) continue;
+            eng.engage(threadId, { id: a.agentId, mode: a.mode, ...(a.model ? { model: a.model } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...((await runsOutside(ctx, a.agentId)) ? { outside: true } : {}) });
+          }
         } catch (e) { ctx.log.warn("the bridge could not read who joined the chat", { traceId: ctx.trace.traceId, threadId, error: e instanceof Error ? e.message : String(e) }); }
       }
     }
+    const job = p["job"] === true ? str(p["actingFor"]) || authorId : undefined;
     const res = withMessageId(messageId, () => eng.receive({
-      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note,
+      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note, replyToPerson, ...(job ? { job } : {}),
     }));
     return { receivedAs: res.responders };
   }
@@ -408,7 +445,11 @@ export function createBridge(o: BridgeOptions): Bridge {
       engine = e;
       return e.subscribe(onEngine);
     },
-    tap: (openSession) => async (spec) => wrap(await openSession(spec)),
+    tap: (openSession) => async (spec) => {
+      const key = `${spec.threadId}|${spec.agent.id}`;
+      if (spec.account?.shared) onSharedKey.add(key); else onSharedKey.delete(key);
+      return wrap(await openSession(spec));
+    },
     onEvent: (ctx, event) => (event.name === "message.edited" ? onEdited(ctx, event.payload) : onReceived(ctx, event.payload)),
     liveTurns(threadId) {
       const out: Array<{ turnId: string; agentId: string; text: string }> = [];

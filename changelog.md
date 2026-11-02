@@ -1,5 +1,149 @@
 # Changelog
 
+- Typing a whole `:joy:` now turns into the emoji, in every composer.
+- Vyre Black and Vyre Light are the new skins. The default, shown as Vyre, picks one by device; people's marbles and the working ring wear the same palette.
+- A question or plan from an agent is now a task: it reaches Needs you, the badge and notifications, answering it anywhere wakes the agent once, and a late press says "Already decided."
+- An agent's kind is a column: the private assistant stays private whatever its role line says, and calling an agent "assistant" no longer hides it.
+- Deleting an agent drops its holds, closes the requests it raised, hands its work to the person behind it and leaves one line in its chats. A person who leaves or is removed comes off every thread, a chat they started gets a new owner, what they held moves on, and their assistant goes with them.
+- A turn a server restart cut off never replays what it may already have done: one that used a tool ends with Try again, one that had not simply runs again. Try again runs straight away instead of waiting for the next message, a parked turn goes on after a restart, and an agent that was working before a crash no longer reads as Working for ever.
+- A paused agent stops and takes no new turn, with the reason in the chat, and a teammate's job follows it (running, paused, lost, stopped). A lost job offers Run again. The Crew tab no longer crashes in a Personal Space.
+- A Mac stays awake while a turn runs.
+- An outward automation step a server restart cut off is never sent twice by itself: the run fails into Needs you with what to check. Retry goes on from the step that did not finish instead of repeating what already went out, and a Retry or Replay pressed on the Runs pages now really runs (it used to stay queued for ever).
+- A subscription that runs out no longer moves to a metered key by itself: one task asks, and a yes covers that chat. A key on the agent's fallback list was already chosen and does not ask. In a chat with more than one person, each reply says whose account it ran on.
+- In a chat with more than one person, recall leaves out what one person told their agent, quotes from their private chats stay out, and the agent's thinking goes only to whoever asked.
+- A busy turn's live steps gather to about one frame a second.
+- Vyre no longer says any chat is end to end: agents have to read what they answer, and no app seals a chat today.
+- A Vault pull link follows the rules of a reveal: an agent never gets one, a person gets only what they may view, an item set to the Space only stays out, and a folder's list of who may export is obeyed. Renaming a Vault item keeps its handle, so nothing that uses it breaks, and setting a new value counts as rotating it.
+- Retrying a failed loop no longer runs again the items that already went out: they carry over to the new run, and only what did not finish starts. The same holds for parallel lanes.
+- Agents are no longer offered tools that only answer "Not in this version yet": Sites and Vault import leave the tool list and tool search, and come back by themselves when they go live.
+- When one lane of a parallel step ended early, the step after the parallel ran inside the other lane, without waiting and even when the parallel failed. It now runs after the lanes, once.
+- Someone who can only see an agent no longer reads which keys pay for it, which Vault handles it holds, or its limits. Owners, editors and the agent itself still do, and a turn is built whole whoever asked.
+- A reply on a shared key no longer says it was on the account of the person who asked. A person who joins a group that no agent could answer them in is named in one line of that chat.
+- A stage added to a Journey can now be entered, and a Journey can be made again under a deleted Journey's name. Finishing a task that is not the stage's own, such as a time limit alert, no longer moves the record.
+- A transferred call now rings the person it went to, and a call back from hold rings who held it, not the number's whole route. Stop now stops a recording that began with the call. Only someone a call is ringing for can decline it.
+- A person can connect through Workspace delegation only the address matched to them: typing a colleague's address no longer opens their mail. An agent working for a person is held to the same rule.
+- Records, Agents now lists the agents themselves, so it always matches Chats. New makes a real agent with no second row beside it; an old row with nothing behind it stays, marked, and offers to set it up.
+- A person who leaves a Space stops: their mailboxes end and their own Google and Microsoft sign-ins go, as they do when someone is removed.
+- Calls and texts now follow the access rules for their number, the same way the Inbox does. Whoever a call rings for, and whoever holds it after a transfer, keeps it.
+- The unsubscribe link in an email now works for someone with no account, at a Space address and a vyre.run address, with a plain confirmation that shows nothing of the Space. A mail scanner fetching the link unsubscribes nobody, and a failed unsubscribe says so and can be tried again.
+- A project link for a client now opens on a vyre.run address. A relay Space invites at its vyre.run name, not this computer, a portal email on one says why it cannot be sent.
+- An automation an agent made or edited no longer sends on its own. A person's Save or Turn on gives it permission for the steps it names, any edit voids that, and a run reaching a new target asks first.
+- Cards in a chat now follow the real task or request live, on the Space's stream instead of a 4 second poll. A held call shows one approval card, and a Flow draft or an agent's proposal changes as soon as it is decided elsewhere.
+- In Auto, an outward act you asked for in your own message goes without a second yes, once, to the act and target you named. Nothing a model writes can give that permission.
+- The chat's mode is now the one dial: an Auto chat runs terminal commands without stopping, up to the owner's floor, and a local crew merge just happens. A push still needs your message or your yes.
+- Known outward terminal commands (git push, curl with data, gh pr create, npm publish, ssh) now follow the outward rule. An agent's delete inside work/ on its own computer no longer stops.
+- Tasks are how agents coordinate: `task_plan` breaks work into a parent and children in one call, a child starts by itself when what it waits on is done, the parent's holder hears only when all are finished or one is blocked or asks, and every turn carries a short digest of the tasks in hand.
+- The app is soft sheets on a quiet ground: sidebar, main view and right rail are separate rounded sheets you can drag to resize, in every place. The rail sits in soft tracks with your face at the foot, the top bar is one search, and a confirmation is a toast near the composer.
+- Settings: rebuilt from an audit of what the code really reads. Space policies for approvals, tasks, automations and schedules now take effect, working hours and the email backstop reach delivery, and 35 settings nothing read are gone.
+- Console: a place in the app for admins and owners, opened from the rail or Settings. Settings now holds only what is yours; Space defaults live in the Console, and a Personal Space keeps its own in Settings.
+- Every way into Vyre is now one system: lock screen, install, sign-in, register, create and join a Space, recovery and onboarding share one soft sheet on the rail ground, the mark with its coral spark, one field, one button, one error line and one progress line, in tokens only, with one soft fade between steps.
+- Sign-in goes Space, then username and password. A bare name means name.vyre.run.
+- Forgot password on the lock screen opens recovery directly. A Space that does not answer no longer reads as "no password", a Personal Space that fails to start says so with Try again, and a link into a Space you are already in offers to open it.
+- A wait on any entry screen shows nothing for 300 ms, then the breathing mark, and the button's word stays still. The turning ring is gone. Steps fade in 140 ms.
+- Opening a used owner link in a browser already signed in to that Space says so at once and offers Open, with no form to fill.
+- A username the Space refuses shows as taken, with no tick and with suggestions, and the line clears when another is chosen. Setup uses the same typeface and the same not-yet-ready button as every other entry screen.
+- Declining a key or access request from Home or the sidebar now settles it for everyone: the other approvers' copies close, the person is told, and an agent that asked carries on. The Chats badge is the live Needs you count, and a notification stops counting once its request closes.
+- An agent in a thread now reads the message it hangs off and the conversation around it, a handoff keeps that message, and an @agent in any thread, a task's thread included, joins and replies there. A reply to another person no longer wakes the lead agent.
+- Agents can open any link from the server. A link you gave or a page linked to is a read; one the agent put together waits for you, and after reading outside content a send stops even if you asked.
+- Always allow is a rule for one agent or chat with an expiry, listed and taken back with /permissions. A Job never runs looser than its chat, and a mode change counts at the next act.
+- Ask now behaves the same on every AI engine: one conversation per person, agent and object, changes reach only the object it is about at your real level, anything leaving Vyre stops for a yes, and the Console and Home boxes send the screen you are on with each message.
+- Home is gone. Chats opens on a new chat, with what needs you and what is running under the composer, and Tasks and Threads sit at the top of the sidebar. The sidebar reads Now, Recent, Channels, People, Agents and hides with Cmd-Shift-Backslash in every place.
+- The composer is one line. Its model menu holds the mode, provider, model, effort, where the chat runs, limits and Compact.
+- The rail keeps the main places and one foot button that opens upward. The working ring stays still while the colour travels round it, and tab switches fade with no blank frame.
+- A helper the lead starts on itself now runs, its answer comes back as the helper's own line in the chat that started it, and that line wakes the lead through the engine, as the agent's words and never a person's.
+- A finished helper or crew job is billed to the person who started it, and it no longer counts as agents handing work back and forth.
+- A rollover no longer ends a session while a Job is running, however full the window is; the engine's own compaction is the backstop.
+- Only the person whose turn it is steers a running agent. Anyone else's message waits and says "After this", then runs as a turn of its own on that person's access.
+- Tasks is one page in Chats: a list ordered for you, a Board, a Timeline and a Month, with one status control from every door, quick add in plain words, multi-select, saved views and keyboard keys. Every task opens on its own page with its blocks, a work breakdown and one Activity feed that is the task's thread.
+- Forms now work on a name.vyre.run address: `/p/forms/<slug>` reaches the Space through the relay with no session, in a sandbox with an opaque origin, and every public link starts from one public origin that knows the claimed name.
+- Any face or name opens that profile in a closable right tab. Message actions follow the chat: people get reactions and threads, and fork stays away from chats with no agent. Click a chat's name to rename it, react with a searchable picker, and quick work stays out of the way until you hover.
+- Artifacts: `artifact_publish` is how any model shows what it made. It stays private, opens in the app or the browser, updates at the same link and shares like Files, from a new row at the top of the Chats sidebar.
+- Sites are back as routes: an agent builds and runs anything on a computer and Vyre gives it an address, at `/p/<name>` or a custom domain with automatic TLS through Caddy, now on every server. Sites has its place in Apps, and a skill ships by default.
+- One page makes an agent and changes it: a face you shuffle or pick, instructions drafted from what it does, a context folder it always reads, Vault items it can use, its computer, who can use it and a preferred model.
+- The Mac install window is designed: one calm light ground, the app icon, a quiet arrow to Applications, sharp on Retina, with labels that read in light and dark Finder. Release builds now really carry it; before, the build skipped the layout on CI.
+- A new app icon: the V and Spark as clean vector on a tile macOS shows as drawn.
+- Vyre opens on one surface: the theme's ground and the mark, with only the Spark moving, from the first paint. Into the lock screen the mark glides to its place while the sheet fades in around it; into the app, one crossfade. A slow start says so in one quiet line and a start that never answers lands on Try again.
+- The lock screen's sheet hugs its content and greets the person by the name they wrote.
+- Fixed the mounted folder sheet, whose Try again state crashed.
+- Fixed the app failing to start after the launch merges.
+- Connect your company: one guided flow for Google Workspace or Microsoft 365, in the Console and from Settings, that Assistant can lead in chat. Space-wide sign-in, the directory, and Mail, Calendar and Files chosen separately, with nothing for each person to sign in to. Each step links to a page in the docs, a pasted or dropped key goes straight to the Vault and is checked at once, and your place is saved.
+- An agent reaches a person's mail, calendar or files only for that person. An admin's role no longer reaches a teammate's mailbox through the company connection.
+- Changing a company connection or how people sign in now always stops for a person with the right role, in every mode, even from a task or an automation. Single sign-on settings had no such stop before.
+- A person gone or suspended in the company directory loses access at the next check, every six hours. A partial or implausible answer changes nobody.
+- Sign in with Google needs a verified Workspace account, and a person is known by Google's permanent id, not their address. An address moved at the provider takes over nobody.
+- Requiring single sign-on refuses to lock the owner out, recovery is the owner's break-glass only while it is required, and new people can join with it on.
+- Microsoft 365: the mailbox limit now uses Exchange RBAC for Applications, the setup Microsoft asks for today, and certificates work as well as client secrets.
+- The access log names who reached a mailbox, on whose behalf, and which one.
+- A link opens what it points at from the first frame, on a computer and on a phone, for tasks, chats, records and files, whatever tab was open last.
+- Outside agents sign in with one press. Paste your Space's /mcp address into Claude Code or any MCP app; a tab opens, Vyre shows who is asking, and Allow makes it an agent you own, acting for you.
+- An outside agent is a normal agent: a face, a folder and a profile. It can do what you can and no more, only you can use it, and sends, posts and payments still wait for your yes.
+- Everything an outside agent does shows up as that agent: its profile, the audit log, and the chat or task it works in. Mentions and tasks wait in a queue it reads with agents_next.
+- Remove on an outside agent's profile ends its sign-in at once. A call in flight fails.
+- The one-time token for outside agents is gone, with its scope list.
+- An outside actor's reach on /v1 is now capped by the person who made it.
+- An outside agent reads as the strictest AI provider a label policy names, unless an admin names it.
+- A member's own mailbox, connected automatically through delegation, is private again: other members of the Space cannot see or open it.
+- Campaigns and cold email are gone from Vyre: no sequences, A/B variants, warmup, mailbox caps, sending windows or reply tracking, in the app, the agent tools or the plans. Regular email is an Automation.
+- Every email an Automation sends carries its own unsubscribe link and the one-click headers, and the address it leaves goes on the suppression list.
+- Turning on a Space Automation now gives it the mailbox or number its send steps name, recorded as yours and shown as "Sends from hello@firm.com". If nothing can send, Turn on says so and offers Connect.
+- A text from an Automation now waits only outside 8 to 21 in the recipient's time zone, every day. A text you mark Send at once, or one a booking starts, goes straight away. A window or cap a Space set before carries over.
+- An email from an Automation now leaves when the flow says, with no waiting for a window or a mailbox cap.
+- A joined computer that is only slow to check in keeps the job it is working on, so a busy machine or a laptop waking up no longer fails a wake or a sync halfway.
+- A chat shows the work under way in it: the tasks of a plan made there, one line each, live. A press opens the task, and the block goes when nothing is left open.
+- Agents on Claude, Codex and Grok can now call any tool they find with search. Before, a tool outside the common list was found and then refused with "No such tool", so an agent could not create a file.
+- Model names read properly in the picker: Claude Opus 5.5, not Claude Opus 5 5.
+- Your Assistant can now change your own Files without being given access, in any Space. In a Personal Space so can every agent you made there. A Team Space agent keeps the access you gave it.
+- When a Team Space agent is refused a folder, it can ask for it and the person gets one press in Needs you to share that folder with the agent.
+- Agents now know how to make a new file from the first turn.
+- File links an agent writes in chat are links now, not raw [[name|id]] text.
+- Artifacts open in a Personal Space. Before, the card led to a Needs a Team Space page.
+- The Add button at the top of the Vault list works. The Hide the sidebar button no longer sits on top of it.
+- An access request has an Approve button on its task page, and it names "this folder", not an id.
+- Notification settings read as words, not {{title}} templates.
+- An agent acting for you can send email, texts and calls from anything you may send from. It needs no role of its own, and the Gate still holds what you did not ask for. An admin can turn agent sending off for the Space in Console.
+- The A/B test button is gone from the email step.
+- The Test button on an Automation works.
+- A notice on the Automation canvas no longer covers the zoom control.
+- A member at the Console address gets one plain line: Console is for admins and owners.
+- Joining a Space names your device for you, so Continue is never stuck on an empty field.
+- A mention keeps the agent's whole name.
+- An agent on Claude, Codex or Grok now shows its work as cards under its reply, and a send waiting on a yes shows its Approve card in the chat.
+- A thread shows the message it hangs off at the top.
+- A first message sent right after creating your account waits for your Assistant and goes through.
+- Add an agent offers the agents you may add, never another person's Assistant, and one you just made.
+- A Mine Vault folder is yours alone: another person's agent can never reach it, and Who can use it shows only real access.
+- A plain-word yes is spent only when the act goes out. A send refused before it left keeps the yes for a corrected retry in the same turn.
+- An agent acting for you can build Journeys, Automations and record types you may build. They still hold no access until a person turns them on.
+- Share on a Vault item opens a list of people and agents to share it with.
+- Admin activity in Console no longer ends with "Someone".
+- Making a Journey opens it, not the empty Automations page.
+- Every change an agent makes, a file write included, is in the audit log with who it acted for.
+- The /inbox address opens Inbox.
+- Speak to all the agents in a chat, with words like both of you or everyone, and each one answers in its own reply.
+- A Vault item lives in its folder, so a Mine item never inherits the Space's access. Items made before move in once.
+- Opening a Journey works. It crashed the page before.
+- An Automation shows the line Sends from on its page whenever a step sends, not only while it needs something.
+- New blank automation under Space makes a Space Automation.
+- The Share sheet of an artifact says it is an artifact and what sharing it does.
+- The message on a Mine item's Share closes with Escape or OK.
+- After agents answer a question put to all of them, the lead posts no summary unless you ask for one.
+- A row nothing can press, like Recent use in the Vault, is no longer announced as a button.
+- New on a phone in Records makes the record, starting from its name.
+- Dragging a rail no longer selects the page, and the rail follows the pointer exactly, over an iframe or a terminal too.
+- A failed reply's card leaves once a retry works and the reply takes its own time; a retry that fails shows one card; Details shows what the engine said; a missing engine is named with the command that installs it.
+- An open chat is read: its dot and its catch-up line go, on screen and after a reload, and a reply that lands on an open chat stays read.
+- Your assistant is Assistant in every place until you rename it, and it keeps the name you give it.
+- With many tabs the open one stays in view with its full title, the others share what is left, the strip fades where more waits, and the plus stays beside the tabs.
+- Finish setup counts what is really done, not what was skipped, and a new chat shows the top three steps for this device with how many more wait.
+- Runs on offers Automatic first, says where it lands now, and takes a pin off; This computer no longer reads twice.
+- In a Personal Space the Files sidebar says My files, and Recent and its count leave out the files an agent is made with.
+- A new tab no longer says No results before anything is typed.
+- The lock screen greets you by your first name, not your username.
+- A fast reply no longer lands in one jump: words still waiting when the turn ends finish at the same pace, in about a second and a half at most.
+- The session token no longer goes in the live socket's address, so it cannot reach a console error or a log: each connection trades it for a one-time ticket that lasts seconds.
+- Switch skin in Cmd-K changes the window where you are, and lists Vyre, the default.
+- A developer gets the Console button in the rail, as anyone who can open the Console by its address does.
+- Words a reply has already received show at once when its row first draws, after a remount or a reload too; only words that arrive while you watch are paced.
 - The lead uses Claude's own subagents for research and side tasks (shown as named rows), keeps crew_start for code, can search the web, and the Agents head hides when empty; helpers started through Vyre are left for the next release.
 - Chats: New agent now works in a Personal Space. The All agents list has a name field and Create, makes a real agent (agents.create), and opens a chat with it. It opened the Console, which a Personal Space does not have, and showed a page saying "Needs a Team Space".
 - Personal Spaces no longer show doors that lead to that page: the Vault Advanced rows for Backups and Outside agents, the Records schema map's Edit in the Console and Add a field in the Console, and an Automations connection to a service now opens the Vault instead of the Console. The page itself, if a stale link reaches it, follows the theme.

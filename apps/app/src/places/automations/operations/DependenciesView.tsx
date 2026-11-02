@@ -15,7 +15,7 @@ import { Empty, Frame, MenuButton, Row, Status, useCall, useRowMenu, v } from ".
 
 const KIND_WORD: Record<string, string> = {
   automation: "Automations", journey: "Journeys", connection: "Connections", mailbox: "Mailboxes", number: "Numbers", form: "Forms", channel: "Channels", record: "Records",
-  file: "Files", folder: "Folders", project: "Projects", site: "Sites", kit: "Kits", campaign: "Campaigns", person: "People", group: "Groups", agent: "Agents",
+  file: "Files", folder: "Folders", project: "Projects", site: "Sites", kit: "Kits", person: "People", group: "Groups", agent: "Agents",
 };
 export const kindWord = (kind: string): string => KIND_WORD[kind] ?? kind;
 const problemWords = (p: DepItem["problem"]): string | null => (p === "missing" ? "Missing" : p === "off" ? "Off" : null);

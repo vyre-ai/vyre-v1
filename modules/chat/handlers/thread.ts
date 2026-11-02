@@ -4,7 +4,6 @@
 //   chat.thread                  the inline thread under a message
 //   threads.make_channel         a private chat becomes a channel with another person, linked back to the chat
 //   channels.create              a named room, public to the Team Space or invite-only; a record's channel is a Project or Journey channel
-//   channels.connect_outside_agent   the MCP address, a one-time token (shown once, 10 minutes) and the run command for Claude Code or Codex
 //   chat.answer_block / chat.approve_plan   answers to the blocks that park a turn; the engine reads block.answered and queues the wake
 import {
   MAX_NAME, addAgent, addMember, agentsOf, askerOf, blockBy, channelBy, channelByName, channelOfRecord, channelOut, ensure, insertChannel, insertMessage, insertThread, membersOf, messageBy,
@@ -13,6 +12,7 @@ import {
 import type { ChatCtx, Mode, PlanStep, ThreadRec } from "../projections.ts";
 import { canSpeak, deliver, isDirect } from "./post.ts";
 import { privateFork } from "./g27.ts";
+import { ALREADY_DECIDED, tellAgent } from "./waiting.ts";
 
 type Row = Record<string, unknown>;
 const MAX_AGENTS = 20;
@@ -116,6 +116,11 @@ export async function start(ctx: ChatCtx, input: StartInput) {
   if (isTask) {
     const row = (ctx.db.all("SELECT id FROM chat_thread WHERE kind = 'thread' AND scopeType = 'task' AND scopeId = ? AND deleted_at IS NULL", input.scopeId) as Row[])[0];
     if (row) { const t = threadBy(ctx.db, String(row["id"]))!; return { thread: threadOut(ctx.db, t) }; }
+  }
+  // One Ask per person, agent and object: opening it again from any door finds the same conversation. An opening message starts a session of its own, and a comment's pane is its own conversation (it names its record).
+  if (input.kind === "ask" && input.first === undefined && input.recordId === undefined) {
+    const row = (ctx.db.all("SELECT t.id AS id FROM chat_thread t JOIN chat_thread_agent a ON a.thread = t.id AND a.deleted_at IS NULL WHERE t.kind = 'ask' AND t.scopeType = ? AND t.scopeId = ? AND t.starter = ? AND a.agentId = ? AND t.closedAt IS NULL AND t.deleted_at IS NULL AND t.recordId IS NULL ORDER BY t.createdAt DESC LIMIT 1", input.scopeType, input.scopeId, asker, agentIds[0]) as Row[])[0];
+    if (row) return { thread: threadOut(ctx.db, threadBy(ctx.db, String(row["id"]))!) };
   }
   // The same two people have one direct message.
   if (personId !== undefined && agentIds.length === 0 && input.scopeType === undefined) {
@@ -227,28 +232,6 @@ export async function channelsCreate(ctx: ChatCtx, input: { name: string; visibi
   return { channel: channelOut(ctx.db, channel) };
 }
 
-const kindOfTool = (name: string): "claude_code" | "codex" | "other" => (/codex/i.test(name) ? "codex" : /claude/i.test(name) ? "claude_code" : "other");
-
-export async function connectOutsideAgent(
-  ctx: ChatCtx, input: { channelId: string; name: string; scopes?: { read: boolean; post: boolean; readChangesets: boolean; writeBranch: boolean }; idempotencyKey?: string },
-) {
-  ensure(ctx.db);
-  const channel = channelBy(ctx.db, input.channelId);
-  const main = channel ? threadBy(ctx.db, channel.mainThread) : null;
-  if (!channel || !main || !canSpeak(ctx, main)) raise(ctx, "validation.not_found", "That channel does not exist.");
-  if (channel.archived) raise(ctx, "validation.bad_input", "An archived channel takes no new connections.");
-  const name = input.name.trim();
-  if (name === "" || name.length > 120) raise(ctx, "validation.bad_input", "Give the connection a name of up to 120 characters.");
-  if (!ctx.call) raise(ctx, "internal.unexpected", "The MCP server is not available right now.");
-  const kind = kindOfTool(name);
-  // The MCP module mints the one-time token (10 minutes, shown once) and logs it; this channel only asks for it.
-  const issued = (await ctx.call("mcp.token.issue", {
-    name, kind, channelId: channel.id, ...(input.scopes ? { scopes: input.scopes } : {}), idempotencyKey: input.idempotencyKey ?? `${ctx.trace.traceId}:connect:${channel.id}`,
-  })) as { oneTimeToken: string; expiresAt: number; mcpUrl: string };
-  const runCommand = kind === "other" ? `mcp add vyre ${issued.mcpUrl} --token ${issued.oneTimeToken}` : `${kind === "codex" ? "codex" : "claude"} mcp add vyre ${issued.mcpUrl} --token ${issued.oneTimeToken}`;
-  return { mcpUrl: issued.mcpUrl, oneTimeToken: issued.oneTimeToken, expiresAt: issued.expiresAt, runCommand };
-}
-
 // ---- blocks that park a turn ------------------------------------------------------------------------------------------------------------------------
 
 const onlyPeople = (ctx: ChatCtx): void => {
@@ -292,7 +275,7 @@ export async function answerBlock(ctx: ChatCtx, input: { threadId: string; block
   if (block.state === "done") {
     // Answering twice with the same answer is the same answer (an offline resend); a different one comes too late.
     if (JSON.stringify(block.answer) === JSON.stringify(canonicalAnswer(String((block.data as Record<string, unknown>)["mode"] ?? "free"), input.answer))) return { ok: true };
-    raise(ctx, "validation.precondition_failed", "This question was already answered.");
+    raise(ctx, "validation.precondition_failed", ALREADY_DECIDED, { reason: "closed" });
   }
   const given = canonicalAnswer(String((block.data as Record<string, unknown>)["mode"] ?? "free"), input.answer);
   if (!answerFits(block.data, given)) raise(ctx, "validation.bad_input", "That answer does not fit the question.");
@@ -302,15 +285,11 @@ export async function answerBlock(ctx: ChatCtx, input: { threadId: string; block
   patchBlockInMessage(ctx.db, block.message, block.id, (b) => ({ ...b, state: "done", data: { ...(b["data"] as Record<string, unknown>), answer: given, answeredBy: by } }));
   // The engine reads block.answered and queues a wake, so the parked turn continues in the same thread.
   ctx.emit("block.answered", t.id, { threadId: t.id, blockId: block.id, by });
-  // The agent hears the answer as the person's own message, which wakes the lead agent the way any message does (a CLI engine has no parked call to resume). The words name each pick and its key.
-  if (ctx.call) {
-    const data = block.data as { options?: Array<{ key?: unknown; label?: unknown }> };
-    const label = (k: unknown): string => { const o = (data.options ?? []).find((x) => String(x.key) === String(k)); return o && typeof o.label === "string" ? `${o.label} (${String(k)})` : String(k); };
-    const picks = (Array.isArray(given) ? given : [given]).map((a) => (a !== null && typeof a === "object" ? String((a as { other?: unknown }).other ?? "") : label(a))).filter((x) => x !== "");
-    if (picks.length > 0) {
-      try { await ctx.call("chat.post", { threadId: t.id, body: `Answered: ${picks.join(", ")}`, idempotencyKey: `answer_${block.id}` }); } catch (e) { ctx.log.warn("the answer could not be sent to the agent", { error: e instanceof Error ? e.message : String(e) }); }
-    }
-  }
+  // The agent that asked hears the answer as the person's own message, naming it, which wakes it the way any message does (a CLI engine has no parked call to resume). The words name each pick and its key.
+  const data = block.data as { options?: Array<{ key?: unknown; label?: unknown }> };
+  const label = (k: unknown): string => { const o = (data.options ?? []).find((x) => String(x.key) === String(k)); return o && typeof o.label === "string" ? `${o.label} (${String(k)})` : String(k); };
+  const picks = (Array.isArray(given) ? given : [given]).map((a) => (a !== null && typeof a === "object" ? String((a as { other?: unknown }).other ?? "") : label(a))).filter((x) => x !== "");
+  if (picks.length > 0) await tellAgent(ctx, t, block, `Answered: ${picks.join(", ")}`);
   return { ok: true };
 }
 
@@ -325,7 +304,7 @@ export async function approvePlan(ctx: ChatCtx, input: { threadId: string; planI
   const edits = input.edits ?? [];
   const view = (steps: PlanStep[]) => ({ planId: plan.id, state: plan.state, steps });
   if (plan.state === "approved" && edits.length === 0) return { plan: view(plan.steps) };
-  if (plan.state !== "proposed") raise(ctx, "validation.precondition_failed", `This plan was already ${plan.state}.`);
+  if (plan.state !== "proposed") raise(ctx, "validation.precondition_failed", ALREADY_DECIDED, { reason: "closed", state: plan.state });
 
   let steps = plan.steps.map((s) => ({ ...s }));
   for (const e of edits) {
@@ -349,6 +328,7 @@ export async function approvePlan(ctx: ChatCtx, input: { threadId: string; planI
   if (block) patchBlockInMessage(ctx.db, block.message, block.id, (b) => ({ ...b, state: "done", data: { ...(b["data"] as Record<string, unknown>), steps, state: "approved" } }));
   ctx.emit("plan.approved", t.id, { planId: plan.id, threadId: t.id, edited: edits.length > 0, by });
   ctx.emit("block.answered", t.id, { threadId: t.id, blockId: plan.block, by });
+  if (block) await tellAgent(ctx, t, block, edits.length > 0 ? "Plan approved, with my edits. Go ahead." : "Plan approved. Go ahead.");
   return { plan: { planId: plan.id, state: "approved", steps } };
 }
 

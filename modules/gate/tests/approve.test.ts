@@ -100,13 +100,13 @@ test("only people approve, unless the Space names agents for a low-risk act", as
 
 test("nobody approves what they asked for, except an asker approving her own agent", async () => {
   const h = harness();
-  h.callee("campaigns.launch", () => ({ launched: true }));
-  const p = await park(h, { capName: "campaigns.launch", act: "campaign_launch", principal: alice, actingFor: undefined, input: { campaignId: "cmp_1" } }, as(alice));
+  h.callee("sites.promote", () => ({ promoted: true }));
+  const p = await park(h, { capName: "sites.promote", act: "site_promote", principal: alice, actingFor: undefined, input: { siteId: "sit_1" } }, as(alice));
   assert.deepEqual(findHold(h.db, p.holdId)!.approver, { kind: "role", id: "rol_admin" });
   await refused(release(h, p, { by: alice.id }), "validation.precondition_failed", "self_approval");
-  assert.equal(h.callsTo("campaigns.launch").length, 0);
+  assert.equal(h.callsTo("sites.promote").length, 0);
   await release(h, p, { by: bob.id }, person(bob));
-  assert.equal(h.callsTo("campaigns.launch").length, 1);
+  assert.equal(h.callsTo("sites.promote").length, 1);
   // an agent's send is approved by the person it works for: that is the asker rule, not self approval
   h.callee("mail.send", () => ({}));
   const q = await park(h, { decisionId: "dec_2" });
@@ -274,8 +274,8 @@ test("escalating to the role above instead of a delegate", async () => {
   assert.deepEqual(h.callsTo("tasks.assign")[0]!.input, { taskId: p.taskId, slot: "approver", to: { kind: "role", id: "rol_admin" } });
   assert.equal(h.callsTo("tasks.escalate").length, 0);
   // admins who already had it pass it to the owner
-  await h.call("gate.rules.set", { act: "campaign_launch", scope: "space", mode: "hold", escalateTo: "role" }, { id: "usr_owner" });
-  const q = await park(h, { decisionId: "dec_2", act: "campaign_launch", capName: "campaigns.launch" });
+  await h.call("gate.rules.set", { act: "site_promote", scope: "space", mode: "hold", escalateTo: "role" }, { id: "usr_owner" });
+  const q = await park(h, { decisionId: "dec_2", act: "site_promote", capName: "sites.promote" });
   h.advance(24 * HOUR);
   assert.deepEqual(await h.call("gate.expire", { holdId: q.holdId }, svc), { outcome: "escalated", escalatedTo: "rol_owner" });
 });
@@ -333,7 +333,7 @@ test("ordinary human sends skip the Gate; the acts that always ask do not", asyn
   const h = harness();
   const rule = (principal: unknown, act: string) => h.call("gate.effective_rule", { principal, act }, { id: alice.id });
   for (const act of ["send", "post", "pay", "delete", "signature_send", "spend_raise"]) assert.equal((await rule(alice, act)).hold, false, `${act} by a person`);
-  for (const act of ["push_protected", "campaign_launch", "secret_export", "site_promote"]) assert.equal((await rule(alice, act)).hold, true, `${act} by a person`);
+  for (const act of ["push_protected", "secret_export", "site_promote"]) assert.equal((await rule(alice, act)).hold, true, `${act} by a person`);
   assert.equal((await rule(bot, "send")).hold, true, "the same send by an agent waits");
   // a Space that lets agent sends through changes nothing for people, and the owner's floor still catches them
   await h.call("gate.rules.set", { act: "send", scope: "space", mode: "allow" }, { id: "usr_owner" });

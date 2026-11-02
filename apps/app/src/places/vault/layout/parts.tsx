@@ -60,7 +60,7 @@ export function LogoTile({ name, size = 32 }: { name: string; size?: number }): 
 }
 
 /** A small round-cornered button: quiet by default, accent when `primary`. */
-export function Btn({ label, onPress, icon, primary = false, danger = false, disabled = false, why, testID }: { label: string; onPress: () => void; icon?: IconName | undefined; primary?: boolean; danger?: boolean; disabled?: boolean; why?: string | undefined; testID?: string | undefined }): ReactElement {
+export function Btn({ label, onPress, icon, primary = false, danger = false, disabled = false, why, testID }: { label: string; onPress: (e?: unknown) => void; icon?: IconName | undefined; primary?: boolean; danger?: boolean; disabled?: boolean; why?: string | undefined; testID?: string | undefined }): ReactElement {
   const [over, setOver] = useState(false);
   const color = danger ? "var(--danger)" : primary ? "var(--accent-ink)" : "var(--ink)";
   const button = (

@@ -1,7 +1,7 @@
 // Service worker: keeps the last known shell available offline while allowing a connected browser to receive updates.
 // Navigations are network-first; hashed Expo assets are cache-first. Never intercepts the API or live sync connection.
 const CACHE = "vyre-shell-v2";
-const PLACES = ["home", "chat", "files", "records", "mail", "calendar", "tasks", "sites", "forms", "campaigns", "automations", "agents", "vault", "settings"];
+const PLACES = ["home", "chat", "files", "records", "mail", "calendar", "tasks", "sites", "forms", "automations", "agents", "vault", "settings"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {

@@ -230,7 +230,7 @@ export const NAV: readonly NavGroup[] = [
   ] },
   { key: "ai", title: "AI", pages: [
     { key: "console.ai-models", title: "Models and providers", perm: "ai.models" }, { key: "gate.rules", title: "Gate rules", perm: "policy.manage" },
-    { key: "console.ai-spend", title: "Spend and limits", perm: "ai.spend" }, { key: "console.logging", title: "Logging", perm: "server.logs" },
+    { key: "console.ai-spend", title: "Spend and limits", perm: "ai.spend" },
     { key: "console.ai-review", title: "Review sampling", perm: "ai.incidents" }, { key: "console.ai-incidents", title: "Incidents", perm: "ai.incidents" },
   ] },
   { key: "comms", title: "Comms", pages: [
@@ -238,7 +238,7 @@ export const NAV: readonly NavGroup[] = [
     { key: "mail.shared-inboxes", title: "Shared inboxes", perm: "comms.shared_send" }, { key: "telephony.registration", title: "Texting registration", perm: "comms.numbers" },
   ] },
   { key: "integrations", title: "Integrations", pages: [
-    { key: "google.setup", title: "Google Workspace", perm: "connectors.manage" }, { key: "microsoft.setup", title: "Microsoft 365", perm: "connectors.manage" },
+    { key: "company.setup", title: "Connect your company", perm: "connectors.manage" }, { key: "google.setup", title: "Google Workspace", perm: "connectors.manage" }, { key: "microsoft.setup", title: "Microsoft 365", perm: "connectors.manage" },
     { key: "console.integrations", title: "Connectors and connections", perm: "connectors.manage" }, { key: "events.webhooks", title: "Webhooks", perm: "connectors.manage" },
     { key: "console.mcp-sessions", title: "API keys", perm: "access.manage" },
   ] },

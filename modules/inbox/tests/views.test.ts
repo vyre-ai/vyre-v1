@@ -1,5 +1,5 @@
 // The Inbox views against linked conversations (spec 2.18 Views, Following, Recipients; 3.3): By contact, By thread, Calls only, one contact's whole history, Unmatched,
-// Needs a match, counts, who reaches you, sending options and the recipient search. What a person sees is what they own, follow, run the campaign of, or reach through an
+// Needs a match, counts, who reaches you, sending options and the recipient search. What a person sees is what they own, follow or reach through an
 // inbox they can see, and the kernel lets them see.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -144,9 +144,9 @@ test("By thread lists one row per email or text thread with its subject, people 
 
 // ---- one contact's history
 
-test("a contact's whole history runs oldest to newest with each kind of item, campaign steps as quiet lines, and meetings from the calendar", async () => {
+test("a contact's whole history runs oldest to newest with each kind of item, and meetings from the calendar", async () => {
   const { h, c1 } = await world();
-  await linkMessage(h.ctx, link({ address: "pat@acme.test", direction: "out", campaignId: "cmp_spring", at: NOW + 8 * HOUR, preview: "Spring offer" }));
+  await linkMessage(h.ctx, link({ address: "pat@acme.test", direction: "out", at: NOW + 8 * HOUR, preview: "Spring offer" }));
   await linkMessage(h.ctx, link({ channel: "call", address: "+14155550177", numberId: "num_main1", at: NOW + 9 * HOUR, preview: "Call, 4 min" }));
   h.meetings.push(
     { id: "mtg_done01", title: "Consult", startsAt: NOW + 10 * HOUR, provider: "zoom", status: "ended", attendeeIds: [], recordingState: "attached", hasTranscript: true, hasSummary: true },
@@ -158,10 +158,8 @@ test("a contact's whole history runs oldest to newest with each kind of item, ca
   assert.deepEqual(contractErrors("inbox.thread", "out", out), []);
   assert.equal(out.conversation.id, c1);
   assert.deepEqual(out.items.map((i) => [i.kind, i.direction, i.title ?? i.preview]), [
-    ["email", "in", "Intake form"], ["email", "out", "Re: Intake form"], ["sms", "in", "On my way"], ["campaign_step", "out", "Spring offer"], ["call", "in", "Call, 4 min"], ["meeting", undefined, "Consult"],
+    ["email", "in", "Intake form"], ["email", "out", "Re: Intake form"], ["sms", "in", "On my way"], ["email", "out", "Spring offer"], ["call", "in", "Call, 4 min"], ["meeting", undefined, "Consult"],
   ]);
-  const step = out.items.find((i) => i.kind === "campaign_step")!;
-  assert.equal(step.campaignId, "cmp_spring");
   assert.deepEqual(out.items.find((i) => i.kind === "email")!.ref, { kind: "mail_message", id: "eml_lee1", threadId: "thr_intake" });
   assert.deepEqual(out.items.find((i) => i.kind === "meeting")!.ref, { kind: "meeting", id: "mtg_done01", recording: "attached", hasTranscript: true, hasSummary: true });
   assert.deepEqual(await thread(h.ctx, { conversationId: c1 }).then((o) => o.items.length), 6, "by conversation id is the same history");
@@ -237,14 +235,6 @@ test("following says why each contact reaches you: you own it, follow it, or an 
   assert.ok((await following(h.ctx, {})).rows.some((r) => r.contactId === "rec_quiet01" && r.reasons.includes("follow")));
   const page = await following(h.ctx, { limit: 1 });
   assert.deepEqual([page.rows.length, page.next, page.total], [1, "1", 3]);
-});
-
-test("the campaign owner is reached by the campaign's replies", async () => {
-  const { h } = await world();
-  h.campaigns.set("cmp_spring", "usr_maya01");
-  await linkMessage(h.ctx, link({ address: "dana@fox.test", campaignId: "cmp_spring", mailboxId: "mbx_other1" }));
-  const rows = (await following(h.ctx, {})).rows;
-  assert.deepEqual(rows.find((r) => r.contactId === DANA.id)?.reasons, ["owner", "campaign"]);
 });
 
 test("send options offer the channels the contact has and the inboxes that can send, defaulting to the inbox the thread came in on", async () => {

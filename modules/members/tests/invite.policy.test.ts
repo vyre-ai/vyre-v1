@@ -103,3 +103,24 @@ test("the SSO test reads the discovery document and the signing keys and says wh
   assert.equal(down.ok, false);
   assert.match(down.detail!, /could not read the provider/);
 });
+
+test("requiring SSO refuses to lock the owner out: they signed in with it once, and hold the recovery key that is the way in when it is down", async () => {
+  const h = harness();
+  const a = h.as("usr_owner");
+  await handlers["members.sso.set"](a, { provider: OKTA });
+  const need = async (breakGlass: { ssoLinked(): boolean; hasRecovery(): boolean }, words: RegExp) => assert.rejects(handlers["members.sign_in_policy.set"]({ ...a, breakGlass }, { policy: { ...OFF, requireSso: true } }), (e) => codeOf(e) === "validation.precondition_failed" && words.test((e as { error: { message: string } }).error.message));
+  await need({ ssoLinked: () => false, hasRecovery: () => true }, /sign in with this provider once/);
+  await need({ ssoLinked: () => true, hasRecovery: () => false }, /recovery key/);
+  await handlers["members.sign_in_policy.set"]({ ...a, breakGlass: { ssoLinked: () => true, hasRecovery: () => true } }, { policy: { ...OFF, requireSso: true } });
+});
+
+test("the join page names the sign-in when everyone must use it, and nothing else", async () => {
+  const h = harness();
+  const a = h.as("usr_owner");
+  await handlers["members.sso.set"](a, { provider: { ...OKTA, domainHint: "firm.test" } });
+  const { link } = await handlers["members.invites.create"](a, { role: "rol_member", email: "new@firm.test", idempotencyKey: "i1" }) as { link: string };
+  const code = link.split("/").pop()!.split("#")[0]!;
+  assert.equal((await handlers["members.invites.preview"](h.anon ?? a, { code })).ssoRequired, undefined);
+  await handlers["members.sign_in_policy.set"](a, { policy: { ...OFF, requireSso: true } });
+  assert.deepEqual((await handlers["members.invites.preview"](h.anon ?? a, { code })).ssoRequired, [{ key: "okta", title: "Okta" }]);
+});

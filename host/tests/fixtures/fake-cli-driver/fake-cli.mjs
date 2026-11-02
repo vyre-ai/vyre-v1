@@ -191,6 +191,35 @@ async function think(prompt) {
   out({ type: "result", subtype: "success", is_error: false, result: full, session_id: session, usage: { input_tokens: 9, output_tokens: words.length } });
 }
 
+/** "flurry <secs>": a model that works fast: for <secs> seconds it makes a tool call every 250 ms (different tools, each answered at once), then answers in words. For the calm line's proof. */
+async function flurry(prompt) {
+  const m = /^\s*flurry\s+(\d+)/.exec(prompt);
+  const secs = m ? Number(m[1]) : 15;
+  const wait = (n) => new Promise((res) => setTimeout(res, n));
+  init();
+  const mid = `m_flurry_${process.pid}_${Date.now()}`;
+  out({ type: "stream_event", event: { type: "message_start", message: { id: mid } } });
+  const tools = [["Read", { file_path: "/work/a/one.ts" }], ["Grep", { pattern: "stream" }], ["WebSearch", { query: "calm line" }], ["Read", { file_path: "/work/a/two.ts" }], ["Glob", { pattern: "*.ts" }], ["Bash", { command: "ls" }]];
+  const end = Date.now() + secs * 1000;
+  for (let i = 0; Date.now() < end; i++) {
+    const [name, input] = tools[i % tools.length];
+    const id = `toolu_f${i}_${process.pid}`;
+    out({ type: "stream_event", event: { type: "content_block_start", index: 1, content_block: { type: "tool_use", id, name } } });
+    out({ type: "assistant", message: { id: `m_f${i}_${process.pid}`, content: [{ type: "tool_use", id, name, input }] } });
+    await wait(125);
+    out({ type: "user", message: { content: [{ type: "tool_result", tool_use_id: id, content: "ok" }] } });
+    await wait(125);
+  }
+  const words = ["All", "done", "quietly."];
+  for (const w of words) { out({ type: "stream_event", event: { type: "content_block_delta", index: 3, delta: { type: "text_delta", text: `${w} ` } } }); await wait(100); }
+  const full = words.map((w) => `${w} `).join("");
+  out({ type: "assistant", message: { id: mid, content: [{ type: "text", text: full }], usage: { input_tokens: 9, output_tokens: words.length } } });
+  out({ type: "result", subtype: "success", is_error: false, result: full, session_id: session, usage: { input_tokens: 9, output_tokens: words.length } });
+}
+
+/** A line of a message as an instruction: a picked option reads "Answered: <label> (<key>)", and the label is what a model acts on. */
+const picked = (l) => l.trim().replace(/^Answered:\s*/, "").replace(/\s\(\w+\)$/, "");
+
 /** "askhold <ms> <json>": asks the question over MCP (ask_question), then keeps its turn open for <ms> as a model does while it finishes its sentence, and only then ends it. */
 async function askHold(prompt) {
   const m = /^\s*askhold\s+(\d+)\s+(.*)$/s.exec(prompt);
@@ -214,8 +243,8 @@ async function askHold(prompt) {
     holding = false;
     const merged = absorbed.splice(0, absorbed.length);
     // The real engine reads a mid-turn message at its next step and acts on it inside the turn it is running: one that carries a new instruction (askhold ...) is carried out here, before the turn's one result.
-    const next = merged.flatMap((p) => p.split("\n")).reverse().find((l) => /^askhold\s+\d+/.test(l.trim()));
-    if (next) { mcp?.close(); mcp = undefined; await askHold(next.trim()); return; }
+    const next = merged.flatMap((p) => p.split("\n")).map(picked).reverse().find((l) => /^askhold\s+\d+/.test(l));
+    if (next) { mcp?.close(); mcp = undefined; await askHold(next); return; }
     reply([r?.error || r?.result?.isError ? `ask_question refused: ${JSON.stringify(r)}` : `I have asked; waiting for your answer.${merged.length ? ` Merged: ${merged.join(" | ")}` : ""}`]);
   } catch (e) {
     reply([`mcp error: ${e instanceof Error ? e.message : "the call failed"}`]);
@@ -241,10 +270,11 @@ async function run(raw) {
     out({ type: "result", subtype: "success", is_error: false, result: full, session_id: session, usage: { input_tokens: 9, output_tokens: words.length } });
     return;
   }
-  const holdLine = prompt.split("\n").reverse().find((l) => /^askhold\s+\d+/.test(l));   // the instruction may follow other lines the person's messages brought
-  if (holdLine) { await askHold(holdLine.trim()); return; }
+  const holdLine = prompt.split("\n").map(picked).reverse().find((l) => /^askhold\s+\d+/.test(l));   // the instruction may follow other lines the person's messages brought
+  if (holdLine) { await askHold(holdLine); return; }
   if (first === "slow") { await slow(prompt.trim()); return; }
   if (first === "think") { await think(prompt.trim()); return; }
+  if (first === "flurry") { await flurry(prompt.trim()); return; }
   switch (first) {
     case "hello": reply(["Hello", " from the fake engine."]); break;
     case "say": reply([prompt.trim().split("\n")[0].replace(/^say\s+/, "")]); break;

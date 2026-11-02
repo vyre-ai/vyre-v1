@@ -20,5 +20,6 @@ A site was created
 type Payload = {
   siteId: string;
   name: string;
+  private?: boolean;
 };
 ```

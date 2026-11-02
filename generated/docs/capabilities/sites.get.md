@@ -42,6 +42,15 @@ type Out = {
     stagingUrl?: string;
     productionUrl?: string;
     state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
+    url?: string;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
   };
 };
 ```
@@ -64,14 +73,23 @@ type Out = {
   },
   "output": {
     "site": {
+      "access": "public",
+      "blocked": true,
+      "computerId": "cmt_a1b2c3",
+      "folderId": "fld_a1b2c3",
       "kind": "site",
+      "live": true,
       "name": "example",
       "owner": "example",
+      "port": 1,
       "productionUrl": "example",
       "repoFolderId": "fld_a1b2c3",
       "siteId": "sit_a1b2c3",
+      "slug": "example",
       "stagingUrl": "example",
-      "state": "queued"
+      "state": "queued",
+      "updatedAt": 1760000000000,
+      "url": "example"
     }
   }
 }

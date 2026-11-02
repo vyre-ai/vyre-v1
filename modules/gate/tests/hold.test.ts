@@ -1,4 +1,4 @@
-// Holds (spec 2.14, ARCH 4.6): parking a held call, who approves, the fixed summary line, the effective rule (Auto cannot suppress a hold), requester scoping, crash recovery,
+// Holds (spec 2.14, ARCH 4.6): parking a held call, who approves, the fixed summary line, the effective rule (the mode never suppresses a hold; a grant does, modules/gate/tests/grants.test.ts), requester scoping, crash recovery,
 // and rejecting what a removed person asked to send.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -76,7 +76,7 @@ test("who approves follows the act and the strictest rule", async () => {
     return findHold(h.db, r.holdId)!.approver;
   };
   assert.deepEqual(await approverOf({ act: "pay" }), { kind: "role", id: "rol_owner" });
-  assert.deepEqual(await approverOf({ act: "campaign_launch" }), { kind: "role", id: "rol_admin" });
+  assert.deepEqual(await approverOf({ act: "site_promote" }), { kind: "role", id: "rol_admin" });
   assert.deepEqual(await approverOf({ act: "delete" }), { kind: "person", id: alice.id });
   // no acting-for: the agent's owner is the asker
   assert.deepEqual(await approverOf({ actingFor: undefined }), { kind: "person", id: alice.id });
@@ -120,13 +120,13 @@ test("the effective rule: agents wait, a person's own send does not, human-too a
   const p = await rule(alice, "send");
   assert.equal(p.hold, false, "ordinary human sends skip the Gate");
   assert.match(p.reason, /own act/);
-  for (const act of ["push_protected", "campaign_launch", "secret_export", "site_promote"]) assert.equal((await rule(alice, act)).hold, true, `${act} by a person`);
+  for (const act of ["push_protected", "secret_export", "site_promote"]) assert.equal((await rule(alice, act)).hold, true, `${act} by a person`);
   for (const act of ["pay", "delete", "post", "signature_send", "spend_raise"]) assert.equal((await rule(alice, act)).hold, false, `${act} by a person`);
   assert.equal((await rule({ kind: "service", id: "svc_job" }, "send")).hold, true);
   assert.equal((await rule({ kind: "actor", id: "act_outside" }, "send")).hold, true);
 });
 
-test("Auto cannot suppress a Gate hold: nothing below the Space can loosen it", async () => {
+test("the mode never suppresses a Gate hold: nothing below the Space can loosen it, and a grant is the only other way through", async () => {
   const h = harness();
   const hold = async (principal: unknown = bot) => (await h.call("gate.effective_rule", { principal, act: "send" }, { id: alice.id })).hold;
   // an agent's own rule cannot say allow while the Space holds
@@ -186,12 +186,12 @@ test("rules: scope checks, never loosening, the defaults list, one event", async
   await refused(set({ scope: "agent", agentId: bot.id, afterHours: 9 }), "validation.precondition_failed", "would_loosen");
   await set({ scope: "agent", agentId: bot.id, afterHours: 4 });
   const all = (await h.call("gate.rules.list", {}, owner)).rules;
-  assert.equal(all.filter((x: { scope: string }) => x.scope === "space").length, 15, "every act has a Space rule, stored or default");
+  assert.equal(all.filter((x: { scope: string }) => x.scope === "space").length, 14, "every act has a Space rule, stored or default");
   assert.equal(all.find((x: { act: string; scope: string }) => x.act === "send" && x.scope === "space").afterHours, 8);
   assert.equal(all.find((x: { act: string; scope: string }) => x.act === "pay" && x.scope === "space").approvers, "owner");
   assert.deepEqual((await h.call("gate.rules.list", { scope: "agent" }, owner)).rules.map((x: { agentId: string }) => x.agentId), [bot.id]);
   assert.deepEqual((await h.call("gate.rules.list", { scope: "agent", agentId: bot2.id }, owner)).rules, []);
-  assert.equal((await h.call("gate.acts.list", {}, owner)).acts.length, 15);
+  assert.equal((await h.call("gate.acts.list", {}, owner)).acts.length, 14);
 });
 
 test("the gate settings change the defaults", async () => {
@@ -343,4 +343,17 @@ test("adminOnly: the default rule does not hold a service's send, a rule somebod
   await h.call("gate.rules.set", { act: "send", scope: "space", mode: "hold" }, { id: alice.id });
   const on = await ask(true);
   assert.deepEqual([on.hold, on.adminRule], [true, true]);
+});
+
+test("a deleted agent's holds can no longer be approved: each is dropped, and a mid-send one is left to recovery", async () => {
+  const h = harness();
+  const a = await park(h);
+  const other = await park(h, { decisionId: "dec_2", principal: bot2 }, as(bot2));
+  const spec = consumers["gate.agent_deleted"];
+  assert.deepEqual(spec.on, ["agent.deleted"]);
+  const done = await spec.run(h.ctxFor(null, svc), { payload: { agentId: bot.id } });
+  assert.deepEqual(done, [a.holdId]);
+  assert.equal(findHold(h.db, a.holdId)!.state, "denied");
+  assert.equal(findHold(h.db, other.holdId)!.state, "held", "another agent's hold stands");
+  assert.deepEqual(h.callsTo("tasks.withdraw").map((x) => [x.input.taskId, x.input.note]), [[a.taskId, "The agent that asked was deleted."]]);
 });

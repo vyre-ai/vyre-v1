@@ -132,3 +132,9 @@ test("a row lays out from its own inline styles, so it does not depend on an inj
   assert.match(html, /white-space:nowrap/, "the title and note stay on one line each, so row heights are what lists assume");
   assert.match(html, /margin-left:8px/, "the trailing slot keeps its gap from the text");
 });
+
+test("a row nothing presses is not a button", () => {
+  const html = renderToStaticMarkup(<Row id="r" title="Mira used this sign-in" />);
+  assert.match(html, /^<div role="listitem"/);
+  assert.ok(!html.includes('tabindex="0"'));
+});

@@ -1,4 +1,4 @@
-// email-builder-api (lane L8): server half of the one email builder used by Campaigns, Inbox templates and Automation email steps (spec 3.6).
+// email-builder-api (lane L8): server half of the one email builder used by Inbox templates and Automation email steps (spec 3.6).
 import { create, defineManifest, ev, outward, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id } from './_common.ts';
 
@@ -24,7 +24,7 @@ export default defineManifest({
   capabilities: [
     create('email_builder.create', 'Create an email design', { in: { name: t.str(), mode: t.enm('blocks', 'html', 'plain'), folderId: t.opt(id.folder) }, out: { email: doc }, make: ['email', '/folderId'], emits: ['email.created'], tool: 'inbox' }),
     read('email_builder.get', 'Read an email design', { in: target, out: { email: doc }, tool: 'inbox' }),
-    read('email_builder.list', 'List email designs (campaigns, inbox templates, automation steps share them)', { out: { emails: t.arr(t.obj({ emailId, name: t.str(), updatedAt: t.ts() })) }, tool: 'inbox' }),
+    read('email_builder.list', 'List email designs (inbox templates and automation steps share them)', { out: { emails: t.arr(t.obj({ emailId, name: t.str(), updatedAt: t.ts() })) }, tool: 'inbox' }),
     write('email_builder.save', 'Autosave a design; each save is a version', { in: { emailId, email: doc }, out: { version: t.int() }, emits: ['email_template.saved'], tool: 'inbox', offline: 'queue' }),
     read('email_builder.versions', 'List saved versions', { in: target, out: { versions: t.arr(t.obj({ version: t.int(), at: t.ts(), by: t.str() })) }, tool: 'inbox' }),
     write('email_builder.restore_version', 'Restore a version', { in: { emailId, version: t.int() }, out: { email: doc }, tool: 'inbox' }),
@@ -44,7 +44,7 @@ export default defineManifest({
     write('email_builder.snippets.delete', 'Delete a composer snippet', { in: { snippetId }, out: { deleted: t.bool() }, tool: 'inbox' }),
   ],
   screens: [
-    // one design on its own: opened from Apps, from Inbox templates and from an Automation email step; Campaigns embeds the same builder in a step
+    // one design on its own: opened from Apps, from Inbox templates and from an Automation email step
     screen('apps.email-builder', 'apps', 'ui:EmailBuilder', { q: { email: ['email_builder.get', { emailId: '/selected' }], versions: ['email_builder.versions', { emailId: '/selected' }] }, a: { save: ['email_builder.save', { emailId: '/selected' }] } }),
   ],
 });

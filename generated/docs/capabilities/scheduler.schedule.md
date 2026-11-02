@@ -26,7 +26,7 @@ Schedule a capability call at a time or on a cron as a principal, with an if-mis
 ```ts
 type In = {
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "campaign" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
     id: string;
   };
   cap: string;

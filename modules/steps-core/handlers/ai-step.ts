@@ -153,7 +153,7 @@ async function taskStep(env: StepEnv, node: StepNode, cfg: Rec, call: StepCall, 
   }
   const owner = env.ctx.principal.kind === "person" ? env.ctx.principal.id : undefined;
   const notes: Record<string, string> = {
-    brief, ...(doneMeans && doneMeans.length > 0 ? { done_means: JSON.stringify(doneMeans) } : {}), ...(schema ? { output_schema: JSON.stringify(schema) } : {}),
+    brief, "run.step": node.id, ...(doneMeans && doneMeans.length > 0 ? { done_means: JSON.stringify(doneMeans) } : {}), ...(schema ? { output_schema: JSON.stringify(schema) } : {}),
     ...(typeof cfg["nudgeMinutes"] === "number" ? { "baton.nudge_minutes": String(cfg["nudgeMinutes"]) } : {}), ...(escalateTo ? { "baton.escalate_to": JSON.stringify(escalateTo) } : {}), ...(owner ? { "baton.owner": owner } : {}),
   };
   const made = (await env.ctx.call!("tasks.create", {

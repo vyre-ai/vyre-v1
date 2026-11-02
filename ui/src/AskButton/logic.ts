@@ -265,8 +265,8 @@ export function placePicker(
 }
 
 /**
- * The assistant row should read the assistant's real name. Callers often pass a stand-in named "Assistant" next to the Space's agents; when one of those agents is
- * named like "Irfad's Assistant", that one is the assistant: it takes the flag and the stand-in is dropped. Anything else is returned unchanged.
+ * Callers often pass a stand-in named "Assistant" next to the Space's agents; when one of those agents is named like "Irfad's Assistant", that one is the assistant: it takes the flag and the stand-in's
+ * name, the one name a person sees for it, and the stand-in is dropped. Anything else is returned unchanged.
  */
 export function withRealAssistant(agents: readonly AskAgent[]): readonly AskAgent[] {
   const stand = agents.find((a) => a.assistant === true && a.name === "Assistant");
@@ -274,7 +274,7 @@ export function withRealAssistant(agents: readonly AskAgent[]): readonly AskAgen
   const real = agents.filter((a) => a !== stand && a.assistant !== true && /^.+['\u2019]s Assistant$/i.test(a.name.trim()));
   if (real.length !== 1) return agents;
   const pick = real[0];
-  return agents.filter((a) => a !== stand).map((a) => (a === pick ? { ...a, assistant: true } : a));
+  return agents.filter((a) => a !== stand).map((a) => (a === pick ? { ...a, name: stand.name, assistant: true } : a));
 }
 
 /** Cmd-J or Ctrl-J, no other modifier. */

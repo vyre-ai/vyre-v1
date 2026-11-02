@@ -16,7 +16,7 @@ const MAX_LIMIT = 500;
 
 /** The resource type an Ask scope names, where the object is a resource of its own. Events and pages are read through their own capability (see below), which carries the same refusal. */
 const RESOURCE_OF: Readonly<Record<string, ResourceType>> = {
-  record: "record", file: "file", folder: "folder", site: "site", automation: "automation", form: "form", campaign: "campaign", project: "project", run: "run", agent: "agent", task: "task",
+  record: "record", file: "file", folder: "folder", site: "site", automation: "automation", form: "form", project: "project", run: "run", agent: "agent", task: "task",
 };
 
 type Call = NonNullable<ChatCtx["call"]>;
@@ -132,6 +132,8 @@ export async function openAsChat(ctx: ChatCtx, input: { threadId: string }) {
 // ---- the level an Ask pane works at -----------------------------------------------------------------------------------------------------------------
 
 const LEVELS = ["manage", "edit", "use", "view"] as const;
+/** An Ask about a place, not one object: nothing narrows it, so the person's own access is the bound, the same on every driver. */
+const PLACE_SCOPES: ReadonlySet<string> = new Set(["records", "console", "onboarding", "automations", "vault_item"]);
 
 /** The caller's level on the object the pane is about, the highest of manage, edit, use, view they hold. An object with no resource of its own is read through its capability, so it is view. */
 export async function askLevel(ctx: ChatCtx, input: { threadId: string }): Promise<{ level: (typeof LEVELS)[number] | null }> {
@@ -139,6 +141,7 @@ export async function askLevel(ctx: ChatCtx, input: { threadId: string }): Promi
   const t = threadBy(ctx.db, input.threadId);
   if (!t || t.starter !== askerOf(ctx)) raise(ctx, "validation.not_found", "That Ask pane does not exist or is not yours.");
   if (t.kind !== "ask" || t.scopeType === undefined || t.scopeId === undefined) return { level: "manage" };
+  if (PLACE_SCOPES.has(t.scopeType)) return { level: "manage" };
   const type = RESOURCE_OF[t.scopeType];
   if (type === undefined) return { level: "view" };
   const host = ctx as ChatCtx & { authorize?: (action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => { effect?: string } };

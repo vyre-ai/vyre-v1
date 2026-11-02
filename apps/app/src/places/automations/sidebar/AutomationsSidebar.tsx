@@ -66,9 +66,11 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
   useEffect(() => { if (!note) return undefined; const t = setTimeout(() => setNote(null), 4000); return () => clearTimeout(t); }, [note]);
 
   const fail = (e: unknown): void => setNote(e instanceof Error ? e.message : "That did not work.");
-  const create = async (groupId?: string): Promise<void> => {
+  const create = async (groupId?: string, space = false): Promise<void> => {
     try {
       const out = (await data.call("automations.create", { name: "New automation", ...(groupId ? { groupId } : {}) })) as { automation?: { id: string } };
+      // made from the Space section: it is a Space Automation from the start (a blank one holds no keys; it still gets no access until a person turns it on)
+      if (out?.automation?.id && space) await data.call("automations.promote", { automationId: out.automation.id, confirm: true });
       if (out?.automation?.id) { data.nav.openAutomation(out.automation.id); onChoose?.(); }
     } catch (e) { fail(e); }
   };
@@ -98,9 +100,9 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
       { label: "Delete group", danger: true, onSelect: () => show([{ head: "Delete this Group? Its Automations stay." }, { label: "Delete group", danger: true, onSelect: () => void data.call("automations.groups.delete", { groupId: g.id }).catch(fail) }, { label: "Cancel" }], x, y, "other") },
     ], x, y, "context", { label: g.name });
   };
-  const plusMenu = (x: number, y: number): void => {
+  const plusMenu = (x: number, y: number, space = false): void => {
     show([
-      { label: "New blank automation", onSelect: () => void create() },
+      { label: "New blank automation", onSelect: () => void create(undefined, space) },
       ...(data.nav.openTemplates ? [{ label: "New from a template", onSelect: () => { data.nav.openTemplates?.(); onChoose?.(); } } as MenuEntry] : []),
       { separator: true },
       { label: "New group", onSelect: () => void createGroup() },
@@ -172,7 +174,7 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
             <Text style={sb.sCount}>{String(s.count)}</Text>
           </Pressable>
           <View style={{ flex: 1 }} />
-          {s.canAdd ? <IconButton icon="plus" label={`Add to ${s.title}`} size={22} testID={`add-${s.key}`} onPress={() => plusMenu(-1, -1)} /> : null}
+          {s.canAdd ? <IconButton icon="plus" label={`Add to ${s.title}`} size={22} testID={`add-${s.key}`} onPress={() => plusMenu(-1, -1, s.key === "space")} /> : null}
         </View>
         {parts}
       </View>

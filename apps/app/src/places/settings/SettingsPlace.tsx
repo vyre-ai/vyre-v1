@@ -1,15 +1,17 @@
-// The Settings place (spec 3.9; ARCH 7.9): ten pages in two groups, named after the open Space and "Everywhere", with a search box (Cmd-F) that finds every row. Changes save as they are
-// made. On a phone the page list and a page are two screens with a back arrow.
+// The Settings place: You, and under the Space's own name what applies to everyone here, with one search (Cmd-F) over all of it. Changes save as they are made. The Console's pages open
+// inside a Space page, with a way back. On a phone the page list and a page are two screens with a back arrow.
+import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../generated/types.ts";
-import { PAGE, useScreenQuery, useSettingsData } from "./data.tsx";
-import { PAGES, pageByKey, searchRows } from "./model.ts";
-import type { Hit, PageKey, SettingRow } from "./model.ts";
-import { AppearancePage, ComputerPage, KeyboardPage, SignInPage, SpacesPage } from "./pages-b.tsx";
-import { ConnectionsPage, ModelsPage, NotificationsPage, PrivacyPage, ProfilePage } from "./pages-a.tsx";
+import { PAGE, useIsPersonal, useScreenQuery, useSettingsData } from "./data.tsx";
+import { PAGES, pageByKey, searchRows, spacePagesFor } from "./model.ts";
+import type { Hit, PageKey, SettingRow, SpacePage } from "./model.ts";
+import { AppearancePage, ComputerPage, SignInPage } from "./pages-b.tsx";
+import { AiPage, ConnectedPage, NotificationsPage, ProfilePage } from "./pages-a.tsx";
+import { SpacePageBody, useSpaceRows } from "./SpacePages.tsx";
 import { SavedBar, SavedProvider } from "./saved.tsx";
 import { Glyph, IconBox, Mark, pointer, webOnly } from "./ui.tsx";
 import type { KeyEventLike } from "./ui.tsx";
@@ -43,7 +45,10 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
   const search = useRef<{ focus?: () => void } | null>(null);
   const list = useScreenQuery<ListOut>(PAGE, "rows", {});
   const rows: readonly SettingRow[] = list.status === "ready" ? list.data.rows : [];
-  const hits = useMemo(() => searchRows(rows, q), [rows, q]);
+  const personal = useIsPersonal();
+  const spaceRows = useSpaceRows(personal);
+  const hits = useMemo(() => searchRows(rows, q, { personal }), [rows, q, personal]);
+  const spacePages = spacePagesFor(personal);
   const def = pageByKey(page);
 
   useEffect(() => {
@@ -64,35 +69,31 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
   }, [found, page]);
 
   const open = (key: PageKey, row: string | null = null): void => { setPage(key); setFound(row); setView("page"); if (row) setQ(""); };
+  const openHit = (h: Hit): void => { open(h.page, h.key); };
   const onSearchKey = (e: KeyEventLike): void => {
     if (e.key === "Escape") { setQ(""); return; }
     if (e.key === "ArrowDown") { e.preventDefault?.(); setCursor((c) => Math.min(hits.length - 1, c + 1)); }
     if (e.key === "ArrowUp") { e.preventDefault?.(); setCursor((c) => Math.max(0, c - 1)); }
-    if (e.key === "Enter") { const h = hits[cursor]; if (h) { e.preventDefault?.(); open(h.page, h.key); } }
+    if (e.key === "Enter") { const h = hits[cursor]; if (h) { e.preventDefault?.(); openHit(h); } }
   };
 
   const pageRows: ReactElement[] = [];
   const spaceTitle = data.space.name;
-  let last = "";
-  for (const p of PAGES) {
-    if (p.group !== last) {
-      last = p.group;
-      pageRows.push(
-        <View key={`g-${p.group}`} style={n.groupHead}>
-          {p.group === "space" ? <Mark name={spaceTitle} size={16} /> : null}
-          <Text accessibilityRole="header" style={n.groupTitle}>{p.group === "space" ? spaceTitle : "Everywhere"}</Text>
-        </View>,
-      );
-    }
-    pageRows.push(<Row key={p.key} id={`page-${p.key}`} title={p.title} selected={!q.trim() && page === p.key} leading={<IconBox name={p.icon} />} onPress={() => open(p.key)} />);
+  pageRows.push(<View key="g-you" style={n.groupHead}><Text accessibilityRole="header" style={n.groupTitle}>You</Text></View>);
+  for (const p of PAGES) if (p.group === "you") pageRows.push(<Row key={p.key} id={`page-${p.key}`} title={p.title} selected={!q.trim() && page === p.key} leading={<IconBox name={p.icon} />} onPress={() => open(p.key)} />);
+  if (spacePages.length > 0) {
+    pageRows.push(<View key="g-space" style={n.groupHead} testID="space-group"><Mark name={spaceTitle} size={16} /><Text accessibilityRole="header" style={n.groupTitle}>{spaceTitle}</Text></View>);
+    for (const key of spacePages) { const p = pageByKey(key); pageRows.push(<Row key={p.key} id={`page-${p.key}`} title={p.title} selected={!q.trim() && page === p.key} leading={<IconBox name={p.icon} />} onPress={() => open(p.key)} />); }
   }
+  if (data.openCompany) pageRows.push(<View key="g-company" style={n.groupHead} />, <Row key="company" id="open-company" title="Connect your company" note="Google Workspace or Microsoft 365" leading={<IconBox name="link" />} onPress={data.openCompany} />);
+  if (data.openConsole) pageRows.push(<View key="g-console" style={n.groupHead} />, <Row key="console" id="open-console" title="Console" note="Running this Space" leading={<IconBox name="grid" />} onPress={data.openConsole} />);
   const searching = q.trim().length > 0;
   const hitRows: ReactElement[] = [];
   hits.forEach((h: Hit, i) => hitRows.push(
     <Row
       key={h.key} id={`hit-${h.key}`} title={h.title} {...(h.sub ? { note: h.sub } : {})} selected={i === cursor} leading={<IconBox name={pageByKey(h.page).icon} />}
       trailing={<View style={n.hitPage}><Text style={n.hitPageText}>{pageByKey(h.page).title}</Text><Glyph name="chevR" size={12} color="var(--ink-3)" /></View>}
-      onPress={() => open(h.page, h.key)}
+      onPress={() => openHit(h)}
     />,
   ));
   const searchPage = (
@@ -107,10 +108,9 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
   );
 
   const nav = (
-    <View style={[n.nav, phone && { width: "100%" as unknown as number, borderRightWidth: 0 }]} testID="settings-nav">
+    <View style={[n.nav, phone && { width: "100%" as unknown as number }]} testID="settings-nav">
       <View style={n.top}>
-        <Mark name={spaceTitle} size={22} />
-        <Text numberOfLines={1} style={n.space}>{spaceTitle}</Text>
+        <Text numberOfLines={1} accessibilityRole="header" style={n.space}>Settings</Text>
         {data.spaces.some((sp) => !sp.current && sp.needsYou > 0) ? <View style={n.dot} accessibilityLabel="Another Space needs you" /> : null}
       </View>
       <View style={n.searchWrap}>
@@ -136,14 +136,13 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
     switch (page) {
       case "profile": return <ProfilePage rows={rows} found={found} />;
       case "notifications": return <NotificationsPage rows={rows} found={found} />;
-      case "models": return <ModelsPage rows={rows} found={found} />;
-      case "connections": return <ConnectionsPage rows={rows} found={found} />;
-      case "privacy": return <PrivacyPage rows={rows} found={found} />;
-      case "signin": return <SignInPage />;
       case "appearance": return <AppearancePage rows={rows} found={found} />;
-      case "keyboard": return <KeyboardPage rows={rows} found={found} />;
-      case "computer": return <ComputerPage rows={rows} found={found} />;
-      default: return <SpacesPage />;
+      case "ai": return <AiPage rows={rows} found={found} />;
+      case "connected": return <ConnectedPage rows={rows} found={found} />;
+      case "signin": return <SignInPage />;
+      case "computer": return <ComputerPage />;
+      default:
+        return <SpacePageBody page={page as SpacePage} rows={spaceRows.rows} reload={spaceRows.reload} found={found} personal />;
     }
   })();
 
@@ -163,14 +162,15 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
   );
   return (
     <View style={n.frame} testID="settings-place">
-      {phone ? (view === "nav" || searching ? nav : main) : (<>{nav}{main}</>)}
+      {phone ? (view === "nav" || searching ? nav : main) : (<><ResizableColumn paneKey="place-sidebar" defaultWidth={244} grow="right" min={200} maxFraction={0.5} maxWidth={380} style={n.navCol as never} testID="settings-nav-col">{nav}</ResizableColumn>{main}</>)}
     </View>
   );
 }
 
 const n = StyleSheet.create({
   frame: { flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string },
-  nav: { width: 248, backgroundColor: "var(--side)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
+  nav: { flex: 1, minHeight: 0, backgroundColor: "var(--side)" as string },
+  navCol: { minHeight: 0 },
   top: { height: 52, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16 },
   space: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, flexShrink: 1 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--accent)" as string },

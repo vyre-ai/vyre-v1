@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { expectStatus } from "./02-space.ts";
-import { addVerifiedSendingDomain, allowAgentSending, bootAgentGateSpace, configureApprovalDelegate, LIVE_FOR_GATE_REPLY, makeHoldDue } from "./07-agent-gate.ts";
+import { addVerifiedSendingDomain, bootAgentGateSpace, configureApprovalDelegate, LIVE_FOR_GATE_REPLY, makeHoldDue } from "./07-agent-gate.ts";
 
 const hex = async (text: string): Promise<string> => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))), (b) => b.toString(16).padStart(2, "0")).join("");
 
@@ -15,7 +15,6 @@ test("the daemon MCP endpoint initializes and an agent tool call reaches the Gat
     await addVerifiedSendingDomain(s, admin, "mcp-live");
     await configureApprovalDelegate(s, admin);
     const agent = expectStatus(await s.call("agents.create", admin, { idempotencyKey: "mcp-live-agent", name: "Mailer", role: "Writes mail" }), 200, "agents.create").agent.agentId as string;
-    await allowAgentSending(s, admin, agent, "mcp-live");
     const thread = expectStatus(await s.call("chat.start", admin, { idempotencyKey: "mcp-live-chat", kind: "chat", agentIds: [agent] }), 200, "chat.start").thread.threadId as string;
     const made = expectStatus(await s.call("mail.mailbox.create", admin, { idempotencyKey: "mcp-live-mailbox", kind: "agent", address: "mcp-live@send.agent-gate.test", title: "Mailer", agentId: agent }), 200, "mail.mailbox.create").mailbox;
     const mailboxId = (made.mailboxId ?? made.id) as string;

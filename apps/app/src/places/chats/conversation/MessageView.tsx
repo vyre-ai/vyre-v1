@@ -1,7 +1,7 @@
 // One entry of the conversation. Yours is a bubble on the right; anyone else's has a header (face, name, time) when the author changes; an agent's work folds into one line; native
 // cards (question, plan, terminal, changeset, file) sit under the text; an error is one inline row (what, why, next). Hover shows Copy and Edit and the rest; right-click opens the same
 // list; the keyboard reaches both. Every row is memoised on its item, so a streaming message re-renders alone.
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { menuTrigger, reportProblem } from "../../../../../../ui/src/Menu/index.tsx";
@@ -16,7 +16,7 @@ import { KeptAside } from "./KeptAside.tsx";
 import { LinkCard } from "../../../../../../ui/src/blocks/link-card/LinkCard.tsx";
 import { linkCardOf } from "../../../../../../ui/src/blocks/link-card/model.ts";
 import type { LinkCardData } from "../../../../../../ui/src/blocks/link-card/model.ts";
-import { probeOf, stateOf } from "../../../../../../ui/src/blocks/link-card/state.ts";
+import { doneByState, heldTaskOf, probeOf, stateOf } from "../../../../../../ui/src/blocks/link-card/state.ts";
 import type { CardState } from "../../../../../../ui/src/blocks/link-card/state.ts";
 import { useThreadMemory } from "../memory/thread.tsx";
 import { rememberMessage } from "../memory/actions.ts";
@@ -30,6 +30,7 @@ import { ReplyMemory } from "../memory/Used.tsx";
 import { AgentFileProposal, PlanFileCard, isPlanFile, isProposal } from "./proposal.tsx";
 import { Fold, Glyph, IconButton, TextButton } from "./parts.tsx";
 import { ApprovalCard } from "./approval.tsx";
+import { useFollow } from "./use-follow.ts";
 import { CrewResultCard, CrewStartLine, isCrewResult, isCrewStart } from "./crew-card.tsx";
 import { KeyRequestCard, isKeyRequest } from "./keyrequest.tsx";
 import { AccessRequestCard, isAccessRequest } from "./accessrequest.tsx";
@@ -55,6 +56,10 @@ export interface MessageActions {
   edit(messageId: string, body: string): void;
   setPinned(messageId: string, pinned: boolean): void;
   react(messageId: string, emoji: string, remove: boolean): void;
+  /** Opens the reaction picker where you pressed. */
+  pickReaction?(messageId: string, x: number, y: number): void;
+  /** Only people talk here: no agent is in this chat. */
+  humanChat?: boolean;
   openThread(messageId: string): void;
   remove(messageId: string): void;
   openAgent(agentId: string): void;
@@ -62,6 +67,8 @@ export interface MessageActions {
   answer(blockId: string, answer: unknown): void;
   approvePlan(planId: string): void;
   retryTurn(turnId: string): void;
+  /** The rows of Details on a failed turn, read from the turn when it opens. */
+  turnDetail?(turnId: string): Promise<[string, string][]>;
   errorNext(key: string, turnId?: string): void;
   /** True once the person has a working AI account (read after "Connect your AI"). Left out where the chat cannot tell. */
   accountReady?(): Promise<boolean>;
@@ -85,7 +92,7 @@ export interface MessageActions {
   /** Open another chat on a message (the line a fork starts with). */
   openMessage?(threadId: string, messageId: string): void;
   /** What files and links in a message need: lookups, opening beside the chat, copying. Left out in a place that cannot open them. */
-  files?: Pick<ConversationData, "call" | "nav" | "copy">;
+  files?: Pick<ConversationData, "call" | "nav" | "copy" | "threadId" | "changes">;
   /** The agents of this chat (for a Mount card, which shares the new folder with them) and the sheet that connects a folder. Left out where the shell has no Files. */
   mountCard?: { agents: readonly { id: string; name: string }[]; data: Pick<ConversationData, "call" | "mountSheet"> };
   /** What a Run this card needs: the capability door, a key for a new session, who asked, and how to show a session. Left out where the shell has no terminal. */
@@ -171,22 +178,34 @@ export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: ()
   if (a.share && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Share to...", onSelect: () => a.share!(m.messageId, at.x, at.y) });
   if (a.fork && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Fork From Here", onSelect: () => a.fork!(m.messageId) });
   items.push({ label: m.pinned ? "Unpin Message" : "Pin Message", onSelect: () => a.setPinned(m.messageId, !m.pinned) });
-  items.push({ label: "Add Reaction", onSelect: () => a.react(m.messageId, "👍", false) });
+  items.push({ label: "Add Reaction", onSelect: () => (a.pickReaction ? a.pickReaction(m.messageId, at.x, at.y) : a.react(m.messageId, "👍", false)) });
   if (m.kind !== "quiet" && a.memoryEntries) items.push(...a.memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu));
   if (mine) items.push({ separator: true }, { label: "Delete", danger: true, onSelect: () => a.remove(m.messageId) });
   return items;
 }
 
 /** The bar is drawn only while the row is hovered or has focus: fifty rows that each hold a hidden bar of buttons were most of what the first frame cost. The empty toolbar stays, so the row's size and test hook never change. */
-export function HoverBar({ m, mine, a, onEdit, visible }: { m: Message; mine: boolean; a: MessageActions; onEdit: () => void; visible: boolean }): ReactElement {
-  const bar: { icon: GlyphName; label: string; run: () => void }[] = [{ icon: "copy", label: "Copy", run: () => a.copy(m.body) }];
-  if (mine && m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
-  bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
-  if (a.makeTask && m.kind !== "system" && m.kind !== "quiet") bar.push({ icon: "task", label: "Make a task", run: () => a.makeTask!(m.messageId) });
-  if (a.fork && m.kind !== "system" && m.kind !== "quiet") bar.push({ icon: "fork", label: "Fork from here", run: () => a.fork!(m.messageId) });
+/** Actions by who wrote it and where: an agent's message copies, threads, forks and pins; your own with an agent copies and edits; people talking get reactions and threads. Fork never appears where only people talk. The rest is under More. */
+export function HoverBar({ m, mine, a, onEdit, visible, byAgent = false }: { m: Message; mine: boolean; a: MessageActions; onEdit: () => void; visible: boolean; byAgent?: boolean }): ReactElement {
+  const bar: { icon: GlyphName; label: string; run: (x: number, y: number) => void }[] = [];
+  const talk = m.kind !== "system" && m.kind !== "quiet";
+  if (byAgent) {
+    bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
+    bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
+    if (a.fork && talk) bar.push({ icon: "fork", label: "Fork from here", run: () => a.fork!(m.messageId) });
+    if (talk) bar.push({ icon: "pin", label: m.pinned ? "Unpin" : "Pin", run: () => a.setPinned(m.messageId, !m.pinned) });
+  } else if (mine && a.humanChat !== true) {
+    bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
+    if (m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
+    bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
+  } else {
+    if (a.pickReaction && talk) bar.push({ icon: "smile", label: "React", run: (x, y) => a.pickReaction!(m.messageId, x, y) });
+    bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
+    if (mine && m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
+  }
   return (
     <View testID={`hover-${m.messageId}`} accessibilityRole="toolbar" accessibilityLabel="Message actions" style={[st.hover, mine ? st.hoverMine : st.hoverTheirs, { opacity: visible ? 1 : 0 }, !visible && { width: 0, borderWidth: 0 }]}>
-      {visible ? collect(bar, (b) => <IconButton key={b.label} icon={b.icon} label={b.label} size={24} testID={`act-${b.label.split(" ")[0]?.toLowerCase()}-${m.messageId}`} onPress={() => b.run()} />) : null}
+      {visible ? collect(bar, (b) => <IconButton key={b.label} icon={b.icon} label={b.label} size={24} testID={`act-${b.label.split(" ")[0]?.toLowerCase()}-${m.messageId}`} onPress={(x, y) => b.run(x, y)} />) : null}
       {visible ? <IconButton icon="more" label="More" size={24} testID={`act-more-${m.messageId}`} onPress={(x, y) => a.showMenu(menuFor(m, mine, a, onEdit, { x, y }), x, y, "Message")} /> : null}
     </View>
   );
@@ -293,6 +312,8 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
   const crewStart = m.blocks.find(isCrewStart);
   const cards = m.blocks.filter((b) => isCard(b) && !isCrewStart(b));
   const statuses = m.blocks.filter(isTurnStatus).map(statusView);
+  // a held call has one card, however many ways the turn named it: the approval card
+  const parked = new Set(statuses.flatMap((x) => (x.kind === "approval" ? [x.taskId] : [])));
   const errors = [...m.blocks.filter(isErrorBlock), ...statuses.flatMap((x) => (x.kind === "error" ? [x.block] : []))];
   const person = item.who.kind === "person";
   // a crew result card says it all (who, what changed, the teammate's words): the message's own text is for the lead agent that wakes on it, so the card stands alone
@@ -304,18 +325,20 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
   const subjects = useSubjectBlocks(blocks);
   return (
     <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined, { x, y }), x, y, "Message"))} style={[st.msg, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive]}>
-      {h.phone ? <ActionSheet open={sheet} entries={menuFor(m, false, actions, () => undefined)} onClose={() => setSheet(false)} /> : <HoverBar m={m} mine={false} a={actions} onEdit={() => undefined} visible={h.over || h.focus} />}
+      {h.phone ? <ActionSheet open={sheet} entries={menuFor(m, false, actions, () => undefined)} onClose={() => setSheet(false)} /> : <HoverBar byAgent={!person} m={m} mine={false} a={actions} onEdit={() => undefined} visible={h.over || h.focus} />}
       {item.newgroup ? (
         <View style={st.by}>
           <Face name={item.who.name} seedId={item.who.id} kind={person ? "person" : "agent"} size={20} />
-          <Pressable accessibilityRole="link" accessibilityLabel={`Open ${item.who.name}`} testID={`who-${m.messageId}`} disabled={person} onPress={() => actions.openAgent(item.who.id)}>
+          <Pressable accessibilityRole="link" accessibilityLabel={`Open ${item.who.name}`} testID={`who-${m.messageId}`} onPress={() => actions.openAgent(item.who.id)}>
             <Text style={st.who}>{item.who.name}</Text>
           </Pressable>
           <Text style={st.time}>{item.time}</Text>
+          {work?.short ? <Pressable accessibilityRole="button" accessibilityLabel={work.summary} testID={`work-short-${m.messageId}`} onPress={() => setWorkOpen((o) => !o)} style={{ opacity: h.over || workOpen ? 1 : 0 }}><Text style={st.time}>{work.summary}</Text></Pressable> : null}
         </View>
       ) : <Text style={st.whenLeft}>{item.time}</Text>}
+      {item.paidLine ? <Text testID={`paid-${m.messageId}`} style={st.via}>{item.paidLine}</Text> : null}
       {m.via ? <Text testID={`via-${m.messageId}`} style={st.via}>{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text> : null}
-      {work ? (
+      {work && (!work.short || !item.newgroup || workOpen) ? (
         <Fold testID={`work-${m.messageId}`} label={work.live ? `Working${work.now ? ` · ${work.now}` : ""}` : work.summary} open={work.live || workOpen} live={work.live} onToggle={() => setWorkOpen((o) => !o)}>
           {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part="line" />}
           {collect(work.steps, (l) => (
@@ -335,9 +358,11 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
       {actions.files && m.attachments.length > 0 ? <AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /> : null}
       {collect(cards, (b) => {
         if (isCrewResult(b) && actions.files) return <CrewResultCard key={b.id} block={b} leadThreadId={m.threadId} data={actions.files} />;
-        if (isProposal(b)) return <AgentFileProposal key={b.id} block={b} host={actions.host} />;
+        if (isProposal(b)) return <AgentFileProposal key={b.id} block={b} host={actions.host} changes={actions.files?.changes} />;
         if (isPlanFile(b)) return <PlanFileCard key={b.id} block={b} onOpen={(id) => actions.openBeside("file", id)} />;
         const lc = linkCardOf(b);
+        const held = lc && actions.files ? heldTaskOf(lc) : null;
+        if (held !== null) return parked.has(held) ? null : <ApprovalCard key={b.id} taskId={held} agent={item.who.name} agentId={item.who.id} data={actions.files!} />;
         if (lc) return <LinkCardView key={b.id} id={b.id} data={lc} actions={actions} size={14} trusted={m.kind === "system"} />;
         if (isAccessRequest(b.type) && actions.files) return <AccessRequestCard key={b.id} block={b.data as never} data={actions.files} />;
         if (isKeyRequest(b.type) && actions.files) return <KeyRequestCard key={b.id} requestId={String((b.data as { requestId?: unknown }).requestId ?? "")} agent={item.who.name} agentId={item.who.id} data={actions.files} />;
@@ -396,28 +421,21 @@ function LinkCardView({ id, data, actions, size, trusted }: { id: string; data: 
   };
   const seen = useCardState(data, actions);
   const open = (t: NonNullable<LinkCardData["target"]>): void => { if (t.type === "thread" && actions.openMessage) actions.openMessage(t.id, ""); else if (t.type === "fact" && memory?.memory.showKnows) memory.memory.showKnows(); else actions.openBeside(t.type, t.id); };
-  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={done} state={seen.state} hidden={seen.hidden} />;
+  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={new Set([...done, ...doneByState(data, seen.state)])} state={seen.state} hidden={seen.hidden} />;
 }
 
-/** What a work card says now, read as this reader: its state while it is live (read again every few seconds), and whether they may open it at all. */
+/** What a work card says now, read as this reader: its state while it is live (read again on every change in the Space), and whether they may open it at all. */
 function useCardState(data: LinkCardData, actions: MessageActions): { state: CardState | null; hidden: boolean } {
   const [seen, setSeen] = useState<{ state: CardState | null; hidden: boolean }>({ state: null, hidden: false });
   const probe = probeOf(data);
   const key = probe ? `${probe.cap}:${JSON.stringify(probe.input)}` : "";
-  useEffect(() => {
+  const read = useCallback(async (): Promise<void> => {
     if (!probe) return;
-    let live = true, timer: ReturnType<typeof setTimeout> | undefined, tries = 0;
-    const read = (): void => {
-      Promise.resolve(actions.host.invoke(probe.cap, probe.input)).then((out) => {
-        if (!live) return;
-        const state = stateOf(data, out);
-        setSeen({ state, hidden: false });
-        if (state?.live && ++tries < 60) timer = setTimeout(read, 4000);
-      }, () => { if (live) setSeen({ state: null, hidden: true }); });
-    };
-    read();
-    return () => { live = false; if (timer) clearTimeout(timer); };
-  }, [key]);   // eslint-disable-line react-hooks/exhaustive-deps -- one read loop per card
+    try { setSeen({ state: stateOf(data, await actions.host.invoke(probe.cap, probe.input)), hidden: false }); }
+    catch { setSeen({ state: null, hidden: true }); }
+  }, [key]);   // eslint-disable-line react-hooks/exhaustive-deps -- one read per card and target
+  useEffect(() => { void read(); }, [read]);
+  useFollow(actions.files?.changes, read, probe !== null && (seen.state === null ? !seen.hidden : seen.state.live));
   return seen;
 }
 
@@ -479,6 +497,14 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
 function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; actions: MessageActions }): ReactElement {
   const e = errorRow(block);
   const [open, setOpen] = useState(false);
+  const [detail, setDetail] = useState<[string, string][] | null>(null);
+  const [retried, setRetried] = useState(false);
+  useEffect(() => {
+    if (!open || detail !== null || e.turnId === "" || !actions.turnDetail) return undefined;
+    let live = true;
+    void actions.turnDetail(e.turnId).then((rows) => { if (live) setDetail(rows); }, () => undefined);
+    return () => { live = false; };
+  }, [open, detail, e.turnId, actions]);
   // A reply that could not start for lack of an AI account: once the person has used "Connect your AI" and an account works, a quiet line offers to send it again (one retry of that turn, the message is not posted twice).
   const noAccount = e.code === "no_account" && e.turnId !== "" && actions.accountReady !== undefined;
   const [asked, setAsked] = useState(false);
@@ -498,9 +524,9 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
       {e.cause ? <Text style={st.errCause}>{e.cause}</Text> : null}
       <View style={st.errActions}>
         {collect(e.next, (n) => <TextButton link key={n.key} label={n.label} testID={`err-next-${n.key}`} onPress={() => { if (n.key === "connect_ai") setAsked(true); actions.errorNext(n.key, e.turnId); }} />)}
-        {e.retryable && e.turnId ? <TextButton link label="Retry" testID="err-retry" onPress={() => actions.retryTurn(e.turnId)} /> : null}
+        {e.retryable && e.turnId && !retried ? <TextButton link label="Retry" testID="err-retry" onPress={() => { setRetried(true); actions.retryTurn(e.turnId); }} /> : null}
         <TextButton link label="Details" testID="err-what" onPress={() => setOpen((o) => !o)} />
-        <TextButton link label="Copy id" testID="err-trace" onPress={() => actions.copy(e.traceId)} />
+        <TextButton link label="Copy id" testID="err-trace" onPress={() => actions.copy(e.traceId || e.turnId)} />
         <TextButton link label="Report" testID="err-report" onPress={() => reportProblem({ label: reportLabel(e.message, e.traceId) })} />
       </View>
       {noAccount && ready && !resent ? (
@@ -511,7 +537,7 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
       ) : null}
       {open ? (
         <View testID="err-steps" style={st.errSteps}>
-          {collect(e.steps, ([k, v]) => <View key={k} style={st.kv}><Text style={st.kvK}>{k}</Text><Text style={st.kvV}>{v}</Text></View>)}
+          {collect(detail ?? e.steps, ([k, v]) => <View key={k} style={st.kv}><Text style={st.kvK}>{k}</Text><Text style={st.kvV}>{v}</Text></View>)}
         </View>
       ) : null}
     </View>

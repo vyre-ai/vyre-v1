@@ -85,7 +85,7 @@ test("a Space on this computer alone pairs a phone through the computer's vyre.r
   await act(async () => { r.render(<PairPhoneCard call={call} address="http://127.0.0.1:4310" onPaired={() => undefined} />); });
   await flush();
   assert.deepEqual(calls, ["network.phone", "identity.pair_create"]);
-  assert.equal(text(find(r.container as never, "pair-link")), `https://alex.vyre.run/home?pair=CODE-0001#box=${KEY}`);
+  assert.equal(text(find(r.container as never, "pair-link")), `https://alex.vyre.run/chat?pair=CODE-0001#box=${KEY}`);
   assert.equal(find(r.container as never, "pair-phone-local"), null);
 });
 
