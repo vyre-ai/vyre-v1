@@ -66,3 +66,15 @@ test("publicPathOk: the box passes only the plain public path to the gateway", (
   for (const p of ["/p", "/p/", "/p/forms/quote?op=submit&x=..%2f", "/p/site/a/b.css"]) assert.ok(publicPathOk(p), p);
   for (const p of ["/", "/v1/identity.whoami", "/pp", "/p/../v1/x", "/p/%2e%2e/v1/x", "/p/.%2e/v1/x", "/p/..%2fv1", "/p/a%2Fb", "/p/a%5cb", "/p/a\\b", `/p/${"a".repeat(5000)}`]) assert.ok(!publicPathOk(p), p);
 });
+
+test("an artifact's plain address opens the app, and only a token below it serves anything", async () => {
+  const s = await serve(null);
+  try {
+    const r = await fetch(`${s.url}/a/sit_abc`, { redirect: "manual" });
+    assert.equal(r.status, 302);
+    assert.equal(r.headers.get("location"), "/#screen=apps.artifacts&selected=sit_abc");
+    const miss = await fetch(`${s.url}/a/sit_abc/k/${"0".repeat(48)}/`);
+    assert.equal(miss.status, 404);
+    assert.ok(String(miss.headers.get("content-security-policy")).includes(PUBLIC_SANDBOX));
+  } finally { await s.close(); }
+});

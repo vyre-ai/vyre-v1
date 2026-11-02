@@ -54,6 +54,8 @@ export function SiteDetail({ id, back }: { id: string; back(): void }): ReactEle
     } catch (e) { setError(errorMessage(e)); } finally { setBusy(false); }
   };
   const x = site.data?.site;
+  const domainRows: ReactElement[] = [];
+  for (const row of domains.data?.domains ?? []) domainRows.push(<Domain key={row.domain} siteId={id} domain={row.domain} online={online} />);
   const publish = (): void => { if (x) void run(x.access === "public" ? "sites.promote" : "sites.publish", { siteId: id }); };
   return <Frame testID="apps-site-detail" title={x?.name ?? "Site"} back={back} offline={!online} error={error ?? site.error} loading={site.loading} retry={site.refresh}>
     {x ? <>
@@ -74,14 +76,14 @@ export function SiteDetail({ id, back }: { id: string; back(): void }): ReactEle
         <Select label="Who can reach it" value={x.access ?? "private"} options={ACCESS} disabled={busy || !online} onChange={(access) => void run("sites.update", { siteId: id, access })} />
       </Card>
       <Card title="Domains">
-        {(domains.data?.domains ?? []).map((row) => <Domain key={row.domain} siteId={id} domain={row.domain} online={online} />)}
+        {domainRows}
         {host.data && !host.data.domains ? <><Text style={s.text} testID="site-domains-need">{host.data.domainsNeed}</Text><View style={s.actions}><Button title="Add a server" onPress={() => d.nav.openComputers?.()} /></View></> : <View style={s.actions}>
           <TextInput accessibilityLabel="Domain" value={domain} onChangeText={setDomain} placeholder="www.example.com" placeholderTextColor="var(--ink-4)" style={[s.input, { flex: 1 }]} />
           <Button title="Add domain" testID="site-add-domain" disabled={busy || !online || domain.trim() === ""} onPress={() => { void run("sites.domain_add", { siteId: id, domain: domain.trim() }).then(() => setDomain("")); }} />
         </View>}
       </Card>
       <Card title="Logs">
-        {(logs.data?.lines.length ?? 0) > 0 ? logs.data!.lines.slice(-100).map((l, i) => <Text key={i} selectable style={[s.text, { fontFamily: "var(--mono)" as string, fontSize: 12 }]}>{l}</Text>) : <Text style={s.text}>Nothing logged. An agent writes it to ~/sites/{x.slug ?? "name"}/site.log on the computer.</Text>}
+        {(logs.data?.lines.length ?? 0) > 0 ? <Text selectable testID="site-logs" style={[s.text, { fontFamily: "var(--mono)" as string, fontSize: 12 }]}>{logs.data!.lines.slice(-100).join("\n")}</Text> : <Text style={s.text}>Nothing logged. An agent writes it to ~/sites/{x.slug ?? "name"}/site.log on the computer.</Text>}
       </Card>
     </> : null}
   </Frame>;

@@ -415,6 +415,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   };
   // sites: what the module answers and where the bytes go; set once the modules are loaded and the stream exists
   let sitesServing: Partial<PublicPathDeps> = {};
+  let refreshDomains: () => Promise<void> = () => Promise.resolve();
   const publicPath = createPublicPathRoute({
     forms: () => formsPageRoute, origin: () => publicOrigin()?.origin ?? null,
     site: (slug) => sitesServing.site?.(slug) ?? null, artifact: (id, token) => sitesServing.artifact?.(id, token) ?? Promise.resolve(null),
@@ -1216,6 +1217,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         configureDomainEdge: () => {
           const computers = loaded.moduleExports.get("computers") as { localComputerAddress?: (id: string) => Promise<string | null> } | undefined;
+          const refresh = loaded.moduleExports.get("sites")?.["refreshDomainRoutes"] as ((c: { db: unknown }, warn: (m: string, a: Record<string, unknown>) => void) => Promise<number>) | undefined;
+          // a computer that restarted has a new address, so the routes are written again on the slow timer
+          refreshDomains = async () => { if (refresh && db) await refresh({ db }, (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "sites", attrs })); };
           return createDomainEdge({
             origin: publicOrigin, contained: fs.existsSync("/.dockerenv"),
             nodeOf: (id) => (db!.all("SELECT node_id FROM computers_computers WHERE computer_id = ?", id)[0] as { node_id?: string | null } | undefined)?.node_id ?? null,
@@ -1652,6 +1656,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   if (hasSpace) {
     scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });
     scheduler.add({ name: "schedule.tick", schedule: { everyMs: o.intervals?.tick ?? 1000 }, run: async () => { await queue?.tick(); } });
+    scheduler.add({ name: "sites.domain_routes", schedule: { everyMs: o.intervals?.slow ?? 60_000 }, run: async () => { await refreshDomains(); } });
     scheduler.add({ name: "projections.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await projections?.pump(); } });
     scheduler.add({ name: "hooks.pump", schedule: { everyMs: o.intervals?.hooks ?? 5000 }, run: async () => { await hooks?.pump(); } });   // the backstop for a consumer that failed, and for events committed by another process
     for (const p of hooks?.periodic ?? []) scheduler.add({ name: `hook.${p.name}`, schedule: { everyMs: p.everyMs, ...(p.immediate ? { immediate: true } : {}) }, run: async () => { await hooks?.runPeriodic(p.name); } });

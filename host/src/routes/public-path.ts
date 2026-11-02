@@ -129,6 +129,9 @@ export function createPublicPathRoute(deps: PublicPathDeps): Inner {
   return {
     handle(req, res) {
       const url = new URL(req.url ?? "/", "http://vyred");
+      // an artifact's plain address: the app opens it for whoever is signed in. Only a token below it serves anything
+      const plain = /^\/a\/(sit_[a-z0-9]{1,64})\/?$/.exec(url.pathname);
+      if (plain && (req.method ?? "GET").toUpperCase() === "GET") { res.writeHead(302, { location: `/#screen=apps.artifacts&selected=${plain[1] as string}`, "cache-control": "no-store", "content-length": "0" }); res.end(); return true; }
       const artifact = ARTIFACT.exec(url.pathname);
       if (url.pathname !== "/p" && !url.pathname.startsWith("/p/") && !artifact) return false;
       for (const h of DROP) delete req.headers[h];

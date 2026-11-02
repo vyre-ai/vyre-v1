@@ -311,3 +311,20 @@ test("/p/: a response over one chunk streams back whole", async t => {
   });
   assert.equal((await (await call(rt, "https://harbor.vyre.run/p/x")).text()).length, big.length);
 });
+
+test("/a/: a plain artifact address opens the app; an address with its token goes to the box in the sandbox; anything else under /a/ is the shell", async t => {
+  const rt = world(t);
+  const token = "a".repeat(48);
+  const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, { "content-type": "text/html", "set-cookie": "x=1" }, "<p>made</p>"));
+  const plain = await call(rt, "https://harbor.vyre.run/a/sit_abc");
+  assert.equal(plain.status, 302);
+  assert.equal(plain.headers.get("location"), "/#screen=apps.artifacts&selected=sit_abc");
+  const res = await call(rt, `https://harbor.vyre.run/a/sit_abc/k/${token}/index.html`, { headers: { cookie: "s=1", authorization: "Bearer x" } });
+  assert.equal(await res.text(), "<p>made</p>");
+  assert.deepEqual(asked[0].headers, {});
+  assert.equal(res.headers.get("set-cookie"), null);
+  assert.ok(res.headers.get("content-security-policy").includes(SANDBOX));
+  assert.equal(asked.length, 1);
+  await call(rt, "https://harbor.vyre.run/a/sit_abc/k/short/");
+  assert.equal(asked.length, 1, "a token of the wrong shape never reaches the box");
+});

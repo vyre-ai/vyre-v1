@@ -102,6 +102,16 @@ async function domainSet(ctx: Ctx, input: unknown): Promise<{ dnsOk: boolean }> 
   return { dnsOk: true };
 }
 
+/** Write every live site's domains again: a computer that restarted has a new container address. The host calls this on a timer. Host call, not a capability. */
+export async function refreshDomainRoutes(ctx: Pick<Ctx, "db">, warn: (msg: string, attrs: Record<string, unknown>) => void): Promise<number> {
+  if (!edge) return 0;
+  let n = 0;
+  for (const row of ctx.db.all("SELECT d.domain AS domain, s.computer_id AS computer_id, s.port AS port FROM sites_domain d JOIN sites_site s ON s.id = d.site_id WHERE s.deleted_at IS NULL AND s.live = 1 AND s.port IS NOT NULL") as Row[]) {
+    try { await edge.setRoute(targetOf(row), str(row.domain), Number(row.port), null); n++; } catch (e) { warn("sites: a domain route was not refreshed", { domain: str(row.domain), error: e instanceof Error ? e.message : String(e) }); }
+  }
+  return n;
+}
+
 export const domainRouteHandlers = {
   "sites.domain_add": (ctx: Ctx, input: unknown) => domainAdd(ctx, input),
   "sites.domain_check": (ctx: Ctx, input: unknown) => domainCheck(ctx, input),

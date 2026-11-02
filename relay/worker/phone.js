@@ -347,6 +347,9 @@ export async function onHost(request, env, name) {
     try { return Boolean(((await (await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/online")).json())).online); } catch { return false; }
   };
   if (url.pathname === "/p" || url.pathname.startsWith("/p/") || ARTIFACT.test(url.pathname)) return onPublic(request, env, name, info, online);
+  // an artifact's plain address: the app opens it for whoever is signed in
+  const plain = /^\/a\/([a-z0-9_]{1,80})\/?$/.exec(url.pathname);
+  if (plain && request.method === "GET") return new Response(null, { status: 302, headers: { location: `/#screen=apps.artifacts&selected=${plain[1]}`, "cache-control": "no-store" } });
   if (url.pathname === "/__vyre/info.json") return json(200, { name, label: info.label || "", route: info.route, relay: relayWss, online: await online() });
   if (url.pathname.startsWith("/__vyre/")) {
     if (!env.ASSETS || (request.method !== "GET" && request.method !== "HEAD")) return new Response(null, { status: 404, headers: { "x-vyre-gateway": "no-assets" } });

@@ -117,3 +117,22 @@ test("a hostile page under /p/ reads nothing of the app and acts as nobody; a re
   assert.deepEqual((submitted[0] as { cap: string }).cap, "forms.submit");
   assert.deepEqual((submitted[0] as { input: { answers: unknown } }).input.answers, { name: "Ada" });
 });
+
+test("a hostile artifact in the app's frame reads nothing, and its parent cannot be reached", async (t) => {
+  // an artifact opens in a sandboxed frame inside the app: the same policy, plus the frame's own sandbox
+  const hostile = `<!doctype html><script>const out={origin:self.origin};try{out.ls=localStorage.length}catch(e){out.ls="blocked"}try{out.parent=parent.document.title}catch(e){out.parent="blocked"}try{out.cookie=document.cookie}catch(e){out.cookie="blocked"}parent.postMessage(out,"*")</script>`;
+  const s = http.createServer((req, res) => {
+    if (req.url === "/app") { res.writeHead(200, { "content-type": "text/html" }); res.end(`<!doctype html><title>the app</title><script>localStorage.setItem("k","v");addEventListener("message",e=>{document.documentElement.dataset.out=JSON.stringify(e.data)})</script><iframe src="/a/sit_x/k/t/" sandbox="allow-scripts allow-forms allow-popups allow-downloads"></iframe>`); return; }
+    res.writeHead(200, { "content-type": "text/html", "content-security-policy": "sandbox allow-scripts allow-forms allow-popups allow-downloads" }); res.end(hostile);
+  });
+  await new Promise<void>((r) => s.listen(0, "127.0.0.1", r));
+  const req = createRequire(path.join(process.cwd(), "package.json"));
+  const { chromium } = req("playwright-core") as { chromium: { launch(o: unknown): Promise<any> } };
+  const browser = await chromium.launch({ args: ["--no-sandbox"] });
+  t.after(async () => { await browser.close(); s.closeAllConnections(); s.close(); });
+  const page = await browser.newPage();
+  await page.goto(`http://127.0.0.1:${(s.address() as AddressInfo).port}/app`);
+  await page.waitForFunction(() => document.documentElement.dataset.out, undefined, { timeout: 10_000 });
+  const out = JSON.parse(await page.evaluate(() => document.documentElement.dataset.out as string)) as Record<string, unknown>;
+  assert.deepEqual(out, { origin: "null", ls: "blocked", parent: "blocked", cookie: "blocked" });
+});

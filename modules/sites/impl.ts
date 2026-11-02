@@ -8,6 +8,7 @@ export { routeById, routeBySlug, routeByTicket } from "./handlers/route.ts";
 import { registry } from "../../generated/registry.ts";
 import { configureRoutes, routeHandlers } from "./handlers/route.ts";
 import { configureDomainEdge, domainRouteHandlers } from "./handlers/route-domains.ts";
+export { refreshDomainRoutes } from "./handlers/route-domains.ts";
 
 // A site is a route (owner, 2 Nov): handlers/route.ts is what ships. The build pipeline below it (deploy, previews, staging, promote, site tables) is dormant and deferred: each of its capabilities stays registered and
 // refuses with "Not in this version yet" (ruling 60, docs/deferred.md). Nothing wires configureSites or dockerRuntime.
