@@ -24,6 +24,7 @@ import { ConversationDataProvider, useConversationData, useOnline, useOptionalCo
 import type { ConversationData, ConversationNav } from "./data.tsx";
 import * as act from "./actions.ts";
 import { ChatMemoryProvider } from "../memory/thread.tsx";
+import { keepItem, weave } from "../tasks/activity.ts";
 import { useMemoryEntries } from "../memory/menu.tsx";
 import { MessageView } from "./MessageView.tsx";
 import { QueueWaiting } from "./QueueWaiting.tsx";
@@ -124,6 +125,7 @@ function ConversationView(): ReactElement {
   const emptyRef = useRef(false);
   const [atEnd, setAtEnd] = useState(true);
   const [jump, setJump] = useState(0);
+  const [sentOnPage, setSentOnPage] = useState(0);
   const [finding, setFinding] = useState(false);
   const [query, setQuery] = useState("");
   const [matchAt, setMatchAt] = useState(0);
@@ -217,6 +219,7 @@ function ConversationView(): ReactElement {
       void runSlash(payload.text, commandEnv());
       return;
     }
+    if (data.head) setSentOnPage((n) => n + 1);
     const key = data.newKey();
     const mentions = mentionsIn(payload.text, data.directory);
     const refs = [...payload.refs, ...payload.chips.flatMap((c) => (c.id !== undefined ? [{ kind: c.kind.toLowerCase(), id: c.id, title: c.name }] : []))];
@@ -238,7 +241,8 @@ function ConversationView(): ReactElement {
   const timelineMessages = byOrder([...win.rows, ...collect(liveView ? stillPending(pending, win.rows) : [], (p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i)), ...ghosts]);
   const pendingState = new Map<string, "sending" | "failed">();
   for (const p of stillPending(pending, win.rows)) pendingState.set(`pending:${p.key}`, p.state);
-  const items = timeline(timelineMessages, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: data.clock(), shared: thread.members.filter((p) => p.kind === "person").length >= 2 });
+  const woven = data.activity ? weave(timelineMessages, data.activity.events).filter((m) => keepItem(m, data.activity!.show)) : timelineMessages;
+  const items = timeline(woven, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: data.clock(), shared: thread.members.filter((p) => p.kind === "person").length >= 2 });
   const lastLive = [...timelineMessages].reverse().find((m) => data.streamOf(m.messageId) !== undefined);
   const lastStream = lastLive ? data.streamOf(lastLive.messageId) : undefined;
   const queued = queuedCount(timelineMessages, data.me.id, isWorking);
@@ -417,7 +421,7 @@ function ConversationView(): ReactElement {
     ? mentionsIn(typed, data.directory.filter((c) => c.kind === "person" && c.id !== data.me.id))[0]
     : undefined;
   const closed = isClosed(thread);
-  const note = threadKindNote(thread, nameOf);
+  const note = data.head ? "" : threadKindNote(thread, nameOf);
   const title = titleOf(thread, nameOf);
   const q = queueNote(queued, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn);
 
@@ -495,14 +499,15 @@ function ConversationView(): ReactElement {
         </View>
       )}
       <View style={st.feedBox}>
-        <Feed key={jump} followKey={timelineMessages.length} {...(lastStream ? { store: lastStream } : {})} testID="conversation-feed" contentStyle={st.feedContent} onAtEndChange={setAtEnd}>
+        <Feed key={jump} followKey={timelineMessages.length} {...(lastStream ? { store: lastStream } : {})} {...(data.head ? { startAway: true, endKey: sentOnPage } : {})} testID="conversation-feed" contentStyle={st.feedContent} onAtEndChange={setAtEnd}>
+          {data.head ?? null}
           <View style={st.col}>
             {hasEarlier ? (
               <View style={st.earlier}>
                 <TextButton label="Show earlier messages" testID="earlier-button" onPress={() => { if (win.hiddenLocal > 0) setShown((n) => n + WINDOW); else { const c = beforeCursor(all); if (c !== null) setCursor(c); } }} />
               </View>
             ) : null}
-            {items.length === 0 ? <States kind="empty" icon="chat" title="Say something to start" /> : null}
+            {items.length === 0 && !data.head ? <States kind="empty" icon="chat" title="Say something to start" /> : null}
             {collect(items, (it) => {
               const key = it.key;
               const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;
@@ -511,7 +516,7 @@ function ConversationView(): ReactElement {
             })}
           </View>
         </Feed>
-        {atEnd ? null : (
+        {atEnd || data.head ? null : (
           <Pressable testID="to-latest" accessibilityRole="button" accessibilityLabel="Jump to latest" onPress={() => { setJump((n) => n + 1); setAtEnd(true); }} style={st.toLatest}>
             <Glyph name="down" size={14} color="var(--ink-2)" /><Text style={st.toLatestText}>Jump to latest</Text>
           </Pressable>
@@ -539,7 +544,7 @@ function ConversationView(): ReactElement {
         <View style={st.composerBox}>
           <Composer
             key={`composer-${seed.n}`} {...(seed.value !== "" ? { value: seed.value } : {})}
-            testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={placeholderFor(thread, nameOf, isWorking, canSteer)} working={isWorking}
+            testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={data.placeholder ?? placeholderFor(thread, nameOf, isWorking, canSteer)} working={isWorking}
             {...(place.chip ? { runsChip: place.chip } : {})}
             agents={composerAgents} mode={mode} onMode={chooseChatMode}
             suggest={composerSuggest(data)} preview={(item) => previewOf(data, item)}

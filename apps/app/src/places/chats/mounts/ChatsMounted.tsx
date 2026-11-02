@@ -40,7 +40,6 @@ import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
 import { START, fromHash, step, workOf } from "./route.ts";
 import { Landing } from "../landing/Landing.tsx";
-import { TasksRoute, TaskRouteLeaf } from "./TasksRoute.tsx";
 import { ThreadsPage } from "./ThreadsPage.tsx";
 import { AgentForm } from "../agentform/AgentForm.tsx";
 import { setAgentFaces } from "../../../../../../ui/src/Avatar/assistant.ts";
@@ -49,6 +48,8 @@ import { ProfilePane, afterClose, profileTab, withTab } from "../rightpane/Profi
 import type { ProfileTab } from "../rightpane/ProfilePane.tsx";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { WORKSPACE_MIN_W, Workspace } from "./Workspace.tsx";
+import { TasksPage } from "../tasks/TasksPage.tsx";
+import { TaskDetail } from "../tasks/TaskDetail.tsx";
 import type { Act, Shown } from "./route.ts";
 import { nameOr } from "../names.ts";
 
@@ -214,6 +215,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     },
     [rt, go, threadId, list, nameOf, leadId, fill, focus, profile],
   );
+  const conversationFor = useCallback((id: string) => wireConversation(rt, go, { threadId: id, list, nameOf, leadId: rt.assistant.id, fill }), [rt, go, list, nameOf, fill]);
   const searchData = useMemo<SearchData>(() => ({
     call: rt.call, me: { id: rt.me.id, name: rt.me.name }, nameOf, kindOf: (id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person"), clock: rt.clock,
     query: route.view === "search" ? route.q : "", openMessage: go.message, openThread: go.chat, close: go.closeSearch, copy,
@@ -237,13 +239,13 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
 
   /* ---------- the middle ---------- */
   let main: ReactElement;
-  if (route.view === "search") main = <SearchPage key={route.q} data={searchData} />;
+  if (route.view === "tasks") main = <TasksPage rt={rt} openTask={go.task} openAgent={(id) => go.agent(id)} openChat={(text) => rt.open({ screen: "chats.ask", args: { with: "assistant", first: text } })} {...(window ? { window } : {})} />;
+  else if (route.view === "task") main = <TaskDetail key={route.taskId} rt={rt} taskId={route.taskId} conversationFor={conversationFor} openTask={go.task} openAgent={(id) => go.agent(id)} openChat={(id) => rt.open({ screen: "chats.conversation", args: { threadId: id } })} />;
+  else if (route.view === "search") main = <SearchPage key={route.q} data={searchData} />;
   else if (route.view === "needs") main = <NeedsYou data={needs} {...(route.taskId ? { initialSelected: route.taskId } : {})} {...(window ? { window } : {})} />;
   else if (route.view === "imported") main = <ImportedSession key={route.conversationId} conversationId={route.conversationId} data={importedData} />;
   else if (route.view === "helper") main = helperId === "" ? <HelperChatLoading /> : <HelperChat key={helperId} data={helper} />;
   else if (route.view === "agent") main = agentId === "" ? <AgentPageLoading /> : <AgentPage key={agentId} data={agentPage} initialTab={route.tab ?? "chats"} {...(window ? { window } : {})} />;
-  else if (route.view === "tasks") main = <TasksRoute rt={rt} />;
-  else if (route.view === "task") main = <TaskRouteLeaf rt={rt} taskId={route.taskId} onBack={() => act({ t: "tasks" })} />;
   else if (route.view === "agent-form") main = <AgentForm key={route.agentId ?? "new"} agentId={route.agentId} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} newKey={newKey} onDone={(id) => { closeSelf?.(); go.agentChat(id); }} onCancel={() => act({ t: "new" })} say={setLine} {...(rt.space.kind === "personal" ? {} : { sharing: { directory, meName: rt.me.name, meId: rt.me.id, nameOf } })} />;
   else if (route.view === "threads") main = <ThreadsPage rt={rt} nameOf={nameOf} openChat={go.thread} />;
   else if (route.view === "new") {

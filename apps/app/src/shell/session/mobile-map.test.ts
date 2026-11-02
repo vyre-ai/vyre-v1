@@ -32,4 +32,13 @@ test("phone Apps preserve detail/create hashes and return to the same editor", (
   assert.equal(entryFor("vault", "")!.tab, "you");
 });
 
-test("phone task links preserve the canonical task when opened from a copied Home URL", () => { const entry=entryFor("home", "screen=tasks.page&taskId=tsk_fixture")!; assert.deepEqual(entry,{tab:"you",screen:"task:tsk_fixture"}); assert.deepEqual(placeOf(entry),{place:"chats",hash:"subject=task%3Atsk_fixture"}); });
+test("phone task links preserve the canonical task when opened from a copied Home URL", () => { const entry=entryFor("home", "screen=tasks.page&taskId=tsk_fixture")!; assert.deepEqual(entry,{tab:"chats",screen:"task:tsk_fixture"}); assert.deepEqual(placeOf(entry),{place:"chats",hash:"subject=task%3Atsk_fixture"}); });
+
+test("Tasks lives on the Chats tab: its list has a screen, and that screen draws the Tasks page in Chats", () => {
+  const list = entryFor("chats", "screen=tasks.my-work")!;
+  assert.deepEqual(list, { tab: "chats", screen: "tasks:list", title: "Tasks" });
+  assert.deepEqual(placeOf(list), { place: "chats", hash: "screen=tasks.my-work" });
+  const task = entryFor("chats", "subject=task:tsk_1")!;
+  assert.equal(task.tab, "chats");
+  assert.deepEqual(placeOf(task), { place: "chats", hash: "subject=task%3Atsk_1" });
+});
