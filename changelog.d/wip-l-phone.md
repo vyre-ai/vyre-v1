@@ -1,0 +1,5 @@
+- A number is private to the people on it. Only they see its texts and calls in their Inbox and can text or call from it, and that holds for reading, transcripts, recordings and agents acting for a person. A number with nobody on it is for admins.
+- Telephony: paste the Twilio keys, Vyre tests them at once and brings in every number with calls and texts set up. A number can be assigned to several people.
+- A message with a known contact is that contact's history, on a new Conversation tab on their page, for anyone who can open them. A text from an unknown number stays with the people on the line until it is linked.
+- Twilio's webhooks reach a Space on a vyre.run address through /p/hooks/twilio. This needs the relay Worker deployed.
+- Calls and texts no longer copy to devices.

@@ -49,9 +49,8 @@ test("list, get and search: numbers by assignee, one number, and what Twilio has
   const t = harness();
   const a = out(out(await buy(t)).number);
   t.owned.push({ sid: "PN00000000000000000000000000000056", e164: "+14155550124", capabilities: ["voice", "sms"] });
-  t.actAs("person", ROB);
   await h.numberImport(t.ctx, { idempotencyKey: "k-imp" });
-  t.actAs("person", MAYA);
+  await h.numberAssign(t.ctx, { numberId: String(((await h.numberList(t.ctx, {})).numbers as Json[]).find((n) => n.e164 === "+14155550124")?.id), assigneeKind: "person", assigneeId: ROB });
   const all = out(await h.numberList(t.ctx, {}));
   assert.deepEqual(contractErrors("telephony.number.list", "out", all), []);
   assert.deepEqual((all.numbers as Json[]).map((n) => n.e164), [NUM_E164, "+14155550124"]);
@@ -70,7 +69,7 @@ test("list, get and search: numbers by assignee, one number, and what Twilio has
   assert.deepEqual(t.calls("twilio.number.search")[0]?.input, { country: "US", areaCode: "415" });
 });
 
-test("import brings the account's own numbers into the Space once, owned by whoever imports", async () => {
+test("import brings the account's own numbers into the Space once, with nobody on them until an admin says who is", async () => {
   const t = harness();
   await buy(t);
   t.owned.push(
@@ -84,8 +83,7 @@ test("import brings the account's own numbers into the Space once, owned by whoe
   assert.deepEqual(contractErrors("telephony.number.import", "out", some), []);
   assert.equal(some.imported, 1);
   const n = (some.numbers as Json[])[0] ?? {};
-  assert.deepEqual([n.e164, n.title, n.assigneeKind, n.assigneeId, n.capabilities], ["+14155550124", "Front desk", "person", MAYA, ["voice", "sms"]]);
-  assert.deepEqual(t.named("number.assigned")[0]?.payload, { numberId: n.id, assigneeKind: "person", assigneeId: MAYA });
+  assert.deepEqual([n.e164, n.title, n.assignees, n.capabilities], ["+14155550124", "Front desk", [], ["voice", "sms"]]);
   const rest = out(await h.numberImport(t.ctx, { idempotencyKey: "k-imp2" }));
   assert.equal(rest.imported, 1, "the bought number and the first import are skipped");
   assert.equal((rest.numbers as Json[])[0]?.e164, "+14155550125");

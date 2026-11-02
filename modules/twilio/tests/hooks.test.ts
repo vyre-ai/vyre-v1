@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import {
-  accessToken, acceptHook, callCreate, callGet, callUpdate, hookInput, receiveWebhook, recordingDelete, recordingDownload, recordingStart, recordingStop, signatureMatches, signatureOf, smsSend, voiceTwiml,
+  accessToken, acceptHook, callCreate, callGet, callUpdate, hookInput, receiveWebhook, recordingDelete, recordingDownload, recordingRead, recordingStart, recordingStop, signatureMatches, signatureOf, smsSend, voiceTwiml,
 } from "../handlers/index.ts";
 import { handlers, setTwilioHost } from "../impl.ts";
 import { registry } from "../../../generated/registry.ts";
@@ -342,7 +342,7 @@ test("Twilio's refusals map to the error catalogue: auth, rate limit, outage, un
 
 test("every capability of the twilio manifest has a handler, and none is extra", () => {
   const caps = registry.capabilities.filter((c) => c.name.startsWith("twilio.")).map((c) => c.name).sort();
-  assert.equal(caps.length, 21);
+  assert.equal(caps.length, 22);
   assert.deepEqual(Object.keys(handlers).sort(), caps);
 });
 
@@ -369,5 +369,11 @@ test("recordingStop accepts the current recording of a call whose recording has 
   const h = harness();
   const out = await recordingStop(h.ctx, { callSid: "CA00000000000000000000000000000001", recordingSid: "Twilio.CURRENT" }).catch((e: unknown) => e);
   assert.notEqual((out as { error?: { code?: string } }).error?.code, "validation.bad_input");
+});
+
+test("the stored audio of a recording is read only through telephony: a direct call is refused", async () => {
+  const h = harness();
+  await refused(recordingRead(h.ctx, { fileId: "fil_0001" }), "permission.no_grant");
+  assert.deepEqual(await recordingRead({ ...h.ctx, depth: 1 } as never, { fileId: "fil_0001" }), { mime: "audio/mpeg", base64: "bXAz" });
 });
 

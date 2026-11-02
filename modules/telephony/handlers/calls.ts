@@ -8,7 +8,7 @@
 // DECISION: decline by one person marks that person in the call's meta; with toVoicemail the call moves to voicemail, otherwise it is missed once nobody else is left ringing.
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
-  bad, callMeta, callOut, ensure, isId, liveCall, liveNumber, seenCall, seesCall, list, newId, numOrNull, num, obj, pageOf, paging, parseJson, partyOf, patch, refuse, rowsOf, setMeta, str, strOrNull, text, phone, strOrUndef, keyOf,
+  bad, callMeta, callOut, ensure, isId, liveCall, liveNumber, missing, opensContact, ownLine, rememberLine, seenCall, seesCall, list, newId, numOrNull, num, obj, pageOf, paging, parseJson, partyOf, patch, refuse, rowsOf, setMeta, str, strOrNull, text, phone, strOrUndef, keyOf,
 } from "../projections.ts";
 import type { Party, Row, TelCtx } from "../projections.ts";
 
@@ -55,7 +55,7 @@ export async function dial(ctx: TelCtx, input: { numberId: string; to: string; c
   const to = phone(ctx, input.to, "The number to call");
   if (input.contactId !== undefined && !isId("rec", input.contactId)) bad(ctx, "Contact id is not valid.");
   const who = partyOf(ctx);
-  const n = liveNumber(ctx, input.numberId);
+  const n = ownLine(ctx, input.numberId);
   if (str(n, "state") !== "active") refuse(ctx, "That number is not active.");
   if (!parseJson<string[]>(n.capabilities, []).includes("voice")) refuse(ctx, "That number cannot place calls.");
   if (str(n, "e164") === to) refuse(ctx, "A number cannot call itself.");
@@ -87,6 +87,7 @@ export async function dial(ctx: TelCtx, input: { numberId: string; to: string; c
     throw e;
   }
   patch(ctx, "telephony_call", id, { twilioSid: sid });
+  rememberLine(ctx, input.numberId);
   await linkCall(ctx, liveCall(ctx, id), to, "Outgoing call");
   return { callId: id, params: { CallId: id, From: str(n, "e164"), To: to } };
 }
@@ -242,9 +243,22 @@ export async function callList(ctx: TelCtx, input: { numberId?: string; contactI
 
 export async function callGet(ctx: TelCtx, input: { callId: string }) {
   ensure(ctx);
-  const row = seenCall(ctx, callId(ctx, input.callId));
+  // on the line, or the call is part of a contact the caller can open: a call with a known contact is that contact's history, its transcript with it
+  const row = liveCall(ctx, callId(ctx, input.callId));
+  if (!seesCall(ctx, row) && !(await opensContact(ctx, strOrNull(row, "contactId")))) missing(ctx, "That call is not in this Space.");
   const transcript = strOrNull(row, "transcript");
   return { call: callOut(row), ...(transcript ? { transcript } : {}) };
+}
+
+/** A recording is not in the shared Files: this is how someone it belongs to plays it. The same rule as reading the call, and Twilio's module reads the stored copy because the Files copy is closed to everyone but admins. */
+export async function callRecording(ctx: TelCtx, input: { callId: string }) {
+  ensure(ctx);
+  const row = liveCall(ctx, callId(ctx, input.callId));
+  if (!seesCall(ctx, row) && !(await opensContact(ctx, strOrNull(row, "contactId")))) missing(ctx, "That call is not in this Space.");
+  const fileId = strOrNull(row, "recordingFileId");
+  if (!fileId) missing(ctx, "This call has no recording.");
+  const got = obj(await ctx.call("twilio.recording.read", { fileId }));
+  return { mime: text(got.mime), base64: text(got.base64) };
 }
 
 export async function callLogTask(ctx: TelCtx, input: { callId: string; title: string; assigneeId?: string; dueAt?: number; idempotencyKey: string }) {
@@ -278,7 +292,7 @@ export async function callAttachSummary(ctx: TelCtx, input: { callId: string; tr
 
 export async function voiceToken(ctx: TelCtx, input: { numberId?: string }) {
   ensure(ctx);
-  if (input.numberId !== undefined) liveNumber(ctx, isId("num", input.numberId) ? input.numberId : bad(ctx, "Number id is not valid."));
+  if (input.numberId !== undefined) ownLine(ctx, isId("num", input.numberId) ? input.numberId : bad(ctx, "Number id is not valid."));
   if (ctx.principal.kind !== "person") refuse(ctx, "The softphone is for people. Agents place calls with telephony.dial.");
   const out = obj(await ctx.call("twilio.access_token", { identity: ctx.principal.id }));
   if (typeof out.token !== "string" || !Number.isSafeInteger(out.expiresAt)) throw fail("provider.bad_response", ctx.trace.traceId, { message: "Twilio did not return a token." });

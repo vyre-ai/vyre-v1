@@ -28,6 +28,7 @@ export const handlers: Record<string, Handler> = {
   "twilio.recording.stop": (ctx, i) => h.recordingStop(ctx, i),
   "twilio.recording.download": (ctx, i) => h.recordingDownload(ctx, i),
   "twilio.recording.delete": (ctx, i) => h.recordingDelete(ctx, i),
+  "twilio.recording.read": (ctx, i) => h.recordingRead(ctx, i),
   "twilio.sms.send": (ctx, i) => h.smsSend(ctx, i),
   "twilio.a2p.create_brand": (ctx, i) => h.a2pCreateBrand(ctx, i),
   "twilio.a2p.create_campaign": (ctx, i) => h.a2pCreateCampaign(ctx, i),

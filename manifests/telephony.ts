@@ -15,6 +15,7 @@ const regId = t.id('reg');
 const phone = t.str({ pattern: '^\\+[1-9][0-9]{6,14}$', examples: ['+14155550123'] });
 const party = t.obj({ kind: t.enm('person', 'agent', 'group'), id: t.str({ examples: ['usr_a1b2c3'] }) });
 const assigneeKind = t.enm('person', 'agent', 'inbox');
+const holder = t.obj({ kind: t.enm('person', 'agent'), id: t.str({ examples: ['usr_a1b2c3'] }) });
 const recordingPolicy = t.enm('off', 'announce', 'ask');
 const routeCfg = t.obj({ ring: t.arr(party), ringSeconds: t.int({ minimum: 5, maximum: 120 }), voicemail: t.bool(), voicemailTranscript: t.bool() });
 const hoursCfg = t.obj({
@@ -23,7 +24,7 @@ const hoursCfg = t.obj({
 });
 const numberRow = t.obj({
   id: id.number, e164: phone, title: t.str(), displayName: t.opt(t.str({ description: 'The name lists and the Inbox sidebar show: the title when one is set, otherwise the number formatted for reading', examples: ['Intake line'] })), capabilities: t.arr(t.enm('voice', 'sms', 'mms')), assigneeKind, assigneeId: t.opt(t.str()), route: routeCfg, hours: hoursCfg,
-  recording: recordingPolicy, a2p: t.enm('none', 'pending', 'approved', 'rejected'), state: t.enm('pending', 'active', 'released'),
+  assignees: t.arr(holder, { description: 'The people and agents on this number. Only they read its texts and calls and text or call from it. Empty: it needs an owner, and only admins see it' }), recording: recordingPolicy, a2p: t.enm('none', 'pending', 'approved', 'rejected'), state: t.enm('pending', 'active', 'released'),
 });
 const callState = t.enm('ringing', 'answered', 'voicemail', 'completed', 'missed', 'failed');
 const callRow = t.obj({
@@ -57,10 +58,10 @@ export default defineManifest({
     entity('call', 'telephony_call', 'cal_', {
       numberId: 'text', direction: 'choice', from: 'text', to: 'text', contactId: 'text', state: 'status', startedAt: 'datetime', answeredAt: 'datetime', endedAt: 'datetime', durationSec: 'duration',
       handledBy: 'text', recordingFileId: 'text', transcript: { type: 'longtext', label: 'confidential' }, summary: 'longtext', consentLogged: 'checkbox', twilioSid: 'text', traceId: 'text',
-    }, 'number', { parent: { entity: 'number', field: 'numberId' }, parentField: 'numberId', fts: ['transcript', 'summary'], sync: { profile: { desktop: 'window', phone: 'window', web: 'window' }, window: { days: 90, recentCount: 300 }, maxLabel: 'confidential' } }),
+    }, 'number', { parent: { entity: 'number', field: 'numberId' }, parentField: 'numberId', fts: ['transcript', 'summary'], sync: { profile: { desktop: 'none', phone: 'none', web: 'none' } } }),   // a line is private to the people on it, so its calls never replicate to every device
     entity('sms', 'telephony_sms', 'sms_', {
       numberId: 'text', direction: 'choice', from: 'text', to: 'text', body: { type: 'longtext', label: 'confidential' }, status: 'status', contactId: 'text', mediaFileIds: 'files', campaignId: 'text', at: 'datetime', twilioSid: 'text', traceId: 'text',
-    }, 'number', { parent: { entity: 'number', field: 'numberId' }, parentField: 'numberId', fts: ['body'], sync: { profile: { desktop: 'window', phone: 'window', web: 'window' }, window: { days: 90, recentCount: 500 }, maxLabel: 'confidential' } }),
+    }, 'number', { parent: { entity: 'number', field: 'numberId' }, parentField: 'numberId', fts: ['body'], sync: { profile: { desktop: 'none', phone: 'none', web: 'none' } } }),   // the same for its texts
     entity('texting_registration', 'telephony_registration', 'reg_', {
       legalName: 'text', ein: 'text', website: 'url', address: 'address', contactName: 'text', contactEmail: 'email', useCase: 'text', sampleMessages: 'longtext', optInDescription: 'longtext',
       state: 'status', rejectedReason: 'text', submittedAt: 'datetime', twilioBrandSid: 'text', twilioCampaignSid: 'text',
@@ -117,6 +118,16 @@ export default defineManifest({
     outward('telephony.number.release', 'Release a number back to Twilio', {
       in: { numberId: id.number }, out: { released: t.bool() }, on: ['number', '/numberId'], level: 'manage', perm: 'comms.numbers', gate: 'delete', emits: ['number.released'], tool: 'inbox',
     }),
+    read('telephony.number.mine', 'The numbers you can text and call from, and the one you used last', {
+      in: {}, out: { numbers: t.arr(numberRow), lastUsedId: t.opt(id.number) }, tool: 'inbox', label: 'filter',
+    }),
+    write('telephony.connect', 'Test the Twilio credentials in the Vault, bring in every number and set up their calls and texts', {
+      in: {}, out: { connected: t.bool(), detail: t.opt(t.str({ description: 'Why it did not connect, in plain words' })), imported: t.int(), total: t.int(), numbers: t.arr(numberRow), notSetUp: t.int({ description: 'Numbers Twilio would not point at this Space' }) },
+      perm: 'comms.numbers', idem: 'key', tool: 'inbox', emits: ['number.assigned'],
+    }),
+    write('telephony.number.set_assignees', 'Set the people and agents on a number. Only they see its texts and calls and can text or call from it', {
+      in: { numberId: id.number, assignees: t.arr(holder) }, out: { number: numberRow }, on: ['number', '/numberId'], level: 'manage', perm: 'comms.numbers', emits: ['number.assigned'], audit: 'always', tool: 'inbox',
+    }),
     write('telephony.number.assign', 'Assign a number to a person, an agent or a shared inbox', {
       in: { numberId: id.number, assigneeKind, assigneeId: t.str() }, out: { number: numberRow }, on: ['number', '/numberId'], level: 'manage', perm: 'comms.numbers', emits: ['number.assigned'], tool: 'inbox',
     }),
@@ -150,6 +161,9 @@ export default defineManifest({
     read('telephony.call.list', 'List calls and voicemails (the Calls only view)', {
       in: { numberId: t.opt(id.number), contactId: t.opt(id.record), direction: t.opt(t.enm('in', 'out')), state: t.opt(callState), ...pageIn }, out: { calls: t.arr(callRow), ...pageOut },
       tool: 'inbox', label: 'filter',
+    }),
+    read('telephony.call.recording', 'The audio of a recorded call or voicemail, for someone on the number or who can open the contact', {
+      in: { callId: id.call }, out: { mime: t.str(), base64: t.str() }, tool: 'inbox', label: 'check', errors: ['validation.not_found'],
     }),
     read('telephony.call.get', 'Read one call with transcript, summary and recording', {
       in: { callId: id.call }, out: { call: callRow, transcript: t.opt(t.str()) }, tool: 'inbox', label: 'check',

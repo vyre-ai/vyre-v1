@@ -108,7 +108,7 @@ export function paging(ctx: Pick<TelCtx, "trace">, o: Json): { cursor: string | 
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = readFileSync(fileURLToPath(new URL("./migrations/0001_telephony.sql", import.meta.url)), "utf8");
+const migrationSql = ["0001_telephony.sql", "0002_lines.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
@@ -235,6 +235,9 @@ export function numberOut(r: Row): Json {
   return out;
 }
 
+/** A number as the contract returns it, with the people on it. */
+export const numberRowOf = (ctx: Pick<TelCtx, "db">, r: Row): Json => ({ ...numberOut(r), assignees: holdersOf(ctx, r) });
+
 export function liveNumber(ctx: TelCtx, id: string): Row {
   const row = first(ctx.db.all(`SELECT * FROM telephony_number WHERE id = ?`, id));
   if (!row || (row.deleted_at !== null && row.deleted_at !== undefined)) return missing(ctx, "That number is not in this Space.");
@@ -278,27 +281,78 @@ export function liveCall(ctx: TelCtx, id: string): Row {
   return row ?? missing(ctx, "That call is not in this Space.");
 }
 
-/** May the caller see this line? The same question the Inbox asks of a number, and its assignee always may. The server's own hooks work every line. */
-export function seesNumber(ctx: TelCtx, numberId: string): boolean {
-  if (!ctx.authorize || ctx.principal.kind === "service") return true;
-  if (ctx.authorize({ perm: null, level: "view" }, { type: "number", id: numberId }).effect === "allow") return true;
-  const n = first(ctx.db.all(`SELECT "assigneeId" FROM telephony_number WHERE id = ?`, numberId));
-  return n !== null && strOrNull(n, "assigneeId") === (ctx.actingFor ?? ctx.principal.id);
+/** The people and agents on a number. The member table once anyone has set it; before that the number's one assignee. A shared inbox is nobody: such a number needs an owner. */
+export function holdersOf(ctx: Pick<TelCtx, "db">, n: Row): Party[] {
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM telephony_number_member WHERE "numberId" = ?`, str(n, "id")));
+  if (rows.length) return rows.map((r) => ({ kind: str(r, "kind") as Party["kind"], id: str(r, "memberId") }));
+  const kind = str(n, "assigneeKind"), id = str(n, "assigneeId");
+  return (kind === "person" || kind === "agent") && id ? [{ kind, id }] : [];
 }
 
-/** May the caller see this call? Whoever sees the line, whoever it rings for and whoever holds it: a transfer can hand a call to someone with no grant on the number. */
+/** The server's own work: a hook from Twilio, a job, a campaign. A person, or an agent acting for one, answers to the line. */
+const onServer = (ctx: TelCtx): boolean => !ctx.authorize || ctx.principal.kind === "service";
+/** Who a caller is on a line: themselves, and for an agent the person it works for. An agent never borrows anyone else's number. */
+const selves = (ctx: TelCtx): string[] => [ctx.principal.id, ...(ctx.actingFor ? [ctx.actingFor] : [])];
+/** Does the caller run the Space's numbers? Asked of the Space: a number is not a resource the access rules know, so asking about one answers no for everyone. */
+export const runsNumbers = (ctx: TelCtx): boolean => ctx.authorize?.({ perm: "comms.numbers", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow";
+
+/**
+ * The one rule for a line (owner, 2 Nov): only the people on a number read its texts and calls and text or call from it. An unassigned number is for admins, and shows as needing an owner.
+ * An admin is not on a line by being an admin: they choose who is. Asked by every read and send of a line, by the Inbox through telephony.number.mine, and by search.
+ */
+export function worksLine(ctx: TelCtx, n: Row): boolean {
+  if (onServer(ctx)) return true;
+  const holders = holdersOf(ctx, n);
+  const me = selves(ctx);
+  if (holders.some((h) => me.includes(h.id))) return true;
+  return holders.length === 0 && runsNumbers(ctx);
+}
+
+/** A number by id for someone who may see it exists: on it, or an admin, who runs them all. Anyone else gets the same answer as for no number at all. */
+export function managedLine(ctx: TelCtx, id: string): Row {
+  const n = liveNumber(ctx, id);
+  return worksLine(ctx, n) || runsNumbers(ctx) ? n : missing(ctx, "That number is not in this Space.");
+}
+
+/** A number to text or call from. Refused in words the person can act on. */
+export function ownLine(ctx: TelCtx, id: string): Row {
+  const n = liveNumber(ctx, id);
+  if (!worksLine(ctx, n)) throw fail("permission.no_grant", ctx.trace.traceId, { message: "You are not on this number. Ask an admin to add you." });
+  return n;
+}
+
+/** Remember the number a person used, so it is the default next time. */
+export function rememberLine(ctx: TelCtx, numberId: string): void {
+  const person = ctx.actingFor ?? ctx.principal.id;
+  if (!person.startsWith("usr_")) return;
+  ctx.db.run(`DELETE FROM telephony_last_line WHERE "personId" = ?`, person);
+  ctx.db.run(`INSERT INTO telephony_last_line ("personId", "numberId", "at") VALUES (?, ?, ?)`, person, numberId, ctx.now());
+}
+
+/** May the caller see this call? Whoever is on the line, and while the call is live whoever it rings for and whoever holds it: a transfer can hand a call to someone who is not on the number. Once it ends only the line decides, so taking someone off a number cuts them off from its past calls too. */
 export function seesCall(ctx: TelCtx, row: Row): boolean {
-  if (seesNumber(ctx, str(row, "numberId"))) return true;
-  const me = ctx.actingFor ?? ctx.principal.id;
-  const mine = (p: Party): boolean => p.id === me || p.id === ctx.principal.id;
-  const holder = parseJson<Party | null>(row.handledBy, null);
-  return (holder !== null && mine(holder)) || parseJson<Party[]>(callMeta(ctx, str(row, "id")).ringing, []).some(mine);
+  const n = first(ctx.db.all(`SELECT * FROM telephony_number WHERE id = ?`, str(row, "numberId")));
+  if (n ? worksLine(ctx, n) : onServer(ctx)) return true;
+  const me = selves(ctx);
+  const mine = (p: Party): boolean => me.includes(p.id);
+  const state = str(row, "state");
+  const held = parseJson<Party | null>(row.handledBy, null);
+  return (state === "answered" && held !== null && mine(held)) || (state === "ringing" && parseJson<Party[]>(callMeta(ctx, str(row, "id")).ringing, []).some(mine));
 }
 
 /** A call the caller may see, or the same answer as for one that is not there: what exists on someone else's line is not leaked. */
 export function seenCall(ctx: TelCtx, id: string): Row {
   const row = liveCall(ctx, id);
   return seesCall(ctx, row) ? row : missing(ctx, "That call is not in this Space.");
+}
+
+/** Can the caller open this contact? A call with a known contact is that contact's history, so whoever can open the record can read it. */
+export async function opensContact(ctx: TelCtx, contactId: string | null): Promise<boolean> {
+  if (!contactId) return false;
+  for (const type of ["contact", "company"]) {
+    try { await ctx.call("records.get", { type, recordId: contactId }); return true; } catch { /* not this type, or not for this person */ }
+  }
+  return false;
 }
 
 export function callMeta(ctx: TelCtx, callId: string): Row {

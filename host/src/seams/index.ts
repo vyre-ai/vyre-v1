@@ -76,6 +76,8 @@ export interface SeamDeps {
   space: string;
   /** the address people reach this Space at, for Mailgun's inbound route; omitted: that call answers unavailable */
   publicUrl?: ((space: string) => Promise<string>) | undefined;
+  /** Where Twilio reaches this Space: a phone address carries only /p/*. */
+  twilioUrl?: ((space: string) => Promise<string>) | undefined;
   /** drivers by setter name, added to (and overriding) the built-in registry: the daemon supplies the ones that need its own state */
   drivers?: Record<string, SeamDriver>;
   /** holds a GitHub installation token behind a handle until the Vault filler delivers it to git; omitted: GitHub cannot hand git a token */
@@ -115,7 +117,7 @@ export const BUILTIN_DRIVERS: Readonly<Record<string, SeamDriver>> = Object.free
   setResendHost: (d: SeamDriverDeps) => createResendHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
   setMailgunHost: (d: SeamDriverDeps) => createMailgunHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
   setStripeHost: (d: SeamDriverDeps) => createStripeHost({ vault: d.vault }),
-  setTwilioHost: (d: SeamDriverDeps) => createTwilioHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, publicUrl: d.publicUrl }),
+  setTwilioHost: (d: SeamDriverDeps) => createTwilioHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, files: d.files, publicUrl: d.twilioUrl ?? d.publicUrl }),
   setZoomHost: (d: SeamDriverDeps) => createZoomHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs }),
   setDropboxHost: (d: SeamDriverDeps) => createDropboxHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
   setPluginsHost: () => createPluginsHost(),

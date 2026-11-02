@@ -8,7 +8,7 @@ import type { Invoke } from "../invoke.ts";
 import { fail } from "../routes/errors.ts";
 import { checked, getToBlob, secretOf } from "./mail-providers.ts";
 import type { FillerPort } from "./filler.ts";
-import type { SeamCtx, SeamFetch, SpaceBlobs, VaultPort } from "./ports.ts";
+import type { SeamCtx, SeamFetch, SpaceBlobs, SpaceFiles, VaultPort } from "./ports.ts";
 
 export const STRIPE_HANDLES = ["#Stripe_Key", "#Stripe_Webhook_Secret"] as const;
 export const TWILIO_HANDLES = ["#Twilio_Account", "#Twilio_Auth", "#Twilio_API_Key"] as const;
@@ -25,6 +25,7 @@ export interface TwilioHostSeam {
   optionalSecret(ctx: SeamCtx, handle: string): Promise<string | null>;
   download(ctx: SeamCtx, a: { url: string; mime?: string }): Promise<{ blobId: string; size: number; mime: string }>;
   publicUrl(ctx: SeamCtx): Promise<string>;
+  readFile(ctx: SeamCtx, fileId: string): Promise<{ mime: string; bytes: Uint8Array }>;
 }
 
 /** The shape of ZoomHost (modules/zoom/projections.ts). */
@@ -45,6 +46,7 @@ export interface CommsDeps {
   vault: Pick<VaultPort, "secret"> & Partial<Pick<VaultPort, "signRs256">> & { store?(items: { name: string; value: string }[], space: string): Promise<void> };
   fetch: SeamFetch;
   blobs: SpaceBlobs;
+  files?: SpaceFiles | undefined;
   filler?: FillerPort | undefined;
   publicUrl?: ((space: string) => Promise<string>) | undefined;
 }
@@ -93,6 +95,11 @@ export function createTwilioHost(d: CommsDeps): TwilioHostSeam {
         if (!TWILIO_HANDLES.includes(handle as never)) throw e;
         return null;
       }
+    },
+    async readFile(ctx, fileId) {
+      if (!d.files) throw new Error("Files is not available.");
+      const got = await d.files.read(ctx.space, fileId);
+      return { mime: got.mime, bytes: got.bytes };
     },
     async download(ctx, a) {
       checked(ctx, a.url, TWILIO_DOMAINS);   // the address first: a refused address never reaches the Vault

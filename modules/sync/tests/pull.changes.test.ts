@@ -13,6 +13,7 @@ import { openSync } from "../impl.ts";
 import type { SyncHandle, SyncOpts } from "../impl.ts";
 import type { PullCtx } from "../handlers/index.ts";
 import { ADA, BO, CY, CONTACT_TYPE, NOW, buildAccess } from "../fixtures/world.ts";
+import { DEFAULT_ENTITY, loadCatalog } from "../../../sync/src/server/pull/catalog.ts";
 
 const TRACE = "0123456789abcdef0123456789abcdef";
 const DAY = 86_400_000;
@@ -238,23 +239,28 @@ test("a starred thread stays on the phone whatever its age, and the window keeps
 });
 
 test("labels: a row above the person's clearance is not sent, Restricted goes nowhere, and a field above the ceiling is left out", async () => {
-  const r = await withType({ phoneCeiling: () => "internal" });
+  const base = loadCatalog();
+  const catalog = { ...base, get: (key: string) => (key === "memo" ? { ...DEFAULT_ENTITY("memo"), fieldLabels: { body: 2 } } : base.get(key)) };
+  const r = await withType({ phoneCeiling: () => "internal", catalog });
   row(r, { entity: "client_plan", id: "cp_conf", op: "upsert", fields: { name: "Plan", tax_id: "12-345", region: "eu" } }, { label: 2 });
   row(r, { entity: "client_plan", id: "cp_open", op: "upsert", fields: { name: "Open", tax_id: "99-999", region: "eu" } }, { label: 0 });
   row(r, { entity: "client_plan", id: "cp_rest", op: "upsert", fields: { name: "Secret", region: "eu" } }, { label: 3 });
+  row(r, { entity: "memo", id: "memo1", op: "upsert", fields: { subject: "Hi", body: "hello", region: "eu" } });
+  // a line is private to the people on it, which a device copy cannot honour: calls and texts stay on the Space
   row(r, { entity: "call", id: "call1", op: "upsert", fields: { from: "+1555", transcript: "hello", region: "eu" } });
+  row(r, { entity: "sms", id: "sms1", op: "upsert", fields: { from: "+1555", body: "hello", region: "eu" } });
   const bo = await pull(r, ctx(BO), 0);
-  assert.deepEqual(ids(bo.changes).sort(), ["call1", "cp_open"], "bo has clearance 1 and sees no label 2 row");
-  assert.equal(bo.changes.find((c) => c.id === "call1")?.fields["transcript"], undefined, "a confidential field is omitted for clearance 1");
-  assert.equal(bo.changes.find((c) => c.id === "call1")?.fields["from"]?.v, "+1555");
+  assert.deepEqual(ids(bo.changes).sort(), ["cp_open", "memo1"], "bo has clearance 1 and sees no label 2 row");
+  assert.equal(bo.changes.find((c) => c.id === "memo1")?.fields["body"], undefined, "a confidential field is omitted for clearance 1");
+  assert.equal(bo.changes.find((c) => c.id === "memo1")?.fields["subject"]?.v, "Hi");
   const ada = await pull(r, ctx(ADA), 0);
-  assert.deepEqual(ids(ada.changes).sort(), ["call1", "cp_conf", "cp_open"], "ada sees up to confidential on a desktop, never restricted");
-  assert.equal(ada.changes.find((c) => c.id === "call1")?.fields["transcript"]?.v, "hello");
+  assert.deepEqual(ids(ada.changes).sort(), ["cp_conf", "cp_open", "memo1"], "ada sees up to confidential on a desktop, never restricted");
+  assert.equal(ada.changes.find((c) => c.id === "memo1")?.fields["body"]?.v, "hello");
   assert.ok(ada.changes.find((c) => c.id === "cp_conf")?.fields["name"]);
   assert.equal(ada.changes.find((c) => c.id === "cp_conf")?.fields["tax_id"], undefined, "a Restricted field goes to no device");
   const phone = await pull(r, ctx(ADA, "dev_phone", "phone"), 0);
-  assert.deepEqual(ids(phone.changes).sort(), ["call1", "cp_open"], "a phone ceiling of internal drops the confidential row");
-  assert.equal(phone.changes.find((c) => c.id === "call1")?.fields["transcript"], undefined, "and the confidential field of a row it does get");
+  assert.deepEqual(ids(phone.changes).sort(), ["cp_open", "memo1"], "a phone ceiling of internal drops the confidential row");
+  assert.equal(phone.changes.find((c) => c.id === "memo1")?.fields["body"], undefined, "and the confidential field of a row it does get");
 });
 
 test("a private (enc 2) row goes only to its owner, as one sealed field with its key and nonce", async () => {

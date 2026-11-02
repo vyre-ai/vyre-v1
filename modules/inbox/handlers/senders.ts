@@ -109,13 +109,13 @@ async function emailSenders(ctx: InboxCtx): Promise<Sender[]> {
 // ---- text
 
 async function textSenders(ctx: InboxCtx): Promise<Sender[]> {
-  const numbers = await guarded(ctx, "telephony.number.list", [] as Json[], () => allPages(ctx, "telephony.number.list", {}, "numbers"));
+  // the numbers this person can send from: a number is private to the people on it
+  const numbers = await guarded(ctx, "telephony.number.mine", [] as Json[], async () => list(obj(await ctx.call("telephony.number.mine", {})).numbers).map(obj));
   const out: Sender[] = [];
   for (const n of numbers) {
     const id = text(n.id);
     const address = text(n.e164);
     if (!id || !address) continue;
-    if (ctx.authorize({ perm: null, level: "use" }, { type: "number", id }).effect !== "allow") continue;
     const state = text(n.state);
     if (state === "released") continue;
     const canText = list(n.capabilities).includes("sms");

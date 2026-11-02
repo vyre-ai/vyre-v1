@@ -27,7 +27,7 @@ export function seededDir(): string {
   return dir;
 }
 
-const KEY = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"; // secret-scan: fake
+export const KEY = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"; // secret-scan: fake
 export const clock = { t: Date.now() };
 
 /** The model stand-in. A message `TOOL <name> <json>` becomes a tool call; the reply is the tool's result. Anything else is answered with the engine's prompt. */

@@ -100,6 +100,7 @@ export function harness(o: { apiKey?: boolean; instruction?: Record<string, unkn
       return { blobId: `blb_${downloads.length}`, size: 2000 + downloads.length, mime: a.mime ?? "application/octet-stream" };
     },
     async publicUrl() { return `${PUBLIC_URL}/`; },
+    async readFile() { return { mime: "audio/mpeg", bytes: new TextEncoder().encode("mp3") }; },
   };
   setTwilioHost(host);
 

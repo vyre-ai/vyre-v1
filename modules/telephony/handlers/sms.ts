@@ -10,7 +10,7 @@
 // DECISION: pictures (mediaFileIds) need a public address for each file, which the Space does not give Twilio yet, so a text with pictures is refused with a plain message rather than sent without them.
 import { HostError, fail } from "../../../host/src/routes/errors.ts";
 import {
-  actorOf, bad, ensure, first, isId, isInt, keyOf, liveNumber, list, newId, seesNumber, num, obj, pageOf, paging, parseJson, patch, phone, refuse, rowsOf, setting, smsOut, str, strOrNull, strOrUndef, text, validZone,
+  actorOf, bad, ensure, first, isId, isInt, keyOf, list, newId, ownLine, rememberLine, worksLine, num, obj, pageOf, paging, parseJson, patch, phone, refuse, rowsOf, setting, smsOut, str, strOrNull, strOrUndef, text, validZone,
 } from "../projections.ts";
 import type { Json, Row, TelCtx } from "../projections.ts";
 
@@ -140,7 +140,7 @@ export async function sendSms(ctx: TelCtx, input: SendIn): Promise<SendOut> {
   ensure(ctx);
   check(ctx, input);
   if ((input.mediaFileIds ?? []).length > 0) refuse(ctx, "Texts with pictures are not available yet. Send the text on its own, or email the file.");
-  const n = liveNumber(ctx, input.numberId);
+  const n = ownLine(ctx, input.numberId);
   if (str(n, "state") !== "active") refuse(ctx, "That number is not active.");
   if (!parseJson<string[]>(n.capabilities, []).includes("sms")) refuse(ctx, "That number cannot send texts.");
   const actor = actorOf(ctx);
@@ -200,6 +200,7 @@ export async function sendSms(ctx: TelCtx, input: SendIn): Promise<SendOut> {
   }
   const status = text(sent.status) === "queued" || text(sent.status) === "accepted" ? "queued" : "sent";
   patch(ctx, "telephony_sms", id, { status: status === "queued" ? "queued" : "sent", twilioSid: sid, at: now });
+  rememberLine(ctx, input.numberId);
   if (bulk) ctx.db.run(`INSERT INTO telephony_send_log ("id", "numberId", "at") VALUES (?, ?, ?)`, newId("tsl", now), input.numberId, now);
   ctx.emit("message.sent", `entity/${id}`, { messageId: id, channel: "sms", ...(contactId ? { contactId } : {}), ...(input.campaignId ? { campaignId: input.campaignId } : {}) });
   await ctx.call("inbox.link_message", {
@@ -225,7 +226,13 @@ export async function smsList(ctx: TelCtx, input: { numberId?: string; contactId
   ensure(ctx);
   const { cursor, limit } = paging(ctx, obj(input));
   if (input.direction !== undefined && input.direction !== "in" && input.direction !== "out") bad(ctx, "Direction is in or out.");
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM telephony_sms`)).filter((r) => (r.deleted_at === null || r.deleted_at === undefined) && seesNumber(ctx, str(r, "numberId"))
+  const lines = new Map<string, boolean>();
+  const onLine = (id: string): boolean => {
+    let ok = lines.get(id);
+    if (ok === undefined) { const n = first(ctx.db.all(`SELECT * FROM telephony_number WHERE id = ?`, id)); ok = n !== null && worksLine(ctx, n); lines.set(id, ok); }
+    return ok;
+  };
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM telephony_sms`)).filter((r) => (r.deleted_at === null || r.deleted_at === undefined) && onLine(str(r, "numberId"))
     && (input.numberId === undefined || str(r, "numberId") === input.numberId) && (input.contactId === undefined || str(r, "contactId") === input.contactId)
     && (input.direction === undefined || str(r, "direction") === input.direction));
   rows.sort((a, b) => num(b, "at") - num(a, "at") || str(b, "id").localeCompare(str(a, "id")));

@@ -3,5 +3,5 @@ export {
   a2pAttachNumber, a2pCreateBrand, a2pCreateCampaign, a2pStatus, health, numberBuy, numberConfigure, numberListOwned, numberRelease, numberSearch, twimlAppEnsure,
 } from "./numbers.ts";
 export {
-  accessToken, acceptHook, callCreate, callGet, callUpdate, hookInput, receiveWebhook, recordingDelete, recordingDownload, recordingStart, recordingStop, signatureMatches, signatureOf, smsSend, voiceTwiml,
+  accessToken, acceptHook, callCreate, callGet, callUpdate, hookInput, receiveWebhook, recordingDelete, recordingDownload, recordingRead, recordingStart, recordingStop, signatureMatches, signatureOf, smsSend, voiceTwiml,
 } from "./hooks.ts";

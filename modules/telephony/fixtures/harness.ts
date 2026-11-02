@@ -92,6 +92,8 @@ export function harness() {
     },
     "files.tree": () => ({ roots: [{ key: "personal", title: "Personal", kind: "folder", folderId: "fld_personal", count: 0 }, { key: "shared_knowledge", title: "Shared knowledge", kind: "folder", folderId: "fld_knowledge1", count: 0 }] }),
     "files.folder.create": () => ({ folder: { folderId: "fld_calls0001", name: "Calls", path: "Shared knowledge/Calls", fileCount: 0, folderCount: 0, git: false, label: 0, reviewChanges: false, scope: "space" } }),
+    "access.labels.set": () => ({ ok: true }),
+    "twilio.recording.read": () => ({ mime: "audio/mpeg", base64: "bXAz" }),
     "files.create": (i) => ({
       file: {
         fileId: `fil_rec${++files}`, folderId: i["folderId"], name: i["name"], kind: "audio", mime: "audio/mpeg", size: 2001, version: 1, label: 0, ownerId: MAYA, createdAt: NOW, updatedAt: NOW,

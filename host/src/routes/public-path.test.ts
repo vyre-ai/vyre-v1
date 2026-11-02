@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { test } from "node:test";
-import { createPublicPathRoute, formTarget, PUBLIC_SANDBOX } from "./public-path.ts";
+import { createPublicPathRoute, formTarget, PUBLIC_SANDBOX, SIGNED_PREFIX } from "./public-path.ts";
 import { publicPathOk } from "../seams/relay.ts";
 
 async function serve(inner: { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } | null): Promise<{ url: string; fell: string[]; close(): Promise<void> }> {
@@ -13,6 +13,20 @@ async function serve(inner: { handle(req: http.IncomingMessage, res: http.Server
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   return { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}`, fell, close: () => new Promise<void>((r) => { server.closeAllConnections(); server.close(() => r()); }) };
 }
+
+test("a Twilio hook on the public path reaches the webhook route, remembers the /p Twilio signed, and nothing else under hooks is open", async () => {
+  const seen: { url: string; prefix?: string }[] = [];
+  const route = createPublicPathRoute({ forms: () => null, origin: () => "https://harbor.vyre.run", webhooks: () => ({ handle(req: http.IncomingMessage, res: http.ServerResponse) { seen.push({ url: req.url ?? "", ...(SIGNED_PREFIX.has(req) ? { prefix: SIGNED_PREFIX.get(req) as string } : {}) }); res.writeHead(200); res.end(""); return true; } }) });
+  const server = http.createServer((req, res) => { if (!route.handle(req, res)) { res.writeHead(418); res.end(); } });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    assert.equal((await fetch(`${url}/p/hooks/twilio/sms?a=1`, { method: "POST", body: "x" })).status, 200);
+    assert.deepEqual(seen, [{ url: "/hooks/twilio/sms?a=1", prefix: "/p" }]);
+    assert.equal((await fetch(`${url}/p/hooks/stripe/x`, { method: "POST", body: "x" })).status, 404);
+    assert.equal(seen.length, 1);
+  } finally { server.closeAllConnections(); await new Promise<void>((r) => server.close(() => r())); }
+});
 
 test("formTarget: each op of a form page goes to its one handler, with its method, and anything else goes nowhere", () => {
   const u = (s: string): URL => new URL(s, "http://x");

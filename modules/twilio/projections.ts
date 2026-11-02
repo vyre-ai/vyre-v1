@@ -37,6 +37,8 @@ export interface TwilioHost {
   download(ctx: TwilioCtx, a: { url: string; mime?: string }): Promise<{ blobId: string; size: number; mime: string }>;
   /** The public address of this Space, where Twilio posts its webhooks (/hooks/twilio/...). */
   publicUrl(ctx: TwilioCtx): Promise<string>;
+  /** A stored file read by the host. The Files copy of a recording is closed to everyone but admins; telephony.call.recording has already decided this caller may hear it. */
+  readFile(ctx: TwilioCtx, fileId: string): Promise<{ mime: string; bytes: Uint8Array }>;
 }
 
 let host: TwilioHost | null = null;

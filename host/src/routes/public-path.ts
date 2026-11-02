@@ -3,6 +3,7 @@
 //   /p/forms/book/<slug>   a booking page
 //   /p/u/<token>           an unsubscribe link from a campaign email
 //   /p/share/project/<token>  a read-only project link for a client
+//   /p/hooks/twilio/<kind>    Twilio's calls and texts: it signs the address it called, so the route says which that was
 //   /p/<site>/...          a public site: forwarded, whole path, to a port on a computer, or served from a folder in Files
 //   /a/<id>/k/<token>/...  an artifact: the token is one person's short-lived address, and their access is checked on every request
 // It shares an origin with the app, so this route is the second wall behind the relay's (relay/worker/phone.js) and also the only wall on a direct connection: Cookie and Authorization are removed before
@@ -14,6 +15,9 @@ export const PUBLIC_SANDBOX = "sandbox allow-scripts allow-forms allow-popups al
 const FORM = /^\/p\/forms\/(book\/)?([a-z0-9][a-z0-9-]{0,63})\/?$/;
 const UNSUBSCRIBE = /^\/p(\/u\/[A-Za-z0-9_-]+\/?)$/;
 const SHARE = /^\/p(\/share\/project\/[a-z0-9]+)$/;
+const TWILIO_HOOK = /^\/p(\/hooks\/twilio\/(?:voice|sms|status|recording))$/;
+/** The address a webhook was really called at, when it came through the public path. Set only here, never from a header: it is what a signature is checked against. */
+export const SIGNED_PREFIX = new WeakMap<object, string>();
 const SITE = /^\/p\/([a-z0-9][a-z0-9-]{0,62})(\/.*)?$/;
 const ARTIFACT = /^\/a\/(sit_[a-z0-9]{1,64})\/k\/([0-9a-f]{48})(\/.*)?$/;
 const BODY_MAX = 8 * 1024 * 1024;
@@ -33,6 +37,8 @@ export interface PublicPathDeps {
   unsubscribe?(): Inner | null;
   /** The shared project route. */
   share?(): Inner | null;
+  /** The webhook route. */
+  webhooks?(): Inner | null;
   /** The Space's public origin, for a page's own connect-src. */
   origin(): string | null;
   /** The route behind /p/<slug>. */
@@ -172,6 +178,13 @@ export function createPublicPathRoute(deps: PublicPathDeps): Inner {
         req.url = share[1] as string;
         delete req.headers["accept"];   // a page, never the JSON view: the path has one answer
         if (!deps.share?.()?.handle(req, res)) page(res, 404, "Not found", "There is nothing at this address.");
+        return true;
+      }
+      const hook = TWILIO_HOOK.exec(url.pathname);
+      if (hook) {
+        req.url = `${hook[1] as string}${url.search}`;
+        SIGNED_PREFIX.set(req, "/p");
+        if (!deps.webhooks?.()?.handle(req, res)) page(res, 404, "Not found", "There is nothing at this address.");
         return true;
       }
       const fail500 = (): void => { if (!res.headersSent) page(res, 502, "Not answering", "Try again soon."); else res.end(); };

@@ -421,7 +421,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let sitesServing: Partial<PublicPathDeps> = {};
   let refreshDomains: () => Promise<void> = () => Promise.resolve();
   const publicPath = createPublicPathRoute({
-    forms: () => formsPageRoute, unsubscribe: () => unsubscribeRoute, share: () => shareRoute, origin: () => publicOrigin()?.origin ?? null,
+    forms: () => formsPageRoute, unsubscribe: () => unsubscribeRoute, share: () => shareRoute, webhooks: () => webhookRoute, origin: () => publicOrigin()?.origin ?? null,
     site: (slug) => sitesServing.site?.(slug) ?? null, artifact: (id, token) => sitesServing.artifact?.(id, token) ?? Promise.resolve(null),
     fetch: (t, r, sink) => sitesServing.fetch ? sitesServing.fetch(t, r, sink) : Promise.resolve(sink.fail("Not available.")), file: (f, rel) => sitesServing.file?.(f, rel) ?? Promise.resolve(null),
   });
@@ -441,7 +441,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   closers.push(() => computeStream.close());
   let computeRecording: (nodeId: string, a: { token: string; computerId: string; url: string; bytes: Buffer }) => Promise<boolean> = () => Promise.resolve(false);
   const computeRoute = createComputeRoute({ poll: (c, r) => computePoll(c, r), jobs: (n, r) => computeJobs(n, r), result: (n, a) => computeResult(n, a), home: (n, a) => computeHome(n, a), recording: (n, a) => computeRecording(n, a) });
-  const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), automation: (a) => webhooks.automation(a), publicBase: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } });
+  const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), automation: (a) => webhooks.automation(a), publicBase: () => { const outside = publicOrigin(); if (outside) return outside.origin; const a = `http://${cfg.host}:${boundPort}`; return a; } });
   // Ruling 62: the person's own key, handed over by their client on their own node (POST /local/vault/key/unlock, loopback only), held in memory only. A device-role daemon is the computer of whoever signs in on it;
   // a Space server holds the key of its owner alone.
   let ownerOfSpace: () => string | null = () => cfg.owner;
@@ -837,7 +837,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         } },
         resolveItem: (type, kind, value) => resolveVaultItem(db!, type, kind, value),
         ensureResource: async (r) => {
-          if ((r.type === "conversation" || r.type === "mail_message") && r.id !== null) { await ensureRow(r.type, r.id); return; }
+          if ((r.type === "conversation" || r.type === "mail_message" || r.type === "number") && r.id !== null) { await ensureRow(r.type, r.id); return; }
           const key = r.type === "connector" ? r.id : r.id === null && r.type === "connection" ? r.parent ?? null : null;
           if (key && builtinConnectors.has(key)) await ensureBuiltinConnector(key);
         },
@@ -1032,7 +1032,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // An Inbox conversation and a mail message are resources in access (under the Space), made the first time a call names one that exists. The modules open these rows themselves, and an event whose
       // subject is an `entity` is never registered by the generic registrar, so without this every call that names one answered "not found" to everyone, the owner included. The module's own door
       // (a private mailbox, a private message) still decides who sees the content; this only makes the row nameable for the role grants of the Space.
-      const ROW_TABLES: Record<string, string> = { conversation: "inbox_conversation", mail_message: "mail_message" };
+      const ROW_TABLES: Record<string, string> = { conversation: "inbox_conversation", mail_message: "mail_message", number: "telephony_number" };
       const ensuringRow = new Map<string, Promise<void>>();
       const ensureRow = (type: string, id: string): Promise<void> => {
         if (access.snap.resource(id)) return Promise.resolve();
@@ -1375,6 +1375,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           filler,
           // where Mailgun posts inbound mail: the address people reach this Space at, else the local URL (read at call time, the port is known only after listen)
           publicUrl: o.seams?.publicUrl ?? (async () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }),
+          ...(o.seams?.publicUrl ? {} : { twilioUrl: async () => { const outside = publicOrigin(); if (outside) return outside.relay ? `${outside.origin}/p` : outside.origin; const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } }),
           drivers: hostDrivers, owners: loaded.seamOwners,
         });
         closers.push(() => seams?.unwire());

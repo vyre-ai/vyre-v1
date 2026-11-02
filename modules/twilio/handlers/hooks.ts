@@ -249,6 +249,13 @@ export async function recordingStart(ctx: TwilioCtx, input: { callSid: string; a
   return { recordingSid: r };
 }
 
+/** The audio of a stored recording. Nested only: telephony.call.recording is the door, and it asks who may hear it. A direct call would walk past that. */
+export async function recordingRead(ctx: TwilioCtx, input: { fileId: string }): Promise<{ mime: string; base64: string }> {
+  if (!((ctx as { depth?: number }).depth !== undefined && (ctx as { depth?: number }).depth! >= 1)) throw fail("permission.no_grant", ctx.trace.traceId, { message: "A recording is read through its call." });
+  const got = await needHost(ctx).readFile(ctx, input.fileId);
+  return { mime: got.mime, base64: Buffer.from(got.bytes).toString("base64") };
+}
+
 export async function recordingStop(ctx: TwilioCtx, input: { callSid: string; recordingSid: string }): Promise<{ stopped: boolean }> {
   const call = sid(ctx, input.callSid, "The call");
   const rec = input.recordingSid === "Twilio.CURRENT" ? input.recordingSid : sid(ctx, input.recordingSid, "The recording");   // Twilio's own name for the recording running on a call

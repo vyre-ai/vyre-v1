@@ -268,6 +268,13 @@ test("/p/: Cookie and Authorization never reach the box; Set-Cookie and origin-w
   assert.equal(res.headers.get("access-control-allow-origin"), "*");
 });
 
+test("/p/: Twilio's signature reaches the box, because a phone's address is what it signs", async t => {
+  const rt = world(t);
+  const { asked } = await publicBox(t, rt, "harbor", (m, body, ws) => reply(ws, m, 200, { "content-type": "text/plain" }, "ok"));
+  await call(rt, "https://harbor.vyre.run/p/hooks/twilio/sms", { method: "POST", body: "From=x", headers: { "content-type": "application/x-www-form-urlencoded", "x-twilio-signature": "sig" } });
+  assert.equal(asked[0].headers["x-twilio-signature"], "sig");
+});
+
 test("/p/: a preflight is answered here, a redirect never lands on the app, other methods are refused, and HEAD has no body", async t => {
   const rt = world(t);
   const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, m.path.includes("away") ? 302 : 200, m.path.includes("app") ? { location: "/__vyre/info.json" } : m.path.includes("away") ? { location: "https://example.com/x" } : m.path.includes("in") ? { location: "/p/site/next" } : {}, "body"));

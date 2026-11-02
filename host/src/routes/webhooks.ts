@@ -10,6 +10,7 @@
 import type http from "node:http";
 import { makeError } from "./errors.ts";
 import { sourceOf } from "../daemon/preauth.ts";
+import { SIGNED_PREFIX } from "./public-path.ts";
 
 export const MAX_WEBHOOK_BYTES = 1024 * 1024;
 const AUTOMATION_PATH = /^\/hooks\/automation\/(aut_[a-z0-9]+)\/([A-Za-z0-9_-]{8,200})$/;
@@ -124,7 +125,7 @@ export function createWebhookRoute(deps: WebhookRouteDeps): { handle(req: http.I
     if (body === null) return refuse(res, 413, "validation.too_large", "That request is too large.");
     const headers: Record<string, string | undefined> = {};
     for (const [k, v] of Object.entries(req.headers)) headers[k] = Array.isArray(v) ? v.join(", ") : v;
-    const url = `${(await deps.publicBase()).replace(/\/+$/, "")}/hooks/${connector}${kind ? `/${kind}` : ""}${search}`;
+    const url = `${(await deps.publicBase()).replace(/\/+$/, "")}${SIGNED_PREFIX.get(req) ?? ""}/hooks/${connector}${kind ? `/${kind}` : ""}${search}`;
     const a: WebhookAccept = { headers, body, url, ...(kind ? { kind } : {}) };
     try {
       const out = await deps.accept(connector, a);

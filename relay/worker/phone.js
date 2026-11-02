@@ -39,7 +39,7 @@ export const PUBLIC = Object.freeze({
   timeoutMs: 30_000,
   sandbox: "sandbox allow-scripts allow-forms allow-popups allow-downloads",
 });
-const REQUEST_KEEP = new Set(["accept", "accept-language", "content-type", "if-modified-since", "if-none-match", "range", "user-agent", "x-file-name"]);
+const REQUEST_KEEP = new Set(["accept", "accept-language", "content-type", "if-modified-since", "if-none-match", "range", "user-agent", "x-file-name", "x-twilio-signature"]);
 const RESPONSE_KEEP = new Set(["accept-ranges", "cache-control", "content-disposition", "content-encoding", "content-language", "content-length", "content-range", "content-security-policy", "content-type", "etag", "expires", "last-modified", "retry-after", "vary"]);
 
 /** An artifact's address for one person: `/a/<id>/k/<token>/...`. The box checks the token and their access on every request. `/a/<id>` alone is the app, which opens it for whoever is signed in. */

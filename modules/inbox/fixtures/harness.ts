@@ -56,6 +56,8 @@ export function harness(opts: HarnessOptions = {}) {
   const groups: { id: string; name: string }[] = [];
   let mailboxes: Mailbox[] = opts.mailboxes ?? [];
   let numbers = opts.numbers ?? [];
+  let mine: string[] | null = null;   // the numbers the caller is on; null means all of them
+  let lastLine = "";
   let clock = NOW;
   let serial = 0;
   let taskFails = false;
@@ -136,7 +138,7 @@ export function harness(opts: HarnessOptions = {}) {
         }
         case "records.get": {
           const c = contacts.get(String(body.recordId));
-          if (!c || c.type !== body.type) throw fail("validation.not_found", trace);
+          if (!c || c.type !== body.type || denied.has(`record:${String(body.recordId)}`)) throw fail("validation.not_found", trace);
           return { record: record(c) };
         }
         case "records.create": {
@@ -174,6 +176,7 @@ export function harness(opts: HarnessOptions = {}) {
         }
         case "mail.mailbox.list": return { mailboxes };
         case "telephony.number.list": return { numbers };
+        case "telephony.number.mine": return { numbers: mine === null ? numbers : numbers.filter((n) => mine!.includes(n.id)), ...(lastLine ? { lastUsedId: lastLine } : {}) };
         case "meetings.list": {
           if (meetingsFail) throw fail("internal.unavailable", trace);
           return { meetings };
@@ -191,6 +194,7 @@ export function harness(opts: HarnessOptions = {}) {
     advance(ms: number) { clock += ms; },
     setMailboxes(m: Mailbox[]) { mailboxes = m; },
     setNumbers(n: NonNullable<HarnessOptions["numbers"]>) { numbers = n; },
+    onLines(ids: string[] | null, last = "") { mine = ids; lastLine = last; },
     failTasks(on: boolean) { taskFails = on; },
     failMailGet(on: boolean) { mailGetFails = on; },
     failMeetings(on: boolean) { meetingsFail = on; },

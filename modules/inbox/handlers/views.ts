@@ -37,6 +37,22 @@ interface Reach {
   follows: Set<string>;
   campaignOwner: Map<string, string | null>;
   access: Map<string, boolean>;
+  /** The numbers the caller is on. A number is private to the people on it, so the telephony module answers this, not the Space's role grants. Asked once a call. */
+  lines?: Promise<Set<string>>;
+}
+
+function linesOf(ctx: InboxCtx, reach: Reach): Promise<Set<string>> {
+  reach.lines ??= ctx.call("telephony.number.mine", {}).then((out) => new Set(list(obj(out).numbers).map((n) => text(obj(n).id))), (e: unknown) => {
+    ctx.log.warn("inbox: the caller's numbers could not be read", { code: codeOf(e) });
+    return new Set<string>();   // no answer, no lines: a private line stays closed
+  });
+  return reach.lines;
+}
+
+/** Can the caller open this contact? A conversation with a known contact is that contact's history, so Records sharing decides who reads it. */
+async function opensContact(ctx: InboxCtx, contactId: string | null): Promise<boolean> {
+  if (!contactId) return false;
+  return (await getRecord(ctx, "contact", contactId).catch(() => null)) !== null || (await getRecord(ctx, "company", contactId).catch(() => null)) !== null;
 }
 
 function reachOf(ctx: InboxCtx): Reach {
@@ -74,7 +90,8 @@ async function reasonsOf(ctx: InboxCtx, reach: Reach, row: Row): Promise<Reason[
     }
     if (reach.campaignOwner.get(campaign) === ctx.principal.id) out.push("campaign");
   }
-  if (jsonList(row.mailboxIds).some((id) => canSee(ctx, reach, "mailbox", id)) || jsonList(row.numberIds).some((id) => canSee(ctx, reach, "number", id))) out.push("shared_inbox");
+  const lines = await linesOf(ctx, reach);
+  if (jsonList(row.mailboxIds).some((id) => canSee(ctx, reach, "mailbox", id)) || jsonList(row.numberIds).some((id) => lines.has(id))) out.push("shared_inbox");
   return out;
 }
 
@@ -86,8 +103,12 @@ export async function mustSee(ctx: InboxCtx, conv: Row): Promise<void> {
   const verdict = ctx.authorize({ perm: null, level: "view" }, { type: "conversation", id: str(conv, "id") });
   // a conversation from a private mailbox belongs to its owner whatever the Space's role grants say (they name every conversation as the Space's): only the reasons open it
   const own = privateIds(ctx).has(str(conv, "id"));
-  if (verdict.effect === "allow" && !own) return;
-  if ((verdict.effect === "allow" || verdict.reason === "not_found") && (await reasonsOf(ctx, reachOf(ctx), conv)).length > 0) return;
+  // the same for one on a phone line: the role grants name every conversation, but a number is private to the people on it, and a contact's history to whoever can open the contact
+  const lined = jsonList(conv.numberIds).length > 0;
+  if (verdict.effect === "allow" && !own && !lined) return;
+  const known = verdict.effect === "allow" || verdict.reason === "not_found";
+  if (lined && !own && known && (await opensContact(ctx, strOrNull(conv, "contactId")))) return;
+  if (known && (await reasonsOf(ctx, reachOf(ctx), conv)).length > 0) return;
   throw fail("permission.not_found", ctx.trace.traceId);
 }
 
@@ -298,9 +319,14 @@ export async function thread(
   // inbox it arrived in); one they know and deny stays closed. Without this a person could see a line in the list and not open it.
   await mustSee(ctx, conv);
 
-  const all: TimelineItem[] = rowsOf(ctx.db.all(`SELECT * FROM inbox_item WHERE "conversationId" = ?`, id)).map(timelineOf);
+  // The whole history is for whoever can open the contact. Someone here only because they are on a line sees that line: an assignee with no access to the record does not read its mail.
+  const reach = reachOf(ctx);
   const contactId = strOrNull(conv, "contactId");
-  if (contactId) {
+  const history = jsonList(conv.numberIds).length === 0 || (await opensContact(ctx, contactId));
+  const lines = history ? new Set<string>() : await linesOf(ctx, reach);
+  const open = (item: Row): boolean => history || lines.has(str(item, "numberId")) || (strOrNull(item, "mailboxId") !== null && canSee(ctx, reach, "mailbox", str(item, "mailboxId")));
+  const all: TimelineItem[] = rowsOf(ctx.db.all(`SELECT * FROM inbox_item WHERE "conversationId" = ?`, id)).filter(open).map(timelineOf);
+  if (contactId && history) {
     try {
       for (const m of list(obj(await ctx.call("meetings.list", { contactId, limit: 200 })).meetings).map(obj)) {
         const at = typeof m.startsAt === "number" ? m.startsAt : 0;
@@ -447,18 +473,20 @@ export async function sendOptions(ctx: InboxCtx, input: { conversationId?: strin
     const allowed = ctx.authorize({ perm: text(m.kind) === "shared" ? "comms.shared_send" : null, level: "use" }, { type: "mailbox", id }).effect === "allow";
     if (id) inboxes.push({ kind: "mailbox", id, address: text(m.address), canSend: okState && allowed, isDefault: false });
   }
-  for (const n of list(obj(await ctx.call("telephony.number.list", {})).numbers).map(obj)) {
+  // only the numbers this person is on; none leaves the list without a number, and the composer says so
+  const mine = obj(await ctx.call("telephony.number.mine", {}));
+  for (const n of list(mine.numbers).map(obj)) {
     const id = text(n.id);
     if (!id || !strings(n.capabilities).includes("sms")) continue;
-    const allowed = ctx.authorize({ perm: null, level: "use" }, { type: "number", id }).effect === "allow";
-    inboxes.push({ kind: "number", id, address: text(n.e164), canSend: text(n.state) === "active" && allowed, isDefault: false });
+    inboxes.push({ kind: "number", id, address: text(n.e164), canSend: text(n.state) === "active", isDefault: false });
   }
 
   // replies go out from the inbox the thread came in on; with no history, the first inbox that can send on the first channel
   const latestIn = [...items].filter((i) => str(i, "direction") === "in" && str(i, "kind") !== "call").sort((a, b) => num(b, "at") - num(a, "at"))[0];
   const wantKind = latestIn ? (str(latestIn, "kind") === "sms" ? "number" : "mailbox") : channels[0] === "sms" ? "number" : "mailbox";
   const wantId = latestIn ? (wantKind === "number" ? str(latestIn, "numberId") : str(latestIn, "mailboxId")) : "";
-  const pick = inboxes.find((o) => o.kind === wantKind && o.id === wantId && o.canSend) ?? inboxes.find((o) => o.kind === wantKind && o.canSend) ?? inboxes.find((o) => o.canSend);
+  const lastLine = text(mine.lastUsedId);
+  const pick = inboxes.find((o) => o.kind === wantKind && o.id === wantId && o.canSend) ?? (wantKind === "number" ? inboxes.find((o) => o.id === lastLine && o.canSend) : undefined) ?? inboxes.find((o) => o.kind === wantKind && o.canSend) ?? inboxes.find((o) => o.canSend);
   if (pick) pick.isDefault = true;
   return { channels, inboxes };
 }

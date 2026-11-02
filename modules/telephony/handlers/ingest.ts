@@ -302,6 +302,13 @@ export async function ingestRecording(ctx: TelCtx, input: { callSid: string; rec
   })).file);
   const fileId = text(made.fileId);
   if (fileId === "") throw fail("internal.unexpected", ctx.trace.traceId, { message: "The recording was not saved to Files." });
+  // a recording is private to the number and the contact's history, and the Calls folder is shared: Restricted keeps it for retention and closes it to everyone but admins. If that fails the copy goes.
+  try { await ctx.call("access.labels.set", { resource: { type: "file", id: fileId }, label: "restricted" }); }
+  catch (e) {
+    await ctx.call("files.delete", { fileId }).catch(() => undefined);
+    await ctx.call("files.purge", { fileId }).catch(() => undefined);
+    throw e;
+  }
   patch(ctx, "telephony_call", id, { recordingFileId: fileId, ...(voicemail ? { state: "voicemail" } : {}) });
   setMeta(ctx, id, { ingestedSid: input.recordingSid });
   const base = eventBase(row);

@@ -16,6 +16,7 @@ export const GAPS: Gap[] = [];
 const DOMAIN = "send.acme.test";
 const LEAD = { name: "Lena Lead", email: "lena@lead.example.test", phone: "+14155550123" };
 const NUMBER = "+14155550100";
+const PUBLIC = "https://space.acme.test";
 const CONTACT = {
   op: "type.create", type: "contact",
   def: {
@@ -87,6 +88,7 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
   const zone = new Map<string, string[]>();
   setDefaultDns(fakeDns(zone));
   const { s } = await bootTolerant(trail, live, {
+    address: PUBLIC,   // a Space that sends campaigns has an address people outside reach: every email carries an unsubscribe link
     fetch: fakeNet(net, zone),
     vault: { secret: (handle) => Promise.resolve(`fake-${handle.replace(/^#/, "")}`), signRs256: () => Promise.resolve("") },
   });
@@ -197,9 +199,9 @@ export async function runLead(live: readonly string[]): Promise<{ events: Observ
     await trail.step("the lead picks up and Twilio reports it through the signed hook", async () => {
       // what Twilio sends: a form body, and a signature of the full address and the sorted fields made with the account's auth token
       const params = { CallSid: "CAfake1", CallStatus: "in-progress" };
-      const url = `${s.d.url}/hooks/twilio/status`;
-      const res = await fetch(url, {
-        method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", "x-twilio-signature": await signatureOf("fake-Twilio_Auth", url, params) },
+      // Twilio signs the public address it called; the request reaches the daemon behind it
+      const res = await fetch(`${s.d.url}/hooks/twilio/status`, {
+        method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", "x-twilio-signature": await signatureOf("fake-Twilio_Auth", `${PUBLIC}/hooks/twilio/status`, params) },
         body: new URLSearchParams(params).toString(),
       });
       assert.equal(res.status, 200, `the hook is accepted: ${res.status} ${(await res.text()).slice(0, 300)}`);

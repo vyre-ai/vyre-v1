@@ -47,6 +47,7 @@ const capabilities = [
     in: { callSid: t.str(), announced: t.bool() }, out: { recordingSid: t.str() }, gate: quiet('Recording of a call in progress; consent was logged by telephony.record'), errors: ['validation.precondition_failed'],
   }),
   outward('twilio.recording.stop', 'Stop recording a live call', { in: { callSid: t.str(), recordingSid: t.str() }, out: { stopped: t.bool() }, gate: quiet('Stops a recording on a call in progress') }),
+  read('twilio.recording.read', 'The stored audio of a recording. Only through telephony.call.recording, which decides who may hear it', { in: { fileId: t.id('fil') }, out: { mime: t.str(), base64: t.str() } }),
   read('twilio.recording.download', 'Download a finished recording into a blob', { in: { recordingSid: t.str() }, out: { blobId: t.id('blb'), size: t.int(), durationSec: t.opt(t.int()) } }),
   outward('twilio.recording.delete', 'Delete a recording at Twilio', { in: { recordingSid: t.str() }, out: { deleted: t.bool() }, gate: 'delete' }),
   outward('twilio.sms.send', 'Send a text (the transport behind telephony.send_sms)', {

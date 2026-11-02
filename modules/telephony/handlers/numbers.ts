@@ -1,12 +1,12 @@
 // Numbers and the US texting registration (spec 2.18 Calls and SMS, Call routing and recording; ARCH 8.2): list, get, search, buy, import, release, assign, route, hours, recording policy, and the
 // registration draft, submit and refresh. The Space's Twilio account sits behind `twilio.*`; this module keeps the numbers the Space uses, who they ring and what happens outside hours.
 // DECISION: a bought number is pointed at the Space webhooks (twilio.number.configure with no addresses) and starts with the Space default recording policy and a route that rings its assignee.
-// DECISION: an imported number belongs to the person who imported it until someone assigns it (number.assigned says so); a number the Space already holds is skipped, not duplicated.
+// DECISION: an imported number has nobody on it until an admin says who is (owner, 2 Nov): it needs an owner, and only admins see it. A number the Space already holds is skipped, not duplicated.
 // DECISION: a released number keeps its row with state `released` so old calls and texts still name it; it no longer rings and cannot send.
 // DECISION: the registration is one per Space. A draft can be saved again until it is submitted; a rejected one goes back to draft when saved. Number a2p states follow the registration.
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
-  DEFAULT_HOURS, DEFAULT_ROUTE, E164, bad, first, isId, isInt, liveNumber, list, newId, numberByE164, numberOut, obj, pageOf, paging, parseJson, patch, refuse, rowsOf, setting, str, strOrNull, strOrUndef,
+  DEFAULT_HOURS, DEFAULT_ROUTE, E164, bad, first, isId, isInt, codeOf, holdersOf, liveNumber, list, managedLine, newId, runsNumbers, numberByE164, numberRowOf, obj, worksLine, pageOf, paging, parseJson, patch, refuse, rowsOf, setting, str, strOrNull, strOrUndef,
   text, ensure, validZone, keyOf,
 } from "../projections.ts";
 import type { HoursCfg, Json, Party, Row, RouteCfg, TelCtx } from "../projections.ts";
@@ -17,6 +17,8 @@ const CAPS = ["voice", "sms", "mms"] as const;
 const recordingOk = (v: unknown): v is (typeof RECORDING)[number] => RECORDING.includes(v as never);
 
 const live = (r: Row): boolean => r.deleted_at === null || r.deleted_at === undefined;
+/** Whether the caller may see this number exists: they are on it, or they run the numbers. */
+const canSeeNumber = (ctx: TelCtx, r: Row): boolean => worksLine(ctx, r) || runsNumbers(ctx);
 
 function assignee(ctx: TelCtx, kind: unknown, id: unknown): { kind: (typeof ASSIGNEE)[number]; id: string } {
   if (!ASSIGNEE.includes(kind as never)) bad(ctx, "A number belongs to a person, an agent or a shared inbox.");
@@ -51,16 +53,16 @@ function a2pOf(ctx: TelCtx): "none" | "pending" | "approved" | "rejected" {
 export async function numberList(ctx: TelCtx, input: { assigneeId?: string; cursor?: string; limit?: number }) {
   ensure(ctx);
   const { cursor, limit } = paging(ctx, obj(input));
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM telephony_number`)).filter((r) => live(r) && str(r, "state") !== "released" && (input.assigneeId === undefined || str(r, "assigneeId") === input.assigneeId));
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM telephony_number`)).filter((r) => live(r) && str(r, "state") !== "released" && canSeeNumber(ctx, r) && (input.assigneeId === undefined || str(r, "assigneeId") === input.assigneeId));
   rows.sort((a, b) => str(a, "e164").localeCompare(str(b, "e164")));
   const p = pageOf(rows, cursor, limit);
-  return { numbers: p.page.map(numberOut), ...(p.next ? { next: p.next } : {}), total: p.total };
+  return { numbers: p.page.map((r) => numberRowOf(ctx, r)), ...(p.next ? { next: p.next } : {}), total: p.total };
 }
 
 export async function numberGet(ctx: TelCtx, input: { numberId: string }) {
   ensure(ctx);
   if (!isId("num", input.numberId)) bad(ctx, "Number id is not valid.");
-  return { number: numberOut(liveNumber(ctx, input.numberId)) };
+  return { number: numberRowOf(ctx, managedLine(ctx, input.numberId)) };
 }
 
 export async function numberSearch(ctx: TelCtx, input: Json) {
@@ -85,7 +87,7 @@ export async function numberBuy(ctx: TelCtx, input: { e164: string; title: strin
   const id = insertNumber(ctx, { e164: input.e164, title: input.title.trim(), capabilities: caps.length ? caps : ["voice", "sms"], kind: who.kind, assigneeId: who.id, recording: await recordingDefault(ctx), sid, route });
   patch(ctx, "telephony_number", id, { a2p: a2pOf(ctx) });
   ctx.emit("number.purchased", `number/${id}`, { numberId: id, e164: input.e164 });
-  return { number: numberOut(liveNumber(ctx, id)) };
+  return { number: numberRowOf(ctx, liveNumber(ctx, id)) };
 }
 
 /** Who rings by default: the person or agent a number belongs to; a shared inbox rings nobody until a route says so. */
@@ -100,20 +102,64 @@ export async function numberImport(ctx: TelCtx, input: { e164?: string[]; idempo
   const wanted = input.e164 === undefined ? null : new Set(input.e164);
   const owned = list(obj(await ctx.call("twilio.number.list_owned", {})).numbers).map(obj);
   const made: string[] = [];
-  const who = { kind: ctx.principal.kind === "agent" ? "agent" : "person", id: ctx.principal.id };
   for (const n of owned) {
     const e164 = text(n.e164);
     if (!E164.test(e164) || (wanted && !wanted.has(e164)) || numberByE164(ctx, e164)) continue;
     const caps = list(n.capabilities).filter((c): c is string => typeof c === "string" && CAPS.includes(c as never));
-    const id = insertNumber(ctx, {
-      e164, title: strOrUndef(n.friendlyName) ?? "", capabilities: caps.length ? caps : ["voice"], kind: who.kind, assigneeId: who.id, recording: await recordingDefault(ctx), sid: text(n.sid),
-      route: { ...DEFAULT_ROUTE, ring: ringFor(who) },
-    });
+    // nobody is on an imported number until an admin says so: it needs an owner, and only admins see it
+    const id = insertNumber(ctx, { e164, title: strOrUndef(n.friendlyName) ?? "", capabilities: caps.length ? caps : ["voice"], kind: "inbox", assigneeId: "", recording: await recordingDefault(ctx), sid: text(n.sid), route: { ...DEFAULT_ROUTE, ring: [] } });
     patch(ctx, "telephony_number", id, { a2p: a2pOf(ctx) });
-    ctx.emit("number.assigned", `number/${id}`, { numberId: id, assigneeKind: who.kind, assigneeId: who.id });
     made.push(id);
   }
-  return { imported: made.length, numbers: made.map((id) => numberOut(liveNumber(ctx, id))) };
+  return { imported: made.length, numbers: made.map((id) => numberRowOf(ctx, liveNumber(ctx, id))) };
+}
+
+/** Point a number at this Space. Answers false when Twilio refused, so one bad number does not stop the rest. */
+async function pointAtSpace(ctx: TelCtx, row: Row, key: string): Promise<boolean> {
+  try { await ctx.call("twilio.number.configure", { sid: str(row, "twilioSid"), idempotencyKey: `${key}:configure:${str(row, "id")}` }); return true; }
+  catch (e) { ctx.log.warn("telephony: Twilio would not point a number at this Space", { numberId: str(row, "id"), code: codeOf(e) }); return false; }
+}
+
+/** Connect Twilio in one step: test the credentials the person just put in the Vault, bring in every number and set up each one's calls and texts. A refusal comes back in plain words, not as an error, because the page shows it beside the form. */
+export async function connect(ctx: TelCtx, input: { idempotencyKey: string }) {
+  ensure(ctx);
+  const key = keyOf(ctx, input);
+  const refused = (detail: string) => ({ connected: false, detail, imported: 0, total: 0, numbers: [], notSetUp: 0 });
+  const health = obj(await ctx.call("twilio.health", {}));
+  if (health.state !== "healthy" || typeof health.detail === "string") return refused(text(health.detail) || "Twilio is not answering. Try again in a minute.");
+  const imported = await numberImport(ctx, { idempotencyKey: `${key}:import` });
+  let notSetUp = 0;
+  const all = rowsOf(ctx.db.all(`SELECT * FROM telephony_number`)).filter((r) => live(r) && str(r, "state") !== "released");
+  for (const row of all) if (!(await pointAtSpace(ctx, row, key))) notSetUp += 1;
+  return { connected: true, imported: imported.imported, total: all.length, numbers: all.map((r) => numberRowOf(ctx, r)), notSetUp };
+}
+
+/** The numbers the caller can text and call from, and the one they used last. */
+export async function numberMine(ctx: TelCtx) {
+  ensure(ctx);
+  const rows = rowsOf(ctx.db.all(`SELECT * FROM telephony_number`)).filter((r) => live(r) && str(r, "state") === "active" && worksLine(ctx, r));
+  const last = strOrNull(first(ctx.db.all(`SELECT * FROM telephony_last_line WHERE "personId" = ?`, ctx.actingFor ?? ctx.principal.id)), "numberId");
+  return { numbers: rows.map((r) => numberRowOf(ctx, r)), ...(last && rows.some((r) => str(r, "id") === last) ? { lastUsedId: last } : {}) };
+}
+
+/** Set everyone on a number at once. Taking someone off cuts them off at once: the next read asks this table. A route that rang only the people on the number follows them. */
+export async function numberSetAssignees(ctx: TelCtx, input: { numberId: string; assignees: { kind: string; id: string }[] }) {
+  ensure(ctx);
+  if (!isId("num", input.numberId)) bad(ctx, "Number id is not valid.");
+  if (!Array.isArray(input.assignees)) bad(ctx, "Say who is on the number.");
+  const row = liveNumber(ctx, input.numberId);
+  if (str(row, "state") === "released") refuse(ctx, "That number was released.");
+  const seen = new Set<string>();
+  for (const a of input.assignees) if (a?.kind !== "person" && a?.kind !== "agent") bad(ctx, "A number is held by people and agents.");
+  const next = input.assignees.map((a) => assignee(ctx, a.kind, a.id) as Party).filter((a) => !seen.has(a.id) && Boolean(seen.add(a.id)));
+  const before = holdersOf(ctx, row);
+  ctx.db.run(`DELETE FROM telephony_number_member WHERE "numberId" = ?`, input.numberId);
+  for (const a of next) ctx.db.run(`INSERT INTO telephony_number_member ("numberId", "kind", "memberId", "addedAt") VALUES (?, ?, ?, ?)`, input.numberId, a.kind, a.id, ctx.now());
+  const route = { ...DEFAULT_ROUTE, ...parseJson<Partial<RouteCfg>>(row.route, {}) };
+  const followed = route.ring.every((r) => before.some((b) => b.id === r.id));
+  patch(ctx, "telephony_number", input.numberId, { assigneeKind: next[0]?.kind ?? "inbox", assigneeId: next[0]?.id ?? "", ...(followed ? { route: JSON.stringify({ ...route, ring: next }) } : {}) });
+  for (const a of next) if (!before.some((b) => b.id === a.id)) ctx.emit("number.assigned", `number/${input.numberId}`, { numberId: input.numberId, assigneeKind: a.kind, assigneeId: a.id });
+  return { number: numberRowOf(ctx, liveNumber(ctx, input.numberId)) };
 }
 
 export async function numberRelease(ctx: TelCtx, input: { numberId: string; idempotencyKey: string }) {
@@ -139,9 +185,10 @@ export async function numberAssign(ctx: TelCtx, input: { numberId: string; assig
   // a route that rang the old owner and nobody else follows the number to the new one
   const route = { ...DEFAULT_ROUTE, ...parseJson<Partial<RouteCfg>>(row.route, {}) };
   const rang = route.ring.length === 0 || (route.ring.length === 1 && route.ring[0]?.id === str(row, "assigneeId"));
+  ctx.db.run(`DELETE FROM telephony_number_member WHERE "numberId" = ?`, input.numberId);   // one assignee, so the list goes
   patch(ctx, "telephony_number", input.numberId, { assigneeKind: who.kind, assigneeId: who.id, ...(rang ? { route: JSON.stringify({ ...route, ring: ringFor(who) }) } : {}) });
   ctx.emit("number.assigned", `number/${input.numberId}`, { numberId: input.numberId, assigneeKind: who.kind, assigneeId: who.id });
-  return { number: numberOut(liveNumber(ctx, input.numberId)) };
+  return { number: numberRowOf(ctx, liveNumber(ctx, input.numberId)) };
 }
 
 function party(ctx: TelCtx, v: unknown): Party {
@@ -162,7 +209,7 @@ export async function numberSetRoute(ctx: TelCtx, input: { numberId: string; rou
   if (new Set(ring.map((p) => `${p.kind}:${p.id}`)).size !== ring.length) bad(ctx, "A person is listed twice.");
   patch(ctx, "telephony_number", str(row, "id"), { route: JSON.stringify({ ring, ringSeconds: r.ringSeconds, voicemail: r.voicemail, voicemailTranscript: r.voicemailTranscript }) });
   ctx.emit("number.route_changed", `number/${str(row, "id")}`, { numberId: str(row, "id"), fields: ["route"] });
-  return { number: numberOut(liveNumber(ctx, str(row, "id"))) };
+  return { number: numberRowOf(ctx, liveNumber(ctx, str(row, "id"))) };
 }
 
 const HHMM = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
@@ -181,7 +228,7 @@ export async function numberSetHours(ctx: TelCtx, input: { numberId: string; hou
   });
   patch(ctx, "telephony_number", str(row, "id"), { hours: JSON.stringify({ zone: h.zone, weekly, outsideHours: h.outsideHours }) });
   ctx.emit("number.route_changed", `number/${str(row, "id")}`, { numberId: str(row, "id"), fields: ["hours"] });
-  return { number: numberOut(liveNumber(ctx, str(row, "id"))) };
+  return { number: numberRowOf(ctx, liveNumber(ctx, str(row, "id"))) };
 }
 
 export async function numberSetRecording(ctx: TelCtx, input: { numberId: string; recording: string }) {
@@ -192,7 +239,7 @@ export async function numberSetRecording(ctx: TelCtx, input: { numberId: string;
     patch(ctx, "telephony_number", str(row, "id"), { recording: input.recording });
     ctx.emit("number.route_changed", `number/${str(row, "id")}`, { numberId: str(row, "id"), fields: ["recording"] });
   }
-  return { number: numberOut(liveNumber(ctx, str(row, "id"))) };
+  return { number: numberRowOf(ctx, liveNumber(ctx, str(row, "id"))) };
 }
 
 const ensureNum = (ctx: TelCtx, id: unknown): string => (isId("num", id) ? id : bad(ctx, "Number id is not valid."));
