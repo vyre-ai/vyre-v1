@@ -17,7 +17,5 @@ Area: chats. Risk: low. Applies to: channel.
 - channels.agent_watch.set
 - channels.agents.add
 - channels.agents.remove
-- channels.connect_outside_agent
-- mcp.token.issue
 - threads.add_agent
 - threads.remove_agent

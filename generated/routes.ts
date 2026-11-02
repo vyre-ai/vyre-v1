@@ -1481,6 +1481,96 @@ const routes0: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/agents/next",
+    "cap": "agents.next",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "none",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/agents/outside/connect",
+    "cap": "agents.outside.connect",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": "agents.create",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "none",
+    "risk": "high",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/agents/outside/enqueue",
+    "cap": "agents.outside.enqueue",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "none",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/agents/outside/seen",
+    "cap": "agents.outside.seen",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "none",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/agents/outside/usable",
+    "cap": "agents.outside.usable",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/agents/pause",
     "cap": "agents.pause",
     "v": 1,
@@ -4458,25 +4548,6 @@ const routes0: Route[] = [
   },
   {
     "method": "POST",
-    "path": "/v1/channels/connect_outside_agent",
-    "cap": "channels.connect_outside_agent",
-    "v": 1,
-    "module": "chat",
-    "effects": "write",
-    "permission": "channels.agents",
-    "level": "manage",
-    "resource": {
-      "type": "channel",
-      "id": "/channelId"
-    },
-    "idempotency": "key",
-    "risk": "high",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
     "path": "/v1/channels/create",
     "cap": "channels.create",
     "v": 1,
@@ -5488,7 +5559,10 @@ const routes0: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes1: Route[] = [
   {
     "method": "POST",
     "path": "/v1/chat/transcript/search",
@@ -5563,10 +5637,7 @@ const routes0: Route[] = [
     "offline": "patch",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes1: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/comms/senders/list",
@@ -11013,7 +11084,10 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes2: Route[] = [
   {
     "method": "POST",
     "path": "/v1/files/comments/add",
@@ -11087,10 +11161,7 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes2: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/files/copy",
@@ -16557,7 +16628,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/inbox/link_message",
@@ -16629,10 +16703,7 @@ const routes2: Route[] = [
     "offline": "queue",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/inbox/match",
@@ -18493,6 +18564,78 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/mcp/activity/list",
+    "cap": "mcp.activity.list",
+    "v": 1,
+    "module": "mcp",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mcp/connected/link",
+    "cap": "mcp.connected.link",
+    "v": 1,
+    "module": "mcp",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mcp/connected/list",
+    "cap": "mcp.connected.list",
+    "v": 1,
+    "module": "mcp",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mcp/connected/remove",
+    "cap": "mcp.connected.remove",
+    "v": 1,
+    "module": "mcp",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/mcp/health",
     "cap": "mcp.health",
     "v": 1,
@@ -18511,18 +18654,72 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
-    "path": "/v1/mcp/scopes/set",
-    "cap": "mcp.scopes.set",
+    "path": "/v1/mcp/oauth/allow",
+    "cap": "mcp.oauth.allow",
     "v": 1,
     "module": "mcp",
     "effects": "write",
-    "permission": "access.manage",
-    "level": "manage",
+    "permission": null,
+    "level": "member",
     "resource": {
       "type": "space"
     },
     "idempotency": "natural",
     "risk": "high",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mcp/oauth/decline",
+    "cap": "mcp.oauth.decline",
+    "v": 1,
+    "module": "mcp",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mcp/oauth/replayed",
+    "cap": "mcp.oauth.replayed",
+    "v": 1,
+    "module": "mcp",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "none",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/mcp/oauth/request",
+    "cap": "mcp.oauth.request",
+    "v": 1,
+    "module": "mcp",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -18565,24 +18762,6 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
-    "path": "/v1/mcp/session/open",
-    "cap": "mcp.session.open",
-    "v": 1,
-    "module": "mcp",
-    "effects": "write",
-    "permission": null,
-    "level": "edit",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "none",
-    "risk": "medium",
-    "offline": "online",
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
     "path": "/v1/mcp/sessions/list",
     "cap": "mcp.sessions.list",
     "v": 1,
@@ -18596,60 +18775,6 @@ const routes3: Route[] = [
     "idempotency": "natural",
     "risk": "low",
     "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/mcp/token/issue",
-    "cap": "mcp.token.issue",
-    "v": 1,
-    "module": "mcp",
-    "effects": "write",
-    "permission": "channels.agents",
-    "level": "use",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "key",
-    "risk": "high",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/mcp/token/log_reveal",
-    "cap": "mcp.token.log_reveal",
-    "v": 1,
-    "module": "mcp",
-    "effects": "write",
-    "permission": null,
-    "level": "edit",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "none",
-    "risk": "low",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/mcp/token/register",
-    "cap": "mcp.token.register",
-    "v": 1,
-    "module": "mcp",
-    "effects": "write",
-    "permission": null,
-    "level": "edit",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "high",
-    "offline": "online",
     "teamOnly": false,
     "gate": null
   },
@@ -22011,7 +22136,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/ms/workbook/append_rows",
@@ -22140,10 +22268,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/network/enroll_status",
@@ -27545,7 +27670,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "site_promote"
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sites/publish",
@@ -27678,10 +27806,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sites/table_promote",
@@ -33065,7 +33190,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/views/save",
@@ -33192,10 +33320,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/webhooks/deliveries",

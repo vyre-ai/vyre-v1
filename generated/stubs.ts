@@ -114,6 +114,13 @@ export function stubs(ctx: CallCtx) {
       memory_key: {
         get: call("agents.memory_key.get"),
       },
+      next: call("agents.next"),
+      outside: {
+        connect: call("agents.outside.connect"),
+        enqueue: call("agents.outside.enqueue"),
+        seen: call("agents.outside.seen"),
+        usable: call("agents.outside.usable"),
+      },
       pause: call("agents.pause"),
       restore: call("agents.restore"),
       restore_version: call("agents.restore_version"),
@@ -337,7 +344,6 @@ export function stubs(ctx: CallCtx) {
         remove: call("channels.agents.remove"),
       },
       archive: call("channels.archive"),
-      connect_outside_agent: call("channels.connect_outside_agent"),
       create: call("channels.create"),
       erase: call("channels.erase"),
       get: call("channels.get"),
@@ -1390,22 +1396,27 @@ export function stubs(ctx: CallCtx) {
       send_email: call("mailgun.send_email"),
     },
     mcp: {
+      activity: {
+        list: call("mcp.activity.list"),
+      },
+      connected: {
+        link: call("mcp.connected.link"),
+        list: call("mcp.connected.list"),
+        remove: call("mcp.connected.remove"),
+      },
       health: call("mcp.health"),
-      scopes: {
-        set: call("mcp.scopes.set"),
+      oauth: {
+        allow: call("mcp.oauth.allow"),
+        decline: call("mcp.oauth.decline"),
+        replayed: call("mcp.oauth.replayed"),
+        request: call("mcp.oauth.request"),
       },
       session: {
         close: call("mcp.session.close"),
         mint: call("mcp.session.mint"),
-        open: call("mcp.session.open"),
       },
       sessions: {
         list: call("mcp.sessions.list"),
-      },
-      token: {
-        issue: call("mcp.token.issue"),
-        log_reveal: call("mcp.token.log_reveal"),
-        register: call("mcp.token.register"),
       },
       tool: {
         describe: call("mcp.tool.describe"),

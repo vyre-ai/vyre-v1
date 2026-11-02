@@ -23,7 +23,6 @@ HTTP 401. Retryable: no.
 - identity.totp_confirm
 - identity.verify_second_factor
 - invites.accept_create_account
-- mcp.token.register
 - members.accept
 - members.invites.preview
 - ms.user.complete

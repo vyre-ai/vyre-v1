@@ -1,12 +1,12 @@
-# mcp.scopes_changed
+# agent.job_queued
 
-The scopes of an outside actor changed
+A mention or a task is waiting for an outside agent
 
 | | |
 |---|---|
-| Module | mcp |
+| Module | agents |
 | Schema version | 1 |
-| Subject | entity at /actorId |
+| Subject | agent at /agentId |
 | Visibility | participants |
 | Label | none |
 | Replay | pure |
@@ -18,7 +18,8 @@ The scopes of an outside actor changed
 
 ```ts
 type Payload = {
-  actorId: string;
-  by: string;
+  agentId: string;
+  jobId: string;
+  kind: string;
 };
 ```

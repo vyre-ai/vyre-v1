@@ -114,6 +114,13 @@ export function createClient(transport: Transport) {
       memory_key: {
         get: call("agents.memory_key.get", 1),
       },
+      next: call("agents.next", 1),
+      outside: {
+        connect: call("agents.outside.connect", 1),
+        enqueue: call("agents.outside.enqueue", 1),
+        seen: call("agents.outside.seen", 1),
+        usable: call("agents.outside.usable", 1),
+      },
       pause: call("agents.pause", 1),
       restore: call("agents.restore", 1),
       restore_version: call("agents.restore_version", 1),
@@ -337,7 +344,6 @@ export function createClient(transport: Transport) {
         remove: call("channels.agents.remove", 1),
       },
       archive: call("channels.archive", 1),
-      connect_outside_agent: call("channels.connect_outside_agent", 1),
       create: call("channels.create", 1),
       erase: call("channels.erase", 1),
       get: call("channels.get", 1),
@@ -1390,22 +1396,27 @@ export function createClient(transport: Transport) {
       send_email: call("mailgun.send_email", 1),
     },
     mcp: {
+      activity: {
+        list: call("mcp.activity.list", 1),
+      },
+      connected: {
+        link: call("mcp.connected.link", 1),
+        list: call("mcp.connected.list", 1),
+        remove: call("mcp.connected.remove", 1),
+      },
       health: call("mcp.health", 1),
-      scopes: {
-        set: call("mcp.scopes.set", 1),
+      oauth: {
+        allow: call("mcp.oauth.allow", 1),
+        decline: call("mcp.oauth.decline", 1),
+        replayed: call("mcp.oauth.replayed", 1),
+        request: call("mcp.oauth.request", 1),
       },
       session: {
         close: call("mcp.session.close", 1),
         mint: call("mcp.session.mint", 1),
-        open: call("mcp.session.open", 1),
       },
       sessions: {
         list: call("mcp.sessions.list", 1),
-      },
-      token: {
-        issue: call("mcp.token.issue", 1),
-        log_reveal: call("mcp.token.log_reveal", 1),
-        register: call("mcp.token.register", 1),
       },
       tool: {
         describe: call("mcp.tool.describe", 1),
