@@ -322,7 +322,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       assert.equal(page.url(), deep, "the deep link survives the reload");
       await page.evaluate(() => sessionStorage.removeItem("vyre.e2e.watchHome"));
     });
-    await t.test("6c Console uses real backup, device and access capabilities in its standalone frame", async () => {
+    await t.test("6c Console uses real backup, device and access capabilities in its place in the shell", async () => {
       const token = await page.evaluate(() => {
         const saved = JSON.parse(localStorage.getItem("vyre.session.v1") ?? "{}");
         return saved.sessions?.[location.origin]?.token ?? saved.token;
@@ -332,7 +332,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       const openConsole = async (screen: string): Promise<void> => {
         await page.goto(`${web.origin}/console#screen=${screen}`, { waitUntil: "load" });
         await page.getByTestId("console").waitFor({ timeout: 15_000 });
-        assert.equal(await page.getByTestId("shell").count(), 0, "Console has its own frame");
+        assert.equal(await page.getByTestId("shell").count(), 1, "the Console is a place in the shell");
       };
       try {
         await openConsole("console.backups");
