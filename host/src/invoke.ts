@@ -290,8 +290,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     } catch (e) {
       if ((e as { code?: unknown } | null)?.code === "idem_conflict") e = fail("validation.precondition_failed", traceId, { message: "That key was already used with different input.", details: { reason: "idempotency_conflict", cap: capName } });
       const { error, unexpected } = toVyreError(e, traceId);
-      if (unexpected) log.error("handler threw", { cap: capName, traceId, stack: e instanceof Error ? e.stack : String(e) });
+      // the span first: the log can then tell a repeat of the same failure, which it counts, from a new one
       span(error.code.startsWith("permission.") ? "denied" : "error", error.code);
+      if (unexpected) log.error("handler threw", { cap: capName, traceId, stack: e instanceof Error ? e.stack : String(e) });
       log.info("invoke", { cap: capName, traceId, status: error.code });
       throw new HostError(error);
     }

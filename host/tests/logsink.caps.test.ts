@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { LogSink, LOGS_SCHEMA, ROLLUP_MS, SLOW_MS, invokeSpanLog, jobRanLog } from "../src/logsink/index.ts";
+import { LogSink, LOGS_SCHEMA, ROLLUP_MS, SLOW_MS, invokeLogs, jobRanLog } from "../src/logsink/index.ts";
 
 const T0 = 1_800_000_000_000;
 const DAY = 86_400_000;
@@ -71,7 +71,7 @@ test("close writes what every open window has counted, so a restart loses no cou
 test("a fast read keeps its first span per capability and caller each window, so its trace opens; writes, failures and slow reads keep every span", () => {
   let now = T0;
   const sink = new LogSink({ batchMs: 0, now: () => now });
-  const span = invokeSpanLog(sink, () => "spc_test", (cap) => cap.endsWith(".get"));
+  const { onSpan: span } = invokeLogs(sink, "spc_test", { routine: (cap) => cap.endsWith(".get"), read: (cap) => cap.endsWith(".get") });
   let i = 0;
   const call = (cap: string, o: { status?: "ok" | "error"; ms?: number; principal?: string } = {}): string => {
     const traceId = (++i).toString(16).padStart(32, "0");
@@ -183,4 +183,55 @@ test("a logs.db from before the caps is pruned and vacuumed once at open, and ta
   sink.flush();
   assert.equal(n(sink, "SELECT MAX(id) AS n FROM logs"), 3002, "the sequence carries on past the pruned rows");
   sink.close();
+});
+
+test("a read that keeps failing the same way is one row per window: the first failure and a new error keep their span and rows, repeats are counted, and the recovery is a row", () => {
+  let now = T0;
+  const sink = new LogSink({ batchMs: 0, now: () => now });
+  const logs = invokeLogs(sink, "spc_test", { routine: (cap) => cap.endsWith(".get") || cap.startsWith("host.hook."), read: (cap) => cap.endsWith(".get") });
+  let i = 0;
+  // what the pipeline does on a failure: the span, then the rows
+  const call = (cap: string, o: { status?: "ok" | "error" | "denied"; code?: string; ms?: number; unexpected?: boolean } = {}): string => {
+    const traceId = (++i).toString(16).padStart(32, "0");
+    now += 1000;
+    const status = o.status ?? "ok";
+    logs.onSpan({ traceId, spanId: "2".repeat(16), name: "invoke", cap, startedAt: now, ms: o.ms ?? 2, status, ...(o.code ? { code: o.code } : {}), principal: "usr_a" });
+    if (status !== "ok") {
+      if (o.unexpected) logs.log.error("handler threw", { cap, traceId, stack: "at x" });
+      logs.log.info("invoke", { cap, traceId, status: o.code });
+    }
+    return traceId;
+  };
+  const first = call("settings.get", { status: "error", code: "validation.bad_input" });
+  const repeats = [1, 2, 3].map(() => call("settings.get", { status: "error", code: "validation.bad_input" }));
+  const changed = call("settings.get", { status: "error", code: "internal.unexpected", unexpected: true });
+  const again = call("settings.get", { status: "error", code: "internal.unexpected", unexpected: true });
+  const slow = call("settings.get", { status: "error", code: "internal.unexpected", ms: SLOW_MS });
+  const refused = [1, 2].map(() => call("settings.get", { status: "denied", code: "permission.no_grant" }));
+  const writes = [1, 2].map(() => call("notes.create", { status: "error", code: "validation.bad_input" }));
+  const hook = [1, 2].map(() => call("host.hook.periodic.x", { status: "error", code: "internal.unexpected" }));
+  const recovered = call("settings.get");
+  for (const t of [first, changed, slow, ...refused, ...writes, ...hook, recovered]) assert.equal(sink.trace(t).spans.length, 1, `kept: ${t}`);
+  for (const t of [...repeats, again]) assert.deepEqual(sink.trace(t), { logs: [], spans: [] }, `counted: ${t}`);
+  assert.deepEqual(sink.trace(changed).logs.map((l) => l.msg), ["handler threw", "invoke"], "a new error keeps its rows");
+  assert.deepEqual(sink.trace(recovered).logs.map((l) => [l.msg, l.level]), [["invoke.recovered", 20]]);
+  sink.close();
+});
+
+test("the counted failures of a window close as one invoke row with the error code and the count", () => {
+  const file = tmp();
+  let now = T0;
+  const sink = new LogSink({ path: file, batchMs: 0, now: () => now });
+  const logs = invokeLogs(sink, "spc_test", { routine: () => true, read: () => true });
+  for (let k = 0; k < 5; k++) {
+    now += 1000;
+    const traceId = k.toString(16).padStart(32, "0");
+    logs.onSpan({ traceId, spanId: "3".repeat(16), name: "invoke", cap: "settings.get", startedAt: now, ms: 2, status: "error", code: "validation.bad_input", principal: "usr_a" });
+    logs.log.info("invoke", { cap: "settings.get", traceId, status: "validation.bad_input" });
+  }
+  sink.close();
+  const db = new DatabaseSync(file, { readOnly: true });
+  const got = db.prepare("SELECT msg, level, cap, actor, result, attrs FROM logs ORDER BY id").all().map((r) => [r["msg"], r["level"], r["cap"], r["actor"], r["result"], r["attrs"] ? JSON.parse(String(r["attrs"])).count ?? null : null]);
+  db.close();
+  assert.deepEqual(got, [["invoke", 20, "settings.get", null, null, null], ["invoke", 20, "settings.get", "usr_a", "validation.bad_input", 4]], "the first failure as the pipeline logged it, then the four repeats on one row");
 });
