@@ -4,3 +4,4 @@
 - When a Team Space agent is refused a folder, it can ask for it and the person gets one press in Needs you to share that folder with the agent.
 - Agents now know how to make a new file from the first turn.
 - File links an agent writes in chat are links now, not raw [[name|id]] text.
+- Artifacts open in a Personal Space. Before, the card led to a Needs a Team Space page.

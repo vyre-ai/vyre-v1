@@ -96,7 +96,9 @@ export function Stage({ children }: { children: ReactNode }): ReactElement {
 }
 
 /** What a Personal Space cannot do (spec 2.1 matrix), by place. */
-export function teamOnly(place: PlaceId): string | null {
+export function teamOnly(place: PlaceId, hash = ""): string | null {
+  // artifacts are a person's own: any Space shows them
+  if (hash.includes("screen=apps.artifacts")) return null;
   return place === "apps" ? "Sites and forms" : null;
 }
 
@@ -249,7 +251,7 @@ export function Shell(props: ShellProps): ReactElement {
       </PlaceFrame>
     );
   } else {
-    const blocked = session.def.kind === "personal" ? teamOnly(state.place) : null;
+    const blocked = session.def.kind === "personal" ? teamOnly(state.place, state.hash) : null;
     stage = (
       <PlaceFrame hub={hub} epoch={state.epoch} key={`${state.epoch}:${ctx.spaceId}:${state.place}`}>
         {blocked !== null ? <NeedsTeamSpace what={blocked} density={compact ? "compact" : "regular"} onAction={() => props.onSpaceAction?.("add")} /> : props.renderPlace(ctx)}
