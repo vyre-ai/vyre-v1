@@ -9,7 +9,7 @@ import { useConsoleData } from "../shell/data.tsx";
 import { ObjectList } from "../objects/ObjectList.tsx";
 import type { ObjectListRow } from "../objects/ObjectList.tsx";
 import { Actions, Button, Field, Note, ReadState, useAction, useRead } from "./shared.tsx";
-import { Tick } from "./ai-controls.tsx";
+import { Choice, Tick } from "./ai-controls.tsx";
 import { reviewSampling } from "./ai-data-values.ts";
 
 type ReviewItem = CapMap["engine.review.list"]["out"]["items"][number];
