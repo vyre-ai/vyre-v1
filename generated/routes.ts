@@ -27534,8 +27534,8 @@ const routes4: Route[] = [
     "v": 1,
     "module": "sites",
     "effects": "outward",
-    "permission": "sites.promote",
-    "level": "manage",
+    "permission": "sites.deploy",
+    "level": "edit",
     "resource": {
       "type": "site",
       "id": "/siteId"
