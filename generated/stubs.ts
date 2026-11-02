@@ -708,6 +708,7 @@ export function stubs(ctx: CallCtx) {
       accounts: {
         list: call("engine.accounts.list"),
       },
+      compact: call("engine.compact"),
       complete: call("engine.complete"),
       crew: {
         list: call("engine.crew.list"),
