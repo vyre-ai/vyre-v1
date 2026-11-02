@@ -1,0 +1,1 @@
+- Codex chats no longer use the test build of Codex inside the ChatGPT app, which failed outside it with "workspace routing discovery failed". Vyre runs its own installed copy.

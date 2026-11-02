@@ -211,14 +211,14 @@ test("the installer: one install per program however many ask, its progress, a f
   assert.equal(calls, 2);
 });
 
-test("lookup order: a person's own install first, then a copy an app carries, then Vyre's engines folder, on a Mac and on Linux", () => {
+test("lookup order: a person's own install first, then Vyre's engines folder; a copy an app carries is never used, on a Mac and on Linux", () => {
   const home = "/Users/dana";
   const root = `${home}/Library/Application Support/ai.vyre.desktop/engines`;
   const own = `${home}/.local/bin/codex`, app = "/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex", vyre = `${root}/codex/0.166.0/codex`;
   const dirs = (files: string[]) => new Set(files.flatMap((f) => [f, path.dirname(f)]));
   const probe = (files: string[]) => { const there = dirs(files); return { platform: "darwin" as const, env: { PATH: "/usr/bin:/bin", HOME: home }, exists: (p: string) => there.has(p), enginesRoot: root }; };
   assert.equal(findProgram("codex", probe([own, app, vyre])), own, "the person's own install wins");
-  assert.equal(findProgram("codex", probe([app, vyre])), app, "then the copy inside the ChatGPT app");
+  assert.equal(findProgram("codex", probe([app, vyre])), vyre, "the copy inside the ChatGPT app is passed over for Vyre's own");
   assert.equal(findProgram("codex", probe([vyre])), vyre, "then Vyre's own");
   assert.equal(findProgram("codex", { ...probe([vyre]), enginesRoot: null }), null, "with no engines folder, nothing");
   assert.equal(isOwned(vyre, probe([vyre])), true);
