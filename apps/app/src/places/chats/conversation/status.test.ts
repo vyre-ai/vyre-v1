@@ -103,3 +103,35 @@ test("Details has something real before the turn is read", () => {
   assert.ok(v.kind === "error");
   assert.deepEqual((v.block.data as { steps: unknown }).steps, [["Code", "engine.cli_error"], ["Reply", "trn_1"]]);
 });
+
+// Every code a turn can fail with, read from the code that raises it, has words that say what happened: its own, or its family's (sandbox, provider). "That reply did not finish." is only for an
+// error Vyre has no code for. A new code without words fails here, so the live rc.14 report (a generic line for a known code) cannot come back.
+test("every code a turn can fail with says what happened", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { wordsFor } = await import("./status.ts");
+  const repo = path.resolve(import.meta.dirname, "../../../../../..");
+  const roots = ["agent/src/drivers", "agent/src/turn-engine", "agent/src/pool", "sandbox/src", "modules/engine/session.ts", "modules/engine/sandbox.ts", "modules/engine/mcp-bridge.ts", "modules/engine/runnable-account.ts", "modules/engine/sandbox-default.ts", "host/src/seams/engine-session.ts"];
+  const files = (r: string): string[] => {
+    const at = path.join(repo, r);
+    if (r.endsWith(".ts")) return [at];
+    return (fs.readdirSync(at, { recursive: true }) as string[]).filter((f) => f.endsWith(".ts") && !f.includes(".test.") && !f.split(path.sep).includes("tests")).map((f) => path.join(at, f));
+  };
+  const raised = /(?:(?:DriverError|SandboxError|LaunchError|coded)\(\s*|code:\s*|return\s+|\?\s*|:\s*)"((?:engine|provider|sandbox)\.[a-z_]+)"/g;
+  const codes = new Set<string>();
+  for (const r of roots) for (const f of files(r)) for (const m of fs.readFileSync(f, "utf8").matchAll(raised)) codes.add(m[1]!);
+  assert.ok(codes.has("sandbox.unavailable") && codes.has("engine.cli_missing") && codes.has("provider.auth_failed"), "the scan finds the codes it should");
+  const generic = [...codes].filter((c) => wordsFor(c).message === "That reply did not finish.");
+  assert.deepEqual(generic, [], `codes with no words: ${generic.join(", ")}`);
+});
+
+test("sandbox.unavailable says the engine cannot run safely here and offers an API key", () => {
+  const v = statusView(block({ state: "failed", turnId: "trn_9", code: "sandbox.unavailable" }));
+  assert.equal(v.kind, "error");
+  if (v.kind !== "error") return;
+  const d = v.block.data as { message: string; cause?: string; next: Array<{ key: string; label: string }>; retryable: boolean };
+  assert.equal(d.message, "This engine cannot run safely on this computer yet.");
+  assert.match(d.cause ?? "", /sandbox/);
+  assert.deepEqual(d.next, [{ key: "connect_ai", label: "Use an API key" }]);
+  assert.equal(d.retryable, false);
+});

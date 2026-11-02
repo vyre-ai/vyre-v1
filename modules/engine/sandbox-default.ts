@@ -91,14 +91,27 @@ export function selectedDeveloperDir(): string | null {
   } catch { return null; }
 }
 
+/**
+ * Why CLI engines cannot be sandboxed on this computer, in one line a person can read, or null where they can. The same answer defaultSandbox gives: a turn refuses with it (sandbox.unavailable), the
+ * account picker passes over CLI accounts for it (runnable-account.ts), and the AI accounts page shows it as what the account needs (engine.providers.list). Never a reason to run an engine unwrapped.
+ */
+export function cliSandboxGap(o: { platform?: NodeJS.Platform; bwrapPaths?: readonly string[] } = {}): string | null {
+  const platform = o.platform ?? process.platform;
+  if (platform === "darwin") return null;
+  if (platform === "linux") return (o.bwrapPaths ?? BWRAP).some((p) => fs.existsSync(p)) ? null : "bubblewrap (bwrap) is not installed on this server, so CLI engines cannot be sandboxed";
+  if (platform === "win32") return "Vyre cannot sandbox Claude Code, Codex or Grok on Windows yet, so they do not run on this computer";
+  return `CLI engines cannot be sandboxed on ${platform}`;
+}
+
 export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultSandbox> {
   const platform = o.platform ?? process.platform;
   const hosts = o.egressHosts ?? ENGINE_EGRESS_HOSTS;
   const node = o.node ?? process.execPath;
   const unavailable = (reason: string): DefaultSandbox => ({ plan: { sandbox: { kind: "server", reason }, dataDir: o.dataDir, egressHosts: hosts }, close: async () => undefined });
   const done = (sandbox: EngineSandbox, close: () => Promise<void>): DefaultSandbox => ({ plan: { sandbox, dataDir: o.dataDir, egressHosts: hosts }, close });
+  const gap = cliSandboxGap({ platform, ...(o.bwrapPaths ? { bwrapPaths: o.bwrapPaths } : {}) });
+  if (gap !== null) return unavailable(gap);
   if (platform === "linux") {
-    if (!(o.bwrapPaths ?? BWRAP).some((p) => fs.existsSync(p))) return unavailable("bubblewrap (bwrap) is not installed on this server, so CLI engines cannot be sandboxed");
     const wall = await startNetWall({ allow: hosts });
     return done({ kind: "bwrap", wallDir: wall.dir, node, ...(o.programRead ? { programRead: o.programRead } : {}) }, () => wall.close());
   }

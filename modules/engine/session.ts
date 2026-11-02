@@ -240,6 +240,14 @@ export function refuseMissingProgram(program: string, probe?: NodeCliProbe): voi
   if (program in CLI_NAME && findProgram(program, probe) === null) throw new LaunchError("engine.cli_missing", `${program} is not installed on this computer.`);
 }
 
+/** The MCP bridge of one session: refused with sandbox.unavailable where the engine cannot be sandboxed (the spawn would refuse the same way), engine.mcp_unavailable when the bridge cannot open. */
+export async function openBridge(plan: () => Promise<SandboxPlan>, m: { url: string; token: string }, scratch: string): Promise<Awaited<ReturnType<typeof openMcpBridge>>> {
+  const s = (await plan()).sandbox;
+  if (s.kind === "docker" || s.kind === "server") throw new SandboxError("sandbox.unavailable", s.reason ?? "this engine cannot be sandboxed on this computer");
+  try { return await openMcpBridge(m, { scratch }); }
+  catch (e) { throw Object.assign(new Error(`the engine's link to Vyre's tools could not open: ${e instanceof Error ? e.message : String(e)}`), { code: "engine.mcp_unavailable" }); }
+}
+
 /** Builds the opener; the runtime keeps it for the life of the daemon and calls close() on shutdown. */
 export function buildOpener(h: OpenerHost): SessionOpener {
   const system = roleBlocks(h.call);
@@ -267,8 +275,9 @@ export function buildOpener(h: OpenerHost): SessionOpener {
         return spawnCli(await plan(), spec, swap ? [...swap, ...spec.argv.slice(1)] : ownedArgv(spec.argv, h.cliProbe));
       },
     },
-    // Behind the wall the engine cannot reach the daemon's loopback: its MCP config starts a stdio shim that talks to a unix socket in the person's scratch folder (ruling 61).
-    ...(dataDir ? { mcpBridge: (m: { url: string; token: string }, spec: { asker: string }) => openMcpBridge(m, { scratch: scratchFolder(dataDir, spec.asker) }) } : {}),
+    // Behind the wall the engine cannot reach the daemon's loopback: its MCP config starts a stdio shim that talks to a unix socket in the person's scratch folder (ruling 61), a named pipe on Windows.
+    // A computer that cannot sandbox the engine refuses here, before anything is opened, with the sandbox's own reason; a bridge that cannot open says so with a code of its own.
+    ...(dataDir ? { mcpBridge: (m: { url: string; token: string }, spec: { asker: string }) => openBridge(plan, m, scratchFolder(dataDir, spec.asker)) } : {}),
     ...(dataDir && h.pluginsNative !== false ? { nativePlugins: (spec: SessionSpec, driver: "claude_code" | "codex") => nativePlugins({ call: h.call }, driver, spec.agent.id, spec.asker, workFolder(dataDir, spec.asker, spec.threadId)) } : {}),
     ...(dataDir ? {
       cli: {
