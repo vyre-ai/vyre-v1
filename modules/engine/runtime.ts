@@ -80,7 +80,7 @@ export interface EngineHostSeam {
   extend?: (engine: TurnEngine) => void;
 }
 
-interface AccountRow { ref: string; driver: string; kind: "api_key" | "subscription"; base?: string; keyless?: boolean; spaceKey?: boolean }
+interface AccountRow { ref: string; driver: string; kind: "api_key" | "subscription"; mine?: boolean; base?: string; keyless?: boolean; spaceKey?: boolean }
 interface ResolveOut { accountRef: string | null; payer: string | null; reason: ResolvedAccount["reason"]; allowed: boolean; itemId?: string; fellBack?: boolean }
 
 /** The provider a driver belongs to, for the session spec; the CLI engines run their vendor's models. */
