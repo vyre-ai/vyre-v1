@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { registry } from "../../../generated/registry.ts";
 import { handlers } from "../impl.ts";
-import { MAYA, assertEventsConform, codeOf, contractErrors, harness } from "../fixtures/harness.ts";
+import { DANA, MAYA, assertEventsConform, codeOf, contractErrors, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { setPluginsHost } from "../handlers/plugins.ts";
 import { createPluginsHost } from "../../../host/src/seams/plugins.ts";
@@ -36,8 +36,8 @@ const withMarket = async (hn: Harness) => {
 const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
-test("the handler table covers exactly the 63 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 63);
+test("the handler table covers exactly the 68 capabilities of the agents manifest", () => {
+  assert.equal(mine.length, 68);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
@@ -60,7 +60,15 @@ const withFiles = async (hn: Harness) => {
 };
 const DIFF = "@@ -7,1 +7,2 @@\n - Work that fits that job is yours: take it from start to finish.\n+- Check the name first.\n";
 
+const nested = (hn: Harness): Harness["ctx"] => ({ ...hn.ctx, depth: 1 });
+const withOutside = async (hn: Harness): Promise<{ id: string }> => ({ id: (await h["agents.outside.connect"]!(nested(hn), { clientName: "Claude Code" })).agentId });
+
 const scenarios: Scenario[] = [
+  { cap: "agents.outside.connect", run: (hn) => h["agents.outside.connect"]!(nested(hn), { clientName: "Claude Code" }) },
+  { cap: "agents.outside.enqueue", setup: withOutside, run: (hn, s) => h["agents.outside.enqueue"]!(nested(hn), { agentId: s.id, kind: "mention", threadId: "thr_a", messageId: "msg_a", asker: DANA, title: "A message", text: "Hello" }) },
+  { cap: "agents.outside.seen", setup: withOutside, run: (hn, s) => h["agents.outside.seen"]!(nested(hn), { agentId: s.id }) },
+  { cap: "agents.outside.usable", setup: withOutside, run: (hn, s) => h["agents.outside.usable"]!(hn.ctx, { agentId: s.id }) },
+  { cap: "agents.next", setup: withOutside, run: (hn, s) => h["agents.next"]!(hn.as({ kind: "agent", id: s.id }, DANA), {}) },
   { cap: "agents.create", run: (hn) => mkRaw(hn, { model: "claude-sonnet-5-5", computer: true, limits: { dayCostMicros: 1_000_000 }, tools: { allowed: ["files"], denied: [] } }) },
   { cap: "agents.create", setup: withAgent, run: (hn) => mkRaw(hn), expect: "validation.duplicate" },
   { cap: "agents.create", run: (hn) => mkRaw(hn, { name: "a/b" }), expect: "validation.bad_input" },

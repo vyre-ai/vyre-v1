@@ -766,7 +766,7 @@ async function adoptAgentPrincipals(ctx: AgentsCtx, put: string[]): Promise<void
       const tree = await createTree(ctx, p.id, name, tomlText, AGENT_MD_DEFAULT(name, undefined));
       const now = ctx.now();
       insertAgent(ctx.db, {
-        id: p.id, name, kind: "agent", face: slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: false,
+        id: p.id, name, kind: "agent", runtime: "vyre", face: slug(name), ownerId: owner, folderId: tree.folderId, tomlFileId: tree.tomlFileId, agentMdFileId: tree.agentMdFileId, tomlText, config, hasComputer: false,
         templateVersion: await templateVersion(ctx), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
       });
       await ensureHomeGrants(ctx, p.id, owner, tree.folderId);
