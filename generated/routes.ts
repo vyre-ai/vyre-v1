@@ -24527,6 +24527,78 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/providers/space_key/get",
+    "cap": "providers.space_key.get",
+    "v": 1,
+    "module": "vault",
+    "effects": "read",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/providers/space_key/remove",
+    "cap": "providers.space_key.remove",
+    "v": 1,
+    "module": "vault",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": "delete"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/providers/space_key/set",
+    "cap": "providers.space_key.set",
+    "v": 1,
+    "module": "vault",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/providers/space_key/use",
+    "cap": "providers.space_key.use",
+    "v": 1,
+    "module": "vault",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/providers/subscription_complete",
     "cap": "providers.subscription_complete",
     "v": 1,
@@ -27571,7 +27643,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "delete"
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sites/deploy",
@@ -27647,10 +27722,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sites/domain_set",
@@ -33101,7 +33173,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/vault/request",
@@ -33173,10 +33248,7 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/vault/requests/get",

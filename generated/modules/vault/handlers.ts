@@ -13,6 +13,10 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "providers.list": Handler<"providers.list", X>;
   "providers.remove": Handler<"providers.remove", X>;
   "providers.set_space_use": Handler<"providers.set_space_use", X>;
+  "providers.space_key.get": Handler<"providers.space_key.get", X>;
+  "providers.space_key.remove": Handler<"providers.space_key.remove", X>;
+  "providers.space_key.set": Handler<"providers.space_key.set", X>;
+  "providers.space_key.use": Handler<"providers.space_key.use", X>;
   "providers.subscription_complete": Handler<"providers.subscription_complete", X>;
   "providers.subscription_start": Handler<"providers.subscription_start", X>;
   "providers.test": Handler<"providers.test", X>;

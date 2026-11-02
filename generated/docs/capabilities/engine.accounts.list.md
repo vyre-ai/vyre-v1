@@ -43,6 +43,7 @@ type Out = {
       lastProbeAt?: number;
       base?: string;
       keyless?: boolean;
+      spaceKey?: boolean;
     }>;
 };
 ```
@@ -72,6 +73,7 @@ type Out = {
         "name": "Dana Claude Max",
         "ownerId": "usr_a1b2c3",
         "ref": "#Team_Anthropic_Key",
+        "spaceKey": true,
         "status": "ok",
         "title": "example"
       }

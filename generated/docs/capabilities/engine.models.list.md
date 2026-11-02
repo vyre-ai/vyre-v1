@@ -42,7 +42,8 @@ type Out = {
       driver: "anthropic" | "openai" | "openrouter" | "google" | "xai" | "opencode_go" | "local" | "custom" | "claude_code" | "codex" | "grok";
       contextTokens?: number;
       allowed: boolean;
-      reason?: "label_provider" | "policy_model" | "not_connected";
+      reason?: "label_provider" | "policy_model" | "not_connected" | "usage_limit";
+      resetsAt?: number;
     }>;
 };
 ```
@@ -73,6 +74,7 @@ type Out = {
         "model": "claude-sonnet-5-5",
         "provider": "anthropic",
         "reason": "label_provider",
+        "resetsAt": 1760000000000,
         "title": "example"
       }
     ]

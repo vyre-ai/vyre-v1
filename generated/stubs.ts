@@ -1875,6 +1875,12 @@ export function stubs(ctx: CallCtx) {
       list: call("providers.list"),
       remove: call("providers.remove"),
       set_space_use: call("providers.set_space_use"),
+      space_key: {
+        get: call("providers.space_key.get"),
+        remove: call("providers.space_key.remove"),
+        set: call("providers.space_key.set"),
+        use: call("providers.space_key.use"),
+      },
       subscription_complete: call("providers.subscription_complete"),
       subscription_start: call("providers.subscription_start"),
       test: call("providers.test"),
