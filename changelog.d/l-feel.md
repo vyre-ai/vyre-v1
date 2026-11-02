@@ -2,3 +2,4 @@
 - A failed reply's card leaves once a retry works and the reply takes its own time; a retry that fails shows one card; Details shows what the engine said; a missing engine is named with the command that installs it.
 - An open chat is read: its dot and its catch-up line go, on screen and after a reload, and a reply that lands on an open chat stays read.
 - Your assistant is Assistant in every place until you rename it, and it keeps the name you give it.
+- With many tabs the open one stays in view with its full title, the others share what is left, the strip fades where more waits, and the plus stays beside the tabs.
