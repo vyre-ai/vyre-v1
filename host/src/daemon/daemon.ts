@@ -160,6 +160,7 @@ import type { DaemonConfig, DaemonPaths, Role } from "./config.ts";
 import { migrate } from "./hosttables.ts";
 import { requestListener } from "./http.ts";
 import { desktopCors } from "./desktop-cors.ts";
+import { createLiveTicketRoute, createLiveTickets } from "../routes/live-ticket.ts";
 import { createChromeBridge } from "../bridge/chrome.ts";
 import type { ChromeBridge } from "../bridge/chrome.ts";
 import { coerceQuery } from "./query.ts";
@@ -384,6 +385,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let chainBroken = false;
   let verified = { seq: 0, hash: "" };
   let hub: LiveHub | null = null;
+  const liveTickets = createLiveTickets({ now });
+  let knownToken: (token: string) => boolean = () => false;
+  const liveTicketRoute = createLiveTicketRoute({ tickets: liveTickets, known: (t) => knownToken(t), bearer });
   let engineSeam: { forgetReaders?: () => void } | null = null;
   let hubFactory: (() => LiveHub) | null = null;
   // the sync module's live hub: it registers a lazy factory through its seam, and the socket asks for the hub only when a device connects, after every module is loaded
@@ -1468,6 +1472,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         if (!s || access.snap.principal(s.person)?.status !== "active") return null;
         return { space: s.space, principal: { kind: "person", id: s.person }, device: s.device, sessionId: s.sessionId };
       };
+      knownToken = (t) => identify(t) !== null;
       const session: GatewayDeps["session"] = o.session ?? ((headers) => {
         const token = bearer(headers["authorization"]);
         if (token?.startsWith("vas_")) { const preview = previews?.resolve(token); return preview ? { space: preview.space, principal: { kind: "person", id: preview.requester }, actingFor: preview.target, device: preview.device, sessionId: preview.sessionId, previewToken: token } : null; }
@@ -1581,8 +1586,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       const mkHub = (): LiveHub => createLiveHub({
         claims: (req) => computeStream.claims(req),
+        // a socket shows its address to the browser console and to logs: a device with no header presents a one-time ticket, never its session token
         session: (h, url) => {
-          return identify(bearer(h["authorization"]) ?? url.searchParams.get("token"));
+          const ticket = url.searchParams.get("ticket");
+          return identify(bearer(h["authorization"]) ?? (ticket === null ? null : liveTickets.spend(ticket)));
         },
         invoke, sink,
         eventsSince: (_s, cursor) => (recent.length && recent[0]!.seq <= cursor + 1 ? recent.filter((e) => e.seq > cursor) : []),
@@ -1762,7 +1769,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         res.once("finish", () => { setImmediate(requestStop); });
         return;
       }
-      if (publicPath.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
+      if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {
