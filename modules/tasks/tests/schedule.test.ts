@@ -44,3 +44,36 @@ test("a task that waited says it is ready when what it waited on is done", async
   await h.call("tasks.transition", { taskId: p.a, to: "done" }, { id: bot.id, kind: "agent" });
   assert.deepEqual(await moved(h, p.a), [p.b]);
 });
+
+test("the parent hears when every child finished, once the last one does, and not before", async () => {
+  const h = harness();
+  const p = await planned(h);
+  const settled = (): number => h.allEvents.filter((e) => e.name === "task.children_settled").length;
+  await h.call("tasks.transition", { taskId: p.a, to: "doing" }, { id: bot.id, kind: "agent" });
+  await h.call("tasks.transition", { taskId: p.a, to: "done" }, { id: bot.id, kind: "agent" });
+  const ctx = h.ctxFor("tasks.transition", server);
+  const fired: Array<{ name: string; payload: Record<string, unknown> }> = [];
+  const watch = { ...ctx, emit: (name: string, subject: never, payload: never, opts: never) => { fired.push({ name, payload }); return ctx.emit(name, subject, payload, opts); } };
+  await onTaskChanged(watch as never, { name: "task.transitioned", payload: { taskId: p.a } });
+  assert.equal(fired.filter((e) => e.name === "task.children_settled").length, 0);
+  await h.call("tasks.transition", { taskId: p.b, to: "doing" }, { id: bot2.id, kind: "agent" });
+  await h.call("tasks.transition", { taskId: p.b, to: "done" }, { id: bot2.id, kind: "agent" });
+  await onTaskChanged(watch as never, { name: "task.transitioned", payload: { taskId: p.b } });
+  const heard = fired.filter((e) => e.name === "task.children_settled");
+  assert.equal(heard.length, 1);
+  assert.equal(heard[0]!.payload["reason"], "finished");
+  assert.equal(settled(), 0);   // the harness records a capability's events; this one came from the consumer
+});
+
+test("a repeating task comes back with its next date when it is done, once", async () => {
+  const made: Array<Record<string, unknown>> = [];
+  const h = harness({ calls: { "tasks.create": (input) => { made.push(input as Record<string, unknown>); return { task: { id: "tsk_next" } }; } } });
+  const due = h.now() + 86_400_000;
+  const t = (await h.call("tasks.create", newTask({ due, recur: { every: "week" } }), me)).task.id as string;
+  await h.call("tasks.transition", { taskId: t, to: "doing" }, me);
+  await h.call("tasks.transition", { taskId: t, to: "done" }, me);
+  await moved(h, t);
+  assert.equal(made.length, 1);
+  assert.equal(made[0]!["due"], due + 7 * 86_400_000);
+  assert.equal(made[0]!["idempotencyKey"], `recur:${t}`);
+});

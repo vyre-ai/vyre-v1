@@ -1,0 +1,1 @@
+- A member's own mailbox, connected automatically through delegation, is private again: other members of the Space cannot see or open it.

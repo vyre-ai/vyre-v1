@@ -28,6 +28,7 @@ import { CapError, createCapCaller } from "./caps.ts";
 import { isLoopbackUrl } from "../../../../../client/src/gateway/local-key.ts";
 import { PHONE_BELOW } from "./mobile-map.ts";
 import { openPhone } from "./phone.ts";
+import { readUrlIntoHub } from "./url.ts";
 import type { LoadVoiceDevice, Phone } from "./phone.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
 import { OnboardingHost } from "../../onboarding/OnboardingHost.tsx";
@@ -73,6 +74,9 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const hub = useMemo(() => {
     if (given) { navRef.current = given; return given; }
     const h = createShellHub({ spaces: catalogue.map(item=>({...item.def,starred:item.def.spaceId===stored.def.spaceId})), openId: stored.def.spaceId, personId: stored.personId, personIds:Object.fromEntries(catalogue.map(item=>[item.def.spaceId,item.personId])), deviceId: "web", storage: tabsStorage() });
+    // a link in the address wins over the restored tabs from the first frame, so nothing else is drawn first (UrlSync takes over from here)
+    const page = (globalThis as { location?: { pathname?: string; hash?: string } }).location;
+    if (page?.pathname !== undefined && page.hash !== undefined) readUrlIntoHub(h, { pathname: page.pathname, hash: page.hash });
     navRef.current = h;
     return h;
   }, [given, catalogueKey, stored.def.spaceId, stored.personId]);

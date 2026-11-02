@@ -2,7 +2,7 @@
 // the row they were handed, so one change repaints one row.
 import { createElement as h, memo, useMemo, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
@@ -72,6 +72,8 @@ const LINE_CSS = [
   ".vt-sub{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12.5px;line-height:17px;color:var(--ink-3)}",
   ".vt-lab{max-width:90px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:12px;color:var(--ink-3)}",
   ".vt-due{min-width:60px;text-align:right;font-size:13px;color:var(--ink-3);flex:none}.vt-due.late{color:var(--danger)}",
+  // the title is what a row is for: on a phone everything else gives way first
+  "@media (max-width:560px){.vt-key,.vt-lab,.vt-bat{display:none}.vt-row{padding-left:10px;gap:10px}.vt-pick{display:none}.vt-due{min-width:0}}",
 ].join("\n");
 
 type Press = { stopPropagation(): void; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; key?: string };
@@ -106,7 +108,7 @@ function WebLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv; s
       turn ? <LiveWords turn={turn} turns={env.turns} name={env.nameOf(turn.agentId)} /> : sub ? h("div", { className: "vt-sub" }, sub) : null,
     ),
     row.labels.length > 0 ? h("span", { className: "vt-lab" }, `#${row.labels[0]}`) : null,
-    <BatonMarks row={row} {...(other ? { title: `With ${env.nameOf(other.id)}` } : {})} />,
+    h("span", { className: "vt-bat", style: { flex: "none" } }, <BatonMarks row={row} {...(other ? { title: `With ${env.nameOf(other.id)}` } : {})} />),
     other ? h("span", { style: { flex: "none", display: "inline-flex" }, role: "button", "aria-label": `Open ${env.nameOf(other.id)}`, onClick: (e: Press) => { e.stopPropagation(); env.openProfile(other); } }, <Avatar name={env.nameOf(other.id)} seedId={other.id} kind={faceKind(other)} size={22} />) : null,
     due.text ? h("span", { className: `vt-due${due.late && !closed ? " late" : ""}` }, due.text) : null,
   );
@@ -119,6 +121,7 @@ export const TaskLine = memo(function TaskLine({ row, env, selected, current }: 
 });
 
 function NativeLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv; selected: boolean; current: boolean }): ReactElement {
+  const roomy = useWindowDimensions().width >= 560;
   const turn = useLiveTurn(env.turns, row.workerThread ?? row.threadId);
   const holder = holderOf(row);
   const other = holder && holder.id !== env.me ? holder : undefined;
@@ -135,14 +138,14 @@ function NativeLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv
         <StatusDot state={row.state} live={turn !== undefined} onPress={(at) => env.status(row, at)} testID={`task-status-${row.id}`} />
         <View style={s.text}>
           <View style={s.line}>
-            {row.key ? <Text style={s.key}>{row.key}</Text> : null}
+            {row.key && roomy ? <Text style={s.key}>{row.key}</Text> : null}
             <Text numberOfLines={1} style={[s.title, closed && s.titleDone]}>{row.title}</Text>
             {row.priority === "urgent" || row.priority === "high" ? <Text style={[s.pri, row.priority === "urgent" && s.priUrgent]}>{row.priority === "urgent" ? "Urgent" : "High"}</Text> : null}
           </View>
           {turn ? <LiveWords turn={turn} turns={env.turns} name={env.nameOf(turn.agentId)} /> : sub ? <Text numberOfLines={1} style={s.sub}>{sub}</Text> : null}
         </View>
-        {row.labels.length > 0 ? <Text numberOfLines={1} style={s.labels}>{`#${row.labels[0]}`}</Text> : null}
-        <BatonMarks row={row} {...(other ? { title: `With ${env.nameOf(other.id)}` } : {})} />
+        {row.labels.length > 0 && roomy ? <Text numberOfLines={1} style={s.labels}>{`#${row.labels[0]}`}</Text> : null}
+        {roomy ? <BatonMarks row={row} {...(other ? { title: `With ${env.nameOf(other.id)}` } : {})} /> : null}
         {other ? <FaceButton who={other} name={env.nameOf(other.id)} size={22} onPress={() => env.openProfile(other)} /> : null}
         {due.text ? <Text style={[s.due, due.late && !closed && s.late]}>{due.text}</Text> : <View style={s.dueGap} />}
       </>}
