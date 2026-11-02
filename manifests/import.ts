@@ -123,7 +123,7 @@ export default defineManifest({
       in: { conversationId: t.id('isc'), unarchive: t.opt(t.bool()) }, out: { archived: t.bool() }, perm: 'chats.private', idem: 'natural', risk: 'low', emits: ['sessions.archived'], tool: 'chats', offline: 'online', errors: ['validation.not_found', 'validation.bad_input'],
     }),
     write('sessions.delete', 'Remove an imported session from Vyre: its copied transcript is dropped and a later import of the same source session skips it. The original Claude Code or Codex files on the computer are never touched, and a chat continued from it stays and keeps working', {
-      in: { conversationId: t.id('isc') }, out: { deleted: t.bool() }, perm: 'chats.private', idem: 'natural', risk: 'medium', audit: 'always', emits: ['sessions.deleted'], tool: 'chats', offline: 'online', agent: false, errors: ['validation.not_found', 'validation.bad_input'],
+      in: { conversationId: t.id('isc') }, out: { deleted: t.bool() }, perm: 'chats.private', idem: 'natural', risk: 'medium', audit: 'always', emits: ['sessions.deleted'], offline: 'online', agent: false, errors: ['validation.not_found', 'validation.bad_input'],
     }),
   ],
   screens: [
