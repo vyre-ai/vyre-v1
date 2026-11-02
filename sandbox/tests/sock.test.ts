@@ -24,7 +24,7 @@ test("Windows gets a named pipe, never a file path", () => {
   assert.notEqual(pipeName("mcp"), pipeName("mcp"), "two pipes never share a name");
 });
 
-test("a short folder keeps its socket in place", () => {
+test("a short folder keeps its socket in place", { skip: process.platform === "win32" }, () => {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(shortTempRoot(), "s-")));
   const s = localSocket(dir, "a.sock", "x");
   assert.equal(s.listen, path.join(dir, "a.sock"));

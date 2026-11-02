@@ -304,6 +304,7 @@ jobs:
       - name: Local sockets and the MCP bridge
         run: node --test --test-force-exit --test-reporter=spec sandbox/tests/sock.test.ts modules/engine/tests/mcp-bridge.test.ts
       - name: What a capability-less AppContainer allows (spike, evidence for docs/windows-engine-sandbox.md)
+        if: always()
         shell: powershell
         continue-on-error: true
         run: spikes/win-appcontainer/run.ps1
