@@ -8,12 +8,16 @@
 //                 (1 head, 2 data, 3 end, 4 reset, 5 ping, 6 pong), the same framing as relay/client/channel.js.
 // Streams         a head {method, path, headers} is one HTTP request to this daemon's own gateway on loopback; a head {ws: path, headers} is one WebSocket (the live socket). The node adds no
 //                 authority of its own: every request carries the device's bearer token, and the gateway checks it exactly as it does for a direct connection.
+// Public path     a visitor's `/p/*` request at <name>.vyre.run has no device and no Noise session. It reaches this node on the control socket as `p.req` (head), `p.body` (chunks), and the answer goes back as
+//                 `p.res`, `p.data`, `p.end`, or `p.err`: base64 in JSON, one request at a time per id. servePublic hands it to the daemon's own gateway, which serves only forms and sites there.
 // The relay learns the public route key, route id, timing and sizes. It never holds a key that opens a frame.
+// The public path is the exception, by design: those requests are public, so the relay sees them in the clear.
 //
 // Layer rules: host never imports relay/ (the relay client is a device-side package), and B3 keeps node:crypto out of the host. Key making, X25519 and the Ed25519 signature come from the kernel's seal
 // primitives; the Noise composition (HKDF chain, symmetric state, counter nonces) and AES-GCM are here, on WebCrypto. test/relay.box.test.mjs checks the port against relay/client's own Initiator: same handshake hash, ciphers
 // that open each other's frames.
 import fs from "node:fs";
+import http from "node:http";
 import path from "node:path";
 import { ed25519Pair, ed25519Sign, x25519Pair, x25519Shared } from "../../../kernel/src/seal/index.ts";
 
@@ -280,6 +284,40 @@ function cleanHeaders(h: unknown): Record<string, string> {
   return out;
 }
 
+/** Bytes of a response body in one control-socket message; base64 of this stays under the relay's frame limit. */
+const PUBLIC_CHUNK = 384 * 1024;
+const PUBLIC_MS = 30_000;
+const PUBLIC_METHODS = new Set(["GET", "HEAD", "POST"]);
+
+/** Only the public path, in plain form, ever leaves this function for the gateway: never a session, and never another address on the daemon. */
+export function publicPathOk(p: string): boolean {
+  if (!/^\/p(\/|$)/.test(p) || p.length > 4096) return false;
+  const bare = p.split("?")[0] as string;
+  return !/(^|\/)(\.|%2e){1,2}(\/|$)/i.test(bare) && !/%2f|%5c|\\/i.test(bare);
+}
+
+/** One visitor request: to the daemon's own gateway on loopback, with no Cookie and no Authorization whatever the relay sent, and the answer back over the control socket. */
+export function servePublic(send: (m: unknown) => void, m: { id: string; method: string; path: string; ip: string; headers: unknown }, body: Uint8Array, localPort: number): void {
+  const fail = (status: number): void => { send({ t: "p.res", id: m.id, status, headers: {} }); send({ t: "p.end", id: m.id }); };
+  if (!PUBLIC_METHODS.has(m.method) || !publicPathOk(m.path)) { fail(400); return; }
+  const headers = cleanHeaders(m.headers);
+  delete headers["cookie"];
+  delete headers["authorization"];
+  headers["x-vyre-visitor"] = m.ip.slice(0, 64);
+  if (body.length) headers["content-length"] = String(body.length);
+  const req = http.request({ host: "127.0.0.1", port: localPort, method: m.method, path: m.path, headers, timeout: PUBLIC_MS }, (res) => {
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(res.headers)) if (typeof v === "string") out[k] = v;
+    send({ t: "p.res", id: m.id, status: res.statusCode ?? 502, headers: out });
+    res.on("data", (c: Buffer) => { for (let at = 0; at < c.length; at += PUBLIC_CHUNK) send({ t: "p.data", id: m.id, b: c.subarray(at, at + PUBLIC_CHUNK).toString("base64") }); });
+    res.on("end", () => send({ t: "p.end", id: m.id }));
+    res.on("error", () => send({ t: "p.err", id: m.id }));
+  });
+  req.on("timeout", () => req.destroy(new Error("timed out")));
+  req.on("error", () => send({ t: "p.err", id: m.id }));
+  req.end(body.length ? Buffer.from(body) : undefined);
+}
+
 function serveStream(s: Stream, ch: Channel, localPort: number): void {
   const path0 = typeof s.head["ws"] === "string" ? s.head["ws"] : typeof s.head["path"] === "string" ? s.head["path"] : "";
   if (!path0.startsWith("/") || path0.startsWith("//") || path0.length > 4096) { ch.reset(s, "bad path"); return; }
@@ -376,6 +414,8 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
   const data = new Map<string, WebSocket>();
   /** phone-address asks waiting for the relay's answer, by op */
   const asking = new Map<string, Array<(r: HostReply) => void>>();
+  /** visitor requests whose body is still arriving, by id */
+  const publicIn = new Map<string, { head: { id: string; method: string; path: string; ip: string; headers: unknown }; chunks: Buffer[] }>();
   let keys: Keys | null = null;
   let route = "";
   const state = (s: RelayState): void => { connected = s === "healthy"; o.onState({ state: s, ...(rtt !== undefined ? { rttMs: rtt } : {}), at: Date.now() }); };
@@ -435,11 +475,29 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
         const waiting = asking.get(String(r.op));
         const next = waiting?.shift();
         if (next) next({ op: String(r.op), status: String(r.status), ...(typeof r.name === "string" ? { name: r.name } : {}), ...(typeof r.label === "string" ? { label: r.label } : {}) });
-      } else if (m.t === "open") openData(String(m.c));
+      } else if (m.t === "p.req" || m.t === "p.body") onPublic(ws, m as unknown as Record<string, unknown>);
+      else if (m.t === "open") openData(String(m.c));
       else if (m.t === "close") { data.get(String(m.c))?.close(1000); data.delete(String(m.c)); }
     };
     ws.onclose = (e: CloseEvent) => gone(e.code, e.reason);
     ws.onerror = () => gone(1006, "could not reach the relay");
+  }
+
+  function onPublic(ws: WebSocket, m: Record<string, unknown>): void {
+    const id = String(m["id"]);
+    const send = (v: unknown): void => { try { ws.send(JSON.stringify(v)); } catch { /* the link ended; the relay ends the request */ } };
+    if (m["t"] === "p.req") {
+      const head = { id, method: String(m["method"]), path: String(m["path"]), ip: String(m["ip"] ?? ""), headers: m["headers"] };
+      if (m["more"] === true) publicIn.set(id, { head, chunks: [] });
+      else servePublic(send, head, EMPTY, o.localPort());
+      return;
+    }
+    const open = publicIn.get(id);
+    if (!open) return;
+    open.chunks.push(Buffer.from(String(m["b"]), "base64"));
+    if (m["end"] !== true) return;
+    publicIn.delete(id);
+    servePublic(send, open.head, new Uint8Array(Buffer.concat(open.chunks)), o.localPort());
   }
 
   function openData(c: string): void {

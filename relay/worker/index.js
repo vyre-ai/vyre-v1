@@ -5,6 +5,7 @@
 // id. The same protocol as relay/node/server.js, message for message, so core/relay/link.js runs
 // against either unchanged.
 //
+//   <name>.vyre.run/p/*                     a visitor with no session, carried to the box over its control socket (phone.js onPublic, RouteRelay.onPublic)
 //   GET /v1/box?route=<id>                  the box's control socket, after a signed challenge
 //   GET /v1/box?route=<id>&c=<conn>&t=<ticket>   the box's data socket for one device connection
 //   GET /v1/device?route=<id>               a device; the relay tells the box, then pipes frames
@@ -34,8 +35,8 @@
  */
 import { onGithub } from "./github.js";
 export { GithubLinks } from "./github.js";
-export { HostSlot } from "./phone.js";
-import { gatewayOf, onHost, passthrough, hostControl } from "./phone.js";
+export { HostSlot, PUBLIC } from "./phone.js";
+import { gatewayOf, onHost, passthrough, hostControl, PUBLIC } from "./phone.js";
 export const BOX_AUTH_TAG = "vyre-relay-box-v1";
 /** What this relay does that a box may rely on, told in `ready` (an older relay says nothing): `registered` answers every ticket registration with 200 or 409. */
 /** Sign in by name: how long a box's watch on a name lasts without renewal, and how often one name may be asked about. */
@@ -46,6 +47,19 @@ export const CLOSE = Object.freeze({ boxOffline: 4404, busy: 4429, refused: 4401
 export const ROUTE_RE = /^[a-z2-7]{26}$/;
 /** The typed Wink code's limits and alphabet; these repeat relay/node/wire.js (worker.test.js checks they match). */
 export const CODE = Object.freeze({ ttl: 10 * 60_000, sessionPerMin: 10, stepPerMin: 30, missPerMin: 30, msg: 200, waitMs: 10_000, pending: 64, allocPerMin: 20, graceMs: 90_000 });
+/** Base64 of some bytes, in slices small enough for String.fromCharCode. @param {Uint8Array} u */
+function bytesToB64(u) {
+  let s = "";
+  for (let at = 0; at < u.length; at += 0x8000) s += String.fromCharCode.apply(null, /** @type {any} */ (u.subarray(at, at + 0x8000)));
+  return btoa(s);
+}
+/** @param {string} s */
+function b64ToBytes(s) {
+  const raw = atob(s);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
 export const CODE_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 export const CODE_RV_RE = /^[0-9A-HJKMNP-TV-Z]{2}$/;
 const CODE_REFUSED = { error: "that code did not work" };
@@ -640,6 +654,7 @@ export class RouteRelay {
     // Worker routes no public path here).
     if (url.pathname.startsWith("/code/") && request.method === "POST") return this.onCodeRequest(url.pathname, request);
     if (url.pathname === "/online" && request.method === "GET") return json(200, { online: Boolean(this.control()) });
+    if (url.pathname === "/p" && request.method === "POST") return this.onPublic(request);
     if (url.pathname === "/signin/ask" && request.method === "POST") {
       let body;
       try { body = await request.json(); } catch { return new Response(null, { status: 400 }); }
@@ -660,6 +675,77 @@ export class RouteRelay {
       this.json(server, { t: "challenge", n: b64url(challenge) });
     }
     return done();
+  }
+
+  /**
+   * One visitor request for the box (relay/worker/phone.js onPublic). It stays in memory while the request is open, so nothing here outlives the object; the answer streams back from the box's `p.*` messages.
+   * 599 means the box is not there, which the gateway shows as the offline page. A route is limited in requests a minute, per visitor address, and at once.
+   * @param {Request} request
+   */
+  async onPublic(request) {
+    const control = this.control();
+    if (!control) return new Response(null, { status: 599 });
+    const head = JSON.parse(request.headers.get("x-vyre-p") || "{}");
+    const now = Date.now();
+    if (!this.publicWindow || now - this.publicWindow.at >= 60_000) this.publicWindow = { at: now, n: 0, ips: new Map() };
+    const w = this.publicWindow;
+    const ip = String(head.ip || "");
+    const seen = w.ips.get(ip) || 0;
+    if (w.n >= PUBLIC.perMinute || seen >= PUBLIC.ipPerMinute) return new Response(null, { status: 429, headers: { "retry-after": "60" } });
+    w.n++;
+    w.ips.set(ip, seen + 1);
+    if (!this.publicOpen) this.publicOpen = new Map();
+    if (this.publicOpen.size >= PUBLIC.concurrent) return new Response(null, { status: 503, headers: { "retry-after": "5" } });
+    const body = new Uint8Array(await request.arrayBuffer());
+    const id = b64url(random(9));
+    return new Promise(resolve => {
+      const flow = new TransformStream();
+      const writer = flow.writable.getWriter();
+      const entry = { resolve, writer, readable: flow.readable, answered: false, size: 0, timer: /** @type {any} */ (null) };
+      entry.timer = setTimeout(() => this.publicEnd(id, 504), PUBLIC.timeoutMs);
+      this.publicOpen.set(id, entry);
+      this.json(control, { t: "p.req", id, ...head, more: body.length > 0 });
+      for (let at = 0; at < body.length; at += PUBLIC.chunk) {
+        this.json(control, { t: "p.body", id, b: bytesToB64(body.subarray(at, at + PUBLIC.chunk)), end: at + PUBLIC.chunk >= body.length });
+      }
+    });
+  }
+
+  /** Close one open visitor request: an answer not yet started becomes `status`, one already streaming is cut. @param {string} id @param {number} status */
+  publicEnd(id, status) {
+    const e = this.publicOpen && this.publicOpen.get(id);
+    if (!e) return;
+    this.publicOpen.delete(id);
+    clearTimeout(e.timer);
+    if (e.answered) { e.writer.abort("ended").catch(() => {}); return; }
+    e.writer.close().catch(() => {});
+    e.resolve(new Response(null, { status }));
+  }
+
+  /** What the box says about an open visitor request. A message for a request that is over is ignored. @param {{ t: string, id?: unknown, status?: unknown, headers?: unknown, b?: unknown }} m */
+  onPublicReply(m) {
+    const id = String(m.id);
+    const e = this.publicOpen && this.publicOpen.get(id);
+    if (!e) return;
+    if (m.t === "p.res" && !e.answered) {
+      const status = Number(m.status);
+      if (!Number.isInteger(status) || status < 200 || status > 599) return this.publicEnd(id, 502);
+      const headers = new Headers();
+      for (const [k, v] of Object.entries(/** @type {Record<string, unknown>} */ (m.headers) || {})) if (typeof v === "string") { try { headers.append(k, v); } catch { /* not a header */ } }
+      e.answered = true;
+      if ([204, 205, 304].includes(status)) { e.writer.close().catch(() => {}); e.resolve(new Response(null, { status, headers })); return; }
+      e.resolve(new Response(e.readable, { status, headers }));
+    } else if (m.t === "p.data" && e.answered) {
+      const bytes = b64ToBytes(String(m.b));
+      e.size += bytes.length;
+      if (e.size > PUBLIC.maxResponse) return this.publicEnd(id, 502);
+      e.writer.write(bytes).catch(() => {});
+    } else if (m.t === "p.end") {
+      this.publicOpen.delete(id);
+      clearTimeout(e.timer);
+      if (e.answered) e.writer.close().catch(() => {});
+      else { e.writer.close().catch(() => {}); e.resolve(new Response(null, { status: 502 })); }
+    } else if (m.t === "p.err") this.publicEnd(id, 502);
   }
 
   /** Accepts a socket only to close it with a code, as the Node relay does. */
@@ -757,6 +843,11 @@ export class RouteRelay {
    */
   async onTicket(ws, message) {
     if (typeof message !== "string") return;
+    if (message.startsWith('{"t":"p.')) {
+      let c;
+      try { c = JSON.parse(message); } catch { return; }
+      return this.onPublicReply(c);
+    }
     if (message.includes('"signin.watch"')) {
       let c;
       try { c = JSON.parse(message); } catch { return; }

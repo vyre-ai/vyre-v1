@@ -41,6 +41,8 @@ sw.addEventListener("activate", (/** @type {any} */ e) => { e.waitUntil(sw.clien
 sw.addEventListener("fetch", (/** @type {any} */ e) => {
   const url = new URL(e.request.url);
   if (url.origin !== sw.location.origin || url.pathname.startsWith("/__vyre/")) return;
+  // the public path goes straight to the network: the relay sandboxes it, and a page there is never the app's
+  if (url.pathname === "/p" || url.pathname.startsWith("/p/")) return;
   // the live-socket shim the pages this worker serves load first (bridge.js withShim)
   if (url.pathname === "/__vyre-ws.js") { e.respondWith(new Response(SHIM_SOURCE, { headers: { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" } })); return; }
   e.respondWith((async () => (await bridge.handle(e.request)) || fetch(e.request))());

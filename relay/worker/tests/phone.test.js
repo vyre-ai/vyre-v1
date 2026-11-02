@@ -208,3 +208,106 @@ test("a label the deploy fenced from the zone is never a phone name: no claim, a
   assert.equal(await (await rt.fetch("https://newhost.vyre.run/x")).text(), "origin of newhost.vyre.run");
   assert.equal((await a.say({ t: "host.claim", name: "not-fenced" })).status, "claimed");
 });
+
+// ---- the public path: /p/* reaches the box over its control socket, in an opaque origin
+
+/** A box that holds `name` and answers each `p.req` with `answer`. */
+async function publicBox(t, rt, name, answer) {
+  const b = await box(rt);
+  assert.equal((await b.say({ t: "host.claim", name, label: "Harbor" })).status, "claimed");
+  const asked = [];
+  const bodies = new Map();
+  const pump = () => b.s.next().then(v => {
+    const m = JSON.parse(String(v));
+    if (m.t === "p.req") { asked.push(m); bodies.set(m.id, []); if (!m.more) answer(m, Buffer.alloc(0), b.s.ws); }
+    if (m.t === "p.body") { bodies.get(m.id).push(Buffer.from(m.b, "base64")); if (m.end) answer(asked.find(a => a.id === m.id), Buffer.concat(bodies.get(m.id)), b.s.ws); }
+    return pump();
+  });
+  void pump();
+  t.after(() => { try { b.close(); } catch {} });
+  return { asked, box: b.s };
+}
+const call = (rt, url, init) => worker.fetch(new Request(url, init), rt.env);
+const reply = (ws, m, status, headers, text = "") => {
+  ws.send(JSON.stringify({ t: "p.res", id: m.id, status, headers }));
+  if (text) ws.send(JSON.stringify({ t: "p.data", id: m.id, b: Buffer.from(text).toString("base64") }));
+  ws.send(JSON.stringify({ t: "p.end", id: m.id }));
+};
+const SANDBOX = "sandbox allow-scripts allow-forms allow-popups allow-downloads";
+
+test("a claimed name serves the shell on GET and refuses POST everywhere but /p/: why a bare /f/slug link cannot work on a phone address", async t => {
+  const rt = world(t);
+  await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, { "content-type": "text/plain" }, "from the box"));
+  const page = await call(rt, "https://harbor.vyre.run/f/quote");
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /<script/, "the shell, not the form");
+  assert.equal((await call(rt, "https://harbor.vyre.run/f/submit", { method: "POST", body: "{}" })).status, 405);
+  const reached = await call(rt, "https://harbor.vyre.run/p/forms/quote");
+  assert.equal(await reached.text(), "from the box");
+});
+
+test("/p/: Cookie and Authorization never reach the box; Set-Cookie and origin-wide headers never leave; the page is sandboxed, without allow-same-origin", async t => {
+  const rt = world(t);
+  const { asked } = await publicBox(t, rt, "harbor", (m, body, ws) => reply(ws, m, 200, {
+    "content-type": "text/html", "set-cookie": "s=1", "clear-site-data": "\"storage\"", "strict-transport-security": "max-age=9", nel: "{}", "report-to": "{}", link: "</x>; rel=preload",
+    "service-worker-allowed": "/", "access-control-allow-credentials": "true", "content-security-policy": "default-src *",
+  }, `got ${body.length}`));
+  const res = await call(rt, "https://harbor.vyre.run/p/forms/quote?t=abc", { method: "POST", body: "hello", headers: { cookie: "a=1", authorization: "Bearer zzz", "content-type": "application/json", "x-vyre-trace": "x", "cf-connecting-ip": "203.0.113.7" } });
+  assert.equal(await res.text(), "got 5");
+  const m = asked[0];
+  assert.equal(m.method, "POST");
+  assert.equal(m.path, "/p/forms/quote?t=abc");
+  assert.equal(m.ip, "203.0.113.7");
+  assert.deepEqual(m.headers, { "content-type": "application/json" });
+  for (const h of ["set-cookie", "clear-site-data", "strict-transport-security", "nel", "report-to", "link", "service-worker-allowed", "access-control-allow-credentials"]) assert.equal(res.headers.get(h), null, h);
+  const policy = res.headers.get("content-security-policy");
+  assert.match(policy, /default-src \*/, "the page's own policy stays");
+  assert.ok(policy.includes(SANDBOX), "and the sandbox is added to it");
+  assert.ok(!policy.includes("allow-same-origin"));
+  assert.equal(res.headers.get("x-robots-tag"), "noindex");
+  assert.equal(res.headers.get("access-control-allow-origin"), "*");
+});
+
+test("/p/: a preflight is answered here, a redirect never lands on the app, other methods are refused, and HEAD has no body", async t => {
+  const rt = world(t);
+  const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, m.path.includes("away") ? 302 : 200, m.path.includes("app") ? { location: "/__vyre/info.json" } : m.path.includes("away") ? { location: "https://example.com/x" } : m.path.includes("in") ? { location: "/p/site/next" } : {}, "body"));
+  const pre = await call(rt, "https://harbor.vyre.run/p/forms/quote", { method: "OPTIONS" });
+  assert.equal(pre.status, 204);
+  assert.match(pre.headers.get("access-control-allow-methods"), /POST/);
+  assert.equal(asked.length, 0);
+  assert.equal((await call(rt, "https://harbor.vyre.run/p/x", { method: "DELETE" })).status, 405);
+  assert.equal((await call(rt, "https://harbor.vyre.run/p/away-app")).headers.get("location"), null, "an address on the app is dropped");
+  assert.equal((await call(rt, "https://harbor.vyre.run/p/away")).headers.get("location"), "https://example.com/x");
+  assert.equal(await (await call(rt, "https://harbor.vyre.run/p/x", { method: "HEAD" })).text(), "");
+});
+
+test("/p/: a body over the limit is refused, the rate limit holds, the kill switch answers 451, and an offline Space gets a clear page in the same sandbox", async t => {
+  const rt = world(t);
+  rt.env.P_BLOCKED = "harbor/bad, other";
+  const { box, asked } = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, {}, "ok"));
+  assert.equal((await call(rt, "https://harbor.vyre.run/p/x", { method: "POST", body: "x", headers: { "content-length": String(W.PUBLIC.maxBody + 1) } })).status, 413);
+  const taken = await call(rt, "https://harbor.vyre.run/p/bad/page");
+  assert.equal(taken.status, 451);
+  assert.ok(taken.headers.get("content-security-policy").includes(SANDBOX));
+  assert.equal(asked.length, 0);
+  let limited = 0;
+  for (let i = 0; i < W.PUBLIC.ipPerMinute + 2; i++) if ((await call(rt, "https://harbor.vyre.run/p/x", { headers: { "cf-connecting-ip": "198.51.100.1" } })).status === 429) limited++;
+  assert.equal(limited, 2);
+  box.ws.close();
+  await rt.settle();
+  const off = await call(rt, "https://harbor.vyre.run/p/x");
+  assert.equal(off.status, 503);
+  assert.match(await off.text(), /is offline/);
+  assert.ok(off.headers.get("content-security-policy").includes(SANDBOX));
+});
+
+test("/p/: a response over one chunk streams back whole", async t => {
+  const rt = world(t);
+  const big = "z".repeat(1 << 20);
+  await publicBox(t, rt, "harbor", (m, _b, ws) => {
+    ws.send(JSON.stringify({ t: "p.res", id: m.id, status: 200, headers: { "content-type": "text/plain" } }));
+    for (let at = 0; at < big.length; at += W.PUBLIC.chunk) ws.send(JSON.stringify({ t: "p.data", id: m.id, b: Buffer.from(big.slice(at, at + W.PUBLIC.chunk)).toString("base64") }));
+    ws.send(JSON.stringify({ t: "p.end", id: m.id }));
+  });
+  assert.equal((await (await call(rt, "https://harbor.vyre.run/p/x")).text()).length, big.length);
+});

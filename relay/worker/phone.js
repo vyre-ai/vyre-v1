@@ -7,6 +7,7 @@
 //   HostSlot      one Durable Object per name (`hn:<name>`): the route that holds it, the box's nickname, and a tombstone once released (only the same route can take it back).
 //   hostControl   what a box's control socket may say about its name: host.claim, host.release, host.status. Called from RouteRelay.onTicket.
 //   onHost        the gateway: the shell for a claimed name, "is asleep" when its box is offline, the old redirect for a name nobody claimed here.
+//   onPublic      `/p/*` of a claimed name, the one thing that is not the shell: visitors with no session reach the Space's forms and sites through the box's control socket, in an opaque origin.
 // No dependencies; WebCrypto and the runtime only.
 
 export const PHONE = Object.freeze({
@@ -19,6 +20,27 @@ export const PHONE = Object.freeze({
   /** the answer to a claim is cached nowhere; the names directory is asked once per new name */
   zone: "vyre.run",
 });
+
+/**
+ * The public path of a claimed name: `/p/*` reaches the Space's own route over the box's control socket, for a visitor with no session (a form, a site). It shares an origin with the phone app, so nothing
+ * that identifies a person crosses, and the page gets an opaque origin: requests keep only the headers in REQUEST_KEEP (no Cookie, no Authorization), responses keep only those in RESPONSE_KEEP (no
+ * Set-Cookie, nothing the browser applies to the whole origin), and every answer carries the sandbox policy below, without allow-same-origin.
+ */
+export const PUBLIC = Object.freeze({
+  /** a request body, whole */
+  maxBody: 8 << 20,
+  /** a response body, whole */
+  maxResponse: 32 << 20,
+  /** bytes of body in one control-socket message; base64 of this stays under the relay's frame limit */
+  chunk: 384 << 10,
+  perMinute: 600,
+  ipPerMinute: 120,
+  concurrent: 32,
+  timeoutMs: 30_000,
+  sandbox: "sandbox allow-scripts allow-forms allow-popups allow-downloads",
+});
+const REQUEST_KEEP = new Set(["accept", "accept-language", "content-type", "if-modified-since", "if-none-match", "range", "user-agent", "x-file-name"]);
+const RESPONSE_KEEP = new Set(["accept-ranges", "cache-control", "content-disposition", "content-encoding", "content-language", "content-length", "content-range", "content-security-policy", "content-type", "etag", "expires", "last-modified", "retry-after", "vary"]);
 
 /** Hosts that are infrastructure, never a person's phone address. The names directory refuses most of these too; this is the gateway's own fence. */
 /** The labels the deploy fenced from the zone's own records (edge.mjs writes them to the FENCE_HOSTS secret): every host that exists, whatever the static list says. @param {any} env */
@@ -205,6 +227,76 @@ function shellPage(label, name) {
   return `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>${esc(label || name)}</title><style>${PAGE_STYLE}</style><body><main id="m"><h1>${esc(label || name)}</h1><p id="s">Opening</p></main><script src="/__vyre/boot.js"></script></body></html>`;
 }
 
+/** The request as the box may see it: what the visitor asked and the few headers a page needs. @param {Request} request @param {URL} url */
+export function publicHead(request, url) {
+  /** @type {Record<string, string>} */
+  const headers = {};
+  for (const [k, v] of request.headers) if (REQUEST_KEEP.has(k.toLowerCase())) headers[k.toLowerCase()] = v;
+  return { method: request.method, path: `${url.pathname}${url.search}`, ip: request.headers.get("cf-connecting-ip") || "", headers };
+}
+
+/** The headers a `/p/` answer leaves the relay with, whatever the box said. A redirect stays under `/p/` or leaves the host; it never lands on the app. @param {Headers} from @param {URL} url */
+export function publicHeaders(from, url) {
+  const h = new Headers();
+  for (const [k, v] of from) if (RESPONSE_KEEP.has(k.toLowerCase())) h.append(k, v);
+  const location = from.get("location");
+  if (location) {
+    let to = null;
+    try { to = new URL(location, url); } catch { /* not an address */ }
+    if (to && (to.origin !== url.origin || to.pathname.startsWith("/p/"))) h.set("location", to.href);
+  }
+  // a second policy only narrows: whatever the page sent, this one still applies
+  h.append("content-security-policy", PUBLIC.sandbox);
+  h.set("access-control-allow-origin", "*");
+  h.set("x-content-type-options", "nosniff");
+  h.set("x-robots-tag", "noindex");
+  h.set("referrer-policy", "no-referrer");
+  return h;
+}
+
+/** A page the relay itself answers on `/p/`, under the same policy as any other. @param {number} status @param {string} title @param {string} text @param {URL} url @param {Record<string, string>} [extra] */
+function publicPage(status, title, text, url, extra = {}) {
+  const body = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><style>${PAGE_STYLE}</style><body><main><h1>${esc(title)}</h1><p>${esc(text)}</p></main></body></html>`;
+  return new Response(body, { status, headers: publicHeaders(new Headers({ "content-type": "text/html; charset=utf-8", "cache-control": "no-store", ...extra }), url) });
+}
+
+/** Names or `name/site` pairs the operator took down (the P_BLOCKED secret, comma separated): the kill switch. @param {any} env @param {string} name @param {string} site */
+export function publicBlocked(env, name, site) {
+  const raw = typeof env.P_BLOCKED === "string" ? env.P_BLOCKED : "";
+  const list = raw.split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+  return list.includes(name) || (site !== "" && list.includes(`${name}/${site.toLowerCase()}`));
+}
+
+/**
+ * `<name>.vyre.run/p/*`: GET, HEAD and POST go to the Space over its control socket, OPTIONS is answered here. The hostname and status are logged; no path below the site, no query, no body.
+ * @param {Request} request @param {any} env @param {string} name @param {{ route: string, label?: string }} info @param {() => Promise<boolean>} online
+ */
+async function onPublic(request, env, name, info, online) {
+  const url = new URL(request.url);
+  const site = url.pathname.split("/")[2] || "";
+  const done = (/** @type {Response} */ res) => { console.log(JSON.stringify({ p: url.hostname, site, status: res.status })); return res; };
+  if (publicBlocked(env, name, site)) return done(publicPage(451, "This page is not available", "It was taken down.", url));
+  if (request.method === "OPTIONS") {
+    const h = publicHeaders(new Headers({ "cache-control": "no-store" }), url);
+    h.set("access-control-allow-methods", "GET, HEAD, POST, OPTIONS");
+    h.set("access-control-allow-headers", "content-type, x-file-name");
+    h.set("access-control-max-age", "600");
+    return new Response(null, { status: 204, headers: h });
+  }
+  if (!["GET", "HEAD", "POST"].includes(request.method)) return done(new Response(null, { status: 405, headers: publicHeaders(new Headers({ allow: "GET, HEAD, POST, OPTIONS" }), url) }));
+  if (Number(request.headers.get("content-length") || 0) > PUBLIC.maxBody) return done(new Response(null, { status: 413, headers: publicHeaders(new Headers(), url) }));
+  const body = request.method === "POST" ? new Uint8Array(await request.arrayBuffer()) : new Uint8Array(0);
+  if (body.length > PUBLIC.maxBody) return done(new Response(null, { status: 413, headers: publicHeaders(new Headers(), url) }));
+  const asleep = () => publicPage(503, `${info.label || name} is offline`, "This page lives on a computer that is off or not connected. Try again soon.", url, { "retry-after": "20" });
+  if (!(await online())) return done(asleep());
+  let res;
+  try {
+    res = await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/p", { method: "POST", headers: { "x-vyre-p": JSON.stringify(publicHead(request, url)) }, body });
+  } catch { return done(asleep()); }
+  if (res.status === 599) return done(asleep());
+  return done(new Response(request.method === "HEAD" ? null : res.body, { status: res.status, headers: publicHeaders(res.headers, url) }));
+}
+
 /** Names seen unclaimed a moment ago, per isolate, so the hosts under the wildcard that are not phone names cost one lookup a minute, not one per request. */
 const NEGATIVE_MS = 10_000;
 const negative = new Map();
@@ -250,6 +342,7 @@ export async function onHost(request, env, name) {
   const online = async () => {
     try { return Boolean(((await (await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/online")).json())).online); } catch { return false; }
   };
+  if (url.pathname === "/p" || url.pathname.startsWith("/p/")) return onPublic(request, env, name, info, online);
   if (url.pathname === "/__vyre/info.json") return json(200, { name, label: info.label || "", route: info.route, relay: relayWss, online: await online() });
   if (url.pathname.startsWith("/__vyre/")) {
     if (!env.ASSETS || (request.method !== "GET" && request.method !== "HEAD")) return new Response(null, { status: 404, headers: { "x-vyre-gateway": "no-assets" } });
