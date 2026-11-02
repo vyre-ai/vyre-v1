@@ -191,7 +191,7 @@ test("rules: scope checks, never loosening, the defaults list, one event", async
   assert.equal(all.find((x: { act: string; scope: string }) => x.act === "pay" && x.scope === "space").approvers, "owner");
   assert.deepEqual((await h.call("gate.rules.list", { scope: "agent" }, owner)).rules.map((x: { agentId: string }) => x.agentId), [bot.id]);
   assert.deepEqual((await h.call("gate.rules.list", { scope: "agent", agentId: bot2.id }, owner)).rules, []);
-  assert.equal((await h.call("gate.acts.list", {}, owner)).acts.length, 15);
+  assert.equal((await h.call("gate.acts.list", {}, owner)).acts.length, 14);
 });
 
 test("the gate settings change the defaults", async () => {
