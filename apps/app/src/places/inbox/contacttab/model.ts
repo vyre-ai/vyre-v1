@@ -215,6 +215,8 @@ export interface ComposerDraft {
   text: string;
   /** The agent draft being edited, so a send names it (draftId) and clears it. */
   draftId: string | null;
+  /** Files kept in Vyre Files that go with the send: an email's attachments, a text's pictures. */
+  fileIds?: readonly string[];
 }
 
 const isEmail = (a: string): boolean => a.includes("@");
@@ -281,12 +283,13 @@ export function mailInput(d: ComposerDraft, inbox: InboxChoice, conv: Conversati
     ...(replyTo ? { replyToMessageId: replyTo } : {}),
     ...(conv.contactId ? { contactId: conv.contactId } : {}),
     ...(d.draftId ? { draftId: d.draftId } : {}),
+    ...(d.fileIds && d.fileIds.length > 0 ? { attachments: [...d.fileIds] } : {}),
     idempotencyKey: key,
   };
 }
 
 export function smsInput(d: ComposerDraft, inbox: InboxChoice, conv: Conversation, to: string, key: string): CapMap["telephony.send_sms"]["in"] {
-  return { numberId: inbox.id, ...(inbox.senderId ? { senderId: inbox.senderId } : {}), to, body: d.text, ...(conv.contactId ? { contactId: conv.contactId } : {}), idempotencyKey: key };
+  return { numberId: inbox.id, ...(inbox.senderId ? { senderId: inbox.senderId } : {}), to, body: d.text, ...(d.fileIds && d.fileIds.length > 0 ? { mediaFileIds: [...d.fileIds] } : {}), ...(conv.contactId ? { contactId: conv.contactId } : {}), idempotencyKey: key };
 }
 
 /** The id of the newest inbound email, which a reply answers. */

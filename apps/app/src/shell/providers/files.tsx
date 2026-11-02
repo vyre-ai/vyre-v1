@@ -10,7 +10,7 @@ import { FilesDataProvider, FilesStateProvider, FilesTree, TreeLoading, useFiles
 import { ReviewDataProvider } from "../../places/files/review/index.ts";
 import { filesData } from "./files-data.ts";
 import type { FilesActs } from "./files-data.ts";
-import { newFolderIn, renameEntry, uploadInto } from "./files-actions.ts";
+import { newFolderIn, renameEntry, storeInto, uploadInto } from "./files-actions.ts";
 import { NamePrompt } from "./files-prompt.tsx";
 import type { Ask } from "./files-prompt.tsx";
 import { FolderShareSheet } from "./files-share.tsx";
@@ -100,6 +100,7 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
     newFolder: (scope, parentId) => setAsk({ kind: "folder", scope, parentId }),
     rename: (kind, id, current) => setAsk({ kind: "rename", entry: kind, id, current }),
     upload: (folderId) => { void uploadInto(rt.call, rt.putBlob, folderId).then((n) => setSaid(n === 0 ? null : n === 1 ? "Uploaded 1 file" : `Uploaded ${n} files`), (e) => setSaid(e instanceof Error ? e.message : "That did not upload")); },
+    uploadFiles: (folderId, files) => { void storeInto(rt.call, rt.putBlob, folderId, files.map((f) => ({ name: f.name, mime: f.type ?? "", file: f }))).then((n) => setSaid(n === 0 ? null : n === 1 ? "Uploaded 1 file" : `Uploaded ${n} files`), (e) => setSaid(e instanceof Error ? e.message : "That did not upload")); },
   } : undefined), [rt]);
   const data = useMemo(() => (rt ? filesData(rt, { view: memory, open: openRoute }, { connect: (into) => setMountReq({ kind: "mount", into }), live: openLive, liveView: liveOn }, acts) : null), [rt, memory, openRoute, openLive, liveOn, acts]);
   const review = useMemo(() => (rt ? reviewData(rt) : null), [rt]);

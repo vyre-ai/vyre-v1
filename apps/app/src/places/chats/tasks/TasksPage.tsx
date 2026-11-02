@@ -6,6 +6,11 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimens
 import type { QueryState } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/Deferred.tsx";
+import type { ComposerSend } from "../../../../../../ui/src/Composer/index.tsx";
+import { DropZone, HeldFiles } from "../../../../../../ui/src/FileDrop/index.tsx";
+import type { DroppedFile } from "../../../../../../ui/src/FileDrop/index.tsx";
+import { postWithFiles, uploadAttachments, uploadDeps } from "../conversation/actions.ts";
+import { realAssistant } from "../landing/model.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { Segmented } from "../../../../../../ui/src/Segmented/index.tsx";
@@ -70,6 +75,8 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
   const [doneRows, setDoneRows] = useState<readonly TaskRow[] | null>(null);
   const [quietOpen, setQuietOpen] = useState(false);
   const [quick, setQuick] = useState("");
+  // files dropped or pasted on quick add: held beside the field, stored the way a chat stores its uploads, and made the new task's attachments
+  const [quickFiles, setQuickFiles] = useState<readonly DroppedFile[]>([]);
   const [saving, setSaving] = useState<string | null>(null);
   const addRef = useRef<TextInput | null>(null);
   const searchRef = useRef<TextInput | null>(null);
@@ -181,14 +188,35 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
 
   const addTask = useCallback((): void => {
     const q = parseQuick(quick, list as readonly QuickPerson[], rt.clock().now, rt.clock().offsetMin);
-    if (q.title === "") return;
+    const files = quickFiles;
+    // a file dropped with no words names the task after itself
+    const title = q.title !== "" ? q.title : files[0]?.name ?? "";
+    if (title === "") return;
     const assigned: Who = q.assignee ? { kind: q.assignee.kind as Who["kind"], id: q.assignee.id } : { kind: "person", id: rt.me.id };
     setQuick("");
-    void rt.call("tasks.create", { title: q.title, assigned, labels: q.labels, ...(q.due !== undefined ? { due: q.due } : {}), ...(q.priority ? { priority: q.priority } : {}), ...(scope.kind === "project" ? { recordId: scope.recordId } : {}), idempotencyKey: newKey() }).then(
+    setQuickFiles([]);
+    const key = newKey();
+    const stored = files.length > 0 ? uploadAttachments(uploadDeps(rt), files.map((f) => ({ name: f.name, file: f, ...(f.type ? { mime: f.type } : {}) })), `task-files:${key}`) : Promise.resolve([]);
+    void stored.then((fileIds) => rt.call("tasks.create", { title, assigned, labels: q.labels, ...(q.due !== undefined ? { due: q.due } : {}), ...(q.priority ? { priority: q.priority } : {}), ...(scope.kind === "project" ? { recordId: scope.recordId } : {}), ...(fileIds.length > 0 ? { fileIds } : {}), idempotencyKey: key })).then(
       () => store.refresh(),
-      (e: unknown) => { setQuick(quick); say(failure(e, "The task could not be made.")); },
+      (e: unknown) => { setQuick(quick); setQuickFiles(files); say(failure(e, "The task could not be made.")); },
     );
-  }, [list, quick, rt, say, scope, store]);
+  }, [list, quick, quickFiles, rt, say, scope, store]);
+
+  // the Ask line under the list: words open a chat with the assistant; with files, the chat is started here so the files go with the first message
+  const askAssistant = useCallback((p: ComposerSend): void => {
+    if (p.files.length === 0) { openChat(p.text); return; }
+    const text = p.text.trim();
+    const key = newKey();
+    void realAssistant(rt.assistant.id, (cap, input) => rt.call(cap as never, input as never)).then((agentId) => {
+      if (agentId === null) throw new Error("no assistant yet");
+      return rt.call("chat.start", { kind: "chat", agentIds: [agentId], title: (text || p.files[0]!.name).split(/\s+/).slice(0, 6).join(" "), idempotencyKey: key });
+    }).then(async (out) => {
+      const id = (out as CapMap["chat.start"]["out"]).thread.threadId;
+      await postWithFiles(uploadDeps(rt), id, text, p.files, `tasks-ask:${key}`);
+      rt.open({ subject: { type: "thread", id } });
+    }).catch((e: unknown) => say(failure(e, "Could not start the chat with those files.")));
+  }, [openChat, rt, say]);
 
   /* ---------- keys ---------- */
   useEffect(() => {
@@ -271,11 +299,11 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
       case "need": return <NeedLine item={e.item} env={env} />;
       case "task": { const cur = e.row.id === currentRow?.id; return <TaskLine row={e.row} env={env} selected={selected.has(e.row.id)} current={cur} />; }
       case "quiet": return <QuietLine rows={e.rows} open={quietOpen} onToggle={() => setQuietOpen((o) => !o)} assistant={rt.assistant} act={act} />;
-      case "add": return <View style={st.wrap}><View style={st.addRow}><View style={st.addDot} /><QuickField ref={addRef} testID="task-quick-add" label="Add a task" placeholder="Add a task: Call Omar friday @sara #portal" value={quick} onChangeText={setQuick} onSubmit={addTask} people={list as readonly QuickPerson[]} style={rowStyles.add} /></View></View>;
+      case "add": return <View style={st.wrap}><DropZone testID="task-quick-drop" onFiles={(f) => setQuickFiles((cur) => [...cur, ...f])} style={QUICK_DROP} radius={8}><View style={st.addRow}><View style={st.addDot} /><QuickField ref={addRef} testID="task-quick-add" label="Add a task" placeholder="Add a task: Call Omar friday @sara #portal" value={quick} onChangeText={setQuick} onSubmit={addTask} people={list as readonly QuickPerson[]} style={rowStyles.add} /><HeldFiles testID="task-quick-files" files={quickFiles} onRemove={(i) => setQuickFiles((cur) => cur.filter((_, j) => j !== i))} /></View></DropZone></View>;
       case "done": return <View style={st.wrap}><Pressable accessibilityRole="button" accessibilityLabel={`${e.count} done this week`} accessibilityState={{ expanded: e.open }} testID="tasks-done" onPress={toggleDone} style={st.done}><Text style={st.doneText}>{e.open ? "Hide what is done" : `${e.count} done this week`}</Text></Pressable></View>;
       case "empty": return <View style={st.wrap}><Text style={st.empty}>{e.text}</Text></View>;
     }
-  }, [act, addTask, currentRow?.id, env, quick, quietOpen, rt.assistant, selected, toggleDone]);
+  }, [act, addTask, currentRow?.id, env, quick, quickFiles, quietOpen, rt.assistant, selected, toggleDone]);
 
   const body = snap.status === "failed" && snap.rows.length === 0 ? <States kind="error" message="Couldn't load your tasks" cause={snap.error ?? ""} retryable onRetry={() => store.refresh()} />
     : view === "board" ? <Board rows={workOnly(sortedBy(snap.rows, filter))} doneRows={sortedBy(boardDone, filter)} env={env} onDrop={(row, to) => void setStatus(act, row, to)} {...(window ? { window } : {})} />
@@ -301,7 +329,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
     {selected.size > 0 ? <BulkBar ids={[...selected]} act={act} onStatus={(at) => { const ids = [...selected]; const items: MenuEntry[] = []; for (const s of TASK_STATES) items.push({ label: s.title, leading: <StatusDot state={s.key as TaskState} size={14} />, onSelect: () => void bulkStatus(act, ids, s.key).then(() => setSelected(new Set())) }); menu.show(items, at.x, at.y, "other", { label: "Status" }); }} onAssign={(at) => assignMenu([...selected], at)} onDue={(at) => dueMenu([...selected], at)} onLabels={(at) => labelMenu([...selected], at)} onMove={(at) => moveMenu([...selected], at)} onDelete={() => { void bulkDelete(act, [...selected]); setSelected(new Set()); }} onClear={() => setSelected(new Set())} /> : null}
     </View>
     {line ? <View accessibilityLiveRegion="polite" testID="tasks-line" style={st.lineBox}><Text style={st.lineText}>{line.text}</Text>{line.undo ? <Pressable accessibilityRole="button" accessibilityLabel="Undo" testID="tasks-undo" onPress={() => { line.undo?.(); setLine(null); }}><Text style={st.undo}>Undo</Text></Pressable> : null}</View> : null}
-    <View style={st.composer}><Composer testID="tasks-composer" whoWillAnswer={rt.assistant.name} placeholder={`Ask ${rt.assistant.name}, or type /`} hideWho symbols={["slash"]} onSubmit={(p) => openChat(p.text)} /></View>
+    <View style={st.composer}><Composer testID="tasks-composer" whoWillAnswer={rt.assistant.name} placeholder={`Ask ${rt.assistant.name}, or type /`} hideWho symbols={["slash"]} onSubmit={askAssistant} /></View>
     {menu.element}
   </View>;
 }
@@ -344,6 +372,8 @@ function QuietLine({ rows, open, onToggle, assistant, act }: { rows: readonly Ta
 function QuietBtn({ label, onPress, testID }: { label: string; onPress(): void; testID: string }): ReactElement {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} onPress={onPress} style={({ hovered }: { hovered?: boolean }) => [st.quietBtn, hovered === true && st.quietOver]}><Text style={st.quietBtnText}>{label}</Text></Pressable>;
 }
+
+const QUICK_DROP = { minWidth: 0 };
 
 const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },

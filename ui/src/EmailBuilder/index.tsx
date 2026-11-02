@@ -974,7 +974,7 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
               </View>
             ))}
             <View style={s.composer} testID="em-composer">
-              <Composer whoWillAnswer={props.askAgent ?? props.ask?.agents.find((a) => a.assistant === true)?.name ?? "Assistant"} placeholder="What should change?" symbols={["at", "hash", "slash"]}
+              <Composer whoWillAnswer={props.askAgent ?? props.ask?.agents.find((a) => a.assistant === true)?.name ?? "Assistant"} placeholder="What should change?" symbols={["at", "hash", "slash"]} takesFiles={false}
                 onSend={(text) => { setThread((th) => [...th, { from: "you", text }]); props.onAsk?.(text); }} />
             </View>
           </View>

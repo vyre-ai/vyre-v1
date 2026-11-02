@@ -50,6 +50,8 @@ export interface RecordPageData {
     folderOf(target: { type: string; recordId: string; title: string }): Promise<string | null>;
     /** Store the files in the record's folder, making it first when there is none. Resolves with the folder's id. */
     attach(files: readonly AttachFile[], target: { type: string; recordId: string; title: string }): Promise<string>;
+    /** The same store, resolving with the new files' ids: a Files field takes files dropped or pasted on it this way. */
+    store?(files: readonly AttachFile[], target: { type: string; recordId: string; title: string }): Promise<string[]>;
   };
 }
 

@@ -55,7 +55,11 @@ export function pickFiles(): Promise<Chosen[]> {
 
 /** Choose files and store them in a folder (null: the top of the Personal scope). Returns how many were stored. */
 export async function uploadInto(call: Call, putBlob: Put, folderId: string | null): Promise<number> {
-  const files = await pickFiles();
+  return storeInto(call, putBlob, folderId, await pickFiles());
+}
+
+/** Store files already in hand (dropped or pasted on the list) in a folder, the same way Upload does. Returns how many were stored. */
+export async function storeInto(call: Call, putBlob: Put, folderId: string | null, files: readonly Chosen[]): Promise<number> {
   if (files.length === 0) return 0;
   const into = folderId ?? (await rootOf(call, "personal"));
   if (!into) throw new Error("There is no place to put them yet.");

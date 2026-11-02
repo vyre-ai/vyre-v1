@@ -194,7 +194,7 @@ interface BlobLike { arrayBuffer(): Promise<ArrayBuffer>; size?: number; type?: 
 const isBlob = (v: unknown): v is BlobLike => typeof v === "object" && v !== null && typeof (v as BlobLike).arrayBuffer === "function";
 
 /** The folder chat uploads go to: "Chat uploads" in the person's Personal folder, made the first time. */
-export async function uploadFolder(data: ConversationData): Promise<string> {
+export async function uploadFolder(data: Pick<ConversationData, "call">): Promise<string> {
   const tree = (await data.call("files.tree", {})) as CapMap["files.tree"]["out"];
   const root = tree.roots.find((r) => r.key === "personal" && r.folderId);
   if (!root?.folderId) throw new Error("No place to keep the file");
@@ -211,9 +211,25 @@ const withSuffix = (name: string, n: number): string => {
 };
 
 /** Store each file in Files and return their ids, in order. A name already taken in the folder gets (2), (3). Nothing is sent if one cannot be read. */
-export async function uploadAttachments(data: ConversationData, files: readonly Upload[], key: string): Promise<string[]> {
+export async function uploadAttachments(data: Pick<ConversationData, "call" | "putBlob">, files: readonly Upload[], key: string): Promise<string[]> {
   if (files.length === 0) return [];
   return storeFiles(data, await uploadFolder(data), files, key);
+}
+
+/** What a stored upload needs (the call and the one-time upload address), from the shell's runtime or a place's data. */
+export function uploadDeps(rt: { call: unknown; putBlob?: ((path: string, bytes: Uint8Array) => Promise<void>) | undefined }): Pick<ConversationData, "call" | "putBlob"> {
+  return { call: rt.call as ConversationData["call"], ...(rt.putBlob ? { putBlob: (url: string, bytes: Uint8Array) => rt.putBlob!(url, bytes) } : {}) };
+}
+
+/**
+ * A message with files, posted from a composer outside the chat (New chat, Home's Ask box, Tasks): the files are stored where a chat's own uploads go, the way the chat's
+ * composer sends them, and posted with the words. A file picked from Files is sent as it is.
+ */
+export async function postWithFiles(data: Pick<ConversationData, "call" | "putBlob">, threadId: string, text: string, files: readonly (Upload & { fileId?: string })[], key: string, extra: Record<string, unknown> = {}): Promise<void> {
+  const fresh = files.filter((f) => f.fileId === undefined);
+  const kept = files.flatMap((f) => (f.fileId === undefined ? [] : [f.fileId]));
+  const attachments = [...(fresh.length > 0 ? await uploadAttachments(data, fresh, `${key}:files`) : []), ...kept];
+  await data.call("chat.post", { threadId, body: text, idempotencyKey: `${key}:post`, ...(attachments.length > 0 ? { attachments } : {}), ...extra });
 }
 
 /** Store each file in a folder and return their ids, in order (the same rules as an attachment: inline up to INLINE_LIMIT, else through the upload address; a taken name gets (2), (3)). */

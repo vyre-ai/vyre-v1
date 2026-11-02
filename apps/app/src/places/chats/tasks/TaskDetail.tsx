@@ -20,6 +20,9 @@ import { TASK_STATES } from "../../../../../../ui/src/TaskPage/model.ts";
 import type { TaskState, TaskView } from "../../../../../../ui/src/TaskPage/model.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { Conversation } from "../conversation/Conversation.tsx";
+import { uploadAttachments, uploadDeps } from "../conversation/actions.ts";
+import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
+import type { DroppedFile } from "../../../../../../ui/src/FileDrop/index.tsx";
 import type { ConversationData } from "../conversation/data.tsx";
 import type { Message } from "../conversation/model.ts";
 import { Glyph } from "../conversation/parts.tsx";
@@ -264,7 +267,7 @@ function Block({ title, right, children }: { title?: string; right?: string; chi
 /** Blocks by kind and source. */
 function TaskBody({ task, rt, nameOf, run, kids, people, openTask, openAgent, onKids }: { task: TaskFull; rt: ShellRuntime; nameOf(id: string): string; run(cap: string, input: Record<string, unknown>): Promise<boolean>; kids: readonly TaskRow[]; people: readonly QuickPerson[]; openTask(id: string): void; openAgent(id: string): void; onKids(): void }): ReactElement {
   const brief = task.workingNotes["brief"] ?? task.why ?? task.summary;
-  const body = task.kind === "work" ? <Brief text={brief} run={run} /> : brief ? <Block><Text style={st.body}>{tidyBrief(brief)}</Text></Block> : null;
+  const body = task.kind === "work" ? <Brief text={brief} run={run} rt={rt} taskId={task.id} /> : brief ? <Block><Text style={st.body}>{tidyBrief(brief)}</Text></Block> : null;
   const blocks: ReactElement[] = [];
   const held = heldMail(task as never);
   if (held) blocks.push(<HeldMailCard key="mail" mail={held} call={rt.call} onOpenRecord={(id) => rt.open({ subject: { type: "record", id } })} />);
@@ -279,16 +282,28 @@ function TaskBody({ task, rt, nameOf, run, kids, people, openTask, openAgent, on
 
 const tidyBrief = (text: string): string => text.replace(/^## .+$/gm, "").replace(/\n{3,}/g, "\n\n").trim();
 
-/** What the work is, in words anyone on it can change. */
-function Brief({ text, run }: { text: string | undefined; run(cap: string, input: Record<string, unknown>): Promise<boolean> }): ReactElement {
+/**
+ * What the work is, in words anyone on it can change. Files dropped on it, or pasted while it is being written, are stored the way a chat stores its uploads and linked to
+ * the task, where they list under Outputs.
+ */
+function Brief({ text, run, rt, taskId }: { text: string | undefined; run(cap: string, input: Record<string, unknown>): Promise<boolean>; rt: ShellRuntime; taskId: string }): ReactElement {
   const [draft, setDraft] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const attach = (files: readonly DroppedFile[]): void => {
+    setNote(files.length === 1 ? `Attaching ${files[0]!.name}` : `Attaching ${files.length} files`);
+    void uploadAttachments(uploadDeps(rt), files.map((f) => ({ name: f.name, file: f, ...(f.type ? { mime: f.type } : {}) })), `task-files:${taskId}:${Date.now().toString(36)}`).then(async (ids) => {
+      for (const fileId of ids) if (!(await run("tasks.links.add", { fileId }))) { setNote(""); return; }
+      setNote(ids.length === 1 ? "Attached. It is under Outputs" : `Attached ${ids.length} files. They are under Outputs`);
+    }, (e: unknown) => setNote(e instanceof Error && e.message !== "" ? e.message : "Could not attach that. Try again"));
+  };
+  const line = note ? <Text style={st.briefAdd} testID="task-brief-files" accessibilityLiveRegion="polite">{note}</Text> : null;
   if (draft !== null) {
     const save = (): void => { const v = draft.trim(); setDraft(null); if (v !== (text ?? "").trim()) void run("tasks.working_notes.set", { key: "brief", value: v }); };
-    return <Block><TextInput autoFocus multiline accessibilityLabel="What this is" testID="task-brief-edit" placeholder="What this is" placeholderTextColor="var(--ink-3)" value={draft} onChangeText={setDraft} onBlur={save} style={[st.body, st.briefEdit]} /></Block>;
+    return <DropZone testID="task-brief-drop" onFiles={attach} radius={8}><Block><TextInput autoFocus multiline accessibilityLabel="What this is" testID="task-brief-edit" placeholder="What this is" placeholderTextColor="var(--ink-3)" value={draft} onChangeText={setDraft} onBlur={save} style={[st.body, st.briefEdit]} />{line}</Block></DropZone>;
   }
-  return <Block><Pressable accessibilityRole="button" accessibilityLabel={text ? "Change what this is" : "Add what this is"} testID="task-brief" onPress={() => setDraft(text ?? "")}>
+  return <DropZone testID="task-brief-drop" onFiles={attach} radius={8}><Block><Pressable accessibilityRole="button" accessibilityLabel={text ? "Change what this is" : "Add what this is"} testID="task-brief" onPress={() => setDraft(text ?? "")}>
     {text ? <Text style={st.body}>{tidyBrief(text)}</Text> : <Text style={st.briefAdd}>Add what this is</Text>}
-  </Pressable></Block>;
+  </Pressable>{line}</Block></DropZone>;
 }
 
 /** The buttons a request carries, from the task itself. */

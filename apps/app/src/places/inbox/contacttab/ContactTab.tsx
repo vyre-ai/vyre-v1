@@ -6,7 +6,9 @@ import { useOpenConnect } from "../../../shell/connect/context.ts";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
-import type { ComposerLists } from "../../../../../../ui/src/Composer/index.tsx";
+import type { ComposerLists, ComposerSend } from "../../../../../../ui/src/Composer/index.tsx";
+import { uploadAttachments, uploadDeps } from "../../chats/conversation/actions.ts";
+import { useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/Deferred.tsx";
 // the header alone, so the Inbox does not pull the whole composer in before the deferred one loads
 import { OutgoingHeader } from "../../../../../../ui/src/Composer/outgoing.tsx";
@@ -90,6 +92,7 @@ export function TabLoading(): ReactElement {
 function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactElement {
   const data = useInboxData();
   const online = useOnline();
+  const rt = useOptionalShellRuntime();
   const menu = useMenu();
   const width = useWindowDimensions().width;
   const mobileBack = useMobileBack();
@@ -197,10 +200,16 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   };
   const fail = (e: unknown): string => (e as { error?: { message?: string } }).error?.message ?? (e instanceof Error ? e.message : "Could not send");
 
-  const send = async (text: string): Promise<void> => {
+  const send = async (text: string, files: ComposerSend["files"] = []): Promise<void> => {
     if (!inbox) return;
-    const d = { ...draft, text };
     try {
+      // files dropped, pasted or picked in the reply are stored the way a chat stores its uploads, then go as the email's attachments or the text's pictures
+      const fresh = files.filter((f) => f.fileId === undefined);
+      const kept = files.flatMap((f) => (f.fileId === undefined ? [] : [f.fileId]));
+      if (fresh.length > 0) setNote(fresh.length === 1 ? `Attaching ${fresh[0]!.name}` : `Attaching ${fresh.length} files`);
+      const stored = fresh.length > 0 ? await uploadAttachments(uploadDeps({ call: data.call, ...(rt?.putBlob ? { putBlob: rt.putBlob.bind(rt) } : {}) }), fresh, `inbox-files:${conv.id}:${Date.now().toString(36)}`) : [];
+      const fileIds = [...stored, ...kept];
+      const d = { ...draft, text, ...(fileIds.length > 0 ? { fileIds } : {}) };
       setNote(online ? "" : "Saved on this device. It sends when you are back online");
       const done = d.chan === "email" ? await sendEmail(data, d, inbox, conv, items) : textTo ? await sendText(data, d, inbox, conv, textTo) : "No phone number for this contact";
       setNote(online ? done : "Saved on this device. It sends when you are back online");
@@ -340,7 +349,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             testID="contact-composer-field"
             onChange={(t) => patch({ text: t })}
             onAttach={() => { if (props.onAttach) props.onAttach(); else setNote("Attach from Files is not connected in this view"); }}
-            onSubmit={(p) => { if (blocker === "") void send(p.text); else setNote(blocker); }}
+            onSubmit={(p) => { if (blocker === "") void send(p.text, p.files); else setNote(blocker); }}
             recipients={(
               <OutgoingHeader
                 channel={mail ? "email" : "text"}

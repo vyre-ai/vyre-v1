@@ -6,6 +6,10 @@ import { EmailBuilder, compileEmail } from "../../../../../../ui/src/EmailBuilde
 import type { EmailBlock } from "../../../../../../ui/src/EmailBuilder/props.ts";
 import { RichEditor } from "../../../../../../ui/src/RichEditor/index.tsx";
 import { useAutomationsData } from "../canvas/data.tsx";
+import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
+import type { DroppedFile } from "../../../../../../ui/src/FileDrop/index.tsx";
+import { uploadAttachments, uploadDeps } from "../../chats/conversation/actions.ts";
+import { useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import {
   EMAIL_CONSENT, EMAIL_REPLY, SMS_CONSENT, SMS_LINK_POLICY, SMS_QUIET_HOURS,
   fixtureValues, readMessage, readSms, recipientText, renderMessage, savedFromList, smsCount, toApiBlock, writeEmail, writeList, writeSms,
@@ -38,6 +42,27 @@ function Line({ label, value, testID, onCommit }: { label: string; value: string
   );
 }
 
+/**
+ * A line of file ids (an email's attachments, a text's pictures) that also takes files dropped on it or pasted into it: they are stored the way a chat stores its uploads
+ * and their ids are added to the line.
+ */
+export function FilesLine({ label, ids, testID, onIds }: { label: string; ids: readonly string[]; testID: string; onIds(ids: readonly string[]): void }): ReactElement {
+  const data = useAutomationsData();
+  const rt = useOptionalShellRuntime();
+  const [note, setNote] = useState("");
+  const take = (files: readonly DroppedFile[]): void => {
+    setNote(files.length === 1 ? `Attaching ${files[0]!.name}` : `Attaching ${files.length} files`);
+    void uploadAttachments(uploadDeps({ call: data.call, ...(rt?.putBlob ? { putBlob: rt.putBlob.bind(rt) } : {}) }), files.map((f) => ({ name: f.name, file: f, ...(f.type ? { mime: f.type } : {}) })), `step-files:${testID}:${Date.now().toString(36)}`)
+      .then((made) => { setNote(""); onIds([...ids, ...made]); }, (e: unknown) => setNote(e instanceof Error && e.message !== "" ? e.message : "Could not attach that. Try again"));
+  };
+  return (
+    <DropZone testID={`${testID}-drop`} onFiles={take} radius={8}>
+      <Line label={label} testID={testID} value={ids.join(", ")} onCommit={(text) => onIds(text.split(",").map((x) => x.trim()).filter((x) => x.length > 0))} />
+      {note ? <Text style={s.note} testID={`${testID}-note`} accessibilityLiveRegion="polite">{note}</Text> : null}
+    </DropZone>
+  );
+}
+
 function EmailStep({ nodeId, input, samples, onInput }: {
   nodeId: string;
   input: Record<string, unknown>;
@@ -64,7 +89,7 @@ function EmailStep({ nodeId, input, samples, onInput }: {
       <Line label="To" testID="composer-to" value={recipientText(input.to)} onCommit={(text) => onInput(writeList(input, "to", text))} />
       <Line label="Cc" testID="composer-cc" value={recipientText(input.cc)} onCommit={(text) => onInput(writeList(input, "cc", text))} />
       <Line label="Reply-to" testID="composer-reply" value={draft.replyTo} onCommit={(text) => onInput(writeEmail(input, { ...draft, subject, body: typeof input.body === "string" ? input.body : "", replyTo: text }))} />
-      <Line label="Attachments" testID="composer-files" value={recipientText(input.fileIds)} onCommit={(text) => onInput(writeList(input, "fileIds", text))} />
+      <FilesLine label="Attachments" testID="composer-files" ids={recipientText(input.fileIds).split(",").map((x) => x.trim()).filter((x) => x.length > 0)} onIds={(ids) => onInput(writeList(input, "fileIds", ids.join(", ")))} />
       <Text style={s.note}>{EMAIL_REPLY}</Text>
       <Text style={s.note}>{EMAIL_CONSENT}</Text>
       <EmailBuilder
@@ -128,7 +153,7 @@ function SmsStep({ nodeId, input, samples, onInput }: {
   return (
     <View style={s.wrap} testID="sms-composer">
       <Line label="To" testID="composer-to" value={recipientText(input.to)} onCommit={(text) => onInput(writeList(input, "to", text))} />
-      <Line label="Media" testID="composer-media" value={draft.mediaFileIds.join(", ")} onCommit={(text) => onInput(writeSms(input, { body, mediaFileIds: text.split(",") }))} />
+      <FilesLine label="Media" testID="composer-media" ids={draft.mediaFileIds} onIds={(ids) => onInput(writeSms(input, { body, mediaFileIds: ids }))} />
       <RichEditor
         docId={`sms-${nodeId}`}
         mode="edit"
