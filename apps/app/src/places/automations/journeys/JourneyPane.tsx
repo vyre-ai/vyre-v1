@@ -111,7 +111,7 @@ function StagePane({ journey: j, stage: g, counts, canDesign }: { journey: Journ
         {canDesign ? (
           <>
             <Lab first>Name</Lab>
-            <View style={p.nameRow}><TextInput accessibilityLabel="Stage name" testID="stage-name" value={title} onChangeText={setTitle} onBlur={commit} onSubmitEditing={commit} {...webOnly({ onKeyDown: (e: KeyEventLike) => { if (e.key === "Escape") { setTitle(g.title); e.stopPropagation?.(); } } })} style={p.input} /></View>
+            <View style={p.nameRow}><TextInput accessibilityLabel="Stage name" testID="stage-name" value={title} onChangeText={setTitle} onBlur={commit} onSubmitEditing={commit} onKeyPress={((e: KeyEventLike) => { if (e.key === "Escape") { setTitle(g.title); e.stopPropagation?.(); } }) as never} style={p.input} /></View>
           </>
         ) : null}
         <Lab first={!canDesign}>When a record moves on</Lab>
@@ -177,7 +177,7 @@ function TaskPane({ journey: j, stage: g, task: t, canDesign }: { journey: Journ
         {canDesign ? (
           <>
             <Lab first>Name</Lab>
-            <View style={p.nameRow}><TextInput accessibilityLabel="Task name" testID="task-name" value={title} onChangeText={setTitle} onBlur={commitTitle} onSubmitEditing={commitTitle} {...webOnly({ onKeyDown: (e: KeyEventLike) => { if (e.key === "Escape") { setTitle(t.title); e.stopPropagation?.(); } } })} style={p.input} /></View>
+            <View style={p.nameRow}><TextInput accessibilityLabel="Task name" testID="task-name" value={title} onChangeText={setTitle} onBlur={commitTitle} onSubmitEditing={commitTitle} onKeyPress={((e: KeyEventLike) => { if (e.key === "Escape") { setTitle(t.title); e.stopPropagation?.(); } }) as never} style={p.input} /></View>
           </>
         ) : null}
         <Lab first={!canDesign}>People on this task</Lab>

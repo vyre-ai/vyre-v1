@@ -37,7 +37,7 @@ export function Field({ label, value, onCommit, placeholder, mono = false, readO
         onFocus={() => map?.set({ label, value: shown, commit: onCommit })}
         onBlur={done}
         {...(rows ? { multiline: true, numberOfLines: rows } : { onSubmitEditing: done })}
-        {...webOnly({ onKeyDown: (e: { key?: string }) => { if (e.key === "Escape") setDraft(null); } })}
+        onKeyPress={((e: { key?: string }) => { if (e.key === "Escape") setDraft(null); }) as never}
         style={[f.input, rows ? { height: Math.max(60, rows * 18 + 12), paddingTop: 7, textAlignVertical: "top" } : null, mono && { fontFamily: MONO }, readOnly && { opacity: 0.6 }, invalid && { borderColor: "var(--danger)" as string }]}
       />
     </View>

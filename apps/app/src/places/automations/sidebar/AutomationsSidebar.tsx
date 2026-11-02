@@ -223,7 +223,7 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
             accessibilityLabel={tab === "automations" ? "Search Automations" : "Search Journeys"} testID="search" value={q} onChangeText={setQ}
             onFocus={() => setFocusId("search")} onBlur={() => setFocusId((c) => (c === "search" ? null : c))}
             placeholder="Search" placeholderTextColor="var(--ink-3)"
-            {...webOnly({ onKeyDown: (e: KeyEventLike) => { if (e.key === "Escape") { setQ(""); e.stopPropagation?.(); } if (e.key === "ArrowDown") { e.preventDefault?.(); e.stopPropagation?.(); const to = order[0]; if (to) { setFocusId(to); focusRow(to); } } } })}
+            onKeyPress={((e: KeyEventLike) => { if (e.key === "Escape") { setQ(""); e.stopPropagation?.(); } if (e.key === "ArrowDown") { e.preventDefault?.(); e.stopPropagation?.(); const to = order[0]; if (to) { setFocusId(to); focusRow(to); } } }) as never}
             style={sb.searchInput}
           />
           {q ? <IconButton icon="x" label="Clear the search" size={20} onPress={() => setQ("")} /> : <Text style={sb.slash}>/</Text>}

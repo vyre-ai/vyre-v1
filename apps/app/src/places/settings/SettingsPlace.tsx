@@ -120,7 +120,7 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
           <TextInput
             ref={(r) => { search.current = r as unknown as { focus?: () => void } | null; }}
             accessibilityLabel="Search settings" testID="settings-search" value={q} onChangeText={(t) => { setQ(t); setCursor(0); }} placeholder="Search settings" placeholderTextColor="var(--ink-3)"
-            {...webOnly({ onKeyDown: onSearchKey })} style={n.searchInput}
+            onKeyPress={(onSearchKey) as never} style={n.searchInput}
           />
           {q ? (
             <Pressable accessibilityRole="button" accessibilityLabel="Clear the search" onPress={() => setQ("")} style={pointer}><Glyph name="x" size={12} color="var(--ink-3)" /></Pressable>

@@ -73,6 +73,7 @@ test("lint checks changed files only and finishes within 10 s", () => {
     "ui-rows",
     "menu-icons",
     "no-raw-context-menu",
+    "textinput-keys",
     "list-sections",
     "no-content-in-logs",
     "no-em-dash-or-section-sign",

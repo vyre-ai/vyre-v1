@@ -45,7 +45,7 @@ export function JourneySettings({ journey: j, versions, design }: { journey: Jou
         <SRow minHeight={44} last>
           <TextInput
             accessibilityLabel="Journey name" testID="journey-name" value={name} onChangeText={setName} onBlur={commit} onSubmitEditing={commit}
-            {...webOnly({ onKeyDown: (e: KeyEventLike) => { if (e.key === "Escape") { setName(j.name); e.stopPropagation?.(); } } })}
+            onKeyPress={((e: KeyEventLike) => { if (e.key === "Escape") { setName(j.name); e.stopPropagation?.(); } }) as never}
             style={t.input}
           />
         </SRow>
