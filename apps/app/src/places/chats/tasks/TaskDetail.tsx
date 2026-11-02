@@ -269,7 +269,7 @@ function TaskBody({ task, rt, nameOf, run, kids, openTask, openAgent, onKids }: 
   if (task.kind === "answer") return <><AnswerBlock task={task} run={run} nameOf={nameOf} />{blocks.length ? <Block>{blocks}</Block> : null}</>;
   if (task.kind === "approve") return <>{body}<Block title="Held until you approve">{blocks}<ActionButtons task={task} run={run} /></Block></>;
   const access = accessRequestOf(task);
-  if (task.kind === "unblock") return <>{body}{blocks.length ? <Block>{blocks}</Block> : null}<Block>{access && isOpenState(task.state as TaskState) ? <Btn label="Approve" primary testID="task-access-approve" onPress={() => void rt.call("access.requests.approve", { requestId: access.requestId, ...(access.level ? { level: access.level } : {}) })} /> : null}<ActionButtons task={task} run={run} /></Block></>;
+  if (task.kind === "unblock") return <>{body}{blocks.length ? <Block>{blocks}</Block> : null}<Block>{access && isOpenState(task.state as TaskState) ? <Btn label="Approve" primary testID="task-access-approve" onPress={() => void run("access.requests.approve", { requestId: access.requestId, ...(access.level ? { level: access.level } : {}) })} /> : null}<ActionButtons task={task} run={run} /></Block></>;
   if (task.kind === "review") return <>{body}<DoneMeans task={task} run={run} />{blocks.length ? <Block title="Outputs">{blocks}</Block> : null}<Outputs task={task} rt={rt} /><Block><ActionButtons task={task} run={run} /></Block></>;
   return <>{body}<Fixes task={task} /><Tree task={task} rt={rt} nameOf={nameOf} kids={kids} openTask={openTask} openAgent={openAgent} onKids={onKids} /><DoneMeans task={task} run={run} /><Outputs task={task} rt={rt} />{blocks.length ? <Block>{blocks}</Block> : null}</>;
 }

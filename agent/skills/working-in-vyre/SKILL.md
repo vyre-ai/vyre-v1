@@ -40,7 +40,7 @@ Each turn starts with a context block: where you are, who is here, what you can 
 - Records: `schema_describe` first, then `records_query` or `records_search`. Create with `records_create`, change with `records_update`,
   many with `records_bulk_upsert`, link with `records_relate`. `records_history` and `records_as_of` answer what changed and when.
 - Files: `files_list`, `files_read`, `files_write` (give `baseVersion` from the read). A new file: `files_create` in a folder from `files_tree`;
-  "my Files" is the `personal` root. In a Review changes folder your write waits as a changeset for Approve. Guidance files (AGENT.md, VYRE.md, agent.toml) go through `files_save`. Look before you edit.
+  "my Files" is the Personal root. In a Review changes folder your write waits as a changeset for Approve. Guidance files (AGENT.md, VYRE.md, agent.toml) go through `files_save`. Look before you edit.
 - Automations: `automations_list`, `automations_get`, `automations_validate`, then `automations_create` (starts Personal), `automations_test`,
   `automations_run`, `automations_set_enabled`. Failed runs: `runs_list`, `runs_steps`, `runs_retry`. Journeys: `journeys_start`.
 
