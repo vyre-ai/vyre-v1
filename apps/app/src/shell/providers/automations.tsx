@@ -166,7 +166,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const main = overlay?.kind === "failed" ? <FailedView selectedRunId={sideRun} />
     : overlay?.kind === "run" ? <RunView runId={overlay.id} />
     : overlay?.kind === "journey" ? <JourneyView journeyId={overlay.id} />
-    : overlay?.kind === "journeyNew" ? <JourneyNewView onClose={() => setOverlay(null)} />
+    : overlay?.kind === "journeyNew" ? <JourneyNewView onClose={() => setOverlay((o) => (o?.kind === "journeyNew" ? null : o))} />
     : view === "needs" ? <NeedsYou />
     : view === "runs" ? <AllRuns />
     : view === "events" ? <LiveEvents />
