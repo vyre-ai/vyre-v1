@@ -1,8 +1,7 @@
 // Provider setup follows verified account creation. No local state can claim a subscription succeeded.
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Text, View } from "react-native";
-import { Bar, Button, ErrorLine, Foot, Group, JoinFrame, Panel, Row, Step, TextButton, Title } from "../../join/kit.tsx";
+import { Bar, Button, ErrorLine, Group, JoinFrame, Links, Panel, Row, Step, TextButton, Title } from "../../join/kit.tsx";
 import type { JoinValues } from "../../join/JoinFlow.tsx";
 import { createCapCaller } from "./caps.ts";
 import { addJoinedApiKey } from "./join-provider.ts";
@@ -48,5 +47,19 @@ export function JoinProviderSetup({ stored, ai, onOpen, onClearSecret }: { store
     finally { if (alive.current) setBusy(false); }
   };
   const key = ai.choice === "key";
-  return <JoinFrame halftoneIntensity="calm"><Panel center bar={<Bar hideBack cont={<Button testID="joined-provider-continue" label={connected ? "Open Space" : busy ? "Connecting…" : key ? "Save API key" : `Sign in with ${provider === "codex" ? "ChatGPT" : provider === "grok" ? "Grok" : "Claude"}`} disabled={busy || (!!flow && !connected)} onPress={connected ? onOpen : () => void (key ? connectKey() : subscription())} />} />}><Step id="joined-provider"><Title title={connected ? key ? "Your API key is saved" : "Your AI account is connected" : "Connect your AI account"} sub={`Your account in ${stored.def.name} is ready.`} />{error ? <ErrorLine testID="joined-provider-error">{error}</ErrorLine> : null}{!connected && !key && !flow ? <Group>{(["claude-code", "codex", "grok"] as const).map((id) => <Row key={id} kind="option" title={id === "codex" ? "ChatGPT" : id === "grok" ? "Grok" : "Claude"} checked={provider === id} onPress={() => { setProvider(id); attempt.current = globalThis.crypto.randomUUID(); }} testID={`joined-provider-${id}`} />)}</Group> : null}{!connected && key ? <Foot>Your key will be stored in your Mine vault for {ai.providerKey}. Vyre has not saved it yet.</Foot> : null}{flow && !connected ? <SignInPanel call={call} flow={flow} onCancel={() => setFlow(null)} onDone={() => { if (alive.current) { setFlow(null); setConnected(true); } }} /> : null}{!connected ? <TextButton testID="joined-provider-later" label="Connect later" disabled={busy} onPress={() => { secret.current = ""; onOpen(); }} /> : null}</Step></Panel></JoinFrame>;
+  return (
+    <JoinFrame>
+      <Panel
+        below={!connected ? <Links><TextButton testID="joined-provider-later" label="Connect later" disabled={busy} onPress={() => { secret.current = ""; onOpen(); }} /></Links> : undefined}
+        bar={<Bar hideBack cont={<Button testID="joined-provider-continue" label={connected ? "Open Space" : busy ? "Connecting" : key ? "Save API key" : `Sign in with ${provider === "codex" ? "ChatGPT" : provider === "grok" ? "Grok" : "Claude"}`} busy={busy} disabled={!!flow && !connected} onPress={connected ? onOpen : () => void (key ? connectKey() : subscription())} />} />}
+      >
+        <Step id="joined-provider">
+          <Title title={connected ? "Your AI is connected" : "Connect your AI"} sub={stored.def.name} />
+          {!connected && !key && !flow ? <Group>{(["claude-code", "codex", "grok"] as const).map((id) => <Row key={id} kind="option" title={id === "codex" ? "ChatGPT" : id === "grok" ? "Grok" : "Claude"} checked={provider === id} onPress={() => { setProvider(id); attempt.current = globalThis.crypto.randomUUID(); }} testID={`joined-provider-${id}`} />)}</Group> : null}
+          {flow && !connected ? <SignInPanel call={call} flow={flow} onCancel={() => setFlow(null)} onDone={() => { if (alive.current) { setFlow(null); setConnected(true); } }} /> : null}
+          <ErrorLine testID="joined-provider-error">{error}</ErrorLine>
+        </Step>
+      </Panel>
+    </JoinFrame>
+  );
 }

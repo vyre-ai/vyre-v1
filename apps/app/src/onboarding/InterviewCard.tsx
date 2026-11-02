@@ -9,6 +9,7 @@ import { saveInterview } from "./interview.ts";
 import { ToolTile } from "./ProviderLogo.tsx";
 import { Glyph } from "./StepGlyph.tsx";
 import { POPULAR_ROLES, POPULAR_TOOLS, ROLES, TOOLS, suggest } from "./work-kinds.ts";
+import { CARD } from "./card-style.ts";
 
 const STYLES = ["Short and to the point", "Full detail"] as const;
 const ASK = ["What do you do most?", "Which tools do you use?", "How should updates read?"] as const;
@@ -108,8 +109,8 @@ export function InterviewCard({ call, onSaved }: { call: CapCall; onSaved(count:
       {error ? <Text testID="interview-error" style={s.err}>{error}</Text> : null}
       <View style={s.actions}>
         {q < 2
-          ? <Pressable testID="interview-next" accessibilityRole="button" disabled={!ready} onPress={() => setQ(q + 1)} style={[s.primary, !ready && s.off]}><Text style={s.primaryText}>Next</Text></Pressable>
-          : <Pressable testID="interview-save" accessibilityRole="button" disabled={busy || !ready} onPress={() => void save()} style={[s.primary, (busy || !ready) && s.off]}><Text style={s.primaryText}>{busy ? "Saving" : "Save"}</Text></Pressable>}
+          ? <Pressable testID="interview-next" accessibilityRole="button" disabled={!ready} onPress={() => setQ(q + 1)} style={[s.primary, !ready && s.off]}><Text style={[s.primaryText, !ready && s.offText]}>Next</Text></Pressable>
+          : <Pressable testID="interview-save" accessibilityRole="button" disabled={busy || !ready} onPress={() => void save()} style={[s.primary, (busy || !ready) && s.off]}><Text style={[s.primaryText, (busy || !ready) && s.offText]}>{busy ? "Saving" : "Save"}</Text></Pressable>}
         {q > 0 ? <Pressable testID="interview-back" accessibilityRole="button" onPress={() => { setQ(q - 1); setTyped(""); setHi(0); }} style={s.ghost}><Text style={s.ghostText}>Back</Text></Pressable> : null}
       </View>
     </View>
@@ -123,7 +124,7 @@ const s = StyleSheet.create({
   dotOn: { backgroundColor: "var(--accent)" as string },
   ask: { fontSize: 17, lineHeight: 24, fontWeight: "600", color: "var(--ink)" as string },
   field: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, padding: 8, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: "var(--field-line)" as string, backgroundColor: "var(--field)" as string },
-  input: { flexGrow: 1, flexBasis: 140, minWidth: 120, height: 28, borderWidth: 0, backgroundColor: "transparent", paddingHorizontal: 4, fontSize: 14 },
+  input: CARD.input,
   chip: { flexDirection: "row", alignItems: "center", gap: 6, height: 28, paddingLeft: 8, paddingRight: 4, borderRadius: 8, backgroundColor: "var(--accent-wash)" as string },
   chipText: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
   chipX: { width: 20, height: 20, borderRadius: 6, alignItems: "center", justifyContent: "center" },
@@ -136,11 +137,12 @@ const s = StyleSheet.create({
   radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center" },
   radioOn: { borderColor: "var(--accent)" as string },
   radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "var(--accent)" as string },
-  err: { fontSize: 13, color: "var(--danger, #c0392b)" as string },
+  err: CARD.err,
   actions: { flexDirection: "row", alignItems: "center", gap: 8 },
-  primary: { height: 34, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
-  primaryText: { fontSize: 13.5, fontWeight: "600", color: "var(--accent-ink, #fff)" as string },
-  off: { opacity: 0.4 },
-  ghost: { height: 34, paddingHorizontal: 10, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  ghostText: { fontSize: 13.5, fontWeight: "500", color: "var(--ink-2)" as string },
+  primary: CARD.primary,
+  primaryText: CARD.primaryText,
+  off: CARD.off,
+  offText: CARD.offText,
+  ghost: CARD.ghost,
+  ghostText: CARD.ghostText,
 });
