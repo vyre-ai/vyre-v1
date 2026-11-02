@@ -36,6 +36,7 @@ import type { CommandEnv } from "./commands.ts";
 import { parseSlash } from "../../../../../../lib/chat-commands.ts";
 import { pluginNames } from "./commands.ts";
 import { composerSuggest, previewOf } from "./suggest.ts";
+import { ThreadParent } from "./ThreadParent.tsx";
 import { ChatBrain, compactChat, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, useUsage } from "./brain.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
 import { useConnectVersion } from "../../../shell/connect/context.ts";
@@ -512,6 +513,7 @@ function ConversationView(): ReactElement {
       ) : null}
       <CatchUpLine onJump={(id) => setFocusId(id)} />
       {note ? <Text testID="conversation-note" style={st.noteLine}>{note}</Text> : null}
+      {thread.kind === "thread" ? <ThreadParent threadId={thread.parentThreadId} messageId={thread.parentMessageId} call={data.call as never} nameOf={nameOf} /> : null}
 
       {liveView ? null : (
         <View testID="viewing-earlier" accessibilityRole="alert" style={st.earlierBar}>
