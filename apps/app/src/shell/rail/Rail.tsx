@@ -205,7 +205,8 @@ const styles = StyleSheet.create({
   islePlaces: { gap: 3, overflow: "hidden" },
   count: { position: "absolute", top: 2, right: 0, minWidth: 14, height: 14, paddingHorizontal: 3, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-wash)" as string, ...({ boxShadow: "0 0 0 2px var(--side)" } as object) },
   countText: { fontSize: 9.5, lineHeight: 14, fontWeight: "600", color: "var(--accent)" as string, fontVariant: ["tabular-nums"] },
-  rail: { width: RAIL_WIDTH, flexShrink: 0, alignItems: "center", gap: 8, paddingTop: 2, paddingBottom: 2 },
+  // above the sheets beside it (every web View is its own stacking layer), so a fresh place's tip sits over the main sheet, not under it
+  rail: { width: RAIL_WIDTH, flexShrink: 0, alignItems: "center", gap: 8, paddingTop: 2, paddingBottom: 2, zIndex: 1 },
   track: { gap: 3, padding: 5, borderRadius: 19, backgroundColor: "var(--side)" as string },
   bar2: { flexDirection: "row", alignItems: "center", justifyContent: "space-around", height: 56, paddingHorizontal: 6, backgroundColor: "var(--rail)" as string, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   spacer: { flexGrow: 1 },

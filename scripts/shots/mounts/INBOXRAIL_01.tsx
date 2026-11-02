@@ -3,7 +3,7 @@
 // empty Inbox); ?view=settings is Settings > Email and calendar (Northwind with mail, a calendar and a number; ?space=harbor with nothing yet, the connect tiles).
 import { useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
-import { View, useWindowDimensions } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { createThemeController } from "../../../ui/src/theme/index.ts";
 import type { ThemeRoot } from "../../../ui/src/theme/index.ts";
 import { Shell } from "../../../apps/app/src/shell/spaces/Shell.tsx";
@@ -53,12 +53,12 @@ function SettingsView({ space }: { space: "northwind" | "harbor" }): ReactNode {
 }
 
 export default function Mount(): ReactNode {
-  const height = useWindowDimensions().height;
   const q = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "");
   const view = q.get("view") ?? "before";
   const skin = q.get("skin") ?? "paper";
   return (
-    <View style={{ height }}>
+    // fills the page box: a window height read at render is 0 in the static first frame, and the default view hydrates onto it unchanged
+    <View style={StyleSheet.absoluteFill}>
       {view === "settings" ? <SettingsView space={q.get("space") === "harbor" ? "harbor" : "northwind"} /> : <ShellView view={view} skin={skin} />}
     </View>
   );
