@@ -302,7 +302,8 @@ export async function sleepIdle(ctx: CompCtx): Promise<number> {
     if (!p.running) { setComputer(ctx.db, c.computerId, { state: "error", error: "The computer stopped on its own." }); continue; }
     if (p.busy) { setComputer(ctx.db, c.computerId, { last_active_at: ctx.now() }); continue; }
     const quietSince = Math.max(c.lastActiveAt ?? c.createdAt, p.lastFrameAt ?? 0);
-    if (ctx.now() - quietSince < c.idleSleepMinutes * 60_000) continue;
+    // 0 keeps it awake: it serves a site
+    if (c.idleSleepMinutes === 0 || ctx.now() - quietSince < c.idleSleepMinutes * 60_000) continue;
     try { await putToSleep(ctx, c, "idle"); slept++; } catch { /* marked as an error; the next pass leaves it alone */ }
   }
   return slept;

@@ -2,13 +2,13 @@
 
 A capability listed here has a registered handler that refuses with `internal.unavailable` and the message "Not in this version yet" (`host/src/routes/deferred.ts`). Its module is live with every other capability real. The deferred packet replaces the entry.
 
-Ruling 93 (26 Oct): Sites and Vault import ship in v1.1, not v1. v1 counts golden flows 1 to 5 and 7 to 15.
+Ruling 93 (26 Oct): Vault import ships in v1.1, not v1. v1 counts golden flows 1 to 15; flow 6 is Sites as routes (owner, 2 Nov).
 
 | Module | Capability | Packet |
 |---|---|---|
 | vault | vault.import, vault.import_parse | P-L7_11; ships in v1.1 (ruling 93) |
 | reports-client | reports.resolved | The inbound webhook from reports.vyre.run (POST /hooks/reports): needs the service's signature check and a route to this module. The rest of Report a problem is real: the host wires the bundle sources and the signed client (host/src/seams/reports.ts); the replay sandbox is not wired |
-| sites | all 23 sites.* capabilities | Sites; ships in v1.1 (ruling 93), and golden flow 6 with it; needs the Docker runtime, Caddy router and DNS drivers. Swap: one line in modules/sites/impl.ts |
+| sites | sites.build, sites.deploy, sites.deployments, sites.previews, sites.preview_rebuild, sites.preview_remove, sites.rollback, sites.table_create, sites.tables, sites.table_promote, sites.env_set, sites.env_list, sites.staging_password_set, sites.service_identity | The Docker build pipeline, staging, previews and site tables. Owner, 2 Nov: a site is a route, so an agent builds and runs it on a computer and these stay dormant. The rest of Sites is live (modules/sites/handlers/route.ts); golden flow 6 covers it |
 
 The providers capabilities (list, add, remove, test, sign-in) are real, not deferred: the engine needs them for every turn.
 

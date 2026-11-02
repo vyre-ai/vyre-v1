@@ -9,7 +9,7 @@ Requires: nothing.
 - [search.actions.list](../capabilities/search.actions.list.md): Actions offered after the > prefix (New task, Call someone, Switch skin, Set yourself away, Go offline)
 - [search.embed.run](../capabilities/search.embed.run.md): Embeddings consumer: compute pending vectors with the small local model (384 dimensions)
 - [search.health](../capabilities/search.health.md): Search health: consumer lag and a probe query latency
-- [search.index.apply](../capabilities/search.index.apply.md): Index consumer: apply one changed entity row to full text and vectors (durable cursor; never sees end-to-end rows)
+- [search.index.apply](../capabilities/search.index.apply.md): Index consumer: apply one changed entity row to full text and vectors (durable cursor; never sees private rows)
 - [search.index.rebuild](../capabilities/search.index.rebuild.md): Rebuild the index for an entity or the whole Space from the projections
 - [search.index.stats](../capabilities/search.index.stats.md): Index size, consumer lag and vector backlog
 - [search.query](../capabilities/search.query.md): Search everything the caller may see: people, agents, chats, inbox, records, files, automations, apps, settings, memory

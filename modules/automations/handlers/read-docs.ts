@@ -1,6 +1,7 @@
 // An agent reads one public API docs page, read only: https, a public host, a GET with no key and no cookies. It returns the page as plain text (or one line per operation for an OpenAPI document),
 // the links on the same host, and nothing else. The text is data, not instructions; the skill tells the agent so. A private, loopback or metadata address is refused by the shared fetcher.
 import { lookup } from "node:dns/promises";
+import { logLink } from "../../../lib/grants.ts";
 import { docsView } from "../docs-text.ts";
 import { documentNetwork } from "../document-network.ts";
 import { fetchPublicDocument } from "../public-fetch.ts";
@@ -13,9 +14,11 @@ async function lookupHost(host: string): Promise<string[]> {
   return rows.map((row) => row.address);
 }
 
-export async function readDocs(_ctx: AutoCtx, input: In): Promise<unknown> {
+export async function readDocs(ctx: AutoCtx, input: In): Promise<unknown> {
   const url = typeof input.url === "string" ? input.url : "";
   const fetched = await fetchPublicDocument(url, documentNetwork() ?? { fetch: globalThis.fetch, lookup: lookupHost });
+  // the query string is where a link carries data, so a log line never has it
+  ctx.log?.info("link read", { link: logLink(url), ok: fetched.ok });
   if (!fetched.ok) return { ok: false, reason: fetched.reason };
   const view = docsView(fetched.text, new URL(fetched.finalUrl), typeof input.focus === "string" ? input.focus : undefined);
   return { ok: true, finalUrl: fetched.finalUrl, kind: view.kind, text: view.text, links: view.links, truncated: view.truncated };

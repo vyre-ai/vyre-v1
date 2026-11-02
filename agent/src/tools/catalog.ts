@@ -22,6 +22,7 @@ export function buildCatalog(caps: readonly RegistryCapRow[], tools: readonly Mc
     defs.push({
       name: t.name, cap: cap.name, v: cap.v, toolset: t.toolset, summary: t.description, inputSchema: t.inputSchema, effects, planMode: t.planMode,
       level: cap.level === 'member' ? 'view' : cap.level, deferred: t.deferred, blocks: [...(t.blocks ?? [])], local, gated: cap.gate !== undefined,
+      ...(cap.resource?.id ? { resource: { type: cap.resource.type, id: cap.resource.id } } : {}),
     });
   }
   const byName = new Map(defs.map((d) => [d.name, d] as const));

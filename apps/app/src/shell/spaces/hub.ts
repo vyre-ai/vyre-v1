@@ -27,7 +27,7 @@ export interface ReplicaSlot {
 }
 
 export interface SpaceSession {
-  readonly def: SpaceDef;
+  def: SpaceDef;
   readonly kit: KitDef;
   readonly tabs: TabsController;
   readonly replica: ReplicaSlot;
@@ -100,6 +100,8 @@ export interface ShellHub {
   go(place: PlaceId, hash?: string, background?: boolean): void;
   /** Name a tab for the item it holds (its title arrives after the tab opens). */
   retitle(key: string, title: string): void;
+  /** The count on a place of the open Space, from what it counts live (the rail reads it, and only redraws when it changes). */
+  count(place: PlaceId, n: number): void;
   /** Show a tab the strip selected. */
   showTab(tab: TabEntry): void;
   newTab(): TabEntry;
@@ -286,6 +288,12 @@ export function createShellHub(options: HubOptions): ShellHub {
       target.replica.mode = "closed";
       epoch += 1;
       begin();
+      emit();
+    },
+    count(place, n) {
+      const s = open();
+      if ((s.def.counts[place] ?? 0) === n) return;
+      s.def = { ...s.def, counts: { ...s.def.counts, [place]: n } };
       emit();
     },
     retitle(key, title) {

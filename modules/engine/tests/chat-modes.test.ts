@@ -193,7 +193,7 @@ test("the agent is told the chat's mode: Ask first waits for a yes, Auto acts bu
     return ctx.sections.find((s) => s.id === "where")?.text ?? "";
   };
   assert.match(await where({ mode: "ask" }), /Mode: Ask first\. Before you change or send anything, say what you are about to do\./);
-  assert.match(await where({ mode: "auto" }), /Mode: Auto\. Act on your own without asking\. Anything that leaves Vyre .* is still held for a yes\./);
+  assert.match(await where({ mode: "auto" }), /Mode: Auto\. Act on your own without asking.*own message this turn asked for that act and that recipient\. Otherwise it waits for their yes/);
   assert.match(await where({ mode: "plan" }), /Mode: Plan\. Read and plan, change nothing/);
   assert.match(await where({ planMode: true }), /Mode: Plan\./);
   assert.doesNotMatch(await where({ mode: "auto", planMode: false }), /Mode: (Ask first|Plan)/);

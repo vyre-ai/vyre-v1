@@ -22,7 +22,7 @@ import { createContextBuilder, diskSkills, takeHandoff, withTurnContext } from "
 import { withTranscript } from "./transcript.ts";
 import { recordAccountLimits } from "./handlers/usage.ts";
 import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
-import { onTurnEnded } from "./handlers/task-baton.ts";
+import { onTurnEnded, resumeTasks } from "./handlers/task-baton.ts";
 import { ensureExtra } from "./handlers/extra/schema.ts";
 import { createKeepAwake } from "./keep-awake.ts";
 import { coalesceLive } from "./live-coalesce.ts";
@@ -331,6 +331,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     // threads with work a dead host left: queued or running rows with no live lease
     await recoverStale(ctx, engine, ["queued", "running"]);
     void closeNoAccountTasks(ctx.db).catch((e) => h.log?.("the no-account sweep failed", { error: e instanceof Error ? e.message : String(e) }));
+    // the tasks agents hold pick up from their own state after a restart
+    void resumeTasks(ctx, { call: h.call, ...(h.log ? { log: h.log } : {}) }, engine).catch((e) => h.log?.("tasks could not be picked up after a restart", { error: e instanceof Error ? e.message : String(e) }));
     return engine;
   })().catch((e) => { building = null; throw e; });
   return building;
@@ -398,39 +400,4 @@ export async function wakeAfterUnblock(ctx: EngineCtx, taskId: string): Promise<
   await open(ctx, row.thread_id, asPerson(ctx.db, row.thread_id, asker));
   engine.wake(row.thread_id, row.agent_id);
   return true;
-}
-
-type AnsweredRow = { messageId: string; author: { kind: string; id: string }; blocks?: Array<{ type?: string; id?: string; data?: Record<string, unknown> }> };
-
-/** The answer to a question as the agent reads it: the label of the option chosen, the words the person gave, or what a card handed back (a command's output, a folder that was mounted). */
-export function answerWords(data: Record<string, unknown>): string {
-  const options = Array.isArray(data["options"]) ? (data["options"] as Array<{ key?: unknown; label?: unknown }>) : [];
-  const one = (a: unknown): string => {
-    if (typeof a === "string") return String(options.find((o) => o.key === a)?.label ?? a);
-    if (a !== null && typeof a === "object" && typeof (a as { other?: unknown }).other === "string") return (a as { other: string }).other;
-    return JSON.stringify(a);
-  };
-  const a = data["answer"];
-  return (Array.isArray(a) ? a.map(one).join(", ") : one(a)).slice(0, 8000);
-}
-
-/**
- * A question block was answered (ask_question, a plan, a Mount card, a Run this card): the answer goes to the agent that asked it. Nothing woke the agent before, so a parked question never carried on.
- * The answer is posted in the thread as the person who gave it, mentioning the agent, which is the ordinary way an agent is told something: its next turn runs on the same account as any reply.
- */
-export async function wakeAfterAnswer(ctx: EngineCtx, event: { payload: { threadId: string; blockId: string; by: string } }): Promise<boolean> {
-  const h = host;
-  if (!h) return false;
-  const { threadId, blockId, by } = event.payload;
-  if (!by.startsWith("usr_")) return false;
-  const list = (await h.call("chat.messages.list", { threadId, limit: 100 }, by)) as { messages: AnsweredRow[] };
-  for (const m of list.messages) {
-    const b = (m.blocks ?? []).find((x) => x.id === blockId);
-    if (!b || m.author.kind !== "agent" || b.type !== "question" || b.data === undefined) continue;
-    const body = answerWords(b.data);
-    if (body === "") return false;
-    await h.call("chat.post", { threadId, body, mentions: [{ kind: "agent", id: m.author.id }], idempotencyKey: `answer:${blockId}` }, by);
-    return true;
-  }
-  return false;
 }

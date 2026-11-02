@@ -1,4 +1,4 @@
-// Gate and local-tool modes (spec 2.14, 4.17): Ask, Allow and Auto govern only local tool prompts. They cannot loosen the Gate.
+// Gate and local-tool modes (spec 2.14, 4.17): the mode decides local tools, and alone it never loosens the Gate. In Auto only a grant from the person's own message clears a hold, and the Gate matches it.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { decideLocal, effectiveMode } from "../src/tools/index.ts";
@@ -7,7 +7,7 @@ import { ctx, loadGenerated, makeSession } from "../src/tools/harness.ts";
 
 const MODES: SecurityMode[] = ["ask", "allow", "auto"];
 
-test("Auto cannot loosen the Gate: every outward tool is a single invoke as the agent for the asker, and gated ones are held, in every mode", async () => {
+test("a mode alone cannot loosen the Gate: every outward tool is a single invoke as the agent for the asker, and gated ones are held, in every mode", async () => {
   const loaded = loadGenerated();
   const outward = loaded.catalog.all.filter((t) => t.effects === "outward" && t.local === "none");
   assert.ok(outward.length >= 70, `${outward.length} outward tools`);

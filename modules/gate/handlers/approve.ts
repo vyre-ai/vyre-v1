@@ -4,6 +4,7 @@
 // Held -> sending is one guarded UPDATE, so two taps send once. A failed send goes back to held with its error: the person approved it and may try again.
 import { actOf, cut, getHold, holdsWhere, raise, saveHold, sha } from "../projections.ts";
 import type { Assignee, GateCtx, Hold } from "../projections.ts";
+import { addStepTargets } from "./grants.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -71,7 +72,8 @@ export async function release(ctx: GateCtx, input: In): Promise<unknown> {
   if (claims.by !== ctx.principal.id) raise(ctx, "validation.precondition_failed", "That approval was given by someone else.", { reason: "token_mismatch" });
   if (claims.device !== null && claims.device !== ctx.device) raise(ctx, "validation.precondition_failed", "Approve from the device you started on.", { reason: "device_mismatch" });
   if (ctx.principal.kind !== "person" && h.rule.peopleOnly) raise(ctx, "validation.precondition_failed", "Only a person can approve this.", { reason: "people_only" });
-  if (h.principal.kind === "person" && h.principal.id === claims.by && h.rule.approvers !== "asker") {
+  // a step of an automation is the automation's act, not the person's request: the person it runs as may approve it
+  if (h.principal.kind === "person" && h.principal.id === claims.by && h.rule.approvers !== "asker" && !h.step) {
     raise(ctx, "validation.precondition_failed", "Someone else has to approve what you asked for.", { reason: "self_approval" });
   }
   if ((await sha(h.input)) !== h.inputHash) raise(ctx, "internal.unexpected", "The held act changed after it was parked.", { reason: "tampered" });
@@ -96,6 +98,7 @@ export async function release(ctx: GateCtx, input: In): Promise<unknown> {
   // only a chat turn waits for the answer, and a secret is never kept: vault.* calls resume the turn with "approved" only
   if (kept !== undefined && h.threadId !== undefined && !h.capName.startsWith("vault.")) h.result = kept.length <= 100_000 ? result : { truncated: true };
   settle(ctx, h, "approved", claims.by);
+  addStepTargets(ctx, h);
   await cancelSchedules(ctx, h);
   saveHold(ctx.db, h);
   emitGate(ctx, "gate.approved", h, { by: claims.by, forPerson: claims.forPerson ?? undefined });

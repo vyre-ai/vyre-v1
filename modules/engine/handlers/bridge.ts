@@ -7,6 +7,8 @@
 // One source of truth: chat_message holds the conversation. engine_messages is a mirror keyed by the SAME id (a person's message is stored under the id chat gave it, an agent reply is posted
 // to chat with the id the engine gave it as clientId), written only by the engine's own store, so the two cannot drift (a later edit is copied by the same consumer).
 // No echo: a message.received for a message the engine already holds, or one the bridge posted itself (id prefix BRIDGE_PREFIX), is never fed back to engine.receive.
+import { askedIn } from "../../../lib/asked.ts";
+import { linksIn } from "../../../lib/grants.ts";
 import { redact } from "../../../agent/src/transcript/sanitize.ts";
 import { workBlocks } from "../../../agent/src/tools/work-cards.ts";
 import { sqlMessages, withMessageId, mintId } from "../projections.ts";
@@ -86,6 +88,7 @@ export const scrub = (text: string): string => redact(text.slice(0, 600)).text.s
 /** A message carries at most this many blocks (modules/chat/projections.ts MAX_BLOCKS); the bridge keeps to it so a long turn's reply is never refused. */
 const MAX_POST_BLOCKS = 20;
 const STEP_BLOCKS: ReadonlySet<string> = new Set(["tool_call", "tool_result"]);
+const NATIVE_OUTSIDE: ReadonlySet<string> = new Set(["WebSearch", "WebFetch", "web_search", "web_fetch"]);
 
 /**
  * The blocks of one reply, fitted under the limit without losing anything a person reads. Tool steps (a call and its result) are bookkeeping: past the limit they fold into one "tool_steps" block that
@@ -259,6 +262,8 @@ export function createBridge(o: BridgeOptions): Bridge {
           if (ev.kind === "tool_call" && id !== "") {
             const name = typeof p.name === "string" ? p.name : "";
             seg.calls?.set(id, { name, at: now });
+            // the engine's own web tools run on the vendor's side, so the Gate never sees them: the words they bring in stop outward acts all the same
+            if (NATIVE_OUTSIDE.has(name)) { try { await o.callAs?.("gate.taint.mark", { threads: [input.threadId], source: name }, input.asker); } catch (e) { warn("a web read was not marked", { threadId: input.threadId, error: e instanceof Error ? e.message : String(e) }); } }
             emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "call", id, ...(name ? { name } : {}) });
           } else if (ev.kind === "tool_result" && id !== "") {
             const call = seg.calls?.get(id);
@@ -288,7 +293,7 @@ export function createBridge(o: BridgeOptions): Bridge {
   }
 
   type ThreadGet = { thread: { kind?: string; starter?: string; agents: Array<{ agentId: string; mode: "lead" | "listen"; model?: string; accountRef?: string; watches?: unknown }> } };
-  type Row = { messageId: string; threadSeq?: number; author: { kind: string; id: string }; body: string; depth?: number; attachments?: string[]; blocks?: Array<{ type: string; data?: unknown }> };
+  type Row = { messageId: string; threadSeq?: number; author: { kind: string; id: string }; body: string; depth?: number; replyTo?: string; attachments?: string[]; blocks?: Array<{ type: string; data?: unknown }> };
 
   /**
    * What a message points at, as plain lines after its words, so the agent sees the files and links the person sent: "[Attached: brief.docx (file fil_1)]", "[Linked: Rivera Holdings (record rec_2)]".
@@ -381,7 +386,20 @@ export function createBridge(o: BridgeOptions): Bridge {
     const got = (await reader(ctx, readAs, threadId)("chat.message.get", { threadId, messageId })) as { message: Row };
     const authorId = str(a.id) || got.message.author.id;
     const note = await pointers(reader(ctx, readAs, threadId), got.message);
+    // The only door for "asked this turn": the words a person typed, read here before the turn starts. Never the pointers, never an agent's post, never a line the server posted in a person's name.
+    if (a.kind === "person" && p["typed"] === true) {
+      try { await reader(ctx, authorId, threadId)("gate.grants.ask", { threadId, messageId, asked: askedIn(str(got.message.body)), links: linksIn(str(got.message.body)) }); }
+      catch (e) { warn("the request in a message was not read, so outward acts will ask", { threadId, messageId, error: e instanceof Error ? e.message : String(e) }); }
+    }
     const mentions = ((p["mentions"] ?? []) as RouteMention[]).map((m) => ({ kind: m.kind, id: m.id }));
+    // a reply to a person is for that person: the engine routes it past the lead
+    let replyToPerson: string | undefined;
+    if (got.message.replyTo) {
+      try {
+        const parent = ((await reader(ctx, readAs, threadId)("chat.message.get", { threadId, messageId: got.message.replyTo })) as { message: Row }).message.author;
+        if (parent.kind === "person") replyToPerson = parent.id;
+      } catch { /* the message it answers is gone: an ordinary message */ }
+    }
     const eng = engine;
     // an agent added to the chat after it was opened here (a Space agent @mentioned in a chat between people joins as a listener) is not yet known to the engine: read the chat's line-up once and let
     // the engine know the ones this message names, so the mention reaches them
@@ -395,8 +413,9 @@ export function createBridge(o: BridgeOptions): Bridge {
         } catch (e) { ctx.log.warn("the bridge could not read who joined the chat", { traceId: ctx.trace.traceId, threadId, error: e instanceof Error ? e.message : String(e) }); }
       }
     }
+    const job = p["job"] === true ? str(p["actingFor"]) || authorId : undefined;
     const res = withMessageId(messageId, () => eng.receive({
-      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note,
+      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note, replyToPerson, ...(job ? { job } : {}),
     }));
     return { receivedAs: res.responders };
   }

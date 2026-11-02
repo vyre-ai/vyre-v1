@@ -7,6 +7,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import { desktopBrowsers } from "../shell/providers/vault.tsx";
 import { Glyph } from "./StepGlyph.tsx";
+import { CARD } from "./card-style.ts";
 
 export const EXTENSION_ZIP_URL = "https://github.com/vyre-ai/vyre-v1/releases/latest/download/vyre-chrome.zip";
 const CHROME = ["M8 2.500a5.500 5.500 0 100 11 5.500 5.500 0 000-11z", "M8 6a2 2 0 100 4 2 2 0 000-4z", "M8 6h5.200M5.600 9.500L3 5M10.400 9.500L7.800 14"];
@@ -19,7 +20,7 @@ const STEPS = [{ n: 1, label: "Turn on Developer mode" }, { n: 2, label: "Load u
 function Shot({ n }: { n: 1 | 2 | 3 }): ReactElement {
   if (n === 1) return <View style={s.shot}><Text style={s.shotText}>Developer mode</Text><View style={s.sw}><View style={s.swDot} /></View></View>;
   if (n === 2) return <View style={s.shot}><View style={s.shotBtn}><Text style={s.shotBtnText}>Load unpacked</Text></View></View>;
-  return <View style={[s.shot, s.shotCol]}><Glyph paths={FOLDER} size={28} color="#5AA0FF" width={1.3} /><Text style={s.shotText}>vyre-chrome</Text></View>;
+  return <View style={[s.shot, s.shotCol]}><Glyph paths={FOLDER} size={28} color="var(--ink-3)" width={1.3} /><Text style={s.shotText}>vyre-chrome</Text></View>;
 }
 
 export function ChromeCard({ call, device, onConnected, gate, extensionUrl = EXTENSION_ZIP_URL }: { call: CapCall; device: "mac" | "win" | "web" | "phone"; onConnected(): void; gate?(save: (() => Promise<boolean>) | null): void; extensionUrl?: string }): ReactElement {
@@ -58,8 +59,8 @@ export function ChromeCard({ call, device, onConnected, gate, extensionUrl = EXT
   if (mode === "idle") {
     return (
       <View testID="chrome-card" style={s.col}>
-        <View style={s.big}><View style={s.chromeTile}><Glyph paths={CHROME} size={20} /></View>
-          <Pressable testID="chrome-add" accessibilityRole="button" disabled={busy} onPress={() => void start()} style={[s.primary, busy && s.off]}><Text style={s.primaryText}>{app ? "Install" : "Download for Chrome"}</Text></Pressable>
+        <View style={s.big}><View style={s.chromeTile}><Glyph paths={CHROME} size={20} color="var(--ink-2)" /></View>
+          <Pressable testID="chrome-add" accessibilityRole="button" disabled={busy} onPress={() => void start()} style={[s.primary, busy && s.off]}><Text style={[s.primaryText, busy && s.offText]}>{app ? "Install" : "Download for Chrome"}</Text></Pressable>
         </View>
         {error ? <Text testID="chrome-error" style={s.err}>{error}</Text> : null}
       </View>
@@ -70,7 +71,7 @@ export function ChromeCard({ call, device, onConnected, gate, extensionUrl = EXT
     const on = ticked.includes(st.n);
     steps.push(
       <Pressable key={st.n} testID={`chrome-step-${st.n}`} accessibilityRole="checkbox" accessibilityState={{ checked: on }} onPress={() => setTicked(on ? ticked.filter((x) => x !== st.n) : [...ticked, st.n])} style={[s.step, on && s.stepOn]}>
-        <View style={[s.num, on && s.numOn]}>{on ? <Glyph paths={["M3.500 8.500l3 3 6-7"]} size={11} width={2.600} /> : <Text style={s.numText}>{st.n}</Text>}</View>
+        <View style={[s.num, on && s.numOn]}>{on ? <Glyph paths={["M3.500 8.500l3 3 6-7"]} size={11} width={2.600} color="var(--win)" /> : <Text style={s.numText}>{st.n}</Text>}</View>
         <Shot n={st.n} />
         <Text style={[s.stepLabel, on && s.stepLabelOn]}>{st.label}</Text>
       </Pressable>,
@@ -95,12 +96,13 @@ export function ChromeCard({ call, device, onConnected, gate, extensionUrl = EXT
 const s = StyleSheet.create({
   col: { gap: 14 },
   big: { flexDirection: "row", alignItems: "center", gap: 12 },
-  chromeTile: { width: 40, height: 40, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundImage: "linear-gradient(135deg,#ea4335,#fbbc05 55%,#34a853)" } as object,
+  chromeTile: { width: 40, height: 40, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: "var(--field)" as string, borderWidth: 1, borderColor: "var(--field-line)" as string },
   bigText: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },
-  primary: { height: 34, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center", alignSelf: "flex-start" },
-  primaryText: { fontSize: 13.5, fontWeight: "600", color: "var(--accent-ink, #fff)" as string },
-  off: { opacity: 0.45 },
-  err: { fontSize: 13, color: "var(--danger)" as string },
+  primary: CARD.primary,
+  primaryText: CARD.primaryText,
+  off: CARD.off,
+  offText: CARD.offText,
+  err: CARD.err,
   steps: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   step: { flexGrow: 1, flexBasis: 150, gap: 10, padding: 10, borderRadius: 12, backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
   stepOn: { borderColor: "var(--ok)" as string },
@@ -113,7 +115,7 @@ const s = StyleSheet.create({
   shotCol: { flexDirection: "column", gap: 4 },
   shotText: { fontSize: 11.5, color: "var(--ink-2)" as string },
   sw: { width: 28, height: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, justifyContent: "center", alignItems: "flex-end", paddingHorizontal: 2 },
-  swDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: "#fff" },
+  swDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: "var(--accent-ink)" as string },
   shotBtn: { height: 26, paddingHorizontal: 10, borderRadius: 6, justifyContent: "center", backgroundColor: "var(--win)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
   shotBtnText: { fontSize: 11.5, fontWeight: "500", color: "var(--ink)" as string },
   path: { flexDirection: "row", alignItems: "center", gap: 8, height: 36, paddingLeft: 12, paddingRight: 6, borderRadius: 8, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
@@ -122,8 +124,8 @@ const s = StyleSheet.create({
   copyText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
   okSmall: { fontSize: 12.5, color: "var(--ok)" as string, paddingRight: 8 },
   row: { flexDirection: "row", alignItems: "center", gap: 12, flexWrap: "wrap" },
-  ghost: { height: 32, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--raised)" as string, justifyContent: "center" },
-  ghostText: { fontSize: 13, fontWeight: "500", color: "var(--ink)" as string },
+  ghost: CARD.ghost,
+  ghostText: CARD.ghostText,
   wait: { flexDirection: "row", alignItems: "center", gap: 8 },
   pulse: { width: 8, height: 8, borderRadius: 4, backgroundColor: "var(--ok)" as string },
   waitText: { fontSize: 12.5, color: "var(--ink-3)" as string },

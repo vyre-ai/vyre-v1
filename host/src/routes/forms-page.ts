@@ -275,6 +275,8 @@ const SCRIPT = String.raw`
     var h = document.getElementById("vf-thanks"); h.textContent = t.text || (D.kind === "booking" ? "You are booked. A confirmation is on its way." : "Thank you. Your answers were sent."); h.hidden = false;
     say("");
   }
+  // on the public path (name.vyre.run/p/forms/<slug>) every call goes to the page's own address with an op, the only address the relay carries
+  function at(url, op) { if (!D.base) return url; var q = url.indexOf("?"); return D.base + "?op=" + op + (q < 0 ? "" : "&" + url.slice(q + 1)); }
   function post(url, body) {
     return fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok || j.error) { var e = j.error || {}; var err = new Error(e.message || "That did not go through. Try again."); err.field = e.details && e.details.field; throw err; } return j.data; });
@@ -295,9 +297,9 @@ const SCRIPT = String.raw`
     var body, url;
     if (D.kind === "booking") {
       if (!slot) { say("Pick a time first.", true); send.disabled = false; return; }
-      url = "/book/create"; body = { slug: D.slug, startsAt: slot, answers: out, tz: Intl.DateTimeFormat().resolvedOptions().timeZone };
+      url = at("/book/create", "create"); body = { slug: D.slug, startsAt: slot, answers: out, tz: Intl.DateTimeFormat().resolvedOptions().timeZone };
     } else {
-      url = "/f/submit"; body = { slug: D.slug, answers: out, attribution: attribution(consent) };
+      url = at("/f/submit", "submit"); body = { slug: D.slug, answers: out, attribution: attribution(consent) };
       if (D.token) body.token = D.token;
     }
     if (cap) body.captcha = cap;
@@ -308,7 +310,7 @@ const SCRIPT = String.raw`
     delete files[f]; if (!file) return;
     var u = D.upload || {};
     if (u.maxBytes !== undefined && file.size > u.maxBytes) { el.value = ""; fieldError(f, "That file is over the " + Math.floor(u.maxBytes / 1024) + " KB limit."); return; }
-    fetch("/f/upload/" + encodeURIComponent(D.slug) + (D.token ? "?t=" + encodeURIComponent(D.token) : ""), { method: "POST", headers: { "content-type": file.type || "application/octet-stream", "x-file-name": encodeURIComponent(file.name) }, body: file })
+    fetch(at("/f/upload/" + encodeURIComponent(D.slug) + (D.token ? "?t=" + encodeURIComponent(D.token) : ""), "upload"), { method: "POST", headers: { "content-type": file.type || "application/octet-stream", "x-file-name": encodeURIComponent(file.name) }, body: file })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok || j.error) throw new Error((j.error && j.error.message) || "The file did not upload."); return j.data; }); })
       .then(function (d) { files[f] = { fileId: d.fileId }; if (hint) hint.textContent = file.name; }, function (e) { el.value = ""; fieldError(f, e.message); });
   }
@@ -342,7 +344,7 @@ const SCRIPT = String.raw`
         times.appendChild(b);
       });
     }
-    fetch("/book/availability?slug=" + encodeURIComponent(D.slug) + "&tz=" + encodeURIComponent(tz) + "&from=" + from + "&to=" + to).then(function (r) { return r.json(); }).then(function (j) {
+    fetch(at("/book/availability?slug=" + encodeURIComponent(D.slug) + "&tz=" + encodeURIComponent(tz) + "&from=" + from + "&to=" + to, "availability")).then(function (r) { return r.json(); }).then(function (j) {
       if (j.error || !j.data || !j.data.available) { say("Booking is not available right now. Please try again later.", true); return; }
       var slots = j.data.slots; if (!slots.length) { say("There are no open times in the next two weeks."); return; }
       var order = [];
@@ -355,7 +357,7 @@ const SCRIPT = String.raw`
 
 // ---- rendering ---------------------------------------------------------------------------------------------------
 
-export interface RenderOpts { view: PublicFormView; page: "form" | "booking"; nonce: string; captcha?: CaptchaWidget | undefined; uploads: boolean; link?: LinkQuestions | null; token?: string | undefined }
+export interface RenderOpts { view: PublicFormView; page: "form" | "booking"; nonce: string; /** the page's own address on the public path: its calls go there */ base?: string | undefined; captcha?: CaptchaWidget | undefined; uploads: boolean; link?: LinkQuestions | null; token?: string | undefined }
 
 function fieldHtml(view: PublicFormView, f: PublicFormView["fields"][number], uploads: boolean): string {
   const name = esc(f.field);
@@ -403,7 +405,7 @@ export function renderFormPage(o: RenderOpts): string {
     ? `<fieldset data-step="0" style="border:0;margin:0;padding:0">${authoredBody(view, fields, authored.pieces, o.uploads)}</fieldset>`
     : groups.map((g, i) => `<fieldset data-step="${i}" style="border:0;margin:0;padding:0"${i === 0 ? "" : " hidden"}>${g.map((f) => fieldHtml(view, f, o.uploads)).join("")}</fieldset>`).join("");
   const cap = o.captcha && view.captcha ? o.captcha : undefined;
-  const data = {
+  const data = { ...(o.base ? { base: o.base } : {}),
     slug: view.slug, kind: view.kind, captcha: view.captcha,
     ...(view.logic ? { logic: view.logic } : {}), ...(view.thankYou ? { thankYou: view.thankYou } : {}), ...(view.upload ? { upload: { maxBytes: view.upload.maxBytes, types: view.upload.types } } : {}),
     ...(o.token ? { token: o.token } : {}), ...(link?.partial ? { partial: link.partial.answers, partialStep: link.partial.step ?? 0 } : {}),
@@ -464,13 +466,13 @@ function authoredJs(view: PublicFormView): string {
 
 // ---- the route ---------------------------------------------------------------------------------------------------
 
-function policyHeader(nonce: string, cap?: CaptchaWidget, sandboxed = false): string {
+function policyHeader(nonce: string, cap?: CaptchaWidget, sandboxed = false, connect = "'self'"): string {
   const origin = cap ? new URL(cap.scriptUrl).origin : "";
   return [
     // A form with its author's own JavaScript runs in an opaque origin: it cannot read this Space's storage or tokens when a signed-in member opens the page, and it reaches only the public form addresses (which allow any origin)
     ...(sandboxed ? ["sandbox allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"] : []),
     "default-src 'none'", `script-src 'nonce-${nonce}'${origin ? ` ${origin}` : ""}`, "style-src 'unsafe-inline'", "img-src 'self' https: data:", "font-src data:",
-    "connect-src 'self'", `frame-src ${origin || "'none'"}`, "form-action 'none'", "base-uri 'none'", "frame-ancestors *",
+    `connect-src ${connect}`, `frame-src ${origin || "'none'"}`, "form-action 'none'", "base-uri 'none'", "frame-ancestors *",
   ].join("; ");
 }
 
@@ -522,10 +524,13 @@ export function createFormsPageRoute(deps: FormsPageDeps): { handle(req: http.In
       if (!link) return reply(res, "auth.invalid_code", 403, "This link is not valid any more. Ask for a new one.");
     }
     const nonce = Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(16))).toString("base64");
-    const html = renderFormPage({ view, page: kind === "f" ? "form" : "booking", nonce, captcha: deps.captcha, uploads: deps.upload !== undefined, link, token });
+    // the public path sets this itself (host/src/routes/public-path.ts): the page's own address, which is where its calls go, and the origin they may reach from an opaque page
+    const base = typeof req.headers["x-vyre-public-base"] === "string" ? req.headers["x-vyre-public-base"] : undefined;
+    const origin = typeof req.headers["x-vyre-public-origin"] === "string" ? req.headers["x-vyre-public-origin"] : "";
+    const html = renderFormPage({ view, page: kind === "f" ? "form" : "booking", nonce, captcha: deps.captcha, uploads: deps.upload !== undefined, link, token, ...(base ? { base } : {}) });
     res.writeHead(200, {
       "content-type": "text/html; charset=utf-8", "content-length": Buffer.byteLength(html), "cache-control": "no-store", "x-content-type-options": "nosniff",
-      "content-security-policy": policyHeader(nonce, view.captcha ? deps.captcha : undefined, authoredJs(view) !== ""), "referrer-policy": "strict-origin-when-cross-origin",
+      "content-security-policy": policyHeader(nonce, view.captcha ? deps.captcha : undefined, authoredJs(view) !== "", base && origin ? `'self' ${origin}` : "'self'"), "referrer-policy": "strict-origin-when-cross-origin",
     });
     res.end(method === "HEAD" ? undefined : html);
   }

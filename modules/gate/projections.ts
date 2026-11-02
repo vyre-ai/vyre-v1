@@ -99,6 +99,7 @@ export async function sha(v: unknown): Promise<string> {
 
 export interface Policy { timeoutHours: number; emailBackstopHours: number; draftedByLabel: boolean }
 export const POLICY_DEFAULTS: Policy = { timeoutHours: 24, emailBackstopHours: 4, draftedByLabel: true };
+const POLICY_KEYS: ReadonlySet<string> = new Set(["gate.timeout_hours", "gate.email_backstop_hours", "gate.drafted_by_label"]);
 export function readPolicy(db: Db): Policy {
   const p: Policy = { ...POLICY_DEFAULTS };
   for (const r of db.all("SELECT policy_key, policy_value FROM gate_policy") as { policy_key: string; policy_value: string }[]) {
@@ -109,6 +110,17 @@ export function readPolicy(db: Db): Policy {
     if (r.policy_key === "gate.drafted_by_label" && typeof v === "boolean") p.draftedByLabel = v;
   }
   return p;
+}
+
+/**
+ * The gate.* settings live in the settings module and a module reads only its own tables, so this keeps the copy `readPolicy` reads, from settings.changed. A reset announces the
+ * shipped default as `after`, which reads the same as no row.
+ */
+export function syncPolicy(db: Db, p: Record<string, unknown>): boolean {
+  const key = String(p["key"] ?? "");
+  if (!POLICY_KEYS.has(key) || p["scope"] !== "space" || p["after"] === undefined) return false;
+  db.run("INSERT OR REPLACE INTO gate_policy (policy_key, policy_value) VALUES (?, ?)", key, JSON.stringify(p["after"]));
+  return true;
 }
 
 // ---- rules ----
@@ -152,7 +164,7 @@ export interface Effective {
 }
 
 /** The effective rule for a principal and an act: the strictest of the Space policy, the owner floor and the agent's own rule. An agent rule can only tighten; an `allow` anywhere cannot
- *  loosen a `hold` elsewhere; nothing here reads a local tool-prompt mode, so Auto cannot suppress a Gate hold (spec 2.14). A person's own act skips the Gate unless the act is a human-too kind. */
+ *  loosen a `hold` elsewhere; nothing here reads a mode (spec 2.14): the one thing that lifts a default hold is a grant, matched by the Gate hook. A person's own act skips the Gate unless the act is a human-too kind. */
 export function effectiveRule(db: Db, p: PrincipalRef, actKey: string, policy: Policy = readPolicy(db), adminOnly = false): Effective {
   const a = actOf(actKey);
   const rows = allRules(db).filter((r) => r.act === a.key);
@@ -198,8 +210,11 @@ export interface Hold {
   backstopAt?: number; backstopSchedule?: string; expireSchedule?: string; escalatedAt?: number; sendingAt?: number; decidedAt?: number; decidedBy?: string; possiblySent: boolean; error?: string;
   /** What the approved call answered, for a chat turn that waited on it. */
   result?: unknown;
+  /** The automation step the call came from. */
+  step?: StepRef;
 }
-const HOLD_SELECT_EXTRA = ", result";
+export interface StepRef { automationId: string; nodeId: string; defHash: string; ask?: boolean }
+const HOLD_SELECT_EXTRA = ", result, step";
 const HOLD_COLS = `id, act, cap_name, cap_version, input, input_hash, payload_hash, principal_kind, principal_id, acting_for, decision_id, run_id, thread_id, task_id, state, summary, approver, rule,
   created_at, expires_at, backstop_at, backstop_schedule, expire_schedule, escalated_at, sending_at, decided_at, decided_by, possibly_sent, error`;
 
@@ -215,6 +230,7 @@ function holdFrom(r: Raw): Hold {
     rule: parse<Effective>(r.rule, effectiveFallback()), createdAt: r.created_at as number, expiresAt: r.expires_at as number, possiblySent: num(r.possibly_sent) === 1,
   };
   const res = str(r.result); if (res) h.result = parse<unknown>(res, null);
+  const stp = str(r.step); if (stp) h.step = JSON.parse(stp) as StepRef;
   const af = str(r.acting_for); if (af) h.actingFor = af;
   const run = str(r.run_id); if (run) h.runId = run;
   const th = str(r.thread_id); if (th) h.threadId = th;
@@ -245,10 +261,10 @@ export function holdsWhere(db: Db, where = "", ...args: unknown[]): Hold[] {
 const n = (v: unknown): unknown => (v === undefined ? null : v);
 export function insertHold(db: Db, h: Hold): void {
   db.run(
-    `INSERT INTO gate_holds (${HOLD_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO gate_holds (${HOLD_COLS}, step) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     h.id, h.act, h.capName, h.capVersion, JSON.stringify(h.input ?? null), h.inputHash, h.payloadHash, h.principal.kind, h.principal.id, n(h.actingFor), h.decisionId, n(h.runId), n(h.threadId),
     h.taskId, h.state, h.summary, JSON.stringify(h.approver), JSON.stringify(h.rule), h.createdAt, h.expiresAt, n(h.backstopAt), n(h.backstopSchedule), n(h.expireSchedule), n(h.escalatedAt),
-    n(h.sendingAt), n(h.decidedAt), n(h.decidedBy), h.possiblySent ? 1 : 0, n(h.error),
+    n(h.sendingAt), n(h.decidedAt), n(h.decidedBy), h.possiblySent ? 1 : 0, n(h.error), h.step ? JSON.stringify(h.step) : null,
   );
 }
 /** Write the mutable columns of a hold. */

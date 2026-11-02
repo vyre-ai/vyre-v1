@@ -9,6 +9,7 @@ import type { SessionSource } from "../../../../client/src/session-import/parse.
 import { confirmedSessionInput } from "../places/settings/session-import-model.ts";
 import { Mark } from "./ProviderLogo.tsx";
 import { folderChoices, folderName, importedNote, modifiedAt, newestFirst, relativeDate, rememberImported, selectState, sessionName } from "./sessions-model.ts";
+import { CARD } from "./card-style.ts";
 
 const label = (src: SessionSource): string => `${src.provider === "codex" ? "Codex" : "Claude Code"}`;
 const hover = (text: string): object => ({ title: text });
@@ -106,7 +107,7 @@ export function SessionsCard({ call, onDone, gate, onOpenChats }: { call: CapCal
       ) : null}
       {rows.length > 0 ? <View style={s.list}>{rows}</View> : null}
       {error ? <Text accessibilityRole="alert" testID="sessions-error" style={s.err}>{error}</Text> : null}
-      {rows.length > 0 ? <Pressable testID="sessions-import" accessibilityRole="button" disabled={busy || on.size === 0} onPress={() => void run()} style={[s.primary, (busy || on.size === 0) && s.off]}><Text style={s.primaryText}>{busy ? "Importing" : on.size === 0 ? "Import" : `Import ${on.size}`}</Text></Pressable> : null}
+      {rows.length > 0 ? <Pressable testID="sessions-import" accessibilityRole="button" disabled={busy || on.size === 0} onPress={() => void run()} style={[s.primary, (busy || on.size === 0) && s.off]}><Text style={[s.primaryText, (busy || on.size === 0) && s.offText]}>{busy ? "Importing" : on.size === 0 ? "Import" : `Import ${on.size}`}</Text></Pressable> : null}
     </View>
   );
 }
@@ -118,7 +119,7 @@ const s = StyleSheet.create({
   rowOn: { borderColor: "var(--accent-line)" as string, backgroundColor: "var(--accent-wash)" as string },
   box: { width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center" },
   boxOn: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
-  tick: { color: "#fff", fontSize: 12, lineHeight: 14 },
+  tick: { color: "var(--accent-ink)" as string, fontSize: 12, lineHeight: 14 },
   text: { flex: 1, minWidth: 0, paddingVertical: 6 },
   name: { fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
   sub: { fontSize: 12, color: "var(--ink-3)" as string },
@@ -133,8 +134,9 @@ const s = StyleSheet.create({
   chipOn: { borderColor: "var(--accent-line)" as string, backgroundColor: "var(--accent-wash)" as string },
   chipText: { fontSize: 12, color: "var(--ink)" as string },
   note: { flex: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
-  err: { fontSize: 13, color: "var(--danger)" as string },
-  primary: { height: 34, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center", alignSelf: "flex-start" },
-  primaryText: { fontSize: 13.5, fontWeight: "500", color: "#fff" },
-  off: { opacity: 0.45 },
+  err: CARD.err,
+  primary: CARD.primary,
+  primaryText: CARD.primaryText,
+  off: CARD.off,
+  offText: CARD.offText,
 });

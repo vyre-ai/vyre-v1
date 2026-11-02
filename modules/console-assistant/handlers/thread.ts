@@ -36,7 +36,8 @@ export async function assistantOpen(ctx: AssistCtx, input: { page: string; objec
   }
   const assistantId = await assistantOf(ctx, personId);
   const started = asRow(await ctx.call("chat.start", {
-    kind: "ask", agentIds: [assistantId], idempotencyKey: `console-${personId}`, scopeType: "console", scopeId: input.page,
+    // the scope is the Console, one for the person: which page it is on goes with each message, as the screen
+    kind: "ask", agentIds: [assistantId], idempotencyKey: `console-${personId}`, scopeType: "console", scopeId: "console",
     title: `Console: ${input.page}`, first: contextText(input.page, input.objectRef),
   }));
   // chat.start answers { thread: { threadId } }

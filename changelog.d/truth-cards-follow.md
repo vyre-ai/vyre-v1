@@ -1,0 +1,1 @@
+- Cards in a chat now follow the real task or request live, on the Space's stream instead of a 4 second poll. A held call shows one approval card, and a Flow draft or an agent's proposal changes as soon as it is decided elsewhere.

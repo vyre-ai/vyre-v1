@@ -1,7 +1,7 @@
 // Space and person configuration of the engine (spec 3.10, 4.14; ARCH 6.4, 7.10):
 //   engine.policy.get/set, engine.defaults.get/set, engine.subscription_share.set, engine.runtime.opt_in, engine.use_policy.export.
 // Policy rows are the one source of "which accounts, models and providers may run" and "which providers a label may reach"; the account resolver,
-// models.list, providers.list and turn.retry all read them through readPolicy(). The hop and loop limits stay settings rows (engine.agent_hops, ...).
+// models.list, providers.list and turn.retry all read them through readPolicy(). The hop limit stays a settings row (engine.agent_hops).
 import { setSpaceUse } from "../../../../agent/src/accounts/index.ts";
 import { actorOf, raise } from "../../projections.ts";
 import type { EngineCtx } from "../../projections.ts";
@@ -21,7 +21,7 @@ export interface Policy {
   hops: { agentHops: number; reviewLoops: number; ciFixLoops: number };
 }
 
-const HOP_SETTINGS = [["agentHops", "engine.agent_hops", 4], ["reviewLoops", "engine.review_loops", 2], ["ciFixLoops", "engine.ci_fix_loops", 3]] as const;
+const HOP_SETTINGS = [["agentHops", "engine.agent_hops", 4]] as const;
 
 function policyRow<T>(ctx: EngineCtx, key: string): T | undefined {
   const r = rows(ctx, "SELECT value FROM engine_policy WHERE key = ?", key)[0];

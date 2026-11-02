@@ -35,10 +35,15 @@ export async function checkGroupAccount(d: GroupAccountDeps, threadId: string, p
   const nameOf = (id: string): string => list?.principals?.find((p) => p.id === id)?.name?.split(" ")[0] || "This person";
   for (const person of missing) {
     // the same id for the same person in the same chat, so a replay or a second agent joining says it once
-    const clientId = BRIDGE_PREFIX + `${threadId}${person}`.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const clientId = BRIDGE_PREFIX + (await sha256Hex(`group-account|${threadId}|${person}`)).slice(0, 24);
     const actingFor = got.thread.starter ?? person;
     try { await d.postAs(agents[0]!, { actingFor, threadId, body: "", mentions: [], clientId, blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: NO_ACCOUNT_LINE(nameOf(person)) } }] }); }
     catch (e) { d.log?.("the group's account check could not be shown in the chat", { threadId, error: e instanceof Error ? e.message : String(e) }); }
   }
   return missing;
+}
+
+async function sha256Hex(text: string): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }

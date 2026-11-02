@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { conversationData } from "../shell/providers/chats-data.ts";
 import type { ShellRuntime } from "../shell/providers/runtime.tsx";
+import { addScreen, noteThreadKind } from "../shell/ask/screen.ts";
 import { Note } from "./pages/shared.tsx";
 
 const ChatsConversation = lazy(() => import("../shell/providers/chats.tsx").then((m) => ({ default: m.ChatsConversation })));
@@ -16,6 +17,9 @@ export function Assistant({ rt, page }: { rt: ShellRuntime; page: string }): Rea
     return () => { live = false; };
   }, [rt]);
   useEffect(() => { if (thread) void rt.call("console.assistant_context_set", { threadId: thread, page }).catch(() => setError(true)); }, [rt, thread, page]);
+  // every message here says which page the person is on, like any Ask: the page goes with the words, never remembered from when the pane opened
+  useEffect(() => { if (thread) noteThreadKind(thread, "ask"); }, [thread]);
+  useEffect(() => { addScreen({ title: `Console: ${page}`, open: [{ type: "console_page", id: page }], focus: "focus-console" }); }, [page]);
   const data = useMemo(() => {
     if (!thread) return null;
     const people = rt.principals.getSnapshot();

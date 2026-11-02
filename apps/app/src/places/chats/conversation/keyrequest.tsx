@@ -2,7 +2,7 @@
 // (vault.requests.fulfil; the value is in the call, never in a message, a block or a log), or Declines. Once provided the agent carries on in this chat by itself. Needs you keeps a linked row; both close together
 // because both read the one request. A person who cannot decide it (a member asking in a Team Space) sees who it is waiting on, never a field.
 import { useCallback, useEffect, useState } from "react";
-import { usePoll } from "./use-poll.ts";
+import { useFollow } from "./use-follow.ts";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import type { ConversationData } from "./data.tsx";
@@ -11,7 +11,7 @@ import { Face } from "../needsyou/parts.tsx";
 import { keyWords, requestOf } from "./keyrequest-model.ts";
 import type { KeyRequest } from "./keyrequest-model.ts";
 
-type Data = Pick<ConversationData, "call">;
+type Data = Pick<ConversationData, "call" | "changes">;
 
 export function isKeyRequest(type: string): boolean { return type === "vault_request"; }
 
@@ -33,7 +33,7 @@ export function KeyRequestCard({ requestId, agent, agentId, data }: { requestId:
     } catch { setReq(null); }
   }, [data, requestId]);
   useEffect(() => { void load(); }, [load]);
-  usePoll(load, req === undefined || req === null || req.state === "waiting");
+  useFollow(data.changes, load, req === undefined || req === null || req.state === "waiting");
 
   if (req === undefined || req === null) return null;
   const words = keyWords(req.name);

@@ -15,7 +15,7 @@ import { sweepWaits } from "./crew-waits.ts";
 import { reconcileAll } from "./handlers/crew.ts";
 import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
 import { checkGroupAccount } from "./group-account.ts";
-import { closeNoAccountTasks, engineHost, ensureRuntime, openAs, recoverStale, setEngineHost, wakeAfterAnswer, wakeAfterUnblock } from "./runtime.ts";
+import { closeNoAccountTasks, engineHost, ensureRuntime, openAs, recoverStale, setEngineHost, wakeAfterUnblock } from "./runtime.ts";
 import { onTaskEvent, sweepBaton } from "./handlers/task-baton.ts";
 import { markLostJobs, ownerChanged, resumeAgent, stopAgent, stopPerson } from "./handlers/departures.ts";
 import type { EngineCtx } from "./projections.ts";
@@ -108,17 +108,13 @@ export const consumers = {
   },
   /** The baton of a work task landed on an agent: wake it in the task's thread (handlers/task-baton.ts). */
   "engine.task_baton": {
-    on: ["task.created", "task.assigned", "task.transitioned", "task.delegated", "task.escalated", "task.taken", "task.released", "task.withdrawn"],
+    on: ["task.created", "task.assigned", "task.transitioned", "task.delegated", "task.escalated", "task.taken", "task.released", "task.withdrawn", "task.ready", "task.children_settled", "task.updated"],
     run: async (ctx: EngineCtx, event: Parameters<typeof onTaskEvent>[3]): Promise<string[]> => {
       const engine = await ensureRuntime(ctx);
       const host = engineHost();
       if (!engine || !host) return [];
       return onTaskEvent(ctx, { call: host.call, now: () => ctx.now(), ...(host.log ? { log: host.log } : {}) }, engine, event);
     },
-  },
-  "engine.block_answered": {
-    on: ["block.answered"],
-    run: async (ctx: EngineCtx, event: { payload: { threadId: string; blockId: string; by: string } }): Promise<string[]> => ((await wakeAfterAnswer(ctx, event)) ? [event.payload.blockId] : []),
   },
   /** A key an agent asked for in a chat was added or declined: the agent is told in that chat, as the person it asked for, and carries on. */
   "engine.key_request_answered": {
@@ -128,10 +124,24 @@ export const consumers = {
       const host = engineHost();
       if (!host || !p.threadId || !p.agentId || !p.asker) return [];
       await ensureRuntime(ctx);
-      const key = (p.name ?? "").replace(/_+/g, " ").trim();
+      const key = (p.name ?? "").replace(/_+/g, " ").replace(/\s+key$/i, "").trim();
       const text = event.name === "vault.request_fulfilled" ? `I added the ${key} key. Carry on.` : `I did not add the ${key} key${p.note ? `: ${p.note}` : "."}`;
       try { await host.call("chat.post", { threadId: p.threadId, body: text, mentions: [{ kind: "agent", id: p.agentId }], idempotencyKey: `${p.requestId}:carry` }, p.asker); }
       catch (e) { host.log?.("the agent was not told its key was answered", { requestId: p.requestId, error: e instanceof Error ? e.message : String(e) }); return []; }
+      return [p.requestId];
+    },
+  },
+  /** Access an agent asked for in a chat was approved or declined: the agent is told in that chat, as the person it asked for, and carries on. */
+  "engine.access_answered": {
+    on: ["access.granted", "access.declined"],
+    run: async (ctx: EngineCtx, event: { name: string; payload: { requestId: string; requester: string; note?: string; threadId?: string; agentId?: string } }): Promise<string[]> => {
+      const p = event.payload;
+      const host = engineHost();
+      if (!host || !p.threadId || !p.agentId) return [];
+      await ensureRuntime(ctx);
+      const text = event.name === "access.granted" ? "My access came through. Carry on." : `My access was declined${p.note ? `: ${p.note}` : "."}`;
+      try { await host.call("chat.post", { threadId: p.threadId, body: text, mentions: [{ kind: "agent", id: p.agentId }], idempotencyKey: `${p.requestId}:carry` }, p.requester); }
+      catch (e) { host.log?.("the agent was not told its access was answered", { requestId: p.requestId, error: e instanceof Error ? e.message : String(e) }); return []; }
       return [p.requestId];
     },
   },

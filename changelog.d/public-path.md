@@ -1,0 +1,1 @@
+- Forms now work on a name.vyre.run address: `/p/forms/<slug>` reaches the Space through the relay with no session, in a sandbox with an opaque origin, and every public link starts from one public origin that knows the claimed name.

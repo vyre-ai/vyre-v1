@@ -4,7 +4,7 @@ import { defineFlow } from "../harness/index.ts";
 export default defineFlow({
   n: 6,
   name: "site-deploy-rollback",
-  title: "Site deploy and rollback",
+  title: "A site is a route: publish, serve, stop; an artifact stays private",
   needs: ["sites", "gate"],
-  events: ["site.preview_created", "gate.requested", "site.promoted", "site.rolled_back"],
+  events: ["site.created", "site.published", "site.stopped"],
 });

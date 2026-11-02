@@ -18,11 +18,11 @@ const tag = (out: string, id: string): string => out.match(new RegExp(`<[^>]*dat
 const rowsOf = (s: SampleSettings): SettingRow[] => (s.data.screens.query("settings.page", "rows", {}).getSnapshot() as { data: { rows: SettingRow[] } }).data.rows;
 
 test("search: a query opens a Search page with the count and each row with its page, the page list stays", () => {
-  const out = html(createSampleSettings(northwind), { initialQuery: "density" });
+  const out = html(createSampleSettings(northwind), { initialQuery: "skin" });
   assert.ok(has(out, 'data-testid="page-search"') && has(out, 'data-testid="search-results"'));
-  assert.ok(has(out, "1 setting<") && has(out, "Density") && has(out, "Comfortable or compact"));
-  assert.ok(has(out, 'data-testid="row-hit-appearance.density"') && has(out, ">Appearance<"));
-  assert.ok(has(out, 'data-testid="row-page-profile"') && has(out, "Everywhere"), "the page list stays on the left");
+  assert.ok(has(out, "1 setting<") && has(out, "Skin"));
+  assert.ok(has(out, 'data-testid="row-hit-appearance.skin"') && has(out, ">Appearance<"));
+  assert.ok(has(out, 'data-testid="row-page-profile"') && has(out, ">You<"), "the page list stays on the left");
 });
 
 test("search: drawn rows (sign-in) are found too, and nothing found says so with the query", () => {
@@ -38,27 +38,12 @@ test("search on a phone: the results take the place of the page list under the s
   assert.ok(has(out, 'data-testid="settings-nav"') && has(out, 'data-testid="search-results"') && !has(out, 'data-testid="row-page-profile"'));
 });
 
-test("Appearance: Density, Text size, Reduce motion at the top, then Skin with the preview, System, Dark and Light, and the line under them", () => {
+test("Appearance: Skin with the preview, System, Dark and Light, and the line under them", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "appearance" });
-  for (const id of ["ctl-appearance.density", "ctl-appearance.text_size", "ctl-appearance.reduce_motion", "skin-preview", "skins-system", "skins-dark", "skins-light", "skin-system"]) assert.ok(has(out, `data-testid="${id}"`), id);
-  assert.match(tag(out, "ctl-appearance.density-comfortable"), /aria-checked="true"/);
-  assert.match(tag(out, "ctl-appearance.density-compact"), /aria-checked="false"/);
-  assert.ok(has(out, 'data-testid="ctl-appearance.text_size-value"') && has(out, ">100%<"));
-  assert.match(tag(out, "ctl-appearance.text_size"), /aria-valuenow="100"/);
-  assert.ok(out.indexOf("ctl-appearance.density") < out.indexOf("skin-preview") && out.indexOf("skin-preview") < out.indexOf("skins-system") && out.indexOf("skins-system") < out.indexOf("skins-dark") && out.indexOf("skins-dark") < out.indexOf("skins-light"));
+  for (const id of ["skin-preview", "skins-system", "skins-dark", "skins-light", "skin-foot"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  assert.ok(out.indexOf("skin-preview") < out.indexOf("skins-system") && out.indexOf("skins-system") < out.indexOf("skins-dark"));
   assert.ok(has(out, "Just for you, in Northwind") && has(out, "Paper by day, Graphite by night") && has(out, "Weekly report"));
-  for (const gone of ["Light or dark", "Skin for this Space", "Hover a tile to try it", "A Kit sets the rail"]) assert.ok(!has(out, gone), `no "${gone}"`);
-});
-
-test("Appearance: density, text size and reduce motion save as they are made", async () => {
-  const s = createSampleSettings(northwind);
-  await s.data.call("settings.set", { key: "appearance.density", value: "compact" });
-  await s.data.call("settings.set", { key: "appearance.text_size", value: 110 });
-  await s.data.call("settings.set", { key: "appearance.reduce_motion", value: true });
-  const out = html(s, { initialPage: "appearance" });
-  assert.match(tag(out, "ctl-appearance.density-compact"), /aria-checked="true"/);
-  assert.ok(has(out, ">110%<"));
-  assert.match(tag(out, "ctl-appearance.reduce_motion"), /aria-checked="true"/);
+  for (const gone of ["Light or dark", "Skin for this Space", "Hover a tile to try it", "A Kit sets the rail"]) assert.ok(!has(out, gone), gone);
 });
 
 test("Appearance: System is the tile that is on until a skin is chosen; the preview follows the chosen skin", async () => {
@@ -97,7 +82,7 @@ test("Sign-in and devices: Password and GitHub, then one card per Space with its
 
 test("no page carries an explaining paragraph under its heading", () => {
   const s = createSampleSettings(northwind);
-  for (const key of ["profile", "notifications", "models", "connections", "privacy", "signin", "appearance", "keyboard", "computer", "spaces"] as const) {
+  for (const key of ["profile", "notifications", "ai", "connected", "signin", "appearance", "computer"] as const) {
     const out = html(s, { initialPage: key });
     for (const gone of ["Your hours are", "Provider sign-ins and keys live in the Vault", "Connect a mailbox and calendar so agents", "Your private items stay yours", "Type the keys you want", "Agents work on this computer only as far"]) assert.ok(!has(out, gone), `${key}: ${gone}`);
   }

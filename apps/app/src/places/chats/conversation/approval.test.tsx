@@ -107,3 +107,53 @@ test("a name with no wording of its own never reaches the person as a raw capabi
   assert.doesNotMatch(wantsPhrase("engine.mcp.call"), /engine/);
   assert.doesNotMatch(wantsLine("Ops", "records.merge_duplicates"), /records\./);
 });
+
+test("Always allow keeps a rule for this agent in this chat, then allows; an act that needs an admin has no such button", async () => {
+  const calls: { cap: string; input: unknown }[] = [];
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={{ ...data(calls), threadId: "thr_1" } as never} />);
+  await flush();
+  await press(find(root, "approval-always-tsk_1"));
+  await flush();
+  assert.deepEqual(calls.map((c) => c.cap).filter((c) => c === "gate.allow.set" || c === "tasks.act"), ["gate.allow.set", "tasks.act"], "the rule is kept first, then this one is allowed");
+  assert.deepEqual(calls.find((c) => c.cap === "gate.allow.set")!.input, { act: "approve", target: "files.write", agentId: "agt_1", threadId: "thr_1" });
+});
+
+/** The Space's live tick, as the session gives it to a card. */
+function stream() {
+  const ears = new Set<() => void>();
+  return { changes: { subscribe: (l: () => void) => { ears.add(l); return () => { ears.delete(l); }; } }, tick: () => { for (const l of [...ears]) l(); }, listening: () => ears.size };
+}
+
+test("decided in Needs you, the open card follows on the next tick and takes its buttons away, with no timer", async () => {
+  const s = stream();
+  let state = "awaiting_approval";
+  let reads = 0;
+  const live = { ...(data([]) as object), call: async (cap: string) => { if (cap === "tasks.get") { reads += 1; return task(state); } return cap === "files.get" ? { file: { name: "Q4 pricing.docx" } } : { text: "x" }; }, changes: s.changes } as never;
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={live} />);
+  assert.ok(find(root, "approval-allow-tsk_1"));
+  state = "done";
+  s.tick();
+  await flush();
+  assert.match(textOf(find(root, "approval-done-tsk_1")), /Allowed/);
+  assert.equal(find(root, "approval-allow-tsk_1"), null, "no Allow left to press");
+  assert.equal(s.listening(), 0, "a decided card stops reading");
+  const after = reads;
+  s.tick();
+  await flush();
+  assert.equal(reads, after);
+});
+
+test("a held call sent back reads as denied, in Needs you's words or the chat's", async () => {
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={data([], "doing")} />);
+  assert.match(textOf(find(root, "approval-done-tsk_1")), /Denied/);
+});
+
+test("a press that comes too late hears it was decided, and the card shows the decision", async () => {
+  let state = "awaiting_approval";
+  const late = { call: async (cap: string) => { if (cap === "tasks.act") { state = "done"; throw Object.assign(new Error("Already decided."), { code: "validation.precondition_failed" }); } if (cap === "tasks.get") return task(state); return { file: { name: "x" } }; }, nav: { openBeside: () => undefined } } as never;
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={late} />);
+  await press(find(root, "approval-allow-tsk_1"));
+  await flush();
+  assert.match(textOf(find(root, "approval-done-tsk_1")), /Allowed/);
+  assert.doesNotMatch(textOf(root), /Failed/);
+});

@@ -2,7 +2,7 @@
 // members.invites.preview and members.accept run before the person is a member: caller 'pending', never exposed to agents. The join accept screen declares the same caller kind.
 // DECISION: members.accept creates the person and session, then stores the wrapped keys by calling identity.keys_put; it emits member.joined and principal.created itself.
 // DECISION: sign-in policy (second-factor floor, SSO required, allowed methods) is written as policies of kind sign_in through members.sign_in_policy.set, which emits policy.changed; the settings rows below mirror the values for Cmd-F search.
-import { defineManifest, ev, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
+import { defineManifest, ev, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id, email, ok, pageIn, pageOut, principalRef } from './_common.ts';
 
 const V = { level: 'view' } as const;
@@ -95,10 +95,4 @@ export default defineManifest({
     screen('members.sign_in_policy', 'console', 'ui:ConsoleSignInPolicy', { needs: ['policy.manage'], q: { policy: ['members.sign_in_policy.get'], github: ['members.sign_in_github.get'], sso: ['members.sso.list'], report: ['members.second_factor.report'] }, a: { set: ['members.sign_in_policy.set', { policy: '/state/policy' }], save_github: ['members.sign_in_github.set', { clientId: '/state/clientId', clientSecret: '/state/clientSecret' }], clear_github: ['members.sign_in_github.clear', {}, 'Forget the GitHub app?'], save_sso: ['members.sso.set', { provider: '/state/provider' }], remove_sso: ['members.sso.remove', { key: '/state/key' }, 'Remove this provider?'], test_sso: ['members.sso.test', { key: '/state/key' }] } }),
   ],
 
-  settings: [
-    setting('members.invite_expiry_days', 'space', 'console.access', 'Invites expire after', t.int({ minimum: 1, maximum: 90 }), 7),
-    setting('members.default_role', 'space', 'console.access', 'Role a new invite starts with', t.str(), 'member'),
-    setting('signin.second_factor', 'space', 'console.access', 'Require a second factor', t.enm('off', 'required'), 'off', { floorable: true }),
-    setting('signin.require_sso', 'space', 'console.access', 'Require single sign-on', t.bool(), false, { floorable: true }),
-  ],
 });

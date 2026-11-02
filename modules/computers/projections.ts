@@ -78,6 +78,10 @@ export interface ComputerHost {
   sessions(computerId: string): Promise<SessionInfo[]>;
   signOut(a: { computerId: string; site: string }): Promise<boolean>;
   health(): Promise<{ ok: boolean; detail?: string; latencyMs?: number }>;
+  /** The address a port of this computer is reached at from this machine, or null while it is not running. */
+  address?(computerId: string): Promise<string | null>;
+  /** The last lines of a site's log: `~/sites/<slug>/site.log` by the shipped skill's convention. */
+  siteLogs?(a: { computerId: string; slug: string; lines: number }): Promise<string[]>;
 }
 
 /** The host's Vault fill channel (P-L2_21): a token per computer and the address agentd posts to. Unbound, a computer has no Vault channel and refuses a #Handle. */

@@ -1,4 +1,4 @@
-// Holds (spec 2.14, ARCH 4.6): parking a held call, who approves, the fixed summary line, the effective rule (Auto cannot suppress a hold), requester scoping, crash recovery,
+// Holds (spec 2.14, ARCH 4.6): parking a held call, who approves, the fixed summary line, the effective rule (the mode never suppresses a hold; a grant does, modules/gate/tests/grants.test.ts), requester scoping, crash recovery,
 // and rejecting what a removed person asked to send.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -126,7 +126,7 @@ test("the effective rule: agents wait, a person's own send does not, human-too a
   assert.equal((await rule({ kind: "actor", id: "act_outside" }, "send")).hold, true);
 });
 
-test("Auto cannot suppress a Gate hold: nothing below the Space can loosen it", async () => {
+test("the mode never suppresses a Gate hold: nothing below the Space can loosen it, and a grant is the only other way through", async () => {
   const h = harness();
   const hold = async (principal: unknown = bot) => (await h.call("gate.effective_rule", { principal, act: "send" }, { id: alice.id })).hold;
   // an agent's own rule cannot say allow while the Space holds

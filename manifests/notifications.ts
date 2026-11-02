@@ -10,7 +10,7 @@ import { id, pageIn, pageOut, resourceRef } from './_common.ts';
 const level = t.enm('interrupt', 'badge', 'digest');
 const place = t.enm('home', 'chats', 'inbox', 'records', 'files', 'apps', 'automations', 'vault', 'settings', 'console');
 const kindKey = t.enm(
-  'approval.requested', 'approval.backstop', 'dm', 'mention', 'call.incoming', 'agent.blocked', 'incident.owned', 'task.assigned', 'reply.followed',
+  'approval.requested', 'answer.requested', 'unblock.requested', 'approval.backstop', 'dm', 'mention', 'call.incoming', 'agent.blocked', 'incident.owned', 'task.assigned', 'reply.followed',
   'agent.task_finished', 'campaign.reply', 'digest.away', 'mention.thread', 'run.failed', 'conflict.needs_you', 'access.requested', 'access.decided',
   'sync.attention', 'health.degraded', 'problem.report', 'member.joined', 'limit.hit', 'vault.rotation_due',
 );
@@ -43,6 +43,8 @@ export default defineManifest({
     notif('approval.requested', 'interrupt', 'chats', 'Approval needed: {{title}}', {
       pushTitle: '{{space}} needs you', actions: [{ label: 'Approve', cap: 'tasks.act' }, { label: 'Send back', cap: 'tasks.act' }], agentRateKey: 'agent_interrupt', backstopEmailAfterHours: 4,
     }),
+    notif('answer.requested', 'interrupt', 'chats', 'Needs your answer: {{title}}', { pushTitle: '{{space}} needs you', agentRateKey: 'agent_interrupt', actions: [{ label: 'Answer', cap: 'tasks.act' }], backstopEmailAfterHours: 4 }),
+    notif('unblock.requested', 'interrupt', 'chats', 'Needs you: {{title}}', { pushTitle: '{{space}} needs you', agentRateKey: 'agent_interrupt', actions: [{ label: 'Open', cap: 'tasks.act' }], backstopEmailAfterHours: 4 }),
     notif('approval.backstop', 'interrupt', 'chats', 'Still waiting on you: {{title}}', { pushTitle: '{{space}} needs you', actions: [{ label: 'Open', cap: 'tasks.act' }], respectHours: false }),
     notif('dm', 'interrupt', 'chats', 'Message from {{from}}', { pushTitle: '{{space}} needs you', agentRateKey: 'agent_interrupt', actions: [{ label: 'Reply', cap: 'chat.post' }] }),
     notif('mention', 'interrupt', 'chats', '{{from}} mentioned you in {{where}}', { pushTitle: '{{space}} needs you', agentRateKey: 'agent_interrupt', actions: [{ label: 'Reply', cap: 'chat.post' }] }),
@@ -141,7 +143,6 @@ export default defineManifest({
     }),
   ],
   settings: [
-    setting('notifications.working_hours', 'person', 'Notifications', 'Working hours (outside them only calls, urgent approvals and incidents interrupt)', hours, { days: [1, 2, 3, 4, 5], from: '09:00', to: '18:00', tz: 'UTC' }),
     setting('notifications.email_backstop', 'person', 'Notifications', 'Email me once if an approval waits 4 hours', t.bool(), true),
     setting('notifications.alert_replies', 'person', 'Notifications', 'Alert me on replies', t.bool(), false),
     setting('notifications.routines_all', 'person', 'Notifications', 'Also tell me when routines succeed (failures always)', t.bool(), false),
@@ -149,7 +150,6 @@ export default defineManifest({
     setting('notifications.quiet_hours', 'person', 'Notifications', 'Quiet hours: no sounds or pushes between the two times; Needs you may come through', t.obj({
       on: t.bool(), from: t.str({ pattern: '^[0-2][0-9]:[0-5][0-9]$', examples: ['22:00'] }), to: t.str({ pattern: '^[0-2][0-9]:[0-5][0-9]$', examples: ['07:00'] }), needs: t.bool(),
     }), { on: false, from: '22:00', to: '07:00', needs: true }),
-    setting('notifications.push_idle_minutes', 'space', 'Notifications', 'Minutes idle on the computer before pushes go to the phone', t.int({ minimum: 1, maximum: 60 }), 5),
   ],
   screens: [
     screen('notifications.banner', 'shell', 'ui:NotificationBanner', {

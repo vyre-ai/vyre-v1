@@ -14,6 +14,8 @@ export interface ChatsNav {
   /** An imported coding session's transcript (its row in the Imported group). Left out where the shell has no such page. */
   openImported?(conversationId: string): void;
   openAllAgents(): void;
+  /** Everything made to show: artifacts, opened in the app. Left out where the shell has no such page. */
+  openArtifacts?(): void;
   openSearch(): void;
   openSpaceSwitcher(): void;
   /** Opens the New channel sheet. */
