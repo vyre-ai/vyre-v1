@@ -364,7 +364,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   if (existing && existing.pid !== process.pid && alive(existing.pid)) throw new Error(`vyred is already running for ${paths.root} (pid ${existing.pid})`);
 
   const token = ensureAdminToken(paths);
-  const sink = new LogSink({ path: paths.logs, now, secrets: () => [token] });
+  const sink = openLogSink(paths.logs, now, token);
   const closers: (() => Promise<void> | void)[] = [() => sink.close()];
   const chromeBridge = createChromeBridge({ token, onEvent: (e) => sink.log({ space: "-", level: 20, msg: "chrome.agent_event", place: "chrome-bridge", attrs: { event: e.event, agent: typeof e["agent"] === "string" ? e["agent"] : "" } }) });
   closers.push(() => { chromeBridge.failAll(); chromeBridge.closeStreams(); });
@@ -1920,4 +1920,32 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     runProbes, pollCommands: runCommands,
     stop,
   };
+}
+
+/**
+ * The log sink, which never stops a Space from starting. logs.db holds only diagnostics: when it cannot be opened (a power loss or a forced restart left it malformed), it is moved
+ * aside as logs.db.corrupt-<time> with its journal files, a fresh one is made, and the move is the new file's first line. If even that fails, the sink keeps its rows in memory.
+ */
+export function openLogSink(file: string, now: () => number, token: string): LogSink {
+  try { return new LogSink({ path: file, now, secrets: () => [token] }); }
+  catch (first) {
+    const aside = `${file}.corrupt-${now()}`;
+    let moved = false;
+    try {
+      fs.renameSync(file, aside);
+      for (const ext of ["-wal", "-shm", "-journal"]) { try { fs.renameSync(file + ext, aside + ext); } catch { /* not there */ } }
+      moved = true;
+    } catch { /* nothing to move, or no right to: fall through to memory */ }
+    const why = first instanceof Error ? first.message.slice(0, 160) : "unknown";
+    try {
+      if (!moved) throw first;
+      const sink = new LogSink({ path: file, now, secrets: () => [token] });
+      sink.log({ space: "-", level: 40, msg: "logs.reset", place: "daemon", attrs: { aside: path.basename(aside), why } });
+      return sink;
+    } catch {
+      const sink = new LogSink({ now, secrets: () => [token] });
+      sink.log({ space: "-", level: 50, msg: "logs.memory_only", place: "daemon", attrs: { why } });
+      return sink;
+    }
+  }
 }
