@@ -9,7 +9,7 @@ import type { ApiTools } from "../../agent/src/drivers/open/api-tools.ts";
 import { createToolSession } from "../../agent/src/tools/call.ts";
 import { decideLocal, dialFor, modePair } from "../../agent/src/tools/local.ts";
 import { localFacts } from "../../agent/src/tools/local-facts.ts";
-import type { ModePair, SecurityMode } from "../../agent/src/tools/local.ts";
+import type { ModePair } from "../../agent/src/tools/local.ts";
 import { buildCatalog, offerable, parseDefaultTools } from "../../agent/src/tools/catalog.ts";
 import { DEFERRED_CAPS } from "../../host/src/routes/deferred.ts";
 import type { AgentToolRow, McpToolRow, RegistryCapRow } from "../../agent/src/tools/types.ts";
