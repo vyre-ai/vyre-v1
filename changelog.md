@@ -1,5 +1,30 @@
 # Changelog
 
+- A damaged log file (after a power loss or forced restart) no longer stops Vyre from starting: it is set aside and a fresh one is made.
+- Codex chats no longer use the test build of Codex inside the ChatGPT app, which failed outside it with "workspace routing discovery failed". Vyre runs its own installed copy.
+- A tab keeps its hover, and its close button, while the pointer is on the close button.
+- The Chats list now highlights the page you are on. Moving to another chat by a tab, a link or Cmd-K moves the highlight with you, and a page with no row in the list highlights nothing.
+- Imported Claude Code and Codex sessions can be renamed, archived and deleted from their row's menu (right-click or the "..." on hover). Renaming changes only the name shown, never the transcript.
+- An archived imported session waits in the Archived section with your archived chats, and Unarchive puts it back.
+- Deleting an imported session removes Vyre's copy only. The original files on your computer stay, a chat you continued from it stays, and importing again does not bring it back.
+- An imported session you continued shows that chat's last day instead of the word Chat.
+- The title of an imported session's page is a button that renames it, as a chat's title is.
+- Signing in again to an AI subscription you already have refreshes that account in place: same name, same handle, nothing to set up again. A second account of the same provider (personal and work) is its own entry, named by its email.
+- Accounts read by their name or their email ("Claude Code, you@example.com"), never "Claude Code 4".
+- Copies of one account saved by earlier versions are folded into one when Vyre starts. The older copies go to the Vault Trash with a line in their history, and chats and agents that used them keep working.
+- Older sign-ins whose account cannot be told apart show under one entry in Settings, AI, as "and 3 older sign-ins", where you can remove them.
+- Signing in again no longer fails with "Something went wrong on our side" when the account was already saved.
+- A locked Vault now says to unlock it, not to sign in again.
+- Vyre writes far less to disk while it sits idle. Routine background checks and the app's repeated reads are counted into one log line per hour instead of one line each, and checks that find nothing new no longer rewrite their row.
+- The diagnostics log keeps a week and at most 64 MB, trims itself while Vyre runs, gives the space back to the disk, and is written in a way a crash or forced restart cannot damage.
+- A background job that keeps failing the same way is logged once per streak, with a count, instead of once a second.
+- A read that keeps failing the same way is logged once, then counted, and its recovery is logged; it no longer writes a line every time it is asked.
+- The copy of the diagnostics log that Console reads keeps a week of timings and a fixed number of lines, trimmed in small steps while Vyre runs, so it no longer grows the Space's database without end.
+- The app no longer re-reads the whole screen after every read it makes. An open chat used to set off a full re-read every few seconds while nothing changed; a hidden window now re-reads at most every 30 seconds and catches up the moment it is shown.
+- Codex and Grok no longer lose their sign-in after a few days. When the command line refreshes its token during a turn, Vyre saves the refreshed sign-in back to the same Vault item, and the item's history says "Codex refreshed its sign-in".
+- A refresh is kept only when it is still a sign-in of the same account and newer than what the Vault holds. A sign-out or another account's file is never saved over it.
+- Two chats on one account at the same time keep the newest sign-in, and a turn that crashes, is stopped, or is still running when Vyre quits still has its refresh saved.
+- Sign-in files left in an engine's folder are never followed through a link when they are read back or removed.
 - An owner or admin sets one Space AI key in Console, Models and providers: pick the provider (OpenCode Go first), paste the key, and Vyre checks it and shows the models it unlocks.
 - Every member and agent runs on the Space AI key after their own accounts, with no setup. Own accounts win; with Company accounts only, everyone runs on it.
 - OpenCode Go shows in the model picker for everyone like any other provider, with its live model list.

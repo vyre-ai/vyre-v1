@@ -1,4 +1,0 @@
-- Codex and Grok no longer lose their sign-in after a few days. When the command line refreshes its token during a turn, Vyre saves the refreshed sign-in back to the same Vault item, and the item's history says "Codex refreshed its sign-in".
-- A refresh is kept only when it is still a sign-in of the same account and newer than what the Vault holds. A sign-out or another account's file is never saved over it.
-- Two chats on one account at the same time keep the newest sign-in, and a turn that crashes, is stopped, or is still running when Vyre quits still has its refresh saved.
-- Sign-in files left in an engine's folder are never followed through a link when they are read back or removed.

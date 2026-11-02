@@ -1,6 +1,0 @@
-- Signing in again to an AI subscription you already have refreshes that account in place: same name, same handle, nothing to set up again. A second account of the same provider (personal and work) is its own entry, named by its email.
-- Accounts read by their name or their email ("Claude Code, you@example.com"), never "Claude Code 4".
-- Copies of one account saved by earlier versions are folded into one when Vyre starts. The older copies go to the Vault Trash with a line in their history, and chats and agents that used them keep working.
-- Older sign-ins whose account cannot be told apart show under one entry in Settings, AI, as "and 3 older sign-ins", where you can remove them.
-- Signing in again no longer fails with "Something went wrong on our side" when the account was already saved.
-- A locked Vault now says to unlock it, not to sign in again.

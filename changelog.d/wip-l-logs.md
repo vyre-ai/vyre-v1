@@ -1,6 +1,0 @@
-- Vyre writes far less to disk while it sits idle. Routine background checks and the app's repeated reads are counted into one log line per hour instead of one line each, and checks that find nothing new no longer rewrite their row.
-- The diagnostics log keeps a week and at most 64 MB, trims itself while Vyre runs, gives the space back to the disk, and is written in a way a crash or forced restart cannot damage.
-- A background job that keeps failing the same way is logged once per streak, with a count, instead of once a second.
-- A read that keeps failing the same way is logged once, then counted, and its recovery is logged; it no longer writes a line every time it is asked.
-- The copy of the diagnostics log that Console reads keeps a week of timings and a fixed number of lines, trimmed in small steps while Vyre runs, so it no longer grows the Space's database without end.
-- The app no longer re-reads the whole screen after every read it makes. An open chat used to set off a full re-read every few seconds while nothing changed; a hidden window now re-reads at most every 30 seconds and catches up the moment it is shown.

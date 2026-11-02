@@ -1,1 +1,0 @@
-- A damaged log file (after a power loss or forced restart) no longer stops Vyre from starting: it is set aside and a fresh one is made.
