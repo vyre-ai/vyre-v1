@@ -7,7 +7,8 @@ import { modePair } from "../../agent/src/tools/local.ts";
 import type { McpCaller, McpServer, McpServerDeps } from "../../agent/src/mcp/types.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { onAgentDeleted } from "./handlers/oauth.ts";
+import { onAgentDeleted, onHoldAnswered } from "./handlers/oauth.ts";
+import type { OauthCtx } from "./handlers/oauth.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { bindEndpoint, bindServer, boundServer, driverForToken, ensure, insertSession, isLive, loadGenerated, mintId, outsideCaller, sessionBy, touchSession } from "./projections.ts";
 import type { Db, Endpoint, McpCtx } from "./projections.ts";
@@ -242,6 +243,8 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
 export const consumers = {
   /** An agent went to Trash, whatever the way: its sign-in ends with it. */
   "mcp.agent_gone": { on: ["agent.deleted"], run: (ctx: McpCtx, event: { payload: { agentId?: unknown } }): string[] => onAgentDeleted(ctx, event) },
+  /** A person answered a call an outside agent was held on. */
+  "mcp.hold_answered": { on: ["gate.approved", "gate.denied", "gate.expired"], run: (ctx: OauthCtx, event: { name: string; payload: { taskId?: unknown; mode?: unknown; note?: unknown } }): Promise<string[]> => onHoldAnswered(ctx, event) },
 };
 
 export { bindEndpoint, bindServer };

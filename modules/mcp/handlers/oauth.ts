@@ -154,3 +154,16 @@ export function onAgentDeleted(ctx: McpCtx, event: { payload: { agentId?: unknow
   for (const g of grantsOfAgent(ctx.db, id)) { const s = revokeGrant(ctx.db, g.grantId, "removed", now); ended.push(g.grantId); if (s) boundServer()?.end(s); }
   return ended;
 }
+
+/** A person answered a call an outside agent was held on: the answer waits in its queue, because nothing can reach it. A call that was never an outside agent's finds no row here. Safe to repeat: the queue keeps one job per task and kind. */
+export async function onHoldAnswered(ctx: OauthCtx, event: { name: string; payload: { taskId?: unknown; mode?: unknown; note?: unknown } }): Promise<string[]> {
+  ensure(ctx.db);
+  const taskId = event.payload.taskId;
+  if (typeof taskId !== "string" || !ctx.call) return [];
+  const row = (ctx.db.all("SELECT agent_id, person, thread_id, tool FROM mcp_activity WHERE task_id = ? AND outcome = 'held' ORDER BY at DESC LIMIT 1", taskId) as Row[])[0];
+  if (!row) return [];
+  const yes = event.name === "gate.approved";
+  const text = yes ? `Approved. ${String(row["tool"])} ran.` : event.name === "gate.expired" ? `Nobody answered. ${String(row["tool"])} did not run.` : `Not approved. ${String(row["tool"])} did not run.${typeof event.payload.note === "string" ? ` ${event.payload.note}` : ""}`;
+  await ctx.call("agents.outside.enqueue", { agentId: String(row["agent_id"]), kind: "answer", taskId, ...(row["thread_id"] ? { threadId: String(row["thread_id"]) } : {}), asker: String(row["person"]), title: yes ? "Approved" : "Not approved", text });
+  return [taskId];
+}

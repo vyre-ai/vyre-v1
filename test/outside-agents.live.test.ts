@@ -231,6 +231,12 @@ withSpace("outward act held: a send stops for a person's yes, as that agent, and
   assert.equal(sent[0].status, "sent");
   const activity = expectStatus(await s.call("mcp.activity.list", owner, { agentId }), 200, "mcp.activity.list").rows as Json[];
   assert.ok(activity.some((r) => r.tool === "mail_send" && r.outcome === "held" && r.taskId === holds[0].taskId));
+  // the answer reaches it the only way anything can
+  await s.d.hooks?.pump?.();
+  const answer = (await c.tool("agents_next")).json.result.structuredContent.data.job;
+  assert.equal(answer?.kind, "answer", JSON.stringify(answer));
+  assert.equal(answer.taskId, holds[0].taskId);
+  assert.match(answer.text, /^Approved\. mail_send ran\.$/);
 });
 
 withSpace("an outside agent trying what stays with people: allow another client, change sign-in, widen access, connect the company", async (s, owner, mcp) => {
