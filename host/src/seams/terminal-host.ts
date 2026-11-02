@@ -46,6 +46,10 @@ export function commandEnv(base: NodeJS.ProcessEnv): Record<string, string> {
   const out: Record<string, string> = {};
   for (const k of KEEP) { const v = base[k]; if (typeof v === "string" && v !== "") out[k] = v; }
   out["TERM"] = "xterm-256color";
+  // an app started from the Dock has a short PATH: tmux and the person's tools from Homebrew live here
+  const dirs = (out["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin").split(":");
+  for (const extra of ["/opt/homebrew/bin", "/usr/local/bin"]) if (!dirs.includes(extra) && fs.existsSync(extra)) dirs.push(extra);
+  out["PATH"] = dirs.join(":");
   return out;
 }
 
