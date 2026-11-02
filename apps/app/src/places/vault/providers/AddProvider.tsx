@@ -13,6 +13,7 @@ import { Info } from "../../../../../../ui/src/Tip/index.tsx";
 import { SignInPanel } from "../../../ai-signin/SignInPanel.tsx";
 import { startFlow } from "../../../ai-signin/flow.ts";
 import type { Flow as SignFlow } from "../../../ai-signin/flow.ts";
+import { ownAiRefusal } from "../../../ai-signin/own-ai.ts";
 import { CONNECTION_NAME, CONNECTION_NOTE, connectionList, normalizeAddress, testWords } from "./model.ts";
 import type { Catalog, ConnectionKind } from "./model.ts";
 
@@ -30,6 +31,8 @@ const DEFAULT_ADDRESS = "http://localhost:11434";
 
 export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProviderProps): ReactElement {
   const data = useVaultData();
+  // where the Space runs, for the words of a refused save (ai-signin/own-ai.ts)
+  const home = data.aiHome ?? "here";
   const { element, show } = useMenu();
   const [catalog, setCatalog] = useState<readonly Catalog[] | null>(null);
   const [catalogTries, setCatalogTries] = useState(0);
@@ -60,13 +63,13 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
   const done = (p: Provider): void => { setSecret(""); setAdded(p); onAdded(p); };
   const run = async (f: () => Promise<void>): Promise<void> => {
     setBusy(true); setLine(null);
-    try { await f(); } catch (e) { setLine(e instanceof Error ? e.message : "That did not work."); }
+    try { await f(); } catch (e) { setLine(ownAiRefusal(e, home) ?? (e instanceof Error ? e.message : "That did not work.")); }
     setBusy(false);
   };
   const key = (what: string): string => `add-${what}-${++n.current}-${data.clock().now}`;
 
   const startSignIn = (): Promise<void> => run(async () => {
-    setFlow(await startFlow((cap, input) => data.call(cap, input), pick!.key, key(pick!.key)));
+    setFlow(await startFlow((cap, input) => data.call(cap, input), pick!.key, key(pick!.key), home));
   });
   // a provider this server cannot sign in itself still answers the old instruction; "I have signed in" then looks for the item the person saved
   const finishSignIn = (): Promise<void> => run(async () => {
@@ -131,7 +134,7 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow }: AddProvi
         <View style={s.stack} testID="provider-subscription">
           <View style={s.leadRow}><Text style={s.lead}>Sign in with your plan</Text><Info help={CONNECTION_NOTE.subscription} /></View>
           {flow ? (
-            flow.url ? <SignInPanel call={(cap, input) => data.call(cap, input)} flow={flow} onCancel={() => setFlow(null)} onDone={(p) => done(p as unknown as Provider)} /> : (
+            flow.url ? <SignInPanel call={(cap, input) => data.call(cap, input)} flow={flow} home={home} onCancel={() => setFlow(null)} onDone={(p) => done(p as unknown as Provider)} /> : (
               <View style={s.stack}><Text style={s.body} testID="provider-instruction">{flow.instruction}</Text></View>
             )
           ) : null}

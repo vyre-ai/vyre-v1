@@ -17,6 +17,7 @@ import { SettingRowFor, useChange } from "./rows.tsx";
 import { useSaved } from "./saved.tsx";
 import { Choice, Field, Glyph, Section, SettingsRow, SmallButton, Switch, Value, pointer } from "./ui.tsx";
 import { useOpenConnect } from "../../shell/connect/context.ts";
+import { statusNote, useSpaceAi } from "../../ai-signin/SpaceAiStatus.tsx";
 
 export interface PageProps { rows: readonly SettingRow[]; found: string | null }
 
@@ -226,6 +227,10 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
   const defaults = useScreenQuery<DefaultsOut>(MODELS, "defaults", {});
   const models = useScreenQuery<ModelsOut>(MODELS, "models", {});
   const accounts = useScreenQuery<AccountsOut>(MODELS, "accounts", {});
+  // a Team Space with no Space AI key says so, with who can add one, so AI accounts is never an empty list with nowhere to go
+  const personal = useIsPersonal();
+  const noSpaceKey = !personal && accounts.status === "ready" && !accounts.data.accounts.some((a) => a.spaceKey === true);
+  const spaceAi = useSpaceAi(data.call, { me: data.me.id, off: !noSpaceKey });
   const usage = useScreenQuery<UsageOut>(MODELS, "usage", { by: "model" });
   // older sign-ins: shown on request, removed one by one by the person (never by Vyre on its own)
   const [openOlder, setOpenOlder] = useState<string | null>(null);
@@ -257,6 +262,10 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
     ));
   }
   const acc: ReactElement[] = [];
+  if (noSpaceKey) {
+    const note = statusNote(spaceAi);
+    acc.push(<SettingsRow key="space-ai" id="account.space-ai" label={spaceAi.title} {...(note ? { sub: note } : {})} first />);
+  }
   if (accounts.status === "ready") {
     const line = spaceKeyLine(accounts.data.accounts);
     if (line) acc.push(
@@ -268,7 +277,7 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
     accounts.data.accounts.filter((a) => a.spaceKey !== true).forEach((a, i) => {
       acc.push(
         <SettingsRow
-          key={a.ref} id={`account.${a.ref}`} label={a.name ?? a.title} first={i === 0 && !line} sub={`${a.kind === "subscription" ? "Sign-in" : "API key"}, ${a.mine ? "yours" : "shared in the Space"}`}
+          key={a.ref} id={`account.${a.ref}`} label={a.name ?? a.title} first={i === 0 && !line && !noSpaceKey} sub={`${a.kind === "subscription" ? "Sign-in" : "API key"}, ${a.mine ? "yours" : "shared in the Space"}`}
           control={<Value text={a.status === "ok" ? "Working" : a.status === "expired" ? "Sign in again" : a.status === "failed" ? "Failed" : "Not tested"} accent={a.status !== "ok"} />}
         />,
       );

@@ -10,6 +10,7 @@ import { ConsoleDataProvider } from "../console/shell/data.tsx";
 import type { ConsoleData } from "../console/shell/data.tsx";
 import { SpaceKey } from "../console/pages/SpaceKey.tsx";
 import { ConnectAiCard } from "./ConnectAiCard.tsx";
+import type { AiHome } from "../ai-signin/own-ai.ts";
 import { SameAccountOffer } from "./SameAccountOffer.tsx";
 import { copyableAccounts } from "./same-account.ts";
 import type { CopyableAccount } from "./same-account.ts";
@@ -30,9 +31,11 @@ export function setupConsoleData(call: CapCall, me: { id: string; name: string }
   };
 }
 
-export function SpaceAiCard({ team, personal, onConnected, gate, me = { id: "", name: "" }, initial = "space" }: {
+export function SpaceAiCard({ team, personal, onConnected, gate, me = { id: "", name: "" }, initial = "space", home = "here" }: {
   team: CapCall; /** the Personal Space on this device, when there is one */ personal: CapCall | null; onConnected(providerId: string): void;
   gate?(save: (() => Promise<boolean>) | null): void; me?: { id: string; name: string }; initial?: SpaceAiChoice;
+  /** Where the Space runs, for the words of a refused save (ai-signin/own-ai.ts). */
+  home?: AiHome;
 }): ReactElement {
   const [choice, setChoice] = useState<SpaceAiChoice>(initial);
   const [accounts, setAccounts] = useState<CopyableAccount[]>([]);
@@ -69,7 +72,7 @@ export function SpaceAiCard({ team, personal, onConnected, gate, me = { id: "", 
         <View testID="space-ai-mine" style={s.col}>
           <Text style={s.lead}>Sign in with your Claude, ChatGPT or Grok subscription, or add a personal key. Only you use it.</Text>
           {offered ? <SameAccountOffer personal={personal!} team={team} accounts={accounts} onCopied={connected} onDeclined={() => setDifferent(true)} /> : null}
-          {offered ? null : <ConnectAiCard call={team} connected={mine} onConnected={connected} />}
+          {offered ? null : <ConnectAiCard home={home} call={team} connected={mine} onConnected={connected} />}
         </View>
       )}
       {spaceKey && choice === "mine" ? <Text testID="space-ai-key-set" style={s.lead}>The Space already has a key for everyone.</Text> : null}

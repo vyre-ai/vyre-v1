@@ -1,6 +1,7 @@
 // The Allow page: "Claude Code wants to join Northwind", who it acts for, what it can do, and one press. The same frame as every entry screen, because it is one (apps/app/src/join/kit.tsx). It is drawn in Vyre, where the person is
 // already signed in, and the press is a capability call with their session (mcp.oauth.allow): no other site can send that, and no frame may hold this page. What the client says about itself is marked as its own words, and the host a
 // code would go to is named when it is not this computer. After the press the tab that asked collects the sign-in by itself: this screen never holds a code.
+import { spaceLabel } from "../shell/spaces/space-label.ts";
 import { useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Text, View } from "react-native";
@@ -54,7 +55,7 @@ export function AllowScreen({ call, requestId, me, onDone }: AllowProps): ReactE
   const [name, setName] = useState("");
   useEffect(() => {
     let live = true;
-    void call("mcp.oauth.request", { requestId }).then((o) => { if (live) setReq((o as CapMap["mcp.oauth.request"]["out"]).request); }, (e: unknown) => { if (live) setEnded(endedWords(e)); });
+    void call("mcp.oauth.request", { requestId }).then((o) => { if (live) { const r = (o as CapMap["mcp.oauth.request"]["out"]).request; setReq({ ...r, spaceName: spaceLabel(r.spaceName, (globalThis as { location?: { origin?: string } }).location?.origin) }); } }, (e: unknown) => { if (live) setEnded(endedWords(e)); });
     return () => { live = false; };
   }, [call, requestId]);
   if (framed()) return <JoinFrame><Panel><Step id="allow-framed"><Title title="Open this in Vyre" sub="This page does not work inside another page." /></Step></Panel></JoinFrame>;

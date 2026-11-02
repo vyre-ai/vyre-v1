@@ -12,6 +12,8 @@ import { JoinFlow } from "../../join/JoinFlow.tsx";
 import type { JoinValues } from "../../join/JoinFlow.tsx";
 import { deviceFor, normalizeSpaceAddress } from "../../join/logic.ts";
 import type { JoinInvite } from "../../join/logic.ts";
+import { aiHomeOf } from "../../ai-signin/own-ai.ts";
+import { spaceLabel } from "../spaces/space-label.ts";
 import { Bar, Button, ErrorLine, JoinFrame, Links, Opening, Panel, Step, TextButton, Title } from "../../join/kit.tsx";
 import { NOT_A_SPACE, OFFLINE_SPACE } from "../../join/failure.ts";
 import { Welcome } from "../../join/Welcome.tsx";
@@ -69,7 +71,7 @@ export const SIGNED_OUT_LINE = "You were signed out. Sign in again to continue."
 /** `github` is true only for a caller that wires the GitHub button (the sign-in screen below); a bare invite never lists a control with nothing behind it. */
 export function signInInvite(baseUrl: string, options: SignInOptions | null, github = false, sso = false): JoinInvite {
   return {
-    space: options?.name ?? hostOf(baseUrl), host: hostOf(baseUrl), by: "", role: "", ...(options?.fingerprint?{fingerprint:options.fingerprint}:{}),
+    space: spaceLabel(options?.name, baseUrl), host: hostOf(baseUrl), by: "", role: "", ...(options?.fingerprint?{fingerprint:options.fingerprint}:{}),
     sso: sso ? (options?.sso ?? []).map((p) => p.title) : [], github: github && options?.github === true, adminKey: false,   // a provider is offered only to a caller that wires its button, and only when the Space has it on
   };
 }
@@ -251,6 +253,8 @@ function DesktopJoinScreen({ route, open, onSignedIn, onBack, onSignIn, deviceCl
   const [attempt, setAttempt] = useState(0);
   const [ssoStarted, setSsoStarted] = useState<string | null>(null);
   const [sso, setSso] = useState<string | null>(null);
+  // where the Space runs, for the words of a refused save on the AI step (ai-signin/own-ai.ts)
+  const home = aiHomeOf(route.address, deviceClass === "desktop");
   useEffect(() => {
     let alive = true;
     setJoin(null);
@@ -266,12 +270,12 @@ function DesktopJoinScreen({ route, open, onSignedIn, onBack, onSignIn, deviceCl
       else onSignedIn(stored);
     } catch (e) { if (e instanceof JoinRefused) throw e; throw new Error("Could not finish joining this Space. Try again."); }
   }, [anonymous, join, onSignedIn, open, route.address, deviceClass, sso]);
-  if (setup) return <Suspense fallback={<Opening title="Connect your AI" />}><JoinProviderSetup stored={setup.stored} ai={setup.ai} onOpen={() => onSignedIn(setup.stored)} onClearSecret={() => setSetup((current) => { if (!current?.ai.key) return current; const { key: _secret, ...ai } = current.ai; return { ...current, ai }; })} /></Suspense>;
+  if (setup) return <Suspense fallback={<Opening title="Connect your AI" />}><JoinProviderSetup stored={setup.stored} ai={setup.ai} home={home} {...(join?.preview.invitedBy ? { invitedBy: join.preview.invitedBy } : {})} onOpen={() => onSignedIn(setup.stored)} onClearSecret={() => setSetup((current) => { if (!current?.ai.key) return current; const { key: _secret, ...ai } = current.ai; return { ...current, ai }; })} /></Suspense>;
   if (failed) return <JoinFrame><Panel below={<Links><TextButton label="Sign in instead" testID="invite-sign-in" onPress={onSignIn}/></Links>} bar={<Bar onBack={onBack} cont={<Button label="Try again" testID="invite-retry" onPress={()=>setAttempt(n=>n+1)}/>}/>}><Step id="invite-error"><Title title="This invite did not open" sub="It may have expired or been used"/></Step></Panel></JoinFrame>;
   if (!join) return <Opening title="Opening your invite" testID="step-invite-loading" />;
   const required = join.preview.ssoRequired ?? [];
   if (required.length > 0 && !sso) return <JoinSso providers={required} started={ssoStarted} onStart={(key) => { void Promise.resolve(anonymous("identity.sso_join_start", { code: route.code, provider: key })).then((out) => { const start = (out as { start?: string }).start; if (start) { (globalThis as { open?: (url: string, target: string) => unknown }).open?.(`${route.address}${start}`, "_blank"); setSsoStarted(key); } }); }} onDone={() => setSso(ssoStarted)} />;
-  const invite: JoinInvite = { space: join.preview.spaceName, host: hostOf(route.address), by: join.preview.invitedBy, role: join.preview.role, fingerprint: join.preview.fingerprint, sso: [], github: false, adminKey: false, deviceName: deviceFor(deviceClass).deviceName };
+  const invite: JoinInvite = { space: spaceLabel(join.preview.spaceName, route.address), host: hostOf(route.address), by: join.preview.invitedBy, role: join.preview.role, fingerprint: join.preview.fingerprint, sso: [], github: false, adminKey: false, deviceName: deviceFor(deviceClass).deviceName };
   const appLink=deviceClass==='web'?inviteAppLink(route):null;
   return <JoinFlow invite={invite} onJoin={onJoin} {...(deviceClass==='desktop'?{initial:{stage:'steps' as const,step:0}}:{onDownload:()=>{(globalThis as {open?:(url:string,target:string,features:string)=>unknown}).open?.(VYRE_DOWNLOADS,'_blank','noopener,noreferrer');}})} {...(appLink?{onOpenApp:()=>{(globalThis as {location?:{assign(url:string):void}}).location?.assign(appLink);}}:{})} />;
 }

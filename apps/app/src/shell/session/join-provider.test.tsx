@@ -34,3 +34,14 @@ test("the post-join page never labels an unverified provider connected or render
   assert.match(sub, /Claude|ChatGPT/);
   assert.doesNotMatch(sub, /account is connected|Connected as/);
 });
+
+test("the join AI screen says whether the Space AI key covers the person, and still offers their own account; with no key, who can add one", () => {
+  const stored = { baseUrl: "https://mla.vyre.run", token: "fixture-token", def: { name: "My Legal Academy" } } as StoredSession;
+  const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'");
+  const covered = clean(renderToStaticMarkup(<JoinProviderSetup stored={stored} ai={{ choice: "sub" }} home="none" spaceAi={{ key: { set: true, name: "OpenCode Go", state: "ok", models: ["glm-5.3"] }, admin: null }} onOpen={() => undefined} onClearSecret={() => undefined} />));
+  assert.ok(covered.includes("You're covered") && covered.includes("This Space's AI key (OpenCode Go) works for you."), covered);
+  assert.ok(covered.includes("Claude") && covered.includes("ChatGPT") && covered.includes("Grok") && covered.includes("Connect later"), "the sign-ins and a way past them stay");
+  assert.ok(!/install Vyre|locked/i.test(covered));
+  const none = clean(renderToStaticMarkup(<JoinProviderSetup stored={stored} ai={{ choice: "sub" }} home="none" invitedBy="Irfad Imtiaz" spaceAi={{ key: { set: false }, admin: "Irfad Imtiaz (owner)" }} onOpen={() => undefined} onClearSecret={() => undefined} />));
+  assert.ok(none.includes("This Space has no AI key yet") && none.includes("Ask Irfad Imtiaz (owner) to add one in Console, or connect your own account."), none);
+});
