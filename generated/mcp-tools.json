@@ -17253,7 +17253,7 @@
       "blocks": [],
       "cap": "engine.placement.options",
       "deferred": false,
-      "description": "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; and where the chat runs now",
+      "description": "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now, and whether the person pinned it (not pinned is Automatic)",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -17286,7 +17286,7 @@
       "blocks": [],
       "cap": "engine.placement.set",
       "deferred": false,
-      "description": "Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers. The next turn goes there; a teammate's machine is never a choice",
+      "description": "Pin a private chat to where it runs: this computer, the Space (Team Space), or one of your own servers, or auto to take the pin off. The next turn goes there; a teammate's machine is never a choice",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -17295,6 +17295,7 @@
           },
           "target": {
             "enum": [
+              "auto",
               "device",
               "space",
               "server"
