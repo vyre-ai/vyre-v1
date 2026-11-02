@@ -19,6 +19,7 @@ import { closeNoAccountTasks, engineHost, ensureRuntime, openAs, recoverStale, s
 import { onTaskEvent, sweepBaton } from "./handlers/task-baton.ts";
 import { markLostJobs, ownerChanged, resumeAgent, stopAgent, stopPerson } from "./handlers/departures.ts";
 import type { EngineCtx } from "./projections.ts";
+import { installOnConnect } from "./engine-setup.ts";
 
 // Every engine capability first makes sure the runtime exists on a daemon that wired the engine seam (the first call builds it; a daemon without the seam leaves it unbound).
 export const handlers: Record<string, Handler> = Object.fromEntries(
@@ -105,6 +106,11 @@ export const consumers = {
   "engine.no_account_sweep": {
     on: ["provider.added"],
     run: async (ctx: EngineCtx): Promise<string[]> => closeNoAccountTasks(ctx.db),
+  },
+  /** A Claude, Codex or Grok sign-in was connected: Vyre installs that engine on this computer in the background when it is not here, so the first chat does not wait for it (engine-setup.ts). */
+  "engine.install_on_connect": {
+    on: ["provider.added"],
+    run: async (_ctx: EngineCtx, event: { payload: { providerKey?: string } }): Promise<string[]> => installOnConnect(event.payload.providerKey, { ...(engineHost()?.log ? { log: engineHost()!.log! } : {}) }),
   },
   /** The baton of a work task landed on an agent: wake it in the task's thread (handlers/task-baton.ts). */
   "engine.task_baton": {

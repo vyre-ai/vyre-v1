@@ -32,16 +32,17 @@ const CLI_NAMES = ["claude", "codex", "grok"] as const;
 
 /**
  * PATH for finding a CLI engine. An app opened from the Finder or the Dock gets PATH=/usr/bin:/bin:/usr/sbin:/sbin, where `claude` and `codex` are never installed; a person's shell would add the
- * folders below. They are appended (the given PATH keeps priority) and only the ones that exist are added, newest nvm version first. Other platforms keep their PATH as it is.
+ * folders below. They are appended (the given PATH keeps priority) and only the ones that exist are added, newest nvm version first. Other platforms keep their PATH as it is. `owned` are the folders of
+ * Vyre's own engines (engine-install.ts ownedProgramDirs), last on every platform: a person's own install wins, then a copy an app carries, then Vyre's.
  */
-export function enginePath(env: { PATH?: string | undefined }, home: string, platform: NodeJS.Platform = process.platform, exists: (p: string) => boolean = fs.existsSync, list: (p: string) => string[] = (p) => fs.readdirSync(p)): string {
+export function enginePath(env: { PATH?: string | undefined }, home: string, platform: NodeJS.Platform = process.platform, exists: (p: string) => boolean = fs.existsSync, list: (p: string) => string[] = (p) => fs.readdirSync(p), owned: readonly string[] = []): string {
   const have = (env.PATH ?? "/usr/bin:/bin").split(path.delimiter).filter((p) => p !== "");
-  if (platform !== "darwin") return have.join(path.delimiter);
+  const last = (more: readonly string[]): string => [...have, ...more.filter((p, i) => !have.includes(p) && more.indexOf(p) === i && exists(p))].join(path.delimiter);
+  if (platform !== "darwin") return last(owned);
   const nvm = path.join(home, ".nvm", "versions", "node");
   let versions: string[] = [];
   try { versions = exists(nvm) ? list(nvm).filter((v) => /^v\d+/.test(v)).sort((a, b) => b.localeCompare(a, undefined, { numeric: true })).map((v) => path.join(nvm, v, "bin")) : []; } catch { /* no nvm */ }
-  const more = [path.join(home, ".local", "bin"), "/opt/homebrew/bin", "/usr/local/bin", path.join(home, ".claude", "local"), path.join(home, ".bun", "bin"), path.join(home, ".volta", "bin"), ...versions, ...appBundledClis(home, exists, list)];
-  return [...have, ...more.filter((p) => !have.includes(p) && exists(p))].join(path.delimiter);
+  return last([path.join(home, ".local", "bin"), "/opt/homebrew/bin", "/usr/local/bin", path.join(home, ".claude", "local"), path.join(home, ".bun", "bin"), path.join(home, ".volta", "bin"), ...versions, ...appBundledClis(home, exists, list), ...owned]);
 }
 
 /**

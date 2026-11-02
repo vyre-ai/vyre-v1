@@ -27,8 +27,9 @@ export function thinkingExcerpt(text: string, max = 72): string {
   return one.length > max ? `…${one.slice(one.length - max).trimStart()}` : one;
 }
 
-/** A step in words, with what it touches when the host said so: "Reading model.ts", "Searching the web: stream pacing". */
+/** A step in words, with what it touches when the host said so: "Reading model.ts", "Searching the web: stream pacing". A turn waiting while Vyre installs its engine reads "Setting up Codex". */
 export function stepLabel(name: string, detail?: string): string {
+  if (name === "engine_setup") return detail ? `Setting up ${detail}` : "Setting up";
   const words = name !== "" ? stepWords(name) : "Working";
   if (!detail) return words;
   return /^(Read|Edit|MultiEdit|Write|NotebookEdit)$/.test(name) ? `${words} ${detail}` : `${words}: ${detail}`;

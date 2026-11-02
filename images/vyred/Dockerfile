@@ -23,13 +23,11 @@ COPY --chown=node:node . /opt/vyre
 RUN npm ci --omit=dev --no-audit --no-fund --ignore-scripts \
  && npm cache clean --force
 
-# The CLI engines a pinned chat runs with on a computer that joined a Space: Claude Code and Codex, each at an exact version (an engine that changes under a person between two chats is not what
-# they signed in to). Bump the pins on purpose; a build with an unpinned package is refused. They run only inside bubblewrap (modules/engine/node-cli.ts), with the person's own sign-in filled in
-# for the length of a turn.
-ARG ENGINE_PACKAGES="@anthropic-ai/claude-code@2.1.316 @openai/codex@0.166.0"
-RUN for p in $ENGINE_PACKAGES; do case "$p" in *@[0-9]*) ;; *) echo "not pinned: $p" >&2; exit 1;; esac; done \
- && npm install --global --omit=dev --no-fund --no-audit $ENGINE_PACKAGES \
- && npm cache clean --force
+# The CLI engines a chat runs with on this server: Claude Code, Codex and Grok, each at the exact version modules/engine/engine-pins.ts pins (an engine that changes under a person between two chats
+# is not what they signed in to). They come from the vendors' own downloads and each is checked against its pinned SHA-256 before it is kept, by the same installer a computer uses when one is missing,
+# then linked into /usr/local/bin and run once with --version. Under /usr they are readable inside bubblewrap, where they only ever run (modules/engine/node-cli.ts), with the person's own sign-in
+# filled in for the length of a turn. Bump the pins there, on purpose.
+RUN node /opt/vyre/modules/engine/bake-engines.ts /usr/local/lib/vyre/engines /usr/local/bin
 
 ENV CLAUDE_CODE_DISABLE_AUTOUPDATE=1 \
     DISABLE_AUTOUPDATER=1 \

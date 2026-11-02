@@ -25,6 +25,7 @@ test("a step says what it touches when the host said so", async () => {
   assert.equal(stepLabel("WebSearch", "stream pacing"), "Searching the web: stream pacing");
   assert.equal(stepLabel("Bash"), "Running a command");
   assert.equal(stepLabel("Read"), "Reading");
+  assert.equal(stepLabel("engine_setup", "Codex"), "Setting up Codex", "a turn waiting while Vyre installs its engine");
 });
 
 test("the line: a step in progress wins, then the thinking, else just Thinking; never a made-up word", () => {
@@ -32,6 +33,7 @@ test("the line: a step in progress wins, then the thinking, else just Thinking; 
   assert.deepEqual(activityLine(snap({ thinking: "I should compare the two files" })), { label: "Thinking", detail: "I should compare the two files" });
   assert.equal(activityLine(snap({ thinking: "x", steps: [{ id: "a", name: "Read", state: "done" }, { id: "b", name: "WebSearch", state: "live" }] })).label, "Searching the web");
   assert.equal(activityLine(snap({ thinking: "now", steps: [{ id: "a", name: "Read", state: "done" }] })).label, "Thinking", "when no step is in progress it is thinking again");
+  assert.equal(activityLine(snap({ steps: [{ id: "setup_codex", name: "engine_setup", detail: "Codex", state: "live" }] })).label, "Setting up Codex");
 });
 
 test("a long thought is shown as its last stretch on one line, and time shows only once it matters", () => {

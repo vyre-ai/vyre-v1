@@ -8,6 +8,7 @@ import path from "node:path";
 import type { AccountQuery, ResolvedAccount } from "../../../agent/src/turn-engine/index.ts";
 import { checkedOpen, createRunnableAccount, missingProgram } from "../runnable-account.ts";
 import type { NodeCliProbe } from "../cli-programs.ts";
+import { EngineInstallError } from "../engine-install.ts";
 
 const acct = (ref: string, driver: string, provider: string): ResolvedAccount => ({ ref, driver, provider, kind: driver === "anthropic" || driver === "openrouter" ? "api_key" : "subscription", payer: "dana", reason: "starter" });
 const CODEX = acct("#Codex", "codex", "openai"), CLAUDE = acct("#Claude", "claude_code", "anthropic"), GROK = acct("#Grok", "grok", "xai"), KEY = acct("#Key", "anthropic", "anthropic");
@@ -89,4 +90,75 @@ test("a turn that has no account yet is passed on; checkedOpen refuses a missing
   assert.equal(opened, 0);
   await open({ threadId: "T1", turnId: "t", traceId: "x", asker: "dana", agent: { id: "A1", mode: "lead", model: "m" }, account: CLAUDE } as never);
   assert.equal(opened, 1);
+});
+
+/** An installer whose install of each program is held until the test lets it go; `fail` makes it fail with that reason. */
+function setupOf(o: { supported?: string[]; failedRecently?: string[]; fail?: "offline" | "checksum" } = {}) {
+  const asked: string[] = [];
+  let release: () => void = () => undefined;
+  const engines = {
+    supported: (p: string) => (o.supported ?? ["claude", "codex", "grok"]).includes(p),
+    failedRecently: (p: string) => (o.failedRecently ?? []).includes(p),
+    ensure: (p: string) => { asked.push(p); return new Promise<string>((ok, no) => { release = () => (o.fail ? no(new EngineInstallError(o.fail, "no")) : ok(`/e/${p}`)); }); },
+    state: () => ({ phase: "installing" as const, done: 40, total: 100 }),
+  };
+  return { engines, asked, release: () => release() };
+}
+
+test("a pick whose program is missing but can be installed here stays: the install starts at once and no other account answers", async () => {
+  const s = setupOf();
+  const posted: unknown[] = [];
+  const fn = createRunnableAccount({ call: async (cap) => (cap === "engine.accounts.list" ? { accounts: [] } : { placement: "host", reason: "default" }), resolve: async (q) => [CODEX, CLAUDE].find((a) => !(q.unavailable ?? []).includes(a.ref)) ?? null, probe: installed("claude"), engines: s.engines, postAs: async (_a, post) => { posted.push(post); return undefined as never; } });
+  assert.equal((await fn(Q))?.ref, "#Codex", "the account the person chose");
+  assert.deepEqual(s.asked, ["codex"], "the download starts while the turn is set up");
+  assert.deepEqual(posted, [], "nothing to say: Codex answers");
+});
+
+test("when the last install failed a short while ago, or there is no build for this computer, another account answers and the line says which", async () => {
+  const posted: string[] = [];
+  const make = (engines: ReturnType<typeof setupOf>["engines"]) => createRunnableAccount({
+    call: async (cap) => (cap === "engine.accounts.list" ? { accounts: [] } : { placement: "host", reason: "default" }), resolve: async (q) => [CODEX, CLAUDE].find((a) => !(q.unavailable ?? []).includes(a.ref)) ?? null,
+    probe: installed("claude"), engines, postAs: async (_a, post) => { posted.push(((post as { blocks: Array<{ data: { text: string } }> }).blocks[0]?.data.text) ?? ""); return undefined as never; },
+  });
+  const failed = setupOf({ failedRecently: ["codex"] });
+  assert.equal((await make(failed.engines)(Q))?.ref, "#Claude");
+  assert.deepEqual(posted, ["Codex could not be set up here, so Claude answered."]);
+  assert.deepEqual(failed.asked, [], "no second download for this turn");
+  const none = setupOf({ supported: [] });
+  assert.equal((await make(none.engines)({ ...Q, threadId: "T9" }))?.ref, "#Claude");
+  assert.equal(posted[1], "Codex is not installed here, so Claude answered.");
+});
+
+test("checkedOpen: the turn waits for the install with a live line (Setting up Codex, how far it has got), then opens on the account it was given", async () => {
+  const s = setupOf();
+  const live: Array<Record<string, unknown>> = [];
+  let opened: unknown = null;
+  const open = checkedOpen(async (spec) => { opened = spec.account?.ref; return undefined as never; }, { probe: installed("claude"), engines: s.engines, live: (e) => live.push(e as never), beatMs: 5 });
+  const spec = { threadId: "T1", turnId: "t1", traceId: "x", asker: "dana", agent: { id: "A1", mode: "lead", model: "m" }, account: CODEX } as never;
+  const p = open(spec);
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(opened, null, "nothing opens before the program is there");
+  s.release();
+  await p;
+  assert.equal(opened, "#Codex", "the intended account, not a fallback");
+  assert.deepEqual(live[0], { kind: "step", phase: "call", threadId: "T1", turnId: "t1", agentId: "A1", id: "setup_codex", name: "engine_setup" });
+  assert.deepEqual(live[1], { kind: "step", phase: "input", threadId: "T1", turnId: "t1", agentId: "A1", id: "setup_codex", detail: "Codex, 40%" });
+  assert.ok(live.filter((e) => e["phase"] === "input").length >= 2, "the line keeps saying how far it has got, so the screen keeps the turn");
+  assert.deepEqual(live.at(-1), { kind: "step", phase: "result", threadId: "T1", turnId: "t1", agentId: "A1", id: "setup_codex", ok: true });
+});
+
+test("checkedOpen: an install that fails ends the turn with engine.cli_missing naming the program and why, and nothing opens; with no build here it says unsupported", async () => {
+  const s = setupOf({ fail: "offline" });
+  let opened = 0;
+  const live: Array<Record<string, unknown>> = [];
+  const open = checkedOpen(async () => { opened++; return undefined as never; }, { probe: installed(), engines: s.engines, live: (e) => live.push(e as never) });
+  const spec = { threadId: "T1", turnId: "t1", traceId: "x", asker: "dana", agent: { id: "A1", mode: "lead", model: "m" }, account: GROK } as never;
+  const p = open(spec);
+  s.release();
+  await assert.rejects(p, (e: unknown) => (e as { code?: string }).code === "engine.cli_missing" && (e as Error).message === "grok is not installed on this computer (offline).");
+  assert.equal(opened, 0);
+  assert.equal(live.at(-1)?.["ok"], false);
+  const none = setupOf({ supported: [] });
+  await assert.rejects(checkedOpen(async () => undefined as never, { probe: installed(), engines: none.engines })(spec), (e: unknown) => (e as Error).message === "grok is not installed on this computer (unsupported).");
+  assert.deepEqual(none.asked, []);
 });

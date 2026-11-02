@@ -59,9 +59,10 @@ async function runCompute(config: DaemonConfig): Promise<number> {
       cliLauncher: {
         async spawn(spec) {
           const root = fileURLToPath(new URL("../../..", import.meta.url));
-          const engine = (await fileExportsImporter(root)("engine")) as { nodeCliLauncher?: (dataDir: string) => { spawn(spec: unknown): Promise<never> } } | undefined;
+          const engine = (await fileExportsImporter(root)("engine")) as { nodeCliLauncher?: (dataDir: string, deps?: { install?: boolean }) => { spawn(spec: unknown): Promise<never> } } | undefined;
           if (!engine?.nodeCliLauncher) throw Object.assign(new Error("this computer has no engine module"), { code: "engine.cli_failed" });
-          cli ??= engine.nodeCliLauncher(config.dataDir);
+          // an engine this computer lacks (Grok, or any on an older image) is installed into its own engines folder the first time a turn needs it
+          cli ??= engine.nodeCliLauncher(config.dataDir, { install: true });
           return cli.spawn(spec);
         },
       },
@@ -80,7 +81,7 @@ async function main(): Promise<number> {
   let resolveStopped:()=>void=()=>{};
   const stopped=new Promise<void>(resolve=>{resolveStopped=resolve;});
   let d: Daemon;
-  try { d = await startDaemon({ config, onStopped:resolveStopped }); }
+  try { d = await startDaemon({ config, onStopped:resolveStopped, engineInstall: true }); }
   catch (e) {
     // A daemon that could not start ends here, at once and non-zero, with the reason on stderr: the services it had begun (the scheduler, the stores) would otherwise keep the process alive and the
     // shell that started it would wait out its timeout instead of showing this line.

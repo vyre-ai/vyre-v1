@@ -189,6 +189,12 @@ test("a missing engine and an unreadable Vault carry what the chat needs to say 
   const missing = setup({ script: [{ type: "error", code: "engine.cli_missing", message: "codex is not installed on this computer." }] });
   await missing.say("Go");
   assert.deepEqual(missing.chat.find((r) => r.author.id === LEAD)?.blocks, [{ type: "turn_status", v: 1, data: { state: "failed", turnId: missing.engine.turns(T)[0]?.id, code: "engine.cli_missing", program: "codex" } }]);
+  const notSetUp = setup({ script: [{ type: "error", code: "engine.cli_missing", message: "grok is not installed on this computer (offline)." }] });
+  await notSetUp.say("Go");
+  assert.deepEqual((notSetUp.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data, { state: "failed", turnId: notSetUp.engine.turns(T)[0]?.id, code: "engine.cli_missing", program: "grok", setup: "offline" }, "why Vyre's own install did not finish, as one fixed word");
+  const odd = setup({ script: [{ type: "error", code: "engine.cli_missing", message: "codex is not installed on this computer (rm -rf)." }] });
+  await odd.say("Go");
+  assert.equal((odd.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data["setup"], undefined, "only the known reasons are carried");
   const free = setup({ script: [{ type: "error", code: "engine.cli_missing", message: "rm -rf is not installed" }] });
   await free.say("Go");
   assert.equal((free.chat.find((r) => r.author.id === LEAD)?.blocks[0] as { data: Record<string, unknown> }).data["program"], undefined, "only the engines are named");
