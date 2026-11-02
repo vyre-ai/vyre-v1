@@ -324,7 +324,7 @@ function PickStep({ d, list, mounted, onQuery, onPress, onInto, onCrumb, onMore,
         {list.status === "error" ? (
           <View style={st.none} testID="mount-list-error">
             <Text style={st.noneText}>Could not load that.</Text>
-            <Btn label="Try again" onPress={onRetry} testID="mount-retry" />
+            <Pressable accessibilityRole="button" accessibilityLabel="Try again" onPress={onRetry} testID="mount-retry"><Text style={st.retry}>Try again</Text></Pressable>
           </View>
         ) : null}
         {list.status === "ready" && list.items.length === 0 ? (
@@ -418,6 +418,7 @@ const st = StyleSheet.create({
   dis: { opacity: 0.5 },
   none: { padding: 18, alignItems: "center", gap: 8 },
   noneText: { fontSize: 13, color: "var(--ink-3)" as string, textAlign: "center" },
+  retry: { fontSize: 13, color: "var(--ink-3)" as string, textAlign: "center", fontWeight: "600" },
   skRow: { height: 28, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 8 },
   skMark: { width: 20, height: 20, borderRadius: 5, backgroundColor: "var(--hover)" as string },
   skBar: { height: 10, borderRadius: 5, backgroundColor: "var(--hover)" as string },

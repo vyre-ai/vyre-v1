@@ -242,7 +242,8 @@ test("the Windows setup program reaches the release as VyreSetup.exe with a SHA-
   const desktop = wf("desktop"), rel = wf("release");
   assert.match(desktop.text, /bundle\/nsis\/\*-setup\.exe/, "the build's own output name is globbed, then renamed");
   assert.match(desktop.text, /cp "\$\{exes\[0\]\}" win-exe\/VyreSetup\.exe/);
-  assert.match(desktop.text, /sha256sum VyreSetup\.exe\) > win-sum\/VyreSetup\.exe\.sha256/);
+  assert.match(desktop.text, /sum=\$\(sha256sum win-exe\/VyreSetup\.exe \| cut -c1-64\)/);
+  assert.match(desktop.text, /printf '%s  VyreSetup\.exe\\n' \"\$sum\" > win-sum\/VyreSetup\.exe\.sha256/);
   assert.match(desktop.text, /name: desktop-Windows-sha256, path: win-sum/);
   assert.match(desktop.text, /name: desktop-Windows-exe, path: win-exe/);
   // Tauri's name for the installer is <productName>_<version>_<arch>-setup.exe: the glob has to match it
