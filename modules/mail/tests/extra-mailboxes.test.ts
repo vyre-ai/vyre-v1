@@ -237,7 +237,7 @@ test("auto-connect creates one Pending mailbox and one notice for each new membe
   ]);
   const notices = h.named("mailbox.connected");
   assert.equal(notices.length, 2);
-  assert.ok(notices.every((e) => e.payload.private === undefined), "the row is shared with the Space until the member marks it private, so the notice cannot say private");
+  assert.ok(notices.every((e) => e.payload.private === true), "a member's own mailbox never inherits the Space's access: this flag is what makes it a private root");
   assert.deepEqual(notices.map((e) => [e.payload.memberId, e.payload.provider, e.payload.auto, e.vis]).sort(), [
     ["usr_lee01", "google", true, "participants"], ["usr_pat01", "google", true, "participants"],
   ]);
