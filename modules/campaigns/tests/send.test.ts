@@ -8,6 +8,7 @@ import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import { poolOptedIn, recordWarmupHealth } from "../impl.ts";
 import { DAY, HOUR, MINUTE, NOW, harness } from "../fixtures/world.ts";
 import type { World } from "../fixtures/world.ts";
+import { configureCampaigns } from "../projections.ts";
 import { EMAIL_STEP, build, code, deliver, launch, pass, run, unsubscribeToken } from "../fixtures/seed.ts";
 
 interface Row { campaignId: string; state: string }
@@ -591,3 +592,35 @@ test("consumers ignore events that are not about a campaign they know", async ()
   assert.equal(w.db.rows("campaigns_member")[0]!.replied_at, null);
   assert.equal(w.db.rows("campaigns_reply").length, 1, "the reply row is kept, but no member is marked");
 });
+
+test("unsubscribe: a failed opt-out leaves the link good, so the retry really unsubscribes", async () => {
+  const w = harness();
+  w.contact(1);
+  const one = await build(w, { name: "One shot" });
+  await launch(w, one.campaignId);
+  const token = unsubscribeToken(String(w.mail[0]!.input.text));
+  const real = w.ctx.call;
+  w.ctx.call = (async (cap: string, input: unknown) => { if (cap === "contacts.apply_optout") throw new Error("contacts is down"); return real(cap, input); }) as typeof w.ctx.call;
+  await assert.rejects(run(w.ctx, "campaigns.unsubscribe", { token }));
+  w.ctx.call = real;
+  assert.deepEqual(await run(w.ctx, "campaigns.unsubscribe", { token }), { ok: true });
+  assert.equal(w.optouts.length, 1, "the second try did the work");
+});
+
+test("the link lives under /p/ on a phone address, where the relay carries nothing else", async () => {
+  const w = harness();
+  configureCampaigns({ publicBase: "https://alex.vyre.run", publicPath: true });
+  w.contact(1);
+  await launch(w, (await build(w, { name: "One shot" })).campaignId);
+  assert.match(String(w.mail[0]!.input.text), /https:\/\/alex\.vyre\.run\/p\/u\/[A-Za-z0-9_-]{16,}/);
+  assert.match(String(w.mail[0]!.input.html ?? w.mail[0]!.input.text), /\/p\/u\//);
+});
+
+test("an email campaign needs a public address: with none, its unsubscribe link would open nothing, so it does not launch", async () => {
+  const w = harness({ publicBase: null });
+  w.contact(1);
+  const one = await build(w, { name: "One shot" });
+  assert.equal(await code(launch(w, one.campaignId)), "validation.precondition_failed");
+  assert.equal(w.mail.length, 0);
+});
+

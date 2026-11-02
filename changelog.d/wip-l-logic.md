@@ -19,3 +19,6 @@
 - A person can connect through Workspace delegation only the address matched to them: typing a colleague's address no longer opens their mail. An agent working for a person is held to the same rule.
 - Records, Agents now lists the agents themselves, so it always matches Chats. New makes a real agent with no second row beside it; an old row with nothing behind it stays, marked, and offers to set it up.
 - A person who leaves a Space stops: their mailboxes end and their own Google and Microsoft sign-ins go, as they do when someone is removed.
+- Calls and texts now follow the access rules for their number, the same way the Inbox does. Whoever a call rings for, and whoever holds it after a transfer, keeps it.
+- The unsubscribe link in a campaign email now works for someone with no account, at a Space address and a vyre.run address, with a plain confirmation that shows nothing of the Space. A mail scanner fetching the link unsubscribes nobody, and a failed unsubscribe says so and can be tried again.
+- A project link for a client now opens on a vyre.run address. A relay Space invites at its vyre.run name, not this computer, a portal email on one says why it cannot be sent, and an email campaign needs a public address before it can launch.
