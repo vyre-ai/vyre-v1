@@ -30,7 +30,7 @@
     "telephony.registration.refresh@1": "8552e09074ccccf9c41da00b9a121c36d0496f1d3596c02b2032c201bde4703f",
     "telephony.registration.save@1": "fe6b84cfde6032769700ed47fba1961285650e48deb9599693a631d90671e494",
     "telephony.registration.submit@1": "d85c37079dc1b1ede2182d235ec1af861fb7bfb14b98ed134b7ec48d37bb0c89",
-    "telephony.send_sms@1": "d51289ab6ba1f19aad43d8486bb64249b0a0e227c930a40e50fe5a48c8ddebcc",
+    "telephony.send_sms@1": "089e0cccc417b4ce157970f326f55f4a6e407ed25c3e1b21621a065896bcf716",
     "telephony.sms.erase@1": "42d119e9dbb6513ff5054982c958d6eb1ef87cb7638d099b44bbf4024d2d4299",
     "telephony.sms.list@1": "0c18b8ecca3f8f1f591d5c49d6e2f2f7040caab23c69597dedf511117b994a69",
     "telephony.transfer@1": "7256d3ed3492e64d231d67dfe795e5b8ea195faef1698d6c5c12b4366e21cfc2",

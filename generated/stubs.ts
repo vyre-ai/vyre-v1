@@ -21,6 +21,7 @@ export function stubs(ctx: CallCtx) {
         update: call("access.actors.update"),
       },
       audience_set: call("access.audience_set"),
+      automation_senders: call("access.automation_senders"),
       check: call("access.check"),
       connector_builder: {
         grant: call("access.connector_builder.grant"),
@@ -234,6 +235,7 @@ export function stubs(ctx: CallCtx) {
       retry: call("automations.retry"),
       run: call("automations.run"),
       schedule_choose: call("automations.schedule_choose"),
+      senders: call("automations.senders"),
       set_enabled: call("automations.set_enabled"),
       steps: {
         list: call("automations.steps.list"),

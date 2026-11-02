@@ -101,6 +101,51 @@ export type AccessAudienceSetOut = {
   exporters: "admins" | "viewers" | "chosen";
   outside: boolean;
 };
+export type AccessAutomationSendersIn = {
+  automationId: string;
+  give: Array<{
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      id: string;
+    }>;
+  keep: Array<{
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      id: string;
+    }>;
+};
+export type AccessAutomationSendersOut = {
+  granted: Array<{
+      id: string;
+      subject: {
+        kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+        id: string;
+      };
+      resource: {
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        id: string;
+      };
+      level: "view" | "use" | "edit" | "manage";
+      conditions: {
+        rowFilter?: unknown;
+        hiddenFields?: Array<string>;
+        labelCeiling?: "public" | "internal" | "confidential" | "restricted";
+        window?: {
+          from: number;
+          to: number;
+        };
+        expiresAt?: number;
+        export?: boolean;
+        reshare?: boolean;
+      };
+      by: string;
+      source?: string;
+      createdAt: number;
+    }>;
+  revoked: number;
+  refused: Array<{
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      id: string;
+    }>;
+};
 export type AccessCheckIn = {
   principal: {
     kind: "person" | "agent" | "actor" | "service";
@@ -3530,6 +3575,18 @@ export type AutomationsScheduleChooseOut = {
     }>;
   paused: boolean;
   error?: string;
+};
+export type AutomationsSendersIn = {
+  automationId: string;
+};
+export type AutomationsSendersOut = {
+  senders: Array<{
+      id: string;
+      channel: "email" | "text";
+      address: string;
+      usable: boolean;
+      why?: string;
+    }>;
 };
 export type AutomationsSetEnabledIn = {
   automationId: string;
@@ -17665,6 +17722,7 @@ export type MailgunRoutesListOut = {
     }>;
 };
 export type MailgunSendEmailIn = {
+  mailboxId: string;
   domain: string;
   from: string;
   fromName?: string;
@@ -23807,6 +23865,7 @@ export type ResendReceiveWebhookOut = {
   accepted: boolean;
 };
 export type ResendSendEmailIn = {
+  mailboxId: string;
   from: string;
   fromName?: string;
   to: Array<string>;
@@ -31231,6 +31290,7 @@ export type TelephonySendSmsIn = {
   contactId?: string;
   replyToId?: string;
   sendAt?: number;
+  transactional?: boolean;
   idempotencyKey: string;
 };
 export type TelephonySendSmsOut = {
@@ -32524,6 +32584,7 @@ export type TwilioRecordingStopOut = {
   stopped: boolean;
 };
 export type TwilioSmsSendIn = {
+  numberId: string;
   from: string;
   to: string;
   body: string;
@@ -33760,6 +33821,7 @@ export interface CapMap {
   "access.actors.set_engineer_mcp": { in: AccessActorsSetEngineerMcpIn; out: AccessActorsSetEngineerMcpOut };
   "access.actors.update": { in: AccessActorsUpdateIn; out: AccessActorsUpdateOut };
   "access.audience_set": { in: AccessAudienceSetIn; out: AccessAudienceSetOut };
+  "access.automation_senders": { in: AccessAutomationSendersIn; out: AccessAutomationSendersOut };
   "access.check": { in: AccessCheckIn; out: AccessCheckOut };
   "access.connector_builder.grant": { in: AccessConnectorBuilderGrantIn; out: AccessConnectorBuilderGrantOut };
   "access.connector_builder.status": { in: AccessConnectorBuilderStatusIn; out: AccessConnectorBuilderStatusOut };
@@ -33905,6 +33967,7 @@ export interface CapMap {
   "automations.retry": { in: AutomationsRetryIn; out: AutomationsRetryOut };
   "automations.run": { in: AutomationsRunIn; out: AutomationsRunOut };
   "automations.schedule_choose": { in: AutomationsScheduleChooseIn; out: AutomationsScheduleChooseOut };
+  "automations.senders": { in: AutomationsSendersIn; out: AutomationsSendersOut };
   "automations.set_enabled": { in: AutomationsSetEnabledIn; out: AutomationsSetEnabledOut };
   "automations.steps.list": { in: AutomationsStepsListIn; out: AutomationsStepsListOut };
   "automations.stop": { in: AutomationsStopIn; out: AutomationsStopOut };
@@ -36659,6 +36722,7 @@ export type FormSubmittedPayload = {
   recordId: string;
   type: string;
   matched: boolean;
+  booking?: boolean;
 };
 export type GateApprovedPayload = {
   holdId: string;

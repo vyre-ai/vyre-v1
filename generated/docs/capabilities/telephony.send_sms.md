@@ -33,6 +33,7 @@ type In = {
   contactId?: string;
   replyToId?: string;
   sendAt?: number;
+  transactional?: boolean;
   idempotencyKey: string;
 };
 ```
@@ -78,7 +79,8 @@ type Out = {
     "replyToId": "sms_a1b2c3",
     "sendAt": 1760000000000,
     "senderId": "num_a1b2c3",
-    "to": "+14155550123"
+    "to": "+14155550123",
+    "transactional": true
   },
   "output": {
     "smsId": "sms_a1b2c3",

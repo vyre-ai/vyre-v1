@@ -11,7 +11,7 @@
     "resend.inbound.get_email@1": "94ad7e222c0fc6586ff7dec990b2759bc865a32c90ddb4a64fe1b76c38bf5f50",
     "resend.receive_inbound@1": "4225a81f616433683b7273c30d3fb256505d098260797cc286894b0ad33c417a",
     "resend.receive_webhook@1": "4bf09e37df306e015e65214df2d1dfded5b961172fa5f5d34d15a1715d4cad23",
-    "resend.send_email@1": "097570d356dab8843259800c9ea6401c70f6acd28c455394dfcf0cb62d613482"
+    "resend.send_email@1": "d828e01816b6f68f0419dd0174fdbfb108a2b2db3605b5f98c073dc35f867a08"
   },
   "events": {
     "resend.event_received": "acccc227f97100adc50a7d67c8063aad78bb0b079f73da9268d8271193b45788",

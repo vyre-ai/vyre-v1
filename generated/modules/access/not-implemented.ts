@@ -12,6 +12,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "access.actors.set_engineer_mcp": async (ctx) => { throw new VyreErr(notImplemented("access.actors.set_engineer_mcp", ctx.trace)); },
   "access.actors.update": async (ctx) => { throw new VyreErr(notImplemented("access.actors.update", ctx.trace)); },
   "access.audience_set": async (ctx) => { throw new VyreErr(notImplemented("access.audience_set", ctx.trace)); },
+  "access.automation_senders": async (ctx) => { throw new VyreErr(notImplemented("access.automation_senders", ctx.trace)); },
   "access.check": async (ctx) => { throw new VyreErr(notImplemented("access.check", ctx.trace)); },
   "access.connector_builder.grant": async (ctx) => { throw new VyreErr(notImplemented("access.connector_builder.grant", ctx.trace)); },
   "access.connector_builder.status": async (ctx) => { throw new VyreErr(notImplemented("access.connector_builder.status", ctx.trace)); },

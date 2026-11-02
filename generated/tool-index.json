@@ -806,6 +806,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_senders",
+      "summary": "What this Automation sends from: the mailboxes and numbers its steps name, and whether each can send now",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_set_enabled",
       "summary": "Turn an Automation on or off",
       "toolset": "automations"

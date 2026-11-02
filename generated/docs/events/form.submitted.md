@@ -22,5 +22,6 @@ type Payload = {
   recordId: string;
   type: string;
   matched: boolean;
+  booking?: boolean;
 };
 ```
