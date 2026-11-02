@@ -180,7 +180,7 @@ test("How you work runs on the bar: Next, Next, then Save, with Previous questio
   await flush();
   const root = r.container as never;
   assert.equal(find(root, "interview-next"), null);
-  assert.ok(textOf(find(root, "step-why")).includes("Answer the three questions first"));
+  assert.ok(textOf(find(root, "step-why")).includes("Answer the questions first"));
   await press(find(root, "interview-suggest-0"));
   assert.ok(textOf(find(root, "step-next")).includes("Next"));
   await press(find(root, "step-next"));

@@ -35,9 +35,9 @@ export const askFor = (card: CardKind): StepAsk | null => ASK[card] ?? null;
 
 /** Why Continue waits, said beside it while it does: what the step needs, in a few words. Every step can also be skipped for now. */
 export const WAIT: Partial<Record<CardKind, string>> = {
-  connect_ai: "Sign in or add a key first", interview: "Answer the three questions first", import_sessions: "Tick the sessions to bring in", local_folders: "Add a folder first",
+  connect_ai: "Sign in or add a key first", interview: "Answer the questions first", import_sessions: "Tick sessions to import", local_folders: "Add a folder first",
   chrome: "Add the extension first", phone: "Pair your phone first", first_win: "Pick a routine first", bridge_team: "Create a Team Space first",
-  org: "Name your Space first", space_ai: "Add a key for everyone or your own account", google_microsoft: "Finish the setup in the Console first", sign_in_domain: "Set up work sign-in first",
+  org: "Name your Space first", space_ai: "Add a key or sign in first", google_microsoft: "Finish the setup in the Console first", sign_in_domain: "Set up work sign-in first",
   directory: "Invite people first", invites: "Make an invite first", own_data: "Open it to look", apps: "Open it to look", meet_agents: "Open it to look",
 };
 export const waitFor = (card: CardKind): string => WAIT[card] ?? "Nothing to do here yet";

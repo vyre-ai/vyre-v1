@@ -63,7 +63,6 @@ export function SpaceAiCard({ team, personal, onConnected, gate, me = { id: "", 
       />
       {choice === "space" ? (
         <View testID="space-ai-key" style={s.col}>
-          <Text style={s.lead}>One key for the whole Space, like OpenCode Go. People and agents with no AI account of their own use it, and nobody can read it back.</Text>
           <ConsoleDataProvider value={data}><SpaceKey onState={onState} /></ConsoleDataProvider>
         </View>
       ) : (
