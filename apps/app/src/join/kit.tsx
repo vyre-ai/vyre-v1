@@ -38,15 +38,14 @@ const ringShadow = (p: EntryPalette, on: boolean): ViewStyle => (on ? shadow(`0 
 function ensureMotion(): void {
   injectCss((globalThis as { document?: Parameters<typeof injectCss>[0] }).document, "vyre-entry-motion",
     "@keyframes vyre-entry-fade{from{opacity:0}to{opacity:1}}"
-    + "@keyframes vyre-entry-spin{to{transform:rotate(360deg)}}"
     + "@keyframes vyre-entry-run{0%{left:-34%}100%{left:100%}}"
     + "@keyframes vyre-entry-breathe{0%,100%{opacity:1}50%{opacity:.35}}"
-    + "[data-entry-step]{animation:vyre-entry-fade 220ms ease both}"
-    + "[data-entry-spin]{animation:vyre-entry-spin 800ms linear infinite}"
+    + "[data-entry-step]{animation:vyre-entry-fade 140ms ease both}"
+    + "[data-entry-after]{animation:vyre-entry-fade 140ms ease 300ms both}"
     + "[data-entry-run]{animation:vyre-entry-run 1600ms ease-in-out infinite}"
     + "[data-entry-wait] circle{animation:vyre-entry-breathe 1600ms ease-in-out infinite}"
-    + "[data-entry-height]{transition:height 240ms cubic-bezier(.2,.8,.2,1)}"
-    + "@media (prefers-reduced-motion: reduce){[data-entry-step],[data-entry-spin],[data-entry-run],[data-entry-wait] circle{animation:none!important}[data-entry-height]{transition:none!important}}");
+    + "[data-entry-height]{transition:height 140ms ease}"
+    + "@media (prefers-reduced-motion: reduce){[data-entry-step],[data-entry-after],[data-entry-run],[data-entry-wait] circle{animation:none!important}[data-entry-height]{transition:none!important}}");
 }
 
 // The window size as an external store: the static export is pre-rendered with no window, and a size read during the first render would keep the pre-rendered layout (the phone
@@ -89,11 +88,11 @@ export function JoinFrame({ children }: { children: ReactNode }): ReactElement {
   );
 }
 
-/** The Vyre mark: the V in the ink, the spark in the beacon. While `wait` the spark breathes. */
-export function Mark({ size = 40, wait }: { size?: number; wait?: boolean }): ReactElement {
-  if (!web) return <Text style={{ color: ENTRY.ink, fontSize: Math.round(size * 0.6), fontWeight: "700" }}>V</Text>;
+/** The Vyre mark: the V in the ink, the spark in the beacon. While `wait` the spark breathes. `ink` is for a mark drawn on a filled control. */
+export function Mark({ size = 40, wait, ink = ENTRY.ink }: { size?: number; wait?: boolean; ink?: string }): ReactElement {
+  if (!web) return <Text style={{ color: ink, fontSize: Math.round(size * 0.6), fontWeight: "700" }}>V</Text>;
   return createElement("svg", { viewBox: "0 0 24 24", width: size, height: size, "aria-hidden": true, "data-icon": "vyre-mark", ...(wait ? { "data-entry-wait": "" } : {}), style: { display: "block", flex: "none" } },
-    createElement("path", { d: "M5.2 6.4l6.3 11.2 4.9-8.6", fill: "none", stroke: ENTRY.ink, strokeWidth: 3.1, strokeLinecap: "round", strokeLinejoin: "round" }),
+    createElement("path", { d: "M5.2 6.4l6.3 11.2 4.9-8.6", fill: "none", stroke: ink, strokeWidth: 3.1, strokeLinecap: "round", strokeLinejoin: "round" }),
     createElement("circle", { cx: 18.6, cy: 5.6, r: 2.7, fill: ENTRY.spark }));
 }
 
@@ -234,7 +233,7 @@ export function Links({ children, top }: { children: ReactNode; top?: number }):
   return <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 8, marginTop: top ?? 6, marginBottom: -12 }}>{children}</View>;
 }
 
-/** The primary action: the accent fill, full width, 44 px. Disabled it is a quiet neutral, so it reads as not yet available rather than as a faded accent. While `busy` a small ring turns beside the word. */
+/** The primary action: the accent fill, full width, 44 px. Disabled it is a quiet neutral, so it reads as not yet available rather than as a faded accent. While `busy` the word stays put and the breathing mark comes in beside it. */
 export function Button({ label, onPress, disabled, large, testID, quiet, busy }: { label: string; onPress?: (() => void) | undefined; disabled?: boolean; large?: boolean; testID?: string; quiet?: boolean; busy?: boolean }): ReactElement {
   const { p } = useJoin();
   const r = useRing();
@@ -247,7 +246,7 @@ export function Button({ label, onPress, disabled, large, testID, quiet, busy }:
     >
       {({ hovered }: { hovered?: boolean }) => (
         <View style={{ minHeight: 44, flexDirection: "row", gap: 8, alignItems: "center", justifyContent: "center", paddingHorizontal: 18, borderRadius: 10, backgroundColor: off && !busy ? p.field : quiet ? (hovered ? p.hover : p.field) : p.accent, opacity: hovered && !off && !quiet ? 0.92 : 1, ...(quiet ? shadow(`inset 0 0 0 1px ${p.fieldLine}`) : {}) }}>
-          {busy ? <Spinner size={16} color={quiet ? p.ink3 : p.accentInk} /> : null}
+          {busy ? <View style={{ position: "absolute", left: 14 }}><Waiting ink={quiet ? p.ink3 : p.accentInk} /></View> : null}
           <Text numberOfLines={1} style={[base(p), { color: off && !busy ? p.ink4 : quiet ? p.ink : p.accentInk, fontSize: 15, fontWeight: "600" }]}>{label}</Text>
         </View>
       )}
@@ -302,7 +301,7 @@ export function Door({ icon, title, hint, n, onPress, testID, busy, disabled }: 
             <Text style={[base(p), { fontSize: 15, lineHeight: 20, fontWeight: "600", letterSpacing: -0.1 }]}>{busy ? "Starting" : title}</Text>
             {hint ? <Text style={[base(p), { fontSize: 12.5, lineHeight: 16, color: p.ink3 }]}>{hint}</Text> : null}
           </View>
-          {busy ? <Spinner size={16} /> : n ? <View style={{ minWidth: 20, height: 20, borderRadius: 6, alignItems: "center", justifyContent: "center", ...shadow(`inset 0 0 0 1px ${p.line2}`) }}><Text style={[base(p), { fontSize: 11, lineHeight: 14, color: p.ink4 }]}>{n}</Text></View> : <Chevron color={p.ink4} />}
+          {busy ? <Waiting /> : n ? <View style={{ minWidth: 20, height: 20, borderRadius: 6, alignItems: "center", justifyContent: "center", ...shadow(`inset 0 0 0 1px ${p.line2}`) }}><Text style={[base(p), { fontSize: 11, lineHeight: 14, color: p.ink4 }]}>{n}</Text></View> : <Chevron color={p.ink4} />}
         </>
       )}
     </Pressable>
@@ -314,11 +313,9 @@ export function Choice({ title, help, icon, onPress, testID, busy, disabled }: {
   return <Door icon={icon} title={title} hint={help} {...(onPress ? { onPress } : {})} {...(testID ? { testID } : {})} {...(busy ? { busy } : {})} {...(disabled ? { disabled } : {})} />;
 }
 
-/** A turning ring. Still when the person asks for less motion. */
-export function Spinner({ size = 16, color }: { size?: number; color?: string }): ReactElement {
-  const { p } = useJoin();
-  const c = color ?? p.accent;
-  return <View accessible={false} {...(web ? { dataSet: { entrySpin: "" } } : {})} style={{ width: size, height: size, borderRadius: size / 2, borderWidth: 2, borderColor: c, borderTopColor: "transparent", opacity: 0.8 }} />;
+/** Something is on its way: nothing for 300 ms, so a quick answer shows no wait at all, then the breathing mark. Still when the person asks for less motion. */
+export function Waiting({ size = 16, ink }: { size?: number; ink?: string }): ReactElement {
+  return <View accessible={false} {...(web ? { dataSet: { entryAfter: "" } } : {})}><Mark size={size} wait {...(ink ? { ink } : {})} /></View>;
 }
 
 /** A step that takes a while: one heading and what is happening now. The sheet's own top line runs; pair with <Panel wait>. A polite live region, so a screen reader hears it. */

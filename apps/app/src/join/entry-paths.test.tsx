@@ -11,7 +11,8 @@ import { JoinRefused, acceptDesktopJoin } from "../shell/session/desktop.ts";
 import { LockScreen, passwordKeyState, unlockWithPassword } from "../shell/session/KeyGate.tsx";
 import { SessionGate } from "../shell/session/SessionGate.tsx";
 import { MANY_TRIES, OFFLINE_SPACE, TOO_MANY, WRONG_SIGN_IN, isMiss, signInLine } from "./failure.ts";
-import { JoinFrame, Opening } from "./kit.tsx";
+import { readFileSync } from "node:fs";
+import { Button, JoinFrame, Opening } from "./kit.tsx";
 import { initialState, reduce } from "./logic.ts";
 import { JoinFlow } from "./JoinFlow.tsx";
 import type { JoinInvite } from "./logic.ts";
@@ -92,4 +93,23 @@ test("the first frame of every path is the mark on the sheet: no doors, no form,
   for (const id of ["door-me", "door-invited", "si-user", "lock-password"]) assert.doesNotMatch(first, new RegExp(`data-testid="${id}"`));
   assert.match(renderToStaticMarkup(<Opening title="Opening your Vault" />), /Opening your Vault/);
   assert.match(renderToStaticMarkup(<JoinFrame><span /></JoinFrame>), /background-color:var\(--rail\)/, "the ground is the rail token");
+});
+
+test("a wait is the breathing mark after 300 ms, never a turning ring, and the word does not move", () => {
+  const busy = renderToStaticMarkup(<JoinFrame><Button label="Sign in" busy /></JoinFrame>);
+  assert.match(busy, /data-entry-wait/);
+  assert.match(busy, /data-entry-after/);
+  assert.match(busy, /aria-busy="true"/);
+  assert.doesNotMatch(busy, /entry-spin/);
+  assert.doesNotMatch(renderToStaticMarkup(<JoinFrame><Button label="Sign in" /></JoinFrame>), /data-entry-wait/);
+  const kit = readFileSync(new URL("./kit.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(kit, /vyre-entry-spin|rotate\(360deg\)/);
+  assert.match(kit, /vyre-entry-fade 140ms ease 300ms both/);
+});
+
+test("steps fade in 140 ms on every entry screen, and the onboarding cards use tokens, not colours of their own", () => {
+  const read = (f: string): string => readFileSync(new URL(f, import.meta.url), "utf8");
+  assert.match(read("./kit.tsx"), /\[data-entry-step\]\{animation:vyre-entry-fade 140ms/);
+  assert.match(read("../onboarding/OnboardingScreen.tsx"), /\[data-vyre-ob\]\{animation:vyre-ob-in 140ms/);
+  for (const f of ["./Checklist.tsx", "../onboarding/SessionsCard.tsx", "../onboarding/ChromeCard.tsx", "../onboarding/StepGlyph.tsx"]) assert.doesNotMatch(read(f), /#[0-9a-fA-F]{3,8}\b|gradient\(/, f);
 });

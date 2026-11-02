@@ -57,7 +57,7 @@ const web = Platform.OS === "web";
 function ensureCss(): void {
   injectCss((globalThis as { document?: Parameters<typeof injectCss>[0] }).document, "vyre-onboard-motion",
     "@keyframes vyre-ob-in{from{opacity:0}to{opacity:1}}"
-    + "[data-vyre-ob]{animation:vyre-ob-in 220ms ease both}"
+    + "[data-vyre-ob]{animation:vyre-ob-in 140ms ease both}"
     + "@media (prefers-reduced-motion: reduce){[data-vyre-ob]{animation:none!important;transition:none!important}}");
 }
 const fade = web ? { dataSet: { vyreOb: "1" } } : {};

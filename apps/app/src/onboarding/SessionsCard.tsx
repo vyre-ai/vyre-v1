@@ -119,7 +119,7 @@ const s = StyleSheet.create({
   rowOn: { borderColor: "var(--accent-line)" as string, backgroundColor: "var(--accent-wash)" as string },
   box: { width: 18, height: 18, borderRadius: 5, borderWidth: 1.5, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center" },
   boxOn: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
-  tick: { color: "#fff", fontSize: 12, lineHeight: 14 },
+  tick: { color: "var(--accent-ink)" as string, fontSize: 12, lineHeight: 14 },
   text: { flex: 1, minWidth: 0, paddingVertical: 6 },
   name: { fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
   sub: { fontSize: 12, color: "var(--ink-3)" as string },

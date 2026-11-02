@@ -103,7 +103,7 @@ const s = StyleSheet.create({
   lead: { width: 32, alignItems: "flex-start", justifyContent: "center" },
   circle: { width: 20, height: 20, borderRadius: 99, alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: "var(--line-2)" as string },
   circleDone: { backgroundColor: "var(--ok)" as string, borderWidth: 0 },
-  tick: { fontSize: 11, lineHeight: 12, color: "#fff", fontWeight: "700" },
+  tick: { fontSize: 11, lineHeight: 12, color: "var(--win)" as string, fontWeight: "700" },
   go: { height: 26, paddingHorizontal: 12, borderRadius: 7, backgroundColor: "var(--accent-wash)" as string, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   goText: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
   locked: { fontSize: 12.5, color: "var(--ink-3)" as string },

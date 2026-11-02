@@ -7,7 +7,7 @@ import { stepLook } from "./stepStyle.ts";
 
 const CHECK = ["M3.500 8.500l3 3 6-7"], DASH = ["M4 8h8"];
 
-export function Glyph({ paths, size = 16, color = "#fff", width = 1.6 }: { paths: readonly string[]; size?: number; color?: string; width?: number }): ReactElement | null {
+export function Glyph({ paths, size = 16, color = "var(--ink)", width = 1.6 }: { paths: readonly string[]; size?: number; color?: string; width?: number }): ReactElement | null {
   if (Platform.OS !== "web") return null;
   const kids: ReactElement[] = [];
   for (const d of paths) kids.push(createElement("path", { key: d, d }));
