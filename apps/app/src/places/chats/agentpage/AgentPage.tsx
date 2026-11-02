@@ -85,6 +85,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   const [colW, setColW] = useState(0);
   const titles = useTitleWidths();
   const [notice, setNotice] = useState<{ text: string; undo?: () => Promise<void> | void } | null>(null);
+  const [sure, setSure] = useState(false);
   const deps: PageDeps = useMemo(() => ({
     call: data.call,
     note: (text: string, undo?: () => Promise<void> | void) => setNotice(undo ? { text, undo } : { text }),
@@ -111,14 +112,14 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
   const paused = agent.status === "paused";
 
   const chat = (): void => { void startChat(deps, agentId, name).then((id) => { if (id !== null) data.nav.openChat(id); }); };
-  const remove = (): void => { void removeOutside(deps, agentId, name, () => undefined); };
+  const remove = (): void => { void removeOutside(deps, agentId, name, () => data.nav.closePage()); };
   const moreMenu = (x: number, y: number): void => {
     menu.show([
       { label: "Chat", onSelect: chat },
       { label: "Automation Runs", onSelect: () => data.nav.openAutomationRuns(agentId) },
       { label: "Open Folder", onSelect: () => data.nav.openFolder(agent.folderId) },
       ...(!noComputers && agent.hasComputer && data.agent.computerId ? [{ label: "Open Computer", onSelect: () => data.nav.openComputer(data.agent.computerId ?? "") }] : []),
-      ...(outside ? [{ separator: true as const }, { label: "Remove", onSelect: remove }] : data.canEdit ? [{ separator: true as const }, paused ? { label: "Resume", onSelect: () => void resume(deps, agentId, name) } : { label: "Pause", onSelect: () => void pause(deps, agentId, name, "Paused from the agent page") }] : []),
+      ...(outside ? [{ separator: true as const }, { label: "Remove", onSelect: () => setSure(true) }] : data.canEdit ? [{ separator: true as const }, paused ? { label: "Resume", onSelect: () => void resume(deps, agentId, name) } : { label: "Pause", onSelect: () => void pause(deps, agentId, name, "Paused from the agent page") }] : []),
     ], x, y, "other", { label: `${name}'s page` });
   };
 
@@ -141,7 +142,9 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
           </View>
           <View style={[st.actions, narrow && st.actionsNarrow]}>
             <TextButton label="Chat" primary testID="chat-button" onPress={chat} />
-            {outside ? <TextButton label="Remove" testID="remove-button" onPress={remove} /> : <TextButton label="Automation runs" testID="runs-button" onPress={() => data.nav.openAutomationRuns(agentId)} />}
+            {outside && sure ? <><TextButton label="Cancel" testID="remove-cancel" onPress={() => setSure(false)} /><TextButton label="End its sign-in" testID="remove-sure" onPress={remove} /></> : null}
+            {outside && !sure ? <TextButton label="Remove" testID="remove-button" onPress={() => setSure(true)} /> : null}
+            {outside ? null : <TextButton label="Automation runs" testID="runs-button" onPress={() => data.nav.openAutomationRuns(agentId)} />}
             <Tool icon="folder" label="Open folder" testID="folder-button" onPress={() => data.nav.openFolder(agent.folderId)} />
             {!noComputers && agent.hasComputer && data.agent.computerId ? <Tool icon="watch" label="Computer" testID="computer-button" onPress={() => data.nav.openComputer(data.agent.computerId ?? "")} /> : null}
             <Tool icon="more" label="More" testID="more-button" onPress={moreMenu} />

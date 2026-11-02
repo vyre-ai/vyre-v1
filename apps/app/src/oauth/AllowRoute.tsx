@@ -22,5 +22,5 @@ export function AllowRoute(): ReactElement {
   }, [stored, baseUrl]);
   const call = useMemo(() => (stored && baseUrl ? createCapCaller({ baseUrl, token: () => stored.token }) : null), [stored, baseUrl]);
   if (!requestId || !stored || !call) return <SessionGate />;
-  return <AllowScreen call={call} requestId={requestId} me={stored.username ?? "you"} />;
+  return <AllowScreen call={call} requestId={requestId} me={stored.username ?? "you"} onDone={() => (globalThis as { location?: { assign(url: string): void } }).location?.assign("/")} />;
 }

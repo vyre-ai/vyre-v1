@@ -31,7 +31,7 @@ test("the tab, the Allow page, the hand back, and the agent's page", { skip: DIS
   try {
     await page.goto(claimOnEdge(space.claim!, web.origin));
     for (const [id, value] of [["claim-name", "Dana Wine"], ["claim-username", "dana"], ["claim-password", "fixture password123"], ["claim-confirm", "fixture password123"]]) await page.getByTestId(id!).fill(value!);
-    await page.getByTestId("claim-submit").click({ timeout: 20_000 }).catch(() => page.keyboard.press("Enter"));
+    await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click();
     await dismissOnboarding(page as never);
 
     // the app: from the 401
@@ -79,7 +79,8 @@ test("the tab, the Allow page, the hand back, and the agent's page", { skip: DIS
       return r.status === 202 ? null : r.json();
     };
     await rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "claude-code", version: "2.1" } });
-    assert.equal((await rpc("tools/call", { name: "tasks_list", arguments: {} })).result.isError, false);
+    const listed = await rpc("tools/call", { name: "tasks_list", arguments: { scope: "all" } });
+    assert.equal(listed.result.isError, false, JSON.stringify(listed.result).slice(0, 500));
     await rpc("tools/call", { name: "records_query", arguments: { type: "contact" } });
 
     // the agent's page
@@ -91,6 +92,7 @@ test("the tab, the Allow page, the hand back, and the agent's page", { skip: DIS
     await page.goto(`${web.origin}/chat#screen=chats.agent-page&agentId=${agentId}`);
     await page.getByTestId("agent-page").waitFor({ timeout: 30_000 });
     await page.getByTestId("agent-outside-line").waitFor({ timeout: 20_000 });
+    await shot("profile-first");
     await page.getByTestId("activity-list").waitFor({ timeout: 20_000 });
     await shot("profile");
     await page.goto(`${web.origin}/chat#screen=chats.connect-outside-agent&channelId=none`);
