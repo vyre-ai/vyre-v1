@@ -93,6 +93,8 @@ export type CliEvent =
   | { type: "limits"; window: "session" | "week"; pct: number; resetsAt?: number }
   /** The engine took up a user message we wrote (its replay line): from here it is part of the turn it was read in, or the start of the next one. Only engines that replay report it. */
   | { type: "read" }
+  /** The engine compacted its own context (Claude Code's compact_boundary): the tokens before and, when it said, after. */
+  | { type: "compacted"; before?: number; after?: number }
   | { type: "end"; error?: { code?: string; message: string } };
 
 export interface CliDecoder {
@@ -115,12 +117,20 @@ export interface CliAdapter {
   env(): Record<string, string>;
   /** The bytes of one user message on stdin. */
   encode(prompt: string): string;
+  /**
+   * The message that makes the engine compact its own context, keeping what `keep` names (Claude Code's `/compact <instructions>`). Absent: the engine has no compact a headless run can ask
+   * for, and Vyre compacts for it (a fresh session from Vyre's summary).
+   */
+  compactCommand?(keep: string): string;
   /** Whether the engine takes the system text as a flag; if not the first prompt carries it. */
   readonly systemFlag: boolean;
   decoder(): CliDecoder;
 }
 
-/** What a session leaves behind so the next one continues it: the engine's session id. */
+/**
+ * What a session leaves behind so the next one continues it: the engine's session id. The host keeps it per chat, agent and person (modules/engine/cli-sessions.ts) and hands it back as `resume`
+ * when the chat's next session opens after a restart or an eviction; null clears it (the engine said the session is gone, or the chat was compacted by Vyre).
+ */
 export interface CliCheckpoint { engine: CliId; sessionId: string | null }
 
 export type { SessionSpec };

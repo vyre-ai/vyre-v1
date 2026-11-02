@@ -3,7 +3,7 @@
 import { CHAT_COMMANDS, chatCommand, parseSlash } from "../../../../../../lib/chat-commands.ts";
 import type { ListItem } from "../../../../../../ui/src/Composer/index.tsx";
 import * as act from "./actions.ts";
-import { setChatMode } from "./brain.tsx";
+import { compactChat, setChatMode } from "./brain.tsx";
 import type { ConversationData, PluginCommand } from "./data.tsx";
 import { mentionsIn } from "./model.ts";
 import type { Message, Thread } from "./model.ts";
@@ -78,6 +78,13 @@ async function run(id: string, arg: string, env: CommandEnv, plugins: readonly P
     }
     case "permissions": await act.showPermissions(data, arg, say); return;
     case "btw": env.aside(arg); return;
+    case "compact": {
+      // the server says it in the chat in one line; only a server without engine.compact leaves it to this line
+      const lead = thread.agents.find((a) => a.mode === "lead");
+      const line = await compactChat(data, arg, false, lead?.agentId);
+      if (line === null) say(arg ? `Compacted, keeping ${arg}` : "Compacted");
+      return;
+    }
     case "helper": {
       const lead = thread.agents.find((a) => a.mode === "lead");
       const helperId = await act.startHelper(data, thread, arg, lead?.agentId);

@@ -67,6 +67,11 @@ export interface EnginePool {
   release(lease: Lease, o?: { reuse?: boolean }): Promise<void>;
   /** Close the idle sessions older than the idle time. Called before every acquire; also callable on a timer. */
   sweep(): Promise<number>;
+  /**
+   * Close the idle CLI sessions that hold this thread's conversation (a compaction, or the engine session they hold was forgotten), so the thread's next turn opens a new one. A busy session is left
+   * alone. Returns how many were closed.
+   */
+  drop(threadId: string): Promise<number>;
   status(): PoolStatus;
   /** Wait for hints that are still opening. */
   settled(): Promise<void>;
@@ -243,6 +248,12 @@ export function createPool(o: PoolOptions): EnginePool {
       const stale = [...entries.values()].filter((e) => e.state === "idle" && e.lastUsed < cutoff);
       for (const e of stale) await drop(e, "evict");
       return stale.length;
+    },
+
+    async drop(threadId) {
+      const mine = [...entries.values()].filter((e) => e.state === "idle" && e.kind === "cli" && e.thread === threadId);
+      for (const e of mine) await drop(e, "close");
+      return mine.length;
     },
 
     status() {

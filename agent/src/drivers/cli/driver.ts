@@ -24,6 +24,8 @@ export interface CliDriverDeps {
   mcpClose?(spec: SessionSpec, endpoint: McpEndpoint): Promise<void> | void;
   /** The engine session id a checkpoint left for this thread and agent, if any. */
   resume?(spec: SessionSpec): string | null;
+  /** Keep the engine's session id for this thread and agent (null: forget it), so `resume` finds it after a restart or an eviction. */
+  checkpoint?(spec: SessionSpec, sessionId: string | null): Promise<void> | void;
   system?(spec: SessionSpec): string | null;
   workFolder?(spec: SessionSpec): string | null;
   env?(spec: SessionSpec): Record<string, string>;
@@ -95,6 +97,7 @@ export function createCliDriver(adapter: CliAdapter, deps: CliDriverDeps): CliDr
         ...(deps.idleMs !== undefined ? { idleMs: deps.idleMs } : {}),
         ...(deps.graceMs !== undefined ? { graceMs: deps.graceMs } : {}),
         onClose: async () => { if (!noTools) await deps.mcpClose?.(spec, endpoint); },
+        ...(deps.checkpoint ? { checkpoint: (id: string | null) => deps.checkpoint?.(spec, id) } : {}),
       }, spec);
       if (deps.prewarm !== false) {
         try { await session.prewarm(); }

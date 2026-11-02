@@ -4,14 +4,17 @@
 //              A one-shot engine (Codex, Grok) starts a process per turn that resumes the engine's own session id; "warm" there means the id is known.
 //   tools      Vyre's tools reach the CLI over MCP and are run by the MCP server (access, Gate and audit happen there). The driver only shows the activity as blocks and never runs a tool
 //              itself, so `sendToolResult` has nothing to do.
-//   resume     the engine's session id is learned from its first event and kept; a process that died between turns, or a cancelled one, is replaced by one started with that id.
+//   resume     the engine's session id is learned from its first event and kept; a process that died between turns, or a cancelled one, is replaced by one started with that id. Each new id is
+//              handed to `checkpoint` (the host keeps it per chat), and a session opened after a restart or an eviction starts from it. When the engine says that session is not there any more, the
+//              turn starts a new one from the chat's summary and recent messages and says so in one line.
+//   compact    a turn whose input asks to compact sends the engine's own compact command (Claude Code's /compact with what to keep) to the session it holds and reports what the engine said.
 //   steering   an engine that steers (Claude Code) gets a message injected during a turn written to its stdin at once: it reads it at its next step and answers it in the same turn, and says when it read it
 //              (--replay-user-messages), so the turn ends at the engine's own result and is never left waiting for one that will not come. For the others (one-shot engines) the message waits for the turn to end and
 //              becomes the next turn of the same send.
 //   cancel     the process is stopped (TERM, then KILL after the grace time). A cancelled session is dirty: the pool closes it instead of reusing it, and the next one resumes by id.
 import type { ChatMode, DriverEvent, Effort, EngineSession, SessionSpec, StoredMessage, ToolResult, TurnInput } from "../../turn-engine/types.ts";
 import { scrub } from "../api/errors.ts";
-import { classifyCli, missingProgram } from "./errors.ts";
+import { classifyCli, missingProgram, sessionGone } from "./errors.ts";
 import { channel, lines } from "./lines.ts";
 import type { Channel } from "./lines.ts";
 import { defaultPrompt } from "./prompt.ts";
@@ -46,6 +49,8 @@ export interface CliSessionDeps {
   graceMs?: number;
   /** Runs once when the session closes: releases the MCP session token. */
   onClose?: () => Promise<void> | void;
+  /** The engine's session id changed: learned from the engine, or null when the one it was asked to resume was gone. The host keeps it so a later session resumes it. Never throws into the turn. */
+  checkpoint?: (sessionId: string | null) => Promise<void> | void;
 }
 
 export interface CliSessionStats { spawns: number; resumes: number; turns: number }
@@ -61,7 +66,12 @@ export interface CliSession extends EngineSession {
 
 type Item = CliEvent | { type: "eof" };
 
-interface Run { proc: CliProcess; chan: Channel<Item>; decoder: CliDecoder; alive: boolean }
+/** `resumed`: the engine session id this process was started to continue, or null for a new one. */
+interface Run { proc: CliProcess; chan: Channel<Item>; decoder: CliDecoder; alive: boolean; resumed: string | null }
+
+const ENGINE_NAME: Readonly<Record<string, string>> = { claude_code: "Claude Code", codex: "Codex", grok: "Grok" };
+/** The one line a turn says when the engine's own session was gone and it started a new one. */
+export const goneLine = (engine: string): string => `${ENGINE_NAME[engine] ?? engine} no longer had this chat's session, so it started a new one from the chat's summary and recent messages.`;
 
 const IDLE_MS = 10 * 60_000;
 const GRACE_MS = 1_500;
@@ -77,6 +87,8 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
   const graceMs = deps.graceMs ?? GRACE_MS;
   const idleMs = deps.idleMs ?? IDLE_MS;
   let sessionId = deps.resume;
+  /** The id the host holds, so a checkpoint is only written when it changes. */
+  let saved = deps.resume;
   let run: Run | null = null;
   let spawns = 0;
   let resumes = 0;
@@ -94,6 +106,12 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
   const sentContext = new Map<string, string>();
 
   const secrets = (): string[] => [deps.endpoint.token];
+  /** Hand the engine's session id to the host when it changed. A host that cannot keep it costs only the resume after a restart, never the turn. */
+  function remember(id: string | null): void {
+    if (id === saved) return;
+    saved = id;
+    try { void Promise.resolve(deps.checkpoint?.(id)).catch(() => undefined); } catch { /* as above */ }
+  }
   const clean = (text: string): string => scrub(text, secrets());
 
   async function pump(r: Run): Promise<void> {
@@ -116,7 +134,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     });
     spawns += 1;
     if (sessionId !== null) resumes += 1;
-    const r: Run = { proc, chan: channel<Item>(), decoder: a.decoder(), alive: true };
+    const r: Run = { proc, chan: channel<Item>(), decoder: a.decoder(), alive: true, resumed: sessionId };
     void pump(r);
     run = r;
     return r;
@@ -139,12 +157,19 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
 
   const label = (m: StoredMessage, asker: string): string => (m.author.kind === "person" && m.author.id === asker ? m.body : `${m.author.id}: ${m.body}`);
 
-  async function* turn(prompt: string, asker: string, signal: AbortSignal): AsyncGenerator<DriverEvent, "done" | "stop"> {
+  /**
+   * One engine turn. "gone": the process was started to resume a session the engine says is not there, and nothing was said yet; the caller starts over without it. `compacting`: the prompt is the
+   * engine's compact command, and what the engine reports of the compaction is passed on as a `compacted` block.
+   */
+  async function* turn(prompt: string, asker: string, signal: AbortSignal, compacting = false): AsyncGenerator<DriverEvent, "done" | "stop" | "gone"> {
     let r: Run | null = a.persistent && run !== null && run.alive ? run : null;
     if (r === null) r = await start();
     if (signal.aborted) { await stop(r, false); return "stop"; }
-    const text = !a.systemFlag && !systemSent && deps.system !== null && deps.system !== "" ? `${deps.system}\n\n${prompt}` : prompt;
+    const text = !compacting && !a.systemFlag && !systemSent && deps.system !== null && deps.system !== "" ? `${deps.system}\n\n${prompt}` : prompt;
     systemSent = true;
+    /** Something reached the person this turn: a gone session is then an error like any other, never a silent start-over. */
+    let said = false;
+    const gone = (message: string): boolean => r !== null && r.resumed !== null && !said && sessionGone(message);
     // Before the write: a steering message may be injected the moment the text is on its way, and it counts on top of this one.
     outstanding = 1;
     unread = a.steers ? ["first"] : [];
@@ -155,7 +180,8 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
         await stop(r, false);
         r = await start();
         live = r;
-        await r.proc.write(a.encode(text));
+        // One that ends at once again (a session to resume the CLI no longer has) says why on stderr: that is read below with its end, not thrown from here.
+        try { await r.proc.write(a.encode(text)); } catch { /* read below */ }
       }
       if (!a.persistent) r.proc.endInput();
       for (;;) {
@@ -167,7 +193,8 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
           return "stop";
         }
         switch (item.type) {
-          case "session": sessionId = item.id; break;
+          case "session": sessionId = item.id; remember(item.id); break;
+          case "compacted": if (compacting) yield { type: "block", kind: "compacted", payload: { ...(item.before !== undefined ? { before: item.before } : {}), ...(item.after !== undefined ? { after: item.after } : {}) } }; break;
           case "mcp":
             if (item.status === "failed") {
               yield { type: "error", code: "engine.mcp_failed", message: "Vyre's tools did not connect to the engine." };
@@ -175,9 +202,10 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
               return "stop";
             }
             break;
-          case "text": yield { type: "text", text: item.text }; break;
-          case "thinking": yield { type: "thinking", text: item.text }; break;
+          case "text": said = true; yield { type: "text", text: item.text }; break;
+          case "thinking": said = true; yield { type: "thinking", text: item.text }; break;
           case "tool":
+            said = true;
             yield item.phase === "call"
               ? { type: "block", kind: "tool_call", payload: { id: item.id, name: item.name } }
               : item.phase === "input"
@@ -190,6 +218,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
           case "end":
             outstanding -= 1;
             if (item.error) {
+              if (gone(item.error.message)) { await stop(r, false); return "gone"; }
               yield { type: "error", code: item.error.code ?? classifyCli(item.error.message), message: clean(item.error.message) };
               return "stop";
             }
@@ -202,6 +231,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
             const t = pause(graceMs);
             try { await Promise.race([r.proc.exited, t.done]); } finally { t.stop(); }
             const tail = clean(r.proc.stderrTail()).trim();
+            if (gone(tail)) return "gone";
             const absent = missingProgram(tail);
             if (absent !== null) { yield { type: "error", code: "engine.cli_missing", message: `${absent} is not installed here.` }; return "stop"; }
             yield { type: "error", code: classifyCli(tail), message: tail !== "" ? tail : "The engine ended before it answered." };
@@ -216,6 +246,26 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     }
   }
 
+  /** The engine's own compact of the session it holds. Nothing to compact (no session yet) and a session the engine says is gone are errors the caller answers by compacting itself. */
+  async function* compact(keep: string, asker: string, signal: AbortSignal): AsyncGenerator<DriverEvent> {
+    if (!a.compactCommand) { yield { type: "error", code: "engine.compact_unsupported", message: `${ENGINE_NAME[a.id] ?? a.id} has no compact Vyre can ask for.` }; return; }
+    if (sessionId === null) { yield { type: "error", code: "engine.nothing_to_compact", message: "There is no engine session to compact yet." }; return; }
+    const outcome = yield* turn(a.compactCommand(keep), asker, signal, true);
+    if (outcome === "gone") {
+      sessionId = null;
+      remember(null);
+      systemSent = false;
+      sentContext.clear();
+      yield { type: "error", code: "engine.session_gone", message: goneLine(a.id) };
+      return;
+    }
+    if (outcome === "done") {
+      // the engine's context is now its summary: what it was sent of the turn context goes again on the next turn
+      sentContext.clear();
+      yield { type: "done" };
+    }
+  }
+
   async function* send(input: TurnInput): AsyncGenerator<DriverEvent> {
     if (closed) { yield { type: "error", code: "engine.closed", message: "This session is closed." }; return; }
     if (running) { yield { type: "error", code: "engine.busy", message: "This session is already answering." }; return; }
@@ -224,12 +274,25 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     abort = ac;
     turns += 1;
     try {
-      const fresh = sessionId === null;
+      if (input.compact) { yield* compact(input.compact.keep, input.asker, ac.signal); return; }
+      let fresh = sessionId === null;
       const build = (steered: readonly StoredMessage[]): string => (deps.prompt && steered.length === 0 ? deps.prompt(input, { fresh }) : defaultPrompt(input, fresh, steered, sentContext));
-      let prompt = build(steer.splice(0, steer.length));
+      const first = steer.splice(0, steer.length);
+      let prompt = build(first);
       for (;;) {
-        const outcome = yield* turn(prompt, input.asker, ac.signal);
-        if (outcome === "stop") return;
+        let outcome = yield* turn(prompt, input.asker, ac.signal);
+        if (outcome === "gone") {
+          // The engine's own session is not there any more (its files went, or it never was): start a new one from the chat's summary and recent messages, and say so once.
+          sessionId = null;
+          remember(null);
+          systemSent = false;
+          sentContext.clear();
+          fresh = true;
+          yield { type: "block", kind: "turn_status", payload: { state: "note", text: goneLine(a.id) } };
+          prompt = build(first);
+          outcome = yield* turn(prompt, input.asker, ac.signal);
+        }
+        if (outcome !== "done") return;
         // Steering takes the next turn of this send.
         if (steer.length === 0) break;
         prompt = steer.splice(0, steer.length).map((m) => label(m, input.asker)).join("\n\n");

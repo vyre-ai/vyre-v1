@@ -8,6 +8,9 @@
 //   user              tool_result blocks (the CLI ran the tool, through MCP or one of its own)
 //   result            subtype success | error_*, is_error, result, session_id, usage
 //   rate_limit_event  rate_limit_info {status allowed | allowed_warning | rejected, resetsAt (epoch seconds), rateLimitType five_hour | seven_day | ..., utilization (a fraction, when the engine says it)}
+//   system/compact_boundary  compact_metadata {trigger manual | auto, pre_tokens, post_tokens (optional)}: the context was compacted
+// CHECKED against the Claude Code 2.1.316 binary (its strings, not a live run): /compact is a local command with supportsNonInteractive true and argumentHint "<optional custom summarization
+// instructions>", so `/compact <what to keep>` sent as a user message on stdin compacts with those instructions; `--resume <id>` of a session that is not there says "No conversation found with session ID: <id>".
 // With partial messages on, the text of a message arrives twice: as deltas and again in its `assistant` line. The deltas are the ones passed on; the whole message only fills in when no delta
 // was seen for it (an older CLI, or partial messages off).
 import { arr, num, obj, parseLine, str } from "./json.ts";
@@ -150,6 +153,12 @@ export function createClaudeDecoder(): CliDecoder {
       if (!j) return [];
       switch (str(j["type"])) {
         case "system": {
+          // the engine compacted its context (asked with /compact, or by itself near the window's end): how many tokens it held before, and after when it says
+          if (str(j["subtype"]) === "compact_boundary") {
+            const m = obj(j["compact_metadata"]);
+            const pre = num(m?.["pre_tokens"]), post = num(m?.["post_tokens"]);
+            return [{ type: "compacted", ...(pre > 0 ? { before: pre } : {}), ...(post > 0 ? { after: post } : {}) }];
+          }
           if (str(j["subtype"]) !== "init") return [];
           const out: CliEvent[] = session(str(j["session_id"]));
           for (const raw of arr(j["mcp_servers"])) {
@@ -226,5 +235,7 @@ export const claudeCode: CliAdapter = {
     ];
   },
   encode: (prompt) => JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text: prompt }] } }) + "\n",
+  // a slash command is one line: what to keep is folded onto it
+  compactCommand: (keep) => { const k = keep.replace(/\s+/g, " ").trim(); return k === "" ? "/compact" : `/compact ${k}`; },
   decoder: createClaudeDecoder,
 };
