@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import * as v from "../handlers/index.ts";
 import * as u from "../handlers/use.ts";
 import * as p from "../handlers/providers.ts";
+import { registry } from "../../../generated/registry.ts";
 import { MAYA, contractErrors, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -170,5 +171,23 @@ test("signing in again to an account whose rows were folded refreshes the row th
     assert.equal(row.id, older.id, "the sign-in found the account, folded its copies and refreshed the row that keeps it");
     assert.equal(live(h).length, 1);
     assert.equal(await secretOf(h, older.handle), codexFiles("acct-1", "fresh-access"));
+  } finally { u.configureVault(null); h.cleanup(); }
+});
+
+test("every event a sign-in emits while it refreshes and folds is one the capability declares (the host refuses any other, which once made signing in again fail)", async () => {
+  const h = harness();
+  const who = { id: "chatgpt:acct:acct-1/user:u-1", label: "maya@example.com" };
+  u.configureVault({ sinks: {}, signin: port([{ state: "done", fields: [{ key: "credentials", value: codexFiles("acct-1", "fresh-access"), secret: true }], identity: who }, { state: "done", fields: [{ key: "credentials", value: codexFiles("acct-2", "other-access"), secret: true }], identity: { id: "chatgpt:acct:acct-2/user:u-1", label: "maya@example.com" } }]) });
+  try {
+    const folder = await mineFolder(h);
+    await seed(h, folder, "codex", "Codex", { key: "credentials", value: codexFiles("acct-1", "old-access") }, 1_000);
+    await seed(h, folder, "codex", "Codex 2", { key: "credentials", value: codexFiles("acct-1", "new-access") }, 2_000);
+    const from = h.emitted.length;
+    await signIn(h, "codex");   // folds the two copies, then refreshes the row that keeps the account
+    await signIn(h, "codex");   // another account: a new row, renamed by its account
+    const declared = new Set(registry.capabilities.filter((c) => c.name === "providers.subscription_complete").flatMap((c) => (c as { emits?: string[] }).emits ?? []));
+    const sent = [...new Set(h.emitted.slice(from).map((e) => e.name))].sort();
+    assert.deepEqual(sent.filter((e) => !declared.has(e)), [], `undeclared: ${sent.join(", ")}`);
+    assert.ok(sent.includes("vault.item_updated") && sent.includes("provider.removed"), "the refresh and the fold both happened");
   } finally { u.configureVault(null); h.cleanup(); }
 });
