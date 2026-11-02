@@ -94,3 +94,12 @@ test("a person who speaks to all the agents gets an answer from each, on its own
   assert.deepEqual(route({ agents, kind: "chat" }, { author: person, mentions: [], text: "What should the email say?" }).responders, ["agt_lead"]);
   assert.deepEqual(route({ agents, kind: "chat" }, { author: { kind: "agent", id: "agt_lead" }, mentions: [], text: "both of you", depth: 1 }).responders, [], "an agent cannot fan a message out");
 });
+
+test("a round to all the agents: each answers, an answer sets off no summary, and the person asking again reaches the lead", () => {
+  const p = scriptedProvider({ script: quiet });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
+  engine.openThread({ id: "R", kind: "chat", starter: "dana", agents: agents() });
+  assert.deepEqual(engine.receive({ threadId: "R", author: person("dana"), mentions: [], body: "Both of you, one line each" } as never).responders, ["intake", "docs", "billing"]);
+  assert.deepEqual(engine.receive({ threadId: "R", author: agent("docs"), mentions: [], depth: 1, body: "My line" } as never).responders, [], "the lead posts no summary of an answer");
+  assert.deepEqual(engine.receive({ threadId: "R", author: person("dana"), mentions: [], body: "Sum them up" } as never).responders, ["intake"]);
+});

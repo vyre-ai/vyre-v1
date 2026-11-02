@@ -221,6 +221,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean, replyToPerson?: string, job?: string): ReceiveResult {
     const r = route({ agents: st.thread.agents, kind: st.thread.kind }, { author: msg.author, mentions: msg.mentions, depth: msg.depth, replyToPerson, job: job !== undefined, text: msg.body }, opts.policy);
     let responders = r.responders;
+    // a round where a person spoke to all the agents: each answers alone, and no answer sets off another agent (the lead posts no summary) unless it @mentions one or the person asks again
+    if (msg.author.kind === "person") { if (r.reason === "all") askedAll.set(st.thread.id, new Set(responders)); else askedAll.delete(st.thread.id); }
+    else if (askedAll.get(st.thread.id)?.has(msg.author.id) && r.reason !== "mention") { askedAll.get(st.thread.id)!.delete(msg.author.id); responders = []; }
     let routine = false;
     if (r.reason === "hop_limit") emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id });
     // "Watches this channel": an agent may act unmentioned, but only when nobody is the lead, and the turn is logged as a routine.
@@ -238,6 +241,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     if (qseqs.length > 0) kick(st);
     return { responders, reason: r.reason, qseqs, messageId: msg.id };
   }
+
+  /** Per chat, the agents still answering a message a person sent to all of them. */
+  const askedAll = new Map<string, Set<string>>();
 
   /** Cancel the queued rows that would answer one message. Returns how many. */
   function dropRows(threadId: string, messageId: string): number {
