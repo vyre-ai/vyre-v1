@@ -47,7 +47,7 @@ export function sectionsOf(rows: readonly TaskRow[], me: string, now: number, of
   const out: Sections = { now: [], next: [], quiet: [], waiting: [] };
   const end = dayStart(now, offsetMin) + DAY;
   for (const t of rows) {
-    if (needIds.has(t.id) && t.kind !== "work") continue;
+    if (t.kind !== "work" && needIds.has(t.id)) continue;
     if (!isOpenState(t.state)) continue;
     const h = holderOf(t);
     if (h?.id !== me) { out.waiting.push(t); continue; }
@@ -55,8 +55,25 @@ export function sectionsOf(rows: readonly TaskRow[], me: string, now: number, of
     if ((t.due !== undefined && t.due < end) || t.state === "doing") out.now.push(t);
     else out.next.push(t);
   }
-  const byDue = (a: TaskRow, b: TaskRow): number => (a.due ?? Infinity) - (b.due ?? Infinity) || (PRI_RANK[a.priority ?? "normal"]! - PRI_RANK[b.priority ?? "normal"]!) || b.updatedAt - a.updatedAt;
-  out.now.sort(byDue); out.next.sort(byDue); out.waiting.sort(byDue);
+  out.now = byDue(out.now); out.next = byDue(out.next); out.waiting = byDue(out.waiting);
+  return out;
+}
+
+/** Soonest first, then priority, then last changed. The keys are read once per row and the sort moves numbers: a comparison reads no row, so it costs the same at 5,000 tasks as at 50. */
+function byDue(list: readonly TaskRow[]): TaskRow[] {
+  const n = list.length;
+  const due = new Float64Array(n), pri = new Uint8Array(n), changed = new Float64Array(n), at = new Uint32Array(n);
+  for (let i = 0; i < n; i++) { const t = list[i]!; due[i] = t.due ?? Infinity; pri[i] = PRI_RANK[t.priority ?? "normal"]!; changed[i] = t.updatedAt; at[i] = i; }
+  at.sort((a, b) => {
+    const da = due[a]!, db = due[b]!;
+    if (da !== db) return da < db ? -1 : 1;
+    const pa = pri[a]!, pb = pri[b]!;
+    if (pa !== pb) return pa - pb;
+    const ca = changed[a]!, cb = changed[b]!;
+    return ca !== cb ? (ca > cb ? -1 : 1) : a - b;
+  });
+  const out = new Array<TaskRow>(n);
+  for (let i = 0; i < n; i++) out[i] = list[at[i]!]!;
   return out;
 }
 

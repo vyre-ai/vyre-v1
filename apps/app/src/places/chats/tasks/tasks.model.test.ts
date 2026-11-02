@@ -136,3 +136,8 @@ test("the work under a chat: only what is open, what is moving first, and each l
   assert.equal(workStep({ ...base, state: "doing" }, keyOf, nameOf), "Doing");
   assert.equal(workStep({ ...base, state: "todo" }, keyOf, nameOf), "To do");
 });
+
+test("a section reads soonest first, then by priority, then what changed last, and no date goes last", () => {
+  const list = [row({ id: "none", updatedAt: NOW }), row({ id: "later", due: NOW + 3 * DAY }), row({ id: "soon-low", due: NOW + DAY, priority: "low" }), row({ id: "soon-old", due: NOW + DAY, updatedAt: 1 }), row({ id: "soon-new", due: NOW + DAY, updatedAt: 2 }), row({ id: "soon-urgent", due: NOW + DAY, priority: "urgent" })];
+  assert.deepEqual(sectionsOf(list, me, NOW, 0, new Set()).next.map((r) => r.id), ["soon-urgent", "soon-new", "soon-old", "soon-low", "later", "none"]);
+});
