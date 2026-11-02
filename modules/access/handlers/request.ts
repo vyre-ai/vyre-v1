@@ -68,7 +68,7 @@ export function approversFor(ctx: AccessCtx, store: AccessStore, resource: Resou
 
 const titleOf = (store: AccessStore, resource: ResourceRef): string => {
   const row = store.resources.get(resource.id)?.row;
-  return strOf(row?.["name"]) ?? strOf(row?.["title"]) ?? `${resource.type} ${resource.id}`;
+  return strOf(row?.["name"]) ?? strOf(row?.["title"]) ?? `this ${resource.type}`;
 };
 
 /** Asks per requester in the last hour, real or not. Memory only: a restart forgets it, which costs a requester a fresh allowance and leaks nothing. */

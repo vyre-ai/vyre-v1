@@ -113,7 +113,7 @@ test("a request for the Space, or for a resource nobody manages, goes to the adm
   assert.deepEqual(h.calls.filter((c) => c.cap === "tasks.create").map((c) => (c.input["assigned"] as { id: string }).id), ["usr_admin", "usr_admin"]);
   // the title falls back to the type and id when the resource has no name
   const blocks = h.calls.filter((c) => c.cap === "tasks.create").map((c) => ((c.input["blocks"] as { data: { resourceTitle: string } }[])[0]!.data.resourceTitle));
-  assert.deepEqual(blocks, ["space spc_test", "folder fld_unmanaged"]);
+  assert.deepEqual(blocks, ["this space", "this folder"]);
 });
 
 test("a card that cannot be created stops the request before anything is stored", async () => {
