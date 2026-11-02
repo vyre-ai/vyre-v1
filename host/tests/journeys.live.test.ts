@@ -120,3 +120,18 @@ test("a stage taken out of the design stays valid for the records still on the v
   } finally { await d.stop(); }
 });
 
+test("a Start rule starts the Journey when the record is made, and the record has a real owner", async () => {
+  const d = await boot(seededDir());
+  try {
+    const j = (await ok(d, "/v1/journeys/create", { name: "Welcome", subjectType: "company", stages: [stage("start", 0), stage("done", 1, { final: true })], startRule: { event: "record.created", enabled: true }, idempotencyKey: "j-welcome" }))["journey"] as { id: string; recordType: string };
+    const subjectId = await subject(d, "Delta");
+    const rows = await until("the Journey to start", 15_000, async () => {
+      const got = (await ok(d, "/v1/records/query", { type: j.recordType }))["rows"] as Array<{ id: string; fields: Record<string, unknown> }>;
+      return got.length > 0 ? got : undefined;
+    });
+    assert.equal(rows.length, 1);
+    assert.match(String(rows[0]!.fields["name"]), new RegExp(subjectId));
+    assert.match(String(rows[0]!.fields["owner"]), /^usr_/, "a person the time limit alerts can reach");
+  } finally { await d.stop(); }
+});
+

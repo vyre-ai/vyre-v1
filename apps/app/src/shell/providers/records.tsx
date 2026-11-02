@@ -95,7 +95,7 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
     const { openSync, bringInCrm, ...plainNav } = base.nav;
     const nav = canSync ? base.nav : plainNav;
     void openSync; void bringInCrm;
-    return { ...base, ...(share ? { share } : {}), askVyre: makeAskVyre(ask, { type, screen: target.screen }), nav: { ...nav, openRecord: (recordId: string) => {
+    return { ...base, ...(share ? { share } : {}), askVyre: makeAskVyre(ask, { type, screen: target.screen }), nav: { ...nav, openAgent: (agentId: string) => openAgent(rt, agentId), openRecord: (recordId: string) => {
       const open = (): void => rt.open({ subject: { type: "record", id: recordId }, args: type ? { type } : {} });
       // an Agents row opens the agent's own page; a row with no agent behind it opens the "not set up" page
       if (type !== "agent") { open(); return; }
