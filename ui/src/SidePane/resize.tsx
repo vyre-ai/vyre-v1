@@ -9,6 +9,7 @@ import type { ViewStyle } from "react-native";
 import { SIDE_PANE_MAX, SIDE_PANE_MIN } from "./props.ts";
 import { clampPaneWidth, paneWidths } from "./index.tsx";
 import { RAIL_OVERLAY, SHEET, SHEET_GAP, intoSheet, sq, useRailOverlay, useSheetHost } from "./host.tsx";
+import { useEdgeDrag } from "./drag.ts";
 
 /** The pane grows to the left (a right-hand pane, handle on its left edge) or to the right (a left sidebar, handle on its right edge). */
 export type GrowDirection = "left" | "right";
@@ -44,6 +45,8 @@ export interface Resizable {
   windowWidth: number;
   /** The pointer and key handlers for the handle. */
   panHandlers: Record<string, unknown>;
+  /** The handle's ref: on the web the edge owns the pointer (drag.ts). */
+  edgeRef: (node: unknown) => void;
   onKey(event: { key: string; preventDefault?: () => void }): void;
   setWidth(next: number): void;
   reset(): void;
@@ -82,21 +85,24 @@ export function useResizable(o: ResizeOptions): Resizable {
   }, [paneKey, defaultWidth, min, maxFraction, onWidthChange]);
 
   const sign = grow === "left" ? -1 : 1;
+  const begin = (): void => { start.current = widthRef.current; setDragging(true); };
+  const finish = (dx: number): void => {
+    setDragging(false);
+    if (Math.abs(dx) < 2) {
+      const now = Date.now();
+      if (now - lastTap.current < 450) { lastTap.current = 0; reset(); } else lastTap.current = now;
+      return;
+    }
+    apply(start.current + sign * dx, true);
+  };
+  const edgeRef = useEdgeDrag({ onStart: begin, onMove: (dx) => apply(start.current + sign * dx, false), onEnd: finish, onCancel: () => setDragging(false) });
   const responder = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
-    onPanResponderGrant: () => { start.current = widthRef.current; setDragging(true); },
+    onPanResponderGrant: begin,
     onPanResponderMove: (_e, g) => apply(start.current + sign * g.dx, false),
-    onPanResponderRelease: (_e, g) => {
-      setDragging(false);
-      if (Math.abs(g.dx) < 2) {
-        const now = Date.now();
-        if (now - lastTap.current < 450) { lastTap.current = 0; reset(); } else lastTap.current = now;
-        return;
-      }
-      apply(start.current + sign * g.dx, true);
-    },
+    onPanResponderRelease: (_e, g) => finish(g.dx),
     onPanResponderTerminate: () => setDragging(false),
-  }), [apply, reset, sign]);
+  }), [apply, reset, sign]); // eslint-disable-line react-hooks/exhaustive-deps -- begin and finish read only refs and these
 
   const onKey = (event: { key: string; preventDefault?: () => void }): void => {
     const next = keyWidth(widthRef.current, event.key, grow, windowRef.current, min, maxFraction);
@@ -105,7 +111,7 @@ export function useResizable(o: ResizeOptions): Resizable {
     if (next === "reset") reset(); else apply(next, true);
   };
 
-  return { width, dragging, min, maxFraction, windowWidth: win.width, panHandlers: responder.panHandlers as unknown as Record<string, unknown>, onKey, setWidth: (n) => apply(n, true), reset };
+  return { width, dragging, min, maxFraction, windowWidth: win.width, panHandlers: (Platform.OS === "web" ? {} : responder.panHandlers) as unknown as Record<string, unknown>, edgeRef, onKey, setWidth: (n) => apply(n, true), reset };
 }
 
 const COL_RESIZE = (Platform.OS === "web" ? "col-resize" : undefined) as unknown as ViewStyle["cursor"];
@@ -119,6 +125,7 @@ export function ResizeHandle({ r, at, label = "Resize the pane", testID = "side-
     : {};
   return (
     <View
+      ref={r.edgeRef as never}
       {...r.panHandlers}
       role="separator"
       aria-orientation="vertical"
@@ -187,7 +194,7 @@ const SHEET_RESET = { width: "auto", borderLeftWidth: 0, borderRightWidth: 0, fl
 const rel = { position: "relative" } as ViewStyle;
 
 const h = StyleSheet.create({
-  edge: { position: "absolute", top: 0, bottom: 0, width: 7, zIndex: 6, alignItems: "center", cursor: COL_RESIZE },
+  edge: { position: "absolute", top: 0, bottom: 0, width: 7, zIndex: 6, alignItems: "center", cursor: COL_RESIZE, ...(Platform.OS === "web" ? ({ userSelect: "none", touchAction: "none" } as object) : {}) },
   atLeft: { left: -4 },
   atRight: { right: -4 },
   line: { height: "100%", width: 1, backgroundColor: "transparent" },

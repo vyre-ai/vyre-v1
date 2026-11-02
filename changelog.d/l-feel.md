@@ -1,0 +1,1 @@
+- Dragging a rail no longer selects the page, and the rail follows the pointer exactly, over an iframe or a terminal too.
