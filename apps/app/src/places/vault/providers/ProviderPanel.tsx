@@ -7,7 +7,6 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useVaultData, usePrincipals } from "../layout/data.tsx";
-import { ServerKeyLine } from "./ServerKeyLine.tsx";
 import type { Provider } from "../layout/model.ts";
 import { Btn, Glyph } from "../layout/parts.tsx";
 import { Info } from "../../../../../../ui/src/Tip/index.tsx";
@@ -77,7 +76,6 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
             <View style={[s.track, spaceMay && s.trackOn]}><View style={[s.knob, spaceMay && s.knobOn]} /></View>
           </Pressable>
         ) : <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 12 }} testID="provider-private"><Glyph name="lock" size={12} color="var(--ink-3)" /><Text style={s.note}>Mine</Text><Info help="Only you can use this sign-in" /></View>}
-        {canShare(provider) ? null : <ServerKeyLine />}
       </ScrollView>
     </View>
   );
