@@ -129,7 +129,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
   /** An outside agent took a job: from here its tools work in that chat, under the chat's mode. Auto never reaches it: "asked this turn" needs a turn Vyre can see, so an outward act stops for a person unless they gave a standing yes. */
   async function bind(s: Session, threadId: string): Promise<void> {
     if (s.ctx.thread.threadId === threadId) return;
-    const facts = await deps.bindThread?.(s.caller, threadId).catch(() => ({})) ?? {};
+    const facts: Partial<Pick<McpCaller, "mode" | "planMode" | "threadKind" | "scope">> = (await deps.bindThread?.(s.caller, threadId).catch(() => null)) ?? {};
     const was = s.tools.loaded(s.ctx.thread.threadId);
     s.tools.preload(threadId, [...was]);
     s.ctx = { ...s.ctx, thread: {

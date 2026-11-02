@@ -41,7 +41,7 @@ function jobOf(r: Row): OutsideJob {
 export const isOutside = (a: Pick<AgentRec, "runtime">): boolean => a.runtime === "outside";
 
 export function enqueue(ctx: AgentsCtx, input: { agentId: string; kind: "mention" | "task" | "answer"; threadId?: string; taskId?: string; messageId?: string; asker: string; title?: string; text?: string }) {
-  if (!isSystemCall(ctx)) raise(ctx, "permission.no_grant", "Only the server puts work in this queue.");
+  if (!isSystemCall({ depth: ctx.depth ?? 0, principal: ctx.principal })) raise(ctx, "permission.no_grant", "Only the server puts work in this queue.");
   ensure(ctx.db);
   const a = agentBy(ctx.db, input.agentId);
   // owner only: a teammate's ask never runs on someone else's machine or on someone else's access
@@ -82,7 +82,7 @@ export function usable(ctx: AgentsCtx, input: { agentId: string }) {
 }
 
 export function seen(ctx: AgentsCtx, input: { agentId: string }) {
-  if (!isSystemCall(ctx)) raise(ctx, "permission.no_grant", "Only the server says that.");
+  if (!isSystemCall({ depth: ctx.depth ?? 0, principal: ctx.principal })) raise(ctx, "permission.no_grant", "Only the server says that.");
   ensure(ctx.db);
   const a = agentBy(ctx.db, input.agentId);
   if (!a || !isOutside(a)) return { ok: false };

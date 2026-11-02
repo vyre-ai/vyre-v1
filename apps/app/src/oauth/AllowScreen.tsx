@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
-import type { CapMap } from "../../../../../generated/types.ts";
+import type { CapMap } from "../../../../generated/types.ts";
 import { Bar, Button, ErrorLine, JoinFrame, Links, Opening, Panel, Step, TextButton, Title, useJoin } from "../join/kit.tsx";
 
 type Request = CapMap["mcp.oauth.request"]["out"]["request"];

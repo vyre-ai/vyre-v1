@@ -33,7 +33,7 @@ export function ActivityTab({ agentId, call, clock, openChat }: { agentId: strin
     );
     const threadId = r.threadId;
     list.push(threadId
-      ? <Pressable key={r.id} testID={`activity-${r.id}`} accessibilityRole="link" onPress={() => openChat(threadId)} style={({ hovered }: { hovered?: boolean }) => [st.row, hovered === true && st.over]}>{body}</Pressable>
+      ? <Pressable key={r.id} testID={`activity-${r.id}`} accessibilityRole="link" onPress={() => openChat(threadId)} style={st.row}>{body}</Pressable>
       : <View key={r.id} testID={`activity-${r.id}`} style={st.row}>{body}</View>);
   }
   return <ScrollView testID="activity-list" style={st.scroll}>{list}</ScrollView>;
@@ -42,7 +42,6 @@ export function ActivityTab({ agentId, call, clock, openChat }: { agentId: strin
 const st = StyleSheet.create({
   scroll: { flex: 1, minHeight: 0 },
   row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 34, paddingHorizontal: 6, borderRadius: 8 },
-  over: { backgroundColor: "var(--hover)" as string },
   what: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string },
   state: { fontSize: 12, color: "var(--ink-3)" as string },
   held: { color: "var(--accent)" as string },
