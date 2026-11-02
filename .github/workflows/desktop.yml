@@ -82,9 +82,21 @@ jobs:
           cargo deny --manifest-path apps/desktop/src-tauri/Cargo.toml check licenses bans
       - name: Build the shell
         working-directory: apps/desktop
+        env:
+          # Tauri skips the Finder layout when CI=true, which ships a plain window with no background. It runs here on a Mac that has a Finder; bundle_dmg gives osascript no time limit, so a stuck one is killed and the build fails.
+          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
         run: |
           if [ "$RUNNER_OS" = "macOS" ]; then
             rm -rf src-tauri/target/release/bundle/macos src-tauri/target/release/bundle/dmg
+            ( while sleep 15; do
+                now=$(date +%s)
+                for p in $(pgrep osascript || true); do
+                  started=$(date -j -f "%a %b %e %T %Y" "$(ps -o lstart= -p "$p")" +%s 2>/dev/null || echo "$now")
+                  if [ $((now - started)) -gt 180 ]; then echo "osascript stuck for 3 minutes, killing it"; kill "$p" || true; fi
+                done
+              done ) &
+            watchdog=$!
+            trap 'kill "$watchdog" 2>/dev/null || true' EXIT
             npm run build:mac
           else
             npm run build:win
@@ -101,6 +113,15 @@ jobs:
           dmgs=(apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg)
           [ "${#dmgs[@]}" -eq 1 ] || { echo "expected exactly one DMG, found ${#dmgs[@]}"; exit 1; }
           hdiutil verify "${dmgs[0]}"
+      - name: The install window is really in the DMG, and how it looks
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg)
+          [ "${#dmgs[@]}" -eq 1 ] || { echo "expected exactly one DMG, found ${#dmgs[@]}"; exit 1; }
+          read -r ax ay bx by < <(node -e 'const d=require("./apps/desktop/src-tauri/tauri.conf.json").bundle.macOS.dmg;console.log(d.appPosition.x,d.appPosition.y,d.applicationFolderPosition.x,d.applicationFolderPosition.y)')
+          apps/desktop/src-tauri/ci/dmg-window.sh "${dmgs[0]}" "$PWD/out" "$ax" "$ay" "$bx" "$by"
       - name: Mount, install and exercise the macOS DMG
         if: runner.os == 'macOS'
         run: |

@@ -1,0 +1,4 @@
+- The Mac install window is designed: one calm light ground, the app icon, a quiet arrow to Applications, sharp on Retina, with labels that read in light and dark Finder. Release builds now really carry it; before, the build skipped the layout on CI.
+- A new app icon: the V and Spark as clean vector on a tile macOS shows as drawn.
+- Vyre opens on one surface: the theme's ground and the mark, with only the Spark moving, from the first paint. Into the lock screen the mark glides to its place while the sheet fades in around it; into the app, one crossfade. A slow start says so in one quiet line and a start that never answers lands on Try again.
+- The lock screen's sheet hugs its content and greets the person by the name they wrote.

@@ -13,6 +13,8 @@ shot() {
   fi
 }
 export VYRE_SHELL_APP="$APP" VYRE_SHELL_HOLD_MS=25000 VYRE_SHELL_RELAUNCH="${VYRE_SHELL_RELAUNCH:-0}"
+# The launch itself, frame by frame, for looking at: no white frame, one surface. A runner that refuses capture just leaves no files.
+if [ "$RUNNER_OS" = "macOS" ]; then ( for i in 1 2 3 4 5 6 7 8 9 10 11 12; do screencapture -x "$OUT/launch-$i.png" 2>/dev/null; done ) & fi
 ( sleep 14
   if [ "$RUNNER_OS" = "macOS" ]; then osascript -e 'tell application "System Events" to set frontmost of first process whose name is "vyre-desktop" to true' >/dev/null 2>&1 || true; sleep 2; fi
   shot "$OUT/$RUNNER_OS-shell.png"; sleep 3; shot "$OUT/$RUNNER_OS-shell-2.png" ) &

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="640" viewBox="0 0 900 640">
+  <!-- The window behind the Mac install: one ground and one arrow. The ground runs past the window so a window that is enlarged, or scrolls because hidden files are showing, has no edge. Icon centres match bundle.macOS.dmg in tauri.conf.json. -->
+  <rect width="900" height="640" fill="#F4F2F8"/>
+  <g fill="none" stroke="#6A6578" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M264 178H394"/><path d="M384 168l10 10-10 10"/></g>
+</svg>
