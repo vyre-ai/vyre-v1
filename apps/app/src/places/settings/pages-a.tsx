@@ -206,8 +206,19 @@ type DefaultsOut = CapMap["engine.defaults.get"]["out"];
 type ModelsOut = CapMap["engine.models.list"]["out"];
 type UsageOut = CapMap["engine.usage.query"]["out"];
 
+/** The one line about the Space AI key: what covers this person when they have no working account of their own, or where the key sits behind theirs. */
+export function spaceKeyLine(accounts: readonly Pick<AccountsOut["accounts"][number], "title" | "mine" | "status" | "spaceKey">[]): { label: string; sub: string; own: boolean } | null {
+  const key = accounts.find((a) => a.spaceKey === true);
+  if (!key) return null;
+  const own = accounts.some((a) => a.mine && (a.status === "ok" || a.status === "untested"));
+  return own
+    ? { label: `The Space's ${key.title} key`, sub: "Your own account answers first", own }
+    : { label: `Using the Space's ${key.title} key`, sub: "Nothing to set up. Add your own to use it first", own };
+}
+
 export function AiPage({ rows, found }: PageProps): ReactElement {
   const data = useSettingsData();
+  const openConnect = useOpenConnect();
   const saved = useSaved();
   const defaults = useScreenQuery<DefaultsOut>(MODELS, "defaults", {});
   const models = useScreenQuery<ModelsOut>(MODELS, "models", {});
@@ -238,9 +249,16 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
   }
   const acc: ReactElement[] = [];
   if (accounts.status === "ready") {
-    accounts.data.accounts.forEach((a, i) => acc.push(
+    const line = spaceKeyLine(accounts.data.accounts);
+    if (line) acc.push(
       <SettingsRow
-        key={a.ref} id={`account.${a.ref}`} label={a.title} first={i === 0} sub={`${a.kind === "subscription" ? "Sign-in" : "API key"}, ${a.mine ? "yours" : "shared in the Space"}`}
+        key="space-key" id="account.space-key" label={line.label} sub={line.sub} first
+        control={line.own ? <Value text="Working" /> : <SmallButton label="Add my own" testID="ctl-space-key-own" onPress={() => (openConnect ? void openConnect({ kind: "ai" }) : data.nav.openVault())} />}
+      />,
+    );
+    accounts.data.accounts.filter((a) => a.spaceKey !== true).forEach((a, i) => acc.push(
+      <SettingsRow
+        key={a.ref} id={`account.${a.ref}`} label={a.title} first={i === 0 && !line} sub={`${a.kind === "subscription" ? "Sign-in" : "API key"}, ${a.mine ? "yours" : "shared in the Space"}`}
         control={<Value text={a.status === "ok" ? "Working" : a.status === "expired" ? "Sign in again" : a.status === "failed" ? "Failed" : "Not tested"} accent={a.status !== "ok"} />}
       />,
     ));

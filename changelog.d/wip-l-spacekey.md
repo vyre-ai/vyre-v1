@@ -1,0 +1,7 @@
+- An owner or admin sets one Space AI key in Console, Models and providers: pick the provider (OpenCode Go first), paste the key, and Vyre checks it and shows the models it unlocks.
+- Every member and agent runs on the Space AI key after their own accounts, with no setup. Own accounts win; with Company accounts only, everyone runs on it.
+- OpenCode Go shows in the model picker for everyone like any other provider, with its live model list.
+- A model that runs out of usage shows greyed with when it comes back, and its meter shows full. The next account takes the turn when there is one.
+- Settings, AI says "Using the Space's OpenCode Go key" when that is what covers you, with Add my own.
+- Console, Spend and limits shows the Space AI key's use by person.
+- The key sits in a Restricted folder: no member, agent or tool can read, fill or export it. Only the engine puts it in the provider request.

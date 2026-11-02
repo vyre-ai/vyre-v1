@@ -53,7 +53,7 @@ export type Decoded =
   | { type: "tool_call"; call: ToolCall }
   | { type: "usage"; usage: Partial<Usage> }
   | { type: "stop"; reason: "end" | "tool_use" | "length" | "filtered" | "other" }
-  | { type: "error"; status: number; code?: string; message: string };
+  | { type: "error"; status: number; code?: string; message: string; /** A refusal for a limit that said when to come back (Retry-After). */ retryAfterMs?: number };
 
 export interface SseEvent { event: string; data: string }
 

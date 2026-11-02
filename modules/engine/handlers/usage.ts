@@ -41,6 +41,39 @@ function readingOf(db: Db, ref: string, window: LimitWindow, now: number): { pct
   return { pct: num(r["pct"]), ...(resetsAt !== undefined ? { resetsAt: Number(resetsAt) } : {}) };
 }
 
+// ---- a model that ran out of usage on an account (the Space AI key, OpenCode Go): the provider refused with a limit. Kept until the time it said, or MODEL_REST_MS when it said none,
+// and cleared by the next turn on that model that answers. The picker greys the model with the time; the meter of that model shows full.
+
+/** How long a model that ran out is shown as out when the provider did not say when it comes back. */
+export const MODEL_REST_MS = 30 * 60_000;
+const modelReady = new WeakSet<object>();
+function ensureModelLimits(db: Db): void {
+  if (modelReady.has(db)) return;
+  db.run("CREATE TABLE IF NOT EXISTS engine_model_limits (account_ref TEXT NOT NULL, model TEXT NOT NULL, resets_at INTEGER, at INTEGER NOT NULL, PRIMARY KEY (account_ref, model))");
+  modelReady.add(db);
+}
+export function recordModelLimit(db: Db, accountRef: string, model: string, resetsAt: number | undefined, now: number): void {
+  if (accountRef === "" || model === "") return;
+  ensureModelLimits(db);
+  db.run("INSERT OR REPLACE INTO engine_model_limits (account_ref, model, resets_at, at) VALUES (?, ?, ?, ?)", accountRef, model, resetsAt !== undefined && Number.isFinite(resetsAt) && resetsAt > now ? Math.trunc(resetsAt) : null, now);
+}
+export function clearModelLimit(db: Db, accountRef: string, model: string): void {
+  ensureModelLimits(db);
+  db.run("DELETE FROM engine_model_limits WHERE account_ref = ? AND model = ?", accountRef, model);
+}
+/** The models of an account that are out of usage now, with when they come back when the provider said. */
+export function modelLimits(db: Db, accountRef: string, now: number): Map<string, { resetsAt?: number }> {
+  ensureModelLimits(db);
+  const out = new Map<string, { resetsAt?: number }>();
+  for (const r of rows({ db }, "SELECT model, resets_at, at FROM engine_model_limits WHERE account_ref = ?", accountRef)) {
+    const resetsAt = optStr(r["resets_at"]);
+    const until = resetsAt !== undefined ? Number(resetsAt) : num(r["at"]) + MODEL_REST_MS;
+    if (until <= now) continue;
+    out.set(String(r["model"]), resetsAt !== undefined ? { resetsAt: Number(resetsAt) } : {});
+  }
+  return out;
+}
+
 interface AccountRow { ref: string; driver: string; title: string; name?: string }
 const PROVIDER_OF: Readonly<Record<string, string>> = { claude_code: "anthropic", codex: "openai", grok: "xai" };
 
@@ -83,7 +116,9 @@ export async function usageGet(ctx: EngineCtx, input: { threadId: string; agentI
     context = { used: Math.min(window, last ? Math.trunc(num(last["tokens_in"])) : 0), window };
   }
 
-  const session = row ? readingOf(ctx.db, row.ref, "session", now) : null;
+  // a model that ran out on this account reads as a full session until it comes back (what the provider refused, not an estimate)
+  const out = row && model ? modelLimits(ctx.db, row.ref, now).get(model) : undefined;
+  const session = out ? { pct: 100, ...(out.resetsAt !== undefined ? { resetsAt: out.resetsAt } : {}) } : row ? readingOf(ctx.db, row.ref, "session", now) : null;
   const week = row ? readingOf(ctx.db, row.ref, "week", now) : null;
   const source = session || week ? "provider" : context ? "estimate" : "none";
   return {

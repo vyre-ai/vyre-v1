@@ -8,6 +8,7 @@ import { useConsoleData } from "../shell/data.tsx";
 import { Help,  Actions, Button, Field, Note, ReadState, useAction, useRead } from "./shared.tsx";
 import { Choice, Tick } from "./ai-controls.tsx";
 import { policyMatches, policyMode, policySelection } from "./ai-data-values.ts";
+import { SpaceKey } from "./SpaceKey.tsx";
 
 type Policy = CapMap["engine.policy.get"]["out"];
 type Providers = CapMap["engine.providers.list"]["out"];
@@ -44,6 +45,7 @@ function ModelsEditor({ policy, providers, models, refresh }: { policy: Policy; 
   const modelIds = [...new Set([...models.map((model) => model.model), ...current.allowedModels])];
   const q = search.trim().toLowerCase();
   return <View testID="console-models">
+    <SpaceKey />
     <Section title="Accounts"><Group><Choice label="Accounts agents may use" value={current.allowedAccounts} options={[{ key: "any", title: "Company and personal accounts" }, { key: "company", title: "Company accounts only" }]} onChange={(value) => patch({ allowedAccounts: value as Policy["allowedAccounts"] })} /></Group></Section>
     <Section title="Providers" right={<Button label="Open Vault" onPress={() => data.nav.openApp({ screen: "vault.layout" })} />}><Group>
       <Choice label="Allowed providers" value={providerMode} options={[{ key: "all", title: "All providers" }, { key: "selected", title: "Selected providers" }]} onChange={(value) => { setDraftProviderMode(value as "all" | "selected"); setPreview(null); }} />

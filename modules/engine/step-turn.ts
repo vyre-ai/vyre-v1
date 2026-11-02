@@ -14,6 +14,7 @@ import { isPaused, limitReached, recordStepUsage } from "./handlers/spend.ts";
 import { ensure, raise, stepOpenOf } from "./projections.ts";
 import type { EngineCtx } from "./projections.ts";
 import { providerOfDriver } from "./runtime.ts";
+import { fitModel } from "./space-key-turns.ts";
 
 export interface StepTurnIn {
   prompt: string;
@@ -155,13 +156,17 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
       raise(ctx, "permission.provider_label", `This AI step has ${label ? `${label} ` : "labelled "}records in its input, and this Space does not let them go to that AI provider. The step did not run.`, { reason: "label_provider", count: blocked.length });
     }
   }
-  const agent: EngineAgent = { id: agentKey, ...(withAgent ? { name: withAgent.agent.name } : {}), mode: "lead", ...(withAgent?.agent.model ? { model: withAgent.agent.model } : {}) };
+  // on the Space AI key the step runs on a model the key unlocks: the agent's when the key serves it, else the first one
+  const stepModel = paid.row.spaceKey === true
+    ? fitModel(withAgent?.agent.model, await (ctx.call("providers.space_key.get", {}) as Promise<{ models?: string[] }>).then((r) => r.models ?? [], () => [] as string[]))
+    : withAgent?.agent.model;
+  const agent: EngineAgent = { id: agentKey, ...(withAgent ? { name: withAgent.agent.name } : {}), mode: "lead", ...(stepModel ? { model: stepModel } : {}) };
   const slug = hex(input.idempotencyKey);
   const threadId = `thr_step${slug}`;
   const turnId = `trn_step${slug}${hex(String(ctx.now()))}`;
   const spec: SessionSpec = {
     threadId, agent, asker, turnId, traceId: ctx.trace.traceId, tools: "none",
-    account: { ref: paid.row.ref, driver: paid.row.driver, provider: providerOfDriver(paid.row.driver), kind: paid.row.kind, payer: paid.payer, reason: input.keyId ? "step_key" : "starter", ...(paid.itemId ? { itemId: paid.itemId } : {}) },
+    account: { ref: paid.row.ref, driver: paid.row.driver, provider: providerOfDriver(paid.row.driver), kind: paid.row.kind, payer: paid.payer, reason: input.keyId ? "step_key" : "starter", ...(paid.itemId ? { itemId: paid.itemId } : {}), ...(paid.row.spaceKey === true ? { spaceKey: true, shared: true } : {}) },
   };
   const text = `${withAgent ? `${withAgent.header}\n\n` : ""}${input.prompt}`;
   const trigger: StoredMessage = { id: `msg_step${slug}`, threadId, threadSeq: 1, author: { kind: "person", id: asker }, mentions: [], depth: 0, body: text };
@@ -191,7 +196,7 @@ export async function stepTurn(ctx: EngineCtx, input: StepTurnIn): Promise<StepT
     try { await session.close(); } catch { /* a session that will not close is dropped */ }
   }
   // what ran is counted whether or not it answered
-  const model = withAgent?.agent.model ?? paid.row.driver;
+  const model = stepModel ?? paid.row.driver;
   recordStepUsage(ctx, { turnId, agentId: agentKey, asker, model, tokensIn, tokensOut, ...(paid.itemId ? { itemId: paid.itemId } : {}) });
   if (timedOut) raise(ctx, "timeout.deadline", `The AI step did not answer within ${minutes} minutes.`, { reason: "timeout" });
   if (failure) {

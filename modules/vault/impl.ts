@@ -5,6 +5,7 @@ import * as h from "./handlers/index.ts";
 import * as u from "./handlers/use.ts";
 import * as pr from "./handlers/providers.ts";
 import * as g from "./handlers/g20.ts";
+import * as sk from "./handlers/space-key.ts";
 import { Filler, setFiller, setKeyPort } from "./handlers/crypto.ts";
 import type { KeyPort } from "./handlers/crypto.ts";
 import { deferredHandlers } from "../../host/src/routes/deferred.ts";
@@ -56,6 +57,10 @@ export const handlers: Record<string, Handler> = {
   "providers.custom_add": (ctx, i) => pr.customAdd(ctx, i),
   "providers.custom_list": (ctx, i) => pr.customList(ctx, i),
   "providers.custom_remove": (ctx, i) => pr.customRemove(ctx, i),
+  "providers.space_key.get": (ctx, i) => sk.get(ctx, i),
+  "providers.space_key.set": (ctx, i) => sk.set(ctx, i),
+  "providers.space_key.remove": (ctx, i) => sk.remove(ctx, i),
+  "providers.space_key.use": (ctx, i) => sk.use(ctx, i),
   "vault.folders.update": (ctx, i) => g.foldersUpdate(ctx, i),
   "vault.folders.delete": (ctx, i) => g.foldersDelete(ctx, i),
   "vault.generate": (ctx, i) => g.generate(ctx, i),

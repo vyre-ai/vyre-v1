@@ -92,6 +92,22 @@ export function panelUsage(out: UsageOut | null): PanelUsage | null {
   return { context: out.context && out.context.window > 0 ? out.context : null, session: meter(out.session), week: meter(out.week) };
 }
 
+/** "Out of usage until 3:40 PM": a model the provider refused for its usage limit, with when it comes back when the provider said (a later day names the day). */
+export function outOfUsage(resetsAt: number | undefined, now = Date.now()): string {
+  if (resetsAt === undefined || !Number.isFinite(resetsAt) || resetsAt <= now) return "Out of usage for now";
+  const at = new Date(resetsAt);
+  const time = at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return new Date(now).toDateString() === at.toDateString() ? `Out of usage until ${time}` : `Out of usage until ${at.toLocaleDateString([], { weekday: "short" })} ${time}`;
+}
+
+/** Why a model is greyed, in the panel's words. */
+export function modelReason(m: { reason?: string; resetsAt?: number }, now = Date.now()): string | undefined {
+  if (!m.reason) return undefined;
+  if (m.reason === "not_connected") return "Not connected";
+  if (m.reason === "usage_limit") return outOfUsage(m.resetsAt, now);
+  return "Not allowed here";
+}
+
 /** Only accounts that are connected (signed in or not yet tested) are offered, by the name the person gave them. */
 export function connectedAccounts(rows: readonly AccountRow[]): PanelAccount[] {
   return rows.filter((r) => r.status === "ok" || r.status === "untested").map((r) => ({ ref: r.ref, name: r.name ?? r.title, provider: r.driver, ...(r.kind === "api_key" ? { plan: "API key" } : {}) }));
@@ -190,8 +206,8 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
     setModels(null);
     void Promise.resolve(data.call("engine.models.list", { threadId: data.threadId, ...(shownRef ? { accountRef: shownRef } : {}) })).then((out) => {
       if (!live) return;
-      const list = ((out as { models?: { model: string; title: string; contextTokens?: number; allowed: boolean; reason?: string }[] } | undefined)?.models ?? []);
-      setModels(list.map((m) => ({ id: m.model, title: m.title, ...(m.contextTokens ? { window: m.contextTokens } : {}), allowed: m.allowed, ...(m.reason ? { reason: m.reason === "not_connected" ? "Not connected" : "Not allowed here" } : {}), ...(m.model === "auto" ? { note: "Picks per message" } : {}) })));
+      const list = ((out as { models?: { model: string; title: string; contextTokens?: number; allowed: boolean; reason?: string; resetsAt?: number }[] } | undefined)?.models ?? []);
+      setModels(list.map((m) => { const why = modelReason(m); return { id: m.model, title: m.title, ...(m.contextTokens ? { window: m.contextTokens } : {}), allowed: m.allowed, ...(why ? { reason: why } : {}), ...(m.model === "auto" ? { note: "Picks per message" } : {}) }; }));
     }, () => { if (live) setModels([]); });
     return () => { live = false; };
   }, [data, shownRef]);

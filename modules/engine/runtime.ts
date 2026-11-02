@@ -15,6 +15,7 @@ import { remoteLauncher, routed } from "./node-turns.ts";
 import type { NodeRelay } from "./node-turns.ts";
 import { withRecall } from "./recall.ts";
 import { withChatSettings } from "./chat-settings.ts";
+import { withSpaceKeyTurns } from "./space-key-turns.ts";
 import { createLimitSwitch } from "./switch-on-limit.ts";
 import { checkedOpen, createRunnableAccount } from "./runnable-account.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
@@ -79,7 +80,7 @@ export interface EngineHostSeam {
   extend?: (engine: TurnEngine) => void;
 }
 
-interface AccountRow { ref: string; driver: string; kind: "api_key" | "subscription"; base?: string; keyless?: boolean }
+interface AccountRow { ref: string; driver: string; kind: "api_key" | "subscription"; base?: string; keyless?: boolean; spaceKey?: boolean }
 interface ResolveOut { accountRef: string | null; payer: string | null; reason: ResolvedAccount["reason"]; allowed: boolean; itemId?: string; fellBack?: boolean }
 
 /** The provider a driver belongs to, for the session spec; the CLI engines run their vendor's models. */
@@ -123,7 +124,7 @@ export async function resolveOne(h: Pick<EngineHostSeam, "call" | "log">, q: Acc
   const list = (await h.call("engine.accounts.list", {}, res.payer)) as { accounts: AccountRow[] };
   const row = list.accounts.find((a) => a.ref === res.accountRef);
   if (!row) { h.log?.("the account the turn resolved is not in the payer's list", { threadId: q.threadId, accountRef: res.accountRef, payer: res.payer }); return null; }   // the key vanished between the two calls: treat as none, the next turn asks again
-  return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(row.mine ? {} : { shared: true }), ...(res.itemId ? { itemId: res.itemId } : {}), ...(res.fellBack ? { fellBack: true } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}) };
+  return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(row.mine ? {} : { shared: true }), ...(res.itemId ? { itemId: res.itemId } : {}), ...(res.fellBack ? { fellBack: true } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}), ...(row.spaceKey ? { spaceKey: true } : {}) };
 }
 
 /** An account whose engine can run on this computer: the pick, or another account of the person when the pick's program is not installed (runnable-account.ts). */
@@ -290,7 +291,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       },
     });
     const engine = createTurnEngine({
-      holder: h.holder, openSession: withChatSettings(withTurnContext(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), turnContext), h.call), now,
+      holder: h.holder, openSession: withChatSettings(withSpaceKeyTurns(withTurnContext(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), turnContext), { call: h.call, db: ctx.db, now }), h.call), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       admit: (q) => admission(h, q),
       lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),
