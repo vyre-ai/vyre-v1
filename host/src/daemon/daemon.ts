@@ -1150,7 +1150,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         setSchemaVault: () => sealedVault(),
         setPushPort: () => createPushPort(o.seams?.push),
         // portal invitations and sign-in links go out through mail.send from the service mailbox (P-L8_17)
-        configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: d.publicUrl, owner: () => access.owner() ?? cfg.owner ?? null, warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "portal", attrs }) }),
+        configurePortal: (d) => createPortalHost({ invoke: (cap, input, seed) => invoke(cap, input, seed), space: spaceId, publicUrl: o.seams?.publicUrl ? d.publicUrl : async () => {
+          // a portal link has to reach someone outside and keeps a sign-in, so it needs an address of the Space's own: not loopback, and not /p/, which carries no session
+          const outside = publicOrigin();
+          if (!outside) throw new Error("This Space has no public address yet, so a portal link cannot point at it.");
+          if (outside.relay && !cfg.address) throw new Error("A portal sign-in link needs the Space's own domain. A vyre.run address carries public pages, not sign-ins.");
+          return outside.origin;
+        }, owner: () => access.owner() ?? cfg.owner ?? null, warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "portal", attrs }) }),
         // the updates module: the compiled-in release key, the GitHub Releases feed and the vyre-server installer (P-L7b_17)
         configureUpdates: () => createUpdatesHost(),
         // A Kit is a resource in the access projection (type "kit") so that the capabilities on it can be authorized. The module cannot create resources, so the host does: one
@@ -1368,13 +1374,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           ...(o.seams?.fetch ? { fetch: o.seams.fetch } : {}),
           filler,
           // where Mailgun posts inbound mail: the address people reach this Space at, else the local URL (read at call time, the port is known only after listen)
-          // a portal link has to reach someone outside and keeps a sign-in, so it needs an address of the Space's own: not loopback, and not /p/, which carries no session
-          publicUrl: o.seams?.publicUrl ?? (async () => {
-            const outside = publicOrigin();
-            if (!outside) throw new Error("This Space has no public address yet, so a portal link cannot point at it.");
-            if (outside.relay && !cfg.address) throw new Error("A portal sign-in link needs the Space's own domain. A vyre.run address carries public pages, not sign-ins.");
-            return outside.origin;
-          }),
+          publicUrl: o.seams?.publicUrl ?? (async () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }),
           drivers: hostDrivers, owners: loaded.seamOwners,
         });
         closers.push(() => seams?.unwire());
