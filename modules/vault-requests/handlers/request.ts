@@ -3,6 +3,7 @@
 // DECISION: a request carries names, never values. A manager supplies the key in the fulfil call; the value goes straight to vault.item.put (or the item they name is shared) and is not stored here,
 // not echoed back, not in an event, a card, a log line or the thread. The requester gets Use on the item, which hands out a handle and never the value.
 // DECISION: the requester never decides their own request. Anyone who is neither the requester nor a manager gets "not found", so request ids leak nothing.
+import { isCompanyKey } from "../../../lib/company-keys.ts";
 import { TABLE, asRow, idsOf, nid, page, raise, requestById, requestOut, strOf } from "../projections.ts";
 import type { Ref, RequestRow, State, VaultReqCtx } from "../projections.ts";
 
@@ -63,6 +64,7 @@ export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fie
   const name = input.name.trim();
   if (!NAME.test(name)) raise(trace, "validation.bad_input", "Name the key like a handle: letters, digits and underscores, starting with a letter.");
   if (!input.reason.trim()) raise(trace, "validation.bad_input", "Say why the key is needed, so a manager can decide.");
+  if (isCompanyKey(`#${name}`)) raise(trace, "validation.precondition_failed", "This key goes in through Connect your company, on the card, so it never passes through a chat or an agent.");
   const fields = [...new Set((input.fields && input.fields.length > 0 ? input.fields : DEFAULT_FIELDS).map((f) => f.trim()))];
   for (const f of fields) if (!FIELD.test(f)) raise(trace, "validation.bad_input", `${f} is not a field name.`);
 

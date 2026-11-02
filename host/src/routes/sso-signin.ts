@@ -15,7 +15,7 @@ const PATH = "/auth/sso";
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 /** One-use tickets from a finished sign-in. Shared by the route (which makes them) and identity (which spends them). */
-/** Who the provider says this is, beyond the address: the tenant and immutable user id (Microsoft). */
+/** Who the provider says this is, beyond the address: the organization and the identifier that never changes when an address does. */
 export interface SsoLink { tenant: string; subject: string }
 export interface SsoTickets {
   make(key: string, email: string, link?: SsoLink): string;
@@ -102,8 +102,8 @@ export function createSsoSignInRoute(deps: SsoSignInRouteDeps): { handle(req: ht
     if (url.searchParams.get("error") || !code || code.length > 2000) return back("sso_error=denied");
     try {
       const idToken = await exchangeCode(fetch, rec.disc, { clientId: provider.clientId, clientSecret: await deps.secret(provider.clientSecretHandle), code, redirect, verifier: rec.verifier });
-      const who = await verifyIdToken(fetch, rec.disc, idToken, { clientId: provider.clientId, nonce: rec.nonce, domain: provider.domainHint, now: now(), jwks, ...(key === "microsoft" ? { tenant: tenantOf(provider.issuer) ?? "-" } : {}) });
-      back(`sso_code=${encodeURIComponent(deps.tickets.make(key, who.email, who.tenant !== undefined && who.oid !== undefined ? { tenant: who.tenant, subject: who.oid } : undefined))}&sso_provider=${encodeURIComponent(key)}`);
+      const who = await verifyIdToken(fetch, rec.disc, idToken, { clientId: provider.clientId, nonce: rec.nonce, domain: provider.domainHint, now: now(), jwks, ...(key === "microsoft" ? { tenant: tenantOf(provider.issuer) ?? "-" } : {}), ...(key === "google" ? { hostedDomain: true } : {}) });
+      back(`sso_code=${encodeURIComponent(deps.tickets.make(key, who.email, who.link))}&sso_provider=${encodeURIComponent(key)}`);
     } catch (e) {
       deps.log?.("sso sign-in refused", { key, why: (e as Error).message });
       back("sso_error=refused");

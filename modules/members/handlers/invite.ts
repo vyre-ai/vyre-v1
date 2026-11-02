@@ -198,7 +198,7 @@ export function invitesSeam(ctx: MembersCtx): { peek(code: string): SeamInvite |
       const r = inviteByCode(ctx, code);
       if (!r || r.state !== "open") return "invalid";
       if (r.expires_at <= ctx.now()) return "expired";
-      return { inviteId: r.id, role: r.role, groups: listOf(r.groups), invitedBy: r.created_by };
+      return { inviteId: r.id, role: r.role, groups: listOf(r.groups), invitedBy: r.created_by, ...(r.email ? { email: r.email } : {}) };
     },
     accept(inviteId, personId) {
       const r = inviteById(ctx, inviteId);

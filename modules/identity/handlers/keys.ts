@@ -120,7 +120,7 @@ export async function resetComplete(ctx: IdentityCtx, input: Device & { resetCod
 
 
 export async function acceptCreateAccount(
-  ctx: IdentityCtx, input: Device & { code: string; username: string; displayName?: string; password: string; keys: KeyBundle },
+  ctx: IdentityCtx, input: Device & { code: string; username: string; displayName?: string; password: string; keys: KeyBundle; ssoProvider?: string; ssoCode?: string },
 ): Promise<SignInOut> {
   const tid = ctx.trace.traceId;
   if (!ctx.invites) raise(tid, "internal.not_implemented", "invites are not wired into this host");
@@ -133,11 +133,15 @@ export async function acceptCreateAccount(
   checkNewSecret(ctx, input.password);
   if (!validBundle(input.keys)) raise(tid, "validation.bad_input", "keys must be base64 ciphertext");
   const personId = nid("usr");
-  assertNewMemberPolicy(ctx);
+  // when everyone must use single sign-on, the invitation's address is proved at the provider; the password only wraps the person's keys and never signs them in
+  const proved = input.ssoProvider && input.ssoCode ? ctx.sso?.prove?.(input.ssoProvider, input.ssoCode) ?? null : null;
+  if (input.ssoCode && (!proved || !invite.email || proved.email.toLowerCase() !== invite.email.toLowerCase())) raise(tid, "auth.bad_credentials");
+  assertNewMemberPolicy(ctx, proved !== null);
   await provisionAccount(ctx, { personId, username, name: input.displayName?.trim() || username, secret: input.password });
   setKeys(ctx, personId, input.keys, "first_device");
+  proved?.bind(personId);
   await ctx.invites.accept(invite.inviteId, personId);
   ctx.emit("principal.created", personId, { principalId: personId, kind: "person", name: input.displayName?.trim() || username });
   ctx.emit("member.joined", personId, { personId, inviteId: invite.inviteId, role: invite.role, invitedBy: invite.invitedBy });
-  return await issueSession(ctx, mustAccount(ctx, personId), input, "password", { joining: true });
+  return await issueSession(ctx, mustAccount(ctx, personId), input, proved ? "sso" : "password", { joining: true });
 }

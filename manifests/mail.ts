@@ -151,6 +151,9 @@ const manifest = defineManifest({
       },
       out: { mailbox: mailboxRow }, emits: ['mailbox.connected'], idem: 'key', tool: 'inbox', offline: 'online', errors: ['provider.auth_failed', 'validation.duplicate'],
     }),
+    write('mail.member_pause', 'The connector stops a member\'s delegated mailbox, or starts it again; what is already in Vyre stays theirs', {
+      in: { provider: t.enm('google', 'microsoft'), address: email, paused: t.bool() }, out: { changed: t.int() }, perm: 'connectors.manage', emits: ['mailbox.paused', 'mailbox.resumed'], audit: 'always',
+    }),
     write('mail.auto_connect_members', 'Create Pending mail connections for every mapped member when delegation is set and auto-connect is on (one notice each)', {
       in: { provider: t.enm('google', 'microsoft'), members: t.arr(t.obj({ userId: id.user, email })) },
       out: { created: t.int(), notified: t.int(), skipped: t.int() }, perm: 'connectors.manage', emits: ['mailbox.connected'], idem: 'key', audit: 'always',

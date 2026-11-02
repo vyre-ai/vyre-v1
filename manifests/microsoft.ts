@@ -16,6 +16,7 @@ import { email, id, pageIn, pageOut } from './_common.ts';
 const act: Props = { connectionId: id.connection, as: t.opt(email) };
 const onConn = { on: ['connection', '/connectionId'] } as const;
 const quiet = (what: string) => ({ act: 'none', reason: what });
+const dataChoice = t.obj({ mail: t.bool(), calendar: t.bool(), files: t.bool() });
 const healthOut = { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) };
 const PERMISSIONS = ['Mail.ReadWrite', 'Mail.Send', 'Calendars.ReadWrite', 'Files.ReadWrite.All', 'User.Read.All', 'OnlineMeetingRecording.Read.All', 'OnlineMeetingTranscript.Read.All'];
 const graphMessage = t.obj({
@@ -39,8 +40,23 @@ const gw: Gen = (name, summary, inn, out, o = {}) => outward(name, summary, { in
 const capabilities = [
   // ---- admin consent setup (Console > Integrations)
   read('ms.consent.status', 'State of the Microsoft 365 connection: app registered, consent given, access policy checked, mapped members', {
-    in: {}, out: { configured: t.bool(), tenantId: t.opt(t.str()), consentGiven: t.bool(), policyConfirmed: t.bool(), lastVerifyAt: t.opt(t.ts()), autoConnect: t.bool(), mappedMembers: t.int(), excluded: t.arr(email) },
+    in: {}, out: { configured: t.bool(), tenantId: t.opt(t.str()), consentGiven: t.bool(), policyConfirmed: t.bool(), lastVerifyAt: t.opt(t.ts()), autoConnect: t.bool(), mappedMembers: t.int(), excluded: t.arr(email), data: dataChoice, appStored: t.bool(), clientId: t.opt(t.str()), permissions: t.arr(t.str()), exchangeRoles: t.arr(t.str()) },
     perm: 'connectors.manage', tool: 'engineer',
+  }),
+  read('ms.consent.check_app', 'Prove the app registration in the Vault signs in to its tenant, with no person involved. Answers what is wrong in plain words; never the secret', {
+    in: { vaultItem: id.handle }, out: { ok: t.bool(), clientId: t.opt(t.str()), tenantId: t.opt(t.str()), credential: t.opt(t.enm('certificate', 'secret')), problem: t.opt(t.str()) }, perm: 'connectors.manage', tool: 'engineer',
+  }),
+  write('ms.consent.connect_all', 'Everyone included comes in: mail, calendar and the first pull, for what the company chose. Repeating it adds nobody twice', {
+    in: {}, out: { connected: t.int(), included: t.int() }, perm: 'connectors.manage', risk: 'high', audit: 'always', tool: 'engineer', idem: 'key', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['validation.precondition_failed', 'permission.on_hold'],
+  }),
+  write('ms.consent.set_data', 'Choose Mail, Calendar and Files separately after setup. What is turned off stops for everyone; what is turned on comes in for everyone included', {
+    in: { data: dataChoice }, out: { data: dataChoice, permissions: t.arr(t.str()), exchangeRoles: t.arr(t.str()) }, perm: 'connectors.manage', risk: 'high', audit: 'always', tool: 'engineer', idem: 'key', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['validation.precondition_failed', 'permission.on_hold'],
+  }),
+  read('ms.access_log', 'Who reached whose Microsoft data: who made the call, the person an agent worked for, which mailbox, which capability, when', {
+    in: { ...pageIn, mailbox: t.opt(email) }, out: { entries: t.arr(t.obj({ who: t.str(), onBehalf: t.opt(t.str()), mailbox: t.str(), cap: t.str(), at: t.ts() })), next: t.opt(t.str()) }, perm: 'connectors.manage', tool: 'engineer',
+  }),
+  write('ms.directory.reconcile', 'Compare the directory with who is matched: a person gone or turned off stops, and the Space suspends them. Every page must read, and a large change waits for a person', {
+    in: { confirmed: t.opt(t.bool()) }, out: { checked: t.int(), gone: t.arr(email), held: t.opt(t.str()) }, perm: 'connectors.manage', audit: 'always', tool: 'engineer', errors: ['provider.auth_failed', 'validation.precondition_failed'],
   }),
   read('ms.consent.link', 'The admin consent link to open as a tenant admin, with the application permissions it grants', {
     in: { tenantId: t.opt(t.str()) }, out: { url: t.str(), permissions: t.arr(t.str()) }, perm: 'connectors.manage', tool: 'engineer',
@@ -49,22 +65,22 @@ const capabilities = [
     in: {}, out: { language: t.lit('powershell'), snippet: t.str(), groupName: t.str() }, perm: 'connectors.manage', tool: 'engineer',
   }),
   write('ms.consent.setup', 'Store the app registration (Vault item Microsoft_App), map members by email and, with auto-connect on, create their Pending mail and calendar connections', {
-    in: { vaultItem: id.handle, tenantId: t.str(), domain: t.opt(t.str()) }, out: { configured: t.bool(), mappedMembers: t.int(), connected: t.int() },
+    in: { vaultItem: id.handle, tenantId: t.str(), domain: t.opt(t.str()), data: t.opt(dataChoice), hold: t.opt(t.bool()) }, out: { configured: t.bool(), mappedMembers: t.int(), connected: t.int() },
     perm: 'connectors.manage', risk: 'high', emits: ['microsoft.consent_configured'], idem: 'key', audit: 'always', tool: 'engineer', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['provider.auth_failed', 'validation.precondition_failed', 'permission.on_hold'],
   }),
   write('ms.consent.verify', 'Call GET /organization and check consent and the access policy for a probe member', {
-    in: { as: t.opt(email), policyConfirmed: t.opt(t.bool()) }, out: { ok: t.bool(), missingPermissions: t.arr(t.str()), detail: t.opt(t.str()) },
+    in: { as: t.opt(email), policyConfirmed: t.opt(t.bool()) }, out: { ok: t.bool(), missingPermissions: t.arr(t.str()), unscoped: t.opt(t.arr(t.str())), detail: t.opt(t.str()) },
     perm: 'connectors.manage', emits: ['microsoft.consent_verified'], audit: 'always', tool: 'engineer', errors: ['provider.auth_failed'],
   }),
   read('ms.consent.my_account', 'The Microsoft 365 address the caller is matched to, if any (a OneDrive or SharePoint mount names it so it syncs as the person, not as an admin)', {
-    in: {}, out: { email: t.opt(email) },
+    in: {}, out: { email: t.opt(email), connectionId: t.opt(id.connection), files: t.opt(t.bool()) },
   }),
   // ---- a person's own Microsoft sign-in for mail (no tenant consent needed): the OAuth app lives in a Vault item, the person's refresh token is sealed in the module
   read('ms.user.app_status', 'Whether a Microsoft OAuth app is set up for signing in to your own Outlook, and the redirect address to give Microsoft for it', {
     in: {}, out: { configured: t.bool(), clientId: t.opt(t.str()), vaultItem: t.opt(t.str()), redirectUri: t.opt(t.str()) },
   }),
   write('ms.user.app_set', 'Name the Vault item that holds the Microsoft OAuth app (client_id, client_secret when it has one, tenant when it is not common)', {
-    in: { vaultItem: id.handle }, out: { configured: t.bool(), clientId: t.str() }, perm: 'connectors.manage', audit: 'always', errors: ['provider.auth_failed'],
+    in: { vaultItem: id.handle }, out: { configured: t.bool(), clientId: t.str() }, perm: 'connectors.manage', audit: 'always', gate: { act: 'connection_change', when: "actor.kind != 'person'" }, errors: ['provider.auth_failed', 'permission.on_hold'],
   }),
   write('ms.user.start', 'Start signing in to your own Outlook: the address to approve at', {
     in: { loginHint: t.opt(email) }, out: { authUrl: t.str(), state: t.str() }, idem: 'none', errors: ['validation.precondition_failed'],

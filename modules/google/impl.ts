@@ -20,6 +20,11 @@ export const handlers: Record<string, Handler> = {
   "google.dwd.members": (ctx, i) => h.dwdMembers(ctx, i),
   "google.dwd.my_account": (ctx) => h.dwdMyAccount(ctx),
   "google.dwd.set_excluded": (ctx, i) => h.dwdSetExcluded(ctx, i),
+  "google.dwd.check_key": (ctx, i) => h.dwdCheckKey(ctx, i),
+  "google.dwd.connect_all": (ctx, i) => h.dwdConnectAll(ctx, i),
+  "google.dwd.set_data": (ctx, i) => h.dwdSetData(ctx, i),
+  "google.access_log": (ctx, i) => h.accessLog(ctx, i),
+  "google.directory.reconcile": (ctx, i) => h.directoryReconcile(ctx, i),
   "google.directory.list": (ctx, i) => h.directoryList(ctx, i),
   "google.directory.import": (ctx, i) => h.directoryImport(ctx, i),
   "google.dwd.sync_members": (ctx, i) => h.syncMembers(ctx, i),
@@ -102,7 +107,11 @@ const joinConsumers = {
   },
 };
 
-const consumersAll = { ...consumers, ...joinConsumers };
+const consumersAll = {
+  ...consumers, ...joinConsumers,
+  /** A person left or was removed: their delegated mail, calendar and files stop being read. */
+  "google.person_left": { on: ["member.removed"], run: (ctx: Parameters<typeof h.personLeft>[0], event: Parameters<typeof h.personLeft>[1]) => h.personLeft(ctx, event) },
+};
 export const projections = { inline, consumers: consumersAll };
 export { codecs, inline };
 export { consumersAll as consumers };

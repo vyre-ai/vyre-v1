@@ -6,10 +6,10 @@ export {
   recordingGet, recordings, schedule, transcriptGet, transcripts,
 } from "./graph.ts";
 export {
-  calendarSubscribe, calendarUnsubscribe, consentDisable, consentExclude, consentMapMember, consentLink, consentMembers, consentMyAccount, consentSetup, consentSnippet, consentStatus, consentVerify, driveSubscribe, driveUnsubscribe, health,
+  accessLog, calendarSubscribe, calendarUnsubscribe, consentCheckApp, consentConnectAll, consentSetData, personLeft, consentDisable, consentExclude, consentMapMember, consentLink, consentMembers, consentMyAccount, consentSetup, consentSnippet, consentStatus, consentVerify, driveSubscribe, driveUnsubscribe, health,
   mailSubscribe, mailUnsubscribe, receiveNotification, renew, teamsSubscribe,
 } from "./subscriptions.ts";
 export { workbookAppend, workbookRange, workbookUpdate } from "./workbook.ts";
 export { acceptHook, sameState } from "./hook.ts";
-export { directoryImport, directoryList, syncMembers } from "./directory.ts";
+export { directoryImport, directoryList, directoryReconcile, syncMembers } from "./directory.ts";
 export { userAppSet, userAppStatus, userComplete, userList, dropAccountsOf, userRemove, userSend, userStart } from "./personal.ts";

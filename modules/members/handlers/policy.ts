@@ -43,6 +43,13 @@ export async function policySet(ctx: MembersCtx, input: { policy: Policy }) {
   if(next.requireSso&&(!methods||!methods.sso.length))raise(tid,"validation.unsupported","Single sign-on is not implemented by this server. Keep a supported sign-in method enabled.");
   if(!next.allowPassword&&!(next.allowGithub&&methods?.github)&&!(next.requireSso&&methods?.sso.length))raise(tid,"validation.precondition_failed","Password sign-in cannot be disabled without another working sign-in method.");
   if (next.requireSso && !providers(ctx).some((p) => p.enabled && methods?.sso.includes(p.key))) raise(tid, "validation.precondition_failed", "turn on a single sign-on provider before requiring it");
+  // nobody turns this on and locks the owner out: the owner has signed in with the provider once, and holds the recovery key that is the way in when the provider is down
+  if (next.requireSso && !cur.requireSso) {
+    const owner = ctx.spaceOwner?.();
+    if (!owner) raise(tid, "internal.unavailable", "The server cannot verify the Space owner for this policy change.");
+    if (!ctx.breakGlass?.ssoLinked(owner)) raise(tid, "validation.precondition_failed", "The Space owner has to sign in with this provider once first, or requiring it would lock them out.");
+    if (!ctx.breakGlass?.hasRecovery(owner)) raise(tid, "validation.precondition_failed", "The Space owner has to save a recovery key first. It is the way in if the provider is down.");
+  }
   // the owner floor: only the owner may take a requirement away
   const lowers = (cur.secondFactor === "required" && next.secondFactor === "off") || (cur.requireSso && !next.requireSso);
   if (lowers && !(await isOwner(ctx, who.id))) raise(tid, "permission.role_lacks_permission", "only the owner can lower a sign-in requirement");

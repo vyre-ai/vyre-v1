@@ -14,6 +14,11 @@ export type { MsHost } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = {
   "ms.consent.status": (ctx) => h.consentStatus(ctx),
+  "ms.consent.check_app": (ctx, i) => h.consentCheckApp(ctx, i),
+  "ms.consent.connect_all": (ctx, i) => h.consentConnectAll(ctx, i),
+  "ms.consent.set_data": (ctx, i) => h.consentSetData(ctx, i),
+  "ms.access_log": (ctx, i) => h.accessLog(ctx, i),
+  "ms.directory.reconcile": (ctx, i) => h.directoryReconcile(ctx, i),
   "ms.consent.link": (ctx, i) => h.consentLink(ctx, i),
   "ms.consent.policy_snippet": (ctx) => h.consentSnippet(ctx),
   "ms.consent.setup": (ctx, i) => h.consentSetup(ctx, i),
@@ -93,7 +98,11 @@ const joinConsumers = {
   },
 };
 
-const consumersAll = { ...consumers, ...joinConsumers };
+const consumersAll = {
+  ...consumers, ...joinConsumers,
+  /** A person left or was removed: their delegated mail, calendar and files stop being read. */
+  "microsoft.person_left": { on: ["member.removed"], run: (ctx: Parameters<typeof h.personLeft>[0], event: Parameters<typeof h.personLeft>[1]) => h.personLeft(ctx, event) },
+};
 export const projections = { inline, consumers: consumersAll };
 export { codecs, inline };
 export { consumersAll as consumers };
