@@ -39,7 +39,10 @@ Never call a supported engine or feature missing. Say plainly what is not built.
 ## Long-running work and development
 - Chats persist. Every turn goes into the chat's transcript. A rolling summary stands in for older turns, the last 20 stay word for word, and any exact line can be searched.
 - Claude Code keeps one warm process for a chat. Codex and Grok start a process per turn that resumes their own session.
-- Context: an API chat compacts itself at 80 percent of the model's window. Compact, in the chat's model panel, sends the engine its own compact command with what to keep.
+  Vyre keeps each engine's own session for the chat, so after a restart the next turn resumes it.
+- Context: an API chat compacts itself at 80 percent of the model's window. Compact, in the chat's model panel, or /compact frees context now and keeps what you name.
+  Claude Code runs its own compact. For Codex, Grok and API models Vyre writes a summary that starts with your words, and the engine starts again from it. The chat says so in one line with the context left.
+  Keep this every time keeps the words for every compaction of that chat, the engines' automatic ones too.
 - Steering: Claude Code reads a message sent mid-turn. With Codex and Grok it waits for the turn to end. Stop and send interrupts at once.
 - Background: an agent can end its turn and wake on an event, a run or a time, for up to 30 days by default. Routines run an agent on a schedule or on each new message in a channel.
   A helper takes a side task in its own chat, with its own model. Claude Code can also use its own subagents inside a turn.
@@ -71,7 +74,7 @@ Never call a supported engine or feature missing. Say plainly what is not built.
 - A Personal Space works only while your computer is on. Work that keeps going with it off needs a Team Space or one of your own servers.
 - Channels, the Console, members, sharing, public Apps, webhooks and always-on runs need a Team Space.
 - Imported CLI sessions land in your Personal Space only.
-- When a command line engine's process is gone (a restart), the next turn starts a new engine session from the chat's summary and recent turns.
+- When a command line engine no longer has a chat's session (its files were removed), the next turn starts a new engine session from the chat's summary and recent turns, and says so.
 - Crew needs a project with a code repository on the computer the Space runs on. It does not open pull requests itself; that needs the GitHub App.
 - On Windows the command line engines need WSL2. Without it they run on the Space server.
 - Not in this version: importing from other password managers, and the build and deploy pipeline for Sites. An agent runs a site on a computer instead.
