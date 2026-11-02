@@ -18,6 +18,7 @@ export function ActivityTab({ agentId, call, clock, openChat }: { agentId: strin
     const read = (): void => { void call("mcp.activity.list", { agentId, limit: 100 }).then((o) => { if (live) setRows((o as CapMap["mcp.activity.list"]["out"]).rows); }, () => { if (live) setRows((r) => r ?? []); }); };
     read();
     const t = setInterval(read, ACTIVITY_MS);
+    (t as { unref?: () => void }).unref?.();
     return () => { live = false; clearInterval(t); };
   }, [agentId, call]);
   if (rows === null) return <View testID="activity-loading" accessibilityLabel="Loading" style={st.loading} />;

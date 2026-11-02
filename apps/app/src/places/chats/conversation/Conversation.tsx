@@ -103,6 +103,7 @@ export function useOutsideOffline(data: Pick<ConversationData, "call">, agentId:
     }, () => { if (live) setLine(null); }); };
     read();
     const t = setInterval(read, OUTSIDE_POLL_MS);
+    (t as { unref?: () => void }).unref?.();
     return () => { live = false; clearInterval(t); };
   }, [data, agentId, messages]);
   return line;
