@@ -53,7 +53,7 @@ export default defineManifest({
       in: { agentId: id.agent }, out: { removed: t.bool() }, level: 'member', emits: ['mcp.client_removed'], audit: 'always', risk: 'high', idem: 'natural', offline: 'online', errors: ['validation.not_found', 'permission.no_grant'],
     }),
     read('mcp.activity.list', 'What an outside agent did: the tool, how it ended and where, never an input or an answer', {
-      in: { agentId: id.agent, ...pageIn }, out: { rows: t.arr(activityRow), ...pageOut }, level: 'member', errors: ['validation.not_found'],
+      in: { agentId: id.agent, ...pageIn }, out: { rows: t.arr(activityRow), ...pageOut }, level: 'member', errors: ['validation.not_found'], tool: 'meta', agent: { planMode: 'allowed' },
     }),
     // ---- sessions
     write('mcp.session.mint', 'Mint the loopback session for a CLI engine: a session token that encodes principal, acting-for person, thread, run and trace', {
