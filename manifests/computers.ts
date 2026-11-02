@@ -57,7 +57,7 @@ export default defineManifest({
       emits: ['computer.provisioned'], tool: 'computer', audit: 'sensitive', errors: ['provider.unavailable', 'validation.duplicate'],
     }),
     write('computers.configure', 'Change the tab limit or idle sleep of a computer', {
-      in: { ...comp, tabLimit: t.opt(t.int({ minimum: 1, maximum: 50 })), idleSleepMinutes: t.opt(t.int({ minimum: 1, maximum: 1440 })) }, out: { computer: computerRow },
+      in: { ...comp, tabLimit: t.opt(t.int({ minimum: 1, maximum: 50 })), idleSleepMinutes: t.opt(t.int({ minimum: 0, maximum: 1440, description: '0 keeps it awake (it serves a site)' })) }, out: { computer: computerRow },
       on: ['computer', '/computerId'], perm: 'computers.use', level: 'manage', emits: ['computer.configured'], tool: 'computer',
     }),
     write('computers.remove', 'Remove an agent computer and its profile disk', {

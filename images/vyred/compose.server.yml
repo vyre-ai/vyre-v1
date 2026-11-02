@@ -41,7 +41,8 @@ services:
     depends_on:
       vyred:
         condition: service_started
-    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    # --resume: the routes vyred wrote come back after a restart; the Caddyfile is only the first start
+    command: ["caddy", "run", "--resume", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data

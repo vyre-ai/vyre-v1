@@ -311,7 +311,8 @@ export function createContextBuilder(d: ContextDeps) {
     const name = str(agent?.["name"]) ?? input.agent.name ?? agentId;
     const role = str(agent?.["role"]) ?? input.agent.role;
     const md = agent ? await agentMd(agent, asker) : undefined;
-    add("identity", true, `You are ${name} (agentId ${agentId}), an agent in Vyre.${role ? ` ${role}` : ""}${md ? `\n\nYour AGENT.md:\n${cutTo(md, 6_000)}` : ""}`);
+    // every driver gets this context, so this line reaches Claude, Codex and Grok alike
+    add("identity", true, `You are ${name} (agentId ${agentId}), an agent in Vyre.${role ? ` ${role}` : ""}\nTo show the person anything you made, use artifact_publish: it stays private and opens in a tab. Never leave it as a loose file or send them to localhost.${md ? `\n\nYour AGENT.md:\n${cutTo(md, 6_000)}` : ""}`);
     add("rules", true, "You work for the person who asked; their access limits yours. Search Vyre memory before you ask them anything. A secret is used by Vault handle (vault_use), never by value. Anything that leaves the Space goes through the Gate and may come back held: say what is waiting and for whom. Say what you did and what you did not do. " + NAMING);
 
     // where
