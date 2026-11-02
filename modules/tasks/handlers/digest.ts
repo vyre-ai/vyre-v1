@@ -70,5 +70,5 @@ export async function digest(ctx: TasksCtx, input: In): Promise<unknown> {
   }).sort((a, b) => rank(a) - rank(b) || (a.due ?? Infinity) - (b.due ?? Infinity) || b.updatedAt - a.updatedAt);
   const text = renderDigest({ bound, parent: can(parent) ? parent : undefined, siblings: siblings.filter(can), children: children.filter(can), mine: held.slice(0, TOP), mineTotal: held.length });
   // a crew job or helper thread is the task's thread for the one working in it; a chat that holds a parent is still a chat
-  return { text, hash: hashOf(text), ...(bound && bound.workerThread === thread ? { workerTaskId: bound.id } : {}) };
+  return { text, hash: hashOf(text), ...(bound && bound.workerThread === thread ? { boundTaskId: bound.id } : {}) };
 }
