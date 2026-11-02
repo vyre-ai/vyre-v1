@@ -2,6 +2,7 @@
 // A file's text becomes blocks or a sheet; a comment anchored to an area is a numbered pin on an image, a comment anchored to a passage is a comment on that quote. Nothing here calls a capability.
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { DocBlock, DocComment, MarkupBox, Sheet, Stroke, ViewerKind } from "../../../../../../ui/src/Viewer/index.tsx";
+import { googleAppOf } from "../google.ts";
 
 export type ViewerData = CapMap["files.viewer_data"]["out"];
 export type FileComment = CapMap["files.comments.list"]["out"]["comments"][number];
@@ -19,6 +20,34 @@ export function viewerKind(kind: FileKind): ViewerKind {
     case "presentation": return "plan";
     default: return "other";
   }
+}
+
+/**
+ * The layout of a file, from what it holds. A Google-native file is shown from its export: a Sheet as a table, a Doc (and the words of a Slides deck) as a document, a Drawing as a
+ * picture. With nothing to show (a Form, or Google could not be reached) it is the quiet "no preview" state with Open in Google beside it, never "This file is empty".
+ */
+export function viewerKindOf(d: { file: { kind: FileKind; mime: string; size?: number; source?: unknown }; text?: string | undefined; previewUrl?: string | undefined }): ViewerKind {
+  // a file of a connected folder that is still an empty placeholder (its provider could not be reached when it opened) has nothing to show yet: Open in is the way to it
+  if (d.file.source !== undefined && d.file.size === 0 && (d.text ?? "") === "" && d.previewUrl === undefined) return "other";
+  if (d.file.kind !== "google_native") return viewerKind(d.file.kind);
+  const app = googleAppOf(d.file);
+  const words = (d.text ?? "").trim() !== "";
+  if (app === "gsheets" && words) return "csv";
+  if (app === "gdrawings" && d.previewUrl) return "image";
+  if (words) return "document";
+  return d.previewUrl ? "image" : "other";
+}
+
+/**
+ * A Google Doc's Markdown as the viewer draws it: Drive escapes punctuation ("1\. Scope"), and a table is rows of pipes with a rule under the header. The escapes go, a table row reads as
+ * its cells, and the rule is dropped. Headings, lists and bold stay Markdown for textToBlocks.
+ */
+export function docsMarkdown(text: string): string {
+  return text.split("\n")
+    .filter((l) => !/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(l))
+    .map((l) => (/^\s*\|.*\|\s*$/.test(l) ? l.trim().slice(1, -1).split("|").map((c) => c.trim()).filter((c) => c !== "").join(" \u00b7 ") : l))
+    .map((l) => l.replace(/\\([\\`*_{}[\]()#+\-.!|<>~=])/g, "$1"))
+    .join("\n");
 }
 
 /** Plans and documents edit in place; images take markup; the rest is read only. */

@@ -18,6 +18,7 @@ import { KNOW_ROWS, rowOf } from "../memory/know.ts";
 import { Glyph } from "./parts.tsx";
 import { Mark } from "../mounts/icons.tsx";
 import type { MarkKind } from "../mounts/icons.tsx";
+import { WithProviderMark } from "../marks.tsx";
 import type { IconName } from "./parts.tsx";
 import { useFilesState } from "./state.tsx";
 
@@ -111,7 +112,7 @@ const nodeOf = (f: FolderRow): FolderNode => ({
 });
 
 /** One folder row (a ui/FolderTree SlotRow): chevron where it has subfolders, the agent's face or the folder icon, the count; open, it lists its subfolders. */
-function FolderLine({ f, depth, c, flat = false }: { f: FolderRow; depth: number; c: RowCtx; flat?: boolean }): ReactElement {
+function FolderLine({ f, depth, c, flat = false, within }: { f: FolderRow; depth: number; c: RowCtx; flat?: boolean; /** the mount the folder above is in */ within?: string | undefined }): ReactElement {
   const fid = f.folderId;
   const isOpen = c.openF[fid] ?? openByDefault(f);
   const kids = f.folderCount;
@@ -124,7 +125,11 @@ function FolderLine({ f, depth, c, flat = false }: { f: FolderRow; depth: number
           <Glyph name={isOpen ? "chevd" : "chev"} size={10} color="var(--ink-4)" width={1.6} />
         </Pressable>
       ) : <View style={styles.chev} />}
-      {face ? <Avatar name={f.name} kind="agent" size={18} testID={`face-${f.name}`} /> : f.source ? <View testID={`mount-mark-${fid}`} accessibilityLabel={`From ${f.source.provider}`}><Mark kind={markOf(f.source.provider)} size={16} /></View> : <Glyph name="folder" size={16} />}
+      {face ? <Avatar name={f.name} kind="agent" size={18} testID={`face-${f.name}`} />
+        // the top of a mount is the provider's mark; a folder inside it is a folder with the mark on its corner
+        : f.source && (c.mounts.has(fid) || f.source.mountId !== within) ? <View testID={`mount-mark-${fid}`} accessibilityLabel={`From ${f.source.provider}`}><Mark kind={markOf(f.source.provider)} size={16} /></View>
+        : f.source ? <WithProviderMark provider={f.source.provider} size={10}><Glyph name="folder" size={16} /></WithProviderMark>
+        : <Glyph name="folder" size={16} />}
     </View>
   );
   const drop = {
@@ -147,7 +152,7 @@ function FolderLine({ f, depth, c, flat = false }: { f: FolderRow; depth: number
         onPress={() => c.goFolder(fid)} dom={drop}
         onMenu={(x, y) => c.menu.show(folderMenu(node, isOpen, kids > 0, c.handlers), x, y, "context", { label: `Folder ${f.name}` })}
       />
-      {isOpen && !flat ? <Kids parent={fid} depth={depth + 1} c={c} query="" /> : null}
+      {isOpen && !flat ? <Kids parent={fid} depth={depth + 1} c={c} query="" within={f.source?.mountId} /> : null}
     </View>
   );
 }
@@ -155,11 +160,11 @@ function FolderLine({ f, depth, c, flat = false }: { f: FolderRow; depth: number
 const SEARCH_DEPTH = 3;
 
 /** The subfolders of a folder (the top of Files when `parent` is null), read live from files.list. With a search, every level is read down to a few levels and the matching folders are listed flat. */
-function Kids({ parent, depth, c, query }: { parent: string | null; depth: number; c: RowCtx; query: string }): ReactElement | null {
+function Kids({ parent, depth, c, query, within }: { parent: string | null; depth: number; c: RowCtx; query: string; within?: string | undefined }): ReactElement | null {
   const src = useSource({ cap: "files.list", input: parent === null ? {} : { folder: parent } });
   if (src.status !== "ready") return null;
   const folders = orderFolders((src.data.folders ?? []).filter((f) => parent !== null || c.allow.has(f.folderId) || f.source !== undefined), parent === null ? c.rank : new Map());
-  if (query === "") return <View testID={parent === null ? "files-folders" : undefined}>{each(folders, (f) => <FolderLine key={f.folderId} f={f} depth={depth} c={c} />)}</View>;
+  if (query === "") return <View testID={parent === null ? "files-folders" : undefined}>{each(folders, (f) => <FolderLine key={f.folderId} f={f} depth={depth} c={c} within={within} />)}</View>;
   return (
     <View>
       {each(folders, (f) => (

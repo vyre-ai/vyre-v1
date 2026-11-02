@@ -1,6 +1,6 @@
 # files.folder.settings
 
-Change Review changes, sensitivity label or the working-folder flags of a folder
+Change Review changes, sensitivity label or the working-folder flags of a folder; the mounts module marks a mounted folder with its source (null takes the mark off)
 
 | | |
 |---|---|
@@ -28,6 +28,10 @@ type In = {
   folderId: string;
   reviewChanges?: boolean;
   label?: "public" | "internal" | "confidential" | "restricted";
+  source?: {
+    mountId: string;
+    provider: string;
+  } | null;
 };
 ```
 
@@ -75,7 +79,11 @@ type Out = {
   "input": {
     "folderId": "fld_a1b2c3",
     "label": "public",
-    "reviewChanges": true
+    "reviewChanges": true,
+    "source": {
+      "mountId": "mnt_a1b2c3",
+      "provider": "example"
+    }
   },
   "output": {
     "folder": {

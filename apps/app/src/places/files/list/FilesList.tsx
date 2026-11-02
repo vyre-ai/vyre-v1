@@ -16,7 +16,8 @@ import {
   SORTS, SORT_LABEL, WHERE_LABEL, createSpring, crumbs, dragPayload, dropMoves, emptyIcon, emptyText, fileLine, folderLine, kindLabel, parsePayload, tileLabel, sizeText, sortLines, sourceOf, updatedText,
 } from "../tree/model.ts";
 import type { Line, SortKey, Spring } from "../tree/model.ts";
-import { iconOfKind } from "../tree/parts.tsx";
+import { Glyph, iconOfKind } from "../tree/parts.tsx";
+import { GOOGLE_KIND_WORD, SourcedLead, googleAppOf } from "../marks.tsx";
 import { openInLabel, openInProvider, openInWords } from "../open-in.ts";
 import { useFilesState } from "../tree/state.tsx";
 import { ColumnHeader, GridRow, LIST_ROW, LineMarks, RowCells, ThumbTile, Tile, TypeTile, WIDE, chunk, gridKey, gridLayout } from "../FileList.tsx";
@@ -221,7 +222,7 @@ function List(): ReactElement {
   const whenOf = (l: Line): string => updatedText(l.updatedAt, c.now, c.offsetMin);
   const byOf = (l: Line): string | null => (l.updatedBy === null ? null : data.nameOf(l.updatedBy));
   const sizeOfLine = (l: Line): string => (l.type === "folder" ? `${l.items} item${l.items === 1 ? "" : "s"}` : sizeText(l.size));
-  const kindOfLine = (l: Line): string => `${kindLabel(l.kind)}${l.source ? ` \u00b7 ${l.source}` : ""}`;
+  const kindOfLine = (l: Line): string => { const app = l.type === "file" ? googleAppOf(l) : null; return `${app !== null ? GOOGLE_KIND_WORD[app] : kindLabel(l.kind)}${l.source ? ` \u00b7 ${l.source}` : ""}`; };
 
   // on the web the line is the shared Row (one plain element) carrying the drag attributes and the menu trigger; the drag itself is delegated from the list's box
   const renderLine = (l: Line): ReactElement => {
@@ -233,7 +234,7 @@ function List(): ReactElement {
         {...(l.starred === true || l.conflict === true ? { titleMarks: <LineMarks starred={l.starred === true} conflict={l.conflict === true} onResolve={data.nav.resolveConflict ? () => data.nav.resolveConflict?.(l.id) : undefined} /> } : {})}
         selected={state.selection.includes(l.key)}
         hovered={over === l.key}
-        leading={l.type === "file" && l.thumb ? <ThumbTile fileId={l.id} label={tileLabel(l.name, l.kind)} icon={iconOfKind(l.kind)} /> : <TypeTile label={tileLabel(l.name, l.kind)} icon={iconOfKind(l.kind)} folder={l.type === "folder"} />}
+        leading={<SourcedLead line={l} gap={10} base={l.type === "file" && l.thumb ? <ThumbTile fileId={l.id} label={tileLabel(l.name, l.kind)} icon={iconOfKind(l.kind)} /> : <TypeTile label={tileLabel(l.name, l.kind)} icon={iconOfKind(l.kind)} folder={l.type === "folder"} />} />}
         {...(phone ? { note: [whenOf(l), sizeOfLine(l)].filter((x) => x !== "").join(" \u00b7 ") } : { trailing: <RowCells wide={wide} cells={{ when: whenOf(l), by: byOf(l), size: sizeOfLine(l), kind: kindOfLine(l) }} /> })}
         onPress={() => press(l)}
         domProps={{ ...dragAttrs(l.key), ...menuTrigger((x, y) => lineMenu(l, x, y)), style: LINE_STYLE }}
@@ -244,6 +245,7 @@ function List(): ReactElement {
   const renderTile = (l: Line): ReactElement => dragged(l, (
     <Tile
       id={l.key} name={l.name} folder={l.type === "folder"} icon={iconOfKind(l.kind)} width={layout.tile}
+      {...(l.source !== null || l.kind === "google_native" ? { art: <SourcedLead line={l} size={48} base={<Glyph name={iconOfKind(l.kind)} size={l.type === "folder" ? 54 : 40} color={l.type === "folder" ? "var(--accent)" : "var(--ink-3)"} width={1} />} /> } : {})}
       meta={l.type === "folder" ? sizeOfLine(l) : [whenOf(l), sizeText(l.size)].filter((x) => x !== "").join(" \u00b7 ")}
       selected={state.selection.includes(l.key)} hovered={over === l.key} onPress={() => press(l)}
     />
