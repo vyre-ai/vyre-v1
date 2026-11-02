@@ -24,7 +24,6 @@ const RESERVED_PORTS = new Set([22, 2019, 8420]);
 const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const RESERVED_SLUGS = new Set(["forms", "a", "p", "api", "admin", "assets", "v1"]);
 const TICKET_MS = 8 * 60 * 60 * 1000;
-const ARTIFACTS_FOLDER = "Artifacts";
 const PAGE_DEFAULT = 100;
 const PAGE_MAX = 500;
 const FILES_MAX = 200;
@@ -42,6 +41,8 @@ export interface SitesHost {
   logs?(target: RouteTarget, slug: string, lines: number): Promise<string[]>;
   /** a file or folder on the machine this daemon runs on; null where that machine is a server, whose disk is not the agent's */
   readLocal?(path: string): Promise<LocalFile[] | null>;
+  /** Where an artifact's files are kept: the Artifacts folder under Files, written by the server, because publishing must not depend on an agent's own grants in Files. */
+  artifacts?: { folder(siteId: string, title: string): Promise<string>; put(folderId: string, name: string, base64: string, mime: string): Promise<void> };
 }
 
 let host: SitesHost | null = null;
@@ -275,33 +276,6 @@ async function sitesLogs(ctx: Ctx, input: unknown): Promise<{ lines: string[] }>
 
 // ---- artifacts
 
-/** The folder that holds every artifact: Files rules apply to it. Made once, in the asker's Personal root. */
-async function artifactsRoot(ctx: Ctx): Promise<string> {
-  const roots = ((await ctx.call("files.tree", {})) as { roots?: { key?: string; folderId?: string }[] }).roots ?? [];
-  const parent = roots.find((r) => r.key === "personal" && typeof r.folderId === "string") ?? roots.find((r) => r.key === "deployments" && typeof r.folderId === "string");
-  if (!parent) fail(ctx, "validation.precondition_failed", "There is no folder to keep artifacts in.");
-  const folders = ((await ctx.call("files.list", { folder: parent.folderId })) as { folders?: { folderId?: string; name?: string }[] }).folders ?? [];
-  const had = folders.find((f) => f.name === ARTIFACTS_FOLDER);
-  if (typeof had?.folderId === "string") return had.folderId;
-  const made = (await ctx.call("files.folder.create", { parentId: parent.folderId, name: ARTIFACTS_FOLDER, idempotencyKey: `artifacts-root-${ctx.actingFor ?? ctx.principal.id}` })) as { folder?: { folderId?: string } };
-  if (typeof made.folder?.folderId !== "string") fail(ctx, "internal.unexpected", "The Artifacts folder was not created.");
-  return made.folder.folderId;
-}
-
-async function ownFolder(ctx: Ctx, root: string, name: string, id: string): Promise<string> {
-  const made = (await ctx.call("files.folder.create", { parentId: root, name: `${name.replaceAll("/", "-")} (${hexOf(id).slice(-6)})`, idempotencyKey: `artifact-folder-${id}` })) as { folder?: { folderId?: string } };
-  if (typeof made.folder?.folderId !== "string") fail(ctx, "internal.unexpected", "The artifact folder was not created.");
-  return made.folder.folderId;
-}
-
-/** Create the file, or replace what is there: a republish keeps the same address. */
-async function putFile(ctx: Ctx, folderId: string, name: string, content: Record<string, unknown>, mime: string): Promise<void> {
-  const listed = ((await ctx.call("files.list", { folder: folderId })) as { files?: { fileId?: string; name?: string }[] }).files ?? [];
-  const had = listed.find((f) => f.name === name);
-  if (typeof had?.fileId === "string") { await ctx.call("files.write", { fileId: had.fileId, content }); return; }
-  await ctx.call("files.create", { folderId, name, content, mime, idempotencyKey: `artifact-${folderId}-${name}-${ctx.now()}` });
-}
-
 async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: string; url?: string; updated: boolean }> {
   const o = rec(ctx, input);
   const title = cleanName(ctx, reqStr(ctx, o, "title"));
@@ -332,18 +306,21 @@ async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: 
   }
   let folderId: string | null = folderIn ?? null;
   if (html !== undefined || fileId !== undefined || localPath !== undefined) {
-    folderId = isNull(row.target_folder) ? await ownFolder(ctx, await artifactsRoot(ctx), title, id) : str(row.target_folder);
-    if (html !== undefined) await putFile(ctx, folderId, "index.html", { text: html }, "text/html");
+    const store = host?.artifacts;
+    if (!store) fail(ctx, "validation.precondition_failed", "This server cannot keep artifacts yet.");
+    folderId = isNull(row.target_folder) ? await store.folder(id, title) : str(row.target_folder);
+    const put = (name: string, base64: string, mime: string): Promise<void> => store.put(folderId as string, name, base64, mime);
+    if (html !== undefined) await put("index.html", Buffer.from(html, "utf8").toString("base64"), "text/html");
     else if (fileId !== undefined) {
       const f = (await ctx.call("files.read", { fileId, as: "base64" })) as { base64?: string; mime?: string };
       if (typeof f.base64 !== "string") fail(ctx, "validation.precondition_failed", "That file could not be read.");
-      await putFile(ctx, folderId, "index.html", { base64: f.base64 }, f.mime ?? "text/html");
+      await put("index.html", f.base64, f.mime ?? "text/html");
     } else {
       const got = host?.readLocal ? await host.readLocal(localPath as string) : null;
       if (got === null) fail(ctx, "validation.precondition_failed", "That path is not on this machine. Pass html, or save it to Files and pass fileId or folderId.", { field: "path" });
       if (got.length === 0 || got.length > FILES_MAX) fail(ctx, "validation.too_large", "A published folder holds 1 to 200 files.", { field: "path" });
-      if (got.length === 1) await putFile(ctx, folderId, "index.html", { base64: (got[0] as LocalFile).base64 }, (got[0] as LocalFile).mime);
-      else for (const f of got) await putFile(ctx, folderId, f.path.replaceAll("/", "__"), { base64: f.base64 }, f.mime);
+      if (got.length === 1) await put("index.html", (got[0] as LocalFile).base64, (got[0] as LocalFile).mime);
+      else for (const f of got) await put(f.path.replaceAll("/", "__"), f.base64, f.mime);
     }
   }
   ctx.db.run(
