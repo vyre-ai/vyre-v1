@@ -30,6 +30,10 @@ uuid = { version = "1", features = ["v4"] }
 flate2 = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
 
+# The one AppKit call the launch needs (lib.rs, set_window_alpha).
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+
 [profile.release]
 panic = "abort"
 codegen-units = 1

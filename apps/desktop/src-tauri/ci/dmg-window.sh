@@ -51,6 +51,10 @@ look() {
 }
 look false light
 look true dark
+# An open window can keep the labels it drew: a fresh Finder shows what a person who is already in dark mode gets.
+killall Finder >/dev/null 2>&1 || true
+sleep 3
+look true dark-fresh
 look false light-2
 # Someone who shows hidden files must not find the window littered.
 defaults write com.apple.finder AppleShowAllFiles -bool true || true

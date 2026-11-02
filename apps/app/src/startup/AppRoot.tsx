@@ -6,6 +6,7 @@ import type { ReactElement, ReactNode } from "react";
 import { States } from "../../../../ui/src/States/index.tsx";
 import { claimToken } from "../claim/logic.ts";
 import { SessionGate } from "../shell/session/SessionGate.tsx";
+import { FirstFrame, Opening } from "../join/kit.tsx";
 import { hydrationBaseUrl } from "../shell/session/hydration.ts";
 import { UrlSync } from "../shell/session/UrlSync.tsx";
 import type { ShellHub } from "../shell/spaces/hub.ts";
@@ -38,7 +39,7 @@ class RootBoundary extends Component<{ children: ReactNode }, { failed: boolean 
 }
 
 export function AppRoot(): ReactElement {
-  return <RootBoundary><AppRoute /></RootBoundary>;
+  return <RootBoundary><AppRoute /><FirstFrame /></RootBoundary>;
 }
 
 function AppRoute(): ReactElement {
@@ -50,10 +51,10 @@ function AppRoute(): ReactElement {
   const token = path === null ? null : claimToken(path);
   const home = (): void => { replacePath("/home"); setPath("/home"); };
   // /oauth/callback: where an app sends a person back after approving a connection; it finishes the sign-in as the signed-in person
-  if (path === "/oauth/callback") return <Suspense fallback={null}><OAuthRoute /></Suspense>;
+  if (path === "/oauth/callback") return <Suspense fallback={<Opening />}><OAuthRoute /></Suspense>;
   if (token) {
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<Opening />}>
         <ClaimRoute token={token} onDone={home} onSignIn={home} />
       </Suspense>
     );

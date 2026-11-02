@@ -38,7 +38,13 @@
       "minimumSystemVersion": "12.0",
       "signingIdentity": "-",
       "hardenedRuntime": false,
-      "infoPlist": "Info.plist"
+      "infoPlist": "Info.plist",
+      "dmg": {
+        "background": "dmg/background.tiff",
+        "windowSize": { "width": 660, "height": 428 },
+        "appPosition": { "x": 170, "y": 178 },
+        "applicationFolderPosition": { "x": 490, "y": 178 }
+      }
     },
     "windows": {
       "webviewInstallMode": { "type": "downloadBootstrapper" },
