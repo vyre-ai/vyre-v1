@@ -67,6 +67,24 @@ test("a member may sync their own connected calendar now, with no grant: it is t
   await assert.rejects(() => syncNow(h.as({ kind: "person", id: "usr_omar01" }), { calendarId: calendarId! }), (e) => codeOf(e) === "permission.no_grant", "someone else's private calendar is not theirs to sync");
 });
 
+test("a provider calendar has no last sync until a pull works, then carries when; a failed pull keeps the last good time", async () => {
+  const h = admin();
+  const { calendarId } = await connectProvider(h.ctx, { ...ARGS });
+  const maya = h.as({ kind: "person", id: MAYA });
+  const read = async () => (await listCalendars(maya, {})).calendars[0]!;
+  assert.equal((await read()).lastSyncAt, undefined, "not pulled yet: the sidebar says Syncing");
+  h.google.pages = [{ events: [], nextSyncToken: "s1" }];
+  await syncNow(maya, { calendarId: calendarId! });
+  const first = await read();
+  assert.equal(first.lastSyncAt, h.ctx.now());
+  assert.deepEqual(contractErrors("calendar.list_calendars", "out", { calendars: [first] }), []);
+  h.advance(5 * 60_000);
+  h.ctx.db.run(`UPDATE calendar_list SET "remoteId" = ? WHERE id = ?`, null, calendarId!);
+  await syncNow(maya, { calendarId: calendarId! });
+  const after = await read();
+  assert.deepEqual([after.state, after.lastSyncAt], ["error", first.lastSyncAt], "the failure is the state; the last good pull is still when it was");
+});
+
 test("the Google pull is made as the calendar's account, even when the server runs it", async () => {
   const h = admin();
   const { calendarId } = await connectProvider(h.ctx, { ...ARGS });

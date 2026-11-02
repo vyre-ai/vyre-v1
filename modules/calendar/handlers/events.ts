@@ -752,7 +752,7 @@ async function pullCalendar(ctx: CalCtx, cal: Row): Promise<void> {
     const account = strOrNull(first(ctx.db.all(`SELECT account FROM calendar_account WHERE "calendarId" = ?`, calendarId)), "account") ?? undefined;
     const pulled = provider === "google" ? await pullGoogle(ctx, calendarId, connectionId, remoteId, cursor, account) : await pullGraph(ctx, calendarId, connectionId, remoteId, cursor, account);
     ctx.db.run(`UPDATE calendar_sync SET cursor = ?, "lastOkAt" = ?, "lastError" = ? WHERE "calendarId" = ?`, pulled.cursor, ctx.now(), null, calendarId);
-    ctx.db.run(`UPDATE calendar_list SET state = ?, version = ?, updated_at = ? WHERE id = ?`, "syncing", num(cal, "version") + 1, ctx.now(), calendarId);
+    ctx.db.run(`UPDATE calendar_list SET state = ?, "lastSyncAt" = ?, version = ?, updated_at = ? WHERE id = ?`, "syncing", ctx.now(), num(cal, "version") + 1, ctx.now(), calendarId);
     ctx.emit("calendar.synced", `entity/${calendarId}`, { calendarId, upserted: pulled.upserted, removed: pulled.removed }, { vis: "participants" });
   } catch (e) {
     const code = codeOf(e);
