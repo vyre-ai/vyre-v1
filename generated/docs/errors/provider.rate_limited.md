@@ -20,3 +20,6 @@ HTTP 502. Retryable: yes.
 - telephony.send_sms
 - twilio.call.create
 - twilio.sms.send
+- voice.connect
+- voice.session
+- voice.space.connect

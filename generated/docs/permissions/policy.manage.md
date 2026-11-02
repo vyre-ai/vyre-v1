@@ -61,3 +61,8 @@ Area: space. Risk: high. Applies to: space.
 - telephony.call.erase
 - telephony.sms.erase
 - threads.erase
+- voice.space.check
+- voice.space.configure
+- voice.space.connect
+- voice.space.disconnect
+- voice.space.status

@@ -33226,6 +33226,191 @@ export type ViewsShareExternalOut = {
   url: string;
   expiresAt?: number;
 };
+export type VoiceAskKeyIn = {
+  scope?: "mine" | "space";
+  provider?: string;
+};
+export type VoiceAskKeyOut = {
+  ok: boolean;
+};
+export type VoiceConfigureIn = {
+  on?: boolean;
+  provider?: string;
+  language?: string;
+  model?: string;
+};
+export type VoiceConfigureOut = {
+  on: boolean;
+  provider: string;
+  language: string;
+  model: string;
+  source: "own" | "space" | "none";
+  spaceOn: boolean;
+  mayManage: boolean;
+  providers: Array<{
+      key: string;
+      name: string;
+      keyUrl: string;
+      models: Array<{
+          id: string;
+          label: string;
+        }>;
+      languages: Array<{
+          id: string;
+          label: string;
+        }>;
+    }>;
+};
+export type VoiceConnectIn = {
+  provider: string;
+  fields: Array<{
+      key: string;
+      value: string;
+      secret?: boolean;
+    }>;
+  idempotencyKey: string;
+};
+export type VoiceConnectOut = {
+  on: boolean;
+  provider: string;
+  language: string;
+  model: string;
+  source: "own" | "space" | "none";
+  spaceOn: boolean;
+  mayManage: boolean;
+  providers: Array<{
+      key: string;
+      name: string;
+      keyUrl: string;
+      models: Array<{
+          id: string;
+          label: string;
+        }>;
+      languages: Array<{
+          id: string;
+          label: string;
+        }>;
+    }>;
+};
+export type VoiceDisconnectIn = Record<string, unknown>;
+export type VoiceDisconnectOut = {
+  on: boolean;
+  provider: string;
+  language: string;
+  model: string;
+  source: "own" | "space" | "none";
+  spaceOn: boolean;
+  mayManage: boolean;
+  providers: Array<{
+      key: string;
+      name: string;
+      keyUrl: string;
+      models: Array<{
+          id: string;
+          label: string;
+        }>;
+      languages: Array<{
+          id: string;
+          label: string;
+        }>;
+    }>;
+};
+export type VoiceSessionIn = Record<string, unknown>;
+export type VoiceSessionOut = {
+  provider: string;
+  url: string;
+  protocols: Array<string>;
+  source: "own" | "space";
+  expiresIn: number;
+};
+export type VoiceSpaceCheckIn = Record<string, unknown>;
+export type VoiceSpaceCheckOut = {
+  set: boolean;
+  on: boolean;
+  provider?: string;
+  itemId?: string;
+  setBy?: string;
+  checkedAt?: number;
+  state?: "ok" | "failing";
+  peopleOwnKey?: number;
+};
+export type VoiceSpaceConfigureIn = {
+  on: boolean;
+};
+export type VoiceSpaceConfigureOut = {
+  set: boolean;
+  on: boolean;
+  provider?: string;
+  itemId?: string;
+  setBy?: string;
+  checkedAt?: number;
+  state?: "ok" | "failing";
+  peopleOwnKey?: number;
+};
+export type VoiceSpaceConnectIn = {
+  provider: string;
+  fields: Array<{
+      key: string;
+      value: string;
+      secret?: boolean;
+    }>;
+  idempotencyKey: string;
+};
+export type VoiceSpaceConnectOut = {
+  set: boolean;
+  on: boolean;
+  provider?: string;
+  itemId?: string;
+  setBy?: string;
+  checkedAt?: number;
+  state?: "ok" | "failing";
+  peopleOwnKey?: number;
+};
+export type VoiceSpaceDisconnectIn = Record<string, unknown>;
+export type VoiceSpaceDisconnectOut = {
+  set: boolean;
+  on: boolean;
+  provider?: string;
+  itemId?: string;
+  setBy?: string;
+  checkedAt?: number;
+  state?: "ok" | "failing";
+  peopleOwnKey?: number;
+};
+export type VoiceSpaceStatusIn = Record<string, unknown>;
+export type VoiceSpaceStatusOut = {
+  set: boolean;
+  on: boolean;
+  provider?: string;
+  itemId?: string;
+  setBy?: string;
+  checkedAt?: number;
+  state?: "ok" | "failing";
+  peopleOwnKey?: number;
+};
+export type VoiceStatusIn = Record<string, unknown>;
+export type VoiceStatusOut = {
+  on: boolean;
+  provider: string;
+  language: string;
+  model: string;
+  source: "own" | "space" | "none";
+  spaceOn: boolean;
+  mayManage: boolean;
+  providers: Array<{
+      key: string;
+      name: string;
+      keyUrl: string;
+      models: Array<{
+          id: string;
+          label: string;
+        }>;
+      languages: Array<{
+          id: string;
+          label: string;
+        }>;
+    }>;
+};
 export type WarmupPoolOptinSetIn = {
   optIn: boolean;
 };
@@ -35409,6 +35594,17 @@ export interface CapMap {
   "views.publish": { in: ViewsPublishIn; out: ViewsPublishOut };
   "views.save": { in: ViewsSaveIn; out: ViewsSaveOut };
   "views.share_external": { in: ViewsShareExternalIn; out: ViewsShareExternalOut };
+  "voice.ask_key": { in: VoiceAskKeyIn; out: VoiceAskKeyOut };
+  "voice.configure": { in: VoiceConfigureIn; out: VoiceConfigureOut };
+  "voice.connect": { in: VoiceConnectIn; out: VoiceConnectOut };
+  "voice.disconnect": { in: VoiceDisconnectIn; out: VoiceDisconnectOut };
+  "voice.session": { in: VoiceSessionIn; out: VoiceSessionOut };
+  "voice.space.check": { in: VoiceSpaceCheckIn; out: VoiceSpaceCheckOut };
+  "voice.space.configure": { in: VoiceSpaceConfigureIn; out: VoiceSpaceConfigureOut };
+  "voice.space.connect": { in: VoiceSpaceConnectIn; out: VoiceSpaceConnectOut };
+  "voice.space.disconnect": { in: VoiceSpaceDisconnectIn; out: VoiceSpaceDisconnectOut };
+  "voice.space.status": { in: VoiceSpaceStatusIn; out: VoiceSpaceStatusOut };
+  "voice.status": { in: VoiceStatusIn; out: VoiceStatusOut };
   "warmup.pool_optin_set": { in: WarmupPoolOptinSetIn; out: WarmupPoolOptinSetOut };
   "warmup.start": { in: WarmupStartIn; out: WarmupStartOut };
   "warmup.status": { in: WarmupStatusIn; out: WarmupStatusOut };
@@ -38979,6 +39175,31 @@ export type ViewAsStartedPayload = {
   target: string;
   expiresAt: number;
 };
+export type VoiceConfiguredPayload = {
+  person: string;
+  on: boolean;
+  provider: string;
+  language: string;
+  model: string;
+  by: string;
+};
+export type VoiceConnectedPayload = {
+  scope: "mine" | "space";
+  provider: string;
+  by: string;
+};
+export type VoiceDisconnectedPayload = {
+  scope: "mine" | "space";
+  provider: string;
+  by: string;
+};
+export type VoiceSpaceChangedPayload = {
+  on: boolean;
+  by: string;
+};
+export type VoiceSpaceCheckedPayload = {
+  state: "ok" | "failing";
+};
 export type WaitCanceledPayload = {
   waitId: string;
   runId: string;
@@ -39713,6 +39934,11 @@ export interface EventMap {
   "view.published": ViewPublishedPayload;
   "view.saved": ViewSavedPayload;
   "view_as.started": ViewAsStartedPayload;
+  "voice.configured": VoiceConfiguredPayload;
+  "voice.connected": VoiceConnectedPayload;
+  "voice.disconnected": VoiceDisconnectedPayload;
+  "voice.space_changed": VoiceSpaceChangedPayload;
+  "voice.space_checked": VoiceSpaceCheckedPayload;
   "wait.canceled": WaitCanceledPayload;
   "wait.expired": WaitExpiredPayload;
   "wait.matched": WaitMatchedPayload;

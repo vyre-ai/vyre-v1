@@ -2524,6 +2524,21 @@ export function createClient(transport: Transport) {
       save: call("views.save", 1),
       share_external: call("views.share_external", 1),
     },
+    voice: {
+      ask_key: call("voice.ask_key", 1),
+      configure: call("voice.configure", 1),
+      connect: call("voice.connect", 1),
+      disconnect: call("voice.disconnect", 1),
+      session: call("voice.session", 1),
+      space: {
+        check: call("voice.space.check", 1),
+        configure: call("voice.space.configure", 1),
+        connect: call("voice.space.connect", 1),
+        disconnect: call("voice.space.disconnect", 1),
+        status: call("voice.space.status", 1),
+      },
+      status: call("voice.status", 1),
+    },
     warmup: {
       pool_optin_set: call("warmup.pool_optin_set", 1),
       start: call("warmup.start", 1),

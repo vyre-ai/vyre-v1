@@ -2524,6 +2524,21 @@ export function stubs(ctx: CallCtx) {
       save: call("views.save"),
       share_external: call("views.share_external"),
     },
+    voice: {
+      ask_key: call("voice.ask_key"),
+      configure: call("voice.configure"),
+      connect: call("voice.connect"),
+      disconnect: call("voice.disconnect"),
+      session: call("voice.session"),
+      space: {
+        check: call("voice.space.check"),
+        configure: call("voice.space.configure"),
+        connect: call("voice.space.connect"),
+        disconnect: call("voice.space.disconnect"),
+        status: call("voice.space.status"),
+      },
+      status: call("voice.status"),
+    },
     warmup: {
       pool_optin_set: call("warmup.pool_optin_set"),
       start: call("warmup.start"),

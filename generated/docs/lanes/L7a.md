@@ -405,3 +405,27 @@ Events:
 - vault.request_declined
 - vault.request_fulfilled
 - vault.requested
+
+### voice
+
+Capabilities to implement: 11. Events to emit: 5. Contract tests that must go green: `generated/tests/voice/`.
+
+Capabilities:
+- voice.ask_key (write, grant only, level edit)
+- voice.configure (write, grant only, level edit)
+- voice.connect (write, grant only, level edit)
+- voice.disconnect (write, grant only, level edit)
+- voice.session (write, grant only, level edit)
+- voice.space.check (write, policy.manage, level edit)
+- voice.space.configure (write, policy.manage, level edit, gate approve)
+- voice.space.connect (write, policy.manage, level edit)
+- voice.space.disconnect (write, policy.manage, level edit, gate delete)
+- voice.space.status (read, policy.manage, level view)
+- voice.status (read, grant only, level view)
+
+Events:
+- voice.configured
+- voice.connected
+- voice.disconnected
+- voice.space_changed
+- voice.space_checked

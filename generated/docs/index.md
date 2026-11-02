@@ -93,4 +93,5 @@ Counts are not written down: they change with every contract change. Run `node t
 - [updates](modules/updates.md) (L7b, module)
 - [vault](modules/vault.md) (L7a, module)
 - [vault-requests](modules/vault-requests.md) (L7a, module)
+- [voice](modules/voice.md) (L7a, module)
 - [zoom](modules/zoom.md) (L5, connector)

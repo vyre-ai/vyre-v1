@@ -2463,6 +2463,43 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "console.ai-voice",
+    "module": "voice",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleAiVoice",
+    "caller": "principal",
+    "queries": {
+      "space": {
+        "cap": "voice.space.status",
+        "input": {},
+        "live": true
+      },
+      "me": {
+        "cap": "voice.status",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "configure": {
+        "cap": "voice.space.configure",
+        "input": {}
+      },
+      "check": {
+        "cap": "voice.space.check",
+        "input": {}
+      }
+    },
+    "needs": [
+      "policy.manage"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "console.backups",
     "module": "console-views",
     "place": "console",

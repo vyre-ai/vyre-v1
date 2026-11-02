@@ -251,6 +251,11 @@ export type VaultUsedBlockData = {
   outcome: "used" | "filled" | "blocked";
   where?: "device" | "host" | "computer";
 };
+export type VoiceKeyBlockData = {
+  provider: string;
+  scope: "mine" | "space";
+  hint?: string;
+};
 
 export interface BlockDataMap {
   "access_request": AccessRequestBlockData;
@@ -277,6 +282,7 @@ export interface BlockDataMap {
   "table": TableBlockData;
   "terminal": TerminalBlockData;
   "vault_used": VaultUsedBlockData;
+  "voice_key": VoiceKeyBlockData;
 }
 
 export type BlockType = keyof BlockDataMap;
@@ -780,6 +786,33 @@ export const blockRegistry = [
         "itemId": "/itemId"
       }
     }
+  },
+  {
+    "type": "voice_key",
+    "v": 1,
+    "module": "voice",
+    "component": "ui:BlockVoiceKey",
+    "fallback": "Add a Talk key: type it in the field above. It goes straight to the Vault and does not enter this chat.",
+    "waitsForAnswer": false,
+    "actions": [
+      {
+        "key": "save",
+        "label": "Turn on Talk",
+        "cap": "voice.connect",
+        "input": {
+          "provider": "/provider"
+        }
+      },
+      {
+        "key": "save_space",
+        "label": "Turn on for everyone",
+        "cap": "voice.space.connect",
+        "input": {
+          "provider": "/provider"
+        }
+      }
+    ],
+    "opens": null
   }
 ];
 

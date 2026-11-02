@@ -1,0 +1,23 @@
+{
+  "module": "voice",
+  "capabilities": {
+    "voice.ask_key@1": "a5238d09acb0e72d6fcf85670314bf7bc556578b6707bac5883762da68c5902b",
+    "voice.configure@1": "6954470aa08a8dbfbefb6d18398e1d675e9f881d5eb04c327c2b69aec42af8a3",
+    "voice.connect@1": "161f408050be1b43b0f135f58cb02f104913ae472fa861ab64ac3369da2e5ec4",
+    "voice.disconnect@1": "f6c69b35a18899b4f7ffd2cca8470fad17edb5bf9e464c8b4bb70120a45dd855",
+    "voice.session@1": "7ef997a6d056e7b44d8d0318e9d8895cb55cb81460aa1f6b65e94c8e998a0565",
+    "voice.space.check@1": "b0bae1eb9af8a8038bf6340e0c32f90fea7f22a2c90bc87b000fb3e06b2f94c3",
+    "voice.space.configure@1": "90914df933ab98ab3978631aea66d9977e4c9bb68d6180178c0daede5f9744ba",
+    "voice.space.connect@1": "2dfb48c0fd1caac7ee22008686b44a81f280bf5410b6e96b8b26c50c4cab4f39",
+    "voice.space.disconnect@1": "f4d010180f9c1571a27c9304d6633a52dad631ee82f6c6dd12c7729fb0effb70",
+    "voice.space.status@1": "9de8480b0db4b6251f3939790fd966b85c99f95f9e40c1ce97364790869fda5e",
+    "voice.status@1": "0ea316fd550f644508fa49fea4aef3d071ff93f864c1496b412f036b392ec886"
+  },
+  "events": {
+    "voice.configured": "97f29e479acfd48f8347ef3979c61413287b591ebcd088d1a3eed93f00b1b421",
+    "voice.connected": "331e1f583d0b0a244029d8b95127bbe698bf566a944cb6eb6c2ccbb336f118a9",
+    "voice.disconnected": "80673b129bf6202fa55a985c8052f179e89266d474d83dc58c69e505cbc95923",
+    "voice.space_changed": "531729875bcea47e5d4ca82fe9db83db6715aaac9bf456b3fc73694307116015",
+    "voice.space_checked": "94fe46387410d948fe89dc0f9e975c063815b21564120bae445c9483aa15f92b"
+  }
+}
