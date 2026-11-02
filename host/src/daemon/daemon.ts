@@ -102,7 +102,8 @@ import { createConnectorsHost } from "../seams/connectors.ts";
 import { createProviderSignin } from "../seams/provider-signin.ts";
 import type { ConnectorNetwork } from "../seams/connectors.ts";
 import { createAuditRecorder } from "../seams/audit.ts";
-import { startRelayBox } from "../seams/relay.ts";
+import { INVITE_TRIES, inviteKeyOf, loadRelayKeys, startRelayBox } from "../seams/relay.ts";
+import { createAppFilesRoute, defaultAppDir } from "../routes/app-files.ts";
 import type { RelayBox } from "../seams/relay.ts";
 import { createSyncLiveBridge, createSyncSeam } from "../seams/sync.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
@@ -221,6 +222,8 @@ export interface DaemonOptions {
   /** where the GitHub app an admin saves in the app talks to (default: github.com; only a test points these at a stand-in) */
   githubEndpoints?: Pick<GithubOAuth, "authorizeUrl" | "tokenUrl" | "userUrl" | "fetch">;
   config: DaemonConfig;
+  /** The app's web export the gateway serves at its own address (default: VYRE_APP_DIR, else apps/app/dist when it was exported; null: none) */
+  appDir?: string | null;
   codeRoot?: string;
   platform?: Platform;
   fetch?: FetchFn;
@@ -412,6 +415,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // /u/<token>: a person with no account leaving a mailing. Set once the pipeline is up; until then the route says it could not, and the person is still subscribed
   let leaveMailing: (token: string) => Promise<boolean> = () => Promise.reject(new Error("the server is starting"));
   const unsubscribeRoute = createUnsubscribeRoute({ unsubscribe: (token) => leaveMailing(token) });
+  // the invites open now, newest first: a device hello under one of their keys opens an invite channel (seams/relay.ts)
+  const openInvites = (): string[] => {
+    try { return (db?.all("SELECT code_hash FROM members_invites WHERE state = 'open' AND expires_at > ? ORDER BY created_at DESC LIMIT ?", now(), INVITE_TRIES) as { code_hash: string }[] ?? []).map((r) => r.code_hash); } catch { return []; }
+  };
+  const phoneClaimed = (): boolean => {
+    try { return (db?.all("SELECT state FROM network_phone WHERE id = 1")[0] as { state?: string } | undefined)?.state === "claimed"; } catch { return false; }
+  };
   // every public link starts here: the address this Space was given, else the phone name it holds at the relay
   const publicOrigin = (): { origin: string; relay: boolean } | null => {
     let claimed: { name?: string; state?: string } | undefined;
@@ -997,6 +1007,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const spaceLog = log;
       matchProven = (key, who, person) => matchProvenAddress((n, i) => hookRunner.call(n, i), key, who, person);
       peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, recoveryCommit:createRecoveryCommit({db:db!,now}),call: (n, i, as) => hookRunner.call(n, i, as), keyring, sso: { tickets: ssoTickets }, github: githubNow,
+        // an invite on a Space reached at its phone address carries an invite key, never the box key (seams/relay.ts)
+        phoneInvite: { keyFor: async (codeHash) => (phoneClaimed() ? (await inviteKeyOf(loadRelayKeys(paths.root).boxPriv, codeHash)).pub : null) },
         githubApp: {
           envClientId: () => (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env))?.clientId ?? null,
           callbackUrl: () => `${(cfg.address ? (/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`) : `http://${cfg.host}:${boundPort}`).replace(/\/+$/, "")}/auth/github/callback`,
@@ -1777,6 +1789,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       return publicOrigin()?.origin ?? null;
     };
     const mcpRoute = createMcpRoute({ runtime: () => mcpRuntime, origin: mcpOrigin });
+    // the app itself, last of all: a browser at the Space's address, or at a join link, gets the web export this image carries (routes/app-files.ts)
+    const appFiles = createAppFilesRoute({ dir: () => o.appDir !== undefined ? o.appDir : defaultAppDir() });
     server.on("request", (req, res) => {
       if(desktopCors(req,res))return;
       if (bearer(req.headers.authorization)?.startsWith("vas_")) {
@@ -1798,7 +1812,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         res.once("finish", () => { setImmediate(requestStop); });
         return;
       }
-      if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
+      if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {
@@ -1840,7 +1854,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const relayDb = db;
       const relayAt = (url: string): RelayBox => {
         const box = startRelayBox({
-          relayUrl: url, dataDir: paths.root, localPort: () => boundPort,
+          relayUrl: url, dataDir: paths.root, localPort: () => boundPort, invites: openInvites,
           log: (m) => sink.log({ space: space ?? "-", level: 30, msg: "relay.link", place: "relay", attrs: { note: m } }),
           ...(o.seams?.relayWebSocket ? { WebSocket: o.seams.relayWebSocket } : {}),
           onState: (st) => {

@@ -5,7 +5,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { RUNTIME_DIRS, REPO, SKIP, STAGE_FILES, plan } from "../src-tauri/stage-runtime.ts";
+import os from "node:os";
+import { RUNTIME_DIRS, REPO, SKIP, STAGE_FILES, plan, stageAppWeb } from "../src-tauri/stage-runtime.ts";
 
 const staged = (rel: string): boolean => (RUNTIME_DIRS as readonly string[]).some((d) => rel === d || rel.startsWith(`${d}/`)) || (STAGE_FILES as readonly string[]).includes(rel);
 
@@ -63,4 +64,19 @@ test("every file a staged module reads by a path relative to itself (new URL(\".
 test("the bundle check looks for every staged single file", () => {
   const src = fs.readFileSync(path.join(REPO, "apps/desktop/src-tauri/ci/bundle-check.ts"), "utf8");
   for (const f of STAGE_FILES) assert.ok(src.includes(`"${f}"`), f);
+});
+
+test("the web export is staged where the bundled daemon looks for it, so a Space this Mac serves hands the app to a browser; no export stages nothing", () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-stage-web-"));
+  const web = path.join(tmp, "web");
+  fs.mkdirSync(path.join(web, "_expo"), { recursive: true });
+  fs.writeFileSync(path.join(web, "index.html"), "<!doctype html>");
+  fs.writeFileSync(path.join(web, "_expo", "a.js"), "1");
+  const runtime = path.join(tmp, "runtime");
+  const dest = stageAppWeb(runtime, web);
+  assert.equal(dest, path.join(runtime, "apps", "app", "dist"));
+  assert.ok(fs.existsSync(path.join(dest!, "_expo", "a.js")));
+  // the daemon's own default (host/src/routes/app-files.ts defaultAppDir), read from the staged host/src/routes, is that folder
+  assert.equal(path.resolve(path.join(runtime, "host", "src", "routes"), "../../../apps/app/dist"), dest);
+  assert.equal(stageAppWeb(path.join(tmp, "runtime2"), path.join(tmp, "none")), null);
 });

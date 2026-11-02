@@ -10,6 +10,7 @@ import { ObjectList } from "../objects/ObjectList.tsx";
 import type { ObjectListRow } from "../objects/ObjectList.tsx";
 import { useObjectNames } from "../objects/names.ts";
 import { PersonLifecycle } from "./PersonLifecycle.tsx";
+import { EXPIRY_CHOICES, OpenInvites, emailInvite } from "./Invites.tsx";
 import { Help,  Actions, Button, Field, FormSheet, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
 
 type Roles = CapMap["access.roles.list"]["out"];
@@ -44,6 +45,9 @@ export function People({ initialPersonId }: { initialPersonId?: string } = {}): 
   const [role, setRole] = useState("");
   const [link, setLink] = useState("");
   const [inviting, setInviting] = useState(false);
+  const [days, setDays] = useState("7");
+  const [mailNote, setMailNote] = useState("");
+  const [inviteRev, setInviteRev] = useState(0);
   const [selected, setSelected] = useState<string | null>(initialPersonId ?? null);
   const [filters, setFilters] = useState<ReadonlySet<string>>(new Set());
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
@@ -101,9 +105,13 @@ export function People({ initialPersonId }: { initialPersonId?: string } = {}): 
       </Group>
     </Section> : null}
     {report ? <Note>{report}</Note> : null}
-    {inviting ? <FormSheet title="Invite a person" testID="invite-sheet" onClose={() => { setInviting(false); setLink(""); }} submit={link ? "Done" : "Create invite"} disabled={!link && (!chosenRole || action.busy)} why={!chosenRole ? "Pick a role first" : undefined}
-      onSubmit={() => { if (link) { setInviting(false); setLink(""); setEmail(""); return; } void action.run<CapMap["members.invites.create"]["out"]>("members.invites.create", { role: chosenRole, ...(email.trim() ? { email: email.trim() } : {}), idempotencyKey: attempt() }, "Invite created").then((out) => { if (out) setLink(out.link); }); }}>
-      {link ? <><Note>Copy this one-time invite link:</Note><Text selectable testID="console-invite-link">{link}</Text></> : <><Field label="Email (optional)" testID="console-invite-email" value={email} onChange={setEmail} /><Select label="Role" value={chosenRole} options={inviteRoles.map((r) => ({ key: r.id, title: r.name }))} onChange={setRole} /></>}
+    <OpenInvites key={inviteRev} roleName={roleName} />
+    {inviting ? <FormSheet title="Invite a person" testID="invite-sheet" onClose={() => { setInviting(false); setLink(""); setMailNote(""); }} submit={link ? "Done" : "Create invite"} disabled={!link && (!chosenRole || action.busy)} why={!chosenRole ? "Pick a role first" : undefined}
+      onSubmit={() => { if (link) { setInviting(false); setLink(""); setEmail(""); setMailNote(""); return; } void action.run<CapMap["members.invites.create"]["out"]>("members.invites.create", { role: chosenRole, ...(email.trim() ? { email: email.trim() } : {}), expiresInDays: Number(days), idempotencyKey: attempt() }, "Invite created").then((out) => { if (out) { setLink(out.link); setInviteRev((n) => n + 1); } }); }}>
+      {link ? <><Note>Copy this one-time invite link:</Note><Text selectable testID="console-invite-link">{link}</Text>
+        {email.trim() ? <Actions><Button label={`Email it to ${email.trim()}`} testID="console-invite-mail" disabled={mailNote === "Sending"} onPress={() => { setMailNote("Sending"); void emailInvite(consoleData.call, { to: email.trim(), link, by: consoleData.me.name, space: consoleData.space.name }).then((line) => setMailNote(line ?? "Connect your own mailbox in Inbox to send from here. Copy the link instead."), () => setMailNote("Could not send. Copy the link and send it yourself.")); }} /></Actions> : null}
+        {mailNote ? <Note>{mailNote}</Note> : null}</>
+        : <><Field label="Email (optional)" testID="console-invite-email" value={email} onChange={setEmail} /><Select label="Role" value={chosenRole} options={inviteRoles.map((r) => ({ key: r.id, title: r.name }))} onChange={setRole} /><Select label="Ends after" value={days} options={EXPIRY_CHOICES} onChange={setDays} /></>}
     </FormSheet> : null}
     {action.note && !report ? <Note>{action.note}</Note> : null}
   </View>;

@@ -10,6 +10,9 @@
 //                 authority of its own: every request carries the device's bearer token, and the gateway checks it exactly as it does for a direct connection.
 // Public path     a visitor's `/p/*` request at <name>.vyre.run has no device and no Noise session. It reaches this node on the control socket as `p.req` (head), `p.body` (chunks), and the answer goes back as
 //                 `p.res`, `p.data`, `p.end`, or `p.err`: base64 in JSON, one request at a time per id. servePublic hands it to the daemon's own gateway, which serves only forms and sites there.
+// Invites        a person invited to a Space reached at a phone address has no box key and no session. The invite link's fragment carries a key of its own, derived from the box key and that invite's
+//                 code hash (inviteKeyOf), never the box key. The node answers a device hello under that key only while the invite is open, and a channel opened that way reaches the join page and its two
+//                 calls, nothing else (inviteScopeOk). A successful members.accept on it carries the box key back inside the channel (x-vyre-box), so the new member's browser pins it and moves over.
 // The relay learns the public route key, route id, timing and sizes. It never holds a key that opens a frame.
 // The public path is the exception, by design: those requests are public, so the relay sees them in the clear.
 //
@@ -19,7 +22,7 @@
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
-import { ed25519Pair, ed25519Sign, x25519Pair, x25519Shared } from "../../../kernel/src/seal/index.ts";
+import { ed25519Pair, ed25519Sign, x25519Pair, x25519Public, x25519Shared } from "../../../kernel/src/seal/index.ts";
 
 const subtle = globalThis.crypto.subtle;
 const utf8 = (s: string): Uint8Array => new TextEncoder().encode(s);
@@ -71,6 +74,16 @@ export function loadRelayKeys(dir: string): Keys {
   fs.writeFileSync(file, JSON.stringify({ v: 2, routeSeed: route.seed, routePub: route.pub, boxPriv: box.priv, boxPub: box.pub }), { mode: 0o600 });
   return { routeSeed: route.seed, routePub: fromB64u(route.pub), boxPriv: box.priv, boxPub: fromB64u(box.pub) };
 }
+
+/** The key an invite link carries in place of the box key: X25519, its private half HMAC-SHA256(box private key, "vyre-invite-v1\n" + the invite's code hash). Stored nowhere; a used, revoked or
+ *  expired invite's hash is no longer offered, so its key opens nothing. */
+export async function inviteKeyOf(boxPriv: string, codeHash: string): Promise<{ priv: string; pub: string }> {
+  const priv = b64u(await hmac(fromB64u(boxPriv), utf8(`vyre-invite-v1\n${codeHash}`)));
+  return { priv, pub: x25519Public(priv) };
+}
+
+/** The most invites a hello is tried against, newest first: one Diffie-Hellman each, so a stranger's hello costs a bounded amount. */
+export const INVITE_TRIES = 200;
 
 // ---- Noise_IK_25519_AESGCM_SHA256, responder side (revision 34)
 
@@ -326,10 +339,41 @@ export function servePublic(send: (m: unknown) => void, m: { id: string; method:
   req.end(body.length ? Buffer.from(body) : undefined);
 }
 
-function serveStream(s: Stream, ch: Channel, localPort: number): void {
+/** The join's two calls: everything else needs a session, which an invite channel never carries. */
+const INVITE_CALLS = new Set(["/v1/members/invites/preview", "/v1/members/accept"]);
+
+/** What a channel opened with an invite key may ask for: the app's own files and the join's two signed-out calls. No live socket, nothing that reads or writes the Space. */
+export function inviteScopeOk(method: string, path: string): boolean {
+  if (path.length > 1024) return false;
+  const bare = path.split("?")[0] as string;
+  if (/(^|\/)(\.|%2e){1,2}(\/|$)/i.test(bare) || /%2f|%5c|\\/i.test(bare)) return false;
+  if (method === "POST") return INVITE_CALLS.has(bare);
+  if (method !== "GET" && method !== "HEAD") return false;
+  if (bare === "/" || bare === "/healthz" || /^\/join(\/[A-Za-z0-9-]{1,32})?\/?$/.test(bare)) return true;
+  if (/^\/(_expo|assets)\/[A-Za-z0-9._~@%+=\/-]{1,900}$/.test(bare)) return true;
+  return /^\/[A-Za-z0-9._-]{1,128}\.(ico|png|svg|webmanifest|json|js|css|txt|ttf|woff2?)$/.test(bare);
+}
+
+/** A channel a device opened with an invite key: open while that invite is, and the box key it may hand over once the person has joined. */
+export interface InviteScope { open(): boolean; boxKey: string }
+
+const refuseInvite = (s: Stream, ch: Channel): void => {
+  ch.respond(s, { status: 403, headers: { "content-type": "application/json", "cache-control": "no-store" } });
+  ch.write(s, utf8(JSON.stringify({ error: { code: "auth.invalid_code", message: "This invite link opens only the join page, and only while the invite is open." } })));
+  ch.end(s);
+};
+
+function serveStream(s: Stream, ch: Channel, localPort: number, scope: InviteScope | null = null): void {
   const path0 = typeof s.head["ws"] === "string" ? s.head["ws"] : typeof s.head["path"] === "string" ? s.head["path"] : "";
   if (!path0.startsWith("/") || path0.startsWith("//") || path0.length > 4096) { ch.reset(s, "bad path"); return; }
   const headers = cleanHeaders(s.head["headers"]);
+  if (scope) {
+    // signed out by construction: whatever the device sends, no session crosses an invite channel
+    delete headers["authorization"];
+    delete headers["cookie"];
+    const m0 = typeof s.head["ws"] === "string" ? "WS" : String(s.head["method"] ?? "GET").toUpperCase();
+    if (!scope.open() || !inviteScopeOk(m0, path0)) { refuseInvite(s, ch); return; }
+  }
   if (typeof s.head["ws"] === "string") {
     // the live socket: data frames are [1 text | 2 binary][message], one message per frame
     const WS = globalThis.WebSocket as unknown as new (url: string, init?: unknown) => WebSocket;
@@ -360,6 +404,9 @@ function serveStream(s: Stream, ch: Channel, localPort: number): void {
     catch { if (ch.streams.has(s.id)) { ch.respond(s, { status: 502, headers: {} }); ch.end(s); } return; }
     const rh: Record<string, string> = {};
     res.headers.forEach((v, k) => { if (!HOP.has(k)) rh[k] = v; });
+    // the person has joined: the box key travels back inside the channel the invite key opened, so their browser can pin it and leave the invite channel behind
+    delete rh["x-vyre-box"];
+    if (scope && method === "POST" && path0.split("?")[0] === "/v1/members/accept" && res.status === 200) rh["x-vyre-box"] = scope.boxKey;
     ch.respond(s, { status: res.status, headers: rh });
     if (res.body) {
       const reader = res.body.getReader();
@@ -386,6 +433,8 @@ export interface RelayBoxOptions {
   pingMs?: number;
   /** Tests: the WebSocket class the links use (default: the platform's). */
   WebSocket?: typeof WebSocket;
+  /** The code hashes of the invites open right now, newest first. A device hello under one of their keys opens an invite channel (inviteKeyOf, inviteScopeOk). */
+  invites?: () => readonly string[];
 }
 /** The relay's answer to a phone-address message: `{ t: "host", op, status, name?, label? }` with the fields it knows. */
 export interface HostReply { op: string; status: string; name?: string; label?: string }
@@ -508,6 +557,17 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
     servePublic(send, open.head, new Uint8Array(Buffer.concat(open.chunks)), o.localPort());
   }
 
+  /** A hello that the box key did not open, tried against each open invite's key. */
+  async function openInvite(k: Keys, prologue: Uint8Array, bytes: Uint8Array): Promise<{ hs: Responder; hash: string } | null> {
+    for (const hash of (o.invites?.() ?? []).slice(0, INVITE_TRIES)) {
+      if (!/^[A-Za-z0-9_+/=-]{16,128}$/.test(hash)) continue;
+      const key = await inviteKeyOf(k.boxPriv, hash);
+      const hs = new Responder({ priv: key.priv, pub: fromB64u(key.pub) }, prologue);
+      try { await hs.readMessage(bytes); return { hs, hash }; } catch { /* not this one */ }
+    }
+    return null;
+  }
+
   function openData(c: string): void {
     if (stopped || !keys || data.has(c) || !/^[A-Za-z0-9_-]{1,64}$/.test(c)) return;
     const k = keys;
@@ -518,8 +578,10 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
       send: (b: Uint8Array): void => { try { ws.send(b); } catch { /* closing */ } },
       close: (code: number, reason: string): void => { try { ws.close(code === 1000 || (code >= 3000 && code <= 4999) ? code : 4000, reason.slice(0, 120)); } catch { /* closed */ } },
     };
-    const hs = new Responder({ priv: k.boxPriv, pub: k.boxPub }, utf8(`vyre-relay-v1\n${route}`));
+    const prologue = utf8(`vyre-relay-v1\n${route}`);
+    let hs = new Responder({ priv: k.boxPriv, pub: k.boxPub }, prologue);
     let channel: Channel | null = null;
+    let scope: InviteScope | null = null;
     let started = false;
     let q: Promise<void> = Promise.resolve();
     ws.onmessage = (e: MessageEvent) => {
@@ -530,11 +592,20 @@ export function startRelayBox(o: RelayBoxOptions): RelayBox {
         if (started) { transport.close(4400, "frame before the handshake finished"); return; }
         started = true;
         try {
-          await hs.readMessage(bytes);   // the device's hello; who it is, is decided per request by the gateway's own token check
-          const m2 = await hs.writeMessage(utf8(JSON.stringify({ ok: true, v: 1 })));
+          try { await hs.readMessage(bytes); }   // the device's hello; who it is, is decided per request by the gateway's own token check
+          catch (e) {
+            // not the box key: one of the open invites' keys, or nothing
+            const opened = await openInvite(k, prologue, bytes);
+            if (!opened) throw e;
+            hs = opened.hs;
+            const hash = opened.hash;
+            scope = { open: () => (o.invites?.() ?? []).includes(hash), boxKey: b64u(k.boxPub) };
+          }
+          const m2 = await hs.writeMessage(utf8(JSON.stringify({ ok: true, v: 1, ...(scope ? { invite: true } : {}) })));
           transport.send(m2);
         } catch { transport.close(4401, "refused"); return; }
-        channel = new Channel(transport, hs.send!, hs.recv!, (s, ch) => serveStream(s, ch, o.localPort()));
+        const sc = scope;
+        channel = new Channel(transport, hs.send!, hs.recv!, (s, ch) => serveStream(s, ch, o.localPort(), sc));
       }).catch(() => {});
     };
     const end = (): void => { if (data.get(c) === ws) data.delete(c); channel?.close(1000, "relay closed the connection"); };

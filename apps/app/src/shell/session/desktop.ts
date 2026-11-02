@@ -6,6 +6,7 @@ import { keepKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { holdKeyOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
 import { loadCryptoKeys } from "../../../../../client/src/crypto/load.ts";
 import type { JoinValues } from "../../join/JoinFlow.tsx";
+import { deviceFor } from "../../join/logic.ts";
 import { openVerifiedSession, writeStored } from "./stored.ts";
 import type { StoredSession, VerifiedSpace } from "./stored.ts";
 
@@ -180,7 +181,7 @@ export async function acceptDesktopJoin(join: PreviewedDesktopJoin, values: Join
       username: values.username,
       displayName: values.displayName,
       password: values.password,
-      deviceName: values.deviceName || (deps.deviceClass === "web" ? "Web browser" : "Vyre desktop"),
+      deviceName: values.deviceName || deviceFor(deps.deviceClass ?? "desktop").deviceName,
       deviceClass: deps.deviceClass ?? "desktop",
       keys: { ...wrappedKeys, ...(values.recoveryCode ? { personKeyByRecovery } : {}), spaceKeys },
       ...(deps.ssoProvider ? { ssoProvider: deps.ssoProvider } : {}),
