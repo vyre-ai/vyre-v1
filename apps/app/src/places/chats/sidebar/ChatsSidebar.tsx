@@ -1,7 +1,6 @@
 // The Chats sidebar (spec 3.2, 2.23, ARCH 7.2): the Space and search at the top, then Needs you (only when something waits), Starred agent faces (Cmd-1..9), Chats grouped
 // Starred, Today, Yesterday and Earlier with a pulse where an agent works, then Channels with Projects beneath. One flat list in ui/VirtualList, every row a ui/Row with
 // leading and trailing slots (ruling 36). Everything reads from the local copy; a new chat shows as a row at once and the server answers behind it.
-import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { SidebarContent } from "../../../shell/sidebar/index.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import type { QueryFailure } from "../../../../../../client/src/query/types.ts";
@@ -295,6 +294,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
       case "head": {
         return (
           <SectionHead id={e.section} label={e.label} count={!e.open ? e.count : undefined} open={e.open} onToggle={() => toggle(e.section)}>
+            {e.section === "channels" ? <Tool icon="search" label="Browse channels" onPress={() => setSheet("browse")} testID="browse-channels-tool" /> : null}
             {e.section === "channels" ? <Tool icon="plus" label="New channel" onPress={() => setSheet("new")} testID="new-channel" /> : null}
             {e.section === "faces" ? <Tool icon="plus" label="New agent" onPress={() => { data.nav.openAllAgents(); leave(); }} testID="all-agents" /> : null}
           </SectionHead>
@@ -339,7 +339,7 @@ function Sidebar({ window, query, slot }: { window?: VirtualWindow; query: strin
       case "face": return wrap(
         <Row
           id={e.key} title={e.assistant ? "Assistant" : e.agent.name} selected={sel} onPress={() => open(e)}
-          leading={<View style={{ marginRight: 9 }}><Avatar {...avatarOf({ id: e.agent.agentId, name: e.agent.name, kind: e.assistant ? "assistant" : "agent" })} size={18} state={e.waiting ? "waiting" : e.working ? "working" : undefined} /></View>}
+          leading={<View style={{ marginRight: 9 }}><Face name={e.assistant ? "Assistant" : e.agent.name} seedId={e.agent.agentId} kind="agent" size={18} pulse={e.working} waiting={e.waiting} /></View>}
         />,
       );
       case "more": return <Pressable accessibilityRole="button" accessibilityLabel={e.label} testID={`row-${e.key}`} onPress={() => open(e)} style={st.more}><Text style={st.moreText}>{e.label}</Text></Pressable>;

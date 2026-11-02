@@ -55,6 +55,10 @@ export interface MessageActions {
   edit(messageId: string, body: string): void;
   setPinned(messageId: string, pinned: boolean): void;
   react(messageId: string, emoji: string, remove: boolean): void;
+  /** Opens the reaction picker where you pressed. */
+  pickReaction?(messageId: string, x: number, y: number): void;
+  /** Only people talk here: no agent is in this chat. */
+  humanChat?: boolean;
   openThread(messageId: string): void;
   remove(messageId: string): void;
   openAgent(agentId: string): void;
@@ -171,22 +175,34 @@ export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: ()
   if (a.share && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Share to...", onSelect: () => a.share!(m.messageId, at.x, at.y) });
   if (a.fork && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Fork From Here", onSelect: () => a.fork!(m.messageId) });
   items.push({ label: m.pinned ? "Unpin Message" : "Pin Message", onSelect: () => a.setPinned(m.messageId, !m.pinned) });
-  items.push({ label: "Add Reaction", onSelect: () => a.react(m.messageId, "👍", false) });
+  items.push({ label: "Add Reaction", onSelect: () => (a.pickReaction ? a.pickReaction(m.messageId, at.x, at.y) : a.react(m.messageId, "👍", false)) });
   if (m.kind !== "quiet" && a.memoryEntries) items.push(...a.memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu));
   if (mine) items.push({ separator: true }, { label: "Delete", danger: true, onSelect: () => a.remove(m.messageId) });
   return items;
 }
 
 /** The bar is drawn only while the row is hovered or has focus: fifty rows that each hold a hidden bar of buttons were most of what the first frame cost. The empty toolbar stays, so the row's size and test hook never change. */
-export function HoverBar({ m, mine, a, onEdit, visible }: { m: Message; mine: boolean; a: MessageActions; onEdit: () => void; visible: boolean }): ReactElement {
-  const bar: { icon: GlyphName; label: string; run: () => void }[] = [{ icon: "copy", label: "Copy", run: () => a.copy(m.body) }];
-  if (mine && m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
-  bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
-  if (a.makeTask && m.kind !== "system" && m.kind !== "quiet") bar.push({ icon: "task", label: "Make a task", run: () => a.makeTask!(m.messageId) });
-  if (a.fork && m.kind !== "system" && m.kind !== "quiet") bar.push({ icon: "fork", label: "Fork from here", run: () => a.fork!(m.messageId) });
+/** Actions by who wrote it and where: an agent's message copies, threads, forks and pins; your own with an agent copies and edits; people talking get reactions and threads. Fork never appears where only people talk. The rest is under More. */
+export function HoverBar({ m, mine, a, onEdit, visible, byAgent = false }: { m: Message; mine: boolean; a: MessageActions; onEdit: () => void; visible: boolean; byAgent?: boolean }): ReactElement {
+  const bar: { icon: GlyphName; label: string; run: (x: number, y: number) => void }[] = [];
+  const talk = m.kind !== "system" && m.kind !== "quiet";
+  if (byAgent) {
+    bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
+    bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
+    if (a.fork && talk) bar.push({ icon: "fork", label: "Fork from here", run: () => a.fork!(m.messageId) });
+    if (talk) bar.push({ icon: "pin", label: m.pinned ? "Unpin" : "Pin", run: () => a.setPinned(m.messageId, !m.pinned) });
+  } else if (mine && a.humanChat !== true) {
+    bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
+    if (m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
+    bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
+  } else {
+    if (a.pickReaction && talk) bar.push({ icon: "smile", label: "React", run: (x, y) => a.pickReaction!(m.messageId, x, y) });
+    bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
+    if (mine && m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
+  }
   return (
     <View testID={`hover-${m.messageId}`} accessibilityRole="toolbar" accessibilityLabel="Message actions" style={[st.hover, mine ? st.hoverMine : st.hoverTheirs, { opacity: visible ? 1 : 0 }, !visible && { width: 0, borderWidth: 0 }]}>
-      {visible ? collect(bar, (b) => <IconButton key={b.label} icon={b.icon} label={b.label} size={24} testID={`act-${b.label.split(" ")[0]?.toLowerCase()}-${m.messageId}`} onPress={() => b.run()} />) : null}
+      {visible ? collect(bar, (b) => <IconButton key={b.label} icon={b.icon} label={b.label} size={24} testID={`act-${b.label.split(" ")[0]?.toLowerCase()}-${m.messageId}`} onPress={(x, y) => b.run(x, y)} />) : null}
       {visible ? <IconButton icon="more" label="More" size={24} testID={`act-more-${m.messageId}`} onPress={(x, y) => a.showMenu(menuFor(m, mine, a, onEdit, { x, y }), x, y, "Message")} /> : null}
     </View>
   );
@@ -304,18 +320,19 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
   const subjects = useSubjectBlocks(blocks);
   return (
     <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined, { x, y }), x, y, "Message"))} style={[st.msg, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive]}>
-      {h.phone ? <ActionSheet open={sheet} entries={menuFor(m, false, actions, () => undefined)} onClose={() => setSheet(false)} /> : <HoverBar m={m} mine={false} a={actions} onEdit={() => undefined} visible={h.over || h.focus} />}
+      {h.phone ? <ActionSheet open={sheet} entries={menuFor(m, false, actions, () => undefined)} onClose={() => setSheet(false)} /> : <HoverBar byAgent={!person} m={m} mine={false} a={actions} onEdit={() => undefined} visible={h.over || h.focus} />}
       {item.newgroup ? (
         <View style={st.by}>
           <Face name={item.who.name} seedId={item.who.id} kind={person ? "person" : "agent"} size={20} />
-          <Pressable accessibilityRole="link" accessibilityLabel={`Open ${item.who.name}`} testID={`who-${m.messageId}`} disabled={person} onPress={() => actions.openAgent(item.who.id)}>
+          <Pressable accessibilityRole="link" accessibilityLabel={`Open ${item.who.name}`} testID={`who-${m.messageId}`} onPress={() => actions.openAgent(item.who.id)}>
             <Text style={st.who}>{item.who.name}</Text>
           </Pressable>
           <Text style={st.time}>{item.time}</Text>
+          {work?.short ? <Pressable accessibilityRole="button" accessibilityLabel={work.summary} testID={`work-short-${m.messageId}`} onPress={() => setWorkOpen((o) => !o)} style={{ opacity: h.over || workOpen ? 1 : 0 }}><Text style={st.time}>{work.summary}</Text></Pressable> : null}
         </View>
       ) : <Text style={st.whenLeft}>{item.time}</Text>}
       {m.via ? <Text testID={`via-${m.messageId}`} style={st.via}>{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text> : null}
-      {work ? (
+      {work && (!work.short || !item.newgroup || workOpen) ? (
         <Fold testID={`work-${m.messageId}`} label={work.live ? `Working${work.now ? ` · ${work.now}` : ""}` : work.summary} open={work.live || workOpen} live={work.live} onToggle={() => setWorkOpen((o) => !o)}>
           {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part="line" />}
           {collect(work.steps, (l) => (

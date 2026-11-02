@@ -2,7 +2,7 @@
 // (ui/SidePane): Computer, Threads, Files, Knows (it was Memory: the same facts with Accept, Correct and Remove, now with what the Space and you know too), Routines. It follows the agent of the open chat; the width belongs to the pane, not to a tab, so switching tabs never moves
 // the edge. Every change says so in one quiet line at the foot, with Undo where it can be taken back.
 import { useEffect, useMemo, useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { TabStrip } from "../../../../../../ui/src/TabStrip/index.tsx";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
@@ -46,6 +46,8 @@ export interface ChatRightPaneProps {
   paneWidth?: number;
   /** Opens one routine on the Routines tab (tests and screenshots). */
   openRoutine?: string;
+  /** What was opened from the chat, after the pane's own: closable right tabs. The shown one replaces the pane's body. */
+  extra?: { tabs: readonly { key: string; title: string; lead?: ReactNode }[]; active: string | null; onSelect(key: string | null): void; onClose(key: string): void; body: ReactNode };
 }
 
 /** "Show what the agent knew here" on a message pins the store's Knows focus and asks for the tab: switch to it (also when the pane opens because of the request). */
@@ -82,7 +84,7 @@ export function ChatRightPaneLoading({ open, onToggle }: { open: boolean; onTogg
   );
 }
 
-function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, paneWidth, openRoutine }: ChatRightPaneProps): ReactElement {
+function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, paneWidth, openRoutine, extra }: ChatRightPaneProps): ReactElement {
   const data = usePaneData();
   const online = useOnline();
   const menu = useMenu();
@@ -130,10 +132,11 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
 
   return (
     <SidePane
-      paneKey={PANE_KEY} toggle={{ open, onPress: onToggle }} title={data.agent.name} tabs={[openTab]} activeTab="open" onSelectTab={() => undefined} onCloseTab={onToggle}
+      paneKey={PANE_KEY} toggle={{ open, onPress: onToggle }} title={data.agent.name} tabs={[openTab, ...(extra?.tabs ?? [])]} activeTab={extra?.active ?? "open"} onSelectTab={(key) => extra?.onSelect(key === "open" ? null : key)} onCloseTab={(key) => { if (key === "open") onToggle(); else extra?.onClose(key); }}
       {...(narrow ? { max: 1, defaultWidth: win.width } : { defaultWidth: WIDE_PANE_W })}
     >
-      <View testID="chats-right-pane" style={st.root} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}>
+      {extra?.active ? <View testID="right-tab-body" style={st.root}>{extra.body}</View> : null}
+      <View testID="chats-right-pane" style={[st.root, extra?.active ? st.gone : null]} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}>
         <TabMeasure titles={tabs.map((x) => x.title)} onWidth={titles.set} />
         <View testID="pane-agent" style={st.who}>
           <Face name={data.agent.name} seedId={data.agent.agentId} size={30} pulse={agent?.status === "working"} />
@@ -164,6 +167,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
 
 const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--side)" as string },
+  gone: { display: "none" },
   who: { height: 50, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 10 },
   whoText: { flex: 1, minWidth: 0 },
   name: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },

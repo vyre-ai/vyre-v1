@@ -1,4 +1,3 @@
-// @tsx
 // The first screen's rules: who a new chat starts with, what sits under the composer and what it says.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -26,4 +25,23 @@ test("what is running shows once per chat, with who is on it", () => {
   assert.deepEqual(w.map((x) => x.threadId), ["a"]);
   assert.equal(workingLine(w[0]!), "3 working in a");
   assert.deepEqual(workingChats(undefined), []);
+});
+
+test("a face opens one right tab per person or agent; closing it lands on its neighbour", async () => {
+  const { afterClose, profileTab, withTab } = await import("../rightpane/ProfilePane.tsx");
+  const mira = profileTab("a", "Mira Lane", "agent"), sara = profileTab("p", "Sara Malik", "person");
+  assert.equal(mira.title, "Mira");
+  assert.equal(profileTab("x", "Irfad's Assistant", "assistant").title, "Assistant");
+  const tabs = withTab(withTab(withTab([], mira), sara), mira);
+  assert.deepEqual(tabs.map((t) => t.key), ["profile:a", "profile:p"], "opening it again finds it");
+  assert.equal(afterClose(tabs, "profile:p"), "profile:a");
+  assert.equal(afterClose(tabs, "profile:a"), "profile:p");
+  assert.equal(afterClose([mira], "profile:a"), null);
+});
+
+test("the reaction picker offers the six, then searches every emoji", async () => {
+  const { QUICK, reactionChoices } = await import("../conversation/ReactionPicker.tsx");
+  assert.deepEqual(reactionChoices("").map((e) => e.char), [...QUICK]);
+  assert.ok(reactionChoices("smile").length > 0);
+  assert.deepEqual(reactionChoices("zzzzq"), []);
 });

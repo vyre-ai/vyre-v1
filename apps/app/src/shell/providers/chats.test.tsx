@@ -43,15 +43,15 @@ function runtime(): { rt: ShellRuntime; calls: { cap: string; input: unknown }[]
 const html = (rt: ShellRuntime | null): string =>
   renderToStaticMarkup(rt ? <ShellRuntimeProvider value={rt}><ChatsPlace /></ShellRuntimeProvider> : <ChatsPlace />).replaceAll("<!-- -->", "");
 
-test("chats: with a runtime the sidebar lists the Space's chats and the conversation shows the open thread", () => {
+test("chats: with a runtime the sidebar lists the Space's chats and the first screen is a new chat", () => {
   const out = html(runtime().rt);
   assert.ok(out.includes('data-testid="chats-place"'));
   assert.ok(!out.includes('data-testid="chats-sidebar"'), "the sidebar is the shell's slot, not a frame in the place");
   const el = ChatsSidebarSlot({ data: createSampleSidebar().data, window: { start: 0, end: 500 } }) as ReactElement<{ title: string; children: (q: string, slot: SidebarSlotApi) => ReactElement }>;
   assert.equal(el.type, SidebarContent, "the place registers its sidebar in the shared slot");
   const side = renderToStaticMarkup(el.props.children("", { query: "", collapsed: false, setCollapsed: () => undefined, hasSidebar: true, compact: false, openBody: () => undefined, back: () => undefined, view: "body", title: "Chats" })).replaceAll("<!-- -->", "");
-  assert.ok(side.includes("Competitor pricing") && side.includes("October invoices"), "the sidebar rows");
-  assert.ok(out.includes("Tuesday has two openings"), "the conversation's messages");
+  assert.ok(side.includes("Tasks") && side.includes("Recent"), "the sidebar rows");
+  assert.ok(out.includes('data-testid="chats-landing"') && out.includes("What are we working on?"), "the first screen");
   assert.ok(!out.includes("-loading"), "no loading frame once the Space is open");
 });
 

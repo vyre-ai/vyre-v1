@@ -42,6 +42,9 @@ import { START, fromHash, step, workOf } from "./route.ts";
 import { Landing } from "../landing/Landing.tsx";
 import { TasksRoute, TaskRouteLeaf } from "./TasksRoute.tsx";
 import { ThreadsPage } from "./ThreadsPage.tsx";
+import { ProfilePane, afterClose, profileTab, withTab } from "../rightpane/ProfilePane.tsx";
+import type { ProfileTab } from "../rightpane/ProfilePane.tsx";
+import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { WORKSPACE_MIN_W, Workspace } from "./Workspace.tsx";
 import type { Act, Shown } from "./route.ts";
 import { nameOr } from "../names.ts";
@@ -134,6 +137,19 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch 
     return () => { live = false; };
   }, [asking?.agentId, asking?.scopeType, asking?.scopeId, asking?.bringFrom, asking?.draft, asking?.first, rt, act, fill]);
   const go = useMemo<Go>(() => createGo(rt, act, nameOf, setLine), [rt, act, nameOf]);
+  // right tabs: what was opened from a chat, closable, after the pane's own. Pressing any face or name opens that profile here, person or agent.
+  const [rightTabs, setRightTabs] = useState<readonly ProfileTab[]>([]);
+  const [rightOn, setRightOn] = useState<string | null>(null);
+  const profile = useCallback((id: string): void => {
+    const agent = id === rt.assistant.id ? "assistant" as const : byId.get(id)?.kind === "person" ? "person" as const : "agent" as const;
+    const tab = profileTab(id, nameOf(id), agent);
+    setRightTabs((t) => withTab(t, tab));
+    setRightOn(tab.key);
+  }, [rt.assistant.id, byId, nameOf]);
+  const closeRight = useCallback((key: string): void => {
+    setRightOn((on) => { if (on !== key) return on; return afterClose(rightTabs, key); });
+    setRightTabs((t) => t.filter((x) => x.key !== key));
+  }, [rightTabs]);
   const route = shown.route;
   // Cmd/Ctrl+Shift+F searches every chat, from anywhere in the place
   useEffect(() => {
@@ -169,8 +185,12 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch 
 
   const focus = route.view === "chat" ? route.focus : undefined;
   const conv = useMemo(
-    () => (threadId === null ? null : wireConversation(rt, go, { threadId, list, nameOf, leadId, fill, ...(focus ? { focus } : {}) })),
-    [rt, go, threadId, list, nameOf, leadId, fill, focus],
+    () => {
+      if (threadId === null) return null;
+      const wired = wireConversation(rt, go, { threadId, list, nameOf, leadId, fill, ...(focus ? { focus } : {}) });
+      return { ...wired, nav: { ...wired.nav, openAgent: profile } };
+    },
+    [rt, go, threadId, list, nameOf, leadId, fill, focus, profile],
   );
   const searchData = useMemo<SearchData>(() => ({
     call: rt.call, me: { id: rt.me.id, name: rt.me.name }, nameOf, kindOf: (id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person"), clock: rt.clock,
@@ -206,7 +226,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch 
   else if (route.view === "new") {
     const agentRows = list.filter((p) => p.kind === "agent").map((p) => ({ id: p.id, name: p.name }));
     const people = list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name }));
-    main = <Landing rt={rt} nameOf={nameOf} kindOf={(id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person")} agents={agentRows} people={people} openChat={go.chat} openTasks={() => act({ t: "tasks" })} openNeed={(id) => go.needs(id)} openProfile={(id) => { if (byId.get(id)?.kind === "agent") go.agent(id); }} fill={(t) => fill.set(t)} newKey={newKey} say={setLine} />;
+    main = <Landing rt={rt} nameOf={nameOf} kindOf={(id) => (byId.get(id)?.kind === "agent" || id === rt.assistant.id ? "agent" : "person")} agents={agentRows} people={people} openChat={go.chat} openTasks={() => act({ t: "tasks" })} openNeed={(id) => go.needs(id)} openProfile={profile} fill={(t) => fill.set(t)} newKey={newKey} say={setLine} />;
   }
   else if (conv) {
     const work = thread.status === "ready" ? workOf(thread.data.thread) : null;
@@ -215,6 +235,16 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch 
   else main = <ConversationLoading />;
 
   /* ---------- the right ---------- */
+  const rightTab = rightTabs.find((t) => t.key === rightOn);
+  const rightSpecs = rightTabs.map((t) => ({ key: t.key, title: t.title, lead: <Avatar {...avatarOf({ id: t.id, name: nameOf(t.id), kind: t.kind })} size={16} /> }));
+  const rightBody = rightTab ? (
+    <ProfilePane
+      key={rightTab.key} tab={rightTab} name={nameOf(rightTab.id)} call={rt.call as (cap: string, input: unknown) => Promise<unknown>}
+      onMessage={() => { if (rightTab.kind === "person") void Promise.resolve(rt.call("chat.start", { kind: "chat", agentIds: [], personId: rightTab.id, idempotencyKey: `dm_${rightTab.id}` })).then((o) => { const id = (o as { thread?: { threadId?: string } }).thread?.threadId; if (id) go.chat(id); }, () => setLine("Could not start the chat. Try again.")); else go.agentChat(rightTab.id); }}
+      onMention={() => fill.set(`@${nameOf(rightTab.id)} `)}
+      onEdit={() => go.agent(rightTab.id)}
+    />
+  ) : null;
   let right: ReactElement | null = null;
   if (shown.terminalId !== null) {
     right = (
@@ -228,7 +258,15 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch 
       </View>
     );
   } else if (shown.pane && paneCtx && route.view === "chat") {
-    right = <View style={st.pane}><AgentPane data={paneCtx} open onToggle={go.togglePane} {...(window ? { window } : {})} /></View>;
+    right = <View style={st.pane}><AgentPane data={paneCtx} open onToggle={go.togglePane} {...(window ? { window } : {})} extra={{ tabs: rightSpecs, active: rightOn, onSelect: setRightOn, onClose: closeRight, body: rightBody }} /></View>;
+  } else if (rightOn !== null) {
+    right = (
+      <View style={st.pane}>
+        <SidePane paneKey="chats-right-pane" toggle={{ open: true, onPress: () => setRightOn(null) }} title="Profile" tabs={rightSpecs} activeTab={rightOn} onSelectTab={setRightOn} onCloseTab={closeRight} defaultWidth={372}>
+          {rightBody}
+        </SidePane>
+      </View>
+    );
   }
 
   const showMain = !(narrow && right !== null);

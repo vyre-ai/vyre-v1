@@ -95,12 +95,12 @@ test("the phone card makes a one-time link on the Space address and the open car
   const { pairFromUrl, pairLink } = await import("../shell/session/desktop.ts");
   const calls: unknown[] = [];
   const made = await makePairLink((async (cap: string, input: unknown) => { calls.push([cap, input]); return { code: "AB12-CD34", expiresAt: 5 }; }) as never, "https://team.example/", "k");
-  assert.equal(made.link, "https://team.example/home?pair=AB12-CD34");
+  assert.equal(made.link, "https://team.example/chat?pair=AB12-CD34");
   assert.deepEqual(calls, [["identity.pair_create", { purpose: "phone", idempotencyKey: "k" }]]);
   assert.deepEqual(pairFromUrl(made.link, "https://team.example"), { kind: "pair", address: "https://team.example", code: "AB12-CD34", phone: true });
-  assert.equal(pairFromUrl("https://team.example/home?pair=<script>", "https://team.example"), null);
+  assert.equal(pairFromUrl("https://team.example/chat?pair=<script>", "https://team.example"), null);
   assert.equal(pairFromUrl("https://team.example/home", "https://team.example"), null);
-  assert.equal(pairLink("https://a.example", "x y"), "https://a.example/home?pair=x%20y");
+  assert.equal(pairLink("https://a.example", "x y"), "https://a.example/chat?pair=x%20y");
   for (const k of ["import_sessions", "local_folders", "chrome", "first_win"]) assert.ok(OPEN_TARGETS[k], k);
 });
 

@@ -167,6 +167,7 @@ function PaneHeader(props: PaneViewProps & { innerToggleHidden: boolean }): Reac
       tabs={list}
       active={activeTab ?? list[0]?.key ?? ""}
       label={title}
+      noOptions
       {...(props.tight === true ? { tight: true } : {})}
       {...(props.onSelectTab === undefined ? {} : { onSelect: props.onSelectTab })}
       {...(props.onCloseTab === undefined ? {} : { onClose: props.onCloseTab })}
@@ -334,10 +335,10 @@ const COL_RESIZE = (Platform.OS === "web" ? "col-resize" : undefined) as unknown
 
 const styles = StyleSheet.create({
   header: { height: PANE_HEADER_HEIGHT, flexDirection: "row", alignItems: "center", backgroundColor: "var(--side)" as string },
-  toggleCell: { height: PANE_HEADER_HEIGHT, justifyContent: "center", borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  toggleCell: { height: PANE_HEADER_HEIGHT, justifyContent: "center", paddingTop: 6 },
   toggle: { width: 28, height: 28, marginLeft: 6, marginRight: 2, borderRadius: 7, alignItems: "center", justifyContent: "center" },
   tabsSlot: { flex: 1, minWidth: 0 },
-  titleBox: { height: PANE_HEADER_HEIGHT, justifyContent: "center", paddingHorizontal: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  titleBox: { height: PANE_HEADER_HEIGHT, justifyContent: "center", paddingHorizontal: 8 },
   title: { color: "var(--ink)" as string, fontSize: 12.5, fontWeight: "500" },
   pane: { flex: 1, minWidth: 0, minHeight: 0, backgroundColor: "var(--side)" as string, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, overflow: "hidden" },
   onSheet: { position: "relative", height: "100%", minWidth: 0, flexShrink: 0 },

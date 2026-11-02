@@ -51,10 +51,10 @@ test("a Personal Space mount never asks for computers.list and draws no computer
   assert.ok(!calls.includes("computers.list"));
 });
 
-test("a Team Space keeps the computer button and reads its computers", () => {
+test("a Team Space reads its computers; the computer lives in the pane, not in the composer", () => {
   const { rt, asked } = runtime("team");
   const out = html(rt);
-  assert.ok(out.includes('data-testid="computer-button"'));
+  assert.ok(!out.includes('data-testid="computer-button"'));
   assert.ok(asked.includes("console.agent-computers/computers"));
 });
 

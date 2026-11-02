@@ -133,10 +133,8 @@ test("the channel menu: Connect an Outside Agent is on a channel's menu only, an
   assert.ok(has(out, 'data-testid="connect-outside-agent"') && has(out, "rivera-matter") && has(out, "Create connection"));
 });
 
-test("the Computer chip: the chip is in the composer bar and opens the agent's computer popup over the chat", async () => {
+test("the agent's computer opens as a popup over the chat from the pane's door", async () => {
   const s = createMountSample();
-  const chat = html(s, step(START, { t: "chat", threadId: "c1" }));
-  assert.ok(has(chat, 'data-testid="computer-button"'), "the Computer chip");
   const { go, acts, shown, said } = doors(s);
   conversation(s, go).nav.openBeside("computer", "agt_intake");
   await settle();
@@ -333,7 +331,7 @@ test("terminal: the tab is a side column beside the chat, and a link from Home r
   assert.equal(shown.terminalId, TERMINAL);
   const out = html(s, shown);
   assert.ok(has(out, 'data-testid="chats-terminal"'), "the terminal column");
-  assert.ok(has(out, 'data-testid="conversation"') || has(out, 'data-testid="conversation-loading"'), "the chat stays beside it");
+  assert.ok(has(out, 'data-testid="chats-landing"') || has(out, 'data-testid="conversation"'), "what was open stays beside it");
   const linked = fromHash(`screen=chats.terminal-tab&terminalId=${TERMINAL}`);
   assert.equal(linked.terminalId, TERMINAL);
   assert.ok(has(html(s, undefined, `screen=chats.terminal-tab&terminalId=${TERMINAL}`), 'data-testid="chats-terminal"'), "the link is the first thing shown");
@@ -435,7 +433,7 @@ test("a link from another place opens the screen it names, and an unknown link o
   assert.equal(fromHash("screen=chats.all-agents").layer?.kind, "all-agents");
   assert.equal(fromHash("screen=chats.terminal-list").layer?.kind, "terminals");
   assert.deepEqual(fromHash("screen=chats.terminal-rules").layer, { kind: "rules" });
-  assert.equal(fromHash("screen=chats.agent-page").route.view, "chat", "a link without its id is the start");
+  assert.equal(fromHash("screen=chats.agent-page").route.view, "new", "a link without its id is the start");
   assert.deepEqual(fromHash("screen=home.checklist"), START);
   assert.deepEqual(fromHash(""), START);
   const s = createMountSample();
@@ -450,7 +448,7 @@ test("every step changes only what it names: a page closes the layer, a layer ke
   assert.equal(step(withLayer, { t: "chat", threadId: "c2" }).layer, null);
   assert.deepEqual(step(START, { t: "chat", threadId: "local_1" }), START, "a row that chat.start has not answered for is not a thread");
   assert.deepEqual(step(step(START, { t: "chat", threadId: "c2" }), { t: "layer", layer: { kind: "rules" } }).route, { view: "chat", threadId: "c2" });
-  assert.deepEqual(step(START, { t: "chat", threadId: "" }).route, { view: "chat", threadId: null });
+  assert.deepEqual(step(START, { t: "chat", threadId: "" }).route, { view: "new" });
   assert.equal(step(step(START, { t: "terminal", terminalId: "t" }), { t: "terminal-close" }).terminalId, null);
 });
 
@@ -461,19 +459,17 @@ test("the whole place with a runtime draws the sidebar and the open chat, and ev
   const side = inSlot(s);
   assert.ok(has(side.out, 'data-testid="chats-sidebar"'), "the sidebar is drawn in the shell's slot");
   for (const own of ["sidebar-head", "sidebar-toggle", "sidebar-collapsed", "sidebar-show", "chats-back", "chats-sidebar"]) assert.ok(!has(out, `data-testid="${own}"`), `${own}: the place draws no sidebar frame of its own`);
-  for (const id of ["helpers-button", "participants-button", "pane-button", "more-button", "computer-button"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  for (const id of ["helpers-button", "participants-button", "pane-button", "more-button"]) assert.ok(has(out, `data-testid="${id}"`), id);
   assert.ok(!has(out, "-loading"), "no loading frame once the Space is open");
 });
 
-test("the shipped place, through the shell provider and the runtime's live screens, draws Needs you with its count and the agents that wait on you", () => {
+test("the shipped place, through the shell provider and the runtime's live screens, draws Tasks with its count and the agents that wait on you", () => {
   const s = createMountSample();
   const out = clean(renderToStaticMarkup(<ShellRuntimeProvider value={s.rt}><ChatsPlace /></ShellRuntimeProvider>));
   assert.ok(has(out, 'data-testid="chats-place"'), "the place itself draws");
   const side = inSlot(s).out;
-  assert.ok(has(side, 'data-testid="row-needs-parent"') && has(side, 'data-testid="count-needs"') && has(side, ">7<"), "the Needs you entry with its count, read from home.needs-you-top3 through rt.screens");
-  assert.ok(has(side, "Send 12 invoices"), "its requests beneath");
-  // 5, not 4: the Agents group lists all the Space's agents (agents.list has no starred filter), and Scout raised "County records search", so it says Waiting on you too. The old 4 held only because Scout was hidden.
-  assert.equal(side.split("Waiting on you").length - 1, 5, "the five agents with a request say so (Scout is in the Agents group now that it lists the Space's agents)");
+  assert.ok(has(side, 'data-testid="row-nav:tasks"') && has(side, 'data-testid="count-tasks"'), "the Tasks entry with its count, read through rt.screens");
+  assert.ok(has(side, "vyre-waiting"), "an agent with a request wears the amber ring");
 });
 
 test("a click on an agent opens its chat with the agent's pane beside it; the page is behind the pane's menu; the sidebar header reads Chats", async () => {
@@ -488,8 +484,8 @@ test("a click on an agent opens its chat with the agent's pane beside it; the pa
   assert.ok(has(out, 'data-testid="chats-right-pane"') && has(out, 'data-testid="conversation"'), "the shared side pane beside the chat");
   for (const tab of ["Computer", "Threads"]) assert.ok(has(out, tab), `${tab}: the pane fits its other tabs behind a menu when it is narrow`);
   const side = inSlot(s);
-  assert.ok(side.title === "Chats" && side.placeholder === "Search chats" && has(side.out, 'data-testid="sidebar-head"') && !has(side.out, "switch Space"), "the sidebar header reads Chats (the slot's title)");
-  assert.ok(has(side.out, 'data-testid="new-chat"') && !has(side.out, 'data-testid="sidebar-toggle"'), "the assistant button stays; the panel toggle is the slot's collapse button now");
+  assert.ok(side.title === "Chats" && has(side.out, 'data-testid="sidebar-head"') && !has(side.out, "switch Space"), "the sidebar header reads Chats (the slot's title)");
+  assert.ok(has(side.out, 'data-testid="new-menu"') && !has(side.out, 'data-testid="sidebar-toggle"'), "New stays; the panel toggle is the slot's hide button");
   assert.ok(has(inSlot(s, "docs").out, "Docs") && !has(inSlot(s, "docs").out, "Rivera intake"), "the slot's search narrows the rows");
   // the pane's menu opens the full page
   wirePane(s.rt, go, "c1", { agentId: "agt_docs", name: "Docs" }).nav.openAgentPage("agt_docs");

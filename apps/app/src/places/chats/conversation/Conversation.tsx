@@ -10,6 +10,7 @@ import type { ComposerSend, ListItem } from "../../../../../../ui/src/Composer/i
 import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/Deferred.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { useRunsOn } from "./RunsOn.tsx";
+import { ReactionPicker } from "./ReactionPicker.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { Feed } from "../../../../../../ui/src/stream/index.ts";
@@ -132,6 +133,8 @@ function ConversationView(): ReactElement {
   useEffect(() => { setFocusId(data.focus ?? null); }, [data.focus]);
   const accounts = useAccounts(data, useConnectVersion());
   const [modeOver, setModeOver] = useState<ChatMode | null>(null);
+  const [picker, setPicker] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
   const width = useWindowDimensions().width;
   const mobileBack = useMobileBack();
   const narrow = width > 0 && width < 640;
@@ -362,7 +365,9 @@ function ConversationView(): ReactElement {
     ...(data.terminal ? { terminalCard: { deps: { call: data.call, newKey: data.newKey }, ...(lead ? { agentId: lead.agentId } : {}), copy: (t: string) => data.copy(t), openTerminal: (id: string) => data.nav.openBeside("terminal", id) } } : {}),
     ...(data.mountSheet ? { mountCard: { agents: thread.agents.map((a) => ({ id: a.agentId, name: nameOf(a.agentId) })), data } } : {}),
     ...(memoryEntries ? { memoryEntries } : {}),
-    fork: (id) => void act.forkChat(data, id, data.newKey()).then((next) => { say("Branched into a new chat, linked back to this one"); data.nav.openThread(next); }, fail("Could not fork it.")),
+    pickReaction: (id, x, y) => setPicker({ id, x, y }),
+    humanChat: thread.agents.length === 0,
+    ...(thread.agents.length === 0 || thread.kind === "channel" ? {} : { fork: (id: string) => void act.forkChat(data, id, data.newKey()).then((next) => { say("Branched into a new chat, linked back to this one"); data.nav.openThread(next); }, fail("Could not fork it.")) }),
     withPeople: thread.members.filter((p) => p.kind === "person").length >= 2,
     makeTask: (id) => {
       const m = all.find((x) => x.messageId === id);
@@ -430,7 +435,17 @@ function ConversationView(): ReactElement {
       {compact ? null : (
       <View testID="conversation-head" accessibilityRole="header" style={st.head}>
         {mobileBack ? <IconButton icon="back" label="Back" size={32} testID="conversation-back" onPress={() => mobileBack()} /> : null}
-        <Text numberOfLines={1} testID="conversation-title" style={st.title}>{title}</Text>
+        {renaming !== null ? (
+          <TextInput
+            autoFocus selectTextOnFocus testID="conversation-rename" accessibilityLabel="Rename this chat" value={renaming} onChangeText={setRenaming} style={st.rename}
+            onBlur={() => { const v = renaming.trim(); setRenaming(null); if (v !== "" && v !== title) void Promise.resolve(data.call("threads.update", { threadId: thread.threadId, title: v })).catch(fail("Could not rename it.")); }}
+            onKeyPress={(e) => { const k = (e as unknown as { nativeEvent: { key: string }; target?: { blur?: () => void } }); if (k.nativeEvent.key === "Enter") k.target?.blur?.(); else if (k.nativeEvent.key === "Escape") setRenaming(null); }}
+          />
+        ) : (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Rename ${title}`} testID="conversation-title-button" {...(Platform.OS === "web" ? ({ title: "Rename" } as object) : {})} onPress={() => { if (thread.kind === "chat" || thread.kind === "channel") setRenaming(title); }} style={({ hovered }: { hovered?: boolean }) => [st.titleBtn, hovered === true && st.titleOver]}>
+            <Text numberOfLines={1} testID="conversation-title" style={st.title}>{title}</Text>
+          </Pressable>
+        )}
         {leadFace && !narrow ? <FaceButton key={leadFace.agentId} name={leadFace.name} seedId={leadFace.agentId} mode={leadFace.mode} working={leadFace.working} title={modeTitle(leadFace)} testID={`face-${leadFace.agentId}`} {...(title !== leadFace.name ? { label: leadFace.name } : {})} size={20} onPress={(x, y) => modeMenu(leadFace, x, y)} /> : null}
         <View testID="conversation-faces" accessibilityRole="toolbar" accessibilityLabel="Agents in this thread" style={st.faces}>
           {collect(narrow ? [] : otherFaces, (f) => <FaceButton key={f.agentId} name={f.name} seedId={f.agentId} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
@@ -532,6 +547,7 @@ function ConversationView(): ReactElement {
           />
         </View>
       )}
+      {picker ? <ReactionPicker x={picker.x} y={picker.y} onPick={(e) => { actions.react(picker.id, e, false); setPicker(null); }} onClose={() => setPicker(null)} /> : null}
       {menu.element}
     </View>
   );
@@ -601,6 +617,9 @@ const st = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   head: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 20, paddingRight: 10 },
   title: { flexShrink: 1, minWidth: 40, maxWidth: 320, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
+  titleBtn: { flexShrink: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginLeft: -6 },
+  titleOver: { backgroundColor: "var(--hover)" as string },
+  rename: { width: 320, maxWidth: "60%", height: 26, borderRadius: 6, paddingHorizontal: 6, marginLeft: -6, fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, backgroundColor: "var(--field)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   faces: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
   find: { height: 40, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   findInput: { flex: 1, minWidth: 0, height: 28, fontSize: 13.5, color: "var(--ink)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
