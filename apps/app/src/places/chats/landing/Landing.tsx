@@ -15,7 +15,7 @@ import { sq } from "../../../../../../ui/src/SidePane/host.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useResume } from "../../../onboarding/resume-context.ts";
-import { SetupRows } from "../../../onboarding/SetupRows.tsx";
+import { SetupRows, setupNote } from "../../../onboarding/SetupRows.tsx";
 import { useInboxSources } from "../../../shell/rail/inbox-sources.ts";
 import { needsRow } from "../../home/sections-a/model.ts";
 import { useAccounts } from "../conversation/brain.tsx";
@@ -130,7 +130,7 @@ export function Landing(p: LandingProps): ReactElement {
           </Pressable>
         </View>
         <View testID="landing-below" style={st.below}>
-          {firstDay ? <SetupRows extra={mailRow} render={(row, open) => <SetupLine key={row.key} title={row.title} sub={row.note} done={row.state === "done"} open={open} />} more={(count, open) => <Pressable key="more" role="button" testID="landing-setup-more" onPress={open} style={st.more}><Text style={st.moreText}>{`${count} more to set up`}</Text></Pressable>} /> : (
+          {firstDay ? <SetupRows extra={mailRow} render={(row, open) => <SetupLine key={row.key} testID={`landing-setup-${row.key}`} title={row.title} sub={setupNote(row)} done={row.state === "done"} open={open} />} more={(count, open) => <Pressable key="more" role="button" testID="landing-setup-more" onPress={open} style={st.more}><Text style={st.moreText}>{`${count} more to set up`}</Text></Pressable>} /> : (
             <>
               {each(items, (n) => <NeedRow key={n.task.id} item={n} {...p} />)}
               {moreLine(total, items.length) ? <Pressable role="button" testID="landing-more" onPress={p.openTasks} style={st.more}><Text style={st.moreText}>{moreLine(total, items.length)}</Text></Pressable> : null}

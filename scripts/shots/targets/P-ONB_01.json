@@ -39,15 +39,15 @@
       "id": "P-ONB_01-team-org",
       "route": "/m/P-ONB_01?view=team-org",
       "proto": "chat,{skin}",
-      "waitFor": "[data-testid='onboarding-card']",
-      "note": "Team: your organisation and Kit. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+      "waitFor": "[data-testid='kit-pick']",
+      "note": "Team: your organisation; the preview names the Space as typed, never its id; no sample Kits. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
     },
     {
       "id": "P-ONB_01-team-ai",
       "route": "/m/P-ONB_01?view=team-ai",
       "proto": "chat,{skin}",
-      "waitFor": "[data-testid='same-account']",
-      "note": "Team: AI for the Space with the same-account offer. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+      "waitFor": "[data-testid='space-ai']",
+      "note": "Team: AI for the Space, a key for everyone first (the Console's Space AI key), your own account beside it. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
     },
     {
       "id": "P-ONB_01-member-own",
@@ -69,6 +69,120 @@
       "proto": "chat,{skin}",
       "waitFor": "[data-testid='onboarding-finished']",
       "note": "Finished: you are all set. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-personal-sessions",
+      "route": "/m/P-ONB_01?view=personal-sessions",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='sessions-list']",
+      "note": "Personal: bring your sessions, newest first, with the Folder menu filter. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-personal-sessions-picked",
+      "route": "/m/P-ONB_01?view=personal-sessions",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='sessions-list']",
+      "note": "Personal: sessions with all ticked; the bar's main button reads Import 6. The prototype side is its closest screen, not a pixel match; the onboarding flow is new.",
+      "click": "[data-testid='sessions-all']"
+    },
+    {
+      "id": "P-ONB_01-personal-folders",
+      "route": "/m/P-ONB_01?view=personal-folders",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='folders-card']",
+      "note": "Personal: local folders before one is added; the preview stays hidden. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-personal-folders-added",
+      "route": "/m/P-ONB_01?view=personal-folders",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='folder-status-0']",
+      "note": "Personal: a folder added, its name and path in the card and in the preview. The prototype side is its closest screen, not a pixel match; the onboarding flow is new.",
+      "click": "[data-testid='folders-add']"
+    },
+    {
+      "id": "P-ONB_01-personal-folders-live",
+      "route": "/m/P-ONB_01?view=personal-folders-live",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='step-ask']",
+      "note": "Personal: the Assistant chat under a step, with the step's own prompt and suggestions (stand-in for the live thread). The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-personal-chrome",
+      "route": "/m/P-ONB_01?view=personal-chrome",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='onboarding-card']",
+      "note": "Personal: Chrome extension, with Back, Skip for now and Continue. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-personal-skipped",
+      "route": "/m/P-ONB_01?view=personal-skipped",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='row-step-folders']",
+      "note": "Personal: skipped steps say Skipped in the step list; the counter names the step on show. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-personal-win",
+      "route": "/m/P-ONB_01?view=personal-win",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='first-win-card']",
+      "note": "Personal: first win. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-team-ai-mine",
+      "route": "/m/P-ONB_01?view=team-ai-mine",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='space-ai-mine']",
+      "note": "Team: AI for the Space, your own account. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-team-workspace",
+      "route": "/m/P-ONB_01?view=team-workspace",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='workspace-card']",
+      "note": "Team: Google or Microsoft. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-team-signin",
+      "route": "/m/P-ONB_01?view=team-signin",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='signin-domain-card']",
+      "note": "Team: sign in for your domain. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-team-people",
+      "route": "/m/P-ONB_01?view=team-people",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='directory-card']",
+      "note": "Team: your team. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-team-invites",
+      "route": "/m/P-ONB_01?view=team-invites",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='invites-card']",
+      "note": "Team: invites. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-team-agents",
+      "route": "/m/P-ONB_01?view=team-agents",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='onboarding-card']",
+      "note": "Team: agents and computers. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-team-shared",
+      "route": "/m/P-ONB_01?view=team-shared",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='onboarding-card']",
+      "note": "Team: shared data. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
+    },
+    {
+      "id": "P-ONB_01-team-win",
+      "route": "/m/P-ONB_01?view=team-win",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='onboarding-card']",
+      "note": "Team: first team win, the last step. The prototype side is its closest screen, not a pixel match; the onboarding flow is new."
     }
   ]
 }

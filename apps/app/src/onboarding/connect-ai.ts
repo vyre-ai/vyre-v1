@@ -13,6 +13,7 @@ export const SUBSCRIPTIONS: readonly AiOption[] = [
 ];
 /** Paste an API key. */
 export const API_KEYS: readonly AiOption[] = [
+  { key: "opencode-go", label: "OpenCode Go", help: "One key, open models" },
   { key: "anthropic", label: "Anthropic", help: "Claude API key" },
   { key: "openai", label: "OpenAI", help: "OpenAI API key" },
   { key: "xai", label: "xAI", help: "Grok API key" },

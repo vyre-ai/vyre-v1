@@ -6,8 +6,15 @@ export interface KitRow { kitId: string; title: string; installed: boolean }
 export interface KitSheet { tools: number; recordTypes: number; networkDomains: number; vaultNames: number; scripts: number; problems: number }
 
 export async function listKits(call: CapCall): Promise<KitRow[]> {
-  const out = await call("kits.list", { limit: 50 }) as { kits: KitRow[] };
-  return out.kits.map((k) => ({ kitId: k.kitId, title: k.title, installed: k.installed }));
+  const out = await call("kits.list", { limit: 50 }) as { kits: (KitRow & { key?: string })[] };
+  return offeredKits(out.kits).map((k) => ({ kitId: k.kitId, title: k.title, installed: k.installed }));
+}
+
+/** The Kits setup offers as a kind of work. The server's shipped catalog holds sample Kits (the seeded demo Spaces' Harbor Studio, a law intake and an estate planning Kit) and the
+ * Default Kit every Space already runs on; none of them is a choice for a real Space, and Vyre names no industry by default. So setup offers only a Kit someone installed in this Space
+ * on purpose, and never the Default Kit. With none, the step is the name alone. */
+export function offeredKits<K extends { key?: string; installed: boolean }>(kits: readonly K[]): K[] {
+  return kits.filter((k) => k.installed && k.key !== "default");
 }
 
 export async function sheetFor(call: CapCall, kitId: string): Promise<KitSheet> {

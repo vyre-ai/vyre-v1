@@ -4,11 +4,11 @@ import { useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { useWindowDimensions } from "react-native";
 import { detectDevice } from "./device.ts";
-import { setupRows, setupTop } from "./setup-rows.ts";
+import { setupNote, setupRows, setupTop } from "./setup-rows.ts";
 import type { SetupRow } from "./setup-rows.ts";
 import { openOnboarding, readProgress, watchProgress } from "./store.ts";
 
-export { setupRows, setupTop };
+export { setupNote, setupRows, setupTop };
 export type { SetupRow };
 
 /** The top steps still to do, on this device, with the draw left to the caller so each screen keeps its own row look. `more` draws the line for the rest; it opens setup at the first of them.
