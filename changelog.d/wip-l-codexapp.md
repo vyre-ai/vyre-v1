@@ -1,1 +1,3 @@
 - A Codex signed in through the ChatGPT app now runs your turns. Vyre finds the codex inside ChatGPT (and Claude Code inside the Claude app) instead of saying it is not installed and answering with another account.
+- The live line under a reply that is being written shows its words in the Mac app again ("Thinking", "Reading", ...). The shimmer made them transparent in WebKit; the working mark is larger too.
+- A terminal opens on this computer from the Mac app. Signing in with a password in the app registered it as a "Web browser", so the New terminal menu offered only an old, offline "Vyre desktop".

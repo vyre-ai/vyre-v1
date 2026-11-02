@@ -16,13 +16,15 @@ import { useConversationData } from "./data.tsx";
 import { RefStreamText } from "./ref-chips.tsx";
 
 const CSS = [
-  "@keyframes vy-shimmer{from{background-position:200% 0}to{background-position:-200% 0}}",
+  // The shimmer is a moving mask over text that keeps its own colour: WebKit (the Mac app) does not paint background-clip:text through an inline-block child, which left the words transparent
+  // and the line blank between the mark and the clock. A mask that fails leaves the words plainly visible.
+  "@keyframes vy-shimmer{from{-webkit-mask-position:200% 0;mask-position:200% 0}to{-webkit-mask-position:-200% 0;mask-position:-200% 0}}",
   "@keyframes vy-fade{from{opacity:0}to{opacity:1}}",
-  ".vy-shimmer{background:linear-gradient(90deg,var(--ink-3) 0%,var(--ink) 50%,var(--ink-3) 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:vy-shimmer 3.6s linear infinite}",
+  ".vy-shimmer{color:var(--ink-2);-webkit-mask-image:linear-gradient(90deg,rgba(0,0,0,.5) 0%,#000 50%,rgba(0,0,0,.5) 100%);mask-image:linear-gradient(90deg,rgba(0,0,0,.5) 0%,#000 50%,rgba(0,0,0,.5) 100%);-webkit-mask-size:200% 100%;mask-size:200% 100%;animation:vy-shimmer 3.6s linear infinite}",
   ".vy-fade{animation:vy-fade 450ms ease-out;display:inline-block;white-space:nowrap;padding-right:1px}",
   ".vy-done-wrap{overflow:hidden;animation:vy-out 600ms ease-in 500ms 1 forwards}",
   "@keyframes vy-out{to{opacity:0;max-height:0;margin-top:0}}",
-  "@media (prefers-reduced-motion:reduce){.vy-shimmer{animation:none;background:none;-webkit-text-fill-color:currentColor}.vy-fade{animation:none}.vy-done-wrap{animation:none}}",
+  "@media (prefers-reduced-motion:reduce){.vy-shimmer{animation:none;-webkit-mask-image:none;mask-image:none}.vy-fade{animation:none}.vy-done-wrap{animation:none}}",
 ].join("\n");
 function ensureCss(): void {
   if (Platform.OS !== "web") return;
@@ -86,7 +88,7 @@ export function ActivityLine({ store, stream }: { store: ActivityStore; stream?:
   const inner = (
     <View testID="activity" style={st.root}>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`${line.label}. ${open ? "Hide" : "Show"} what it is doing`} testID="activity-line" onPress={() => setOpen((o) => !o)} style={st.row}>
-        <WorkingMark state={state} step={line.label} size={16} testID="working-mark" />
+        <WorkingMark state={state} step={line.label} size={20} testID="working-mark" />
         <Text accessibilityLiveRegion="polite" style={st.label}>{Platform.OS === "web" ? createElement("span", { className: "vy-shimmer" }, createElement("span", { key: line.label, className: "vy-fade" }, line.label)) : line.label}</Text>
         <Elapsed since={snap.startedAt} done={snap.done} />
         {line.detail !== "" ? <Text numberOfLines={1} testID="activity-excerpt" style={st.detail}>{line.detail}</Text> : null}
@@ -106,7 +108,7 @@ const st = StyleSheet.create({
   root: { marginTop: 2, gap: 4 },
   row: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 24, flexShrink: 1 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--accent)" as string },
-  label: { flexShrink: 0, fontSize: 13, color: "var(--ink-3)" as string },
+  label: { flexShrink: 0, fontSize: 13.5, color: "var(--ink-2)" as string },
   clock: { flexShrink: 0, minWidth: 58, fontSize: 13, color: "var(--ink-4)" as string, fontVariant: ["tabular-nums"] },
   detail: { flexShrink: 1, fontSize: 12.5, fontStyle: "italic", color: "var(--ink-4)" as string },
   trail: { marginLeft: 15, paddingLeft: 10, gap: 3, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string },
