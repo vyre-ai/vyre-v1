@@ -155,6 +155,7 @@ test("Personal-style: an agent changes the person's own Talk, posts the card, an
     assert.ok(blocks.some((b) => b.type === "talk_key"), `the card is in the chat: ${JSON.stringify(seen["askKey"])}`);
     assert.equal((seen["connect"] as { ok?: boolean } | undefined)?.ok, false, "there is no tool that takes a key");
     assert.equal((await api("talk.space.status")).data.set, false, "nor did the agent change the Space");
+    assert.match(JSON.stringify(seen["space"]), /permission\.role_lacks_permission/, "changing the Space stops for the right role");
     assert.equal(dg.grants.length, 0, "no key ever reached the provider from an agent");
   } finally {
     await stop(d);
