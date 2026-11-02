@@ -81,7 +81,7 @@ export function ApprovalCard({ taskId, agent, agentId, data }: { taskId: string;
     setBusy(true); setLine(null);
     void Promise.resolve(data.call("tasks.act", { taskId, action: key, ...(note !== undefined ? { note } : {}) })).then(
       () => setOutcome(key === "approve" ? "allowed" : "denied"),
-      (e: unknown) => { setLine(isDecided(e) ? DECIDED_LINE : "Failed. Try again."); if (isDecided(e)) void load(); },
+      (e: unknown) => { setLine(isDecided(e) ? DECIDED_LINE : e instanceof Error && e.message ? e.message : "Failed. Try again."); if (isDecided(e)) void load(); },
     ).finally(() => setBusy(false));
   };
   /** Allow this and every call like it from this agent in this chat, for 30 days. The rule is the Gate's; /permissions lists it and takes it back. */
