@@ -216,7 +216,7 @@ export default defineManifest({
       in: { refresh: t.opt(t.bool()) }, out: spaceKeyRow, level: 'member', offline: 'online',
     }),
     write('providers.space_key.set', 'An owner or admin sets or replaces the Space AI key: it is checked with the provider at once (its model list), then kept in a Restricted Shared folder. A person does this, never an agent', {
-      idem: 'key', in: { providerKey: t.str({ examples: ['opencode-go'] }), apiKey: t.str() }, out: spaceKeyRow, perm: 'policy.manage', agent: false, audit: 'always', offline: 'online',
+      idem: 'key', in: { providerKey: t.str({ examples: ['opencode-go'] }), apiKey: t.str() }, out: spaceKeyRow, perm: 'policy.manage', audit: 'always', offline: 'online',
       emits: ['provider.added', 'provider.removed', 'vault.item_created', 'vault.item_deleted', 'vault.folder_created'], errors: ['provider.auth_failed', 'provider.unavailable'],
     }),
     write('providers.space_key.remove', 'Remove the Space AI key; people with their own accounts keep working', {
