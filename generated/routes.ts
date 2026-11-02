@@ -29320,6 +29320,24 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/tasks/by_key",
+    "cap": "tasks.by_key",
+    "v": 1,
+    "module": "tasks",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/tasks/count_needs_you",
     "cap": "tasks.count_needs_you",
     "v": 1,
@@ -29396,6 +29414,25 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/tasks/delete",
+    "cap": "tasks.delete",
+    "v": 1,
+    "module": "tasks",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "task",
+      "id": "/taskId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/tasks/dependencies/add",
     "cap": "tasks.dependencies.add",
     "v": 1,
@@ -29428,6 +29465,24 @@ const routes5: Route[] = [
     },
     "idempotency": "natural",
     "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/tasks/digest",
+    "cap": "tasks.digest",
+    "v": 1,
+    "module": "tasks",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -29529,6 +29584,24 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/tasks/index",
+    "cap": "tasks.index",
+    "v": 1,
+    "module": "tasks",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/tasks/links/add",
     "cap": "tasks.links.add",
     "v": 1,
@@ -29621,6 +29694,26 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/tasks/plan",
+    "cap": "tasks.plan",
+    "v": 1,
+    "module": "tasks",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "task",
+      "create": true,
+      "parent": "/parent/recordId"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/tasks/release",
     "cap": "tasks.release",
     "v": 1,
@@ -29634,6 +29727,43 @@ const routes5: Route[] = [
     },
     "idempotency": "natural",
     "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/tasks/restore",
+    "cap": "tasks.restore",
+    "v": 1,
+    "module": "tasks",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "task",
+      "id": "/taskId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/tasks/rev",
+    "cap": "tasks.rev",
+    "v": 1,
+    "module": "tasks",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -33054,7 +33184,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/zoom/recordings/list",
@@ -33111,4 +33244,4 @@ const routes5: Route[] = [
   }
 ];
 
-export const routes: Route[] = [...routes0, ...routes1, ...routes2, ...routes3, ...routes4, ...routes5];
+export const routes: Route[] = [...routes0, ...routes1, ...routes2, ...routes3, ...routes4, ...routes5, ...routes6];

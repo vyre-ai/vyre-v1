@@ -7694,6 +7694,12 @@
     },
     {
       "deferred": false,
+      "name": "task_plan",
+      "summary": "Break work into tasks in one step: a parent (new, or one that exists) and its children, each with its brief, what done means, who does it and which others it waits on. A child starts by itself when what it waits on is done; the parent hears only when all are done, or one is blocked or asks",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "task_review",
       "summary": "Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)",
       "toolset": "tasks"
@@ -7718,6 +7724,12 @@
     },
     {
       "deferred": false,
+      "name": "tasks_by_key",
+      "summary": "Find a task by its short key, such as VY-123",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "tasks_count_needs_you",
       "summary": "Count of Ready requests for the rail badge and the Space switcher dot",
       "toolset": "tasks"
@@ -7732,6 +7744,12 @@
       "deferred": false,
       "name": "tasks_delegate",
       "summary": "Hand a request to someone else with a note; never widens access, so it walks the delegate chain to the first who can act",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "tasks_delete",
+      "summary": "Delete a task; Undo brings it back. A held act and a task a Run waits on are canceled instead",
       "toolset": "tasks"
     },
     {
@@ -7772,6 +7790,12 @@
     },
     {
       "deferred": false,
+      "name": "tasks_index",
+      "summary": "The long list of a scope in one read: a light row per task with its rollup, ordered newest first; pass the last rev and an unchanged list answers nothing",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "tasks_links_add",
       "summary": "Link a record or a file to a task",
       "toolset": "tasks"
@@ -7808,8 +7832,20 @@
     },
     {
       "deferred": false,
+      "name": "tasks_restore",
+      "summary": "Bring a deleted task back",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "tasks_rev",
+      "summary": "A short mark that changes whenever any task changes, for a screen that holds a long list",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "tasks_snooze",
-      "summary": "Snooze a request until a time, or clear the snooze with null",
+      "summary": "Snooze an open task until a time, or clear the snooze with null",
       "toolset": "tasks"
     },
     {

@@ -8051,7 +8051,7 @@ export const screens: ScreenIndexEntry[] = [
   {
     "id": "tasks.my-work",
     "module": "tasks",
-    "place": "home",
+    "place": "chats",
     "slot": "main",
     "builtin": "ui:MyWork",
     "caller": "principal",
@@ -8060,6 +8060,18 @@ export const screens: ScreenIndexEntry[] = [
         "cap": "tasks.my_work",
         "input": {
           "section": "/state/section"
+        },
+        "live": true
+      },
+      "rev": {
+        "cap": "tasks.rev",
+        "input": {},
+        "live": true
+      },
+      "needs": {
+        "cap": "tasks.needs_you",
+        "input": {
+          "limit": "/state/limit"
         },
         "live": true
       }
@@ -8166,7 +8178,7 @@ export const screens: ScreenIndexEntry[] = [
   {
     "id": "tasks.page",
     "module": "tasks",
-    "place": "home",
+    "place": "chats",
     "slot": "tab",
     "builtin": "ui:TaskPage",
     "caller": "principal",

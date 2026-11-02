@@ -1180,7 +1180,7 @@
       "completeMs": 100,
       "firstPaintMs": 50,
       "id": "screen.tasks.my-work",
-      "place": "home",
+      "place": "chats",
       "screen": "tasks.my-work"
     },
     {
@@ -1194,7 +1194,7 @@
       "completeMs": 100,
       "firstPaintMs": 50,
       "id": "screen.tasks.page",
-      "place": "home",
+      "place": "chats",
       "screen": "tasks.page"
     },
     {
