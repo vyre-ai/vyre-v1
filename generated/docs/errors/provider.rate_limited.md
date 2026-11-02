@@ -17,9 +17,9 @@ HTTP 502. Retryable: yes.
 - ms.mail.send_message
 - ms.user.send_message
 - resend.send_email
+- talk.connect
+- talk.session
+- talk.space.connect
 - telephony.send_sms
 - twilio.call.create
 - twilio.sms.send
-- voice.connect
-- voice.session
-- voice.space.connect

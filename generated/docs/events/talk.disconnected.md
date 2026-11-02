@@ -1,10 +1,10 @@
-# voice.connected
+# talk.disconnected
 
-A Talk key was added or replaced in the Vault (no value)
+A Talk key was removed
 
 | | |
 |---|---|
-| Module | voice |
+| Module | talk |
 | Schema version | 1 |
 | Subject | entity at /provider |
 | Visibility | participants |

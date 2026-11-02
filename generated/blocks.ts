@@ -228,6 +228,11 @@ export type TableBlockData = {
     }>;
   rows: Array<Record<string, unknown>>;
 };
+export type TalkKeyBlockData = {
+  provider: string;
+  scope: "mine" | "space";
+  hint?: string;
+};
 export type TerminalBlockData = {
   terminalId: string;
   title: string;
@@ -250,11 +255,6 @@ export type VaultUsedBlockData = {
   fields: Array<string>;
   outcome: "used" | "filled" | "blocked";
   where?: "device" | "host" | "computer";
-};
-export type VoiceKeyBlockData = {
-  provider: string;
-  scope: "mine" | "space";
-  hint?: string;
 };
 
 export interface BlockDataMap {
@@ -280,9 +280,9 @@ export interface BlockDataMap {
   "secret_input": SecretInputBlockData;
   "tab_opened": TabOpenedBlockData;
   "table": TableBlockData;
+  "talk_key": TalkKeyBlockData;
   "terminal": TerminalBlockData;
   "vault_used": VaultUsedBlockData;
-  "voice_key": VoiceKeyBlockData;
 }
 
 export type BlockType = keyof BlockDataMap;
@@ -741,6 +741,33 @@ export const blockRegistry = [
     "opens": null
   },
   {
+    "type": "talk_key",
+    "v": 1,
+    "module": "talk",
+    "component": "ui:BlockTalkKey",
+    "fallback": "Add a Talk key: type it in the field above. It goes straight to the Vault and does not enter this chat.",
+    "waitsForAnswer": false,
+    "actions": [
+      {
+        "key": "save",
+        "label": "Turn on Talk",
+        "cap": "talk.connect",
+        "input": {
+          "provider": "/provider"
+        }
+      },
+      {
+        "key": "save_space",
+        "label": "Turn on for everyone",
+        "cap": "talk.space.connect",
+        "input": {
+          "provider": "/provider"
+        }
+      }
+    ],
+    "opens": null
+  },
+  {
     "type": "terminal",
     "v": 1,
     "module": "terminal",
@@ -786,33 +813,6 @@ export const blockRegistry = [
         "itemId": "/itemId"
       }
     }
-  },
-  {
-    "type": "voice_key",
-    "v": 1,
-    "module": "voice",
-    "component": "ui:BlockVoiceKey",
-    "fallback": "Add a Talk key: type it in the field above. It goes straight to the Vault and does not enter this chat.",
-    "waitsForAnswer": false,
-    "actions": [
-      {
-        "key": "save",
-        "label": "Turn on Talk",
-        "cap": "voice.connect",
-        "input": {
-          "provider": "/provider"
-        }
-      },
-      {
-        "key": "save_space",
-        "label": "Turn on for everyone",
-        "cap": "voice.space.connect",
-        "input": {
-          "provider": "/provider"
-        }
-      }
-    ],
-    "opens": null
   }
 ];
 

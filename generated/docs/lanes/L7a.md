@@ -314,6 +314,30 @@ Events:
 - star.added
 - star.removed
 
+### talk
+
+Capabilities to implement: 11. Events to emit: 5. Contract tests that must go green: `generated/tests/talk/`.
+
+Capabilities:
+- talk.ask_key (write, grant only, level edit)
+- talk.configure (write, grant only, level edit)
+- talk.connect (write, grant only, level edit)
+- talk.disconnect (write, grant only, level edit)
+- talk.session (write, grant only, level edit)
+- talk.space.check (write, policy.manage, level edit)
+- talk.space.configure (write, policy.manage, level edit, gate approve)
+- talk.space.connect (write, policy.manage, level edit)
+- talk.space.disconnect (write, policy.manage, level edit, gate delete)
+- talk.space.status (read, policy.manage, level view)
+- talk.status (read, grant only, level view)
+
+Events:
+- talk.configured
+- talk.connected
+- talk.disconnected
+- talk.space_changed
+- talk.space_checked
+
 ### vault
 
 Capabilities to implement: 46. Events to emit: 20. Contract tests that must go green: `generated/tests/vault/`.
@@ -405,27 +429,3 @@ Events:
 - vault.request_declined
 - vault.request_fulfilled
 - vault.requested
-
-### voice
-
-Capabilities to implement: 11. Events to emit: 5. Contract tests that must go green: `generated/tests/voice/`.
-
-Capabilities:
-- voice.ask_key (write, grant only, level edit)
-- voice.configure (write, grant only, level edit)
-- voice.connect (write, grant only, level edit)
-- voice.disconnect (write, grant only, level edit)
-- voice.session (write, grant only, level edit)
-- voice.space.check (write, policy.manage, level edit)
-- voice.space.configure (write, policy.manage, level edit, gate approve)
-- voice.space.connect (write, policy.manage, level edit)
-- voice.space.disconnect (write, policy.manage, level edit, gate delete)
-- voice.space.status (read, policy.manage, level view)
-- voice.status (read, grant only, level view)
-
-Events:
-- voice.configured
-- voice.connected
-- voice.disconnected
-- voice.space_changed
-- voice.space_checked
