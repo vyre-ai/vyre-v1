@@ -185,7 +185,9 @@ test("no npm install, docker pull or curl outside prewarm", () => {
     const lockedDesktopDeps = (l: string) => w.file === "desktop.yml" && j.name === "desktop" && /npm ci --no-audit --no-fund/.test(l);
     // The Mac sandbox proof exists to run the real Claude Code and Codex CLIs under the Seatbelt profile: it installs the lockfile tree and those two CLIs into a runner temp folder, in this job only.
     const macSandboxProof = (l: string) => w.file === "desktop.yml" && j.name === "sandbox-macos" && (/npm ci --no-audit --no-fund/.test(l) || /npm install --prefix "\$cli" --no-audit --no-fund @anthropic-ai\/claude-code@2\.1\.312 @openai\/codex@0\.166\.0\s*$/.test(l));
-    assert.ok(lines.every((l) => pinned(l) || lockedDesktopDeps(l) || macSandboxProof(l)), `${w.file}: job ${j.name} installs or downloads`);
+    // The relay deploy runs by hand and installs wrangler from its own lockfile with scripts off, so every byte is pinned by the lockfile's integrity hashes.
+    const lockedWrangler = (l: string) => w.file === "relay-deploy.yml" && (/npm ci --ignore-scripts --no-audit --no-fund --prefix tools\/wrangler/.test(l) || /curl -s -o \/dev\/null -w '%\{http_code\}'/.test(l)); // its smoke check reads a status code and keeps no bytes
+    assert.ok(lines.every((l) => pinned(l) || lockedDesktopDeps(l) || macSandboxProof(l) || lockedWrangler(l)), `${w.file}: job ${j.name} installs or downloads`);
   }
   assert.match(wf("nightly").text, /prewarm:/);
   assert.match(wf("desktop").text, /npm ci --no-audit --no-fund/, "the packaged desktop build installs only the lockfile tree");

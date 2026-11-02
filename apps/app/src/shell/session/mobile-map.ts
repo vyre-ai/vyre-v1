@@ -33,6 +33,13 @@ export function entryFor(place: PlaceId, hash: string): Entry | null {
   return { tab: "you", screen: "you" };
 }
 
+/** Where the phone starts for a place and hash: a tab's own screen is that tab, anything else opens on top of the Chats tab. */
+export function phoneStart(place: PlaceId, hash: string): { initialTab: TabId; initialEntry?: Entry } {
+  const e = entryFor(place, hash);
+  if (!e) return { initialTab: "chats" };
+  return e.screen === e.tab ? { initialTab: e.tab } : { initialTab: "chats", initialEntry: e };
+}
+
 /** The place and hash that draw a phone screen. */
 export function placeOf(e: Entry): { place: PlaceId; hash: string } | null {
   const i = e.screen.indexOf(":");
