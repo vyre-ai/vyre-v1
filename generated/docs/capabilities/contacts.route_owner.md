@@ -1,6 +1,6 @@
 # contacts.route_owner
 
-Who receives an unowned reply: contact owner, then campaign owner, then the shared inbox
+Who receives an unowned reply: contact owner, then the shared inbox
 
 | | |
 |---|---|
@@ -26,7 +26,6 @@ Who receives an unowned reply: contact owner, then campaign owner, then the shar
 ```ts
 type In = {
   contactId?: string;
-  campaignId?: string;
   mailboxId?: string;
 };
 ```
@@ -36,7 +35,7 @@ type In = {
 ```ts
 type Out = {
   ownerId?: string;
-  via: "owner" | "campaign_owner" | "shared_inbox";
+  via: "owner" | "shared_inbox";
   mailboxId?: string;
 };
 ```
@@ -54,7 +53,6 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "campaignId": "cmp_a1b2c3",
     "contactId": "rec_a1b2c3",
     "mailboxId": "mbx_a1b2c3"
   },

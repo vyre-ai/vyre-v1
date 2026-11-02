@@ -65,7 +65,6 @@ export const TRIGGER_PALETTE: readonly { key: string; title: string; icon: IconK
   { key: "ci_check", title: "A CI check finishes", icon: "ci" },
   { key: "meeting_transcript_ready", title: "A meeting transcript is ready", icon: "meeting" },
   { key: "journey_stage_entered", title: "A Journey record enters a stage", icon: "stage" },
-  { key: "campaign_reply", title: "A campaign gets a reply", icon: "reply" },
   { key: "button", title: "A button is pressed", icon: "button" },
   { key: "manual", title: "Run by hand", icon: "hand" },
 ];

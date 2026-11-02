@@ -20,7 +20,7 @@ import { post } from "./post.ts";
 import { screenHandlers } from "./screen.ts";
 import { guardPrivate } from "./private.ts";
 import { channelErase, threadErase, transcriptPurge } from "./purge.ts";
-import { answerBlock, approvePlan, channelsCreate, connectOutsideAgent, makeChannel, start, thread } from "./thread.ts";
+import { answerBlock, approvePlan, channelsCreate, makeChannel, start, thread } from "./thread.ts";
 
 /** The Ask pane capabilities of P-L2_11. */
 export const askHandlers = {
@@ -45,7 +45,6 @@ export const handlers = {
   "chat.approve_plan": approvePlan,
   "threads.make_channel": makeChannel,
   "channels.create": channelsCreate,
-  "channels.connect_outside_agent": connectOutsideAgent,
   "threads.erase": threadErase,
   "channels.erase": channelErase,
   "chat.transcript.purge": transcriptPurge,

@@ -28,6 +28,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "mail.mailbox.set_privacy": async (ctx) => { throw new VyreErr(notImplemented("mail.mailbox.set_privacy", ctx.trace)); },
   "mail.mailbox.set_sync_state": async (ctx) => { throw new VyreErr(notImplemented("mail.mailbox.set_sync_state", ctx.trace)); },
   "mail.mailbox.update": async (ctx) => { throw new VyreErr(notImplemented("mail.mailbox.update", ctx.trace)); },
+  "mail.member_pause": async (ctx) => { throw new VyreErr(notImplemented("mail.member_pause", ctx.trace)); },
   "mail.message.erase": async (ctx) => { throw new VyreErr(notImplemented("mail.message.erase", ctx.trace)); },
   "mail.message.get": async (ctx) => { throw new VyreErr(notImplemented("mail.message.get", ctx.trace)); },
   "mail.message.list": async (ctx) => { throw new VyreErr(notImplemented("mail.message.list", ctx.trace)); },
@@ -41,4 +42,5 @@ export const handlers: Handlers<HandlerCtx> = {
   "mail.send_preview": async (ctx) => { throw new VyreErr(notImplemented("mail.send_preview", ctx.trace)); },
   "mail.status_update": async (ctx) => { throw new VyreErr(notImplemented("mail.status_update", ctx.trace)); },
   "mail.sync_now": async (ctx) => { throw new VyreErr(notImplemented("mail.sync_now", ctx.trace)); },
+  "mail.unsubscribe": async (ctx) => { throw new VyreErr(notImplemented("mail.unsubscribe", ctx.trace)); },
 };

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { Text } from "react-native";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SidebarSlotProvider, escapeGoesBack } from "../sidebar/index.ts";
-import { Stage } from "./Shell.tsx";
+import { Sheets, Stage } from "./Shell.tsx";
 
 const props = { deviceId: "d1", personId: "p1", spaceId: "northwind", place: "files", epoch: 1 };
 const entry = { title: "Files", searchPlaceholder: "Search files" };
@@ -19,7 +19,7 @@ function tagOf(html: string, testid: string): string {
 }
 const hidden = (html: string, testid: string): boolean => tagOf(html, testid).includes('aria-hidden="true"');
 const draw = (compact: boolean, bodyOpen: boolean): string => renderToStaticMarkup(
-  <SidebarSlotProvider {...props} compact={compact} initialEntry={entry} initialBodyOpen={bodyOpen}><Stage><Text>The open file</Text></Stage></SidebarSlotProvider>,
+  <SidebarSlotProvider {...props} compact={compact} initialEntry={entry} initialBodyOpen={bodyOpen}>{compact ? <Stage><Text>The open file</Text></Stage> : <Sheets tabs={null}><Stage><Text>The open file</Text></Stage></Sheets>}</SidebarSlotProvider>,
 );
 
 test("phone 390 px, nothing open: the sidebar list shows, the body is hidden, no Back", () => {
@@ -37,9 +37,10 @@ test("phone 390 px, an item open: the sidebar is hidden, the body shows with a B
   assert.ok(tagOf(html, "sidebar-back").includes('aria-label="Back"'));
 });
 
-test("a computer shows the sidebar and the body together, with no Back", () => {
+test("a computer shows the sidebar and the body together as sheets, with no Back", () => {
   for (const open of [false, true]) {
     const html = draw(false, open);
+    assert.ok(html.indexOf('data-testid="place-sidebar"') < html.indexOf('data-testid="sheet-main"'), "the sidebar is a sheet of its own, beside the main sheet");
     assert.equal(hidden(html, "place-sidebar"), false, `sidebar, open=${open}`);
     assert.equal(hidden(html, "place-body"), false, `body, open=${open}`);
     assert.ok(!html.includes('data-testid="sidebar-back"'));
@@ -53,12 +54,13 @@ test("Escape goes back only when nothing else took it", () => {
   assert.equal(escapeGoesBack({ key: "Enter", defaultPrevented: false }, false), false);
 });
 
-test("a collapsed sidebar's show button sits beside the place, not over its title: the stage moves over only while it is collapsed on a computer", async () => {
+test("a hidden sidebar's Show button sits at the left of the tab strip, and the stage keeps its place", async () => {
   const { collapseKey, writeCollapsed } = await import("../sidebar/index.ts");
-  const store = { getItem: (k: string) => (k === collapseKey("d1", "p1", "northwind", "files") ? writeCollapsed(true) : null), setItem: () => undefined };
-  const collapsed = renderToStaticMarkup(<SidebarSlotProvider {...props} compact={false} storage={store} initialEntry={entry}><Stage><Text>The open file</Text></Stage></SidebarSlotProvider>);
-  assert.ok(collapsed.includes('data-testid="sidebar-expand"'));
-  assert.match(tagOf(collapsed, "place-stage"), /r-paddingLeft-/);
-  const open = draw(false, true);
-  assert.doesNotMatch(tagOf(open, "place-stage"), /r-paddingLeft-/, "an open sidebar leaves the place where it was");
+  const store = { getItem: (k: string) => (k === collapseKey("d1", "p1") ? writeCollapsed(true) : null), setItem: () => undefined };
+  const hidden = renderToStaticMarkup(<SidebarSlotProvider {...props} compact={false} storage={store} initialEntry={entry}><Sheets tabs={<Text>tabs</Text>}><Stage><Text>The open file</Text></Stage></Sheets></SidebarSlotProvider>);
+  assert.ok(hidden.indexOf('data-testid="sidebar-expand"') < hidden.indexOf(">tabs<"), "Show comes first in the strip's row");
+  assert.ok(hidden.indexOf('data-testid="sheet-main"') < hidden.indexOf('data-testid="sidebar-expand"'), "inside the main sheet");
+  assert.ok(tagOf(hidden, "sheet-left-wrap").includes('aria-hidden="true"'));
+  const shown = draw(false, false);
+  assert.ok(!shown.includes('data-testid="sidebar-expand"'));
 });

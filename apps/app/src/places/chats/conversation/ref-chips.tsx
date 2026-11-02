@@ -19,7 +19,21 @@ const HOST = "https://ref.vyre.invalid/";
 /** The form agents are told to write: [[Rivera Holdings|rec_01...]], the name, a bar, the id. The name is shown and the id never. */
 const NAMED = /\[\[([^\]|\n]+)\|((?:rec|file|task|tsk|thr|chn|ch)_[0-9A-Za-z]{8,})\]\]/g;
 
+/** A task's short key, as people and agents write it in chat and commits: VY-142. Only a key the Space knows, that the reader may see, becomes a link. */
+const KEY = /\b[A-Z]{2,6}-\d{1,6}\b/g;
+
 export interface IdRef { id: string; kind: string }
+
+/** The short keys a text names, once each, outside code. */
+export function keysIn(text: string): string[] {
+  return [...new Set(stripCode(text).match(KEY) ?? [])];
+}
+
+/** The text with each known key written as a link to its task. A word that only looks like a key stays as it is. */
+export function withKeys(text: string, known: ReadonlyMap<string, string>): string {
+  if (known.size === 0) return text;
+  return text.split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/g).map((p, i) => (i % 2 === 1 ? p : p.replace(KEY, (key) => { const id = known.get(key); return id ? `[${key}](${HOST}task/${id})` : key; }))).join("");
+}
 
 /** The ids a text names, once each, outside code (a fenced or inline `code` span is the agent showing an id on purpose). */
 export function idsIn(text: string): IdRef[] {
@@ -63,14 +77,23 @@ export function useRefChips(body: string, data: Data | undefined): { body: strin
     void Promise.all(ids.map(async (r) => [r.id, (await preview(data, { ...r, title: "" }))?.title ?? null] as const)).then((rows) => { if (live) setNames(new Map(rows)); });
     return () => { live = false; };
   }, [data, ids]);
-  const shown = useMemo(() => (ids.length === 0 && named.size === 0 ? body : withNames(body, names)), [body, ids, names, named]);
-  const renderLink = useMemo<RenderLink | undefined>(() => (!data || (ids.length === 0 && named.size === 0) ? undefined : (href: string, children: ReactNode, key: number) => {
+  const keys = useMemo(() => keysIn(body), [body]);
+  const [known, setKnown] = useState<ReadonlyMap<string, string>>(new Map());
+  useEffect(() => {
+    if (!data || keys.length === 0) return;
+    let live = true;
+    void Promise.all(keys.map(async (k) => [k, await data.call("tasks.by_key", { key: k }).then((o) => (o as { taskId: string | null }).taskId, () => null)] as const)).then((rows) => { if (live) setKnown(new Map(rows.filter((r): r is readonly [string, string] => r[1] !== null))); });
+    return () => { live = false; };
+  }, [data, keys]);
+  const titled = useMemo(() => new Map([...known].map(([k, id]) => [id, k] as const)), [known]);
+  const shown = useMemo(() => withKeys(ids.length === 0 && named.size === 0 ? body : withNames(body, names), known), [body, ids, names, named, known]);
+  const renderLink = useMemo<RenderLink | undefined>(() => (!data || (ids.length === 0 && named.size === 0 && known.size === 0) ? undefined : (href: string, children: ReactNode, key: number) => {
     const r = refOfHref(href);
     if (!r) return null;
-    const title = names.get(r.id) ?? named.get(r.id);
+    const title = names.get(r.id) ?? named.get(r.id) ?? titled.get(r.id);
     // not resolved (yet, or not yours): the plain words, never the id and never a dead link
     return title ? <LinkPiece key={key} r={{ ...r, title }} data={data} /> : <>{children}</>;
-  }), [data, ids, names, named]);
+  }), [data, ids, names, named, known, titled]);
   return { body: shown, renderLink };
 }
 

@@ -101,6 +101,14 @@ export interface ConversationData {
   terminal?: boolean;
   /** The mount sheet for a Mount card in the chat: connect a folder from the source the card named, then hand back what was mounted. The shell draws it over the page. Left out where the shell has no Files. */
   mountSheet?(p: { source: string; onMounted(info: { folderId: string; name: string }): void; onClose(): void }): ReactElement;
+  /** Drawn above the messages, scrolling with them: the page of a task sits on top of its thread. The feed then opens at the top. */
+  head?: ReactElement;
+  /** Drawn after the last message, scrolling with it: what is under way in this chat. */
+  tail?: ReactElement;
+  /** Quiet lines woven into the feed by time, and which rows show (a task's status changes, with Everything, Comments or Updates). */
+  activity?: { events: readonly import("./model.ts").Message[]; show: "all" | "comments" | "updates" };
+  /** The composer's words, in place of the chat's. */
+  placeholder?: string;
   /** What the chat's memory surfaces read and write (Used N memories, quote cards, Learned lines, underlined subjects, the message menu's memory items). Left out where the shell has none: every surface then draws nothing. */
   memory?: ChatMemoryData;
 }

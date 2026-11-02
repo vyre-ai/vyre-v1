@@ -23,7 +23,7 @@ type ListOut = CapMap["runs.list"]["out"];
 
 export interface RunHistoryProps {
   /** The object whose runs these are; leave out for every run in `scope`. */
-  subject?: { type: "automation" | "agent" | "site" | "campaign"; id: string };
+  subject?: { type: "automation" | "agent" | "site"; id: string };
   scope?: "mine" | "subject" | "all";
   /** The Automation's current version; runs on an older one show theirs. */
   currentVersion?: number;

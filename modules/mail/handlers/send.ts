@@ -1,41 +1,41 @@
 // The single send API (spec 2.18 Sending, Single send API, Message status; ARCH 8.2): mail.send, mail.send_preview, mail.send_as.
 //
-// One door for every outgoing email. Campaigns, automations, agents and people all arrive here, and every send is checked the same way:
-//   suppression list, consent flags, caps per sender, send windows, throttling per sending domain (or mailbox), then the provider.
+// One door for every outgoing email. Automations, agents and people all arrive here, and every send is checked the same way:
+//   suppression list, consent flags, then the provider. Regular email (a welcome, a nurture step, an appointment confirmation, a newsletter) is an Automation, so it must leave when
+//   the flow says: this door holds no send windows, no per-mailbox caps and no throttling. A provider that pushes back answers provider.rate_limited, and the step retries.
 // Space sending goes out through the Space's Resend or Mailgun domain; a member's reply goes out through the member's own Gmail or
 // Graph mailbox. The "Drafted by an agent" line is added to every message an agent sent or drafted. Every send carries the trace id
 // in an X-Vyre-Trace header and on the message row.
 //
 // The Gate (spec 2.14) is applied by the invoke pipeline before this code runs: mail.send and mail.send_as declare `gate: 'send'`, and
-// `sendGateApplies` below is the rule the Gate hook asks. An agent, an automation or a campaign is held for approval; an ordinary
+// `sendGateApplies` below is the rule the Gate hook asks. An agent or an automation is held for approval; an ordinary
 // person's send is not. Code that runs here has already passed the Gate or never needed it.
 //
-// DECISION: windows, throttling and caps apply to Space sending and to every non-person actor. A person who sends or replies through
-// their own mailbox is not made to wait for a window or counted against a cold-email cap; suppression and consent still apply.
-// DECISION: the recipient time zone is not stored anywhere in v1 data (contacts have no zone field), so `zone: 'recipient'` falls back
-// to the sender's own `profile.timezone`. A message outside the window is queued, not refused, and delivered by a scheduled call.
-// DECISION: a hit on a cap is refused (rate_limit.exceeded), because waiting a day silently is worse than telling the sender;
-// a window or throttle miss is queued, because the sender did nothing wrong.
+// DECISION: `unsubscribe: true` puts a link and the List-Unsubscribe headers on the message (handlers/unsubscribe.ts). The Automations send step always sets it. A link is one person's, so such a
+// message to several people goes out once per recipient.
+// DECISION: with no public address there is no link to give. A mailing to several people is refused in those words; one email to one person (an appointment confirmation) goes out without the link.
 // DECISION: consent 'unknown' sends (opt-out regime: STOP, UNSUBSCRIBE and bounces write the suppression list). Only an explicit
 // 'denied', Do-not-contact or an email opt-out refuses.
 import { HostError, fail } from "../../../host/src/routes/errors.ts";
+import { isTenantService } from "../../../lib/trust.ts";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   allow, bad, EMAIL, ensure, first, isId, missing, newId, normalizeEmail, num, partyJson, readStrings, rowsOf, snippetOf, statements, str, strOrNull,
 } from "../projections.ts";
 import type { MailCtx, Party, Row } from "../projections.ts";
+import { footerHtml, footerText, hasPublicAddress, unsubscribeLink } from "./unsubscribe.ts";
 
 // ---- shapes
 
 export interface SendCtx extends MailCtx {
-  /** Where the call came from: 'user' for a person at a screen, anything else for automations, campaigns and other engines. */
+  /** Where the call came from: 'user' for a person at a screen, anything else for automations and other engines. */
   origin?: string;
   schedule?(at: number, cap: string, input: unknown): Promise<string>;
 }
 
 export type Route = "mailbox" | "space_domain";
-export type Actor = "person" | "agent" | "automation" | "campaign";
+export type Actor = "person" | "agent" | "automation";
 
 export interface SendIn {
   mailboxId: string;
@@ -51,9 +51,10 @@ export interface SendIn {
   attachments?: string[];
   replyToMessageId?: string;
   contactId?: string;
-  campaignId?: string;
   draftId?: string;
   sendAt?: number;
+  /** Carry an unsubscribe link and the List-Unsubscribe headers. */
+  unsubscribe?: boolean;
   idempotencyKey: string;
 }
 
@@ -76,7 +77,6 @@ export interface SendAsIn {
   attachments?: string[];
   replyToMessageId?: string;
   contactId?: string;
-  campaignId?: string;
   draftId?: string;
   idempotencyKey: string;
 }
@@ -86,32 +86,13 @@ export interface PreviewIn {
   senderId?: string;
   channel?: "email";
   to: Party[];
-  campaignId?: string;
 }
 
 export interface PreviewOut {
   allowed: string[];
   suppressed: { address: string; reason: string }[];
-  outsideWindow: string[];
-  capRemainingToday?: number;
-  nextWindowAt?: number;
   providerRoute: Route;
 }
-
-interface Caps { perHour: number; perDay: number }
-interface Window { days: number[]; startHour: number; endHour: number; zone: "recipient" | "space" }
-interface Throttle { perMinute: number }
-
-// The manifest defaults (manifests/mail.ts settings); used when the settings service gives nothing usable.
-const DEFAULT_CAPS: Caps = { perHour: 30, perDay: 150 };
-const DEFAULT_WINDOW: Window = { days: [1, 2, 3, 4, 5], startHour: 8, endHour: 18, zone: "recipient" };
-const DEFAULT_THROTTLE: Throttle = { perMinute: 60 };
-
-const HOUR = 3_600_000;
-const DAY = 24 * HOUR;
-const MINUTE = 60_000;
-const STEP = 15 * MINUTE;
-const KEEP = DAY + HOUR;   // send-log rows older than this are pruned
 
 export const TRACE_HEADER = "X-Vyre-Trace";
 export const AGENT_LINE = "Drafted by an agent";
@@ -120,18 +101,17 @@ const AGENT_HTML = `<p style="margin-top:24px;color:#6b6b6b;font-size:12px">${AG
 
 // ---- the Gate rule (spec 2.14: "Ordinary human sends do not pass the Gate")
 
-/** Who is sending, as the Gate sees it. Campaign and automation engines run with an origin other than 'user'. */
+/** Who is sending, as the Gate sees it. Automations run with an origin other than 'user'. */
 export function actorOf(principalKind: MailCtx["principal"]["kind"], origin: string | undefined): Actor {
   if (principalKind === "agent") return "agent";
   const from = origin ?? "user";
-  if (from.startsWith("campaign")) return "campaign";
   if (from !== "user" || principalKind === "service" || principalKind === "actor") return "automation";
   return "person";
 }
 
 /**
  * The question the Gate hook asks before mail.send and mail.send_as run: does the 'send' act apply to this call?
- * An agent, an automation or a campaign is held for approval (unless the effective rule allows it, which the Gate decides);
+ * An agent or an automation is held for approval (unless the effective rule allows it, which the Gate decides);
  * a person sending their own mail is not.
  */
 export function sendGateApplies(call: { principalKind: MailCtx["principal"]["kind"]; origin?: string | undefined }): { act: "send" } | null {
@@ -141,13 +121,13 @@ export function sendGateApplies(call: { principalKind: MailCtx["principal"]["kin
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = readFileSync(fileURLToPath(new URL("../migrations/0002_send_log.sql", import.meta.url)), "utf8");
+const migrationSql = readFileSync(fileURLToPath(new URL("../migrations/0003_unsubscribe.sql", import.meta.url)), "utf8");
 
 function ensureSend(ctx: SendCtx): void {
   ensure(ctx);
   if (ready.has(ctx.db)) return;
   try {
-    ctx.db.all(`SELECT id FROM mail_send_log WHERE id = ?`, "probe");
+    ctx.db.all(`SELECT token_hash FROM mail_unsub WHERE token_hash = ?`, "probe");
   } catch {
     for (const statement of statements(migrationSql)) ctx.db.run(statement);
   }
@@ -173,63 +153,8 @@ async function setting<T>(ctx: SendCtx, key: string, fallback: T, ok: (v: unknow
   }
 }
 
-const capsOk = (v: unknown): v is Caps => isInt(obj(v).perHour) && isInt(obj(v).perDay) && (obj(v).perHour as number) > 0 && (obj(v).perDay as number) > 0;
-const throttleOk = (v: unknown): v is Throttle => isInt(obj(v).perMinute) && (obj(v).perMinute as number) > 0;
-const windowOk = (v: unknown): v is Window => {
-  const w = obj(v);
-  return Array.isArray(w.days) && w.days.length > 0 && w.days.every((d) => isInt(d) && d >= 1 && d <= 7)
-    && isInt(w.startHour) && w.startHour >= 0 && w.startHour <= 23 && isInt(w.endHour) && w.endHour >= 1 && w.endHour <= 24
-    && (w.zone === "recipient" || w.zone === "space");
-};
 const providerOk = (v: unknown): v is "resend" | "mailgun" => v === "resend" || v === "mailgun";
 const boolOk = (v: unknown): v is boolean => typeof v === "boolean";
-const zoneOk = (v: unknown): v is string => typeof v === "string" && validZone(v);
-
-function validZone(zone: string): boolean {
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone: zone });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// ---- send windows
-
-const formatters = new Map<string, Intl.DateTimeFormat>();
-const WEEKDAY: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
-
-/** ISO weekday (1 Monday to 7 Sunday) and hour (0 to 23) of an instant in a zone. */
-function localTime(ms: number, zone: string): { day: number; hour: number } {
-  let f = formatters.get(zone);
-  if (!f) {
-    f = new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "short", hour: "numeric", hourCycle: "h23" });
-    formatters.set(zone, f);
-  }
-  let day = 1;
-  let hour = 0;
-  for (const part of f.formatToParts(new Date(ms))) {
-    if (part.type === "weekday") day = WEEKDAY[part.value] ?? 1;
-    if (part.type === "hour") hour = Number(part.value) % 24;
-  }
-  return { day, hour };
-}
-
-/** An instant is inside the window when its local weekday is listed and its local hour is from start (inclusive) to end (exclusive); start at or after end wraps past midnight. */
-export function inWindow(ms: number, zone: string, w: Pick<Window, "days" | "startHour" | "endHour">): boolean {
-  const { day, hour } = localTime(ms, zone);
-  if (!w.days.includes(day)) return false;
-  return w.startHour < w.endHour ? hour >= w.startHour && hour < w.endHour : hour >= w.startHour || hour < w.endHour;
-}
-
-/** The first quarter hour at or after `ms` that is inside the window; the grid hits every zone's hour boundary. Null when the window never opens within a week. */
-export function nextWindowStart(ms: number, zone: string, w: Pick<Window, "days" | "startHour" | "endHour">): number | null {
-  if (inWindow(ms, zone, w)) return ms;
-  let t = ms - (ms % STEP) + STEP;
-  for (let i = 0; i < 8 * 96; i++, t += STEP) if (inWindow(t, zone, w)) return t;
-  return null;
-}
-
 // ---- recipients
 
 function cleanParties(ctx: SendCtx, list: unknown, label: string): Party[] {
@@ -271,7 +196,8 @@ interface Composed {
   html: string | undefined;
   files: string[];
   contactId: string | undefined;
-  campaignId: string | undefined;
+  /** The address of this person's unsubscribe link, once the message carries one. */
+  listUnsubscribe?: string;
 }
 
 function compose(ctx: SendCtx, input: SendAsIn | SendIn, draft: Row | null): Composed {
@@ -287,13 +213,11 @@ function compose(ctx: SendCtx, input: SendAsIn | SendIn, draft: Row | null): Com
   const files = input.attachments ?? [];
   for (const f of files) if (!isId("fil", f)) bad(ctx, "Attachment id is not valid.");
   if (input.contactId !== undefined && !isId("rec", input.contactId)) bad(ctx, "Contact id is not valid.");
-  if (input.campaignId !== undefined && !isId("cmp", input.campaignId)) bad(ctx, "Campaign id is not valid.");
   // A top-level contact names the first To recipient when that recipient carries none.
   const firstTo = lists.to[0];
   if (input.contactId && firstTo && !firstTo.contactId) firstTo.contactId = input.contactId;
   return {
     ...lists, subject: input.subject, text: textBody, html: htmlBody, files, contactId: input.contactId ?? strOrNull(draft, "contactId") ?? undefined,
-    campaignId: input.campaignId ?? strOrNull(draft, "campaignId") ?? undefined,
   };
 }
 
@@ -312,7 +236,8 @@ function loadMailbox(ctx: SendCtx, id: string): Row {
 
 /** Use of the mailbox, plus the sender's own permission: comms.agent_send for an agent, comms.shared_send for a person on a shared inbox. */
 function authorizeSender(ctx: SendCtx, box: Row): void {
-  const perm = ctx.principal.kind === "agent" ? "comms.agent_send" : str(box, "kind") === "shared" ? "comms.shared_send" : null;
+  // a Space Automation holds `use` on the mailboxes a person's press gave it (modules/automations/grants.ts), so that grant is the whole answer: it has no role to carry comms.shared_send
+  const perm = ctx.principal.kind === "agent" ? "comms.agent_send" : str(box, "kind") === "shared" && !isTenantService(ctx.principal) ? "comms.shared_send" : null;
   const resource = { type: "mailbox", id: str(box, "id") };
   if (!perm) return allow(ctx, "use", resource);
   const decision = ctx.authorize({ perm, level: "use" }, resource);
@@ -328,7 +253,8 @@ function resolveRoute(ctx: SendCtx, box: Row, actor: Actor, requested: Route | u
     return "mailbox";
   }
   if (requested === "space_domain") return "space_domain";
-  return memberProvider(box) && actor === "person" ? "mailbox" : "space_domain";
+  // a Personal Automation runs as its owner, so their own Gmail or Outlook is theirs to send from; a Space Automation goes through the Space domain
+  return memberProvider(box) && (actor === "person" || ctx.principal.kind === "person") ? "mailbox" : "space_domain";
 }
 
 function pickDomain(ctx: SendCtx, provider: string, mailboxAddress: string): Row | null {
@@ -366,50 +292,18 @@ async function screen(ctx: SendCtx, parties: Party[]): Promise<{ address: string
   return parties.filter((p) => refused.has(p.address)).map((p) => ({ address: p.address, reason: refused.get(p.address) ?? "suppressed" }));
 }
 
-// ---- caps and throttle counters
-
-interface Usage { hour: number; day: number; oldestHour: number; oldestDay: number }
-
-function usageOf(ctx: SendCtx, mailboxId: string, now: number): Usage {
-  const rows = rowsOf(ctx.db.all(`SELECT * FROM mail_send_log WHERE "mailboxId" = ?`, mailboxId));
-  const u: Usage = { hour: 0, day: 0, oldestHour: 0, oldestDay: 0 };
-  for (const r of rows) {
-    const at = num(r, "at");
-    if (at <= now - KEEP) { ctx.db.run(`DELETE FROM mail_send_log WHERE id = ?`, str(r, "id")); continue; }
-    if (at > now - DAY) { u.day++; u.oldestDay = u.oldestDay === 0 ? at : Math.min(u.oldestDay, at); }
-    if (at > now - HOUR) { u.hour++; u.oldestHour = u.oldestHour === 0 ? at : Math.min(u.oldestHour, at); }
-  }
-  return u;
-}
-
-/** When the throttle has room for `n` more recipients on a key: now, or the instant enough older sends leave the minute. Null when `n` alone is over the limit. */
-function throttleAt(ctx: SendCtx, key: string, n: number, limit: number, now: number): number | null {
-  if (n > limit) return null;
-  const recent = rowsOf(ctx.db.all(`SELECT * FROM mail_send_log WHERE "throttleKey" = ?`, key)).map((r) => num(r, "at")).filter((at) => at > now - MINUTE).sort((a, b) => a - b);
-  const over = recent.length + n - limit;
-  if (over <= 0) return now;
-  return (recent[over - 1] ?? now) + MINUTE;
-}
-
 // ---- the plan: everything decided before a byte leaves
 
 interface Plan {
   box: Row;
   actor: Actor;
   route: Route;
-  /** windows, throttling and caps apply */
-  bulk: boolean;
   composed: Composed;
   allowed: Party[];
   suppressed: { address: string; reason: string }[];
-  caps: Caps;
-  window: Window;
-  throttle: Throttle;
-  zone: string;
   /** the Space sending domain row and provider, when the route is space_domain */
   domain: Row | null;
   provider: "resend" | "mailgun";
-  throttleKey: string;
   now: number;
 }
 
@@ -443,42 +337,7 @@ async function makePlan(ctx: SendCtx, input: SendIn | PreviewIn | SendAsIn, comp
   const domain = route === "space_domain" ? pickDomain(ctx, provider, str(box, "address")) : null;
   const suppressed = await screen(ctx, flat(composed));
   const refusedSet = new Set(suppressed.map((s) => s.address));
-  const profileZone = await setting<string>(ctx, "profile.timezone", "UTC", zoneOk);
-  const win = await setting<Window>(ctx, "mail.send_window", DEFAULT_WINDOW, windowOk);
-  return {
-    box, actor, route, bulk: route === "space_domain" || actor !== "person", composed, allowed: flat(composed).filter((p) => !refusedSet.has(p.address)), suppressed,
-    caps: await setting<Caps>(ctx, "mail.sender_caps", DEFAULT_CAPS, capsOk), window: win, throttle: await setting<Throttle>(ctx, "mail.throttle", DEFAULT_THROTTLE, throttleOk),
-    // the recipient's own zone is not known in v1 data: both settings read the sender's zone
-    zone: profileZone, domain, provider,
-    throttleKey: route === "space_domain" ? `domain:${domain ? str(domain, "name") : "none"}` : `mailbox:${str(box, "id")}`, now: ctx.now(),
-  };
-}
-
-/** The earliest instant this send may leave: the requested time, moved forward past the window and the throttle. Null when the window never opens. */
-function earliest(ctx: SendCtx, p: Plan, wanted: number): number | null {
-  let when = Math.max(p.now, wanted);
-  if (!p.bulk) return when;
-  for (let i = 0; i < 4; i++) {
-    const open = nextWindowStart(when, p.zone, p.window);
-    if (open === null) return null;
-    when = open;
-    const room = throttleAt(ctx, p.throttleKey, p.allowed.length, p.throttle.perMinute, when);
-    if (room === null) return refuse(ctx, `The throttle allows ${p.throttle.perMinute} recipients a minute. Send to fewer people at once.`);
-    if (room <= when) return when;
-    when = room;
-  }
-  return when;
-}
-
-function capCheck(ctx: SendCtx, p: Plan): void {
-  const used = usageOf(ctx, str(p.box, "id"), p.now);
-  const n = p.allowed.length;
-  if (used.hour + n > p.caps.perHour) {
-    throw fail("rate_limit.exceeded", ctx.trace.traceId, { message: "This mailbox reached its hourly send limit.", details: { limit: "perHour", max: p.caps.perHour, resetAt: (used.oldestHour || p.now) + HOUR } });
-  }
-  if (used.day + n > p.caps.perDay) {
-    throw fail("rate_limit.exceeded", ctx.trace.traceId, { message: "This mailbox reached its daily send limit.", details: { limit: "perDay", max: p.caps.perDay, resetAt: (used.oldestDay || p.now) + DAY } });
-  }
+  return { box, actor, route, composed, allowed: flat(composed).filter((p) => !refusedSet.has(p.address)), suppressed, domain, provider, now: ctx.now() };
 }
 
 // ---- mail.send_preview
@@ -488,19 +347,9 @@ export async function sendPreview(ctx: SendCtx, input: PreviewIn): Promise<Previ
   if (!isId("mbx", input.mailboxId)) bad(ctx, "Mailbox id is not valid.");
   const to = cleanParties(ctx, input.to, "To");
   if (to.length === 0) bad(ctx, "At least one recipient is required.");
-  const composed: Composed = { to: dedupe(to, [], []).to, cc: [], bcc: [], subject: "", text: undefined, html: undefined, files: [], contactId: undefined, campaignId: input.campaignId };
+  const composed: Composed = { to: dedupe(to, [], []).to, cc: [], bcc: [], subject: "", text: undefined, html: undefined, files: [], contactId: undefined };
   const p = await makePlan(ctx, input, composed, undefined, false);
-  const out: PreviewOut = { allowed: p.allowed.map((a) => a.address), suppressed: p.suppressed, outsideWindow: [], providerRoute: p.route };
-  if (p.bulk) {
-    const used = usageOf(ctx, str(p.box, "id"), p.now);
-    out.capRemainingToday = Math.max(0, Math.min(p.caps.perDay - used.day, p.caps.perHour - used.hour));
-    if (!inWindow(p.now, p.zone, p.window)) {
-      out.outsideWindow = out.allowed;
-      const next = nextWindowStart(p.now, p.zone, p.window);
-      if (next !== null) out.nextWindowAt = next;
-    }
-  }
-  return out;
+  return { allowed: p.allowed.map((a) => a.address), suppressed: p.suppressed, providerRoute: p.route };
 }
 
 // ---- mail.send
@@ -520,9 +369,7 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
 
   // everyone suppressed: nothing is sent, nothing is stored; the refusal is an event per address
   for (const s of p.suppressed) {
-    const payload: { channel: "email"; address: string; reason: string; campaignId?: string } = { channel: "email", address: s.address, reason: s.reason };
-    if (composed.campaignId) payload.campaignId = composed.campaignId;
-    ctx.emit("message.suppressed", `address/${s.address}`, payload);
+    ctx.emit("message.suppressed", `address/${s.address}`, { channel: "email", address: s.address, reason: s.reason });
   }
   const refused = p.suppressed.map((s) => s.address);
   if (p.allowed.length === 0) {
@@ -532,15 +379,23 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
   }
 
   const sendable: Composed = narrow(composed, p.allowed);
-  if (p.bulk) capCheck(ctx, p);
   if (p.route === "space_domain" && !p.domain) refuse(ctx, `No verified ${p.provider} sending domain. Add and verify one in Console, Comms.`);
 
-  const when = earliest(ctx, p, input.sendAt ?? now);
-  if (when === null) return refuse(ctx, "The send window has no open time in the next week. Change the send window in Console, Comms.");
+  // a link is one person's, so a message that carries links goes out once per recipient
+  if (input.unsubscribe === true && p.allowed.length > 1 && !pending) {
+    if (!hasPublicAddress()) refuse(ctx, "This Space has no public address yet, so its emails could not carry an unsubscribe link.");
+    const { cc: _cc, bcc: _bcc, ...one } = input;
+    const each: SendOut[] = [];
+    for (const party of p.allowed) each.push(await send(ctx, { ...one, to: [party], idempotencyKey: `${input.idempotencyKey}:${party.address}` }));
+    const lead = each.find((e) => e.messageId !== undefined)?.messageId;
+    return remember(ctx, input.idempotencyKey, { ...(lead ? { messageId: lead } : {}), status: each.some((e) => e.status === "sent") ? "sent" : "queued", suppressed: refused });
+  }
+
+  const when = Math.max(now, input.sendAt ?? now);
   const row = pending ? str(pending, "id") : newId("eml", now);
 
   if (when > now) {
-    // outside the window, over the throttle or scheduled: the message waits as a queued row and a scheduled call delivers it
+    // scheduled: the message waits as a queued row and a scheduled call delivers it
     if (!ctx.schedule) throw fail("internal.unavailable", ctx.trace.traceId, { message: "Scheduling is not available right now." });
     writeRow(ctx, p, sendable, parent, pending, row, "queued", when, null);
     const again: Record<string, unknown> = { ...stripUndefined(input), to: sendable.to, cc: sendable.cc, bcc: sendable.bcc, draftId: row, idempotencyKey: `${input.idempotencyKey}:due` };
@@ -549,7 +404,7 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
     return remember(ctx, input.idempotencyKey, { messageId: row, status: "queued", suppressed: refused });
   }
 
-  const sent = await deliver(ctx, p, sendable, parent, pending, row);
+  const sent = await deliver(ctx, p, sendable, parent, pending, row, input.unsubscribe === true);
   return remember(ctx, input.idempotencyKey, { messageId: sent.messageId, status: "sent", suppressed: refused });
 }
 
@@ -588,10 +443,16 @@ function loadParent(ctx: SendCtx, id: string, mailboxId: string): Row {
 interface Delivered { messageId: string; providerId: string | null }
 
 /** Write the row for a message, send it through the route's provider and settle the row. */
-async function deliver(ctx: SendCtx, p: Plan, c: Composed, parent: Row | null, pending: Row | null, id: string): Promise<Delivered> {
+async function deliver(ctx: SendCtx, p: Plan, c: Composed, parent: Row | null, pending: Row | null, id: string, unsubscribe = false): Promise<Delivered> {
   const agentLine = (await agentLabelOn(ctx)) && (p.actor === "agent" || strOrNull(pending, "draftedByAgent") !== null);
-  const final: Composed = agentLine ? { ...c, text: c.text === undefined ? undefined : c.text + AGENT_TEXT, html: c.html === undefined ? undefined : withAgentHtml(c.html) } : c;
-  if (agentLine && final.text === undefined && final.html === undefined) bad(ctx, "A message needs a text or an html body.");
+  const signed: Composed = agentLine ? { ...c, text: c.text === undefined ? undefined : c.text + AGENT_TEXT, html: c.html === undefined ? undefined : withAgentHtml(c.html) } : c;
+  if (agentLine && signed.text === undefined && signed.html === undefined) bad(ctx, "A message needs a text or an html body.");
+  const everyone = flat(signed);
+  const link = unsubscribe && everyone.length === 1 ? await unsubscribeLink(ctx, (everyone[0] as Party).address) : null;
+  const final: Composed = link === null ? signed : {
+    ...signed, listUnsubscribe: link, text: signed.text === undefined ? undefined : signed.text + footerText(link),
+    html: signed.html === undefined ? undefined : beforeBodyEnd(signed.html, footerHtml(link)),
+  };
   const domain = p.domain ? str(p.domain, "name") : domainOf(str(p.box, "address"));
   const rfcId = p.route === "space_domain" ? `<${id}@${domain}>` : null;
   const now = ctx.now();
@@ -616,9 +477,13 @@ async function agentLabelOn(ctx: SendCtx): Promise<boolean> {
   return setting<boolean>(ctx, "gate.drafted_by_label", true, boolOk);
 }
 
-function withAgentHtml(html: string): string {
+function beforeBodyEnd(html: string, tail: string): string {
   const at = html.toLowerCase().lastIndexOf("</body>");
-  return at < 0 ? html + AGENT_HTML : html.slice(0, at) + AGENT_HTML + html.slice(at);
+  return at < 0 ? html + tail : html.slice(0, at) + tail + html.slice(at);
+}
+
+function withAgentHtml(html: string): string {
+  return beforeBodyEnd(html, AGENT_HTML);
 }
 
 /** Insert the message row, or turn the draft or queued row into this message. */
@@ -635,8 +500,8 @@ function writeRow(ctx: SendCtx, p: Plan, c: Composed, parent: Row | null, pendin
   if (pending) {
     ctx.db.run(
       `UPDATE mail_message SET status = ?, "fromAddress" = ?, "toAddresses" = ?, "ccAddresses" = ?, subject = ?, snippet = ?, body = ?, "sentAt" = ?, "contactId" = ?,
-        "campaignId" = ?, attachments = ?, "draftedByAgent" = ?, "traceId" = ?, "rfcMessageId" = ?, version = ?, updated_at = ? WHERE id = ?`,
-      status, own, partyJson(c.to), partyJson(c.cc), c.subject, snippetOf(c.text, c.subject), bodyText, at, contactId, c.campaignId ?? null, files, draftedBy,
+        attachments = ?, "draftedByAgent" = ?, "traceId" = ?, "rfcMessageId" = ?, version = ?, updated_at = ? WHERE id = ?`,
+      status, own, partyJson(c.to), partyJson(c.cc), c.subject, snippetOf(c.text, c.subject), bodyText, at, contactId, files, draftedBy,
       ctx.trace.traceId, rfcId, num(pending, "version") + 1, now, id,
     );
     ctx.db.run(`UPDATE mail_body SET text = ?, html = ?, bcc = ?, headers = ? WHERE "messageId" = ?`, c.text ?? null, c.html ?? null, partyJson(c.bcc), headers, id);
@@ -646,11 +511,11 @@ function writeRow(ctx: SendCtx, p: Plan, c: Composed, parent: Row | null, pendin
     `INSERT INTO mail_message (
       id, "mailboxId", "inboxIds", "providerId", "rfcMessageId", "threadId", direction, status,
       "fromAddress", "toAddresses", "ccAddresses", subject, snippet, body, "sentAt", "contactId",
-      "isPrivate", "campaignId", attachments, "draftedByAgent", "traceId", version, updated_at, deleted_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      "isPrivate", attachments, "draftedByAgent", "traceId", version, updated_at, deleted_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, str(p.box, "id"), JSON.stringify([str(p.box, "id")]), null, rfcId, threadId, "out", status,
     own, partyJson(c.to), partyJson(c.cc), c.subject, snippetOf(c.text, c.subject), bodyText, at, contactId,
-    str(p.box, "privacy") === "private" ? 1 : 0, c.campaignId ?? null, files, draftedBy, ctx.trace.traceId, 1, now, null,
+    str(p.box, "privacy") === "private" ? 1 : 0, files, draftedBy, ctx.trace.traceId, 1, now, null,
   );
   ctx.db.run(
     `INSERT INTO mail_body ("messageId", text, html, "fromName", bcc, headers) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -684,7 +549,8 @@ async function viaSpaceDomain(ctx: SendCtx, p: Plan, c: Composed, parent: Row | 
   const from = domainOf(own) === domain ? own : `${own.split("@")[0] ?? "mail"}@${domain}`;
   const title = str(p.box, "title");
   const body: Record<string, unknown> = {
-    from, to: c.to.map((x) => x.address), subject: c.subject, headers: { ...outHeaders(ctx, parent, rfcId) },
+    mailboxId: str(p.box, "id"), from, to: c.to.map((x) => x.address), subject: c.subject,
+    headers: { ...outHeaders(ctx, parent, rfcId), ...(c.listUnsubscribe ? { "List-Unsubscribe": `<${c.listUnsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } : {}) },
     idempotencyKey: id,   // the provider capabilities need a key; the message id is stable across the one delivery of this message
   };
   if (title && title !== own) body.fromName = title;
@@ -695,7 +561,6 @@ async function viaSpaceDomain(ctx: SendCtx, p: Plan, c: Composed, parent: Row | 
   if (c.html !== undefined) body.html = c.html;
   if (c.files.length) body.attachments = await attachmentsOf(ctx, c.files);
   const tags = [{ name: "message_id", value: id }];
-  if (c.campaignId) tags.push({ name: "campaign_id", value: c.campaignId });
   if (p.provider === "resend") {
     body.tags = tags;
     return acceptedId(ctx, await ctx.call("resend.send_email", body));
@@ -739,16 +604,9 @@ function settle(ctx: SendCtx, p: Plan, c: Composed, id: string, providerId: stri
   ctx.db.run(`UPDATE mail_message SET status = ?, "providerId" = ?, "sentAt" = ?, version = ?, updated_at = ? WHERE id = ?`, "sent", providerId, now, nextVersion(ctx, id), now, id);
   if (rfcId) ctx.db.run(`INSERT OR IGNORE INTO mail_rfc ("rfcMessageId", "messageId") VALUES (?, ?)`, rfcId, id);
   if (providerId) ctx.db.run(`INSERT OR IGNORE INTO mail_seen (source, "providerId", "messageId") VALUES (?, ?, ?)`, p.route === "space_domain" ? p.provider : str(p.box, "provider"), providerId, id);
-  for (const r of flat(c)) {
-    ctx.db.run(
-      `INSERT INTO mail_send_log (id, "mailboxId", "throttleKey", address, "messageId", at) VALUES (?, ?, ?, ?, ?, ?)`,
-      newId("snd", now), str(p.box, "id"), p.throttleKey, r.address, id, now,
-    );
-  }
-  const payload: { messageId: string; channel: "email"; mailboxId: string; contactId?: string; campaignId?: string } = { messageId: id, channel: "email", mailboxId: str(p.box, "id") };
+  const payload: { messageId: string; channel: "email"; mailboxId: string; contactId?: string } = { messageId: id, channel: "email", mailboxId: str(p.box, "id") };
   const contactId = c.contactId ?? c.to[0]?.contactId;
   if (contactId) payload.contactId = contactId;
-  if (c.campaignId) payload.campaignId = c.campaignId;
   ctx.emit("message.sent", `mail_message/${id}`, payload);
 }
 
@@ -757,7 +615,7 @@ function settle(ctx: SendCtx, p: Plan, c: Composed, id: string, providerId: stri
 /**
  * Send through a member's own Gmail, Graph or IMAP mailbox: the door for replies and for a person's own mail. Suppression and consent
  * still apply, because one list is consulted for every sender; a suppressed recipient refuses the send instead of being dropped from
- * a reply without the person noticing. Windows, throttling and caps do not apply to a person's own mail.
+ * a reply without the person noticing.
  */
 export async function sendAs(ctx: SendCtx, input: SendAsIn): Promise<{ messageId: string; providerId?: string }> {
   ensureSend(ctx);

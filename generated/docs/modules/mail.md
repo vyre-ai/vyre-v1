@@ -4,7 +4,7 @@ Lane L5. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (36)
+## Capabilities (38)
 
 - [mail.attachment.save](../capabilities/mail.attachment.save.md): Save an attachment into Files
 - [mail.auto_connect_members](../capabilities/mail.auto_connect_members.md): Create Pending mail connections for every mapped member when delegation is set and auto-connect is on (one notice each)
@@ -29,6 +29,7 @@ Requires: nothing.
 - [mail.mailbox.set_privacy](../capabilities/mail.mailbox.set_privacy.md): Mark a mailbox private, shared with the Space or shared with chosen people
 - [mail.mailbox.set_sync_state](../capabilities/mail.mailbox.set_sync_state.md): A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings
 - [mail.mailbox.update](../capabilities/mail.mailbox.update.md): Rename a mailbox or change its agent
+- [mail.member_pause](../capabilities/mail.member_pause.md): The connector stops a member's delegated mailbox, or starts it again; what is already in Vyre stays theirs
 - [mail.message.erase](../capabilities/mail.message.erase.md): Erase one mail message for good (governance erase)
 - [mail.message.get](../capabilities/mail.message.get.md): Read one message with attachments, provider id, DNS check state and trace id
 - [mail.message.list](../capabilities/mail.message.list.md): List messages of a mailbox, thread or contact
@@ -37,11 +38,12 @@ Requires: nothing.
 - [mail.route.list](../capabilities/mail.route.list.md): List inbound routes (address on a Space domain to a mailbox)
 - [mail.route.remove](../capabilities/mail.route.remove.md): Remove an inbound route
 - [mail.route.set](../capabilities/mail.route.set.md): Route an address on a Space domain (MX on the Space domain) to a mailbox through /hooks/mail
-- [mail.send](../capabilities/mail.send.md): Send an email through the single send API: caps per sender, send windows, throttling, suppression, consent, trace id header, agent footer line
+- [mail.send](../capabilities/mail.send.md): Send an email through the single send API: suppression, consent, trace id header, agent footer line, an unsubscribe link when asked
 - [mail.send_as](../capabilities/mail.send_as.md): Send through a member's own Gmail, Graph or IMAP mailbox (replies go out from the inbox the thread came in on)
-- [mail.send_preview](../capabilities/mail.send_preview.md): Dry run of a send: suppressed recipients, window, caps and throttle, without sending (campaign launch preview uses it)
+- [mail.send_preview](../capabilities/mail.send_preview.md): Dry run of a send: who would be reached and who is suppressed, without sending
 - [mail.status_update](../capabilities/mail.status_update.md): Apply a provider status (delivered, bounced, complained, opened, clicked, failed); hard bounces and complaints write the suppression list
 - [mail.sync_now](../capabilities/mail.sync_now.md): Sync a mailbox now
+- [mail.unsubscribe](../capabilities/mail.unsubscribe.md): Inbound: a person pressed the unsubscribe link in an email; writes the Suppression list
 
 ## Events (25)
 

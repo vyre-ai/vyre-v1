@@ -8,7 +8,13 @@ import type { SeamFetch } from "./ports.ts";
 
 export interface Discovery { issuer: string; authorization_endpoint: string; token_endpoint: string; jwks_uri: string }
 export interface SsoProvider { key: string; title: string; issuer: string; clientId: string; clientSecretHandle: string; enabled: boolean; domainHint?: string }
-export interface Verified { email: string; subject: string; /** Microsoft only: the tenant and the person's immutable id in it; the Space links a person on these, never on the address alone */ tenant?: string; oid?: string }
+export interface Verified {
+  email: string; subject: string;
+  /** Microsoft only: the tenant and the person's immutable id in it */
+  tenant?: string; oid?: string;
+  /** What the Space links a person on, never the address alone: the organization and the provider's identifier that does not change when an address does. */
+  link: { tenant: string; subject: string };
+}
 
 const b64url = (b: Uint8Array): string => Buffer.from(b).toString("base64url");
 const text = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
@@ -90,7 +96,7 @@ export async function exchangeCode(fetch: SeamFetch, d: Discovery, p: { clientId
 const part = (s: string | undefined): Record<string, unknown> => { try { return obj(JSON.parse(Buffer.from(s ?? "", "base64url").toString("utf8"))); } catch { return {}; } };
 
 /** The address an ID token proves, or a refusal saying why not. The signature is checked first; nothing in an unsigned token is believed. */
-export async function verifyIdToken(fetch: SeamFetch, d: Discovery, token: string, p: { clientId: string; nonce: string; domain: string | undefined; now: number; jwks?: JwksCache; /** Microsoft: the one tenant this sign-in is for; the token must come from it */ tenant?: string }): Promise<Verified> {
+export async function verifyIdToken(fetch: SeamFetch, d: Discovery, token: string, p: { clientId: string; nonce: string; domain: string | undefined; now: number; jwks?: JwksCache; /** Microsoft: the one tenant this sign-in is for; the token must come from it */ tenant?: string; /** Google: only a Workspace account of this domain. An account made with a firm address at consumer Google has no hosted domain and is refused. */ hostedDomain?: boolean }): Promise<Verified> {
   const [h, c, s] = token.split(".");
   if (!h || !c || !s) refuse("that is not an ID token");
   const header = part(h);
@@ -105,6 +111,7 @@ export async function verifyIdToken(fetch: SeamFetch, d: Discovery, token: strin
   if (claims["iss"] !== d.issuer) refuse("the ID token is from another issuer");
   const aud = claims["aud"];
   if (!(aud === p.clientId || (Array.isArray(aud) && aud.includes(p.clientId)))) refuse("the ID token is for another app");
+  if (Array.isArray(aud) && aud.length > 1 && claims["azp"] !== p.clientId) refuse("the ID token was issued to another app");
   const exp = typeof claims["exp"] === "number" ? claims["exp"] * 1000 : 0;
   if (exp < p.now - 60_000) refuse("the ID token has expired");
   if (typeof claims["iat"] === "number" && claims["iat"] * 1000 > p.now + 5 * 60_000) refuse("the ID token is from the future");
@@ -121,6 +128,9 @@ export async function verifyIdToken(fetch: SeamFetch, d: Discovery, token: strin
   if (claims["email_verified"] === false || claims["email_verified"] === "false") refuse("the provider has not verified that address");
   if (!email.endsWith(`@${p.domain}`)) refuse(`that address is not at ${p.domain}`);
   if (claims["hd"] !== undefined && String(claims["hd"]).toLowerCase() !== p.domain) refuse("the account belongs to another domain");
-  if (ms) return { email, subject: String(claims["oid"]).toLowerCase(), tenant: p.tenant!.toLowerCase(), oid: String(claims["oid"]).toLowerCase() };
-  return { email, subject: text(claims["sub"]) ?? email };
+  if (p.hostedDomain && (claims["hd"] === undefined || claims["email_verified"] !== true)) refuse("that is not a verified Google Workspace account of this firm");
+  if (ms) { const oid = String(claims["oid"]).toLowerCase(), tenant = p.tenant!.toLowerCase(); return { email, subject: oid, tenant, oid, link: { tenant, subject: oid } }; }
+  const sub = text(claims["sub"]);
+  if (!sub) refuse("the ID token names no user id");
+  return { email, subject: sub!, link: { tenant: p.domain!, subject: sub! } };
 }

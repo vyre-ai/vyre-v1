@@ -66,7 +66,7 @@ const RESOURCE_TYPES: readonly { key: ResourceType; title: string }[] = [
   { key: "folder", title: "Folder" }, { key: "file", title: "File" }, { key: "channel", title: "Channel" }, { key: "thread", title: "Thread" },
   { key: "inbox", title: "Inbox" }, { key: "mailbox", title: "Mailbox" }, { key: "vault_folder", title: "Vault folder" }, { key: "vault_item", title: "Vault item" },
   { key: "agent", title: "Agent" }, { key: "connector", title: "Connector" }, { key: "connection", title: "Connection" }, { key: "site", title: "Site" },
-  { key: "form", title: "Form" }, { key: "campaign", title: "Campaign" }, { key: "kit", title: "Kit" }, { key: "computer", title: "Computer" },
+  { key: "form", title: "Form" }, { key: "kit", title: "Kit" }, { key: "computer", title: "Computer" },
   { key: "task", title: "Task" }, { key: "run", title: "Run" }, { key: "number", title: "Phone number" }, { key: "domain", title: "Domain" }, { key: "calendar", title: "Calendar" },
 ];
 export function LabelsPage(): ReactElement {

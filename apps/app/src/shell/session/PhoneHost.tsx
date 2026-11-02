@@ -13,7 +13,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import type { PlaceHash } from "../hash/context.tsx";
 import type { PlaceId } from "../rail/kits.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
-import { entryFor, headerBack, placeOf } from "./mobile-map.ts";
+import { entryFor, headerBack, phoneStart, placeOf } from "./mobile-map.ts";
 import { othersNeedingYou } from "../spaces/model.ts";
 import type { RealSession } from "./session.ts";
 
@@ -33,7 +33,7 @@ function You({ session, nav, onSignOut, onAddSpace, onLock, onSwitchSpace }: { s
       {resume ? <Row id="you-finish-setup" title="Finish setup" note={`${resume.handled} of ${resume.total} done`} onPress={resume.open} /> : null}
       <Row id="you-vault" title="Vault" note="Keys, logins and cards" onPress={() => nav.open(entryFor("vault", "")!)} />
       <Row id="you-automations" title="Automations" note="What runs on its own" onPress={() => nav.open(entryFor("automations", "")!)} />
-      {session.runtime.space.kind === "team" ? <Row id="you-apps" title="Apps" note="Forms, campaigns and templates" onPress={() => nav.open(entryFor("apps", "")!)} /> : null}
+      {session.runtime.space.kind === "team" ? <Row id="you-apps" title="Apps" note="Forms and templates" onPress={() => nav.open(entryFor("apps", "")!)} /> : null}
       {onSwitchSpace?session.runtime.knownSpaces?.filter(space=>space.spaceId!==session.def.spaceId).map(space=><Row key={space.spaceId} id={'you-switch-'+space.spaceId} title={space.name} note={space.kind==='personal'?'Personal Space':'Team Space'} onPress={()=>onSwitchSpace(space.spaceId)}/>):null}
       {onAddSpace?<Row id="you-add-space" title="Add a Space" note="Create or join another Space" onPress={onAddSpace}/>:null}
       {onLock?<Row id="you-lock" title="Lock Vyre" note="Sign in again to continue" onPress={onLock}/>:null}
@@ -67,6 +67,16 @@ export function PhoneHost({ session, location, needsYou, registerGo, onSignOut, 
     else nav.open(e);
   }, []);
   useEffect(() => { registerGo(go); return () => registerGo(null); }, [go, registerGo]);
+  // the first screen comes from where the shell starts; after that a link (the address, Back in a browser, a notification) moves the hub and the phone follows it
+  const start = useRef(phoneStart(location?.place ?? "chats", location?.hash ?? ""));
+  const seen = useRef(`${location?.place ?? ""}#${location?.hash ?? ""}`);
+  useEffect(() => {
+    if (!location) return;
+    const now = `${location.place}#${location.hash}`;
+    if (now === seen.current) return;
+    seen.current = now;
+    go(location.place, location.hash);
+  }, [go, location?.place, location?.hash]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const render = (e: Entry, nav: MobileNav): ReactNode => {
     navRef.current = nav;
@@ -81,6 +91,5 @@ export function PhoneHost({ session, location, needsYou, registerGo, onSignOut, 
   };
   // another Space needing you is a dot on the You tab, where the Space switcher is
   const youDot = session ? othersNeedingYou(session.runtime.knownSpaces ?? [], session.def.spaceId).length > 0 : false;
-  const initialEntry = location?.hash ? entryFor(location.place, location.hash) : null;
-  return <MobileShell {...(initialEntry ? { initialEntry } : {})} renderScreen={render} needsYou={needsYou} initialTab="chats" ownsHeader={(entry) => entry.screen.startsWith("apps:") && placeOf(entry)?.hash !== ""} headerBack={headerBack} youDot={youDot} />;
+  return <MobileShell {...(start.current.initialEntry ? { initialEntry: start.current.initialEntry } : {})} renderScreen={render} needsYou={needsYou} initialTab={start.current.initialTab} ownsHeader={(entry) => entry.screen.startsWith("apps:") && placeOf(entry)?.hash !== ""} headerBack={headerBack} youDot={youDot} />;
 }

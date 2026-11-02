@@ -48,7 +48,6 @@ type In = {
   attachments?: Array<string>;
   replyToMessageId?: string;
   contactId?: string;
-  campaignId?: string;
   draftId?: string;
   idempotencyKey: string;
 };
@@ -91,7 +90,6 @@ type Out = {
         "name": "example"
       }
     ],
-    "campaignId": "cmp_a1b2c3",
     "cc": [
       {
         "address": "maya@example.com",

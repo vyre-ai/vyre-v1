@@ -126,7 +126,7 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
 
   const manage: ReactElement[] = [];
   const agentType = types.status === "ready" ? types.data.types.find((t) => t.key === MANAGE_TYPE) : undefined;
-  if (agentType && hit(agentType.plural)) manage.push(<SideRow key="agents" id={`type:${MANAGE_TYPE}`} title={agentType.plural} glyph={typeIcon(agentType.icon)} selected={open === MANAGE_TYPE && state.viewId === null} trailing={<Text style={styles.count} testID={`count-${MANAGE_TYPE}`}>{compact(agentType.rowCount)}</Text>} onPress={() => { dispatch({ type: "open", key: MANAGE_TYPE }); choose(); }} />);
+  if (agentType && hit(agentType.plural)) manage.push(<SideRow key="agents" id={`type:${MANAGE_TYPE}`} title={agentType.plural} glyph={typeIcon(agentType.icon)} selected={open === MANAGE_TYPE && state.viewId === null} {...(data.nav.openAgent ? {} /* the Agents view lists agents.list: a count of old rows would be wrong */ : { trailing: <Text style={styles.count} testID={`count-${MANAGE_TYPE}`}>{compact(agentType.rowCount)}</Text> })} onPress={() => { dispatch({ type: "open", key: MANAGE_TYPE }); choose(); }} />);
   if (hit("Record types")) manage.push(<SideRow key="types" id="manage:types" title="Record types" glyph="table" selected={data.screen === "records.types"} onPress={() => { data.nav.openRecordTypes(); choose(); }} />);
   if (data.askVyre && hit("Ask Vyre")) manage.push(<SideRow key="ask" id="manage:ask" title="Ask Vyre" glyph="spark" selected={false} onPress={() => data.askVyre?.(open ? { type: open } : {})} />);
   if (canEdit && !inviting && hit("New record type")) manage.push(<SideRow key="new-type" id="manage:new" title="New record type" glyph="plus" selected={false} onPress={() => setMaking(true)} />);

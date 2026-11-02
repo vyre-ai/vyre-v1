@@ -1,0 +1,8 @@
+- Connect your company: one guided flow for Google Workspace or Microsoft 365, in the Console and from Settings, that Assistant can lead in chat. Space-wide sign-in, the directory, and Mail, Calendar and Files chosen separately, with nothing for each person to sign in to. Each step links to a page in the docs, a pasted or dropped key goes straight to the Vault and is checked at once, and your place is saved.
+- An agent reaches a person's mail, calendar or files only for that person. An admin's role no longer reaches a teammate's mailbox through the company connection.
+- Changing a company connection or how people sign in now always stops for a person with the right role, in every mode, even from a task or an automation. Single sign-on settings had no such stop before.
+- A person gone or suspended in the company directory loses access at the next check, every six hours. A partial or implausible answer changes nobody.
+- Sign in with Google needs a verified Workspace account, and a person is known by Google's permanent id, not their address. An address moved at the provider takes over nobody.
+- Requiring single sign-on refuses to lock the owner out, recovery is the owner's break-glass only while it is required, and new people can join with it on.
+- Microsoft 365: the mailbox limit now uses Exchange RBAC for Applications, the setup Microsoft asks for today, and certificates work as well as client secrets.
+- The access log names who reached a mailbox, on whose behalf, and which one.

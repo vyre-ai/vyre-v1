@@ -17,7 +17,7 @@ Sending is the most outward thing you do. Treat every send as the person's own v
 
 ## Writing and sending
 - Default to `mail_draft`: an agent draft waits for Send, Edit or Discard. Send only when the person said send, with `mail_send`. A send from an agent goes through the Gate and may be held.
-- A send needs `mailboxId`, `to`, `subject`, an `idempotencyKey`. Check `mail_send_preview` first when the audience is large: caps per sender, windows and suppression apply.
+- A send needs `mailboxId`, `to`, `subject`, an `idempotencyKey`. Check `mail_send_preview` first when the audience is large: it shows who is suppressed. Regular email to contacts belongs in an Automation, whose send step adds the unsubscribe link; `unsubscribe: true` does the same on `mail_send`.
 - Suppression, consent and DND are law here. `contacts_suppression_check` and `contacts_dnd_screen` before you add anyone to an audience. Never remove a suppression to make a send work.
 - Texts: `telephony_send_sms`. Calls are the person's; you can `telephony_call_log_task` a follow-up and attach a summary.
 - Say who the mail is from, to whom, and what it says, in two lines. The footer says an agent wrote it; do not remove it.

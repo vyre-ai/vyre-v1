@@ -1,7 +1,7 @@
 // Records > Agents: an Agents row finds the real agent behind it by name, a New agent is made through agents.create, a New project through projects.create, and a row with no agent says so.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { NOT_SET_UP, SET_UP, agentFor, nameKey } from "../recordpage/agentlink.ts";
+import { NOT_SET_UP, SET_UP, agentFor, agentsRows, nameKey } from "../recordpage/agentlink.ts";
 import { madeKind, makeRecord } from "../table/make.ts";
 
 const AGENTS = [{ agentId: "agt_1", name: "Intake" }, { agentId: "agt_2", name: "Docs Writer" }];
@@ -29,13 +29,19 @@ const recorder = () => {
   return { calls, call };
 };
 
-test("New agent makes a real agent first (agents.create), then the row that lists it", async () => {
+test("New agent makes a real agent and no second row beside it", async () => {
   const r = recorder();
   assert.equal(madeKind({ key: "agent" }), "agent");
   const id = await makeRecord(r.call, { key: "agent", titleField: "name" }, "Scout", "k1");
-  assert.deepEqual(r.calls.map((c) => c[0]), ["agents.create", "records.create"]);
+  assert.deepEqual(r.calls.map((c) => c[0]), ["agents.create"]);
   assert.equal(r.calls[0]![1]["name"], "Scout");
-  assert.equal(id, "rec_1");
+  assert.equal(id, undefined);
+});
+
+test("the Agents view lists the agents themselves, and only the rows with no agent behind them after", () => {
+  const rows = [{ id: "rec_1", fields: { name: "  intake " } }, { id: "rec_2", fields: { name: "Test" } }, { id: "rec_3", fields: { name: "" } }];
+  assert.deepEqual(agentsRows(AGENTS, rows, "name"), [{ kind: "agent", agent: AGENTS[0] }, { kind: "agent", agent: AGENTS[1] }, { kind: "old", recordId: "rec_2", name: "Test" }]);
+  assert.deepEqual(agentsRows([], [], "name"), []);
 });
 
 test("a refused agents.create makes no row", async () => {

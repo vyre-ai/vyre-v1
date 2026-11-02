@@ -39,6 +39,7 @@ type Out = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -123,6 +124,7 @@ type Out = {
       "pausedBy": "example",
       "pausedReason": "example",
       "role": "example",
+      "runtime": "vyre",
       "status": "awake",
       "switchOnLimit": true,
       "teammateOf": "prj_a1b2c3",

@@ -10,7 +10,7 @@ Send one email through Mailgun (the send.email backend behind mail.send)
 | Permission | grant only |
 | Grant level | use |
 | Risk | high |
-| Resource | space |
+| Resource | mailbox (/mailboxId) |
 | Gate | send |
 | Idempotency | key |
 | Offline | online |
@@ -25,6 +25,7 @@ Send one email through Mailgun (the send.email backend behind mail.send)
 
 ```ts
 type In = {
+  mailboxId: string;
   domain: string;
   from: string;
   fromName?: string;
@@ -64,6 +65,7 @@ type Out = {
 - provider.rate_limited
 - provider.unavailable
 - validation.bad_input
+- validation.not_found
 
 ## Example
 
@@ -89,6 +91,7 @@ type Out = {
     "headers": {},
     "html": "example",
     "idempotencyKey": "idem_1",
+    "mailboxId": "mbx_a1b2c3",
     "replyTo": "maya@example.com",
     "subject": "example",
     "tags": [

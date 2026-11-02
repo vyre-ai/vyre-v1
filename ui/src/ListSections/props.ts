@@ -10,7 +10,6 @@ export type ListSectionName = (typeof LIST_SECTION_NAMES)[number];
 export const LIST_TYPES = [
   "sites",
   "forms",
-  "campaigns",
   "automations",
   "agents",
   "records",

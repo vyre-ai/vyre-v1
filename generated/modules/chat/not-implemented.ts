@@ -9,7 +9,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "channels.agents.add": async (ctx) => { throw new VyreErr(notImplemented("channels.agents.add", ctx.trace)); },
   "channels.agents.remove": async (ctx) => { throw new VyreErr(notImplemented("channels.agents.remove", ctx.trace)); },
   "channels.archive": async (ctx) => { throw new VyreErr(notImplemented("channels.archive", ctx.trace)); },
-  "channels.connect_outside_agent": async (ctx) => { throw new VyreErr(notImplemented("channels.connect_outside_agent", ctx.trace)); },
   "channels.create": async (ctx) => { throw new VyreErr(notImplemented("channels.create", ctx.trace)); },
   "channels.erase": async (ctx) => { throw new VyreErr(notImplemented("channels.erase", ctx.trace)); },
   "channels.get": async (ctx) => { throw new VyreErr(notImplemented("channels.get", ctx.trace)); },

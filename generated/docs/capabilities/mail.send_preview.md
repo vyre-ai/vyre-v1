@@ -1,6 +1,6 @@
 # mail.send_preview
 
-Dry run of a send: suppressed recipients, window, caps and throttle, without sending (campaign launch preview uses it)
+Dry run of a send: who would be reached and who is suppressed, without sending
 
 | | |
 |---|---|
@@ -33,7 +33,6 @@ type In = {
       name?: string;
       contactId?: string;
     }>;
-  campaignId?: string;
 };
 ```
 
@@ -46,9 +45,6 @@ type Out = {
       address: string;
       reason: string;
     }>;
-  outsideWindow: Array<string>;
-  capRemainingToday?: number;
-  nextWindowAt?: number;
   providerRoute: "mailbox" | "space_domain";
 };
 ```
@@ -67,7 +63,6 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "campaignId": "cmp_a1b2c3",
     "channel": "email",
     "mailboxId": "mbx_a1b2c3",
     "senderId": "mbx_a1b2c3",
@@ -81,11 +76,6 @@ type Out = {
   },
   "output": {
     "allowed": [
-      "maya@example.com"
-    ],
-    "capRemainingToday": 1,
-    "nextWindowAt": 1760000000000,
-    "outsideWindow": [
       "maya@example.com"
     ],
     "providerRoute": "mailbox",

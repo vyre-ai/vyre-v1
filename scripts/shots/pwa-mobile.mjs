@@ -45,7 +45,7 @@ await ctx.addInitScript(() => {
 const page = await ctx.newPage();
 const result = { evidence: "Chromium iPhone-width PWA smoke; standalone media query simulated", viewport: { width: 390, height: 844 }, checks: {} };
 try {
-  await page.goto(`${web.origin}/home`, { waitUntil: "load", timeout: 30_000 });
+  await page.goto(`${web.origin}/chat`, { waitUntil: "load", timeout: 30_000 });
   result.checks.document = await page.evaluate(async () => {
     const manifestLink = document.querySelector('link[rel="manifest"]');
     const manifest = manifestLink ? await fetch(manifestLink.href).then((r) => r.json()) : null;
@@ -53,7 +53,7 @@ try {
     const root = getComputedStyle(document.documentElement);
     const body = getComputedStyle(document.body);
     return {
-      manifest: manifest?.display === "standalone" && manifest?.start_url === "/home" && manifest?.scope === "/",
+      manifest: manifest?.display === "standalone" && manifest?.start_url === "/chat" && manifest?.scope === "/",
       apple: document.querySelector('meta[name="apple-mobile-web-app-capable"]')?.getAttribute("content") === "yes",
       viewport: document.querySelector('meta[name="viewport"]')?.getAttribute("content")?.includes("viewport-fit=cover") === true,
       standalone,
@@ -78,7 +78,7 @@ try {
   if (!result.checks.sessionStorage) throw new Error("browser storage did not retain the session record");
 
   await ctx.setOffline(true);
-  const offline = await page.goto(`${web.origin}/home?offline=1`, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  const offline = await page.goto(`${web.origin}/chat?offline=1`, { waitUntil: "domcontentloaded", timeout: 30_000 });
   // the cached shell must start the app offline, not only answer 200: the scripts come from the worker's cache and the app marks itself usable
   result.checks.offlineShell = (offline?.status() ?? 0) === 200 && await page.waitForFunction(() => performance.getEntriesByName("app.usable").length > 0, null, { timeout: 30_000 }).then(() => true, () => false);
   await ctx.setOffline(false);
@@ -86,7 +86,7 @@ try {
   result.checks.reconnect = (reconnect?.status() ?? 0) === 200;
   if (!result.checks.offlineShell || !result.checks.reconnect) throw new Error(`offline/reconnect check failed: ${JSON.stringify({ offline: result.checks.offlineShell, reconnect: result.checks.reconnect })}`);
 
-  await page.goto(`${web.origin}/home?standalone=1`, { waitUntil: "domcontentloaded", timeout: 30_000 });
+  await page.goto(`${web.origin}/chat?standalone=1`, { waitUntil: "domcontentloaded", timeout: 30_000 });
   await page.screenshot({ path: path.join(out, "iphone-390x844-standalone-simulated.png"), fullPage: false });
   fs.writeFileSync(path.join(out, "evidence.json"), `${JSON.stringify(result, null, 2)}\n`);
   console.log(JSON.stringify(result));

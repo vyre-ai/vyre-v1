@@ -10,6 +10,7 @@ type Call = (cap: string, input: unknown, as?: string) => Promise<unknown>;
 type Obj = Record<string, unknown>;
 
 import { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL } from "../../lib/connector-chat.ts";
+import { COMPANY_INTENT } from "../../lib/company-flow.ts";
 
 /** The titles of the chats the Vault (Add to Automations) and the step picker (Build a connector) start, and the skill they run on. */
 /** How to name a record, file, task or chat in a reply: by link, never by id. */
@@ -189,6 +190,28 @@ export function createContextBuilder(d: ContextDeps) {
     });
   }
 
+  /** What the agent always knows: the text of the files in its `context` folder, beside memory, work and skills. Its instructions stay in AGENT.md. */
+  async function agentContext(agent: Obj, asker: string): Promise<string | undefined> {
+    const folder = str(agent["folderId"]);
+    if (!folder) return undefined;
+    return kept<string>(`ctx:${asker}:${folder}`, async () => {
+      const ls = await read<Obj>("files.list", { section: "space", folder, limit: 50 }, asker);
+      const ctx = arr(ls?.["folders"]).find((x) => str(x["name"]) === "context");
+      const id = str(ctx?.["folderId"]) ?? str(ctx?.["id"]);
+      if (!id) return undefined;
+      const inside = await read<Obj>("files.list", { section: "space", folder: id, limit: 20 }, asker);
+      const parts: string[] = [];
+      for (const f of arr(inside?.["files"]).slice(0, 12)) {
+        const fileId = str(f["fileId"]) ?? str(f["id"]);
+        if (!fileId) continue;
+        const body = await read<Obj>("files.read", { fileId, as: "text", length: 4_000 }, asker);
+        const text = str(body?.["text"]);
+        if (text) parts.push(`${str(f["name"]) ?? "file"}:\n${text}`);
+      }
+      return parts.length > 0 ? parts.join("\n\n") : undefined;
+    });
+  }
+
   async function scopeLine(scopeType: string | undefined, scopeId: string | undefined, asker: string): Promise<string | undefined> {
     if (!scopeType || !scopeId) return undefined;
     const title = await scopeTitle(scopeType, scopeId, asker);
@@ -311,7 +334,9 @@ export function createContextBuilder(d: ContextDeps) {
     const name = str(agent?.["name"]) ?? input.agent.name ?? agentId;
     const role = str(agent?.["role"]) ?? input.agent.role;
     const md = agent ? await agentMd(agent, asker) : undefined;
-    add("identity", true, `You are ${name} (agentId ${agentId}), an agent in Vyre.${role ? ` ${role}` : ""}${md ? `\n\nYour AGENT.md:\n${cutTo(md, 6_000)}` : ""}`);
+    const always = agent ? await agentContext(agent, asker) : undefined;
+    // every driver gets this context, so this line reaches Claude, Codex and Grok alike
+    add("identity", true, `You are ${name} (agentId ${agentId}), an agent in Vyre.${role ? ` ${role}` : ""}\nTo show the person anything you made, use artifact_publish: it stays private and opens in a tab. Never leave it as a loose file or send them to localhost.${md ? `\n\nYour AGENT.md:\n${cutTo(md, 6_000)}` : ""}${always ? `\n\nWhat you always know (your context folder):\n${cutTo(always, 8_000)}` : ""}`);
     add("rules", true, "You work for the person who asked; their access limits yours. Search Vyre memory before you ask them anything. A secret is used by Vault handle (vault_use), never by value. Anything that leaves the Space goes through the Gate and may come back held: say what is waiting and for whom. Say what you did and what you did not do. " + NAMING);
 
     // where
@@ -320,7 +345,9 @@ export function createContextBuilder(d: ContextDeps) {
     const who = (id: string): string => nameMap[id] ?? (id === agentId ? name : id.startsWith("agt_") ? "an agent" : "a teammate");
     const where: string[] = [];
     const spaceRow = space?.["space"] as Obj | undefined;
-    const taskId = str(th?.["scopeType"]) === "task" ? str(th?.["scopeId"]) : undefined;
+    // the tasks in hand; a crew job or helper thread learns here which task it is doing
+    const digest = await read<Obj>("tasks.digest", { agentId, threadId: input.threadId }, asker);
+    const taskId = (str(th?.["scopeType"]) === "task" ? str(th?.["scopeId"]) : undefined) ?? str(digest?.["boundTaskId"]);
     if (str(spaceRow?.["name"])) where.push(`Space: ${str(spaceRow?.["name"])}${str(spaceRow?.["kind"]) ? ` (${str(spaceRow?.["kind"])})` : ""}.`);
     const kind = str(th?.["kind"]) ?? "chat";
     const scope = await scopeLine(str(th?.["scopeType"]), str(th?.["scopeId"]), asker);
@@ -359,7 +386,7 @@ export function createContextBuilder(d: ContextDeps) {
     // skills: the manual is always in front of the agent; the other skills are an index, and the place's focus skill is loaded for it
     // A chat that Add to Automations or Build a connector started is a connector build whatever screen it was sent from: that skill is the focus. Anywhere else it is in the skills index by its description.
     const connectorChat = CONNECTOR_CHAT.test(str(th?.["title"]) ?? "");
-    const focusName = taskId ? "working-on-tasks" : connectorChat ? CONNECTOR_SKILL : CRM_CHAT.test(str(th?.["title"]) ?? "") ? CRM_SKILL : screen?.focus ?? (screen ? `focus-${screen.place}` : undefined);
+    const focusName = taskId ? "working-on-tasks" : connectorChat ? CONNECTOR_SKILL : CRM_CHAT.test(str(th?.["title"]) ?? "") ? CRM_SKILL : COMPANY_INTENT.test(str(th?.["title"]) ?? "") ? "connect-company" : screen?.focus ?? (screen ? `focus-${screen.place}` : undefined);
     if (d.skills) {
       const idx = await d.skills.index(agentId, asker).catch(() => []);
       const manual = await d.skills.load("working-in-vyre", agentId, asker).catch(() => null);
@@ -400,6 +427,7 @@ export function createContextBuilder(d: ContextDeps) {
       const t = await taskOf(taskId, asker);
       if (t) add("task", false, taskSection(t, agentId, nameMap, await answersOf(t, asker)));
     }
+    if (str(digest?.["text"])) sections.push({ id: "digest", stable: false, once: true, text: `Tasks in hand (tasks_get has the detail):\n${str(digest?.["text"])}` });
 
     add("parent", false, await parentOf(th, asker));
 

@@ -3,8 +3,8 @@
 // the Space supplies the default, a fixed fallback ends the chain; unknown values never throw, they fall through):
 //   1. the person's stored choice for the open Space (Appearance is personal per Space)
 //   2. the Space's skin default
-//   3. System (Paper by day, Graphite by night, following the device)
-// The 0.6 accent, density and font axes are not carried: v1 has one axis, the skin (13 skins plus System).
+//   3. System, shown as Vyre (Vyre Light by day, Vyre Black by night, following the device)
+// The 0.6 accent, density and font axes are not carried: v1 has one axis, the skin (15 skins plus System).
 // Token values come from ui/src/tokens/skins.ts and are plain data, so every step here is synchronous:
 // no fetch, no promise, no await between reading the choice and writing the root element.
 
@@ -132,7 +132,7 @@ function documentSet(mode: Mode): Record<string, string> {
   return { ...documentTokens[mode], ...typeTokens };
 }
 
-/** Skin id to light and dark token maps: System and the thirteen skins. Built once from module data. */
+/** Skin id to light and dark token maps: System and the skins. Built once from module data. */
 export function tokenTable(): TokenTable {
   if (tableCache) return tableCache;
   const table: Record<string, ModeTokens> = { system: { light: documentSet("light"), dark: documentSet("dark") } };
@@ -296,6 +296,7 @@ export function headScript(): string {
     "var mode=m===\"light\"||m===\"dark\"?m:(own(bases,skin)||(dark?\"dark\":\"light\"));" +
     "var tokens=table[skin][mode];" +
     "root.setAttribute(\"data-theme\",mode);" +
+    "root.style.setProperty(\"background-color\",tokens[\"--rail\"]);" +
     "root.setAttribute(\"data-skin\",skin);" +
     "if(sid)root.setAttribute(\"data-space\",sid);" +
     "root.style.setProperty(\"color-scheme\",mode);" +
@@ -332,6 +333,8 @@ export function applyToRoot(applied: AppliedTheme, root: ThemeRoot): void {
   root.setAttribute("data-skin", applied.skin);
   root.setAttribute("data-space", applied.spaceId);
   root.setProperty("color-scheme", applied.mode);
+  // the window behind everything: the first frame is the theme's ground, never a white flash
+  root.setProperty("background-color", applied.tokens["--rail"] ?? "");
   for (const name of TOKEN_NAMES) if (!Object.prototype.hasOwnProperty.call(applied.tokens, name)) root.removeProperty(name);
   for (const name of Object.keys(applied.tokens).sort()) {
     const value = applied.tokens[name];

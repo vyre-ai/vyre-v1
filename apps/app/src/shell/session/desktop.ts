@@ -13,6 +13,8 @@ export type { DesktopDeepLink } from "../../../../../client/src/connection/deskt
 
 export type DesktopRoute =
   | { kind: "signin"; address: string }
+  /** An app outside Vyre asked to join a Space this computer is signed in to: the Allow sheet. Never a sign-in to an address a link named. */
+  | { kind: "allow"; address: string; request: string }
   | { kind: "pair"; address: string; code: string; /** a phone opened the pairing link in its browser */ phone?: true }
   | { kind: "join"; address: string; code: string; fingerprint: string };
 
@@ -32,11 +34,15 @@ export interface DesktopSessionDeps {
   persist?: Persist;
   /** Browser invite links share the verified acceptance path without pretending to be native devices. */
   deviceClass?: "web" | "desktop";
+  /** Everyone here must use single sign-on: the provider the invitation's address was proved at. */
+  ssoProvider?: string;
 }
 
 export interface DesktopInvitePreview {
   spaceId: string;
   spaceName: string;
+  /** Everyone here must use single sign-on: join by proving the invitation's address at one of these. */
+  ssoRequired?: { key: string; title: string }[];
   invitedBy: string;
   role: string;
   expiresAt: number;
@@ -107,6 +113,8 @@ async function verifyAndPersist(baseUrl: string, answer: unknown, expectedSpaceI
 /** Converts a validated native payload into a constrained existing session flow. */
 export function routeDesktopLink(link: DesktopDeepLink): DesktopRoute | null {
   const space = address(link.params["address"]);
+  const request = link.params["allow"];
+  if (link.action === "open" && space && typeof request === "string" && /^oar_[a-z0-9]{1,64}$/.test(request)) return { kind: "allow", address: space, request };
   if (link.action === "open" || link.action === "signin") return space ? { kind: "signin", address: space } : null;
   if (link.action === "pair") {
     const code = link.params["code"];
@@ -138,7 +146,8 @@ function previewOf(value: unknown): DesktopInvitePreview {
   const expiresAt = response?.["expiresAt"];
   const fingerprint = response && text(response["fingerprint"]);
   if (!spaceId || !spaceName || !invitedBy || !role || typeof expiresAt !== "number" || !Number.isFinite(expiresAt) || !fingerprint) throw new Error("This invite is unavailable. Ask for a new one.");
-  return { spaceId, spaceName, invitedBy, role, expiresAt, fingerprint };
+  const required = response?.["ssoRequired"];
+  return { spaceId, spaceName, invitedBy, role, expiresAt, fingerprint, ...(Array.isArray(required) ? { ssoRequired: required as { key: string; title: string }[] } : {}) };
 }
 
 /** The preview's public Space id routes key sealing. It is checked again against the authenticated session after acceptance. */
@@ -174,6 +183,7 @@ export async function acceptDesktopJoin(join: PreviewedDesktopJoin, values: Join
       deviceName: values.deviceName || (deps.deviceClass === "web" ? "Web browser" : "Vyre desktop"),
       deviceClass: deps.deviceClass ?? "desktop",
       keys: { ...wrappedKeys, ...(values.recoveryCode ? { personKeyByRecovery } : {}), spaceKeys },
+      ...(deps.ssoProvider ? { ssoProvider: deps.ssoProvider } : {}),
     });
     const accepted = object(answer);
     const stored = await verifyAndPersist(join.route.address, { status: "ok", session: { token: accepted?.["token"] } }, join.preview.spaceId, deps);
@@ -209,10 +219,10 @@ export async function consumeDesktopBootstrap(bridge: DesktopBootstrapBridge, on
 
 export { phoneCanReach } from "./reach.ts";
 
-/** A pairing link opened in a phone's browser: `<Space address>/home?pair=<code>`. Only the code shape is accepted; the code itself is spent by the redeem, once. */
+/** A pairing link opened in a phone's browser: `<Space address>/chat?pair=<code>`. Only the code shape is accepted; the code itself is spent by the redeem, once. */
 export function pairLink(address: string, code: string, boxKey?: string): string {
   // a phone reaching this computer through its vyre.run name pins the box key from the fragment, which never reaches a server
-  return `${address.replace(/\/+$/, "")}/home?pair=${encodeURIComponent(code)}${boxKey && /^[A-Za-z0-9_-]{43}$/.test(boxKey) ? `#box=${boxKey}` : ""}`;
+  return `${address.replace(/\/+$/, "")}/chat?pair=${encodeURIComponent(code)}${boxKey && /^[A-Za-z0-9_-]{43}$/.test(boxKey) ? `#box=${boxKey}` : ""}`;
 }
 export function pairFromUrl(href: string, address: string): Extract<DesktopRoute, { kind: "pair" }> | null {
   try {

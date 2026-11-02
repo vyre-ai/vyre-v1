@@ -41,7 +41,6 @@ export const PERMISSIONS: PermissionDef[] = [
   // Automations
   perm('automations.personal', 'automations', 'Build personal automations', 'low', ['owner', 'admin', 'developer', 'member']),
   perm('automations.space', 'automations', 'Build Space automations', 'medium', ['owner', 'admin', 'developer'], ['automation', 'automation_group']),
-  perm('campaigns.launch', 'automations', 'Launch campaigns', 'high', ['owner', 'admin'], ['campaign']),
   perm('journeys.manage', 'automations', 'Design Journeys', 'medium', ['owner', 'admin', 'developer']),
   // Comms
   perm('comms.shared_send', 'comms', 'Send from shared inboxes', 'medium', ['owner', 'admin', 'member'], ['inbox', 'mailbox']),

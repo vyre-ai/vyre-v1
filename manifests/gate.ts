@@ -6,7 +6,7 @@
 import { defineManifest, ev, gateAct, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, principalRef, risk } from './_common.ts';
 
-const actKey = t.enm('send', 'post', 'pay', 'delete', 'transfer', 'enroll_node', 'connection_change', 'push_protected', 'campaign_launch', 'secret_export', 'site_promote', 'signature_send', 'spend_raise', 'signin_change', 'approve');
+const actKey = t.enm('send', 'post', 'pay', 'delete', 'transfer', 'enroll_node', 'connection_change', 'push_protected', 'secret_export', 'site_promote', 'signature_send', 'spend_raise', 'signin_change', 'approve');
 const holdState = t.enm('held', 'approved', 'denied', 'expired');
 const approverRule = t.str({ description: "role:<name>, owner or asker", examples: ['role:admin'] });
 const ruleRow = t.obj({
@@ -35,10 +35,9 @@ export default defineManifest({
     gateAct('transfer', 'Hand over ownership', 'high', 'record_card', { approvers: { default: 'asker', peopleOnly: true } }),
     gateAct('enroll_node', 'Admit a computer to the Space', 'high', 'record_card', { approvers: { default: 'asker', peopleOnly: true } }),
     gateAct('connection_change', 'Change a company-wide connection', 'high', 'table', { approvers: { default: 'asker', peopleOnly: true } }),
-    gateAct('push_protected', 'Push to a protected branch', 'high', 'diff', { appliesTo: { actors: ['agent', 'automation', 'campaign'], humanToo: true } }),
-    gateAct('campaign_launch', 'Launch a campaign', 'high', 'table', { appliesTo: { actors: ['agent', 'automation', 'campaign'], humanToo: true } }),
-    gateAct('secret_export', 'Export secrets', 'high', 'table', { appliesTo: { actors: ['agent', 'automation', 'campaign'], humanToo: true } }),
-    gateAct('site_promote', 'Promote a site to production', 'high', 'deploy', { appliesTo: { actors: ['agent', 'automation', 'campaign'], humanToo: true } }),
+    gateAct('push_protected', 'Push to a protected branch', 'high', 'diff', { appliesTo: { actors: ['agent', 'automation'], humanToo: true } }),
+    gateAct('secret_export', 'Export secrets', 'high', 'table', { appliesTo: { actors: ['agent', 'automation'], humanToo: true } }),
+    gateAct('site_promote', 'Promote a site to production', 'high', 'deploy', { appliesTo: { actors: ['agent', 'automation'], humanToo: true } }),
     gateAct('signature_send', 'Send a document for signature', 'high', 'file'),
     gateAct('spend_raise', 'Raise a spend cap', 'medium', 'table'),
     gateAct('signin_change', 'Change how people sign in to the Space', 'high', 'record_card', { approvers: { default: 'asker', peopleOnly: true } }),

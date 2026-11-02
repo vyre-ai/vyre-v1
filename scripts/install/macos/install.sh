@@ -638,9 +638,18 @@ node_need_code() {
   die "give the one-time join code: VYRE_JOIN=VYRE-ABCD-2345 in the environment of this command (make one in Vyre: Settings, Computers, Add a server)." 2
 }
 
-# node_write_config: node.env (0600), compose.env and compose.node.yml, and the data folder the container's user (uid 1000) owns.
+# The same Caddy the Space server runs (images/vyred/compose.server.yml); a test checks the two pins match.
+CADDY_IMAGE=caddy:2-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
+
+# node_ports_free: are 80 and 443 free here? Another web server on this machine keeps them, and this machine then simply serves no custom domain.
+node_ports_free() {
+  command -v ss >/dev/null 2>&1 || return 0
+  [ -z "$(ss -ltnH '( sport = :80 or sport = :443 )' 2>/dev/null)" ]
+}
+
+# node_write_config: node.env (0600), compose.env, compose.node.yml and Caddyfile, and the data folder the container's user (uid 1000) owns.
 node_write_config() {
-  if [ "$DRY" = 1 ]; then say "would write $DIR/node.env (0600), $DIR/compose.env and $DIR/compose.node.yml, and create $DIR/data"; return 0; fi
+  if [ "$DRY" = 1 ]; then say "would write $DIR/node.env (0600), $DIR/compose.env, $DIR/compose.node.yml and $DIR/Caddyfile, and create $DIR/data"; return 0; fi
   mkdir -p "$DIR/data" "$DIR/state"
   chmod 0700 "$DIR/data"
   node_own_data
@@ -648,6 +657,13 @@ node_write_config() {
   chmod 0600 "$DIR/node.env.new"
   mv "$DIR/node.env.new" "$DIR/node.env"
   gid=$(stat -c %g /var/run/docker.sock 2>/dev/null || stat -f %g /var/run/docker.sock 2>/dev/null || printf '0')
+  NODE_PORTS='      - "80:80"
+      - "443:443"'
+  # a running Vyre keeps its own ports through a re-run
+  if ! node_ports_free && ! grep -q '"443:443"' "$DIR/compose.node.yml" 2>/dev/null; then
+    say "  Ports 80 and 443 are in use here, so this machine will serve no custom domains. Everything else works."
+    NODE_PORTS='      - "127.0.0.1:0:80"'
+  fi
   {
     printf 'VYRE_IMAGE=%s\n' "$(lock_get VYRE_IMAGE)"
     printf 'VYRE_AGENT_IMAGE=%s\n' "$(lock_get VYRE_AGENT_IMAGE)"
@@ -663,13 +679,18 @@ services:
     command: ["node", "/opt/vyre/host/src/daemon/main.ts", "--role", "compute"]
     env_file:
       - ./node.env
+    # bridge: the network agent computers are on, so Caddy (which shares this network namespace) reaches a site on a computer here. vyred in compute role listens on nothing.
+    network_mode: bridge
     environment:
       VYRE_AGENT_COMPUTER_IMAGE: \${VYRE_AGENT_IMAGE}
+      VYRE_CADDY_ADMIN: http://127.0.0.1:2019
     volumes:
       - ./data:/data
       - /var/run/docker.sock:/var/run/docker.sock
     group_add:
       - "\${DOCKER_GID}"
+    ports:
+$NODE_PORTS
     cap_drop: [ALL]
     # bubblewrap (the engine's sandbox) needs user namespaces and a readable /proc, which Docker's default profile withholds. This container already holds the Docker socket, which is root on this
     # machine, so these two add no reach the socket does not; the engine itself still runs inside bubblewrap with the network wall.
@@ -677,7 +698,26 @@ services:
       - no-new-privileges:true
       - seccomp=unconfined
       - systempaths=unconfined
+  # Caddy, as on the Space server: a site's custom domain gets its route here and its certificate by ACME. It starts empty and keeps what vyred writes across a restart.
+  caddy:
+    image: $CADDY_IMAGE
+    restart: unless-stopped
+    network_mode: "service:vyred"
+    depends_on:
+      vyred:
+        condition: service_started
+    command: ["caddy", "run", "--resume", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/data:/data
+      - ./caddy/config:/config
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
 COMPOSE
+  printf '{\n\tadmin 127.0.0.1:2019\n}\n' >"$DIR/Caddyfile"
+  mkdir -p "$DIR/caddy/data" "$DIR/caddy/config"
   printf '%s\n' "$CHANNEL" >"$DIR/channel"
 }
 

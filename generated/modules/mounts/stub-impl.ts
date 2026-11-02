@@ -4,8 +4,10 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
+  "mounts.account_pause": async () => ({"changed":1} as unknown) as never,
   "mounts.add": async () => ({"folderId":"fld_a1b2c3","mountId":"mnt_a1b2c3","runId":"run_a1b2c3"} as unknown) as never,
   "mounts.browse": async () => ({"items":[{"isFolder":true,"name":"example","path":"example","ref":"example","shared":true}],"next":"example","total":1} as unknown) as never,
+  "mounts.company_drive": async () => ({"mounted":["mnt_a1b2c3"]} as unknown) as never,
   "mounts.doc_insert_text": async () => ({"inserted":true} as unknown) as never,
   "mounts.doc_replace_text": async () => ({"replaced":1} as unknown) as never,
   "mounts.editors": async () => ({"editors":[{"at":1760000000000,"email":"example","fileId":"fil_a1b2c3","name":"example","provider":"example"}]} as unknown) as never,

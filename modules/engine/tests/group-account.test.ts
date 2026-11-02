@@ -26,7 +26,7 @@ test("a person who joins a group no agent could answer for is named in one line"
   assert.deepEqual(await checkGroupAccount(w.d, "thr_1", ["usr_sara"]), ["usr_sara"]);
   assert.equal(w.posts.length, 1);
   assert.equal(lineOf(w.posts[0]!.post), NO_ACCOUNT_LINE("Sara"));
-  assert.match(w.posts[0]!.post.clientId, /^msg_brg[0-9a-f]+$/, "a bridge id, so the line starts no turn");
+  assert.match(w.posts[0]!.post.clientId, /^msg_brg[0-9a-z]+$/, "a bridge id, so the line starts no turn");
 });
 
 test("the line has one id per person and chat, so a replay says it once", async () => {

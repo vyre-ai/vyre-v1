@@ -13,7 +13,14 @@ export interface Db {
   all(sql: string, ...args: unknown[]): unknown[];
   run(sql: string, ...args: unknown[]): { changes: number };
 }
-export interface Sso { providers(): { key: string; title: string }[]; resolve(key: string, ticket: string): string | null }
+export interface Sso {
+  providers(): { key: string; title: string }[];
+  resolve(key: string, ticket: string): string | null;
+  /** A signed-in person is about to prove a provider identity is theirs: a one-use id for the start address. */
+  offer?(person: string): string;
+  /** The address a finished sign-in proved, for joining by invitation when everyone must use it. */
+  prove?(key: string, invite: string): { email: string; bind(person: string): void } | null;
+}
 export interface Github { resolve(code: string): Promise<{ id: string; login: string }> }
 export interface IdentityCtx {
   recoveryCommit?:RecoveryCommit;
@@ -57,7 +64,7 @@ export interface Keyring {
   clear(personId: string): void;
 }
 
-export interface Invite { inviteId: string; role: string; groups: string[]; invitedBy: string }
+export interface Invite { inviteId: string; role: string; groups: string[]; invitedBy: string; email?: string }
 
 export interface Account {
   person_id: string;

@@ -45,13 +45,13 @@ export function iconMarkup(name: ShellIconName): string {
   return `<svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 }
 
-export function ShellIcon({ name, size = 19, color = "var(--ink-3)" }: { name: ShellIconName; size?: number; color?: string }): ReactElement | null {
+export function ShellIcon({ name, size = 19, color = "var(--ink-3)", weight = 1.5 }: { name: ShellIconName; size?: number; color?: string; weight?: number }): ReactElement | null {
   if (Platform.OS !== "web") return null;
   const paths: ReactElement[] = [];
   for (const d of SHELL_ICONS[name]) paths.push(createElement("path", { key: d, d }));
   return createElement(
     "svg",
-    { viewBox: "0 0 16 16", width: size, height: size, "aria-hidden": true, style: { display: "block", flex: "none", fill: "none", stroke: color, strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round" } },
+    { viewBox: "0 0 16 16", width: size, height: size, "aria-hidden": true, style: { display: "block", flex: "none", fill: "none", stroke: color, strokeWidth: weight, strokeLinecap: "round", strokeLinejoin: "round" } },
     ...paths,
   );
 }

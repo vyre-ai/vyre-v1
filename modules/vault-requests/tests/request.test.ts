@@ -249,3 +249,12 @@ test("the card title names the key and says it is needed", () => {
   assert.equal(neededTitle("Dana_Lawmatics"), "Dana Lawmatics key needed");
   assert.equal(neededTitle("Fathom_key"), "Fathom key needed");
 });
+
+test("a company key goes in on the card, into a Restricted folder, and the agent that asked gets nothing", async () => {
+  const w = world();
+  const r = (await ask(w, "agt_helper", { name: "Google_DWD", fields: ["key"], folderId: undefined })).request;
+  await handlers["vault.requests.fulfil"](w.as("usr_owner"), { requestId: r.id, fields: [{ key: "key", value: "SECRET-JSON" }] } as never);
+  assert.equal(w.called("vault.share").length, 0, "no Use for the agent");
+  assert.deepEqual(w.called("access.labels.set").map((c) => (c.input as { label: string }).label), ["restricted", "restricted"], "the folder before the key goes in, the item after");
+  assert.ok(!JSON.stringify(w.called("tasks.create")).includes("SECRET-JSON"));
+});

@@ -20,6 +20,8 @@ export interface OwnedItem { count: number; sample: { type: string; id: string; 
 export interface MembersCtx {
   signInMethods?: Readonly<SignInMethods>;
   spaceOwner?(): string | null;
+  /** What keeps the owner from being locked out when everyone must use single sign-on, read from identity by the host. */
+  breakGlass?: { ssoLinked(personId: string): boolean; hasRecovery(personId: string): boolean };
   /** GitHub sign-in app, from the host: the environment's client id (it wins), the address GitHub sends people back to, and the Vault write and reload of the one set here. The secret goes in and never comes out. */
   githubApp?: {
     envClientId(): string | null;
@@ -87,7 +89,7 @@ export interface InviteView {
   createdAt: number;
 }
 /** The shape identity's ctx.invites speaks. */
-export interface SeamInvite { inviteId: string; role: string; groups: string[]; invitedBy: string }
+export interface SeamInvite { inviteId: string; role: string; groups: string[]; invitedBy: string; email?: string }
 
 export const EVERYONE = "grp_everyone";
 export const OWNER_ROLE = "rol_owner";

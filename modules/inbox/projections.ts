@@ -155,7 +155,6 @@ export interface ConversationRow {
   needsMatch: boolean;
   ownerId?: string;
   mailboxIds: string[];
-  campaignId?: string;
   followed: boolean;
   alertOnReplies: boolean;
   organisation?: string;
@@ -192,8 +191,6 @@ export function toConversation(ctx: Pick<InboxCtx, "db" | "principal">, row: Row
   if (contactId) out.contactId = contactId;
   const ownerId = strOrNull(row, "ownerId");
   if (ownerId) out.ownerId = ownerId;
-  const campaignId = strOrNull(row, "campaignId");
-  if (campaignId) out.campaignId = campaignId;
   const f = followOf(ctx, contactId);
   out.followed = f.followed;
   out.alertOnReplies = f.alertOnReplies;

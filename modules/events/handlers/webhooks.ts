@@ -20,7 +20,7 @@ type Page = { cursor?: string; limit?: number };
 /** Mirror of manifests/_common.ts RESOURCE_TYPES (the manifest is frozen, ruling 9): an event subject outside the list is left off the row. */
 const RESOURCE_TYPES = new Set([
   "space", "record_type", "record", "project", "folder", "file", "channel", "thread", "inbox", "mailbox", "vault_folder", "vault_item", "automation_group", "automation", "agent",
-  "connector", "connection", "site", "form", "campaign", "kit", "terminal", "computer", "task", "run", "number", "domain", "calendar",
+  "connector", "connection", "site", "form", "kit", "terminal", "computer", "task", "run", "number", "domain", "calendar",
 ]);
 
 const caller = (ctx: EventsCtx) => ({ principal: ctx.principal.id, ...(ctx.actingFor ? { actingFor: ctx.actingFor } : {}) });

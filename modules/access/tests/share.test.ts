@@ -8,7 +8,7 @@ import { handlers } from "../impl.ts";
 import { putPrincipal } from "../handlers/roles.ts";
 import {
   dropShare, foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, levelFor, lists,
-  deciders, myAccess, share, shareOf, sharesOf, unshare,
+  automationSenders, deciders, myAccess, share, shareOf, sharesOf, unshare,
 } from "../handlers/share.ts";
 import type { ShareCtx } from "../handlers/share.ts";
 import { MemoryDb } from "../fixtures/db.ts";
@@ -386,3 +386,33 @@ test("a reload from the tables gives the same folders, placement and my_access",
 });
 
 // run on the final commit of P-CC_28
+
+// ---- what a person's press gives a Space Automation
+
+test("a person's press gives the Automation's service use of what its steps name, inside their own access, and takes back what no step names", async () => {
+  const r = rig();
+  const store = storeOf(r.ctx);
+  const box = (id: string): void => { store.resources.set(id, { id, type: "mailbox", parentId: null, label: "public", ownerId: "usr_a", holds: 0, row: { title: id } }); };
+  box("mbx_mine"); box("mbx_other");
+  store.grants.set("gnt_b", { id: "gnt_b", subject: { kind: "person", id: "usr_b" }, resource: { type: "mailbox", id: "mbx_mine" }, level: "use", conditions: {}, by: "usr_a", createdAt: NOW } as never);
+  store.bump();
+  const press = { ...r.as("usr_b"), depth: 1 } as ShareCtx;
+  const input = { automationId: "aut_flow", give: [{ type: "mailbox", id: "mbx_mine" }, { type: "mailbox", id: "mbx_other" }], keep: [] };
+  const out = await automationSenders(press, input);
+  assert.ok(out.granted.some((g) => g.resource.id === "mbx_mine" && g.level === "use"), JSON.stringify(out));
+  assert.ok(out.refused.some((x) => x.id === "mbx_other"), "their own access is the ceiling");
+  const row = [...store.grants.values()].find((g) => g.resource.id === "mbx_mine" && g.source === "automation:aut_flow")!;
+  assert.deepEqual([row.subject, row.by], [{ kind: "service", id: "svc_flow" }, "usr_b"], "the row says who pressed");
+  assert.ok(r.events.some((e) => e.name === "grant.created" && (e.payload as { source?: string }).source === "automation:aut_flow"));
+  const again = await automationSenders(press, { automationId: "aut_flow", give: [], keep: [] });
+  assert.ok(again.revoked >= 1, "a sender no step names loses its row");
+  assert.equal([...store.grants.values()].filter((g) => g.source === "automation:aut_flow").length, 0);
+});
+
+test("only a person's press reaches it: not a direct call, not an agent, not a service", async () => {
+  const r = rig();
+  const input = { automationId: "aut_flow", give: [], keep: [] };
+  await assert.rejects(automationSenders(r.as("usr_a"), input), /turning it on/, "a direct call");
+  await assert.rejects(automationSenders({ ...r.ctx, depth: 1, principal: { kind: "agent", id: "agt_a" } } as ShareCtx, input), /turning it on/, "an agent's save");
+  await assert.rejects(automationSenders({ ...r.ctx, depth: 1, principal: { kind: "service", id: "svc_x" } } as ShareCtx, input), /turning it on/);
+});

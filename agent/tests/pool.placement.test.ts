@@ -43,8 +43,8 @@ test("group chats, channels, run chats and Ask on a shared record run on the ser
   assert.deepEqual(placeTurn(input({ thread: { kind: "channel" }, item: { kind: "wake" } })), { placement: "host", reason: "wake_shared" });
 });
 
-test("routines, automations, Journeys, campaigns and background waits run on the server", () => {
-  for (const origin of ["routine", "automation", "journey", "campaign", "wait"] as const) {
+test("routines, automations, Journeys and background waits run on the server", () => {
+  for (const origin of ["routine", "automation", "journey", "wait"] as const) {
     assert.deepEqual(placeTurn(input({ item: { kind: "message", origin } })), { placement: "host", reason: "routine" }, origin);
   }
 });

@@ -6,7 +6,7 @@
 // DECISION: private chats and Ask panes carry enc=2 per row (messages, thread rows); the entity cannot mix per-row encryption, so
 //   the EntityDefs below set e2e 'none' and the row-level `enc` column decides. NOT EXPRESSIBLE: per-row e2e on a mixed entity.
 // DECISION: capability names for K-list verbs are kept verbatim: chat.post chat.start chat.thread chat.answer_block chat.approve_plan
-//   threads.make_channel channels.create channels.connect_outside_agent; so no `chat.thread.*` names exist (prefix rule).
+//   threads.make_channel channels.create; so no `chat.thread.*` names exist (prefix rule).
 // DECISION: capabilities backing agent tools carry mcpName equal to the tool name (see module agents agentTools); one tool is generated.
 import { block, create, defineManifest, entity, ev, list, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { blockSchema, id, level, pageIn, pageOut, principalRef, purgeOut } from './_common.ts';
@@ -339,7 +339,7 @@ export default defineManifest({
     write('chat.helper.start', 'Start a helper sub-task thread with its own model, provider and effort; helper chats are read-only', {
       in: {
         ...threadT, title: t.str(), instruction: t.str(), agentId: t.opt(id.agent), model: t.opt(t.str()), provider: t.opt(t.str()), effort: t.opt(effort),
-        crew: t.opt(t.bool()),
+        crew: t.opt(t.bool()), taskId: t.opt(id.task),
       },
       out: { helper: threadRow, blockId: id.block }, on: ['thread', '/threadId'], level: 'use', emits: ['helper.started', 'thread.started', 'message.received', 'thread.unarchived'],
       tool: 'chats', mcpName: 'sub_task_model', agent: { planMode: 'blocked', blocks: ['model_switch', 'helper'] },
@@ -423,12 +423,6 @@ export default defineManifest({
     write('channels.agent_watch.set', 'Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine', {
       in: { ...channelT, agentId: id.agent, watches: t.bool() }, out: { channel: channelRow }, on: ['channel', '/channelId'], level: 'manage', perm: 'channels.agents',
       emits: ['channel.agent_watch_changed'], tool: 'chats', audit: 'always',
-    }),
-    write('channels.connect_outside_agent', 'Connect an outside agent (Claude Code, Codex) to a channel: returns the MCP address, a one-time token (once, 10 minutes) and the run command', {
-      in: { ...channelT, name: t.str({ examples: ['Claude Code'] }), scopes: t.opt(t.obj({ read: t.bool(), post: t.bool(), readChangesets: t.bool(), writeBranch: t.bool() })) },
-      out: { mcpUrl: t.str({ pattern: '^https?://', examples: ['https://northwind.example.com/mcp'] }), oneTimeToken: t.str(), expiresAt: t.ts(), runCommand: t.str() },
-      on: ['channel', '/channelId'], level: 'manage', perm: 'channels.agents', audit: 'always', risk: 'high', tool: 'chats', idem: 'key',
-      ex: { output: { mcpUrl: 'https://northwind.example.com/mcp', oneTimeToken: 'otk_example', expiresAt: 1760000600000, runCommand: 'claude mcp add vyre https://northwind.example.com/mcp --token otk_example' } },
     }),
     read('channels.stream', 'The channel as a timeline: messages and Run items in order; repeated runs of one flow collapse into one row ("ran 6 times today"); counts feed the People, Agents and Runs menu', {
       in: { ...channelT, before: t.opt(t.int()), limit: t.opt(t.int({ minimum: 1, maximum: 200 })), show: t.opt(t.arr(streamKind)), expand: t.opt(t.arr(t.str())) },
@@ -584,8 +578,8 @@ export default defineManifest({
       a: { openThread: ['chat.thread', { threadId: '/state/threadId' }] }, empty: 'No threads yet',
     }),
     screen('chats.connect-outside-agent', 'chats', 'ui:ConnectOutsideAgent', {
-      slot: 'sheet', q: { channel: ['channels.get', { channelId: '/state/channelId' }, true] }, a: { connect: ['channels.connect_outside_agent', { channelId: '/state/channelId' }] },
-      empty: 'No outside agent connected', primary: 'Connect an outside agent',
+      slot: 'sheet', q: { link: ['mcp.connected.link', {}, true] },
+      empty: 'No outside agent connected', primary: 'Copy',
     }),
     screen('shell.ask-pane', 'shell', 'ui:AskPane', {
       slot: 'side',

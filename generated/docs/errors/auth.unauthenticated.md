@@ -8,5 +8,4 @@ HTTP 401. Retryable: no.
 
 - connections.complete_auth
 - dropbox.connect.complete
-- mcp.session.open
 - sources.ingest

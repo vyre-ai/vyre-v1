@@ -5,7 +5,7 @@ import type { JsonSchema, ResourceType } from '../packages/contracts/src/index.t
 export const RESOURCE_TYPES: ResourceType[] = [
   'space', 'record_type', 'record', 'project', 'folder', 'file', 'channel', 'thread', 'inbox', 'mailbox',
   'vault_folder', 'vault_item', 'automation_group', 'automation', 'agent', 'connector', 'connection',
-  'site', 'form', 'campaign', 'kit', 'terminal', 'computer', 'task', 'run', 'number', 'domain', 'calendar',
+  'site', 'form', 'kit', 'terminal', 'computer', 'task', 'run', 'number', 'domain', 'calendar',
 ];
 
 /** Id schemas by prefix (ids are `<prefix>_<lowercase alphanumerics>`). */
@@ -17,7 +17,7 @@ export const id = {
   turn: t.id('trn'), block: t.id('blk'), plan: t.id('pln'),
   file: t.id('fil'), folder: t.id('fld'), blob: t.id('blb'), version: t.id('ver'), changeset: t.id('chg'), mount: t.id('mnt'),
   vaultItem: t.id('vit'), vaultFolder: t.id('vfd'), handle: t.str({ pattern: '^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$', examples: ['#Dana_Lawmatics'] }),
-  automation: t.id('aut'), journey: t.id('jrn'), campaign: t.id('cmp'), form: t.id('frm'), site: t.id('sit'), kit: t.id('kit'),
+  automation: t.id('aut'), journey: t.id('jrn'), form: t.id('frm'), site: t.id('sit'), kit: t.id('kit'),
   connector: t.str({ examples: ['hubspot'] }), connection: t.id('con'), mailbox: t.id('mbx'), number: t.id('num'), domain: t.id('dom'),
   contact: t.id('rec'), event: t.id('evt'), meeting: t.id('mtg'), call: t.id('cal'), computer: t.id('cmt'), terminal: t.id('trm'),
   notification: t.id('ntf'), conflict: t.id('cfl'), fact: t.id('fct'), note: t.id('not'), report: t.id('rpt'), decision: t.id('dec'),

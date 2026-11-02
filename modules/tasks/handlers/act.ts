@@ -9,7 +9,7 @@ import {
   actionableByMe, actionableSlot, allTasks, clean, emitTask, getTask, isOpen, isRequest, openIndex, out, raise, readPolicy, sameAssignee, touch, visibleTo, whoIs,
 } from "../projections.ts";
 import type { Assignee, Task, TasksCtx } from "../projections.ts";
-import { KIND_ACTIONS, afterReview, checkMove, commitMove, submitTarget } from "./state.ts";
+import { KIND_ACTIONS, afterReview, checkMove, commitMove, submitTarget, checkOutside } from "./state.ts";
 import type { Policy } from "../projections.ts";
 import { syncThread } from "./thread.ts";
 import { markResumed } from "./resume.ts";
@@ -222,6 +222,7 @@ export async function delegate(ctx: TasksCtx, input: In): Promise<unknown> {
   if (to.kind === "person") passedTo = await nextHolder(ctx, t, to.id);
   if (!passedTo) raise(ctx, "validation.precondition_failed", "Nobody in that chain can act on this request.", { reason: "nobody_can_act" });
   if (sameAssignee(passedTo, t[slot])) raise(ctx, "validation.precondition_failed", "It is with them already.", { reason: "same_holder" });
+  await checkOutside(ctx, [passedTo]);
   const policy = readPolicy(ctx.db);
   if (slot === "approver" && policy.requireHumanApprover && (passedTo.kind === "agent" || passedTo.kind === "automation")) {
     raise(ctx, "validation.precondition_failed", "This Space needs a person to approve.", { reason: "human_approver_required" });

@@ -333,6 +333,9 @@ function waitStage(env: StepEnv, call: StepCall, i: In): StepResult {
   };
 }
 
+/** The step a call belongs to, from its key (run:step:attempt): a task made by a Run names the step that made it, so its page can link back. */
+export const stepOfKey = (key: string): string => key.split(":")[1] ?? "";
+
 // ---- Approval ----
 
 async function approvalStep(env: StepEnv, node: StepNode, call: StepCall, i: In): Promise<StepResult> {
@@ -340,7 +343,7 @@ async function approvalStep(env: StepEnv, node: StepNode, call: StepCall, i: In)
   const now = env.ctx.now();
   const create = {
     kind: "approve", title: i.title, ...(i.summary ? { summary: i.summary } : {}), assigned: i.approver, approver: i.approver, ...(i.reviewer ? { reviewer: i.reviewer } : {}),
-    ...(Array.isArray(i.blocks) ? { blocks: i.blocks } : {}), source: { kind: "run", id: env.run.id },
+    ...(Array.isArray(i.blocks) ? { blocks: i.blocks } : {}), source: { kind: "run", id: env.run.id }, notes: { "run.step": stepOfKey(call.key) },
     ...(i.timeout !== undefined ? { expiresAt: now + durationMs(String(i.timeout)) } : {}), idempotencyKey: call.key,
   };
   // the same key returns the same task, so a resumed step finds its task again
@@ -452,7 +455,7 @@ const ADAPTERS: Record<string, Adapter> = {
     input: (i, env, call) => ({
       kind: i.kind ?? "work", title: i.title, ...(i.summary ? { summary: i.summary } : {}), assigned: i.assigned, ...(i.reviewer ? { reviewer: i.reviewer } : {}),
       ...(i.approver ? { approver: i.approver } : {}), ...(i.due !== undefined ? { due: momentMs(i.due, env.ctx.now()) } : {}), ...(i.recordId ? { recordId: i.recordId } : {}),
-      source: { kind: "run", id: env.run.id }, idempotencyKey: call.key,
+      source: { kind: "run", id: env.run.id }, notes: { "run.step": stepOfKey(call.key) }, idempotencyKey: call.key,
     }),
     output: (o) => ({ taskId: o?.task?.id }),
   },
@@ -465,6 +468,8 @@ const ADAPTERS: Record<string, Adapter> = {
       return {
         mailboxId, to: people(i.to), ...(i.cc ? { cc: people(i.cc) } : {}), subject: i.subject, ...(looksHtml(body) ? { html: body } : { text: body }),
         ...(Array.isArray(i.fileIds) ? { attachments: i.fileIds } : {}), ...(i.recordId ? { contactId: i.recordId } : {}), idempotencyKey: call.key,
+        // regular email from a flow always carries a way out; a draft becomes a person's own message
+        ...(i.draftOnly === true ? {} : { unsubscribe: true }),
       };
     },
     output: (o) => ({ messageId: o?.messageId ?? o?.draftId, ...(o?.threadId ? { threadId: o.threadId } : {}) }),
@@ -497,7 +502,9 @@ const ADAPTERS: Record<string, Adapter> = {
       const numberId = i.numberId;
       if (!numberId) throw stepError("validation.precondition_failed", "Send a text needs a number. Pick one in the step.", false);
       const media = Array.isArray(i.mediaFileIds) ? i.mediaFileIds.filter((id) => typeof id === "string" && id.length > 0) : [];
-      return { numberId, to: i.to, body: i.body, ...(media.length > 0 ? { mediaFileIds: media } : {}), ...(i.recordId ? { contactId: i.recordId } : {}), idempotencyKey: call.key };
+      return { numberId, to: i.to, body: i.body, ...(media.length > 0 ? { mediaFileIds: media } : {}), ...(i.recordId ? { contactId: i.recordId } : {}), idempotencyKey: call.key,
+        // one text to one person about an appointment does not wait for the send window: the person who built the step said so, or a booking started this Run
+        ...(i.sendAtOnce === true || (call.trigger as { booking?: unknown } | null | undefined)?.booking === true ? { transactional: true } : {}) };
     },
     output: (o) => ({ messageId: o?.smsId ?? o?.messageId }),
   },

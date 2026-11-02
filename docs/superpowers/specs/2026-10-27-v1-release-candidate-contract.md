@@ -26,7 +26,7 @@ This contract reconciles the prototype, `docs/spec/V1-SPEC.md`, `docs/spec/ARCHI
 
 - Home, Chats, Inbox, Records, Files, Apps, Automations, Vault, Settings, Console, and Join.
 - All pages and meaningful states for those places shown in the prototype, including the complete Settings and Console hierarchies.
-- Forms and Campaigns where the prototype or v1 specifications expose them as product capabilities.
+- Forms where the prototype or v1 specifications expose them as product capabilities.
 - Agents, agent ownership and reassignment, agent computers, browser/Chrome work, and the human handoff paths required by the in-scope golden flows.
 - Mail, calendar, calling, GitHub, Google, Microsoft, and mounted-storage integrations already designated for v1.
 - Projects, journeys, tasks, gates, memory, sealed fields, backup, restore, recovery, offline states, and error states designated for v1.

@@ -51,7 +51,6 @@ type Out = {
       needsMatch: boolean;
       ownerId?: string;
       mailboxIds: Array<string>;
-      campaignId?: string;
       followed: boolean;
       alertOnReplies: boolean;
       starred?: boolean;
@@ -95,7 +94,6 @@ type Out = {
         "address": "maya@example.com",
         "alertOnReplies": true,
         "bounced": true,
-        "campaignId": "cmp_a1b2c3",
         "contactId": "rec_a1b2c3",
         "displayName": "example",
         "dnd": true,

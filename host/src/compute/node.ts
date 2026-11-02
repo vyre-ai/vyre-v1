@@ -4,6 +4,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs";
 import path from "node:path";
+import { dialPort } from "../seams/port-fetch.ts";
+import type { PortRequest } from "../seams/port-fetch.ts";
 
 export type NodeFetch = (url: string, init: { method: string; headers: Record<string, string>; body: string | Uint8Array; signal?: AbortSignal }) => Promise<{ status: number; json(): Promise<unknown> }>;
 
@@ -46,6 +48,10 @@ export interface NodeProc {
 export interface NodeLauncher { spawn(spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }): Promise<NodeProc> }
 const LOOPBACK = /https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+/g;
 const MAX_PROCS = 16;
+/** Bytes of a response in one frame; base64 of this stays under the Space's frame limit. */
+const PORT_CHUNK = 2 * 1024 * 1024;
+/** The questions the Space may ask this machine over the live socket. Anything else is refused. */
+const ASKS: ReadonlySet<string> = new Set(["siteLogs", "edge"]);
 
 /**
  * A job that gives an agent computer its Vault channel carries the address to ask, as the Space sees itself (its Docker gateway); from this computer the Space is at the address it joined by.
@@ -315,6 +321,33 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
     else if (m["t"] === "cli_end") p.endInput();
     else if (m["t"] === "cli_kill") p.kill(m["signal"] === "SIGKILL" ? "SIGKILL" : "SIGTERM");
   }
+  /** One request to a port on a computer here: the address comes from this machine's own Docker, never from the Space. */
+  function portReq(m: Record<string, unknown>, say: (m: Record<string, unknown>) => void): void {
+    const id = String(m["id"]);
+    const computerId = String(m["computerId"]);
+    const port = Number(m["port"]);
+    const fail = (reason: string): void => say({ t: "port_fail", id, reason });
+    if (!host || !COMPUTER_ID.test(computerId) || !Number.isInteger(port) || port < 1 || port > 65535) { fail("This computer cannot do that."); return; }
+    void (async () => {
+      const address = (await host!.run("address", { computerId })) as string | null;
+      if (!address) { fail("The computer it runs on is asleep."); return; }
+      const request: PortRequest = { method: String(m["method"]), path: String(m["path"]), headers: (m["headers"] ?? {}) as Record<string, string>, ...(typeof m["body"] === "string" ? { body: new Uint8Array(Buffer.from(m["body"], "base64")) } : {}) };
+      dialPort(address, port, request, {
+        head: (status, headers) => say({ t: "port_res", id, status, headers }),
+        data: (c) => { for (let at = 0; at < c.length; at += PORT_CHUNK) say({ t: "port_data", id, b: c.subarray(at, at + PORT_CHUNK).toString("base64") }); },
+        end: () => say({ t: "port_end", id }),
+        fail,
+      });
+    })().catch((e: unknown) => fail(e instanceof Error ? e.message : "The computer did not answer."));
+  }
+
+  function ask(m: Record<string, unknown>, say: (m: Record<string, unknown>) => void): void {
+    const id = String(m["id"]);
+    const kind = String(m["kind"]);
+    if (!host || !ASKS.has(kind)) { say({ t: "ask_res", id, ok: false, reason: "This computer cannot do that." }); return; }
+    host.run(kind, m["input"]).then((result) => say({ t: "ask_res", id, ok: true, result }), (e: unknown) => say({ t: "ask_res", id, ok: false, reason: e instanceof Error ? e.message : "It could not say." }));
+  }
+
   async function liveView(): Promise<void> {
     const url = `${server.replace(/^http/, "ws")}/compute/stream`;
     const up = openSocket(url, { authorization: `Bearer ${credential}` });
@@ -335,6 +368,8 @@ export async function runComputeNode(d: NodeDeps): Promise<NodeEnd> {
         try { m = JSON.parse(data) as typeof m; } catch { return; }
         const view = typeof m.view === "string" && VIEW_ID.test(m.view) ? m.view : "";
         if (typeof m.t === "string" && m.t.startsWith("cli_")) { cli(m as Record<string, unknown>, say); return; }
+        if (m.t === "port_req") { portReq(m as Record<string, unknown>, say); return; }
+        if (m.t === "ask") { ask(m as Record<string, unknown>, say); return; }
         if (m.t === "close" && view) { local.get(view)?.close(); local.delete(view); return; }
         if (m.t === "input" && view && typeof m.data === "string" && m.data.length <= 4096) { local.get(view)?.send(m.data); return; }
         if (m.t !== "open" || !view || typeof m.computerId !== "string" || !COMPUTER_ID.test(m.computerId) || local.has(view)) return;

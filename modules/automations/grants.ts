@@ -34,6 +34,36 @@ export function outwardSteps(def: Definition, before?: Definition): StepGrant[] 
   return out;
 }
 
+export interface Named { stepId: string; resource: { type: "mailbox" | "number"; id: string } }
+
+/** What the send steps of a definition send from, when the step names it. A draft sends nothing. A template names nothing yet, and validation says so. */
+export function sendersOf(def: Definition): Named[] {
+  const out: Named[] = [];
+  for (const n of def.nodes) {
+    const input = n.input ?? {};
+    const mailbox = input["mailboxId"], number = input["numberId"];
+    if (n.key === "send_email" && input["draftOnly"] !== true && typeof mailbox === "string" && /^mbx_[a-z0-9]+$/.test(mailbox)) out.push({ stepId: n.id, resource: { type: "mailbox", id: mailbox } });
+    if (n.key === "send_sms" && typeof number === "string" && /^num_[a-z0-9]+$/.test(number)) out.push({ stepId: n.id, resource: { type: "number", id: number } });
+  }
+  return out;
+}
+
+/**
+ * A Space Automation runs as its own service, which holds nothing. A person's press gives it the senders its steps name: Turn on gives all of them, a save gives what that person just wrote, the same rule the Gate
+ * rows follow (targetsAfter in modules/gate/handlers/grants.ts). An agent's save gives nothing: the steps it wrote hold no sender until a person presses Turn on. A Personal Automation runs as its owner, on the
+ * owner's own access.
+ */
+export async function shareSenders(ctx: AutoCtx, a: Automation, press: "save" | "on", before?: Definition): Promise<void> {
+  if (a.kind !== "space" || ctx.principal.kind !== "person" || !ctx.call) return;
+  const all = sendersOf(a.definition);
+  const was = new Map((before?.nodes ?? []).map((n) => [n.id, n] as const));
+  const written = new Set(a.definition.nodes.filter((n) => !sameStep(n, was.get(n.id))).map((n) => n.id));
+  const give = press === "on" ? all : all.filter((s) => written.has(s.stepId));
+  try {
+    await ctx.call("access.automation_senders", { automationId: a.id, give: give.map((s) => s.resource), keep: all.map((s) => s.resource) });
+  } catch (e) { ctx.log?.warn("automation senders were not shared", { automationId: a.id, error: e instanceof Error ? e.message : String(e) }); }
+}
+
 /**
  * Tell the Gate the automation's definition as it stands. The Gate writes rows only for a person's press and clears them for anyone else. A failure leaves nothing to spend: the hash no longer matches, so
  * the next Run holds rather than sends.
@@ -43,6 +73,7 @@ export async function regrant(ctx: AutoCtx, a: Automation, press: "save" | "on",
   try {
     await ctx.call("gate.grants.set", { automationId: a.id, defHash: await definitionHash(a.definition), press, steps: outwardSteps(a.definition, press === "on" ? a.definition : before) });
   } catch (e) { ctx.log?.warn("automation grants were not written", { automationId: a.id, error: e instanceof Error ? e.message : String(e) }); }
+  await shareSenders(ctx, a, press, before);
 }
 
 const BACKFILLED = "automations.grants_backfilled";

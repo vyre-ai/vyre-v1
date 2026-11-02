@@ -47,6 +47,8 @@ export interface GoogleHost {
   memberEmails(ctx: GoogleCtx): Promise<{ userId: string; email: string }[]>;
   /** The non-secret identity of the service account stored under a Vault handle. */
   serviceAccount(ctx: GoogleCtx, handle: string): Promise<{ clientId: string; clientEmail: string }>;
+  /** Proves the key under a handle works, signing with it and asking Google for a token as the service account itself. No person is involved. Answers what is wrong in words an admin can act on. */
+  checkKey(ctx: GoogleCtx, handle: string): Promise<{ ok: boolean; clientId?: string; clientEmail?: string; projectId?: string; problem?: string }>;
   /** A Space file's name, type and bytes (for Gmail attachments). */
   fileBytes(ctx: GoogleCtx, fileId: string): Promise<{ name: string; mime: string; bytes: Uint8Array }>;
   /** Store bytes as a blob and return its id. */
@@ -76,6 +78,16 @@ export function needHost(ctx: Pick<GoogleCtx, "trace">): GoogleHost {
 
 export const SCOPE = "https://www.googleapis.com/auth/";
 export const SCOPES = ["gmail.modify", "calendar", "drive", "spreadsheets", "documents", "meetings.space.readonly", "admin.directory.user.readonly"].map((s) => SCOPE + s);
+/** What each choice in Connect your company needs from Google. The directory scope is always there: it is how people are matched and how a person who left is noticed. */
+export const DATA_SCOPES = { mail: ["gmail.modify"], calendar: ["calendar", "meetings.space.readonly"], files: ["drive", "spreadsheets", "documents"] } as const;
+export type DataChoice = { mail: boolean; calendar: boolean; files: boolean };
+export const DIRECTORY_SCOPE = "admin.directory.user.readonly";
+export const dataOf = (cfg: Row | null): DataChoice => ({ mail: !cfg || num(cfg, "dataMail") === 1, calendar: !cfg || num(cfg, "dataCalendar") === 1, files: !cfg || num(cfg, "dataFiles") === 1 });
+/** The scopes this company chose, as Google spells them, in the order of SCOPES. */
+export function scopesFor(d: DataChoice): string[] {
+  const want = new Set<string>([DIRECTORY_SCOPE, ...(d.mail ? DATA_SCOPES.mail : []), ...(d.calendar ? DATA_SCOPES.calendar : []), ...(d.files ? DATA_SCOPES.files : [])]);
+  return SCOPES.filter((s) => want.has(s.slice(SCOPE.length)));
+}
 export const ADMIN_CONSOLE_URL = "https://admin.google.com/ac/owl/domainwidedelegation";
 export const CONFIG_ID = "google";
 
@@ -118,7 +130,7 @@ export function bad(ctx: Pick<GoogleCtx, "trace">, message: string): never {
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_google_core.sql", "0002_google_push.sql", "0003_google_meet.sql", "0004_google_calendar.sql", "0005_google_user.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
+const migrationSql = ["0001_google_core.sql", "0002_google_push.sql", "0003_google_meet.sql", "0004_google_calendar.sql", "0005_google_user.sql", "0006_google_company.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
@@ -249,8 +261,8 @@ async function userToken(ctx: GoogleCtx, accountId: string, fresh: boolean): Pro
   return (await needHost(ctx).userRefresh(ctx, { appHandle: userAppHandle(ctx), refreshToken, cacheKey: accountId, ...(fresh ? { fresh: true } : {}) })).token;
 }
 
-/** Who the call acts as: the caller's mapped address, or another mapped member for an admin or a service. */
-export function subjectFor(ctx: GoogleCtx, c: Pick<Call, "connectionId" | "as" | "open">): string {
+/** Who the call acts as: the caller's own mapped address. Only the host's own services act for a named member, and the setup probes for the admin address. A role never reaches a teammate's mailbox. */
+export function subjectFor(ctx: GoogleCtx, c: Pick<Call, "connectionId" | "as" | "open" | "scope">): string {
   if (isUserConnection(c.connectionId)) {
     // a person's own sign-in is one mailbox: the account's address, and nobody else's
     const a = userAccount(ctx, c.connectionId);
@@ -263,20 +275,20 @@ export function subjectFor(ctx: GoogleCtx, c: Pick<Call, "connectionId" | "as" |
   const own = person ? strOrNull(first(ctx.db.all(`SELECT email FROM google_member WHERE "userId" = ? AND mapped = ?`, person, 1)), "email") : null;
   const target = c.as ? normalizeEmail(c.as) : own;
   if (!target) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "You are not mapped to a Google Workspace user." });
-  // Acting as someone else takes an admin or a service. The delegation's own probes (setup, probe, health) may always act as the admin address.
+  // The delegation's own probes (setup, probe, health) may act as the admin address. Nothing else names another person: not a role, not an agent working for an admin, not an automation.
   const probingAdmin = c.open === true && target === admin;
   if (c.as && target !== own && !isTrustedService(ctx.principal) && !probingAdmin) {
-    if (ctx.authorize({ perm: "connectors.manage", level: "manage" }, { type: "connection", id: c.connectionId }).effect !== "allow") {
-      throw fail("permission.no_grant", ctx.trace.traceId, { message: "Only an admin can act as another member." });
-    }
+    throw fail("permission.no_grant", ctx.trace.traceId, { message: "Vyre reaches a person's mail, calendar and files only for that person." });
   }
+  // the directory is read as the admin and touches no mailbox; anything else stops at an exclusion, the admin's too
+  const held = first(ctx.db.all(`SELECT excluded FROM google_member WHERE email = ?`, target));
+  if (held && num(held, "excluded") === 1 && c.scope !== DIRECTORY_SCOPE) throw fail("permission.no_grant", ctx.trace.traceId, { message: "That member is excluded from Google delegation." });
   if (c.open && target === admin) return target;
   if (!cfg || num(cfg, "configured") !== 1) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "Google delegation is not set up." });
-  const member = first(ctx.db.all(`SELECT excluded, mapped FROM google_member WHERE email = ?`, target));
+  const member = first(ctx.db.all(`SELECT mapped FROM google_member WHERE email = ?`, target));
   if (target !== admin && (!member || num(member, "mapped") !== 1)) {
     throw fail("validation.precondition_failed", ctx.trace.traceId, { message: "That address is not a mapped Workspace user." });
   }
-  if (member && num(member, "excluded") === 1) throw fail("permission.no_grant", ctx.trace.traceId, { message: "That member is excluded from Google delegation." });
   return target;
 }
 
@@ -294,11 +306,11 @@ async function tokenFor(ctx: GoogleCtx, connectionId: string, sub: string, scope
   return minted.token;
 }
 
-/** One read log row per call, keyed by the person whose Google data was reached. */
+/** One read log row per call: who made it, whom it was for, and whose Google data it reached. */
 function logCall(ctx: GoogleCtx, subject: string, cap: string, bulk: boolean): void {
   ctx.db.run(
-    `INSERT INTO google_read_log (id, subject, actor, cap, bulk, at) VALUES (?, ?, ?, ?, ?, ?)`,
-    newId("grl", ctx.now()), subject, ctx.actingFor ?? ctx.principal.id, cap, bulk ? 1 : 0, ctx.now(),
+    `INSERT INTO google_read_log (id, subject, actor, "onBehalf", cap, bulk, at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    newId("grl", ctx.now()), subject, ctx.principal.id, ctx.actingFor ?? null, cap, bulk ? 1 : 0, ctx.now(),
   );
 }
 

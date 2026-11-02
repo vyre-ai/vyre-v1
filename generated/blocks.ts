@@ -4,13 +4,17 @@ export type AccessRequestBlockData = {
   requestId: string;
   requester: string;
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   resourceTitle: string;
   level: "view" | "use" | "edit" | "manage";
   note?: string;
   state: "waiting" | "granted" | "declined";
+};
+export type ArtifactBlockData = {
+  artifactId: string;
+  title: string;
 };
 export type ChangesetBlockData = {
   changesetId: string;
@@ -250,6 +254,7 @@ export type VaultUsedBlockData = {
 
 export interface BlockDataMap {
   "access_request": AccessRequestBlockData;
+  "artifact": ArtifactBlockData;
   "changeset": ChangesetBlockData;
   "checklist": ChecklistBlockData;
   "crew_result": CrewResultBlockData;
@@ -304,6 +309,21 @@ export const blockRegistry = [
       }
     ],
     "opens": null
+  },
+  {
+    "type": "artifact",
+    "v": 1,
+    "module": "sites",
+    "component": "ui:BlockArtifact",
+    "fallback": "Artifact: {{title}}",
+    "waitsForAnswer": false,
+    "actions": [],
+    "opens": {
+      "tab": "artifact",
+      "input": {
+        "artifactId": "/artifactId"
+      }
+    }
   },
   {
     "type": "changeset",
@@ -392,8 +412,7 @@ export const blockRegistry = [
         "label": "Promote",
         "cap": "sites.promote",
         "input": {
-          "siteId": "/siteId",
-          "deploymentId": "/deploymentId"
+          "siteId": "/siteId"
         }
       },
       {

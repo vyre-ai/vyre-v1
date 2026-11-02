@@ -5,10 +5,10 @@ import { fileURLToPath } from "node:url";
 import { blockers, flowId, loadFlows, loadRegistryModules } from "../golden/harness/index.ts";
 import type { Flow, ModuleStatus } from "../golden/harness/index.ts";
 
-/** Hour 6: flows 1, 4, 14 have no stub. Hour 9: all flows except those needing Forms or Campaigns. Hour 11: zero pending. */
+/** Hour 6: flows 1, 4, 14 have no stub. Hour 9: all flows except those needing Forms. Hour 11: zero pending. */
 export function dueAt(hour: number, flows: Flow[]): Flow[] {
   if (hour === 6) return flows.filter((f) => [1, 4, 14].includes(f.n));
-  if (hour === 9) return flows.filter((f) => !f.needs.some((m) => m === "forms" || m === "campaigns"));
+  if (hour === 9) return flows.filter((f) => !f.needs.some((m) => m === "forms"));
   if (hour === 11) return flows;
   throw new Error(`deadline hour must be 6, 9 or 11, got ${hour}`);
 }

@@ -1,6 +1,6 @@
 # email_builder.list
 
-List email designs (campaigns, inbox templates, automation steps share them)
+List email designs (inbox templates and automation steps share them)
 
 | | |
 |---|---|

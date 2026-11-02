@@ -7,6 +7,8 @@ import type { ChatRow, NeedsItem } from "./model.ts";
 export interface SidebarApi {
   /** A new chat with `agent` (default: your assistant). Returns the local row at once; chat.start answers behind it. */
   newChat(agent?: { agentId: string; name: string }): ChatRow;
+  /** Your chat with a person: found or started, then opened. */
+  chatWithPerson(personId: string): Promise<void>;
   star(type: "thread" | "agent" | "channel", id: string, on: boolean): Promise<void>;
   markRead(threadId: string): Promise<void>;
   /** Archive leaves my list only; an @mention of me brings the chat back. Unarchive puts it back by hand. */
@@ -27,6 +29,10 @@ export interface SidebarApi {
  */
 export function createSidebarApi(data: ChatsSidebarData, onLocal: (row: ChatRow) => void, onSettled: (localId: string) => void): SidebarApi {
   return {
+    chatWithPerson: async (personId) => {
+      const out = (await data.call("chat.start", { kind: "chat", agentIds: [], personId, idempotencyKey: `dm_${personId}` })) as { thread?: { threadId?: string } } | null;
+      if (out?.thread?.threadId) data.nav.openChat(out.thread.threadId);
+    },
     newChat(agent) {
       const who = agent ?? data.space.assistant;
       const row = newLocalRow(who.name, "agent", data.clock().now);

@@ -33,6 +33,3 @@ Area: comms. Risk: medium. Applies to: domain.
 - resend.domains.get
 - resend.domains.list
 - resend.domains.verify
-- warmup.pool_optin_set
-- warmup.start
-- warmup.status

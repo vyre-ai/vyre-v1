@@ -88,7 +88,7 @@ export type AccessActorsUpdateOut = {
 };
 export type AccessAudienceSetIn = {
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   audience?: "space" | "added" | "me";
@@ -100,6 +100,51 @@ export type AccessAudienceSetOut = {
   audience: "space" | "added" | "me";
   exporters: "admins" | "viewers" | "chosen";
   outside: boolean;
+};
+export type AccessAutomationSendersIn = {
+  automationId: string;
+  give: Array<{
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      id: string;
+    }>;
+  keep: Array<{
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      id: string;
+    }>;
+};
+export type AccessAutomationSendersOut = {
+  granted: Array<{
+      id: string;
+      subject: {
+        kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+        id: string;
+      };
+      resource: {
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        id: string;
+      };
+      level: "view" | "use" | "edit" | "manage";
+      conditions: {
+        rowFilter?: unknown;
+        hiddenFields?: Array<string>;
+        labelCeiling?: "public" | "internal" | "confidential" | "restricted";
+        window?: {
+          from: number;
+          to: number;
+        };
+        expiresAt?: number;
+        export?: boolean;
+        reshare?: boolean;
+      };
+      by: string;
+      source?: string;
+      createdAt: number;
+    }>;
+  revoked: number;
+  refused: Array<{
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      id: string;
+    }>;
 };
 export type AccessCheckIn = {
   principal: {
@@ -115,7 +160,7 @@ export type AccessCheckIn = {
     level: "view" | "use" | "edit" | "manage";
   };
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   fields?: Array<string>;
@@ -148,7 +193,7 @@ export type AccessConnectorBuilderStatusOut = {
 };
 export type AccessDecidersIn = {
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
 };
@@ -157,7 +202,7 @@ export type AccessDecidersOut = {
 };
 export type AccessGrantsListIn = {
   resource?: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   subject?: {
@@ -176,7 +221,7 @@ export type AccessGrantsListOut = {
         id: string;
       };
       resource: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       level: "view" | "use" | "edit" | "manage";
@@ -223,7 +268,7 @@ export type AccessGrantsUpdateOut = {
       id: string;
     };
     resource: {
-      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
       id: string;
     };
     level: "view" | "use" | "edit" | "manage";
@@ -298,7 +343,7 @@ export type AccessGroupsDefaultsGetOut = {
   groupId: string;
   grants: Array<{
       resource: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       level: "view" | "use" | "edit" | "manage";
@@ -307,7 +352,7 @@ export type AccessGroupsDefaultsGetOut = {
 export type AccessGroupsDefaultsSetIn = {
   grants: Array<{
       resource: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       level: "view" | "use" | "edit" | "manage";
@@ -317,7 +362,7 @@ export type AccessGroupsDefaultsSetOut = {
   groupId: string;
   grants: Array<{
       resource: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       level: "view" | "use" | "edit" | "manage";
@@ -354,7 +399,7 @@ export type AccessGroupsGetOut = {
         id: string;
       };
       resource: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       level: "view" | "use" | "edit" | "manage";
@@ -453,7 +498,7 @@ export type AccessLabelsListOut = {
 };
 export type AccessLabelsSetIn = {
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   label: "public" | "internal" | "confidential" | "restricted";
@@ -462,7 +507,7 @@ export type AccessLabelsSetOut = {
   ok: boolean;
 };
 export type AccessListsIn = {
-  type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+  type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
   section?: "personal" | "shared" | "space" | "starred" | "following";
   folder?: string;
   cursor?: string;
@@ -470,7 +515,7 @@ export type AccessListsIn = {
 };
 export type AccessListsOut = {
   rows: Array<{
-      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
       id: string;
       title: string;
       via: "owner" | "grant" | "folder" | "space";
@@ -532,7 +577,7 @@ export type AccessPrincipalsEffectiveOut = {
         id: string;
       };
       resource: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       level: "view" | "use" | "edit" | "manage";
@@ -553,7 +598,7 @@ export type AccessPrincipalsEffectiveOut = {
       createdAt: number;
     }>;
   owns: Array<{
-      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
       id: string;
     }>;
 };
@@ -606,7 +651,7 @@ export type AccessProjectionHealthOut = {
 };
 export type AccessProposeChangeIn = {
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   change: unknown;
@@ -618,7 +663,7 @@ export type AccessProposeChangeOut = {
 };
 export type AccessProviderCheckIn = {
   resources: Array<{
-      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
       id: string;
     }>;
   provider: string;
@@ -650,7 +695,7 @@ export type AccessRecordMarksOut = {
 };
 export type AccessRequestIn = {
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   level: "view" | "use" | "edit" | "manage";
@@ -662,7 +707,7 @@ export type AccessRequestOut = {
     id: string;
     requester: string;
     resource: {
-      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
       id: string;
     };
     level: "view" | "use" | "edit" | "manage";
@@ -684,7 +729,7 @@ export type AccessRequestsApproveOut = {
       id: string;
     };
     resource: {
-      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
       id: string;
     };
     level: "view" | "use" | "edit" | "manage";
@@ -723,7 +768,7 @@ export type AccessRequestsListOut = {
       id: string;
       requester: string;
       resource: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       level: "view" | "use" | "edit" | "manage";
@@ -776,7 +821,7 @@ export type AccessReviewsGetOut = {
           id: string;
         };
         resource: {
-          type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+          type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
           id: string;
         };
         level: "view" | "use" | "edit" | "manage";
@@ -820,7 +865,7 @@ export type AccessReviewsListOut = {
   total?: number;
 };
 export type AccessReviewsStartIn = {
-  scope?: Array<"space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar">;
+  scope?: Array<"space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar">;
   idempotencyKey: string;
 };
 export type AccessReviewsStartOut = {
@@ -982,7 +1027,7 @@ export type AccessRolesUpdateOut = {
 };
 export type AccessShareIn = {
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   subject: {
@@ -1015,7 +1060,7 @@ export type AccessShareOut = {
       id: string;
     };
     resource: {
-      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
       id: string;
     };
     level: "view" | "use" | "edit" | "manage";
@@ -1038,7 +1083,7 @@ export type AccessShareOut = {
 };
 export type AccessSharesOfIn = {
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
 };
@@ -1051,7 +1096,7 @@ export type AccessSharesOfOut = {
           id: string;
         };
         resource: {
-          type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+          type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
           id: string;
         };
         level: "view" | "use" | "edit" | "manage";
@@ -1087,7 +1132,7 @@ export type AccessSharesOfOut = {
 export type AccessUnshareIn = {
   grantId?: string;
   resource?: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   subject?: {
@@ -1178,6 +1223,7 @@ export type AgentsCreateOut = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1225,6 +1271,7 @@ export type AgentsGetOut = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1292,6 +1339,7 @@ export type AgentsListOut = {
       agentId: string;
       name: string;
       kind?: "assistant" | "teammate" | "agent";
+      runtime?: "vyre" | "outside";
       face: string;
       role?: string;
       status: "awake" | "working" | "asleep" | "paused";
@@ -1334,6 +1382,53 @@ export type AgentsMemoryKeyGetOut = {
   memoryKey?: string;
   ownerId: string;
 };
+export type AgentsNextIn = Record<string, unknown>;
+export type AgentsNextOut = {
+  job: ({
+    jobId: string;
+    kind: "mention" | "task" | "answer";
+    threadId?: string;
+    taskId?: string;
+    messageId?: string;
+    from: string;
+    title: string;
+    text: string;
+    queuedAt: number;
+  }) | null;
+  waiting: number;
+};
+export type AgentsOutsideConnectIn = {
+  clientName: string;
+};
+export type AgentsOutsideConnectOut = {
+  agentId: string;
+  name: string;
+};
+export type AgentsOutsideEnqueueIn = {
+  agentId: string;
+  kind: "mention" | "task" | "answer";
+  threadId?: string;
+  taskId?: string;
+  messageId?: string;
+  asker: string;
+  title?: string;
+  text?: string;
+};
+export type AgentsOutsideEnqueueOut = {
+  queued: boolean;
+};
+export type AgentsOutsideSeenIn = {
+  agentId: string;
+};
+export type AgentsOutsideSeenOut = {
+  ok: boolean;
+};
+export type AgentsOutsideUsableIn = {
+  agentId: string;
+};
+export type AgentsOutsideUsableOut = {
+  usable: boolean;
+};
 export type AgentsPauseIn = {
   agentId: string;
   reason?: string;
@@ -1343,6 +1438,7 @@ export type AgentsPauseOut = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1384,6 +1480,7 @@ export type AgentsRestoreOut = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1427,6 +1524,7 @@ export type AgentsRestoreVersionOut = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1468,6 +1566,7 @@ export type AgentsResumeOut = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1510,6 +1609,7 @@ export type AgentsRoleLineSetOut = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1670,6 +1770,7 @@ export type AgentsSetOwnerOut = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1861,6 +1962,7 @@ export type AgentsUpdateOut = {
     agentId: string;
     name: string;
     kind?: "assistant" | "teammate" | "agent";
+    runtime?: "vyre" | "outside";
     face: string;
     role?: string;
     status: "awake" | "working" | "asleep" | "paused";
@@ -1918,7 +2020,7 @@ export type AuditAppendIn = {
   action: string;
   class: "change" | "sensitive" | "deny" | "admin" | "erase" | "sign_in";
   resource?: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   onBehalfOf?: {
@@ -1985,7 +2087,7 @@ export type AuditExportIn = {
   };
   action?: string;
   resource?: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   class?: "change" | "sensitive" | "deny" | "admin" | "erase" | "sign_in";
@@ -2013,7 +2115,7 @@ export type AuditGetOut = {
     };
     action: string;
     resource?: {
-      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
       id: string;
     };
     class: "change" | "sensitive" | "deny" | "admin" | "erase" | "sign_in";
@@ -2035,7 +2137,7 @@ export type AuditListIn = {
   };
   action?: string;
   resource?: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   class?: "change" | "sensitive" | "deny" | "admin" | "erase" | "sign_in";
@@ -2060,7 +2162,7 @@ export type AuditListOut = {
       };
       action: string;
       resource?: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       class: "change" | "sensitive" | "deny" | "admin" | "erase" | "sign_in";
@@ -3474,6 +3576,18 @@ export type AutomationsScheduleChooseOut = {
   paused: boolean;
   error?: string;
 };
+export type AutomationsSendersIn = {
+  automationId: string;
+};
+export type AutomationsSendersOut = {
+  senders: Array<{
+      id: string;
+      channel: "email" | "text";
+      address: string;
+      usable: boolean;
+      why?: string;
+    }>;
+};
 export type AutomationsSetEnabledIn = {
   automationId: string;
   enabled: boolean;
@@ -4751,242 +4865,6 @@ export type CalendarUpdateEventOut = {
     fromBookingPage?: string;
   };
 };
-export type CampaignsAudienceSetIn = {
-  campaignId: string;
-  type: string;
-  viewId?: string;
-  filter?: unknown;
-};
-export type CampaignsAudienceSetOut = {
-  count: number;
-  excluded: number;
-};
-export type CampaignsCreateIn = {
-  name: string;
-  kind: "one_time" | "sequence" | "triggered";
-  folderId?: string;
-  idempotencyKey: string;
-};
-export type CampaignsCreateOut = {
-  campaign: {
-    campaignId: string;
-    name: string;
-    kind: "one_time" | "sequence" | "triggered";
-    state: "draft" | "scheduled" | "running" | "paused" | "stopped" | "completed";
-    owner: string;
-    audienceCount: number;
-    sent: number;
-    replies: number;
-  };
-};
-export type CampaignsDeleteIn = {
-  campaignId: string;
-};
-export type CampaignsDeleteOut = {
-  deleted: boolean;
-};
-export type CampaignsGetIn = {
-  campaignId: string;
-};
-export type CampaignsGetOut = {
-  campaign: {
-    campaignId: string;
-    name: string;
-    kind: "one_time" | "sequence" | "triggered";
-    state: "draft" | "scheduled" | "running" | "paused" | "stopped" | "completed";
-    owner: string;
-    audienceCount: number;
-    sent: number;
-    replies: number;
-  };
-  steps: Array<{
-      key: string;
-      type: "email" | "wait" | "branch" | "sms" | "task" | "call_task";
-      config: Record<string, unknown>;
-      next?: Array<string>;
-    }>;
-  audienceViewId?: string;
-  windows?: unknown;
-  throttle?: unknown;
-  variants?: unknown;
-};
-export type CampaignsLaunchIn = {
-  campaignId: string;
-  idempotencyKey: string;
-};
-export type CampaignsLaunchOut = {
-  runId: string;
-};
-export type CampaignsLinkBuildIn = {
-  url: string;
-  source: string;
-  medium: string;
-  campaign: string;
-};
-export type CampaignsLinkBuildOut = {
-  url: string;
-};
-export type CampaignsListIn = {
-  section?: "personal" | "shared" | "space";
-  folderId?: string;
-  cursor?: string;
-  limit?: number;
-};
-export type CampaignsListOut = {
-  campaigns: Array<{
-      campaignId: string;
-      name: string;
-      kind: "one_time" | "sequence" | "triggered";
-      state: "draft" | "scheduled" | "running" | "paused" | "stopped" | "completed";
-      owner: string;
-      audienceCount: number;
-      sent: number;
-      replies: number;
-    }>;
-  next?: string;
-  total?: number;
-};
-export type CampaignsPauseIn = {
-  campaignId: string;
-  reason?: string;
-};
-export type CampaignsPauseOut = {
-  campaign: {
-    campaignId: string;
-    name: string;
-    kind: "one_time" | "sequence" | "triggered";
-    state: "draft" | "scheduled" | "running" | "paused" | "stopped" | "completed";
-    owner: string;
-    audienceCount: number;
-    sent: number;
-    replies: number;
-  };
-};
-export type CampaignsPreviewIn = {
-  campaignId: string;
-};
-export type CampaignsPreviewOut = {
-  sample: {
-    subject?: string;
-    body: string;
-  };
-  counts: {
-    audience: number;
-    excluded: number;
-    suppressed: number;
-  };
-};
-export type CampaignsRepliesIn = {
-  campaignId: string;
-  cursor?: string;
-  limit?: number;
-};
-export type CampaignsRepliesOut = {
-  replies: Array<{
-      recordId: string;
-      messageId: string;
-      at: number;
-    }>;
-  next?: string;
-  total?: number;
-};
-export type CampaignsResumeIn = {
-  campaignId: string;
-};
-export type CampaignsResumeOut = {
-  campaign: {
-    campaignId: string;
-    name: string;
-    kind: "one_time" | "sequence" | "triggered";
-    state: "draft" | "scheduled" | "running" | "paused" | "stopped" | "completed";
-    owner: string;
-    audienceCount: number;
-    sent: number;
-    replies: number;
-  };
-};
-export type CampaignsScheduleSetIn = {
-  campaignId: string;
-  windows: unknown;
-  throttlePerHour?: number;
-  stopOnReply: boolean;
-};
-export type CampaignsScheduleSetOut = {
-  ok: boolean;
-};
-export type CampaignsStatsIn = {
-  campaignId: string;
-};
-export type CampaignsStatsOut = {
-  sent: number;
-  delivered: number;
-  bounced: number;
-  complained: number;
-  replied: number;
-  unsubscribed: number;
-};
-export type CampaignsStepsSetIn = {
-  campaignId: string;
-  steps: Array<{
-      key: string;
-      type: "email" | "wait" | "branch" | "sms" | "task" | "call_task";
-      config: Record<string, unknown>;
-      next?: Array<string>;
-    }>;
-};
-export type CampaignsStepsSetOut = {
-  ok: boolean;
-};
-export type CampaignsStopIn = {
-  campaignId: string;
-};
-export type CampaignsStopOut = {
-  campaign: {
-    campaignId: string;
-    name: string;
-    kind: "one_time" | "sequence" | "triggered";
-    state: "draft" | "scheduled" | "running" | "paused" | "stopped" | "completed";
-    owner: string;
-    audienceCount: number;
-    sent: number;
-    replies: number;
-  };
-};
-export type CampaignsUnsubscribeIn = {
-  token: string;
-};
-export type CampaignsUnsubscribeOut = {
-  ok: boolean;
-};
-export type CampaignsUpdateIn = {
-  campaignId: string;
-  name?: string;
-  settings?: Record<string, unknown>;
-};
-export type CampaignsUpdateOut = {
-  campaign: {
-    campaignId: string;
-    name: string;
-    kind: "one_time" | "sequence" | "triggered";
-    state: "draft" | "scheduled" | "running" | "paused" | "stopped" | "completed";
-    owner: string;
-    audienceCount: number;
-    sent: number;
-    replies: number;
-  };
-};
-export type CampaignsVariantsSetIn = {
-  campaignId: string;
-  variants: Array<{
-      key: string;
-      weight: number;
-      stepKey: string;
-      config: Record<string, unknown>;
-    }>;
-};
-export type CampaignsVariantsSetOut = {
-  ok: boolean;
-};
 export type ChangesetsApproveIn = {
   changesetId: string;
   message?: string;
@@ -5341,23 +5219,6 @@ export type ChannelsArchiveOut = {
     createdAt: number;
     restricted?: boolean;
   };
-};
-export type ChannelsConnectOutsideAgentIn = {
-  channelId: string;
-  name: string;
-  scopes?: {
-    read: boolean;
-    post: boolean;
-    readChangesets: boolean;
-    writeBranch: boolean;
-  };
-  idempotencyKey: string;
-};
-export type ChannelsConnectOutsideAgentOut = {
-  mcpUrl: string;
-  oneTimeToken: string;
-  expiresAt: number;
-  runCommand: string;
 };
 export type ChannelsCreateIn = {
   name: string;
@@ -5986,6 +5847,7 @@ export type ChatHelperStartIn = {
   provider?: string;
   effort?: "low" | "medium" | "high" | "max";
   crew?: boolean;
+  taskId?: string;
 };
 export type ChatHelperStartOut = {
   helper: {
@@ -6765,6 +6627,200 @@ export type CommsSendersSetDefaultIn = {
 export type CommsSendersSetDefaultOut = {
   channel: "email" | "text";
   senderId: string;
+};
+export type CompanyAccessLogIn = {
+  cursor?: string;
+  limit?: number;
+  mailbox?: string;
+};
+export type CompanyAccessLogOut = {
+  entries: Array<{
+      who: string;
+      onBehalf?: string;
+      mailbox: string;
+      cap: string;
+      at: number;
+    }>;
+  next?: string;
+};
+export type CompanyCheckIn = Record<string, unknown>;
+export type CompanyCheckOut = {
+  ok: boolean;
+  problem?: string;
+  clientId?: string;
+  who?: string;
+  tenantId?: string;
+  credential?: "certificate" | "secret";
+};
+export type CompanyConnectIn = {
+  idempotencyKey: string;
+};
+export type CompanyConnectOut = {
+  connected: number;
+  included: number;
+};
+export type CompanyDisconnectIn = Record<string, unknown>;
+export type CompanyDisconnectOut = {
+  disconnected: boolean;
+};
+export type CompanyGuideIn = {
+  provider: "google" | "microsoft";
+  section?: string;
+};
+export type CompanyGuideOut = {
+  text: string;
+};
+export type CompanyPeopleDoneIn = Record<string, unknown>;
+export type CompanyPeopleDoneOut = {
+  started: boolean;
+  providers?: Array<{
+      key: "google" | "microsoft";
+      title: string;
+    }>;
+  provider?: "google" | "microsoft";
+  title?: string;
+  data?: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  doc?: string;
+  steps?: Array<{
+      id: string;
+      title: string;
+      doc: string;
+      done: boolean;
+      optional?: boolean;
+    }>;
+  next?: string;
+  requireSso?: boolean;
+  signInOn?: boolean;
+  signInTried?: boolean;
+  recoveryKey?: boolean;
+  domain?: string;
+  tenant?: string;
+  who?: string;
+  probeLine?: string;
+  keyHandle?: string;
+  connected?: boolean;
+  connectedAt?: number;
+  mapped?: number;
+  excluded?: Array<string>;
+  space?: string;
+  redirect?: string;
+  clientId?: string;
+  lastSweep?: string;
+};
+export type CompanyProbeIn = Record<string, unknown>;
+export type CompanyProbeOut = {
+  ok: boolean;
+  line: string;
+  missing?: Array<string>;
+};
+export type CompanyScriptIn = {
+  provider: "google" | "microsoft";
+};
+export type CompanyScriptOut = {
+  shell: string;
+  url: string;
+  script: string;
+};
+export type CompanyStartIn = {
+  provider: "google" | "microsoft";
+  data?: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+};
+export type CompanyStartOut = {
+  started: boolean;
+  providers?: Array<{
+      key: "google" | "microsoft";
+      title: string;
+    }>;
+  provider?: "google" | "microsoft";
+  title?: string;
+  data?: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  doc?: string;
+  steps?: Array<{
+      id: string;
+      title: string;
+      doc: string;
+      done: boolean;
+      optional?: boolean;
+    }>;
+  next?: string;
+  requireSso?: boolean;
+  signInOn?: boolean;
+  signInTried?: boolean;
+  recoveryKey?: boolean;
+  domain?: string;
+  tenant?: string;
+  who?: string;
+  probeLine?: string;
+  keyHandle?: string;
+  connected?: boolean;
+  connectedAt?: number;
+  mapped?: number;
+  excluded?: Array<string>;
+  space?: string;
+  redirect?: string;
+  clientId?: string;
+  lastSweep?: string;
+};
+export type CompanyStatusIn = Record<string, unknown>;
+export type CompanyStatusOut = {
+  started: boolean;
+  providers?: Array<{
+      key: "google" | "microsoft";
+      title: string;
+    }>;
+  provider?: "google" | "microsoft";
+  title?: string;
+  data?: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  doc?: string;
+  steps?: Array<{
+      id: string;
+      title: string;
+      doc: string;
+      done: boolean;
+      optional?: boolean;
+    }>;
+  next?: string;
+  requireSso?: boolean;
+  signInOn?: boolean;
+  signInTried?: boolean;
+  recoveryKey?: boolean;
+  domain?: string;
+  tenant?: string;
+  who?: string;
+  probeLine?: string;
+  keyHandle?: string;
+  connected?: boolean;
+  connectedAt?: number;
+  mapped?: number;
+  excluded?: Array<string>;
+  space?: string;
+  redirect?: string;
+  clientId?: string;
+  lastSweep?: string;
+};
+export type CompanySweepIn = {
+  confirmed?: boolean;
+};
+export type CompanySweepOut = {
+  checked: number;
+  gone: Array<string>;
+  held?: string;
 };
 export type ComputersChromeActIn = {
   computerId?: string;
@@ -8311,7 +8367,7 @@ export type ContactsDeliverabilityOut = {
   reasons: Array<string>;
 };
 export type ContactsDndScreenIn = {
-  context: "audience" | "campaign" | "journey_enrol" | "import";
+  context: "audience" | "journey_enrol" | "import";
   contextId?: string;
   candidates: Array<{
       ref: string;
@@ -8401,12 +8457,11 @@ export type ContactsResolveOut = {
 };
 export type ContactsRouteOwnerIn = {
   contactId?: string;
-  campaignId?: string;
   mailboxId?: string;
 };
 export type ContactsRouteOwnerOut = {
   ownerId?: string;
-  via: "owner" | "campaign_owner" | "shared_inbox";
+  via: "owner" | "shared_inbox";
   mailboxId?: string;
 };
 export type ContactsSuppressionAddIn = {
@@ -9437,6 +9492,7 @@ export type EngineCrewStartIn = {
   model?: string;
   provider?: string;
   effort?: "low" | "medium" | "high" | "max";
+  taskId?: string;
   idempotencyKey: string;
 };
 export type EngineCrewStartOut = {
@@ -10575,7 +10631,7 @@ export type EventsGetOut = {
     origin?: string;
     depth: number;
     subject?: {
-      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
       id: string;
     };
     payload: unknown;
@@ -10584,7 +10640,7 @@ export type EventsGetOut = {
 export type EventsListIn = {
   types?: Array<string>;
   subject?: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   actor?: string;
@@ -10610,7 +10666,7 @@ export type EventsListOut = {
       origin?: string;
       depth: number;
       subject?: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       payload: unknown;
@@ -10649,7 +10705,7 @@ export type EventsSinceOut = {
       origin?: string;
       depth: number;
       subject?: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       payload: unknown;
@@ -11823,7 +11879,7 @@ export type FilesWriteOut = {
   changesetId?: string;
 };
 export type FoldersCreateIn = {
-  type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+  type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
   name: string;
   parentId?: string;
   scope?: "personal" | "space";
@@ -11832,7 +11888,7 @@ export type FoldersCreateIn = {
 export type FoldersCreateOut = {
   folder: {
     id: string;
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     name: string;
     parentId?: string;
     scope: "personal" | "space";
@@ -11847,13 +11903,13 @@ export type FoldersDeleteOut = {
   deleted: boolean;
 };
 export type FoldersListIn = {
-  type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+  type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
   scope?: "personal" | "space";
 };
 export type FoldersListOut = {
   folders: Array<{
       id: string;
-      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
       name: string;
       parentId?: string;
       scope: "personal" | "space";
@@ -11868,7 +11924,7 @@ export type FoldersMoveIn = {
 export type FoldersMoveOut = {
   folder: {
     id: string;
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     name: string;
     parentId?: string;
     scope: "personal" | "space";
@@ -11878,7 +11934,7 @@ export type FoldersMoveOut = {
 };
 export type FoldersPlaceIn = {
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   folderId: string;
@@ -11893,7 +11949,7 @@ export type FoldersRenameIn = {
 export type FoldersRenameOut = {
   folder: {
     id: string;
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     name: string;
     parentId?: string;
     scope: "personal" | "space";
@@ -11903,7 +11959,7 @@ export type FoldersRenameOut = {
 };
 export type FoldersUnplaceIn = {
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
 };
@@ -11911,12 +11967,12 @@ export type FoldersUnplaceOut = {
   ok: boolean;
 };
 export type FollowsListIn = {
-  type?: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+  type?: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
 };
 export type FollowsListOut = {
   follows: Array<{
       resource: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       title: string;
@@ -11925,7 +11981,7 @@ export type FollowsListOut = {
 };
 export type FollowsToggleIn = {
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   on: boolean;
@@ -12219,7 +12275,7 @@ export type FormsUpdateOut = {
 export type GateActsListIn = Record<string, unknown>;
 export type GateActsListOut = {
   acts: Array<{
-      key: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+      key: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
       title: string;
       risk: "low" | "medium" | "high";
       humanToo: boolean;
@@ -12231,7 +12287,7 @@ export type GateAllowListOut = {
   rules: Array<{
       id: string;
       kind: "standing" | "always";
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
       target: string;
       agentId?: string;
       threadId?: string;
@@ -12247,7 +12303,7 @@ export type GateAllowRemoveOut = {
   ok: boolean;
 };
 export type GateAllowSetIn = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   target: string;
   agentId?: string;
   threadId?: string;
@@ -12257,7 +12313,7 @@ export type GateAllowSetOut = {
   rule: {
     id: string;
     kind: "standing" | "always";
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
     target: string;
     agentId?: string;
     threadId?: string;
@@ -12280,7 +12336,7 @@ export type GateEffectiveRuleIn = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   adminOnly?: boolean;
 };
 export type GateEffectiveRuleOut = {
@@ -12308,7 +12364,7 @@ export type GateGrantsAskIn = {
   threadId: string;
   messageId: string;
   asked: Array<{
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
       target: string;
     }>;
   links?: Array<string>;
@@ -12322,7 +12378,7 @@ export type GateGrantsSetIn = {
   press: "save" | "on";
   steps: Array<{
       stepId: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
       targets: Array<string>;
       computed: boolean;
       changed: boolean;
@@ -12331,13 +12387,13 @@ export type GateGrantsSetIn = {
 export type GateGrantsSetOut = {
   grants: Array<{
       id: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
       target: string;
       stepId?: string;
     }>;
 };
 export type GateGrantsTakeIn = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   targets: Array<string>;
   step?: {
     automationId: string;
@@ -12365,7 +12421,7 @@ export type GateHoldsGetIn = {
 export type GateHoldsGetOut = {
   hold: {
     id: string;
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
     capName: string;
     taskId: string;
     runId?: string;
@@ -12382,7 +12438,7 @@ export type GateHoldsGetOut = {
 };
 export type GateHoldsListIn = {
   states?: Array<"held" | "approved" | "denied" | "expired">;
-  act?: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+  act?: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   runId?: string;
   cursor?: string;
   limit?: number;
@@ -12390,7 +12446,7 @@ export type GateHoldsListIn = {
 export type GateHoldsListOut = {
   holds: Array<{
       id: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
       capName: string;
       taskId: string;
       runId?: string;
@@ -12419,7 +12475,7 @@ export type GateParkIn = {
   capVersion: number;
   input: unknown;
   payloadHash: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   principal: {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
@@ -12462,7 +12518,7 @@ export type GateRulesListIn = {
 };
 export type GateRulesListOut = {
   rules: Array<{
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
       mode: "hold" | "allow";
       approvers: string;
       peopleOnly: boolean;
@@ -12476,7 +12532,7 @@ export type GateRulesListOut = {
     }>;
 };
 export type GateRulesSetIn = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   mode: "hold" | "allow";
@@ -12488,7 +12544,7 @@ export type GateRulesSetIn = {
 };
 export type GateRulesSetOut = {
   rule: {
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
     mode: "hold" | "allow";
     approvers: string;
     peopleOnly: boolean;
@@ -13091,6 +13147,21 @@ export type GithubReposListOut = {
   next?: string;
   total?: number;
 };
+export type GoogleAccessLogIn = {
+  cursor?: string;
+  limit?: number;
+  mailbox?: string;
+};
+export type GoogleAccessLogOut = {
+  entries: Array<{
+      who: string;
+      onBehalf?: string;
+      mailbox: string;
+      cap: string;
+      at: number;
+    }>;
+  next?: string;
+};
 export type GoogleCalendarCreateEventIn = {
   connectionId: string;
   as?: string;
@@ -13332,6 +13403,14 @@ export type GoogleDirectoryListOut = {
       userId?: string;
     }>;
   nextPageToken?: string;
+};
+export type GoogleDirectoryReconcileIn = {
+  confirmed?: boolean;
+};
+export type GoogleDirectoryReconcileOut = {
+  checked: number;
+  gone: Array<string>;
+  held?: string;
 };
 export type GoogleDocsBatchUpdateIn = {
   connectionId: string;
@@ -13656,6 +13735,23 @@ export type GoogleDriveWatchChangesOut = {
   resourceId: string;
   expiration: number;
 };
+export type GoogleDwdCheckKeyIn = {
+  vaultItem: string;
+};
+export type GoogleDwdCheckKeyOut = {
+  ok: boolean;
+  clientId?: string;
+  clientEmail?: string;
+  projectId?: string;
+  problem?: string;
+};
+export type GoogleDwdConnectAllIn = {
+  idempotencyKey: string;
+};
+export type GoogleDwdConnectAllOut = {
+  connected: number;
+  included: number;
+};
 export type GoogleDwdDisableIn = Record<string, unknown>;
 export type GoogleDwdDisableOut = {
   disabled: boolean;
@@ -13689,6 +13785,8 @@ export type GoogleDwdMembersOut = {
 export type GoogleDwdMyAccountIn = Record<string, unknown>;
 export type GoogleDwdMyAccountOut = {
   email?: string;
+  connectionId?: string;
+  files?: boolean;
 };
 export type GoogleDwdProbeIn = {
   as?: string;
@@ -13705,6 +13803,22 @@ export type GoogleDwdScopesOut = {
   clientId?: string;
   adminConsoleUrl: string;
 };
+export type GoogleDwdSetDataIn = {
+  data: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  idempotencyKey: string;
+};
+export type GoogleDwdSetDataOut = {
+  data: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  scopes: Array<string>;
+};
 export type GoogleDwdSetExcludedIn = {
   email: string;
   excluded: boolean;
@@ -13716,6 +13830,12 @@ export type GoogleDwdSetupIn = {
   vaultItem: string;
   adminEmail: string;
   domain?: string;
+  data?: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  hold?: boolean;
   idempotencyKey: string;
 };
 export type GoogleDwdSetupOut = {
@@ -13735,6 +13855,13 @@ export type GoogleDwdStatusOut = {
   mappedMembers: number;
   excluded: Array<string>;
   pushToken?: string;
+  data: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  keyStored: boolean;
+  clientId?: string;
 };
 export type GoogleDwdSyncMembersIn = {
   idempotencyKey: string;
@@ -14394,7 +14521,7 @@ export type HealthMachineOut = {
 export type HealthPausedReasonsIn = Record<string, unknown>;
 export type HealthPausedReasonsOut = {
   paused: Array<{
-      area: "automations" | "sync" | "sends" | "campaigns";
+      area: "automations" | "sync" | "sends";
       key: string;
       reason: string;
     }>;
@@ -14475,7 +14602,7 @@ export type HomeActivityOut = {
       title: string;
       line: string;
       subject?: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       at?: number;
@@ -14525,7 +14652,7 @@ export type HomeDigestOut = {
         title: string;
         line: string;
         subject?: {
-          type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+          type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
           id: string;
         };
         at?: number;
@@ -14570,7 +14697,7 @@ export type HomeWriteDigestIn = {
       title: string;
       line: string;
       subject?: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       at?: number;
@@ -14961,6 +15088,19 @@ export type IdentitySignOutIn = {
 export type IdentitySignOutOut = {
   ok: boolean;
 };
+export type IdentitySsoJoinStartIn = {
+  code: string;
+  provider: string;
+};
+export type IdentitySsoJoinStartOut = {
+  start: string;
+};
+export type IdentitySsoLinkIn = {
+  provider: string;
+};
+export type IdentitySsoLinkOut = {
+  start: string;
+};
 export type IdentitySsoSignInIn = {
   provider: string;
   code: string;
@@ -15302,7 +15442,7 @@ export type InboxFollowingIn = {
 export type InboxFollowingOut = {
   rows: Array<{
       contactId: string;
-      reasons: Array<"owner" | "project" | "follow" | "campaign" | "shared_inbox">;
+      reasons: Array<"owner" | "project" | "follow" | "shared_inbox">;
       alertOnReplies: boolean;
     }>;
   next?: string;
@@ -15326,7 +15466,6 @@ export type InboxLinkMessageIn = {
   at: number;
   mailboxId?: string;
   numberId?: string;
-  campaignId?: string;
   preview?: string;
   threadId?: string;
   subject?: string;
@@ -15362,7 +15501,6 @@ export type InboxListByContactOut = {
       needsMatch: boolean;
       ownerId?: string;
       mailboxIds: Array<string>;
-      campaignId?: string;
       followed: boolean;
       alertOnReplies: boolean;
       starred?: boolean;
@@ -15417,7 +15555,6 @@ export type InboxMarkReadOut = {
     needsMatch: boolean;
     ownerId?: string;
     mailboxIds: Array<string>;
-    campaignId?: string;
     followed: boolean;
     alertOnReplies: boolean;
     starred?: boolean;
@@ -15447,7 +15584,6 @@ export type InboxMatchOut = {
     needsMatch: boolean;
     ownerId?: string;
     mailboxIds: Array<string>;
-    campaignId?: string;
     followed: boolean;
     alertOnReplies: boolean;
     starred?: boolean;
@@ -15481,7 +15617,6 @@ export type InboxMatchNewOut = {
     needsMatch: boolean;
     ownerId?: string;
     mailboxIds: Array<string>;
-    campaignId?: string;
     followed: boolean;
     alertOnReplies: boolean;
     starred?: boolean;
@@ -15525,7 +15660,6 @@ export type InboxNeedsMatchOut = {
         needsMatch: boolean;
         ownerId?: string;
         mailboxIds: Array<string>;
-        campaignId?: string;
         followed: boolean;
         alertOnReplies: boolean;
         starred?: boolean;
@@ -15594,7 +15728,6 @@ export type InboxThreadOut = {
     needsMatch: boolean;
     ownerId?: string;
     mailboxIds: Array<string>;
-    campaignId?: string;
     followed: boolean;
     alertOnReplies: boolean;
     starred?: boolean;
@@ -15605,13 +15738,12 @@ export type InboxThreadOut = {
     draftReady?: boolean;
   };
   items: Array<{
-      kind: "email" | "sms" | "call" | "meeting" | "campaign_step" | "record_chip" | "note";
+      kind: "email" | "sms" | "call" | "meeting" | "record_chip" | "note";
       id: string;
       at: number;
       direction?: "in" | "out";
       title?: string;
       preview?: string;
-      campaignId?: string;
       recordId?: string;
       ref?: unknown;
     }>;
@@ -15635,7 +15767,6 @@ export type InboxUnmatchOut = {
     needsMatch: boolean;
     ownerId?: string;
     mailboxIds: Array<string>;
-    campaignId?: string;
     followed: boolean;
     alertOnReplies: boolean;
     starred?: boolean;
@@ -15664,7 +15795,6 @@ export type InboxUnmatchedOut = {
       needsMatch: boolean;
       ownerId?: string;
       mailboxIds: Array<string>;
-      campaignId?: string;
       followed: boolean;
       alertOnReplies: boolean;
       starred?: boolean;
@@ -15694,6 +15824,7 @@ export type InvitesAcceptCreateAccountIn = {
         wrapped: string;
       }>;
   };
+  ssoProvider?: string;
 };
 export type InvitesAcceptCreateAccountOut = {
   status: "ok" | "second_factor_required";
@@ -16844,7 +16975,6 @@ export type MailDraftIn = {
   attachments?: Array<string>;
   replyToMessageId?: string;
   contactId?: string;
-  campaignId?: string;
   draftId?: string;
   idempotencyKey: string;
 };
@@ -16892,7 +17022,6 @@ export type MailDraftsListOut = {
       sentAt: number;
       contactId?: string;
       isPrivate: boolean;
-      campaignId?: string;
       draftedByAgent?: string;
     }>;
   next?: string;
@@ -17107,6 +17236,14 @@ export type MailMailboxUpdateOut = {
     lastSyncAt?: number;
   };
 };
+export type MailMemberPauseIn = {
+  provider: "google" | "microsoft";
+  address: string;
+  paused: boolean;
+};
+export type MailMemberPauseOut = {
+  changed: number;
+};
 export type MailMessageEraseIn = {
   messageId: string;
   idempotencyKey: string;
@@ -17145,7 +17282,6 @@ export type MailMessageGetOut = {
     sentAt: number;
     contactId?: string;
     isPrivate: boolean;
-    campaignId?: string;
     draftedByAgent?: string;
   };
   text?: string;
@@ -17203,7 +17339,6 @@ export type MailMessageListOut = {
       sentAt: number;
       contactId?: string;
       isPrivate: boolean;
-      campaignId?: string;
       draftedByAgent?: string;
     }>;
   next?: string;
@@ -17245,7 +17380,6 @@ export type MailMessageSearchOut = {
       sentAt: number;
       contactId?: string;
       isPrivate: boolean;
-      campaignId?: string;
       draftedByAgent?: string;
     }>;
   next?: string;
@@ -17283,7 +17417,6 @@ export type MailMessageSetPrivateOut = {
     sentAt: number;
     contactId?: string;
     isPrivate: boolean;
-    campaignId?: string;
     draftedByAgent?: string;
   };
 };
@@ -17350,9 +17483,9 @@ export type MailSendIn = {
   attachments?: Array<string>;
   replyToMessageId?: string;
   contactId?: string;
-  campaignId?: string;
   draftId?: string;
   sendAt?: number;
+  unsubscribe?: boolean;
   idempotencyKey: string;
 };
 export type MailSendOut = {
@@ -17385,7 +17518,6 @@ export type MailSendAsIn = {
   attachments?: Array<string>;
   replyToMessageId?: string;
   contactId?: string;
-  campaignId?: string;
   draftId?: string;
   idempotencyKey: string;
 };
@@ -17402,7 +17534,6 @@ export type MailSendPreviewIn = {
       name?: string;
       contactId?: string;
     }>;
-  campaignId?: string;
 };
 export type MailSendPreviewOut = {
   allowed: Array<string>;
@@ -17410,9 +17541,6 @@ export type MailSendPreviewOut = {
       address: string;
       reason: string;
     }>;
-  outsideWindow: Array<string>;
-  capRemainingToday?: number;
-  nextWindowAt?: number;
   providerRoute: "mailbox" | "space_domain";
 };
 export type MailStatusUpdateIn = {
@@ -17433,6 +17561,12 @@ export type MailSyncNowIn = {
 };
 export type MailSyncNowOut = {
   runId: string;
+};
+export type MailUnsubscribeIn = {
+  token: string;
+};
+export type MailUnsubscribeOut = {
+  ok: boolean;
 };
 export type MailgunDomainsCreateIn = {
   name: string;
@@ -17588,6 +17722,7 @@ export type MailgunRoutesListOut = {
     }>;
 };
 export type MailgunSendEmailIn = {
+  mailboxId: string;
   domain: string;
   from: string;
   fromName?: string;
@@ -17609,6 +17744,46 @@ export type MailgunSendEmailIn = {
 export type MailgunSendEmailOut = {
   providerId: string;
 };
+export type McpActivityListIn = {
+  agentId: string;
+  cursor?: string;
+  limit?: number;
+};
+export type McpActivityListOut = {
+  rows: Array<{
+      id: string;
+      tool: string;
+      cap?: string;
+      outcome: "ok" | "error" | "held";
+      threadId?: string;
+      taskId?: string;
+      at: number;
+    }>;
+  next?: string;
+  total?: number;
+};
+export type McpConnectedLinkIn = Record<string, unknown>;
+export type McpConnectedLinkOut = {
+  url: string;
+  claudeCode: string;
+};
+export type McpConnectedListIn = Record<string, unknown>;
+export type McpConnectedListOut = {
+  agents: Array<{
+      agentId: string;
+      clientName: string;
+      redirectHost?: string;
+      connectedAt: number;
+      lastSeenAt?: number;
+      calls: number;
+    }>;
+};
+export type McpConnectedRemoveIn = {
+  agentId: string;
+};
+export type McpConnectedRemoveOut = {
+  removed: boolean;
+};
 export type McpHealthIn = Record<string, unknown>;
 export type McpHealthOut = {
   state: "healthy" | "degraded" | "down";
@@ -17617,21 +17792,39 @@ export type McpHealthOut = {
   sessions: number;
   registryHash: string;
 };
-export type McpScopesSetIn = {
-  actorId: string;
-  scopes: {
-    read: boolean;
-    post: boolean;
-    readChangesets: boolean;
-    writeBranch: boolean;
-  };
+export type McpOauthAllowIn = {
+  requestId: string;
 };
-export type McpScopesSetOut = {
-  scopes: {
-    read: boolean;
-    post: boolean;
-    readChangesets: boolean;
-    writeBranch: boolean;
+export type McpOauthAllowOut = {
+  agentId: string;
+  name: string;
+};
+export type McpOauthDeclineIn = {
+  requestId: string;
+};
+export type McpOauthDeclineOut = {
+  declined: boolean;
+};
+export type McpOauthReplayedIn = {
+  agentId: string;
+  person: string;
+  why: string;
+};
+export type McpOauthReplayedOut = {
+  noted: boolean;
+};
+export type McpOauthRequestIn = {
+  requestId: string;
+};
+export type McpOauthRequestOut = {
+  request: {
+    requestId: string;
+    clientName: string;
+    redirectHost?: string;
+    spaceName: string;
+    match: string;
+    expiresAt: number;
+    rejoins: boolean;
   };
 };
 export type McpSessionCloseIn = {
@@ -17654,22 +17847,6 @@ export type McpSessionMintOut = {
   url: string;
   expiresAt: number;
 };
-export type McpSessionOpenIn = {
-  token: string;
-  clientName?: string;
-};
-export type McpSessionOpenOut = {
-  sessionId: string;
-  principal: string;
-  actingFor?: string;
-  scopes: {
-    read: boolean;
-    post: boolean;
-    readChangesets: boolean;
-    writeBranch: boolean;
-  };
-  toolsets: Array<"records" | "files" | "memory" | "vault" | "automations" | "chats" | "inbox" | "sites" | "terminal" | "computer" | "agents" | "tasks" | "meta" | "engineer">;
-};
 export type McpSessionsListIn = {
   kind?: "outside" | "driver";
   cursor?: string;
@@ -17684,12 +17861,6 @@ export type McpSessionsListOut = {
       threadId?: string;
       runId?: string;
       name?: string;
-      scopes?: {
-        read: boolean;
-        post: boolean;
-        readChangesets: boolean;
-        writeBranch: boolean;
-      };
       startedAt: number;
       lastCallAt?: number;
       calls: number;
@@ -17698,47 +17869,6 @@ export type McpSessionsListOut = {
     }>;
   next?: string;
   total?: number;
-};
-export type McpTokenIssueIn = {
-  name: string;
-  kind: "claude_code" | "codex" | "other";
-  channelId?: string;
-  scopes?: {
-    read: boolean;
-    post: boolean;
-    readChangesets: boolean;
-    writeBranch: boolean;
-  };
-  idempotencyKey: string;
-};
-export type McpTokenIssueOut = {
-  tokenId: string;
-  oneTimeToken: string;
-  expiresAt: number;
-  mcpUrl: string;
-};
-export type McpTokenLogRevealIn = {
-  tokenId: string;
-  action: "reveal" | "copy";
-};
-export type McpTokenLogRevealOut = {
-  ok: boolean;
-};
-export type McpTokenRegisterIn = {
-  oneTimeToken: string;
-  clientName: string;
-  clientVersion?: string;
-};
-export type McpTokenRegisterOut = {
-  actorId: string;
-  token: string;
-  mcpUrl: string;
-  scopes: {
-    read: boolean;
-    post: boolean;
-    readChangesets: boolean;
-    writeBranch: boolean;
-  };
 };
 export type McpToolDescribeIn = {
   names: Array<string>;
@@ -17973,6 +18103,7 @@ export type MembersAcceptIn = {
         wrapped: string;
       }>;
   };
+  ssoProvider?: string;
 };
 export type MembersAcceptOut = {
   personId: string;
@@ -18065,6 +18196,10 @@ export type MembersInvitesPreviewOut = {
   role: string;
   expiresAt: number;
   fingerprint: string;
+  ssoRequired?: Array<{
+      key: string;
+      title: string;
+    }>;
 };
 export type MembersInvitesRevokeIn = {
   inviteId: string;
@@ -18172,6 +18307,8 @@ export type MembersSignInPolicyGetOut = {
     newMemberMfaEnrollment: boolean;
     ownerHasSecondFactor: boolean;
     currentHasSecondFactor: boolean;
+    ownerSsoLinked?: boolean;
+    ownerHasRecovery?: boolean;
   };
 };
 export type MembersSignInPolicySetIn = {
@@ -19813,6 +19950,13 @@ export type MemoryVersionsOut = {
       name?: string;
     }>;
 };
+export type MountsAccountPauseIn = {
+  account: string;
+  paused: boolean;
+};
+export type MountsAccountPauseOut = {
+  changed: number;
+};
 export type MountsAddIn = {
   into: string;
   source: {
@@ -19852,6 +19996,10 @@ export type MountsBrowseOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type MountsCompanyDriveIn = Record<string, unknown>;
+export type MountsCompanyDriveOut = {
+  mounted: Array<string>;
 };
 export type MountsDocInsertTextIn = {
   fileId: string;
@@ -20114,6 +20262,21 @@ export type MountsUpdateOut = {
     liveVia?: "push" | "poll";
   };
 };
+export type MsAccessLogIn = {
+  cursor?: string;
+  limit?: number;
+  mailbox?: string;
+};
+export type MsAccessLogOut = {
+  entries: Array<{
+      who: string;
+      onBehalf?: string;
+      mailbox: string;
+      cap: string;
+      at: number;
+    }>;
+  next?: string;
+};
 export type MsCalendarCreateEventIn = {
   connectionId: string;
   as?: string;
@@ -20338,6 +20501,23 @@ export type MsCalendarUpdateEventOut = {
     isCancelled?: boolean;
   };
 };
+export type MsConsentCheckAppIn = {
+  vaultItem: string;
+};
+export type MsConsentCheckAppOut = {
+  ok: boolean;
+  clientId?: string;
+  tenantId?: string;
+  credential?: "certificate" | "secret";
+  problem?: string;
+};
+export type MsConsentConnectAllIn = {
+  idempotencyKey: string;
+};
+export type MsConsentConnectAllOut = {
+  connected: number;
+  included: number;
+};
 export type MsConsentDisableIn = Record<string, unknown>;
 export type MsConsentDisableOut = {
   disabled: boolean;
@@ -20378,12 +20558,31 @@ export type MsConsentMembersOut = {
 export type MsConsentMyAccountIn = Record<string, unknown>;
 export type MsConsentMyAccountOut = {
   email?: string;
+  connectionId?: string;
+  files?: boolean;
 };
 export type MsConsentPolicySnippetIn = Record<string, unknown>;
 export type MsConsentPolicySnippetOut = {
   language: "powershell";
   snippet: string;
   groupName: string;
+};
+export type MsConsentSetDataIn = {
+  data: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  idempotencyKey: string;
+};
+export type MsConsentSetDataOut = {
+  data: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  permissions: Array<string>;
+  exchangeRoles: Array<string>;
 };
 export type MsConsentSetExcludedIn = {
   email: string;
@@ -20396,6 +20595,12 @@ export type MsConsentSetupIn = {
   vaultItem: string;
   tenantId: string;
   domain?: string;
+  data?: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  hold?: boolean;
   idempotencyKey: string;
 };
 export type MsConsentSetupOut = {
@@ -20413,6 +20618,15 @@ export type MsConsentStatusOut = {
   autoConnect: boolean;
   mappedMembers: number;
   excluded: Array<string>;
+  data: {
+    mail: boolean;
+    calendar: boolean;
+    files: boolean;
+  };
+  appStored: boolean;
+  clientId?: string;
+  permissions: Array<string>;
+  exchangeRoles: Array<string>;
 };
 export type MsConsentSyncMembersIn = {
   idempotencyKey: string;
@@ -20428,6 +20642,7 @@ export type MsConsentVerifyIn = {
 export type MsConsentVerifyOut = {
   ok: boolean;
   missingPermissions: Array<string>;
+  unscoped?: Array<string>;
   detail?: string;
 };
 export type MsDirectoryImportIn = {
@@ -20460,6 +20675,14 @@ export type MsDirectoryListOut = {
       userId?: string;
     }>;
   nextSkipToken?: string;
+};
+export type MsDirectoryReconcileIn = {
+  confirmed?: boolean;
+};
+export type MsDirectoryReconcileOut = {
+  checked: number;
+  gone: Array<string>;
+  held?: string;
 };
 export type MsDriveCreateFolderIn = {
   connectionId: string;
@@ -21282,7 +21505,7 @@ export type NotificationsDelegateGetOut = {
 export type NotificationsDelegateResolveIn = {
   person: string;
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
 };
@@ -21312,30 +21535,30 @@ export type NotificationsDigestCollectIn = {
 };
 export type NotificationsDigestCollectOut = {
   items: Array<{
-      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
       title: string;
       at: number;
       subject?: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       count: number;
     }>;
 };
 export type NotificationsKindSetLevelIn = {
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
   level?: "interrupt" | "badge" | "digest";
   channels?: Array<"desktop" | "phone" | "email">;
 };
 export type NotificationsKindSetLevelOut = {
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
   level: "interrupt" | "badge" | "digest";
   channels: Array<"desktop" | "phone" | "email">;
 };
 export type NotificationsKindsListIn = Record<string, unknown>;
 export type NotificationsKindsListOut = {
   kinds: Array<{
-      key: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+      key: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
       level: "interrupt" | "badge" | "digest";
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
@@ -21356,13 +21579,13 @@ export type NotificationsListIn = {
 export type NotificationsListOut = {
   notifications: Array<{
       id: string;
-      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
       level: "interrupt" | "badge" | "digest";
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
       body?: string;
       subject?: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       count: number;
@@ -21470,9 +21693,9 @@ export type NotificationsRulesSetOut = {
 };
 export type NotificationsSendIn = {
   to: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
   subject?: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   data?: Record<string, unknown>;
@@ -23642,6 +23865,7 @@ export type ResendReceiveWebhookOut = {
   accepted: boolean;
 };
 export type ResendSendEmailIn = {
+  mailboxId: string;
   from: string;
   fromName?: string;
   to: Array<string>;
@@ -23830,12 +24054,12 @@ export type RunsFinishIn = {
 export type RunsFinishOut = {
   run: {
     id: string;
-    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
+    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
     name?: string;
     owner: string;
     startedBy: string;
     subject?: {
-      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
       id: string;
     };
     status: "queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped";
@@ -23863,12 +24087,12 @@ export type RunsGetIn = {
 export type RunsGetOut = {
   run: {
     id: string;
-    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
+    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
     name?: string;
     owner: string;
     startedBy: string;
     subject?: {
-      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
       id: string;
     };
     status: "queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped";
@@ -23894,10 +24118,10 @@ export type RunsListIn = {
   scope: "mine" | "subject" | "owner" | "all";
   ownerId?: string;
   subject?: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
-  kinds?: Array<"automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other">;
+  kinds?: Array<"automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other">;
   statuses?: Array<"queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped">;
   since?: number;
   cursor?: string;
@@ -23906,12 +24130,12 @@ export type RunsListIn = {
 export type RunsListOut = {
   runs: Array<{
       id: string;
-      kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
+      kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
       name?: string;
       owner: string;
       startedBy: string;
       subject?: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       status: "queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped";
@@ -23944,12 +24168,12 @@ export type RunsMarkWaitingIn = {
 export type RunsMarkWaitingOut = {
   run: {
     id: string;
-    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
+    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
     name?: string;
     owner: string;
     startedBy: string;
     subject?: {
-      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
       id: string;
     };
     status: "queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped";
@@ -23978,12 +24202,12 @@ export type RunsPinVersionIn = {
 export type RunsPinVersionOut = {
   run: {
     id: string;
-    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
+    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
     name?: string;
     owner: string;
     startedBy: string;
     subject?: {
-      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
       id: string;
     };
     status: "queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped";
@@ -24040,12 +24264,12 @@ export type RunsRecordKeyIn = {
 export type RunsRecordKeyOut = {
   run: {
     id: string;
-    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
+    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
     name?: string;
     owner: string;
     startedBy: string;
     subject?: {
-      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
       id: string;
     };
     status: "queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped";
@@ -24099,12 +24323,12 @@ export type RunsResumeIn = {
 export type RunsResumeOut = {
   run: {
     id: string;
-    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
+    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
     name?: string;
     owner: string;
     startedBy: string;
     subject?: {
-      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
       id: string;
     };
     status: "queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped";
@@ -24134,11 +24358,11 @@ export type RunsRetryOut = {
   runId: string;
 };
 export type RunsStartIn = {
-  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
+  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
   name?: string;
   owner: string;
   subject?: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   definitionVersion?: number;
@@ -24208,12 +24432,12 @@ export type RunsStopIn = {
 export type RunsStopOut = {
   run: {
     id: string;
-    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
+    kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
     name?: string;
     owner: string;
     startedBy: string;
     subject?: {
-      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
       id: string;
     };
     status: "queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped";
@@ -24261,7 +24485,7 @@ export type RunsWaitForIn = {
   };
   timeout?: string;
   subject?: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   threadId?: string;
@@ -24297,7 +24521,7 @@ export type SchedulerGetOut = {
   schedule: {
     id: string;
     owner: {
-      kind: "automation" | "journey" | "agent_routine" | "campaign" | "gate" | "task" | "system";
+      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
       id: string;
     };
     principal: string;
@@ -24318,7 +24542,7 @@ export type SchedulerGetOut = {
 };
 export type SchedulerListIn = {
   owner?: {
-    kind: "automation" | "journey" | "agent_routine" | "campaign" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
     id: string;
   };
   active?: boolean;
@@ -24329,7 +24553,7 @@ export type SchedulerListOut = {
   schedules: Array<{
       id: string;
       owner: {
-        kind: "automation" | "journey" | "agent_routine" | "campaign" | "gate" | "task" | "system";
+        kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
         id: string;
       };
       principal: string;
@@ -24357,7 +24581,7 @@ export type SchedulerMissedOut = {
   missed: Array<{
       scheduleId: string;
       owner: {
-        kind: "automation" | "journey" | "agent_routine" | "campaign" | "gate" | "task" | "system";
+        kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
         id: string;
       };
       scheduledFor: number;
@@ -24381,7 +24605,7 @@ export type SchedulerPauseOut = {
   schedule: {
     id: string;
     owner: {
-      kind: "automation" | "journey" | "agent_routine" | "campaign" | "gate" | "task" | "system";
+      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
       id: string;
     };
     principal: string;
@@ -24414,7 +24638,7 @@ export type SchedulerRescheduleOut = {
   schedule: {
     id: string;
     owner: {
-      kind: "automation" | "journey" | "agent_routine" | "campaign" | "gate" | "task" | "system";
+      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
       id: string;
     };
     principal: string;
@@ -24440,7 +24664,7 @@ export type SchedulerResumeOut = {
   schedule: {
     id: string;
     owner: {
-      kind: "automation" | "journey" | "agent_routine" | "campaign" | "gate" | "task" | "system";
+      kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
       id: string;
     };
     principal: string;
@@ -24467,7 +24691,7 @@ export type SchedulerRunNowOut = {
 };
 export type SchedulerScheduleIn = {
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "campaign" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
     id: string;
   };
   cap: string;
@@ -24509,7 +24733,7 @@ export type SchedulerWaitsExpireOut = {
 export type SchedulerWaitsListIn = {
   runId?: string;
   subject?: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   threadId?: string;
@@ -24529,7 +24753,7 @@ export type SchedulerWaitsListOut = {
         at: number;
       };
       subject?: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       threadId?: string;
@@ -24560,7 +24784,7 @@ export type SchedulerWaitsRegisterIn = {
   };
   timeout?: string;
   subject?: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   threadId?: string;
@@ -25465,6 +25689,30 @@ export type SheetsUpsertRowOut = {
   created: boolean;
   versionId?: string;
 };
+export type SitesArtifactOpenIn = {
+  artifactId: string;
+};
+export type SitesArtifactOpenOut = {
+  path: string;
+  url?: string;
+  expiresAt: number;
+};
+export type SitesArtifactPublishIn = {
+  title: string;
+  html?: string;
+  fileId?: string;
+  folderId?: string;
+  path?: string;
+  port?: number;
+  computerId?: string;
+  artifactId?: string;
+  idempotencyKey: string;
+};
+export type SitesArtifactPublishOut = {
+  artifactId: string;
+  url?: string;
+  updated: boolean;
+};
 export type SitesBuildIn = {
   siteId: string;
   branch?: string;
@@ -25475,9 +25723,13 @@ export type SitesBuildOut = {
 };
 export type SitesCreateIn = {
   name: string;
-  kind: "site" | "app" | "api" | "worker" | "artifact";
+  kind?: "site" | "app" | "api" | "worker" | "artifact";
   repoUrl?: string;
   templateKit?: string;
+  slug?: string;
+  access?: "public" | "password" | "space" | "private";
+  computerId?: string;
+  port?: number;
   folderId?: string;
   idempotencyKey: string;
 };
@@ -25491,6 +25743,15 @@ export type SitesCreateOut = {
     stagingUrl?: string;
     productionUrl?: string;
     state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
+    url?: string;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
   };
 };
 export type SitesDeleteIn = {
@@ -25533,6 +25794,33 @@ export type SitesDeploymentsOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type SitesDomainAddIn = {
+  siteId: string;
+  domain: string;
+  idempotencyKey: string;
+};
+export type SitesDomainAddOut = {
+  domain: string;
+  records: Array<{
+      type: "CNAME" | "A";
+      name: string;
+      value: string;
+    }>;
+  state: "waiting_dns" | "issuing" | "live";
+};
+export type SitesDomainCheckIn = {
+  siteId: string;
+  domain: string;
+};
+export type SitesDomainCheckOut = {
+  domain: string;
+  records: Array<{
+      type: "CNAME" | "A";
+      name: string;
+      value: string;
+    }>;
+  state: "waiting_dns" | "issuing" | "live";
 };
 export type SitesDomainSetIn = {
   siteId: string;
@@ -25585,11 +25873,29 @@ export type SitesGetOut = {
     stagingUrl?: string;
     productionUrl?: string;
     state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
+    url?: string;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
   };
+};
+export type SitesHostIn = Record<string, unknown>;
+export type SitesHostOut = {
+  origin?: string;
+  relay: boolean;
+  computers: boolean;
+  domains: boolean;
+  domainsNeed?: string;
 };
 export type SitesListIn = {
   section?: "personal" | "shared" | "space";
   folderId?: string;
+  kind?: "site" | "artifact";
   cursor?: string;
   limit?: number;
 };
@@ -25603,6 +25909,15 @@ export type SitesListOut = {
       stagingUrl?: string;
       productionUrl?: string;
       state: "queued" | "building" | "ready" | "failed" | "stopped";
+      slug?: string;
+      url?: string;
+      computerId?: string;
+      port?: number;
+      folderId?: string;
+      access?: "public" | "password" | "space" | "private";
+      live?: boolean;
+      blocked?: boolean;
+      updatedAt?: number;
     }>;
   next?: string;
   total?: number;
@@ -25655,19 +25970,51 @@ export type SitesPreviewsOut = {
 };
 export type SitesPromoteIn = {
   siteId: string;
-  deploymentId: string;
   idempotencyKey: string;
 };
 export type SitesPromoteOut = {
-  deployment: {
-    deploymentId: string;
+  site: {
     siteId: string;
-    env: "staging" | "preview" | "production";
+    name: string;
+    kind: "site" | "app" | "api" | "worker" | "artifact";
+    owner: string;
+    repoFolderId?: string;
+    stagingUrl?: string;
+    productionUrl?: string;
     state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
     url?: string;
-    branch?: string;
-    commit?: string;
-    at: number;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
+  };
+};
+export type SitesPublishIn = {
+  siteId: string;
+};
+export type SitesPublishOut = {
+  site: {
+    siteId: string;
+    name: string;
+    kind: "site" | "app" | "api" | "worker" | "artifact";
+    owner: string;
+    repoFolderId?: string;
+    stagingUrl?: string;
+    productionUrl?: string;
+    state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
+    url?: string;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
   };
 };
 export type SitesRollbackIn = {
@@ -25704,6 +26051,40 @@ export type SitesStagingPasswordSetIn = {
 export type SitesStagingPasswordSetOut = {
   ok: boolean;
 };
+export type SitesStatusIn = {
+  siteId: string;
+};
+export type SitesStatusOut = {
+  answering: boolean;
+  detail?: string;
+  url?: string;
+  live: boolean;
+  blocked: boolean;
+};
+export type SitesStopIn = {
+  siteId: string;
+};
+export type SitesStopOut = {
+  site: {
+    siteId: string;
+    name: string;
+    kind: "site" | "app" | "api" | "worker" | "artifact";
+    owner: string;
+    repoFolderId?: string;
+    stagingUrl?: string;
+    productionUrl?: string;
+    state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
+    url?: string;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
+  };
+};
 export type SitesTableCreateIn = {
   siteId: string;
   key: string;
@@ -25737,6 +26118,10 @@ export type SitesUpdateIn = {
   siteId: string;
   name?: string;
   settings?: Record<string, unknown>;
+  access?: "public" | "password" | "space" | "private";
+  computerId?: string;
+  port?: number;
+  folderId?: string;
 };
 export type SitesUpdateOut = {
   site: {
@@ -25748,6 +26133,15 @@ export type SitesUpdateOut = {
     stagingUrl?: string;
     productionUrl?: string;
     state: "queued" | "building" | "ready" | "failed" | "stopped";
+    slug?: string;
+    url?: string;
+    computerId?: string;
+    port?: number;
+    folderId?: string;
+    access?: "public" | "password" | "space" | "private";
+    live?: boolean;
+    blocked?: boolean;
+    updatedAt?: number;
   };
 };
 export type SkillsAddIn = {
@@ -26196,7 +26590,7 @@ export type SpacesMatrixIn = Record<string, unknown>;
 export type SpacesMatrixOut = {
   kind: "personal" | "team";
   features: Array<{
-      key: "apps_public" | "campaign_sending" | "console" | "webhooks" | "always_on_runs" | "sharing" | "members";
+      key: "apps_public" | "console" | "webhooks" | "always_on_runs" | "sharing" | "members";
       available: boolean;
       line?: string;
     }>;
@@ -26306,12 +26700,12 @@ export type SpacesUpdateOut = {
   };
 };
 export type StarsListIn = {
-  type?: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+  type?: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
 };
 export type StarsListOut = {
   stars: Array<{
       resource: {
-        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+        type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
         id: string;
       };
       title: string;
@@ -26320,7 +26714,7 @@ export type StarsListOut = {
 };
 export type StarsToggleIn = {
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   on: boolean;
@@ -27971,6 +28365,7 @@ export type TasksActIn = {
 export type TasksActOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28018,6 +28413,15 @@ export type TasksActOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
   result?: unknown;
 };
@@ -28032,6 +28436,7 @@ export type TasksAskIn = {
 export type TasksAskOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28079,6 +28484,15 @@ export type TasksAskOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
   answerTaskId: string;
 };
@@ -28093,6 +28507,7 @@ export type TasksAssignIn = {
 export type TasksAssignOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28140,6 +28555,15 @@ export type TasksAssignOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksBlockIn = {
@@ -28149,6 +28573,7 @@ export type TasksBlockIn = {
 export type TasksBlockOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28196,8 +28621,23 @@ export type TasksBlockOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
   unblockTaskId: string;
+};
+export type TasksByKeyIn = {
+  key: string;
+};
+export type TasksByKeyOut = {
+  taskId: string | null;
 };
 export type TasksCountNeedsYouIn = Record<string, unknown>;
 export type TasksCountNeedsYouOut = {
@@ -28227,6 +28667,14 @@ export type TasksCreateIn = {
   };
   due?: number;
   effort?: number;
+  priority?: "urgent" | "high" | "normal" | "low";
+  labels?: Array<string>;
+  start?: number;
+  fields?: Record<string, unknown>;
+  recur?: {
+    every: "day" | "week" | "month";
+    n?: number;
+  };
   recordId?: string;
   fileIds?: Array<string>;
   source?: {
@@ -28249,6 +28697,7 @@ export type TasksCreateIn = {
 export type TasksCreateOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28296,6 +28745,15 @@ export type TasksCreateOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksDecideIn = {
@@ -28306,6 +28764,7 @@ export type TasksDecideIn = {
 export type TasksDecideOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28353,6 +28812,15 @@ export type TasksDecideOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
   next: "done" | "fixes";
 };
@@ -28367,6 +28835,7 @@ export type TasksDelegateIn = {
 export type TasksDelegateOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28414,11 +28883,26 @@ export type TasksDelegateOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
   passedTo: {
     kind: "person" | "agent" | "group" | "role" | "automation";
     id: string;
   };
+};
+export type TasksDeleteIn = {
+  taskId: string;
+};
+export type TasksDeleteOut = {
+  deleted: boolean;
 };
 export type TasksDependenciesAddIn = {
   taskId: string;
@@ -28427,6 +28911,7 @@ export type TasksDependenciesAddIn = {
 export type TasksDependenciesAddOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28474,6 +28959,15 @@ export type TasksDependenciesAddOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksDependenciesRemoveIn = {
@@ -28483,6 +28977,7 @@ export type TasksDependenciesRemoveIn = {
 export type TasksDependenciesRemoveOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28530,7 +29025,25 @@ export type TasksDependenciesRemoveOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
+};
+export type TasksDigestIn = {
+  agentId: string;
+  threadId?: string;
+};
+export type TasksDigestOut = {
+  text: string;
+  hash: string;
+  boundTaskId?: string;
 };
 export type TasksEscalateIn = {
   taskId: string;
@@ -28539,6 +29052,7 @@ export type TasksEscalateIn = {
 export type TasksEscalateOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28586,6 +29100,15 @@ export type TasksEscalateOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksFollowersAddIn = {
@@ -28595,6 +29118,7 @@ export type TasksFollowersAddIn = {
 export type TasksFollowersAddOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28642,6 +29166,15 @@ export type TasksFollowersAddOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksFollowersRemoveIn = {
@@ -28651,6 +29184,7 @@ export type TasksFollowersRemoveIn = {
 export type TasksFollowersRemoveOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28698,6 +29232,15 @@ export type TasksFollowersRemoveOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksGetIn = {
@@ -28706,6 +29249,7 @@ export type TasksGetIn = {
 export type TasksGetOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28753,6 +29297,15 @@ export type TasksGetOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksHistoryIn = {
@@ -28771,6 +29324,63 @@ export type TasksHistoryOut = {
   next?: string;
   total?: number;
 };
+export type TasksIndexIn = {
+  scope: "mine" | "given" | "everyone";
+  recordId?: string;
+  parentTaskId?: string;
+  underThread?: string;
+  done?: boolean;
+  rev?: string;
+};
+export type TasksIndexOut = {
+  rev: string;
+  unchanged: boolean;
+  rows: Array<{
+      id: string;
+      key?: string;
+      kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+      title: string;
+      state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+      blocked: boolean;
+      assigned: {
+        kind: "person" | "agent" | "group" | "role" | "automation";
+        id: string;
+      };
+      reviewer?: {
+        kind: "person" | "agent" | "group" | "role" | "automation";
+        id: string;
+      };
+      approver?: {
+        kind: "person" | "agent" | "group" | "role" | "automation";
+        id: string;
+      };
+      takenBy?: string;
+      due?: number;
+      start?: number;
+      effort?: number;
+      priority?: "urgent" | "high" | "normal" | "low";
+      labels: Array<string>;
+      recordId?: string;
+      parentTaskId?: string;
+      dependsOn: Array<string>;
+      threadId?: string;
+      workerThread?: string;
+      source?: {
+        kind: "chat" | "run" | "gate" | "journey" | "manual";
+        id: string;
+      };
+      snoozedUntil?: number;
+      children?: {
+        total: number;
+        done: number;
+      };
+      createdBy: string;
+      createdAt: number;
+      updatedAt: number;
+    }>;
+  doneThisWeek: number;
+  total: number;
+};
 export type TasksLinksAddIn = {
   taskId: string;
   recordId?: string;
@@ -28779,6 +29389,7 @@ export type TasksLinksAddIn = {
 export type TasksLinksAddOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28826,6 +29437,15 @@ export type TasksLinksAddOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksLinksRemoveIn = {
@@ -28836,6 +29456,7 @@ export type TasksLinksRemoveIn = {
 export type TasksLinksRemoveOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -28883,6 +29504,15 @@ export type TasksLinksRemoveOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksListIn = {
@@ -28902,6 +29532,7 @@ export type TasksListIn = {
 export type TasksListOut = {
   tasks: Array<{
       id: string;
+      key?: string;
       kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
       title: string;
       summary?: string;
@@ -28949,6 +29580,15 @@ export type TasksListOut = {
       createdBy: string;
       createdAt: number;
       updatedAt: number;
+      priority?: "urgent" | "high" | "normal" | "low";
+      labels?: Array<string>;
+      start?: number;
+      fields?: Record<string, unknown>;
+      recur?: {
+        every: "day" | "week" | "month";
+        n?: number;
+      };
+      workerThread?: string;
     }>;
   next?: string;
   total?: number;
@@ -28961,6 +29601,7 @@ export type TasksMyWorkIn = {
 export type TasksMyWorkOut = {
   tasks: Array<{
       id: string;
+      key?: string;
       kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
       title: string;
       summary?: string;
@@ -29008,6 +29649,15 @@ export type TasksMyWorkOut = {
       createdBy: string;
       createdAt: number;
       updatedAt: number;
+      priority?: "urgent" | "high" | "normal" | "low";
+      labels?: Array<string>;
+      start?: number;
+      fields?: Record<string, unknown>;
+      recur?: {
+        every: "day" | "week" | "month";
+        n?: number;
+      };
+      workerThread?: string;
     }>;
   counts: {
     open: number;
@@ -29024,6 +29674,7 @@ export type TasksNeedsYouOut = {
   items: Array<{
       task: {
         id: string;
+        key?: string;
         kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
         title: string;
         summary?: string;
@@ -29071,18 +29722,63 @@ export type TasksNeedsYouOut = {
         createdBy: string;
         createdAt: number;
         updatedAt: number;
+        priority?: "urgent" | "high" | "normal" | "low";
+        labels?: Array<string>;
+        start?: number;
+        fields?: Record<string, unknown>;
+        recur?: {
+          every: "day" | "week" | "month";
+          n?: number;
+        };
+        workerThread?: string;
       };
       reason: "ready" | "due_today" | "overdue" | "blocking";
       handledBy?: string;
     }>;
   total: number;
 };
-export type TasksReleaseIn = {
-  taskId: string;
+export type TasksPlanIn = {
+  parentTaskId?: string;
+  parent?: {
+    title: string;
+    brief?: string;
+    doneMeans?: Array<string>;
+    assigned?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    recordId?: string;
+    due?: number;
+  };
+  children: Array<{
+      key: string;
+      title: string;
+      brief?: string;
+      doneMeans?: Array<string>;
+      assigned: {
+        kind: "person" | "agent" | "group" | "role" | "automation";
+        id: string;
+      };
+      reviewer?: {
+        kind: "person" | "agent" | "group" | "role" | "automation";
+        id: string;
+      };
+      approver?: {
+        kind: "person" | "agent" | "group" | "role" | "automation";
+        id: string;
+      };
+      dependsOn?: Array<string>;
+      due?: number;
+      priority?: "urgent" | "high" | "normal" | "low";
+      worker?: "thread" | "crew";
+      projectId?: string;
+    }>;
+  idempotencyKey: string;
 };
-export type TasksReleaseOut = {
-  task: {
+export type TasksPlanOut = {
+  parent: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -29130,7 +29826,156 @@ export type TasksReleaseOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
+  children: Array<{
+      key: string;
+      taskId: string;
+      shortKey?: string;
+      created: boolean;
+    }>;
+};
+export type TasksReleaseIn = {
+  taskId: string;
+};
+export type TasksReleaseOut = {
+  task: {
+    id: string;
+    key?: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
+  };
+};
+export type TasksRestoreIn = {
+  taskId: string;
+};
+export type TasksRestoreOut = {
+  task: {
+    id: string;
+    key?: string;
+    kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+    title: string;
+    summary?: string;
+    why?: string;
+    state: "todo" | "doing" | "in_review" | "awaiting_approval" | "done" | "canceled";
+    blocked: boolean;
+    blocks: Array<{
+        type: string;
+        v?: number;
+        data: unknown;
+      }>;
+    actions: Array<{
+        key: string;
+        label: string;
+        note?: "required" | "optional";
+      }>;
+    assigned: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    reviewer?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    approver?: {
+      kind: "person" | "agent" | "group" | "role" | "automation";
+      id: string;
+    };
+    takenBy?: string;
+    due?: number;
+    effort?: number;
+    recordId?: string;
+    fileIds: Array<string>;
+    source?: {
+      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      id: string;
+    };
+    parentTaskId?: string;
+    dependsOn: Array<string>;
+    followers: Array<string>;
+    workingNotes: Record<string, string>;
+    threadId?: string;
+    reviewLoops: number;
+    snoozedUntil?: number;
+    createdBy: string;
+    createdAt: number;
+    updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
+  };
+};
+export type TasksRevIn = Record<string, unknown>;
+export type TasksRevOut = {
+  rev: string;
 };
 export type TasksReviewIn = {
   taskId: string;
@@ -29141,6 +29986,7 @@ export type TasksReviewIn = {
 export type TasksReviewOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -29188,6 +30034,15 @@ export type TasksReviewOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
   next: "approval" | "done" | "fixes" | "person";
 };
@@ -29198,6 +30053,7 @@ export type TasksSnoozeIn = {
 export type TasksSnoozeOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -29245,6 +30101,15 @@ export type TasksSnoozeOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksSubmitIn = {
@@ -29255,6 +30120,7 @@ export type TasksSubmitIn = {
 export type TasksSubmitOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -29302,6 +30168,15 @@ export type TasksSubmitOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
   next: "review" | "approval" | "done";
 };
@@ -29311,6 +30186,7 @@ export type TasksTakeIn = {
 export type TasksTakeOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -29358,6 +30234,15 @@ export type TasksTakeOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksTransitionIn = {
@@ -29369,6 +30254,7 @@ export type TasksTransitionIn = {
 export type TasksTransitionOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -29416,6 +30302,15 @@ export type TasksTransitionOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksUpdateIn = {
@@ -29431,10 +30326,21 @@ export type TasksUpdateIn = {
       data: unknown;
     }>;
   threadId?: string;
+  priority?: ("urgent" | "high" | "normal" | "low") | null;
+  labels?: Array<string>;
+  start?: number | null;
+  fields?: Record<string, unknown>;
+  recur?: ({
+    every: "day" | "week" | "month";
+    n?: number;
+  }) | null;
+  parentTaskId?: string | null;
+  workerThread?: string;
 };
 export type TasksUpdateOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -29482,6 +30388,15 @@ export type TasksUpdateOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksWithdrawIn = {
@@ -29500,6 +30415,7 @@ export type TasksWorkingNotesDeleteIn = {
 export type TasksWorkingNotesDeleteOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -29547,6 +30463,15 @@ export type TasksWorkingNotesDeleteOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TasksWorkingNotesSetIn = {
@@ -29557,6 +30482,7 @@ export type TasksWorkingNotesSetIn = {
 export type TasksWorkingNotesSetOut = {
   task: {
     id: string;
+    key?: string;
     kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
     title: string;
     summary?: string;
@@ -29604,6 +30530,15 @@ export type TasksWorkingNotesSetOut = {
     createdBy: string;
     createdAt: number;
     updatedAt: number;
+    priority?: "urgent" | "high" | "normal" | "low";
+    labels?: Array<string>;
+    start?: number;
+    fields?: Record<string, unknown>;
+    recur?: {
+      every: "day" | "week" | "month";
+      n?: number;
+    };
+    workerThread?: string;
   };
 };
 export type TelephonyAnswerIn = {
@@ -30355,8 +31290,8 @@ export type TelephonySendSmsIn = {
   mediaFileIds?: Array<string>;
   contactId?: string;
   replyToId?: string;
-  campaignId?: string;
   sendAt?: number;
+  transactional?: boolean;
   idempotencyKey: string;
 };
 export type TelephonySendSmsOut = {
@@ -30389,7 +31324,6 @@ export type TelephonySmsListOut = {
       status: "queued" | "sent" | "delivered" | "undelivered" | "failed" | "received";
       contactId?: string;
       mediaFileIds: Array<string>;
-      campaignId?: string;
       at: number;
     }>;
   next?: string;
@@ -31651,6 +32585,7 @@ export type TwilioRecordingStopOut = {
   stopped: boolean;
 };
 export type TwilioSmsSendIn = {
+  numberId: string;
   from: string;
   to: string;
   body: string;
@@ -32514,28 +33449,6 @@ export type ViewsShareExternalOut = {
   url: string;
   expiresAt?: number;
 };
-export type WarmupPoolOptinSetIn = {
-  optIn: boolean;
-};
-export type WarmupPoolOptinSetOut = {
-  optIn: boolean;
-};
-export type WarmupStartIn = {
-  mailboxId: string;
-};
-export type WarmupStartOut = {
-  ok: boolean;
-};
-export type WarmupStatusIn = Record<string, unknown>;
-export type WarmupStatusOut = {
-  mailboxes: Array<{
-      mailboxId: string;
-      stage: "new" | "warming" | "ready" | "slowed";
-      dailyCap: number;
-      bounceRate: number;
-      replyRate: number;
-    }>;
-};
 export type WebhooksCreateIn = {
   name: string;
   url: string;
@@ -32909,6 +33822,7 @@ export interface CapMap {
   "access.actors.set_engineer_mcp": { in: AccessActorsSetEngineerMcpIn; out: AccessActorsSetEngineerMcpOut };
   "access.actors.update": { in: AccessActorsUpdateIn; out: AccessActorsUpdateOut };
   "access.audience_set": { in: AccessAudienceSetIn; out: AccessAudienceSetOut };
+  "access.automation_senders": { in: AccessAutomationSendersIn; out: AccessAutomationSendersOut };
   "access.check": { in: AccessCheckIn; out: AccessCheckOut };
   "access.connector_builder.grant": { in: AccessConnectorBuilderGrantIn; out: AccessConnectorBuilderGrantOut };
   "access.connector_builder.status": { in: AccessConnectorBuilderStatusIn; out: AccessConnectorBuilderStatusOut };
@@ -32970,6 +33884,11 @@ export interface CapMap {
   "agents.limits.get": { in: AgentsLimitsGetIn; out: AgentsLimitsGetOut };
   "agents.list": { in: AgentsListIn; out: AgentsListOut };
   "agents.memory_key.get": { in: AgentsMemoryKeyGetIn; out: AgentsMemoryKeyGetOut };
+  "agents.next": { in: AgentsNextIn; out: AgentsNextOut };
+  "agents.outside.connect": { in: AgentsOutsideConnectIn; out: AgentsOutsideConnectOut };
+  "agents.outside.enqueue": { in: AgentsOutsideEnqueueIn; out: AgentsOutsideEnqueueOut };
+  "agents.outside.seen": { in: AgentsOutsideSeenIn; out: AgentsOutsideSeenOut };
+  "agents.outside.usable": { in: AgentsOutsideUsableIn; out: AgentsOutsideUsableOut };
   "agents.pause": { in: AgentsPauseIn; out: AgentsPauseOut };
   "agents.restore": { in: AgentsRestoreIn; out: AgentsRestoreOut };
   "agents.restore_version": { in: AgentsRestoreVersionIn; out: AgentsRestoreVersionOut };
@@ -33049,6 +33968,7 @@ export interface CapMap {
   "automations.retry": { in: AutomationsRetryIn; out: AutomationsRetryOut };
   "automations.run": { in: AutomationsRunIn; out: AutomationsRunOut };
   "automations.schedule_choose": { in: AutomationsScheduleChooseIn; out: AutomationsScheduleChooseOut };
+  "automations.senders": { in: AutomationsSendersIn; out: AutomationsSendersOut };
   "automations.set_enabled": { in: AutomationsSetEnabledIn; out: AutomationsSetEnabledOut };
   "automations.steps.list": { in: AutomationsStepsListIn; out: AutomationsStepsListOut };
   "automations.stop": { in: AutomationsStopIn; out: AutomationsStopOut };
@@ -33100,24 +34020,6 @@ export interface CapMap {
   "calendar.sync_now": { in: CalendarSyncNowIn; out: CalendarSyncNowOut };
   "calendar.update_calendar": { in: CalendarUpdateCalendarIn; out: CalendarUpdateCalendarOut };
   "calendar.update_event": { in: CalendarUpdateEventIn; out: CalendarUpdateEventOut };
-  "campaigns.audience_set": { in: CampaignsAudienceSetIn; out: CampaignsAudienceSetOut };
-  "campaigns.create": { in: CampaignsCreateIn; out: CampaignsCreateOut };
-  "campaigns.delete": { in: CampaignsDeleteIn; out: CampaignsDeleteOut };
-  "campaigns.get": { in: CampaignsGetIn; out: CampaignsGetOut };
-  "campaigns.launch": { in: CampaignsLaunchIn; out: CampaignsLaunchOut };
-  "campaigns.link_build": { in: CampaignsLinkBuildIn; out: CampaignsLinkBuildOut };
-  "campaigns.list": { in: CampaignsListIn; out: CampaignsListOut };
-  "campaigns.pause": { in: CampaignsPauseIn; out: CampaignsPauseOut };
-  "campaigns.preview": { in: CampaignsPreviewIn; out: CampaignsPreviewOut };
-  "campaigns.replies": { in: CampaignsRepliesIn; out: CampaignsRepliesOut };
-  "campaigns.resume": { in: CampaignsResumeIn; out: CampaignsResumeOut };
-  "campaigns.schedule_set": { in: CampaignsScheduleSetIn; out: CampaignsScheduleSetOut };
-  "campaigns.stats": { in: CampaignsStatsIn; out: CampaignsStatsOut };
-  "campaigns.steps_set": { in: CampaignsStepsSetIn; out: CampaignsStepsSetOut };
-  "campaigns.stop": { in: CampaignsStopIn; out: CampaignsStopOut };
-  "campaigns.unsubscribe": { in: CampaignsUnsubscribeIn; out: CampaignsUnsubscribeOut };
-  "campaigns.update": { in: CampaignsUpdateIn; out: CampaignsUpdateOut };
-  "campaigns.variants_set": { in: CampaignsVariantsSetIn; out: CampaignsVariantsSetOut };
   "changesets.approve": { in: ChangesetsApproveIn; out: ChangesetsApproveOut };
   "changesets.comments.add": { in: ChangesetsCommentsAddIn; out: ChangesetsCommentsAddOut };
   "changesets.comments.list": { in: ChangesetsCommentsListIn; out: ChangesetsCommentsListOut };
@@ -33133,7 +34035,6 @@ export interface CapMap {
   "channels.agents.add": { in: ChannelsAgentsAddIn; out: ChannelsAgentsAddOut };
   "channels.agents.remove": { in: ChannelsAgentsRemoveIn; out: ChannelsAgentsRemoveOut };
   "channels.archive": { in: ChannelsArchiveIn; out: ChannelsArchiveOut };
-  "channels.connect_outside_agent": { in: ChannelsConnectOutsideAgentIn; out: ChannelsConnectOutsideAgentOut };
   "channels.create": { in: ChannelsCreateIn; out: ChannelsCreateOut };
   "channels.erase": { in: ChannelsEraseIn; out: ChannelsEraseOut };
   "channels.get": { in: ChannelsGetIn; out: ChannelsGetOut };
@@ -33194,6 +34095,17 @@ export interface CapMap {
   "chat.unpin": { in: ChatUnpinIn; out: ChatUnpinOut };
   "comms.senders.list": { in: CommsSendersListIn; out: CommsSendersListOut };
   "comms.senders.set_default": { in: CommsSendersSetDefaultIn; out: CommsSendersSetDefaultOut };
+  "company.access_log": { in: CompanyAccessLogIn; out: CompanyAccessLogOut };
+  "company.check": { in: CompanyCheckIn; out: CompanyCheckOut };
+  "company.connect": { in: CompanyConnectIn; out: CompanyConnectOut };
+  "company.disconnect": { in: CompanyDisconnectIn; out: CompanyDisconnectOut };
+  "company.guide": { in: CompanyGuideIn; out: CompanyGuideOut };
+  "company.people_done": { in: CompanyPeopleDoneIn; out: CompanyPeopleDoneOut };
+  "company.probe": { in: CompanyProbeIn; out: CompanyProbeOut };
+  "company.script": { in: CompanyScriptIn; out: CompanyScriptOut };
+  "company.start": { in: CompanyStartIn; out: CompanyStartOut };
+  "company.status": { in: CompanyStatusIn; out: CompanyStatusOut };
+  "company.sweep": { in: CompanySweepIn; out: CompanySweepOut };
   "computers.chrome.act": { in: ComputersChromeActIn; out: ComputersChromeActOut };
   "computers.chrome.api": { in: ComputersChromeApiIn; out: ComputersChromeApiOut };
   "computers.chrome.batch": { in: ComputersChromeBatchIn; out: ComputersChromeBatchOut };
@@ -33627,6 +34539,7 @@ export interface CapMap {
   "github.receive_webhook": { in: GithubReceiveWebhookIn; out: GithubReceiveWebhookOut };
   "github.repo.get": { in: GithubRepoGetIn; out: GithubRepoGetOut };
   "github.repos.list": { in: GithubReposListIn; out: GithubReposListOut };
+  "google.access_log": { in: GoogleAccessLogIn; out: GoogleAccessLogOut };
   "google.calendar.create_event": { in: GoogleCalendarCreateEventIn; out: GoogleCalendarCreateEventOut };
   "google.calendar.delete_event": { in: GoogleCalendarDeleteEventIn; out: GoogleCalendarDeleteEventOut };
   "google.calendar.free_busy": { in: GoogleCalendarFreeBusyIn; out: GoogleCalendarFreeBusyOut };
@@ -33639,6 +34552,7 @@ export interface CapMap {
   "google.calendar.watch": { in: GoogleCalendarWatchIn; out: GoogleCalendarWatchOut };
   "google.directory.import": { in: GoogleDirectoryImportIn; out: GoogleDirectoryImportOut };
   "google.directory.list": { in: GoogleDirectoryListIn; out: GoogleDirectoryListOut };
+  "google.directory.reconcile": { in: GoogleDirectoryReconcileIn; out: GoogleDirectoryReconcileOut };
   "google.docs.batch_update": { in: GoogleDocsBatchUpdateIn; out: GoogleDocsBatchUpdateOut };
   "google.docs.create_document": { in: GoogleDocsCreateDocumentIn; out: GoogleDocsCreateDocumentOut };
   "google.docs.get_document": { in: GoogleDocsGetDocumentIn; out: GoogleDocsGetDocumentOut };
@@ -33660,12 +34574,15 @@ export interface CapMap {
   "google.drive.trash_file": { in: GoogleDriveTrashFileIn; out: GoogleDriveTrashFileOut };
   "google.drive.upload_file": { in: GoogleDriveUploadFileIn; out: GoogleDriveUploadFileOut };
   "google.drive.watch_changes": { in: GoogleDriveWatchChangesIn; out: GoogleDriveWatchChangesOut };
+  "google.dwd.check_key": { in: GoogleDwdCheckKeyIn; out: GoogleDwdCheckKeyOut };
+  "google.dwd.connect_all": { in: GoogleDwdConnectAllIn; out: GoogleDwdConnectAllOut };
   "google.dwd.disable": { in: GoogleDwdDisableIn; out: GoogleDwdDisableOut };
   "google.dwd.map_member": { in: GoogleDwdMapMemberIn; out: GoogleDwdMapMemberOut };
   "google.dwd.members": { in: GoogleDwdMembersIn; out: GoogleDwdMembersOut };
   "google.dwd.my_account": { in: GoogleDwdMyAccountIn; out: GoogleDwdMyAccountOut };
   "google.dwd.probe": { in: GoogleDwdProbeIn; out: GoogleDwdProbeOut };
   "google.dwd.scopes": { in: GoogleDwdScopesIn; out: GoogleDwdScopesOut };
+  "google.dwd.set_data": { in: GoogleDwdSetDataIn; out: GoogleDwdSetDataOut };
   "google.dwd.set_excluded": { in: GoogleDwdSetExcludedIn; out: GoogleDwdSetExcludedOut };
   "google.dwd.setup": { in: GoogleDwdSetupIn; out: GoogleDwdSetupOut };
   "google.dwd.status": { in: GoogleDwdStatusIn; out: GoogleDwdStatusOut };
@@ -33768,6 +34685,8 @@ export interface CapMap {
   "identity.sign_in": { in: IdentitySignInIn; out: IdentitySignInOut };
   "identity.sign_in_options": { in: IdentitySignInOptionsIn; out: IdentitySignInOptionsOut };
   "identity.sign_out": { in: IdentitySignOutIn; out: IdentitySignOutOut };
+  "identity.sso_join_start": { in: IdentitySsoJoinStartIn; out: IdentitySsoJoinStartOut };
+  "identity.sso_link": { in: IdentitySsoLinkIn; out: IdentitySsoLinkOut };
   "identity.sso_sign_in": { in: IdentitySsoSignInIn; out: IdentitySsoSignInOut };
   "identity.totp_begin": { in: IdentityTotpBeginIn; out: IdentityTotpBeginOut };
   "identity.totp_confirm": { in: IdentityTotpConfirmIn; out: IdentityTotpConfirmOut };
@@ -33870,6 +34789,7 @@ export interface CapMap {
   "mail.mailbox.set_privacy": { in: MailMailboxSetPrivacyIn; out: MailMailboxSetPrivacyOut };
   "mail.mailbox.set_sync_state": { in: MailMailboxSetSyncStateIn; out: MailMailboxSetSyncStateOut };
   "mail.mailbox.update": { in: MailMailboxUpdateIn; out: MailMailboxUpdateOut };
+  "mail.member_pause": { in: MailMemberPauseIn; out: MailMemberPauseOut };
   "mail.message.erase": { in: MailMessageEraseIn; out: MailMessageEraseOut };
   "mail.message.get": { in: MailMessageGetIn; out: MailMessageGetOut };
   "mail.message.list": { in: MailMessageListIn; out: MailMessageListOut };
@@ -33883,6 +34803,7 @@ export interface CapMap {
   "mail.send_preview": { in: MailSendPreviewIn; out: MailSendPreviewOut };
   "mail.status_update": { in: MailStatusUpdateIn; out: MailStatusUpdateOut };
   "mail.sync_now": { in: MailSyncNowIn; out: MailSyncNowOut };
+  "mail.unsubscribe": { in: MailUnsubscribeIn; out: MailUnsubscribeOut };
   "mailgun.domains.create": { in: MailgunDomainsCreateIn; out: MailgunDomainsCreateOut };
   "mailgun.domains.delete": { in: MailgunDomainsDeleteIn; out: MailgunDomainsDeleteOut };
   "mailgun.domains.get": { in: MailgunDomainsGetIn; out: MailgunDomainsGetOut };
@@ -33896,15 +34817,18 @@ export interface CapMap {
   "mailgun.routes.delete": { in: MailgunRoutesDeleteIn; out: MailgunRoutesDeleteOut };
   "mailgun.routes.list": { in: MailgunRoutesListIn; out: MailgunRoutesListOut };
   "mailgun.send_email": { in: MailgunSendEmailIn; out: MailgunSendEmailOut };
+  "mcp.activity.list": { in: McpActivityListIn; out: McpActivityListOut };
+  "mcp.connected.link": { in: McpConnectedLinkIn; out: McpConnectedLinkOut };
+  "mcp.connected.list": { in: McpConnectedListIn; out: McpConnectedListOut };
+  "mcp.connected.remove": { in: McpConnectedRemoveIn; out: McpConnectedRemoveOut };
   "mcp.health": { in: McpHealthIn; out: McpHealthOut };
-  "mcp.scopes.set": { in: McpScopesSetIn; out: McpScopesSetOut };
+  "mcp.oauth.allow": { in: McpOauthAllowIn; out: McpOauthAllowOut };
+  "mcp.oauth.decline": { in: McpOauthDeclineIn; out: McpOauthDeclineOut };
+  "mcp.oauth.replayed": { in: McpOauthReplayedIn; out: McpOauthReplayedOut };
+  "mcp.oauth.request": { in: McpOauthRequestIn; out: McpOauthRequestOut };
   "mcp.session.close": { in: McpSessionCloseIn; out: McpSessionCloseOut };
   "mcp.session.mint": { in: McpSessionMintIn; out: McpSessionMintOut };
-  "mcp.session.open": { in: McpSessionOpenIn; out: McpSessionOpenOut };
   "mcp.sessions.list": { in: McpSessionsListIn; out: McpSessionsListOut };
-  "mcp.token.issue": { in: McpTokenIssueIn; out: McpTokenIssueOut };
-  "mcp.token.log_reveal": { in: McpTokenLogRevealIn; out: McpTokenLogRevealOut };
-  "mcp.token.register": { in: McpTokenRegisterIn; out: McpTokenRegisterOut };
   "mcp.tool.describe": { in: McpToolDescribeIn; out: McpToolDescribeOut };
   "mcp.tool.search": { in: McpToolSearchIn; out: McpToolSearchOut };
   "mcp.tools.list": { in: McpToolsListIn; out: McpToolsListOut };
@@ -34002,8 +34926,10 @@ export interface CapMap {
   "memory.upkeep.status": { in: MemoryUpkeepStatusIn; out: MemoryUpkeepStatusOut };
   "memory.used": { in: MemoryUsedIn; out: MemoryUsedOut };
   "memory.versions": { in: MemoryVersionsIn; out: MemoryVersionsOut };
+  "mounts.account_pause": { in: MountsAccountPauseIn; out: MountsAccountPauseOut };
   "mounts.add": { in: MountsAddIn; out: MountsAddOut };
   "mounts.browse": { in: MountsBrowseIn; out: MountsBrowseOut };
+  "mounts.company_drive": { in: MountsCompanyDriveIn; out: MountsCompanyDriveOut };
   "mounts.doc_insert_text": { in: MountsDocInsertTextIn; out: MountsDocInsertTextOut };
   "mounts.doc_replace_text": { in: MountsDocReplaceTextIn; out: MountsDocReplaceTextOut };
   "mounts.editors": { in: MountsEditorsIn; out: MountsEditorsOut };
@@ -34024,6 +34950,7 @@ export interface CapMap {
   "mounts.sheet_write": { in: MountsSheetWriteIn; out: MountsSheetWriteOut };
   "mounts.sync_now": { in: MountsSyncNowIn; out: MountsSyncNowOut };
   "mounts.update": { in: MountsUpdateIn; out: MountsUpdateOut };
+  "ms.access_log": { in: MsAccessLogIn; out: MsAccessLogOut };
   "ms.calendar.create_event": { in: MsCalendarCreateEventIn; out: MsCalendarCreateEventOut };
   "ms.calendar.delete_event": { in: MsCalendarDeleteEventIn; out: MsCalendarDeleteEventOut };
   "ms.calendar.delta": { in: MsCalendarDeltaIn; out: MsCalendarDeltaOut };
@@ -34036,12 +34963,15 @@ export interface CapMap {
   "ms.calendar.subscribe": { in: MsCalendarSubscribeIn; out: MsCalendarSubscribeOut };
   "ms.calendar.unsubscribe": { in: MsCalendarUnsubscribeIn; out: MsCalendarUnsubscribeOut };
   "ms.calendar.update_event": { in: MsCalendarUpdateEventIn; out: MsCalendarUpdateEventOut };
+  "ms.consent.check_app": { in: MsConsentCheckAppIn; out: MsConsentCheckAppOut };
+  "ms.consent.connect_all": { in: MsConsentConnectAllIn; out: MsConsentConnectAllOut };
   "ms.consent.disable": { in: MsConsentDisableIn; out: MsConsentDisableOut };
   "ms.consent.link": { in: MsConsentLinkIn; out: MsConsentLinkOut };
   "ms.consent.map_member": { in: MsConsentMapMemberIn; out: MsConsentMapMemberOut };
   "ms.consent.members": { in: MsConsentMembersIn; out: MsConsentMembersOut };
   "ms.consent.my_account": { in: MsConsentMyAccountIn; out: MsConsentMyAccountOut };
   "ms.consent.policy_snippet": { in: MsConsentPolicySnippetIn; out: MsConsentPolicySnippetOut };
+  "ms.consent.set_data": { in: MsConsentSetDataIn; out: MsConsentSetDataOut };
   "ms.consent.set_excluded": { in: MsConsentSetExcludedIn; out: MsConsentSetExcludedOut };
   "ms.consent.setup": { in: MsConsentSetupIn; out: MsConsentSetupOut };
   "ms.consent.status": { in: MsConsentStatusIn; out: MsConsentStatusOut };
@@ -34049,6 +34979,7 @@ export interface CapMap {
   "ms.consent.verify": { in: MsConsentVerifyIn; out: MsConsentVerifyOut };
   "ms.directory.import": { in: MsDirectoryImportIn; out: MsDirectoryImportOut };
   "ms.directory.list": { in: MsDirectoryListIn; out: MsDirectoryListOut };
+  "ms.directory.reconcile": { in: MsDirectoryReconcileIn; out: MsDirectoryReconcileOut };
   "ms.drive.create_folder": { in: MsDriveCreateFolderIn; out: MsDriveCreateFolderOut };
   "ms.drive.delete_item": { in: MsDriveDeleteItemIn; out: MsDriveDeleteItemOut };
   "ms.drive.delta": { in: MsDriveDeltaIn; out: MsDriveDeltaOut };
@@ -34369,25 +35300,33 @@ export interface CapMap {
   "sheets.read_rows": { in: SheetsReadRowsIn; out: SheetsReadRowsOut };
   "sheets.update_row": { in: SheetsUpdateRowIn; out: SheetsUpdateRowOut };
   "sheets.upsert_row": { in: SheetsUpsertRowIn; out: SheetsUpsertRowOut };
+  "sites.artifact_open": { in: SitesArtifactOpenIn; out: SitesArtifactOpenOut };
+  "sites.artifact_publish": { in: SitesArtifactPublishIn; out: SitesArtifactPublishOut };
   "sites.build": { in: SitesBuildIn; out: SitesBuildOut };
   "sites.create": { in: SitesCreateIn; out: SitesCreateOut };
   "sites.delete": { in: SitesDeleteIn; out: SitesDeleteOut };
   "sites.deploy": { in: SitesDeployIn; out: SitesDeployOut };
   "sites.deployments": { in: SitesDeploymentsIn; out: SitesDeploymentsOut };
+  "sites.domain_add": { in: SitesDomainAddIn; out: SitesDomainAddOut };
+  "sites.domain_check": { in: SitesDomainCheckIn; out: SitesDomainCheckOut };
   "sites.domain_set": { in: SitesDomainSetIn; out: SitesDomainSetOut };
   "sites.domains_get": { in: SitesDomainsGetIn; out: SitesDomainsGetOut };
   "sites.env_list": { in: SitesEnvListIn; out: SitesEnvListOut };
   "sites.env_set": { in: SitesEnvSetIn; out: SitesEnvSetOut };
   "sites.get": { in: SitesGetIn; out: SitesGetOut };
+  "sites.host": { in: SitesHostIn; out: SitesHostOut };
   "sites.list": { in: SitesListIn; out: SitesListOut };
   "sites.logs": { in: SitesLogsIn; out: SitesLogsOut };
   "sites.preview_rebuild": { in: SitesPreviewRebuildIn; out: SitesPreviewRebuildOut };
   "sites.preview_remove": { in: SitesPreviewRemoveIn; out: SitesPreviewRemoveOut };
   "sites.previews": { in: SitesPreviewsIn; out: SitesPreviewsOut };
   "sites.promote": { in: SitesPromoteIn; out: SitesPromoteOut };
+  "sites.publish": { in: SitesPublishIn; out: SitesPublishOut };
   "sites.rollback": { in: SitesRollbackIn; out: SitesRollbackOut };
   "sites.service_identity": { in: SitesServiceIdentityIn; out: SitesServiceIdentityOut };
   "sites.staging_password_set": { in: SitesStagingPasswordSetIn; out: SitesStagingPasswordSetOut };
+  "sites.status": { in: SitesStatusIn; out: SitesStatusOut };
+  "sites.stop": { in: SitesStopIn; out: SitesStopOut };
   "sites.table_create": { in: SitesTableCreateIn; out: SitesTableCreateOut };
   "sites.table_promote": { in: SitesTablePromoteIn; out: SitesTablePromoteOut };
   "sites.tables": { in: SitesTablesIn; out: SitesTablesOut };
@@ -34502,23 +35441,30 @@ export interface CapMap {
   "tasks.ask": { in: TasksAskIn; out: TasksAskOut };
   "tasks.assign": { in: TasksAssignIn; out: TasksAssignOut };
   "tasks.block": { in: TasksBlockIn; out: TasksBlockOut };
+  "tasks.by_key": { in: TasksByKeyIn; out: TasksByKeyOut };
   "tasks.count_needs_you": { in: TasksCountNeedsYouIn; out: TasksCountNeedsYouOut };
   "tasks.create": { in: TasksCreateIn; out: TasksCreateOut };
   "tasks.decide": { in: TasksDecideIn; out: TasksDecideOut };
   "tasks.delegate": { in: TasksDelegateIn; out: TasksDelegateOut };
+  "tasks.delete": { in: TasksDeleteIn; out: TasksDeleteOut };
   "tasks.dependencies.add": { in: TasksDependenciesAddIn; out: TasksDependenciesAddOut };
   "tasks.dependencies.remove": { in: TasksDependenciesRemoveIn; out: TasksDependenciesRemoveOut };
+  "tasks.digest": { in: TasksDigestIn; out: TasksDigestOut };
   "tasks.escalate": { in: TasksEscalateIn; out: TasksEscalateOut };
   "tasks.followers.add": { in: TasksFollowersAddIn; out: TasksFollowersAddOut };
   "tasks.followers.remove": { in: TasksFollowersRemoveIn; out: TasksFollowersRemoveOut };
   "tasks.get": { in: TasksGetIn; out: TasksGetOut };
   "tasks.history": { in: TasksHistoryIn; out: TasksHistoryOut };
+  "tasks.index": { in: TasksIndexIn; out: TasksIndexOut };
   "tasks.links.add": { in: TasksLinksAddIn; out: TasksLinksAddOut };
   "tasks.links.remove": { in: TasksLinksRemoveIn; out: TasksLinksRemoveOut };
   "tasks.list": { in: TasksListIn; out: TasksListOut };
   "tasks.my_work": { in: TasksMyWorkIn; out: TasksMyWorkOut };
   "tasks.needs_you": { in: TasksNeedsYouIn; out: TasksNeedsYouOut };
+  "tasks.plan": { in: TasksPlanIn; out: TasksPlanOut };
   "tasks.release": { in: TasksReleaseIn; out: TasksReleaseOut };
+  "tasks.restore": { in: TasksRestoreIn; out: TasksRestoreOut };
+  "tasks.rev": { in: TasksRevIn; out: TasksRevOut };
   "tasks.review": { in: TasksReviewIn; out: TasksReviewOut };
   "tasks.snooze": { in: TasksSnoozeIn; out: TasksSnoozeOut };
   "tasks.submit": { in: TasksSubmitIn; out: TasksSubmitOut };
@@ -34682,9 +35628,6 @@ export interface CapMap {
   "views.publish": { in: ViewsPublishIn; out: ViewsPublishOut };
   "views.save": { in: ViewsSaveIn; out: ViewsSaveOut };
   "views.share_external": { in: ViewsShareExternalIn; out: ViewsShareExternalOut };
-  "warmup.pool_optin_set": { in: WarmupPoolOptinSetIn; out: WarmupPoolOptinSetOut };
-  "warmup.start": { in: WarmupStartIn; out: WarmupStartOut };
-  "warmup.status": { in: WarmupStatusIn; out: WarmupStatusOut };
   "webhooks.create": { in: WebhooksCreateIn; out: WebhooksCreateOut };
   "webhooks.delete": { in: WebhooksDeleteIn; out: WebhooksDeleteOut };
   "webhooks.deliveries": { in: WebhooksDeliveriesIn; out: WebhooksDeliveriesOut };
@@ -34718,7 +35661,7 @@ export type AccessChangedPayload = {
 export type AccessDeclinedPayload = {
   requestId: string;
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   requester: string;
@@ -34733,7 +35676,7 @@ export type AccessEveryoneDefaultsChangedPayload = {
 export type AccessGrantedPayload = {
   requestId: string;
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   level: "view" | "use" | "edit" | "manage";
@@ -34745,7 +35688,7 @@ export type AccessGrantedPayload = {
 export type AccessRequestedPayload = {
   requestId: string;
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   level: "view" | "use" | "edit" | "manage";
@@ -34809,6 +35752,15 @@ export type AgentHandoffPayload = {
   toAgentId: string;
   depth: number;
 };
+export type AgentJobQueuedPayload = {
+  agentId: string;
+  jobId: string;
+  kind: string;
+};
+export type AgentJobTakenPayload = {
+  agentId: string;
+  jobId: string;
+};
 export type AgentLimitHitPayload = {
   agentId: string;
   threadId?: string;
@@ -34868,6 +35820,10 @@ export type AgentRoutineRunStartedPayload = {
   runId: string;
   ownerId: string;
   requestedBy: string;
+};
+export type AgentSeenPayload = {
+  agentId: string;
+  at: number;
 };
 export type AgentSuggestionProposedPayload = {
   suggestionId: string;
@@ -35141,30 +36097,6 @@ export type CallVoicemailLeftPayload = {
   callId: string;
   numberId: string;
   contactId?: string;
-};
-export type CampaignCompletedPayload = {
-  campaignId: string;
-};
-export type CampaignCreatedPayload = {
-  campaignId: string;
-  name: string;
-};
-export type CampaignLaunchedPayload = {
-  campaignId: string;
-  audienceCount: number;
-};
-export type CampaignPausedPayload = {
-  campaignId: string;
-  reason: string;
-};
-export type CampaignRepliedPayload = {
-  campaignId: string;
-  recordId: string;
-  messageId: string;
-};
-export type CampaignUnsubscribedPayload = {
-  campaignId: string;
-  recordId: string;
 };
 export type ChangesetApprovedPayload = {
   changesetId: string;
@@ -35443,7 +36375,7 @@ export type ContactAddressRemovedPayload = {
   addressId: string;
 };
 export type ContactDndScreenedPayload = {
-  context: "audience" | "campaign" | "journey_enrol" | "import";
+  context: "audience" | "journey_enrol" | "import";
   contextId?: string;
   screened: number;
   refused: number;
@@ -35452,12 +36384,6 @@ export type ContactPreferencesChangedPayload = {
   contactId: string;
   changed: Array<string>;
   source: string;
-};
-export type ConversationCampaignReplyPayload = {
-  conversationId: string;
-  contactId: string;
-  campaignId: string;
-  channel: "email" | "sms" | "call";
 };
 export type ConversationCreatedPayload = {
   conversationId: string;
@@ -35762,14 +36688,14 @@ export type FolderSharedPayload = {
 export type FollowAddedPayload = {
   person: string;
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
 };
 export type FollowRemovedPayload = {
   person: string;
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
 };
@@ -35797,17 +36723,18 @@ export type FormSubmittedPayload = {
   recordId: string;
   type: string;
   matched: boolean;
+  booking?: boolean;
 };
 export type GateApprovedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   taskId: string;
   by: string;
   forPerson?: string;
 };
 export type GateDeniedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   taskId: string;
   by: string;
   mode: "send_back" | "drop";
@@ -35815,14 +36742,14 @@ export type GateDeniedPayload = {
 };
 export type GateExpiredPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   taskId: string;
   outcome: "dropped" | "escalated";
   escalatedTo?: string;
 };
 export type GateRequestedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   capName: string;
   taskId: string;
   principal: {
@@ -35834,7 +36761,7 @@ export type GateRequestedPayload = {
   expiresAt: number;
 };
 export type GateRuleChangedPayload = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "campaign_launch" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   by: string;
@@ -35953,7 +36880,7 @@ export type GrantCreatedPayload = {
     id: string;
   };
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   level: "view" | "use" | "edit" | "manage";
@@ -35966,7 +36893,7 @@ export type GrantRevokedPayload = {
     id: string;
   };
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   reason?: string;
@@ -35984,7 +36911,7 @@ export type HealthChangedPayload = {
 };
 export type HealthPausedPayload = {
   key: string;
-  paused: Array<"automations" | "sync" | "sends" | "campaigns">;
+  paused: Array<"automations" | "sync" | "sends">;
   reason: string;
 };
 export type HealthResumedPayload = {
@@ -36093,7 +37020,7 @@ export type IssueOpenedPayload = {
 };
 export type ItemMovedPayload = {
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   fromFolderId?: string | string;
@@ -36206,7 +37133,6 @@ export type MailReceivedPayload = {
   from: string;
   subject: string;
   contactId?: string;
-  campaignId?: string;
 };
 export type MailDraftDiscardedPayload = {
   draftId: string;
@@ -36260,9 +37186,25 @@ export type MailgunInboundReceivedPayload = {
   messageId: string;
   recipient: string;
 };
-export type McpScopesChangedPayload = {
-  actorId: string;
+export type McpClientAllowedPayload = {
+  agentId: string;
+  person: string;
+  clientName: string;
+  redirectHost?: string;
+};
+export type McpClientDeclinedPayload = {
+  requestId: string;
+  person: string;
+  clientName: string;
+};
+export type McpClientRemovedPayload = {
+  agentId: string;
   by: string;
+};
+export type McpClientReplayedPayload = {
+  agentId: string;
+  person: string;
+  why: string;
 };
 export type McpSessionEndedPayload = {
   sessionId: string;
@@ -36539,13 +37481,11 @@ export type MessageSentPayload = {
   channel: "email" | "sms";
   mailboxId?: string;
   contactId?: string;
-  campaignId?: string;
 };
 export type MessageSuppressedPayload = {
   channel: "email" | "sms";
   address: string;
   reason: string;
-  campaignId?: string;
 };
 export type MicrosoftConsentConfiguredPayload = {
   connector: "microsoft";
@@ -36650,7 +37590,7 @@ export type NoteErasedPayload = {
 export type NotificationCappedPayload = {
   person: string;
   agentId: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
   perHour: number;
 };
 export type NotificationDelegateChangedPayload = {
@@ -36663,11 +37603,11 @@ export type NotificationDelegateChangedPayload = {
 export type NotificationDeliveredPayload = {
   notificationId: string;
   person: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
   level: "interrupt" | "badge" | "digest";
   place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
   subject?: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   collapsed: boolean;
@@ -37144,7 +38084,7 @@ export type RunErasedPayload = {
 };
 export type RunFailedPayload = {
   runId: string;
-  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
+  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
   step?: string;
   code: string;
   message: string;
@@ -37169,11 +38109,11 @@ export type RunRetriedPayload = {
 };
 export type RunStartedPayload = {
   runId: string;
-  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
+  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
   name?: string;
   owner: string;
   subject?: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
   definitionVersion?: number;
@@ -37186,7 +38126,7 @@ export type RunStoppedPayload = {
 };
 export type RunSucceededPayload = {
   runId: string;
-  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "campaign" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
+  kind: "automation" | "automation_test" | "journey" | "journey_migrate" | "routine" | "deployment" | "connector_sync" | "connector_build" | "import" | "runbook" | "wait" | "terminal" | "replay" | "other";
   summary?: string;
   costMicros: number;
 };
@@ -37245,7 +38185,7 @@ export type SandboxDeniedPayload = {
 export type ScheduleCanceledPayload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "campaign" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
     id: string;
   };
   by: string;
@@ -37253,7 +38193,7 @@ export type ScheduleCanceledPayload = {
 export type ScheduleCreatedPayload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "campaign" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
     id: string;
   };
   nextAt?: number;
@@ -37261,7 +38201,7 @@ export type ScheduleCreatedPayload = {
 export type ScheduleFiredPayload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "campaign" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
     id: string;
   };
   runId?: string;
@@ -37271,7 +38211,7 @@ export type ScheduleFiredPayload = {
 export type ScheduleMissedPayload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "campaign" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
     id: string;
   };
   scheduledFor: number;
@@ -37281,7 +38221,7 @@ export type ScheduleMissedPayload = {
 export type SchedulePausedPayload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "campaign" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
     id: string;
   };
   reason: string;
@@ -37289,7 +38229,7 @@ export type SchedulePausedPayload = {
 export type ScheduleResumedPayload = {
   scheduleId: string;
   owner: {
-    kind: "automation" | "journey" | "agent_routine" | "campaign" | "gate" | "task" | "system";
+    kind: "automation" | "journey" | "agent_routine" | "gate" | "task" | "system";
     id: string;
   };
 };
@@ -37430,6 +38370,7 @@ export type SiteBuildFailedPayload = {
 export type SiteCreatedPayload = {
   siteId: string;
   name: string;
+  private?: boolean;
 };
 export type SiteDeployedPayload = {
   siteId: string;
@@ -37453,9 +38394,17 @@ export type SitePromotedPayload = {
   siteId: string;
   deploymentId: string;
 };
+export type SitePublishedPayload = {
+  siteId: string;
+  url?: string;
+  access: "public" | "password" | "space" | "private";
+};
 export type SiteRolledBackPayload = {
   siteId: string;
   toDeploymentId: string;
+};
+export type SiteStoppedPayload = {
+  siteId: string;
 };
 export type SiteTableCreatedPayload = {
   siteId: string;
@@ -37589,14 +38538,14 @@ export type SpendResumedPayload = {
 export type StarAddedPayload = {
   person: string;
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
 };
 export type StarRemovedPayload = {
   person: string;
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "campaign" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
   };
 };
@@ -37756,6 +38705,11 @@ export type TaskAssignedPayload = {
     id: string;
   }) | null;
 };
+export type TaskChildrenSettledPayload = {
+  taskId: string;
+  reason: "finished" | "blocked" | "asked";
+  childId?: string;
+};
 export type TaskCompletedPayload = {
   taskId: string;
   kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
@@ -37791,6 +38745,10 @@ export type TaskDelegatedPayload = {
     id: string;
   };
 };
+export type TaskDeletedPayload = {
+  taskId: string;
+  title: string;
+};
 export type TaskEscalatedPayload = {
   taskId: string;
   to: {
@@ -37822,6 +38780,9 @@ export type TaskNoteSetPayload = {
   key: string;
   by: string;
 };
+export type TaskReadyPayload = {
+  taskId: string;
+};
 export type TaskRejectedPayload = {
   taskId: string;
   by: string;
@@ -37840,6 +38801,9 @@ export type TaskRequestedPayload = {
     id: string;
   };
   expiresAt?: number;
+};
+export type TaskRestoredPayload = {
+  taskId: string;
 };
 export type TaskSentBackPayload = {
   taskId: string;
@@ -37967,30 +38931,6 @@ export type ThreadUpdatedPayload = {
   threadId: string;
   fields: Array<string>;
   starter?: string;
-};
-export type TokenIssuedPayload = {
-  tokenId: string;
-  name: string;
-  kind: string;
-  channelId?: string;
-  by: string;
-  expiresAt: number;
-};
-export type TokenRegisteredPayload = {
-  tokenId: string;
-  actorId: string;
-  name: string;
-  scopes: {
-    read: boolean;
-    post: boolean;
-    readChangesets: boolean;
-    writeBranch: boolean;
-  };
-};
-export type TokenRevealedPayload = {
-  tokenId: string;
-  action: string;
-  by: string;
 };
 export type TokenRevokedPayload = {
   actorId: string;
@@ -38255,10 +39195,6 @@ export type WaitRegisteredPayload = {
   };
   expiresAt: number;
 };
-export type WarmupSlowedPayload = {
-  mailboxId: string;
-  reason: string;
-};
 export type WebhookCreatedPayload = {
   webhookId: string;
   name: string;
@@ -38323,6 +39259,8 @@ export interface EventMap {
   "agent.disengaged": AgentDisengagedPayload;
   "agent.engaged": AgentEngagedPayload;
   "agent.handoff": AgentHandoffPayload;
+  "agent.job_queued": AgentJobQueuedPayload;
+  "agent.job_taken": AgentJobTakenPayload;
   "agent.limit_hit": AgentLimitHitPayload;
   "agent.mode_changed": AgentModeChangedPayload;
   "agent.model_changed": AgentModelChangedPayload;
@@ -38333,6 +39271,7 @@ export interface EventMap {
   "agent.routine_changed": AgentRoutineChangedPayload;
   "agent.routine_delegated": AgentRoutineDelegatedPayload;
   "agent.routine_run_started": AgentRoutineRunStartedPayload;
+  "agent.seen": AgentSeenPayload;
   "agent.suggestion_proposed": AgentSuggestionProposedPayload;
   "agent.suggestion_resolved": AgentSuggestionResolvedPayload;
   "agent.task_finished": AgentTaskFinishedPayload;
@@ -38388,12 +39327,6 @@ export interface EventMap {
   "call.transcript_ready": CallTranscriptReadyPayload;
   "call.transferred": CallTransferredPayload;
   "call.voicemail_left": CallVoicemailLeftPayload;
-  "campaign.completed": CampaignCompletedPayload;
-  "campaign.created": CampaignCreatedPayload;
-  "campaign.launched": CampaignLaunchedPayload;
-  "campaign.paused": CampaignPausedPayload;
-  "campaign.replied": CampaignRepliedPayload;
-  "campaign.unsubscribed": CampaignUnsubscribedPayload;
   "changeset.approved": ChangesetApprovedPayload;
   "changeset.changes_requested": ChangesetChangesRequestedPayload;
   "changeset.discarded": ChangesetDiscardedPayload;
@@ -38453,7 +39386,6 @@ export interface EventMap {
   "contact.address_removed": ContactAddressRemovedPayload;
   "contact.dnd_screened": ContactDndScreenedPayload;
   "contact.preferences_changed": ContactPreferencesChangedPayload;
-  "conversation.campaign_reply": ConversationCampaignReplyPayload;
   "conversation.created": ConversationCreatedPayload;
   "conversation.follow_changed": ConversationFollowChangedPayload;
   "conversation.matched": ConversationMatchedPayload;
@@ -38601,7 +39533,10 @@ export interface EventMap {
   "mailbox.sync_failed": MailboxSyncFailedPayload;
   "mailgun.event_received": MailgunEventReceivedPayload;
   "mailgun.inbound_received": MailgunInboundReceivedPayload;
-  "mcp.scopes_changed": McpScopesChangedPayload;
+  "mcp.client_allowed": McpClientAllowedPayload;
+  "mcp.client_declined": McpClientDeclinedPayload;
+  "mcp.client_removed": McpClientRemovedPayload;
+  "mcp.client_replayed": McpClientReplayedPayload;
   "mcp.session_ended": McpSessionEndedPayload;
   "mcp.session_started": McpSessionStartedPayload;
   "meeting.canceled": MeetingCanceledPayload;
@@ -38816,7 +39751,9 @@ export interface EventMap {
   "site.preview_created": SitePreviewCreatedPayload;
   "site.preview_removed": SitePreviewRemovedPayload;
   "site.promoted": SitePromotedPayload;
+  "site.published": SitePublishedPayload;
   "site.rolled_back": SiteRolledBackPayload;
+  "site.stopped": SiteStoppedPayload;
   "site.table_created": SiteTableCreatedPayload;
   "site.table_promoted": SiteTablePromotedPayload;
   "skill.added": SkillAddedPayload;
@@ -38870,18 +39807,22 @@ export interface EventMap {
   "tab.opened": TabOpenedPayload;
   "task.approved": TaskApprovedPayload;
   "task.assigned": TaskAssignedPayload;
+  "task.children_settled": TaskChildrenSettledPayload;
   "task.completed": TaskCompletedPayload;
   "task.created": TaskCreatedPayload;
   "task.delegated": TaskDelegatedPayload;
+  "task.deleted": TaskDeletedPayload;
   "task.escalated": TaskEscalatedPayload;
   "task.follower_added": TaskFollowerAddedPayload;
   "task.follower_removed": TaskFollowerRemovedPayload;
   "task.handled": TaskHandledPayload;
   "task.link_changed": TaskLinkChangedPayload;
   "task.note_set": TaskNoteSetPayload;
+  "task.ready": TaskReadyPayload;
   "task.rejected": TaskRejectedPayload;
   "task.released": TaskReleasedPayload;
   "task.requested": TaskRequestedPayload;
+  "task.restored": TaskRestoredPayload;
   "task.sent_back": TaskSentBackPayload;
   "task.snoozed": TaskSnoozedPayload;
   "task.taken": TaskTakenPayload;
@@ -38908,9 +39849,6 @@ export interface EventMap {
   "thread.started": ThreadStartedPayload;
   "thread.unarchived": ThreadUnarchivedPayload;
   "thread.updated": ThreadUpdatedPayload;
-  "token.issued": TokenIssuedPayload;
-  "token.registered": TokenRegisteredPayload;
-  "token.revealed": TokenRevealedPayload;
   "token.revoked": TokenRevokedPayload;
   "tombstones.reapplied": TombstonesReappliedPayload;
   "transcripts.purged": TranscriptsPurgedPayload;
@@ -38960,7 +39898,6 @@ export interface EventMap {
   "wait.expired": WaitExpiredPayload;
   "wait.matched": WaitMatchedPayload;
   "wait.registered": WaitRegisteredPayload;
-  "warmup.slowed": WarmupSlowedPayload;
   "webhook.created": WebhookCreatedPayload;
   "webhook.deleted": WebhookDeletedPayload;
   "webhook.delivered": WebhookDeliveredPayload;

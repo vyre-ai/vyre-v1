@@ -28,6 +28,7 @@ import { CapError, createCapCaller } from "./caps.ts";
 import { isLoopbackUrl } from "../../../../../client/src/gateway/local-key.ts";
 import { PHONE_BELOW } from "./mobile-map.ts";
 import { openPhone } from "./phone.ts";
+import { readUrlIntoHub } from "./url.ts";
 import type { LoadVoiceDevice, Phone } from "./phone.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
 import { OnboardingHost } from "../../onboarding/OnboardingHost.tsx";
@@ -73,6 +74,9 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const hub = useMemo(() => {
     if (given) { navRef.current = given; return given; }
     const h = createShellHub({ spaces: catalogue.map(item=>({...item.def,starred:item.def.spaceId===stored.def.spaceId})), openId: stored.def.spaceId, personId: stored.personId, personIds:Object.fromEntries(catalogue.map(item=>[item.def.spaceId,item.personId])), deviceId: "web", storage: tabsStorage() });
+    // a link in the address wins over the restored tabs from the first frame, so nothing else is drawn first (UrlSync takes over from here)
+    const page = (globalThis as { location?: { pathname?: string; hash?: string } }).location;
+    if (page?.pathname !== undefined && page.hash !== undefined) readUrlIntoHub(h, { pathname: page.pathname, hash: page.hash });
     navRef.current = h;
     return h;
   }, [given, catalogueKey, stored.def.spaceId, stored.personId]);
@@ -183,9 +187,9 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     subscribe: (l) => session.onPurge(l),
   } : undefined), [session, onSignedOut]);
   useEffect(() => location.place === "console" && purge ? watchPurge(purge, (e) => hub.flash(`Couldn't remove this device's data: ${e instanceof Error ? e.message : "try again"}`)) : undefined, [location.place, purge, hub]);
-  // The Console is a Team Space place. A Personal Space has none, so a saved or stale address that names it goes Home, never to a page with no way back.
+  // The Console is a Team Space place. A Personal Space has none, so a saved or stale address that names it goes to Chats, never to a page with no way back.
   const deadConsole = location.place === "console" && stored.def.kind === "personal";
-  useEffect(() => { if (deadConsole) hub.go("home"); }, [deadConsole, hub]);
+  useEffect(() => { if (deadConsole) hub.go("chats"); }, [deadConsole, hub]);
   // console.<address> is the Console's own door: whatever a saved session last had open, this address opens the Console
   const consoleDoor = onConsoleHost() && stored.def.kind !== "personal";
   useEffect(() => { if (consoleDoor && location.place !== "console") hub.go("console"); }, [consoleDoor, location.place, hub]);
@@ -217,7 +221,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   if (narrow) return wrap(<Suspense fallback={<View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />}><PhoneHost session={session} location={{ place: location.place, hash: location.hash }} needsYou={needsYou} registerGo={registerGo} onSignOut={signOut} onLock={lock} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} {...(onAddSpace?{onAddSpace}:{})} /></Suspense>);
   return wrap(
     <>
-      <Shell hub={hub} {...(runsOnProp ? { runsOn: runsOnProp } : {})} {...(theme?{theme}:{})} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} onSpaceAction={(a) => { if (a === "sign-out") signOut(); else if(a==='lock')lock();else if(a==='add')onAddSpace?.(); }} {...(phone ? { phone: { device: phone.device, data: phone.data } } : {})} {...(purge ? { purge } : {})} />
+      <Shell hub={hub} {...(session ? { me: { id: session.me.id, name: session.me.name } } : {})} onOpenMe={() => hub.go("settings", "profile")} {...(runsOnProp ? { runsOn: runsOnProp } : {})} {...(theme?{theme}:{})} {...(onSwitchSpace?{onSwitchSpace:selectSpace}:{})} renderPlace={renderPlace} renderNewTab={renderNewTab} onSearch={() => setSearchOpen(true)} onSpaceAction={(a) => { if (a === "sign-out") signOut(); else if(a==='lock')lock();else if(a==='add')onAddSpace?.(); }} {...(phone ? { phone: { device: phone.device, data: phone.data } } : {})} {...(purge ? { purge } : {})} />
       {searchOpen && search ? <CmdK data={search} onClose={() => setSearchOpen(false)} onTiming={(name, ms) => { if (name === "local" && session) speed.record(session.runtime.space.id, "search", ms); }} /> : null}
     </>
   );

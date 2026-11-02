@@ -1,5 +1,6 @@
 // The Settings place: You, and under the Space's own name what applies to everyone here, with one search (Cmd-F) over all of it. Changes save as they are made. The Console's pages open
 // inside a Space page, with a way back. On a phone the page list and a page are two screens with a back arrow.
+import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
@@ -84,6 +85,7 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
     pageRows.push(<View key="g-space" style={n.groupHead} testID="space-group"><Mark name={spaceTitle} size={16} /><Text accessibilityRole="header" style={n.groupTitle}>{spaceTitle}</Text></View>);
     for (const key of spacePages) { const p = pageByKey(key); pageRows.push(<Row key={p.key} id={`page-${p.key}`} title={p.title} selected={!q.trim() && page === p.key} leading={<IconBox name={p.icon} />} onPress={() => open(p.key)} />); }
   }
+  if (data.openCompany) pageRows.push(<View key="g-company" style={n.groupHead} />, <Row key="company" id="open-company" title="Connect your company" note="Google Workspace or Microsoft 365" leading={<IconBox name="link" />} onPress={data.openCompany} />);
   if (data.openConsole) pageRows.push(<View key="g-console" style={n.groupHead} />, <Row key="console" id="open-console" title="Console" note="Running this Space" leading={<IconBox name="grid" />} onPress={data.openConsole} />);
   const searching = q.trim().length > 0;
   const hitRows: ReactElement[] = [];
@@ -106,7 +108,7 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
   );
 
   const nav = (
-    <View style={[n.nav, phone && { width: "100%" as unknown as number, borderRightWidth: 0 }]} testID="settings-nav">
+    <View style={[n.nav, phone && { width: "100%" as unknown as number }]} testID="settings-nav">
       <View style={n.top}>
         <Text numberOfLines={1} accessibilityRole="header" style={n.space}>Settings</Text>
         {data.spaces.some((sp) => !sp.current && sp.needsYou > 0) ? <View style={n.dot} accessibilityLabel="Another Space needs you" /> : null}
@@ -160,14 +162,15 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
   );
   return (
     <View style={n.frame} testID="settings-place">
-      {phone ? (view === "nav" || searching ? nav : main) : (<>{nav}{main}</>)}
+      {phone ? (view === "nav" || searching ? nav : main) : (<><ResizableColumn paneKey="place-sidebar" defaultWidth={244} grow="right" min={200} maxFraction={0.5} maxWidth={380} style={n.navCol as never} testID="settings-nav-col">{nav}</ResizableColumn>{main}</>)}
     </View>
   );
 }
 
 const n = StyleSheet.create({
   frame: { flex: 1, flexDirection: "row", backgroundColor: "var(--win)" as string },
-  nav: { width: 248, backgroundColor: "var(--side)" as string, borderRightWidth: 1, borderRightColor: "var(--line)" as string },
+  nav: { flex: 1, minHeight: 0, backgroundColor: "var(--side)" as string },
+  navCol: { minHeight: 0 },
   top: { height: 52, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16 },
   space: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, flexShrink: 1 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--accent)" as string },

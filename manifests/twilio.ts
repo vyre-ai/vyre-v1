@@ -5,7 +5,7 @@
 // so the sources use verify 'signature'. Every webhook is deduped on a key built from the Sid plus the status.
 // DECISION: telephony.* caps (dial, send_sms, transfer, record) are listed as actions this connector contributes.
 import { conn, defineManifest, ev, health, outward, read, t, write } from '../packages/contracts/src/index.ts';
-import { email } from './_common.ts';
+import { email, id } from './_common.ts';
 
 const healthOut = { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) };
 const phone = t.str({ pattern: '^\\+[1-9][0-9]{6,14}$', examples: ['+14155550123'] });
@@ -50,7 +50,7 @@ const capabilities = [
   read('twilio.recording.download', 'Download a finished recording into a blob', { in: { recordingSid: t.str() }, out: { blobId: t.id('blb'), size: t.int(), durationSec: t.opt(t.int()) } }),
   outward('twilio.recording.delete', 'Delete a recording at Twilio', { in: { recordingSid: t.str() }, out: { deleted: t.bool() }, gate: 'delete' }),
   outward('twilio.sms.send', 'Send a text (the transport behind telephony.send_sms)', {
-    in: { from: phone, to: phone, body: t.str(), mediaUrls: t.opt(t.arr(t.str())), statusCallback: t.opt(t.str()) }, out: { sid: t.str(), status: t.str() }, gate: 'send',
+    in: { numberId: id.number, from: phone, to: phone, body: t.str(), mediaUrls: t.opt(t.arr(t.str())), statusCallback: t.opt(t.str()) }, out: { sid: t.str(), status: t.str() }, on: ['number', '/numberId'], level: 'use', gate: 'send',
     errors: ['provider.auth_failed', 'provider.rate_limited'],
   }),
   outward('twilio.a2p.create_brand', 'Register the Space brand for US texting', {

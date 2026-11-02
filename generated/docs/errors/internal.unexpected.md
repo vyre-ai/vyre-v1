@@ -13,6 +13,7 @@ HTTP 500. Retryable: yes.
 - access.actors.set_engineer_mcp
 - access.actors.update
 - access.audience_set
+- access.automation_senders
 - access.check
 - access.connector_builder.grant
 - access.connector_builder.status
@@ -30,4 +31,3 @@ HTTP 500. Retryable: yes.
 - access.groups.update
 - access.labels.list
 - access.labels.set
-- access.lists

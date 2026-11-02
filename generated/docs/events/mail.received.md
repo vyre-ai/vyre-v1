@@ -23,6 +23,5 @@ type Payload = {
   from: string;
   subject: string;
   contactId?: string;
-  campaignId?: string;
 };
 ```

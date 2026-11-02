@@ -14,9 +14,11 @@ export interface TelDb {
 export interface TelCtx {
   space: string;
   principal: { kind: "person" | "agent" | "actor" | "service"; id: string };
+  actingFor?: string | undefined;
   trace: { traceId: string };
-  /** where the call came from: 'user' for a person at a screen, anything else for automations, campaigns and other engines */
+  /** where the call came from: 'user' for a person at a screen, anything else for automations and other engines */
   origin?: string;
+  authorize?(action: { perm: string | null; level: "view" | "use" | "edit" | "manage" }, resource: { type: string; id: string | null }): { effect: string };
   now(): number;
   db: TelDb;
   emit(name: string, subject: string, payload: unknown, opts?: { vis?: "space" | "participants" | "owner" | "private" }): unknown;
@@ -162,11 +164,10 @@ export async function setting<T>(ctx: TelCtx, key: string, fallback: T, ok: (v: 
 
 // ---- who is acting (the same rule as the single send API)
 
-export type Actor = "person" | "agent" | "automation" | "campaign";
+export type Actor = "person" | "agent" | "automation";
 export function actorOf(ctx: Pick<TelCtx, "principal" | "origin">): Actor {
   if (ctx.principal.kind === "agent") return "agent";
   const from = ctx.origin ?? "user";
-  if (from.startsWith("campaign")) return "campaign";
   if (from !== "user" || ctx.principal.kind === "service" || ctx.principal.kind === "actor") return "automation";
   return "person";
 }
@@ -267,13 +268,35 @@ export function smsOut(r: Row): Json {
     mediaFileIds: parseJson<string[]>(r["mediaFileIds"], []), at: num(r, "at"),
   };
   if (strOrNull(r, "contactId")) out.contactId = str(r, "contactId");
-  if (strOrNull(r, "campaignId")) out.campaignId = str(r, "campaignId");
   return out;
 }
 
 export function liveCall(ctx: TelCtx, id: string): Row {
   const row = first(ctx.db.all(`SELECT * FROM telephony_call WHERE id = ?`, id));
   return row ?? missing(ctx, "That call is not in this Space.");
+}
+
+/** May the caller see this line? The same question the Inbox asks of a number, and its assignee always may. The server's own hooks work every line. */
+export function seesNumber(ctx: TelCtx, numberId: string): boolean {
+  if (!ctx.authorize || ctx.principal.kind === "service") return true;
+  if (ctx.authorize({ perm: null, level: "view" }, { type: "number", id: numberId }).effect === "allow") return true;
+  const n = first(ctx.db.all(`SELECT "assigneeId" FROM telephony_number WHERE id = ?`, numberId));
+  return n !== null && strOrNull(n, "assigneeId") === (ctx.actingFor ?? ctx.principal.id);
+}
+
+/** May the caller see this call? Whoever sees the line, whoever it rings for and whoever holds it: a transfer can hand a call to someone with no grant on the number. */
+export function seesCall(ctx: TelCtx, row: Row): boolean {
+  if (seesNumber(ctx, str(row, "numberId"))) return true;
+  const me = ctx.actingFor ?? ctx.principal.id;
+  const mine = (p: Party): boolean => p.id === me || p.id === ctx.principal.id;
+  const holder = parseJson<Party | null>(row.handledBy, null);
+  return (holder !== null && mine(holder)) || parseJson<Party[]>(callMeta(ctx, str(row, "id")).ringing, []).some(mine);
+}
+
+/** A call the caller may see, or the same answer as for one that is not there: what exists on someone else's line is not leaked. */
+export function seenCall(ctx: TelCtx, id: string): Row {
+  const row = liveCall(ctx, id);
+  return seesCall(ctx, row) ? row : missing(ctx, "That call is not in this Space.");
 }
 
 export function callMeta(ctx: TelCtx, callId: string): Row {

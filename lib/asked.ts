@@ -15,7 +15,6 @@ const VERBS: ReadonlyArray<readonly [RegExp, readonly string[]]> = [
   [new RegExp(`${LEAD}(?:open|create|file|raise|make)\\s+(?:a|an|the)\\s+(?:new\\s+)?(pull request|pr|issue)\\b`, "i"), ["post"]],
   [new RegExp(`${LEAD}(push)\\b`, "i"), ["push_protected"]],
   [new RegExp(`${LEAD}(deploy|promote|ship|go live)\\b`, "i"), ["site_promote"]],
-  [new RegExp(`${LEAD}(launch)\\b`, "i"), ["campaign_launch"]],
   [new RegExp(`${LEAD}(ssh|curl)\\b`, "i"), ["send"]],
 ];
 

@@ -16,6 +16,11 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "agents.limits.get": Handler<"agents.limits.get", X>;
   "agents.list": Handler<"agents.list", X>;
   "agents.memory_key.get": Handler<"agents.memory_key.get", X>;
+  "agents.next": Handler<"agents.next", X>;
+  "agents.outside.connect": Handler<"agents.outside.connect", X>;
+  "agents.outside.enqueue": Handler<"agents.outside.enqueue", X>;
+  "agents.outside.seen": Handler<"agents.outside.seen", X>;
+  "agents.outside.usable": Handler<"agents.outside.usable", X>;
   "agents.pause": Handler<"agents.pause", X>;
   "agents.restore": Handler<"agents.restore", X>;
   "agents.restore_version": Handler<"agents.restore_version", X>;

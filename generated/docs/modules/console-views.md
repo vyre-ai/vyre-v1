@@ -2,7 +2,7 @@
 
 Lane L7b. Kind module. Version 0.1.0.
 
-Requires: access, backup, health, logs, mcp, network, schema, updates.
+Requires: access, backup, health, logs, network, schema, updates.
 
 ## Capabilities (6)
 

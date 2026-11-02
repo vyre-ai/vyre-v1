@@ -21,7 +21,7 @@ export const STEP_NEEDS: Record<string, { modules: string[]; packet: string }> =
   "records": { modules: ["records"], packet: "P-L3_LIVE" },
   "files": { modules: ["files"], packet: "P-L4_LIVE" },
   "inbox": { modules: ["inbox"], packet: "P-L5_LIVE" },
-  "apps": { modules: ["sites", "forms", "campaigns"], packet: "P-L8_LIVE" },
+  "apps": { modules: ["sites", "forms"], packet: "P-L8_LIVE" },
   "automations": { modules: ["automations"], packet: "P-L3_LIVE" },
   "vault": { modules: ["vault"], packet: "P-L7_LIVE" },
   "settings": { modules: ["settings"], packet: "P-L7_LIVE" },
@@ -48,7 +48,7 @@ export interface Edge { origin: string; close(): void }
 export function edge(dist: string, daemonUrl: string, tls?: { key: string; cert: string }, port = 0): Promise<Edge> {
   const target = new URL(daemonUrl);
   const base = path.resolve(dist);
-  const proxied = (p: string): boolean => p.startsWith("/v1/") || p.startsWith("/sync/") || p === "/healthz" || p.startsWith("/live") || p.startsWith("/local/vault/key/");
+  const proxied = (p: string): boolean => p.startsWith("/v1/") || p.startsWith("/sync/") || p === "/healthz" || p.startsWith("/live") || p.startsWith("/local/vault/key/") || p === "/mcp" || p.startsWith("/.well-known/oauth-") || /^\/oauth\/(authorize|register|token|wait)$/.test(p);
   const handle: http.RequestListener = (req, res) => {
     const u = new URL(req.url ?? "/", "http://edge");
     if (proxied(u.pathname)) {

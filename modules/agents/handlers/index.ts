@@ -1,7 +1,7 @@
 // Handler table of the agents module: all 33 capabilities of manifests/agents.ts. The record, lifecycle, configuration and versions are in crud.ts; routines, suggestions, the Agent template and
 // Vyre's own text are in routines.ts.
 import {
-  configGet, configValidate, create, get, limitsGet, list, memoryKeyGet, pause, remove, restore, setOwner, restoreVersion, resume, roleLineSet, snapshotTake, status, summary, update, versions, visibilitySet,
+  configGet, configValidate, connectOutside, create, get, limitsGet, list, memoryKeyGet, pause, remove, restore, setOwner, restoreVersion, resume, roleLineSet, snapshotTake, status, summary, update, versions, visibilitySet,
 } from "./crud.ts";
 import { builtinSkillGet, builtinSkillsList, guideGet, routineDelegate, routineDelete, routineRunNow, routineSave, routinesList, suggestionAccept, suggestionDismiss, suggestionPropose, suggestionsList, templateApply, templateGet, templatePreview } from "./routines.ts";
 
@@ -9,9 +9,15 @@ import {
   agentTemplateUse, agentTemplates, allowList, allowSet, browse, commandRender, commandsList, configSet, connectionAdd, connectionRemove, connectionsList, hooksList, install, marketplaceAdd, marketplaceRefresh, marketplaceRemove,
   marketplacesList, mcpServers, pluginFiles, pluginGet, pluginsList, setEnabled, uninstall,
 } from "./plugins.ts";
+import { enqueue, next, seen, usable } from "./outside.ts";
 import { skillsAdd, skillsList, skillsLoad, skillsRemove, skillsSetEnabled } from "./skills.ts";
 
 export const handlers = {
+  "agents.outside.connect": connectOutside,
+  "agents.outside.enqueue": enqueue,
+  "agents.outside.seen": seen,
+  "agents.outside.usable": usable,
+  "agents.next": next,
   "plugins.marketplaces.list": marketplacesList,
   "plugins.browse": browse,
   "plugins.list": pluginsList,

@@ -14,3 +14,11 @@
 - When one lane of a parallel step ended early, the step after the parallel ran inside the other lane, without waiting and even when the parallel failed. It now runs after the lanes, once.
 - Someone who can only see an agent no longer reads which keys pay for it, which Vault handles it holds, or its limits. Owners, editors and the agent itself still do, and a turn is built whole whoever asked.
 - A reply on a shared key no longer says it was on the account of the person who asked. A person who joins a group that no agent could answer them in is named in one line of that chat.
+- A stage added to a Journey can now be entered, and a Journey can be made again under a deleted Journey's name. Finishing a task that is not the stage's own, such as a time limit alert, no longer moves the record.
+- A transferred call now rings the person it went to, and a call back from hold rings who held it, not the number's whole route. Stop now stops a recording that began with the call. Only someone a call is ringing for can decline it.
+- A person can connect through Workspace delegation only the address matched to them: typing a colleague's address no longer opens their mail. An agent working for a person is held to the same rule.
+- Records, Agents now lists the agents themselves, so it always matches Chats. New makes a real agent with no second row beside it; an old row with nothing behind it stays, marked, and offers to set it up.
+- A person who leaves a Space stops: their mailboxes end and their own Google and Microsoft sign-ins go, as they do when someone is removed.
+- Calls and texts now follow the access rules for their number, the same way the Inbox does. Whoever a call rings for, and whoever holds it after a transfer, keeps it.
+- The unsubscribe link in an email now works for someone with no account, at a Space address and a vyre.run address, with a plain confirmation that shows nothing of the Space. A mail scanner fetching the link unsubscribes nobody, and a failed unsubscribe says so and can be tried again.
+- A project link for a client now opens on a vyre.run address. A relay Space invites at its vyre.run name, not this computer, a portal email on one says why it cannot be sent.

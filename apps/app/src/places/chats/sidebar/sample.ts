@@ -79,7 +79,7 @@ export const northwind: SampleSpace = {
     { id: "usr_maya", name: "Maya Chen", title: "Partner" }, { id: "usr_omar", name: "Omar Haddad", title: "Paralegal" }, { id: "usr_priya", name: "Priya Nair", title: "Office manager" },
     { id: "usr_lena", name: "Lena Brandt" }, { id: "usr_tom", name: "Tom Okafor" },
   ],
-  projects: [{ recordId: "rec_rivera", title: "Rivera matter" }, { recordId: "rec_atp", title: "ATP Q4 campaign" }],
+  projects: [{ recordId: "rec_rivera", title: "Rivera matter" }, { recordId: "rec_atp", title: "ATP Q4 review" }],
 };
 
 /** A prototype clock string: "8:41" is today at 08:41, "Yesterday" yesterday midday, a weekday name the Monday before. */

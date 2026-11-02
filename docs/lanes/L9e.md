@@ -3,7 +3,7 @@
 Brief for a Grok or Sonnet worker. Read this once at the start of the window, then run `trk brief <packet>` for each packet. Packets: 9 (675 min estimated). Tracker lane id: `L9e`.
 
 ## Goal
-Files and Apps places: tree, viewer, diff, history, mounts, memory graph; Sites, Forms, Campaigns, Templates, Kit builder, email builder, booking pages.
+Files and Apps places: tree, viewer, diff, history, mounts, memory graph; Sites, Forms, Templates, Kit builder, email builder, booking pages.
 
 ## Spec sections
 From your packets: 2.4, 2.11, 2.14, 2.15, 2.16, 2.19, 2.20, 2.21, 3.5, 3.6, 4.15.
@@ -23,7 +23,7 @@ Read these in `V1-SPEC.md` (spec numbers) and `ARCHITECTURE-V1.md` (b-numbers an
 
 ## Screens (generated registry, 27 in manifests today)
 - files: `files.changeset-header`, `files.commit-diff`, `files.diff`, `files.fill-sheet`, `files.git-row`, `files.history`, `files.lint-bar`, `files.list`, `files.memory-graph`, `files.memory-proposed`, `files.mount-sheet`, `files.runbook-viewer`, `files.sync-line`, `files.thumbnails`, `files.trash`, `files.tree`, `files.viewer`
-- apps: `apps.campaign-builder`, `apps.campaigns`, `apps.form-settings`, `apps.forms`, `apps.kit-builder`, `apps.sending-domains`, `apps.site-editor`, `apps.site-settings`, `apps.sites`, `apps.templates`
+- apps: `apps.form-settings`, `apps.forms`, `apps.kit-builder`, `apps.sending-domains`, `apps.site-editor`, `apps.site-settings`, `apps.sites`, `apps.templates`
 
 ## Coverage-audit screens assigned to you (add to your packet's manifests; source: MANIFEST-COVERAGE.md)
 - P-L9e_07: add screen apps.email-builder (blocks, HTML, plain text, focus mode, preview, checks, Ask; email_builder.* plus new email_builder.snippets.* from P-PR_33b).
@@ -54,7 +54,7 @@ Read these in `V1-SPEC.md` (spec numbers) and `ARCHITECTURE-V1.md` (b-numbers an
 - **P-L9e_08** (grok, 75 min, tier 2) Apps: Forms list with settings pane and builder (tier 2)
   - spec: 3.6, 2.11; depends on: P-L9e_06; budgets: -
   - reuse_from: none (write fresh)
-- **P-L9e_09** (grok, 90 min, tier 2) Apps: Campaigns, CampaignBuilder, SendingDomains (tier 2)
+- **P-L9e_09** (grok, 90 min, tier 2) Apps: SendingDomains (tier 2)
   - spec: 3.6, 2.19; depends on: P-L9e_06, P-L9_09; budgets: -
   - reuse_from: none (write fresh)
 
