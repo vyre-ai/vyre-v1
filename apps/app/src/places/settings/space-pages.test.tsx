@@ -7,7 +7,8 @@ import { SettingsDataProvider } from "./data.tsx";
 import { SettingsPlace } from "./SettingsPlace.tsx";
 import type { SettingsProps } from "./SettingsPlace.tsx";
 import { ADMIN_LINKS, PAGES, ROW_HELP, SPACE_ROWS, adminHome, rowHelp, pageOfRow, searchRows, spacePagesFor } from "./model.ts";
-import { createSampleSettings, harbor, northwind } from "./sample.ts";
+import { ROWS, createSampleSettings, harbor, northwind } from "./sample.ts";
+import { registry } from "../../../../../generated/registry.ts";
 import type { SampleSettings } from "./sample.ts";
 
 const html = (s: SampleSettings, props: SettingsProps = {}): string =>
@@ -69,4 +70,18 @@ test("every person row that shows says what it does, or is plain enough not to n
   const rows = (s.data.screens.query("settings.page", "rows", {}).getSnapshot() as { data: { rows: Parameters<typeof rowHelp>[0][] } }).data.rows;
   for (const r of rows) if (pageOfRow(r) && !plain.has(r.key)) assert.ok(rowHelp(r), r.key);
   assert.ok(Object.values(ROW_HELP).every((h) => h.length > 20));
+});
+
+test("every row is a real setting of the right scope, and every choice and range is one the schema accepts", () => {
+  const defs = new Map((registry.settings as unknown as { key: string; scope: string; schema: { enum?: unknown[]; $ref?: string; minimum?: number; maximum?: number } }[]).map((d) => [d.key, d]));
+  const $defs = registry.$defs as Record<string, { enum?: unknown[] }>;
+  for (const r of SPACE_ROWS) {
+    const d = defs.get(r.key);
+    assert.ok(d, `${r.key} is in the registry`);
+    assert.equal(d.scope, "space", r.key);
+    const allowed = d.schema.enum ?? (d.schema.$ref ? $defs[d.schema.$ref.split("/").pop()!]?.enum : undefined);
+    if (r.control.kind === "choice" && allowed) for (const o of r.control.options) assert.ok(allowed.includes(o.value), `${r.key}: ${o.value}`);
+    if (r.control.kind === "number") { assert.equal(r.control.min, d.schema.minimum, r.key); assert.equal(r.control.max, d.schema.maximum, r.key); }
+  }
+  for (const r of ROWS) assert.equal(defs.get(r.key)?.scope, "person", r.key);
 });

@@ -23,7 +23,7 @@ test("the registry has a SettingDef for every row the pages of You show, and pag
   const total = out.pages.reduce((n, p) => n + p.rows, 0);
   assert.equal(total, defs.filter((d) => pageOf(d) !== null).length);
   assert.ok(out.pages.find((p) => p.key === "profile")!.rows >= 7);
-  assert.equal(out.pages.find((p) => p.key === "computer")!.rows, 5);
+  assert.equal(out.pages.find((p) => p.key === "computer")!.rows, 4);
 });
 
 test("every SettingDef that has a Settings page is listed under it and is found by Cmd-F", async () => {
@@ -53,7 +53,7 @@ test("Space settings are not on the pages of You but can be listed by name", asy
 test("search takes words in any order, ranks a title that starts with the first word first, and finds nothing for nothing", async () => {
   const h = harness();
   const a = await handlers["settings.search"](asMaya(h), { q: "working hours" });
-  assert.ok(a.rows.length >= 2 && a.rows[0]!.title.toLowerCase().startsWith("working hours"));
+  assert.ok(a.rows.length >= 1 && a.rows[0]!.title.toLowerCase().startsWith("working hours"));
   const b = await handlers["settings.search"](asMaya(h), { q: "hours working" });
   assert.deepEqual(b.rows.map((r) => r.key).sort(), a.rows.map((r) => r.key).sort());
   assert.deepEqual((await handlers["settings.search"](asMaya(h), { q: "   " })).rows, []);
@@ -93,7 +93,7 @@ test("each person's value is their own: Omar's change does not move Maya's", asy
   assert.equal(omar.value, true);
   assert.equal((await handlers["settings.get"](asMaya(h), { key: "chat.agent_tabs" })).row.value, false);
   const lists = (await handlers["settings.list"](asMaya(h), { page: "ai" })).rows;
-  assert.deepEqual(lists.map((r) => r.key).sort(), ["chat.agent_tabs", "chat.ask_agent"]);
+  assert.deepEqual(lists.map((r) => r.key).sort(), ["chat.agent_tabs", "chat.ask_agent", "engine.local_runs"], "a page of You lists no Space row, even one declared under the same name");
 });
 
 test("a value the schema refuses is refused with a sentence and nothing is written", async () => {

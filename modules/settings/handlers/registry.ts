@@ -15,9 +15,11 @@ export async function pages(_ctx: SettingsCtx, _input: Record<string, never>) {
 export async function list(ctx: SettingsCtx, input: { page?: string; scope?: "space" | "person" }) {
   const person = meRead(ctx);
   const rows = [];
+  // a page of You lists only its own rows; a Space row is reached by its manifest page only when that name is not also a page of You (reports.vyre is declared on "ai")
+  const you = PAGES.some((p) => p.key === input.page);
   for (const d of defs) {
     if (input.scope && d.scope !== input.scope) continue;
-    if (input.page && (pageOf(d) ?? d.page) !== input.page) continue;
+    if (input.page && (pageOf(d) ?? (you ? null : d.page)) !== input.page) continue;
     // with no page named, a person reads the rows of their own pages; Space rows are asked for by scope or by name
     if (!input.page && !input.scope && pageOf(d) === null) continue;
     rows.push(rowOut(ctx, d, person));
