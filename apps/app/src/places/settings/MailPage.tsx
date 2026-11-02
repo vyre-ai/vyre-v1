@@ -1,6 +1,7 @@
-// Settings > Email and calendar: where a person connects and removes what flows into their Inbox. With nothing connected it is the Inbox's own connect tiles (Gmail, Outlook, Other
-// email, Twilio), reused as they are. Once something is in, it lists the person's mailboxes, calendars and the numbers assigned to them, each with what it is doing and a way to stop
-// it, and the same tiles sit under them to add another. Inbox joins the rail when the first one arrives and leaves when the last one goes (shell/rail/inbox-sources.ts).
+// Settings > Email and calendar: where a person connects and removes what flows into their Inbox. With nothing connected it is the Inbox's own connect tiles for mail (Gmail, Outlook,
+// Other email), reused as they are; Twilio is not here, because numbers are set up in the Console and assigned to people. Once something is in, it lists the person's mailboxes,
+// calendars and the numbers assigned to them, each with what it is doing and a way to stop it, and the same tiles sit under them to add another. What a company Google or
+// Microsoft connection gives this person shows only when there is one, and never in a Personal Space. Inbox joins the rail when the first one arrives and leaves when the last one goes (shell/rail/inbox-sources.ts).
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
@@ -9,7 +10,7 @@ import { useOpenConnect } from "../../shell/connect/context.ts";
 import { INBOX_SOURCE_QUERIES, useInboxSources } from "../../shell/rail/inbox-sources.ts";
 import { useIsPersonal, useScreenQuery, useSettingsData } from "./data.tsx";
 import { useSaved } from "./saved.tsx";
-import { NOT_CONNECTED, suiteSections, throughFirm } from "./suites.ts";
+import { suiteSections, throughFirm } from "./suites.ts";
 import { Glyph, Section, SettingsRow, SmallButton, Value, s as ui } from "./ui.tsx";
 
 type MailboxesOut = CapMap["mail.mailbox.list"]["out"];
@@ -19,6 +20,8 @@ type NumbersOut = CapMap["telephony.number.list"]["out"];
 const PROVIDER: Record<string, string> = { google: "Google", microsoft: "Microsoft", imap: "IMAP", inbound_only: "Receive only", local: "On Vyre" };
 const STATE: Record<string, string> = { pending: "Connecting", syncing: "Syncing", paused: "Paused", error: "Needs attention", disconnected: "Disconnected" };
 const [MAIL, CALENDARS, NUMBERS] = INBOX_SOURCE_QUERIES;
+/** A person connects mail here; a calendar comes with the Google or Microsoft sign-in. */
+const MAIL_TILES = ["gmail", "outlook", "imap"] as const;
 
 export function MailPage(): ReactElement {
   const data = useSettingsData();
@@ -33,7 +36,7 @@ export function MailPage(): ReactElement {
   const mailboxes = boxes.status === "ready" ? boxes.data.mailboxes.filter((m) => m.state !== "disconnected") : [];
   const calendars = cals.status === "ready" ? cals.data.calendars : [];
   const numbers = nums.status === "ready" ? nums.data.numbers.filter((n) => n.state !== "released" && n.assigneeKind === "person" && n.assigneeId === me) : [];
-  const tiles = <ConnectChannel inline connect={(kind) => data.nav.connect(kind === "twilio" || kind === "number" ? "twilio" : "mailbox")} />;
+  const tiles = <ConnectChannel inline only={MAIL_TILES} connect={() => data.nav.connect("mailbox")} />;
 
   const remove = (cap: string, input: Record<string, unknown>): void => {
     void data.call(cap, input).then(() => saved.saved("Removed")).catch(() => saved.failed("That did not remove."));
@@ -45,9 +48,7 @@ export function MailPage(): ReactElement {
   suites.forEach((suite, si) => firmRows.push(
     <SettingsRow key={suite.key} id={`suite.${suite.key}`} label={suite.title} sub={throughFirm(suite)} first={si === 0} lead={<Glyph name="link" size={15} />} control={<Value text={suite.rows.map((r) => r.service).filter((v, i, a) => a.indexOf(v) === i).join(" and ")} />} />,
   ));
-  const firm = personal ? null : (
-    <Section title="Through your Space" {...(suites.length === 0 && boxes.status === "ready" && cals.status === "ready" ? { note: NOT_CONNECTED } : {})}>{firmRows}</Section>
-  );
+  const firm = personal || suites.length === 0 ? null : <Section title="Through your Space">{firmRows}</Section>;
 
   const mailRows: ReactElement[] = [];
   mailboxes.forEach((m, i) => mailRows.push(
@@ -77,7 +78,7 @@ export function MailPage(): ReactElement {
   ));
   const numRows: ReactElement[] = [];
   numbers.forEach((n, i) => numRows.push(
-    <SettingsRow key={n.id} id={`number.${n.id}`} label={n.displayName ?? n.title} first={i === 0} sub={n.e164} lead={<Glyph name="phone" size={15} />} control={<Value text="Assigned to you" />} />,
+    <SettingsRow key={n.id} id={`number.${n.id}`} label={n.displayName ?? n.title} first={i === 0} sub={n.e164} lead={<Glyph name="phone" size={15} />} />,
   ));
 
   if (has === null) return <>{firm}<Text style={ui.sTitle} accessibilityRole="progressbar">Loading</Text></>;
@@ -88,7 +89,7 @@ export function MailPage(): ReactElement {
       {firm}
       {mailRows.length > 0 ? <Section title="Mail">{mailRows}</Section> : null}
       {calRows.length > 0 ? <Section title="Calendars">{calRows}</Section> : null}
-      {numRows.length > 0 ? <Section title="Numbers">{numRows}</Section> : null}
+      {numRows.length > 0 ? <Section title="Numbers assigned to you">{numRows}</Section> : null}
       <View style={ui.section} testID="mail-add">
         <Text accessibilityRole="header" style={ui.sTitle}>Add</Text>
         {tiles}

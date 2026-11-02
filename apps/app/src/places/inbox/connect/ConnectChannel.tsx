@@ -24,9 +24,11 @@ export interface ConnectChannelProps {
   connect?: InboxNav["connect"];
   /** Drawn inside a page that has its own heading: the tiles alone, from the top. */
   inline?: boolean;
+  /** Only these tiles (Settings leaves out Twilio: numbers are set up in the Console and assigned to people). All four when absent. */
+  only?: readonly ConnectTile["kind"][];
 }
 
-export function ConnectChannel({ onPick, connect, inline = false }: ConnectChannelProps): ReactElement {
+export function ConnectChannel({ onPick, connect, inline = false, only }: ConnectChannelProps): ReactElement {
   const data = useOptionalInboxData();
   const openConnect = useOpenConnect();
   // each tile opens its own connect sheet right here; where there is no door (a test, a screenshot) the old navigation stays
@@ -41,7 +43,7 @@ export function ConnectChannel({ onPick, connect, inline = false }: ConnectChann
       {inline ? null : <Text accessibilityRole="header" aria-level={2} style={s.title}>Connect a channel</Text>}
       <View style={[s.grid, inline && s.gridInline]}>
         {/* ui-rows-lint: not a list (channel tiles laid out in a wrapping grid) */}
-        {CONNECT_TILES.map((tile) => (
+        {CONNECT_TILES.filter((tile) => only === undefined || only.includes(tile.kind)).map((tile) => (
           <Pressable
             key={tile.kind} accessibilityRole="button" accessibilityLabel={`${tile.label}, ${tile.hint}`} testID={`connect-${tile.kind}`}
             onPress={() => pick(tile)}
