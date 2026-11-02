@@ -171,3 +171,11 @@ test("step and thinking frames build what the turn is doing, in order, and are g
   s.onFrame(f("trn_a", { kind: "final", messageId: null }));
   assert.equal(s.activityOf(turnRowId("trn_a")), undefined, "gone with the turn");
 });
+
+test("a frame of gathered steps reads as the steps it carries, in order", () => {
+  const t = timers();
+  const s = createTurnStreams({ setTimer: t.set, clearTimer: t.clear });
+  s.onFrame(f("trn_1", { kind: "start" }));
+  s.onFrame(f("trn_1", { kind: "steps", steps: [{ phase: "call", id: "s1", name: "Read" }, { phase: "input", id: "s1", detail: "notes.md" }, { phase: "result", id: "s1", ok: true }, { phase: "call", id: "s2", name: "Bash" }] }));
+  assert.deepEqual(s.activityOf(turnRowId("trn_1"))?.get().steps.map((x) => [x.id, x.state, x.detail]), [["s1", "done", "notes.md"], ["s2", "live", undefined]]);
+});

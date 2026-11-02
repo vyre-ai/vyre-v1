@@ -90,6 +90,7 @@ test("while an agent works a plain send queues; Interrupt sends it now with the 
   assert.equal(queuedCount(msgs(s), "usr_irfad", true), 2);
   assert.equal(queueNote(2, "Intake"), "2 messages queued for Intake's next step");
   assert.equal(queueNote(2, "Intake", true), "Goes in at the next step", "an engine that steers takes it at its next step");
+  assert.equal(queueNote(1, "Intake", false, false), "After this: it goes in when this turn ends", "someone else's turn is not steered");
 });
 
 test("one chat.post gives one message and one bubble on the page, never two", async () => {
@@ -411,4 +412,17 @@ test("a message the engine has handed to the agent is no longer shown as waiting
   const items = [{ messageId: "m1", state: "consumed" }, { messageId: "m2", state: "queued" }, { state: "queued" }];
   assert.deepEqual(stillWaiting(["m1", "m2", "m3"], items), ["m2"]);
   assert.deepEqual(stillWaiting(["m1"], []), [], "the engine holds nothing: nothing is waiting");
+});
+
+test("in a chat with more than one person each reply says whose account it ran on; alone it says nothing", () => {
+  const s = createSample("idle");
+  const reply = { ...msgs(s).find((m) => m.author.kind === "agent")!, kind: "agent" as const, body: "Done." };
+  const line = (shared: boolean, paidBy = "usr_sara"): string | undefined => {
+    const items = timeline([{ ...reply, paidBy }], { meId: "usr_irfad", nameOf: () => "Sara Khan", kindOf: () => "agent", clock: s.data.clock(), shared });
+    const other = items.find((i) => i.kind === "other");
+    return other?.kind === "other" ? other.paidLine : undefined;
+  };
+  assert.equal(line(true), "On Sara’s account");
+  assert.equal(line(true, "usr_irfad"), "On your account");
+  assert.equal(line(false), undefined);
 });

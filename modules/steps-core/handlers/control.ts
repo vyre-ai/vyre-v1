@@ -76,7 +76,7 @@ export interface StepCall {
 }
 export interface StepEnv {
   ctx: StepsCtx;
-  run: { id: string; label?: string; automation?: string; depth?: number };
+  run: { id: string; label?: string; automation?: string; defHash?: string; depth?: number };
   defaults?: { mailboxId?: string; numberId?: string };
   /** AI and code steps run in the agent and sandbox services */
   ai?: (node: StepNode, input: Record<string, unknown>, call: StepCall) => Promise<StepResult>;
@@ -526,6 +526,24 @@ function gateHold(e: unknown): StepResult | undefined {
   return undefined;
 }
 
+/** The step goes along with its call, so the Gate can match the grants the automation holds: a Run acts as a person or a service, and neither says who wrote this step. */
+const stepRef = (env: StepEnv, node: StepNode) => (env.run.automation && env.run.defHash ? { automationId: env.run.automation, nodeId: node.id, defHash: env.run.defHash, ...(node.askBeforeSending === true ? { ask: true } : {}) } : undefined);
+
+/** A code step that names hosts reaches the network from a definition: it is an outward step like any other and passes the Gate before the sandbox opens. Null means go on. */
+async function codeReach(env: StepEnv, node: StepNode, input: In, call: StepCall): Promise<StepResult | null> {
+  const hosts = Array.isArray(input["hosts"]) ? input["hosts"].filter((h): h is string => typeof h === "string" && h !== "") : [];
+  if (hosts.length === 0 || !env.ctx.call) return null;
+  const step = stepRef(env, node);
+  try {
+    await env.ctx.call("automations.code_reach", { hosts, idempotencyKey: `${call.key}:reach` }, { gate: "admin_only", ...(step ? { step } : {}) });
+    return null;
+  } catch (e) {
+    const held = gateHold(e);
+    if (held) return held;
+    throw e;
+  }
+}
+
 /** Call the capability a step stands for, as the Run's principal. A hold by the Gate parks the Run on the Gate's task. */
 async function capabilityStep(env: StepEnv, node: StepNode, i: In, call: StepCall): Promise<StepResult> {
   if (!env.ctx.call) throw stepError("internal.unavailable", "This step cannot run right now.", true);
@@ -541,7 +559,9 @@ async function capabilityStep(env: StepEnv, node: StepNode, i: In, call: StepCal
   if (!("idempotencyKey" in input) && "idempotencyKey" in ((CAPS.get(cap)?.input as { properties?: object } | undefined)?.properties ?? {})) input = { ...input, idempotencyKey: call.key };
   try {
     // Ask before sending is Off unless the step says On: the Gate then holds only when a Space admin rule requires approval for this act
-    const out = await env.ctx.call(cap, input, def.effects === "outward" && node.askBeforeSending !== true ? { gate: "admin_only" } : undefined);
+    const step = stepRef(env, node);
+    const opts = { ...(def.effects === "outward" && node.askBeforeSending !== true ? { gate: "admin_only" as const } : {}), ...(step ? { step } : {}) };
+    const out = await env.ctx.call(cap, input, Object.keys(opts).length > 0 ? opts : undefined);
     return { output: ad?.output ? ad.output(out, i) : out };
   } catch (e) {
     const held = gateHold(e);
@@ -581,6 +601,8 @@ export async function runStep(env: StepEnv, node: StepNode, call: StepCall): Pro
   }
   if (def.kind === "code") {
     if (!env.code) throw stepError("run.no_code", "Code steps run in the sandbox, which is not connected here.", false);
+    const held = await codeReach(env, node, input, call);
+    if (held) return held;
     return env.code(node, input, call);
   }
   if (node.key.startsWith("sheet.")) {

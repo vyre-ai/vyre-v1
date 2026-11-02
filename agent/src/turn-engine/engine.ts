@@ -1,6 +1,7 @@
 // Turn engine (ARCH 6.2): at most one turn runs per thread; everything else waits in thread_queue, in order.
 // A message is routed with lib/route.ts (the same function the composer uses), each responder is queued, and a worker holding the thread lease runs them one at a time.
-// A message that arrives while the same agent is working is steering: injected at the next step boundary, never a second concurrent turn.
+// A message from the person whose turn it is, while the same agent is working, is steering: injected at the next step boundary, never a second concurrent turn. Anyone else's waits for its own turn: the running session
+// holds that person's access, so another's words must not act on it.
 // An interrupt cancels the running turn now and runs first. runTurn catches everything: a failed thread accepts the next message as a fresh turn.
 // A tool call held at the Gate parks the turn (turn.waiting { task }, state waiting); resume() queues the wake that continues it once the task is answered.
 // Messages and waits sit behind MessageStore and WaitStore, so a second host that takes the thread over (recover) replays the same bodies.
@@ -53,6 +54,13 @@ export interface EngineOptions {
   nextAccount?: (q: AccountQuery) => Promise<ResolvedAccount | null>;
   /** No account could be found for a turn: raise the Unblock task for the starter; when it is answered the host calls wake() to run the turn again. */
   onNoAccount?: (info: { threadId: string; turnId: string; agentId: string; asker: string; routine: boolean }) => Promise<void> | void;
+  /**
+   * May this agent take a turn now? Asked before the account is resolved. An answer refuses the turn: it ends as failed with that code and nothing is opened or paid for. A paused or deleted agent is refused
+   * here. A checker that throws lets the turn through: the check must never be why a turn does not run.
+   */
+  admit?: (q: { threadId: string; agentId: string; asker: string }) => Promise<{ code: string; message: string } | null>;
+  /** The turn id a queue row left running by a dead host goes by (the one its row was recorded under), so what is said about it can be acted on. */
+  lostTurn?: (row: QueueItem) => string;
   /** A turn ended (completed, failed or cancelled): meter its usage. Not called for a turn parked on a held call until it ends. */
   onTurnEnd?: (turn: Readonly<TurnRow>, account: ResolvedAccount | null) => Promise<void> | void;
   /** The engine of a turn reported a limit window of the paying account (percent used and reset time). Keep the latest per account; it must never fail the turn. */
@@ -94,10 +102,12 @@ async function* guarded<T>(src: AsyncIterable<T>, stop: Promise<never>): AsyncGe
 }
 
 /** Provider errors that mean this account cannot serve the turn (agent/src/accounts/fallback.ts holds the same list). */
+const KEEP_EVENTS = 20_000;
+const KEEP_TURNS = 5_000;
 const ACCOUNT_FAILURE: ReadonlySet<string> = new Set(["provider.auth_failed", "auth.expired", "provider.rate_limited"]);
 const MAX_FALLBACKS = 8;
 
-interface Running { turnId: string; agentId: string; qseq: number; session: EngineSession | null; cancelled: boolean; lostLease: boolean }
+interface Running { turnId: string; agentId: string; asker: string; qseq: number; session: EngineSession | null; cancelled: boolean; lostLease: boolean }
 interface ThreadState { thread: OpenThread; messages: StoredMessage[]; running: Running | null; worker: Promise<void> | null; active: boolean }
 
 const defaultSchedule = (fn: () => void, ms: number): (() => void) => {
@@ -135,8 +145,13 @@ export interface TurnEngine {
   agents(threadId: string): EngineAgent[];
   /** The composer line "Intake will reply". */
   preview(threadId: string, draft: { author: IncomingMessage["author"]; mentions?: readonly RouteMention[]; depth?: number }): PreviewResult;
-  /** After a crash or lease expiry: requeue what the dead holder was running and take the thread over. */
+  /**
+   * After a crash or lease expiry: take the thread over. A turn that had called no tool runs again. One that had may have sent, paid or changed something, so it is never replayed: it ends as host_lost and
+   * a person decides (hole 12).
+   */
   recover(threadId: string): boolean;
+  /** Run what is queued in a thread that is open here (a retry queued by a capability). */
+  kick(threadId: string): void;
   idle(threadId: string): Promise<void>;
   events(threadId?: string): EngineEvent[];
   subscribe(fn: (e: EngineEvent) => void): () => void;
@@ -168,7 +183,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   let counter = 0;
   const nextId = opts.newId ?? ((p: string): string => `${p}_${++counter}`);
 
-  const emit = (e: EngineEvent): void => { journal.push(e); for (const l of listeners) l(e); };
+  // what is kept here is for reads of recent turns; a server that runs for months must not hold every event it ever saw
+  const emit = (e: EngineEvent): void => { journal.push(e); if (journal.length > KEEP_EVENTS) journal.splice(0, journal.length - KEEP_EVENTS); for (const l of listeners) l(e); };
   const need = (id: string): ThreadState => {
     const st = threads.get(id);
     if (!st) throw new RangeError(`unknown thread ${id}`);
@@ -191,7 +207,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   function enqueue(st: ThreadState, row: { kind: QueueItem["kind"]; agentId: string; from: string; messageId: string | null; priority: number; routine: boolean }): QueueItem {
-    const steer = row.kind === "message" && st.running !== null && st.running.agentId === row.agentId;
+    const steer = row.kind === "message" && st.running !== null && st.running.agentId === row.agentId && st.running.asker === row.from;
     const item = queue.enqueue({ threadId: st.thread.id, kind: row.kind, messageId: row.messageId, agentId: row.agentId, from: row.from, priority: row.priority, enqueuedAt: now(), routine: row.routine, steer });
     enqueuedHr.set(`${item.threadId}:${item.qseq}`, hr());
     emit({ type: "turn.queued", threadId: item.threadId, qseq: item.qseq, agentId: item.agentId, kind: item.kind, priority: item.priority, routine: item.routine, steer: item.steer });
@@ -199,11 +215,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   function ingest(st: ThreadState, m: IncomingMessage, interrupt: boolean): ReceiveResult {
-    return dispatch(st, store(st, m), interrupt);
+    return dispatch(st, store(st, m), interrupt, m.replyToPerson, m.job);
   }
 
-  function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean): ReceiveResult {
-    const r = route({ agents: st.thread.agents, kind: st.thread.kind }, { author: msg.author, mentions: msg.mentions, depth: msg.depth }, opts.policy);
+  function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean, replyToPerson?: string, job?: string): ReceiveResult {
+    const r = route({ agents: st.thread.agents, kind: st.thread.kind }, { author: msg.author, mentions: msg.mentions, depth: msg.depth, replyToPerson, job: job !== undefined }, opts.policy);
     let responders = r.responders;
     let routine = false;
     if (r.reason === "hop_limit") emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id });
@@ -213,7 +229,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       routine = responders.length > 0;
     }
     const kind = interrupt ? "interrupt" : "message";
-    const qseqs = responders.map((agentId) => enqueue(st, { kind, agentId, from: msg.author.id, messageId: msg.id, priority: interrupt ? PRIORITY_INTERRUPT : 0, routine }).qseq);
+    const qseqs = responders.map((agentId) => enqueue(st, { kind, agentId, from: job ?? msg.author.id, messageId: msg.id, priority: interrupt ? PRIORITY_INTERRUPT : 0, routine }).qseq);
     if (interrupt && st.running) void cancelRunning(st);
     if (qseqs.length > 0) kick(st);
     return { responders, reason: r.reason, qseqs, messageId: msg.id };
@@ -270,7 +286,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   function payerOf(st: ThreadState, item: QueueItem): { asker: string; reason: "starter" | "steerer" } {
-    const personFrom = (item.kind === "message" || item.kind === "interrupt") && findMessage(st, item.messageId)?.author.kind === "person";
+    // a person's message, or a Job's line: its row's `from` is the person the Job works for, not the agent that wrote it
+    const said = item.kind === "message" || item.kind === "interrupt" ? findMessage(st, item.messageId) : null;
+    const personFrom = said?.author.kind === "person" || (said !== null && said !== undefined && item.from !== said.author.id);
     if (personFrom && item.from !== st.thread.starter) return { asker: item.from, reason: "steerer" };
     return { asker: st.thread.starter, reason: "starter" };
   }
@@ -289,6 +307,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
 
   function recordSpend(turn: TurnRow): void {
     if (turn.tokensIn + turn.tokensOut > 0) spendRows.push({ agentId: turn.agentId, turnId: turn.id, payer: turn.asker, tokensIn: turn.tokensIn, tokensOut: turn.tokensOut });
+    if (spendRows.length > KEEP_TURNS) spendRows.splice(0, spendRows.length - KEEP_TURNS);
   }
 
   async function runTurn(st: ThreadState, item: QueueItem): Promise<void> {
@@ -298,7 +317,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     const payer = payerOf(st, item);
     // The account that pays comes from engine.account.resolve when the host wires it; without it the engine keeps its own starter/steerer choice (unit tests).
     let resolveFailed = false;
-    const account = opts.resolveAccount ? await opts.resolveAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: wait?.asker ?? payer.asker }).catch(() => { resolveFailed = true; return null; }) : undefined;
+    let resolveCode: string | undefined;
+    const refused = opts.admit ? await opts.admit({ threadId: st.thread.id, agentId: item.agentId, asker: wait?.asker ?? payer.asker }).catch(() => null) : null;
+    const account = opts.resolveAccount && !refused ? await opts.resolveAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: wait?.asker ?? payer.asker }).catch((e: unknown) => { resolveFailed = true; resolveCode = (e as { code?: unknown } | null)?.code as string | undefined; return null; }) : undefined;
     const asker = wait?.asker ?? (account ? account.payer : payer.asker);
     const reason = wait ? ("starter" as const) : payer.reason;
     const turn: TurnRow = {
@@ -307,7 +328,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       tokensIn: 0, tokensOut: 0, error: null, firstTokenOverheadMs: null, injected: 0,
     };
     turnRows.push(turn);
-    const run: Running = { turnId: turn.id, agentId: item.agentId, qseq: item.qseq, session: null, cancelled: false, lostLease: false };
+    if (turnRows.length > KEEP_TURNS) turnRows.splice(0, turnRows.length - KEEP_TURNS);
+    const run: Running = { turnId: turn.id, agentId: item.agentId, asker, qseq: item.qseq, session: null, cancelled: false, lostLease: false };
     st.running = run;
     leases.setTurn(st.thread.id, opts.holder, turn.id);
     emit({ type: "turn.started", threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, qseq: item.qseq, asker });
@@ -340,8 +362,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       lastFlush = hr();
     };
     try {
+      if (refused) throw Object.assign(new Error(refused.message), { code: refused.code });
       if (!agent) throw Object.assign(new Error("agent is not in this thread"), { code: "unknown_agent" });
-      if (account === null && resolveFailed) throw Object.assign(new Error("the account could not be resolved just now"), { code: "account_unavailable" });   // a resolver that is down is not "no key": no Unblock
+      if (account === null && resolveFailed) throw Object.assign(new Error("the account could not be resolved just now"), { code: typeof resolveCode === "string" ? resolveCode : "account_unavailable" });   // a resolver that is down is not "no key": no Unblock
       if (account === null) {
         // Nobody has a usable key for this turn: no session, the turn ends as failed (no_account) until they add one.
         try { await opts.onNoAccount?.({ threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker, routine: item.routine }); } catch { /* the Unblock is best effort; the turn still ends as no_account */ }
@@ -375,6 +398,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             flush("text");
             flush("tool_call");
             inTool = true;
+            queue.touch(st.thread.id, item.qseq);
             const result = await runTool(opts.callTool, { id: ev.id, name: ev.name, input: ev.input }, { threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker }).finally(() => { inTool = false; lastSeen = hr(); });
             if (run.cancelled || run.lostLease) break;
             if (result.held) {
@@ -389,6 +413,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             break;
           }
           case "block":
+            // an engine that runs its own tools reports them as blocks: the same line is crossed
+            queue.touch(st.thread.id, item.qseq);
             flush("text");
             flush(ev.kind);
             steerBoundary(st, run, turn);
@@ -407,7 +433,13 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           case "error": {
             // A key that is refused or out of quota, before the turn said anything: the next account in the agent's order takes it, and the failed one is skipped.
             if (opts.nextAccount && paying && ACCOUNT_FAILURE.has(ev.code) && reply === "" && blockIdx === 0 && failedRefs.length < MAX_FALLBACKS) {
-              try { switchTo = await opts.nextAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: asker, unavailable: [...failedRefs, paying.ref] }); } catch { switchTo = null; }
+              try { switchTo = await opts.nextAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: asker, unavailable: [...failedRefs, paying.ref] }); }
+              catch (e) {
+                // the next account is there but a person has to say yes first: the turn ends saying that, not with the limit it hit
+                const code = (e as { code?: unknown } | null)?.code;
+                if (typeof code === "string") { flush("text"); turn.error = { code, message: e instanceof Error ? e.message : code }; ended = true; break; }
+                switchTo = null;
+              }
               if (switchTo) { failedRefs.push(paying.ref); ended = true; break; }
             }
             flush("text");
@@ -571,12 +603,18 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           queue.setState(threadId, row.qseq, "done");
           continue;
         }
-        queue.setState(threadId, row.qseq, "queued");
-        emit({ type: "turn.failed", threadId, turnId: `lost:${threadId}:${row.qseq}`, agentId: row.agentId, code: "host_lost" });
+        // Nothing left the model yet: the turn is safe to run again and a person need not hear about it. A wake carries an answer that was used up when it started, so it cannot run again by itself.
+        if (row.touched !== true && row.kind !== "wake") { queue.setState(threadId, row.qseq, "queued"); continue; }
+        queue.setState(threadId, row.qseq, "done");
+        emit({
+          type: "turn.failed", threadId, turnId: opts.lostTurn?.(row) ?? `lost:${threadId}:${row.qseq}`, agentId: row.agentId, code: "host_lost", qseq: row.qseq,
+          asker: row.from.startsWith("usr_") ? row.from : st.thread.starter,
+        });
       }
       kick(st);
       return true;
     },
+    kick(threadId) { kick(need(threadId)); },
     async idle(threadId) {
       const st = need(threadId);
       while (st.active && st.worker) await st.worker;

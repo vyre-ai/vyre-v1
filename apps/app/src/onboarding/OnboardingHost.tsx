@@ -122,7 +122,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
     if (card === "invites" && call) return <InvitesCard call={call} onDone={() => ctx.done()} />;
     if (card === "org" && call) return <KitPickCard call={call} spaceName={space.kind === "team" ? space.name : ""} onInstalled={() => ctx.done()} gate={ctx.gate} />;
     if (card === "interview" && call) return <InterviewCard call={call} onSaved={() => ctx.done()} />;
-    return <Text testID="card-not-set-up" style={s.dim}>This part is not set up yet. You can do it later from the checklist on Home.</Text>;
+    return <Text testID="card-not-set-up" style={s.dim}>This part is not set up yet. You can come back to it later.</Text>;
   }, [call, cards, aiProvider, hasAi, progress, onAddSpace, mac, address, onGo, personalCall, personName]);
 
   const info = !shown && flow ? resumeInfo(flow, progress, detectDevice()) : null;
@@ -147,6 +147,6 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
 }
 
 const s = StyleSheet.create({
-  fill: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 50, backgroundColor: "var(--win)" as string },
+  fill: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 50, backgroundColor: "var(--rail)" as string },
   dim: { fontSize: 13, color: "var(--ink-3)" as string },
 });

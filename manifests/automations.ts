@@ -242,6 +242,9 @@ export default defineManifest({
       in: { ...target, enabled: t.bool() }, out: { automation: row }, on: ['automation', '/automationId'], emits: ['automation.enabled', 'automation.disabled'], tool: 'automations',
       errors: ['validation.precondition_failed'],
     }),
+    outward('automations.code_reach', 'System: a code step that names hosts asks the Gate before the sandbox opens to them. It does nothing itself', {
+      in: { hosts: t.arr(t.str(), { minItems: 1 }) }, out: { ok: t.bool() }, perm: null, level: 'view', risk: 'medium', idem: 'key', gate: { act: 'send' },
+    }),
     write('automations.schedule_choose', 'Apply one recovery choice to a schedule whose backlog is over its cap', {
       in: {
         ...target,
@@ -381,10 +384,15 @@ export default defineManifest({
       errors: ['permission.needs_approval', 'provider.network', 'validation.precondition_failed', 'validation.too_large', 'permission.no_grant'],
       agent: false,
     }),
+    read('automations.read_link', 'Open a web page from the server and read it as plain text, with its links. Use it for any link the person gave or a page you read links to. A link you put together yourself waits for the person, because its address can carry data. GET only, no key, public hosts only', {
+      in: { url: t.str(), focus: t.opt(t.str()) },
+      out: { ok: t.bool(), reason: t.opt(t.str()), finalUrl: t.opt(t.str()), kind: t.opt(t.enm('openapi', 'html', 'text')), text: t.opt(t.str()), links: t.opt(t.arr(t.obj({ text: t.str(), url: t.str() }))), truncated: t.opt(t.bool()) },
+      gate: { act: 'send', when: 'links.is_composed(input.url)' }, tool: 'automations', mcpName: 'read_link', agent: { planMode: 'allowed' }, errors: ['permission.needs_approval'],
+    }),
     read('automations.read_docs', 'Read one public API docs page as plain text, with its same-site links. For an OpenAPI document, one line per operation. GET only, no key, public hosts only. Give focus to get just the passages around a word.', {
       in: { url: t.str(), focus: t.opt(t.str()) },
       out: { ok: t.bool(), reason: t.opt(t.str()), finalUrl: t.opt(t.str()), kind: t.opt(t.enm('openapi', 'html', 'text')), text: t.opt(t.str()), links: t.opt(t.arr(t.obj({ text: t.str(), url: t.str() }))), truncated: t.opt(t.bool()) },
-      tool: 'automations', agent: { planMode: 'allowed' },
+      gate: { act: 'send', when: 'links.is_composed(input.url)' }, tool: 'automations', agent: { planMode: 'allowed' }, errors: ['permission.needs_approval'],
     }),
     write('automations.connector_card', 'Post a compact card in the chat: a title and up to 20 rows, each done or not. Used for connector test results and the review before publish. A key is refused.', {
       in: { threadId: id.thread, title: t.str(), items: t.arr(t.obj({ text: t.str(), done: t.bool() }), { minItems: 1, maxItems: 20 }) },

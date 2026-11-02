@@ -9,6 +9,7 @@ import { SIGNIN_BUTTONS } from "../ai-signin/flow.ts";
 import { API_KEYS, saveApiKey, startSubscription } from "./connect-ai.ts";
 import type { SignInFlow } from "./connect-ai.ts";
 import { Mark } from "./ProviderLogo.tsx";
+import { CARD } from "./card-style.ts";
 
 export function ConnectAiCard({ call, connected, onConnected, initialFlow }: { call: CapCall; connected?: boolean; onConnected(providerId: string): void; /** Opens with this sign-in showing (screenshots and tests). */ initialFlow?: SignInFlow & { provider: string } }): ReactElement {
   const attempt = useRef(globalThis.crypto?.randomUUID?.() ?? String(Date.now()));
@@ -35,7 +36,7 @@ export function ConnectAiCard({ call, connected, onConnected, initialFlow }: { c
         <Text style={s.dim}>The key goes straight into your Vault. I never see it.</Text>
         {error ? <Text testID="ai-error" style={s.err}>{error}</Text> : null}
         <View style={s.row}>
-          <Pressable testID="ai-key-save" accessibilityRole="button" disabled={busy || secret.trim() === ""} onPress={() => void run(async () => { const value = secret; setSecret(""); onConnected(await saveApiKey(call, provider, value, attempt.current)); })} style={[s.primary, (busy || secret.trim() === "") && s.off]}><Text style={s.primaryText}>{busy ? "Saving" : "Save key"}</Text></Pressable>
+          <Pressable testID="ai-key-save" accessibilityRole="button" disabled={busy || secret.trim() === ""} onPress={() => void run(async () => { const value = secret; setSecret(""); onConnected(await saveApiKey(call, provider, value, attempt.current)); })} style={[s.primary, (busy || secret.trim() === "") && s.off]}><Text style={[s.primaryText, (busy || secret.trim() === "") && s.offText]}>{busy ? "Saving" : "Save key"}</Text></Pressable>
           <Pressable testID="ai-back" accessibilityRole="button" onPress={() => { setSecret(""); setMode("tiles"); setError(""); }} style={s.ghost}><Text style={s.tileText}>Back</Text></Pressable>
         </View>
       </View>
@@ -50,7 +51,7 @@ export function ConnectAiCard({ call, connected, onConnected, initialFlow }: { c
         <View style={s.col}>
           {/* ui-rows-lint: not a list (sign-in choices are buttons, not list rows) */}
           {SIGNIN_BUTTONS.map((o) => (
-            <Pressable key={o.key} testID={`ai-sub-${o.key}`} accessibilityRole="button" accessibilityLabel={o.button} disabled={busy} onPress={() => void run(async () => setFlow({ ...(await startSubscription(call, o.key, `${attempt.current}:${o.key}:${Date.now()}`)), provider: o.key }))} style={[s.signin, busy && s.off]}><Mark k={o.key} size={18} /><Text style={s.tileText}>{o.button}</Text></Pressable>
+            <Pressable key={o.key} testID={`ai-sub-${o.key}`} accessibilityRole="button" accessibilityLabel={o.button} disabled={busy} onPress={() => void run(async () => setFlow({ ...(await startSubscription(call, o.key, `${attempt.current}:${o.key}:${Date.now()}`)), provider: o.key }))} style={[s.signin, busy && s.dim]}><Mark k={o.key} size={18} /><Text style={s.tileText}>{o.button}</Text></Pressable>
           ))}
         </View>
       )}
@@ -67,13 +68,15 @@ const s = StyleSheet.create({
   signin: { minHeight: 44, paddingHorizontal: 18, borderRadius: 10, flexDirection: "row", gap: 10, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "flex-start", backgroundColor: "var(--win)" as string },
   tileOn: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string },
   tileText: { fontSize: 14, fontWeight: "500", color: "var(--ink)" as string },
-  input: { height: 40, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, color: "var(--ink)" as string, fontSize: 14 },
+  input: CARD.input,
   dim: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
-  err: { fontSize: 13, color: "var(--danger, #c0392b)" as string },
+  err: CARD.err,
   ok: { fontSize: 14, color: "var(--ok)" as string },
-  primary: { height: 34, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center", alignSelf: "flex-start" },
-  primaryText: { fontSize: 13.5, fontWeight: "500", color: "#fff" },
-  off: { opacity: 0.45 },
-  ghost: { height: 34, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center" },
+  primary: CARD.primary,
+  primaryText: CARD.primaryText,
+  off: CARD.off,
+  offText: CARD.offText,
+  dim: { opacity: 0.45 },
+  ghost: CARD.ghost,
   link: { fontSize: 13, color: "var(--accent)" as string },
 });

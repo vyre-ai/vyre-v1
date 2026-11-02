@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { FlowKind } from "./flow.ts";
 import { StepTile } from "./StepGlyph.tsx";
+import { CARD } from "./card-style.ts";
 
 export function OpenCard({ text, action, onOpen, onDone, step }: { text: string; action: string; onOpen(): void; onDone(): void; step?: { flow: FlowKind; key: string } }): ReactElement {
   return (
@@ -33,8 +34,8 @@ const s = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "center", gap: 14 },
   row: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   line: { flex: 1, fontSize: 15, lineHeight: 22, color: "var(--ink)" as string },
-  primary: { height: 34, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center" },
-  primaryText: { fontSize: 13.5, fontWeight: "500", color: "#fff" },
-  ghost: { height: 34, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: "var(--line-2)" as string, alignItems: "center", justifyContent: "center" },
-  ghostText: { fontSize: 13.5, color: "var(--ink)" as string },
+  primary: CARD.primary,
+  primaryText: CARD.primaryText,
+  ghost: CARD.ghost,
+  ghostText: CARD.ghostText,
 });

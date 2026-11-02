@@ -72,10 +72,11 @@ async function run(id: string, arg: string, env: CommandEnv, plugins: readonly P
   switch (id) {
     case "plan": {
       const want = /^(on|yes|start)$/i.test(arg) ? true : /^(off|no|stop)$/i.test(arg) ? false : !thread.planMode;
-      await setChatMode(data, want ? "plan" : "ask");
+      await setChatMode(data, want ? "plan" : "auto");
       say(want ? "Plan mode is on: the agent plans and changes nothing until you approve" : "Plan mode is off");
       return;
     }
+    case "permissions": await act.showPermissions(data, arg, say); return;
     case "btw": env.aside(arg); return;
     case "helper": {
       const lead = thread.agents.find((a) => a.mode === "lead");

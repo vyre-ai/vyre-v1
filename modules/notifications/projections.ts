@@ -7,7 +7,7 @@ import { fail } from "../../host/src/routes/errors.ts";
 export type Level = "interrupt" | "badge" | "digest";
 export type Place = "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
 export type KindKey =
-  | "approval.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed"
+  | "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed"
   | "agent.task_finished" | "campaign.reply" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided"
   | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due";
 export type Action = { label: string; cap: string };
@@ -21,6 +21,8 @@ const needsYou = (agent = true): Partial<KindDef> => ({ pushTitle: "{{space}} ne
 
 export const KINDS: readonly KindDef[] = [
   kind("approval.requested", "interrupt", "chats", "Approval needed: {{title}}", { ...needsYou(), actions: [a("Approve", "tasks.act"), a("Send back", "tasks.act")], backstopEmailAfterHours: 4 }),
+  kind("answer.requested", "interrupt", "chats", "Needs your answer: {{title}}", { ...needsYou(), actions: [a("Answer", "tasks.act")], backstopEmailAfterHours: 4 }),
+  kind("unblock.requested", "interrupt", "chats", "Needs you: {{title}}", { ...needsYou(), actions: [a("Open", "tasks.act")], backstopEmailAfterHours: 4 }),
   kind("approval.backstop", "interrupt", "chats", "Still waiting on you: {{title}}", { pushTitle: "{{space}} needs you", actions: [a("Open", "tasks.act")], respectHours: false }),
   kind("dm", "interrupt", "chats", "Message from {{from}}", { ...needsYou(), actions: [a("Reply", "chat.post")] }),
   kind("mention", "interrupt", "chats", "{{from}} mentioned you in {{where}}", { ...needsYou(), actions: [a("Reply", "chat.post")] }),
@@ -47,7 +49,7 @@ export const KINDS: readonly KindDef[] = [
 export const kindOf = (k: string): KindDef | undefined => KINDS.find((x) => x.key === k);
 
 /** Kinds the rail counts as Needs you (it shows a count only for these and for direct conversations); everything else is a quiet dot on its place. */
-export const NEEDS_YOU_KINDS: ReadonlySet<string> = new Set(["approval.requested", "approval.backstop", "agent.blocked", "limit.hit", "conflict.needs_you", "access.requested"]);
+export const NEEDS_YOU_KINDS: ReadonlySet<string> = new Set(["approval.requested", "answer.requested", "unblock.requested", "approval.backstop", "agent.blocked", "limit.hit", "conflict.needs_you", "access.requested"]);
 export const DIRECT_KINDS: ReadonlySet<string> = new Set(["dm", "mention"]);
 /** A mute silences a sender; these two carry a clock the person cannot choose to miss. */
 export const UNMUTABLE_KINDS: ReadonlySet<string> = new Set(["approval.backstop", "incident.owned"]);

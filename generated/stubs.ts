@@ -178,6 +178,7 @@ export function stubs(ctx: CallCtx) {
         set: call("automations.alerts.set"),
       },
       analytics: call("automations.analytics"),
+      code_reach: call("automations.code_reach"),
       connector_card: call("automations.connector_card"),
       connector_levels: call("automations.connector_levels"),
       connector_offer: {
@@ -220,6 +221,7 @@ export function stubs(ctx: CallCtx) {
       preview_promote: call("automations.preview_promote"),
       promote: call("automations.promote"),
       read_docs: call("automations.read_docs"),
+      read_link: call("automations.read_link"),
       replay: call("automations.replay"),
       restore_version: call("automations.restore_version"),
       retry: call("automations.retry"),
@@ -944,12 +946,25 @@ export function stubs(ctx: CallCtx) {
       acts: {
         list: call("gate.acts.list"),
       },
+      allow: {
+        list: call("gate.allow.list"),
+        remove: call("gate.allow.remove"),
+        set: call("gate.allow.set"),
+      },
       deny: call("gate.deny"),
       effective_rule: call("gate.effective_rule"),
       expire: call("gate.expire"),
+      grants: {
+        ask: call("gate.grants.ask"),
+        set: call("gate.grants.set"),
+        take: call("gate.grants.take"),
+      },
       holds: {
         get: call("gate.holds.get"),
         list: call("gate.holds.list"),
+      },
+      links: {
+        known: call("gate.links.known"),
       },
       park: call("gate.park"),
       release: call("gate.release"),
@@ -959,6 +974,9 @@ export function stubs(ctx: CallCtx) {
       rules: {
         list: call("gate.rules.list"),
         set: call("gate.rules.set"),
+      },
+      taint: {
+        mark: call("gate.taint.mark"),
       },
     },
     git: {

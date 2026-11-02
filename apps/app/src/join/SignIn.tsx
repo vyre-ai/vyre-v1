@@ -1,9 +1,7 @@
-// join/SignIn: for people who already have an account (spec 3.13). Username and password at the Space's address, then the second factor when the
-// Space asks for one. Single sign-on providers and GitHub (once the Space is named and the account is linked) sit under "Or continue with".
-// No passkey row: passkeys are not in v1.
-import { Text } from "react-native";
+// join/SignIn: for people who already have an account (spec 3.13). The Space is known by now, so this is username and password at that Space, then the second factor when the Space asks for one. Single
+// sign-on providers and GitHub (once the Space is named and the account is linked) sit under the primary. No passkey row: passkeys are not in v1.
 import type { Dispatch } from "react";
-import { Bar, Button, Caption, ErrorLine, FieldRow, Foot, Group, Panel, Row, Step, Title, useJoin } from "./kit.tsx";
+import { Bar, Button, Caption, ErrorLine, FieldRow, Group, Links, Panel, Row, Step, TextButton, Title } from "./kit.tsx";
 import { cleanUsername, signInValid } from "./logic.ts";
 import type { Action, FlowState, JoinInvite } from "./logic.ts";
 
@@ -20,47 +18,40 @@ export interface SignInProps {
   unlock?: boolean;
 }
 
-
 export function SignIn({ invite, state, dispatch, busy, onSubmit, onSso, onGithub, onRecoveryCode, onBack, unlock }: SignInProps) {
-  const { p } = useJoin();
   const totp = state.si === "totp";
-  const go = () => (onSubmit ? onSubmit() : dispatch({ t: "next" }));
-  const bar = (
-    <Bar
-      onBack={() => { if (!totp && onBack) onBack(); else dispatch({ t: "back" }); }}
-      cont={<Button testID="next" label={unlock ? "Unlock" : totp ? "Sign in" : "Continue"} disabled={!signInValid(state) || !!busy} onPress={go} />}
-    />
-  );
+  const go = (): void => { if (onSubmit) onSubmit(); else dispatch({ t: "next" }); };
+  const label = busy ? "Signing in" : unlock ? "Unlock" : "Sign in";
+  const bar = <Bar onBack={() => { if (!totp && onBack) onBack(); else dispatch({ t: "back" }); }} cont={<Button testID="next" label={label} busy={!!busy} disabled={!signInValid(state)} onPress={go} />} />;
+  const help = onRecoveryCode ? <Links><TextButton testID={totp ? "recovery-code-link" : "signin-help"} label={totp ? "Use a recovery code" : "Forgot password"} onPress={onRecoveryCode} /></Links> : undefined;
+  const others = !totp && (invite.sso.length || invite.github) ? (
+    <>
+      <Caption>Or continue with</Caption>
+      {invite.sso.length ? <Group top={0} testID="sign-in-sso">{invite.sso.map((n) => <Row kind="action" key={n} testID={`sso-${n.toLowerCase()}`} label={n} onPress={() => onSso?.(n)} />)}</Group> : null}
+      {invite.github ? <Group top={invite.sso.length ? 8 : 0} testID="sign-in-github"><Row kind="action" testID="github" label="GitHub" onPress={onGithub} /></Group> : null}
+    </>
+  ) : null;
   return (
-    <Panel center bar={bar}>
+    <Panel space={invite.space} bar={bar} below={<>{help}{others}</>}>
       {totp ? (
-        <Step id="totp" dir={state.dir}>
-
-          <Title title="Enter the code" sub={`Open your authenticator app and enter the 6 digit code for ${invite.space}.`} />
+        <Step id="totp">
+          <Title title="Enter the code" />
           <Group>
-            <FieldRow testID="si-code" label="Code" value={state.siCode} onChange={(v) => dispatch({ t: "set", patch: { siCode: v.replace(/\D/g, "").slice(0, 6) } })} placeholder="000000" keyboard="numeric" maxLength={6} autoComplete="one-time-code" onSubmit={go} spaced />
+            <FieldRow testID="si-code" label="6 digit code" value={state.siCode} onChange={(v) => dispatch({ t: "set", patch: { siCode: v.replace(/\D/g, "").slice(0, 6), error: "" } })} placeholder="000000" keyboard="numeric" maxLength={6} autoComplete="one-time-code" onSubmit={go} error={!!state.error} />
           </Group>
-          {state.error ? <ErrorLine testID="join-error">{state.error}</ErrorLine> : null}
-          <Foot><Text accessibilityRole="link" testID="recovery-code-link" onPress={onRecoveryCode} style={{ color: p.blue }}>Use a recovery code</Text> instead.</Foot>
+          <ErrorLine testID="join-error">{state.error}</ErrorLine>
         </Step>
       ) : (
-        <Step id="sign-in" dir={state.dir}>
-
-          <Title title={unlock ? "Unlock Vyre" : `Sign in to ${invite.space}`} {...(unlock ? {sub:`Sign in again to ${invite.space} to continue.`} : {})} />
+        <Step id="sign-in">
+          <Title title={unlock ? "Unlock Vyre" : `Sign in to ${invite.space}`} sub={unlock ? "Sign in again" : invite.host} />
           <Group>
-            <FieldRow testID="si-user" label="Username" value={state.siUser} onChange={(v) => dispatch({ t: "set", patch: { siUser: cleanUsername(v) } })} placeholder="Your username" autoComplete="username" onSubmit={go} stacked />
-            <FieldRow testID="si-password" label="Password" value={state.siPw} onChange={(v) => dispatch({ t: "set", patch: { siPw: v } })} placeholder="Required" secure revealable visibilityTestID="si-password-visibility" autoComplete="current-password" onSubmit={go} stacked />
+            <FieldRow testID="si-user" label="Username" value={state.siUser} onChange={(v) => dispatch({ t: "set", patch: { siUser: cleanUsername(v), error: "" } })} autoComplete="username" onSubmit={go} disabled={!!busy} />
+            <FieldRow testID="si-password" label="Password" value={state.siPw} onChange={(v) => dispatch({ t: "set", patch: { siPw: v, error: "" } })} secure visibilityTestID="si-password-visibility" autoComplete="current-password" onSubmit={go} disabled={!!busy} error={!!state.error} />
           </Group>
-          {state.error ? <ErrorLine testID="join-error">{state.error}</ErrorLine> : null}
-          {onRecoveryCode ? <Foot><Text accessibilityRole="link" testID="signin-help" onPress={onRecoveryCode} style={{ color: p.blue }}>Need help signing in?</Text></Foot> : null}
-          {invite.sso.length || invite.github ? (
-            <>
-              {invite.sso.length ? <><Caption>Single sign-on</Caption><Group top={0} testID="sign-in-sso">{invite.sso.map((n) => <Row kind="action" key={n} testID={`sso-${n.toLowerCase()}`} label={n} note="OpenID Connect" onPress={() => onSso?.(n)} />)}</Group></> : null}
-              {invite.github ? <><Caption>GitHub</Caption><Group top={0} testID="sign-in-github"><Row kind="action" testID="github" label="GitHub" note="Linked account" onPress={onGithub} /></Group></> : null}
-            </>
-          ) : null}
+          <ErrorLine testID="join-error">{state.error}</ErrorLine>
         </Step>
       )}
     </Panel>
   );
 }
+

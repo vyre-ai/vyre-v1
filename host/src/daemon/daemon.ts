@@ -83,7 +83,7 @@ import type { FetchFn, ProbeName, ProbeResult } from "../platform/probes.ts";
 import { Scheduler } from "../scheduler/index.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
-import { createGateHook, moduleWhens } from "./gate-hook.ts";
+import { createGateHook, moduleFetches, moduleOutward, moduleWhens } from "./gate-hook.ts";
 import { withGateNesting } from "./gate-nesting.ts";
 import { createComputersFillHost, createFillRoute } from "../seams/computers.ts";
 import { homeCallAllowed, homeScopeOf } from "./home-confine.ts";
@@ -756,6 +756,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       await ownedExports.cleanup();
       const exportCleanup=setInterval(()=>{void Promise.all([ownedExports.cleanup(),ownerArchives.cleanup()]).catch(()=>sink.log({space:spaceId,level:40,msg:'exports.cleanup_failed',place:'owned-exports'}));},60000);exportCleanup.unref();closers.push(()=>clearInterval(exportCleanup));
 
+      const threadChain = (id: string): string[] => {
+        const chain = [id];
+        for (let cur = id, i = 0; i < 8; i++) {
+          let up: string | null | undefined;
+          try { up = (db?.all("SELECT parentThreadId FROM chat_thread WHERE id = ?", cur)[0] as { parentThreadId?: string | null } | undefined)?.parentThreadId; } catch { break; }   // no chat tables here: the thread alone
+          if (!up || chain.includes(up)) break;
+          chain.push(up); cur = up;
+        }
+        return chain;
+      };
       // The Gate hook, only once the Gate module is live (a stub answers with examples, which must never decide a send). Its questions and parked calls run as the Space itself.
       const gate = loaded.serving.get("gate") === "live"
         ? withGateNesting(createGateHook({
@@ -766,6 +776,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           },
           unseal: (s) => seal.unseal(s), now,
           evaluators: moduleWhens(loaded.moduleExports, () => db, (cap, input) => system(cap, input)),
+          outward: moduleOutward(loaded.moduleExports), fetches: moduleFetches(loaded.moduleExports),
+          threads: threadChain,
+          mode: (id) => {
+            // 1 plan, 2 auto, anything else ask (modules/chat/projections.ts): a Job is never looser than the chat above it
+            try {
+              const rows = threadChain(id).map((t) => (db?.all("SELECT modePlan FROM chat_thread WHERE id = ?", t)[0] as { modePlan?: number | null } | undefined));
+              if (rows[0] === undefined) return undefined;
+              const codes = rows.filter((r) => r !== undefined).map((r) => r!.modePlan);
+              return codes.includes(1) ? "plan" : codes.every((c) => c === 2) ? "auto" : "ask";
+            } catch { return undefined; }
+          },
           hold: (id) => {
             const r = db?.all("SELECT state, principal_kind, principal_id, acting_for, run_id, thread_id, payload_hash FROM gate_holds WHERE id = ?", id)[0] as
               { state: string; principal_kind: string; principal_id: string; acting_for: string | null; run_id: string | null; thread_id: string | null; payload_hash: string } | undefined;

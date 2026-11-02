@@ -3,7 +3,9 @@ import { handlers } from "./handlers/index.ts";
 
 export { handlers };
 import { countNeedsYou } from "./handlers/state.ts";
-import { resumeRunOf } from "./handlers/resume.ts";
+import { resumeRunOf, settleFromSource } from "./handlers/resume.ts";
+import { syncPolicy } from "./projections.ts";
+import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
 import type { TasksCtx } from "./projections.ts";
 export { findStuck, mintApprovalToken, readApprovalToken, ACT_KEYS } from "./handlers/act.ts";
 export { applyMove, checkMove, commitMove, planMove, submitTarget, afterReview } from "./handlers/state.ts";
@@ -17,5 +19,18 @@ export const hostCalls = {
 
 /** A Run waiting on a task goes on when the task is Done or Canceled, whichever way it got there (handlers/resume.ts). */
 export const consumers = {
+  /** The Space's tasks.* settings, copied here from settings.changed: a module reads only its own tables. */
+  "tasks.settings_sync": {
+    on: ["settings.changed"],
+    async run(ctx: TasksCtx, event: { payload: Record<string, unknown> }): Promise<string[]> { return syncPolicy(ctx.db, event.payload) ? [String(event.payload["key"])] : []; },
+  },
   "tasks.run_resume": { on: ["task.transitioned"], run: (ctx: TasksCtx, event: Parameters<typeof resumeRunOf>[1]) => resumeRunOf(ctx, event) },
+  /** The source decided (a card in the chat, the access or key card): its tasks close, for everyone they were addressed to (handlers/resume.ts). */
+  "tasks.source_settle": {
+    on: ["block.answered", "plan.approved", "plan.rejected", "access.granted", "access.declined", "vault.request_fulfilled", "vault.request_declined", "vault.request_canceled"],
+    run: (ctx: TasksCtx, event: Parameters<typeof settleFromSource>[1]) => settleFromSource(ctx, event),
+  },
+  /** Nothing waits on someone who is gone: what they held moves on, with one line of history. */
+  "tasks.person_left": { on: ["member.removed"], run: (ctx: TasksCtx, event: Parameters<typeof onPersonLeft>[1]) => onPersonLeft(ctx, event) },
+  "tasks.agent_deleted": { on: ["agent.deleted"], run: (ctx: TasksCtx, event: Parameters<typeof onAgentDeleted>[1]) => onAgentDeleted(ctx, event) },
 };

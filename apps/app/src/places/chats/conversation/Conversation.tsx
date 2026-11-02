@@ -2,6 +2,7 @@
 // agent's mode menu), Helpers while any run, Stop and Stop all while any work, the pane toggle and a menu. Under it the last 50 messages (older ones stream in on request), the agent's
 // work folded into one line, and the shared composer with its who-will-reply line. A send shows on the page in the same frame, before chat.post answers; while an agent works, a plain
 // send queues for its next step and Interrupt sends it now.
+import { DECIDED_LINE, isDecided } from "../../../shell/decided.ts";
 import { rememberFirstLine } from "../sidebar/titles.ts";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
@@ -164,7 +165,7 @@ function ConversationView(): ReactElement {
 
   const say = useCallback((text: string) => { setLine(text); setUndo(null); }, []);
   /** A rejected write: say what did not happen and that it can be tried again. The page keeps what it showed. */
-  const fail = (what: string) => (): void => say(`${what} Try again.`);
+  const fail = (what: string) => (e?: unknown): void => say(isDecided(e) ? DECIDED_LINE : `${what} Try again.`);
 
   /* ---------- sending: the message is on the page before chat.post answers ---------- */
   const run = useCallback((p: Pending) => {
@@ -239,13 +240,16 @@ function ConversationView(): ReactElement {
   const timelineMessages = byOrder([...win.rows, ...collect(liveView ? stillPending(pending, win.rows) : [], (p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i)), ...ghosts]);
   const pendingState = new Map<string, "sending" | "failed">();
   for (const p of stillPending(pending, win.rows)) pendingState.set(`pending:${p.key}`, p.state);
-  const items = timeline(timelineMessages, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: data.clock() });
+  const items = timeline(timelineMessages, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: data.clock(), shared: thread.members.filter((p) => p.kind === "person").length >= 2 });
   const lastLive = [...timelineMessages].reverse().find((m) => data.streamOf(m.messageId) !== undefined);
   const lastStream = lastLive ? data.streamOf(lastLive.messageId) : undefined;
   const queued = queuedCount(timelineMessages, data.me.id, isWorking);
   const queuedIdsNow = queuedIds(timelineMessages, data.me.id, isWorking);
   const leadDriver = accounts?.find((a) => a.ref === leadNow?.accountRef)?.provider;
-  const canSteer = !(leadDriver !== undefined && act.CANNOT_STEER.has(leadDriver));   // a chat on Codex or Grok keeps its message queued: they read nothing mid-turn
+  // only the person whose turn it is steers it; anyone else's message goes in after it (the engine holds to this; a turn picked up mid-way names nobody until its next start)
+  const runningFor = liveTurns.find((t) => t.state === "writing" && t.agentId === leadNow?.agentId)?.asker;
+  const ownTurn = runningFor === undefined || runningFor === data.me.id;
+  const canSteer = ownTurn && !(leadDriver !== undefined && act.CANNOT_STEER.has(leadDriver));   // a chat on Codex or Grok keeps its message queued: they read nothing mid-turn
   const helpers = (helpersQ.status === "loading" ? [] : helpersQ.data.helpers).filter((h) => h.status === "running");
 
   /* ---------- menus: all open under the button that asked ---------- */
@@ -402,7 +406,7 @@ function ConversationView(): ReactElement {
   const chooseChatMode = (m: ChatMode): void => {
     setModeOver(m);
     void setChatMode(data, m).then(
-      () => say(m === "plan" ? "Plan mode is on: the agent plans and changes nothing until you approve" : m === "auto" ? "Auto: the agent acts on its own and still asks before anything leaves Vyre" : "Ask first: the agent asks before it changes or sends anything"),
+      () => say(m === "plan" ? "Plan mode is on: the agent plans and changes nothing until you approve" : m === "auto" ? "Auto: the agent acts on its own. What others would see goes only if you asked for it" : "Ask first: the agent asks before it changes or sends anything"),
       () => { setModeOver(null); say("Could not change the mode. Try again."); },
     );
   };
@@ -415,7 +419,7 @@ function ConversationView(): ReactElement {
   const closed = isClosed(thread);
   const note = threadKindNote(thread, nameOf);
   const title = titleOf(thread, nameOf);
-  const q = queueNote(queued, lead ? nameOf(lead.agentId) : "", canSteer);
+  const q = queueNote(queued, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn);
 
   // A mounted folder or file dragged from Files is shared with this chat's agents (desktop); the line says so and can take it back
   const dropShare = (e: { preventDefault: () => void; dataTransfer?: { getData?: (t: string) => string } }): void => {

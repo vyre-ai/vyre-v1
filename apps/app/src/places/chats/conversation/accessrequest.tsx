@@ -1,13 +1,13 @@
 // The access request card of a chat: someone asked for access to something in this chat. People who can decide it see Approve and Decline right here (access.requests.approve grants, access.requests.decline
 // tells the asker); everyone else sees who it is waiting on. Needs you keeps its row and both close together because both read the one request.
 import { useCallback, useEffect, useState } from "react";
-import { usePoll } from "./use-poll.ts";
+import { useFollow } from "./use-follow.ts";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { ConversationData } from "./data.tsx";
 import { Glyph, TextButton } from "./parts.tsx";
 
-type Data = Pick<ConversationData, "call" | "nameOf">;
+type Data = Pick<ConversationData, "call" | "nameOf" | "changes">;
 interface Block { requestId: string; requester?: string; resourceTitle?: string; level?: string; note?: string }
 
 export const isAccessRequest = (type: string): boolean => type === "access_request";
@@ -31,7 +31,7 @@ export function AccessRequestCard({ block, data }: { block: Block; data: Data })
     } catch { setState("waiting"); }
   }, [data, block.requestId]);
   useEffect(() => { void load(); }, [load]);
-  usePoll(load, state === null || state === "waiting");
+  useFollow(data.changes, load, state === null || state === "waiting");
   if (state === null) return null;
   const who = block.requester ? data.nameOf(block.requester) : "Someone";
   const line = accessLine(who, block);

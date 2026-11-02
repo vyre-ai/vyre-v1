@@ -1,6 +1,6 @@
 // search (lane L1): server half of Cmd-K and the one index (spec 3.0, b11; ARCHITECTURE-V1.md 4.3 consumers search.fts and search.vectors, section 9).
 // The device runs its own FTS5 over the replica; the client merges local hits with these server hits (server within 300 ms).
-// Private chats, personal memory and Mine vault items are end-to-end and never in this index.
+// Private chats, personal memory and Mine vault items are never in this index.
 // DECISION: the query is one capability with a prefix and type filters; the prefixes @ # / > are parsed by the client, which sends `types`.
 import { defineManifest, ev, health, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id, label, pageIn, pageOut } from './_common.ts';
@@ -41,7 +41,7 @@ export default defineManifest({
     read('search.related', 'Items related to one item by links, relations and shared terms', {
       in: { kind, itemId: t.str(), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) }, out: { hits: t.arr(hit) }, label: 'filter', tool: 'meta',
     }),
-    write('search.index.apply', 'Index consumer: apply one changed entity row to full text and vectors (durable cursor; never sees end-to-end rows)', {
+    write('search.index.apply', 'Index consumer: apply one changed entity row to full text and vectors (durable cursor; never sees private rows)', {
       in: { entity: t.str(), id: t.str(), op: t.enm('upsert', 'delete'), seq: t.int({ minimum: 0 }) },
       out: { indexed: t.bool() }, idem: 'natural', risk: 'low',
     }),

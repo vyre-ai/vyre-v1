@@ -50,6 +50,8 @@ export interface Connection { get(): "online" | "offline"; subscribe(l: () => vo
 export interface ConversationData {
   screens: ScreenHooks;
   call(cap: string, input: unknown): Promise<unknown>;
+  /** The live stream's tick: a card reads its object again on it. Left out where nothing streams. */
+  changes?: import("./use-follow.ts").Changes;
   connection: Connection;
   threadId: string;
   

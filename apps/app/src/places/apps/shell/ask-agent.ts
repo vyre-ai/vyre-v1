@@ -1,8 +1,10 @@
 // Which agent answers an Ask in the Apps editors. The one the person picked in this editor; else the one they picked last time; else a work agent that is awake (the first one, in the order the
 // Space lists them); else the person's private assistant. Never "whichever sorts first": the assistant answers in the person's own chat, so a work agent is the default for an Ask about a design.
-export interface AskPick { id: string; role?: string | undefined; status?: string | undefined }
+import { isAssistantRow } from "../../../../../../lib/agent-kind.ts";
 
-export const isAssistant = (a: AskPick): boolean => a.role === "assistant";
+export interface AskPick { id: string; kind?: string | undefined; role?: string | undefined; status?: string | undefined }
+
+export const isAssistant = (a: AskPick): boolean => isAssistantRow(a);
 const awake = (a: AskPick): boolean => a.status === undefined || a.status === "awake";
 
 export function askAgentOf<T extends AskPick>(agents: readonly T[], pickedId: string | null | undefined, lastId?: string | null): T | null {

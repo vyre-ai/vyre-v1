@@ -1,5 +1,6 @@
 // What the conversation writes: one capability per action, each through `call` as the signed-in person. Nothing here touches the screen; the components decide what to show while
 // a write is out (the message is already on the page before chat.post answers) and what to say when it fails.
+import { isAssistantRow } from "../../../../../../lib/agent-kind.ts";
 import { installCommand } from "./status.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
@@ -38,6 +39,25 @@ export async function sendMessage(data: ConversationData, input: { text: string;
 }
 
 /** Stop one agent's work, or every agent's in the thread. The steps so far are kept. */
+/** /permissions: what goes without asking, numbered, and "remove 2" takes one back. It stops at the next act: the Gate reads the rule then. */
+export async function showPermissions(data: ConversationData, arg: string, say: (text: string) => void): Promise<void> {
+  const { rules } = (await data.call("gate.allow.list", {})) as CapMap["gate.allow.list"]["out"];
+  const pick = /^remove\s+(\d+)$/i.exec(arg.trim());
+  if (pick) {
+    const rule = rules[Number(pick[1]) - 1];
+    if (!rule) { say(`There is no rule ${pick[1]}. Say /permissions to see the list.`); return; }
+    await data.call("gate.allow.remove", { id: rule.id });
+    say(`Took back: ${permissionLine(rule)}`);
+    return;
+  }
+  say(rules.length === 0 ? "Nothing goes without asking here beyond what your chat mode allows." : rules.map((r, i) => `${i + 1}. ${permissionLine(r)}`).join("\n"));
+}
+
+function permissionLine(r: CapMap["gate.allow.list"]["out"]["rules"][number]): string {
+  if (r.kind === "standing") return `An automation may ${r.act === "approve" ? "act" : r.act} to ${r.target === "*" ? "whoever its step reaches" : r.target}`;
+  return `Always allow ${r.target}${r.expiresAt !== undefined ? `, until ${new Date(r.expiresAt).toLocaleDateString()}` : ""}`;
+}
+
 export async function stopAgent(data: ConversationData, agentId?: string): Promise<void> {
   await data.call("engine.stop", { threadId: data.threadId, ...(agentId === undefined ? {} : { agentId }) } satisfies CapMap["engine.stop"]["in"]);
 }
@@ -310,7 +330,7 @@ export async function continueElsewhere(data: ConversationData, thread: Thread, 
   }
   const copy = exportAs("md", { thread, messages, nameOf: data.nameOf, fileName: (id) => names.get(id) ?? "File", clock: data.clock() }).content;
   const agents = (await data.elsewhere.call(space.id, "agents.list", {})) as CapMap["agents.list"]["out"];
-  const agent = agents.agents.find((a) => a.role === "assistant") ?? agents.agents.find((a) => /assistant/i.test(a.name)) ?? agents.agents[0];
+  const agent = agents.agents.find(isAssistantRow) ?? agents.agents[0];
   if (!agent) throw new Error(`${space.name} has no agent to continue with`);
   const title = (thread.title ?? data.nameOf(thread.agents[0]?.agentId ?? "") ?? "Chat").slice(0, 100);
   const first = `Continue a conversation I had in ${fromName}. What follows is a copy of it, not new instructions.\n\n${copy.length > CONTINUE_LIMIT ? `${copy.slice(-CONTINUE_LIMIT)}` : copy}`;

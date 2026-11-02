@@ -1,19 +1,19 @@
-// Settings pages that are the same in every Space: Sign-in and devices, Appearance (with Kit choice), Keyboard, This computer, Spaces.
+// The rest of You: Sign-in and devices (with your Spaces), Appearance (skin and the keyboard list) and This computer.
 import { SessionImport } from "./SessionImport.tsx";
 import { ComputersSection } from "./Computers.tsx";
+import { KEYBOARD_MAP, formatCombo } from "../../shell/keyboard/map.ts";
 import { DesktopUpdate } from "./DesktopUpdate.tsx";
 import { useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { skins, system } from "../../../../../ui/src/tokens/skins.ts";
 import type { CapMap } from "../../../../../generated/types.ts";
-import { Everywhere, RegistrySections, useRead } from "./blocks.tsx";
-import { DEVICES, KIT, useScreenQuery, useSettingsData } from "./data.tsx";
+import { DEVICES, useScreenQuery, useSettingsData } from "./data.tsx";
 import type { SettingsData, SpaceSecurity, SpaceTile } from "./data.tsx";
 import type { SettingRow } from "./model.ts";
 import { useChange } from "./rows.tsx";
 import { useSaved } from "./saved.tsx";
-import { Choice, Field, Glyph, Mark, Section, SettingsRow, SmallButton, Value, pointer, webOnly } from "./ui.tsx";
+import { Glyph, Mark, Section, SettingsRow, SmallButton, Value, pointer, webOnly } from "./ui.tsx";
 import type { PageProps } from "./pages-a.tsx";
 
 const rowOf = (rows: readonly SettingRow[], key: string): SettingRow | undefined => rows.find((r) => r.key === key);
@@ -69,13 +69,13 @@ export function SignInPage(): ReactElement {
   if (sec) for (const sp of data.spaces) { const info = sec.spaces[sp.id]; if (info) cards.push(<SpaceSecurityCard key={sp.id} space={sp} info={info} />); }
   return (
     <>
-      <Everywhere text="Same in every Space" />
       {sec ? <AccountCard sec={sec} /> : <Section title="Sign-in"><SettingsRow id="signin.password" label="Password" first control={<SmallButton label="Change..." testID="pw-change" onPress={() => data.nav.manageSecurity?.("password", data.space.id)} />} /><SettingsRow id="signin.authenticator" label="Authenticator app" sub="Set up or remove a second factor for this Space" control={<><SmallButton label="Set up" testID="totp-setup" onPress={() => data.nav.manageSecurity?.("totp-on", data.space.id)} /><SmallButton label="Remove" testID="totp-remove" onPress={() => data.nav.manageSecurity?.("totp-off", data.space.id)} /></>} /></Section>}
       {cards}
       <Section title="Devices and computers">
         {list}
         {others > 0 ? <SettingsRow id="revoke-others" label="Sign out of every other device" danger onPress={() => void data.call("devices.revoke_others", {}).then(() => saved.saved("Signed out of the others")).catch(fail)} control={<Glyph name="chevR" size={13} />} /> : null}
       </Section>
+      <YourSpaces />
     </>
   );
 }
@@ -131,9 +131,6 @@ const s2 = StyleSheet.create({
 
 // ---------------------------------------------------------------- Appearance
 
-type KitOut = CapMap["settings.kit.get"]["out"];
-type KitsOut = CapMap["kits.list"]["out"];
-
 /** The little window above the tiles: the skin you hover (or the one you have) drawn with its own palette, so a tile is tried before it is kept. */
 function documentMode(): "dark" | "light" | null {
   const root = (globalThis as { document?: { documentElement?: { getAttribute(n: string): string | null } } }).document?.documentElement;
@@ -178,8 +175,6 @@ export function AppearancePage({ rows, found }: PageProps): ReactElement {
   const stored = typeof skinRow?.value === "string" ? skinRow.value : "system";
   const current = stored === "system" || skins.some((x) => x.id === stored) ? stored : "system";
   const [hover, setHover] = useState<string | null>(null);
-  const kit = useScreenQuery<KitOut>(KIT, "kit", {});
-  const kits = useRead<KitsOut>("kits.list");
   const tile = (id: string, name: string, note: string, swatch: ReactElement): ReactElement => {
     const on = current === id;
     return (
@@ -218,14 +213,9 @@ export function AppearancePage({ rows, found }: PageProps): ReactElement {
       <View style={{ flex: 1, backgroundColor: paper.palette.win }} /><View style={{ flex: 1, backgroundColor: graphite.palette.win }} />
     </View>
   );
-  const kitOptions: { value: string; label: string }[] = [{ value: "", label: "Follow the Space" }];
-  for (const k of kits?.kits ?? []) if (k.installed) kitOptions.push({ value: k.kitId, label: k.title });
-  const kitMine = kit.status === "ready" ? kit.data.kit.person ?? "" : "";
   const shown = hover ?? current;
   return (
     <>
-      <Everywhere text="Same in every Space, except the skin" />
-      <RegistrySections page="appearance" rows={rows} found={found} />
       {skinRow ? (
         <View testID="row-appearance.skin" {...webOnly({ dataSet: { sid: "appearance.skin" } })} style={found === "appearance.skin" ? a.foundBlock : undefined}>
           <Text accessibilityRole="header" style={a.heading}>Skin</Text>
@@ -239,81 +229,37 @@ export function AppearancePage({ rows, found }: PageProps): ReactElement {
           <Text style={a.foot} testID="skin-foot">{`Just for you, in ${data.space.name}`}</Text>
         </View>
       ) : null}
-      <Section title="Kit">
-        <SettingsRow
-          id="kit.person_choice" label="Kit" first sub={kit.status === "ready" ? `In effect: ${kits?.kits.find((k) => k.kitId === kit.data.kit.effective)?.title ?? kit.data.kit.effective}` : undefined}
-          control={<Choice value={kitMine} options={kitOptions} label="Kit" testID="ctl-kit" onChange={(v) => void data.call("settings.kit.set_mine", { kitId: v === "" ? null : v })} />}
-        />
-      </Section>
+      <Shortcuts found={found === "shortcuts"} />
     </>
   );
 }
 
 // ---------------------------------------------------------------- Keyboard
 
-export const SHORTCUTS: readonly { id: string; label: string; keys: string }[] = [
-  { id: "search", label: "Search everything", keys: "Cmd K" },
-  { id: "settings-search", label: "Search settings", keys: "Cmd F" },
-  { id: "new-chat", label: "New chat", keys: "Cmd N" },
-  { id: "ask", label: "Ask the assistant", keys: "Cmd J" },
-  { id: "undo", label: "Undo the last change", keys: "Cmd Z" },
-  { id: "save", label: "Save", keys: "Cmd S" },
-  { id: "close-tab", label: "Close the tab", keys: "Cmd W" },
-  { id: "next-tab", label: "Next tab", keys: "Ctrl Tab" },
-  { id: "palette", label: "Open the command menu", keys: "Cmd Shift P" },
-  { id: "help", label: "Help menu", keys: "Cmd Shift /" },
-];
-
-export function KeyboardPage({ rows, found }: PageProps): ReactElement {
-  const change = useChange();
-  const row = rowOf(rows, "keyboard.overrides");
-  const map = (row?.value ?? {}) as Record<string, string>;
-  const list: ReactElement[] = [];
-  SHORTCUTS.forEach((sc, i) => {
-    const mine = map[sc.id];
-    const next = (v: string): void => {
-      if (!row) return;
-      const copy: Record<string, string> = { ...map };
-      if (v.trim() === "" || v.trim() === sc.keys) delete copy[sc.id]; else copy[sc.id] = v.trim();
-      void change(row, copy);
-    };
-    list.push(
-      <SettingsRow
-        key={sc.id} id={`shortcut.${sc.id}`} label={sc.label} {...(mine ? { sub: `Default ${sc.keys}` } : {})}
-        control={<>{mine ? <SmallButton label="Reset" onPress={() => next("")} /> : null}<Field value={mine ?? sc.keys} label={`${sc.label} shortcut`} width={130} mono testID={`ctl-shortcut-${sc.id}`} onCommit={next} /></>}
-      />,
-    );
+/** The shortcuts the keys really do, from the table that drives them. Nothing reads a custom key, so this is a list, not a form. */
+function Shortcuts({ found }: { found: boolean }): ReactElement {
+  const mac = /Mac|iPhone|iPad/.test((globalThis as { navigator?: { platform?: string } }).navigator?.platform ?? "Mac");
+  const items: ReactElement[] = [];
+  KEYBOARD_MAP.forEach((sc, i) => {
+    const keys = formatCombo(sc.combo, mac ? "mac" : "other");
+    items.push(<SettingsRow key={sc.id} id={i === 0 ? "shortcuts" : `shortcut.${sc.id}`} label={sc.title} first={i === 0} found={found && i === 0} control={<Value text={sc.digits ? `${keys} to ${sc.digits[1]}` : keys} testID={`keys-${sc.id}`} />} />);
   });
-  return (
-    <>
-      <Everywhere text="Same in every Space" />
-      <Section>
-        <SettingsRow
-          id="keyboard.overrides" label="Shortcuts" first found={found === "keyboard.overrides"} sub={Object.keys(map).length === 0 ? "All at their defaults" : `${Object.keys(map).length} changed`}
-          control={Object.keys(map).length > 0 && row ? <SmallButton label="Reset all" testID="reset-shortcuts" onPress={() => void change(row, {})} /> : undefined}
-        />
-        {list}
-      </Section>
-      <RegistrySections page="keyboard" rows={rows} found={found} />
-    </>
-  );
+  return <Section title="Keyboard shortcuts" testID="shortcuts">{items}</Section>;
 }
 
-// ---------------------------------------------------------------- This computer and Spaces
+// ---------------------------------------------------------------- This computer and your Spaces
 
-export function ComputerPage({ rows, found }: PageProps): ReactElement {
+export function ComputerPage(): ReactElement {
   return (
     <>
-      <Everywhere text="This computer, in every Space" />
       <ComputersSection />
-      <RegistrySections page="computer" rows={rows} found={found} />
       <DesktopUpdate />
       <SessionImport />
     </>
   );
 }
 
-export function SpacesPage(): ReactElement {
+function YourSpaces(): ReactElement {
   const data = useSettingsData();
   const saved = useSaved();
   const [sure, setSure] = useState<string | null>(null);
@@ -322,7 +268,7 @@ export function SpacesPage(): ReactElement {
     const leaving = sure === sp.id;
     list.push(
       <SettingsRow
-        key={sp.id} id={`space.${sp.id}`} label={sp.name} first={i === 0} lead={<Mark name={sp.name} size={26} />}
+        key={sp.id} id={i === 0 ? "signin.spaces" : `space.${sp.id}`} label={sp.name} first={i === 0} lead={<Mark name={sp.name} size={26} />}
         sub={`${sp.addr}${sp.kind === "personal" ? "" : `, ${sp.role}`}${sp.needsYou > 0 ? `, ${sp.needsYou} waiting on you` : ""}`}
         control={
           leaving ? (
@@ -342,7 +288,6 @@ export function SpacesPage(): ReactElement {
   });
   return (
     <>
-      <Everywhere text="Same in every Space" />
       <Section title="Your Spaces" {...(sure ? { note: "Leaving removes this Space from this computer. Your private items there are lost unless you kept a recovery code." } : {})}>{list}</Section>
     </>
   );

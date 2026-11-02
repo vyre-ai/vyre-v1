@@ -1,7 +1,7 @@
 // Two cards that sit in a conversation as the prototype draws them (spec 3.2, 2.6, 4.13): an agent's proposed change to its own AGENT.md, shown inline as the diff with Accept, Edit and
 // Reject (never a collapsed card), and the plan document an agent wrote, a compact file card that opens beside the chat. The proposal is a changeset block that carries its hunks;
 // Accept and Reject are the changeset capabilities, so the same press works from the diff tab. A person who may not accept sees "Suggest to <owner>" instead.
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { Block } from "../../../../../../ui/src/kit/types.ts";
@@ -9,6 +9,8 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { BlockHost } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import { Glyph, TextButton } from "./parts.tsx";
 import { collect } from "./model.ts";
+import { useFollow } from "./use-follow.ts";
+import type { Changes } from "./use-follow.ts";
 
 export interface Hunk { sec: string; del: string; add: string }
 
@@ -60,9 +62,22 @@ export function proposalActs(host: BlockHost, d: ProposalData, id: string): { ac
   };
 }
 
-export function AgentFileProposal({ block, host }: { block: Block; host: BlockHost }): ReactElement {
+/** A changeset decided anywhere (the diff tab, another person): the state the card shows, in place of its buttons. */
+export function decidedOf(out: unknown): "accepted" | "rejected" | null {
+  const s = (out as { changeset?: { state?: unknown } } | null | undefined)?.changeset?.state;
+  return s === "approved" ? "accepted" : s === "discarded" ? "rejected" : null;
+}
+
+export function AgentFileProposal({ block, host, changes }: { block: Block; host: BlockHost; changes?: Changes | undefined }): ReactElement {
   const d = proposalData(block.data);
   const [state, setState] = useState<ProposalData["state"]>(d.state);
+  const [elsewhere, setElsewhere] = useState<"accepted" | "rejected" | null>(null);
+  const load = useCallback(async (): Promise<void> => {
+    if (d.changesetId === "") return;
+    try { setElsewhere(decidedOf(await host.invoke("changesets.get", { changesetId: d.changesetId }))); } catch { /* the card still works from its own words */ }
+  }, [host, d.changesetId]);
+  useEffect(() => { if (state === "open") void load(); }, [load, state]);
+  useFollow(changes, load, state === "open" && elsewhere === null);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(collect(d.hunks, (h) => h.add).join("\n"));
   const { element, show } = useMenu();
@@ -74,6 +89,14 @@ export function AgentFileProposal({ block, host }: { block: Block; host: BlockHo
   const sendEdited = (): void => { setState("sent"); setEditing(false); void acts.sendEdited(text.split("\n")); };
   const suggest = (): void => { setState("sent"); void acts.suggest(); };
 
+  if (state === "open" && elsewhere !== null) {
+    return (
+      <View testID={`proposal-${id}`} accessibilityLabel={`${d.file} change, ${elsewhere}`} style={[st.card, st.done]}>
+        <Glyph name={elsewhere === "rejected" ? "x" : "check"} size={13} color={elsewhere === "rejected" ? "var(--ink-3)" : "var(--ok)"} />
+        <Text testID={`proposal-${id}-state`} style={st.doneText}>{`The change to ${d.file} was ${elsewhere}.`}</Text>
+      </View>
+    );
+  }
   if (state !== "open") {
     const line = state === "accepted" ? `You accepted the change to ${d.file}.${d.lines > 0 ? ` It has ${d.lines} lines now.` : ""}` : state === "rejected" ? `You rejected the change to ${d.file}.` : `Sent your edit to ${d.agent || "the agent"}. It will propose the change again.`;
     return (
