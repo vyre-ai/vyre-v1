@@ -64,7 +64,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
   const page = await ctx.newPage();
   // The skin is chosen in Cmd-K: the window changes at once and the page under it stays as it is, so a step can shoot the same screen in another skin and carry on.
   const pickSkin = async (name: string): Promise<void> => {
-    await page.keyboard.press("ControlOrMeta+k");
+    await page.getByTestId("title-search").click();
     await page.getByTestId("cmdk-input").fill("> skin");
     await page.getByTestId("cmdk-list").getByText(name, { exact: true }).click();
     await page.getByTestId("cmdk").waitFor({ state: "detached" });
