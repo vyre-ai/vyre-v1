@@ -6,6 +6,7 @@ HTTP 502. Retryable: no.
 
 ## Raised by
 
+- company.probe
 - connections.complete_auth
 - connectors.push
 - connectors.read
@@ -28,6 +29,5 @@ HTTP 502. Retryable: no.
 - git.sync
 - github.app.complete
 - google.directory.list
+- google.directory.reconcile
 - google.dwd.probe
-- google.dwd.setup
-- google.gmail.send_message

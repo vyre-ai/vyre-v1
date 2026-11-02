@@ -5,6 +5,16 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "company.access_log": async (ctx) => { throw new VyreErr(notImplemented("company.access_log", ctx.trace)); },
+  "company.check": async (ctx) => { throw new VyreErr(notImplemented("company.check", ctx.trace)); },
+  "company.connect": async (ctx) => { throw new VyreErr(notImplemented("company.connect", ctx.trace)); },
+  "company.disconnect": async (ctx) => { throw new VyreErr(notImplemented("company.disconnect", ctx.trace)); },
+  "company.people_done": async (ctx) => { throw new VyreErr(notImplemented("company.people_done", ctx.trace)); },
+  "company.probe": async (ctx) => { throw new VyreErr(notImplemented("company.probe", ctx.trace)); },
+  "company.script": async (ctx) => { throw new VyreErr(notImplemented("company.script", ctx.trace)); },
+  "company.start": async (ctx) => { throw new VyreErr(notImplemented("company.start", ctx.trace)); },
+  "company.status": async (ctx) => { throw new VyreErr(notImplemented("company.status", ctx.trace)); },
+  "company.sweep": async (ctx) => { throw new VyreErr(notImplemented("company.sweep", ctx.trace)); },
   "members.accept": async (ctx) => { throw new VyreErr(notImplemented("members.accept", ctx.trace)); },
   "members.invites.create": async (ctx) => { throw new VyreErr(notImplemented("members.invites.create", ctx.trace)); },
   "members.invites.extend": async (ctx) => { throw new VyreErr(notImplemented("members.invites.extend", ctx.trace)); },

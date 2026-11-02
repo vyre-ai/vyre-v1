@@ -1670,6 +1670,66 @@
     },
     {
       "deferred": false,
+      "name": "company_access_log",
+      "summary": "Who reached whose mail, calendar or files: who made the call, the person an agent worked for, which mailbox, when",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_check",
+      "summary": "Prove the key now in the Vault works, with no person involved. Answers what is wrong in plain words, or who it is; never the key. A key that works is remembered",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_connect",
+      "summary": "The one confirmation: everyone included comes in, and the directory is watched from here on",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_disconnect",
+      "summary": "Undo: every member sync stops at once; what already came in stays with its owner",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_people_done",
+      "summary": "A person has looked at who is in; the flow moves on to the one confirmation",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_probe",
+      "summary": "The read-only check of what the company allowed, as one line a person can act on",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_script",
+      "summary": "The one paste that does the provider's side: which shell to open and the script. It holds no secret; the admin runs it under their own account",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_start",
+      "summary": "Start Connect your company for Google Workspace or Microsoft 365 and choose Mail, Calendar and Files, or pick it up where it stands",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_status",
+      "summary": "Where Connect your company stands: the provider, each step and whether it is done, the next step, and which doc section explains it. Read this first; it never asks twice",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "company_sweep",
+      "summary": "Check the directory: a person gone from it stops and loses access. Runs on a schedule; a person confirms a change large enough to be held",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "computer_files_delete",
       "summary": "Delete a file from the agent Files folder; always asks outside work/",
       "toolset": "computer"
@@ -3541,6 +3601,12 @@
       "toolset": "records"
     },
     {
+      "deferred": false,
+      "name": "google_access_log",
+      "summary": "Who reached whose Google data: who made the call, the person an agent worked for, which mailbox, which capability, when",
+      "toolset": "engineer"
+    },
+    {
       "deferred": true,
       "name": "google_calendar_create_event",
       "summary": "Create an event; Google invites the attendees",
@@ -3598,6 +3664,12 @@
       "deferred": false,
       "name": "google_directory_list",
       "summary": "The people in the Google Workspace directory (admin only), with the Space member each is matched to, for choosing who to bring in",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "google_directory_reconcile",
+      "summary": "Compare the directory with who is matched: a person gone or suspended stops, and the Space suspends them. Every page must read, and a large change waits for a person",
       "toolset": "engineer"
     },
     {
@@ -3704,6 +3776,18 @@
     },
     {
       "deferred": false,
+      "name": "google_dwd_check_key",
+      "summary": "Prove the service-account key in the Vault works, with no person involved: its shape, its signature, and that Google still knows it. Answers what is wrong in plain words; never the key",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "google_dwd_connect_all",
+      "summary": "Everyone included comes in: mail, calendar and the first pull, for what the company chose. Repeating it adds nobody twice",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "google_dwd_disable",
       "summary": "Turn delegation off and stop every member sync",
       "toolset": "engineer"
@@ -3730,6 +3814,12 @@
       "deferred": false,
       "name": "google_dwd_scopes",
       "summary": "The scope list and client id to paste into the Google Admin console",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "google_dwd_set_data",
+      "summary": "Choose Mail, Calendar and Files separately after setup. What is turned off stops for everyone; what is turned on comes in for everyone included",
       "toolset": "engineer"
     },
     {
@@ -5335,6 +5425,12 @@
       "toolset": "files"
     },
     {
+      "deferred": false,
+      "name": "ms_access_log",
+      "summary": "Who reached whose Microsoft data: who made the call, the person an agent worked for, which mailbox, which capability, when",
+      "toolset": "engineer"
+    },
+    {
       "deferred": true,
       "name": "ms_calendar_create_event",
       "summary": "Create an event; Exchange invites the attendees",
@@ -5390,6 +5486,18 @@
     },
     {
       "deferred": false,
+      "name": "ms_consent_check_app",
+      "summary": "Prove the app registration in the Vault signs in to its tenant, with no person involved. Answers what is wrong in plain words; never the secret",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ms_consent_connect_all",
+      "summary": "Everyone included comes in: mail, calendar and the first pull, for what the company chose. Repeating it adds nobody twice",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "ms_consent_disable",
       "summary": "Turn the Microsoft connection off and stop every member sync",
       "toolset": "engineer"
@@ -5416,6 +5524,12 @@
       "deferred": false,
       "name": "ms_consent_policy_snippet",
       "summary": "PowerShell for the Exchange application access policy, limited to the mapped members, for a tenant admin to run",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ms_consent_set_data",
+      "summary": "Choose Mail, Calendar and Files separately after setup. What is turned off stops for everyone; what is turned on comes in for everyone included",
       "toolset": "engineer"
     },
     {
@@ -5458,6 +5572,12 @@
       "deferred": false,
       "name": "ms_directory_list",
       "summary": "The people in the Microsoft 365 directory (admin only), with the Space member each is matched to, for choosing who to bring in",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ms_directory_reconcile",
+      "summary": "Compare the directory with who is matched: a person gone or turned off stops, and the Space suspends them. Every page must read, and a large change waits for a person",
       "toolset": "engineer"
     },
     {

@@ -19,6 +19,7 @@ HTTP 401. Retryable: no.
 - identity.recovery_restore
 - identity.reset_complete
 - identity.sign_in
+- identity.sso_join_start
 - identity.sso_sign_in
 - identity.totp_confirm
 - identity.verify_second_factor

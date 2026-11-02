@@ -32,6 +32,8 @@ type In = Record<string, unknown>;
 ```ts
 type Out = {
   email?: string;
+  connectionId?: string;
+  files?: boolean;
 };
 ```
 
@@ -49,7 +51,9 @@ type Out = {
   "name": "example",
   "input": {},
   "output": {
-    "email": "maya@example.com"
+    "connectionId": "con_a1b2c3",
+    "email": "maya@example.com",
+    "files": true
   }
 }
 ```

@@ -5,6 +5,7 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "ms.access_log": Handler<"ms.access_log", X>;
   "ms.calendar.create_event": Handler<"ms.calendar.create_event", X>;
   "ms.calendar.delete_event": Handler<"ms.calendar.delete_event", X>;
   "ms.calendar.delta": Handler<"ms.calendar.delta", X>;
@@ -17,12 +18,15 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "ms.calendar.subscribe": Handler<"ms.calendar.subscribe", X>;
   "ms.calendar.unsubscribe": Handler<"ms.calendar.unsubscribe", X>;
   "ms.calendar.update_event": Handler<"ms.calendar.update_event", X>;
+  "ms.consent.check_app": Handler<"ms.consent.check_app", X>;
+  "ms.consent.connect_all": Handler<"ms.consent.connect_all", X>;
   "ms.consent.disable": Handler<"ms.consent.disable", X>;
   "ms.consent.link": Handler<"ms.consent.link", X>;
   "ms.consent.map_member": Handler<"ms.consent.map_member", X>;
   "ms.consent.members": Handler<"ms.consent.members", X>;
   "ms.consent.my_account": Handler<"ms.consent.my_account", X>;
   "ms.consent.policy_snippet": Handler<"ms.consent.policy_snippet", X>;
+  "ms.consent.set_data": Handler<"ms.consent.set_data", X>;
   "ms.consent.set_excluded": Handler<"ms.consent.set_excluded", X>;
   "ms.consent.setup": Handler<"ms.consent.setup", X>;
   "ms.consent.status": Handler<"ms.consent.status", X>;
@@ -30,6 +34,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "ms.consent.verify": Handler<"ms.consent.verify", X>;
   "ms.directory.import": Handler<"ms.directory.import", X>;
   "ms.directory.list": Handler<"ms.directory.list", X>;
+  "ms.directory.reconcile": Handler<"ms.directory.reconcile", X>;
   "ms.drive.create_folder": Handler<"ms.drive.create_folder", X>;
   "ms.drive.delete_item": Handler<"ms.drive.delete_item", X>;
   "ms.drive.delta": Handler<"ms.drive.delta", X>;

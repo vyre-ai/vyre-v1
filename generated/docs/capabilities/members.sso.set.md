@@ -11,7 +11,7 @@ Add or change an OIDC provider (Google, Microsoft, Okta); the client secret is a
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | signin_change when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

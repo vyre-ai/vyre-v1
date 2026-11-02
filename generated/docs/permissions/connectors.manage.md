@@ -15,6 +15,16 @@ Area: space. Risk: medium. Applies to: connector, connection.
 ## Capabilities that need it
 
 - calendar.connect_provider
+- company.access_log
+- company.check
+- company.connect
+- company.disconnect
+- company.people_done
+- company.probe
+- company.script
+- company.start
+- company.status
+- company.sweep
 - connections.create
 - connectors.build
 - connectors.define
@@ -44,13 +54,18 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - github.app.create_manifest
 - github.app.get
 - github.installations.list
+- google.access_log
 - google.directory.import
 - google.directory.list
+- google.directory.reconcile
+- google.dwd.check_key
+- google.dwd.connect_all
 - google.dwd.disable
 - google.dwd.map_member
 - google.dwd.members
 - google.dwd.probe
 - google.dwd.scopes
+- google.dwd.set_data
 - google.dwd.set_excluded
 - google.dwd.setup
 - google.dwd.status
@@ -59,11 +74,17 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - hubspot.push_object
 - mail.auto_connect_members
 - mail.mailbox.create
+- mail.member_pause
+- mounts.account_pause
+- ms.access_log
+- ms.consent.check_app
+- ms.consent.connect_all
 - ms.consent.disable
 - ms.consent.link
 - ms.consent.map_member
 - ms.consent.members
 - ms.consent.policy_snippet
+- ms.consent.set_data
 - ms.consent.set_excluded
 - ms.consent.setup
 - ms.consent.status
@@ -71,6 +92,7 @@ Area: space. Risk: medium. Applies to: connector, connection.
 - ms.consent.verify
 - ms.directory.import
 - ms.directory.list
+- ms.directory.reconcile
 - ms.subscriptions.renew
 - ms.user.app_set
 - sources.create

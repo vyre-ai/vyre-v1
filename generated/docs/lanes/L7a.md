@@ -175,7 +175,7 @@ Events:
 
 ### identity
 
-Capabilities to implement: 29. Events to emit: 10. Contract tests that must go green: `generated/tests/identity/`.
+Capabilities to implement: 31. Events to emit: 10. Contract tests that must go green: `generated/tests/identity/`.
 
 Capabilities:
 - identity.change_password (write, grant only, level view)
@@ -199,6 +199,8 @@ Capabilities:
 - identity.sign_in (write, grant only, level view)
 - identity.sign_in_options (read, grant only, level view)
 - identity.sign_out (write, grant only, level view)
+- identity.sso_join_start (write, grant only, level view)
+- identity.sso_link (write, grant only, level view)
 - identity.sso_sign_in (write, grant only, level view)
 - identity.totp_begin (write, grant only, level view)
 - identity.totp_confirm (write, grant only, level view)
@@ -222,9 +224,19 @@ Events:
 
 ### members
 
-Capabilities to implement: 20. Events to emit: 5. Contract tests that must go green: `generated/tests/members/`.
+Capabilities to implement: 30. Events to emit: 5. Contract tests that must go green: `generated/tests/members/`.
 
 Capabilities:
+- company.access_log (read, connectors.manage, level view)
+- company.check (write, connectors.manage, level edit)
+- company.connect (write, connectors.manage, level edit, gate connection_change)
+- company.disconnect (write, connectors.manage, level edit, gate connection_change)
+- company.people_done (write, connectors.manage, level edit)
+- company.probe (write, connectors.manage, level edit)
+- company.script (read, connectors.manage, level view)
+- company.start (write, connectors.manage, level edit)
+- company.status (read, connectors.manage, level view)
+- company.sweep (write, connectors.manage, level edit)
 - members.accept (write, grant only, level view)
 - members.invites.create (write, members.invite, level view)
 - members.invites.extend (write, members.invite, level view)
@@ -239,10 +251,10 @@ Capabilities:
 - members.sign_in_github.get (read, policy.manage, level view)
 - members.sign_in_github.set (write, policy.manage, level view, gate signin_change)
 - members.sign_in_policy.get (read, policy.manage, level view)
-- members.sign_in_policy.set (write, policy.manage, level view)
+- members.sign_in_policy.set (write, policy.manage, level view, gate signin_change)
 - members.sso.list (read, policy.manage, level view)
-- members.sso.remove (write, policy.manage, level view)
-- members.sso.set (write, policy.manage, level view)
+- members.sso.remove (write, policy.manage, level view, gate signin_change)
+- members.sso.set (write, policy.manage, level view, gate signin_change)
 - members.sso.test (read, policy.manage, level view)
 - members.suspend (write, members.remove, level view)
 
