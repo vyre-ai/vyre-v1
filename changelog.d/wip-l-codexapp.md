@@ -1,0 +1,1 @@
+- A Codex signed in through the ChatGPT app now runs your turns. Vyre finds the codex inside ChatGPT (and Claude Code inside the Claude app) instead of saying it is not installed and answering with another account.

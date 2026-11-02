@@ -40,8 +40,24 @@ export function enginePath(env: { PATH?: string | undefined }, home: string, pla
   const nvm = path.join(home, ".nvm", "versions", "node");
   let versions: string[] = [];
   try { versions = exists(nvm) ? list(nvm).filter((v) => /^v\d+/.test(v)).sort((a, b) => b.localeCompare(a, undefined, { numeric: true })).map((v) => path.join(nvm, v, "bin")) : []; } catch { /* no nvm */ }
-  const more = [path.join(home, ".local", "bin"), "/opt/homebrew/bin", "/usr/local/bin", path.join(home, ".claude", "local"), path.join(home, ".bun", "bin"), path.join(home, ".volta", "bin"), ...versions];
+  const more = [path.join(home, ".local", "bin"), "/opt/homebrew/bin", "/usr/local/bin", path.join(home, ".claude", "local"), path.join(home, ".bun", "bin"), path.join(home, ".volta", "bin"), ...versions, ...appBundledClis(home, exists, list)];
   return [...have, ...more.filter((p) => !have.includes(p) && exists(p))].join(path.delimiter);
+}
+
+/**
+ * The CLIs a desktop app carries inside itself, last so a person's own install wins. ChatGPT (and the older Codex app) ship `codex` in Resources/codex-cli/bin; the Claude app keeps Claude Code
+ * per version under Application Support, newest first. A person signed in to Codex through the ChatGPT app has no other `codex`, and without this their turn fell back to another account.
+ */
+function appBundledClis(home: string, exists: (p: string) => boolean, list: (p: string) => string[]): string[] {
+  const apps = ["/Applications", path.join(home, "Applications")];
+  const codex = apps.flatMap((a) => ["ChatGPT.app", "Codex.app"].map((app) => path.join(a, app, "Contents", "Resources", "codex-cli", "bin")));
+  const root = path.join(home, "Library", "Application Support", "Claude", "claude-code");
+  let claude: string[] = [];
+  try {
+    const versions = exists(root) ? list(root).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort((a, b) => b.localeCompare(a, undefined, { numeric: true })) : [];
+    claude = versions.flatMap((v) => list(path.join(root, v)).map((build) => path.join(root, v, build, "claude.app", "Contents", "MacOS")));
+  } catch { /* no Claude app */ }
+  return [...codex, ...claude];
 }
 
 /**
