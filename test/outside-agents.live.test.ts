@@ -28,7 +28,8 @@ function raw(url: string, o: { method?: string; headers?: Record<string, string>
 /** What an MCP client does, from nothing but the address. Nothing here reads Vyre's code: it follows the 401. */
 class Client {
   token = ""; refresh = ""; clientId = ""; session = ""; verifier = randomBytes(40).toString("base64url"); redirect = "http://127.0.0.1:39281/callback"; issuer = ""; meta: Json = {}; resource = "";
-  constructor(readonly url: string, readonly extra: Record<string, string> = {}, readonly name = "Claude Code") {}
+  url: string; extra: Record<string, string>; name: string;
+  constructor(url: string, extra: Record<string, string> = {}, name = "Claude Code") { this.url = url; this.extra = extra; this.name = name; }
   async discover(): Promise<void> {
     const r = await raw(this.url, { method: "POST", headers: { "content-type": "application/json", ...this.extra }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }) });
     assert.equal(r.status, 401);
