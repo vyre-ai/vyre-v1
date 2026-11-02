@@ -69,6 +69,8 @@ export interface VaultData {
   pickFile?(accept: string): Promise<string | null>;
   /** Install Vyre for Chrome from this app (desktop only). Without it the Advanced page has no row for it. */
   browsers?: VaultBrowsers;
+  /** A Space server's sealed copy of the person's key for Google or GitHub sign-ins, and Forget on this server (ServerKeyLine). Absent: no such row. */
+  serverKey?: { state(): Promise<{ held: boolean; remembered: boolean; forgotten: boolean } | null>; keep(keep: boolean): Promise<boolean> };
 }
 
 const DataCtx = createContext<VaultData | null>(null);

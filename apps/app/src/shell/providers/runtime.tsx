@@ -49,7 +49,11 @@ export interface ShellRuntime extends Omit<HomeData, "nav"> {
   putBlob?(path: string, bytes: Uint8Array): Promise<void>;
   /** Open the person's own Mine vault key on this computer with their password, in place (no sign-out). Absent where there is no live Space. Rejects with a sentence the page can show. */
   unlockVault?(password: string): Promise<void>;
+  /** A Space server's wrap of the person's key for provider sign-ins (owner ruling 3 Nov): what it keeps, and Forget on this server. Null state where there is no such server. */
+  serverKey?: ServerKeyPort;
 }
+
+export interface ServerKeyPort { state(): Promise<{ held: boolean; remembered: boolean; forgotten: boolean } | null>; keep(keep: boolean): Promise<boolean> }
 
 const Ctx = createContext<ShellRuntime | null>(null);
 

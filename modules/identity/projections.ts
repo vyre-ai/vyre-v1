@@ -62,6 +62,13 @@ export interface IdentityCtx {
 export interface Keyring {
   /** Take the person's key out of this node's memory (sign-out, password change or reset; ruling 62). The key itself is handed over by their client (POST /local/vault/key/unlock), never made here. */
   clear(personId: string): void;
+  /**
+   * A Space server only (owner ruling 3 Nov, R62 amended): open the wrap the server keeps of this person's key into its memory for this new session, after a Google, Microsoft or GitHub sign-in proved
+   * who it is. True when it opened. Absent, or no wrap: their Vault opens the next time they type their password.
+   */
+  openWrap?(personId: string, sessionId: string): boolean;
+  /** Drop that wrap (a password change, a reset, a recovery). */
+  dropWrap?(personId: string): void;
 }
 
 export interface Invite { inviteId: string; role: string; groups: string[]; invitedBy: string; email?: string }
@@ -254,7 +261,7 @@ let sessionTokens: SessionTokens | null = null;
 export function configureSessionTokens(t: SessionTokens | null): void { sessionTokens = t; }
 
 /** Open a per-device session: devices.register makes the device and its session, the host mints the token for that session, and identity keeps the row that sign-out and reset act on. */
-export async function issueSession(ctx: IdentityCtx, a: Account, dev: Device, method: Method, opts: { joining?: boolean } = {}): Promise<SignInOut> {
+export async function issueSession(ctx: IdentityCtx, a: Account, dev: Device, method: Method, opts: { joining?: boolean; /** the provider a single sign-on proved the person at */ provider?: string } = {}): Promise<SignInOut> {
   const tid = ctx.trace.traceId;
   assertSignInPolicy(ctx,a,method);
   if (!sessionTokens || typeof ctx.call !== "function") raise(tid, "internal.unavailable", "Sign-in cannot open a device session on this server yet.");
@@ -275,6 +282,12 @@ export async function issueSession(ctx: IdentityCtx, a: Account, dev: Device, me
     `INSERT INTO identity_sessions (id, person_id, device_id, device_name, device_class, token_hash, method, created_at, expires_at, revoked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     sessionId, a.person_id, deviceId, dev.deviceName, dev.deviceClass, sha(token), method, now, expiresAt, null);
   ctx.emit("signin.succeeded", a.person_id, { personId: a.person_id, method, deviceId });
+  // a provider proved who this is: the server's wrap of their key, if it keeps one, opens for this session, so their own AI accounts work with nothing to type. Each open is an audit row.
+  if ((method === "sso" || method === "github") && !opts.joining && ctx.keyring?.openWrap?.(a.person_id, sessionId)) {
+    const provider = method === "github" ? "github" : opts.provider ?? "sso";
+    await ctx.call("audit.append", { action: "vault.key_opened_after_sign_in", class: "sign_in", onBehalfOf: { kind: "person", id: a.person_id }, detail: { provider, sessionId } })
+      .catch(() => undefined);   // the audit module not being live does not undo a sign-in
+  }
   const keys = bundleOf(a);
   return { status: "ok", session: { sessionId, deviceId, token, expiresAt, epoch: a.epoch }, ...(keys ? { keys } : {}) };
 }
@@ -294,13 +307,14 @@ export function endSessionRow(ctx: IdentityCtx, personId: string, sessionId: str
 /** Revoke every live session of a person, except one when given, here and at the gateway. A password change or reset also takes their key out of memory. */
 export function revokeSessions(ctx: IdentityCtx, personId: string, except?: string): void {
   ctx.keyring?.clear(personId);
+  ctx.keyring?.dropWrap?.(personId);
   const live = ctx.db.all(`SELECT id FROM identity_sessions WHERE person_id = ? AND revoked_at IS NULL AND id != ?`, personId, except ?? "") as { id: string }[];
   ctx.db.run(`UPDATE identity_sessions SET revoked_at = ? WHERE person_id = ? AND revoked_at IS NULL AND id != ?`, ctx.now(), personId, except ?? "");
   for (const r of live) sessionTokens?.end(r.id);
 }
 /** The private recovery transaction already revoked both durable session tables. */
 export function finishRecoverySessions(ctx:IdentityCtx,personId:string,sessions:readonly string[]):void{
- ctx.keyring?.clear(personId);for(const id of sessions)sessionTokens?.end(id);
+ ctx.keyring?.clear(personId);ctx.keyring?.dropWrap?.(personId);for(const id of sessions)sessionTokens?.end(id);
 }
 /** Resolve a bearer token to its live session; the host gateway calls this to build the principal. */
 export function sessionOfToken(ctx: IdentityCtx, token: string): { sessionId: string; personId: string; deviceId: string } | undefined {
