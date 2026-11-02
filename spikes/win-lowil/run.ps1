@@ -78,6 +78,19 @@ icacls $lh /setintegritylevel "(OI)(CI)low" /T | Out-Null
 node "$PSScriptRoot\..\win-engines\fetch.mjs" "https://downloads.claude.ai/claude-code-releases/2.1.316/win32-x64/claude.exe.zst" "26af66d4fa70e980047d54c85140579de0271d79a9257ac467f90a0ecdca528d" "$bin\claude.exe"
 node "$PSScriptRoot\..\win-engines\fetch.mjs" "https://github.com/openai/codex/releases/download/rust-v0.166.0/codex-x86_64-pc-windows-msvc.exe.zst" "5aa3c88e75bd0c843c48e2fe7062999546f0d3094a3361659c2d731dfdf84960" "$bin\codex.exe"
 Copy-Item "$PSScriptRoot\..\win-appcontainer\probe.mjs" $w
+# a copy of Node beside the engines (the runner's tool cache may carry its own label); both are tried below
+Copy-Item $node "$bin\node.exe"
+$nodeCache = $node
+$node = "$bin\node.exe"
+$env:TEMP = "$lh\tmp"; $env:TMP = "$lh\tmp"
+"=== can a Low process start anything"
+$e1 = [Low]::Run((Q $cmd) + ' /c "echo hi> ' + (Q "$w\echo.txt") + '"', $w, 30000)
+"cmd echo: exit $e1, wrote: $(Tail "$w\echo.txt")"
+$e2 = [Low]::Run((Q $cmd) + ' /c "' + (Q $nodeCache) + ' --version > ' + (Q "$w\v1.txt") + ' 2>&1"', $w, 30000)
+"tool-cache node: exit $e2, said: $(Tail "$w\v1.txt")"
+$e3 = [Low]::Run((Q $cmd) + ' /c "' + (Q $node) + ' --version > ' + (Q "$w\v2.txt") + ' 2>&1"', $w, 30000)
+"copied node: exit $e3, said: $(Tail "$w\v2.txt")"
+"tool-cache node label: $((icacls $nodeCache | Select-String 'Mandatory') -join ' ')"
 
 # things a person keeps in their profile; fakes where the runner has none
 $secrets = [ordered]@{
