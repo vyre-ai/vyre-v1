@@ -26,6 +26,8 @@ export interface ClaimOwnerProps {
   onSaveCode?(code: string): void;
   /** The name and username from a Personal Space claimed a moment ago, offered again here; the password is always typed again. */
   prefill?: { name: string; username: string } | null;
+  /** What the way out says, for a person who is already signed in. */
+  signInLabel?: string;
   /** Sign in instead (the link was used by the owner already). */
   onSignIn?(): void;
   /** Leave before anything is claimed: back to the first screen. */
@@ -114,7 +116,7 @@ export function ClaimOwner(props: ClaimOwnerProps): ReactElement {
     }
   };
 
-  if (s.stage === "dead") return <JoinFrame><Panel {...(props.space ? { space: props.space } : {})} bar={props.onSignIn ? <Bar cont={<Button testID="claim-sign-in" label="Sign in" onPress={props.onSignIn} />} /> : undefined}><Dead failure={s.dead ?? "used"} /></Panel></JoinFrame>;
+  if (s.stage === "dead") return <JoinFrame><Panel {...(props.space ? { space: props.space } : {})} bar={props.onSignIn ? <Bar cont={<Button testID="claim-sign-in" label={props.signInLabel ?? "Sign in"} onPress={props.onSignIn} />} /> : undefined}><Dead failure={s.dead ?? "used"} /></Panel></JoinFrame>;
   if (s.stage === "run") {
     return (
       <JoinFrame>
