@@ -5,3 +5,4 @@
 - The Mac app no longer offers to open an invite for a vyre.run address it cannot reach; it says to open the link in the browser.
 - Console, People lists the invites still open: who each is for, its role and when it ends, with New link and Revoke. A new invite can last 1, 7 or 30 days, and an invite with an email can be sent from your own mailbox in one press.
 - On a vyre.run address the app no longer replaces the relay's page worker with its own, which would have cut the page off from the Space.
+- A Team Space run from the Mac app hands the app to a browser too: the desktop bundle now carries the web export beside the server it runs.
