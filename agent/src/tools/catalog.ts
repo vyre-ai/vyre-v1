@@ -28,6 +28,14 @@ export function buildCatalog(caps: readonly RegistryCapRow[], tools: readonly Mc
   return { all: defs, byName: (n) => byName.get(n) };
 }
 
+/**
+ * The same catalog, offering only tools that can work. `refuses` says a capability's handler only refuses (host/src/routes/deferred.ts), so no agent is told to use it, listed or searched.
+ * It is asked on every read and names nothing, so a capability that goes live comes back by itself. A call by name still resolves and is refused, never an unknown tool.
+ */
+export function offerable(catalog: Catalog, refuses: (cap: string) => boolean): Catalog {
+  return { get all() { return catalog.all.filter((t) => !refuses(t.cap)); }, byName: catalog.byName };
+}
+
 /** The default listed tool names from the frozen table in docs/frozen/agent-tools.md: rows that start with "| `name` |" under "Default listed toolset". */
 export function parseDefaultTools(markdown: string): Set<string> {
   const out = new Set<string>();

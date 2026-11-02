@@ -5,7 +5,8 @@ import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
 import type { ErrorCode, EventName } from "../../packages/contracts/src/types.ts";
-import { buildCatalog, parseDefaultTools } from "../../agent/src/tools/catalog.ts";
+import { buildCatalog, offerable, parseDefaultTools } from "../../agent/src/tools/catalog.ts";
+import { DEFERRED_CAPS } from "../../host/src/routes/deferred.ts";
 import type { AgentToolRow, Catalog, McpToolRow, RegistryCapRow } from "../../agent/src/tools/types.ts";
 import { DEFAULT_SCOPES } from "../../agent/src/mcp/types.ts";
 import type { McpCaller, McpServer, Scopes } from "../../agent/src/mcp/types.ts";
@@ -239,7 +240,7 @@ export function loadGenerated(): Generated {
   const reg = JSON.parse(read("generated/registry.json")) as { capabilities: RegistryCapRow[]; agentTools: AgentToolRow[] };
   const tools = (JSON.parse(read("generated/mcp-tools.json")) as { tools: McpToolRow[] }).tools;
   generated = {
-    catalog: buildCatalog(reg.capabilities, tools, reg.agentTools),
+    catalog: offerable(buildCatalog(reg.capabilities, tools, reg.agentTools), (cap) => DEFERRED_CAPS.has(cap)),
     defaults: parseDefaultTools(read("docs/frozen/agent-tools.md")),
   };
   return generated;

@@ -10,7 +10,8 @@ import { createToolSession } from "../../agent/src/tools/call.ts";
 import { decideLocal } from "../../agent/src/tools/local.ts";
 import { localFacts } from "../../agent/src/tools/local-facts.ts";
 import type { SecurityMode } from "../../agent/src/tools/local.ts";
-import { buildCatalog, parseDefaultTools } from "../../agent/src/tools/catalog.ts";
+import { buildCatalog, offerable, parseDefaultTools } from "../../agent/src/tools/catalog.ts";
+import { DEFERRED_CAPS } from "../../host/src/routes/deferred.ts";
 import type { AgentToolRow, McpToolRow, RegistryCapRow } from "../../agent/src/tools/types.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import type { AgentRules, Level, ThreadFacts } from "../../agent/src/tools/types.ts";
@@ -54,7 +55,7 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
   if (!catalog || !defaults) {
     const reg = JSON.parse(read("generated/registry.json")) as { capabilities: RegistryCapRow[]; agentTools: AgentToolRow[] };
     const tools = (JSON.parse(read("generated/mcp-tools.json")) as { tools: McpToolRow[] }).tools;
-    catalog = buildCatalog(reg.capabilities, tools, reg.agentTools);
+    catalog = offerable(buildCatalog(reg.capabilities, tools, reg.agentTools), (cap) => DEFERRED_CAPS.has(cap));
     defaults = parseDefaultTools(read("docs/frozen/agent-tools.md"));
   }
   // What decides a turn's tool set is read as the asker before the set is built (the tool session asks synchronously): the agent's allow and deny lists, what the thread is (an Ask pane about an object,

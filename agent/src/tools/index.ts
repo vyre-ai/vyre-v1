@@ -1,4 +1,4 @@
-export { buildCatalog, parseDefaultTools } from "./catalog.ts";
+export { buildCatalog, offerable, parseDefaultTools } from "./catalog.ts";
 export { ASK_VIEW_EXTRAS, allowedAtLevel, askLevel, refusalFor, searchTools, toolsFor } from "./access.ts";
 export type { AccessDeps } from "./access.ts";
 export { createToolSession } from "./call.ts";
