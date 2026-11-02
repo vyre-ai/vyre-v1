@@ -24,7 +24,7 @@ rc.14, Windows desktop, Personal Space, Claude Code. The turn died at once at th
 
 An ordinary user process can make an AppContainer profile (`CreateAppContainerProfile`). It can start a process in it with `PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES`, and it can add the container's SID to the ACLs of folders it owns. None of that needs admin.
 
-The spike (`spikes/win-appcontainer`) ran on windows-latest in the `sandbox-windows` job. A Node process sat in a capability-less AppContainer:
+The spike (`spikes/win-appcontainer` on branch wip/l-winengine-sbx) ran on windows-latest in the `sandbox-windows` job. A Node process sat in a capability-less AppContainer:
 
 | Probe | Result |
 |---|---|
