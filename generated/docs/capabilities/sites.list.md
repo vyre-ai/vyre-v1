@@ -1,6 +1,6 @@
 # sites.list
 
-List sites by section (Personal, Shared with me, Space) and folder
+List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder
 
 | | |
 |---|---|
@@ -27,6 +27,7 @@ List sites by section (Personal, Shared with me, Space) and folder
 type In = {
   section?: "personal" | "shared" | "space";
   folderId?: string;
+  kind?: "site" | "artifact";
   cursor?: string;
   limit?: number;
 };
@@ -45,6 +46,15 @@ type Out = {
       stagingUrl?: string;
       productionUrl?: string;
       state: "queued" | "building" | "ready" | "failed" | "stopped";
+      slug?: string;
+      url?: string;
+      computerId?: string;
+      port?: number;
+      folderId?: string;
+      access?: "public" | "password" | "space" | "private";
+      live?: boolean;
+      blocked?: boolean;
+      updatedAt?: number;
     }>;
   next?: string;
   total?: number;
@@ -66,6 +76,7 @@ type Out = {
   "input": {
     "cursor": "example",
     "folderId": "fld_a1b2c3",
+    "kind": "site",
     "limit": 1,
     "section": "personal"
   },
@@ -73,14 +84,23 @@ type Out = {
     "next": "example",
     "sites": [
       {
+        "access": "public",
+        "blocked": true,
+        "computerId": "cmt_a1b2c3",
+        "folderId": "fld_a1b2c3",
         "kind": "site",
+        "live": true,
         "name": "example",
         "owner": "example",
+        "port": 1,
         "productionUrl": "example",
         "repoFolderId": "fld_a1b2c3",
         "siteId": "sit_a1b2c3",
+        "slug": "example",
         "stagingUrl": "example",
-        "state": "queued"
+        "state": "queued",
+        "updatedAt": 1760000000000,
+        "url": "example"
       }
     ],
     "total": 1

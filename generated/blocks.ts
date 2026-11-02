@@ -12,6 +12,10 @@ export type AccessRequestBlockData = {
   note?: string;
   state: "waiting" | "granted" | "declined";
 };
+export type ArtifactBlockData = {
+  artifactId: string;
+  title: string;
+};
 export type ChangesetBlockData = {
   changesetId: string;
   folderId: string;
@@ -250,6 +254,7 @@ export type VaultUsedBlockData = {
 
 export interface BlockDataMap {
   "access_request": AccessRequestBlockData;
+  "artifact": ArtifactBlockData;
   "changeset": ChangesetBlockData;
   "checklist": ChecklistBlockData;
   "crew_result": CrewResultBlockData;
@@ -304,6 +309,21 @@ export const blockRegistry = [
       }
     ],
     "opens": null
+  },
+  {
+    "type": "artifact",
+    "v": 1,
+    "module": "sites",
+    "component": "ui:BlockArtifact",
+    "fallback": "Artifact: {{title}}",
+    "waitsForAnswer": false,
+    "actions": [],
+    "opens": {
+      "tab": "artifact",
+      "input": {
+        "artifactId": "/artifactId"
+      }
+    }
   },
   {
     "type": "changeset",
@@ -392,8 +412,7 @@ export const blockRegistry = [
         "label": "Promote",
         "cap": "sites.promote",
         "input": {
-          "siteId": "/siteId",
-          "deploymentId": "/deploymentId"
+          "siteId": "/siteId"
         }
       },
       {

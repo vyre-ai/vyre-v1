@@ -59,6 +59,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.apps.artifacts",
+      "place": "apps",
+      "screen": "apps.artifacts"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.apps.campaign-builder",
       "place": "apps",
       "screen": "apps.campaign-builder"
@@ -111,13 +118,6 @@
       "id": "screen.apps.site-editor",
       "place": "apps",
       "screen": "apps.site-editor"
-    },
-    {
-      "completeMs": 100,
-      "firstPaintMs": 50,
-      "id": "screen.apps.site-settings",
-      "place": "apps",
-      "screen": "apps.site-settings"
     },
     {
       "completeMs": 100,
