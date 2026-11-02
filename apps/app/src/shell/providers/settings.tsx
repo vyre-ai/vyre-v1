@@ -56,7 +56,7 @@ export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["man
     nav: {
       openVault: () => rt.open({ screen: "vault.layout" }),
       openSpace: (id) => rt.open({ screen: "spaces.switcher", args: { id } }),
-      connect: (kind) => kind === "twilio" ? rt.open({ screen: "vault.layout", args: { add: "twilio" } }) : rt.open({ screen: "settings.page", args: { page: "connections" } }),
+      connect: (kind) => kind === "twilio" ? rt.open({ screen: "vault.layout", args: { add: "twilio" } }) : rt.open({ screen: "settings.page", args: { page: "mail" } }),
       openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
       choosePhoto: () => chooseProfilePhoto(rt),
       applySkin: (skinId) => void applySkinToWindow(rt, skinId),
@@ -80,7 +80,7 @@ export default function SettingsShellPlace(_props: { place: string }): ReactElem
   const nonce = useAddServerNonce();
   // a link into Settings names its page ({ page } or the mail connections screen); without this it always opened Profile
   const { target } = usePlaceHash();
-  const raw = target.screen === "mail.connections" ? "connected" : typeof target.args["page"] === "string" ? target.args["page"] : "";
+  const raw = target.screen === "mail.connections" ? "mail" : typeof target.args["page"] === "string" ? target.args["page"] : "";
   const asked = OLD_PAGES[raw] ?? raw;
   const page = PAGES.some((x) => x.key === asked) ? (asked as PageKey) : undefined;
   const { page: _page, admin: askedAdmin, ...adminArgs } = target.args as Record<string, string>;

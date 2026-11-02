@@ -1,5 +1,6 @@
 // The rail is Kit-defined (spec 2.1 "the rail (Kit-defined)", 3.0): each Space's Kit says which places sit in the top group and which in the bottom group,
-// and which place opens first. The Console shows only for a person who holds console.access in that Space. A Personal Space hides Apps (forms, sending domains
+// and which place opens first. The Console shows only for a person who holds console.access in that Space. Inbox shows only for a person who has something flowing in
+// (a mailbox, a calendar or a number of their own; rail/inbox-sources.ts): before that, connecting lives in Settings. A Personal Space hides Apps (forms, sending domains
 // are for a team): team-only places stay off its rail (the rc.5 polish rules).
 import type { PlaceId } from "../../../../../ui/src/theme/theme.ts";
 
@@ -83,18 +84,20 @@ export interface RailInput {
   kit: KitDef;
   /** console.access in this Space. */
   console: boolean;
+  /** This person has a mailbox, calendar or number flowing in. False takes Inbox off the rail; absent (not known yet) leaves it where the Kit puts it. */
+  inbox?: boolean;
   counts: Readonly<Partial<Record<PlaceId, number>>>;
   dots: Readonly<Partial<Record<PlaceId, boolean>>>;
   active: PlaceId;
 }
 
-/** The rail for one Space: the Kit's groups, the Console only with access, a dot only on a place you are not looking at. */
+/** The rail for one Space: the Kit's groups, the Console only with access, Inbox only with something flowing in, a dot only on a place you are not looking at. */
 export function railFor(input: RailInput): RailGroups {
   const entry = (place: PlaceId): RailEntry => {
     const count = input.counts[place] ?? 0;
     return { place, title: PLACE_TITLE[place], count, dot: count === 0 && input.dots[place] === true && input.active !== place };
   };
-  const keep = (place: PlaceId): boolean => place !== "console" || input.console;
+  const keep = (place: PlaceId): boolean => (place !== "console" || input.console) && (place !== "inbox" || input.inbox !== false);
   return { top: input.kit.top.filter(keep).map(entry), bottom: input.kit.bottom.filter(keep).map(entry) };
 }
 
