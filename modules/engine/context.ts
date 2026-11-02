@@ -347,7 +347,7 @@ export function createContextBuilder(d: ContextDeps) {
     const spaceRow = space?.["space"] as Obj | undefined;
     // the tasks in hand; a crew job or helper thread learns here which task it is doing
     const digest = await read<Obj>("tasks.digest", { agentId, threadId: input.threadId }, asker);
-    const taskId = (str(th?.["scopeType"]) === "task" ? str(th?.["scopeId"]) : undefined) ?? str(digest?.["workerTaskId"]);
+    const taskId = (str(th?.["scopeType"]) === "task" ? str(th?.["scopeId"]) : undefined) ?? str(digest?.["boundTaskId"]);
     if (str(spaceRow?.["name"])) where.push(`Space: ${str(spaceRow?.["name"])}${str(spaceRow?.["kind"]) ? ` (${str(spaceRow?.["kind"])})` : ""}.`);
     const kind = str(th?.["kind"]) ?? "chat";
     const scope = await scopeLine(str(th?.["scopeType"]), str(th?.["scopeId"]), asker);
