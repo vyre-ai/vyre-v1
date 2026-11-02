@@ -104,16 +104,8 @@ export function EmptyLine({ text, id }: { text: string; id: string }): ReactElem
 
 /** Rows the size of the real ones, so nothing moves when the data arrives. */
 export function Skeleton({ rows, id }: { rows: number; id: string }): ReactElement {
-  const bars: ReactElement[] = [];
-  for (let i = 0; i < rows; i++) {
-    bars.push(
-      <View key={i} style={s.skRow}>
-        <View style={s.skFace} />
-        <View style={s.skLines}><View style={[s.skBar, { width: `${48 + ((i * 13) % 30)}%` }]} /><View style={[s.skBar, s.skSmall, { width: `${30 + ((i * 7) % 20)}%` }]} /></View>
-      </View>,
-    );
-  }
-  return <View testID={`${id}-loading`} accessibilityLabel="Loading" style={{ minHeight: rows * 44 }}>{bars}</View>;
+  // the room the rows will take, so nothing jumps; no shimmer and no grey bars
+  return <View testID={`${id}-loading`} accessibilityLabel="Loading" style={{ minHeight: rows * 44 }} />;
 }
 
 export function LinkButton({ label, onPress, testID }: { label: string; onPress: () => void; testID?: string }): ReactElement {

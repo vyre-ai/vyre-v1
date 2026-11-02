@@ -311,7 +311,7 @@ export function SidePane(props: SidePaneViewProps): ReactElement | null {
   if (host !== null) {
     // the right rail: a sheet of its own beside the main view, full height, the edge outside its clip
     return <>{intoSheet(host.right, (
-      <View style={[styles.onSheet, { width, marginLeft: SHEET_GAP }, overlay ? RAIL_OVERLAY : null]} {...a11y}>
+      <View style={[styles.onSheet, { width, marginLeft: SHEET_GAP }, overlay ? RAIL_OVERLAY : null]} {...a11y} {...webProps({ dataSet: { paneKey, min: String(min), max: String(maxFraction), panelIn: "1" } })}>
         <View style={SHEET} {...sq("sheet")}>{inner}</View>
         {overlay ? null : edge}
       </View>

@@ -100,13 +100,13 @@ export function Landing(p: LandingProps): ReactElement {
           <WorkingMark state="thinking" size={44} testID="landing-mark" />
           <Text accessibilityRole="header" aria-level={1} testID="landing-title" style={st.title}>What are we working on?</Text>
         </View>
-        <Composer
+        <View style={st.composer}><Composer
           testID="composer" label="Start a new chat" whoWillAnswer={`${lead.name} will answer`} placeholder="Describe it, or type /"
           agents={[strip]} lead={lead.name} mode={choice.mode} onMode={(mode: ChatMode) => setChoice((c) => ({ ...c, mode }))}
           lists={{ commands: commandItems(undefined) }} agentChat
           renderPanel={(agent, close, narrow) => <NewChatBrain data={data} agent={agent} accounts={accounts} choice={choice} onChoice={setChoice} close={close} narrow={narrow} />}
           panelBelow onSubmit={start} onInterrupt={start}
-        />
+        /></View>
         <View testID="landing-with" style={st.with}>
           <Text style={st.withWord}>With</Text>
           {each(picked, (w) => (
@@ -189,6 +189,7 @@ const st = StyleSheet.create({
   columnNarrow: { maxWidth: 560 },
   hero: { alignItems: "center", marginBottom: 34 },
   title: { marginTop: 18, fontSize: 25, lineHeight: 32, fontWeight: "600", letterSpacing: -0.4, color: "var(--ink)" as string, textAlign: "center" },
+  composer: { zIndex: 10 },
   with: { flexDirection: "row", alignItems: "center", justifyContent: "center", flexWrap: "wrap", gap: 6, marginTop: 12 },
   withWord: { fontSize: 13, color: "var(--ink-3)" as string, marginRight: 2 },
   chip: { flexDirection: "row", alignItems: "center", gap: 6, height: 30, paddingLeft: 6, paddingRight: 10, borderRadius: 15, backgroundColor: "var(--sunk)" as string, maxWidth: 160 },

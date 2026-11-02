@@ -11,6 +11,7 @@ import { holdView, installMotion } from "../../../../../ui/src/theme/motion.ts";
 import type { Swap } from "../../../../../ui/src/theme/motion.ts";
 import { SHEET_GAP, SHEET_RADIUS, SheetHostProvider, sq, useSquircle } from "../../../../../ui/src/SidePane/host.tsx";
 import { Tooltip } from "../../../../../ui/src/Tooltip/index.tsx";
+import { installTips } from "../../../../../ui/src/Tooltip/tips.ts";
 import { NeedsTeamSpace } from "../../../../../ui/src/NeedsTeamSpace/index.tsx";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import type { PhoneDeviceLike } from "../../../../../ui/src/Softphone/index.tsx";
@@ -137,6 +138,7 @@ export function Sheets({ tabs, toast, hub, children }: { tabs: ReactNode; toast?
   const [leftW, setLeftW] = useState(0);
   const hidden = slot.collapsed;
   useSquircle();
+  useEffect(() => { if (Platform.OS === "web") { installTips(); installMotion((globalThis as { document?: Parameters<typeof installMotion>[0] }).document); } }, []);
   useEffect(() => {
     if (Platform.OS !== "web") return undefined;
     const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void } }).document;

@@ -12,6 +12,8 @@ export const MOTION_CSS = [
   `@keyframes vyre-in{from{opacity:0}to{opacity:1}}`,
   `[data-fade-in]{animation:vyre-in ${MOTION.fade}ms ${MOTION.ease}}`,
   `[data-quiet]{animation:vyre-in ${MOTION.fade}ms ${MOTION.ease}}`,
+  `@keyframes vyre-panel{from{max-width:0;opacity:0}to{max-width:1200px;opacity:1}}`,
+  `[data-panel-in]{animation:vyre-panel ${MOTION.panel}ms ${MOTION.ease}}`,
   `.vyre-row{transition:background-color ${MOTION.hover}ms ${MOTION.ease}}`,
   `[data-swap]{position:absolute;inset:0;z-index:40;pointer-events:none;overflow:hidden;transition:opacity ${MOTION.swap}ms ${MOTION.ease}}`,
   "@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}",

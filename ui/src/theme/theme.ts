@@ -296,6 +296,7 @@ export function headScript(): string {
     "var mode=m===\"light\"||m===\"dark\"?m:(own(bases,skin)||(dark?\"dark\":\"light\"));" +
     "var tokens=table[skin][mode];" +
     "root.setAttribute(\"data-theme\",mode);" +
+    "root.style.setProperty(\"background-color\",tokens[\"--rail\"]);" +
     "root.setAttribute(\"data-skin\",skin);" +
     "if(sid)root.setAttribute(\"data-space\",sid);" +
     "root.style.setProperty(\"color-scheme\",mode);" +
@@ -332,6 +333,8 @@ export function applyToRoot(applied: AppliedTheme, root: ThemeRoot): void {
   root.setAttribute("data-skin", applied.skin);
   root.setAttribute("data-space", applied.spaceId);
   root.setProperty("color-scheme", applied.mode);
+  // the window behind everything: the first frame is the theme's ground, never a white flash
+  root.setProperty("background-color", applied.tokens["--rail"] ?? "");
   for (const name of TOKEN_NAMES) if (!Object.prototype.hasOwnProperty.call(applied.tokens, name)) root.removeProperty(name);
   for (const name of Object.keys(applied.tokens).sort()) {
     const value = applied.tokens[name];

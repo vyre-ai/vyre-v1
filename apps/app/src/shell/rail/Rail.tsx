@@ -109,6 +109,7 @@ function Isle({ entries, active, render }: { entries: readonly RailEntry[]; acti
     doc?.addEventListener("keydown", key as never);
     return () => { doc?.removeEventListener("mousedown", down as never); doc?.removeEventListener("keydown", key as never); };
   }, [open]);
+  useEffect(() => { setOpen(false); }, [active]);
   const cur = entries.find((e) => e.place === active);
   const waiting = entries.some((e) => e.count > 0 || e.dot);
   return (
