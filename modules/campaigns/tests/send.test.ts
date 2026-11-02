@@ -616,3 +616,11 @@ test("the link lives under /p/ on a phone address, where the relay carries nothi
   assert.match(String(w.mail[0]!.input.html ?? w.mail[0]!.input.text), /\/p\/u\//);
 });
 
+test("an email campaign needs a public address: with none, its unsubscribe link would open nothing, so it does not launch", async () => {
+  const w = harness({ publicBase: null });
+  w.contact(1);
+  const one = await build(w, { name: "One shot" });
+  assert.equal(await code(launch(w, one.campaignId)), "validation.precondition_failed");
+  assert.equal(w.mail.length, 0);
+});
+

@@ -462,6 +462,8 @@ async function launch(ctx: Ctx, input: unknown) {
   const steps = stepsOf(ctx, str(row.id));
   if (steps.length === 0) fail(ctx, "validation.precondition_failed", "Add steps before launching.");
   if (!steps.some((s) => s.type === "email" || s.type === "sms")) fail(ctx, "validation.precondition_failed", "A campaign needs an email or SMS step.");
+  // every email carries an unsubscribe link: with no address outside it would be a path that opens nothing
+  if (steps.some((s) => s.type === "email") && !campaignConfig().publicBase) fail(ctx, "validation.precondition_failed", "This Space has no public address yet, so its emails could not carry an unsubscribe link. Give it an address first.");
   const members = membersOf(ctx, str(row.id)).filter((m) => m.state === "active");
   if (members.length === 0 && row.kind !== "triggered") fail(ctx, "validation.precondition_failed", "Choose an audience before launching.");
   const settings = parseJson(row.settings);

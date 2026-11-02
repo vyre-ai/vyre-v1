@@ -74,3 +74,16 @@ test("nothing else moves: other paths fall through, and the relay carries the ad
     assert.equal(publicPathOk(`/p/u/${TOKEN}`), true);
   } finally { s.close(); }
 });
+
+test("a shared project link answers on the public path, as a page and only as a page", async () => {
+  const share = { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean { res.writeHead(200, { "content-type": "text/plain" }); res.end(`${req.url} ${req.headers["accept"] ?? "no accept"}`); return true; } };
+  const path = createPublicPathRoute({ forms: () => null, origin: () => null, share: () => share });
+  const server = http.createServer((req, res) => { if (!path.handle(req, res)) { res.writeHead(200); res.end("the app shell"); } });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/p/share/project/abcdef0123456789abcd`;
+    assert.equal(await (await fetch(url, { headers: { accept: "application/json" } })).text(), "/share/project/abcdef0123456789abcd no accept");
+    assert.equal(publicPathOk("/p/share/project/abcdef0123456789abcd"), true);
+  } finally { server.close(); }
+});
+

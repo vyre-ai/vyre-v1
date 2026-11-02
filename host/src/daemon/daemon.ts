@@ -421,7 +421,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let sitesServing: Partial<PublicPathDeps> = {};
   let refreshDomains: () => Promise<void> = () => Promise.resolve();
   const publicPath = createPublicPathRoute({
-    forms: () => formsPageRoute, unsubscribe: () => unsubscribeRoute, origin: () => publicOrigin()?.origin ?? null,
+    forms: () => formsPageRoute, unsubscribe: () => unsubscribeRoute, share: () => shareRoute, origin: () => publicOrigin()?.origin ?? null,
     site: (slug) => sitesServing.site?.(slug) ?? null, artifact: (id, token) => sitesServing.artifact?.(id, token) ?? Promise.resolve(null),
     fetch: (t, r, sink) => sitesServing.fetch ? sitesServing.fetch(t, r, sink) : Promise.resolve(sink.fail("Not available.")), file: (f, rel) => sitesServing.file?.(f, rel) ?? Promise.resolve(null),
   });
@@ -1315,6 +1315,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         configureSpaceAdmin: () => createSpaceAdmin({ access: () => access.snap, owner: () => access.owner() ?? cfg.owner ?? "usr_owner", space: spaceId, db: db!, system, headSeq: () => headSeq,
           address: () => {
             const value = db!.all("SELECT mode, address FROM network_config WHERE id = 1")[0] as {mode?:string;address?:string}|undefined;
+            // a relay Space's own row holds this computer's loopback address: what people outside reach, an invite above all, is its phone name
+            const outside = publicOrigin();
+            if (outside?.relay && value?.mode === "relay") return { mode: "relay", host: new URL(outside.origin).host };
             if(!value?.address)return undefined;
             try{const url=new URL(value.address.includes('://')?value.address:`https://${value.address}`);if(!['http:','https:'].includes(url.protocol)||url.username||url.password)return undefined;return{mode:value.mode==='relay'?'relay':'own_domain',host:url.host};}catch{return undefined;}
           },
@@ -1365,7 +1368,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           ...(o.seams?.fetch ? { fetch: o.seams.fetch } : {}),
           filler,
           // where Mailgun posts inbound mail: the address people reach this Space at, else the local URL (read at call time, the port is known only after listen)
-          publicUrl: o.seams?.publicUrl ?? (async () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; }),
+          // a portal link has to reach someone outside and keeps a sign-in, so it needs an address of the Space's own: not loopback, and not /p/, which carries no session
+          publicUrl: o.seams?.publicUrl ?? (async () => {
+            const outside = publicOrigin();
+            if (!outside) throw new Error("This Space has no public address yet, so a portal link cannot point at it.");
+            if (outside.relay && !cfg.address) throw new Error("A portal sign-in link needs the Space's own domain. A vyre.run address carries public pages, not sign-ins.");
+            return outside.origin;
+          }),
           drivers: hostDrivers, owners: loaded.seamOwners,
         });
         closers.push(() => seams?.unwire());
