@@ -267,7 +267,8 @@ export async function autoConnectMembers(ctx: MailCtx, input: AutoConnectIn): Pr
       id, "personal", address, address.split("@")[0] || address, m.userId, null, input.provider, "space", "pending", null, null, 0, 1, now, null,
     );
     out.created += 1;
-    ctx.emit("mailbox.connected", `mailbox/${id}`, { mailboxId: id, memberId: m.userId, provider: input.provider, auto: true }, { vis: "participants" });
+    // `private` decides who can reach the mailbox: it is what keeps a member's own mail from inheriting the Space's access (host/src/gateway/resources.ts). The row's `privacy` decides only whether its mail files to records.
+    ctx.emit("mailbox.connected", `mailbox/${id}`, { mailboxId: id, memberId: m.userId, provider: input.provider, auto: true, private: true }, { vis: "participants" });
     out.notified += 1;
   }
   rememberIdem(ctx, input.idempotencyKey, "autoconnect", JSON.stringify(out));
