@@ -271,7 +271,7 @@ export type TokenResult = { tokens: TokenAnswer } | (OauthFail & { replayed?: Gr
 function issue(db: Db, grant: GrantRow, now: number): TokenAnswer {
   const access = secret("vya");
   const refresh = secret("vyf");
-  db.run("DELETE FROM mcp_oauth_tokens WHERE grant_id = ? AND ((kind = 'access' AND expires_at <= ?) OR (kind = 'code' AND expires_at <= ?))", grant.grantId, now, now);
+  db.run("DELETE FROM mcp_oauth_tokens WHERE grant_id = ? AND expires_at <= ?", grant.grantId, now);
   const put = "INSERT INTO mcp_oauth_tokens (token_hash, kind, grant_id, client_id, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)";
   db.run(put, hash(access), "access", grant.grantId, grant.clientId, now, now + ACCESS_MS);
   db.run(put, hash(refresh), "refresh", grant.grantId, grant.clientId, now, now + REFRESH_MS);

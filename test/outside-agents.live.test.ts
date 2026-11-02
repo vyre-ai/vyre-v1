@@ -304,6 +304,30 @@ withSpace("revoked and expired tokens stop at the next request; Remove ends the 
   assert.notEqual(again.agentId, agentId, "a removed agent does not come back");
 });
 
+withSpace("an outside agent moved to Trash any other way ends its sign-in too", async (s, owner, mcp) => {
+  const c = new Client(mcp);
+  const { agentId } = await signIn(s, c, owner);
+  await c.rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "x", version: "1" } });
+  assert.equal((await c.tool("agents_next")).status, 200);
+  expectStatus(await s.call("agents.delete", owner, { agentId }), 200, "agents.delete");
+  await s.d.hooks?.pump?.();
+  assert.equal((await c.tool("agents_next")).status, 401);
+  assert.deepEqual(expectStatus(await s.call("mcp.connected.list", owner, {}), 200, "mcp.connected.list").agents, []);
+});
+
+test("in a Personal Space it works the same, on this computer's own address", async () => {
+  const s = await bootAgentGateSpace(LIVE, { spaceKind: "personal" });
+  try {
+    const owner = s.signedIn("usr_olivia");
+    const c = new Client(`${s.d.url}/mcp`);
+    const { agentId } = await signIn(s, c, owner);
+    await c.rpc("initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "x", version: "1" } });
+    assert.equal((await c.tool("agents_next")).status, 200);
+    assert.equal(expectStatus(await s.call("mcp.connected.link", owner, {}), 200, "mcp.connected.link").url, `${s.d.url}/mcp`);
+    assert.equal(expectStatus(await s.call("agents.get", owner, { agentId }), 200, "agents.get").agent.runtime, "outside");
+  } finally { await s.stop(); }
+});
+
 withSpace("a person suspended ends their agent's access at once", async (s, owner, mcp) => {
   const c = new Client(mcp);
   const noah = s.signedIn("usr_noah");

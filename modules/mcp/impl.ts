@@ -172,7 +172,8 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
     },
     onCall(caller, tool, outcome, detail) {
       touchSession(o.db, caller.sessionId, now());
-      if (caller.kind === "outside" && detail) noteOutside(caller, tool, outcome, detail);
+      // the call is done and on the audit log: a row that cannot be written must not turn its answer into an error
+      if (caller.kind === "outside" && detail) { try { noteOutside(caller, tool, outcome, detail); } catch { /* the activity list misses one row */ } }
     },
     async bindThread(caller, threadId) {
       const read = await withChatMode(o, { ...caller, kind: "driver", threadId });

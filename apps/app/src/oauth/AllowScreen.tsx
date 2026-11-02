@@ -13,6 +13,7 @@ export const SELF_DECLARED = "That name is what the app calls itself. Vyre has n
 export const CAN_DO = "It can do what you can here, and no more.";
 export const STOPS = "Sends, posts and payments still wait for your yes.";
 export const ONLY_YOU = "Only you can use it.";
+export const YOURS = "Allow this only if you just connected this app yourself.";
 
 /** Words a request can end in. Everything that means "start again" reads the same. */
 export function endedWords(e: unknown): string {
@@ -80,6 +81,7 @@ export function AllowScreen({ call, requestId, me, onDone }: AllowProps): ReactE
             <Fact>{CAN_DO}</Fact>
             <Fact>{STOPS}</Fact>
             <Fact>{`Your browser tab shows this code: ${req.match}`}</Fact>
+            <Fact>{YOURS}</Fact>
           </View>
           {busy ? null : <ErrorLine testID="allow-error" />}
         </Step>
