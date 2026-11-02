@@ -9,7 +9,7 @@ import type { TalkPort } from "../../../../../ui/src/Composer/index.tsx";
 import { attemptKey } from "../providers/files-review.ts";
 import type { ShellRuntime } from "../providers/runtime.tsx";
 
-export type VoiceStatus = CapMap["voice.status"]["out"];
+export type TalkStatus = CapMap["talk.status"]["out"];
 export type KeyScope = "mine" | "space";
 const web = Platform.OS === "web";
 export const keyFields = (value: string): { key: string; value: string; secret: boolean }[] => [{ key: "api_key", value, secret: true }];
@@ -17,9 +17,9 @@ const NOTICE = "Goes straight to your Vault, never into a chat.";
 const SPACE_NOTICE = "Goes straight to this Space's Vault. People can talk through it and can never read it.";
 
 /** Who may see the choice of scope: someone who may run the Space, in a Space that has other people. */
-export const offersSpace = (status: VoiceStatus | null, personal: boolean): boolean => status?.mayManage === true && !personal;
+export const offersSpace = (status: TalkStatus | null, personal: boolean): boolean => status?.mayManage === true && !personal;
 
-export function TalkSheet({ rt, status, only, onDone, onCancel }: { rt: ShellRuntime; status: VoiceStatus | null; only?: KeyScope; onDone(): void; onCancel(): void }): ReactElement {
+export function TalkSheet({ rt, status, only, onDone, onCancel }: { rt: ShellRuntime; status: TalkStatus | null; only?: KeyScope; onDone(): void; onCancel(): void }): ReactElement {
   const personal = rt.space.kind === "personal";
   const choose = only === undefined && offersSpace(status, personal);
   const [scope, setScope] = useState<KeyScope>(only ?? (choose ? "space" : "mine"));
@@ -33,7 +33,7 @@ export function TalkSheet({ rt, status, only, onDone, onCancel }: { rt: ShellRun
     if (value.trim() === "" || busy || !provider) return;
     setBusy(true); setLine(null);
     try {
-      await rt.call(scope === "space" ? "voice.space.connect" : "voice.connect", { provider: provider.key, fields: keyFields(value), idempotencyKey: attemptKey() });
+      await rt.call(scope === "space" ? "talk.space.connect" : "talk.connect", { provider: provider.key, fields: keyFields(value), idempotencyKey: attemptKey() });
       setValue("");
       onDone();
     } catch (e) {
@@ -73,13 +73,13 @@ export function TalkSheet({ rt, status, only, onDone, onCancel }: { rt: ShellRun
 }
 
 export function TalkHost({ rt, children }: { rt: ShellRuntime | null; children: ReactNode }): ReactElement {
-  const [status, setStatus] = useState<VoiceStatus | null>(null);
+  const [status, setStatus] = useState<TalkStatus | null>(null);
   const [off, setOff] = useState(false);
   const [sheet, setSheet] = useState<{ only?: KeyScope } | null>(null);
   const settle = useRef<((saved: boolean) => void) | null>(null);
-  const refresh = useCallback(async (): Promise<VoiceStatus | null> => {
+  const refresh = useCallback(async (): Promise<TalkStatus | null> => {
     if (!rt) return null;
-    try { const out = (await rt.call("voice.status", {})) as VoiceStatus; setStatus(out); setOff(!out.on); return out; }
+    try { const out = (await rt.call("talk.status", {})) as TalkStatus; setStatus(out); setOff(!out.on); return out; }
     catch { return null; }   // a server that cannot say keeps the mic; the press says what is wrong
   }, [rt]);
   useEffect(() => { void refresh(); }, [refresh]);
@@ -93,7 +93,7 @@ export function TalkHost({ rt, children }: { rt: ShellRuntime | null; children: 
   useEffect(() => () => { settle.current?.(false); settle.current = null; }, []);
   const port = useMemo<TalkPort | null>(() => (rt && web ? {
     on: !off,
-    session: async () => (await rt.call("voice.session", {})) as CapMap["voice.session"]["out"],
+    session: async () => (await rt.call("talk.session", {})) as CapMap["talk.session"]["out"],
     setup: async (only) => {
       await refresh();
       settle.current?.(false);

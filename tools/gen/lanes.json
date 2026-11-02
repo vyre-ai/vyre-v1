@@ -6,7 +6,7 @@
     "L4": ["files", "mounts", "git", "previews", "documents", "runbooks", "dropbox"],
     "L5": ["inbox", "mail", "calendar", "telephony", "meetings", "contacts-link", "google", "microsoft", "resend", "mailgun", "twilio", "zoom", "github", "stripe"],
     "L6": ["automations", "journeys", "steps-core", "scheduler-api", "tasks", "runs", "gate", "notifications", "home", "events"],
-    "L7a": ["access", "identity", "members", "devices", "spaces", "settings", "vault", "vault-requests", "voice", "audit", "governance"],
+    "L7a": ["access", "identity", "members", "devices", "spaces", "settings", "vault", "vault-requests", "talk", "audit", "governance"],
     "L7b": ["backup", "updates", "network", "health", "logs", "reports-client", "console-views", "console-assistant"],
     "L8": ["sites", "forms", "campaigns", "templates", "esign", "portal", "email-builder-api"],
     "L10": ["kits"]

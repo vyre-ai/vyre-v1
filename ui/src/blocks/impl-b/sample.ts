@@ -34,7 +34,7 @@ export const SAMPLE_ACCESS_REQUEST = block("access_request", "blk_acc1", {
   state: "waiting",
 });
 
-export const SAMPLE_VOICE_KEY = block("voice_key", "blk_voi1", { provider: "deepgram", scope: "mine" }, "waiting");
+export const SAMPLE_TALK_KEY = block("talk_key", "blk_tlk1", { provider: "deepgram", scope: "mine" }, "waiting");
 
 export const SAMPLE_SECRET_INPUT = block(
   "secret_input",

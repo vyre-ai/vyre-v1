@@ -8,8 +8,8 @@ import { useConsoleData } from "../shell/data.tsx";
 import { Group, Section, StatusLabel } from "../shell/ui.tsx";
 import { Actions, Button, Field, Note, ReadState, useAction, useRead } from "./shared.tsx";
 
-type SpaceOut = CapMap["voice.space.status"]["out"];
-type VoiceOut = CapMap["voice.status"]["out"];
+type SpaceOut = CapMap["talk.space.status"]["out"];
+type VoiceOut = CapMap["talk.status"]["out"];
 const CHECK_AFTER_MS = 3_600_000;
 const attempt = (): string => (globalThis.crypto?.randomUUID?.() ?? `voice-${Date.now()}`);
 
@@ -33,8 +33,8 @@ export function voiceHeadline(s: SpaceOut): string {
 
 export function VoiceSettings(): ReactElement {
   const data = useConsoleData();
-  const space = useRead<SpaceOut>("voice.space.status");
-  const me = useRead<VoiceOut>("voice.status");
+  const space = useRead<SpaceOut>("talk.space.status");
+  const me = useRead<VoiceOut>("talk.status");
   const refresh = (): void => { space.refresh(); me.refresh(); };
   const action = useAction(refresh);
   const [replacing, setReplacing] = useState(false);
@@ -46,14 +46,14 @@ export function VoiceSettings(): ReactElement {
   useEffect(() => {
     if (!s?.set || checked.current || data.clock().now - (s.checkedAt ?? 0) < CHECK_AFTER_MS) return;
     checked.current = true;
-    void action.run("voice.space.check", {}, "");
+    void action.run("talk.space.check", {}, "");
   }, [s?.set]);
   if (!s || !me.data) return <ReadState error={space.error ?? me.error} retry={refresh} />;
   const provider = me.data.providers.find((p) => p.key === (s.provider ?? me.data?.provider)) ?? me.data.providers[0];
   const name = provider?.name ?? "Deepgram";
   const save = async (): Promise<void> => {
     if (key.trim() === "" || !provider) return;
-    const out = await action.run<SpaceOut>("voice.space.connect", { provider: provider.key, fields: [{ key: "api_key", value: key, secret: true }], idempotencyKey: attempt() }, "Talk is on for everyone");
+    const out = await action.run<SpaceOut>("talk.space.connect", { provider: provider.key, fields: [{ key: "api_key", value: key, secret: true }], idempotencyKey: attempt() }, "Talk is on for everyone");
     if (out) { setKey(""); setReplacing(false); }
   };
   const who = s.setBy ? `${data.name(s.setBy)} added it` : "";
@@ -80,10 +80,10 @@ export function VoiceSettings(): ReactElement {
         ) : (
           <Actions>
             <Button label="Replace key" onPress={() => setReplacing(true)} testID="voice-replace" />
-            <Button label={s.on ? "Turn off" : "Turn on"} onPress={() => void action.run("voice.space.configure", { on: !s.on }, s.on ? "Talk is off for everyone without their own key" : "Talk is on for everyone")} disabled={action.busy} testID="voice-toggle" />
-            <Button label="Check now" onPress={() => void action.run("voice.space.check", {}, "Checked")} disabled={action.busy} testID="voice-check" />
+            <Button label={s.on ? "Turn off" : "Turn on"} onPress={() => void action.run("talk.space.configure", { on: !s.on }, s.on ? "Talk is off for everyone without their own key" : "Talk is on for everyone")} disabled={action.busy} testID="voice-toggle" />
+            <Button label="Check now" onPress={() => void action.run("talk.space.check", {}, "Checked")} disabled={action.busy} testID="voice-check" />
             {gone
-              ? <Button danger label="Remove from the Vault" onPress={() => void action.run("voice.space.disconnect", {}, "Key removed").then(() => setGone(false))} testID="voice-remove-yes" />
+              ? <Button danger label="Remove from the Vault" onPress={() => void action.run("talk.space.disconnect", {}, "Key removed").then(() => setGone(false))} testID="voice-remove-yes" />
               : <Button label="Remove key" onPress={() => setGone(true)} testID="voice-remove" />}
           </Actions>
         )}

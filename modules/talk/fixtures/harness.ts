@@ -1,15 +1,15 @@
 // Test harness for Talk: the module's two tables in memory (the four statements the handlers use; anything else throws), a Vault that answers as the real one does for the calls the module makes,
-// and a fake host seam that records what it was asked. Cross-layer proof with the real Vault and real access is test/voice.team.live.test.ts.
-import type { VoiceCtx, VoiceDb, VoiceHost } from "../projections.ts";
-import { setVoiceHost } from "../projections.ts";
+// and a fake host seam that records what it was asked. Cross-layer proof with the real Vault and real access is test/talk.team.live.test.ts.
+import type { TalkCtx, TalkDb, TalkHost } from "../projections.ts";
+import { setTalkHost } from "../projections.ts";
 
 export const NOW = 1_760_000_000_000;
 export const KEY = "dg_test_key_not_a_real_key"; // secret-scan: fake
 
 type Row = Record<string, string | number | null>;
 const insert = /^INSERT OR REPLACE INTO (\w+) \(([^)]+)\) VALUES/;
-function memory(): VoiceDb & { rows: Map<string, Map<string, Row>> } {
-  const rows = new Map<string, Map<string, Row>>([["voice_prefs", new Map()], ["voice_space", new Map()]]);
+function memory(): TalkDb & { rows: Map<string, Map<string, Row>> } {
+  const rows = new Map<string, Map<string, Row>>([["talk_prefs", new Map()], ["talk_space", new Map()]]);
   return {
     rows,
     all(sql, ...a) {
@@ -41,12 +41,12 @@ export function world(perms: { admins?: readonly string[] } = {}) {
   const checked: string[] = [];
   const answers = { check: null as Error | null, mint: null as Error | null };
   let n = 0;
-  const host: VoiceHost = {
+  const host: TalkHost = {
     async check(_c, p) { checked.push(p.apiKey); if (answers.check) throw answers.check; },
     async mint(_c, p) { minted.push(p); if (answers.mint) throw answers.mint; return { token: "jwt.short.lived", expiresIn: 30 }; },
   };
-  setVoiceHost(host);
-  const as = (principal: VoiceCtx["principal"], o: { actingFor?: string; thread?: string } = {}): VoiceCtx => ({
+  setTalkHost(host);
+  const as = (principal: TalkCtx["principal"], o: { actingFor?: string; thread?: string } = {}): TalkCtx => ({
     space: "spc_test", principal, actingFor: o.actingFor, thread: o.thread, trace: { traceId: "0".repeat(32) }, now: () => NOW, db,
     emit: (name, _s, payload) => { events.push({ name, payload }); return null; },
     log: { info: (m) => logs.push(m), warn: (m) => logs.push(m) },
@@ -73,5 +73,5 @@ export function world(perms: { admins?: readonly string[] } = {}) {
   });
   return { db, items, calls, events, logs, minted, checked, answers, as };
 }
-export const person = (id: string): VoiceCtx["principal"] => ({ kind: "person", id });
-export const agent = (id: string): VoiceCtx["principal"] => ({ kind: "agent", id });
+export const person = (id: string): TalkCtx["principal"] => ({ kind: "person", id });
+export const agent = (id: string): TalkCtx["principal"] => ({ kind: "agent", id });
