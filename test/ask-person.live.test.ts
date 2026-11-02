@@ -151,3 +151,24 @@ withSpace("a key goes in by the person's own paste: the agent sends names, the v
   const grants = await s.call("access.grants.list", owner, { subject: { kind: "agent", id: agentId } });
   if (grants.status === 200) assert.equal(JSON.stringify(grants.body).includes("vault_item"), false, "no Use on the item for the outside agent");
 });
+
+withSpace("flood guard: the same ask twice is one card; past five open asks for one person the agent is told to wait, and no card is made", async (s, owner) => {
+  const c = new Client(`${s.d.url}/mcp`);
+  await signIn(s, c, owner);
+  await c.rpc("initialize", INIT);
+  const ask = async (clientId: string): Promise<Json> => (await c.tool("use_tool", { name: "members_sso_set", arguments: { provider: google({ clientId }) } })).json.result.structuredContent;
+  const first = await ask("client-1");
+  const again = await ask("client-1");
+  assert.equal(again.held, true, JSON.stringify(again));
+  assert.equal(again.taskId, first.taskId, "the same pending hold");
+  assert.equal(again.already, true);
+  const held = async (): Promise<number> => (expectStatus(await s.call("gate.holds.list", owner, { states: ["held"] }), 200, "gate.holds.list").holds as Json[]).length;
+  assert.equal(await held(), 1, "one card");
+  for (const n of [2, 3, 4, 5]) assert.equal((await ask(`client-${n}`)).held, true);
+  assert.equal(await held(), 5);
+  const sixth = await ask("client-6");
+  assert.equal(sixth.held, undefined, JSON.stringify(sixth));
+  assert.equal(sixth.error.details.reason, "asks_waiting");
+  assert.equal(sixth.error.message, "You have 5 requests waiting for Olivia Park. Wait for an answer.");
+  assert.equal(await held(), 5, "no card past the limit");
+});

@@ -51,6 +51,8 @@ interface Session {
   checkedAt: number;
   protocol: string;
   clientName: string | undefined;
+  /** Asks this session already drew a card for: a repeat returns the same hold, and draws no second card. */
+  asked: Set<string>;
   /** Settles when the session ends: a call in flight stops waiting and fails. */
   gone: Promise<"gone">;
   end: () => void;
@@ -123,7 +125,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     };
     let end = (): void => undefined;
     const gone = new Promise<"gone">((resolve) => { end = () => resolve("gone"); });
-    return { caller, invoke, tools, ctx, tokenKey, checkedAt: now(), protocol: PROTOCOL_VERSIONS[0] ?? "2025-06-18", clientName, gone, end };
+    return { caller, invoke, tools, ctx, tokenKey, asked: new Set<string>(), checkedAt: now(), protocol: PROTOCOL_VERSIONS[0] ?? "2025-06-18", clientName, gone, end };
   }
 
   const dropSession = (s: Session): void => {
@@ -244,8 +246,11 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     }
     if (out === "gone") { const error = makeError("permission.revoked", traceId, { message: "This connection was removed." }); return { result: textResult({ error }, true, { error }) }; }
     if (out.status === "held") {
-      deps.onCall?.(s.caller, t.name, "held", { cap: t.cap, threadId, taskId: out.taskId, card: { ...heldCard(t.cap, out.taskId, args), lead: "Asks you" } });
-      const structured = { held: true, asksPerson: true, taskId: out.taskId, message: "Only the person you act for can do this here, so it waits for them. Approve runs it as them, once, exactly as you sent it. Call agents_next for the answer." };
+      // the same ask again is the same hold (the Gate's flood guard): no second card
+      const repeat = s.asked.has(out.taskId);
+      s.asked.add(out.taskId);
+      deps.onCall?.(s.caller, t.name, "held", { cap: t.cap, threadId, taskId: out.taskId, card: repeat ? null : { ...heldCard(t.cap, out.taskId, args), lead: "Asks you" } });
+      const structured = { held: true, asksPerson: true, taskId: out.taskId, ...(repeat ? { already: true } : {}), message: repeat ? "You already asked for exactly this. It is still waiting for the person you act for. Call agents_next for the answer." : "Only the person you act for can do this here, so it waits for them. Approve runs it as them, once, exactly as you sent it. Call agents_next for the answer." };
       return { result: textResult(structured, true, structured) };
     }
     // nothing parks a call that ran: an ask always waits for the person

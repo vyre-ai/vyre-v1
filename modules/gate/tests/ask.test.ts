@@ -6,6 +6,7 @@ import { harness, codeOf, reasonOf } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { alice, as, bob, bot, parkInput } from "../fixtures/seed.ts";
 import { findHold, rawSecretIn } from "../projections.ts";
+import { MAX_OPEN_ASKS } from "../handlers/hold.ts";
 
 const SSO = { provider: { key: "google", title: "Google", issuer: "https://accounts.google.com", clientId: "123.apps.googleusercontent.com", clientSecretHandle: "#Google_Client_Secret", enabled: true } };
 type Parked = { holdId: string; taskId: string };
@@ -93,4 +94,28 @@ test("declined, the agent's ask is closed and the event names it", async () => {
 test("an ask names a person: an agent principal with ask is refused", async () => {
   const h = harness();
   await refused(parkAsk(h, { principal: bot }), "validation.bad_input", "ask_not_person");
+});
+
+test("flood guard: the same ask again is the same hold and no new card; past five open asks for one person the agent is told to wait, and a decided one makes room", async () => {
+  const h = harness();
+  h.callee("access.principals.get", (input: { principal: { id: string } }) => ({ principal: { name: input.principal.id === alice.id ? "Alice Park" : "Simba (Claude Code)" } }));
+  const first = await h.call("gate.park", askInput({ decisionId: "dec_a" }), as(bot));
+  const again = await h.call("gate.park", askInput({ decisionId: "dec_b" }), as(bot));
+  assert.deepEqual(again, first, "the same capability and input: the same pending hold");
+  assert.equal(h.callsTo("tasks.create").length, 1, "no second card");
+  const other = (n: number) => askInput({ decisionId: `dec_${n}`, input: { provider: { ...SSO.provider, clientId: `client-${n}` } } });
+  for (let n = 2; n <= MAX_OPEN_ASKS; n++) await h.call("gate.park", other(n), as(bot));
+  assert.equal(h.callsTo("tasks.create").length, MAX_OPEN_ASKS);
+  await assert.rejects(h.call("gate.park", other(99), as(bot)), (e) => {
+    assert.equal(codeOf(e), "validation.precondition_failed");
+    assert.equal(reasonOf(e), "asks_waiting");
+    assert.equal((e as { error: { message: string } }).error.message, "You have 5 requests waiting for Alice Park. Wait for an answer.");
+    return true;
+  });
+  assert.equal(h.callsTo("tasks.create").length, MAX_OPEN_ASKS, "no card past the limit");
+  // another agent has its own five; a decided ask makes room for this one
+  await h.call("gate.park", askInput({ decisionId: "dec_other_agent", ask: { by: { kind: "agent", id: "agt_other" }, what: "Add or change an OIDC provider" } }), as(bot));
+  await h.call("gate.deny", { holdId: first.holdId, taskId: first.taskId, mode: "drop" }, { id: alice.id, kind: "person" });
+  await h.call("gate.park", other(99), as(bot));
+  assert.equal(h.callsTo("tasks.create").length, MAX_OPEN_ASKS + 2);
 });

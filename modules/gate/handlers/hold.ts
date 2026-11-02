@@ -29,14 +29,17 @@ async function askerOf(ctx: GateCtx, p: PrincipalRef, actingFor: string | undefi
   return undefined;
 }
 
-/** An agent's name as the person knows it, for the card. Falls back to "An agent". */
-async function nameOf(ctx: GateCtx, p: PrincipalRef): Promise<string> {
+/** Open asks one agent may have waiting for one person (lead ruling, 3 Nov). */
+export const MAX_OPEN_ASKS = 5;
+
+/** A principal's name as people know it, for the card and the answers. Falls back to "An agent", or what the caller names. */
+async function nameOf(ctx: GateCtx, p: PrincipalRef, fallback = "An agent"): Promise<string> {
   try {
     const r = (await ctx.call?.("access.principals.get", { principal: { kind: p.kind, id: p.id } })) as { principal?: { name?: unknown } } | null;
     const name = r?.principal?.name;
     if (typeof name === "string" && name.trim()) return cut(name.trim(), 60);
   } catch { /* the card still says an agent asked */ }
-  return "An agent";
+  return fallback;
 }
 
 export async function park(ctx: GateCtx, input: In): Promise<unknown> {
@@ -56,6 +59,14 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   if (ask) {
     const at = rawSecretIn(input.input);
     if (at) raise(ctx, "validation.bad_input", `Do not send a secret in ${at}. Put it in the Vault first (vault_item_put asks the person to paste it) and pass its handle, like #Google_Client_Secret.`, { reason: "raw_secret", path: at });
+    // the flood guard (lead ruling, 3 Nov): one open ask per capability and input, and at most MAX_OPEN_ASKS open asks from one agent to one person. A repeat is the same card, not a new one.
+    const open = holdsWhere(ctx.db, "state = 'held' AND asked_by IS NOT NULL AND principal_id = ?", principal.id).filter((h) => h.askedBy?.id === ask.by.id);
+    const inputHash = await sha(input.input ?? null);
+    const again = open.find((h) => h.taskId !== "" && h.capName === input.capName && h.inputHash === inputHash);
+    if (again) return clean({ holdId: again.id, taskId: again.taskId, runId: again.runId });
+    if (open.length >= MAX_OPEN_ASKS) {
+      raise(ctx, "validation.precondition_failed", `You have ${MAX_OPEN_ASKS} requests waiting for ${await nameOf(ctx, principal, "the person you act for")}. Wait for an answer.`, { reason: "asks_waiting", waiting: open.length });
+    }
   }
   const effective = effectiveRule(ctx.db, principal, a.key, policy);
   const rule = ask ? { ...effective, approvers: "asker", peopleOnly: true, onTimeout: "drop" as const } : effective;

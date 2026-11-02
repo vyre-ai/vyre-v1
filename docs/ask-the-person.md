@@ -21,6 +21,7 @@ Now the call waits for that person. They see an approval card, approve it with o
 ## Rules held
 
 - The agent gets no role and no grant. Approval covers one call with one input. Held to sending is one guarded update, and a released hold is `approved`, so a second press or a replayed token is refused.
+- Flood guard (lead ruling, 3 Nov): an agent has at most one open ask per capability and input; asking again returns the same pending hold and draws no second card. It has at most 5 open asks for one person; past that it is told "You have 5 requests waiting for <name>. Wait for an answer." and no card is made.
 - Inputs cannot change after approval: `tasks.act` refuses edits on a held act, `gate.release` checks the stored input hash and the token's payload hash.
 - The person must hold the role. If they do not, today's refusal stands, with the reason and a pointer to an owner or admin.
 - Every ask is logged: a `hold` audit row with reason `asks_person` (agent, person, capability, time), the hold row (`asked_by`, `decided_by`, `decided_at`), `gate.requested` / `gate.approved` / `gate.denied` / `gate.expired` with `askedBy`, the run's own audit row as the person, and the agent's activity row.
