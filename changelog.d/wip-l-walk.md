@@ -30,3 +30,4 @@
 - Speak to all the agents in a chat, with words like both of you or everyone, and each one answers in its own reply.
 - A Vault item lives in its folder, so a Mine item never inherits the Space's access. Items made before move in once.
 - Opening a Journey works. It crashed the page before.
+- An Automation shows the line Sends from on its page whenever a step sends, not only while it needs something.

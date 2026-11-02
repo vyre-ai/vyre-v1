@@ -544,8 +544,9 @@ function CanvasBody({ a, tab, setTab, failedRuns, versions, tabBodies, run, onCl
           <Text testID="definition-version" style={s.kindText}>{definitionLabel(a, dirty)}</Text>
         </View>
         <View style={s.kind} testID="kind"><Glyph name={a.kind === "space" ? "users" : "key"} size={13} color="var(--ink-3)" /><Text style={s.kindText}>{a.kind === "space" ? "Space" : "Personal"}</Text></View>
-        {needs ? (<><View style={s.sep} /><View style={s.needs}><Dot tone="warn" size={6} /><Text numberOfLines={1} style={s.needsText}>{needs.replace(/^needs/i, "Needs")}</Text>  {sendsFrom ? <Text testID="sends-from" numberOfLines={1} style={[s.sendsFrom, !sendsFrom.ok && { color: "var(--warn)" as string }]}>{sendsFrom.text}</Text> : null}
+        {needs ? (<><View style={s.sep} /><View style={s.needs}><Dot tone="warn" size={6} /><Text numberOfLines={1} style={s.needsText}>{needs.replace(/^needs/i, "Needs")}</Text>
         </View></>) : null}
+        {sendsFrom ? (<><View style={s.sep} /><Text testID="sends-from" numberOfLines={1} style={[s.sendsFrom, !sendsFrom.ok && { color: "var(--warn)" as string }]}>{sendsFrom.text}</Text></>) : null}
         <View style={{ flex: 1 }} />
         {phone ? null : <View accessibilityLabel="Builder mode" testID="builder-mode" style={s.seg} {...webOnly({ title: "Basic shows each step as a form. Advanced adds the step or trigger as JSON under the form." })}>
           {/* ui-rows-lint: not a list (Basic and Advanced toggle) */}
