@@ -1,8 +1,5 @@
 // The first screen's rules, with no renderer: who a new chat starts with, what starts it, and what the lines under the composer say.
 import { isAssistantRow } from "../../../../../../lib/agent-kind.ts";
-
-type AssistantRow = Parameters<typeof isAssistantRow>[0] & { agentId: string };
-import { isAssistantRow } from "../../../../../../lib/agent-kind.ts";
 import type { AgentKindRow } from "../../../../../../lib/agent-kind.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 
