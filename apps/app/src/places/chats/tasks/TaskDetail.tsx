@@ -6,6 +6,9 @@ import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import type { QueryState } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { QuickField } from "./QuickField.tsx";
+import { parseQuick } from "./quick.ts";
+import type { QuickPerson } from "./quick.ts";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -171,7 +174,7 @@ function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, openTask, ope
     {turn ? <View style={st.liveLine}><LiveWords turn={turn} turns={rt.turns} name={nameOf(turn.agentId)} /></View> : null}
     <YourAction task={task} view={view} me={rt.me.id} run={run} menu={menu} list={list} />
     {line ? <Text accessibilityRole="alert" testID="task-line" style={st.error}>{line}</Text> : null}
-    <TaskBody task={task} rt={rt} nameOf={nameOf} run={run} kids={kids} openTask={openTask} openAgent={openAgent} onKids={onKids} />
+    <TaskBody task={task} rt={rt} nameOf={nameOf} run={run} kids={kids} people={list} openTask={openTask} openAgent={openAgent} onKids={onKids} />
     <View style={st.feedHead}>
       <Text style={st.blockTitle}>Activity</Text>
       <TextMenu label={show === "all" ? "Everything" : show === "comments" ? "Comments" : "Updates"} testID="task-activity-filter" onPress={(at) => menu.show([
@@ -259,7 +262,7 @@ function Block({ title, right, children }: { title?: string; right?: string; chi
 }
 
 /** Blocks by kind and source. */
-function TaskBody({ task, rt, nameOf, run, kids, openTask, openAgent, onKids }: { task: TaskFull; rt: ShellRuntime; nameOf(id: string): string; run(cap: string, input: Record<string, unknown>): Promise<boolean>; kids: readonly TaskRow[]; openTask(id: string): void; openAgent(id: string): void; onKids(): void }): ReactElement {
+function TaskBody({ task, rt, nameOf, run, kids, people, openTask, openAgent, onKids }: { task: TaskFull; rt: ShellRuntime; nameOf(id: string): string; run(cap: string, input: Record<string, unknown>): Promise<boolean>; kids: readonly TaskRow[]; people: readonly QuickPerson[]; openTask(id: string): void; openAgent(id: string): void; onKids(): void }): ReactElement {
   const brief = task.workingNotes["brief"] ?? task.why ?? task.summary;
   const body = task.kind === "work" ? <Brief text={brief} run={run} /> : brief ? <Block><Text style={st.body}>{tidyBrief(brief)}</Text></Block> : null;
   const blocks: ReactElement[] = [];
@@ -271,7 +274,7 @@ function TaskBody({ task, rt, nameOf, run, kids, openTask, openAgent, onKids }: 
   const access = accessRequestOf(task);
   if (task.kind === "unblock") return <>{body}{blocks.length ? <Block>{blocks}</Block> : null}<Block>{access && isOpenState(task.state as TaskState) ? <Btn label="Approve" primary testID="task-access-approve" onPress={() => void run("access.requests.approve", { requestId: access.requestId, ...(access.level ? { level: access.level } : {}) })} /> : null}<ActionButtons task={task} run={run} /></Block></>;
   if (task.kind === "review") return <>{body}<DoneMeans task={task} run={run} />{blocks.length ? <Block title="Outputs">{blocks}</Block> : null}<Outputs task={task} rt={rt} /><Block><ActionButtons task={task} run={run} /></Block></>;
-  return <>{body}<Fixes task={task} /><Tree task={task} rt={rt} nameOf={nameOf} kids={kids} openTask={openTask} openAgent={openAgent} onKids={onKids} /><DoneMeans task={task} run={run} /><Outputs task={task} rt={rt} />{blocks.length ? <Block>{blocks}</Block> : null}</>;
+  return <>{body}<Fixes task={task} /><Tree task={task} rt={rt} nameOf={nameOf} kids={kids} people={people} openTask={openTask} openAgent={openAgent} onKids={onKids} /><DoneMeans task={task} run={run} /><Outputs task={task} rt={rt} />{blocks.length ? <Block>{blocks}</Block> : null}</>;
 }
 
 const tidyBrief = (text: string): string => text.replace(/^## .+$/gm, "").replace(/\n{3,}/g, "\n\n").trim();
@@ -353,13 +356,17 @@ function Fixes({ task }: { task: TaskFull }): ReactElement | null {
 }
 
 /** Work breakdown: the children of this task with their rollup, each with its own status; add one here. */
-function Tree({ task, rt, nameOf, kids, openTask, openAgent, onKids }: { task: TaskFull; rt: ShellRuntime; nameOf(id: string): string; kids: readonly TaskRow[]; openTask(id: string): void; openAgent(id: string): void; onKids(): void }): ReactElement {
+function Tree({ task, rt, nameOf, kids, people, openTask, openAgent, onKids }: { task: TaskFull; rt: ShellRuntime; nameOf(id: string): string; kids: readonly TaskRow[]; people: readonly QuickPerson[]; openTask(id: string): void; openAgent(id: string): void; onKids(): void }): ReactElement {
   const [text, setText] = useState("");
+  // a subtask reads like quick add: @someone assigns it, a day sets it due, #word labels it; with nobody named it goes to whoever has the parent
   const add = (): void => {
-    const title = text.trim();
-    if (title === "") return;
+    const typed = text.trim();
+    if (typed === "") return;
+    const q = parseQuick(typed, people, rt.clock().now, rt.clock().offsetMin);
+    if (q.title === "") return;
     setText("");
-    void rt.call("tasks.create", { title, assigned: task.assigned, parentTaskId: task.id, ...(task.recordId ? { recordId: task.recordId } : {}), idempotencyKey: newKey() }).then(onKids, () => setText(title));
+    const assigned: Who = q.assignee ? { kind: q.assignee.kind as Who["kind"], id: q.assignee.id } : task.assigned;
+    void rt.call("tasks.create", { title: q.title, assigned, parentTaskId: task.id, labels: q.labels, ...(q.due !== undefined ? { due: q.due } : {}), ...(q.priority ? { priority: q.priority } : {}), ...(task.recordId ? { recordId: task.recordId } : {}), idempotencyKey: newKey() }).then(onKids, () => setText(typed));
   };
   const done = kids.filter((k) => k.state === "done" || k.state === "canceled").length;
   const rev = kids.filter((k) => k.state === "in_review").length;
@@ -368,7 +375,7 @@ function Tree({ task, rt, nameOf, kids, openTask, openAgent, onKids }: { task: T
   return <Block title={kids.length > 1 ? "Work breakdown" : "Subtasks"} {...(kids.length ? { right: `${done} of ${kids.length} done` } : {})}>
     {kids.length > 1 ? <View style={st.roll}><View style={[st.rollFill, { width: `${((done + rev * 0.6) / kids.length) * 100}%` }]} /></View> : null}
     {rows}
-    <View style={st.addKid}><View style={st.addDot} /><TextInput accessibilityLabel="Add a subtask" testID="task-add-child" placeholder={kids.length > 1 ? "Add a task to this" : "Add a subtask"} placeholderTextColor="var(--ink-3)" value={text} onChangeText={setText} onSubmitEditing={add} style={st.inline} /></View>
+    <View style={st.addKid}><View style={st.addDot} /><QuickField label="Add a subtask" testID="task-add-child" placeholder={kids.length > 1 ? "Add a task to this" : "Add a subtask"} value={text} onChangeText={setText} onSubmit={add} people={people} style={st.inline} /></View>
   </Block>;
 }
 

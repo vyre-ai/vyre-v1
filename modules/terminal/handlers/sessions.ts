@@ -5,11 +5,11 @@
 //   rules.get / rules.set / health
 // The machine does the work through the TerminalHost port (projections.ts); this module keeps what Vyre knows about a session and enforces who may do what in it.
 import {
-  MAX_RULES, MAX_RULE_CHARS, TICKET_MS, actorOf, boundHost, boundKit, boundValues, clean, commandsOf, ensure, forgetSecrets, hostOf, insertSession, isTeam, judge, mintId, raise, rememberSecrets,
+  MAX_RULES, MAX_RULE_CHARS, TICKET_MS, actorOf, boundHost, boundKit, boundPlace, boundValues, clean, commandsOf, ensure, forgetSecrets, hostOf, insertSession, isTeam, judge, mintId, raise, rememberSecrets,
   rulesOf, sessionBy, sessionOf, sha256, ticketSecret, touch,
 } from "../projections.ts";
 import { judged, isDangerous } from "../risk.ts";
-import type { HostKind, Lookup, Rules, Secret, SessionRow, Target, TermCtx, TermState, ValueSource, VaultRun, Where } from "../projections.ts";
+import type { HostKind, Lookup, Rules, Secret, SessionRow, Target, TermCtx, TermState, TurnPlace, ValueSource, VaultRun, Where } from "../projections.ts";
 
 type Row = Record<string, unknown>;
 const DEFAULT_COLS = 120;
@@ -59,7 +59,8 @@ async function openSession(ctx: TermCtx, a: OpenInput, mapHostError: (e: unknown
   const terminalId = mintId("trm", now);
   const n = Number((ctx.db.all("SELECT COUNT(*) AS n FROM terminal_sessions WHERE owner = ? AND closed_at IS NULL", owner) as Row[])[0]?.["n"] ?? 0);
   const name = (a.name ?? "").trim().slice(0, 80) || `Terminal ${n + 1}`;
-  const target: Target = { host: a.host, ...(a.agentId === undefined ? {} : { agentId: a.agentId }), ...(a.computerId === undefined ? {} : { computerId: a.computerId }), ...(a.deviceId === undefined ? {} : { deviceId: a.deviceId }) };
+  // the agent's id names a machine only for its own computer; an agent's session on a person's computer is that computer's
+  const target: Target = { host: a.host, ...(a.agentId === undefined || a.host !== "agent_computer" ? {} : { agentId: a.agentId }), ...(a.computerId === undefined ? {} : { computerId: a.computerId }), ...(a.deviceId === undefined ? {} : { deviceId: a.deviceId }) };
   let started: { cwd: string; title?: string };
   try {
     started = await hostOf(ctx).open({ terminalId, target, name, ...(a.cwd === undefined ? {} : { cwd: a.cwd }), cols, rows, folders: rulesOf(ctx.db, owner).folders });
@@ -222,19 +223,61 @@ interface RunInput {
   command: string; terminalId?: string; host?: "agent_computer" | "device"; agentId?: string; cwd?: string; timeoutSec?: number; env?: Record<string, string>;
 }
 
-/** The session an agent's commands go to when it names none: one per agent, person and host, kept so "Open terminal" shows the same screen. */
+interface RunTarget { host: HostKind; deviceId?: string }
+
+const NO_COMPUTER = "There is no computer for this chat to run commands on here. Use your own shell in your work folder, or ask the person to run it with terminal_request.";
+
+async function placeFor(ctx: TermCtx, person: string, agentId: string | undefined): Promise<TurnPlace | null> {
+  const place = boundPlace();
+  if (!place || agentId === undefined) return null;
+  try { return await place({ space: ctx.space, ...(ctx.thread === undefined ? {} : { threadId: ctx.thread }), agentId, person }); }
+  catch (e) { ctx.log.warn("terminal: could not read where the turn runs", { reason: e instanceof Error ? e.message.slice(0, 120) : "unknown" }); return null; }
+}
+
+/**
+ * Where a command goes when the call names no terminal: where the turn runs (owner, 31 Oct). In a Personal Space that is the person's computer the chat runs on, or the agent's own computer when the
+ * turn runs there. A Team Space keeps the agent's computer first. The model is never asked for a device id, and a Space with no agent computer never falls back to one.
+ */
+async function targetForRun(ctx: TermCtx, a: RunInput, person: string, agentId: string | undefined): Promise<RunTarget> {
+  if (a.host === "agent_computer") return { host: "agent_computer" };
+  const p = await placeFor(ctx, person, agentId);
+  const device = (): RunTarget => (p?.deviceId === undefined ? raise(ctx, "provider.unavailable", NO_COMPUTER, { reason: "no_computer" }) : { host: "device", deviceId: p.deviceId });
+  // a person's own command, or an agent that said the person's computer: the computer the chat runs on
+  if (a.host === "device" || agentId === undefined) return p?.deviceId === undefined ? { host: "device" } : { host: "device", deviceId: p.deviceId };
+  if (p === null) {
+    if (isTeam(ctx.space)) return { host: "agent_computer" };   // nothing says where the turn runs: a Team Space keeps its agent computer
+    return raise(ctx, "provider.unavailable", NO_COMPUTER, { reason: "no_computer" });
+  }
+  if (p.team) {
+    if (p.agentComputer) return { host: "agent_computer" };
+    if (p.runsOn === "device") return device();
+    return raise(ctx, "provider.unavailable", "You have no computer of your own in this Space. Use your own shell in your work folder, or ask the person to run it with terminal_request.", { reason: "no_computer" });
+  }
+  if (p.agentComputer && (p.runsOn === "agent_computer" || p.runsOn === "server" || p.runsOn === "space")) return { host: "agent_computer" };
+  if (p.runsOn === "server") return raise(ctx, "provider.unavailable", "This chat runs on one of the person's servers, where Vyre terminals are not open yet. Your own shell runs there: use it in your work folder.", { reason: "server" });
+  return device();
+}
+
+/** The session an agent's commands go to when it names none: one per agent, person, host and computer, kept so "Open terminal" shows the same screen. */
 async function sessionForRun(ctx: TermCtx, a: RunInput): Promise<SessionRow> {
-  if (a.terminalId !== undefined) return live(ctx, a.terminalId);
+  if (a.terminalId !== undefined) {
+    // the capability is bound to the Space so that it can open the agent's own session; a session it names is checked here at Use, as the caller (an agent with the person it acts for)
+    const x = live(ctx, a.terminalId);
+    if (x.owner !== actorOf(ctx) && ctx.authorize({ perm: "terminal.use", level: "use" }, { type: "terminal", id: x.terminalId }).effect !== "allow") {
+      raise(ctx, "validation.not_found", "There is no such terminal.", { terminalId: a.terminalId });
+    }
+    return x;
+  }
   const owner = actorOf(ctx);
-  const host: HostKind = a.host ?? (a.agentId !== undefined || ctx.principal.kind === "agent" ? "agent_computer" : "device");
   const agentId = a.agentId ?? (ctx.principal.kind === "agent" ? ctx.principal.id : undefined);
+  const { host, deviceId } = await targetForRun(ctx, a, owner, agentId);
   const found = ctx.db.all(
-    "SELECT * FROM terminal_sessions WHERE owner = ? AND host = ? AND name = ? AND closed_at IS NULL AND (agent_id IS ? OR agent_id = ?) ORDER BY created_at DESC LIMIT 1",
-    owner, host, AGENT_SESSION, agentId ?? null, agentId ?? "",
+    "SELECT * FROM terminal_sessions WHERE owner = ? AND host = ? AND name = ? AND closed_at IS NULL AND (agent_id IS ? OR agent_id = ?) AND (device_id IS ? OR device_id = ?) ORDER BY created_at DESC LIMIT 1",
+    owner, host, AGENT_SESSION, agentId ?? null, agentId ?? "", deviceId ?? null, deviceId ?? "",
   ) as Row[];
   const hit = found[0];
   if (hit) return sessionOf(hit);
-  return openSession(ctx, { host, ...(agentId === undefined ? {} : { agentId }), name: AGENT_SESSION, named: false, ...(a.cwd === undefined ? {} : { cwd: a.cwd }) }, unavailable(ctx));
+  return openSession(ctx, { host, ...(agentId === undefined ? {} : { agentId }), ...(deviceId === undefined ? {} : { deviceId }), name: AGENT_SESSION, named: false, ...(a.cwd === undefined ? {} : { cwd: a.cwd }) }, unavailable(ctx));
 }
 
 export async function run(ctx: TermCtx, a: RunInput) {

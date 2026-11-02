@@ -110,3 +110,24 @@ test("the service worker registers once the app is usable after load, not at loa
   assert.equal(await run(["load"], 5000), 1, "a page that never marks usable still gets its worker");
   assert.equal(await run(["load", "usable", "usable"], 5000), 1, "registered once");
 });
+
+test("on a phone address the relay shell's worker carries the page, and the app does not register its own over it", async () => {
+  const { bootScript } = await import("./boot.ts");
+  const run = (controller: { scriptURL: string } | null): number => {
+    const on = new Map<string, () => void>();
+    let registered = 0;
+    const win = {
+      performance: { mark() {}, now: () => 0 }, location: { search: "" }, URLSearchParams, URL,
+      document: { documentElement: { style: { setProperty() {} }, setAttribute() {} } },
+      navigator: { serviceWorker: { controller, register: () => { registered++; return { catch() {} }; } } },
+      addEventListener: (type: string, fn: () => void) => on.set(type, fn),
+      setTimeout: (fn: () => void) => fn(),
+    };
+    new Function(...Object.keys(win), "window", bootScript())(...Object.values(win), win);
+    on.get("load")?.(); on.get("vyre:usable")?.();
+    return registered;
+  };
+  assert.equal(run({ scriptURL: "https://acme.vyre.run/__vyre/sw.js" }), 0, "the phone shell's worker stays in charge");
+  assert.equal(run({ scriptURL: "https://space.example/sw.js" }), 1, "the app's own worker updates as before");
+  assert.equal(run(null), 1);
+});

@@ -1,23 +1,20 @@
-// The pages of You that hold your own work: Profile (with Copy from another Space), Notifications, AI (models, how agents work with you, usage, memory) and Connected.
+// The pages of You that hold your own work: Profile (with Copy from another Space), Notifications, AI (models, how agents work with you, usage, memory) and Connected (Email and calendar is MailPage.tsx).
 import { AppHubsCard } from "../../hubs/AppHubs.tsx";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Avatar, assistantId, assistantLook, setAssistantLook, subscribeAssistant } from "../../../../../ui/src/Avatar/index.tsx";
-import { useOpenConnect } from "../../shell/connect/context.ts";
 import { Bar, RegistrySections, useRead } from "./blocks.tsx";
 import { CopyFromSpace } from "./CopyFromSpace.tsx";
 import { MemoryKeys } from "./MemoryKeys.tsx";
 import { SignInApps } from "./SignInApps.tsx";
 import { OutsideAgents } from "./OutsideAgents.tsx";
-import { CONNECTIONS, MODELS, NOTIFICATIONS, useIsPersonal, useSettingsData, useScreenQuery } from "./data.tsx";
+import { MODELS, NOTIFICATIONS, useIsPersonal, useSettingsData, useScreenQuery } from "./data.tsx";
 import { ROW_HELP, clock, labelOf, moneyLabel, rowHelp, sectionsFor } from "./model.ts";
 import type { SettingRow } from "./model.ts";
 import { SettingRowFor, useChange } from "./rows.tsx";
 import { useSaved } from "./saved.tsx";
-import { NOT_CONNECTED, suiteSections, throughFirm } from "./suites.ts";
-import type { CalendarLite } from "./suites.ts";
 import { Choice, Field, Glyph, Section, SettingsRow, SmallButton, Switch, Value, pointer } from "./ui.tsx";
 
 export interface PageProps { rows: readonly SettingRow[]; found: string | null }
@@ -282,64 +279,11 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
 
 // ---------------------------------------------------------------- Connections
 
-type MailboxesOut = CapMap["mail.mailbox.list"]["out"];
-const PROVIDER: Record<string, string> = { google: "Google", microsoft: "Microsoft", imap: "IMAP", inbound_only: "Receive only" };
-const STATE: Record<string, string> = { pending: "Connecting", syncing: "Syncing", paused: "Paused", error: "Needs attention", disconnected: "Disconnected" };
-
+/** The apps and agents you let in. Mail, calendars and numbers have their own page (Email and calendar, MailPage.tsx), which is where Inbox comes from. */
 export function ConnectedPage({ rows, found }: PageProps): ReactElement {
   const data = useSettingsData();
-  const saved = useSaved();
-  const boxes = useScreenQuery<MailboxesOut>(CONNECTIONS, "mailboxes", {});
-  const openConnect = useOpenConnect();
-  const list: ReactElement[] = [];
-  if (boxes.status === "ready") {
-    boxes.data.mailboxes.forEach((m, i) => list.push(
-      <SettingsRow
-        key={m.id} id={`mailbox.${m.id}`} label={m.address} first={i === 0} sub={`${PROVIDER[m.provider] ?? m.provider}, ${m.privacy === "private" ? "private to you" : m.privacy === "space" ? "visible to the Space" : "shared with chosen people"}`}
-        lead={<Glyph name="mail" size={15} />}
-        control={
-          <>
-            <Value text={STATE[m.state] ?? m.state} accent={m.state === "error"} />
-            {m.state === "error" && (m.provider === "google" || m.provider === "microsoft") && openConnect
-              ? <SmallButton label="Sign in again" primary testID={`mailbox-fix-${m.id}`} onPress={() => void openConnect({ kind: "mailbox", provider: m.provider as "google" | "microsoft" })} />
-              : null}
-            {m.state === "paused"
-              ? <SmallButton label="Resume" onPress={() => void data.call("mail.mailbox.resume", { mailboxId: m.id }).then(() => saved.saved("Resumed")).catch(() => saved.failed("That did not resume."))} />
-              : <SmallButton label="Pause" onPress={() => void data.call("mail.mailbox.pause", { mailboxId: m.id }).then(() => saved.saved("Paused", async () => { await data.call("mail.mailbox.resume", { mailboxId: m.id }); })).catch(() => saved.failed("That did not pause."))} />}
-          </>
-        }
-      />,
-    ));
-  }
-  const [calendars, setCalendars] = useState<CalendarLite[] | null>(null);
-  useEffect(() => {
-    let live = true;
-    void data.call("calendar.list_calendars", {}).then(
-      (out) => { if (live) setCalendars(((out as { calendars?: CalendarLite[] }).calendars ?? []).map((c) => ({ id: c.id, title: c.title, provider: c.provider, state: c.state }))); },
-      () => { if (live) setCalendars([]); },
-    );
-    return () => { live = false; };
-  }, [data]);
-  const mine = boxes.status === "ready" ? boxes.data.mailboxes.map((m) => ({ id: m.id, address: m.address, provider: m.provider, state: m.state })) : [];
-  const suites = suiteSections(mine, calendars ?? []);
-  const personal = useIsPersonal();
-  const firm: ReactElement[] = [];
-  suites.forEach((suite, si) => firm.push(
-    <SettingsRow key={suite.key} id={`suite.${suite.key}`} label={suite.title} sub={throughFirm(suite)} first={si === 0} lead={<Glyph name="link" size={15} />} control={<Value text={suite.rows.map((r) => r.service).filter((v, i, a) => a.indexOf(v) === i).join(" and ")} />} />,
-  ));
   return (
     <>
-      {personal ? null : (
-        <Section title="Through your Space" note={suites.length === 0 && boxes.status === "ready" && calendars !== null ? NOT_CONNECTED : undefined}>
-          {firm}
-        </Section>
-      )}
-      <Section title="Mail and calendar">
-        {list}
-        <SettingsRow id="connect-mailbox" label="Connect a mailbox" first={list.length === 0} lead={<Glyph name="plus" size={15} />} onPress={() => (openConnect ? void openConnect({ kind: "mailbox" }) : data.nav.connect("mailbox"))} control={<Glyph name="chevR" size={13} />} />
-        <SettingsRow id="connect-calendar" label="Connect a calendar" lead={<Glyph name="plus" size={15} />} onPress={() => data.nav.connect("calendar")} control={<Glyph name="chevR" size={13} />} />
-        <SettingsRow id="connect-twilio" label="Connect Twilio" lead={<Glyph name="plus" size={15} />} onPress={() => (openConnect ? void openConnect({ kind: "number" }) : data.nav.connect("twilio"))} control={<Glyph name="chevR" size={13} />} />
-      </Section>
       <OutsideAgents />
       <Section title="App hubs"><AppHubsCard call={data.call} /></Section>
       <SignInApps />

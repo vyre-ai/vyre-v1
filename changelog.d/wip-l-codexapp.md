@@ -1,7 +1,0 @@
-- A Codex signed in through the ChatGPT app now runs your turns. Vyre finds the codex inside ChatGPT (and Claude Code inside the Claude app) instead of saying it is not installed and answering with another account.
-- The live line under a reply that is being written shows its words in the Mac app again ("Thinking", "Reading", ...). The shimmer made them transparent in WebKit; the working mark is larger too.
-- A terminal opens on this computer from the Mac app. Signing in with a password in the app registered it as a "Web browser", so the New terminal menu offered only an old, offline "Vyre desktop".
-- When an agent needs a key you have not added, the secure field to type it into shows right in the chat you are in, even if it asked for the same key before in another chat. It no longer tells you to add it in the Vault by hand.
-- The foot of the rail no longer shows a second Settings icon when it is open: the button folds it instead.
-- Artifacts opens inside Chats with the sidebar, laid out like Tasks and Threads, instead of a separate page with a Back button.
-- The Provider and Model menus scroll when a provider has many models, and a find field appears for long lists.

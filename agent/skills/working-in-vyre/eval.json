@@ -818,6 +818,36 @@
      "say": "Waiting on build 42. I will pick this up when it finishes."
     }
    ]
+  },
+  {
+   "id": "command-on-this-computer",
+   "prompt": "Which version of node do I have on this Mac?",
+   "rules": [
+    "runs_commands_here",
+    "tools_available"
+   ],
+   "trace": [
+    {
+     "call": "terminal_run",
+     "input": {
+      "command": "node --version",
+      "idempotencyKey": "idem_t21"
+     },
+     "result": {
+      "ok": true,
+      "data": {
+       "terminalId": "trm_0123456789abcdef0123456789abcdef",
+       "exitCode": 0,
+       "output": "v22.11.0",
+       "truncated": false,
+       "durationMs": 40
+      }
+     }
+    },
+    {
+     "say": "Node v22.11.0 is installed on this computer. I ran node --version in my terminal session here, which you can open from the Terminal tab."
+    }
+   ]
   }
  ]
 }

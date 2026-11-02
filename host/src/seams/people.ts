@@ -40,6 +40,8 @@ export interface PeopleDeps {
   stale?(principalId: string): boolean;
   /** the person key this node holds (ruling 62, 63); identity clears it at sign-out */
   keyring?: Keyring;
+  /** A Space reached at its phone address (<name>.vyre.run): the key an invite link carries for an invite's code hash, or null where there is no phone address (seams/relay.ts inviteKeyOf). */
+  phoneInvite?: { keyFor(codeHash: string): Promise<string | null> };
 }
 
 const count = (db: PeopleDeps["db"], sql: string, ...args: unknown[]): number => {
@@ -115,6 +117,16 @@ export function linkSso(db: PeopleDeps["db"], key: string, t: { email: string; l
   if (db.all("SELECT key FROM members_policy WHERE key LIKE ? AND value = ?", `sso_link:${key}:${t.link.tenant}:%`, person).length > 0) return false;
   db.run("INSERT OR IGNORE INTO members_policy (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)", row, person, Date.now(), person);
   return true;
+}
+
+/**
+ * A finished sign-in proved this work address is this person's (Google: a verified account of the firm's hosted domain; Microsoft: the firm's tenant). The company connection matches them to it, so
+ * their own mail, calendar and files come in with no admin step; the owner, who has no invitation, gets theirs this way. Run as the host; the connector refuses an address held by someone else.
+ */
+export function matchProvenAddress(call: PeopleDeps["call"], key: string, t: { email: string; link?: { tenant: string; subject: string } }, person: string): void {
+  const name = key === "google" ? "google.match_proven" : key === "microsoft" ? "microsoft.match_proven" : null;
+  if (!name || !t.link) return;
+  void call(name, { person, email: t.email, ...(key === "microsoft" ? { tenant: t.link.tenant } : {}) }).catch(() => undefined);   // the connector is not set up, or not live: nothing to match
 }
 
 /** Has this person a provider identity linked: the proof they will still get in once everyone must use it. */
@@ -229,14 +241,16 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
         // spend a ticket from a finished sign-in: the person it names, or null
         resolve: (key: string, ticket: string): string | null => {
           const t = d.sso!.tickets.take(key, ticket);
-          return t ? personForSso(d.db, (id) => d.access().principal(id)?.status === "active", key, t) : null;
+          const person = t ? personForSso(d.db, (id) => d.access().principal(id)?.status === "active", key, t) : null;
+          if (t && person) matchProvenAddress(d.call, key, t, person);
+          return person;
         },
         // a signed-in person is about to prove a provider identity is theirs
         offer: (person: string): string => d.sso!.tickets.offer(person),
         // the address a finished sign-in proved, for joining by invitation when everyone must use it; the link is written once the person exists
         prove: (key: string, invite: string): { email: string; bind(person: string): void } | null => {
           const t = d.sso!.tickets.held(invite, key);
-          return t ? { email: t.email, bind: (person: string) => { linkSso(d.db, key, t, person); } } : null;
+          return t ? { email: t.email, bind: (person: string) => { if (linkSso(d.db, key, t, person)) matchProvenAddress(d.call, key, t, person); } } : null;
         },
       } } : {}),
       ...(d.keyring ? { keyring: { clear: (personId: string) => d.keyring!.clear(personId) } } : {}),
@@ -251,6 +265,7 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
       breakGlass: { ssoLinked: (personId: string) => hasSsoLink(d.db, personId), hasRecovery: (personId: string) => hasRecovery(d.db, personId) },
       factors: { of: (personId: string) => (count(d.db, `SELECT count(*) AS n FROM identity_accounts WHERE person_id = ? AND totp_secret IS NOT NULL`, personId) > 0 ? ["totp"] : []) },
       owned: ownedFor(undefined),
+      ...(d.phoneInvite ? { phoneInvite: d.phoneInvite } : {}),
     },
     spaces: {
       directory,

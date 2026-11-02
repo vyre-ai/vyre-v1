@@ -219,3 +219,24 @@ test("the list pages newest first and filters by state", async () => {
   await handlers["members.invites.revoke"](a, { inviteId: ids[0]! });
   assert.deepEqual((await handlers["members.invites.list"](a, { state: "revoked" })).invites.map((x) => x.id), [ids[0]]);
 });
+
+test("on a Space reached at its phone address the link carries the code and the invite's own key in the fragment, never in the path; a retry's fresh code gets a fresh key", async () => {
+  const h = harness();
+  const asked: string[] = [];
+  const keyFor = async (codeHash: string) => { asked.push(codeHash); return `K${codeHash.replace(/[^A-Za-z0-9]/g, "").slice(0, 42).padEnd(42, "x")}`; };
+  const admin = { ...h.as("usr_admin"), phoneInvite: { keyFor } };
+  const first = await handlers["members.invites.create"](admin, { role: "rol_member", idempotencyKey: "p1" });
+  const u = new URL(first.link);
+  assert.equal(`${u.origin}${u.pathname}`, "https://maya.vyre.run/join", "nothing secret in the path the relay sees");
+  const frag = new URLSearchParams(u.hash.slice(1));
+  assert.match(frag.get("c") ?? "", /^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+  assert.match(frag.get("k") ?? "", /^[A-Za-z0-9_-]{43}$/);
+  assert.equal(frag.get("fp"), "ab12cd34ef567890");
+  assert.equal(frag.has("box"), false, "never the box key");
+  assert.deepEqual(asked, [h.raw.rows("members_invites")[0]!["code_hash"]], "the key is asked for this invite's stored hash");
+  const again = await handlers["members.invites.create"](admin, { role: "rol_member", idempotencyKey: "p1" });
+  assert.notEqual(new URLSearchParams(new URL(again.link).hash.slice(1)).get("k"), frag.get("k"), "a new code is a new key: the old link opens nothing");
+  // a Space with no phone address (the host answers null) keeps the plain link the app and vyre://join read
+  const plain = await handlers["members.invites.create"]({ ...h.as("usr_admin"), phoneInvite: { keyFor: async () => null } }, { role: "rol_member", idempotencyKey: "p2" });
+  assert.match(plain.link, /^https:\/\/maya\.vyre\.run\/join\/[A-Z0-9]{4}-[A-Z0-9]{4}#fp=ab12cd34ef567890$/);
+});

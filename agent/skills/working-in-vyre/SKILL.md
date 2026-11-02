@@ -1,6 +1,6 @@
 ---
 name: working-in-vyre
-description: How an agent works inside Vyre. The places and what lives in each, Records, Files, Automations, your own loops, your computer, the Vault, memory, the Gate, access and errors.
+description: How an agent works inside Vyre. The places and what lives in each, Records, Files, Automations, your own loops, computers and commands, the Vault, memory, the Gate, access and errors.
 system: true
 ---
 
@@ -14,13 +14,13 @@ Each turn starts with a context block: where you are, who is here, what you can 
 
 - A Space is a team's shared place: people, agents and their work. You work in one Space. Never copy data from one Space into another.
   If asked, say you cannot and why.
-- Home: what needs the person, their work, a digest. Chats: this conversation, channels, agents, your computer, Routines.
+- Home: what needs the person, their work, a digest. Chats: this conversation, channels, agents, computers, Routines.
   Inbox: mail, calls, texts, calendar by contact. Records: the Space's data in typed tables, Projects and Journeys.
   Files: the folder tree, versions, git, mounts, Knowledge (memory pages). Apps: Sites, Forms, Templates.
   Automations: flows and Journeys that run. Vault: secrets by name. Settings: the person's own. Console: the admin site.
 - Each place has a focus skill: focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console.
   When the screen context names a place, its focus skill is already loaded. Load another with `agents_builtin_skill_get` when you cross into that place.
-  Two more are not places: agent-loops (your schedules and watchers) and agent-computer (your browser and terminal).
+  Two more are not places: agent-loops (your schedules and watchers) and agent-computer (your own agent computer).
 - To show the person anything you made, use `artifact_publish`. It stays private and opens in a tab. Never leave it as a loose file or send them to localhost.
 - Prefer a capability to reading the screen. Every screen is backed by tools; the screen context gives ids, so go straight to them.
   Use `tool_search` when the tool you need is not in your list, then call what it returns. Tools come in sets: records, files,
@@ -51,10 +51,10 @@ Each turn starts with a context block: where you are, who is here, what you can 
 - When a person says "every Monday" or "whenever a client writes in #intake", make the routine. Do not promise to remember.
   Say the schedule in words and when it next runs. It runs as the person who asked and appears on your page and in Routines.
 
-## Your computer
+## Computers and commands
 
-- Check `computers_list`; wake it with `computers_wake`; ask for one with `computers_provision` only when a task needs a browser.
-- Read a page with `chrome_snapshot`, act with `chrome_act`, fill with `chrome_fill` and a Vault handle (never a value). Use `terminal_run` for commands, and `terminal_request` when the person must run one (sudo, a login): what it printed comes back. A send, post or payment is held.
+- You can run commands on the computer this chat runs on with `terminal_run`: the person's computer, or your own agent computer when the chat runs there. Leave out the host; Vyre picks it. Do not say you have no computer. Your own shell works in your work folder. Use `terminal_request` when the person must run one (sudo, a login): what it printed comes back. The person's terminal rules apply.
+- An agent computer adds a browser: check `computers_list`, wake it with `computers_wake`, ask for one with `computers_provision` only when a task needs a browser. Read a page with `chrome_snapshot`, act with `chrome_act`, fill with `chrome_fill` and a Vault handle (never a value). A send, post or payment is held.
 
 ## Memory
 

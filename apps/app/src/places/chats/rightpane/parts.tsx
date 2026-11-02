@@ -63,6 +63,11 @@ export function LeadIcon({ name, color, size = 14 }: { name: IconName; color?: s
   return <View style={s.lead}><Icon name={name} size={size} {...(color ? { color } : {})} /></View>;
 }
 
+/** A face in a row's leading slot: the same room and gap as LeadIcon gives an icon, so a face never sits on the title. */
+export function LeadFace({ children }: { children: ReactNode }): ReactElement {
+  return <View style={s.leadFace}>{children}</View>;
+}
+
 /** A small icon button, in a header or a row's trailing slot. */
 export function Tool({ icon, label, onPress, active = false, testID }: { icon: IconName; label: string; onPress: (x: number, y: number) => void; active?: boolean; testID?: string }): ReactElement {
   const [over, setOver] = useState(false);
@@ -184,6 +189,7 @@ const SWITCH_ON = { backgroundColor: "var(--ok)" };
 
 export const s = StyleSheet.create({
   lead: { width: 18, height: 18, marginRight: 6, alignItems: "center", justifyContent: "center" },
+  leadFace: { minWidth: 22, marginRight: 10, alignItems: "center", justifyContent: "center" },
   tool: { width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center" },
   toolOver: { backgroundColor: "var(--press)" as string },
   switchTrack: { width: 28, height: 16, borderRadius: 8, backgroundColor: "var(--line-2)" as string, justifyContent: "center", paddingHorizontal: 2 },

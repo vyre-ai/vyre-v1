@@ -82,7 +82,7 @@ test("Sign-in and devices: Password and GitHub, then one card per Space with its
 
 test("no page carries an explaining paragraph under its heading", () => {
   const s = createSampleSettings(northwind);
-  for (const key of ["profile", "notifications", "ai", "connected", "signin", "appearance", "computer"] as const) {
+  for (const key of ["profile", "notifications", "ai", "connected", "mail", "signin", "appearance", "computer"] as const) {
     const out = html(s, { initialPage: key });
     for (const gone of ["Your hours are", "Provider sign-ins and keys live in the Vault", "Connect a mailbox and calendar so agents", "Your private items stay yours", "Type the keys you want", "Agents work on this computer only as far"]) assert.ok(!has(out, gone), `${key}: ${gone}`);
   }

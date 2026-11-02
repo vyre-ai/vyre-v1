@@ -31687,8 +31687,7 @@ const routes5: Route[] = [
     "permission": "terminal.use",
     "level": "use",
     "resource": {
-      "type": "terminal",
-      "id": "/terminalId"
+      "type": "space"
     },
     "idempotency": "key",
     "risk": "high",

@@ -89,6 +89,7 @@ import { withGateNesting } from "./gate-nesting.ts";
 import { createComputersFillHost, createFillRoute } from "../seams/computers.ts";
 import { homeCallAllowed, homeScopeOf } from "./home-confine.ts";
 import { createComputersHost } from "../seams/computers-host.ts";
+import { createTerminalHostSeam } from "../seams/terminal-host.ts";
 import { READER_LOSS, createEngineHost } from "../seams/engine.ts";
 import { createEmailAskDriver, createFormAskDriver } from "../seams/email-ask.ts";
 import { createEventsHost } from "../seams/events-ports.ts";
@@ -102,7 +103,8 @@ import { createConnectorsHost } from "../seams/connectors.ts";
 import { createProviderSignin } from "../seams/provider-signin.ts";
 import type { ConnectorNetwork } from "../seams/connectors.ts";
 import { createAuditRecorder } from "../seams/audit.ts";
-import { startRelayBox } from "../seams/relay.ts";
+import { INVITE_TRIES, inviteKeyOf, loadRelayKeys, startRelayBox } from "../seams/relay.ts";
+import { createAppFilesRoute, defaultAppDir } from "../routes/app-files.ts";
 import type { RelayBox } from "../seams/relay.ts";
 import { createSyncLiveBridge, createSyncSeam } from "../seams/sync.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
@@ -119,7 +121,7 @@ import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
 import { createGithubSignInRoute } from "../routes/github-signin.ts";
 import { createSsoSignInRoute, createSsoTickets } from "../routes/sso-signin.ts";
-import { createPeopleExtras, githubOAuthFromEnv, linkSso, ssoProvidersIn } from "../seams/people.ts";
+import { createPeopleExtras, githubOAuthFromEnv, linkSso, matchProvenAddress, ssoProvidersIn } from "../seams/people.ts";
 import {createRecoveryCommit} from "../seams/recovery.ts";
 import type { GithubOAuth } from "../seams/people.ts";
 import { createSpaceAdmin } from "../seams/spaceadmin.ts";
@@ -221,6 +223,8 @@ export interface DaemonOptions {
   /** where the GitHub app an admin saves in the app talks to (default: github.com; only a test points these at a stand-in) */
   githubEndpoints?: Pick<GithubOAuth, "authorizeUrl" | "tokenUrl" | "userUrl" | "fetch">;
   config: DaemonConfig;
+  /** The app's web export the gateway serves at its own address (default: VYRE_APP_DIR, else apps/app/dist when it was exported; null: none) */
+  appDir?: string | null;
   codeRoot?: string;
   platform?: Platform;
   fetch?: FetchFn;
@@ -412,6 +416,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // /u/<token>: a person with no account leaving a mailing. Set once the pipeline is up; until then the route says it could not, and the person is still subscribed
   let leaveMailing: (token: string) => Promise<boolean> = () => Promise.reject(new Error("the server is starting"));
   const unsubscribeRoute = createUnsubscribeRoute({ unsubscribe: (token) => leaveMailing(token) });
+  // the invites open now, newest first: a device hello under one of their keys opens an invite channel (seams/relay.ts)
+  const openInvites = (): string[] => {
+    try { return (db?.all("SELECT code_hash FROM members_invites WHERE state = 'open' AND expires_at > ? ORDER BY created_at DESC LIMIT ?", now(), INVITE_TRIES) as { code_hash: string }[] ?? []).map((r) => r.code_hash); } catch { return []; }
+  };
+  const phoneClaimed = (): boolean => {
+    try { return (db?.all("SELECT state FROM network_phone WHERE id = 1")[0] as { state?: string } | undefined)?.state === "claimed"; } catch { return false; }
+  };
   // every public link starts here: the address this Space was given, else the phone name it holds at the relay
   const publicOrigin = (): { origin: string; relay: boolean } | null => {
     let claimed: { name?: string; state?: string } | undefined;
@@ -459,10 +470,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const githubSignInRoute = createGithubSignInRoute({ oauth: githubNow });
   // Sign in with the firm's own Google or Microsoft app: the providers come from the members policy, the client secret from the Vault (bound once the Vault exists), the tickets are shared with identity
   const ssoTickets = createSsoTickets();
+  // a proven address is matched to its person by the company connection, through the module's host call (bound once the hook runner exists)
+  let matchProven: (key: string, who: { email: string; link: { tenant: string; subject: string } }, person: string) => void = () => undefined;
   let ssoSecret: (handle: string) => Promise<string> = () => Promise.reject(new Error("The Vault is not live on this server."));
   const ssoSignInRoute = createSsoSignInRoute({
     providers: async () => (db ? ssoProvidersIn(db) : []), secret: (h) => ssoSecret(h), fetch: o.seams?.fetch ?? defaultFetch, tickets: ssoTickets,
-    bind: (key, who, person) => (db ? linkSso(db, key, who, person) : false),
+    bind: (key, who, person) => { const bound = db ? linkSso(db, key, who, person) : false; if (bound) matchProven(key, who, person); return bound; },
     log: (why, attrs) => sink.log({ space: space ?? "-", level: 30, msg: why, place: "sso", attrs }),
   });
   const localKeyRoute = createLocalKeyRoute({ caller: (h) => callerOf(h), keyring, allowed: ownNode });
@@ -993,7 +1006,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
       const spaceLog = log;
+      matchProven = (key, who, person) => matchProvenAddress((n, i) => hookRunner.call(n, i), key, who, person);
       peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, recoveryCommit:createRecoveryCommit({db:db!,now}),call: (n, i, as) => hookRunner.call(n, i, as), keyring, sso: { tickets: ssoTickets }, github: githubNow,
+        // an invite on a Space reached at its phone address carries an invite key, never the box key (seams/relay.ts)
+        phoneInvite: { keyFor: async (codeHash) => (phoneClaimed() ? (await inviteKeyOf(loadRelayKeys(paths.root).boxPriv, codeHash)).pub : null) },
         githubApp: {
           envClientId: () => (o.githubOAuth !== undefined ? o.githubOAuth : githubOAuthFromEnv(process.env))?.clientId ?? null,
           callbackUrl: () => `${(cfg.address ? (/^https?:\/\//.test(cfg.address) ? cfg.address : `https://${cfg.address}`) : `http://${cfg.host}:${boundPort}`).replace(/\/+$/, "")}/auth/github/callback`,
@@ -1288,6 +1304,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           putBytes: (url, bytes) => putToSlot(url, bytes),
           log: (level, msg, attrs) => sink.log({ space: spaceId, level: level === "warn" ? 40 : 30, msg, place: "computers", ...(attrs ? { attrs } : {}) }),
           ...(o.computersHomeIntervalMs !== undefined ? { homeIntervalMs: o.computersHomeIntervalMs } : {}),
+        }),
+        // terminals on this machine: the person's own computer when this daemon is it (the desktop app's daemon), and where a person's turn runs, read as that person
+        setTerminalHost: () => createTerminalHostSeam({
+          roles: cfg.roles, team: cfg.spaceKind !== "personal",
+          readAs: async (person, cap, input) => { const r = await invoke(cap, input, { space: spaceId, principal: { kind: "person", id: person }, origin: "terminal" }); return r.status === "ok" ? r.output : null; },
+          computerOf: (person) => (db!.all("SELECT id FROM devices_device WHERE person = ? AND revokedAt IS NULL AND deleted_at IS NULL AND class IN ('desktop', 'daemon', 'web') ORDER BY CASE WHEN class = 'web' THEN 1 ELSE 0 END, lastSeenAt DESC, id DESC LIMIT 1", person)[0] as { id?: string } | undefined)?.id,
         }),
         // the Vault channel of agent computers (P-L2_21): agentd posts one #Handle.field at a time to /computers/fill with its own token; without a Vault the channel is not offered
         setComputersFill: (d) => d.vault ? createComputersFillHost({
@@ -1774,6 +1796,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       return publicOrigin()?.origin ?? null;
     };
     const mcpRoute = createMcpRoute({ runtime: () => mcpRuntime, origin: mcpOrigin });
+    // the app itself, last of all: a browser at the Space's address, or at a join link, gets the web export this image carries (routes/app-files.ts)
+    const appFiles = createAppFilesRoute({ dir: () => o.appDir !== undefined ? o.appDir : defaultAppDir() });
     server.on("request", (req, res) => {
       if(desktopCors(req,res))return;
       if (bearer(req.headers.authorization)?.startsWith("vas_")) {
@@ -1795,7 +1819,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         res.once("finish", () => { setImmediate(requestStop); });
         return;
       }
-      if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res)) return;
+      if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {
@@ -1837,7 +1861,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const relayDb = db;
       const relayAt = (url: string): RelayBox => {
         const box = startRelayBox({
-          relayUrl: url, dataDir: paths.root, localPort: () => boundPort,
+          relayUrl: url, dataDir: paths.root, localPort: () => boundPort, invites: openInvites,
           log: (m) => sink.log({ space: space ?? "-", level: 30, msg: "relay.link", place: "relay", attrs: { note: m } }),
           ...(o.seams?.relayWebSocket ? { WebSocket: o.seams.relayWebSocket } : {}),
           onState: (st) => {

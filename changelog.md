@@ -1,5 +1,31 @@
 # Changelog
 
+- A Codex signed in through the ChatGPT app now runs your turns. Vyre finds the codex inside ChatGPT (and Claude Code inside the Claude app) instead of saying it is not installed and answering with another account.
+- The live line under a reply that is being written shows its words in the Mac app again ("Thinking", "Reading", ...). The shimmer made them transparent in WebKit; the working mark is larger too.
+- A terminal opens on this computer from the Mac app. Signing in with a password in the app registered it as a "Web browser", so the New terminal menu offered only an old, offline "Vyre desktop".
+- When an agent needs a key you have not added, the secure field to type it into shows right in the chat you are in, even if it asked for the same key before in another chat. It no longer tells you to add it in the Vault by hand.
+- The foot of the rail no longer shows a second Settings icon when it is open: the button folds it instead.
+- Artifacts opens inside Chats with the sidebar, laid out like Tasks and Threads, instead of a separate page with a Back button.
+- The Provider and Model menus scroll when a provider has many models, and a find field appears for long lists.
+- Typing @ in a task or subtask lists your teammates and agents to pick from, and a subtask can be assigned with @, given a day and labels like quick add.
+- In an agent's side panel, the faces in its chat list sit in their own column instead of on top of the title.
+- A Team Space serves the Vyre app at its own address, so a browser opening the Space or an invite link gets the app instead of an error.
+- Invite links work on a vyre.run address. The link carries a key that opens only the join page, only while the invite is open; once the person joins, their browser moves to the Space's own key.
+- An invite link that was used, taken back or expired now says so plainly, instead of saying the computer is asleep.
+- Signing in, joining, claiming a Space, resetting and recovering an account all name this device the same way: "Vyre desktop" in the app, the browser's own name ("Chrome on Mac") in a browser.
+- The Mac app no longer offers to open an invite for a vyre.run address it cannot reach; it says to open the link in the browser.
+- Console, People lists the invites still open: who each is for, its role and when it ends, with New link and Revoke. A new invite can last 1, 7 or 30 days, and an invite with an email can be sent from your own mailbox in one press.
+- On a vyre.run address the app no longer replaces the relay's page worker with its own, which would have cut the page off from the Space.
+- A Team Space run from the Mac app hands the app to a browser too: the desktop bundle now carries the web export beside the server it runs.
+- Vyre now sets up Claude Code, Codex and Grok by itself. When you connect one of those accounts and the program is not on your computer or server, Vyre downloads it in the background into its own folder, checks it against the exact file it expects, and uses it. Your own installs and sign-in folders are never touched.
+- A chat that needs an engine that is still being set up waits for it and shows "Setting up Codex" while it does, then answers on the account you chose, instead of switching to another account.
+- The Install button on a "not installed" reply now installs in one press. No command to copy. If setup fails, the reply says why in one line, such as no internet connection.
+- Servers come with Claude Code, Codex and Grok already in place, and a server on an older image sets up a missing one the first time a chat needs it.
+- Connect your company: each member's mail and calendar now come in with nobody pressing Sync. A pull queued by the admin who pressed Connect ran as that admin, who is never allowed to read a teammate's mailbox, so it failed every time; the host now takes those pulls over within a minute and runs them as its own work (Google and Microsoft).
+- Connect your company: signing in with Google or Microsoft matches a person to the address the provider proved, so the owner (who has no invitation) gets their own mailbox. An address held by someone else stays theirs.
+- Connect your company: the admin address typed at setup is only who the checks sign in as. It is no longer put in the Inbox of the person setting things up.
+- Connect your company: pasting the key again updates the Vault item in place instead of failing as a duplicate.
+- Connect your company: an admin address Google does not know now says so plainly; turning on sign-in asks for the domain first.
 - Typing a whole `:joy:` now turns into the emoji, in every composer.
 - Vyre Black and Vyre Light are the new skins. The default, shown as Vyre, picks one by device; people's marbles and the working ring wear the same palette.
 - A question or plan from an agent is now a task: it reaches Needs you, the badge and notifications, answering it anywhere wakes the agent once, and a late press says "Already decided."
