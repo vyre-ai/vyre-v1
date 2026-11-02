@@ -11,6 +11,8 @@ export function entryTarget(raw:string):EntryTarget|null{
  if(url.pathname==='/'&&!url.search&&!url.hash)return{kind:'signin',address};
  const invite=/^\/join\/([A-Z0-9]{4}-[A-Z0-9]{4})\/?$/.exec(url.pathname);
  if(invite){const fingerprint=new URLSearchParams(url.hash.slice(1)).get('fp');return fingerprint&&/^[a-f0-9]{8,128}$/i.test(fingerprint)&&!url.search?{kind:'join',address,code:invite[1]!,fingerprint}:null;}
+ // a phone address's invite keeps its code in the fragment (/join#c=<code>&k=<the invite's key>&fp=), which never reaches the relay
+ if(/^\/join\/?$/.test(url.pathname)&&!url.search){const h=new URLSearchParams(url.hash.slice(1));const code=h.get('c'),fingerprint=h.get('fp');return code&&/^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code)&&fingerprint&&/^[a-f0-9]{8,128}$/i.test(fingerprint)?{kind:'join',address,code,fingerprint}:null;}
  if(/^\/claim\/[A-Za-z0-9_-]{16,256}$/.test(url.pathname)&&new URLSearchParams(url.hash.slice(1)).has('s'))return{kind:'claim',address,url:url.href};
  return null;
 }
@@ -27,8 +29,12 @@ export function storeLock(identity:LockedIdentity):void{try{storage()?.setItem(L
 export function clearLock():void{try{storage()?.removeItem(LOCK_KEY);}catch{/* blocked storage */}}
 
 /** Remove a spent or dismissed browser invite before shell navigation can remount the gate. */
-export function consumeBrowserInvite(browser: {location?:{pathname:string};history?:{replaceState(data:unknown,unused:string,url:string):void}}=globalThis as never):void{if(browser.location?.pathname.startsWith('/join/'))browser.history?.replaceState(null,'','/chat');}
+export function consumeBrowserInvite(browser: {location?:{pathname:string};history?:{replaceState(data:unknown,unused:string,url:string):void}}=globalThis as never):void{const p=browser.location?.pathname??'';if(p==='/join'||p.startsWith('/join/'))browser.history?.replaceState(null,'','/chat');}
 
-/** The existing desktop join protocol accepts HTTPS Space addresses only. */
-export function inviteAppLink(route:Extract<DesktopRoute,{kind:'join'}>):string|null{if(!route.address.startsWith('https://'))return null;return`vyre://join?${new URLSearchParams({address:route.address,code:route.code,fp:route.fingerprint})}`;}
+/** A phone address, <name>.vyre.run: the relay answers it with the phone shell, and only a browser can open a Space there. The desktop app reaches a Space at its own address. */
+export function isPhoneAddress(address:string):boolean{try{const host=new URL(address).hostname.toLowerCase();return host.endsWith('.vyre.run')&&host.split('.').length===3;}catch{return false;}}
+/** What the desktop app says for a phone address, in place of a sign-in or join that cannot reach it. */
+export const PHONE_ADDRESS_IN_BROWSER='This Space is reached through Vyre’s relay. Open the link in your browser.';
+/** The existing desktop join protocol accepts HTTPS Space addresses only, and not a phone address, which the desktop app cannot reach. */
+export function inviteAppLink(route:Extract<DesktopRoute,{kind:'join'}>):string|null{if(!route.address.startsWith('https://')||isPhoneAddress(route.address))return null;return`vyre://join?${new URLSearchParams({address:route.address,code:route.code,fp:route.fingerprint})}`;}
 export const VYRE_DOWNLOADS='https://github.com/vyre-ai/vyre-v1/releases';

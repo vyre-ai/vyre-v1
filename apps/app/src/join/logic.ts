@@ -100,6 +100,16 @@ export function deviceNameOf(ua: string = globalThis.navigator?.userAgent ?? "")
   return browser && os ? `${browser} on ${os}` : "This device";
 }
 
+/**
+ * The device every sign-in, join, owner claim, reset and recovery registers, one answer for all of them: the desktop app is "Vyre desktop" (a computer that runs terminals and chats), a browser is
+ * named from what it says it is ("Chrome on Mac"), or "Web browser" when it says nothing useful.
+ */
+export function deviceFor(deviceClass: "desktop" | "web", ua?: string): { deviceName: string; deviceClass: "desktop" | "web" } {
+  if (deviceClass === "desktop") return { deviceName: "Vyre desktop", deviceClass };
+  const named = deviceNameOf(ua);
+  return { deviceName: named === "This device" ? "Web browser" : named, deviceClass };
+}
+
 /** A Space is always reached through an explicit HTTP(S) address, never through the Tauri device daemon. A bare name is that name under vyre.run. */
 export function normalizeSpaceAddress(raw: string): string | null {
   const typed = raw.trim();
