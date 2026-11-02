@@ -58,7 +58,8 @@ function WebRow({ id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "
   return h(
     "div",
     {
-      role: "button", tabIndex: 0, "aria-label": title, "aria-selected": selected, "data-testid": tid(""), className: "vyre-row",
+      // a row nothing presses (no onPress, no list that handles it through domProps) is not a button: it is not announced or focused as one
+      ...(onPress || domProps !== undefined ? { role: "button", tabIndex: 0, "aria-selected": selected } : { role: "listitem" }), "aria-label": title, "data-testid": tid(""), className: "vyre-row",
       style: { ...ROW_S, minHeight: rowHeight(note, tall), ...(onPress ? { cursor: "pointer" } : null), ...(selected ? SELECTED : filled ? HOVER_ACCENT : hovered ? HOVER : null), ...extra },
       ...(onPress ? {
         onClick: (e: unknown) => onPress(e as never),

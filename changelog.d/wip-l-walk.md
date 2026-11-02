@@ -35,3 +35,4 @@
 - The Share sheet of an artifact says it is an artifact and what sharing it does.
 - The message on a Mine item's Share closes with Escape or OK.
 - After agents answer a question put to all of them, the lead posts no summary unless you ask for one.
+- A row nothing can press, like Recent use in the Vault, is no longer announced as a button.
