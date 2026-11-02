@@ -43,6 +43,7 @@ type Out = {
     importedAt: number;
     projectId?: string;
     continuedThreadId?: string;
+    archived?: boolean;
   };
   messages: Array<{
       sourceMessageId: string;
@@ -96,6 +97,7 @@ type Out = {
       }
     ],
     "session": {
+      "archived": true,
       "continuedThreadId": "thr_a1b2c3",
       "conversationId": "isc_a1b2c3",
       "importedAt": 1760000000000,

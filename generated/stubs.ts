@@ -2068,10 +2068,13 @@ export function stubs(ctx: CallCtx) {
       resolve: call("search.resolve"),
     },
     sessions: {
+      archive: call("sessions.archive"),
       continue: call("sessions.continue"),
+      delete: call("sessions.delete"),
       get: call("sessions.get"),
       import: call("sessions.import"),
       list: call("sessions.list"),
+      rename: call("sessions.rename"),
     },
     settings: {
       copy_profile: call("settings.copy_profile"),

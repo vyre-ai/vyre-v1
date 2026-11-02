@@ -2068,10 +2068,13 @@ export function createClient(transport: Transport) {
       resolve: call("search.resolve", 1),
     },
     sessions: {
+      archive: call("sessions.archive", 1),
       continue: call("sessions.continue", 1),
+      delete: call("sessions.delete", 1),
       get: call("sessions.get", 1),
       import: call("sessions.import", 1),
       list: call("sessions.list", 1),
+      rename: call("sessions.rename", 1),
     },
     settings: {
       copy_profile: call("settings.copy_profile", 1),
