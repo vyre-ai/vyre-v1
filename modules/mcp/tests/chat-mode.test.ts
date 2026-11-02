@@ -55,6 +55,13 @@ test("a chat inside a project lists the crew tools from its first turn, so a pla
   assert.equal((await withChatMode(scoped("project", "helper"), caller())).preload, undefined, "a teammate's own thread does not start more teammates");
 });
 
+test("a chat lists the reads that check this Space from its first turn, so a question about what Vyre supports here is checked, not assumed", async () => {
+  const scoped = (kind: string) => ({ ...runtime("auto"), invoke: (async () => ({ status: "ok", output: { thread: { mode: "auto", title: "Hello", kind } } })) as Invoke });
+  const pre = (await withChatMode(scoped("chat"), caller())).preload ?? [];
+  for (const n of ["engine_providers_list", "engine_accounts_list", "spaces_matrix"]) assert.ok(pre.includes(n), n);
+  assert.equal((await withChatMode(scoped("helper"), caller())).preload, undefined);
+});
+
 test("a CLI session knows the chat the way an API turn does: an Ask's scope and the person's level on it, a task thread's scope", async () => {
   const facts = (thread: Record<string, unknown>, level: unknown) => ({ ...runtime("auto"), invoke: (async (cap: string) => ({ status: "ok", output: cap === "chat.ask_level" ? { level } : { thread: { mode: "auto", ...thread } } })) as unknown as Invoke });
   const ask = await withChatMode(facts({ kind: "ask", scopeType: "record", scopeId: "rec_1" }, "view"), caller());
