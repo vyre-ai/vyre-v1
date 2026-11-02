@@ -1,5 +1,5 @@
 // @reads /scripts/shots/mounts/P-L9c_02.tsx
-// Inbox > contact tab (spec 3.3, 2.18, 2.14): the whole history in reading order with the quoted text folded, text bubbles, calls with the player and transcript, campaign steps as quiet lines, record chips,
+// Inbox > contact tab (spec 3.3, 2.18, 2.14): the whole history in reading order with the quoted text folded, text bubbles, calls with the player and transcript, record chips,
 // the composer that switches Email and Text and picks the sending inbox, and an agent's draft with its Gate line. Sends go through mail.send and telephony.send_sms; the sample replica shows the result.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -97,13 +97,12 @@ test("screen: a call has a player, a summary and a transcript that opens on a cl
   assert.ok(has(open, 'data-testid="transcript:c_elena"') && has(open, "Hi, it is Elena. I will send the lease on Thursday."));
 });
 
-test("screen: a missed call has no player; a campaign step is a quiet line", () => {
+test("screen: a missed call has no player", () => {
   const missed: ThreadItem = { kind: "call", id: "c_miss", at: SAMPLE_NOW - 600_000, direction: "in", ref: { state: "missed", via: "+1 415 555 0132" } };
   const f = buildFeed([missed], SAMPLE_NOW, 0).find((x) => x.kind === "call");
   assert.ok(f && f.kind === "call");
   const out = renderToStaticMarkup(<CallLine c={f} offsetMin={0} open={false} onTranscript={() => undefined} />).replaceAll("<!-- -->", "");
   assert.ok(has(out, "Missed call") && !has(out, 'data-testid="player:c_miss"'));
-  assert.ok(has(tab("elena").out, "Welcome series, step 1 sent") && has(tab("priya").out, "Spring check-in, email 1 sent"));
 });
 
 test("screen: an agent's draft shows who drafted it, the inbox it sends from, the Gate line and Send, Edit, Discard", () => {

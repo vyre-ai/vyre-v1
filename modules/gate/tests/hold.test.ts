@@ -76,7 +76,7 @@ test("who approves follows the act and the strictest rule", async () => {
     return findHold(h.db, r.holdId)!.approver;
   };
   assert.deepEqual(await approverOf({ act: "pay" }), { kind: "role", id: "rol_owner" });
-  assert.deepEqual(await approverOf({ act: "campaign_launch" }), { kind: "role", id: "rol_admin" });
+  assert.deepEqual(await approverOf({ act: "site_promote" }), { kind: "role", id: "rol_admin" });
   assert.deepEqual(await approverOf({ act: "delete" }), { kind: "person", id: alice.id });
   // no acting-for: the agent's owner is the asker
   assert.deepEqual(await approverOf({ actingFor: undefined }), { kind: "person", id: alice.id });
@@ -120,7 +120,7 @@ test("the effective rule: agents wait, a person's own send does not, human-too a
   const p = await rule(alice, "send");
   assert.equal(p.hold, false, "ordinary human sends skip the Gate");
   assert.match(p.reason, /own act/);
-  for (const act of ["push_protected", "campaign_launch", "secret_export", "site_promote"]) assert.equal((await rule(alice, act)).hold, true, `${act} by a person`);
+  for (const act of ["push_protected", "secret_export", "site_promote"]) assert.equal((await rule(alice, act)).hold, true, `${act} by a person`);
   for (const act of ["pay", "delete", "post", "signature_send", "spend_raise"]) assert.equal((await rule(alice, act)).hold, false, `${act} by a person`);
   assert.equal((await rule({ kind: "service", id: "svc_job" }, "send")).hold, true);
   assert.equal((await rule({ kind: "actor", id: "act_outside" }, "send")).hold, true);

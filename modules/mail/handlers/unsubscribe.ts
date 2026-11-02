@@ -21,6 +21,8 @@ export function setMailLinksHost(h: MailLinksHost | null): void {
   host = h;
 }
 
+export const hasPublicAddress = (): boolean => (host?.publicBase ?? "").replace(/\/+$/, "") !== "";
+
 const enc = new TextEncoder();
 
 function randomToken(bytes = 24): string {
@@ -34,7 +36,7 @@ async function sha256hex(text: string): Promise<string> {
   return Array.from(d, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/** A new link for one address. Null with no public address: the mail still goes, because an appointment confirmation matters more than its footer, and suppression still applies. */
+/** A new link for one address. Null with no public address: one email to one person still goes, because an appointment confirmation matters more than its footer, and suppression still applies. */
 export async function unsubscribeLink(ctx: MailCtx, address: string): Promise<string | null> {
   const base = (host?.publicBase ?? "").replace(/\/+$/, "");
   if (!base) {

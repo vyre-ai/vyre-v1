@@ -1,5 +1,5 @@
 // ContactTab model: the pure part (spec 3.3, 2.18). What the thread's items turn into on screen (emails with the quoted text folded, text bubbles grouped, calls with the player,
-// campaign steps as quiet lines, record chips), the composer's state (Email or Text, the sending inbox, recipients, subject, text), what a send asks of the capabilities, and the Gate line
+// record chips), the composer's state (Email or Text, the sending inbox, recipients, subject, text), what a send asks of the capabilities, and the Gate line
 // of an agent's draft. No React, no clock of its own.
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { dayOf } from "../sidebar/model.ts";
@@ -27,7 +27,6 @@ export interface EmailRef {
   via?: string;
   /** Name of the agent that wrote an outward message ("Drafted by an agent"). */
   agent?: string;
-  campaign?: string;
   attachments?: { name: string; size?: string }[];
   chips?: { title: string; recordId?: string }[];
   /** Delivery state of an outward message: queued, sent, delivered, bounced, complained. */
@@ -59,7 +58,7 @@ export function emailRef(i: ThreadItem): EmailRef {
   const subject = str(r["subject"]) ?? i.title, body = str(r["body"]) ?? i.preview;
   if (subject !== undefined) out.subject = subject;
   if (body !== undefined) out.body = body;
-  for (const k of ["quoted", "from", "via", "agent", "campaign", "messageId"] as const) { const v = str(r[k]); if (v !== undefined) out[k] = v; }
+  for (const k of ["quoted", "from", "via", "agent", "messageId"] as const) { const v = str(r[k]); if (v !== undefined) out[k] = v; }
   const st = str(r["status"]);
   if (st === "queued" || st === "sent" || st === "delivered" || st === "bounced" || st === "complained") out.status = st;
   if (Array.isArray(r["attachments"])) out.attachments = (r["attachments"] as unknown[]).map(rec).map((a) => ({ name: str(a["name"]) ?? "File", ...(str(a["size"]) ? { size: str(a["size"]) as string } : {}) }));
@@ -115,7 +114,6 @@ export type FeedEntry =
   | { kind: "email"; key: string; item: ThreadItem; ref: EmailRef }
   | { kind: "texts"; key: string; direction: "in" | "out"; via: string; items: { id: string; at: number; body: string }[]; at: number }
   | { kind: "call"; key: string; item: ThreadItem; ref: CallRef; meeting: boolean }
-  | { kind: "step"; key: string; item: ThreadItem }
   | { kind: "chip"; key: string; item: ThreadItem }
   | { kind: "note"; key: string; item: ThreadItem };
 
@@ -159,7 +157,6 @@ export function buildFeed(items: readonly ThreadItem[], now: number, offsetMin: 
         break;
       }
       case "call": case "meeting": open = null; out.push({ kind: "call", key: i.id, item: i, ref: callRef(i), meeting: i.kind === "meeting" }); break;
-      case "campaign_step": open = null; out.push({ kind: "step", key: i.id, item: i }); break;
       case "record_chip": open = null; out.push({ kind: "chip", key: i.id, item: i }); break;
       case "note": open = null; out.push({ kind: "note", key: i.id, item: i }); break;
     }

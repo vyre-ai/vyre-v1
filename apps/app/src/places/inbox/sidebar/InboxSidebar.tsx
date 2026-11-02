@@ -1,4 +1,4 @@
-// Inbox > sidebar (spec 3.3): By contact and All inboxes, Calendar, then Mine, Shared and Agents with their unread counts, the Lists (Following, Campaigns) and the Calendars with
+// Inbox > sidebar (spec 3.3): By contact and All inboxes, Calendar, then Mine, Shared and Agents with their unread counts, the Lists (Starred, Following) and the Calendars with
 // a colour dot each. Every row is a ui/Row with a leading glyph and a trailing count. Click selects; right-click opens the row's menu; a calendar's click hides or shows it and its
 // menu offers Show Only This. The dialer sits at the foot.
 import { useState } from "react";
@@ -143,7 +143,7 @@ function Sidebar(): ReactElement {
     );
   }
 
-  const list = (key: "starred" | "follow" | "camp", label: string, glyph: IconName, f: (r: ContactRow) => boolean): ReactElement => (
+  const list = (key: "starred" | "follow", label: string, glyph: IconName, f: (r: ContactRow) => boolean): ReactElement => (
     <SideRow key={key} id={`list:${key}`} title={label} selected={scoped({ kind: key })} count={unreadOf(f)} glyph={<Glyph name={glyph} />} onPress={() => pick({ kind: key })} />
   );
 
@@ -183,7 +183,6 @@ function Sidebar(): ReactElement {
         {bare || closed("lists") ? null : [
           list("starred", "Starred", "star", (r) => r.starred === true),
           list("follow", "Following", "bell", (r) => r.followed),
-          list("camp", "Campaigns", "flag", (r) => r.campaignId !== undefined),
         ]}
         {calendars.length > 0 ? <SectionHead id="cals" label="Calendars" closed={closed("cals")} onToggle={() => dispatch({ type: "section", key: "cals" })} /> : null}
         {closed("cals") ? null : calendarRows}

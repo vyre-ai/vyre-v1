@@ -33,7 +33,7 @@ function You({ session, nav, onSignOut, onAddSpace, onLock, onSwitchSpace }: { s
       {resume ? <Row id="you-finish-setup" title="Finish setup" note={`${resume.handled} of ${resume.total} done`} onPress={resume.open} /> : null}
       <Row id="you-vault" title="Vault" note="Keys, logins and cards" onPress={() => nav.open(entryFor("vault", "")!)} />
       <Row id="you-automations" title="Automations" note="What runs on its own" onPress={() => nav.open(entryFor("automations", "")!)} />
-      {session.runtime.space.kind === "team" ? <Row id="you-apps" title="Apps" note="Forms, campaigns and templates" onPress={() => nav.open(entryFor("apps", "")!)} /> : null}
+      {session.runtime.space.kind === "team" ? <Row id="you-apps" title="Apps" note="Forms and templates" onPress={() => nav.open(entryFor("apps", "")!)} /> : null}
       {onSwitchSpace?session.runtime.knownSpaces?.filter(space=>space.spaceId!==session.def.spaceId).map(space=><Row key={space.spaceId} id={'you-switch-'+space.spaceId} title={space.name} note={space.kind==='personal'?'Personal Space':'Team Space'} onPress={()=>onSwitchSpace(space.spaceId)}/>):null}
       {onAddSpace?<Row id="you-add-space" title="Add a Space" note="Create or join another Space" onPress={onAddSpace}/>:null}
       {onLock?<Row id="you-lock" title="Lock Vyre" note="Sign in again to continue" onPress={onLock}/>:null}

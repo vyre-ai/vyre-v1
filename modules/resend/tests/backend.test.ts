@@ -30,7 +30,7 @@ test("an email is posted to Resend with the key, the idempotency key and every p
   h.on("POST /emails", { status: 200, body: RECORDED.sent });
   const input = mail({
     fromName: 'Hello "Team" <x>', cc: ["lee@acme.test"], bcc: ["boss@acme.test"], replyTo: "maya@vyre.test", html: "<p>Hi</p>", headers: { "X-Vyre-Trace": "abc", "Message-ID": "<eml_abc123@mail.vyre.test>" },
-    tags: [{ name: "message_id", value: "eml_abc123" }, { name: "campaign id", value: "spring/2025" }], attachments: [{ name: "intake.pdf", fileId: "fil_one" }],
+    tags: [{ name: "message_id", value: "eml_abc123" }, { name: "flow id", value: "spring/2025" }], attachments: [{ name: "intake.pdf", fileId: "fil_one" }],
   });
   assert.deepEqual(contractErrors("resend.send_email", "in", input), []);
   const out = await sendEmail(h.ctx, input);
@@ -42,7 +42,7 @@ test("an email is posted to Resend with the key, the idempotency key and every p
   assert.deepEqual(req!.body, {
     from: "Hello Team x <hello@mail.vyre.test>", to: ["pat@acme.test"], subject: "Hello", cc: ["lee@acme.test"], bcc: ["boss@acme.test"], reply_to: "maya@vyre.test",
     text: "Hi Pat", html: "<p>Hi</p>", headers: { "X-Vyre-Trace": "abc", "Message-ID": "<eml_abc123@mail.vyre.test>" },
-    tags: [{ name: "message_id", value: "eml_abc123" }, { name: "campaign_id", value: "spring_2025" }],
+    tags: [{ name: "message_id", value: "eml_abc123" }, { name: "flow_id", value: "spring_2025" }],
     attachments: [{ filename: "intake.pdf", content: "JVBERg==" }],
   });
 });

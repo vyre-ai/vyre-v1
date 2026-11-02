@@ -21,7 +21,7 @@ export const STEP_NEEDS: Record<string, { modules: string[]; packet: string }> =
   "records": { modules: ["records"], packet: "P-L3_LIVE" },
   "files": { modules: ["files"], packet: "P-L4_LIVE" },
   "inbox": { modules: ["inbox"], packet: "P-L5_LIVE" },
-  "apps": { modules: ["sites", "forms", "campaigns"], packet: "P-L8_LIVE" },
+  "apps": { modules: ["sites", "forms"], packet: "P-L8_LIVE" },
   "automations": { modules: ["automations"], packet: "P-L3_LIVE" },
   "vault": { modules: ["vault"], packet: "P-L7_LIVE" },
   "settings": { modules: ["settings"], packet: "P-L7_LIVE" },

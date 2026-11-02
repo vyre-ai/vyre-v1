@@ -25,7 +25,7 @@ import { ADA, NOW } from "../fixtures/world.ts";
 import { TRACE, hl, pushRig, patchOp } from "./push.rig.test.ts";
 
 const codeOf = (e: unknown): string => (e as { error?: { code?: string } } | null)?.error?.code ?? "";
-const TEAM_ONLY = "campaigns.launch";
+const TEAM_ONLY = "forms.publish";
 
 // ---- the matrix
 

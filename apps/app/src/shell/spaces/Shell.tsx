@@ -97,7 +97,7 @@ export function Stage({ children }: { children: ReactNode }): ReactElement {
 
 /** What a Personal Space cannot do (spec 2.1 matrix), by place. */
 export function teamOnly(place: PlaceId): string | null {
-  return place === "apps" ? "Sites, forms and campaigns" : null;
+  return place === "apps" ? "Sites and forms" : null;
 }
 
 export const COMPACT_BELOW = 700;

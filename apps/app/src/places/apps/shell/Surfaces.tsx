@@ -3,7 +3,6 @@ import type { ReactElement } from "react";
 import type { AppsRoute } from "./AppsPlace.tsx";
 import { useAppsData } from "./data.tsx";
 import { FormEditor } from "./FormEditor.tsx";
-import { CampaignEditor } from "./CampaignEditor.tsx";
 import { TemplateEditor } from "./TemplateEditor.tsx";
 import { DomainEditor } from "./DomainEditor.tsx";
 import { EmailDesigner } from "./EmailDesigner.tsx";
@@ -18,7 +17,6 @@ export function AppsSurface({ route }: { route: Exclude<AppsRoute, { kind: "list
   const target = { group: route.group, ...(route.kind === "detail" ? { id: route.id } : { create: true }) };
   switch (route.group) {
     case "forms": return <FormEditor route={target} back={back} />;
-    case "campaigns": return <CampaignEditor route={target} back={back} />;
     case "templates": return <TemplateEditor route={target} back={back} />;
     case "domains": return <DomainEditor route={target} back={back} />;
   }

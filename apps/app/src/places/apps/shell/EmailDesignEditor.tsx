@@ -12,23 +12,22 @@ import { actionKey, errorMessage, mutate } from "./mutations.ts";
 import { Field, s, useOnline, useRead } from "./editor-ui.tsx";
 import type { AskAgent } from "../../../../../../ui/src/AskButton/types.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
-type Step = CapMap["campaigns.get"]["out"]["steps"][number];
+interface Step { key: string; config: Record<string, unknown> }
 /**
- * The email builder over one design. In a campaign it is a step's email (`step`, saved back into the step's config by `onChange`); on its own (Apps > an email design, Inbox templates) `title` and `intro`
- * name it, and `step` is a stand-in that carries the design's id and content.
+ * The email builder over one design: Apps > an email design, Inbox templates, an Automation email step. `title` and `intro` name it, and `step` carries the design's id and content.
  */
-export function CampaignEmail({ step, onChange, title = "Campaign email", intro = "Email designs save as versions. Save the campaign afterward to use the updated design in its steps." }: { step: Step; onChange(config: Record<string, unknown>): void; title?: string; intro?: string }): ReactElement {
+export function EmailDesignEditor({ step, onChange, title = "Email design", intro = "Email designs save as versions." }: { step: Step; onChange(config: Record<string, unknown>): void; title?: string; intro?: string }): ReactElement {
   const d = useAppsData(), online = useOnline();
   const [emailId, setEmailId] = useState<string | null>(typeof step.config.emailId === "string" ? step.config.emailId : null);
   const [mode, setMode] = useState<EmailMode>((step.config.designMode as EmailMode | undefined) ?? "plain");
   const [snapshot, setSnapshot] = useState<EmailSnapshot>({ subject: String(step.config.subject ?? ""), previewText: "", blocks: (step.config.designBlocks as EmailBlock[] | undefined) ?? [], html: String(step.config.html ?? ""), plain: String(step.config.text ?? ""), subjectB: typeof step.config.subjectB === "string" ? step.config.subjectB : null });
   const [dirty, setDirty] = useState(false), [status, setStatus] = useState("No changes"), [error, setError] = useState("");
   const [testTo, setTestTo] = useState("");
-  const library = useRead<CapMap["email_builder.saved_blocks.list"]["out"]>("email_builder.saved_blocks.list", {}, "campaigns");
-  const versions = useRead<CapMap["email_builder.versions"]["out"]>(emailId ? "email_builder.versions" : null, { emailId }, "campaigns");
+  const library = useRead<CapMap["email_builder.saved_blocks.list"]["out"]>("email_builder.saved_blocks.list", {}, "templates");
+  const versions = useRead<CapMap["email_builder.versions"]["out"]>(emailId ? "email_builder.versions" : null, { emailId }, "templates");
   const [proposals, setProposals] = useState<Array<{ path: string; before: unknown; after: unknown }>>([]);
   // Ask Vyre: the person's own agents, the one picked, and the Ask in flight (cancelled on the server too, so the agent stops working)
-  const agentList = useRead<CapMap["agents.list"]["out"]>("agents.list", {}, "campaigns");
+  const agentList = useRead<CapMap["agents.list"]["out"]>("agents.list", {}, "templates");
   const agents: AskAgent[] = (agentList.data?.agents ?? []).map((a) => ({ id: a.agentId, name: a.name, ...(a.kind ? { kind: a.kind } : {}), ...(a.role ? { role: a.role } : {}), ...(isAssistant({ id: a.agentId, kind: a.kind, role: a.role }) ? { assistant: true } : {}), ...(a.status ? { status: a.status } : {}) }));
   const [agentId, setAgentId] = useState<string | null>(null);
   const chosen = askAgentOf(agents, agentId, readLastAskAgent(ASK_SPACE()));
@@ -88,7 +87,7 @@ export function CampaignEmail({ step, onChange, title = "Campaign email", intro 
     if (!online) throw new Error("Reconnect before saving or sending a test.");
     setStatus("Saving…");
     let id = idRef.current;
-    if (!id) { const out = await mutate(d, "email_builder.create", { name: snapshot.subject || title, mode: mode === "visual" ? "blocks" : mode }, `campaign-email:${step.key}`); id = out.email.emailId; idRef.current = id; setEmailId(id); }
+    if (!id) { const out = await mutate(d, "email_builder.create", { name: snapshot.subject || title, mode: mode === "visual" ? "blocks" : mode }, `email-design:${step.key}`); id = out.email.emailId; idRef.current = id; setEmailId(id); }
     if (typeof id !== "string" || !id) throw new Error("The email service did not create a design.");
     const email = { emailId: id, name: snapshot.subject || title, mode: mode === "visual" ? "blocks" : mode, subject: snapshot.subject, plain: snapshot.plain, html: snapshot.html, blocks: snapshot.blocks.map(serverBlock) };
     const saved = await mutate(d, "email_builder.save", { emailId: id, email }, actionKey());

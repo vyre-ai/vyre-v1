@@ -5,13 +5,13 @@ import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
 
 export interface AppsNav {
-  /** A site, form, campaign or template opens in its own screen (P-L9e_06 to P-L9e_09); until those mount, the place's own summary shows. */
+  /** A site, form or template opens in its own screen (P-L9e_06 to P-L9e_09); until those mount, the place's own summary shows. */
   open(group: string, id: string): void;
-  /** New form, campaign or site: the sheet that makes it. */
+  /** New form or site: the sheet that makes it. */
   create(group: string, kind?: string): void;
   /** Return to a group's list from a detail or create surface. */
   show(group: string): void;
-  /** One email design on its own, or a new one without an id: the builder Campaigns, Inbox templates and Automation email steps share. */
+  /** One email design on its own, or a new one without an id: the builder Inbox templates and Automation email steps share. */
   openEmailDesign?(emailId?: string): void;
   /** A Personal Space creates or joins a Team Space. */
   joinTeam(): void;

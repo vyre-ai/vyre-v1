@@ -1,6 +1,6 @@
 // contacts.preferences.get and .set, contacts.deliverability, contacts.route_owner (spec 2.18 Contact preferences and suppression, Contact owner,
 // Message status and deliverability). The preferences live on the contact record; deliverability is read from the list and the record; the owner
-// of an unowned reply is the contact's owner, then the campaign's, then the shared inbox.
+// of an unowned reply is the contact's owner, then the shared inbox.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { deliverability, preferencesGet, preferencesSet, routeOwner } from "../handlers/prefs.ts";
@@ -154,18 +154,14 @@ test("unsubscribes, removed rows and other people's rows do not count; the recor
 test("an unowned reply goes to the contact's owner first", async () => {
   const h = harness();
   h.contact("rec_pat01", { owner: "usr_ann01" });
-  h.campaigns.set("cmp_spring", { owner: "usr_bob01" });
-  const out = await routeOwner(h.ctx, { contactId: "rec_pat01", campaignId: "cmp_spring", mailboxId: "mbx_hello" });
+  const out = await routeOwner(h.ctx, { contactId: "rec_pat01", mailboxId: "mbx_hello" });
   assert.deepEqual(out, { ownerId: "usr_ann01", via: "owner" });
   assert.deepEqual(contractErrors("contacts.route_owner", "out", out), []);
-  assert.equal(h.calls("campaigns.get").length, 0);
 });
 
-test("then to the campaign's owner, then to the shared inbox", async () => {
+test("then to the shared inbox", async () => {
   const h = harness();
   h.contact("rec_pat01", { name: "No owner" });
-  h.campaigns.set("cmp_spring", { owner: "usr_bob01" });
-  assert.deepEqual(await routeOwner(h.ctx, { contactId: "rec_pat01", campaignId: "cmp_spring" }), { ownerId: "usr_bob01", via: "campaign_owner" });
   assert.deepEqual(await routeOwner(h.ctx, { contactId: "rec_pat01", mailboxId: "mbx_hello" }), { via: "shared_inbox", mailboxId: "mbx_hello" });
   assert.deepEqual(await routeOwner(h.ctx, {}), { via: "shared_inbox" });
   assert.deepEqual(await routeOwner(h.ctx, { contactId: "rec_nobody", mailboxId: "mbx_hello" }), { via: "shared_inbox", mailboxId: "mbx_hello" });
@@ -174,6 +170,5 @@ test("then to the campaign's owner, then to the shared inbox", async () => {
 test("route_owner refuses ids that are not ids", async () => {
   const h = harness();
   await refused(routeOwner(h.ctx, { contactId: "pat" }), "validation.bad_input");
-  await refused(routeOwner(h.ctx, { campaignId: "spring" }), "validation.bad_input");
   await refused(routeOwner(h.ctx, { mailboxId: "hello" }), "validation.bad_input");
 });

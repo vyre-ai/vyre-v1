@@ -7,7 +7,7 @@ import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 
 test("Apps routes retain subject ids and create requests after reload", () => {
   assert.deepEqual(appsRoute({ screen: "apps.form-settings", subject: { type: "form", id: "frm_example" }, args: {} }), { kind: "detail", group: "forms", id: "frm_example" });
-  assert.deepEqual(appsRoute({ screen: "apps.campaign-builder", args: { create: "true" } }), { kind: "create", group: "campaigns" });
+  assert.deepEqual(appsRoute({ screen: "apps.forms", args: { create: "true" } }), { kind: "create", group: "forms" });
   assert.deepEqual(appsRoute({ screen: "apps.templates", args: {} }), { kind: "list", group: "templates" });
 });
 test("Apps creates pass contract-required keys and offline clicks never write", async () => {
@@ -23,8 +23,6 @@ test("Apps creates pass contract-required keys and offline clicks never write", 
 test("all Apps create and outward contracts require the same key on retries", async () => {
   const cases: Array<[string, Record<string, unknown>]> = [
     ["bookings.page_create", { name: "Consult", hostIds: ["usr_owner"], lengthMinutes: 30, recordType: "contact" }],
-    ["campaigns.create", { name: "Fixture", kind: "one_time" }],
-    ["campaigns.launch", { campaignId: "cmp_fixture" }],
     ["templates.save", { kind: "agent", ref: "agt_fixture", title: "Fixture" }],
     ["mail.domain.add", { name: "mail.example.com", provider: "resend" }],
     ["email_builder.create", { name: "Fixture", mode: "plain" }],

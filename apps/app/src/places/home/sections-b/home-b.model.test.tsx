@@ -78,7 +78,7 @@ test("a terminal whose status has not arrived yet still shows as a terminal", ()
 test("a Personal Space turns the team-only stars into one Needs a Team Space line", () => {
   const stars: Star[] = [
     { resource: { type: "computer", id: "c1" }, title: "Intake computer", at: 4 }, { resource: { type: "thread", id: "t1" }, title: "Assistant", at: 3 },
-    { resource: { type: "site", id: "s1" }, title: "Firm site", at: 2 }, { resource: { type: "campaign", id: "p1" }, title: "Spring", at: 1 },
+    { resource: { type: "site", id: "s1" }, title: "Firm site", at: 2 }, { resource: { type: "form", id: "p1" }, title: "Spring", at: 1 },
   ];
   const rows = starRows(stars, []);
   const team = splitForSpace(rows, false);
@@ -86,8 +86,8 @@ test("a Personal Space turns the team-only stars into one Needs a Team Space lin
   assert.deepEqual(team.blocked, []);
   const personal = splitForSpace(rows, true);
   assert.deepEqual(personal.rows.map((r) => r.id), ["c1", "t1"], "an agent computer star stays: it only exists once a host runs it");
-  assert.deepEqual(personal.blocked, ["site", "campaign"]);
-  assert.equal(teamOnlyWhat(personal.blocked), "Sites and campaigns");
+  assert.deepEqual(personal.blocked, ["site", "form"]);
+  assert.equal(teamOnlyWhat(personal.blocked), "Sites and forms");
   assert.equal(teamOnlyWhat(["computer"]), "Agent computers");
   assert.equal(teamOnlyWhat(["form", "site"]), "Sites and forms");
   assert.ok(needsTeamSpace("form") && !needsTeamSpace("terminal") && !needsTeamSpace("thread"));

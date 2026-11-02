@@ -216,7 +216,7 @@ const STEP_ICON: Readonly<Record<string, IconKey>> = {
 const TRIGGER_ICON: Readonly<Record<string, IconKey>> = {
   record_change: "bolt", schedule: "clock", webhook: "hook", form_submit: "inbox", email_received: "mail",
   chat_message: "chat", spreadsheet_row: "sheet", ci_check: "ci", meeting_transcript_ready: "meeting",
-  journey_stage_entered: "stage", campaign_reply: "reply", button: "button", manual: "hand",
+  journey_stage_entered: "stage", button: "button", manual: "hand",
 };
 
 export function iconForStep(key: string): IconKey {

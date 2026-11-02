@@ -101,7 +101,7 @@ test("a reply to a text they sent counts as consent for that conversation, a rep
   assert.equal(sentOut.status, "suppressed", "replying to our own text is not consent");
 });
 
-test("send windows and caps apply to agents, automations and campaigns, not to a person typing a text", async () => {
+test("send windows and caps apply to agents and automations, not to a person typing a text", async () => {
   const t = harness();
   const numberId = await setup(t);
   t.actAs("agent", AGENT);
@@ -160,7 +160,7 @@ test("a scheduled text whose contact asked to stop meanwhile is not sent", async
 test("caps per number: over the hourly limit is refused with when it resets, and room comes back as time passes", async () => {
   const t = harness();
   const numberId = await setup(t);
-  t.settings.set("mail.sender_caps", { perHour: 2, perDay: 3 });
+  t.settings.set("telephony.sender_caps", { perHour: 2, perDay: 3 });
   t.actAs("agent", AGENT);
   await send(t, numberId);
   await send(t, numberId);

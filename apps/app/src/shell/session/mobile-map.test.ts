@@ -26,7 +26,7 @@ test("phone Apps preserve detail/create hashes and return to the same editor", (
   const hash = "screen=apps.form-settings&selected=frm_fixture";
   const entry = entryFor("apps", hash)!;
   assert.deepEqual(placeOf(entry), { place: "apps", hash });
-  assert.deepEqual(placeOf(entryFor("apps", "screen=apps.campaigns&create=true")!), { place: "apps", hash: "screen=apps.campaigns&create=true" });
+  assert.deepEqual(placeOf(entryFor("apps", "screen=apps.forms&create=true")!), { place: "apps", hash: "screen=apps.forms&create=true" });
   assert.equal(placeOf({ tab: "you", screen: "apps:%ZZ" }), null);
   assert.deepEqual(placeOf(entryFor("vault", "")!), { place: "vault", hash: "" }, "the Vault hangs off You on a phone");
   assert.equal(entryFor("vault", "")!.tab, "you");

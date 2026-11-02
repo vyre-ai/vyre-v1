@@ -13,6 +13,7 @@
 //
 // DECISION: `unsubscribe: true` puts a link and the List-Unsubscribe headers on the message (handlers/unsubscribe.ts). The Automations send step always sets it. A link is one person's, so such a
 // message to several people goes out once per recipient.
+// DECISION: with no public address there is no link to give. A mailing to several people is refused in those words; one email to one person (an appointment confirmation) goes out without the link.
 // DECISION: consent 'unknown' sends (opt-out regime: STOP, UNSUBSCRIBE and bounces write the suppression list). Only an explicit
 // 'denied', Do-not-contact or an email opt-out refuses.
 import { HostError, fail } from "../../../host/src/routes/errors.ts";
@@ -22,7 +23,7 @@ import {
   allow, bad, EMAIL, ensure, first, isId, missing, newId, normalizeEmail, num, partyJson, readStrings, rowsOf, snippetOf, statements, str, strOrNull,
 } from "../projections.ts";
 import type { MailCtx, Party, Row } from "../projections.ts";
-import { footerHtml, footerText, unsubscribeLink } from "./unsubscribe.ts";
+import { footerHtml, footerText, hasPublicAddress, unsubscribeLink } from "./unsubscribe.ts";
 
 // ---- shapes
 
@@ -379,6 +380,7 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
 
   // a link is one person's, so a message that carries links goes out once per recipient
   if (input.unsubscribe === true && p.allowed.length > 1 && !pending) {
+    if (!hasPublicAddress()) refuse(ctx, "This Space has no public address yet, so its emails could not carry an unsubscribe link.");
     const { cc: _cc, bcc: _bcc, ...one } = input;
     const each: SendOut[] = [];
     for (const party of p.allowed) each.push(await send(ctx, { ...one, to: [party], idempotencyKey: `${input.idempotencyKey}:${party.address}` }));

@@ -30,7 +30,7 @@ test("an email is posted to the domain's messages with the key, one field per pa
   h.on("POST /v3/mail.vyre.test/messages", { status: 200, body: RECORDED.sent });
   const input = mail({
     fromName: 'Hello "Team" <x>', to: ["pat@acme.test", "lee@acme.test"], cc: ["boss@acme.test"], bcc: ["audit@acme.test"], replyTo: "maya@vyre.test", html: "<p>Hi</p>",
-    headers: { "X-Vyre-Trace": "abc", "Message-ID": "<eml_abc123@mail.vyre.test>" }, tags: ["message_id:eml_abc123", "campaign_id:cmp_spring", "a", "dropped-fourth"],
+    headers: { "X-Vyre-Trace": "abc", "Message-ID": "<eml_abc123@mail.vyre.test>" }, tags: ["message_id:eml_abc123", "flow_id:aut_spring", "a", "dropped-fourth"],
   });
   assert.deepEqual(contractErrors("mailgun.send_email", "in", input), []);
   const out = await sendEmail(h.ctx, input);
@@ -42,7 +42,7 @@ test("an email is posted to the domain's messages with the key, one field per pa
   assert.deepEqual(req!.form, [
     ["from", "Hello Team x <hello@mail.vyre.test>"], ["subject", "Hello"], ["to", "pat@acme.test"], ["to", "lee@acme.test"], ["cc", "boss@acme.test"], ["bcc", "audit@acme.test"],
     ["h:Reply-To", "maya@vyre.test"], ["text", "Hi Pat"], ["html", "<p>Hi</p>"], ["h:X-Vyre-Trace", "abc"], ["h:Message-ID", "<eml_abc123@mail.vyre.test>"],
-    ["o:tag", "message_id:eml_abc123"], ["o:tag", "campaign_id:cmp_spring"], ["o:tag", "a"],
+    ["o:tag", "message_id:eml_abc123"], ["o:tag", "flow_id:aut_spring"], ["o:tag", "a"],
   ]);
 });
 

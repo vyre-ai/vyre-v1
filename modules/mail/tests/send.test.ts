@@ -1,6 +1,6 @@
 // mail.send, mail.send_preview, mail.send_as: the single send API (spec 2.18). Suppression and consent, the agent line, the trace header,
 // the Space domain and the member mailbox routes, drafts and replies, idempotency, errors, and the preview. Windows, throttling and caps
-// are in send.window.test.ts; the Gate is in send.gate.test.ts. Every output is checked against the frozen contract.
+// are in send.schedule.test.ts; the Gate is in send.gate.test.ts. Every output is checked against the frozen contract.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { draft } from "../handlers/drafts.ts";
@@ -11,7 +11,7 @@ import { rig, row, sendIn, seedDomain } from "./send.rig.test.ts";
 import type { Rig } from "./send.rig.test.ts";
 
 const TRACE = "0123456789abcdef0123456789abcdef";
-const SATURDAY_3AM = 1_760_151_600_000;   // 2025-10-11 03:00 UTC, outside the default window
+const SATURDAY_3AM = 1_760_151_600_000;   // 2025-10-11 03:00 UTC
 
 async function refused(p: Promise<unknown>, code: string): Promise<void> {
   await assert.rejects(p, (e: unknown) => {
@@ -28,10 +28,10 @@ function seedParent(r: Rig, id: string, o: { inboxes: string[]; rfc: string; thr
       id, "mailboxId", "inboxIds", "providerId", "rfcMessageId", "threadId", direction, status,
       "fromAddress", "toAddresses", "ccAddresses", subject, snippet, body, "sentAt", "contactId",
       "isPrivate", attachments, "draftedByAgent", "traceId", version, updated_at, deleted_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, o.inboxes[0] ?? "", JSON.stringify(o.inboxes), "pid_parent", o.rfc, o.thread, "in", "received",
     "pat@acme.test", JSON.stringify([{ address: "hello@vyre.test" }]), "[]", "Question", "Question", "Question", NOW, null,
-    0, null, "[]", null, TRACE, 1, NOW, null,
+    0, "[]", null, TRACE, 1, NOW, null,
   );
 }
 
@@ -65,7 +65,6 @@ test("a Space send goes out through the Resend domain with the trace header, a s
   assert.equal(r.h.rows(`SELECT * FROM mail_body WHERE "messageId" = ?`, id)[0]!.text, "Hi Pat");
   assert.equal(r.h.rows(`SELECT * FROM mail_rfc WHERE "messageId" = ?`, id).length, 1);
   assert.equal(r.h.rows(`SELECT * FROM mail_seen WHERE "messageId" = ?`, id)[0]!.source, "resend");
-  assert.deepEqual(rows(r, "mail_send_log").map((l) => [l.mailboxId, l.throttleKey, l.address]), [["mbx_hello", "domain:vyre.test", "pat@acme.test"]]);
   assert.deepEqual(r.h.named("message.sent").map((e) => [e.subject, e.payload]), [
     [`mail_message/${id}`, { messageId: id, channel: "email", mailboxId: "mbx_hello", contactId: "rec_pat01" }],
   ]);
@@ -108,11 +107,9 @@ test("a provider failure marks the row failed and writes no counter, and the sam
   r.state.failNext = "provider.rate_limited";
   await refused(send(r.ctx, input), "provider.rate_limited");
   assert.deepEqual(rows(r, "mail_message").map((m) => m.status), ["failed"]);
-  assert.equal(rows(r, "mail_send_log").length, 0);
   const out = await send(r.ctx, input);
   assert.equal(out.status, "sent");
   assert.deepEqual(rows(r, "mail_message").map((m) => m.status).sort(), ["failed", "sent"]);
-  assert.equal(rows(r, "mail_send_log").length, 1);
 });
 
 test("the same idempotency key runs the send once and returns the first answer", async () => {
@@ -154,7 +151,6 @@ test("a suppressed address is left out, named in the answer and raises message.s
   assert.deepEqual(r.h.named("message.suppressed").map((e) => [e.subject, e.payload]), [
     ["address/bounced@acme.test", { channel: "email", address: "bounced@acme.test", reason: "bounce_hard" }],
   ]);
-  assert.deepEqual(rows(r, "mail_send_log").map((l) => l.address).sort(), ["lee@acme.test", "pat@acme.test"]);
   assert.deepEqual(r.calls("contacts.suppression.check")[0]!.input, { channel: "email", addresses: ["pat@acme.test", "bounced@acme.test", "lee@acme.test"] });
 });
 
@@ -166,7 +162,6 @@ test("when every recipient is suppressed nothing is sent or stored", async () =>
   assert.deepEqual(contractErrors("mail.send", "out", out), []);
   assert.equal(r.sent().length, 0);
   assert.equal(rows(r, "mail_message").length, 0);
-  assert.equal(rows(r, "mail_send_log").length, 0);
   assert.deepEqual(r.h.named("message.suppressed").map((e) => e.payload), [
     { channel: "email", address: "bounced@acme.test", reason: "bounce_hard" },
     { channel: "email", address: "gone@acme.test", reason: "unsubscribe" },
@@ -359,30 +354,19 @@ test("the preview names who would be sent to, who is suppressed and the route, a
   assert.deepEqual(contractErrors("mail.send_preview", "in", input), []);
   const out = await sendPreview(r.ctx, input);
   assert.deepEqual(out, {
-    allowed: ["pat@acme.test"], suppressed: [{ address: "bounced@acme.test", reason: "complaint" }], outsideWindow: [], capRemainingToday: 30, providerRoute: "space_domain",
+    allowed: ["pat@acme.test"], suppressed: [{ address: "bounced@acme.test", reason: "complaint" }], providerRoute: "space_domain",
   });
   assert.deepEqual(contractErrors("mail.send_preview", "out", out), []);
   assert.equal(r.sent().length, 0);
-  assert.equal(rows(r, "mail_message").length + rows(r, "mail_send_log").length, 0);
+  assert.equal(rows(r, "mail_message").length, 0);
   assert.equal(r.h.emitted.length, 0);
-  await send(r.ctx, sendIn());
-  assert.equal((await sendPreview(r.ctx, input)).capRemainingToday, 29);
 });
 
-test("the preview outside the window lists the recipients that would wait and when the window opens", async () => {
-  const r = rig();
-  r.goto(SATURDAY_3AM);
-  const out = await sendPreview(r.ctx, { mailboxId: "mbx_hello", to: [{ address: "pat@acme.test" }] });
-  assert.deepEqual([out.allowed, out.outsideWindow, out.nextWindowAt], [["pat@acme.test"], ["pat@acme.test"], 1_760_342_400_000]);   // Monday 08:00 UTC
-  assert.deepEqual(contractErrors("mail.send_preview", "out", out), []);
-});
-
-test("the preview of a person's own mailbox has no caps or window, and a paused mailbox does not stop it", async () => {
+test("a paused mailbox does not stop the preview of a person's own mailbox", async () => {
   const r = rig();
   r.ctx.db.run(`UPDATE mail_mailbox SET paused = ?, state = ? WHERE id = ?`, 1, "paused", "mbx_maya");
-  r.goto(SATURDAY_3AM);
   const out = await sendPreview(r.ctx, { mailboxId: "mbx_maya", to: [{ address: "pat@acme.test" }] });
-  assert.deepEqual(out, { allowed: ["pat@acme.test"], suppressed: [], outsideWindow: [], providerRoute: "mailbox" });
+  assert.deepEqual(out, { allowed: ["pat@acme.test"], suppressed: [], providerRoute: "mailbox" });
 });
 
 test("the preview checks the same recipients and mailbox as the send", async () => {

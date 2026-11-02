@@ -13,7 +13,7 @@ import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 import type { Daemon } from "../src/daemon/daemon.ts";
 
-const L8 = ["campaigns", "email-builder-api", "esign", "forms", "portal", "sites", "templates"];
+const L8 = ["email-builder-api", "esign", "forms", "portal", "sites", "templates"];
 // sites is live with every capability deferred (ruling 60, docs/deferred.md); portal is live since P-L8_17 (its mailer sends through mail.send from the service mailbox).
 const GAP: string[] = [];
 const OWNER_TOKEN = "tok-usr_olivia";
@@ -72,13 +72,13 @@ test("l8 live: every L8 module is live in host/modules.json", () => {
   for (const m of file.modules.filter((x) => x.owner === "L8")) assert.equal(m.status, GAP.includes(m.id) ? "stub" : "live", `${m.id} status`);
 });
 
-test("l8 live: a booted daemon wires forms and campaigns and reports no live L8 module as not set up", async () => {
+test("l8 live: a booted daemon wires forms and mail links and reports no live L8 module as not set up", async () => {
   const dir = seededDir();
   const d = await boot(dir);
   try {
     const live = L8.filter((m) => !GAP.includes(m));
     assert.deepEqual((d.seams?.missing ?? []).filter((m) => m.module !== undefined && live.includes(m.module)), [], "no live L8 module is reported as not set up");
-    for (const setter of ["setFormsHost", "setCampaignsHost"]) assert.ok((d.seams?.wired ?? []).includes(setter), `${setter} is wired`);
+    for (const setter of ["setFormsHost", "setMailLinksHost"]) assert.ok((d.seams?.wired ?? []).includes(setter), `${setter} is wired`);
   } finally { await d.stop(); }
 });
 
@@ -87,7 +87,7 @@ let shared: Daemon | null = null;
 test("l8 live: boot a daemon on the seeded Space", async () => { shared = await boot(seededDir()); });
 const live = (): Daemon => { assert.ok(shared, "the daemon booted"); return shared; };
 
-for (const cap of ["forms.list", "campaigns.list", "email_builder.list", "esign.providers", "esign.list", "templates.list"]) {
+for (const cap of ["forms.list", "email_builder.list", "esign.providers", "esign.list", "templates.list"]) {
   test(`l8 live: the owner reads ${cap}`, async () => { await ok(live(), OWNER_TOKEN, cap, {}); });
 }
 test("l8 live: the owner creates a form and it is listed", async () => {
@@ -96,9 +96,8 @@ test("l8 live: the owner creates a form and it is listed", async () => {
   const listed = (await ok(live(), OWNER_TOKEN, "forms.list", {})) as { forms: unknown[] };
   assert.ok(listed.forms.length >= 1, "the form is listed");
 });
-// campaigns.create and email_builder.create are declared `make: [type, "/name"]` in the frozen manifests: the new resource's parent is read from the name, so the pipeline answers permission.not_found for any
+// email_builder.create is declared `make: [type, "/name"]` in the frozen manifests: the new resource's parent is read from the name, so the pipeline answers permission.not_found for any
 // caller (CONTRACT-CHANGE request to the steward, on P-L8_LIVE). Until that is fixed the write proofs for these two modules are other writes and a read.
-test("l8 live: the owner reads the campaign link builder", async () => { await ok(live(), OWNER_TOKEN, "campaigns.link_build", { url: "https://example.com", source: "newsletter", medium: "email", campaign: "welcome" }); });
 test("l8 live: the owner saves an email snippet", async () => { await ok(live(), OWNER_TOKEN, "email_builder.snippets.save", { name: "Sign-off", body: "Thanks," }); });
 test("l8 live: choosing Documenso before its container is connected is refused with a typed precondition", async () => {
   const r = await post(live(), OWNER_TOKEN, "esign.provider_set", { provider: "documenso" });
@@ -112,7 +111,7 @@ test("l8 live: Sites is deferred (ruling 60): registered, live, and it refuses w
   assert.equal(body.error?.message, "Not in this version yet");
 });
 test("l8 live: a member holds none of these permissions and is refused", async () => {
-  for (const [cap, body] of [["esign.provider_set", { provider: "documenso" }], ["warmup.status", {}]] as const) {
+  for (const [cap, body] of [["esign.provider_set", { provider: "documenso" }], ["mail.domain.add", { idempotencyKey: "l8-domain", name: "mail.example.test", provider: "resend" }]] as const) {
     const r = await post(live(), MEMBER_TOKEN, cap, body);
     assert.equal(r.status, 403, `${cap} refuses a member`);
   }

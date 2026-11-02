@@ -83,11 +83,11 @@ test("with no session: the page is not the app, a bad link says so, a good one u
 
     const file = (fs.readdirSync(dir, { recursive: true }) as string[]).map((f) => path.join(dir, f)).filter((f) => f.endsWith(".db")).find((f) => {
       const probe = new DatabaseSync(f, { readOnly: true });
-      try { return probe.prepare("SELECT 1 FROM sqlite_master WHERE name = 'campaigns_unsub'").get() !== undefined; } finally { probe.close(); }
+      try { return probe.prepare("SELECT 1 FROM sqlite_master WHERE name = 'mail_unsub'").get() !== undefined; } finally { probe.close(); }
     });
-    assert.ok(file, "the store with the campaign tables");
+    assert.ok(file, "the store with the mail tables");
     const db = new DatabaseSync(file);
-    db.prepare("INSERT INTO campaigns_unsub (token_hash, campaign_id, member_id, address, used_at) VALUES (?, ?, ?, ?, ?)").run(crypto.createHash("sha256").update(TOKEN).digest("hex"), "cmp_gone", "mem_gone", "dana@fox.test", null);
+    db.prepare("INSERT INTO mail_unsub (token_hash, address, created_at, used_at) VALUES (?, ?, ?, ?)").run(crypto.createHash("sha256").update(TOKEN).digest("hex"), "dana@fox.test", 1, null);
     db.close();
     const good = await fetch(`${d.url}/p/u/${TOKEN}`, { method: "POST" });
     assert.equal(good.status, 200, await good.clone().text());

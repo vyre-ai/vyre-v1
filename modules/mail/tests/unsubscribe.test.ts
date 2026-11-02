@@ -62,11 +62,24 @@ test("mail nobody asked a link for has none: a person's message, a sign-in link"
   assert.equal(r.h.rows("SELECT * FROM mail_unsub").length, 0);
 });
 
-test("with no public address the mail still goes, without a link that could open nothing", async () => {
+test("with no public address one email to one person still goes, without a link that could open nothing", async () => {
   setMailLinksHost({});
   const r = rig(flow);
   assert.equal((await send(r.ctx, sendIn({ unsubscribe: true }))).status, "sent");
   assert.equal(sentBody(r).text, "Hi Pat");
+  assert.equal(sentBody(r).headers["List-Unsubscribe"], undefined);
+});
+
+test("with no public address a mailing to several people is refused in plain words and nothing leaves", async () => {
+  setMailLinksHost({});
+  const r = rig(flow);
+  await assert.rejects(send(r.ctx, sendIn({ to: [{ address: "pat@acme.test" }, { address: "lee@acme.test" }], unsubscribe: true })), (e: unknown) => {
+    assert.equal(codeOf(e), "validation.precondition_failed");
+    assert.match((e as { error: { message: string } }).error.message, /no public address yet, so its emails could not carry an unsubscribe link/);
+    return true;
+  });
+  assert.equal(r.sent().length, 0);
+  assert.equal(r.h.rows("SELECT * FROM mail_message").length, 0);
 });
 
 test("several recipients get one message each with their own link, and a retry sends nothing twice", async () => {

@@ -118,7 +118,6 @@ test("a place whose list is empty says so with the shared empty state", async ()
   const { rt, sample } = runtimeFor("northwind", true);
   (sample.replica as unknown as Loose).resolve("sites.list", () => ({ sites: [] }));
   (sample.replica as unknown as Loose).resolve("forms.list", () => ({ forms: [] }));
-  (sample.replica as unknown as Loose).resolve("campaigns.list", () => ({ campaigns: [] }));
   (sample.replica as unknown as Loose).resolve("templates.list", () => ({ templates: [] }));
   const out = await mount("sites", rt);
   assert.ok(out.includes("No forms yet."));
