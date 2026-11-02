@@ -403,7 +403,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
 
     // 7 commit: events, inline projections and the audit row land together
     const finishOutput=SCOPED_RECORD_READS.has(c.name)&&!(seed.preAuth&&isHostService(seed.principal))?await deps.recordAccess?.project(c.name,input,seed,output,traceId):undefined;
-    const audited = shouldAudit(c) || seed.auditAll === true;
+    // an agent's change is audited like any sensitive act, so the log always says which agent did what for whom (a person's own file write is not)
+    const audited = shouldAudit(c) || seed.auditAll === true || (seed.principal.kind === "agent" && c.effects !== "read");
     const targets = audited ? auditTargets(c.name, input, output) : undefined;
     const auditRow: AuditRow | null = audited
       ? { class: "allow", cap: c.name, v: c.v, principal: seed.principal.id, actingFor: seed.actingFor, decisionId: did(), reason: "ok", resource, traceId, spanId: trace.spanId, at: t, risk: c.risk, ...(targets ? { targets } : {}) }

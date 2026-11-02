@@ -25,3 +25,4 @@
 - Share on a Vault item opens a list of people and agents to share it with.
 - Admin activity in Console no longer ends with "Someone".
 - Making a Journey opens it, not the empty Automations page.
+- Every change an agent makes, a file write included, is in the audit log with who it acted for.
