@@ -38,6 +38,12 @@ type In = {
   decisionId: string;
   runId?: string;
   threadId?: string;
+  step?: {
+    automationId: string;
+    nodeId: string;
+    defHash: string;
+    ask?: boolean;
+  };
   idempotencyKey: string;
 };
 ```
@@ -78,6 +84,12 @@ type Out = {
       "kind": "person"
     },
     "runId": "run_a1b2c3",
+    "step": {
+      "ask": true,
+      "automationId": "aut_a1b2c3",
+      "defHash": "example",
+      "nodeId": "example"
+    },
     "threadId": "thr_a1b2c3"
   },
   "output": {

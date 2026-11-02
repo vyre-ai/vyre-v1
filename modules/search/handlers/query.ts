@@ -1,5 +1,5 @@
 // The read side of the search module (spec b11, ARCH 9): Cmd-K's server half. One query is answered from the full text index and the vectors, then every candidate is passed through
-// `authorize` as the asker, so a row the asker cannot read never appears (and an end-to-end row is not here to find). 1-2 characters are type-ahead, newest first; from three
+// `authorize` as the asker, so a row the asker cannot read never appears (and a private row is not here to find). 1-2 characters are type-ahead, newest first; from three
 // characters BM25 ranks every match (title over body); semantic and hybrid fuse the vector ranks with the full text ranks and recency. Also here: Recent, Related, the > actions
 // and `mergeHits`, which the client uses to put the server's answer after the local one.
 import { DIM, LABELS, askerOf, docOf, embed, ensure, matchText, rowsOf, str, vectorsOf, wordsOf } from "../projections.ts";

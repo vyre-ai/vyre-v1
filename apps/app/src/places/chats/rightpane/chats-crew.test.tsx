@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ChatRightPane } from "./ChatRightPane.tsx";
 import { crewMerge, crewStop } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
-import { canMerge, canStop } from "./CrewTab.tsx";
+import { canMerge, canRunAgain, canStop } from "./CrewTab.tsx";
 import { crewNote, tabsOf } from "./model.ts";
 import type { CrewJob, TabKey } from "./model.ts";
 import { SAMPLE_NOW, createSample } from "./sample.ts";
@@ -73,4 +73,19 @@ test("Merge and Stop write through one capability each, change what the next ren
 test("a Personal Space says its crew works while this computer is on; a team Space does not", () => {
   assert.ok(html(createSample("personal", { crew: true }), "crew").includes("Runs while this computer is on"));
   assert.ok(!html(createSample("northwind", { crew: true }), "crew").includes("Runs while this computer is on"));
+});
+
+test("a Job the server lost asks; it never runs again by itself, and a paused one says why", () => {
+  const job = (state: CrewJob["state"]): CrewJob => ({ jobId: "j", threadId: "t", leadThreadId: "l", projectId: "p", agentId: "a", title: "T", branch: "b", base: "main", state, startedAt: 1 });
+  assert.equal(canRunAgain(job("lost")), true);
+  assert.equal(canRunAgain(job("done")), false);
+  assert.equal(canStop(job("paused")), true);
+  assert.match(crewNote(job("lost"), { now: 1000 } as never), /run it again/);
+  assert.equal(crewNote(job("paused"), { now: 1000 } as never), "Paused with its agent");
+});
+
+test("a Personal Space's Crew tab draws with nothing in it (as it does while the list loads)", () => {
+  const s = createSample("personal", { crew: true });
+  s.replica.resolve("engine.crew.list", () => ({ jobs: [], waits: [] }));
+  assert.doesNotThrow(() => html(s, "crew"));
 });

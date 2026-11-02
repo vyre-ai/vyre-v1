@@ -23,6 +23,9 @@ import { withTranscript } from "./transcript.ts";
 import { recordAccountLimits } from "./handlers/usage.ts";
 import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
 import { onTurnEnded, resumeTasks } from "./handlers/task-baton.ts";
+import { ensureExtra } from "./handlers/extra/schema.ts";
+import { createKeepAwake } from "./keep-awake.ts";
+import { coalesceLive } from "./live-coalesce.ts";
 import { defaultSandbox } from "./sandbox-default.ts";
 import { closePluginRuntime, pluginRuntime } from "./plugin-host.ts";
 import { bindOauthStore } from "./mcp-oauth.ts";
@@ -74,19 +77,20 @@ export interface EngineHostSeam {
 }
 
 interface AccountRow { ref: string; driver: string; kind: "api_key" | "subscription"; base?: string; keyless?: boolean }
-interface ResolveOut { accountRef: string | null; payer: string | null; reason: ResolvedAccount["reason"]; allowed: boolean; itemId?: string }
+interface ResolveOut { accountRef: string | null; payer: string | null; reason: ResolvedAccount["reason"]; allowed: boolean; itemId?: string; fellBack?: boolean }
 
 /** The provider a driver belongs to, for the session spec; the CLI engines run their vendor's models. */
 const PROVIDER_OF_DRIVER: Readonly<Record<string, string>> = Object.freeze({ claude_code: "anthropic", codex: "openai", grok: "xai" });
 export const providerOfDriver = (driver: string): string => PROVIDER_OF_DRIVER[driver] ?? driver;
 
+const awake = createKeepAwake();
 let host: EngineHostSeam | null = null;
 let building: Promise<TurnEngine | null> | null = null;
 let closeOpener: (() => Promise<void>) | null = null;
 
 /** The module's seam: the daemon calls this at boot with the host half (null at shutdown). */
 export function setEngineHost(h: EngineHostSeam | null): void {
-  if (h === null) void closePluginRuntime();   // plugin servers end with the daemon
+  if (h === null) { void closePluginRuntime(); awake.stop(); }   // plugin servers end with the daemon, and so does holding the computer awake
   // At shutdown the engine processes end and MCP tokens are revoked, and then the default sandbox's wall (its egress proxy) stops: the proxy outlives nothing it served, and nothing keeps the daemon's process alive.
   if (h === null) void (closeOpener ? closeOpener().catch(() => undefined) : Promise.resolve()).then(() => closeDefaultSandbox()).catch(() => undefined);
   closeOpener = null;
@@ -105,7 +109,7 @@ export function sandboxPlan(): Promise<SandboxPlan> {
   return Promise.reject(new Error("no sandbox is set up on this computer"));
 }
 
-async function resolveOne(h: EngineHostSeam, q: AccountQuery): Promise<ResolvedAccount | null> {
+export async function resolveOne(h: Pick<EngineHostSeam, "call" | "log">, q: AccountQuery): Promise<ResolvedAccount | null> {
   const res = (await h.call("engine.account.resolve", { threadId: q.threadId, agentId: q.agentId, askerId: q.askerId, ...(q.stepKey ? { stepKey: q.stepKey } : {}), ...(q.unavailable?.length ? { unavailable: [...q.unavailable] } : {}) }, q.askerId)) as ResolveOut;
   if (!res.allowed || !res.accountRef || !res.payer) {
     h.log?.("no account can pay for this turn", { threadId: q.threadId, agentId: q.agentId, asker: q.askerId, allowed: res.allowed, reason: res.reason, accountRef: res.accountRef ?? null });
@@ -114,7 +118,7 @@ async function resolveOne(h: EngineHostSeam, q: AccountQuery): Promise<ResolvedA
   const list = (await h.call("engine.accounts.list", {}, res.payer)) as { accounts: AccountRow[] };
   const row = list.accounts.find((a) => a.ref === res.accountRef);
   if (!row) { h.log?.("the account the turn resolved is not in the payer's list", { threadId: q.threadId, accountRef: res.accountRef, payer: res.payer }); return null; }   // the key vanished between the two calls: treat as none, the next turn asks again
-  return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(res.itemId ? { itemId: res.itemId } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}) };
+  return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(row.mine ? {} : { shared: true }), ...(res.itemId ? { itemId: res.itemId } : {}), ...(res.fellBack ? { fellBack: true } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}) };
 }
 
 /** An account whose engine can run on this computer: the pick, or another account of the person when the pick's program is not installed (runnable-account.ts). */
@@ -170,6 +174,19 @@ export async function closeNoAccountTasks(db: Db): Promise<string[]> {
     } catch (e) { h.log?.("could not close a no-account task", { taskId: t.id, error: e instanceof Error ? e.message : String(e) }); }
   }
   return closed;
+}
+
+/** The Need behind a paid fallback: one per chat, agent and key. Marking it Done is the yes: the row it leaves lets the key answer here, and the agent carries on (wakeAfterUnblock). */
+async function askToPay(h: EngineHostSeam, db: Db, q: AccountQuery, to: ResolvedAccount): Promise<void> {
+  const list = (await h.call("engine.accounts.list", {}, to.payer)) as { accounts: Array<{ ref: string; name?: string; title?: string }> };
+  const row = list.accounts.find((a) => a.ref === to.ref);
+  const name = row?.name ?? row?.title ?? to.ref;
+  const made = (await h.call("tasks.create", {
+    kind: "unblock", title: `Use ${name}?`, summary: `The account this chat runs on is out for now. ${name} could answer, and it bills for what it uses. Mark this done to let it, for this chat.`,
+    assigned: { kind: "person", id: q.askerId }, source: { kind: "chat", id: q.threadId }, idempotencyKey: `paid-fallback:${q.threadId}:${q.agentId}:${to.ref}`,
+  }, q.askerId)) as { task?: { id?: string } };
+  const taskId = made.task?.id;
+  if (taskId) db.run("INSERT OR REPLACE INTO engine_unblock (task_id, thread_id, agent_id, asker, at, paid_ref) VALUES (?, ?, ?, ?, ?, ?)", taskId, q.threadId, q.agentId, q.askerId, (h.now ?? Date.now)(), to.ref);
 }
 
 async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: ResolvedAccount | null): Promise<void> {
@@ -237,16 +254,19 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   building ??= (async () => {
     const now = h.now ?? Date.now;
     const crewWatch = h.postAs ? createCrewWatcher({ db: ctx.db, host: h, now }) : null;
-    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, stream: (e) => { h.stream?.(e); crewWatch?.(e); }, addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
+    const live = h.stream ? coalesceLive(h.stream, { now }) : null;
+    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, stream: (e) => { live?.(e); crewWatch?.(e); }, addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
     // The turn context is built as the asker before each turn (modules/engine/context.ts); what the agent waits on is read off the engine once it exists.
-    let live: TurnEngine | null = null;
+    let running: TurnEngine | null = null;
     const turnContext = createContextBuilder({
       call: h.call, skills: h.skills ?? diskSkills(), now, handoff: takeHandoff,
-      waiting: (threadId, agentId) => (live?.waiting(threadId) ?? []).filter((w) => w.agentId === agentId).map((w) => `an answer to task ${w.taskId} (a held call needs approval)`),
+      waiting: (threadId, agentId) => (running?.waiting(threadId) ?? []).filter((w) => w.agentId === agentId).map((w) => `an answer to task ${w.taskId} (a held call needs approval)`),
     });
     const limitSwitch = createLimitSwitch({
       call: h.call, accountFor: runnableAccount(h), now, ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}),
-      modelOf: (threadId, agentId) => { try { return live?.agents(threadId).find((a) => a.id === agentId)?.model; } catch { return undefined; } },
+      paidOk: (q, ref) => ctx.db.all("SELECT 1 AS x FROM engine_paid_ok WHERE thread_id = ? AND agent_id = ? AND ref = ?", q.threadId, q.agentId, ref).length > 0,
+      askToPay: (q, to) => askToPay(h, ctx.db, q, to),
+      modelOf: (threadId, agentId) => { try { return running?.agents(threadId).find((a) => a.id === agentId)?.model; } catch { return undefined; } },
       providerOf: async (ref, payer) => {
         const list = (await h.call("engine.accounts.list", {}, payer)) as { accounts: Array<{ ref: string; driver: string }> };
         const row = list.accounts.find((a) => a.ref === ref);
@@ -256,6 +276,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     const engine = createTurnEngine({
       holder: h.holder, openSession: withChatSettings(withTurnContext(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), turnContext), h.call), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
+      admit: (q) => admission(h, q),
+      lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),
       resolveAccount: (q) => limitSwitch.resolve(q),
       nextAccount: (q) => limitSwitch.next(q),
       onNoAccount: async (info) => {
@@ -266,7 +288,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       onLimits: (account, reading) => recordAccountLimits(ctx.db, account.ref, reading, now()),
       ...(apiTools ? { callTool: apiTools.runner } : {}),
     });
-    live = engine;
+    running = engine;
     // The reviewer seat: after a lead turn completes, the chat's reviewer is asked to check it.
     // Every turn this engine runs is reported to engine.turn.record under the engine's own id, in order per turn, so the turn list, review sampling and the agent's Working status see it.
     const recording = new Map<string, Promise<void>>();
@@ -285,7 +307,14 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       if (phase !== "started") void done.then(() => { if (recording.get(turnId) === done) recording.delete(turnId); });
     };
     engine.subscribe((ev) => {
-      if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") report(ev.turnId, ev);
+      if (ev.type === "turn.started") awake.up();
+      else if (ev.type === "turn.completed" || ev.type === "turn.cancelled" || (ev.type === "turn.failed" && ev.code !== "host_lost") || (ev.type === "turn.waiting" && ev.reason === "approval")) awake.down();
+      // a turn a dead host left is not in this engine's rows: its record is closed from what recover() knows, so the turn list, Try again and the agent's Working status are right
+      if (ev.type === "turn.failed" && ev.code === "host_lost") {
+        void h.call("engine.turn.record", { threadId: ev.threadId, turnId: ev.turnId, agentId: ev.agentId, phase: "failed", qseq: ev.qseq ?? 0, ...(ev.asker ? { asker: ev.asker } : {}), code: ev.code }, ev.asker)
+          .catch((err: unknown) => h.log?.("a lost turn could not be recorded", { turnId: ev.turnId, error: err instanceof Error ? err.message : String(err) }));
+      }
+      else if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") report(ev.turnId, ev);
       if (ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") {
         void onTurnEnded(ctx, { call: h.call, now, ...(h.log ? { log: h.log } : {}) }, engine, ev).catch((err) => h.log?.("a task baton check failed", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
       }
@@ -314,58 +343,61 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
  * alive and recover() answers false, so the sweep runs again from the periodic job until the lease has run out. A turn this host is running keeps its own lease, so it is never touched.
  */
 export async function recoverStale(ctx: Pick<EngineCtx, "db">, engine: TurnEngine, states: readonly string[] = ["running"]): Promise<void> {
-  const stale = ctx.db.all(`SELECT DISTINCT thread_id FROM engine_thread_queue WHERE state IN (${states.map(() => "?").join(", ")})`, ...states) as Array<{ thread_id: string }>;
+  const stale = ctx.db.all(`SELECT thread_id, MIN(from_principal) AS person FROM engine_thread_queue WHERE state IN (${states.map(() => "?").join(", ")}) GROUP BY thread_id`, ...states) as Array<{ thread_id: string; person: string }>;
   for (const r of stale) {
     try {
-      await open(ctx as EngineCtx, r.thread_id);
+      await open(ctx as EngineCtx, r.thread_id, asPerson(ctx.db, r.thread_id, r.person));
       engine.recover(r.thread_id);
     } catch { /* a thread that cannot be opened now is opened by its next message */ }
   }
 }
 
+/** Who a job of the host reads a thread as. A private chat answers only to its people, so the host asks as the person the work was for, else the person whose turn ran there last. */
+function asPerson(db: Db, threadId: string, hint: string | undefined): ((threadId: string) => Promise<unknown>) | undefined {
+  const h = host;
+  if (!h) return undefined;
+  ensureExtra(db);
+  const person = hint?.startsWith("usr_") ? hint : (db.all("SELECT asker FROM engine_turns WHERE thread_id = ? AND asker LIKE 'usr%' ORDER BY started_at DESC LIMIT 1", threadId) as Array<{ asker?: string }>)[0]?.asker;
+  return person ? (id) => h.call("threads.get", { threadId: id }, person) : undefined;
+}
+
+/** Open a thread for a job of the host, read as the person it is for. */
+export const openAs = (ctx: EngineCtx, threadId: string, person: string): Promise<TurnEngine> => open(ctx, threadId, asPerson(ctx.db, threadId, person));
+
+/** Make sure the thread a parked turn waits in is open on this host. */
+export async function openFor(ctx: EngineCtx, taskId: string): Promise<void> {
+  const w = (ctx.db.all("SELECT thread_id, asker FROM engine_waits WHERE task_id = ?", taskId) as Array<{ thread_id: string; asker: string }>)[0];
+  if (w) await open(ctx, w.thread_id, asPerson(ctx.db, w.thread_id, w.asker));
+}
+
+/** The record a queue row's turn has, else a new id for one: recover() needs one id to say everything about a lost turn under. */
+export function lostTurnId(db: Db, row: { threadId: string; qseq: number }, mint: () => string): string {
+  ensureExtra(db);
+  const r = (db.all("SELECT turn_id FROM engine_turns WHERE thread_id = ? AND qseq = ? ORDER BY started_at DESC LIMIT 1", row.threadId, row.qseq) as Array<{ turn_id: string }>)[0];
+  return r?.turn_id ?? mint();
+}
+
+/** A paused agent takes no turn and a deleted one is gone. What the agents module answers decides; if it cannot answer, the turn goes on. */
+async function admission(h: EngineHostSeam, q: { threadId: string; agentId: string; asker: string }): Promise<{ code: string; message: string } | null> {
+  let status: { status?: string; reason?: string };
+  try { status = (await h.call("agents.status", { agentId: q.agentId }, q.asker)) as { status?: string; reason?: string }; }
+  catch (e) {
+    const code = (e as { error?: { code?: string } } | null)?.error?.code;
+    return code === "validation.not_found" ? { code: "agent_gone", message: "That agent is not here any more." } : null;
+  }
+  return status.status === "paused" ? { code: "agent_paused", message: status.reason ?? "This agent is paused." } : null;
+}
+
 /** The person answered an Unblock (the task is done): wake the agent that had no account, in the same thread. */
 export async function wakeAfterUnblock(ctx: EngineCtx, taskId: string): Promise<boolean> {
-  const row = (ctx.db.all("SELECT thread_id, agent_id FROM engine_unblock WHERE task_id = ?", taskId) as Array<{ thread_id: string; agent_id: string }>)[0];
+  const row = (ctx.db.all("SELECT thread_id, agent_id, asker, paid_ref FROM engine_unblock WHERE task_id = ?", taskId) as Array<{ thread_id: string; agent_id: string; asker: string; paid_ref: string | null }>)[0];
   if (!row) return false;
+  const asker = row.asker;
   ctx.db.run("DELETE FROM engine_unblock WHERE task_id = ?", taskId);
+  if (row.paid_ref) ctx.db.run("INSERT OR REPLACE INTO engine_paid_ok (thread_id, agent_id, ref, by_person, at) VALUES (?, ?, ?, ?, ?)", row.thread_id, row.agent_id, row.paid_ref, asker, ctx.now());
   const engine = await ensureRuntime(ctx);
   if (!engine) return false;
-  await open(ctx, row.thread_id);
+  await open(ctx, row.thread_id, asPerson(ctx.db, row.thread_id, asker));
   engine.wake(row.thread_id, row.agent_id);
   return true;
-}
-
-type AnsweredRow = { messageId: string; author: { kind: string; id: string }; blocks?: Array<{ type?: string; id?: string; data?: Record<string, unknown> }> };
-
-/** The answer to a question as the agent reads it: the label of the option chosen, the words the person gave, or what a card handed back (a command's output, a folder that was mounted). */
-export function answerWords(data: Record<string, unknown>): string {
-  const options = Array.isArray(data["options"]) ? (data["options"] as Array<{ key?: unknown; label?: unknown }>) : [];
-  const one = (a: unknown): string => {
-    if (typeof a === "string") return String(options.find((o) => o.key === a)?.label ?? a);
-    if (a !== null && typeof a === "object" && typeof (a as { other?: unknown }).other === "string") return (a as { other: string }).other;
-    return JSON.stringify(a);
-  };
-  const a = data["answer"];
-  return (Array.isArray(a) ? a.map(one).join(", ") : one(a)).slice(0, 8000);
-}
-
-/**
- * A question block was answered (ask_question, a plan, a Mount card, a Run this card): the answer goes to the agent that asked it. Nothing woke the agent before, so a parked question never carried on.
- * The answer is posted in the thread as the person who gave it, mentioning the agent, which is the ordinary way an agent is told something: its next turn runs on the same account as any reply.
- */
-export async function wakeAfterAnswer(ctx: EngineCtx, event: { payload: { threadId: string; blockId: string; by: string } }): Promise<boolean> {
-  const h = host;
-  if (!h) return false;
-  const { threadId, blockId, by } = event.payload;
-  if (!by.startsWith("usr_")) return false;
-  const list = (await h.call("chat.messages.list", { threadId, limit: 100 }, by)) as { messages: AnsweredRow[] };
-  for (const m of list.messages) {
-    const b = (m.blocks ?? []).find((x) => x.id === blockId);
-    if (!b || m.author.kind !== "agent" || b.type !== "question" || b.data === undefined) continue;
-    const body = answerWords(b.data);
-    if (body === "") return false;
-    await h.call("chat.post", { threadId, body, mentions: [{ kind: "agent", id: m.author.id }], idempotencyKey: `answer:${blockId}` }, by);
-    return true;
-  }
-  return false;
 }

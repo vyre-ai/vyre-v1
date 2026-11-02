@@ -1,4 +1,4 @@
-// Settings pages that belong to the open Space: Profile (with Copy from another Space), Notifications, Models and usage, Connections, Memory and privacy.
+// The pages of You that hold your own work: Profile (with Copy from another Space), Notifications, AI (models, how agents work with you, usage, memory) and Connected.
 import { AppHubsCard } from "../../hubs/AppHubs.tsx";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
@@ -11,13 +11,13 @@ import { CopyFromSpace } from "./CopyFromSpace.tsx";
 import { MemoryKeys } from "./MemoryKeys.tsx";
 import { SignInApps } from "./SignInApps.tsx";
 import { CONNECTIONS, MODELS, NOTIFICATIONS, useIsPersonal, useSettingsData, useScreenQuery } from "./data.tsx";
-import { labelOf, moneyLabel, sectionsFor } from "./model.ts";
+import { ROW_HELP, clock, labelOf, moneyLabel, rowHelp, sectionsFor } from "./model.ts";
 import type { SettingRow } from "./model.ts";
 import { SettingRowFor, useChange } from "./rows.tsx";
 import { useSaved } from "./saved.tsx";
 import { NOT_CONNECTED, suiteSections, throughFirm } from "./suites.ts";
 import type { CalendarLite } from "./suites.ts";
-import { Choice, Field, Glyph, Section, SettingsRow, SmallButton, Value, pointer } from "./ui.tsx";
+import { Choice, Field, Glyph, Section, SettingsRow, SmallButton, Switch, Value, pointer } from "./ui.tsx";
 
 export interface PageProps { rows: readonly SettingRow[]; found: string | null }
 
@@ -52,11 +52,10 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
   const role = here?.kind === "personal" ? "" : here?.role ?? "";   // no role labels in a Personal Space
   const line = [str(handle) ? `@${str(handle)}` : "", role, str(title)].filter(Boolean).join(" · ");
   const before: ReactElement[] = [];
-  const after: ReactElement[] = [];
   for (const sec of sectionsFor("profile", rows)) {
     const items: ReactElement[] = [];
     sec.rows.forEach((r, i) => items.push(<SettingRowFor key={r.key} row={r} first={i === 0} found={found === r.key} />));
-    (sec.title === "Availability" ? before : after).push(<Section key={sec.title} title={sec.title}>{items}</Section>);
+    before.push(<Section key={sec.title} title={sec.title}>{items}</Section>);
   }
   const rowFor = (r: SettingRow | undefined, i: number, node: ReactElement, label: string, sub?: string): ReactElement | null =>
     r ? <SettingsRow key={r.key} id={r.key} label={label} first={i === 0} found={found === r.key} {...(sub ? { sub } : {})} control={node} /> : null;
@@ -68,7 +67,7 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
           <Text accessibilityRole="header" numberOfLines={1} style={s.who}>{who}</Text>
           <Text numberOfLines={1} style={s.line} testID="profile-line">{line}</Text>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Copy from another Space" testID="copy-open" onPress={() => setCopy(true)} style={[s.copyBtn, pointer]}><Glyph name="copy" size={15} color="var(--ink-3)" /></Pressable>
+        {data.spaces.length > 1 ? <Pressable accessibilityRole="button" accessibilityLabel="Copy from another Space" testID="copy-open" onPress={() => setCopy(true)} style={[s.copyBtn, pointer]}><Glyph name="copy" size={15} color="var(--ink-3)" /></Pressable> : null}
       </View>
       <Section title="About you">
         {[
@@ -86,7 +85,6 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
           <SettingsRow id="profile.contact.phone" label="Phone" control={<Field value={c.phone ?? ""} label="Phone" placeholder="Add a phone number" width={260} testID="ctl-profile.contact.phone" onCommit={(v) => void change(contact, { ...c, phone: v })} />} />
         </Section>
       ) : null}
-      {after}
       {copy ? <CopyFromSpace onClose={() => setCopy(false)} /> : null}
     </>
   );
@@ -134,7 +132,7 @@ export function NotificationsPage({ rows, found }: PageProps): ReactElement {
   const list: ReactElement[] = [];
   (kinds?.kinds ?? []).forEach((k, i) => {
     const level = levels[k.key] ?? k.level;
-    list.push(<SettingsRow key={k.key} id={`kind.${k.key}`} label={k.title} first={i === 0} control={<Choice value={level} options={LEVELS} label={k.title} testID={`kind-${k.key}`} onChange={(v) => setLevel(k.key, level, v)} />} />);
+    list.push(<SettingsRow key={k.key} id={`kind.${k.key}`} label={k.title} first={i === 0} help="Interrupt rings your desktop and phone. Badge only adds a dot. Digest waits for your next summary." control={<Choice value={level} options={LEVELS} label={k.title} testID={`kind-${k.key}`} onChange={(v) => setLevel(k.key, level, v)} />} />);
   });
   const muteRows: ReactElement[] = [];
   if (mutes.status === "ready") {
@@ -149,21 +147,62 @@ export function NotificationsPage({ rows, found }: PageProps): ReactElement {
     <>
       <Section title="Notify me on" testID="notify-me-on">{list}</Section>
       <RegistrySections page="notifications" rows={rows} found={found} />
+      <QuietHours rows={rows} found={found} />
+      <AwayHand rows={rows} found={found} />
       {muteRows.length > 0 ? <Section title="Muted">{muteRows}</Section> : null}
     </>
   );
 }
+interface Quiet { on: boolean; from: string; to: string; needs: boolean }
+const HALF_HOURS: readonly { value: string; label: string }[] = Array.from({ length: 48 }, (_, i) => { const v = `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 === 0 ? "00" : "30"}`; return { value: v, label: clock(v) }; });
+
+/** Quiet hours: one switch, then the two times and Needs you only while it is on. */
+function QuietHours({ rows, found }: PageProps): ReactElement | null {
+  const change = useChange();
+  const row = rowOf(rows, "notifications.quiet_hours");
+  if (!row) return null;
+  const q = row.value as Quiet;
+  const times = (at: "from" | "to", label: string): ReactElement => <Choice value={q[at]} options={HALF_HOURS} label={label} testID={`ctl-quiet-${at}`} onChange={(v) => void change(row, { ...q, [at]: v })} />;
+  return (
+    <Section title="Quiet hours">
+      <SettingsRow id={row.key} label="Quiet hours" help={ROW_HELP[row.key]!} first found={found === row.key} inline control={<Switch on={q.on} label="Quiet hours" testID="ctl-quiet-on" onChange={(on) => void change(row, { ...q, on })} />} />
+      {q.on ? <SettingsRow id="quiet.from" label="From" control={times("from", "Quiet from")} /> : null}
+      {q.on ? <SettingsRow id="quiet.to" label="To" control={times("to", "Quiet until")} /> : null}
+      {q.on ? <SettingsRow id="quiet.needs" label="Let Needs you through" help="Needs you still reaches you during quiet hours." inline control={<Switch on={q.needs} label="Let Needs you through" testID="ctl-quiet-needs" onChange={(needs) => void change(row, { ...q, needs })} />} /> : null}
+    </Section>
+  );
+}
+
+type PeopleOut = CapMap["access.principals.list"]["out"];
+
+/** While you are away: who your Needs you goes to. A Personal Space has nobody to hand it to. */
+function AwayHand({ rows, found }: PageProps): ReactElement | null {
+  const data = useSettingsData();
+  const change = useChange();
+  const personal = useIsPersonal();
+  const people = useRead<PeopleOut>("access.principals.list", { kind: "person", status: "active", limit: 100 });
+  const row = rowOf(rows, "notifications.hand_needs_you_to");
+  if (!row || personal) return null;
+  const options: { value: string; label: string }[] = [{ value: "", label: "Nobody" }];
+  for (const p of people?.principals ?? []) if (p.id !== data.me.id) options.push({ value: p.id, label: p.name });
+  return (
+    <Section title="While you are away">
+      <SettingsRow id={row.key} label="Hand Needs you to" help={rowHelp(row)!} first found={found === row.key} control={<Choice value={typeof row.value === "string" ? row.value : ""} options={options} label="Hand Needs you to" testID="ctl-hand-to" onChange={(v) => void change(row, v === "" ? null : v)} />} />
+    </Section>
+  );
+}
+
 /** How each level reaches the person: interrupt rings the desktop and the phone, badge adds a dot only, digest waits for While you were away. A level the Space holds higher (approvals) refuses with its reason. */
 const LEVELS: readonly { value: string; label: string }[] = [{ value: "interrupt", label: "Interrupt" }, { value: "badge", label: "Badge only" }, { value: "digest", label: "Digest" }];
 
-// ---------------------------------------------------------------- Models and usage
+// ---------------------------------------------------------------- AI
 
 type AccountsOut = CapMap["engine.accounts.list"]["out"];
 type DefaultsOut = CapMap["engine.defaults.get"]["out"];
 type ModelsOut = CapMap["engine.models.list"]["out"];
 type UsageOut = CapMap["engine.usage.query"]["out"];
 
-export function ModelsPage({ rows, found }: PageProps): ReactElement {
+export function AiPage({ rows, found }: PageProps): ReactElement {
   const data = useSettingsData();
   const saved = useSaved();
   const defaults = useScreenQuery<DefaultsOut>(MODELS, "defaults", {});
@@ -205,15 +244,16 @@ export function ModelsPage({ rows, found }: PageProps): ReactElement {
   return (
     <>
       <Section>
-        <SettingsRow id="model.default" label="Default model" first control={<Choice value={cur} options={options} label="Default model" testID="ctl-model-default" onChange={(v) => setDefault(v, "model")} />} />
-        <SettingsRow id="model.fallback" label="Fallback model" control={<Choice value={fb} options={options} label="Fallback model" testID="ctl-model-fallback" onChange={(v) => setDefault(v, "fallback")} />} />
+        <SettingsRow id="model.default" label="Default model" help={ROW_HELP["model.default"]!} first found={found === "model.default"} control={<Choice value={cur} options={options} label="Default model" testID="ctl-model-default" onChange={(v) => setDefault(v, "model")} />} />
+        <SettingsRow id="model.fallback" label="Fallback model" help={ROW_HELP["model.fallback"]!} found={found === "model.fallback"} control={<Choice value={fb} options={options} label="Fallback model" testID="ctl-model-fallback" onChange={(v) => setDefault(v, "fallback")} />} />
       </Section>
+      <RegistrySections page="ai" rows={rows} found={found} />
       {use.length > 0 ? <Section title="You and your agents this month" testID="usage">{use}</Section> : null}
-      <RegistrySections page="models" rows={rows} found={found} />
-      <Section title="Providers">
+      <Section title="AI accounts">
         {acc}
-        <SettingsRow id="open-vault" label="Open Vault" lead={<Glyph name="key" size={15} />} first={acc.length === 0} onPress={() => data.nav.openVault()} control={<Glyph name="chevR" size={13} />} />
+        <SettingsRow id="open-vault" label="Sign-ins and keys" sub="Add an account, or let the Space use yours" lead={<Glyph name="key" size={15} />} first={acc.length === 0} onPress={() => data.nav.openVault()} control={<Glyph name="chevR" size={13} />} />
       </Section>
+      <MemoryKeys />
     </>
   );
 }
@@ -224,7 +264,7 @@ type MailboxesOut = CapMap["mail.mailbox.list"]["out"];
 const PROVIDER: Record<string, string> = { google: "Google", microsoft: "Microsoft", imap: "IMAP", inbound_only: "Receive only" };
 const STATE: Record<string, string> = { pending: "Connecting", syncing: "Syncing", paused: "Paused", error: "Needs attention", disconnected: "Disconnected" };
 
-export function ConnectionsPage({ rows, found }: PageProps): ReactElement {
+export function ConnectedPage({ rows, found }: PageProps): ReactElement {
   const data = useSettingsData();
   const saved = useSaved();
   const boxes = useScreenQuery<MailboxesOut>(CONNECTIONS, "mailboxes", {});
@@ -280,18 +320,7 @@ export function ConnectionsPage({ rows, found }: PageProps): ReactElement {
       </Section>
       <Section title="App hubs"><AppHubsCard call={data.call} /></Section>
       <SignInApps />
-      <RegistrySections page="connections" rows={rows} found={found} />
-    </>
-  );
-}
-
-// ---------------------------------------------------------------- Memory and privacy
-
-export function PrivacyPage({ rows, found }: PageProps): ReactElement {
-  return (
-    <>
-      <RegistrySections page="privacy" rows={rows} found={found} />
-      <MemoryKeys />
+      <RegistrySections page="connected" rows={rows} found={found} />
     </>
   );
 }

@@ -474,6 +474,7 @@ export async function connect(ctx: MailCtx, input: ConnectIn): Promise<{ mailbox
   const imap = input.provider === "imap" ? requireImap(ctx, input.imap) : null;
   if (imap) await probeImap(ctx, imap);
   const own = input.connectionId;
+  if (!imap && own === undefined) await mustBeOwnAddress(ctx, input.provider as "google" | "microsoft", address);
   if (own !== undefined && !(USER_CONNECTION.test(own) && own.startsWith(input.provider === "google" ? "gua_" : "mua_"))) bad(ctx, "That is not a sign-in for this provider.");
 
   const id = newId("mbx", ctx.now());
@@ -500,6 +501,17 @@ export async function connect(ctx: MailCtx, input: ConnectIn): Promise<{ mailbox
   const row = loadMailbox(ctx, id);
   if (!row) bad(ctx, "Mailbox does not exist.");
   return { mailbox: mailboxOut(row) };
+}
+
+/**
+ * With no sign-in of the person's own, a Google or Microsoft mailbox is read through the Space's delegation, which can act as anyone in the domain. So a person, or an agent working for one, may name only the address they are matched to; without this a member could read a colleague's mail by typing their address.
+ * An IMAP mailbox proves itself with its password, and a person's own sign-in with that sign-in. No answer means no match: the mailbox is refused rather than opened on trust.
+ */
+async function mustBeOwnAddress(ctx: MailCtx, provider: "google" | "microsoft", address: string): Promise<void> {
+  if (ctx.principal.kind !== "person" && ctx.actingFor === undefined) return;
+  const mine = await ctx.call(provider === "google" ? "google.dwd.my_account" : "ms.consent.my_account", {}).catch(() => null) as { email?: string } | null;
+  if (typeof mine?.email === "string" && normalizeEmail(mine.email) === address) return;
+  throw fail("permission.no_grant", ctx.trace.traceId, { message: "You can connect only the Workspace address matched to you. Sign in to connect another mailbox." });
 }
 
 function duplicateMailbox(ctx: MailCtx, address: string, provider: string, ownerId: string | null, agentId: string | null): boolean {

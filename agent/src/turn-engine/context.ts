@@ -22,9 +22,9 @@
 import type { SystemBlock } from "../drivers/api/types.ts";
 import { fingerprint } from "../drivers/api/prefix.ts";
 
-export type SectionId = "identity" | "rules" | "where" | "memory" | "skills" | "can" | "task" | "digest" | "earlier" | "handoff" | "screen" | "focus" | "now" | "waiting";
+export type SectionId = "identity" | "rules" | "where" | "memory" | "skills" | "can" | "task" | "parent" | "digest" | "earlier" | "handoff" | "screen" | "focus" | "now" | "waiting";
 
-export const SECTION_ORDER: readonly SectionId[] = ["identity", "rules", "where", "memory", "skills", "can", "task", "digest", "earlier", "handoff", "screen", "focus", "now", "waiting"];
+export const SECTION_ORDER: readonly SectionId[] = ["identity", "rules", "where", "memory", "skills", "can", "task", "parent", "digest", "earlier", "handoff", "screen", "focus", "now", "waiting"];
 
 export interface ContextSection {
   id: SectionId;

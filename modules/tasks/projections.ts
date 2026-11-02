@@ -120,6 +120,7 @@ function randomHex(n: number): string {
 export interface Policy { reviewLoopLimit: number; allowSelfReview: boolean; requireHumanApprover: boolean }
 export const POLICY_DEFAULTS: Policy = { reviewLoopLimit: 2, allowSelfReview: false, requireHumanApprover: false };
 
+const POLICY_KEYS: ReadonlySet<string> = new Set(["tasks.review_loop_limit", "tasks.allow_self_review", "tasks.require_human_approver"]);
 export function readPolicy(db: Db): Policy {
   const p: Policy = { ...POLICY_DEFAULTS };
   for (const r of db.all("SELECT policy_key, policy_value FROM tasks_policy") as { policy_key: string; policy_value: string }[]) {
@@ -130,6 +131,17 @@ export function readPolicy(db: Db): Policy {
     if (r.policy_key === "tasks.require_human_approver" && typeof v === "boolean") p.requireHumanApprover = v;
   }
   return p;
+}
+
+/**
+ * The tasks.* settings live in the settings module and a module reads only its own tables, so this keeps the copy `readPolicy` reads, from settings.changed. A reset announces the
+ * shipped default as `after`, which reads the same as no row.
+ */
+export function syncPolicy(db: Db, p: Record<string, unknown>): boolean {
+  const key = String(p["key"] ?? "");
+  if (!POLICY_KEYS.has(key) || p["scope"] !== "space" || p["after"] === undefined) return false;
+  db.run("INSERT OR REPLACE INTO tasks_policy (policy_key, policy_value) VALUES (?, ?)", key, JSON.stringify(p["after"]));
+  return true;
 }
 
 // ---- row <-> task ----
@@ -414,6 +426,9 @@ export interface NeedsItem { task: Task; reason: Reason; handledBy?: string }
 
 const startOfDay = (ms: number): number => Math.floor(ms / DAY) * DAY;   // days are UTC until the per-person time zone lands with settings
 
+/** An Approve that was sent back stays open for the requester's thread, and nobody is waiting on it. */
+const sentBack = (t: Task): boolean => t.kind === "approve" && t.state === "doing";
+
 /** The Needs you rule of spec 2.8: my Ready requests (Approve, Review, Answer, Unblock), or tasks due today or overdue, or tasks that block someone.
  *  Snoozed requests are hidden until their time. Requests I did not get to because a role-mate acted show "handled by". */
 export function needsYou(ctx: TasksCtx): NeedsItem[] {
@@ -429,7 +444,7 @@ export function needsYou(ctx: TasksCtx): NeedsItem[] {
     let reason: Reason | null = null;
     if (t.due !== undefined && t.due < startOfDay(now)) reason = "overdue";
     else if (t.due !== undefined && t.due < eod) reason = "due_today";
-    else if (isRequest(t.kind) && !isBlocked(t, idx) && actionableByMe(ctx, t)) reason = "ready";
+    else if (isRequest(t.kind) && !sentBack(t) && !isBlocked(t, idx) && actionableByMe(ctx, t)) reason = "ready";
     else if (idx.blocking.has(t.id)) reason = "blocking";
     if (reason) items.push({ task: t, reason });
   }

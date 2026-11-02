@@ -25,5 +25,8 @@ Area: sites. Risk: medium. Applies to: site.
 - sites.logs
 - sites.preview_rebuild
 - sites.preview_remove
+- sites.promote
+- sites.publish
 - sites.staging_password_set
+- sites.stop
 - sites.update

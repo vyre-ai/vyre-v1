@@ -8,7 +8,7 @@ import { bindHost, bindKit, bindTeam, bindValues, boundHost, redeemTicket, scrub
 import type { Db, TermState, TerminalHost } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
-export { isDangerCall } from "./handlers/index.ts";
+export { fetchesOutside, isDangerCall, outwardOf } from "./handlers/index.ts";
 
 // ---- tmux ---------------------------------------------------------------------------------------------------------------------------------------------------
 

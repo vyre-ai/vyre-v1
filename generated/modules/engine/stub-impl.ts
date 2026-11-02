@@ -4,7 +4,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
-  "engine.account.resolve": async () => ({"accountRef":"#Team_Anthropic_Key","allowed":true,"itemId":"vit_a1b2c3","payer":"usr_a1b2c3","reason":"starter"} as unknown) as never,
+  "engine.account.resolve": async () => ({"accountRef":"#Team_Anthropic_Key","allowed":true,"fellBack":true,"itemId":"vit_a1b2c3","payer":"usr_a1b2c3","reason":"starter"} as unknown) as never,
   "engine.accounts.list": async () => ({"accounts":[{"base":"example","driver":"anthropic","keyless":true,"kind":"api_key","lastProbeAt":1760000000000,"mine":true,"name":"Dana Claude Max","ownerId":"usr_a1b2c3","ref":"#Team_Anthropic_Key","status":"ok","title":"example"}]} as unknown) as never,
   "engine.complete": async () => ({"text":"example","tokensIn":1,"tokensOut":1} as unknown) as never,
   "engine.crew.list": async () => ({"jobs":[{"agentId":"agt_a1b2c3","base":"main","branch":"crew/ember-1","endedAt":1760000000000,"jobId":"crw_01a1b2","leadThreadId":"thr_a1b2c3","name":"example","projectId":"prj_a1b2c3","result":{},"startedAt":1760000000000,"state":"working","threadId":"thr_a1b2c3","title":"example"}],"waits":[{"done":1,"kind":"checks","label":"acme/site#12","startedAt":1760000000000,"state":"pending","total":1,"waitId":"example"}]} as unknown) as never,

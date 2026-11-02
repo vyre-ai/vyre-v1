@@ -263,7 +263,7 @@ export function ModelPanel(p: ModelPanelProps): ReactElement {
           <Pressable accessibilityRole="switch" accessibilityState={{ checked: p.fallback === true }} aria-checked={p.fallback === true} accessibilityLabel="Switch when limits run out" testID="model-fallback" onPress={() => p.onFallback?.(!(p.fallback === true))} style={st.tog}>
             <View style={st.togText}>
               <Text style={st.togTitle}>Switch when limits run out</Text>
-              <Text style={st.togSub}>Moves to your next account, then back</Text>
+              <Text style={st.togSub}>Moves to your next account. A paid key asks first</Text>
             </View>
             <View style={[st.sw, p.fallback === true && st.swOn]}><View style={[st.knob, p.fallback === true && st.knobOn]} /></View>
           </Pressable>

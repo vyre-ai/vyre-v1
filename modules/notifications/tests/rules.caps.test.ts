@@ -91,9 +91,9 @@ test("mark_seen: by ids, by place, or all; only mine; emits once with the ids; n
 test("kinds.list names every kind the contract can send with its level, place and whether it respects hours", async () => {
   const h = harness();
   const { kinds } = await h.call("notifications.kinds.list", {}, me);
-  assert.equal(kinds.length, 22);
+  assert.equal(kinds.length, 24);
   assert.deepEqual(kinds.find((k: { key: string }) => k.key === "call.incoming"), { key: "call.incoming", level: "interrupt", place: "inbox", title: "Incoming call from {{from}}", respectHours: false });
-  assert.equal(kinds.filter((k: { level: string }) => k.level === "interrupt").length, 7);
+  assert.equal(kinds.filter((k: { level: string }) => k.level === "interrupt").length, 9);
 });
 
 // ---- settings ----

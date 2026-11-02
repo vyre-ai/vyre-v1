@@ -10,7 +10,7 @@
 // DECISION: files tool names are computer_files_* so they never collide with the Files module tools (files_*).
 // DECISION: tab limit and idle sleep defaults are unspecified in the spec; 8 tabs and 10 minutes are the plainest choices.
 // NOT EXPRESSIBLE: the executor (host agentd or device bridge) is not a capability field; see module agents for AgentToolDef.local.
-import { block, create, defineManifest, ev, health, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
+import { block, create, defineManifest, ev, health, outward, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import type { CapOpts } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut } from './_common.ts';
 
@@ -57,7 +57,7 @@ export default defineManifest({
       emits: ['computer.provisioned'], tool: 'computer', audit: 'sensitive', errors: ['provider.unavailable', 'validation.duplicate'],
     }),
     write('computers.configure', 'Change the tab limit or idle sleep of a computer', {
-      in: { ...comp, tabLimit: t.opt(t.int({ minimum: 1, maximum: 50 })), idleSleepMinutes: t.opt(t.int({ minimum: 1, maximum: 1440 })) }, out: { computer: computerRow },
+      in: { ...comp, tabLimit: t.opt(t.int({ minimum: 1, maximum: 50 })), idleSleepMinutes: t.opt(t.int({ minimum: 0, maximum: 1440, description: '0 keeps it awake (it serves a site)' })) }, out: { computer: computerRow },
       on: ['computer', '/computerId'], perm: 'computers.use', level: 'manage', emits: ['computer.configured'], tool: 'computer',
     }),
     write('computers.remove', 'Remove an agent computer and its profile disk', {
@@ -252,7 +252,7 @@ export default defineManifest({
       in: { ...optComp, from: t.str(), to: t.str() }, out: { ok: t.bool() }, ...local({ mcpName: 'computer_files_move', idem: 'none', risk: 'medium' }),
     }),
     write('computers.files.delete', 'Delete a file from the agent Files folder; always asks outside work/', {
-      in: { ...optComp, path: t.str() }, out: { ok: t.bool() }, ...local({ mcpName: 'computer_files_delete', idem: 'none', risk: 'high', gate: { act: 'delete', when: "actor.kind != 'person'" } }),
+      in: { ...optComp, path: t.str() }, out: { ok: t.bool() }, ...local({ mcpName: 'computer_files_delete', idem: 'none', risk: 'high', gate: { act: 'delete', when: 'computers.deletes_outside_work(input.path)' } }),
     }),
   ],
   events: [
@@ -281,10 +281,6 @@ export default defineManifest({
   ],
   health: [
     health('computers', 'Agent computers', 'computers.health', 'Check that Docker (Colima on a Mac) is running on the host, then restart agentd'),
-  ],
-  settings: [
-    setting('computers.default_tab_limit', 'space', 'Policies', 'Default tab limit for agent computers', t.int({ minimum: 1, maximum: 50 }), 8),
-    setting('computers.idle_sleep_minutes', 'space', 'Policies', 'Minutes idle before an agent computer sleeps', t.int({ minimum: 1, maximum: 1440 }), 10),
   ],
   screens: [
     screen('chats.computer-popup', 'chats', 'ui:ComputerPopup', {

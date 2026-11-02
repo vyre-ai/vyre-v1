@@ -40,6 +40,11 @@ test("the decision to roll", () => {
   assert.deepEqual(decide({ ctx: rep(0.85), blocked: "a build is running" }), { roll: false, why: "waiting for: a build is running", wait: true });
   assert.deepEqual(decide({ ctx: rep(0.85), blocked: "a build is running", waited: 3 }), { roll: true, why: "waited 3 turns for: a build is running" });
   assert.deepEqual(decide({ ctx: rep(0.91), blocked: "a build is running" }), { roll: true, why: "forced (a build is running)" });
+  // a running Job outlives the window: no share and no number of boundaries rolls over it, and the engine's own compaction is what is left
+  assert.deepEqual(decide({ ctx: rep(0.99), jobs: 1 }), { roll: false, why: "a Job is running (1)", wait: true });
+  assert.deepEqual(decide({ ctx: rep(0.99), jobs: 2, blocked: "a build is running", waited: 50 }), { roll: false, why: "a Job is running (2)", wait: true });
+  assert.equal(decide({ ctx: rep(0.2), jobs: 1 }).why, "below the threshold");
+  assert.equal(decide({ ctx: rep(0.99), jobs: 0 }).roll, true, "no Job left, it rolls");
   assert.deepEqual(decide({ ctx: rep(0.9), sinceRoll: 4 }), { roll: false, why: "rolled 4 turns ago" }, "a seed already over the line never rolls again at once");
   assert.equal(decide({ ctx: rep(0.9), sinceRoll: 10 }).roll, true);
   // An estimate errs early: 5/6 of the share a report would need.

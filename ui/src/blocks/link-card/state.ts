@@ -15,6 +15,7 @@ export function probeOf(d: LinkCardData): { cap: string; input: Record<string, u
     case "file": return { cap: "files.get", input: { fileId: t.id } };
     case "thread": return { cap: "threads.get", input: { threadId: t.id } };
     case "computer": return { cap: "computers.get", input: { computerId: t.id } };
+    case "automation": return { cap: "automations.get", input: { automationId: t.id } };
     default: return null;
   }
 }
@@ -29,6 +30,16 @@ const TASK: Record<string, CardState> = {
   done: { text: "Done", tone: "ok", live: false }, canceled: { text: "Stopped", tone: "quiet", live: false },
 };
 
+const FLOW: Record<string, CardState> = {
+  draft: { text: "Draft", tone: "quiet", live: true }, on: { text: "On", tone: "ok", live: false }, off: { text: "Off", tone: "quiet", live: false }, paused: { text: "Paused", tone: "warn", live: false },
+};
+
+/** A card's button whose work the thing itself shows as done: Turn on, once the Flow is on, wherever it was turned on. */
+export const doneByState = (d: LinkCardData, state: CardState | null): readonly string[] => (d.target?.type === "automation" && state?.text === "On" ? ["on"] : []);
+
+/** The held call a work card names, when it is one: a held call has one card, the approval card, so the app draws that in its place. */
+export const heldTaskOf = (d: LinkCardData): string | null => (d.icon === "approval" && d.target?.type === "task" ? d.target.id : null);
+
 /** The state a read answers with, or null when the thing has none to show (a file, a record). */
 export function stateOf(d: LinkCardData, answer: unknown): CardState | null {
   const a = (answer ?? {}) as Record<string, Record<string, unknown> | undefined>;
@@ -36,6 +47,7 @@ export function stateOf(d: LinkCardData, answer: unknown): CardState | null {
   if (type === "run") return RUN[String(a["run"]?.["status"])] ?? null;
   if (type === "task") return TASK[String(a["task"]?.["state"])] ?? null;
   if (type === "computer") return a["computer"]?.["state"] === "running" ? { text: "On", tone: "live", live: true } : null;
+  if (type === "automation") return FLOW[String(a["automation"]?.["status"])] ?? null;
   return null;
 }
 

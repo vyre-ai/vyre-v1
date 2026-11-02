@@ -43,11 +43,11 @@ export function resetMissing(): void { missing.clear(); }
 
 /* ---------- mode ---------- */
 
-/** The chat's mode: thread.mode when the server keeps it, else Plan when plan mode is on, else Ask first. */
+/** The chat's mode: thread.mode when the server keeps it, else Plan when plan mode is on, else Auto, as a new chat starts on the server. */
 export function modeOf(thread: Thread): ChatMode {
   const m = (thread as Thread & { mode?: string }).mode;
   if (m === "ask" || m === "auto" || m === "plan") return m;
-  return thread.planMode ? "plan" : "ask";
+  return thread.planMode ? "plan" : "auto";
 }
 
 /** Sets the chat's mode. Today's backend keeps only plan mode, so Auto and Ask first both turn it off there. */

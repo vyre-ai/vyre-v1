@@ -3,7 +3,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
-import { DANA, INTAKE, MAYA, assertEventsConform, codeOf, harness } from "../fixtures/harness.ts";
+import { DANA, DRAFTER, INTAKE, MAYA, assertEventsConform, codeOf, harness } from "../fixtures/harness.ts";
+import { threadBy, threadOut } from "../projections.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
 type Fn = (ctx: Harness["ctx"], input: any) => Promise<any>;
@@ -77,6 +78,32 @@ test("approving a plan ends Plan and returns the chat to Auto", async () => {
   assert.equal((await h["threads.get"]!(hn.ctx, { threadId: id })).thread.mode, "auto");
 });
 
+test("approving a plan posts nothing, so the request behind the plan keeps its grant", async () => {
+  const hn = harness();
+  const id = await chatOf(hn);
+  await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "plan" });
+  const seeded = hn.seedPlan(id);
+  hn.clear();
+  await h["chat.approve_plan"]!(hn.ctx, { threadId: id, planId: seeded.planId });
+  assert.deepEqual(hn.named("message.received"), [], "only a person's typed message ends what the last one left unused");
+});
+
+test("only a person typing at the top of a call marks a message typed", async () => {
+  const hn = harness();
+  const id = await chatOf(hn);
+  const typed = async (ctx: Harness["ctx"]): Promise<unknown> => {
+    hn.clear();
+    await h["chat.post"]!(ctx, { threadId: id, body: "send it", idempotencyKey: `p${++n}` });
+    return hn.named("message.received")[0]?.payload["typed"];
+  };
+  const person = { ...hn.ctx, depth: 0 };
+  assert.equal(await typed({ ...person, origin: "user" } as Harness["ctx"]), true);
+  assert.equal(await typed({ ...person, origin: "sync" } as Harness["ctx"]), true, "a message typed on another device");
+  assert.equal(await typed({ ...person, origin: "module" } as Harness["ctx"]), undefined, "a line a module posted in the person's name");
+  assert.equal(await typed({ ...person, origin: "user", depth: 1 } as Harness["ctx"]), undefined, "a call made inside another call");
+  assert.equal(await typed({ ...hn.agent(), origin: "user", depth: 0 } as Harness["ctx"]), undefined, "an agent");
+});
+
 test("a fork keeps the mode of the chat it came from", async () => {
   const hn = harness();
   const id = await chatOf(hn);
@@ -124,4 +151,20 @@ test("scope agent also stores the model and the account as the agent's default t
   const id2 = await chatOf(denied);
   await failure(h["threads.agent.configure"]!(denied.ctx, { threadId: id2, agentId: INTAKE, model: "gpt-5", scope: "agent" }));
   assert.equal((await h["threads.get"]!(denied.ctx, { threadId: id2 })).thread.agents[0].model, undefined, "the chat is unchanged when the agent change is refused");
+});
+
+test("a thread under a chat is never looser than the chat, read live", async () => {
+  const hn = harness();
+  const id = await chatOf(hn);
+  await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "auto" });
+  const job = String((await h["chat.helper.start"]!(hn.agent(), { threadId: id, title: "Dates", instruction: "List the dates.", agentId: DRAFTER })).helper.threadId);
+  const mode = async (): Promise<string> => threadOut(hn.db, threadBy(hn.db, job)!)["mode"] as string;
+  assert.equal(await mode(), "auto");
+  await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "ask" });
+  assert.equal(await mode(), "ask", "the Job's own row says auto; it inherits ask");
+  await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "plan" });
+  assert.equal(await mode(), "plan");
+  assert.equal(threadOut(hn.db, threadBy(hn.db, job)!)["planMode"], true);
+  await h["threads.set_mode"]!(hn.ctx, { threadId: id, mode: "auto" });
+  assert.equal(await mode(), "auto");
 });

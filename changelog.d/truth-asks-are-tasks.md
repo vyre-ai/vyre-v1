@@ -1,0 +1,1 @@
+- A question or plan from an agent is now a task: it reaches Needs you, the badge and notifications, answering it anywhere wakes the agent once, and a late press says "Already decided."

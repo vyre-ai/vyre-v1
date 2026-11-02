@@ -8,7 +8,7 @@ export type TemplateRow = CapMap["templates.list"]["out"]["templates"][number];
 export type DomainRow = CapMap["mail.domain.list"]["out"]["domains"][number];
 
 export const GROUPS = [
-  { key: "sites", title: "Sites", one: "site", empty: "No sites yet." },
+  { key: "sites", title: "Sites", one: "site", empty: "No sites yet. An agent can build and run one for you." },
   { key: "forms", title: "Forms", one: "form", empty: "No forms yet." },
   { key: "campaigns", title: "Campaigns", one: "campaign", empty: "No campaigns yet." },
   { key: "templates", title: "Templates", one: "template", empty: "No templates yet." },
@@ -25,7 +25,7 @@ const CAMPAIGN_KIND = { one_time: "One time", sequence: "Sequence", triggered: "
 export const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 const cap = (s: string): string => s.slice(0, 1).toUpperCase() + s.slice(1);
 
-export function siteRow(s: SiteRow): AppRow { return { group: "sites", id: s.siteId, title: s.name, note: `${cap(s.kind)} · ${s.productionUrl ? "live" : s.stagingUrl ? "on staging" : s.state}`, state: s.state }; }
+export function siteRow(s: SiteRow): AppRow { return { group: "sites", id: s.siteId, title: s.name, note: s.blocked ? "Taken down" : s.live ? s.url ?? "Live" : "Not published", state: s.state }; }
 export function formRow(f: FormRow): AppRow { return { group: "forms", id: f.formId, title: f.name, note: `${KIND_WORDS[f.kind]} · ${cap(f.state)}`, state: f.state, count: plural(f.submissions, "answer") }; }
 export function campaignRow(c: CampaignRow): AppRow { return { group: "campaigns", id: c.campaignId, title: c.name, note: `${CAMPAIGN_KIND[c.kind]} · ${cap(c.state)}`, state: c.state, count: c.sent > 0 ? `${c.sent} sent` : plural(c.audienceCount, "person", "people") }; }
 export function templateRow(t: TemplateRow): AppRow { return { group: "templates", id: t.templateId, title: t.title, note: `${cap(t.kind.replace("_", " "))} · v${t.version}`, count: t.adds.length ? `Adds ${t.adds.length}` : "" }; }

@@ -12,6 +12,7 @@ import {
   raise, readPolicy, saveAutomation, saveVersion, touch, versionById,
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
+import { regrant } from "../grants.ts";
 import { publishAllowed } from "../connector-breadth.ts";
 import { storedLevel } from "../connector-level.ts";
 import { admit, contractOf } from "../val.ts";
@@ -472,6 +473,7 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
   saveAutomation(ctx.db, a);
   saveVersion(ctx, a, "Created");
   rememberAccountPicks(ctx.db, owner, def, now);
+  await regrant(ctx, a, "save");
   emitAuto(ctx, "automation.created", a.id, { name: a.name, kind: a.kind });
   return { automation: out(a) };
 }
@@ -487,6 +489,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   if (typeof input.name === "string" && input.name.trim() && input.name.trim() !== a.name) { a.name = input.name.trim(); fields.push("name"); }
   if (typeof input.description === "string" && input.description !== (a.description ?? "")) { a.description = input.description; fields.push("description"); }
   let definitionChanged = false;
+  let before: Definition | undefined;
   if (input.definition !== undefined && !same(input.definition, a.definition)) {
     checkStructure(ctx, input.definition);
     refuseSecret(ctx, input.definition);
@@ -495,6 +498,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
     if (a.status === "on" && hasErrors(blocking)) {
       raise(ctx, "validation.precondition_failed", "Turn the automation off before saving a definition with errors.", { reason: "invalid_definition" });
     }
+    before = a.definition;
     a.definition = input.definition;
     a.version += 1;
     fields.push("definition");
@@ -505,6 +509,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   if (definitionChanged) {
     saveVersion(ctx, a);
     rememberAccountPicks(ctx.db, me(ctx), a.definition, ctx.now());
+    await regrant(ctx, a, "save", before);
   }
   emitAuto(ctx, "automation.updated", a.id, { version: a.version, fields });
   return { automation: out(a) };
@@ -513,7 +518,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
 export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
   if (input.enabled) {
-    if (a.status === "on") return { automation: out(a) };
+    if (a.status === "on") { await regrant(ctx, a, "on"); return { automation: out(a) }; }
     const issues = await blocksGoingLive(ctx, a.kind, a.definition, readPolicy(ctx.db));
     if (hasErrors(issues)) {
       const live = await liveStepIssues(ctx, a.kind, a.definition);
@@ -524,6 +529,7 @@ export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
     a.status = "on";
     delete a.pausedReason;
     touch(ctx, a);
+    await regrant(ctx, a, "on");
     emitAuto(ctx, "automation.enabled", a.id, {});
   } else {
     if (a.status === "off" || a.status === "draft") return { automation: out(a) };
@@ -568,10 +574,12 @@ export async function restoreVersion(ctx: AutoCtx, input: In): Promise<unknown> 
   if (a.status === "on" && hasErrors(restored)) {
     raise(ctx, "validation.precondition_failed", "Turn the automation off before restoring a version with errors.", { reason: "invalid_definition" });
   }
+  const before = a.definition;
   a.definition = v.definition;
   a.version += 1;
   touch(ctx, a);
   const row = saveVersion(ctx, a, `Restored version ${v.n}`);
+  await regrant(ctx, a, "save", before);
   emitAuto(ctx, "automation.version_restored", a.id, { versionId: row.versionId, version: a.version });
   emitAuto(ctx, "automation.updated", a.id, { version: a.version, fields: ["definition"] });
   return { automation: out(a) };
@@ -798,7 +806,7 @@ export async function promote(ctx: AutoCtx, input: In): Promise<unknown> {
   a.kind = "space";
   a.ownerId = typeof input.ownerId === "string" && input.ownerId ? input.ownerId : me(ctx);
   touch(ctx, a);
-  if (replaced > 0) saveVersion(ctx, a, "Promoted to the Space: shared keys");
+  if (replaced > 0) { saveVersion(ctx, a, "Promoted to the Space: shared keys"); await regrant(ctx, a, "save", a.definition); }
   ctx.db.run("DELETE FROM automations_access WHERE automation_id = ?", a.id);
   for (const g of diff.grants) ctx.db.run("INSERT INTO automations_access (automation_id, resource, level, via) VALUES (?, ?, ?, ?)", a.id, g.resource, g.level, g.via);
   ctx.db.run("DELETE FROM automations_vault WHERE automation_id = ?", a.id);

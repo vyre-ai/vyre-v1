@@ -1,4 +1,4 @@
-// Holds (spec 2.14, ARCH 4.6): parking a held call, who approves, the fixed summary line, the effective rule (Auto cannot suppress a hold), requester scoping, crash recovery,
+// Holds (spec 2.14, ARCH 4.6): parking a held call, who approves, the fixed summary line, the effective rule (the mode never suppresses a hold; a grant does, modules/gate/tests/grants.test.ts), requester scoping, crash recovery,
 // and rejecting what a removed person asked to send.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -126,7 +126,7 @@ test("the effective rule: agents wait, a person's own send does not, human-too a
   assert.equal((await rule({ kind: "actor", id: "act_outside" }, "send")).hold, true);
 });
 
-test("Auto cannot suppress a Gate hold: nothing below the Space can loosen it", async () => {
+test("the mode never suppresses a Gate hold: nothing below the Space can loosen it, and a grant is the only other way through", async () => {
   const h = harness();
   const hold = async (principal: unknown = bot) => (await h.call("gate.effective_rule", { principal, act: "send" }, { id: alice.id })).hold;
   // an agent's own rule cannot say allow while the Space holds
@@ -343,4 +343,17 @@ test("adminOnly: the default rule does not hold a service's send, a rule somebod
   await h.call("gate.rules.set", { act: "send", scope: "space", mode: "hold" }, { id: alice.id });
   const on = await ask(true);
   assert.deepEqual([on.hold, on.adminRule], [true, true]);
+});
+
+test("a deleted agent's holds can no longer be approved: each is dropped, and a mid-send one is left to recovery", async () => {
+  const h = harness();
+  const a = await park(h);
+  const other = await park(h, { decisionId: "dec_2", principal: bot2 }, as(bot2));
+  const spec = consumers["gate.agent_deleted"];
+  assert.deepEqual(spec.on, ["agent.deleted"]);
+  const done = await spec.run(h.ctxFor(null, svc), { payload: { agentId: bot.id } });
+  assert.deepEqual(done, [a.holdId]);
+  assert.equal(findHold(h.db, a.holdId)!.state, "denied");
+  assert.equal(findHold(h.db, other.holdId)!.state, "held", "another agent's hold stands");
+  assert.deepEqual(h.callsTo("tasks.withdraw").map((x) => [x.input.taskId, x.input.note]), [[a.taskId, "The agent that asked was deleted."]]);
 });

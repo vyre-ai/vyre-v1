@@ -1,0 +1,21 @@
+- An agent's kind is a column: the private assistant stays private whatever its role line says, and calling an agent "assistant" no longer hides it.
+- Deleting an agent drops its holds, closes the requests it raised, hands its work to the person behind it and leaves one line in its chats. A person who leaves or is removed comes off every thread, a chat they started gets a new owner, what they held moves on, and their assistant goes with them.
+- A turn a server restart cut off never replays what it may already have done: one that used a tool ends with Try again, one that had not simply runs again. Try again runs straight away instead of waiting for the next message, a parked turn goes on after a restart, and an agent that was working before a crash no longer reads as Working for ever.
+- A paused agent stops and takes no new turn, with the reason in the chat, and a teammate's job follows it (running, paused, lost, stopped). A lost job offers Run again. The Crew tab no longer crashes in a Personal Space.
+- A Mac stays awake while a turn runs.
+- An outward automation step a server restart cut off is never sent twice by itself: the run fails into Needs you with what to check. Retry goes on from the step that did not finish instead of repeating what already went out, and a Retry or Replay pressed on the Runs pages now really runs (it used to stay queued for ever).
+- A subscription that runs out no longer moves to a metered key by itself: one task asks, and a yes covers that chat. A key on the agent's fallback list was already chosen and does not ask. In a chat with more than one person, each reply says whose account it ran on.
+- In a chat with more than one person, recall leaves out what one person told their agent, quotes from their private chats stay out, and the agent's thinking goes only to whoever asked.
+- A busy turn's live steps gather to about one frame a second.
+- Vyre no longer says any chat is end to end: agents have to read what they answer, and no app seals a chat today.
+- A Vault pull link follows the rules of a reveal: an agent never gets one, a person gets only what they may view, an item set to the Space only stays out, and a folder's list of who may export is obeyed. Renaming a Vault item keeps its handle, so nothing that uses it breaks, and setting a new value counts as rotating it.
+- Retrying a failed loop no longer runs again the items that already went out: they carry over to the new run, and only what did not finish starts. The same holds for parallel lanes.
+- Agents are no longer offered tools that only answer "Not in this version yet": Sites and Vault import leave the tool list and tool search, and come back by themselves when they go live.
+- When one lane of a parallel step ended early, the step after the parallel ran inside the other lane, without waiting and even when the parallel failed. It now runs after the lanes, once.
+- Someone who can only see an agent no longer reads which keys pay for it, which Vault handles it holds, or its limits. Owners, editors and the agent itself still do, and a turn is built whole whoever asked.
+- A reply on a shared key no longer says it was on the account of the person who asked. A person who joins a group that no agent could answer them in is named in one line of that chat.
+- A stage added to a Journey can now be entered, and a Journey can be made again under a deleted Journey's name. Finishing a task that is not the stage's own, such as a time limit alert, no longer moves the record.
+- A transferred call now rings the person it went to, and a call back from hold rings who held it, not the number's whole route. Stop now stops a recording that began with the call. Only someone a call is ringing for can decline it.
+- A person can connect through Workspace delegation only the address matched to them: typing a colleague's address no longer opens their mail. An agent working for a person is held to the same rule.
+- Records, Agents now lists the agents themselves, so it always matches Chats. New makes a real agent with no second row beside it; an old row with nothing behind it stays, marked, and offers to set it up.
+- A person who leaves a Space stops: their mailboxes end and their own Google and Microsoft sign-ins go, as they do when someone is removed.

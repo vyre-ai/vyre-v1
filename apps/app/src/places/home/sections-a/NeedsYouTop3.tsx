@@ -20,7 +20,8 @@ type Out = CapMap["tasks.needs_you"]["out"];
 /** What a person can do from a row's menu: its own actions, then open. Every entry changes real state or opens the item. */
 export function needsMenu(item: NeedsItem, row: NeedsRow, run: (key: string) => void, open: () => void): MenuEntry[] {
   const entries: MenuEntry[] = [];
-  for (const a of item.task.actions) entries.push({ label: a.label, onSelect: () => run(a.key) });
+  // an action that needs words (an answer, a reason) opens the item, where the words are written
+  for (const a of item.task.actions) entries.push({ label: a.label, onSelect: () => (a.note === "required" ? open() : run(a.key)) });
   if (entries.length) entries.push({ separator: true });
   entries.push({ label: "Open in Needs you", onSelect: open });
   return entries;

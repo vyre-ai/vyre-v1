@@ -1,5 +1,5 @@
-// Making a record from New. A person's type gets a bare record. An agent gets a real agent first (agents.create: its folder, its files, its place in Chats) and then the row that
-// lists it; a project gets a real project (projects.create: record, channel and folder). Nothing here draws.
+// Making a record from New. A person's type gets a bare record. An agent is a real agent and nothing else (agents.create: its folder, its files, its place in Chats): the Agents view lists
+// agents.list, so a row beside it would only go stale. A project gets a real project (projects.create: record, channel and folder). Nothing here draws.
 import type { TypeDef } from "./model.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
@@ -19,6 +19,6 @@ const idOf = (out: unknown, ...path: string[]): string | undefined => {
 export async function makeRecord(call: Call, def: Kind & Pick<TypeDef, "titleField">, name: string, key: string): Promise<string | undefined> {
   const kind = madeKind(def);
   if (kind === "project") return idOf(await call("projects.create", { type: def.key, title: name, idempotencyKey: key }), "recordId");
-  if (kind === "agent") await call("agents.create", { name, idempotencyKey: `${key}:agent` });
+  if (kind === "agent") { await call("agents.create", { name, idempotencyKey: `${key}:agent` }); return undefined; }
   return idOf(await call("records.create", { type: def.key, fields: { [def.titleField]: name }, idempotencyKey: key }), "record", "id");
 }

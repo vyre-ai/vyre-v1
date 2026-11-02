@@ -1,3 +1,4 @@
+import { isAssistantRow } from "../../../../../lib/agent-kind.ts";
 import {createRecordsPreview} from "../../../../../client/src/gateway/records-preview.ts";
 // A signed-in Space, open (ARCH 7.0): who you are, the Space's name and kind, the capability caller on its gateway, the screen hooks every place reads, the live link that keeps them fresh, and the
 // ShellRuntime the places are handed. `openRealSession` is the only place the shell touches the network; the places only see the runtime. A call that succeeds re-reads what is on screen,
@@ -244,7 +245,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   };
   const assistant = (): { id: string; name: string } => {
     const s = agentsList.getSnapshot();
-    const a = s.status === "ready" ? (s.data.agents.find((x) => x.role === "assistant") ?? s.data.agents.find((x) => /assistant/i.test(x.name))) : undefined;
+    const a = s.status === "ready" ? s.data.agents.find(isAssistantRow) : undefined;
     return a ? { id: a.agentId, name: a.name } : { id: "assistant", name: "Assistant" };
   };
 
@@ -269,13 +270,14 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     console: who.roles.some((r) => r === "owner" || r === "admin"),
     // a Personal Space has one person and their own computer: the terminal is always theirs. A Team Space gives it to owners and developers
     terminal: space.kind === "personal" || who.roles.some((r) => r === "owner" || r === "developer"),
-    counts: switcher && switcher.unread > 0 ? { chats: switcher.unread } : {},
+    counts: {},   // the Chats badge is Needs you, live: ShellHost follows tasks.count_needs_you
     dots: {},
   };
 
   const runtime: ShellRuntime = {
     createRecordsPreview: ticket => createRecordsPreview({...ticket,baseUrl:o.baseUrl,...(o.fetch?{fetch:o.fetch}:{}),...(o.routes?{routes:o.routes}:{}),now:o.now??Date.now}),
     screens: hooks,
+    changes: { subscribe: (l) => hooks.onInvalidate(l) },
     turns,
     call: (cap, input) => call(cap, input),
     callIn: async (spaceId, cap, input) => {

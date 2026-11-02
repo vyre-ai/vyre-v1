@@ -4,11 +4,11 @@ import type { AssistCtx } from "../projections.ts";
 
 const LEVELS = new Set(["view", "use", "edit", "manage"]);
 
-/** The person's assistant: their own personal agent, the one with the assistant role when there is more than one. */
+/** The person's assistant: their own personal agent of kind assistant, or their only agent. */
 async function assistantOf(ctx: AssistCtx, personId: string): Promise<string> {
   const out = asRow(await ctx.call("agents.list", { section: "personal", limit: 100 }));
   const mine = asList(out?.["agents"]).filter((a) => str(a["ownerId"]) === personId);
-  const pick = mine.find((a) => a["role"] === "assistant") ?? mine[0];
+  const pick = mine.find((a) => a["kind"] === "assistant") ?? mine[0];
   const id = str(pick?.["agentId"]);
   // until an AI account is connected there is no assistant yet; the pane shows the locked state from this error
   if (!id) return raise(ctx, "validation.precondition_failed", "Your assistant is not set up yet. Connect an AI account first.");
@@ -36,7 +36,8 @@ export async function assistantOpen(ctx: AssistCtx, input: { page: string; objec
   }
   const assistantId = await assistantOf(ctx, personId);
   const started = asRow(await ctx.call("chat.start", {
-    kind: "ask", agentIds: [assistantId], idempotencyKey: `console-${personId}`, scopeType: "console", scopeId: input.page,
+    // the scope is the Console, one for the person: which page it is on goes with each message, as the screen
+    kind: "ask", agentIds: [assistantId], idempotencyKey: `console-${personId}`, scopeType: "console", scopeId: "console",
     title: `Console: ${input.page}`, first: contextText(input.page, input.objectRef),
   }));
   // chat.start answers { thread: { threadId } }

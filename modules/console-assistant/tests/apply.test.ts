@@ -12,7 +12,7 @@ const ASSISTANT = "agt_asst";
 
 async function seeded(allow: string[] = ALL_PERMS, more: Record<string, unknown> = {}) {
   const h = harness({
-    "agents.list": { agents: [{ agentId: ASSISTANT, ownerId: BOSS, role: "assistant" }] },
+    "agents.list": { agents: [{ agentId: ASSISTANT, ownerId: BOSS, role: "assistant", kind: "assistant" }] },
     "chat.start": { thread: { threadId: "thr_console1" } },   // the shape chat.start really answers
     "threads.update": { threadId: "thr_console1" },
     "settings.set_space": { key: "x" },
@@ -50,7 +50,7 @@ test("propose refuses another person's thread, an unknown thread, and a card id 
   await assert.rejects(proposeAs(h, "thr_nope", SETTING()), (e: unknown) => codeOf(e) === "validation.not_found");
   await proposeAs(h, threadId, SETTING());
   // a second person with their own thread cannot take the id
-  h.answers.set("agents.list", { agents: [{ agentId: "agt_b", ownerId: "usr_b", role: "assistant" }] });
+  h.answers.set("agents.list", { agents: [{ agentId: "agt_b", ownerId: "usr_b", role: "assistant", kind: "assistant" }] });
   h.answers.set("chat.start", { threadId: "thr_console2" });
   const second = await handlers["console.assistant_open"](h.as("usr_b"), { page: "console.overview", idempotencyKey: "idem_2" });
   await assert.rejects(handlers["console.diff_propose"](h.as("usr_b"), { threadId: second.threadId, diff: SETTING(), idempotencyKey: "idem_p" }), (e: unknown) => codeOf(e) === "validation.duplicate");

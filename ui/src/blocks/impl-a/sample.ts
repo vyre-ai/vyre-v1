@@ -92,6 +92,7 @@ export const SAMPLE_MOUNT = block("mount", "blk_mnt1", {
   lagSeconds: 120,
 });
 
+export const SAMPLE_ARTIFACT = block("artifact", "blk_art1", { artifactId: "sit_1", title: "Q3 numbers" });
 export const SAMPLE_RECORD = block("record_card", "blk_rec1", {
   recordId: "rec_a1b2c3",
   type: "contact",
@@ -109,5 +110,5 @@ export const SAMPLE_RECORD = block("record_card", "blk_rec1", {
 
 /** The seven types in the order a chat shows them. */
 export function sampleBlocksA(): Block[] {
-  return [SAMPLE_PLAN, SAMPLE_QUESTION, SAMPLE_TERMINAL, SAMPLE_CHANGESET, SAMPLE_MOUNT, SAMPLE_DEPLOY, SAMPLE_RECORD];
+  return [SAMPLE_PLAN, SAMPLE_QUESTION, SAMPLE_TERMINAL, SAMPLE_CHANGESET, SAMPLE_MOUNT, SAMPLE_DEPLOY, SAMPLE_RECORD, SAMPLE_ARTIFACT];
 }

@@ -1,7 +1,7 @@
 // A Flow in plain words, from its definition and the step and trigger catalogue: "When a record changes", then one line per step, and a step that sends something marked as held for the person's yes.
 // Built by code, so what the card in chat promises is what the definition does; an agent's own description is not trusted for it.
 /** The parts of a definition the words need (modules/automations/projections.ts holds the full type). */
-export interface FlowNode { id: string; key: string; title?: string; next?: string[]; branches?: unknown[]; askBeforeSending?: boolean }
+export interface FlowNode { id: string; key: string; title?: string; input?: Record<string, unknown>; next?: string[]; branches?: unknown[]; askBeforeSending?: boolean }
 export interface FlowDefinition { triggers: { key: string }[]; nodes: FlowNode[]; start?: string[] }
 type Node = FlowNode;
 type Definition = FlowDefinition;
@@ -31,7 +31,7 @@ function inOrder(def: Definition): Node[] {
   return out;
 }
 
-/** One line per part: how it starts, then each step. A step that sends (an email, a text, a post) says it is held for a yes unless the definition turned asking off. */
+/** One line per part: how it starts, then each step. This is what Turn on names: a step that sends (an email, a text, a post) says so, and a step set to ask says it is held for a yes. */
 export function describeFlow(def: Definition, cat: Catalogue): string[] {
   const STEPS = new Map(cat.steps.map((s) => [s.key, s] as const));
   const TRIGGERS = new Map(cat.triggers.map((t) => [t.key, t] as const));
@@ -41,8 +41,8 @@ export function describeFlow(def: Definition, cat: Catalogue): string[] {
   for (const n of inOrder(def)) {
     const step = STEPS.get(n.key);
     const title = n.title?.trim() || step?.title || n.key;
-    const sends = step?.effects === "outward" && n.askBeforeSending !== false;
-    lines.push(`${lines.length === 1 ? "Then" : "Then"} ${lower(title)}${sends ? ", held for your yes" : ""}`);
+    const sends = step?.effects === "outward" || (n.key === "code" && Array.isArray(n.input?.["hosts"]) && n.input["hosts"].length > 0);
+    lines.push(`${lines.length === 1 ? "Then" : "Then"} ${lower(title)}${n.askBeforeSending === true ? ", held for your yes" : sends ? ", goes out once you turn this on" : ""}`);
   }
   if (def.nodes.length === 0) lines.push("It has no steps yet");
   return lines;

@@ -1,0 +1,1 @@
+- The chat's mode is now the one dial: an Auto chat runs terminal commands without stopping, up to the owner's floor, and a local crew merge just happens. A push still needs your message or your yes.

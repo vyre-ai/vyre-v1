@@ -116,9 +116,11 @@ export async function receiveWebhook(ctx: TwilioCtx, input: HookIn): Promise<{ a
   if (!HOOK_KINDS.includes(input.kind)) bad(ctx, "Twilio sends voice, sms, status and recording hooks.");
   if (typeof input.dedupeKey !== "string" || input.dedupeKey === "" || typeof input.sid !== "string" || input.sid === "") bad(ctx, "A delivery needs its key and its Sid.");
   const params = obj(input.params) as Record<string, string>;
-  const seen = first(ctx.db.all(`SELECT "twiml" FROM twilio_hook_log WHERE "dedupeKey" = ?`, input.dedupeKey));
-  if (seen) return typeof seen.twiml === "string" ? { accepted: true, twiml: seen.twiml } : { accepted: true };   // sent twice: applied once
   const p = (k: string): string => text(params[k]);
+  const seen = first(ctx.db.all(`SELECT "twiml" FROM twilio_hook_log WHERE "dedupeKey" = ?`, input.dedupeKey));
+  // sent twice: applied once. A call in progress asking again is not a repeat: Twilio does that after a redirect (a transfer, a return from hold), and the answer is who holds the call now.
+  const redirected = input.kind === "voice" && p("CallStatus") === "in-progress";
+  if (seen && !redirected) return typeof seen.twiml === "string" ? { accepted: true, twiml: seen.twiml } : { accepted: true };
   let twiml: string | undefined;
 
   if (input.kind === "voice") {
@@ -249,7 +251,7 @@ export async function recordingStart(ctx: TwilioCtx, input: { callSid: string; a
 
 export async function recordingStop(ctx: TwilioCtx, input: { callSid: string; recordingSid: string }): Promise<{ stopped: boolean }> {
   const call = sid(ctx, input.callSid, "The call");
-  const rec = sid(ctx, input.recordingSid, "The recording");
+  const rec = input.recordingSid === "Twilio.CURRENT" ? input.recordingSid : sid(ctx, input.recordingSid, "The recording");   // Twilio's own name for the recording running on a call
   await api(ctx, { method: "POST", url: await acct(ctx, `/Calls/${pathPart(call)}/Recordings/${pathPart(rec)}.json`), form: [["Status", "stopped"]] });
   return { stopped: true };
 }

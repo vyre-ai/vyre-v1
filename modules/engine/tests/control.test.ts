@@ -23,9 +23,9 @@ const done: DriverEvent[] = [{ type: "text", text: "Done." }, { type: "usage", i
 // ---- a held tool call parks the turn
 
 for (const mode of ["ask", "allow", "auto"] as const) {
-  test(`set_mode Auto cannot loosen a Gate hold: in ${mode} mode the held call parks the turn and nothing runs after it`, async () => {
+  test(`a mode alone cannot loosen a Gate hold: in ${mode} mode the held call parks the turn and nothing runs after it`, async () => {
     const h = harness();
-    // Ask, Allow and Auto only decide the prompts of local tools. The Gate is decided inside invoke, which answers held in every mode.
+    // The Gate is decided inside invoke: with no grant from the person's own message it answers held in every mode.
     const held = toolRunnerFrom(async () => ({ kind: "held", result: { ok: false, content: { held: true, taskId: "tsk_gate1", mode } }, taskId: "tsk_gate1", runId: "run_send1" }));
     const p = scriptedProvider({
       script: (input) => (input.resumed

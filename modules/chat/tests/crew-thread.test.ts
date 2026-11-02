@@ -46,3 +46,33 @@ test("a crew result card is not a hop, a forged one is", async () => {
   const stranger = await post(hn.agent(DRAFTER), { threadId: other, body: "Done.", blocks: [{ type: "crew_result", v: 1, data: { threadId: crew } }] });
   assert.equal(stranger.message["depth"], 1, "a card naming a teammate of another chat is an ordinary agent message");
 });
+
+test("a helper's result is a Job's line: the mark needs the real thread and its own agent, and an ordinary line never has it", async () => {
+  const hn = harness({ calls: { "settings.get": () => ({ row: { value: 20 } }) } });
+  const threadId = await chatOf(hn);
+  const crew = await helperOf(hn, threadId, true);
+  const plain = await helperOf(hn, threadId, false);
+  const marked = (messageId: unknown): unknown => hn.named("message.received").find((e) => e.payload["messageId"] === messageId)?.payload["job"];
+  await post(hn.agent(INTAKE), { threadId, body: "Started the helper." });
+  const result = (status: string, data: string = plain) => [{ type: "helper", v: 1, data: { threadId: data, status } }];
+  const done = await post(hn.agent(DRAFTER), { threadId, body: "It found the dates.", blocks: result("done") });
+  assert.equal(done.message["depth"], 0, "work coming back is no hop");
+  assert.equal(marked(done.message["messageId"]), true);
+  const failed = await post(hn.agent(DRAFTER), { threadId, body: "It could not finish.", blocks: result("failed") });
+  assert.equal(marked(failed.message["messageId"]), true);
+  assert.equal(marked((await post(hn.agent(REVIEWER), { threadId, body: "Trust me.", blocks: result("done") })).message["messageId"]), undefined, "not the helper's agent");
+  assert.equal(marked((await post(hn.agent(DRAFTER), { threadId, body: "Still going.", blocks: result("running") })).message["messageId"]), undefined, "not an ending");
+  assert.equal(marked((await post(hn.agent(DRAFTER), { threadId, body: "Crew.", blocks: result("done", crew) })).message["messageId"]), undefined, "a teammate reports with its card");
+  assert.equal(marked((await post(hn.agent(DRAFTER), { threadId, body: "Plain." })).message["messageId"]), undefined);
+});
+
+test("a brief an agent gives itself carries the mark and stays its own words; a brief to another agent names it instead", async () => {
+  const hn = harness();
+  const threadId = await chatOf(hn);
+  const own = (await g["chat.helper.start"](hn.agent(INTAKE), { threadId, title: "Dates", instruction: "Do the work.", agentId: INTAKE })).helper["threadId"] as string;
+  const brief = hn.named("message.received").find((e) => e.payload["threadId"] === own)!.payload as { job?: boolean; author: { kind: string; id: string } };
+  assert.equal(brief.job, true);
+  assert.deepEqual([brief.author.kind, brief.author.id], ["agent", INTAKE]);
+  const other = await helperOf(hn, threadId, false);
+  assert.equal(hn.named("message.received").find((e) => e.payload["threadId"] === other)!.payload["job"], undefined);
+});

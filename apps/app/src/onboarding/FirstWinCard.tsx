@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../ui/src/Row/index.tsx";
 import type { CapCall } from "../shell/session/caps.ts";
+import { CARD } from "./card-style.ts";
 
 export interface Starter { id: string; title: string; line: string; prompt: string }
 
@@ -64,7 +65,7 @@ export function FirstWinCard({ call, hasAi, gate, onConnectAi, starters = STARTE
 const s = StyleSheet.create({
   col: { gap: 8 },
   line: { fontSize: 15, lineHeight: 22, color: "var(--ink)" as string },
-  err: { fontSize: 13, color: "var(--danger)" as string },
-  primary: { height: 34, paddingHorizontal: 16, borderRadius: 8, backgroundColor: "var(--accent)" as string, alignItems: "center", justifyContent: "center", alignSelf: "flex-start" },
-  primaryText: { fontSize: 13.5, fontWeight: "500", color: "var(--accent-ink, #fff)" as string },
+  err: CARD.err,
+  primary: CARD.primary,
+  primaryText: CARD.primaryText,
 });

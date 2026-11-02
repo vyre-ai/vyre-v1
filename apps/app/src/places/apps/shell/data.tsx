@@ -19,6 +19,12 @@ export interface AppsNav {
   openTask(taskId: string): void;
   /** Kit builder: a thread with an agent that builds the Kit. */
   openThread(threadId: string): void;
+  /** New site is a chat: an agent builds and runs it, and this opens one with that prompt. */
+  newSite?(): void;
+  /** An address, in the browser. */
+  openUrl?(url: string): void;
+  /** Settings, Computers: where a server is added. */
+  openComputers?(): void;
 }
 
 export interface AppsData {
@@ -32,6 +38,10 @@ export interface AppsData {
   team: boolean;
   /** Modules the Space has deferred (host/modules.json or the owner's ruling): their group is not drawn, so a list that can only fail never shows. It comes back by itself when the module is no longer deferred. */
   deferred?: readonly string[];
+  /** The Space's own address, when this app reaches it by one. */
+  baseUrl?: string | undefined;
+  /** The share sheet, on a resource. */
+  renderShare?(resource: { type: string; id: string; name: string }, onClose: () => void): ReactElement;
   nav: AppsNav;
 }
 

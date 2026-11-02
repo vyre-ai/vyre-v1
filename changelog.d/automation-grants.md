@@ -1,0 +1,1 @@
+- An automation an agent made or edited no longer sends on its own. A person's Save or Turn on gives it permission for the steps it names, any edit voids that, and a run reaching a new target asks first.

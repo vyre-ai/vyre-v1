@@ -321,6 +321,29 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "apps.artifacts",
+    "module": "sites",
+    "place": "apps",
+    "slot": "main",
+    "builtin": "ui:Artifacts",
+    "caller": "principal",
+    "queries": {
+      "artifacts": {
+        "cap": "sites.list",
+        "input": {
+          "kind": "/kind"
+        },
+        "live": true
+      }
+    },
+    "actions": {},
+    "needs": [],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "apps.campaign-builder",
     "module": "campaigns",
     "place": "apps",
@@ -603,69 +626,28 @@ export const screens: ScreenIndexEntry[] = [
         },
         "live": true
       },
-      "deployments": {
-        "cap": "sites.deployments",
+      "status": {
+        "cap": "sites.status",
         "input": {
           "siteId": "/selected"
         },
         "live": true
-      }
-    },
-    "actions": {
-      "build": {
-        "cap": "sites.build",
-        "input": {
-          "siteId": "/selected"
-        }
       },
-      "deploy": {
-        "cap": "sites.deploy",
-        "input": {
-          "siteId": "/selected"
-        }
-      }
-    },
-    "needs": [],
-    "perf": {
-      "firstPaintMs": 50,
-      "completeMs": 100
-    }
-  },
-  {
-    "id": "apps.site-settings",
-    "module": "sites",
-    "place": "apps",
-    "slot": "main",
-    "builtin": "ui:SiteSettings",
-    "caller": "principal",
-    "queries": {
       "domains": {
         "cap": "sites.domains_get",
         "input": {
           "siteId": "/selected"
         },
         "live": true
-      },
-      "env": {
-        "cap": "sites.env_list",
-        "input": {
-          "siteId": "/selected"
-        },
-        "live": true
       }
     },
     "actions": {
-      "setDomain": {
-        "cap": "sites.domain_set",
+      "stop": {
+        "cap": "sites.stop",
         "input": {
           "siteId": "/selected"
-        }
-      },
-      "setEnv": {
-        "cap": "sites.env_set",
-        "input": {
-          "siteId": "/selected"
-        }
+        },
+        "confirm": "Stop serving this site?"
       }
     },
     "needs": [],
@@ -689,27 +671,15 @@ export const screens: ScreenIndexEntry[] = [
           "folderId": "/folder"
         },
         "live": true
-      },
-      "previews": {
-        "cap": "sites.previews",
-        "input": {
-          "siteId": "/selected"
-        },
-        "live": true
       }
     },
     "actions": {
-      "create": {
-        "cap": "sites.create",
-        "input": {}
-      },
       "promote": {
         "cap": "sites.promote",
         "input": {
-          "siteId": "/selected",
-          "deploymentId": "/deployment"
+          "siteId": "/selected"
         },
-        "confirm": "Promote to production?"
+        "confirm": "Put this site on the public internet?"
       }
     },
     "needs": [
@@ -2794,38 +2764,6 @@ export const screens: ScreenIndexEntry[] = [
     },
     "needs": [
       "policy.manage"
-    ],
-    "perf": {
-      "firstPaintMs": 50,
-      "completeMs": 100
-    }
-  },
-  {
-    "id": "console.logging",
-    "module": "console-views",
-    "place": "console",
-    "slot": "main",
-    "builtin": "ui:ConsoleLogging",
-    "caller": "principal",
-    "queries": {
-      "settings": {
-        "cap": "logs.settings_get",
-        "input": {},
-        "live": true
-      }
-    },
-    "actions": {
-      "set": {
-        "cap": "logs.settings_set",
-        "input": {
-          "level": "/draft/level",
-          "fullDays": "/draft/fullDays",
-          "aggregateDays": "/draft/aggregateDays"
-        }
-      }
-    },
-    "needs": [
-      "server.logs"
     ],
     "perf": {
       "firstPaintMs": 50,
