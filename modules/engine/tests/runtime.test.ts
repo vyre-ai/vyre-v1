@@ -52,6 +52,23 @@ test("a daemon without the host half leaves the engine unbound; with it, the fir
   assert.throws(() => boundEngine(h.ctx));
 });
 
+test("two daemons in one process: only the daemon whose host half the module holds builds the runtime, on its own database", async () => {
+  // the two-computer tests boot both computers' daemons in one process; the first one's periodic job built the runtime on its own database with the second's host half, and once the first
+  // stopped every message on the second failed with "database is not open" and no turn ran (vault-matrix.personal-second, about one run in five)
+  bindEngine(null);
+  const first = harness({ threads: THREADS });
+  const second = harness({ threads: THREADS });
+  const f: Fake = { calls: [], haveKey: true, accountsDown: false };
+  hostSeams.setEngineHost({ ...hostFor(scriptedProvider({ script: say }), f), ours: (db) => db === second.ctx.db });
+  assert.equal(await ensureRuntime(first.ctx), null, "the first daemon's call builds nothing");
+  assert.throws(() => boundEngine(second.ctx), "and binds nothing");
+  const built = await ensureRuntime(second.ctx);
+  assert.ok(built);
+  assert.equal(boundEngine(second.ctx), built);
+  assert.equal(await ensureRuntime(first.ctx), null, "nor is it handed the second daemon's runtime");
+  hostSeams.setEngineHost(null);
+});
+
 test("a turn runs on the account engine.account.resolve names, for the payer, and its usage is metered against the Vault item", async () => {
   const h = harness({ threads: THREADS });
   const p = scriptedProvider({ script: say });
