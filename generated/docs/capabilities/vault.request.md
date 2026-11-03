@@ -31,6 +31,7 @@ type In = {
   forRun?: string;
   folderId?: string;
   handleOnly?: boolean;
+  to?: string;
   idempotencyKey: string;
 };
 ```
@@ -82,7 +83,8 @@ type Out = {
     "handleOnly": true,
     "idempotencyKey": "idem_1",
     "name": "Dana_Lawmatics",
-    "reason": "example"
+    "reason": "example",
+    "to": "usr_a1b2c3"
   },
   "output": {
     "request": {

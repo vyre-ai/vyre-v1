@@ -14,6 +14,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "settings.kit.set_space": Handler<"settings.kit.set_space", X>;
   "settings.list": Handler<"settings.list", X>;
   "settings.pages": Handler<"settings.pages", X>;
+  "settings.public_of": Handler<"settings.public_of", X>;
   "settings.reset": Handler<"settings.reset", X>;
   "settings.reset_space": Handler<"settings.reset_space", X>;
   "settings.search": Handler<"settings.search", X>;

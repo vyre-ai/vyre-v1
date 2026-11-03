@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access.
 
-## Capabilities (50)
+## Capabilities (51)
 
 - [providers.add](../capabilities/providers.add.md): Connect a provider with a pasted API key (stored once, used by handle) or a local model address
 - [providers.catalog](../capabilities/providers.catalog.md): The provider gallery from the definition files: name, logo, connection kinds, model list source, engine
@@ -54,6 +54,7 @@ Requires: access.
 - [vault.share](../capabilities/vault.share.md): Share an item or folder with a person, group, agent or automation at Use, View, Edit or Manage; subscription sign-ins are never shareable
 - [vault.site_rules.list](../capabilities/vault.site_rules.list.md): Sites where I never fill and never get offered to save a login in this Space (Never Fill on This Site)
 - [vault.site_rules.set](../capabilities/vault.site_rules.set.md): Set or clear the never-fill and never-save rule for one site; personal, follows the extension in this Space
+- [vault.text_check](../capabilities/vault.text_check.md): Which of my own Mine items have a value in this text: their handles, never a value
 - [vault.unshare](../capabilities/vault.unshare.md): Stop sharing an item or folder with someone
 - [vault.use](../capabilities/vault.use.md): Ask for an item by name: returns a handle like #Dana_Lawmatics and the field names, never values
 
