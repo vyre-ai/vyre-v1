@@ -11,7 +11,7 @@ import { touchActivity } from "../projections.ts";
 import { fail, flag, hexOf, isNull, many, mustSite, nid, num, one, optBool, optStr, rec, reqStr, str } from "./deploy.ts";
 import { sitePlan } from "./plan.ts";
 import type { SitePlan } from "./plan.ts";
-import { DEFAULT_LIMITS, MIN_FREE_MB } from "./runner.ts";
+import { addonHost, DEFAULT_LIMITS, MIN_FREE_MB } from "./runner.ts";
 import type { AddonKind, Limits, Runner } from "./runner.ts";
 import { cleanBranch, fetchSource, remoteHead, repoUrl, SourceError } from "./source.ts";
 import type { SourceSpec } from "./source.ts";
@@ -33,7 +33,7 @@ const runner = (): Runner | null => siteRunner();
 
 /** Why this Space cannot build and run apps, in a sentence, or null when it can. */
 export function deployNeed(): string | null {
-  if (!siteRunner()) return "Vyre builds and runs apps on a server of this Space with Docker. This server has none it can use yet: an admin adds one in Settings, Computers.";
+  if (!siteRunner()) return "This server has no sites runner, so Vyre cannot build and run apps here yet. Updating Vyre Server adds it.";
   return null;
 }
 
@@ -191,8 +191,9 @@ async function addonEnv(ctx: Ctx, siteId: string): Promise<Record<string, string
   const out: Record<string, string> = {};
   for (const a of many(ctx, "SELECT * FROM sites_addon WHERE site_id = ?", siteId)) {
     const pass = encodeURIComponent(await secretOf(ctx, a));
-    if (a.kind === "postgres") Object.assign(out, { DATABASE_URL: `postgres://app:${pass}@postgres:5432/app`, PGHOST: "postgres", PGPORT: "5432", PGUSER: "app", PGPASSWORD: decodeURIComponent(pass), PGDATABASE: "app" });
-    if (a.kind === "redis") out.REDIS_URL = `redis://default:${pass}@redis:6379`;
+    const host = addonHost(siteId, str(a.kind) as AddonKind);
+    if (a.kind === "postgres") Object.assign(out, { DATABASE_URL: `postgres://app:${pass}@${host}:5432/app`, PGHOST: host, PGPORT: "5432", PGUSER: "app", PGPASSWORD: decodeURIComponent(pass), PGDATABASE: "app" });
+    if (a.kind === "redis") out.REDIS_URL = `redis://default:${pass}@${host}:6379`;
   }
   return out;
 }

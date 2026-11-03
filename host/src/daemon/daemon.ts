@@ -275,8 +275,8 @@ export interface DaemonOptions {
   computersHomeIntervalMs?: number;
   /** The container engine socket the agent computers module talks to (default: the system one); tests point it somewhere nothing listens. */
   computersSocketPath?: string;
-  /** The Docker engine socket sites are built and run on (default: VYRE_SITES_DOCKER; none when neither is set) */
-  sitesDockerSocket?: string;
+  /** The sites runner's socket (host/src/sites-runner; default VYRE_SITES_RUNNER) and, beside it, its token file. Vyre never holds the Docker socket itself. */
+  sitesRunnerSocket?: string;
   /** How long a computer that joined has to answer a job before it is handed out again (default 45 s); tests shorten it. */
   computeLeaseMs?: number;
   /** How often a computer's live-view socket checks that its credential still stands (a test sets it low). Default 2 s. */
@@ -1330,8 +1330,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           const computers = loaded.moduleExports.get("computers") as { localComputerAddress?: (id: string) => Promise<string | null>; localSiteLogs?: (a: { computerId: string; slug: string; lines: number }) => Promise<string[]> } | undefined;
           const sitesMod = loaded.moduleExports.get("sites") as { routeBySlug?(c: { db: unknown }, slug: string): ServedSite | null; routeByTicket?(c: { db: unknown }, id: string, token: string, now: number): Promise<{ route: ServedSite; principal: string; owner: string } | null> } | undefined;
           const sitesExports = loaded.moduleExports.get("sites") as Record<string, unknown> | undefined;
-          // Vyre builds and runs sites only where an operator gave it a Docker engine for that (VYRE_SITES_DOCKER, the socket path): the Space server's own image never holds one by default
-          const dockerSocket = o.sitesDockerSocket ?? process.env["VYRE_SITES_DOCKER"] ?? undefined;
+          // Vyre builds and runs sites through the sites runner beside it (compose service sites-runner), which alone holds the Docker socket and refuses anything a site does not need.
+          // Its token is new each time it starts and sits next to its socket, so it is read again on every call.
+          const runnerSocket = o.sitesRunnerSocket ?? process.env["VYRE_SITES_RUNNER"] ?? undefined;
+          const runnerToken = (): string => { try { return fs.readFileSync(process.env["VYRE_SITES_RUNNER_TOKEN_FILE"] ?? path.join(path.dirname(runnerSocket as string), "token"), "utf8").trim(); } catch { return ""; } };
+          const runnerLink = runnerSocket ? { socketPath: runnerSocket, token: runnerToken } : undefined;
           const sitesCaddy = cfg.caddyAdmin ? new CaddyRouter({ admin: new CaddyAdmin({ baseUrl: cfg.caddyAdmin, ...(o.fetch ? { fetch: o.fetch as never } : {}) }), space: spaceId, base: process.env["VYRE_CADDY_CA"] === "internal" ? { acme: { ca: "internal" } } : {} }) : null;
           // sites get <slug>.<this>: VYRE_SITES_DOMAIN, or the Space's own domain once a wildcard name under it points at this server (checked now and then, never assumed)
           let wildcard: { host: string; ok: boolean; at: number } | null = null;
@@ -1370,6 +1373,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             origin: () => publicOrigin()?.origin ?? null,
           };
           // the slow tick: the wildcard check, every deployed site's address back in Caddy, and a deploy for each site whose branch moved (run as whoever deployed it last, so the Vault checks their access)
+          void checkWildcard().catch(() => undefined);
           sitesTick = async () => {
             await checkWildcard();
             if (sitesCaddy) for (const x of hostsOf()) for (const h of x.hosts) if (!written.has(h)) { try { await sitesCaddy.setIngress(h, `127.0.0.1:${boundPort}`); written.add(h); } catch (e) { sink.log({ space: spaceId, level: 40, msg: "sites.host_route_pending", place: "sites", attrs: { host: h, why: e instanceof Error ? e.message.slice(0, 160) : "" } }); } }
@@ -1381,7 +1385,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           };
           const made = createSitesHost({
             containerAddress: (c) => (sitesExports?.["containerAddress"] as ((c: string) => Promise<string | null>) | undefined)?.(c) ?? Promise.resolve(null),
-            deploy: { ...(dockerSocket ? { dockerSocket } : {}), take: takeSiteSecret, tmp: path.join(paths.root, "site-builds"), sitesDomain, domainOf: (id) => (db!.all("SELECT domain FROM sites_domain WHERE site_id = ? ORDER BY created_at", id)[0] as { domain?: string } | undefined)?.domain ?? null, hostRoute },
+            deploy: { ...(runnerLink ? { runnerLink } : {}), take: takeSiteSecret, tmp: path.join(paths.root, "site-builds"), sitesDomain, domainOf: (id) => (db!.all("SELECT domain FROM sites_domain WHERE site_id = ? ORDER BY created_at", id)[0] as { domain?: string } | undefined)?.domain ?? null, hostRoute },
             artifacts: artifactStore, origin: publicOrigin, contained: fs.existsSync("/.dockerenv"),
             nodeOf: (id) => (db!.all("SELECT node_id FROM computers_computers WHERE computer_id = ?", id)[0] as { node_id?: string | null } | undefined)?.node_id ?? null,
             localAddress: (id) => computers?.localComputerAddress?.(id) ?? Promise.resolve(null),

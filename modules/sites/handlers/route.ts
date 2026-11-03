@@ -15,7 +15,7 @@ import { touchActivity } from "../projections.ts";
 import { fail, flag, hexOf, isNull, many, mustSite, nid, num, one, optBool, optInt, optStr, rec, reqStr, str } from "./deploy.ts";
 import { cleanLimits, cleanSource, deployedLogs, deployNeed, depRow, limitsOf, parseJson, siteHostOf, sourceOf, stopDeployed } from "./release.ts";
 import { dockerRunner } from "./runner.ts";
-import type { Runner } from "./runner.ts";
+import type { Runner, RunnerLink } from "./runner.ts";
 
 type Row = Record<string, unknown>;
 export type Access = "public" | "password" | "space" | "private";
@@ -47,8 +47,8 @@ export interface SitesHost {
   readLocal?(path: string): Promise<LocalFile[] | null>;
   /** Where an artifact's files are kept: the Artifacts folder under Files, written by the server, because publishing must not depend on an agent's own grants in Files. */
   artifacts?: { folder(siteId: string, title: string): Promise<string>; put(folderId: string, name: string, base64: string, mime: string): Promise<void> };
-  /** The Docker engine socket of this server, which builds and runs deployed sites (handlers/runner.ts); absent where there is none. Tests pass a runner instead. */
-  dockerSocket?: string;
+  /** The sites runner of this server (host/src/sites-runner), which alone holds the Docker socket and builds and runs deployed sites; absent where there is none. Tests may pass a runner. */
+  runnerLink?: RunnerLink;
   runner?: Runner;
   /** a value the Vault filled for a deploy (kind container_env), taken once */
   take?(ref: string): string | undefined;
@@ -68,7 +68,7 @@ let host: SitesHost | null = null;
 let runnerOf: Runner | null = null;
 export function configureRoutes(h: SitesHost | null): void {
   host = h;
-  runnerOf = h?.runner ?? (h?.dockerSocket ? dockerRunner({ socketPath: h.dockerSocket }) : null);
+  runnerOf = h?.runner ?? (h?.runnerLink ? dockerRunner(h.runnerLink) : null);
 }
 export const routesHost = (): SitesHost | null => host;
 /** The runner deployed sites build and run on, or null where this server has no Docker it may use. */
@@ -363,10 +363,11 @@ async function sitesHost(ctx: Ctx): Promise<{ origin?: string; relay: boolean; c
   const o = host?.origin() ?? null;
   let computers = false;
   try { computers = ((await ctx.call("computers.hosts", {})) as { available?: boolean }).available === true; } catch { /* no computers module: none */ }
-  const deploy = runnerOf !== null;
+  // the runner is a separate process: it may be starting, or gone
+  const deploy = runnerOf !== null && await runnerOf.ping();
   const sitesDomain = host?.sitesDomain?.() ?? null;
   const domains = computers || (deploy && !!o && !o.relay);
-  const need = deployNeed();
+  const need = deploy ? null : runnerOf ? "The sites runner on this server is not answering. An admin restarts the server (docker compose up -d)." : deployNeed();
   return {
     ...(o ? { origin: o.origin } : {}), relay: o?.relay === true, computers, domains, ...(domains ? {} : { domainsNeed: "A custom domain needs a server with a public address." }),
     deploy, ...(need ? { deployNeed: need } : {}), ...(sitesDomain ? { sitesDomain } : {}),

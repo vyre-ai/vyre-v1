@@ -25,7 +25,7 @@ export interface SitesHostDeps {
   /** a deployed site's own container on this server: its address on the site's network (the sites module's runner answers) */
   containerAddress?(containerId: string): Promise<string | null>;
   /** what the sites module needs to build and run sites here: the Docker socket, values filled from the Vault, the sites' address, and Caddy */
-  deploy?: { dockerSocket?: string; take(ref: string): string | undefined; tmp?: string; sitesDomain(): string | null; domainOf(siteId: string): string | null; hostRoute(siteId: string, up: boolean): Promise<void> };
+  deploy?: { runnerLink?: { socketPath: string; token(): string }; take(ref: string): string | undefined; tmp?: string; sitesDomain(): string | null; domainOf(siteId: string): string | null; hostRoute(siteId: string, up: boolean): Promise<void> };
 }
 
 const MIME: Readonly<Record<string, string>> = { ".html": "text/html", ".htm": "text/html", ".css": "text/css", ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".ico": "image/x-icon", ".txt": "text/plain", ".md": "text/markdown", ".pdf": "application/pdf", ".woff2": "font/woff2" };

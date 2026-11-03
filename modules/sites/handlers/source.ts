@@ -9,7 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
-import { untar } from "../../../sandbox/src/tar.ts";
+import { untar } from "./tar.ts";
 
 export interface SourceSpec { repo?: string; branch?: string; tokenHandle?: string; folderId?: string; fileId?: string; path?: string; root?: string }
 export interface Fetched { dir: string; commit?: string; message?: string; branch?: string; cleanup(): void }

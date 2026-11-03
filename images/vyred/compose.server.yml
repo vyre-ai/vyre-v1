@@ -1,6 +1,9 @@
-# Server role: vyred with the Space, and Caddy in front of it (spec 3.13, 5 b12). Written next to .env by the installer; run with
+# Server role: vyred with the Space, Caddy in front of it (spec 3.13, 5 b12), and the sites runner beside it. Written next to .env by the installer; run with
 #   docker compose -f compose.server.yml up -d
 # Caddy shares vyred's network namespace, so its admin API stays on loopback and the ports below are published once, on vyred.
+# The sites runner (owner, 3 Nov) is the only service that holds the Docker socket. It has no network; vyred reaches it over a Unix socket in the vyre-sites-run volume with a token
+# it writes there at each start, and it builds and runs only site containers, on the vyre-sites network, inside fixed limits (host/src/sites-runner/policy.ts). vyred joins vyre-sites
+# to serve them.
 name: vyre-server
 
 services:
@@ -17,20 +20,51 @@ services:
       VYRE_SPACE: ${VYRE_SPACE:-}
       VYRE_ADDRESS: ${VYRE_ADDRESS:-}
       VYRE_RELAY_URL: ${VYRE_RELAY_URL:-}
+      VYRE_SITES_RUNNER: /run/vyre-sites/runner.sock
     env_file:
       - path: ./vyre.env
         required: false
     volumes:
       - vyre-data:/data
       - vyre-work:/work
+      - vyre-sites-run:/run/vyre-sites
     ports:
       - "80:80"
       - "443:443"
       - "127.0.0.1:${VYRE_PORT:-8420}:8420"
+    networks:
+      - default
+      - vyre-sites
+    depends_on:
+      sites-runner:
+        condition: service_started
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
     stop_grace_period: 20s
+
+  sites-runner:
+    image: ${VYRE_IMAGE:-ghcr.io/vyre-ai/vyred:latest}
+    restart: unless-stopped
+    command: ["node", "/opt/vyre/host/src/sites-runner/main.ts"]
+    # root only to open the Docker socket (owned by root); every capability is dropped, the filesystem is read-only, and there is no network at all
+    user: "0:0"
+    environment:
+      VYRE_SITES_RUNNER_SOCKET: /run/vyre-sites/runner.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - vyre-sites-run:/run/vyre-sites
+    network_mode: none
+    read_only: true
+    # the image's own check asks vyred's port, which this service does not have: it is healthy while its socket is there
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('fs').statSync('/run/vyre-sites/runner.sock')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
 
   caddy:
     image: caddy:2-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
@@ -57,3 +91,9 @@ volumes:
   vyre-work:
   caddy-data:
   caddy-config:
+  vyre-sites-run:
+
+networks:
+  # the sites' own network: site containers, their databases, and vyred to serve them; nothing else is put on it
+  vyre-sites:
+    name: vyre-sites

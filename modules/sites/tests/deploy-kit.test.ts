@@ -1,5 +1,6 @@
-// The deploy tests' world, real pieces only where they matter: real SQLite with the sites migrations, the real sites module handlers and host seam, the real Docker engine of the box (the
-// runner talks to its socket), and the real site-host route behind a small HTTP server that answers for <slug>.sites.test. Files, the Vault and access are scripted.
+// The deploy tests' world, real pieces only where they matter: real SQLite with the sites migrations, the real sites module handlers and host seam, the real sites runner (the restricted
+// sidecar, host/src/sites-runner) in front of the box's Docker engine, and the real site-host route behind a small HTTP server that answers for <slug>.sites.test. Files, the Vault and
+// access are scripted. The test process reaches the vyre-sites network the way vyred does on a server, so the box needs it (made here when missing).
 // A test file uses one of these per app kind and cleans up every container, image, volume and network it made (by the vyre.site label).
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -12,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { harness } from "../fixtures/world.ts";
 import { createSitesHost } from "../../../host/src/seams/sites-host.ts";
 import { createSiteHostRoute } from "../../../host/src/routes/site-host.ts";
+import { createSitesRunner } from "../../../host/src/sites-runner/server.ts";
 import { configureRoutes, containerAddress, routeByHost, routeByTicket } from "../handlers/route.ts";
 import { checkPassword, newTicket, SESSION_MS } from "../handlers/release.ts";
 import { handlers } from "../impl.ts";
@@ -57,11 +59,16 @@ export function deployWorld(o: { vault?: Record<string, string>; members?: strin
       throw new Error(`unscripted call ${cap}`);
     },
   };
+  // the restricted runner on a socket of its own: the module never sees the Docker socket
+  if (HEAVY && docker("network", "inspect", "vyre-sites").status !== 0) docker("network", "create", "vyre-sites");
+  const runnerDir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-sites-runner-"));
+  const runnerToken = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+  const runner = createSitesRunner({ dockerSocket: "/var/run/docker.sock", listen: path.join(runnerDir, "runner.sock"), token: runnerToken });
   const made = createSitesHost({
     origin: () => ({ origin: "https://space.test", relay: false }), nodeOf: () => null, localAddress: async () => null, localLogs: async () => [], contained: false,
     stream: { portFetch: () => undefined, ask: async () => null, connected: () => false },
     containerAddress: (c) => containerAddress(c),
-    deploy: { dockerSocket: "/var/run/docker.sock", take: (ref) => { const v = secrets.get(ref); secrets.delete(ref); return v; }, tmp: os.tmpdir(), sitesDomain: () => DOMAIN, domainOf: () => null, hostRoute: async () => undefined },
+    deploy: { runnerLink: { socketPath: path.join(runnerDir, "runner.sock"), token: () => runnerToken }, take: (ref) => { const v = secrets.get(ref); secrets.delete(ref); return v; }, tmp: os.tmpdir(), sitesDomain: () => DOMAIN, domainOf: () => null, hostRoute: async () => undefined },
   });
   configureRoutes(made.host as never);
   const route = createSiteHostRoute({
@@ -70,7 +77,7 @@ export function deployWorld(o: { vault?: Record<string, string>; members?: strin
     address: (c) => containerAddress(c), origin: () => "https://space.test",
   });
   const server = http.createServer((q, s) => { if (!route.handle(q, s)) { s.writeHead(599); s.end("not a site"); } });
-  const ready = new Promise<number>((r) => server.listen(0, "127.0.0.1", () => r((server.address() as AddressInfo).port)));
+  const ready = runner.listening.then(() => new Promise<number>((r) => server.listen(0, "127.0.0.1", () => r((server.address() as AddressInfo).port))));
   const sites: string[] = [];
 
   /** One request to a site's own address through the route, with the Host header a browser would send. */
@@ -89,6 +96,7 @@ export function deployWorld(o: { vault?: Record<string, string>; members?: strin
 
   /** Make a site from a fixture folder (copied, as an agent's own computer would) and deploy it, waiting for the end. */
   async function deploy(fixture: string, input: Record<string, unknown> = {}): Promise<{ site: any; deployment: any }> { // eslint-disable-line @typescript-eslint/no-explicit-any
+    await runner.listening;
     const name = `${fixture} ${process.pid}${Math.random().toString(36).slice(2, 6)}`;
     const site = (await h["sites.create"]!(ctx, { name, source: { path: path.join(FIXTURES, fixture) }, ...input })).site;
     sites.push(site.siteId);
@@ -100,6 +108,7 @@ export function deployWorld(o: { vault?: Record<string, string>; members?: strin
 
   function cleanup(): void {
     server.closeAllConnections(); server.close();
+    void runner.close().then(() => fs.rmSync(runnerDir, { recursive: true, force: true }));
     configureRoutes(null);
     for (const id of sites) {
       const ids = docker("ps", "-aq", "--filter", `label=vyre.site=${id}`).stdout.split("\n").filter(Boolean);
@@ -108,12 +117,12 @@ export function deployWorld(o: { vault?: Record<string, string>; members?: strin
       if (imgs.length) docker("rmi", "-f", ...new Set(imgs));
       const hex = id.replace(/^sit_/, "");
       docker("volume", "rm", "-f", `vyre-site-${hex.slice(-12)}-postgres-data`, `vyre-site-${hex.slice(-12)}-redis-data`);
-      docker("network", "rm", `vyre-site-${hex.slice(-16)}`);
     }
   }
 
   /** Make a site from a fixture without deploying it yet. */
   async function create(fixture: string, input: Record<string, unknown> = {}): Promise<any> { // eslint-disable-line @typescript-eslint/no-explicit-any
+    await runner.listening;
     const site = (await h["sites.create"]!(ctx, { name: `${fixture} ${process.pid}${Math.random().toString(36).slice(2, 6)}`, source: { path: path.join(FIXTURES, fixture) }, ...input })).site;
     sites.push(site.siteId);
     return site;
@@ -128,5 +137,5 @@ export function deployWorld(o: { vault?: Record<string, string>; members?: strin
     return String(r.headers["set-cookie"]).split(";")[0] as string;
   }
 
-  return { ctx, h, db, sdb, vault, files, folders, members, get, deploy, create, signIn, buildLog, cleanup, track: (id: string) => sites.push(id), as: (p: string) => ({ ...ctx, principal: { kind: "person" as const, id: p } }) };
+  return { runnerSocket: path.join(runnerDir, "runner.sock"), runnerToken, ctx, h, db, sdb, vault, files, folders, members, get, deploy, create, signIn, buildLog, cleanup, track: (id: string) => sites.push(id), as: (p: string) => ({ ...ctx, principal: { kind: "person" as const, id: p } }) };
 }
