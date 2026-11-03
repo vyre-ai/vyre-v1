@@ -23163,6 +23163,7 @@ export type ProvidersSubscriptionCompleteOut = {
 };
 export type ProvidersSubscriptionStartIn = {
   providerKey: string;
+  local?: boolean;
   idempotencyKey: string;
 };
 export type ProvidersSubscriptionStartOut = {
@@ -33440,6 +33441,7 @@ export type VaultRequestsFulfilIn = {
       value: string;
     }>;
   folderId?: string;
+  audience?: "asker" | "anyone";
 };
 export type VaultRequestsFulfilOut = {
   request: {
@@ -36979,6 +36981,10 @@ export type GateApprovedPayload = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
+  capName?: string;
+  threadId?: string;
+  agentId?: string;
+  actingFor?: string;
 };
 export type GateDeniedPayload = {
   holdId: string;
@@ -36991,6 +36997,10 @@ export type GateDeniedPayload = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
+  capName?: string;
+  threadId?: string;
+  agentId?: string;
+  actingFor?: string;
 };
 export type GateExpiredPayload = {
   holdId: string;

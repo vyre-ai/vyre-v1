@@ -789,34 +789,35 @@ const L756: Leaf = { "t":["string"],"en":["\"weak\"","\"reused\"","\"stale\"","\
 const L757: Leaf = { "t":["string"],"en":["\"onepassword\"","\"bitwarden\"","\"lastpass\"","\"chrome\""] };
 const L758: Leaf = { "t":["string"],"en":["\"skip\"","\"overwrite\"","\"keep_both\""] };
 const L759: Leaf = { "t":["string"],"en":["\"created\"","\"used\"","\"revealed\"","\"edited\"","\"moved\"","\"rotated\"","\"shared\"","\"unshared\"","\"exported\"","\"deleted\"","\"restored\""] };
-const L760: Leaf = { "t":["string"],"en":["\"none\"","\"local\"","\"cloud\""] };
-const L761: Leaf = { "t":["string"],"en":["\"scheduled\"","\"live\"","\"upcoming\"","\"previous\""] };
-const L762: Leaf = { "t":["string"],"en":["\"meeting.started\"","\"meeting.ended\"","\"recording.completed\"","\"recording.transcript_completed\"","\"endpoint.url_validation\""] };
-const L763: Leaf = { "t":["string"],"en":["\"role\"","\"group\"","\"membership\"","\"label\"","\"actor\"","\"assignment\""] };
-const L764: Leaf = { "t":["string"],"en":["\"self_trigger\"","\"depth_limit\"","\"paused\"","\"filter_error\""] };
-const L765: Leaf = { "t":["string"],"en":["\"question\"","\"plan\""] };
-const L766: Leaf = { "t":["string"],"en":["\"vyre\"","\"google\"","\"microsoft\"","\"booking\""] };
-const L767: Leaf = { "t":["string"],"en":["\"done\"","\"dismissed\""] };
-const L768: Leaf = { "t":["string"],"en":["\"idle\"","\"requested\""] };
-const L769: Leaf = { "t":["string"],"en":["\"rule\"","\"person\"","\"agent\""] };
-const L770: Leaf = { "t":["string"],"en":["\"success\"","\"failure\"","\"neutral\"","\"cancelled\"","\"timed_out\"","\"action_required\""] };
-const L771: Leaf = { "t":["string"],"c":"\"google\"" };
-const L772: Leaf = { "t":["string"],"en":["\"time_and_attendees\"","\"link\"","\"person\""] };
-const L773: Leaf = { "t":["string"],"c":"\"microsoft\"" };
-const L774: Leaf = { "t":["string"],"en":["\"unsupported\"","\"too_large\"","\"corrupt\"","\"converter_down\"","\"timeout\""] };
-const L775: Leaf = { "t":["string"],"en":["\"thumbnail\"","\"pages\"","\"text\""] };
-const L776: Leaf = { "t":["string"],"en":["\"new\"","\"channel\"","\"journey\"","\"template\""] };
-const L777: Leaf = { "t":["string"],"en":["\"accepted\"","\"rejected\""] };
-const L778: Leaf = { "t":["string"],"en":["\"in_review\"","\"approved\"","\"rejected\""] };
-const L779: Leaf = { "t":["string"],"en":["\"bad_credentials\"","\"bad_code\"","\"locked\"","\"sso_denied\""] };
-const L780: Leaf = { "t":["string"],"en":["\"password\"","\"github\"","\"sso\"","\"pair\"","\"recovery\""] };
-const L781: Leaf = { "t":["string"],"en":["\"staging\"","\"preview\""] };
-const L782: Leaf = { "t":["string"],"en":["\"rule\"","\"person\""] };
-const L783: Leaf = { "t":["string"],"en":["\"bad_signature\"","\"unknown_source\"","\"paused\"","\"too_large\"","\"bad_payload\""] };
-const L784: Leaf = { "t":["string"],"en":["\"finished\"","\"blocked\"","\"asked\""] };
-const L785: Leaf = { "t":["string"],"en":["\"added\"","\"removed\""] };
-const L786: Leaf = { "t":["string"],"en":["\"record\"","\"file\"","\"dependency\""] };
-const L787: Leaf = { "t":["string"],"en":["\"person\"","\"mention\""] };
+const L760: Leaf = { "t":["string"],"en":["\"asker\"","\"anyone\""] };
+const L761: Leaf = { "t":["string"],"en":["\"none\"","\"local\"","\"cloud\""] };
+const L762: Leaf = { "t":["string"],"en":["\"scheduled\"","\"live\"","\"upcoming\"","\"previous\""] };
+const L763: Leaf = { "t":["string"],"en":["\"meeting.started\"","\"meeting.ended\"","\"recording.completed\"","\"recording.transcript_completed\"","\"endpoint.url_validation\""] };
+const L764: Leaf = { "t":["string"],"en":["\"role\"","\"group\"","\"membership\"","\"label\"","\"actor\"","\"assignment\""] };
+const L765: Leaf = { "t":["string"],"en":["\"self_trigger\"","\"depth_limit\"","\"paused\"","\"filter_error\""] };
+const L766: Leaf = { "t":["string"],"en":["\"question\"","\"plan\""] };
+const L767: Leaf = { "t":["string"],"en":["\"vyre\"","\"google\"","\"microsoft\"","\"booking\""] };
+const L768: Leaf = { "t":["string"],"en":["\"done\"","\"dismissed\""] };
+const L769: Leaf = { "t":["string"],"en":["\"idle\"","\"requested\""] };
+const L770: Leaf = { "t":["string"],"en":["\"rule\"","\"person\"","\"agent\""] };
+const L771: Leaf = { "t":["string"],"en":["\"success\"","\"failure\"","\"neutral\"","\"cancelled\"","\"timed_out\"","\"action_required\""] };
+const L772: Leaf = { "t":["string"],"c":"\"google\"" };
+const L773: Leaf = { "t":["string"],"en":["\"time_and_attendees\"","\"link\"","\"person\""] };
+const L774: Leaf = { "t":["string"],"c":"\"microsoft\"" };
+const L775: Leaf = { "t":["string"],"en":["\"unsupported\"","\"too_large\"","\"corrupt\"","\"converter_down\"","\"timeout\""] };
+const L776: Leaf = { "t":["string"],"en":["\"thumbnail\"","\"pages\"","\"text\""] };
+const L777: Leaf = { "t":["string"],"en":["\"new\"","\"channel\"","\"journey\"","\"template\""] };
+const L778: Leaf = { "t":["string"],"en":["\"accepted\"","\"rejected\""] };
+const L779: Leaf = { "t":["string"],"en":["\"in_review\"","\"approved\"","\"rejected\""] };
+const L780: Leaf = { "t":["string"],"en":["\"bad_credentials\"","\"bad_code\"","\"locked\"","\"sso_denied\""] };
+const L781: Leaf = { "t":["string"],"en":["\"password\"","\"github\"","\"sso\"","\"pair\"","\"recovery\""] };
+const L782: Leaf = { "t":["string"],"en":["\"staging\"","\"preview\""] };
+const L783: Leaf = { "t":["string"],"en":["\"rule\"","\"person\""] };
+const L784: Leaf = { "t":["string"],"en":["\"bad_signature\"","\"unknown_source\"","\"paused\"","\"too_large\"","\"bad_payload\""] };
+const L785: Leaf = { "t":["string"],"en":["\"finished\"","\"blocked\"","\"asked\""] };
+const L786: Leaf = { "t":["string"],"en":["\"added\"","\"removed\""] };
+const L787: Leaf = { "t":["string"],"en":["\"record\"","\"file\"","\"dependency\""] };
+const L788: Leaf = { "t":["string"],"en":["\"person\"","\"mention\""] };
 
 function d_s_0009d545f0(v: unknown, p: string, e: string[]): void {
 {
@@ -66613,6 +66614,7 @@ if (g4235 === 'object') { const o4235 = x4235 as Record<string, unknown>;
 if (!("providerKey" in o4235)) e.push(p + "/providerKey" + ': required');
 if (!("idempotencyKey" in o4235)) e.push(p + "/idempotencyKey" + ': required');
 if ("providerKey" in o4235) lf(o4235["providerKey"], p + "/providerKey", e, L2);
+if ("local" in o4235) lf(o4235["local"], p + "/local", e, L7);
 if ("idempotencyKey" in o4235) lf(o4235["idempotencyKey"], p + "/idempotencyKey", e, L51);
 }
 }
@@ -83867,6 +83869,7 @@ if ("requestId" in o5377) lf(o5377["requestId"], p + "/requestId", e, L129);
 if ("itemId" in o5377) lf(o5377["itemId"], p + "/itemId", e, L90);
 if ("fields" in o5377) d_s_5a34561c27(o5377["fields"], p + "/fields", e);
 if ("folderId" in o5377) lf(o5377["folderId"], p + "/folderId", e, L130);
+if ("audience" in o5377) lf(o5377["audience"], p + "/audience", e, L760);
 }
 }
 }
@@ -84674,7 +84677,7 @@ if ("durationMinutes" in o5431) lf(o5431["durationMinutes"], p + "/durationMinut
 if ("timezone" in o5431) lf(o5431["timezone"], p + "/timezone", e, L2);
 if ("agenda" in o5431) lf(o5431["agenda"], p + "/agenda", e, L2);
 if ("hostEmail" in o5431) lf(o5431["hostEmail"], p + "/hostEmail", e, L13);
-if ("autoRecord" in o5431) lf(o5431["autoRecord"], p + "/autoRecord", e, L760);
+if ("autoRecord" in o5431) lf(o5431["autoRecord"], p + "/autoRecord", e, L761);
 if ("idempotencyKey" in o5431) lf(o5431["idempotencyKey"], p + "/idempotencyKey", e, L51);
 }
 }
@@ -84733,7 +84736,7 @@ const b5435: string[] = []; lf(x5435, p, b5435, L0); if (b5435.length) e.push(..
 if (g5435 === "object") {
 if (g5435 === 'object') { const o5435 = x5435 as Record<string, unknown>;
 if ("hostEmail" in o5435) lf(o5435["hostEmail"], p + "/hostEmail", e, L13);
-if ("type" in o5435) lf(o5435["type"], p + "/type", e, L761);
+if ("type" in o5435) lf(o5435["type"], p + "/type", e, L762);
 if ("pageToken" in o5435) lf(o5435["pageToken"], p + "/pageToken", e, L2);
 if ("cursor" in o5435) lf(o5435["cursor"], p + "/cursor", e, L2);
 if ("limit" in o5435) lf(o5435["limit"], p + "/limit", e, L117);
@@ -84801,7 +84804,7 @@ if (!("eventId" in o5439)) e.push(p + "/eventId" + ': required');
 if (!("type" in o5439)) e.push(p + "/type" + ': required');
 if (!("at" in o5439)) e.push(p + "/at" + ': required');
 if ("eventId" in o5439) lf(o5439["eventId"], p + "/eventId", e, L2);
-if ("type" in o5439) lf(o5439["type"], p + "/type", e, L762);
+if ("type" in o5439) lf(o5439["type"], p + "/type", e, L763);
 if ("meetingId" in o5439) lf(o5439["meetingId"], p + "/meetingId", e, L2);
 if ("uuid" in o5439) lf(o5439["uuid"], p + "/uuid", e, L2);
 if ("plainToken" in o5439) lf(o5439["plainToken"], p + "/plainToken", e, L2);
@@ -85017,7 +85020,7 @@ if (!("epoch" in o5453)) e.push(p + "/epoch" + ': required');
 if (!("what" in o5453)) e.push(p + "/what" + ': required');
 if (!("by" in o5453)) e.push(p + "/by" + ': required');
 if ("epoch" in o5453) lf(o5453["epoch"], p + "/epoch", e, L11);
-if ("what" in o5453) lf(o5453["what"], p + "/what", e, L763);
+if ("what" in o5453) lf(o5453["what"], p + "/what", e, L764);
 if ("by" in o5453) lf(o5453["by"], p + "/by", e, L2);
 }
 }
@@ -85842,7 +85845,7 @@ if (!("eventId" in o5498)) e.push(p + "/eventId" + ': required');
 if (!("reason" in o5498)) e.push(p + "/reason" + ': required');
 if ("automationId" in o5498) lf(o5498["automationId"], p + "/automationId", e, L118);
 if ("eventId" in o5498) lf(o5498["eventId"], p + "/eventId", e, L98);
-if ("reason" in o5498) lf(o5498["reason"], p + "/reason", e, L764);
+if ("reason" in o5498) lf(o5498["reason"], p + "/reason", e, L765);
 }
 }
 }
@@ -86055,7 +86058,7 @@ if (!("blockId" in o5511)) e.push(p + "/blockId" + ': required');
 if (!("blockType" in o5511)) e.push(p + "/blockType" + ': required');
 if ("threadId" in o5511) lf(o5511["threadId"], p + "/threadId", e, L18);
 if ("blockId" in o5511) lf(o5511["blockId"], p + "/blockId", e, L178);
-if ("blockType" in o5511) lf(o5511["blockType"], p + "/blockType", e, L765);
+if ("blockType" in o5511) lf(o5511["blockType"], p + "/blockType", e, L766);
 }
 }
 }
@@ -86149,7 +86152,7 @@ if ("eventId" in o5516) lf(o5516["eventId"], p + "/eventId", e, L137);
 if ("calendarId" in o5516) lf(o5516["calendarId"], p + "/calendarId", e, L52);
 if ("startsAt" in o5516) lf(o5516["startsAt"], p + "/startsAt", e, L8);
 if ("attendeeCount" in o5516) lf(o5516["attendeeCount"], p + "/attendeeCount", e, L11);
-if ("source" in o5516) lf(o5516["source"], p + "/source", e, L766);
+if ("source" in o5516) lf(o5516["source"], p + "/source", e, L767);
 }
 }
 }
@@ -86626,7 +86629,7 @@ if (g5543 === 'object') { const o5543 = x5543 as Record<string, unknown>;
 if (!("person" in o5543)) e.push(p + "/person" + ': required');
 if (!("reason" in o5543)) e.push(p + "/reason" + ': required');
 if ("person" in o5543) lf(o5543["person"], p + "/person", e, L2);
-if ("reason" in o5543) lf(o5543["reason"], p + "/reason", e, L767);
+if ("reason" in o5543) lf(o5543["reason"], p + "/reason", e, L768);
 }
 }
 }
@@ -86792,7 +86795,7 @@ if (!("agentId" in o5553)) e.push(p + "/agentId" + ': required');
 if (!("reason" in o5553)) e.push(p + "/reason" + ': required');
 if ("computerId" in o5553) lf(o5553["computerId"], p + "/computerId", e, L64);
 if ("agentId" in o5553) lf(o5553["agentId"], p + "/agentId", e, L4);
-if ("reason" in o5553) lf(o5553["reason"], p + "/reason", e, L768);
+if ("reason" in o5553) lf(o5553["reason"], p + "/reason", e, L769);
 }
 }
 }
@@ -87207,7 +87210,7 @@ if (!("by" in o5577)) e.push(p + "/by" + ': required');
 if (!("undoable" in o5577)) e.push(p + "/undoable" + ': required');
 if ("conversationId" in o5577) lf(o5577["conversationId"], p + "/conversationId", e, L297);
 if ("recordId" in o5577) lf(o5577["recordId"], p + "/recordId", e, L31);
-if ("by" in o5577) lf(o5577["by"], p + "/by", e, L769);
+if ("by" in o5577) lf(o5577["by"], p + "/by", e, L770);
 if ("undoable" in o5577) lf(o5577["undoable"], p + "/undoable", e, L7);
 }
 }
@@ -88137,6 +88140,10 @@ if ("taskId" in o5630) lf(o5630["taskId"], p + "/taskId", e, L25);
 if ("by" in o5630) lf(o5630["by"], p + "/by", e, L2);
 if ("forPerson" in o5630) lf(o5630["forPerson"], p + "/forPerson", e, L2);
 if ("askedBy" in o5630) d_s_6c1eb10d98(o5630["askedBy"], p + "/askedBy", e);
+if ("capName" in o5630) lf(o5630["capName"], p + "/capName", e, L2);
+if ("threadId" in o5630) lf(o5630["threadId"], p + "/threadId", e, L2);
+if ("agentId" in o5630) lf(o5630["agentId"], p + "/agentId", e, L2);
+if ("actingFor" in o5630) lf(o5630["actingFor"], p + "/actingFor", e, L2);
 }
 }
 }
@@ -88161,6 +88168,10 @@ if ("by" in o5631) lf(o5631["by"], p + "/by", e, L2);
 if ("mode" in o5631) lf(o5631["mode"], p + "/mode", e, L535);
 if ("note" in o5631) lf(o5631["note"], p + "/note", e, L2);
 if ("askedBy" in o5631) d_s_6c1eb10d98(o5631["askedBy"], p + "/askedBy", e);
+if ("capName" in o5631) lf(o5631["capName"], p + "/capName", e, L2);
+if ("threadId" in o5631) lf(o5631["threadId"], p + "/threadId", e, L2);
+if ("agentId" in o5631) lf(o5631["agentId"], p + "/agentId", e, L2);
+if ("actingFor" in o5631) lf(o5631["actingFor"], p + "/actingFor", e, L2);
 }
 }
 }
@@ -88365,7 +88376,7 @@ if (!("conclusion" in o5641)) e.push(p + "/conclusion" + ': required');
 if ("repo" in o5641) lf(o5641["repo"], p + "/repo", e, L89);
 if ("sha" in o5641) lf(o5641["sha"], p + "/sha", e, L2);
 if ("name" in o5641) lf(o5641["name"], p + "/name", e, L2);
-if ("conclusion" in o5641) lf(o5641["conclusion"], p + "/conclusion", e, L770);
+if ("conclusion" in o5641) lf(o5641["conclusion"], p + "/conclusion", e, L771);
 if ("number" in o5641) lf(o5641["number"], p + "/number", e, L11);
 }
 }
@@ -88467,7 +88478,7 @@ if (!("connector" in o5647)) e.push(p + "/connector" + ': required');
 if (!("adminEmail" in o5647)) e.push(p + "/adminEmail" + ': required');
 if (!("mappedMembers" in o5647)) e.push(p + "/mappedMembers" + ': required');
 if (!("autoConnect" in o5647)) e.push(p + "/autoConnect" + ': required');
-if ("connector" in o5647) lf(o5647["connector"], p + "/connector", e, L771);
+if ("connector" in o5647) lf(o5647["connector"], p + "/connector", e, L772);
 if ("adminEmail" in o5647) lf(o5647["adminEmail"], p + "/adminEmail", e, L13);
 if ("mappedMembers" in o5647) lf(o5647["mappedMembers"], p + "/mappedMembers", e, L11);
 if ("autoConnect" in o5647) lf(o5647["autoConnect"], p + "/autoConnect", e, L7);
@@ -88486,7 +88497,7 @@ if (g5648 === 'object') { const o5648 = x5648 as Record<string, unknown>;
 if (!("connector" in o5648)) e.push(p + "/connector" + ': required');
 if (!("ok" in o5648)) e.push(p + "/ok" + ': required');
 if (!("scopesMissing" in o5648)) e.push(p + "/scopesMissing" + ': required');
-if ("connector" in o5648) lf(o5648["connector"], p + "/connector", e, L771);
+if ("connector" in o5648) lf(o5648["connector"], p + "/connector", e, L772);
 if ("ok" in o5648) lf(o5648["ok"], p + "/ok", e, L7);
 if ("email" in o5648) lf(o5648["email"], p + "/email", e, L13);
 if ("scopesMissing" in o5648) {
@@ -88517,7 +88528,7 @@ if (g5650 === "object") {
 if (g5650 === 'object') { const o5650 = x5650 as Record<string, unknown>;
 if (!("connector" in o5650)) e.push(p + "/connector" + ': required');
 if (!("by" in o5650)) e.push(p + "/by" + ': required');
-if ("connector" in o5650) lf(o5650["connector"], p + "/connector", e, L771);
+if ("connector" in o5650) lf(o5650["connector"], p + "/connector", e, L772);
 if ("by" in o5650) lf(o5650["by"], p + "/by", e, L2);
 }
 }
@@ -88534,7 +88545,7 @@ if (g5651 === 'object') { const o5651 = x5651 as Record<string, unknown>;
 if (!("connector" in o5651)) e.push(p + "/connector" + ': required');
 if (!("kind" in o5651)) e.push(p + "/kind" + ': required');
 if (!("messageId" in o5651)) e.push(p + "/messageId" + ': required');
-if ("connector" in o5651) lf(o5651["connector"], p + "/connector", e, L771);
+if ("connector" in o5651) lf(o5651["connector"], p + "/connector", e, L772);
 if ("kind" in o5651) lf(o5651["kind"], p + "/kind", e, L549);
 if ("messageId" in o5651) lf(o5651["messageId"], p + "/messageId", e, L2);
 if ("mailbox" in o5651) lf(o5651["mailbox"], p + "/mailbox", e, L13);
@@ -89606,7 +89617,7 @@ if (!("by" in o5712)) e.push(p + "/by" + ': required');
 if ("meetingId" in o5712) lf(o5712["meetingId"], p + "/meetingId", e, L31);
 if ("eventId" in o5712) lf(o5712["eventId"], p + "/eventId", e, L137);
 if ("providerRef" in o5712) lf(o5712["providerRef"], p + "/providerRef", e, L2);
-if ("by" in o5712) lf(o5712["by"], p + "/by", e, L772);
+if ("by" in o5712) lf(o5712["by"], p + "/by", e, L773);
 }
 }
 }
@@ -90396,7 +90407,7 @@ if (!("connector" in o5755)) e.push(p + "/connector" + ': required');
 if (!("tenantId" in o5755)) e.push(p + "/tenantId" + ': required');
 if (!("mappedMembers" in o5755)) e.push(p + "/mappedMembers" + ': required');
 if (!("autoConnect" in o5755)) e.push(p + "/autoConnect" + ': required');
-if ("connector" in o5755) lf(o5755["connector"], p + "/connector", e, L773);
+if ("connector" in o5755) lf(o5755["connector"], p + "/connector", e, L774);
 if ("tenantId" in o5755) lf(o5755["tenantId"], p + "/tenantId", e, L2);
 if ("mappedMembers" in o5755) lf(o5755["mappedMembers"], p + "/mappedMembers", e, L11);
 if ("autoConnect" in o5755) lf(o5755["autoConnect"], p + "/autoConnect", e, L7);
@@ -90414,7 +90425,7 @@ if (g5756 === "object") {
 if (g5756 === 'object') { const o5756 = x5756 as Record<string, unknown>;
 if (!("connector" in o5756)) e.push(p + "/connector" + ': required');
 if (!("by" in o5756)) e.push(p + "/by" + ': required');
-if ("connector" in o5756) lf(o5756["connector"], p + "/connector", e, L773);
+if ("connector" in o5756) lf(o5756["connector"], p + "/connector", e, L774);
 if ("by" in o5756) lf(o5756["by"], p + "/by", e, L2);
 }
 }
@@ -90431,7 +90442,7 @@ if (g5757 === 'object') { const o5757 = x5757 as Record<string, unknown>;
 if (!("connector" in o5757)) e.push(p + "/connector" + ': required');
 if (!("ok" in o5757)) e.push(p + "/ok" + ': required');
 if (!("missingPermissions" in o5757)) e.push(p + "/missingPermissions" + ': required');
-if ("connector" in o5757) lf(o5757["connector"], p + "/connector", e, L773);
+if ("connector" in o5757) lf(o5757["connector"], p + "/connector", e, L774);
 if ("ok" in o5757) lf(o5757["ok"], p + "/ok", e, L7);
 if ("missingPermissions" in o5757) {
 {
@@ -90464,7 +90475,7 @@ if (!("notificationId" in o5759)) e.push(p + "/notificationId" + ': required');
 if (!("subscriptionId" in o5759)) e.push(p + "/subscriptionId" + ': required');
 if (!("resource" in o5759)) e.push(p + "/resource" + ': required');
 if (!("changeType" in o5759)) e.push(p + "/changeType" + ': required');
-if ("connector" in o5759) lf(o5759["connector"], p + "/connector", e, L773);
+if ("connector" in o5759) lf(o5759["connector"], p + "/connector", e, L774);
 if ("notificationId" in o5759) lf(o5759["notificationId"], p + "/notificationId", e, L2);
 if ("subscriptionId" in o5759) lf(o5759["subscriptionId"], p + "/subscriptionId", e, L2);
 if ("resource" in o5759) lf(o5759["resource"], p + "/resource", e, L2);
@@ -91268,7 +91279,7 @@ if (!("versionId" in o5804)) e.push(p + "/versionId" + ': required');
 if (!("reason" in o5804)) e.push(p + "/reason" + ': required');
 if ("fileId" in o5804) lf(o5804["fileId"], p + "/fileId", e, L44);
 if ("versionId" in o5804) lf(o5804["versionId"], p + "/versionId", e, L127);
-if ("reason" in o5804) lf(o5804["reason"], p + "/reason", e, L774);
+if ("reason" in o5804) lf(o5804["reason"], p + "/reason", e, L775);
 }
 }
 }
@@ -91294,7 +91305,7 @@ const b5806: string[] = []; lf(x5806, p + "/kinds", b5806, L6); if (b5806.length
 if (g5806 === "array") {
 if (g5806 === 'array') { const a5806 = x5806 as unknown[];
 for (let i5806 = 0; i5806 < a5806.length; i5806++) {
-lf(a5806[i5806], p + "/kinds" + '/' + i5806, e, L775);
+lf(a5806[i5806], p + "/kinds" + '/' + i5806, e, L776);
 }
 }
 }
@@ -91409,7 +91420,7 @@ if ("recordId" in o5812) lf(o5812["recordId"], p + "/recordId", e, L31);
 if ("type" in o5812) lf(o5812["type"], p + "/type", e, L40);
 if ("channelId" in o5812) lf(o5812["channelId"], p + "/channelId", e, L21);
 if ("folderId" in o5812) lf(o5812["folderId"], p + "/folderId", e, L32);
-if ("source" in o5812) lf(o5812["source"], p + "/source", e, L776);
+if ("source" in o5812) lf(o5812["source"], p + "/source", e, L777);
 }
 }
 }
@@ -91867,7 +91878,7 @@ if (!("by" in o5839)) e.push(p + "/by" + ': required');
 if ("recordId" in o5839) lf(o5839["recordId"], p + "/recordId", e, L31);
 if ("type" in o5839) lf(o5839["type"], p + "/type", e, L40);
 if ("field" in o5839) lf(o5839["field"], p + "/field", e, L2);
-if ("decision" in o5839) lf(o5839["decision"], p + "/decision", e, L777);
+if ("decision" in o5839) lf(o5839["decision"], p + "/decision", e, L778);
 if ("by" in o5839) lf(o5839["by"], p + "/by", e, L2);
 }
 }
@@ -91912,7 +91923,7 @@ if (g5842 === 'object') { const o5842 = x5842 as Record<string, unknown>;
 if (!("registrationId" in o5842)) e.push(p + "/registrationId" + ': required');
 if (!("state" in o5842)) e.push(p + "/state" + ': required');
 if ("registrationId" in o5842) lf(o5842["registrationId"], p + "/registrationId", e, L321);
-if ("state" in o5842) lf(o5842["state"], p + "/state", e, L778);
+if ("state" in o5842) lf(o5842["state"], p + "/state", e, L779);
 }
 }
 }
@@ -92911,7 +92922,7 @@ if (g5899 === 'object') { const o5899 = x5899 as Record<string, unknown>;
 if (!("username" in o5899)) e.push(p + "/username" + ': required');
 if (!("reason" in o5899)) e.push(p + "/reason" + ': required');
 if ("username" in o5899) lf(o5899["username"], p + "/username", e, L2);
-if ("reason" in o5899) lf(o5899["reason"], p + "/reason", e, L779);
+if ("reason" in o5899) lf(o5899["reason"], p + "/reason", e, L780);
 }
 }
 }
@@ -92928,7 +92939,7 @@ if (!("personId" in o5900)) e.push(p + "/personId" + ': required');
 if (!("method" in o5900)) e.push(p + "/method" + ': required');
 if (!("deviceId" in o5900)) e.push(p + "/deviceId" + ': required');
 if ("personId" in o5900) lf(o5900["personId"], p + "/personId", e, L22);
-if ("method" in o5900) lf(o5900["method"], p + "/method", e, L780);
+if ("method" in o5900) lf(o5900["method"], p + "/method", e, L781);
 if ("deviceId" in o5900) lf(o5900["deviceId"], p + "/deviceId", e, L221);
 }
 }
@@ -92982,7 +92993,7 @@ if (!("deploymentId" in o5903)) e.push(p + "/deploymentId" + ': required');
 if (!("env" in o5903)) e.push(p + "/env" + ': required');
 if ("siteId" in o5903) lf(o5903["siteId"], p + "/siteId", e, L47);
 if ("deploymentId" in o5903) lf(o5903["deploymentId"], p + "/deploymentId", e, L310);
-if ("env" in o5903) lf(o5903["env"], p + "/env", e, L781);
+if ("env" in o5903) lf(o5903["env"], p + "/env", e, L782);
 }
 }
 }
@@ -93262,7 +93273,7 @@ if (!("by" in o5919)) e.push(p + "/by" + ': required');
 if ("sourceId" in o5919) lf(o5919["sourceId"], p + "/sourceId", e, L37);
 if ("deliveryId" in o5919) lf(o5919["deliveryId"], p + "/deliveryId", e, L96);
 if ("recordId" in o5919) lf(o5919["recordId"], p + "/recordId", e, L31);
-if ("by" in o5919) lf(o5919["by"], p + "/by", e, L782);
+if ("by" in o5919) lf(o5919["by"], p + "/by", e, L783);
 }
 }
 }
@@ -93346,7 +93357,7 @@ if (!("source" in o5924)) e.push(p + "/source" + ': required');
 if (!("reason" in o5924)) e.push(p + "/reason" + ': required');
 if ("sourceId" in o5924) lf(o5924["sourceId"], p + "/sourceId", e, L37);
 if ("source" in o5924) lf(o5924["source"], p + "/source", e, L2);
-if ("reason" in o5924) lf(o5924["reason"], p + "/reason", e, L783);
+if ("reason" in o5924) lf(o5924["reason"], p + "/reason", e, L784);
 }
 }
 }
@@ -93970,7 +93981,7 @@ if (g5959 === 'object') { const o5959 = x5959 as Record<string, unknown>;
 if (!("taskId" in o5959)) e.push(p + "/taskId" + ': required');
 if (!("reason" in o5959)) e.push(p + "/reason" + ': required');
 if ("taskId" in o5959) lf(o5959["taskId"], p + "/taskId", e, L25);
-if ("reason" in o5959) lf(o5959["reason"], p + "/reason", e, L784);
+if ("reason" in o5959) lf(o5959["reason"], p + "/reason", e, L785);
 if ("childId" in o5959) lf(o5959["childId"], p + "/childId", e, L25);
 }
 }
@@ -94083,8 +94094,8 @@ if (!("op" in o5965)) e.push(p + "/op" + ': required');
 if (!("linkKind" in o5965)) e.push(p + "/linkKind" + ': required');
 if (!("linkId" in o5965)) e.push(p + "/linkId" + ': required');
 if ("taskId" in o5965) lf(o5965["taskId"], p + "/taskId", e, L25);
-if ("op" in o5965) lf(o5965["op"], p + "/op", e, L785);
-if ("linkKind" in o5965) lf(o5965["linkKind"], p + "/linkKind", e, L786);
+if ("op" in o5965) lf(o5965["op"], p + "/op", e, L786);
+if ("linkKind" in o5965) lf(o5965["linkKind"], p + "/linkKind", e, L787);
 if ("linkId" in o5965) lf(o5965["linkId"], p + "/linkId", e, L2);
 }
 }
@@ -94513,7 +94524,7 @@ if (!("threadId" in o5991)) e.push(p + "/threadId" + ': required');
 if (!("reason" in o5991)) e.push(p + "/reason" + ': required');
 if ("person" in o5991) lf(o5991["person"], p + "/person", e, L22);
 if ("threadId" in o5991) lf(o5991["threadId"], p + "/threadId", e, L18);
-if ("reason" in o5991) lf(o5991["reason"], p + "/reason", e, L787);
+if ("reason" in o5991) lf(o5991["reason"], p + "/reason", e, L788);
 }
 }
 }
@@ -95584,7 +95595,7 @@ if (g6052 === 'object') { const o6052 = x6052 as Record<string, unknown>;
 if (!("eventId" in o6052)) e.push(p + "/eventId" + ': required');
 if (!("type" in o6052)) e.push(p + "/type" + ': required');
 if ("eventId" in o6052) lf(o6052["eventId"], p + "/eventId", e, L2);
-if ("type" in o6052) lf(o6052["type"], p + "/type", e, L762);
+if ("type" in o6052) lf(o6052["type"], p + "/type", e, L763);
 if ("meetingId" in o6052) lf(o6052["meetingId"], p + "/meetingId", e, L2);
 }
 }
