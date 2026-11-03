@@ -22,8 +22,10 @@ export interface Suggestion { kind: string; label: string; text: string; count: 
 export interface AgentView { state: "clear" | "redacted" | "needs" | "off"; name: string; path: string; text: string | null }
 export interface ActivityRow { id: string; who: string; agent: boolean; text: string; at: number; markId?: string }
 
+/** The detector labels that say a suggestion is built from, or shares, a name: shown under the row, since that is why it is there. */
+const BUILT = new Set(["Email with a name in it", "Built from a name", "Shares a name"]);
 const ACCESS_WORD: Record<Access, string> = { on: "Available", redact: "Redacted", off: "Not available" };
-const GROUP: Record<string, string> = { name: "Names from Records", ssn: "Social Security numbers", dob: "Dates of birth", account: "Account and case numbers", phone: "Phone numbers", email: "Email addresses", address: "Addresses", file_name: "Name and path" };
+const GROUP: Record<string, string> = { name: "Names", ssn: "Social Security numbers", dob: "Dates of birth", account: "Account and case numbers", phone: "Phone numbers", email: "Email addresses", address: "Addresses", file_name: "Name and path" };
 
 /** "9:41 am", "Yesterday", "Oct 22": the times the layer shows. */
 export function whenText(at: number, now: number): string {
@@ -97,7 +99,8 @@ export function useLayer(d: FilesViewerData, fileId: string) {
     } catch { setActivity([]); }
   }, [d, fileId]);
   useEffect(() => { void reload(); }, [reload]);
-  useEffect(() => { if (!preview) return; void d.call("files.agent_view", { fileId }).then((v) => setView(v as AgentView)).catch(() => setView(null)); }, [d, fileId, preview, list]);
+  // read with the layer, so "Name agents see" is the server's own answer; the file shows it only in Preview as agent
+  useEffect(() => { if (!list) return; void d.call("files.agent_view", { fileId }).then((v) => setView(v as AgentView)).catch(() => setView(null)); }, [d, fileId, list]);
   const run = useCallback(async (cap: string, input: unknown, words?: string): Promise<void> => {
     try { await d.call(cap, input); if (words) setSaid(words); await reload(); } catch (e) { setSaid(e instanceof Error ? e.message : "That did not work."); }
   }, [d, reload]);
@@ -175,6 +178,7 @@ export function RedactPanel({ layer, name, now, fileName, path, onDone, onAccess
   const groups = new Map<string, Suggestion[]>();
   for (const x of layer.sug ?? []) groups.set(x.kind, [...(groups.get(x.kind) ?? []), x]);
   const nameMark = l.marks.find((m) => m.shape === "name");
+  const seenName = layer.view ? [...layer.view.path.split("/").filter(Boolean), layer.view.name].join(" / ") : `${path} / ${nameMark?.text ? fileName.split(nameMark.text).join("[REDACTED]") : fileName}`;
   return (
     <ScrollView style={[s.panel, narrow && s.sheet]} contentContainerStyle={s.panelBody} testID="rx-panel">
       <View style={s.status} testID="rx-status">
@@ -208,7 +212,7 @@ export function RedactPanel({ layer, name, now, fileName, path, onDone, onAccess
         ))}
       </Section>
       <Section title="Name agents see">
-        <View style={s.row}><Text style={[s.mono, s.grow]} numberOfLines={2}>{`${path} / ${nameMark?.text ? fileName.split(nameMark.text).join("[REDACTED]") : fileName}`}</Text></View>
+        <View style={s.row}><Text style={[s.mono, s.grow]} numberOfLines={2} testID="rx-agent-name">{seenName}</Text></View>
       </Section>
       <Section title="Agent access">
         <View style={s.row}>
@@ -228,7 +232,7 @@ function suggestionRows(groups: ReadonlyMap<string, Suggestion[]>, layer: Layer)
     for (const x of list) {
       const word = x.kind === "name" && x.count > 1 ? "Redact all of this name" : x.count > 1 ? `Redact all ${x.count}` : "Redact";
       out.push(
-        <Row key={`${k}-${x.text}`} id={`rx-sug-${x.text}`} title={x.text} {...(x.kind === "file_name" ? { note: "In the file name" } : x.count > 1 ? { note: `${x.count} times in this file` } : {})}
+        <Row key={`${k}-${x.text}`} id={`rx-sug-${x.text}`} title={x.text} {...(x.kind === "file_name" ? { note: "In the file name" } : BUILT.has(x.label) ? { note: x.count > 1 ? `${x.label} · ${x.count} times` : x.label } : x.count > 1 ? { note: `${x.count} times in this file` } : {})}
           trailing={<View style={s.sugActs}><Pressable accessibilityRole="button" accessibilityLabel={word} testID={`rx-accept-${x.text}`} onPress={() => void layer.accept([x])} style={s.linkQ}><Text style={s.linkText}>{word}</Text></Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Skip" testID={`rx-skip-${x.text}`} onPress={() => layer.setSug((cur) => (cur ?? []).filter((y) => y !== x))} style={s.linkQ}><Text style={s.quietBtn}>Skip</Text></Pressable></View>} />,
       );

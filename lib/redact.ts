@@ -180,8 +180,18 @@ export function builtFromNames(text: string, names: readonly string[]): { kind: 
     if (out.some((o) => o.text === t)) continue;
     out.push(EMAIL.test(t) ? { kind: "email", label: "Email with a name in it", text: t } : { kind: "name", label: "Built from a name", text: t });
   }
+  // another full name that shares a word with one (Marco Rivera beside a redacted Elena Rivera) gives the family name away
+  const known = new Set(names.map((n) => n.trim().toLowerCase()));
+  FULL_NAME.lastIndex = 0;
+  while ((m = FULL_NAME.exec(text))) {
+    const t = m[0].replace(/^(?:Dr|Mr|Mrs|Ms)\. /, ""), words = t.toLowerCase().split(" ");
+    if ([...known].some((k) => t.toLowerCase().includes(k)) || out.some((o) => o.text === t)) continue;   // the name itself, or a run of words around it (Signed Elena Rivera)
+    if (words.some((w) => [...w].length >= 4 && pieces.includes(w))) out.push({ kind: "name", label: "Shares a name", text: t });
+  }
   return out;
 }
+/** Two or three capitalised words in a row, optionally after a title: a person's name as it is usually written. */
+const FULL_NAME = /\b(?:(?:Dr|Mr|Mrs|Ms)\. )?\p{Lu}\p{Ll}+(?: \p{Lu}\p{Ll}+){1,2}\b/gu;
 
 /** What a detector would call a span a person picked: the label the hover card shows. Agents never see it. */
 export function classify(t: string, names: readonly string[] = []): string {

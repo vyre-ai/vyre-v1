@@ -220,6 +220,7 @@ test("Find things to redact suggests the email built from a name already redacte
   const d = await c.w.call(c.ctx, "files.redact.detect", { fileId: c.intake });   // no names given and no Records: the redacted name is enough
   const email = d.suggestions.find((s: Obj) => s.text === "elena.rivera@fastmail.example");
   assert.equal(email?.label, "Email with a name in it");
+  assert.equal(d.suggestions.find((s: Obj) => s.text === "Marco Rivera")?.label, "Shares a name", "the spouse's name gives the family name away too");
   assert.ok(!d.suggestions.some((s: Obj) => s.text === "Elena Rivera"), "the redacted name itself is not suggested again");
   await c.w.call(c.ctx, "files.marks.add", { target: { type: "file", id: c.intake }, kind: "redact", shape: "span", text: "elena.rivera@fastmail.example" });
   assert.ok(!(await c.w.call(c.ctx, "files.redact.detect", { fileId: c.intake })).suggestions.some((s: Obj) => s.text === "elena.rivera@fastmail.example"));

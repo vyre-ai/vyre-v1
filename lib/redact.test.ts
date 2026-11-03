@@ -60,11 +60,14 @@ test("detectors suggest an email, handle or user name built from a name, so hidi
     "Name: Elena Rivera. Email: elena.rivera@fastmail.example. Work: erivera@northwind.example.",
     "Instagram @elenarivera86, portal user rivera_e, profile linkedin.com/in/elena-rivera.",
     "Rivera's spouse lives in Riverside. Contact desk@clinic.example. Elena signed.",
+    "Spouse: Marco Rivera. Referred by: Maya Chen. Signed Elena Rivera.",
   ].join("\n");
   const built = builtFromNames(t, ["Elena Rivera"]);
   assert.deepEqual(built.map((x) => [x.text, x.kind]), [
     ["elena.rivera@fastmail.example", "email"], ["erivera@northwind.example", "email"], ["elenarivera86", "name"], ["rivera_e", "name"], ["linkedin.com/in/elena-rivera", "name"],
-  ], "the bare name, Rivera's, Riverside and an email with no name in it are not built from the name");
+    ["Marco Rivera", "name"],
+  ], "the bare name, Rivera's, Riverside, an email with no name in it, another name and words around the name itself are not built from the name");
+  assert.equal(built.at(-1)!.label, "Shares a name");
   assert.equal(built[0]!.label, "Email with a name in it");
   // through detect: suggested beside the name, before the plain email rule, once each
   const s = detect(t, { names: ["Elena Rivera"], skip: ["Elena Rivera"] });
