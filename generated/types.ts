@@ -4715,6 +4715,48 @@ export type BookingsPageCreateOut = {
     submissions: number;
   };
 };
+export type BrowserSitesListIn = Record<string, unknown>;
+export type BrowserSitesListOut = {
+  sites: Array<{
+      id: string;
+      host: string;
+      runsIn: "chrome" | "computers" | "both";
+      rights: Array<{
+          agentId: string;
+          right: "read" | "act";
+        }>;
+      at: number;
+      updatedAt: number;
+    }>;
+};
+export type BrowserSitesRemoveIn = {
+  siteId: string;
+};
+export type BrowserSitesRemoveOut = {
+  ok: boolean;
+};
+export type BrowserSitesSetIn = {
+  host: string;
+  runsIn: "chrome" | "computers" | "both";
+  rights: Array<{
+      agentId: string;
+      right: "read" | "act";
+    }>;
+  idempotencyKey: string;
+};
+export type BrowserSitesSetOut = {
+  site: {
+    id: string;
+    host: string;
+    runsIn: "chrome" | "computers" | "both";
+    rights: Array<{
+        agentId: string;
+        right: "read" | "act";
+      }>;
+    at: number;
+    updatedAt: number;
+  };
+};
 export type CalendarAvailabilityIn = {
   people: Array<string>;
   from: number;
@@ -40308,6 +40350,9 @@ export interface CapMap {
   "bookings.cancel": { in: BookingsCancelIn; out: BookingsCancelOut };
   "bookings.list": { in: BookingsListIn; out: BookingsListOut };
   "bookings.page_create": { in: BookingsPageCreateIn; out: BookingsPageCreateOut };
+  "browser.sites.list": { in: BrowserSitesListIn; out: BrowserSitesListOut };
+  "browser.sites.remove": { in: BrowserSitesRemoveIn; out: BrowserSitesRemoveOut };
+  "browser.sites.set": { in: BrowserSitesSetIn; out: BrowserSitesSetOut };
   "calendar.availability": { in: CalendarAvailabilityIn; out: CalendarAvailabilityOut };
   "calendar.connect_provider": { in: CalendarConnectProviderIn; out: CalendarConnectProviderOut };
   "calendar.create_calendar": { in: CalendarCreateCalendarIn; out: CalendarCreateCalendarOut };
@@ -42490,6 +42535,12 @@ export type BookingCreatedPayload = {
   bookingId: string;
   formId: string;
   recordId: string;
+};
+export type BrowserSiteChangedPayload = {
+  siteId: string;
+  host: string;
+  runsIn: "chrome" | "computers" | "both";
+  removed: boolean;
 };
 export type CalendarCreatedPayload = {
   calendarId: string;
@@ -46133,6 +46184,7 @@ export interface EventMap {
   "block.waiting": BlockWaitingPayload;
   "booking.cancelled": BookingCancelledPayload;
   "booking.created": BookingCreatedPayload;
+  "browser.site_changed": BrowserSiteChangedPayload;
   "calendar.created": CalendarCreatedPayload;
   "calendar.synced": CalendarSyncedPayload;
   "calendar_event.created": CalendarEventCreatedPayload;

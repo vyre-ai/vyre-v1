@@ -9,6 +9,7 @@
 //   * secrets: a value goes into a page only as a Vault handle the app's filler substitutes; fields filled that way stay masked, are blurred in screenshots and scrubbed
 //     from anything read back.
 
+import { acts } from "./rights.js";
 import { callExpression, blurSecrets, collectPage, composeFacts, describeElement, focusElement, markSecret, pageRequest, pointInfo, probe, revealElement, scrollTo, scrubSecrets, selectOption } from "./page.js";
 import { AgentFailure, BATCHABLE, TAB_LIMIT, checkInput, errorOf, fail } from "./protocol.js";
 import { bareUrl, maskBody, maskHeaders, maskJson, maskUrl, scrub } from "./mask.js";
@@ -86,6 +87,7 @@ const miss = (why) => ({ ok: false, why: why === "tied" ? "More than one control
  *   mode: () => "personal" | "computer",
  *   connected: (call: Call) => boolean,
  *   vaultFill: (call: Call, handle: string) => Promise<string | null>,
+ *   rights?: ReturnType<typeof import("./rights.js").createRights>,
  *   emit: (event: Record<string, any>) => void,
  *   now?: () => number, sleep?: (ms: number) => Promise<void>, settleMs?: number,
  * }} kit
@@ -768,6 +770,16 @@ export function createTools(kit) {
     if (!nested && call.tool !== "chrome_status") {
       await kit.authorize(call);
       if (!ALLOWED_WHILE_PAUSED.has(call.tool) && sessions.pausedFor(call.agent.id)) fail("paused");
+    }
+    if (kit.rights && acts(call.tool, input)) {
+      // Acting needs the Act right on this site (Vault > Connections > Browser). Reading never does.
+      let tabId = input["tabId"] !== undefined ? Number(input["tabId"]) : sessions.currentTab(call.agent.id);
+      let host = "";
+      try {
+        if (tabId === null && kit.mode() === "computer") { const [t] = await ext.tabs.query({ active: true, currentWindow: true }); tabId = t && t.id !== undefined ? t.id : null; }
+        if (tabId !== null && Number.isInteger(tabId)) host = new URL(String((await ext.tabs.get(tabId)).url ?? "")).hostname;
+      } catch { host = ""; }
+      if (host && (await kit.rights.of(call, host)) === "read") fail("read_only", `(${host})`);
     }
     const impl = table[call.tool];
     if (!impl) return fail("unknown_tool");

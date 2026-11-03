@@ -998,6 +998,12 @@
     },
     {
       "deferred": false,
+      "name": "browser_sites_list",
+      "summary": "The Browser connections: sites agents may use, where each runs, and each agent's right (Read only or Act). A person sees their own; an agent sees the sites that name it",
+      "toolset": "computer"
+    },
+    {
+      "deferred": false,
       "name": "calendar_availability",
       "summary": "Busy blocks for people over a range (the shaded stripes while adding people)",
       "toolset": "inbox"

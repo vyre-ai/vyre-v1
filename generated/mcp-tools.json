@@ -7756,6 +7756,21 @@
     },
     {
       "blocks": [],
+      "cap": "browser.sites.list",
+      "deferred": false,
+      "description": "The Browser connections: sites agents may use, where each runs, and each agent's right (Read only or Act). A person sees their own; an agent sees the sites that name it",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "browser_sites_list",
+      "planMode": "allowed",
+      "toolset": "computer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "calendar.availability",
       "deferred": false,
       "description": "Busy blocks for people over a range (the shaded stripes while adding people)",

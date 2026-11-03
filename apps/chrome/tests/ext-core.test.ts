@@ -104,7 +104,7 @@ test("the extension may call only the listed capabilities and bridge operations"
 const PENDING: Record<string, string> = {
   "skills.mine.add": "l-skills2 (manifests/_agents-skills.ts)", "skills.share": "l-skills2 (manifests/_agents-skills.ts)",
   "engine.models.list": "l-livemodels (manifests/engine.ts)",
-  "browser.sites.list": "l-chrome (Browser connections)", "browser.watches.list": "l-chrome (watches)", "browser.watches.save": "l-chrome (watches)",
+  "browser.watches.list": "l-chrome (watches)", "browser.watches.save": "l-chrome (watches)",
   "browser.watches.remove": "l-chrome (watches)", "browser.watches.report": "l-chrome (watches)",
 };
 

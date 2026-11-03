@@ -16,6 +16,7 @@ import { parseIncoming } from "../worker/protocol.js";
 import { createCdp } from "./cdp.js";
 import { createTraffic } from "./net.js";
 import { OVERLAY_PORT, errorOf, fail, parseCommand } from "./protocol.js";
+import { createRights } from "./rights.js";
 import { createSessions } from "./sessions.js";
 import { createTools } from "./tools.js";
 import { createTransport } from "./transport.js";
@@ -75,8 +76,13 @@ export function createAgentControl(ext, o = {}) {
     return landed;
   }
 
+  const rights = createRights({
+    list: (call) => transport.call("invoke", "browser.sites.list", {}, { agent: call.agent.id, space: call.space }),
+    mode: () => mode, now,
+  });
+
   const tools = createTools({
-    ext, cdp, traffic, sessions, authorize, vaultFill, emit,
+    ext, cdp, traffic, sessions, authorize, vaultFill, emit, rights,
     mode: () => mode,
     connected: (call) => transport.online && optedIn.has(call.space),
     now, ...(o.sleep ? { sleep: o.sleep } : {}), ...(o.settleMs !== undefined ? { settleMs: o.settleMs } : {}),
@@ -126,7 +132,7 @@ export function createAgentControl(ext, o = {}) {
   ext.tabs.onRemoved.addListener((/** @type {number} */ id) => { void sessions.tabGone(id); });
 
   return {
-    sessions, tools, cdp, traffic, transport,
+    sessions, tools, cdp, traffic, transport, rights,
     connect: () => transport.connect(),
     run: tools.run,
     onIncoming,

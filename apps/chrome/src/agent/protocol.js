@@ -149,6 +149,7 @@ export const WORDS = Object.freeze({
   no_element: "Nothing on the page matches that.",
   held_gone: "That held item is not waiting any more. Ask again.",
   not_public: "Agents browse the public web only. That address is on this computer or a private network.",
+  read_only: "This agent may read this site but not act on it. The person gives it the Act right in Vyre, Vault, Connections, Browser.",
   not_in_batch: "That step cannot run inside a batch because it needs its own approval.",
   secret_field: "That field holds a secret. Fill it with a #Handle.field reference from the Vault, not with text.",
   fill_failed: "The Vault could not fill that handle into the field.",
