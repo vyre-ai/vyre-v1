@@ -6478,6 +6478,104 @@ export type ChatRememberOut = {
   projectTitle?: string;
   by: string;
 };
+export type ChatReplyDetailsIn = {
+  threadId: string;
+  messageId: string;
+};
+export type ChatReplyDetailsOut = {
+  details: {
+    messageId: string;
+    threadId: string;
+    agentId: string;
+    at: number;
+    turn?: {
+      turnId: string;
+      traceId: string;
+      agentId: string;
+      asker: string;
+      model: string;
+      effort?: string;
+      engine: string;
+      provider?: string;
+      accountKind?: "api_key" | "subscription";
+      shared?: boolean;
+      accountRef?: string;
+      state: "queued" | "running" | "waiting" | "completed" | "failed" | "cancelled";
+      ranOn: Array<{
+          kind: string;
+          name: string;
+        }>;
+      timing: {
+        queuedAt?: number;
+        startedAt: number;
+        firstTokenAt?: number;
+        endedAt?: number;
+      };
+      tokens: {
+        in: number;
+        out: number;
+        cacheRead?: number;
+        cacheWrite?: number;
+        reasoning?: number;
+      };
+      cost?: {
+        source: "subscription" | "reported" | "catalog" | "unknown";
+        micros?: number;
+        lines?: Array<{
+            kind: "input" | "output" | "cache_read" | "cache_write";
+            tokens: number;
+            perMillion: number;
+            micros: number;
+          }>;
+        priceAsOf?: string;
+        missing?: Array<string>;
+      };
+      tools: Array<{
+          name: string;
+          args?: string;
+          ok?: boolean;
+          durationMs?: number;
+          heldTaskId?: string;
+        }>;
+      files: {
+        read: Array<string>;
+        written: Array<string>;
+      };
+      skills: Array<string>;
+      switches: Array<{
+          at: number;
+          why: string;
+          sameAccount: boolean;
+          from?: string;
+          to?: string;
+        }>;
+      error?: {
+        code: string;
+        message: string;
+      };
+      private: boolean;
+      partial: boolean;
+    };
+    memory?: {
+      facts: Array<{
+          factId: string;
+          text: string;
+          sourceTitle?: string;
+        }>;
+      quotes: Array<{
+          ref: string;
+          text: string;
+          threadTitle?: string;
+          at: number;
+        }>;
+    };
+    steps: Array<{
+        name: string;
+        ok?: boolean;
+        secs?: number;
+      }>;
+  };
+};
 export type ChatScreenGetIn = {
   threadId: string;
   messageId?: string;
@@ -10520,6 +10618,80 @@ export type EngineTurnGetOut = {
     reached?: Array<string>;
   };
 };
+export type EngineTurnOfMessageIn = {
+  threadId: string;
+  messageId: string;
+};
+export type EngineTurnOfMessageOut = {
+  turn: {
+    turnId: string;
+    traceId: string;
+    agentId: string;
+    asker: string;
+    model: string;
+    effort?: string;
+    engine: string;
+    provider?: string;
+    accountKind?: "api_key" | "subscription";
+    shared?: boolean;
+    accountRef?: string;
+    state: "queued" | "running" | "waiting" | "completed" | "failed" | "cancelled";
+    ranOn: Array<{
+        kind: string;
+        name: string;
+      }>;
+    timing: {
+      queuedAt?: number;
+      startedAt: number;
+      firstTokenAt?: number;
+      endedAt?: number;
+    };
+    tokens: {
+      in: number;
+      out: number;
+      cacheRead?: number;
+      cacheWrite?: number;
+      reasoning?: number;
+    };
+    cost?: {
+      source: "subscription" | "reported" | "catalog" | "unknown";
+      micros?: number;
+      lines?: Array<{
+          kind: "input" | "output" | "cache_read" | "cache_write";
+          tokens: number;
+          perMillion: number;
+          micros: number;
+        }>;
+      priceAsOf?: string;
+      missing?: Array<string>;
+    };
+    tools: Array<{
+        name: string;
+        args?: string;
+        ok?: boolean;
+        durationMs?: number;
+        heldTaskId?: string;
+      }>;
+    files: {
+      read: Array<string>;
+      written: Array<string>;
+    };
+    skills: Array<string>;
+    switches: Array<{
+        at: number;
+        why: string;
+        sameAccount: boolean;
+        from?: string;
+        to?: string;
+      }>;
+    error?: {
+      code: string;
+      message: string;
+    };
+    private: boolean;
+    partial: boolean;
+  };
+};
 export type EngineTurnRecordIn = {
   threadId: string;
   turnId: string;
@@ -10535,6 +10707,37 @@ export type EngineTurnRecordIn = {
   costMicros?: number;
   code?: string;
   message?: string;
+  info?: {
+    effort?: string;
+    account?: {
+      ref: string;
+      driver: string;
+      provider: string;
+      kind: "api_key" | "subscription";
+      shared?: boolean;
+      spaceKey?: boolean;
+    };
+    firstTokenAt?: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
+    reasoningTokens?: number;
+    costUsd?: number;
+    tools: Array<{
+        id: string;
+        name: string;
+        detail?: string;
+        startedAt: number;
+        endedAt?: number;
+        ok?: boolean;
+        held?: string;
+      }>;
+    switches: Array<{
+        at: number;
+        from: string;
+        to: string;
+        why: string;
+      }>;
+  };
 };
 export type EngineTurnRecordOut = {
   turn: {
@@ -35963,6 +36166,7 @@ export interface CapMap {
   "chat.react": { in: ChatReactIn; out: ChatReactOut };
   "chat.recent": { in: ChatRecentIn; out: ChatRecentOut };
   "chat.remember": { in: ChatRememberIn; out: ChatRememberOut };
+  "chat.reply_details": { in: ChatReplyDetailsIn; out: ChatReplyDetailsOut };
   "chat.screen.get": { in: ChatScreenGetIn; out: ChatScreenGetOut };
   "chat.search": { in: ChatSearchIn; out: ChatSearchOut };
   "chat.share": { in: ChatShareIn; out: ChatShareOut };
@@ -36263,6 +36467,7 @@ export interface CapMap {
   "engine.turn.fallback": { in: EngineTurnFallbackIn; out: EngineTurnFallbackOut };
   "engine.turn.finish": { in: EngineTurnFinishIn; out: EngineTurnFinishOut };
   "engine.turn.get": { in: EngineTurnGetIn; out: EngineTurnGetOut };
+  "engine.turn.of_message": { in: EngineTurnOfMessageIn; out: EngineTurnOfMessageOut };
   "engine.turn.record": { in: EngineTurnRecordIn; out: EngineTurnRecordOut };
   "engine.turn.record_usage": { in: EngineTurnRecordUsageIn; out: EngineTurnRecordUsageOut };
   "engine.turn.retry": { in: EngineTurnRetryIn; out: EngineTurnRetryOut };

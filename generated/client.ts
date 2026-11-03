@@ -405,6 +405,7 @@ export function createClient(transport: Transport) {
       react: call("chat.react", 1),
       recent: call("chat.recent", 1),
       remember: call("chat.remember", 1),
+      reply_details: call("chat.reply_details", 1),
       screen: {
         get: call("chat.screen.get", 1),
       },
@@ -828,6 +829,7 @@ export function createClient(transport: Transport) {
         fallback: call("engine.turn.fallback", 1),
         finish: call("engine.turn.finish", 1),
         get: call("engine.turn.get", 1),
+        of_message: call("engine.turn.of_message", 1),
         record: call("engine.turn.record", 1),
         record_usage: call("engine.turn.record_usage", 1),
         retry: call("engine.turn.retry", 1),

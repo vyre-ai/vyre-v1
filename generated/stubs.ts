@@ -405,6 +405,7 @@ export function stubs(ctx: CallCtx) {
       react: call("chat.react"),
       recent: call("chat.recent"),
       remember: call("chat.remember"),
+      reply_details: call("chat.reply_details"),
       screen: {
         get: call("chat.screen.get"),
       },
@@ -828,6 +829,7 @@ export function stubs(ctx: CallCtx) {
         fallback: call("engine.turn.fallback"),
         finish: call("engine.turn.finish"),
         get: call("engine.turn.get"),
+        of_message: call("engine.turn.of_message"),
         record: call("engine.turn.record"),
         record_usage: call("engine.turn.record_usage"),
         retry: call("engine.turn.retry"),
