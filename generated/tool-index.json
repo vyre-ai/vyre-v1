@@ -7058,6 +7058,18 @@
     },
     {
       "deferred": false,
+      "name": "sites_addon_add",
+      "summary": "Give a deployed site its own Postgres or Redis on this server, with its address set as DATABASE_URL or REDIS_URL. Its data stays on the server through redeploys",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_addon_remove",
+      "summary": "Remove a site's Postgres or Redis and its data",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_artifact_open",
       "summary": "A short-lived address that opens an artifact for the person asking, in a tab or the browser",
       "toolset": "sites"
@@ -7071,7 +7083,13 @@
     {
       "deferred": false,
       "name": "sites_create",
-      "summary": "Create a site: a name, and where it runs (a port on a computer, or a folder in Files). Nothing is served until it is published",
+      "summary": "Create a site: a name, and where it runs (a port on a computer, or a folder in Files), or its source (a GitHub repo, an uploaded folder or zip) for Vyre to build and run with sites_deploy. Nothing is served until it is published or deployed",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_db_import",
+      "summary": "Copy an existing Postgres into the site's own: a pg_dump file in Files, or a Vault key holding the old connection string (for example from Railway)",
       "toolset": "sites"
     },
     {
@@ -7083,7 +7101,7 @@
     {
       "deferred": false,
       "name": "sites_deploy",
-      "summary": "Deploy a build to the always-password-protected staging URL",
+      "summary": "Build the site from its source (GitHub repo, folder or zip in Files, or a folder here) and run it on this Space, like Railway: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends",
       "toolset": "sites"
     },
     {
@@ -7119,13 +7137,13 @@
     {
       "deferred": false,
       "name": "sites_env_list",
-      "summary": "List environment names (never values)",
+      "summary": "List env var names and the Vault keys they come from (never values), and the names the app looks for that are not set yet",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_env_set",
-      "summary": "Set environment names for deployments; values come from Vault by key name with inject into deployments",
+      "summary": "Set the env vars of a deployed site: each name takes its value from a Vault key, filled at deploy time and never shown. The next deploy uses them",
       "toolset": "sites"
     },
     {
@@ -7137,7 +7155,7 @@
     {
       "deferred": false,
       "name": "sites_host",
-      "summary": "What this Space can host: its address, whether it is a phone address, and what a custom domain needs",
+      "summary": "What this Space can host: its address, whether it is a phone address, whether Vyre can build and run apps here, the address sites get, and what a custom domain needs",
       "toolset": "sites"
     },
     {
@@ -7149,7 +7167,13 @@
     {
       "deferred": false,
       "name": "sites_logs",
-      "summary": "Container logs of a deployment (ids and text from the site, not Vyre content)",
+      "summary": "The log of a site: its running app, or with build the build log of a deployment (the latest when none is named). Text from the site, not Vyre content",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_plan",
+      "summary": "What a deploy would do with this source, before running it: how it is built and started, the port, and the databases and env names it looks for (read from railway.json, nixpacks.toml, a Procfile, package.json, requirements.txt or a Dockerfile)",
       "toolset": "sites"
     },
     {
@@ -7185,7 +7209,7 @@
     {
       "deferred": false,
       "name": "sites_rollback",
-      "summary": "Roll production back to an earlier build",
+      "summary": "Serve an earlier build again (the one before the current, or the one named). Its image is kept on the server, so nothing is built",
       "toolset": "sites"
     },
     {
@@ -7233,7 +7257,7 @@
     {
       "deferred": false,
       "name": "sites_update",
-      "summary": "Rename a site, change its settings, where it runs or who may reach it. Making it public takes it down until it is published again",
+      "summary": "Rename a site, change its settings, its source, its CPU and memory, auto deploy on push, where it runs or who may reach it. Making it public takes it down until it is published again",
       "toolset": "sites"
     },
     {

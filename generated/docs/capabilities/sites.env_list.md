@@ -1,6 +1,6 @@
 # sites.env_list
 
-List environment names (never values)
+List env var names and the Vault keys they come from (never values), and the names the app looks for that are not set yet
 
 | | |
 |---|---|
@@ -38,6 +38,7 @@ type Out = {
       vaultName: string;
       injected: boolean;
     }>;
+  wanted?: Array<string>;
 };
 ```
 
@@ -64,6 +65,9 @@ type Out = {
         "name": "example",
         "vaultName": "example"
       }
+    ],
+    "wanted": [
+      "example"
     ]
   }
 }

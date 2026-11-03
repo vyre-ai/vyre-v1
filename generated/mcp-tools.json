@@ -46855,6 +46855,82 @@
     },
     {
       "blocks": [],
+      "cap": "sites.addon_add",
+      "deferred": false,
+      "description": "Give a deployed site its own Postgres or Redis on this server, with its address set as DATABASE_URL or REDIS_URL. Its data stays on the server through redeploys",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "postgres",
+              "redis"
+            ],
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId",
+          "kind",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "sites_addon_add",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.addon_remove",
+      "deferred": false,
+      "description": "Remove a site's Postgres or Redis and its data",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "postgres",
+              "redis"
+            ],
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "name": "sites_addon_remove",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sites.artifact_open",
       "deferred": false,
       "description": "A short-lived address that opens an artifact for the person asking, in a tab or the browser",
@@ -46912,7 +46988,7 @@
       "blocks": [],
       "cap": "sites.create",
       "deferred": false,
-      "description": "Create a site: a name, and where it runs (a port on a computer, or a folder in Files). Nothing is served until it is published",
+      "description": "Create a site: a name, and where it runs (a port on a computer, or a folder in Files), or its source (a GitHub repo, an uploaded folder or zip) for Vyre to build and run with sites_deploy. Nothing is served until it is published or deployed",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -46956,6 +47032,30 @@
             ],
             "type": "string"
           },
+          "limits": {
+            "properties": {
+              "cpus": {
+                "maximum": 16,
+                "minimum": 0.1,
+                "type": "number"
+              },
+              "diskMb": {
+                "maximum": 1048576,
+                "minimum": 256,
+                "type": "integer"
+              },
+              "memoryMb": {
+                "maximum": 65536,
+                "minimum": 128,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "cpus",
+              "memoryMb"
+            ],
+            "type": "object"
+          },
           "name": {
             "type": "string"
           },
@@ -46969,6 +47069,56 @@
           },
           "slug": {
             "type": "string"
+          },
+          "source": {
+            "properties": {
+              "branch": {
+                "examples": [
+                  "main"
+                ],
+                "type": "string"
+              },
+              "fileId": {
+                "examples": [
+                  "fil_a1b2c3"
+                ],
+                "pattern": "^fil_[a-z0-9]+$",
+                "type": "string"
+              },
+              "folderId": {
+                "examples": [
+                  "fld_a1b2c3"
+                ],
+                "pattern": "^fld_[a-z0-9]+$",
+                "type": "string"
+              },
+              "path": {
+                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
+                "type": "string"
+              },
+              "repo": {
+                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
+                "examples": [
+                  "https://github.com/acme/cx-dashboard"
+                ],
+                "type": "string"
+              },
+              "root": {
+                "description": "The folder inside the repo or upload that holds the app",
+                "examples": [
+                  "apps/web"
+                ],
+                "type": "string"
+              },
+              "tokenHandle": {
+                "examples": [
+                  "#Dana_Lawmatics"
+                ],
+                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+                "type": "string"
+              }
+            },
+            "type": "object"
           },
           "templateKit": {
             "examples": [
@@ -46985,6 +47135,46 @@
         "type": "object"
       },
       "name": "sites_create",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.db_import",
+      "deferred": false,
+      "description": "Copy an existing Postgres into the site's own: a pg_dump file in Files, or a Vault key holding the old connection string (for example from Railway)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fromHandle": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_db_import",
       "planMode": "blocked",
       "toolset": "sites",
       "v": 1
@@ -47019,16 +47209,12 @@
       "blocks": [],
       "cap": "sites.deploy",
       "deferred": false,
-      "description": "Deploy a build to the always-password-protected staging URL",
+      "description": "Build the site from its source (GitHub repo, folder or zip in Files, or a folder here) and run it on this Space, like Railway: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends",
       "effects": "write",
       "inputSchema": {
         "properties": {
-          "deploymentId": {
-            "examples": [
-              "dpl_a1b2c3"
-            ],
-            "pattern": "^dpl_[a-z0-9]+$",
-            "type": "string"
+          "onlyIfChanged": {
+            "type": "boolean"
           },
           "siteId": {
             "examples": [
@@ -47036,6 +47222,59 @@
             ],
             "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
+          },
+          "source": {
+            "properties": {
+              "branch": {
+                "examples": [
+                  "main"
+                ],
+                "type": "string"
+              },
+              "fileId": {
+                "examples": [
+                  "fil_a1b2c3"
+                ],
+                "pattern": "^fil_[a-z0-9]+$",
+                "type": "string"
+              },
+              "folderId": {
+                "examples": [
+                  "fld_a1b2c3"
+                ],
+                "pattern": "^fld_[a-z0-9]+$",
+                "type": "string"
+              },
+              "path": {
+                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
+                "type": "string"
+              },
+              "repo": {
+                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
+                "examples": [
+                  "https://github.com/acme/cx-dashboard"
+                ],
+                "type": "string"
+              },
+              "root": {
+                "description": "The folder inside the repo or upload that holds the app",
+                "examples": [
+                  "apps/web"
+                ],
+                "type": "string"
+              },
+              "tokenHandle": {
+                "examples": [
+                  "#Dana_Lawmatics"
+                ],
+                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "wait": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -47213,7 +47452,7 @@
       "blocks": [],
       "cap": "sites.env_list",
       "deferred": false,
-      "description": "List environment names (never values)",
+      "description": "List env var names and the Vault keys they come from (never values), and the names the app looks for that are not set yet",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -47239,7 +47478,7 @@
       "blocks": [],
       "cap": "sites.env_set",
       "deferred": false,
-      "description": "Set environment names for deployments; values come from Vault by key name with inject into deployments",
+      "description": "Set the env vars of a deployed site: each name takes its value from a Vault key, filled at deploy time and never shown. The next deploy uses them",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -47314,7 +47553,7 @@
       "blocks": [],
       "cap": "sites.host",
       "deferred": false,
-      "description": "What this Space can host: its address, whether it is a phone address, and what a custom domain needs",
+      "description": "What this Space can host: its address, whether it is a phone address, whether Vyre can build and run apps here, the address sites get, and what a custom domain needs",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -47375,10 +47614,13 @@
       "blocks": [],
       "cap": "sites.logs",
       "deferred": false,
-      "description": "Container logs of a deployment (ids and text from the site, not Vyre content)",
+      "description": "The log of a site: its running app, or with build the build log of a deployment (the latest when none is named). Text from the site, not Vyre content",
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "build": {
+            "type": "boolean"
+          },
           "deploymentId": {
             "examples": [
               "dpl_a1b2c3"
@@ -47403,6 +47645,79 @@
         "type": "object"
       },
       "name": "sites_logs",
+      "planMode": "allowed",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.plan",
+      "deferred": false,
+      "description": "What a deploy would do with this source, before running it: how it is built and started, the port, and the databases and env names it looks for (read from railway.json, nixpacks.toml, a Procfile, package.json, requirements.txt or a Dockerfile)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          },
+          "source": {
+            "properties": {
+              "branch": {
+                "examples": [
+                  "main"
+                ],
+                "type": "string"
+              },
+              "fileId": {
+                "examples": [
+                  "fil_a1b2c3"
+                ],
+                "pattern": "^fil_[a-z0-9]+$",
+                "type": "string"
+              },
+              "folderId": {
+                "examples": [
+                  "fld_a1b2c3"
+                ],
+                "pattern": "^fld_[a-z0-9]+$",
+                "type": "string"
+              },
+              "path": {
+                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
+                "type": "string"
+              },
+              "repo": {
+                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
+                "examples": [
+                  "https://github.com/acme/cx-dashboard"
+                ],
+                "type": "string"
+              },
+              "root": {
+                "description": "The folder inside the repo or upload that holds the app",
+                "examples": [
+                  "apps/web"
+                ],
+                "type": "string"
+              },
+              "tokenHandle": {
+                "examples": [
+                  "#Dana_Lawmatics"
+                ],
+                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "name": "sites_plan",
       "planMode": "allowed",
       "toolset": "sites",
       "v": 1
@@ -47557,7 +47872,7 @@
       "blocks": [],
       "cap": "sites.rollback",
       "deferred": false,
-      "description": "Roll production back to an earlier build",
+      "description": "Serve an earlier build again (the one before the current, or the one named). Its image is kept on the server, so nothing is built",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -47827,7 +48142,7 @@
       "blocks": [],
       "cap": "sites.update",
       "deferred": false,
-      "description": "Rename a site, change its settings, where it runs or who may reach it. Making it public takes it down until it is published again",
+      "description": "Rename a site, change its settings, its source, its CPU and memory, auto deploy on push, where it runs or who may reach it. Making it public takes it down until it is published again",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -47839,6 +48154,9 @@
               "private"
             ],
             "type": "string"
+          },
+          "autoDeploy": {
+            "type": "boolean"
           },
           "computerId": {
             "examples": [
@@ -47853,6 +48171,30 @@
             ],
             "pattern": "^fld_[a-z0-9]+$",
             "type": "string"
+          },
+          "limits": {
+            "properties": {
+              "cpus": {
+                "maximum": 16,
+                "minimum": 0.1,
+                "type": "number"
+              },
+              "diskMb": {
+                "maximum": 1048576,
+                "minimum": 256,
+                "type": "integer"
+              },
+              "memoryMb": {
+                "maximum": 65536,
+                "minimum": 128,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "cpus",
+              "memoryMb"
+            ],
+            "type": "object"
           },
           "name": {
             "type": "string"
@@ -47872,6 +48214,56 @@
             ],
             "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
+          },
+          "source": {
+            "properties": {
+              "branch": {
+                "examples": [
+                  "main"
+                ],
+                "type": "string"
+              },
+              "fileId": {
+                "examples": [
+                  "fil_a1b2c3"
+                ],
+                "pattern": "^fil_[a-z0-9]+$",
+                "type": "string"
+              },
+              "folderId": {
+                "examples": [
+                  "fld_a1b2c3"
+                ],
+                "pattern": "^fld_[a-z0-9]+$",
+                "type": "string"
+              },
+              "path": {
+                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
+                "type": "string"
+              },
+              "repo": {
+                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
+                "examples": [
+                  "https://github.com/acme/cx-dashboard"
+                ],
+                "type": "string"
+              },
+              "root": {
+                "description": "The folder inside the repo or upload that holds the app",
+                "examples": [
+                  "apps/web"
+                ],
+                "type": "string"
+              },
+              "tokenHandle": {
+                "examples": [
+                  "#Dana_Lawmatics"
+                ],
+                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+                "type": "string"
+              }
+            },
+            "type": "object"
           }
         },
         "required": [
