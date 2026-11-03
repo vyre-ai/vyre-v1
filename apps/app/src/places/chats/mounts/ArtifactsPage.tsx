@@ -69,7 +69,6 @@ export function ArtifactsPage({ rt }: { rt: ShellRuntime }): ReactElement {
             ))}
           </View>
         )}
-        {rows !== null && rows.length > 0 ? <Text style={st.cap}>Private to you and whoever you share with. Everyone unlocks with their own password.</Text> : null}
       </View>
       {element}
     </ScrollView>
@@ -91,5 +90,4 @@ const st = StyleSheet.create({
   emptyLine: { fontSize: 13.5, color: "var(--ink-3)" as string },
   example: { marginTop: 14, paddingVertical: 8, paddingHorizontal: 13, borderRadius: 11, borderWidth: 1, borderColor: "var(--line-2)" as string },
   exampleText: { fontSize: 13, color: "var(--ink-2)" as string },
-  cap: { marginTop: 18, fontSize: 13, color: "var(--ink-3)" as string },
 });
