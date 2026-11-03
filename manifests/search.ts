@@ -5,7 +5,7 @@
 import { defineManifest, ev, health, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id, label, pageIn, pageOut } from './_common.ts';
 
-const kind = t.enm('person', 'agent', 'chat', 'inbox', 'record', 'file', 'automation', 'app', 'setting', 'memory', 'task', 'channel');
+const kind = t.enm('person', 'agent', 'chat', 'inbox', 'record', 'file', 'automation', 'app', 'setting', 'memory', 'task', 'channel', 'note');
 const hit = t.obj({
   kind, id: t.str({ examples: ['rec_a1b2c3'] }), title: t.str(), recordType: t.opt(t.str({ description: 'For a record hit: the record type it belongs to' })), snippet: t.opt(t.str()), path: t.opt(t.str()),
   link: t.str({ description: 'Source link that opens through the place', examples: ['vyre://record/rec_a1b2c3'] }),
@@ -18,7 +18,7 @@ export default defineManifest({
   title: 'Search',
   owner: 'L1',
   capabilities: [
-    read('search.query', 'Search everything the caller may see: people, agents, chats, inbox, records, files, automations, apps, settings, memory', {
+    read('search.query', 'Search everything the caller may see: people, agents, chats, inbox, records, files, automations, apps, settings, memory, and the caller\'s notes (answered by notes.search as the caller, never indexed)', {
       in: {
         q: t.str(), types: t.opt(t.arr(kind)), mode: t.opt(t.enm('keyword', 'semantic', 'hybrid')), folderId: t.opt(id.folder),
         recordType: t.opt(id.recordType), ...pageIn,

@@ -260,12 +260,17 @@ export function Menu(props: MenuViewProps): ReactElement | null {
     if (!searching) focusNode(nodes.current[index]);
   }, [searching]);
 
+  // new rows (a filter row ticked, a search typed) keep the lit row when it is still a choice; otherwise the first row is lit
+  const activeRef = useRef(active);
+  activeRef.current = active;
   useEffect(() => {
-    land(moveActive(entries, -1, "Home"));
+    const at = activeRef.current;
+    const still = at >= 0 && entries[at] !== undefined && isItem(entries[at]!) && entries[at]!.disabled !== true;
+    land(still ? at : moveActive(entries, -1, "Home"));
   }, [entries, land]);
 
   const choose = useCallback((entry: MenuItem) => {
-    close();
+    if (entry.keep !== true) close();
     if (entry.onSelect) entry.onSelect();
   }, [close]);
 
@@ -350,7 +355,7 @@ export function Menu(props: MenuViewProps): ReactElement | null {
           <View style={styles.search}>
             <MenuIcon icon="search" color="var(--ink-3)" />
             <TextInput
-              autoFocus value={query} onChangeText={(t) => { setQuery(t); setActive(-1); }} placeholder={props.search} placeholderTextColor="var(--ink-3)"
+              autoFocus value={query} onChangeText={(t) => { setQuery(t); setActive(-1); activeRef.current = -1; props.onSearch?.(t); }} placeholder={props.search} placeholderTextColor="var(--ink-3)"
               accessibilityLabel={props.search} testID="menu-search" style={styles.searchInput}
             />
           </View>
@@ -402,6 +407,7 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
         ? createElement("span", { title: entry.mark, "aria-label": entry.mark, role: "img", "data-mark": "true", "data-testid": `menu-mark-${entry.label}`, style: { width: 7, height: 7, borderRadius: 4, marginLeft: "auto", flexShrink: 0, background: "var(--warn)" } })
         : <View accessibilityLabel={entry.mark} style={styles.mark} />) : null}
       {entry.count !== undefined ? <Text style={[styles.count, lit ? { color: ink, opacity: 0.8 } : null]} testID={`menu-count-${entry.label}`}>{entry.count}</Text> : null}
+      {entry.hint !== undefined ? <Text style={[styles.hint, lit ? { color: ink, opacity: 0.8 } : null]} testID={`menu-hint-${entry.label}`}>{entry.hint}</Text> : null}
       {entry.checked === true ? <Text style={[styles.check, entry.count !== undefined && styles.checkAfterCount, { color: ink }]}>{"✓"}</Text> : null}
     </Pressable>
   );
@@ -418,6 +424,7 @@ export interface OpenMenu {
   nonce: number;
   search?: string;
   width?: number;
+  onSearch?: (query: string) => void;
 }
 
 interface PointerLike {
@@ -497,24 +504,27 @@ export function resetAnchor(): void { lastAnchor = null; }
 /** One open menu for a surface. `element` goes anywhere in the tree; `show` opens it at a point. */
 export function useMenu(): {
   element: ReactElement | null;
-  show: (items: readonly MenuEntry[], x: number, y: number, source?: MenuSource, context?: ReportContext, opts?: { search?: string; width?: number }) => void;
+  show: (items: readonly MenuEntry[], x: number, y: number, source?: MenuSource, context?: ReportContext, opts?: { search?: string; width?: number; onSearch?: (query: string) => void }) => void;
   hide: () => void;
+  /** New rows for the menu that is open, in place: it stays where it is, with its search and its lit row (a ticked filter row, a label made). Nothing when no menu is open. */
+  update: (items: readonly MenuEntry[]) => void;
 } {
   const [open, setOpen] = useState<OpenMenu | null>(null);
   const counter = useRef(0);
   useEffect(() => { listenForPresses(); }, []);
-  const show = useCallback((items: readonly MenuEntry[], x: number, y: number, source: MenuSource = "context", context?: ReportContext, opts?: { search?: string; width?: number }) => {
+  const show = useCallback((items: readonly MenuEntry[], x: number, y: number, source: MenuSource = "context", context?: ReportContext, opts?: { search?: string; width?: number; onSearch?: (query: string) => void }) => {
     counter.current += 1;
     const at = resolveMenuPoint(x, y);
     x = at.x;
     y = at.y;
-    setOpen({ items, x, y, source, nonce: counter.current, ...(context === undefined ? {} : { context }), ...(opts?.search === undefined ? {} : { search: opts.search }), ...(opts?.width === undefined ? {} : { width: opts.width }) });
+    setOpen({ items, x, y, source, nonce: counter.current, ...(context === undefined ? {} : { context }), ...(opts?.search === undefined ? {} : { search: opts.search }), ...(opts?.width === undefined ? {} : { width: opts.width }), ...(opts?.onSearch === undefined ? {} : { onSearch: opts.onSearch }) });
   }, []);
   const hide = useCallback(() => setOpen(null), []);
+  const update = useCallback((items: readonly MenuEntry[]) => setOpen((o) => (o === null ? null : { ...o, items })), []);
   const element = open === null ? null : (
-    <Menu key={open.nonce} items={open.items} x={open.x} y={open.y} source={open.source} onClose={hide} {...(open.context === undefined ? {} : { reportContext: open.context })} {...(open.search === undefined ? {} : { search: open.search })} {...(open.width === undefined ? {} : { width: open.width })} />
+    <Menu key={open.nonce} items={open.items} x={open.x} y={open.y} source={open.source} onClose={hide} {...(open.context === undefined ? {} : { reportContext: open.context })} {...(open.search === undefined ? {} : { search: open.search })} {...(open.width === undefined ? {} : { width: open.width })} {...(open.onSearch === undefined ? {} : { onSearch: open.onSearch })} />
   );
-  return { element, show, hide };
+  return { element, show, hide, update };
 }
 
 /* ---------- styles ---------- */
@@ -537,6 +547,7 @@ const styles = StyleSheet.create({
   check: { marginLeft: "auto", fontSize: 12 },
   checkAfterCount: { marginLeft: 0 },
   count: { marginLeft: "auto", minWidth: 24, textAlign: "right", fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
+  hint: { marginLeft: "auto", paddingLeft: 16, fontSize: 11.5, color: "var(--ink-4)" as string },
   iconSlot: { width: ICON_SIZE, height: ICON_SIZE, alignItems: "center", justifyContent: "center" },
   mark: { width: 7, height: 7, borderRadius: 4, marginLeft: "auto", backgroundColor: "var(--warn)" as string },
   leading: { width: 20, height: 20, alignItems: "center", justifyContent: "center" },

@@ -36,6 +36,10 @@ export interface MenuItem {
   mark?: string;
   /** Stays in the list whatever is typed in the search (a closing "Build a connector" row). */
   pinned?: boolean;
+  /** Choosing it leaves the menu open (a row of a filter or a label list that ticks): the surface sends the new rows with `update`. */
+  keep?: boolean;
+  /** Quiet words in the right column: the key that does the same ("P", "Enter"), or what a choice means ("Only you"). */
+  hint?: string;
 }
 
 export type MenuEntry = MenuSeparator | MenuHead | MenuItem;
@@ -50,6 +54,8 @@ export interface MenuProps {
   search?: string;
   /** Panel width in px; by default the menu is 220 to 320 wide. */
   width?: number;
+  /** Told what is typed in the search field, so the surface can offer a row built from it ("Make <label>") through `update`. */
+  onSearch?: (query: string) => void;
 }
 
 /** The entries a typed search leaves: matching items, the heads that still have one, pinned items always. Nothing typed leaves all of them. */

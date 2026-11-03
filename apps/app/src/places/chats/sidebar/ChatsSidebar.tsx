@@ -218,8 +218,8 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   }, [groups, agents]);
 
   const entries = useMemo(
-    () => buildEntries({ goals: goalRows, moreGoals: more.goals === true, digest: digestCount > 0 ? { count: digestCount } : null, team: pulse.team, presence: pulse.presence, tasksCount, threadsDot, agentUnread: byAgent, waitingThreads, assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name }, people, moreRecent: more.recent === true, morePeople: more.people === true, moreAgents: more.faces === true, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(liveImported)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, archivedImported, personal, searching: query.trim() !== "" }),
-    [goalRows, digestCount, pulse.team, pulse.presence, personal, query, tasksCount, threadsDot, byAgent, waitingThreads, people, more, data.space.assistant.agentId, data.space.assistant.name, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, imported, archivedImported, importedOpen, liveImported, archivedChats, archivedOpen],
+    () => buildEntries({ goals: goalRows, moreGoals: more.goals === true, digest: digestCount > 0 ? { count: digestCount } : null, team: pulse.team, presence: pulse.presence, tasksCount, threadsDot, notes: data.nav.openNotes !== undefined, agentUnread: byAgent, waitingThreads, assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name }, people, moreRecent: more.recent === true, morePeople: more.people === true, moreAgents: more.faces === true, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(liveImported)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, archivedImported, personal, searching: query.trim() !== "" }),
+    [goalRows, digestCount, pulse.team, pulse.presence, personal, query, tasksCount, threadsDot, data.nav.openNotes, byAgent, waitingThreads, people, more, data.space.assistant.agentId, data.space.assistant.name, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, imported, archivedImported, importedOpen, liveImported, archivedChats, archivedOpen],
   );
   const order = useMemo(() => selectable(entries), [entries]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
@@ -328,7 +328,7 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
     else if (e.type === "imported") { if (e.row.continuedThreadId) data.nav.openChat(e.row.continuedThreadId); else data.nav.openImported?.(e.row.conversationId); }
     else if (e.type === "face") data.nav.openAgentChat(e.agent.agentId);
     else if (e.type === "channel") data.nav.openChannel(e.channel.channelId);
-    else if (e.type === "nav") { (e.to === "tasks" ? data.nav.openTasks : data.nav.openThreads)?.(); }
+    else if (e.type === "nav") { (e.to === "tasks" ? data.nav.openTasks : e.to === "notes" ? data.nav.openNotes : data.nav.openThreads)?.(); }
     else if (e.type === "goal") data.nav.openGoal?.(e.goal.id);
     else if (e.type === "person") void api.chatWithPerson(e.id);
     else if (e.type === "pulse") { if (e.kind === "person") void api.chatWithPerson(e.id); else if (e.threadId) data.nav.openChat(e.threadId); else data.nav.openAgentChat(e.id); }
@@ -368,8 +368,14 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
     const mark: MenuEntry[] = !dm ? [] : [{ separator: true }, e.unread > 0 ? { label: "Mark as Read", onSelect: () => guard(api.markRead(dm)) } : { label: "Mark as Unread", onSelect: () => guard(api.markUnread(dm)) }];
     return [{ label: "Message", onSelect: () => open(e) }, ...mark];
   };
+  // Notes: Open, Open in a new tab, Take a note
+  const notesMenu = (e: Entry): MenuEntry[] => [
+    { label: "Open", onSelect: () => open(e) },
+    ...(data.nav.openNotesTab ? [{ label: "Open in a new tab", onSelect: () => data.nav.openNotesTab?.() }] : []),
+    ...(data.nav.takeNote ? [{ label: "Take a note", onSelect: () => { setCursor(e.key); data.nav.takeNote?.(); leave(); } }] : []),
+  ];
   const menuFor = (e: Entry, x: number, y: number): MenuEntry[] | null =>
-    e.type === "chat" ? chatMenu(e.row) : e.type === "face" ? faceMenu(e.agent) : e.type === "channel" ? channelMenu(e.channel) : e.type === "imported" ? importedMenu(e, x, y) : e.type === "person" ? personMenu(e) : null;
+    e.type === "nav" && e.to === "notes" ? notesMenu(e) : e.type === "chat" ? chatMenu(e.row) : e.type === "face" ? faceMenu(e.agent) : e.type === "channel" ? channelMenu(e.channel) : e.type === "imported" ? importedMenu(e, x, y) : e.type === "person" ? personMenu(e) : null;
   /** A row's "...", drawn while the pointer is on it: the same menu as a right-click. */
   const moreTool = (e: Entry, label: string): ReactElement => (
     <Tool icon="more" label={`More for ${label}`} onPress={(x, y) => { const m = menuFor(e, x, y); if (m) menu.show(m, x, y, "context", { label: e.key }); }} testID={`more-${e.key}`} />
@@ -442,12 +448,15 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
           <EmptyLine text={e.text} />
         </View>
       );
-      case "nav": return (
-        <Row
-          id={e.key} title={e.label} selected={sel} hovered={lit} onPress={() => open(e)} leading={<LeadGlyph name={e.to === "tasks" ? "task" : "reply"} />}
-          trailing={e.count > 0 ? <Text testID={`count-${e.to}`} style={st.navCount}>{e.count}</Text> : e.dot ? <UnreadDot /> : null}
-        />
-      );
+      case "nav": {
+        const row = (
+          <Row
+            id={e.key} title={e.label} selected={sel} hovered={lit} onPress={() => open(e)} leading={<LeadGlyph name={e.to === "tasks" ? "task" : e.to === "notes" ? "note" : "reply"} />}
+            trailing={e.count > 0 ? <Text testID={`count-${e.to}`} style={st.navCount}>{e.count}</Text> : e.dot ? <UnreadDot /> : null}
+          />
+        );
+        return e.to === "notes" ? wrap(row) : row;
+      }
       case "digest": return (
         <View style={{ height: ROW_H }} testID="away-digest-row">
           <Row id={e.key} title="While you were away" selected={sel} hovered={lit} onPress={(ev) => { setCursor(e.key); const [x, y] = at(ev); digestMenu(x, y); }} leading={<LeadGlyph name="clock" />}

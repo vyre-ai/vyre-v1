@@ -25,7 +25,7 @@ One indexed item by kind and id, if the caller may see it; a record names its re
 
 ```ts
 type In = {
-  kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
+  kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note";
   itemId: string;
 };
 ```
@@ -35,7 +35,7 @@ type In = {
 ```ts
 type Out = {
   hit?: {
-    kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
+    kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note";
     id: string;
     title: string;
     recordType?: string;

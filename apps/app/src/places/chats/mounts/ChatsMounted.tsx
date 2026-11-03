@@ -43,6 +43,8 @@ import { Landing } from "../landing/Landing.tsx";
 import { ThreadsPage } from "./ThreadsPage.tsx";
 import { ThreadSide } from "./ThreadSide.tsx";
 import { ArtifactsPage } from "./ArtifactsPage.tsx";
+import { NotesPage } from "../notes/NotesPage.tsx";
+import type { NotesInitial } from "../notes/NotesPage.tsx";
 import { AgentForm } from "../agentform/AgentForm.tsx";
 import { setAgentFaces } from "../../../../../../ui/src/Avatar/assistant.ts";
 import { useDirectory } from "../../../shell/providers/automations-parts.tsx";
@@ -96,9 +98,13 @@ export interface ChatsMountedProps {
   closeSelf?: () => void;
   /** A phone: what opens from the first screen goes on top of its history, so Back returns here. */
   stacked?: boolean;
+  /** Opens a link of this place in a tab behind this one (a row's "Open in a new tab"). Left out where the shell has no tabs. */
+  openInNewTab?: (hash: string) => void;
+  /** Where Notes starts: a sheet, a menu or the bar open (tests and screenshots). */
+  notesInitial?: NotesInitial;
 }
 
-export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch, closeSelf, stacked = false }: ChatsMountedProps): ReactElement {
+export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch, closeSelf, stacked = false, openInNewTab, notesInitial }: ChatsMountedProps): ReactElement {
   const [shown, setShown] = useState<Shown>(() => initial ?? (hash === "" ? START : fromHash(hash)));
   const [line, setLineState] = useState<{ text: string; action?: LineAction } | null>(null);
   const setLine = useCallback((text: string, action?: LineAction): void => setLineState(action ? { text, action } : { text }), []);
@@ -128,7 +134,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   routeNow.current = shown.route.view;
   const act = useCallback((a: Act): void => {
     if (stacked && a.t === "chat" && routeNow.current === "new" && a.threadId !== "") { opened?.({ subject: { type: "thread", id: a.threadId } }); return; }
-    if (a.t === "chat" || a.t === "new" || a.t === "tasks" || a.t === "task" || a.t === "threads" || a.t === "artifacts" || a.t === "agent-form" || a.t === "agent" || a.t === "needs") onSwitch?.();
+    if (a.t === "chat" || a.t === "new" || a.t === "tasks" || a.t === "task" || a.t === "threads" || a.t === "artifacts" || (a.t === "notes" && routeNow.current !== "notes") || a.t === "agent-form" || a.t === "agent" || a.t === "needs") onSwitch?.();
     setShown((s) => step(s, a));
   }, [onSwitch, stacked, opened]);
   // a link from another place, a notification or the Space menu while Chats is already open
@@ -142,7 +148,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   // what is open follows into the tab and the address (the Chats tab moves with it; tabs/store.ts moveTab), so coming back lands on it
   const openedRef = useRef(opened);
   openedRef.current = opened;
-  const routeKey = shown.route.view === "agent-form" ? `a:${shown.route.agentId ?? ""}` : shown.route.view === "chat" ? `t:${shown.route.threadId ?? ""}` : shown.route.view === "new" ? "new" : shown.route.view === "task" ? `k:${shown.route.taskId}` : shown.route.view === "tasks" ? "tasks" : shown.route.view === "threads" ? "threads" : shown.route.view === "artifacts" ? "artifacts" : "";
+  const routeKey = shown.route.view === "agent-form" ? `a:${shown.route.agentId ?? ""}` : shown.route.view === "chat" ? `t:${shown.route.threadId ?? ""}` : shown.route.view === "new" ? "new" : shown.route.view === "task" ? `k:${shown.route.taskId}` : shown.route.view === "tasks" ? "tasks" : shown.route.view === "threads" ? "threads" : shown.route.view === "artifacts" ? "artifacts" : shown.route.view === "notes" ? "notes" : "";
   useEffect(() => {
     const report = openedRef.current;
     if (!report || routeKey === "") return;
@@ -150,6 +156,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     else if (routeKey === "tasks") report({ screen: "tasks.my-work" });
     else if (routeKey === "threads") report({ screen: "chats.threads" });
     else if (routeKey === "artifacts") report({ screen: "chats.artifacts" });
+    else if (routeKey === "notes") report({ screen: "chats.notes" });
     else if (routeKey.startsWith("a:")) report({ screen: "chats.agent-form", ...(routeKey.length > 2 ? { args: { agentId: routeKey.slice(2) } } : {}) });
     else if (routeKey.startsWith("t:") && routeKey !== "t:") report({ subject: { type: "thread", id: routeKey.slice(2) } });
     else if (routeKey.startsWith("k:")) report({ subject: { type: "task", id: routeKey.slice(2) } });
@@ -206,8 +213,8 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   /* ---------- the sidebar: registered in the shell's shared place sidebar slot (collapse, search and the phone list are the slot's) ---------- */
   const side = useMemo(() => {
     const base = wireSidebar(rt, go);
-    return { ...base, people: list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name })), nav: { ...base.nav, openTasks: () => act({ t: "tasks" }), openThreads: () => act({ t: "threads" }), ...(base.nav.openArtifacts ? { openArtifacts: () => act({ t: "artifacts" }) } : {}), openNew: () => act({ t: "new" }), openNewAgent: () => act({ t: "agent-form" }), openGoal: (goalId: string) => rt.open({ subject: { type: "goal", id: goalId } }) }, ...(rt.changes ? { changes: rt.changes } : {}) };
-  }, [rt, go, act, list]);
+    return { ...base, people: list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name })), nav: { ...base.nav, openTasks: () => act({ t: "tasks" }), openThreads: () => act({ t: "threads" }), ...(base.nav.openArtifacts ? { openArtifacts: () => act({ t: "artifacts" }) } : {}), openNotes: () => act({ t: "notes" }), takeNote: () => act({ t: "notes", take: true }), ...(openInNewTab ? { openNotesTab: () => openInNewTab("screen=chats.notes") } : {}), openNew: () => act({ t: "new" }), openNewAgent: () => act({ t: "agent-form" }), openGoal: (goalId: string) => rt.open({ subject: { type: "goal", id: goalId } }) }, ...(rt.changes ? { changes: rt.changes } : {}) };
+  }, [rt, go, act, list, openInNewTab]);
 
   /* ---------- the open chat ---------- */
   const recent = useLive<RecentOut>(rt.screens, "chats.sidebar", "recent", { filter: "all" });
@@ -300,6 +307,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   else if (route.view === "agent-form") main = <AgentForm key={route.agentId ?? "new"} agentId={route.agentId} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} newKey={newKey} onDone={(id) => { closeSelf?.(); go.agentChat(id); }} onCancel={() => act({ t: "new" })} say={setLine} {...(rt.space.kind === "personal" ? {} : { sharing: { directory, meName: rt.me.name, meId: rt.me.id, nameOf } })} />;
   else if (route.view === "threads") main = <ThreadsPage rt={rt} nameOf={nameOf} openChat={go.thread} say={setLine} />;
   else if (route.view === "artifacts") main = <ArtifactsPage rt={rt} />;
+  else if (route.view === "notes") main = <NotesPage rt={rt} nameOf={nameOf} noteId={route.noteId ?? null} {...(route.take ? { takeNonce: route.take } : {})} {...(notesInitial ? { initial: notesInitial } : {})} />;
   else if (route.view === "new") {
     const agentRows = list.filter((p) => p.kind === "agent" && offered(p)).map((p) => ({ id: p.id, name: p.name }));
     const people = list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name }));

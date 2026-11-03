@@ -1,7 +1,7 @@
 {
   "lanes": {
     "L1": ["sync", "conflicts", "search"],
-    "L2": ["chat", "agents", "engine", "memory", "computers", "terminal", "mcp"],
+    "L2": ["chat", "agents", "engine", "memory", "computers", "terminal", "mcp", "notes"],
     "L3": ["records", "schema", "sources", "connectors", "projects", "import"],
     "L4": ["files", "mounts", "git", "previews", "documents", "runbooks", "dropbox"],
     "L5": ["inbox", "mail", "calendar", "telephony", "meetings", "contacts-link", "google", "microsoft", "resend", "mailgun", "twilio", "zoom", "github", "stripe"],

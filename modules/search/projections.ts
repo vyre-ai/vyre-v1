@@ -14,8 +14,8 @@ export interface Db {
 }
 
 export type Level = "view" | "use" | "edit" | "manage";
-export type Kind = "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
-export const KINDS: readonly Kind[] = ["person", "agent", "chat", "inbox", "record", "file", "automation", "app", "setting", "memory", "task", "channel"];
+export type Kind = "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note";
+export const KINDS: readonly Kind[] = ["person", "agent", "chat", "inbox", "record", "file", "automation", "app", "setting", "memory", "task", "channel", "note"];
 export const LABELS = ["public", "internal", "confidential", "restricted"] as const;
 export type LabelName = (typeof LABELS)[number];
 
@@ -76,6 +76,7 @@ export const KIND_OF_ENTITY: Readonly<Record<string, Kind>> = {
 /** The permission resource a kind is checked on. */
 export const RESOURCE_OF_KIND: Readonly<Record<Kind, string>> = {
   person: "space", agent: "agent", chat: "thread", inbox: "space", record: "record", file: "file", automation: "automation", app: "space", setting: "space", memory: "space", task: "task", channel: "channel",
+  note: "space",   // never in the index: notes answer through FEDERATED (handlers/query.ts) as the asker
 };
 
 /** One thing the index holds. `enc` is never stored: private content never reaches this module. */
