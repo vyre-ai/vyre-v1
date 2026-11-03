@@ -96,6 +96,12 @@ async function ask(d: Daemon, threadId: string, agentId: string, body: string, k
 }
 
 test("profile live: private only in Olivia's own chats, public everywhere, shared across her agents, and a move changes what the channel hears", async () => {
+  // memory learns after every turn (l-memlearn) and reads the account's model list once, which asks the vendor with the key (providers.test): answer that here, so the scripted key is not
+  // refused by the real vendor and the shared account marked failing before Noah's turn
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = ((url: string | URL | Request, init?: RequestInit) => (String(url) === "https://api.anthropic.com/v1/models"
+    ? Promise.resolve(new Response(JSON.stringify({ data: [{ id: "claude-haiku-4-5" }] }), { status: 200, headers: { "content-type": "application/json" } }))
+    : realFetch(url, init))) as typeof fetch;
   const d = await boot(seededDir());
   try {
     // a key the whole Space may use, so Olivia's and Noah's turns are both paid for
@@ -164,5 +170,6 @@ test("profile live: private only in Olivia's own chats, public everywhere, share
     assert.ok(!gone.includes(PRIVATE), gone);
   } finally {
     await d.stop();
+    globalThis.fetch = realFetch;
   }
 });
