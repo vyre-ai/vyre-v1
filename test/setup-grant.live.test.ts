@@ -11,7 +11,7 @@ type Json = any;   // eslint-disable-line @typescript-eslint/no-explicit-any
 const INIT = { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "claude-code", version: "2.1" } };
 const google = (over: Record<string, unknown> = {}) => ({ key: "google", title: "Google", issuer: "https://accounts.google.com", clientId: "123.apps.googleusercontent.com", clientSecretHandle: "#Google_Client_Secret", enabled: true, ...over });
 const SECRET = "GOCSPX-agent-held-secret-0123";
-const KEY = "sk-ant-api03-setup-grant-test-0123456789abcdef";
+const KEY = "sk-ant-api03-setup-grant-test-0123456789abcdef"; // secret-scan: fake
 const withSpace = (name: string, f: (s: FlowSpace, owner: string) => Promise<void>): void => withOutsideSpace(name, (s, owner) => f(s, owner), ["members", "vault-requests"]);
 const tool = async (c: Client, name: string, args: unknown): Promise<Json> => (await c.tool("use_tool", { name, arguments: args })).json.result;
 const holds = async (s: FlowSpace, who: string): Promise<number> => (expectStatus(await s.call("gate.holds.list", who, { states: ["held"] }), 200, "gate.holds.list").holds as Json[]).length;
