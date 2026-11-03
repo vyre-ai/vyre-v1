@@ -1,0 +1,1 @@
+- Calendar: a double-click on an event opens it in edit even when the first click's pane is slow to draw; the gap is read from the clicks' own times.
