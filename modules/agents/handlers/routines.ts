@@ -7,7 +7,7 @@
 import { readFileSync } from "node:fs";
 import {
   BUILTIN_SKILLS, GUIDE_MD, GUIDE_VERSION, MAX_DIFF, MAX_PROMPT, TREE_FOLDERS, agentBy, allAgents, allows, applyUnifiedDiff, askerOf, call, canSee, ensure, fingerprint, insertSuggestion, makeFile,
-  makeFolder, messageOf, meta, mintId, nextRun, onlyLearnedChanged, parseCron, raise, routineBy, routineOf, routineOut, setMeta, simpleDiff, saveFile, suggestionBy, suggestionOf, suggestionOut, textOf, tolerant, visible, walkFolder,
+  makeFolder, markRoutineRan, messageOf, noteRoutineRun, meta, mintId, nextRun, onlyLearnedChanged, parseCron, raise, routineBy, routineOf, routineOut, setMeta, simpleDiff, saveFile, suggestionBy, suggestionOf, suggestionOut, textOf, tolerant, visible, walkFolder,
 } from "../projections.ts";
 import type { AgentRec, AgentsCtx, FolderOut, RoutineRec, SuggestionRec } from "../projections.ts";
 
@@ -67,6 +67,9 @@ export async function routineSave(ctx: AgentsCtx, input: { agentId: string; rout
   }
   ctx.db.run("DELETE FROM agents_routine_watch WHERE routineId = ?", id);
   if (watcher) ctx.db.run("INSERT INTO agents_routine_watch (routineId, channelId) VALUES (?, ?)", id, input.watch!.channelId);
+  // who set it: an agent saving it for its person (the person asked their Assistant) is kept, so the routine reads "You, through Assistant" to them and "<Person> (Agent)" to anyone else
+  ctx.db.run("DELETE FROM agents_routine_by WHERE routineId = ?", id);
+  if (ctx.principal.kind === "agent" && ctx.principal.id !== owner) ctx.db.run("INSERT INTO agents_routine_by (routineId, byKind, byId) VALUES (?, 'agent', ?)", id, ctx.principal.id);
   ctx.emit("agent.routine_changed", agent.id, { agentId: agent.id, routineId: id, op: input.routineId !== undefined ? "updated" : "created" });
   return { routine: routineOut(routineBy(ctx.db, id) as RoutineRec) };
 }
@@ -78,6 +81,8 @@ export async function routineDelete(ctx: AgentsCtx, input: { agentId: string; ro
   if (!agent || !canSee(ctx, agent) || !r || r.agentId !== agent.id || r.ownerId !== askerOf(ctx)) raise(ctx, "validation.not_found", "That routine does not exist.");
   ctx.db.run("DELETE FROM agents_routine WHERE id = ?", r.id);
   ctx.db.run("DELETE FROM agents_routine_watch WHERE routineId = ?", r.id);
+  ctx.db.run("DELETE FROM agents_routine_by WHERE routineId = ?", r.id);
+  ctx.db.run("DELETE FROM agents_routine_last WHERE routineId = ?", r.id);
   ctx.emit("agent.routine_changed", agent.id, { agentId: agent.id, routineId: r.id, op: "deleted" });
   return { deleted: true };
 }
@@ -94,8 +99,47 @@ export async function routineRunNow(ctx: AgentsCtx, input: { agentId: string; ro
   const runKey = `routine-run-now:${r.id}:${input.idempotencyKey ?? Math.floor(ctx.now() / 60_000)}`;
   const started = await call<{ runId: string }>(ctx, "runs.start", { idempotencyKey: runKey, kind: "routine", name: r.title, owner: r.ownerId }, { idempotencyKey: runKey });
   ctx.db.run("UPDATE agents_routine SET lastRunAt = ?, updatedAt = ? WHERE id = ?", ctx.now(), ctx.now(), r.id);
+  noteRoutineRun(ctx.db, r.id, started.runId, ctx.now());
   ctx.emit("agent.routine_run_started", agent.id, { agentId: agent.id, routineId: r.id, runId: started.runId, ownerId: r.ownerId, requestedBy: by(ctx) });
   return { routine: routineOut(routineBy(ctx.db, r.id) as RoutineRec), runId: started.runId };
+}
+
+/** How often the server looks for routines that are due. A routine every minute starts within this long after its minute. */
+export const ROUTINES_DUE_EVERY_MS = 10_000;
+
+/**
+ * The schedule: every routine that is on and whose next run has come starts one run, under its owner, the way Run Now does, and its next run is worked out from now.
+ *   once      the run's key is the routine and the minute it was due (`routine:<id>:<nextRunAt>`), so a tick that runs twice, or a restart halfway through, starts the same run, not a second.
+ *   missed    after the server was off, a routine that missed several minutes runs once, now, never a burst: the next run is counted from now, not from the missed time.
+ *   lease     this is a periodic job, and the host runs periodic jobs only on the computer that holds the scheduled-work lease (host/src/peers/service.ts mayRun), so two computers never both fire it.
+ *   skipped   a paused routine, a watcher (it runs on messages, not a clock) and a routine of a paused or deleted agent do not run; a paused agent's routine waits for its next time.
+ */
+export async function runDueRoutines(ctx: AgentsCtx): Promise<string[]> {
+  ensure(ctx.db);
+  const now = ctx.now();
+  const due = ctx.db.all(
+    `SELECT r.id AS id FROM agents_routine r WHERE r.enabled = 1 AND r.nextRunAt IS NOT NULL AND r.nextRunAt <= ?
+       AND NOT EXISTS (SELECT 1 FROM agents_routine_watch w WHERE w.routineId = r.id) ORDER BY r.nextRunAt, r.id LIMIT 200`, now,
+  ) as Row[];
+  const fired: string[] = [];
+  for (const row of due) {
+    const r = routineBy(ctx.db, str(row["id"]));
+    if (!r || !r.enabled || r.nextRunAt === undefined) continue;
+    const agent = agentBy(ctx.db, r.agentId);
+    if (!agent || agent.paused) { markRoutineRan(ctx.db, r.id, now, false); continue; }
+    const key = `routine:${r.id}:${r.nextRunAt}`;
+    try {
+      const started = await call<{ runId: string }>(ctx, "runs.start", { idempotencyKey: key, kind: "routine", name: r.title, owner: r.ownerId }, { idempotencyKey: key });
+      markRoutineRan(ctx.db, r.id, now);
+      noteRoutineRun(ctx.db, r.id, started.runId, now);
+      ctx.emit("agent.routine_run_started", agent.id, { agentId: agent.id, routineId: r.id, runId: started.runId, ownerId: r.ownerId, requestedBy: "schedule" });
+      fired.push(started.runId);
+    } catch (e) {
+      // the run could not start (the runs module is not there yet): it is tried again on the next tick, with the same key
+      ctx.log.warn("agents: a due routine did not start", { routineId: r.id, error: e instanceof Error ? e.message.slice(0, 200) : "error" });
+    }
+  }
+  return fired;
 }
 
 /** Delegate: the owner hands a routine to another person (they become its owner) or another agent (it runs on that agent); `undo` hands it back. */
@@ -445,6 +489,7 @@ export async function onMessageReceived(ctx: AgentsCtx, event: { payload: { mess
     // the run carries what woke it, so the agent answers that message in that thread
     const started = await call<{ runId: string }>(ctx, "runs.start", { idempotencyKey: `watch:${r.id}:${p.messageId}`, kind: "routine", name: r.title, owner: r.ownerId, threadId: p.threadId, trigger: { messageId: p.messageId, threadId: p.threadId, channelId: channel } }, { idempotencyKey: `watch:${r.id}:${p.messageId}` });
     ctx.db.run("UPDATE agents_routine SET lastRunAt = ?, updatedAt = ? WHERE id = ?", ctx.now(), ctx.now(), r.id);
+    noteRoutineRun(ctx.db, r.id, started.runId, ctx.now());
     ctx.emit("agent.routine_run_started", agent.id, { agentId: agent.id, routineId: r.id, runId: started.runId, ownerId: r.ownerId, requestedBy: `watch:${p.messageId}` });
     fired.push(started.runId);
   }

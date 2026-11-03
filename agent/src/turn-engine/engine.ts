@@ -131,7 +131,8 @@ export interface TurnEngine {
   /** Persist, route and queue a message. `interrupt` = "stop and send": cancel the running turn now and run this first. */
   receive(msg: IncomingMessage, opts?: { interrupt?: boolean }): ReceiveResult;
   /** A background wait fired for an agent: queue a wake on the starter's account. */
-  wake(threadId: string, agentId: string): number;
+  /** `routine`: the turn is a routine's (its reply is labelled "on a routine <person> set"); `from`: the person it runs for (default the thread's starter). */
+  wake(threadId: string, agentId: string, o?: { routine?: boolean; from?: string }): number;
   /**
    * Stop button: cancel the running turn. `agentId` limits it to one agent (its running turn, its queued rows, its parked turns).
    * `clearQueue` stops everything in the thread: running, queued and parked (stop all).
@@ -558,9 +559,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       threads.set(thread.id, { thread: { ...thread, agents: thread.agents.map((a) => ({ ...a })) }, messages: messages.recent(thread.id, historyWindow), running: null, worker: null, active: false });
     },
     receive: (msg, o) => ingest(need(msg.threadId), msg, o?.interrupt === true),
-    wake(threadId, agentId) {
+    wake(threadId, agentId, o) {
       const st = need(threadId);
-      const item = enqueue(st, { kind: "wake", agentId, from: st.thread.starter, messageId: null, priority: 0, routine: false });
+      const item = enqueue(st, { kind: "wake", agentId, from: o?.from ?? st.thread.starter, messageId: null, priority: 0, routine: o?.routine === true });
       kick(st);
       return item.qseq;
     },

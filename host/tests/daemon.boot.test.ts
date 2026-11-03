@@ -331,7 +331,7 @@ test("a second daemon on the same data directory is refused, and a new Space nee
   try {
     assert.equal(d.space, "spc_fresh");
     // ruling 71: the host makes the Space once, with these six events and nothing else
-    assert.deepEqual((await d.log!.read({ limit: 20 })).map((e) => e.type), ["space.created", "principal.created", "principal.role_set", "resource.created", "grant.created", "group.member_added"], "a new Space starts with its bootstrap events");
+    assert.deepEqual((await d.log!.read({ limit: 20 })).map((e) => e.type), ["space.created", "principal.created", "principal.role_set", "resource.created", "grant.created", "group.member_added", "channel.created", "thread.started", "channel.member_added", "resource.created", "resource.created"], "a new Space starts with its bootstrap events, then #vyre, its first channel, with the owner in it (l-team1)");
     assert.equal(fs.existsSync(path.join(dir, "events.db")), true);
     // the pid file names another live process, so a second start is refused
     fs.writeFileSync(d.paths.info, JSON.stringify({ ...readInfo(d.paths)!, pid: process.ppid }));

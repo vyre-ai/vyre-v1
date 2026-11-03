@@ -48,7 +48,7 @@ export const PAGES: readonly PageDef[] = [
   p("aipolicy", "AI use policy", "AI", "scale", "policy.manage", "console.ai-spend"),
   p("memlearn", "Memory learning", "AI", "learn", "policy.manage", "access.policies"),
   // the setting engine.egress, saved with settings.set_space (policy.manage), so the page shows to whoever may set Space policy, like the Space defaults below
-  p("internet", "Internet access", "AI", "globe", "policy.manage", "access.policies"),
+  p("internet", "Internet access", "AI", "internet", "policy.manage", "access.policies"),
   p("domains", "Sending domains", "Comms", "mail", "comms.domains", "mail.domains"),
   p("numbers", "Numbers", "Comms", "phone", "comms.numbers", "telephony.numbers"),
   p("inboxes", "Shared inboxes", "Comms", "inbox", "comms.shared_send", "mail.shared-inboxes"),

@@ -3,10 +3,10 @@
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { OWNER_LEFT, announcePrivacy, onFileVersion, onDisplayNameChanged, onPersonCreated, onPersonLeft, onTurn, renameOldAssistants, restoreAgentFiles, retire, upgradeStarterAgentMd } from "./handlers/crud.ts";
-import { onMessageReceived } from "./handlers/routines.ts";
+import { ROUTINES_DUE_EVERY_MS, onMessageReceived, runDueRoutines } from "./handlers/routines.ts";
 import { memoryGuideConsumers } from "./memory-guide.ts";
 import type { FileVersionEvent, PersonLeftEvent, PrincipalEvent, SettingChangedEvent, TurnEvent } from "./handlers/crud.ts";
-import { agentOf } from "./projections.ts";
+import { agentOf, noteRoutineOutcome } from "./projections.ts";
 import type { AgentsCtx } from "./projections.ts";
 import { setPluginsHost } from "./handlers/plugins.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
@@ -22,6 +22,8 @@ export const periodic = {
   /** At boot and hourly: a private agent made before access learnt of privacy is announced once (agent.privacy_set). */
   "agents.privacy": { everyMs: 60 * 60_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => announcePrivacy(ctx) },
   "agents.agent_md_upgrade": { everyMs: 15 * 60_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => upgradeStarterAgentMd(ctx) },
+  /** The schedule of routines: every 10 seconds, each routine whose time has come starts once (handlers/routines.ts runDueRoutines). Runs only where the scheduled-work lease is held. */
+  "agents.routines_due": { everyMs: ROUTINES_DUE_EVERY_MS, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => runDueRoutines(ctx) },
 };
 
 export { restoreAgentFiles };
@@ -31,6 +33,15 @@ export const hostSeams = { setPluginsHost };
 
 export const consumers = {
   ...memoryGuideConsumers,
+  /** A routine's run ended (the engine finishes it when the agent's turn ends): the routine's Last run says how it went. */
+  "agents.routine_outcome": {
+    on: ["run.succeeded", "run.failed", "run.stopped"],
+    run: (ctx: AgentsCtx, event: { name: string; payload: { runId?: string } }): string[] => {
+      const runId = event.payload.runId;
+      if (!runId) return [];
+      return noteRoutineOutcome(ctx.db, runId, event.name === "run.succeeded" ? "succeeded" : event.name === "run.failed" ? "failed" : "stopped", ctx.now());
+    },
+  },
   /** A person's account exists (claim or join): they get their private assistant, with or without an AI account. */
   "agents.ensure_assistant": {
     on: ["principal.created"],

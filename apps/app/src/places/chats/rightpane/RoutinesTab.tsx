@@ -1,7 +1,7 @@
 // Right pane > Routines (spec 3.2, 2.6): each routine with its schedule, its next run or Paused, and an on/off switch. Click opens it: what it does, when, where results go,
 // the last run. Change by Asking fills the chat composer (routines are made by asking the agent); Edit Instructions saves a new version; Rename, Duplicate (paused) and Delete
 // with an inline confirm and Undo. Three sentence starters begin a new one. The row's menu and the ... button give the same entries.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -12,7 +12,9 @@ import { addMenu } from "../../../../../../ui/src/ShareSheet/index.tsx";
 import { delegateRoutine, deleteRoutine, duplicateRoutine, renameRoutine, runNow, saveInstructions, setRoutine } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import { usePaneData, useScreenQuery } from "./data.tsx";
-import { ROUTINE_STARTS, changeByAsking, cronWords, isWatcher, lastRunLine, nextLabel, routineFile, routineNote, routinesOn, sortRoutines } from "./model.ts";
+import { ROUTINE_STARTS, changeByAsking, cronWords, idName, idParts, isWatcher, lastRunLine, nextLine, routineFile, routineNote, routinesOn, sortRoutines } from "./model.ts";
+import type { IdPart } from "./model.ts";
+import { creditLine } from "../../../shell/session/private-agents.ts";
 import type { Routine } from "./model.ts";
 import { Face, LeadFace, LeadIcon, PaneList, Switch, TextButton, Tool } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
@@ -48,7 +50,9 @@ export function RoutinesTab({ deps, window, initial }: { deps: PaneDeps; window?
     setRunning((x) => [...x, r.routineId]);
     void runNow(deps, r).then(() => setRunning((x) => x.filter((id) => id !== r.routineId)));
   };
-  const personName = (id: string): string => nameOr(data.people?.find((p) => p.id === id)?.name, id);
+  // who set a routine, in the one way every "set by" line says it: "You", "You, through Assistant" to its owner, "Irfad Imtiaz (Agent)" to anyone else
+  const nameOf = (id: string): string => data.nameOf?.(id) ?? nameOr(data.people?.find((p) => p.id === id)?.name, id);
+  const setBy = (r: Routine): string => creditLine((r as Routine & { setBy?: { kind: string; id: string } }).setBy ?? { kind: "person", id: r.ownerId }, { me: data.me?.id ?? "", nameOf, ...(data.ownerOf ? { ownerOf: data.ownerOf } : {}), for: r.ownerId });
 
   const menuFor = (r: Routine): MenuEntry[] => [
     { label: "Open", onSelect: () => { setOpenId(r.routineId); setMode("view"); } },
@@ -81,7 +85,7 @@ export function RoutinesTab({ deps, window, initial }: { deps: PaneDeps; window?
                   <TextButton label="Cancel" onPress={() => setMode("view")} />
                 </View>
               ) : <Text style={st.title}>{r.title}</Text>}
-              <Text style={st.sub}>{routineNote(r, clock)}</Text>
+              <Text testID="routine-next" style={st.sub}>{nextLine(r, clock)}</Text>
             </View>
             <Switch on={r.enabled} label="Routine on" onPress={() => void setRoutine(deps, r, !r.enabled)} testID="routine-switch" />
           </View>
@@ -140,20 +144,21 @@ export function RoutinesTab({ deps, window, initial }: { deps: PaneDeps; window?
             <Text style={st.hint}>Saved as a new version; the old one is kept.</Text>
           </View>
         </View>
-      ) : <View style={st.block}><Text testID="routine-prompt" style={st.prompt}>{r.prompt}</Text></View>,
+      ) : <View style={st.block}><PromptWords text={r.prompt} here={data.threadId} call={data.call} open={(p) => (p.kind === "thread" ? data.nav.openThread(p.id, "here") : data.nav.openSource("channel", p.id))} /></View>,
     });
     entries.push({ key: "l-when", type: "label", text: "When" });
     entries.push({
       key: "when", type: "block",
-      node: <View style={st.block}><Text style={st.kvVal}>{isWatcher(r) ? "On every new message in the channel" : cronWords(r.cron ?? "")}</Text><Text style={st.hint}>{r.enabled ? (r.nextRunAt !== undefined ? `Next: ${nextLabel(r.nextRunAt, clock)}` : "No run is scheduled") : "Paused. Turn it on to schedule the next run."}</Text></View>,
+      node: <View style={st.block}><Text testID="routine-when" style={st.kvVal}>{isWatcher(r) ? "On every new message in the channel" : cronWords(r.cron ?? "", clock)}</Text></View>,
     });
     entries.push({ key: "l-details", type: "label", text: "Details" });
     entries.push({
       key: "details", type: "block",
       node: (
         <View testID="routine-details" style={st.kv}>
-          <Text style={st.kvKey}>Results</Text><Text style={st.kvVal}>{r.channelId ? `Posted to a channel (${r.channelId})` : "In the agent's chat"}</Text>
-          <Text style={st.kvKey}>Set by</Text><Text style={st.kvVal} testID="routine-owner">{personName(r.ownerId)}</Text>
+          <Text style={st.kvKey}>Results</Text>{r.channelId ? <PromptWords text={`Posted to ${r.channelId}`} here={data.threadId} call={data.call} open={(p) => data.nav.openSource("channel", p.id)} style={st.kvVal} testID="routine-results" /> : <Text style={st.kvVal}>In the agent's chat</Text>}
+          <Text style={st.kvKey}>Set by</Text><Text style={st.kvVal} testID="routine-owner">{setBy(r)}</Text>
+          {!isWatcher(r) && r.cron ? <><Text style={st.kvKey}>Schedule (cron, UTC)</Text><Text style={st.kvVal} testID="routine-cron" selectable>{r.cron}</Text></> : null}
           <Text style={st.kvKey}>Last run</Text><Text style={st.kvVal}>{lastRunLine(r, clock)}</Text>
         </View>
       ),
@@ -182,6 +187,30 @@ export function RoutinesTab({ deps, window, initial }: { deps: PaneDeps; window?
   return <View style={st.fill}><PaneList entries={entries} {...(window ? { window } : {})} testID="routines-list" />{menu.element}</View>;
 }
 
+/** Words with the chat and channel ids in them drawn as names that open what they name ("this chat", "#intake", "Rivera intake"), read once each. */
+function PromptWords({ text, here, call, open, style, testID = "routine-prompt" }: { text: string; here: string; call(cap: string, input: unknown): Promise<unknown>; open(p: { id: string; kind: "thread" | "channel" }): void; style?: object; testID?: string }): ReactElement {
+  const parts = idParts(text);
+  const [found, setFound] = useState<Record<string, { kind?: string; title?: string; name?: string } | null>>({});
+  const ids = parts.flatMap((p) => ("id" in p ? [`${p.kind}:${p.id}`] : [])).join("|");
+  useEffect(() => {
+    let live = true;
+    for (const p of parts) {
+      if (!("id" in p) || (p.kind === "thread" && p.id === here)) continue;
+      const read = p.kind === "channel" ? call("channels.get", { channelId: p.id }).then((o) => ({ name: (o as { channel?: { name?: string } }).channel?.name })) : call("threads.get", { threadId: p.id }).then((o) => (o as { thread?: { kind?: string; title?: string } }).thread ?? null);
+      void read.then((v) => { if (live) setFound((f) => ({ ...f, [p.id]: v })); }, () => { if (live) setFound((f) => ({ ...f, [p.id]: null })); });
+    }
+    return () => { live = false; };
+  }, [ids, here]);   // eslint-disable-line react-hooks/exhaustive-deps -- ids stands for the parts
+  return (
+    <Text testID={testID} style={style ?? st.prompt}>
+      {/* ui-rows-lint: not a list (words and links inside one line of text) */}
+      {parts.map((p: IdPart, i) => ("id" in p
+        ? <Text key={i} accessibilityRole="link" testID={`routine-link-${p.id}`} onPress={() => open(p)} style={st.link}>{idName(p, here, found[p.id])}</Text>
+        : <Text key={i}>{p.text}</Text>))}
+    </Text>
+  );
+}
+
 function routineSlugKey(x: string): string {
   return x.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
@@ -206,4 +235,5 @@ const st = StyleSheet.create({
   kv: { paddingHorizontal: 8, gap: 2 },
   kvKey: { fontSize: 11.5, color: "var(--ink-3)" as string, marginTop: 6 },
   kvVal: { fontSize: 13, color: "var(--ink)" as string },
+  link: { color: "var(--accent)" as string },
 });

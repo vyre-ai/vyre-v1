@@ -54,6 +54,11 @@ export interface ChatRightPaneData {
   clock(): Clock;
   /** Where relative stream addresses start (the Space's own address), for the live view in the Computer tab. */
   spaceUrl?: string;
+  /** Who is looking, and names for ids from the shell's directory: what "Set by" says (shell/session/private-agents.ts creditLine). Absent in an old host: the line says a plain word. */
+  me?: { id: string };
+  nameOf?(id: string): string;
+  /** The person an agent belongs to (a person's assistant), from the directory. */
+  ownerOf?(id: string): string | undefined;
   /** The Space's people, for "Delegate" on a routine (the shared people picker draws them). Absent while the directory has not loaded: the picker then says so. */
   people?: readonly DirectoryEntry[];
   /** What the Knows tab reads and writes (facts in scope for this chat and this asker, live and editable). Left out where the shell has none: the tab then shows the agent's own facts as it always did. */

@@ -194,6 +194,8 @@ export function paneData(rt: ShellRuntime, a: ChatsActions, threadId: string, ag
     agent: { agentId: agent.agentId, name: agent.name },
     space: { name: rt.space.name, personal: rt.space.kind === "personal", computers: computersAvailableNow(rt.space) },
     nav, clock: rt.clock,
+    me: { id: rt.me.id }, nameOf: nameLookup(rt),
+    ownerOf: (id) => { const p = rt.principals.getSnapshot(); return p.status === "ready" ? p.data.find((x) => x.id === id)?.owner : undefined; },
     memory: chatMemory(rt, a),
     ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}),
   };
