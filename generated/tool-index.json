@@ -998,6 +998,18 @@
     },
     {
       "deferred": false,
+      "name": "browser_watches_list",
+      "summary": "Vyre for Chrome: the person's watches, newest first: what is watched, how often, where it runs, what the last check read and the last change with before and after",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "browser_watches_report",
+      "summary": "A check of a watched page: what it read now (or why it could not read). The first reading is the baseline; a different one is a change and is told in the watch's chat with before and after",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "calendar_availability",
       "summary": "Busy blocks for people over a range (the shaded stripes while adding people)",
       "toolset": "inbox"

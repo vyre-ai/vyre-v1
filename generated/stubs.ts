@@ -293,6 +293,15 @@ export function stubs(ctx: CallCtx) {
       list: call("bookings.list"),
       page_create: call("bookings.page_create"),
     },
+    browser: {
+      watches: {
+        check: call("browser.watches.check"),
+        list: call("browser.watches.list"),
+        remove: call("browser.watches.remove"),
+        report: call("browser.watches.report"),
+        save: call("browser.watches.save"),
+      },
+    },
     calendar: {
       availability: call("calendar.availability"),
       connect_provider: call("calendar.connect_provider"),

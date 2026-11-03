@@ -66,4 +66,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.versions": Handler<"automations.versions", X>;
   "automations.webhook_url.get": Handler<"automations.webhook_url.get", X>;
   "automations.webhook_url.rotate": Handler<"automations.webhook_url.rotate", X>;
+  "browser.watches.check": Handler<"browser.watches.check", X>;
+  "browser.watches.list": Handler<"browser.watches.list", X>;
+  "browser.watches.remove": Handler<"browser.watches.remove", X>;
+  "browser.watches.report": Handler<"browser.watches.report", X>;
+  "browser.watches.save": Handler<"browser.watches.save", X>;
 }

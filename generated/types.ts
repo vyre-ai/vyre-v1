@@ -4715,6 +4715,209 @@ export type BookingsPageCreateOut = {
     submissions: number;
   };
 };
+export type BrowserWatchesCheckIn = {
+  watchId: string;
+};
+export type BrowserWatchesCheckOut = {
+  watch: {
+    watchId: string;
+    title: string;
+    url: string;
+    host: string;
+    mode: "region" | "page";
+    region?: {
+      label: string;
+      selector?: string;
+    };
+    everyMinutes: number;
+    tell: Array<string>;
+    agentId?: string;
+    runsOn: "computer" | "chrome";
+    computerId?: string;
+    state: "on" | "paused" | "error";
+    checkNow: boolean;
+    value?: string;
+    lastCheckedAt?: number;
+    nextDueAt?: number;
+    changes: number;
+    lastChange?: {
+      at: number;
+      before: string;
+      after: string;
+    };
+    threadId?: string;
+    error?: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type BrowserWatchesListIn = {
+  watchId?: string;
+  runsOn?: "computer" | "chrome";
+  person?: string;
+};
+export type BrowserWatchesListOut = {
+  watches: Array<{
+      watchId: string;
+      title: string;
+      url: string;
+      host: string;
+      mode: "region" | "page";
+      region?: {
+        label: string;
+        selector?: string;
+      };
+      everyMinutes: number;
+      tell: Array<string>;
+      agentId?: string;
+      runsOn: "computer" | "chrome";
+      computerId?: string;
+      state: "on" | "paused" | "error";
+      checkNow: boolean;
+      value?: string;
+      lastCheckedAt?: number;
+      nextDueAt?: number;
+      changes: number;
+      lastChange?: {
+        at: number;
+        before: string;
+        after: string;
+      };
+      threadId?: string;
+      error?: string;
+      createdAt: number;
+      updatedAt: number;
+    }>;
+};
+export type BrowserWatchesRemoveIn = {
+  watchId: string;
+  op: "remove" | "pause" | "resume";
+  idempotencyKey: string;
+};
+export type BrowserWatchesRemoveOut = {
+  removed: boolean;
+  watch?: {
+    watchId: string;
+    title: string;
+    url: string;
+    host: string;
+    mode: "region" | "page";
+    region?: {
+      label: string;
+      selector?: string;
+    };
+    everyMinutes: number;
+    tell: Array<string>;
+    agentId?: string;
+    runsOn: "computer" | "chrome";
+    computerId?: string;
+    state: "on" | "paused" | "error";
+    checkNow: boolean;
+    value?: string;
+    lastCheckedAt?: number;
+    nextDueAt?: number;
+    changes: number;
+    lastChange?: {
+      at: number;
+      before: string;
+      after: string;
+    };
+    threadId?: string;
+    error?: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type BrowserWatchesReportIn = {
+  watchId: string;
+  value?: string;
+  error?: string;
+};
+export type BrowserWatchesReportOut = {
+  changed: boolean;
+  watch: {
+    watchId: string;
+    title: string;
+    url: string;
+    host: string;
+    mode: "region" | "page";
+    region?: {
+      label: string;
+      selector?: string;
+    };
+    everyMinutes: number;
+    tell: Array<string>;
+    agentId?: string;
+    runsOn: "computer" | "chrome";
+    computerId?: string;
+    state: "on" | "paused" | "error";
+    checkNow: boolean;
+    value?: string;
+    lastCheckedAt?: number;
+    nextDueAt?: number;
+    changes: number;
+    lastChange?: {
+      at: number;
+      before: string;
+      after: string;
+    };
+    threadId?: string;
+    error?: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type BrowserWatchesSaveIn = {
+  watchId?: string;
+  title: string;
+  url: string;
+  mode: "region" | "page";
+  region?: {
+    label: string;
+    selector?: string;
+  };
+  everyMinutes: number;
+  tell?: Array<string>;
+  agentId?: string;
+  runsOn: "computer" | "chrome";
+  computerId?: string;
+  paused?: boolean;
+  value?: string;
+  idempotencyKey: string;
+};
+export type BrowserWatchesSaveOut = {
+  watch: {
+    watchId: string;
+    title: string;
+    url: string;
+    host: string;
+    mode: "region" | "page";
+    region?: {
+      label: string;
+      selector?: string;
+    };
+    everyMinutes: number;
+    tell: Array<string>;
+    agentId?: string;
+    runsOn: "computer" | "chrome";
+    computerId?: string;
+    state: "on" | "paused" | "error";
+    checkNow: boolean;
+    value?: string;
+    lastCheckedAt?: number;
+    nextDueAt?: number;
+    changes: number;
+    lastChange?: {
+      at: number;
+      before: string;
+      after: string;
+    };
+    threadId?: string;
+    error?: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
 export type CalendarAvailabilityIn = {
   people: Array<string>;
   from: number;
@@ -14448,7 +14651,7 @@ export type GoalsChecklistTickOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -14459,6 +14662,7 @@ export type GoalsChecklistTickOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -14565,7 +14769,7 @@ export type GoalsConfirmOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -14576,6 +14780,7 @@ export type GoalsConfirmOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -14662,7 +14867,7 @@ export type GoalsCreateIn = {
     direction?: "up" | "down";
     unit?: string;
     source?: {
-      kind: "records" | "connection" | "mcp" | "automation" | "manual";
+      kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
       label?: string;
       type?: string;
       filter?: unknown;
@@ -14673,6 +14878,7 @@ export type GoalsCreateIn = {
       server?: string;
       tool?: string;
       automationId?: string;
+      watchId?: string;
       path?: string;
     };
     items?: Array<{
@@ -14751,7 +14957,7 @@ export type GoalsCreateOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -14762,6 +14968,7 @@ export type GoalsCreateOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -14859,7 +15066,7 @@ export type GoalsExtendOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -14870,6 +15077,7 @@ export type GoalsExtendOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -14962,7 +15170,7 @@ export type GoalsFinishOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -14973,6 +15181,7 @@ export type GoalsFinishOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15072,7 +15281,7 @@ export type GoalsGetOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15083,6 +15292,7 @@ export type GoalsGetOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15252,7 +15462,7 @@ export type GoalsMarkStuckOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15263,6 +15473,7 @@ export type GoalsMarkStuckOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15355,7 +15566,7 @@ export type GoalsNumberSetOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15366,6 +15577,7 @@ export type GoalsNumberSetOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15458,7 +15670,7 @@ export type GoalsPauseOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15469,6 +15681,7 @@ export type GoalsPauseOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15628,7 +15841,7 @@ export type GoalsResumeOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15639,6 +15852,7 @@ export type GoalsResumeOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15783,7 +15997,7 @@ export type GoalsStopOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15794,6 +16008,7 @@ export type GoalsStopOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -15881,7 +16096,7 @@ export type GoalsUpdateIn = {
     direction?: "up" | "down";
     unit?: string;
     source?: {
-      kind: "records" | "connection" | "mcp" | "automation" | "manual";
+      kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
       label?: string;
       type?: string;
       filter?: unknown;
@@ -15892,6 +16107,7 @@ export type GoalsUpdateIn = {
       server?: string;
       tool?: string;
       automationId?: string;
+      watchId?: string;
       path?: string;
     };
     items?: Array<{
@@ -15943,7 +16159,7 @@ export type GoalsUpdateOut = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -15954,6 +16170,7 @@ export type GoalsUpdateOut = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -40308,6 +40525,11 @@ export interface CapMap {
   "bookings.cancel": { in: BookingsCancelIn; out: BookingsCancelOut };
   "bookings.list": { in: BookingsListIn; out: BookingsListOut };
   "bookings.page_create": { in: BookingsPageCreateIn; out: BookingsPageCreateOut };
+  "browser.watches.check": { in: BrowserWatchesCheckIn; out: BrowserWatchesCheckOut };
+  "browser.watches.list": { in: BrowserWatchesListIn; out: BrowserWatchesListOut };
+  "browser.watches.remove": { in: BrowserWatchesRemoveIn; out: BrowserWatchesRemoveOut };
+  "browser.watches.report": { in: BrowserWatchesReportIn; out: BrowserWatchesReportOut };
+  "browser.watches.save": { in: BrowserWatchesSaveIn; out: BrowserWatchesSaveOut };
   "calendar.availability": { in: CalendarAvailabilityIn; out: CalendarAvailabilityOut };
   "calendar.connect_provider": { in: CalendarConnectProviderIn; out: CalendarConnectProviderOut };
   "calendar.create_calendar": { in: CalendarCreateCalendarIn; out: CalendarCreateCalendarOut };
@@ -42490,6 +42712,16 @@ export type BookingCreatedPayload = {
   bookingId: string;
   formId: string;
   recordId: string;
+};
+export type BrowserWatchChangedPayload = {
+  watchId: string;
+  owner: string;
+  changes: number;
+};
+export type BrowserWatchSavedPayload = {
+  watchId: string;
+  owner: string;
+  op: "added" | "changed" | "paused" | "resumed" | "removed";
 };
 export type CalendarCreatedPayload = {
   calendarId: string;
@@ -46133,6 +46365,8 @@ export interface EventMap {
   "block.waiting": BlockWaitingPayload;
   "booking.cancelled": BookingCancelledPayload;
   "booking.created": BookingCreatedPayload;
+  "browser.watch.changed": BrowserWatchChangedPayload;
+  "browser.watch.saved": BrowserWatchSavedPayload;
   "calendar.created": CalendarCreatedPayload;
   "calendar.synced": CalendarSyncedPayload;
   "calendar_event.created": CalendarEventCreatedPayload;

@@ -66,4 +66,9 @@ export const handlers: Handlers<HandlerCtx> = {
   "automations.versions": async (ctx) => { throw new VyreErr(notImplemented("automations.versions", ctx.trace)); },
   "automations.webhook_url.get": async (ctx) => { throw new VyreErr(notImplemented("automations.webhook_url.get", ctx.trace)); },
   "automations.webhook_url.rotate": async (ctx) => { throw new VyreErr(notImplemented("automations.webhook_url.rotate", ctx.trace)); },
+  "browser.watches.check": async (ctx) => { throw new VyreErr(notImplemented("browser.watches.check", ctx.trace)); },
+  "browser.watches.list": async (ctx) => { throw new VyreErr(notImplemented("browser.watches.list", ctx.trace)); },
+  "browser.watches.remove": async (ctx) => { throw new VyreErr(notImplemented("browser.watches.remove", ctx.trace)); },
+  "browser.watches.report": async (ctx) => { throw new VyreErr(notImplemented("browser.watches.report", ctx.trace)); },
+  "browser.watches.save": async (ctx) => { throw new VyreErr(notImplemented("browser.watches.save", ctx.trace)); },
 };

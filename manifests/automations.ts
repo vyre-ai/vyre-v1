@@ -127,6 +127,16 @@ const connectorSetup = t.obj({
 const recordFilter = t.obj({ type: id.recordType, op: t.opt(t.enm('created', 'updated', 'deleted')), fields: t.opt(t.arr(t.str())), where: t.opt(anyJson) });
 const rowFilter = t.obj({ fileId: id.file, sheet: t.opt(t.str()), op: t.opt(t.enm('added', 'changed')), columns: t.opt(t.arr(t.str())) });
 
+// Watching (Vyre for Chrome): a page or a region of one, checked on a rhythm in the person's own Chrome or by an agent on its computer. A watch is the person's own; nobody else reads it.
+const watchId = t.id('wch');
+const watchRegion = t.obj({ label: t.str({ minLength: 1, maxLength: 200, examples: ['Price'] }), selector: t.opt(t.str({ maxLength: 500 })) });
+const watchRow = t.obj({
+  watchId, title: t.str(), url: t.str(), host: t.str(), mode: t.enm('region', 'page'), region: t.opt(watchRegion), everyMinutes: t.int({ minimum: 5, maximum: 10_080 }), tell: t.arr(id.user),
+  agentId: t.opt(id.agent), runsOn: t.enm('computer', 'chrome'), computerId: t.opt(t.str()), state: t.enm('on', 'paused', 'error'), checkNow: t.bool(),
+  value: t.opt(t.str({ description: 'What the last check read, cut at 2,000 characters' })), lastCheckedAt: t.opt(t.ts()), nextDueAt: t.opt(t.ts()), changes: t.int({ minimum: 0 }),
+  lastChange: t.opt(t.obj({ at: t.ts(), before: t.str(), after: t.str() })), threadId: t.opt(id.thread), error: t.opt(t.str()), createdAt: t.ts(), updatedAt: t.ts(),
+});
+
 export default defineManifest({
   id: 'automations',
   title: 'Automations',
@@ -156,6 +166,8 @@ export default defineManifest({
     ev('automation.group_created', 'A Group was created', { p: { groupId, name: t.str() }, subject: ['entity', '/groupId'] }),
     ev('automation.group_renamed', 'A Group was renamed', { p: { groupId, name: t.str() }, subject: ['entity', '/groupId'] }),
     ev('automation.group_deleted', 'A Group was deleted; its Automations became ungrouped', { p: { groupId }, subject: ['entity', '/groupId'] }),
+    ev('browser.watch.saved', 'A watch was made, changed, paused, resumed or removed', { p: { watchId, owner: id.user, op: t.enm('added', 'changed', 'paused', 'resumed', 'removed') }, subject: ['entity', '/watchId'], vis: 'owner' }),
+    ev('browser.watch.changed', 'A watched page changed since its last reading', { p: { watchId, owner: id.user, changes: t.int({ minimum: 1 }) }, subject: ['entity', '/watchId'], vis: 'owner' }),
   ],
   capabilities: [
     read('automations.list', 'List Automations by section (Personal, Shared with me, Space), folder and Group', {
@@ -467,6 +479,27 @@ export default defineManifest({
       out: { connectors: t.arr(t.obj({ appName: t.str(), actions: t.arr(t.obj({ key: t.str(), title: t.str(), level: t.enm('draft', 'tested') })) })) },
       tool: 'automations',
       agent: { planMode: 'blocked' },
+    }),
+    read('browser.watches.list', 'Vyre for Chrome: the person\'s watches, newest first: what is watched, how often, where it runs, what the last check read and the last change with before and after', {
+      level: 'member', in: { watchId: t.opt(watchId), runsOn: t.opt(t.enm('computer', 'chrome')), person: t.opt(id.user) }, out: { watches: t.arr(watchRow) }, tool: 'automations', mcpName: 'browser_watches_list', agent: { planMode: 'allowed' },
+    }),
+    create('browser.watches.save', 'Vyre for Chrome: watch a page or a region of one. It runs in the person\'s Chrome or on an agent\'s computer; a change is told in a chat with what it was and what it is now', {
+      level: 'member', in: {
+        watchId: t.opt(watchId), title: t.str({ minLength: 1, maxLength: 200 }), url: t.str({ minLength: 1, maxLength: 2000 }), mode: t.enm('region', 'page'), region: t.opt(watchRegion),
+        everyMinutes: t.int({ minimum: 5, maximum: 10_080 }), tell: t.opt(t.arr(id.user, { maxItems: 20 })), agentId: t.opt(id.agent), runsOn: t.enm('computer', 'chrome'), computerId: t.opt(t.str()),
+        paused: t.opt(t.bool()), value: t.opt(t.str({ maxLength: 20_000, description: 'The first reading, taken when the sheet was filled in: the baseline' })),
+      },
+      out: { watch: watchRow }, emits: ['browser.watch.saved'], offline: 'online', agent: false, errors: ['validation.not_found', 'validation.bad_input'],
+    }),
+    write('browser.watches.remove', 'Vyre for Chrome: remove a watch, or pause or resume it', {
+      level: 'member', idem: 'key', in: { watchId, op: t.enm('remove', 'pause', 'resume') }, out: { removed: t.bool(), watch: t.opt(watchRow) }, emits: ['browser.watch.saved'], offline: 'online', agent: false, errors: ['validation.not_found'],
+    }),
+    write('browser.watches.report', 'A check of a watched page: what it read now (or why it could not read). The first reading is the baseline; a different one is a change and is told in the watch\'s chat with before and after', {
+      level: 'member', in: { watchId, value: t.opt(t.str({ maxLength: 20_000 })), error: t.opt(t.str({ maxLength: 300 })) }, out: { changed: t.bool(), watch: watchRow },
+      emits: ['browser.watch.changed'], offline: 'online', tool: 'automations', mcpName: 'browser_watches_report', agent: { planMode: 'blocked' }, errors: ['validation.not_found'],
+    }),
+    write('browser.watches.check', 'Vyre for Chrome: check a watch now. One in the person\'s Chrome is read at the extension\'s next look; one on an agent\'s computer wakes the agent', {
+      level: 'member', in: { watchId }, out: { watch: watchRow }, offline: 'online', agent: false, errors: ['validation.not_found', 'validation.precondition_failed'],
     }),
   ],
   triggers: [

@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (61)
+## Capabilities (66)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
@@ -67,8 +67,13 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automations.versions](../capabilities/automations.versions.md): List versions of an Automation (One History)
 - [automations.webhook_url.get](../capabilities/automations.webhook_url.get.md): The inbound webhook URL of an Automation that has a webhook trigger
 - [automations.webhook_url.rotate](../capabilities/automations.webhook_url.rotate.md): Rotate the secret in the webhook URL; the old URL stops working
+- [browser.watches.check](../capabilities/browser.watches.check.md): Vyre for Chrome: check a watch now. One in the person's Chrome is read at the extension's next look; one on an agent's computer wakes the agent
+- [browser.watches.list](../capabilities/browser.watches.list.md): Vyre for Chrome: the person's watches, newest first: what is watched, how often, where it runs, what the last check read and the last change with before and after
+- [browser.watches.remove](../capabilities/browser.watches.remove.md): Vyre for Chrome: remove a watch, or pause or resume it
+- [browser.watches.report](../capabilities/browser.watches.report.md): A check of a watched page: what it read now (or why it could not read). The first reading is the baseline; a different one is a change and is told in the watch's chat with before and after
+- [browser.watches.save](../capabilities/browser.watches.save.md): Vyre for Chrome: watch a page or a region of one. It runs in the person's Chrome or on an agent's computer; a change is told in a chat with what it was and what it is now
 
-## Events (19)
+## Events (21)
 
 - [automation.alerts_changed](../events/automation.alerts_changed.md): Error alerts and the escalation chain changed
 - [automation.copied](../events/automation.copied.md): A Space Automation was copied to a Personal Automation
@@ -89,3 +94,5 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automation.trigger_dropped](../events/automation.trigger_dropped.md): A trigger event was ignored: self-trigger, chain depth 8 or paused
 - [automation.updated](../events/automation.updated.md): An Automation definition or settings changed; a definition change saves a version
 - [automation.version_restored](../events/automation.version_restored.md): An earlier version was restored as the newest version
+- [browser.watch.changed](../events/browser.watch.changed.md): A watched page changed since its last reading
+- [browser.watch.saved](../events/browser.watch.saved.md): A watch was made, changed, paused, resumed or removed

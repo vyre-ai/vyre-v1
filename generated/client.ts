@@ -293,6 +293,15 @@ export function createClient(transport: Transport) {
       list: call("bookings.list", 1),
       page_create: call("bookings.page_create", 1),
     },
+    browser: {
+      watches: {
+        check: call("browser.watches.check", 1),
+        list: call("browser.watches.list", 1),
+        remove: call("browser.watches.remove", 1),
+        report: call("browser.watches.report", 1),
+        save: call("browser.watches.save", 1),
+      },
+    },
     calendar: {
       availability: call("calendar.availability", 1),
       connect_provider: call("calendar.connect_provider", 1),

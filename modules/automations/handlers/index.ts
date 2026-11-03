@@ -24,9 +24,15 @@ import { migrateRuns, migrationPreview } from "./migrate.ts";
 import { exportPackage, importPackage, packagesList } from "./packages.ts";
 import { analytics, dependencies, templatesList, templatesUse } from "./studio.ts";
 import { scheduleChoose } from "./schedule.ts";
+import { check as watchCheck, list as watchesList, remove as watchRemove, report as watchReport, save as watchSave } from "./watches.ts";
 import { fire, replay, retry, run, stop, test } from "./triggers.ts";
 
 export const handlers = {
+  "browser.watches.check": watchCheck,
+  "browser.watches.list": watchesList,
+  "browser.watches.remove": watchRemove,
+  "browser.watches.report": watchReport,
+  "browser.watches.save": watchSave,
   "automations.account_picks": accountPicks,
   "automations.analytics": analytics,
   "automations.dependencies": dependencies,
