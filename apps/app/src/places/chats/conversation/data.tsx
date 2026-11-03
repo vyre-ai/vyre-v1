@@ -66,7 +66,7 @@ export interface ConversationData {
   /** Counts each time the same message is asked for again, so it is marked again. */
   focusN?: number;
   /** The signed-in person: messages from them are the right-hand bubbles. */
-  me: { id: string; name: string };
+  me: { id: string; name: string; /** Holds only the Guest role: the @ menu lists only the agents this chat allows. */ guest?: boolean };
   nameOf(id: string): string;
   kindOf(id: string): "person" | "agent";
   nav: ConversationNav;

@@ -42,7 +42,7 @@ function runtime(): unknown {
   };
   const call = async (cap: string, input: Row): Promise<unknown> => {
     if (cap === "tasks.index") return { rev: "r1", unchanged: false, rows: [], doneThisWeek: 0, total: 0 };
-    if (cap === "tasks.update") { if (input.expectedVersion === 5) return { task: { ...TASK, ...input, version: 6, updatedAt: NOW + 1000 } }; throw stale(input); }
+    if (cap === "tasks.update") { if (input.expectedVersion === 5) return { task: { ...TASK, ...input, workingNotes: { brief: String(CURRENT.brief) }, version: 6, updatedAt: NOW + 1000 } }; throw stale(input); }
     if (cap === "tasks.working_notes.set") {
       if (input.expectedFrom !== undefined && input.expectedFrom !== CURRENT.brief) throw stale({ brief: CURRENT.brief });
       CURRENT.brief = String(input.value);

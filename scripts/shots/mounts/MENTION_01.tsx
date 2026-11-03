@@ -1,0 +1,62 @@
+// Mount for MENTION_01 (lane l-learn2): the @ menu of a shared channel, over the real Conversation with the lists the shell builds (composerLists, candidates) from one directory of people and agents.
+// ?who=owner|member: Assistant (the viewer's own, with the V mark), then the other agents of the Space, each with its face, then people. Another person's Assistant ("Maya Lin (Agent)"), the owner's own
+// Claude Code ("Irfad Imtiaz (Agent)") and an agent kept from the viewer are not in it, and there is no Report a problem row. ?who=guest: only the agents this chat allows.
+import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import { View } from "react-native";
+import { createThemeController } from "../../../ui/src/theme/index.ts";
+import type { ThemeRoot } from "../../../ui/src/theme/index.ts";
+import { Conversation } from "../../../apps/app/src/places/chats/conversation/Conversation.tsx";
+import { createSample } from "../../../apps/app/src/places/chats/conversation/sample.ts";
+import { candidates, composerLists } from "../../../apps/app/src/shell/providers/chats-data.ts";
+
+export const title = "The @ menu: Assistant, the Space's agents, people";
+
+const ME = "usr_irfad";
+const MY_ASSISTANT = { id: "agt_irfad_assistant", name: "Assistant" };
+const PRINCIPALS = [
+  { id: ME, name: "Irfad Imtiaz", kind: "person" as const }, { id: "usr_maya", name: "Maya Lin", kind: "person" as const }, { id: "usr_sara", name: "Sara Khan", kind: "person" as const },
+  { id: MY_ASSISTANT.id, name: "Assistant", kind: "agent" as const, owner: ME, private: true },
+  { id: "agt_intake", name: "Intake", kind: "agent" as const }, { id: "agt_docs", name: "Docs", kind: "agent" as const }, { id: "agt_scout", name: "Scout", kind: "agent" as const },
+  { id: "agt_maya_assistant", name: "Maya Lin (Agent)", kind: "agent" as const, owner: "usr_maya", private: true },
+  { id: "agt_irfad_cc", name: "Irfad Imtiaz (Agent)", kind: "agent" as const, owner: ME },
+];
+interface RootLike { setAttribute(name: string, value: string): void; style: { setProperty(name: string, value: string): void; removeProperty(name: string): void } }
+type Pick1 = { focus?: () => void; value?: string; setSelectionRange?: (a: number, b: number) => void; dispatchEvent?: (e: unknown) => boolean };
+type Doc = { querySelector(s: string): Pick1 | null; documentElement?: RootLike };
+
+export default function Mount(): ReactNode {
+  const [q, setQ] = useState<URLSearchParams | null>(null);
+  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  return q ? <Page who={q.get("who") ?? "owner"} skin={q.get("skin") ?? "paper"} /> : <View testID="mention-wait" style={{ flex: 1 }} />;
+}
+
+function Page({ who, skin }: { who: string; skin: string }): ReactNode {
+  useMemo(() => {
+    const root = (globalThis as { document?: Doc }).document?.documentElement;
+    const themeRoot: ThemeRoot = { setAttribute: (n, v) => { root?.setAttribute(n, v); }, setProperty: (n, v) => { root?.style.setProperty(n, v); }, removeProperty: (n) => { root?.style.removeProperty(n); } };
+    return createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
+  }, [skin]);
+  const guest = who === "guest";
+  const sample = useMemo(() => {
+    const s = createSample("idle");
+    const me = guest ? "usr_gus" : ME;
+    const list = guest ? [...PRINCIPALS, { id: "usr_gus", name: "Gus Guest", kind: "person" as const, guest: true }] : PRINCIPALS;
+    const own = guest ? { id: "agt_gus_assistant", name: "Assistant" } : MY_ASSISTANT;
+    return { ...s.data, me: { id: me, name: guest ? "Gus Guest" : "Irfad Imtiaz", ...(guest ? { guest: true } : {}) }, lists: composerLists(list, me, own), directory: candidates(list, me, own) };
+  }, [guest]);
+  // type the @ a person would, once the page has drawn
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const el = (globalThis as { document?: Doc }).document?.querySelector("[data-testid='composer-field']");
+      if (!el) return;
+      el.focus?.();
+      const proto = (globalThis as unknown as { HTMLTextAreaElement: { prototype: object } }).HTMLTextAreaElement.prototype;
+      (Object.getOwnPropertyDescriptor(proto, "value")?.set as ((v: string) => void) | undefined)?.call(el, "@");
+      el.setSelectionRange?.(1, 1);
+      el.dispatchEvent?.(new (globalThis as unknown as { Event: new (t: string, i: object) => unknown }).Event("input", { bubbles: true }));
+    }, 800);
+    return () => clearTimeout(t);
+  }, []);
+  return <View testID="mention-mount" style={{ flex: 1, backgroundColor: "var(--win)" as string }}><Conversation data={sample} /></View>;
+}

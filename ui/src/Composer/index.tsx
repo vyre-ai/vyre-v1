@@ -218,8 +218,10 @@ const HASH_LIST: Record<HashGroup, [keyof ComposerLists, string]> = {
 export function popupFor(trigger: Trigger, lists: ComposerLists, _agentChat = true, scope: HashScope = "All"): PopupEntry[] {
   const q = trigger.query;
   if (trigger.ch === "@") {
-    const agents = ranked(lists.agents, q, "Agents", "Agent", MENTION_LIMIT);
-    const people = ranked(lists.people, q, "People", "Person", MENTION_LIMIT);
+    // only mentions belong here: a stray menu row (Report a problem is added to menus, never to this list) is dropped
+    const mention = (x: ListItem): boolean => nameOf(x) !== "Report a problem";
+    const agents = ranked((lists.agents ?? []).filter(mention), q, "Agents", "Agent", MENTION_LIMIT);
+    const people = ranked((lists.people ?? []).filter(mention), q, "People", "Person", MENTION_LIMIT);
     const out: PopupEntry[] = [];
     let left = MENTION_LIMIT;
     for (const [name, items] of [["Agents", agents], ["People", people]] as const) {
