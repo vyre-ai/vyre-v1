@@ -4,6 +4,7 @@
 import { actorOf, boundEngine, dayKey, dayStart, ensure, monthKey, monthStart, raise } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 import { agentDisplay } from "../agent-names.ts";
+import { ensureInfo } from "./extra/reply-info.ts";
 
 export type Scope = "space" | "person" | "agent";
 export type LimitKind = "run" | "day" | "month" | "turns" | "time";
@@ -159,22 +160,14 @@ export function raiseLimit(
 
 // ---- usage.query
 
-type UsageBy = "day" | "person" | "agent" | "model";
-interface UsageTotals { turns: number; tokensIn: number; tokensOut: number; costMicros: number; tokensCached?: number }
-
-const cachedReady = new WeakSet<object>();
-/** The cached part of a turn's input, kept beside engine_usage (created here, the way the other engine helper tables are). */
-function ensureCached(db: EngineCtx["db"]): void {
-  if (cachedReady.has(db as object)) return;
-  db.run("CREATE TABLE IF NOT EXISTS engine_usage_cached (turn_id TEXT PRIMARY KEY, cached INTEGER NOT NULL)");
-  cachedReady.add(db as object);
-}
+type UsageBy = "day" | "person" | "agent" | "model" | "account";
+/** tokensIn is every input token the turns sent, cached ones included; cachedIn is the part of it the provider served from its cache (a turn of many requests re-sends the chat each time, so it is most of it). */
+interface UsageTotals { turns: number; tokensIn: number; tokensOut: number; costMicros: number; cachedIn?: number }
 
 export async function usageQuery(ctx: EngineCtx, input: { by: UsageBy; from?: number; to?: number; personId?: string; agentId?: string; itemId?: string }): Promise<{
   rows: Array<{ key: string; title: string; face?: string; totals: UsageTotals }>; totals: UsageTotals;
 }> {
   ensure(ctx.db);
-  ensureCached(ctx.db);
   // People see their own; managers of AI spend see everyone.
   const sees = ctx.authorize({ perm: "ai.spend", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow";
   const me = actorOf(ctx);
@@ -185,22 +178,29 @@ export async function usageQuery(ctx: EngineCtx, input: { by: UsageBy; from?: nu
   if (sees && input.agentId !== undefined) { clauses.push("agent_id = ?"); args.push(input.agentId); }
   // only the turns that ran on this Vault item; people still see their own turns only (the person clause above)
   if (input.itemId !== undefined) { clauses.push("turn_id IN (SELECT turn_id FROM engine_usage_item WHERE item_id = ?)"); args.push(input.itemId); }
-  const key = input.by === "day" ? "strftime('%Y-%m-%d', at / 1000, 'unixepoch')" : input.by === "person" ? "person_id" : input.by === "agent" ? "agent_id" : "model";
+  // by account: the account that paid at the end of each turn, from the turn's own record ("none" for a turn with no account on record)
+  const key = input.by === "day" ? "strftime('%Y-%m-%d', at / 1000, 'unixepoch')" : input.by === "person" ? "person_id" : input.by === "agent" ? "agent_id" : input.by === "account" ? "COALESCE((SELECT account_ref FROM engine_turns WHERE engine_turns.turn_id = engine_usage.turn_id), 'none')" : "model";
+  ensureInfo(ctx.db);
   const out = rows(
     ctx,
     `SELECT ${key} AS k, COUNT(*) AS turns, COALESCE(SUM(tokens_in), 0) AS tin, COALESCE(SUM(tokens_out), 0) AS tout, COALESCE(SUM(cost_micros), 0) AS cost,
-            COALESCE(SUM((SELECT cached FROM engine_usage_cached c WHERE c.turn_id = engine_usage.turn_id)), 0) AS cached
+       COALESCE(SUM((SELECT CAST(json_extract(i.info, '$.cacheReadTokens') AS INTEGER) FROM engine_turn_info i WHERE i.turn_id = engine_usage.turn_id)), 0) AS cached
      FROM engine_usage WHERE ${clauses.join(" AND ")} GROUP BY k ORDER BY k ${input.by === "day" ? "DESC" : "ASC"}`,
     ...args,
   );
-  const sum: UsageTotals = { turns: 0, tokensIn: 0, tokensOut: 0, costMicros: 0 };
+  const sum: UsageTotals = { turns: 0, tokensIn: 0, tokensOut: 0, costMicros: 0, cachedIn: 0 };
   const list = out.map((r) => {
-    const t: UsageTotals = { turns: n(r["turns"]), tokensIn: n(r["tin"]), tokensOut: n(r["tout"]), costMicros: n(r["cost"]), ...(n(r["cached"]) > 0 ? { tokensCached: n(r["cached"]) } : {}) };
-    if (t.tokensCached) sum.tokensCached = (sum.tokensCached ?? 0) + t.tokensCached;
-    sum.turns += t.turns; sum.tokensIn += t.tokensIn; sum.tokensOut += t.tokensOut; sum.costMicros += t.costMicros;
+    const t: UsageTotals = { turns: n(r["turns"]), tokensIn: n(r["tin"]), tokensOut: n(r["tout"]), costMicros: n(r["cost"]), cachedIn: n(r["cached"]) };
+    sum.turns += t.turns; sum.tokensIn += t.tokensIn; sum.tokensOut += t.tokensOut; sum.costMicros += t.costMicros; sum.cachedIn = (sum.cachedIn ?? 0) + (t.cachedIn ?? 0);
     return { key: String(r["k"]), title: String(r["k"]), totals: t };
   });
   // An agent or a person is named, not shown by id; a name that cannot be read leaves the id.
+  if (input.by === "account") {
+    try {
+      const accounts = ((await ctx.call("engine.accounts.list", {})) as { accounts?: Array<{ ref: string; name?: string; title?: string; aliases?: string[] }> }).accounts ?? [];
+      for (const row of list) { const a = accounts.find((x) => x.ref === row.key) ?? accounts.find((x) => (x.aliases ?? []).includes(row.key)); if (a) row.title = a.name ?? a.title ?? row.key; }
+    } catch { /* the ref stands */ }
+  }
   if (input.by === "agent" || input.by === "person") {
     await Promise.all(list.map(async (row: { key: string; title: string; face?: string }) => {
       try {
@@ -277,7 +277,7 @@ async function limitCard(ctx: EngineCtx, hit: Hit, who: { agentId: string; threa
 
 export async function recordUsage(
   ctx: EngineCtx,
-  input: { turnId: string; tokensIn: number; tokensOut: number; costMicros: number; model?: string; cachedIn?: number; itemId?: string },
+  input: { turnId: string; tokensIn: number; tokensOut: number; costMicros: number; model?: string; itemId?: string },
 ): Promise<{ overLimit?: LimitKind }> {
   ensure(ctx.db);
   for (const [field, v] of [["tokensIn", input.tokensIn], ["tokensOut", input.tokensOut], ["costMicros", input.costMicros]] as const) {
@@ -295,7 +295,6 @@ export async function recordUsage(
        cost_micros = engine_usage.cost_micros + excluded.cost_micros`,
     turn.id, turn.threadId, turn.agentId, turn.asker, turn.model ?? input.model ?? "unknown", at, input.tokensIn, input.tokensOut, input.costMicros,
   );
-  if (input.cachedIn !== undefined && input.cachedIn > 0) { ensureCached(ctx.db); ctx.db.run("INSERT INTO engine_usage_cached (turn_id, cached) VALUES (?, ?) ON CONFLICT (turn_id) DO UPDATE SET cached = engine_usage_cached.cached + excluded.cached", turn.id, Math.trunc(input.cachedIn)); }
   // the Vault item this turn ran on, as the turn worker got it from engine.account.resolve; the first one seen for a turn stays
   if (input.itemId !== undefined) ctx.db.run("INSERT OR IGNORE INTO engine_usage_item (turn_id, item_id) VALUES (?, ?)", turn.id, input.itemId);
   const hit = firstHit(ctx, turn, at);

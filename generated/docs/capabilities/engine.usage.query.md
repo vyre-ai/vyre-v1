@@ -25,7 +25,7 @@ Usage by day, person, agent or model; people see their own, managers their agent
 
 ```ts
 type In = {
-  by: "day" | "person" | "agent" | "model";
+  by: "day" | "person" | "agent" | "model" | "account";
   from?: number;
   to?: number;
   personId?: string;
@@ -47,7 +47,7 @@ type Out = {
         tokensIn: number;
         tokensOut: number;
         costMicros: number;
-        tokensCached?: number;
+        cachedIn?: number;
       };
     }>;
   totals: {
@@ -55,7 +55,7 @@ type Out = {
     tokensIn: number;
     tokensOut: number;
     costMicros: number;
-    tokensCached?: number;
+    cachedIn?: number;
   };
 };
 ```
@@ -87,8 +87,8 @@ type Out = {
         "key": "example",
         "title": "example",
         "totals": {
+          "cachedIn": 1,
           "costMicros": 1,
-          "tokensCached": 1,
           "tokensIn": 1,
           "tokensOut": 1,
           "turns": 1
@@ -96,8 +96,8 @@ type Out = {
       }
     ],
     "totals": {
+      "cachedIn": 1,
       "costMicros": 1,
-      "tokensCached": 1,
       "tokensIn": 1,
       "tokensOut": 1,
       "turns": 1

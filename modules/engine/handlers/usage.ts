@@ -12,6 +12,7 @@ import type { Db, EngineCtx } from "../projections.ts";
 import { ensureExtra } from "./extra/schema.ts";
 import { num, optStr, rows, str } from "./extra/util.ts";
 import { keepEvery, lastCompaction } from "../cli-sessions.ts";
+import { ensureInfo } from "./extra/reply-info.ts";
 
 export type LimitWindow = "session" | "week";
 export interface Reading { window: LimitWindow; pct: number; resetsAt?: number }
@@ -95,13 +96,27 @@ async function modelOf(ctx: EngineCtx, threadId: string, agentId: string): Promi
   return {};
 }
 
-/** The context size a turn recorded (what the model was shown in its last call), or undefined when it did not (an older turn). */
-function contextOfTurn(ctx: EngineCtx, turnId: string): number | undefined {
-  try {
-    const r = rows(ctx, "SELECT info FROM engine_turn_info WHERE turn_id = ?", turnId)[0];
-    const v = r && typeof r["info"] === "string" ? (JSON.parse(r["info"]) as { contextTokens?: unknown }).contextTokens : undefined;
-    return typeof v === "number" && v > 0 ? Math.trunc(v) : undefined;
-  } catch { return undefined; }
+/**
+ * What the chat's latest turn really ran on, from the turn's own record: the model its engine named and the account that paid at the end. The account above it in usage.get is where the next turn would
+ * go, which is the same only while nothing changed; this is the one that already ran, so a line about it agrees with the turn's own Details.
+ */
+async function lastTurnOf(ctx: EngineCtx, threadId: string, agentId: string, accounts: AccountRow[]): Promise<{ model?: string; account?: { ref: string; name?: string; provider: string; shared?: boolean }; paid?: string } | null> {
+  const t = rows(ctx, "SELECT turn_id, asker, model, account_ref FROM engine_turns WHERE thread_id = ? AND agent_id = ? AND state IN ('completed', 'failed') ORDER BY started_at DESC, qseq DESC LIMIT 1", threadId, agentId)[0];
+  if (!t) return null;
+  ensureInfo(ctx.db);
+  const i = rows(ctx, "SELECT info FROM engine_turn_info WHERE turn_id = ?", String(t["turn_id"]))[0];
+  let info: { account?: { ref: string; driver: string; provider: string; shared?: boolean; spaceKey?: boolean }; paid?: string } | undefined;
+  try { info = i && typeof i["info"] === "string" ? JSON.parse(i["info"] as string) : undefined; } catch { /* a record that is not JSON is no record */ }
+  const ref = info?.account?.ref ?? optStr(t["account_ref"]);
+  const row = ref ? accounts.find((a) => a.ref === ref) ?? accounts.find((a) => (a.aliases ?? []).includes(ref)) : undefined;
+  const model = optStr(t["model"]);
+  const mine = String(t["asker"]) === (ctx.actingFor ?? ctx.principal.id);
+  const provider = info?.account?.provider ?? (row ? (PROVIDER_OF[row.driver] ?? row.driver) : undefined);
+  return {
+    ...(model && model !== "unknown" ? { model } : {}),
+    ...(ref && provider ? { account: { ref, ...(row ? { name: row.name ?? row.title } : {}), provider, ...(info?.account?.shared || info?.account?.spaceKey ? { shared: true } : {}) } } : {}),
+    ...(mine && info?.paid ? { paid: info.paid } : {}),
+  };
 }
 
 export async function usageGet(ctx: EngineCtx, input: { threadId: string; agentId: string; accountRef?: string }) {
@@ -118,8 +133,22 @@ export async function usageGet(ctx: EngineCtx, input: { threadId: string; agentI
   const row = ref === undefined ? undefined : listed.accounts.find((a) => a.ref === ref) ?? listed.accounts.find((a) => (a.aliases ?? []).includes(ref as string));
   if (ref !== undefined && !row) raise(ctx, "validation.not_found", "There is no such account.", { accountRef: ref });
 
-  const { model, provider } = await modelOf(ctx, input.threadId, input.agentId);
-  const last = rows(ctx, "SELECT turn_id, tokens_in, started_at, ended_at FROM engine_turns WHERE thread_id = ? AND agent_id = ? AND tokens_in > 0 ORDER BY started_at DESC, qseq DESC LIMIT 1", input.threadId, input.agentId)[0];
+  const picked = await modelOf(ctx, input.threadId, input.agentId);
+  const last = rows(ctx, "SELECT turn_id, model, tokens_in, started_at, ended_at FROM engine_turns WHERE thread_id = ? AND agent_id = ? AND tokens_in > 0 ORDER BY started_at DESC, qseq DESC LIMIT 1", input.threadId, input.agentId)[0];
+  // a turn's token total adds up every request it made, each of which re-sent the whole chat: the chat's size is what the turn's last request carried, when the engine said
+  let lastSize: number | undefined;
+  if (last) {
+    try {
+      ensureInfo(ctx.db);
+      const i = rows(ctx, "SELECT info FROM engine_turn_info WHERE turn_id = ?", String(last["turn_id"]))[0];
+      const parsed = i && typeof i["info"] === "string" ? (JSON.parse(i["info"] as string) as { contextTokens?: number }) : undefined;
+      if (typeof parsed?.contextTokens === "number" && parsed.contextTokens > 0) lastSize = parsed.contextTokens;
+    } catch { /* the figure falls back to the turn's total */ }
+  }
+  // a chat that picked no model runs on the engine's own default: the model its latest turn really ran on sizes the window
+  const ranModel = optStr(last?.["model"]);
+  const model = picked.model ?? (ranModel && ranModel !== "unknown" ? ranModel : undefined);
+  const provider = picked.provider;
   const accountProvider = row ? (PROVIDER_OF[row.driver] ?? row.driver) : undefined;
   let context: { used: number; window: number } | null = null;
   if (model) {
@@ -127,9 +156,7 @@ export async function usageGet(ctx: EngineCtx, input: { threadId: string; agentI
     // a compaction since the latest turn left the context at what it reported (engine.compact): that is the figure until the next turn says otherwise
     const c = lastCompaction(ctx.db, input.threadId, input.agentId);
     const lastAt = last ? Math.max(num(last["started_at"]), num(last["ended_at"])) : 0;
-    // the turn's input tokens add up every call of it (cache reads included): the context is what the model was shown in its last call, when the turn recorded it
-    const lastCtx = last ? contextOfTurn(ctx, str(last["turn_id"])) : undefined;
-    const used = c && c.used !== null && c.at >= lastAt ? c.used : lastCtx ?? (last ? Math.trunc(num(last["tokens_in"])) : 0);
+    const used = c && c.used !== null && c.at >= lastAt ? c.used : last ? Math.trunc(lastSize ?? num(last["tokens_in"])) : 0;
     context = { used: Math.min(window, used), window };
   }
 
@@ -139,9 +166,10 @@ export async function usageGet(ctx: EngineCtx, input: { threadId: string; agentI
   const week = row && ref !== undefined ? readingOf(ctx.db, ref, "week", now) : null;
   const source = session || week ? "provider" : context ? "estimate" : "none";
   const keep = keepEvery(ctx.db, input.threadId);
+  const lastTurn = await lastTurnOf(ctx, input.threadId, input.agentId, listed.accounts);
   return {
     account: row ? { ref: row.ref, name: row.name ?? row.title, provider: accountProvider as string } : null,
-    context, session, week, source, ...(keep !== "" ? { keepEvery: keep } : {}),
+    context, session, week, source, ...(keep !== "" ? { keepEvery: keep } : {}), ...(lastTurn ? { lastTurn } : {}),
   } as const;
 }
 

@@ -175,6 +175,21 @@ let holding = false;
 const absorbed = [];
 
 /**
+ * "steps": a turn of three requests the way Claude Code makes them: each re-sends the whole chat from the provider's cache (40,000 tokens read, a few fresh), and the result line adds the three together.
+ * The init line names the model it ran on, the chat picked none; a limit reading follows, as the real one sends it.
+ */
+function steps() {
+  out({ type: "system", subtype: "init", session_id: session, model: "claude-sonnet-4-5", mcp_servers: [{ name: "vyre", status: "connected" }] });
+  const usage = (n) => ({ input_tokens: 5, cache_read_input_tokens: 40_000, cache_creation_input_tokens: 100 * n, output_tokens: 20 });
+  for (let n = 1; n <= 3; n++) out({ type: "assistant", message: { id: `m_steps_${process.pid}_${n}`, model: "claude-sonnet-4-5", content: [{ type: "text", text: n === 3 ? "three requests made." : "" }], usage: usage(n) } });
+  out({ type: "rate_limit_event", rate_limit_info: { status: "allowed", rateLimitType: "five_hour", utilization: 0.42, resetsAt: Math.floor(Date.now() / 1000) + 3600 } });
+  out({
+    type: "result", subtype: "success", is_error: false, result: "three requests made.", session_id: session, total_cost_usd: 0.31,
+    usage: { input_tokens: 15, cache_read_input_tokens: 120_000, cache_creation_input_tokens: 600, output_tokens: 60 }, modelUsage: { "claude-sonnet-4-5": { inputTokens: 15 } },
+  });
+}
+
+/**
  * "slow <words> <ms>": a reply that arrives the way a real one does: a pause before the first word, then the words one by one as partial messages (stream_event text deltas), then the whole assistant message
  * (which repeats the text) and the result. A screen that shows the text only when the turn ends, or shows it twice, is caught by it.
  */
@@ -339,6 +354,7 @@ async function run(raw) {
   const holdLine = prompt.split("\n").map(picked).reverse().find((l) => /^askhold\s+\d+/.test(l));   // the instruction may follow other lines the person's messages brought
   if (holdLine) { await askHold(holdLine); return; }
   if (first === "slow") { await slow(prompt.trim()); return; }
+  if (first === "steps") { steps(); return; }
   if (first === "think") { await think(prompt.trim()); return; }
   if (first === "flurry") { await flurry(prompt.trim()); return; }
   switch (first) {

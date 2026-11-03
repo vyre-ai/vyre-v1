@@ -1,7 +1,7 @@
 // The crew (DESIGN-crew.md, steps 1 and 2): a project's repository on this computer, and teammate jobs. A job is a teammate agent working in its own copy of that repository, on its own branch, in its own thread
 // under the lead's chat. Nothing new is made for it: the thread is a helper thread, the teammate is a project teammate, the work folder is the engine's per-thread folder with a clone in it (../crew-git.ts).
 import { engineHost } from "../runtime.ts";
-import { GitError, branchFacts, cleanBranch, commitLeftovers, git, landBranch, prepareClone, pushBase, repoHead } from "../crew-git.ts";
+import { GitError, branchFacts, cleanBranch, commitLeftovers, git, initLocalRepo, landBranch, prepareClone, pushBase, repoHead } from "../crew-git.ts";
 import { ensure, actorOf, mintEngineId, raise } from "../projections.ts";
 import { workFolder } from "../sandbox.ts";
 import { GUIDE_FILES } from "../../../lib/memory-guide.ts";
@@ -98,10 +98,46 @@ async function bindJob(ctx: EngineCtx, taskId: string, threadId: string, jobId: 
   await soft("tasks.working_notes.set", { taskId, key: "crew.branch", value: branch });
 }
 
+/**
+ * The project's repository when it has none: a git repository on this computer, in the folder of the project's files (the same working copy the Files git panel shows), `main` as its start.
+ * A project without a Files folder gets one beside the Space's data. Remembered like a repository a person named, so every later teammate starts from the same place.
+ */
+const makingRepo = new Map<string, Promise<{ path: string; base: string }>>();
+export function startRepo(ctx: EngineCtx, projectId: string): Promise<{ path: string; base: string }> {
+  // two teammates started at once make the repository once
+  const key = `${ctx.space}:${projectId}`;
+  const running = makingRepo.get(key);
+  if (running) return running;
+  const p = makeRepo(ctx, projectId).finally(() => makingRepo.delete(key));
+  makingRepo.set(key, p);
+  return p;
+}
+
+async function makeRepo(ctx: EngineCtx, projectId: string): Promise<{ path: string; base: string }> {
+  const again = repoRow(ctx, projectId);
+  if (again) return again;
+  const dataDir = engineHost()?.dataDir;
+  if (!dataDir) raise(ctx, "validation.precondition_failed", "This computer has no folders for the crew.");
+  let folderId = "";
+  try { folderId = str(((await ctx.call("projects.get", { projectId })) as { project?: { folderId?: string } }).project?.folderId); } catch (e) { ctx.log.warn("the project's folder could not be read for its repository", { projectId, error: e instanceof Error ? e.message : "error" }); }
+  // the Files folder's working copy first (its files go into the first commit), when the person may start history on it; the engine makes the repository itself when not
+  if (folderId) await ctx.call("git.init", { folderId }).catch(() => undefined);
+  const dir = folderId ? path.join(dataDir, "trees", folderId) : path.join(dataDir, "crew-repos", projectId);
+  try {
+    const made = await initLocalRepo(dir);
+    ensure(ctx.db);
+    ctx.db.run(
+      "INSERT INTO engine_crew_repo (project_id, path, base_branch, set_by, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (project_id) DO UPDATE SET path = excluded.path, base_branch = excluded.base_branch, set_by = excluded.set_by, at = excluded.at",
+      projectId, dir, made.branch, actorOf(ctx), ctx.now(),
+    );
+    return { path: dir, base: made.branch };
+  } catch (e) { return gitFailure(ctx, e); }
+}
+
 export async function start(ctx: EngineCtx, input: { threadId: string; projectId: string; teammateId: string; title: string; brief: string; model?: string; provider?: string; effort?: string; taskId?: string }) {
   ensure(ctx.db);
-  const repo = repoRow(ctx, input.projectId);
-  if (!repo) raise(ctx, "validation.precondition_failed", "Say where the project's repository is first.");
+  // a project with no repository gets one on this computer, in the project's own folder: a crew needs no GitHub and no Docker, only git
+  const repo = repoRow(ctx, input.projectId) ?? (await startRepo(ctx, input.projectId));
   const title = input.title.trim();
   const brief = input.brief.trim();
   if (title === "" || title.length > 120) raise(ctx, "validation.bad_input", "Give the job a title of up to 120 characters.");

@@ -83,7 +83,10 @@ function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: Resour
   const root = chain[chain.length - 1];
   const viaMine = p.kind === "agent" && (res.type === "vault_item" || res.type === "vault_folder") && res.id !== "" && req.actingFor !== undefined && root !== undefined && root.type === "vault_folder" && root.parent_id === null && root.owner_id === req.actingFor && rankOf(req.action.level) <= rankOf("use");
   const viaOwner = (p.kind === "agent" && res.type === "mailbox" && res.id !== "" && req.actingFor !== undefined && res.owner_id === req.actingFor && rankOf(req.action.level) <= rankOf("use")) || viaMine;
-  const isOwner = res.id === "" ? chain.some((r) => r.owner_id === p.id) : res.owner_id === p.id || viaOwner;
+  // a person's own assistant is their hands on a project they made and, for the Space's owner, on the Space itself (owner ruling, 4 Nov 2026: the owner's assistant sets up, builds and provisions for them):
+  // it holds what its own role carries (the permission was checked above) at the owner's own level, and authorize still checks the person too, so it never exceeds them
+  const viaHands = p.kind === "agent" && (res.type === "project" || res.type === "space") && res.id !== "" && req.actingFor !== undefined && res.owner_id === req.actingFor;
+  const isOwner = res.id === "" ? chain.some((r) => r.owner_id === p.id) : res.owner_id === p.id || viaOwner || viaHands;
   // rule 2: grants on the resource, an ancestor, or the whole type
   const need = rankOf(req.action.level);
   scratch.length = 0; sawExpired = false; max = 0;
@@ -107,7 +110,7 @@ function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: Resour
   if (steps) steps.push({ ok: true, text: `label ${snap.labelName(label)} within clearance ${snap.labelName(clearance)}` });
   // holds: deny wins only through clearance and holds
   if (req.action.destructive && res.holds > 0) return "on_hold";
-  if (isOwner) return viaOwner ? { ...ownerScope(clearance), level: "use" } : ownerScope(clearance);
+  if (isOwner) return viaOwner && !viaHands ? { ...ownerScope(clearance), level: "use" } : ownerScope(clearance);
   if (matched === 1) {
     const g = scratch[0]!;
     return { level: LEVEL_BY_RANK[max]!, rowFilter: g.filter, hiddenFields: g.hidden, labelCeiling: Math.min(clearance, g.ceiling) };

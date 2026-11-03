@@ -16,8 +16,7 @@ function decode(file: string, decoder: CliDecoder): CliEvent[] {
   const out: CliEvent[] = [];
   for (const line of fixtureText(file).replaceAll("{{SESSION}}", "S1").split("\n")) if (line.trim() !== "") out.push(...decoder.push(line));
   out.push(...decoder.finish());
-  // the context size and the model are checked on their own (the last test below); the golden expectations here are the counts
-  return out.map((e) => { if (e.type !== "usage") return e; const { contextTokens: _c, model: _m, ...rest } = e; return rest; });
+  return out;
 }
 
 const usage = (inputTokens: number, outputTokens: number, more: Partial<Extract<CliEvent, { type: "usage" }>> = {}): CliEvent => ({ type: "usage", inputTokens, outputTokens, ...more });
@@ -28,13 +27,13 @@ const MCP_OK: CliEvent = { type: "mcp", status: "ok" };
 
 test("claude: a streamed answer is passed on as its deltas, once, with the cache counted into input tokens", () => {
   assert.deepEqual(decode("claude-text", createClaudeDecoder()), [
-    S1, MCP_OK, { type: "text", text: "Hello" }, { type: "text", text: " from Claude." }, usage(112, 6, { cacheReadTokens: 100, cacheWriteTokens: 0, costUsd: 0.0012 }), { type: "end" },
+    S1, MCP_OK, { type: "text", text: "Hello" }, { type: "text", text: " from Claude." }, usage(112, 6, { cacheReadTokens: 100, cacheWriteTokens: 0, costUsd: 0.0012, model: "claude-sonnet-5-5", contextTokens: 112 }), { type: "end" },
   ]);
 });
 
 test("claude: a message that came without deltas is passed on whole, its thinking too, and the result line does not repeat it", () => {
   assert.deepEqual(decode("claude-nopartial", createClaudeDecoder()), [
-    S1, MCP_OK, { type: "thinking", text: "Short answer." }, { type: "text", text: "Whole message, no deltas." }, usage(8, 5), { type: "end" },
+    S1, MCP_OK, { type: "thinking", text: "Short answer." }, { type: "text", text: "Whole message, no deltas." }, usage(8, 5, { model: "claude-sonnet-5-5", contextTokens: 8 }), { type: "end" },
   ]);
 });
 
@@ -45,7 +44,7 @@ test("claude: a tool call shows as activity once, its result as ok, and the answ
     { type: "tool", phase: "call", id: "toolu_01", name: "mcp__vyre__schema_describe" },
     { type: "tool", phase: "result", id: "toolu_01", ok: true },
     { type: "text", text: "Found the types." },
-    usage(80, 19, { cacheReadTokens: 0, cacheWriteTokens: 0 }), { type: "end" },
+    usage(80, 19, { cacheReadTokens: 0, cacheWriteTokens: 0, model: "claude-sonnet-5-5", contextTokens: 60 }), { type: "end" },
   ]);
 });
 
@@ -61,8 +60,8 @@ test("claude: a tool the MCP server refused arrives as a result that is not ok",
 test("claude: failures keep the engine's words; a turn limit gets its own code; a Vyre server that did not connect is reported", () => {
   assert.deepEqual(decode("claude-error-auth", createClaudeDecoder()).slice(-1), [{ type: "end", error: { message: "Invalid API key · Please run /login" } }]);
   // a count the engine left out stays out (not reported), and one it gave as 0 is 0
-  assert.deepEqual(decode("claude-nopartial", createClaudeDecoder()).find((e) => e.type === "usage"), usage(8, 5));
-  assert.deepEqual(decode("claude-max-turns", createClaudeDecoder()).slice(-2), [usage(900, 120), { type: "end", error: { code: "engine.step_limit", message: "error_max_turns" } }]);
+  assert.deepEqual(decode("claude-nopartial", createClaudeDecoder()).find((e) => e.type === "usage"), usage(8, 5, { model: "claude-sonnet-5-5", contextTokens: 8 }));
+  assert.deepEqual(decode("claude-max-turns", createClaudeDecoder()).slice(-2), [usage(900, 120, { model: "claude-sonnet-5-5" }), { type: "end", error: { code: "engine.step_limit", message: "error_max_turns" } }]);
   assert.deepEqual(decode("claude-mcp-failed", createClaudeDecoder()), [S1, { type: "mcp", status: "failed", detail: "failed" }]);
 });
 
@@ -96,7 +95,7 @@ test("codex: a failed turn ends once with the engine's message; an MCP server th
 test("grok: the same schema as Claude Code, read by the same decoder", () => {
   const adapter: CliAdapter = CLI_ADAPTERS.grok;
   assert.deepEqual(decode("grok-text", adapter.decoder()), [
-    S1, MCP_OK, { type: "text", text: "Hello from " }, { type: "text", text: "Grok." }, usage(30, 5), { type: "end" },
+    S1, MCP_OK, { type: "text", text: "Hello from " }, { type: "text", text: "Grok." }, usage(30, 5, { model: "grok-4", contextTokens: 30 }), { type: "end" },
   ]);
   assert.deepEqual(decode("grok-tool", adapter.decoder()).filter((e) => e.type === "tool"), [
     { type: "tool", phase: "call", id: "toolu_01", name: "mcp__vyre__schema_describe" },
@@ -225,20 +224,3 @@ for (const id of ["claude_code", "codex", "grok"] as const) {
     await session.close();
   });
 }
-
-
-test("claude: the context is the last call's input and the model is the one the result lists, not the sum over the turn's calls", () => {
-  const d = createClaudeDecoder();
-  const lines = [
-    { type: "assistant", message: { id: "m1", model: "claude-sonnet-5-5", content: [{ type: "tool_use", id: "t1", name: "Read", input: {} }], usage: { input_tokens: 5, cache_read_input_tokens: 50_000, cache_creation_input_tokens: 0, output_tokens: 20 } } },
-    { type: "assistant", message: { id: "m2", model: "claude-sonnet-5-5", content: [{ type: "text", text: "done" }], usage: { input_tokens: 6, cache_read_input_tokens: 52_000, cache_creation_input_tokens: 0, output_tokens: 30 } } },
-    { type: "result", subtype: "success", is_error: false, result: "done", session_id: "S1", usage: { input_tokens: 11, cache_read_input_tokens: 102_000, cache_creation_input_tokens: 0, output_tokens: 50 }, modelUsage: { "claude-sonnet-5-5": { outputTokens: 50 }, "claude-haiku-5-5": { outputTokens: 3 } } },
-  ];
-  const got: CliEvent[] = [];
-  for (const l of lines) got.push(...d.push(JSON.stringify(l)));
-  got.push(...d.finish());
-  const u = got.find((e) => e.type === "usage") as Extract<CliEvent, { type: "usage" }>;
-  assert.equal(u.inputTokens, 102_011, "the turn's input adds up every call, the cache reads again and again");
-  assert.equal(u.contextTokens, 52_006, "what the model was shown in its last call");
-  assert.equal(u.model, "claude-sonnet-5-5");
-});

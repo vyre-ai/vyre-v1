@@ -33,8 +33,8 @@ test("a Claude Code turn with no model named is recorded on the model the engine
     await until(() => h.db.all("SELECT 1 FROM engine_usage").length > 0);
     const rows = h.db.all("SELECT model, tokens_in FROM engine_usage") as Array<{ model: string; tokens_in: number }>;
     assert.deepEqual(rows.map((r) => [r.model, r.tokens_in]), [["claude-sonnet-5-5", 1_000_000]], "the real model, not \"unknown\"");
-    const out = (await (handlers as Record<string, (c: unknown, i: unknown) => unknown>)["engine.usage.query"]!({ ...h.ctx, principal: { kind: "person", id: "usr_dana" } }, { by: "model" })) as { rows: Array<{ key: string; totals: { tokensIn: number; tokensCached?: number } }>; totals: { tokensCached?: number } };
-    assert.deepEqual(out.rows.map((r) => [r.key, r.totals.tokensIn, r.totals.tokensCached]), [["claude-sonnet-5-5", 1_000_000, 940_000]]);
-    assert.equal(out.totals.tokensCached, 940_000);
+    const out = (await (handlers as Record<string, (c: unknown, i: unknown) => unknown>)["engine.usage.query"]!({ ...h.ctx, principal: { kind: "person", id: "usr_dana" } }, { by: "model" })) as { rows: Array<{ key: string; totals: { tokensIn: number; cachedIn?: number } }>; totals: { cachedIn?: number } };
+    assert.deepEqual(out.rows.map((r) => [r.key, r.totals.tokensIn, r.totals.cachedIn]), [["claude-sonnet-5-5", 1_000_000, 940_000]]);
+    assert.equal(out.totals.cachedIn, 940_000);
   } finally { hostSeams.setEngineHost(null); }
 });

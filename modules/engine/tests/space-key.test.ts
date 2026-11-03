@@ -179,8 +179,8 @@ test("a turn on the Space AI key runs a model the key serves; a model out of usa
   const wrapped = withSpaceKeyTurns(open, { call, db: h.db, now: () => NOW });
   const account = { ref: "#OpenCode_Go_for_everyone", driver: "opencode_go", provider: "opencode_go", kind: "api_key" as const, payer: "usr_mia", reason: "starter" as const, spaceKey: true, shared: true };
   // the resolver said this turn runs on the key's own model (a team chat with no pick, model-fallback.ts says so in the chat); a model somebody picked is refused instead (below)
-  const swapped = { ...account, modelFallback: { from: "claude-sonnet-5-5", to: "glm-5.3" } };
-  const spec: SessionSpec = { threadId: "thr_1", agent: { id: "agt_1", mode: "lead", model: "claude-sonnet-5-5" }, asker: "usr_mia", turnId: "trn_1", traceId: "a".repeat(32), account: swapped };
+  const keySwap = { ...account, modelFallback: { from: "claude-sonnet-5-5", to: "glm-5.3" } };
+  const spec: SessionSpec = { threadId: "thr_1", agent: { id: "agt_1", mode: "lead", model: "claude-sonnet-5-5" }, asker: "usr_mia", turnId: "trn_1", traceId: "a".repeat(32), account: keySwap };
   // never another model under the picked one's name: nothing said it was a swap, the key does not serve Claude, so the turn says so and names what can run
   await assert.rejects(wrapped({ ...spec, account }), (e: { code?: string; message?: string }) => e.code === "engine.model_unavailable" && /^Claude Sonnet 5\.5 cannot run here.*Models that can: GLM 5\.3, Kimi K3\./.test(e.message ?? ""));
   assert.deepEqual(opened, [], "no session was opened on another model");
@@ -205,6 +205,15 @@ test("a turn on the Space AI key runs a model the key serves; a model out of usa
   script["kimi-k3"] = [{ type: "text", text: "back" }, { type: "done" }];
   await drain(await wrapped({ ...spec, account, agent: { ...spec.agent, model: "kimi-k3" } }));
   assert.equal(modelLimits(h.db, account.ref, NOW).has("kimi-k3"), false);
+  // the turn's usage names the model that really ran, not the one the chat asked for
+  script["kimi-k3"] = [{ type: "usage", inputTokens: 10, outputTokens: 2 }, { type: "done" }];
+  const usageOf = (evs: DriverEvent[]) => evs.filter((e): e is Extract<DriverEvent, { type: "usage" }> => e.type === "usage").map((e) => e.model);
+  assert.deepEqual(usageOf(await drain(await wrapped({ ...spec, agent: { ...spec.agent, model: "kimi-k3" } }))), ["kimi-k3"]);
+  // a turn moved to a Space account's own model that is not a watched one is stamped the same way
+  opened.length = 0;
+  const swapped = await wrapped({ ...spec, agent: { ...spec.agent, model: "claude-sonnet-5-5" }, account: { ...account, ref: "#Cheap", driver: "anthropic", provider: "anthropic", spaceKey: false, modelFallback: { from: "claude-sonnet-5-5", to: "glm-5.3" } } });
+  script["glm-5.3"] = [{ type: "usage", inputTokens: 10, outputTokens: 2 }, { type: "done" }];
+  assert.deepEqual(usageOf(await drain(swapped)), ["glm-5.3"]);
   // someone's own account is left alone
   opened.length = 0;
   const own = { ...spec, account: { ...account, ref: "#Dana_Anthropic", driver: "anthropic", provider: "anthropic", spaceKey: false } };

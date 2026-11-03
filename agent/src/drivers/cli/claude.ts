@@ -67,6 +67,11 @@ export function createClaudeDecoder(): CliDecoder {
   let current = "";
   let sawText = false;
   let sid = "";
+  /** The model the engine says it ran on (the init line, then each message): a chat that picked none runs on the engine's own default, and this is the only place its name is. */
+  let model = "";
+  /** What the latest request of the turn sent (fresh and cached): the size of the context as the model last saw it. The result line's totals add every request of the turn together. */
+  let lastContext = 0;
+  const sawModel = (m: string): void => { if (m !== "" && !m.startsWith("<")) model = m; };
   /** The session id, once per change: the init line and the result line both carry it. */
   const session = (id: string): CliEvent[] => (id !== "" && id !== sid ? ((sid = id), [{ type: "session", id }]) : []);
 
@@ -102,7 +107,10 @@ export function createClaudeDecoder(): CliDecoder {
     const m = obj(j["message"]);
     if (!m) return [];
     const id = str(m["id"]);
-    perMessage.set(id, tallyOf(obj(m["usage"])));
+    sawModel(str(m["model"]));
+    const tally = tallyOf(obj(m["usage"]));
+    if (tally.input > 0) lastContext = tally.input;
+    perMessage.set(id, tally);
     const out: CliEvent[] = [];
     for (const raw of arr(m["content"])) {
       const b = obj(raw);
@@ -140,21 +148,19 @@ export function createClaudeDecoder(): CliDecoder {
     if (!failed && !sawText && text !== "") out.push({ type: "text", text });
     const u = obj(j["usage"]);
     let total = tallyOf(u);
-    // the last model call's own input (cache included) is the context size; the result's usage adds up every call of the turn
-    // the model Claude Code says it ran (the result's modelUsage names each one, the one that wrote the most first)
-    const used = obj(j["modelUsage"]);
-    const ranModel = used ? Object.entries(used).map(([k, v]) => [k, num(obj(v)?.["outputTokens"])] as const).sort((a, b) => b[1] - a[1])[0]?.[0] : undefined;
-    const lastCall = [...perMessage.values()].at(-1)?.input ?? 0;
     if (!u) { total = { input: 0, output: 0 }; for (const t of perMessage.values()) { total.input += t.input; total.output += t.output; } }
     // the result line's own split and the dollar figure Claude Code priced the turn at (for a sign-in it is what the API would have charged, which the turn record does not bill)
     const cacheRead = given(u, "cache_read_input_tokens"), cacheWrite = given(u, "cache_creation_input_tokens"), costUsd = given(j, "total_cost_usd");
+    // the result line names every model the turn used; a turn that used one is that model
+    const used = Object.keys(obj(j["modelUsage"]) ?? {}).filter((k) => !k.startsWith("<"));
+    if (used.length === 1) model = used[0]!;
     if (total.input > 0 || total.output > 0) {
       out.push({
-        type: "usage", inputTokens: total.input, outputTokens: total.output, ...(lastCall > 0 ? { contextTokens: lastCall } : {}), ...(ranModel ? { model: ranModel } : {}),
+        type: "usage", inputTokens: total.input, outputTokens: total.output, ...(model !== "" ? { model } : {}), ...(lastContext > 0 ? { contextTokens: lastContext } : {}),
         ...(cacheRead !== undefined ? { cacheReadTokens: cacheRead } : {}), ...(cacheWrite !== undefined ? { cacheWriteTokens: cacheWrite } : {}), ...(costUsd !== undefined ? { costUsd } : {}),
       });
     }
-    streamed.clear(); called.clear(); perMessage.clear(); current = ""; sawText = false;
+    streamed.clear(); called.clear(); perMessage.clear(); current = ""; sawText = false; lastContext = 0;
     if (!failed) { out.push({ type: "end" }); return out; }
     const subtype = str(j["subtype"]);
     const code = subtype === "error_max_turns" ? "engine.step_limit" : undefined;
@@ -175,6 +181,7 @@ export function createClaudeDecoder(): CliDecoder {
             return [{ type: "compacted", ...(pre > 0 ? { before: pre } : {}), ...(post > 0 ? { after: post } : {}) }];
           }
           if (str(j["subtype"]) !== "init") return [];
+          sawModel(str(j["model"]));
           const out: CliEvent[] = session(str(j["session_id"]));
           for (const raw of arr(j["mcp_servers"])) {
             const s = obj(raw);
