@@ -154,6 +154,31 @@ export function gitSshCommand(ssh: ToolSsh): string {
 }
 
 /**
+ * The same settings as an ssh config file, for an ssh that git starts without a shell (Windows: GIT_SSH is Vyre's ssh helper, which runs Windows OpenSSH with -F this file). Vyre's own settings
+ * come first, so they win (ssh keeps the first value it reads); the person's config, when the sandbox may read it, follows with Include for their hosts, users and keys. `agent` is the SSH agent
+ * the engine signs with (the relay pipe on Windows). Every value is quoted, so a path with a space stays one path.
+ */
+export function sshConfig(ssh: ToolSsh & { agent?: string }): string {
+  const win = (ssh.platform ?? process.platform) === "win32";
+  const fwd = (p: string): string => (win ? p.replace(/\\/g, "/") : p);
+  // ssh's own quoting: a backslash before a quote or a backslash is an escape
+  const q = (v: string): string => `"${v.replace(/(["\\])/g, "\\$1")}"`;
+  const files = (typeof ssh.knownHosts === "string" ? [ssh.knownHosts] : [...ssh.knownHosts]).map((f) => q(fwd(f)));
+  return [
+    "# Written by Vyre for this engine. Its own settings come first; the person's config follows.",
+    "Host *",
+    `  ProxyCommand ${q(fwd(ssh.node))} ${q(fwd(ssh.helper))} ${ssh.port} %h %p`,
+    `  UserKnownHostsFile ${files.join(" ")}`,
+    "  StrictHostKeyChecking accept-new",
+    "  BatchMode yes",
+    "  ConnectTimeout 20",
+    ...(ssh.agent ? [`  IdentityAgent ${q(ssh.agent)}`] : []),
+    ...(ssh.config ? ["", "Match all", `  Include ${q(fwd(ssh.config))}`] : []),
+    "",
+  ].join("\n");
+}
+
+/**
  * The variables that make the usual tools use the proxy without the model knowing: curl, git over HTTPS, npm, pip, cargo, go, Homebrew, Node's own fetch (NODE_USE_ENV_PROXY, Node 24) and the CLIs'
  * own web tools. `ssh` is given to git as a command that tunnels through the proxy (CONNECT host:22), so a git+ssh remote on a public host works when the rule lets it. `ssh` needs the bridge's
  * connect helper and the Node that runs it, which only the walled sandboxes have.
