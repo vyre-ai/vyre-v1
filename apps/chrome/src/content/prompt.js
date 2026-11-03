@@ -38,7 +38,9 @@
     .top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .top h1 { flex: 1; margin: 0; }
     .top button { border: 0; padding: 2px 8px; font-size: 16px; line-height: 1; opacity: .7; }
-    .site { margin: 0 0 6px; font-size: 12.5px; opacity: .8; }
+    .site { margin: 0 0 6px; font-size: 12.5px; display: flex; align-items: center; gap: 8px; }
+    .ico { width: 18px; height: 18px; border-radius: 5px; background: rgba(128,128,128,.25); font: 600 10px/18px -apple-system, "Segoe UI", sans-serif; text-align: center; overflow: hidden; flex: none; }
+    .ico img { width: 18px; height: 18px; display: block; }
     .plain { border: 0; background: transparent; }
     .hintline { margin-top: 6px; font-size: 11.5px; opacity: .65; }
   `;
@@ -87,7 +89,22 @@
     top.append(h, more, closeBtn);
     const siteLine = d.createElement("p");
     siteLine.className = "site";
-    siteLine.textContent = p.name && p.name !== p.host ? `${p.name} · ${p.host}` : p.host;
+    // the site's own icon (Chrome's favicon service), else its initial
+    const ico = d.createElement("span");
+    ico.className = "ico";
+    ico.textContent = String(p.host || "?").charAt(0).toUpperCase();
+    try {
+      const url = g.chrome && g.chrome.runtime && g.chrome.runtime.getURL ? g.chrome.runtime.getURL(`/_favicon/?pageUrl=${encodeURIComponent("https://" + p.host + "/")}&size=32`) : "";
+      if (url) {
+        const img = d.createElement("img");
+        img.alt = "";
+        img.addEventListener("load", () => { ico.textContent = ""; ico.append(img); });
+        img.src = url;
+      }
+    } catch { /* the initial stays */ }
+    const siteText = d.createElement("span");
+    siteText.textContent = p.name && p.name !== p.host ? `${p.name} · ${p.host}` : p.host;
+    siteLine.append(ico, siteText);
     const keepLabel = d.createElement("label");
     keepLabel.textContent = "Keep in";
     const keepNote = d.createElement("div");
