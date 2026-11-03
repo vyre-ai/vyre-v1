@@ -3009,10 +3009,7 @@
             "type": "string"
           },
           "projectId": {
-            "examples": [
-              "prj_a1b2c3"
-            ],
-            "pattern": "^prj_[a-z0-9]+$",
+            "description": "Make a teammate of this project, or of this chat (a thread id): it shows with its crew and not on the Agents page",
             "type": "string"
           },
           "role": {
@@ -3202,10 +3199,7 @@
             "type": "integer"
           },
           "projectId": {
-            "examples": [
-              "prj_a1b2c3"
-            ],
-            "pattern": "^prj_[a-z0-9]+$",
+            "description": "A project, or a chat, whose teammates to list",
             "type": "string"
           },
           "section": {
@@ -7348,6 +7342,77 @@
       },
       "name": "automations_versions",
       "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.watches.list",
+      "deferred": false,
+      "description": "Vyre for Chrome: the person's watches, newest first: what is watched, how often, where it runs, what the last check read and the last change with before and after",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "person": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "runsOn": {
+            "enum": [
+              "computer",
+              "chrome"
+            ],
+            "type": "string"
+          },
+          "watchId": {
+            "examples": [
+              "wch_a1b2c3"
+            ],
+            "pattern": "^wch_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "automations_watches_list",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.watches.report",
+      "deferred": false,
+      "description": "A check of a watched page: what it read now (or why it could not read). The first reading is the baseline; a different one is a change and is told in the watch's chat with before and after",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "error": {
+            "maxLength": 300,
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 20000,
+            "type": "string"
+          },
+          "watchId": {
+            "examples": [
+              "wch_a1b2c3"
+            ],
+            "pattern": "^wch_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "watchId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_watches_report",
+      "planMode": "blocked",
       "toolset": "automations",
       "v": 1
     },
@@ -15598,7 +15663,7 @@
       ],
       "cap": "engine.crew.start",
       "deferred": false,
-      "description": "Start a teammate on a brief: it gets its own thread under this chat and its own copy of the project repository on its own branch, and works until it is done",
+      "description": "Start a teammate on a brief in any chat. It works on its own branch in its own copy of the repository: the chat's project's, else the chat's own work folder on this computer (made on first use). Nothing to set up first",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -15622,6 +15687,10 @@
             "type": "string"
           },
           "model": {
+            "type": "string"
+          },
+          "name": {
+            "description": "A name for the new teammate; one is chosen when left out",
             "type": "string"
           },
           "projectId": {
@@ -15661,8 +15730,6 @@
         },
         "required": [
           "threadId",
-          "projectId",
-          "teammateId",
           "title",
           "brief",
           "idempotencyKey"
@@ -17137,6 +17204,13 @@
               "space"
             ],
             "type": "string"
+          },
+          "runsAs": {
+            "enum": [
+              "person",
+              "space"
+            ],
+            "type": "string"
           }
         },
         "type": "object"
@@ -17155,10 +17229,7 @@
       "inputSchema": {
         "properties": {
           "projectId": {
-            "examples": [
-              "prj_a1b2c3"
-            ],
-            "pattern": "^prj_[a-z0-9]+$",
+            "description": "A project, or a chat (a thread id) that has its own work folder",
             "type": "string"
           }
         },
@@ -18059,6 +18130,10 @@
               "type": "object"
             },
             "type": "array"
+          },
+          "text": {
+            "description": "The draft, so a message that names the lead in words is answered by it",
+            "type": "string"
           },
           "threadId": {
             "examples": [
@@ -24431,6 +24506,7 @@
                       "connection",
                       "mcp",
                       "automation",
+                      "watch",
                       "manual"
                     ],
                     "type": "string"
@@ -24458,6 +24534,13 @@
                       "contact"
                     ],
                     "pattern": "^[a-z][a-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "watchId": {
+                    "examples": [
+                      "wch_a1b2c3"
+                    ],
+                    "pattern": "^wch_[a-z0-9]+$",
                     "type": "string"
                   }
                 },
@@ -25554,6 +25637,7 @@
                       "connection",
                       "mcp",
                       "automation",
+                      "watch",
                       "manual"
                     ],
                     "type": "string"
@@ -25581,6 +25665,13 @@
                       "contact"
                     ],
                     "pattern": "^[a-z][a-z0-9_]*$",
+                    "type": "string"
+                  },
+                  "watchId": {
+                    "examples": [
+                      "wch_a1b2c3"
+                    ],
+                    "pattern": "^wch_[a-z0-9]+$",
                     "type": "string"
                   }
                 },
@@ -41835,6 +41926,117 @@
     },
     {
       "blocks": [],
+      "cap": "notes.create",
+      "deferred": false,
+      "description": "Take a note: text, an image, or a link that becomes a card. Private to the person until shared",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "body": {
+            "maxLength": 100000,
+            "type": "string"
+          },
+          "color": {
+            "enum": [
+              "",
+              "rose",
+              "sand",
+              "sage",
+              "sky",
+              "lilac",
+              "slate"
+            ],
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "image": {
+            "properties": {
+              "contentType": {
+                "enum": [
+                  "image/png",
+                  "image/jpeg",
+                  "image/gif",
+                  "image/webp"
+                ],
+                "type": "string"
+              },
+              "data": {
+                "description": "The image bytes, base64",
+                "maxLength": 14000000,
+                "type": "string"
+              }
+            },
+            "required": [
+              "data",
+              "contentType"
+            ],
+            "type": "object"
+          },
+          "labels": {
+            "items": {
+              "examples": [
+                "Lab 8"
+              ],
+              "maxLength": 40,
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "link": {
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "source": {
+            "description": "The chat message this note is saved from. The caller must read that chat; the note stays private to them and links back to the message",
+            "properties": {
+              "messageId": {
+                "examples": [
+                  "msg_a1b2c3"
+                ],
+                "pattern": "^msg_[a-z0-9]+$",
+                "type": "string"
+              },
+              "threadId": {
+                "examples": [
+                  "thr_a1b2c3"
+                ],
+                "pattern": "^thr_[a-z0-9]+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "threadId",
+              "messageId"
+            ],
+            "type": "object"
+          },
+          "title": {
+            "maxLength": 500,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "notes_create",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "notes.get",
       "deferred": false,
       "description": "Read one note the asker may read. An agent reads a note only when everyone in its chat may read it",
@@ -42648,6 +42850,56 @@
       "name": "notifications_send",
       "planMode": "blocked",
       "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "note_offer"
+      ],
+      "cap": "chat.note_offer.make",
+      "deferred": false,
+      "description": "Offer to save something from this chat as a note: a small card with a preview of the note, Save and Not now. At most once per topic and rarely; says offered false with a reason when the person has it off or it is too soon",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "body": {
+            "maxLength": 4000,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "topic": {
+            "description": "What it is about, in a few words; the same topic is offered once in a chat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "title",
+          "body",
+          "topic"
+        ],
+        "type": "object"
+      },
+      "name": "offer_note",
+      "planMode": "blocked",
+      "toolset": "chats",
       "v": 1
     },
     {
@@ -60113,10 +60365,14 @@
       "blocks": [],
       "cap": "tasks.working_notes.set",
       "deferred": false,
-      "description": "Write a working note (key and value) that any person or agent on the task can read",
+      "description": "Write a working note (key and value) that any person or agent on the task can read; send expectedFrom, the note as you last read it",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "expectedFrom": {
+            "description": "The note as you last read it, empty when it had none. If someone changed the note since, nothing is written and the refusal gives the current note: make your change again on top of it (a list note, Done means or its ticks, is merged for an agent). Without it an agent may only append to the note",
+            "type": "string"
+          },
           "key": {
             "minLength": 1,
             "type": "string"
