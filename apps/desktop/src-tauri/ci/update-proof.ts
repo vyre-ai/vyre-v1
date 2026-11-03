@@ -11,7 +11,12 @@ import type { ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-const args = process.argv.slice(2);
+const argv = process.argv.slice(2);
+// --day-two <app> <out>: the shipped app (rc.18) opened twice on this profile, so the second start shows what a person saw before this fix; its blank second start is recorded, not asserted.
+const dayTwo = argv[0] === "--day-two";
+// --kept-profile: the profile is the one --day-two left (an earlier version's service worker in it), and the first start must remove that worker and draw.
+const kept = argv[0] === "--kept-profile";
+const args = dayTwo ? [argv[1] ?? "", argv[1] ?? "", argv[2] ?? "", "-", "-"] : kept ? argv.slice(1) : argv;
 if (args.length !== 5 || args.some((a) => !a)) { console.error("usage: update-proof.ts <app to run> <installed program the update replaces> <out> <good feed> <bad feed>"); process.exit(2); }
 // desktop.yml passes the same file twice: the installed app is both what runs and what the update replaces (the Mac bundle swap, or the NSIS updater on Windows).
 const [RUN, APP, OUT, GOOD, BAD] = args as [string, string, string, string, string];
@@ -58,7 +63,7 @@ function profileListing(tag: string): void {
   const walk = (d: string, depth: number): void => {
     let names: string[] = [];
     try { names = fs.readdirSync(d); } catch { return; }
-    for (const n of names.sort()) { const f = path.join(d, n); lines.push(`${"  ".repeat(depth)}${n}`); if (depth < 2) { try { if (fs.statSync(f).isDirectory()) walk(f, depth + 1); } catch { /* gone */ } } }
+    for (const n of names.sort()) { const f = path.join(d, n); lines.push(`${"  ".repeat(depth)}${n}`); if (depth < 3) { try { if (fs.statSync(f).isDirectory()) walk(f, depth + 1); } catch { /* gone */ } } }
   };
   for (const d of PROFILE) { lines.push(`${d}${fs.existsSync(d) ? "" : " (none)"}`); walk(d, 1); }
   fs.writeFileSync(path.join(OUT, `${process.platform}-profile-${tag}.txt`), `${lines.join("\n")}\n`);
@@ -106,8 +111,36 @@ if (win) {
 }
 killAll();
 await sleep(2000);
-// the earlier steps of this job ran the app on this profile and ended it with a force kill (run-shell.sh's trap): start as a fresh person, keeping a listing of what was there
-freshProfile("before");
+if (dayTwo) {
+  freshProfile("before-day-two");
+  for (const n of [1, 2]) {
+    const run = launch("-", `shipped-start-${n}`, true);
+    await run.waitFor(/page rendered: \d+ chars/, 60_000);
+    await sleep(6000);
+    shot(`shipped-start-${n}`);
+    console.log(`update-proof: the shipped app, start ${n} on this profile: ${charsOf(run.log())} chars`);
+    await quit(`shipped-start-${n}`);
+  }
+  profileListing("after-day-two");
+  process.exit(0);
+}
+if (kept) {
+  // the shipped app's worker is in this profile: the first start of this build removes it and draws
+  profileListing("kept");
+  const run = launch(GOOD, "upgraded-start", true);
+  const removed = await run.waitFor(/page serviceworker: removed \d+ service worker/, 60_000);
+  await run.waitFor(/page rendered: [1-9]\d* chars/, 30_000);
+  await sleep(4000);
+  shot("upgraded-start");
+  const after = charsOf(run.log().split("page serviceworker")[1] ?? "");
+  console.log(`update-proof: first start over the shipped app's profile: worker removed=${removed}, then ${after} chars`);
+  if (!removed) failures.push("upgrade: the earlier version's service worker was not removed");
+  if (after === 0) failures.push("upgrade: the app draws nothing after removing the earlier worker");
+  await quit("upgraded-start");
+} else {
+  // the earlier steps of this job ran the app on this profile and ended it with a force kill (run-shell.sh's trap): start as a fresh person, keeping a listing of what was there
+  freshProfile("before");
+}
 
 // 0. the control: the same installed app with automatic updates off opens to its first screen, so a blank page below is the update's doing and not the install's.
 //    Then, on record: it opens again after a normal close, and what it does after a force kill (the earlier blank pages came right after one).
@@ -135,10 +168,10 @@ freshProfile("before");
   await sleep(4000);
   shot("control-after-kill");
   const afterKill = charsOf(forced.log());
-  console.log(`update-proof: NOTE after a force kill the app ${afterKill === 0 ? "draws nothing on its next start (an app finding, reported, not part of this proof)" : `draws again (${afterKill} chars)`}`);
+  console.log(`update-proof: after a force kill the app rendered ${afterKill} chars on its next start`);
+  if (afterKill === 0) failures.push("control: after a force kill (a crash) the app draws nothing on its next start");
   await quit("control-after-kill");
-  // the update proof below starts from a fresh profile either way, so the finding above cannot decide it
-  freshProfile("after-control");
+  profileListing("after-control");
 }
 
 // 1. a bad signature is refused and nothing is installed

@@ -256,14 +256,20 @@ jobs:
         with: { name: desktop-Windows-sha256, path: win-sum, if-no-files-found: error }
       - name: The app updates itself on a real Windows runner (VyreSetup.exe installed for this user, a bad signature refused, then a signed update installed by the NSIS updater with the daemons stopped first)
         if: runner.os == 'Windows'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          # first the shipped rc.18, opened twice on a fresh profile (its blank second start is the bug this build fixes), then this build installed over it, as an update would
+          gh release download v1.0.0-rc.18 -R "${{ github.repository }}" -p VyreSetup.exe -D shipped
+          ./shipped/VyreSetup.exe //S
+          node apps/desktop/src-tauri/ci/update-proof.ts --day-two "$LOCALAPPDATA/Vyre/vyre-desktop.exe" "$PWD/out/update-proof"
           ./win-exe/VyreSetup.exe //S
           app=""
           for d in "$LOCALAPPDATA/Vyre" "$LOCALAPPDATA/Programs/Vyre"; do if [ -f "$d/vyre-desktop.exe" ]; then app="$d/vyre-desktop.exe"; fi; done
           [ -n "$app" ] || { echo "VyreSetup.exe /S installed no vyre-desktop.exe"; find "$LOCALAPPDATA" -maxdepth 3 -iname 'vyre-desktop.exe' || true; exit 1; }
           raw="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/apps/desktop/src-tauri/ci"
-          node apps/desktop/src-tauri/ci/update-proof.ts "$app" "$app" "$PWD/out/update-proof" "$raw/update-proof.json" "$raw/update-proof-badsig.json"
+          node apps/desktop/src-tauri/ci/update-proof.ts --kept-profile "$app" "$app" "$PWD/out/update-proof" "$raw/update-proof.json" "$raw/update-proof-badsig.json"
       - uses: actions/upload-artifact@v4
         if: runner.os == 'Windows'
         with: { name: desktop-Windows-exe, path: win-exe, if-no-files-found: error }

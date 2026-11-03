@@ -65,6 +65,24 @@ const EXTERNAL_LINKS: &str = r#"(function () {
   }, true);
 })();"#;
 
+/// Run in the page after every load: the desktop app has no service worker (the page never registers one, startup/boot.ts). One an earlier version registered is removed with its caches, and
+/// the page loads again. On Windows such a worker took over every page load from the second start and the window drew nothing (update-proof run 41627777786), so the page itself could not run
+/// the code that fixes it: the shell does it from here, whatever page the worker served.
+pub(crate) const NO_SERVICE_WORKER: &str = r#"(function () {
+  if (window.__vyreNoSw || !navigator.serviceWorker || !navigator.serviceWorker.getRegistrations) return;
+  window.__vyreNoSw = true;
+  var inv = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+  navigator.serviceWorker.getRegistrations().then(function (rs) {
+    if (!rs.length) return;
+    var gone = Promise.all(rs.map(function (r) { return r.unregister(); }));
+    var cleared = window.caches ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }) : Promise.resolve();
+    Promise.all([gone, cleared]).then(function () {
+      if (inv) inv("page_report", { kind: "service-worker", text: "removed " + rs.length + " service worker(s) an earlier version registered; loading again" }).catch(function () {});
+      location.replace("/");
+    }, function () {});
+  }, function () {});
+})();"#;
+
 /// Two animation frames after the page starts drawing, tell the shell. rAF stops in a window that cannot be seen, so the timer keeps this from depending on it.
 const FIRST_FRAME: &str = r#"(function () {
   var sent = false;
@@ -214,6 +232,7 @@ pub fn run() {
                 let _ = webview.eval(FIRST_FRAME);
                 let _ = webview.eval(PAGE_PROBE);
                 let _ = webview.eval(EXTERNAL_LINKS);
+                let _ = webview.eval(NO_SERVICE_WORKER);
                 if std::env::var("VYRE_SHELL_BANNER").is_ok() {
                     let _ = webview.eval(BANNER);
                 }
