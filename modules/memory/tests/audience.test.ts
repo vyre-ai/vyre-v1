@@ -72,6 +72,7 @@ const INPUTS: Record<string, (w: { factId: string; noteId: string; pageId: strin
   "memory.export_markdown": () => ({ includePersonal: true }),
   "memory.questions.list": () => ({}),
   "memory.versions": (w) => ({ noteId: w.noteId }),
+  "memory.profile.get": () => ({}),
 };
 const NO_CONTENT: Record<string, string> = {
   "memory.keys.get": "which account pays for upkeep: no memory text",

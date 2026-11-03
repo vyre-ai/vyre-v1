@@ -57,6 +57,23 @@ function serverKeys(dir: string): Uint8Array[] {
   return out;
 }
 
+/** The tables of the Space's two databases with a row that holds `words` in the clear, as "<file> <table>". */
+function rowsHolding(dir: string, words: string): string[] {
+  const out = new Set<string>();
+  for (const file of ["events.db", "modules.db"]) {
+    const db = new DatabaseSync(path.join(dir, file), { readOnly: true });
+    try {
+      for (const { name } of db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all() as Array<{ name: string }>) {
+        for (const { name: col } of db.prepare(`PRAGMA table_info("${name}")`).all() as Array<{ name: string }>) {
+          const hit = db.prepare(`SELECT 1 FROM "${name}" WHERE instr(CAST("${col}" AS TEXT), ?) > 0 LIMIT 1`).get(words);
+          if (hit) out.add(`${file} ${name}`);
+        }
+      }
+    } finally { db.close(); }
+  }
+  return [...out].sort();
+}
+
 test("Team server: a member's memory is sealed under her own key; recalled with it, locked without, re-sealed from the old seal, closed at rest", async () => {
   const stub = await vendor();
   const dir = seededDir();
@@ -102,9 +119,12 @@ test("Team server: a member's memory is sealed under her own key; recalled with 
     assert.ok(locked.reply.includes("Private memory locked") && locked.reply.includes(LOCKED_LINE), `the turn is told why: ${locked.reply.slice(0, 800)}`);
 
     // 5. at rest: her words are in no file, and no key the server keeps opens her rows; hers does. (NEW was recalled into her chat, and the stand-in model repeats its prompt in its reply,
-    //    so it is in that chat message, which is chat storage, not memory; OLD and OUT never entered a chat.)
+    //    so it is in that chat message, which is chat storage, not memory. OLD is in her private profile, which her own chats carry in their context (l-profile), so her turn in step 3
+    //    put it in that chat the same way: it is in her chat's rows and nowhere else. OUT never entered a chat.)
     d.sink.flush();
-    for (const words of [OLD, OUT]) assert.deepEqual(filesHolding(dir, Buffer.from(words)), [], `"${words}" is in no file in the clear`);
+    assert.deepEqual(filesHolding(dir, Buffer.from(OUT)), [], `"${OUT}" is in no file in the clear`);
+    assert.deepEqual(rowsHolding(dir, OLD), ["events.db idempotency", "modules.db chat_message", "modules.db chat_transcript_row", "modules.db engine_messages"], `"${OLD}" is in her chat's rows only`);
+    assert.deepEqual(filesHolding(dir, Buffer.from(OLD)).filter((f) => !/^(events|modules)\.db(-wal)?$/.test(f)), [], `"${OLD}" is in no other file`);
     const rows = sealedRows(dir, rubab.personId);
     assert.equal(rows.length, 3);
     const keys = serverKeys(dir);
