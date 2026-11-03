@@ -21,6 +21,7 @@ export function TeamNowSection(): ReactElement {
   const refreshP = presence.refresh, refreshW = working.refresh;
   useEffect(() => {
     const t = setInterval(() => { refreshP(); refreshW(); }, TEAM_NOW_EVERY_MS);
+    (t as { unref?: () => void }).unref?.();
     return () => clearInterval(t);
   }, [refreshP, refreshW]);
   const now = useMemo(() => teamNow({ presence: presence.data?.people, working: working.data?.working, me: data.me.id, personName: (id) => (id === data.me.id ? "you" : data.name(id)), agentName: (id) => data.name(id) }), [presence.data, working.data, data]);

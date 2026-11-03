@@ -40,7 +40,7 @@ test("Invite People never says copied when it was not: a refusal and a blocked c
   for (const clip of ["none", "throws"] as const) {
     const w = world({ clip });
     await w.a.invite();
-    assert.ok(!/copied\./.test(w.flashes[0]!), w.flashes[0]);
+    assert.ok(!/copied\./.test(w.flashes[0]!), String(w.flashes[0]));
     assert.match(w.flashes[0]!, /Copy it from Console, People: https:\/\/northwind/);
   }
 });

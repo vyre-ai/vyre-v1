@@ -60,6 +60,7 @@ export function usePulse(src: PulseSource): { pulse: Pulse; reread(): void } {
   }, [tick, src.personal]);
   useEffect(() => {
     const every = setInterval(() => setTick((n) => n + 1), PULSE_EVERY_MS);
+    (every as { unref?: () => void }).unref?.();   // a poll never keeps a process alive (a test that renders once, a server render)
     let wait: ReturnType<typeof setTimeout> | null = null;
     const offChange = src.changes?.subscribe(() => { if (wait === null) wait = setTimeout(() => { wait = null; setTick((n) => n + 1); }, PULSE_QUIET_MS); });
     return () => { clearInterval(every); if (wait !== null) clearTimeout(wait); offChange?.(); };

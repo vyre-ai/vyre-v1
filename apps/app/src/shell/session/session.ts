@@ -189,7 +189,9 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     refreshTimer = setTimeout(reread, hidden() ? HIDDEN_REFRESH_MS : 120);
   };
   const page = (globalThis as { document?: { addEventListener?(t: string, l: () => void): void; removeEventListener?(t: string, l: () => void): void } }).document;
-  const shown = (): void => { if (!hidden() && refreshTimer !== null) reread(); };
+  // the window showing again is activity too: it moves last seen (touchShown, set once the session knows its device)
+  let touchShown = (): void => undefined;
+  const shown = (): void => { if (hidden()) return; if (refreshTimer !== null) reread(); touchShown(); };
   page?.addEventListener?.("visibilitychange", shown);
   // Retry on a failed or stalled load (ui/States Loads and Quiet) re-reads what is on screen
   const offRetry = onRetryLoads(() => { if (!closed) hooks.invalidate(); });
@@ -256,10 +258,9 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     touchedAt = t;
     void reach("devices.touch", typeof who.deviceId === "string" && who.deviceId.startsWith("dev_") ? { deviceId: who.deviceId } : {}).then((out) => { if ((out as { back?: boolean } | null)?.back === true && !closed) hooks.invalidate(); }, () => undefined);
   };
-  const touchShown = (): void => { if (!hidden()) touch(); };
+  touchShown = touch;
   page?.addEventListener?.("pointerdown", touch);
   page?.addEventListener?.("keydown", touch);
-  page?.addEventListener?.("visibilitychange", touchShown);
   touch();
   // while the link is down: every pollMs, or every HIDDEN_REFRESH_MS while the window is hidden
   let polledAt = 0;
@@ -408,7 +409,6 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       page?.removeEventListener?.("visibilitychange", shown);
       page?.removeEventListener?.("pointerdown", touch);
       page?.removeEventListener?.("keydown", touch);
-      page?.removeEventListener?.("visibilitychange", touchShown);
       offRetry();
       link.stop();
       turns.dispose();
