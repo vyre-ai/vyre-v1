@@ -1716,6 +1716,43 @@ if ("value" in o402) lf(o402["value"], p + '/' + i401 + "/value", e, L1);
 }
 }
 
+export function d_s_5f3abd3a5c(v: unknown, p: string, e: string[]): void {
+{
+const x421 = v;
+const g421 = typeOf(x421);
+const b421: string[] = []; lf(x421, p, b421, L4); if (b421.length) e.push(...b421);
+if (g421 === "array") {
+if (g421 === 'array') { const a421 = x421 as unknown[];
+for (let i421 = 0; i421 < a421.length; i421++) {
+{
+const x422 = a421[i421];
+const g422 = typeOf(x422);
+const b422: string[] = []; lf(x422, p + '/' + i421, b422, L0); if (b422.length) e.push(...b422);
+if (g422 === "object") {
+if (g422 === 'object') { const o422 = x422 as Record<string, unknown>;
+if (!("rowId" in o422)) e.push(p + '/' + i421 + "/rowId" + ': required');
+if (!("values" in o422)) e.push(p + '/' + i421 + "/values" + ': required');
+if ("rowId" in o422) lf(o422["rowId"], p + '/' + i421 + "/rowId", e, L1);
+if ("values" in o422) {
+{
+const x423 = o422["values"];
+const g423 = typeOf(x423);
+const b423: string[] = []; lf(x423, p + '/' + i421 + "/values", b423, L0); if (b423.length) e.push(...b423);
+if (g423 === "object") {
+if (g423 === 'object') { const o423 = x423 as Record<string, unknown>;
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+}
+
 export function d_s_62774a3f3d(v: unknown, p: string, e: string[]): void {
 {
 const x434 = v;
@@ -2246,35 +2283,6 @@ if ("diskTotalBytes" in o893) lf(o893["diskTotalBytes"], p + "/diskTotalBytes", 
 }
 }
 
-export function d_s_d29b748c70(v: unknown, p: string, e: string[]): void {
-{
-const x897 = v;
-const g897 = typeOf(x897);
-const b897: string[] = []; lf(x897, p, b897, L0); if (b897.length) e.push(...b897);
-if (g897 === "object") {
-if (g897 === 'object') { const o897 = x897 as Record<string, unknown>;
-if (!("base" in o897)) e.push(p + "/base" + ': required');
-if (!("spaces" in o897)) e.push(p + "/spaces" + ': required');
-if ("base" in o897) lf(o897["base"], p + "/base", e, L375);
-if ("spaces" in o897) {
-{
-const x898 = o897["spaces"];
-const g898 = typeOf(x898);
-const b898: string[] = []; lf(x898, p + "/spaces", b898, L0); if (b898.length) e.push(...b898);
-if (g898 === "object") {
-if (g898 === 'object') { const o898 = x898 as Record<string, unknown>;
-for (const k of Object.keys(o898)) { if (([] as string[]).includes(k)) continue;
-lf(o898[k], p + "/spaces" + '/' + k, e, L375);
-}
-}
-}
-}
-}
-}
-}
-}
-}
-
 export function d_s_d616552431(v: unknown, p: string, e: string[]): void {
 {
 const x920 = v;
@@ -2753,20 +2761,6 @@ if ("files" in o1045) lf(o1045["files"], p + "/data" + "/files", e, L3);
 }
 }
 if ("idempotencyKey" in o1044) lf(o1044["idempotencyKey"], p + "/idempotencyKey", e, L44);
-}
-}
-}
-}
-
-export function d_s_ecb051c817(v: unknown, p: string, e: string[]): void {
-{
-const x1046 = v;
-const g1046 = typeOf(x1046);
-const b1046: string[] = []; lf(x1046, p, b1046, L0); if (b1046.length) e.push(...b1046);
-if (g1046 === "object") {
-if (g1046 === 'object') { const o1046 = x1046 as Record<string, unknown>;
-if (!("rows" in o1046)) e.push(p + "/rows" + ': required');
-if ("rows" in o1046) d_s_5f3abd3a5c(o1046["rows"], p + "/rows", e);
 }
 }
 }

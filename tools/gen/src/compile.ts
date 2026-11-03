@@ -141,6 +141,8 @@ export function compileValidators(reg: Registry): Map<string, string> {
     for (const x of refsOf(defCode.get(d) ?? '')) if (x !== d && defCode.has(x)) touch(x, m);
   };
   for (const [id, m] of perModule) for (const d of refsOf(m.fns.join('\n') + m.caps.join('\n') + m.evs.join('\n'))) if (defCode.has(d)) touch(d, id);
+  // a schema nobody uses stays in core, and so does everything it refers to
+  for (const d of defCode.keys()) if (!reach.has(d)) touch(d, '\0core');
   const owner = (d: string): string | null => { const r = reach.get(d); return r && r.size === 1 ? [...r][0]! : null; };
   const leafDecl = [...g.leaves.entries()].map(([key, n]) => {
     const d = JSON.parse(key) as Record<string, unknown>;
