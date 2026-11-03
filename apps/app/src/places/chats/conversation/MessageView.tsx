@@ -36,6 +36,7 @@ import { GoalCard, goalBlockOf } from "../goals/GoalCard.tsx";
 import { KeyRequestCard, isKeyRequest } from "./keyrequest.tsx";
 import { AccessRequestCard, isAccessRequest } from "./accessrequest.tsx";
 import { ChecklistCard, isChecklist } from "./checklist.tsx";
+import { QuoteCard, WebPageCard, isQuote, isWebPage } from "./webpage.tsx";
 import { MountCard } from "./mountcard.tsx";
 import { TerminalCard } from "./TerminalCard.tsx";
 import { RunCode } from "./RunCode.tsx";
@@ -307,6 +308,9 @@ function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { it
       {actions.files && refsOf(m).length > 0 ? <LinkedText body={m.body} refs={refsOf(m)} data={actions.files} textStyle={st.bubbleText} /> : <SubjectText text={m.body} style={st.bubbleText} />}
         </View>
       )}
+      {!editing && m.blocks.some((b) => isWebPage(b.type) || isQuote(b.type)) ? (
+        <View style={st.mineFiles}>{m.blocks.map((b) => (isWebPage(b.type) ? <WebPageCard key={b.id} id={b.id} data={b.data} /> : isQuote(b.type) ? <QuoteCard key={b.id} id={b.id} data={b.data} /> : null))}</View>
+      ) : null}
       {!editing && actions.files && refsOf(m).length > 0 ? <View style={st.mineFiles}><MountRefs refs={refsOf(m)} data={actions.files} /></View> : null}
       {!editing && actions.files && m.attachments.length > 0 ? (
         <View style={st.mineFiles}><AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /></View>
@@ -396,6 +400,8 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         if (isAccessRequest(b.type) && actions.files) return <AccessRequestCard key={b.id} block={b.data as never} data={actions.files} />;
         if (isKeyRequest(b.type) && actions.files) return <KeyRequestCard key={b.id} requestId={String((b.data as { requestId?: unknown }).requestId ?? "")} agent={item.who.name} agentId={item.who.id} data={actions.files} />;
         if (isChecklist(b.type)) return <ChecklistCard key={b.id} id={b.id} data={b.data} />;
+        if (isWebPage(b.type)) return <WebPageCard key={b.id} id={b.id} data={b.data} />;
+        if (isQuote(b.type)) return <QuoteCard key={b.id} id={b.id} data={b.data} />;
         if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
       })}

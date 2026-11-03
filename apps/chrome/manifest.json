@@ -3,7 +3,7 @@
   "name": "Vyre for Chrome",
   "version": "0.0.0",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApeH/P8PRm1l5A9KmLk0RghHMjVuv4fT6u37aBnNFMHKwfRm03RqGSkzMtiRqiW1eve12XS2NT0lSKT0w2sfpPEmUKwqAGHU+nj/ZVJ8ZHnWH4H+a56g4gzVks2yIA+y4WsXpracyIMToYUFVDPDvz5k8coxIDenNSR1afxLXfP2eJNhLLXHAWbilO/3T6FJnmJTd63btLoAyJ9OY2jk0hzrvla5EOvNeCSw+U80o1ZkzDpgg8KRLpiUQTpj2O43uHJKcBamnUSWyvaeGn5lvKtik2ARJZKvZogvIODZ1uB3dVkop5J/ImX9zRdbZyCYQDkUYLpcRop/g+W3QE/7YQwIDAQAB",
-  "description": "Fill logins and codes from your Space's Vault, save new logins, ask an agent about the page. Talks only to the Vyre app on this computer.",
+  "description": "Chat with your agents beside any page, fill logins and codes from your Space's Vault, save clips to Notes, and let agents work in your Chrome. Talks only to the Vyre app on this computer.",
   "minimum_chrome_version": "116",
   "icons": {
     "16": "src/popup/icons/icon-16.png",
@@ -12,31 +12,59 @@
     "128": "src/popup/icons/icon-128.png"
   },
   "action": {
-    "default_title": "Vyre",
-    "default_popup": "src/popup/popup.html"
+    "default_title": "Vyre"
+  },
+  "side_panel": {
+    "default_path": "src/panel/panel.html"
   },
   "background": {
     "service_worker": "src/worker/index.js",
     "type": "module"
   },
-  "permissions": ["storage", "activeTab", "scripting", "nativeMessaging"],
-  "optional_permissions": ["debugger"],
-  "host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "nativeMessaging",
+    "sidePanel",
+    "contextMenus",
+    "favicon"
+  ],
+  "optional_permissions": [
+    "debugger"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "content_scripts": [
     {
-      "matches": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
-      "js": ["src/content/finder.js", "src/content/autofill.js", "src/content/capture.js", "src/content/prompt.js"],
+      "matches": [
+        "https://*/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": [
+        "src/content/finder.js",
+        "src/content/autofill.js",
+        "src/content/capture.js",
+        "src/content/prompt.js",
+        "src/content/select.js"
+      ],
       "run_at": "document_idle",
       "all_frames": true
     }
   ],
   "content_security_policy": {
-    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: chrome-extension:; object-src 'none'; base-uri 'none'; form-action 'none'"
   },
   "commands": {
     "_execute_action": {
-      "suggested_key": { "default": "Ctrl+Shift+L", "mac": "Command+Shift+L" },
-      "description": "Open Vyre for this page"
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "Open Vyre beside this page"
     }
-  }
+  },
+  "incognito": "spanning"
 }

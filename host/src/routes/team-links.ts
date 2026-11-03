@@ -1,13 +1,14 @@
 // The Team Spaces the person is signed in to on this computer, as the desktop shell hands them to its device daemon (apps/desktop/src-tauri/src/chrome.rs link_chrome_space and relink): each one
 // becomes this computer's link to that Space (compute/device-link.ts), so the person's chats there can run here. The shell sends the person's own session for the Space; it is kept in memory only.
 //
-//   POST   /local/chrome/spaces          {id, name, address, token}   link (again) to that Space; a second POST for the same Space replaces the first
+//   POST   /local/chrome/spaces          {id, name, address, token, compute?}   link (again) to that Space; a second POST for the same Space replaces the first
+//                                         compute false: for Vyre for Chrome only (a Personal Space, a Team Space on this computer): kept for the extension, never dialled for chats
 //   DELETE /local/chrome/spaces?id=spc_  stop linking to it (sign-out)
 //
 // Local only, like /local/daemon/stop: a loopback socket and this daemon's own admin token, which only the shell holds. A daemon that hosts a Space never links out (its own Space is here).
 import type http from "node:http";
 
-export interface TeamLink { id: string; name: string; address: string; token: string }
+export interface TeamLink { id: string; name: string; address: string; token: string; compute?: boolean }
 
 export interface TeamLinksDeps {
   /** This daemon's admin token: the shell's own key to it. */
@@ -39,11 +40,13 @@ export function linkAddress(v: unknown): string | null {
   } catch { return null; }
 }
 
-export function createTeamLinksRoute(d: TeamLinksDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean; ids(): string[]; close(): void } {
-  const links = new Map<string, { stop(): void; address: string }>();
+export function createTeamLinksRoute(d: TeamLinksDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean; ids(): string[]; sessions(): TeamLink[]; close(): void } {
+  const links = new Map<string, { stop(): void; address: string; link: TeamLink }>();
   const drop = (id: string): void => { const l = links.get(id); if (l) { links.delete(id); l.stop(); } };
   return {
-    ids: () => [...links.keys()],
+    ids: () => [...links.entries()].filter(([, l]) => l.link.compute !== false).map(([id]) => id),
+    /** Every session the shell handed over, in the order it did (Vyre for Chrome acts as the person with these, lib/chrome-app.ts). */
+    sessions: () => [...links.values()].map((l) => ({ ...l.link })),
     close() { for (const id of [...links.keys()]) drop(id); },
     handle(req, res) {
       const url = new URL(req.url ?? "/", "http://x");
@@ -72,7 +75,8 @@ export function createTeamLinksRoute(d: TeamLinksDeps): { handle(req: http.Incom
         const token = typeof o["token"] === "string" && /^[\x21-\x7e]{8,512}$/.test(o["token"]) ? o["token"] : null;
         if (!id || !address || !token) { answer(res, 400, { error: { code: "validation.bad_input", message: "A Space id, its address and a session are needed." } }); return; }
         drop(id);
-        links.set(id, { address, stop: d.start({ id, name: typeof o["name"] === "string" ? o["name"].slice(0, 80) : "", address, token }) });
+        const link: TeamLink = { id, name: typeof o["name"] === "string" ? o["name"].slice(0, 80) : "", address, token, ...(o["compute"] === false ? { compute: false } : {}) };
+        links.set(id, { address, link, stop: link.compute === false ? () => undefined : d.start(link) });
         d.log?.("team.link_started", { space: id, address });
         answer(res, 204);
       })().catch(() => { if (!res.headersSent) answer(res, 400, { error: { code: "validation.bad_input", message: "That was not a Space to link." } }); });

@@ -11,18 +11,23 @@ const shellInvoke = (): Invoke | undefined => (globalThis as { __TAURI__?: { cor
 /** The Team Spaces a computer links to: signed in, a Team Space, not on this computer. */
 export const linkable = (s: Pick<StoredSession, "baseUrl" | "token" | "def">): boolean => s.def.kind === "team" && s.token !== "" && !isLoopbackUrl(s.baseUrl);
 
-/** Link every signed-in Team Space to this computer. Returns how many were handed over; 0 in a browser. A shell that refuses one is skipped: the chat then runs elsewhere, as Automatic says. */
+/**
+ * Link every signed-in Team Space to this computer, and hand every other signed-in session (a Personal Space, a Team Space hosted here) to Vyre for Chrome only (compute: false), so the
+ * extension acts as this person in whichever Space they pick there. Returns how many were linked for chats; 0 in a browser. A shell that refuses one is skipped: the chat then runs
+ * elsewhere, as Automatic says.
+ */
 export async function linkComputer(sessions: readonly StoredSession[], invoke: Invoke | undefined = shellInvoke()): Promise<number> {
   if (!invoke) return 0;
   let n = 0;
-  for (const s of sessions.filter(linkable)) {
-    try { await invoke("link_chrome_space", { id: s.def.spaceId, name: s.def.name, address: s.baseUrl, token: s.token }); n++; } catch { /* the daemon is not up yet: it is given the list again when it starts (chrome.rs relink) */ }
+  for (const s of sessions.filter((x) => x.token !== "" && /^spc_[A-Za-z0-9_]+$/.test(x.def.spaceId))) {
+    const compute = linkable(s);
+    try { await invoke("link_chrome_space", { id: s.def.spaceId, name: s.def.name, address: s.baseUrl, token: s.token, compute }); if (compute) n++; } catch { /* the daemon is not up yet: it is given the list again when it starts (chrome.rs relink) */ }
   }
   return n;
 }
 
 /** Take this computer's link to a Team Space away (sign-out, lock). */
 export async function unlinkComputer(s: Pick<StoredSession, "def">, invoke: Invoke | undefined = shellInvoke()): Promise<void> {
-  if (!invoke || s.def.kind !== "team") return;
+  if (!invoke) return;
   try { await invoke("unlink_chrome_space", { id: s.def.spaceId }); } catch { /* nothing was linked */ }
 }

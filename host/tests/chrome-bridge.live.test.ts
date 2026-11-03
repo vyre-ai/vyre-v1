@@ -90,8 +90,16 @@ test("chrome bridge: a booted daemon answers /chrome-bridge/v1/rpc and /events, 
     const ok = await rpc(d, { id: "r1", type: "bridge", op: "agent.event", input: { event: "driving", agent: "agt_scout", tabId: "t1" } });
     assert.equal(ok.status, 200);
     assert.deepEqual(await ok.json(), { id: "r1", ok: true, output: {} });
-    const open = await rpc(d, { id: "r2", type: "bridge", op: "hello", input: {} });
-    assert.deepEqual(await open.json(), { id: "r2", ok: false, error: { code: "not_available", message: "The Vyre app cannot answer that yet." } });
+    // Vyre for Chrome's calls run as the person signed in on this computer (lib/chrome-app.ts). Nobody has handed a session over here, so hello lists no Space and every call is refused;
+    // nothing falls back to the owner or to the admin token. The person's own sessions are in chrome-bridge.person.live.test.ts.
+    const hello = await (await rpc(d, { id: "r2", type: "bridge", op: "hello", input: {} })).json();
+    assert.deepEqual(hello.output, { version: "1", spaces: [], active: null, locked: false, signedIn: false });
+    for (const [i, body] of [{ type: "bridge", op: "agents.list", input: {} }, { type: "invoke", capability: "vault.site_rules.list", input: {} }, { type: "bridge", op: "chat.ask", input: { text: "hi", agentId: "agt_scout" } }].entries()) {
+      const r = await (await rpc(d, { id: `s${i}`, ...body })).json();
+      assert.deepEqual(r.error, { code: "signed_out", message: "Sign in to Vyre on this computer." }, JSON.stringify(body));
+    }
+    const off = await (await rpc(d, { id: "r5", type: "invoke", capability: "records.delete", input: {} })).json();
+    assert.equal(off.error.code, "not_allowed");
     assert.equal((await rpc(d, "nonsense")).status, 200);
     const bad = await fetch(`${d.url}/chrome-bridge/v1/rpc`, { method: "POST", headers: { authorization: `Bearer ${d.token}` }, body: "{not json" });
     assert.equal(bad.status, 400);

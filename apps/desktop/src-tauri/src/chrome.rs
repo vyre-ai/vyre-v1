@@ -31,11 +31,12 @@ pub(crate) fn relink(shared: &crate::sidecar::Shared) {
 
 /// The page hands over the person's own session for a Team Space (src/shell/session/chrome-link.ts). The daemon checks the address and keeps it in memory only.
 #[tauri::command]
-pub fn link_chrome_space(state: tauri::State<'_, crate::commands::AppState>, id: String, name: String, address: String, token: String) -> Result<(), String> {
+/// `compute` false hands a session to Vyre for Chrome only (a Personal Space, a Team Space this computer hosts): the daemon keeps it so the extension acts as this person, and links no chats.
+pub fn link_chrome_space(state: tauri::State<'_, crate::commands::AppState>, id: String, name: String, address: String, token: String, compute: Option<bool>) -> Result<(), String> {
     if !space_id_ok(&id) {
         return Err("That is not a Space id".to_string());
     }
-    let body = serde_json::json!({ "id": id, "name": name, "address": address, "token": token }).to_string();
+    let body = serde_json::json!({ "id": id, "name": name, "address": address, "token": token, "compute": compute.unwrap_or(true) }).to_string();
     if let Ok(mut held) = LINKED.lock() {
         held.retain(|(k, _)| *k != id);
         held.push((id, body.clone()));

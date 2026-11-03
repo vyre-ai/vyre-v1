@@ -11,8 +11,16 @@ import { BridgeFailure, wordsFor } from "./protocol.js";
 import { createRules } from "./rules.js";
 import { createSave } from "./save.js";
 import { createStore } from "./store.js";
+import { createContext } from "./context.js";
+import { createMenus } from "./menus.js";
+import { createNotes } from "./notes.js";
+import { createPanel, PANEL_PORT } from "./panel.js";
+import { createPrivacy } from "./privacy.js";
 // Agent control (P-L10_06): starts itself in the extension when Chrome has granted the optional debugger permission, and does nothing otherwise.
 import "../agent/index.js";
+
+/** What a page in an incognito window may still ask for: the fill the person clicks. Everything else is off there. */
+const INCOGNITO_OK = new Set(["vyre.fill"]);
 
 /** A web address we will open for a Space: https, or http on this computer. @param {unknown} u */
 function openable(u) {
@@ -36,6 +44,13 @@ export function createWorker(ext) {
   const rules = createRules({ bridge, store });
   const fill = createFill({ bridge, scripting: ext.scripting, rules });
   const save = createSave({ bridge, scripting: ext.scripting, rules });
+  const privacy = createPrivacy(store);
+  const context = createContext(ext, privacy);
+  /** @type {Map<number, string>} the view a side panel should open on, by window (a right-click Watch or Show Vyre how) */
+  const views = new Map();
+  const panel = createPanel({ ext, bridge, store, privacy, context, views });
+  const notes = createNotes({ ext, bridge, privacy, context });
+  const menus = createMenus({ ext, notes, panel, views, privacy });
 
   bridge.onPush((m) => {
     if (m && m.type === "spaces") {
@@ -43,6 +58,7 @@ export function createWorker(ext) {
       void store.set({ spaces: tiles, activeSpace: m.active });
       rules.forget();
     }
+    if (m && m.type === "tab.open" && ext.tabs) void ext.tabs.create({ url: m.url });
   });
 
   async function activeTab() {
@@ -152,7 +168,17 @@ export function createWorker(ext) {
   async function fromPage(msg, sender) {
     const tabId = sender.tab.id;
     const origin = sender.origin || sender.url || "";
+    // Incognito: Vyre is off. Nothing a page says is read, saved or sent; only a fill the person clicks works (vault badge, below).
+    if (sender.tab.incognito && !INCOGNITO_OK.has(msg.type)) return msg.type === "vyre.selection" ? { data: { off: true } } : failure(new BridgeFailure("incognito", ""));
     switch (msg.type) {
+      case "vyre.selection": return { data: { off: !(await panel.selected(sender.tab, String(msg.text || ""))) } };
+      case "vyre.clip": return { data: await notes.clip(sender.tab, String(msg.selection || "")) };
+      case "vyre.ask": {
+        // The bubble's Ask: the Selected chip gets the text and the panel opens (the click is the gesture; open before anything awaits).
+        menus.openPanel(sender.tab, "chat").catch(() => {});
+        return { data: { asked: await panel.ask(sender.tab, String(msg.selection || "")) } };
+      }
+      case "vyre.openNote": return { data: await bridge.op("app.open", { place: "notes", id: String(msg.noteId || "").slice(0, 80) }) };
       case "vyre.submit": return { data: await save.submitted({ tabId, origin }, { username: String(msg.username || ""), password: String(msg.password || ""), kind: msg.kind === "signup" ? "signup" : "signin" }) };
       case "vyre.save": return { data: await save.save({ tabId, origin }, { name: String(msg.name || ""), username: String(msg.username || ""), password: String(msg.password || ""), share: Boolean(msg.share), mode: msg.mode === "update" ? "update" : "save" }) };
       case "vyre.dismiss": return { data: await save.dismissed({ tabId, origin }, { never: Boolean(msg.never) }) };
@@ -168,6 +194,14 @@ export function createWorker(ext) {
     if (!msg || typeof msg.type !== "string" || sender.id !== ext.runtime.id) return failure(new BridgeFailure("not_allowed", ""));
     try {
       if (msg.type.startsWith("popup.")) return sender.tab ? failure(new BridgeFailure("not_allowed", "")) : await fromPopup(msg, sender);
+      // The side panel is an extension page: its sender has our own address (a content script's sender has the page's). Opened as its own window it also has a tab.
+      const ownPage = typeof sender.url === "string" && sender.url.startsWith(`chrome-extension://${ext.runtime.id}/src/panel/`);
+      if (msg.type === "panel.clip" && ownPage) {
+        const [tab] = await ext.tabs.query(typeof msg.windowId === "number" ? { active: true, windowId: msg.windowId } : { active: true, lastFocusedWindow: true });
+        if (!tab) return failure(new BridgeFailure("no_page", ""));
+        return { data: await notes.clip(tab, "") };
+      }
+      if (msg.type.startsWith("panel.")) return ownPage ? await panel.handle(msg) : failure(new BridgeFailure("not_allowed", ""));
       if (msg.type.startsWith("vyre.")) return sender.tab ? await fromPage(msg, sender) : failure(new BridgeFailure("not_allowed", ""));
       return failure(new BridgeFailure("not_allowed", ""));
     } catch (e) {
@@ -176,17 +210,19 @@ export function createWorker(ext) {
   }
 
   return {
-    bridge, store, rules, fill, save, popupState, refreshBadge, onMessage,
-    /** @param {number} tabId @param {{ status?: string }} info @param {any} tab */
+    bridge, store, rules, fill, save, privacy, context, panel, notes, menus, popupState, refreshBadge, onMessage,
+    /** @param {number} tabId @param {{ status?: string, url?: string }} info @param {any} tab */
     async onTabUpdated(tabId, info, tab) {
       await save.tabUpdated(tabId, info);
+      if ((info.status === "complete" || info.url) && tab && tab.active) panel.tabChanged(tab);
       if (info.status === "complete" && tab) await refreshBadge(tab);
     },
     /** @param {number} tabId */
-    onTabRemoved(tabId) { save.tabClosed(tabId); },
+    onTabRemoved(tabId) { save.tabClosed(tabId); panel.tabClosed(tabId); },
     /** @param {{ tabId: number }} info */
     async onTabActivated(info) {
       const tab = await ext.tabs.get(info.tabId);
+      panel.tabChanged(tab);
       await refreshBadge(tab);
     },
   };
@@ -204,6 +240,16 @@ function start() {
   ext.tabs.onUpdated.addListener((/** @type {number} */ id, /** @type {any} */ info, /** @type {any} */ tab) => { void w.onTabUpdated(id, info, tab); });
   ext.tabs.onRemoved.addListener((/** @type {number} */ id) => w.onTabRemoved(id));
   ext.tabs.onActivated.addListener((/** @type {any} */ info) => { void w.onTabActivated(info); });
+  // The side panel opens from the toolbar icon and Cmd+Shift+L (the action's command), one per window.
+  if (ext.sidePanel && ext.sidePanel.setPanelBehavior) void ext.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+  ext.runtime.onConnect.addListener((/** @type {any} */ port) => {
+    if (port.name !== PANEL_PORT || !port.sender || port.sender.id !== ext.runtime.id || !String(port.sender.url || "").startsWith(`chrome-extension://${ext.runtime.id}/src/panel/`)) return;
+    w.panel.connect(port);
+  });
+  if (ext.contextMenus) {
+    ext.runtime.onInstalled.addListener(() => w.menus.install());
+    ext.contextMenus.onClicked.addListener((/** @type {any} */ info, /** @type {any} */ tab) => { void w.menus.clicked(info, tab); });
+  }
 }
 
 start();
