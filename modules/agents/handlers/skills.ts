@@ -10,9 +10,10 @@ import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { parseSkill, SKILL_MAX_BYTES } from "../../../lib/skill-md.ts";
 import { agentBy, askerOf, canSee, ensure, mintId, raise, tolerant } from "../projections.ts";
 import type { AgentsCtx } from "../projections.ts";
+import { personalSkills, renameClashes } from "./skill-scopes.ts";
 
 type Row = Record<string, unknown>;
-export type Tier = "builtin" | "space" | "agent";
+export type Tier = "builtin" | "space" | "agent" | "mine" | "shared";
 export interface SkillOut {
   name: string; description: string; tier: Tier; source: string; agentId?: string; system: boolean; enabled: boolean; bytes: number; updatedAt?: number;
   /** A fingerprint of the text and supporting files: a CLI engine's copy is written again only when it changes. */
@@ -23,8 +24,10 @@ export interface SkillOut {
   note?: string;
   /** Why this row cannot be used. It stays listed so it can be fixed or removed, and is never in a turn. */
   broken?: string;
+  /** D27: "pdf (from acme/skills)", when a person's skill or one it clashes with was renamed because the name was taken first. */
+  label?: string;
 }
-interface Found extends SkillOut { text: string; body: string; files: Array<{ path: string; text: string }> }
+interface Found extends SkillOut { text: string; body: string; files: Array<{ path: string; text: string }>; at?: number }
 
 const str = (v: unknown): string => (typeof v === "string" ? v : String(v ?? ""));
 const by = (ctx: AgentsCtx): string => askerOf(ctx);
@@ -99,7 +102,7 @@ function fromRow(r: Row): Found {
   const updated = Number(r["updated_at"]);
   return {
     name, description: str(r["description"]), tier: agentId === "" ? "space" : "agent", source: str(r["source"]), system: false, enabled: Number(r["enabled"]) === 1,
-    bytes: Buffer.byteLength(text, "utf8"), ...(Number.isFinite(updated) ? { updatedAt: updated } : {}), text, body: parsed.ok ? parsed.skill.body : text,
+    bytes: Buffer.byteLength(text, "utf8"), ...(Number.isFinite(updated) ? { updatedAt: updated } : {}), at: Number(r["at"]), text, body: parsed.ok ? parsed.skill.body : text,
     files, hash: fingerprint(text, files), ...(agentId === "" ? {} : { agentId }), ...(broken ? { broken } : {}),
   };
 }
@@ -170,7 +173,7 @@ export const forgetFolderSkills = (): void => { folderCache.clear(); textCache.c
 
 // ---- what a chat with an agent sees ---------------------------------------------------------------------------------------------------------------------
 
-const TIER_WORDS: Readonly<Record<Tier, string>> = { agent: "the agent's own", space: "the Space's", builtin: "Vyre's built-in" };
+const TIER_WORDS: Readonly<Record<Tier, string>> = { agent: "the agent's own", space: "the Space's", builtin: "Vyre's built-in", mine: "your own", shared: "a shared" };
 
 /**
  * Every skill a chat with this agent can see, nearest tier first (the agent's folder, the agent's library, the Space library, built-in), with the ones that lose a name to a nearer one still listed and
@@ -185,8 +188,10 @@ async function allSkills(ctx: AgentsCtx, agentId: string | undefined, includeOff
     const a = agentBy(ctx.db, agentId);
     if (a && canSee(ctx, a)) { tiers.push(await folderSkills(ctx, agentId)); tiers.push(library(ctx, agentId)); }
   }
-  tiers.push(library(ctx, ""), built);
-  const listed = tiers.flat().filter((s) => s.enabled || includeOff);
+  // the asker's own skills and the shared ones they added sit after the agent's and before the Space's; when one of them and another skill share a name, the later one is renamed with its
+  // source (D27), so both stay usable. Clashes among the agent's and the Space's tiers keep the nearest-wins note below.
+  tiers.push(personalSkills(ctx, agentId).map((p) => ({ ...p, hash: fingerprint(p.text, p.files) })) as Found[], library(ctx, ""), built);
+  const listed = (renameClashes(tiers.flat()) as Found[]).filter((s) => s.enabled || includeOff);
   const used = new Map<string, Found>();
   for (const s of listed) {
     if (s.broken || !s.enabled) continue;
@@ -213,6 +218,7 @@ export async function visibleSkills(ctx: AgentsCtx, agentId: string | undefined)
 const outOf = (f: Found): SkillOut => ({
   name: f.name, description: f.description, tier: f.tier, source: f.source, system: f.system, enabled: f.enabled, bytes: f.bytes, hash: f.hash, ...(f.agentId ? { agentId: f.agentId } : {}),
   ...(f.updatedAt !== undefined ? { updatedAt: f.updatedAt } : {}), ...(f.shadowedBy ? { shadowedBy: f.shadowedBy } : {}), ...(f.note ? { note: f.note } : {}), ...(f.broken ? { broken: f.broken } : {}),
+  ...(f.label ? { label: f.label } : {}),
 });
 
 /** An agent that asks without naming an agent means itself: its own skills are in its list and load without it repeating its id. */

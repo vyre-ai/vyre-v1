@@ -12,6 +12,7 @@ import { agentBy, askerOf, canSee, ensure, mintId, raise } from "../projections.
 import type { AgentsCtx } from "../projections.ts";
 import { create as createAgent } from "./crud.ts";
 import { saveFile } from "../projections.ts";
+import { skillFiles, skillServers } from "./skill-scopes.ts";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown): string => (typeof v === "string" ? v : String(v ?? ""));
@@ -42,6 +43,8 @@ export async function registryFetch(url: string): Promise<unknown> {
   if (!pluginsHost?.fetchJson) throw new Error("This server cannot reach the catalog.");
   return pluginsHost.fetchJson(url);
 }
+/** A tree through the host's reader, for the Skills page's links (a GitHub repo or folder). Refused in words when the server cannot fetch. */
+export const treeOf = (ctx: AgentsCtx, src: TreeSource): Promise<TreeResult> => need(ctx).fetchTree(src);
 const sum = (files: Record<string, string>): number => Object.values(files).reduce((n, t) => n + Buffer.byteLength(t, "utf8"), 0);
 
 /** A source the admin typed: an https git URL, owner/repo on GitHub, or a folder on this server. */
@@ -381,6 +384,22 @@ export async function agentTemplateUse(ctx: AgentsCtx, input: { pluginId: string
   return { agentId: agent.agentId };
 }
 
+/** The files of one plugin a marketplace offers, for the Skills page to read its skills as a person's own (Mine). The allowlist still applies: only what an admin allows is offered. */
+export async function pluginTree(ctx: AgentsCtx, marketplaceId: string, plugin: string): Promise<{ files: Record<string, string>; source: string; version?: string }> {
+  ensure(ctx.db);
+  const m = mktBy(ctx, marketplaceId);
+  const entry = m.entries.find((e) => e.name === plugin) ?? raise(ctx, "validation.not_found", `${m.name} has no plugin called ${plugin}.`);
+  if (!isAllowed(ctx, m.name, entry.name)) raise(ctx, "validation.precondition_failed", `${entry.name} is not on the allowlist. An admin allows a marketplace or a plugin first.`);
+  let files: Record<string, string>;
+  if (entry.source.kind === "path") files = subtree(m.files, entry.source.path);
+  else if (entry.source.kind === "github" || entry.source.kind === "git") {
+    const url = entry.source.kind === "github" ? `https://github.com/${entry.source.repo}` : entry.source.url;
+    files = (await need(ctx).fetchTree({ kind: "git", url, ...(entry.source.ref ? { ref: entry.source.ref } : {}), ...(entry.source.kind === "git" && entry.source.subdir ? { subdir: entry.source.subdir } : {}) })).files;
+  } else raise(ctx, "validation.precondition_failed", `${entry.name} comes from ${entry.source.kind}, which Vyre does not fetch yet.`);
+  if (sum(files) > MAX_PLUGIN_BYTES) raise(ctx, "validation.too_large", `${entry.name} is over ${MAX_PLUGIN_BYTES / 1_000_000} MB of text.`);
+  return { files, source: `marketplace:${m.name}/${entry.name}`, ...(entry.version ? { version: entry.version } : {}) };
+}
+
 // ---- MCP servers and hooks the engine runs in the sandbox ---------------------------------------------------------------------------------------------
 
 export interface McpSpecOut {
@@ -424,6 +443,8 @@ export async function mcpServers(ctx: AgentsCtx, input: { agentId?: string }) {
       connectionId: str(r["id"]), ...(str(r["hub"] ?? "") !== "" ? { hub: str(r["hub"]) } : {}), ...(str(r["auth"] ?? "") === "oauth" ? { oauth: true } : {}),
     });
   }
+  // the servers a skill brings: from the asker's own and added skills and the Space's, with the Vault handles set up for them
+  out.push(...skillServers(ctx, input.agentId));
   return { servers: out };
 }
 
@@ -435,6 +456,7 @@ export async function hooksList(ctx: AgentsCtx, input: { agentId?: string }) {
 /** The files of a plugin, for the sandbox to be given. Plugin text, no secret: an option that is a secret is only ever a Vault handle. */
 export async function pluginFiles(ctx: AgentsCtx, input: { pluginId: string }) {
   ensure(ctx.db);
+  if (input.pluginId.startsWith("sko_") || input.pluginId.startsWith("skl_")) return { files: skillFiles(ctx, input.pluginId) ?? raise(ctx, "validation.not_found", "There is no such skill.") };
   return { files: plugBy(ctx, input.pluginId).files };
 }
 

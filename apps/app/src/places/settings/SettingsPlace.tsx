@@ -13,6 +13,8 @@ import { AppearancePage, ComputerPage, SignInPage } from "./pages-b.tsx";
 import { AiPage, ConnectedPage, NotificationsPage, ProfilePage } from "./pages-a.tsx";
 import { MailPage } from "./MailPage.tsx";
 import { MemoryPage } from "./AboutYou.tsx";
+import { SkillsPage } from "../../skills/SkillsView.tsx";
+import { openAskPane } from "../../shell/ask/pane.ts";
 import { SpacePageBody, useSpaceRows } from "./SpacePages.tsx";
 import { SavedBar, SavedProvider } from "./saved.tsx";
 import { Glyph, IconBox, Mark, pointer, webOnly } from "./ui.tsx";
@@ -143,6 +145,8 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
       case "memory": return <MemoryPage found={found} />;
       case "connected": return <ConnectedPage rows={rows} found={found} />;
       case "mail": return <MailPage />;
+      // Skills is the same page in every Space; Ask the Assistant opens the Ask pane beside Settings with the install already asked
+      case "skills": return <SkillsPage call={data.call} mode="settings" ask={(first) => openAskPane({ thing: { kind: "settings", id: "skills", title: "Skills" }, first }, "settings")} />;
       case "signin": return <SignInPage />;
       case "computer": return <ComputerPage />;
       default:
