@@ -1,0 +1,43 @@
+name: tmp-winlook
+# Throwaway (lane l-autoupdate, coordinator ask 3 Nov): does the rc.18 Windows app open to a real page for a person, next to rc.16's published installer. Never merged.
+on:
+  push:
+    branches: [tmp/l-autoupdate-winlook]
+permissions: { contents: read, actions: read }
+jobs:
+  look:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults: { run: { shell: bash } }
+    env: { GH_TOKEN: "${{ github.token }}" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - name: The rc.18 installer from wip/rc18's desktop run, and rc.16's published one
+        run: |
+          set -euo pipefail
+          mkdir -p rc18 rc16 out
+          gh run download "$(cat ci-winlook/RUN)" -R ${{ github.repository }} -n desktop-Windows-exe -D rc18
+          gh release download v1.0.0-rc.16 -R ${{ github.repository }} -p VyreSetup.exe -D rc16
+          ls -la rc18 rc16
+      - name: Install, open as a person would, look (rc.16 first, then rc.18, each on a fresh profile)
+        run: |
+          set -uo pipefail
+          for v in rc16 rc18; do
+            echo "=================== $v"
+            rm -rf "$LOCALAPPDATA/Vyre" "$LOCALAPPDATA/ai.vyre.desktop" "$APPDATA/ai.vyre.desktop"
+            ./$v/VyreSetup.exe //S; sleep 5
+            app="$LOCALAPPDATA/Vyre/vyre-desktop.exe"; ls -la "$app" || { echo "no installed app"; continue; }
+            cmd //c start "" explorer.exe "$(cygpath -w "$app")"
+            sleep 30
+            powershell -NoProfile -ExecutionPolicy Bypass -File ci-winlook/uia.ps1 -Shot "$(cygpath -w "$PWD/out/$v-person.png")"
+            taskkill //F //T //IM vyre-desktop.exe >/dev/null 2>&1; taskkill //F //T //IM vyred.exe >/dev/null 2>&1; sleep 3
+            if [ "$v" = rc18 ]; then
+              for m in clean clean-off heavy; do node ci-winlook/launch.mjs "$app" $m; powershell -NoProfile -ExecutionPolicy Bypass -File ci-winlook/uia.ps1 -Shot "$(cygpath -w "$PWD/out/$v-$m.png")"; taskkill //F //T //IM vyre-desktop.exe >/dev/null 2>&1; taskkill //F //T //IM vyred.exe >/dev/null 2>&1; sleep 3; done
+            fi
+            "$LOCALAPPDATA/Vyre/uninstall.exe" //S || true; sleep 5
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: winlook, path: out }
