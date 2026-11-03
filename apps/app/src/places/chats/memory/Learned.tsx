@@ -8,7 +8,7 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { each } from "../../files/memory/model.ts";
 import { correctFact, restoreLearned, undoLearned } from "./actions.ts";
-import { SCOPE_TEXT } from "./model.ts";
+import { learnedExact, learnedWhen, SCOPE_TEXT } from "./model.ts";
 import type { LearnedRow } from "./model.ts";
 import { LinkButton, webProps, ownMenu } from "./parts.tsx";
 import { useThreadMemory } from "./thread.tsx";
@@ -81,6 +81,8 @@ function LearnedLine({ row }: { row: LearnedRow & { current: boolean } }): React
       <View style={st.dot} />
       <Text style={st.text}><Text style={st.bold}>Learned:</Text>{` ${row.subjectTitle ? `${row.subjectTitle}: ` : ""}${row.text}`}</Text>
       {lesson ? <><Text style={st.sep}>·</Text><Text testID={`learned-scope-${row.factId}`} style={st.scope}>{SCOPE_TEXT[lesson.scope]}</Text></> : null}
+      <Text style={st.sep}>·</Text>
+      <Text testID={`learned-when-${row.factId}`} {...webProps({ title: learnedExact(row.at) })} style={st.scope}>{learnedWhen(row.at, memory.now())}</Text>
       <Text style={st.sep}>·</Text>
       <LinkButton label="Undo" testID={`learned-undo-${row.factId}`} a11y={`Undo: ${row.text}`} onPress={undo} />
       <Text style={st.sep}>·</Text>

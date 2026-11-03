@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "TASKCONFLICT_01-conflict",
+      "route": "/m/TASKCONFLICT_01?view=conflict",
+      "proto": "chat,at:task-conflict,{skin}",
+      "waitFor": "[data-testid='task-conflict-count']",
+      "note": "Two people edited one task: Sara changed it while Irfad was editing. The card above the task says so, and for each field he changed (Title, Due, Priority) shows his value next to what the task holds now, with a choice per field, Save, Use all of Sara's and Keep all of mine. Nothing is saved until he saves."
+    },
+    {
+      "id": "TASKCONFLICT_01-saved",
+      "route": "/m/TASKCONFLICT_01?view=saved",
+      "proto": "chat,at:task-conflict,{skin}",
+      "waitFor": "[data-testid='task-conflict-left']",
+      "note": "After Save: the card is gone, only the fields he kept were written, and one quiet line says what was not kept from him."
+    }
+  ]
+}

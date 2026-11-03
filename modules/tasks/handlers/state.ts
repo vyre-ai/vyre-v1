@@ -355,7 +355,9 @@ function staleVersion(ctx: TasksCtx, t: Task, input: In): never {
     lines.push(`${FIELD_WORDS[k] ?? k} is now ${wordsOf(k, rec[k])}`);
   }
   const what = lines.length ? ` Now ${lines.join("; ")}.` : "";
-  raise(ctx, "validation.precondition_failed", `This task changed while you were editing it.${what} Your change was not saved.`, { reason: "stale_version", version: t.version, updatedAt: t.updatedAt, current });
+  // who changed it last, so the second person's page can say who
+  const by = historyOf(ctx.db, t.id).find((h) => h.type === "updated")?.by;
+  raise(ctx, "validation.precondition_failed", `This task changed while you were editing it.${what} Your change was not saved.`, { reason: "stale_version", version: t.version, updatedAt: t.updatedAt, current, ...(by ? { by } : {}) });
 }
 
 export async function update(ctx: TasksCtx, input: In): Promise<unknown> {

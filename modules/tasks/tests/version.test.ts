@@ -36,3 +36,16 @@ test("an edit that names no version still saves, as before", async () => {
   await h.call("tasks.update", { taskId: made.id, title: "One" }, me);
   assert.equal((await h.call("tasks.update", { taskId: made.id, title: "Two" }, { id: bob.id })).task.title, "Two");
 });
+
+test("the refusal also says who changed the task last and which version it is on, so the second person's page can show both sides", async () => {
+  const h = harness();
+  const made = (await h.call("tasks.create", newTask({ assigned: bob, title: "Original" }), me)).task;
+  await h.call("tasks.update", { taskId: made.id, title: "Alice's title", effort: 30, expectedVersion: made.version }, me);
+  await assert.rejects(h.call("tasks.update", { taskId: made.id, title: "Bob's title", effort: 45, expectedVersion: made.version }, { id: bob.id }), (e) => {
+    const d = (e as { error?: { details?: Record<string, unknown> } }).error?.details ?? {};
+    assert.equal(d.by, alice.id);
+    assert.equal(d.version, made.version + 1);
+    assert.deepEqual(d.current, { title: "Alice's title", effort: 30 });
+    return true;
+  });
+});

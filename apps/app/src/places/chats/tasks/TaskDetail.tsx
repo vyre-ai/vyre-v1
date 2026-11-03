@@ -32,6 +32,9 @@ import { heldMail } from "../needsyou/heldmail.ts";
 import { HeldMailCard } from "../needsyou/HeldMail.tsx";
 import { giveWithCare } from "./guest.ts";
 import { dueEntries, failure, priorityEntries, withVersion } from "./actions.ts";
+import { ConflictCard } from "./Conflict.tsx";
+import { clashFrom, keptPatch, leftOut, mergeClash } from "./conflict.ts";
+import type { Clash } from "./conflict.ts";
 import { dueLabel, holderOf, isOpenState, KIND_TITLE, planOrder, PRIORITIES } from "./model.ts";
 import type { IndexOut, TaskFull, TaskRow, Who } from "./model.ts";
 import { faceKind, LiveWords, TextMenu, useLiveTurn, webProps } from "./parts.tsx";
@@ -85,13 +88,17 @@ export function TaskDetail({ rt, taskId, conversationFor, openTask, openAgent, o
   const [railOpen, setRailOpen] = useState(rail && width >= 980);
   const [line, setLine] = useState("");
   const [override, setOverride] = useState<TaskFull | null>(null);
+  // someone else changed the task while this person was editing: their words wait on a card, field by field, until they save or take the current ones
+  const [clash, setClash] = useState<Clash | null>(null);
+  const [left, setLeft] = useState("");
+  const [saving, setSaving] = useState(false);
   const [kids, setKids] = useState<readonly TaskRow[]>([]);
   const menu = useMenu();
   const task = (q.status === "ready" ? q.data.task : null);
   const shown = override && task && override.updatedAt >= task.updatedAt ? override : task;
   const versionRef = useRef<number | undefined>(undefined);
   versionRef.current = shown?.version;
-  useEffect(() => { setOverride(null); setLine(""); setMode(""); }, [taskId]);
+  useEffect(() => { setOverride(null); setLine(""); setMode(""); setClash(null); setLeft(""); }, [taskId]);
   const readKids = useCallback((): void => {
     void rt.call("tasks.index", { scope: "everyone", parentTaskId: taskId }).then((o) => setKids((o as IndexOut).rows.filter((r) => r.kind === "work").sort(planOrder)), () => setKids([]));
   }, [rt, taskId]);
@@ -106,8 +113,24 @@ export function TaskDetail({ rt, taskId, conversationFor, openTask, openAgent, o
       const out = await rt.call(cap, { taskId, ...withVersion(cap, input, versionRef.current) }) as { task?: TaskFull };
       if (out.task) setOverride(out.task);
       return true;
-    } catch (e) { setOverride(null); setLine(failure(e, "That could not be changed.")); return false; }
+    } catch (e) {
+      setOverride(null);
+      const c = cap === "tasks.update" ? clashFrom(e, input) : null;
+      if (c) { if (c.rows.length > 0) { setClash((prev) => mergeClash(prev, c)); setLeft(""); } return false; }
+      setLine(failure(e, "That could not be changed.")); return false;
+    }
   }, [rt, taskId]);
+  const saveClash = useCallback(async (): Promise<void> => {
+    if (!clash) return;
+    const patch = keptPatch(clash);
+    const clock = rt.clock();
+    const said = leftOut(clash, clock.now, clock.offsetMin);
+    if (Object.keys(patch).length === 0) { setClash(null); setLeft(said); return; }
+    setSaving(true);
+    const ok = await run("tasks.update", { ...patch, expectedVersion: clash.version });
+    setSaving(false);
+    if (ok) { setClash(null); setLeft(said); }
+  }, [clash, rt, run]);
 
   // a task with no thread yet (a planned child before it starts) gets one when someone opens it: comments need somewhere to go
   const threadId = shown?.threadId;
@@ -131,7 +154,7 @@ export function TaskDetail({ rt, taskId, conversationFor, openTask, openAgent, o
   }
   // a move picked from a status menu that needs words opens the box for them under the head
   const begin = (m: Move): void => { if (m.ask && MODE_OF[m.ask]) { setMode(MODE_OF[m.ask]!); return; } void run(m.cap, m.input); };
-  const head = <TaskHead task={shown} rt={rt} nameOf={nameOf} run={run} line={line} menu={menu} kids={kids} openTask={openTask} openAgent={openAgent} openChat={openChat} onKids={readKids} list={list} seats={who.seats} railOpen={railOpen} onRail={rail ? () => setRailOpen((o) => !o) : undefined} show={show} onShow={setShow} mode={mode} setMode={setMode} begin={begin} {...(openFull ? { openFull } : {})} {...(back ? { back } : {})} />;
+  const head = <TaskHead task={shown} rt={rt} nameOf={nameOf} run={run} line={line} menu={menu} kids={kids} openTask={openTask} openAgent={openAgent} openChat={openChat} onKids={readKids} list={list} seats={who.seats} railOpen={railOpen} onRail={rail ? () => setRailOpen((o) => !o) : undefined} show={show} onShow={setShow} mode={mode} setMode={setMode} begin={begin} clash={clash} left={left} saving={saving} setClash={setClash} saveClash={saveClash} {...(openFull ? { openFull } : {})} {...(back ? { back } : {})} />;
   const feed = conv
     ? <Conversation key={threadId} compact data={{ ...conv, head, activity: { events, show }, placeholder: "Comment, or @ someone" }} />
     : <ScrollView contentContainerStyle={st.col}>{head}</ScrollView>;
@@ -162,13 +185,16 @@ interface HeadProps {
   task: TaskFull; rt: ShellRuntime; nameOf(id: string): string; run(cap: string, input: Record<string, unknown>): Promise<boolean>; line: string; menu: Menu; kids: readonly TaskRow[]; list: ReadonlyArray<{ id: string; name: string; kind: string }>; seats: readonly Seat[];
   openTask(id: string): void; openAgent(id: string): void; openChat(id: string): void; onKids(): void; railOpen: boolean; onRail: (() => void) | undefined; show: ActivityShow; onShow(s: ActivityShow): void;
   mode: Mode; setMode(m: Mode): void; begin(m: Move): void; openFull?(id: string): void; back?(): void;
+  clash: Clash | null; left: string; saving: boolean; setClash(c: Clash): void; saveClash(): Promise<void>;
 }
 
 /** The head and every block, above the feed, scrolling with it. */
-function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, seats, openTask, openAgent, openChat, onKids, railOpen, onRail, show, onShow, mode, setMode, begin, openFull, back }: HeadProps): ReactElement {
+function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, seats, openTask, openAgent, openChat, onKids, railOpen, onRail, show, onShow, mode, setMode, begin, openFull, back, clash, left, saving, setClash, saveClash }: HeadProps): ReactElement {
   const [title, setTitle] = useState(task.title);
   const [titleH, setTitleH] = useState(34);
   useEffect(() => setTitle(task.title), [task.title]);
+  // a refused title is kept on the conflict card; the field shows what the task holds, so it never looks saved when it was not
+  useEffect(() => { if (clash) setTitle(task.title); }, [clash]);   // eslint-disable-line react-hooks/exhaustive-deps
   const view = task as unknown as TaskView;
   const turn = useLiveTurn(rt.turns, task.workerThread ?? task.threadId);
   const parent = useLive<TaskOut>(rt.screens, "tasks.page", "task", task.parentTaskId ? { route: { taskId: task.parentTaskId } } : null);
@@ -212,6 +238,7 @@ function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, seats, openTa
     {turn ? <View style={st.liveLine}><LiveWords turn={turn} turns={rt.turns} name={nameOf(turn.agentId)} /></View> : null}
     <YourAction task={task} view={view} me={rt.me.id} run={run} menu={menu} list={list} mode={mode} setMode={setMode} nameOf={nameOf} />
     {line ? <Text accessibilityRole="alert" testID="task-line" style={st.error}>{line}</Text> : null}
+    {clash ? <ConflictCard clash={clash} by={clash.by ? nameOf(clash.by) : "Someone"} now={rt.clock().now} offsetMin={rt.clock().offsetMin} busy={saving} onChange={setClash} onSave={() => void saveClash()} /> : left ? <Text testID="task-conflict-left" style={st.waiting}>{left}</Text> : null}
     <TaskBody task={task} rt={rt} nameOf={nameOf} run={run} kids={kids} people={list.filter(offered)} openTask={openTask} openAgent={openAgent} onKids={onKids} />
     <View style={st.feedHead}>
       <Text style={st.blockTitle}>Activity</Text>
