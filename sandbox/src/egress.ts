@@ -14,7 +14,7 @@ import http from "node:http";
 import net from "node:net";
 import type { Duplex } from "node:stream";
 import { hostAllowed } from "./policy.ts";
-import { VYRE_PORTS, addressRefusal, ownNetworks } from "./egress-policy.ts";
+import { VYRE_PORTS, addressRefusal, ownNetworks, targetOf } from "./egress-policy.ts";
 import type { Cidr, EgressRule } from "./egress-policy.ts";
 
 export type Verdict = "allow" | "deny";
@@ -94,6 +94,12 @@ export function createEgressProxy(o: EgressOptions): EgressProxy {
   async function admit(host: string, port: number): Promise<{ ok: true; ip: string } | { ok: false; reason: EgressEvent["reason"] }> {
     const r = rule();
     let ips: readonly string[];
+    // the Space this turn belongs to, at exactly its own address and port (a turn on a person's computer reaches Vyre's tools there): reachable whatever the rest of the rule says
+    if (r.space !== undefined && r.space === targetOf(host, port)) {
+      if (net.isIP(host) !== 0) return { ok: true, ip: host };
+      try { ips = await lookup(host); } catch { return { ok: false, reason: "no_address" }; }
+      return ips.length > 0 ? { ok: true, ip: ips[0] as string } : { ok: false, reason: "no_address" };
+    }
     if (r.egress === "public") {
       if (!Number.isInteger(port) || port < 1 || port > 65535 || VYRE_PORTS.includes(port)) return { ok: false, reason: "bad_port" };
       if (net.isIP(host) !== 0) ips = [host];   // a public address is as good as a public name; the checks below refuse every other kind

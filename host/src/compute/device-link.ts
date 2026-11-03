@@ -7,7 +7,6 @@
 //   a spawn for anyone but the person this link was signed in as is refused (cliRelay's person lock), whatever the Space says
 //   a dial that does not open (the Space is unreachable, the computer just woke, or the session was signed out) is tried again, waiting longer each time up to a minute; the app takes the link away
 //   at sign-out (DELETE /local/chrome/spaces)
-import path from "node:path";
 import { cliRelay } from "./node.ts";
 import type { NodeLauncher, NodeSocket } from "./node.ts";
 
@@ -16,6 +15,7 @@ export interface DeviceLinkDeps {
   server: string;
   /** The person's own signed-in session for that Space. Held in memory only. */
   token: string;
+  /** The data folder the launcher's sandbox works under: an engine runs in <dataDir>/work/<person>/<process>. */
   dataDir: string;
   /** What this computer calls itself in the Runs-on menu. */
   name: string;
@@ -35,7 +35,7 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
   const server = d.server.replace(/\/+$/, "");
   const url = `${server.replace(/^http/, "ws")}/compute/stream`;
   let person: string | null = null;
-  const engines = cliRelay({ launcher: d.launcher, dataDir: d.dataDir, server, log: d.log, person: () => person, workDir: (proc) => path.join(d.dataDir, "turns", proc) });
+  const engines = cliRelay({ launcher: d.launcher, dataDir: d.dataDir, server, log: d.log, person: () => person });
   const base = d.retryMs ?? 2_000;
   let wait = base;
   for (;;) {

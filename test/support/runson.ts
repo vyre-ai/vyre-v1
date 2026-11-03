@@ -1,12 +1,14 @@
 // Two daemons for the "where a chat runs" tests (lane l-runson): a Team Space server (the seeded core Space, the real engine, the fake claude of host/tests/fixtures/fake-cli-driver as the
 // model vendor, the real sandbox on the server) and a person's computer (a device-role daemon, as the Vyre app runs it) that links to the Space with the person's own session. The computer's
-// engines run the same fake claude, told FAKE_WHERE=device, so every reply says where it ran. Nothing in either daemon is faked; the people's sessions are injected (no sign-in flow here).
+// engines run the same fake claude, told FAKE_WHERE=device, so every reply says where it ran, and they run the way the engine module runs them on a computer: spawnCli inside this machine's real
+// sandbox, in the work folder the link names, under the turn's network rule. Only the program is swapped (as the server's engineCli does). The people's sessions are injected (no sign-in flow here).
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createLocalLauncher } from "../../agent/src/drivers/cli/index.ts";
+import { defaultSandbox } from "../../modules/engine/sandbox-default.ts";
+import { spawnCli } from "../../modules/engine/session.ts";
 import { fakePlatform } from "../../host/src/platform/index.ts";
 import type { FetchFn } from "../../host/src/platform/probes.ts";
 import { loadConfig } from "../../host/src/daemon/config.ts";
@@ -58,18 +60,17 @@ export async function bootSpace(): Promise<SpaceRig> {
 
 export interface DeviceRig { d: Daemon; dir: string; spawns: Array<{ argv: readonly string[]; proc: NodeProc }>; link(space: SpaceRig, token?: string): Promise<void>; unlink(): Promise<void>; stop(): Promise<void> }
 
-/** Olivia's computer: the Vyre app's device daemon. Its engines are the fake claude, told it runs on the device. */
+/** Olivia's computer: the Vyre app's device daemon. Its engines are the fake claude, told it runs on the device, started in this computer's own sandbox. */
 export async function bootDevice(o: { slowMs?: number } = {}): Promise<DeviceRig> {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-runson-mac-"));
-  const home = path.join(dir, "home");
-  fs.mkdirSync(home, { recursive: true });
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-runson-mac-")));
   const spawns: DeviceRig["spawns"] = [];
-  const local = createLocalLauncher({ wrap: (argv) => [process.execPath, FAKE_CLI, ...argv], baseEnv: { PATH: process.env["PATH"] ?? "" } });
+  // this computer's own sandbox (not the module's shared default, which in this one test process belongs to the server)
+  const sandbox = await defaultSandbox({ dataDir: dir, programRead: [path.dirname(FAKE_CLI)] });
   const launcher: NodeLauncher = {
     async spawn(spec) {
-      const proc = await local.spawn({ argv: spec.argv, env: { ...spec.env, FAKE_WHERE: "device", HOME: home, ...(o.slowMs !== undefined ? { FAKE_SLOW_MS: String(o.slowMs) } : {}) }, ...(spec.cwd !== undefined ? { cwd: spec.cwd } : {}) });
-      spawns.push({ argv: spec.argv, proc });
-      return proc;
+      const proc = await spawnCli(sandbox.plan, { argv: spec.argv, env: { ...spec.env, FAKE_WHERE: "device", ...(o.slowMs !== undefined ? { FAKE_SLOW_MS: String(o.slowMs) } : {}) }, ...(spec.cwd !== undefined ? { cwd: spec.cwd } : {}) }, [process.execPath, FAKE_CLI, ...spec.argv]);
+      spawns.push({ argv: spec.argv, proc: proc as unknown as NodeProc });
+      return proc as unknown as NodeProc;
     },
   };
   const d = await startDaemon({
@@ -96,7 +97,7 @@ export async function bootDevice(o: { slowMs?: number } = {}): Promise<DeviceRig
       const s = linked?.space;
       if (s) await waitFor(async () => (s.d.nodeRelay.devices("usr_olivia").length === 0 ? true : null), 10_000);
     },
-    stop: async () => { await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); },
+    stop: async () => { await d.stop(); await sandbox.close(); fs.rmSync(dir, { recursive: true, force: true }); },
   };
 }
 

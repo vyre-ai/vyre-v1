@@ -13,8 +13,28 @@ import { isPrivateAddress, validHostPattern } from "./policy.ts";
 import { SandboxError } from "./types.ts";
 
 export type EgressRule =
-  | { readonly egress: "public" }
-  | { readonly egress: "list"; readonly allow: readonly string[] };
+  | { readonly egress: "public"; readonly space?: string }
+  | { readonly egress: "list"; readonly allow: readonly string[]; readonly space?: string };
+
+/**
+ * `space`: the Space the turn belongs to, as "host:port" (lane l-runson). A turn that runs on a person's own computer or a server that joined reaches Vyre's tools at the Space's own address, which
+ * may be on the person's LAN or this very machine; that one address and port is reachable whatever the rest of the rule says. Nothing else on that host is.
+ */
+const SPACE_TARGET = /^(?:[A-Za-z0-9.-]{1,253}|\[[0-9A-Fa-f:.]{2,45}\]):\d{1,5}$/;
+
+/** "host:port" of an address the way a rule's `space` holds it: lower case, the port written out, an IPv6 host in brackets. Null for anything that is not http(s). */
+export function spaceTarget(address: string): string | null {
+  try {
+    const u = new URL(address);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    const port = u.port !== "" ? u.port : u.protocol === "https:" ? "443" : "80";
+    const t = `${u.hostname.toLowerCase()}:${port}`;
+    return SPACE_TARGET.test(t) ? t : null;
+  } catch { return null; }
+}
+
+/** The target a connection names, in the same form, for comparing with a rule's `space`. */
+export const targetOf = (host: string, port: number): string => `${net.isIPv6(host) ? `[${host.toLowerCase()}]` : host.toLowerCase()}:${port}`;
 
 export const PUBLIC_RULE: EgressRule = Object.freeze({ egress: "public" });
 
@@ -25,16 +45,18 @@ export const VYRE_PORTS: readonly number[] = [8420, 2019];
 export function validateRule(r: unknown): EgressRule {
   if (r === null || typeof r !== "object") throw new SandboxError("sandbox.policy", "the network rule is not an object");
   const o = r as Record<string, unknown>;
+  const space = o["space"];
+  if (space !== undefined && (typeof space !== "string" || !SPACE_TARGET.test(space))) throw new SandboxError("sandbox.policy", "the Space a rule names must be host:port");
   if (o["egress"] === "public") {
-    if (Object.keys(o).some((k) => k !== "egress")) throw new SandboxError("sandbox.policy", "the public network rule takes nothing else");
-    return PUBLIC_RULE;
+    if (Object.keys(o).some((k) => k !== "egress" && k !== "space")) throw new SandboxError("sandbox.policy", "the public network rule takes nothing else");
+    return space === undefined ? PUBLIC_RULE : { egress: "public", space: space as string };
   }
   if (o["egress"] === "list") {
     const allow = o["allow"];
     if (!Array.isArray(allow) || allow.length > 500) throw new SandboxError("sandbox.policy", "the allow-list must be a list of at most 500 host names");
-    if (Object.keys(o).some((k) => k !== "egress" && k !== "allow")) throw new SandboxError("sandbox.policy", "the list network rule takes only its hosts");
+    if (Object.keys(o).some((k) => k !== "egress" && k !== "allow" && k !== "space")) throw new SandboxError("sandbox.policy", "the list network rule takes only its hosts");
     for (const h of allow) if (typeof h !== "string" || !validHostPattern(h)) throw new SandboxError("sandbox.policy", `${JSON.stringify(h).slice(0, 80)} is not a host name the allow-list can hold`);
-    return { egress: "list", allow: [...new Set(allow as string[])] };
+    return { egress: "list", allow: [...new Set(allow as string[])], ...(space === undefined ? {} : { space: space as string }) };
   }
   throw new SandboxError("sandbox.policy", "the network rule must be public or a list");
 }

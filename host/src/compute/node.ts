@@ -47,6 +47,25 @@ export interface NodeProc {
 /** Starts a CLI engine process here, inside this machine's sandbox. Rejects with an `error.code` of engine.* when it cannot (not installed, no sandbox). */
 export interface NodeLauncher { spawn(spec: { argv: readonly string[]; cwd?: string; env: Readonly<Record<string, string>> }): Promise<NodeProc> }
 const LOOPBACK = /https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+/g;
+/** The environment variable a spawn carries its network rule in (sandbox/src/egress-policy.ts RULE_ENV); kept as a string here, the host does not import the sandbox. */
+export const RULE_ENV = "VYRE_EGRESS_RULE";
+/** A person or thread id as a folder name, the way the engine's sandbox names them (modules/engine/sandbox.ts part). */
+const safePart = (id: string): string => { const s = id.replace(/[^a-zA-Z0-9_-]/g, "_"); return s === "" || s === "." || s === ".." ? "node" : s; };
+/** The Space's address as "host:port", the way a rule's `space` holds it. */
+export function spaceTargetOf(server: string): string | null {
+  try {
+    const u = new URL(server);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    return `${u.hostname.toLowerCase()}:${u.port !== "" ? u.port : u.protocol === "https:" ? "443" : "80"}`;
+  } catch { return null; }
+}
+/** The turn's network rule with the Space's own address added (or the default, anything public, with it). A rule that is not JSON is left as it is: the sandbox refuses it and the turn says why. */
+export function withSpace(rule: string | undefined, server: string): string {
+  const space = spaceTargetOf(server);
+  let r: Record<string, unknown> = { egress: "public" };
+  if (rule !== undefined && rule !== "") { try { const v = JSON.parse(rule) as unknown; if (v === null || typeof v !== "object" || Array.isArray(v)) return rule; r = v as Record<string, unknown>; } catch { return rule; } }
+  return JSON.stringify(space === null ? r : { ...r, space });
+}
 const MAX_PROCS = 16;
 /** Bytes of a response in one frame; base64 of this stays under the Space's frame limit. */
 const PORT_CHUNK = 2 * 1024 * 1024;
@@ -148,7 +167,7 @@ async function loadKey(dir: string): Promise<{ key: KeyFile; sign(text: string):
  * The engine processes a Space starts on this machine over its live socket (cli_spawn, cli_in, cli_end, cli_kill), shared by a server that joined (runComputeNode) and a person's own computer
  * (device-link.ts). `person`, when given, is the only person whose turns this machine runs: a spawn naming anyone else is refused here, the second lock after the Space's own.
  */
-export function cliRelay(o: { launcher?: NodeLauncher; dataDir: string; server: string; log(line: string): void; person?: () => string | null; workDir?: (proc: string) => string }): { frame(m: Record<string, unknown>, say: (m: Record<string, unknown>) => void): void; killAll(): void; running(): number } {
+export function cliRelay(o: { launcher?: NodeLauncher; dataDir: string; server: string; log(line: string): void; person?: () => string | null }): { frame(m: Record<string, unknown>, say: (m: Record<string, unknown>) => void): void; killAll(): void; running(): number } {
   const procs = new Map<string, NodeProc>();
   /** The Space's loopback address means nothing here: its tools are reached at the address this computer joined by. */
   const toSpace = (v: string): string => v.replace(LOOPBACK, o.server);
@@ -164,12 +183,16 @@ export function cliRelay(o: { launcher?: NodeLauncher; dataDir: string; server: 
         const mine = o.person();
         if (mine === null || m["person"] !== mine) { say({ t: "cli_failed", proc, code: "permission.no_grant", reason: "This computer runs only its own person's chats." }); return; }
       }
+      // the engine reaches Vyre's tools at the Space's own address: the turn's network rule always lets it reach exactly that address and port (sandbox/src/egress-policy.ts `space`)
+      env[RULE_ENV] = withSpace(env[RULE_ENV], o.server);
       if (!o.launcher || argv.length === 0 || procs.has(proc) || procs.size >= MAX_PROCS) { say({ t: "cli_failed", proc, code: "engine.cli_failed", reason: "This computer cannot run an engine right now." }); return; }
       const launcher = o.launcher;
       void (async () => {
         try {
-          // the folder the Space named is the Space's own; an engine here works in a folder of this computer's, made per process
-          const cwd = o.workDir ? o.workDir(proc) : path.join(o.dataDir, "turns", proc);
+          // the folder the Space named is the Space's own; an engine here works in a folder of this computer's, made per process, laid out the way this machine's sandbox requires:
+          // <data dir>/work/<person>/<process> (modules/engine/sandbox.ts workFolder), so the engine module's own launcher accepts it and nothing else is reachable
+          const who = typeof m["person"] === "string" && m["person"] !== "" ? m["person"] : "node";
+          const cwd = path.join(o.dataDir, "work", safePart(who), proc);
           fs.mkdirSync(cwd, { recursive: true, mode: 0o700 });
           const p = await launcher.spawn({ argv: argv.map(toSpace), cwd, env });
           procs.set(proc, p);
