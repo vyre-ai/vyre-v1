@@ -350,7 +350,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
               const firstFresh = mailThreads.length > 0 && feed.find((x) => x.kind === "thread" && x.thread.messages.some((m) => fresh.has(m.message.id))) === f;
               return (
                 <ThreadCard key={f.key} e={f} v={{
-                  mine, fresh, now: clock.now, offsetMin: clock.offsetMin,
+                  mine, fresh, now: clock.now, offsetMin: clock.offsetMin, narrow: phone,
                   open: threadOpen(t, mailThreads, fresh, thOpen),
                   msgOpen: (id) => { const m = t.messages.find((x) => x.message.id === id)?.message; return m ? messageOpen(t, m, fresh, msgOpen) : false; },
                   quoteOpen: (id) => quotes.includes(id), sigOpen: (id) => sigs.includes(id),
@@ -389,7 +389,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
           ) : null}
           {mail && mailThreads.length > 0 ? (
             <View style={s.rin} testID="reply-in">
-              {inThread ? <Text style={s.rinLabel}>Replying in</Text> : <Text style={s.rinLabel}>New email</Text>}
+              {phone ? null : inThread ? <Text style={s.rinLabel} numberOfLines={1}>Replying in</Text> : <Text style={s.rinLabel} numberOfLines={1}>New email</Text>}
               <Pressable accessibilityRole="button" accessibilityLabel={inThread ? `Replying in ${inThread.subject}. Change the thread` : "New email, a separate thread. Reply in a thread instead"} testID="reply-in-pick" onPress={(e) => { const p = pointOf(e); showThreads(p.x, p.y); }} style={({ hovered }: { hovered?: boolean }) => [s.rinPick, hovered === true && s.hicOver]}>
                 <Icon name={inThread ? "thread" : "edit"} size={13} />
                 <Text style={s.rinName} numberOfLines={1}>{inThread ? inThread.subject : "Starts a separate thread"}</Text>
@@ -505,7 +505,7 @@ const s = StyleSheet.create({
   cmpIn: { width: "100%", maxWidth: 740, alignSelf: "center" },
   toText: { fontSize: 13, color: ink("--ink") },
   rin: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4, paddingBottom: 6, minWidth: 0 },
-  rinLabel: { fontSize: 12.5, color: ink("--ink-3") },
+  rinLabel: { fontSize: 12.5, color: ink("--ink-3"), flexShrink: 0 },
   rinPick: { flexDirection: "row", alignItems: "center", gap: 5, height: 24, paddingHorizontal: 6, borderRadius: 6, minWidth: 0, flexShrink: 1 },
   rinName: { fontSize: 12.5, fontWeight: "500", color: ink("--ink"), flexShrink: 1 },
   seg: { flexDirection: "row", padding: 2, borderRadius: 8, backgroundColor: ink("--hover") },

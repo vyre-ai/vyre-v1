@@ -83,7 +83,7 @@ const manifest = defineManifest({
       tool: 'inbox', label: 'filter',
     }),
     read('inbox.threads', "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role", {
-      in: { conversationId: t.opt(cnvId), contactId: t.opt(id.record), images: t.opt(t.bool({ description: 'Load remote images in HTML mail' })), ...pageIn },
+      in: { conversationId: t.opt(cnvId), contactId: t.opt(id.record), images: t.opt(t.bool()), ...pageIn },
       out: {
         conversation: conversationRow,
         threads: t.arr(t.obj({

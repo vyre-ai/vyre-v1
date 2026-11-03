@@ -168,7 +168,7 @@ const manifest = defineManifest({
     // ---- messages
     read('mail.message.get', 'Read one message with attachments, provider id, DNS check state and trace id', { in: { messageId: emlId }, out: messageDetail, tool: 'inbox', label: 'check' }),
     read('mail.thread.get', 'Read one email thread whole: every message you may see, oldest first, with quoted history and signatures apart, Gmail reactions on the message they answer, and your role (you started it, To, Cc, or added later)', {
-      in: { threadId: t.str({ examples: ['18c2a1f04e9b'] }), images: t.opt(t.bool({ description: 'Load remote images in the HTML' })) },
+      in: { threadId: t.str({ examples: ['18c2a1f04e9b'] }), images: t.opt(t.bool()) },
       out: { threadId: t.str(), subject: t.str(), role: threadRole, participants: t.arr(threadParty), messages: t.arr(threadMessage) },
       tool: 'inbox', label: 'check', errors: ['validation.bad_input'],
     }),

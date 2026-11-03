@@ -340,6 +340,8 @@ export interface ThreadView {
   /** Record chips the history put on an email. */
   chipsOf?(messageId: string): { title: string; recordId?: string }[];
   onChip?(title: string, recordId?: string): void;
+  /** A phone width: the message head keeps the name and the time and drops the rest. */
+  narrow?: boolean;
   /** Where the card sits in the feed, for landing on the first one with something new. */
   onLayoutY?(y: number): void;
 }
@@ -376,15 +378,15 @@ export function ThreadCard({ e, v }: { e: ThreadEntry; v: ThreadView }): ReactEl
         <View style={th.thl1}>
           <Text style={th.thSj} numberOfLines={1} accessibilityRole="header" aria-level={3}>{t.subject}</Text>
           <View style={s.grow} />
-          {fresh > 0 ? <><View style={th.udot} /><Text style={th.thNewText} testID={`thread-fresh:${t.threadId}`}>{`${fresh} new`}</Text></> : null}
-          <Text style={s.time}>{whenLabel(t.lastAt, v.now, v.offsetMin)}</Text>
+          {fresh > 0 ? <><View style={th.udot} /><Text style={th.thNewText} numberOfLines={1} testID={`thread-fresh:${t.threadId}`}>{`${fresh} new`}</Text></> : null}
+          <Text style={[s.time, th.keep]} numberOfLines={1}>{whenLabel(t.lastAt, v.now, v.offsetMin)}</Text>
         </View>
         <View style={th.thl2}>
           <View style={th.faces}>{each(people.slice(0, 3), (p, i) => <View key={p.address} style={[th.faceRing, i > 0 && th.faceOverlap]}><Face name={partyName(p)} size={18} /></View>)}</View>
           <Text style={th.thWho} numberOfLines={1}>{withLine(t, v.mine)}</Text>
           <Text style={th.thSep}>·</Text>
-          <Text style={th.thMeta}>{t.messageCount === 1 ? "1 message" : `${t.messageCount} messages`}</Text>
-          {role ? <><Text style={th.thSep}>·</Text><Text style={th.thRole} testID={`thread-role:${t.threadId}`}>{role}</Text></> : null}
+          <Text style={th.thMeta} numberOfLines={1}>{t.messageCount === 1 ? "1 message" : `${t.messageCount} messages`}</Text>
+          {role ? <><Text style={th.thSep}>·</Text><Text style={th.thRole} numberOfLines={1} testID={`thread-role:${t.threadId}`}>{role}</Text></> : null}
         </View>
         {!v.open && last ? <Text style={th.thPv} numberOfLines={1}><Text style={th.thPvWho}>{`${firstName(senderName(last, v.mine))} `}</Text>{msgPreview(last, 160)}</Text> : null}
       </Pressable>
@@ -416,7 +418,7 @@ function MessageLine({ m, v }: { m: ThreadMsg; v: ThreadView }): ReactElement {
       <Text style={th.mrowWho}>{firstName(who)}</Text>
       <Text style={th.mrowPv} numberOfLines={1}>{msgPreview(m, 140)}</Text>
       {m.reactions.length ? <Text style={th.mrowRx}>{m.reactions.map((r) => r.emoji).join("")}</Text> : null}
-      <Text style={s.time}>{whenLabel(m.at, v.now, v.offsetMin)}</Text>
+      <Text style={[s.time, th.keep]} numberOfLines={1}>{whenLabel(m.at, v.now, v.offsetMin)}</Text>
     </Pressable>
   );
 }
@@ -432,11 +434,11 @@ function ThreadMessage({ m, v }: { m: ThreadMsg; v: ThreadView }): ReactElement 
     <View style={th.tmsg} testID={`email:${m.id}`}>
       <View style={th.tmh}>
         <Face name={out ? "You" : partyName(m.from)} size={24} />
-        <Text style={[s.ehName, out && s.ehOut]}>{who}</Text>
-        <Text style={th.tmRcp} numberOfLines={1}>{recipientLine(m, v.mine)}</Text>
+        <Text style={[s.ehName, out && s.ehOut, th.keep]} numberOfLines={1}>{who}</Text>
+        {v.narrow ? null : <Text style={th.tmRcp} numberOfLines={1}>{recipientLine(m, v.mine)}</Text>}
         <View style={s.grow} />
-        {v.viaOf ? <Text style={s.via} numberOfLines={1}>{v.viaOf(m.mailboxId)}</Text> : null}
-        <Text style={s.time}>{whenLabel(m.at, v.now, v.offsetMin)}</Text>
+        {v.viaOf && !v.narrow ? <Text style={s.via} numberOfLines={1}>{v.viaOf(m.mailboxId)}</Text> : null}
+        <Text style={[s.time, th.keep]} numberOfLines={1}>{whenLabel(m.at, v.now, v.offsetMin)}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Collapse" testID={`collapse:${m.id}`} onPress={() => v.onMessage(m.id, false)} style={(st: { hovered?: boolean }) => [th.mcol, hover(st) && s.btnOver]}>
           <Icon name="chevd" size={12} />
         </Pressable>
@@ -509,15 +511,16 @@ const th = StyleSheet.create({
   thl1: { flexDirection: "row", alignItems: "center", gap: 8, minWidth: 0 },
   thSj: { fontSize: 14, fontWeight: "600", letterSpacing: -0.07, color: "var(--ink)", flexShrink: 1 },
   udot: { width: 7, height: 7, borderRadius: 7, backgroundColor: "var(--accent)" },
-  thNewText: { fontSize: 12, fontWeight: "600", color: "var(--accent)" },
+  thNewText: { fontSize: 12, fontWeight: "600", color: "var(--accent)", flexShrink: 0 },
+  keep: { flexShrink: 0 },
   thl2: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 5, minWidth: 0 },
   faces: { flexDirection: "row" },
   faceRing: { borderRadius: 99, borderWidth: 2, borderColor: "var(--raised)", margin: -2 },
   faceOverlap: { marginLeft: -6 },
   thWho: { fontSize: 12.5, color: "var(--ink-3)", flexShrink: 1 },
   thSep: { fontSize: 12.5, color: "var(--ink-4)" },
-  thMeta: { fontSize: 12.5, color: "var(--ink-3)", fontVariant: ["tabular-nums"] },
-  thRole: { fontSize: 12.5, color: "var(--ink-2)" },
+  thMeta: { fontSize: 12.5, color: "var(--ink-3)", fontVariant: ["tabular-nums"], flexShrink: 0 },
+  thRole: { fontSize: 12.5, color: "var(--ink-2)", flexShrink: 0 },
   thPv: { marginTop: 6, fontSize: 13, lineHeight: 19, color: "var(--ink-2)" },
   thPvWho: { fontWeight: "600", color: "var(--ink)" },
   thb: { paddingTop: 2, paddingBottom: 12, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: "var(--line)" },
