@@ -7019,12 +7019,13 @@ export type ChatReplyDetailsOut = {
       tokens: {
         in: number;
         out: number;
+        context?: number;
         cacheRead?: number;
         cacheWrite?: number;
         reasoning?: number;
       };
       cost?: {
-        source: "subscription" | "reported" | "catalog" | "unknown";
+        source: "subscription" | "reported" | "catalog" | "estimate" | "unknown";
         micros?: number;
         lines?: Array<{
             kind: "input" | "output" | "cache_read" | "cache_write";
@@ -10122,13 +10123,20 @@ export type EngineAccountResolveOut = {
   };
   cappedFrom?: string;
   via?: "thread" | "chat_key" | "work" | "step" | "space" | "backup";
-  why?: "no_account" | "expired" | "failed" | "policy";
+  why?: "no_account" | "expired" | "failed" | "policy" | "no_model";
+  model?: string;
+  servedModels?: Array<string>;
   modelFallback?: {
     from: string;
     to?: string;
   };
 };
-export type EngineAccountsListIn = Record<string, unknown>;
+export type EngineAccountsListIn = {
+  place?: "chat" | "automation" | "agent" | "space";
+  model?: string;
+  agentId?: string;
+  explicit?: boolean;
+};
 export type EngineAccountsListOut = {
   accounts: Array<{
       ref: string;
@@ -10149,6 +10157,10 @@ export type EngineAccountsListOut = {
           providerId: string;
           name: string;
         }>;
+      providerId?: string;
+      models?: Array<string>;
+      usable?: boolean;
+      why?: string;
     }>;
 };
 export type EngineCompactIn = {
@@ -10679,6 +10691,50 @@ export type EngineModelsListOut = {
     failed: boolean;
   };
 };
+export type EngineMyAiIn = {
+  threadId?: string;
+  agentId?: string;
+};
+export type EngineMyAiOut = {
+  running?: Record<string, unknown>;
+  accounts: Array<{
+      ref: string;
+      name: string;
+      provider: string;
+      kind: "api_key" | "subscription";
+      usable: boolean;
+      why?: string;
+      models: Array<string>;
+      limits: {
+        state: "read" | "not_readable";
+        session?: {
+          pct: number;
+          resetsAt?: number;
+        };
+        week?: {
+          pct: number;
+          resetsAt?: number;
+        };
+        note?: string;
+      };
+    }>;
+  use: {
+    today: {
+      turns: number;
+      input: number;
+      cachedInput: number;
+      output: number;
+      costMicros: number;
+    };
+    month: {
+      turns: number;
+      input: number;
+      cachedInput: number;
+      output: number;
+      costMicros: number;
+    };
+  };
+};
 export type EngineNowIn = Record<string, unknown>;
 export type EngineNowOut = {
   working: Array<{
@@ -11189,12 +11245,13 @@ export type EngineTurnOfMessageOut = {
     tokens: {
       in: number;
       out: number;
+      context?: number;
       cacheRead?: number;
       cacheWrite?: number;
       reasoning?: number;
     };
     cost?: {
-      source: "subscription" | "reported" | "catalog" | "unknown";
+      source: "subscription" | "reported" | "catalog" | "estimate" | "unknown";
       micros?: number;
       lines?: Array<{
           kind: "input" | "output" | "cache_read" | "cache_write";
@@ -11261,6 +11318,7 @@ export type EngineTurnRecordIn = {
     cacheReadTokens?: number;
     cacheWriteTokens?: number;
     reasoningTokens?: number;
+    contextTokens?: number;
     costUsd?: number;
     paid?: string;
     tools: Array<{
@@ -11318,6 +11376,7 @@ export type EngineTurnRecordUsageIn = {
   tokensIn: number;
   tokensOut: number;
   costMicros: number;
+  model?: string;
   itemId?: string;
 };
 export type EngineTurnRecordUsageOut = {
@@ -11471,6 +11530,7 @@ export type EngineUsageGetOut = {
   context: {
     used: number;
     window: number;
+    approximate?: boolean;
   } | null;
   session: {
     pct: number;
@@ -11482,9 +11542,20 @@ export type EngineUsageGetOut = {
   } | null;
   source: "provider" | "estimate" | "none";
   keepEvery?: string;
+  model?: string;
+  lastTurn?: {
+    model?: string;
+    account?: {
+      ref: string;
+      name?: string;
+      provider: string;
+      shared?: boolean;
+    };
+    paid?: string;
+  };
 };
 export type EngineUsageQueryIn = {
-  by: "day" | "person" | "agent" | "model";
+  by: "day" | "person" | "agent" | "model" | "account";
   from?: number;
   to?: number;
   personId?: string;
@@ -11501,6 +11572,7 @@ export type EngineUsageQueryOut = {
         tokensIn: number;
         tokensOut: number;
         costMicros: number;
+        cachedIn?: number;
       };
     }>;
   totals: {
@@ -11508,6 +11580,7 @@ export type EngineUsageQueryOut = {
     tokensIn: number;
     tokensOut: number;
     costMicros: number;
+    cachedIn?: number;
   };
 };
 export type EngineUsePolicyExportIn = Record<string, unknown>;
@@ -30940,6 +31013,7 @@ export type SitesArtifactPublishOut = {
   artifactId: string;
   url?: string;
   updated: boolean;
+  opened: boolean;
 };
 export type SitesBuildIn = {
   siteId: string;
@@ -40736,6 +40810,7 @@ export interface CapMap {
   "engine.mcp.read": { in: EngineMcpReadIn; out: EngineMcpReadOut };
   "engine.mcp.tools": { in: EngineMcpToolsIn; out: EngineMcpToolsOut };
   "engine.models.list": { in: EngineModelsListIn; out: EngineModelsListOut };
+  "engine.my_ai": { in: EngineMyAiIn; out: EngineMyAiOut };
   "engine.now": { in: EngineNowIn; out: EngineNowOut };
   "engine.placement.decide": { in: EnginePlacementDecideIn; out: EnginePlacementDecideOut };
   "engine.placement.options": { in: EnginePlacementOptionsIn; out: EnginePlacementOptionsOut };

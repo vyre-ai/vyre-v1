@@ -129,6 +129,8 @@ export interface TurnInfo {
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
   reasoningTokens?: number;
+  /** What the turn's last request sent, fresh and cached: the size of the chat as the model last saw it (the turn's token total adds every request of the turn together). */
+  contextTokens?: number;
   /** The provider's own dollar figure, summed over the turn's calls, when every call reported one. */
   costUsd?: number;
   tools: ToolTrace[];
@@ -163,7 +165,7 @@ export type DriverEvent =
    * inputTokens counts every input token, cache reads and writes included. The optional fields are present only when the provider reported them: cache reads and writes, reasoning tokens
    * (already inside outputTokens), and the provider's own price for the call in dollars (Claude Code's total_cost_usd, OpenRouter's usage.cost). Absent means not reported, never zero.
    */
-  | { type: "usage"; inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number; reasoningTokens?: number; costUsd?: number }
+  | { type: "usage"; inputTokens: number; outputTokens: number; model?: string; contextTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number; reasoningTokens?: number; costUsd?: number }
   /** A subscription limit window as the engine reported it (percent used 0 to 100, reset time in epoch ms). Kept per account; shown only when reported. */
   | { type: "limits"; window: "session" | "week"; pct: number; resetsAt?: number }
   | { type: "done"; mentions?: readonly RouteMention[] }
@@ -236,9 +238,13 @@ export interface EngineSession {
  * The account a turn runs on, as engine.account.resolve answered it. `ref` is the Vault handle (never a value); the opener fetches the secret itself through Vault fill.
  * `itemId` is the Vault item behind the handle, so usage can be metered against it. `payer` is the person who pays.
  */
+/** What a session can say about itself beyond running turns. */
+export interface SessionModel { /** The model that really runs. */ readonly model?: string }
 export interface ResolvedAccount { ref: string; driver: string; provider: string; kind: AccountKind; payer: string; reason: ResolveReason; itemId?: string;
+  /** The account's name as its owner sees it (Details: Paid by). */
+  name?: string;
   /** Which rule chose it (the Chat key, the chat's pick, an own-work account, a step's account, a Space account, a backup); absent for the asker's own. */
-  via?: "thread" | "chat_key" | "work" | "step" | "space" | "backup";
+  via?: "thread" | "chat_key" | "work" | "step" | "space" | "backup" | "own";
   /** The account ahead of this one that had hit its monthly cap. */
   cappedFrom?: string;
   /** An account ahead of this one could not pay (signed out, failing, out of its limit): this is a fallback, not the person's first choice. */

@@ -52,7 +52,7 @@ export function useAccountEntries({ agent, deps, accounts, canEdit }: AccountsIn
     const { x, y } = menuAt(e);
     const items: MenuEntry[] = [];
     if (none !== "") items.push({ label: none, checked: current === null, onSelect: () => choose(null) });
-    for (const a of accountOptions(accounts, taken)) items.push({ label: label(a), checked: a.ref === current, onSelect: () => choose(a.ref) });
+    for (const a of accountOptions(accounts, taken)) items.push({ label: label(a), checked: a.ref === current, onSelect: () => choose(a.ref), ...(a.usable === false ? { disabled: true, ...(a.why ? { reason: a.why } : {}) } : {}) });
     const real = items.some((i) => "label" in i && i.label !== none);
     const took = (made: { id: string; ref?: string }): void => choose(made.ref ?? made.id);
     menu.show(openConnect ? connectEntries(items, { kind: "ai" }, openConnect, took, !real) : (items.length === 0 ? [{ label: "No accounts to pick. Add one in the Vault.", disabled: true } as MenuEntry] : items), x, y, "other");

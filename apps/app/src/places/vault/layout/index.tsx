@@ -309,7 +309,7 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
         )
       ) : (
         <>
-          <ItemList items={visible} selectedId={effectiveId} providerOf={providerOf} healthIds={healthIds} clock={clock} onSelect={(id) => { setSelectedId(id); if (!twoPane) setDetailOpen(true); }} onOpen={(id) => { setSelectedId(id); setEditing(id); }} onMenu={itemMenu} />
+          <ItemList sections={selection.kind === "all" || query.trim() !== ""} items={visible} selectedId={effectiveId} providerOf={providerOf} healthIds={healthIds} clock={clock} onSelect={(id) => { setSelectedId(id); if (!twoPane) setDetailOpen(true); }} onOpen={(id) => { setSelectedId(id); setEditing(id); }} onMenu={itemMenu} />
           {selection.kind === "providers" && !query ? <ConnectHere connected={signedIn} onPick={(pick) => setAddingProvider(pick ?? true)} /> : null}
         </>
       )}

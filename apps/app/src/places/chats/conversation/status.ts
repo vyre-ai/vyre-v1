@@ -7,6 +7,12 @@ const dataOf = (b: MessageBlock): Record<string, unknown> => (typeof b.data === 
 /** The block the engine bridge posts when a turn ends without a reply (failed, stopped, parked on an approval). It is never drawn as a card with its own name. */
 export const isTurnStatus = (b: Pick<MessageBlock, "type">): boolean => b.type === "turn_status";
 
+/**
+ * A line the engine says in the chat as the agent (the model swap, where a chat runs, files moved to Trash): no turn made it, so it has no Details. Its hover card read "Not recorded for this reply"
+ * (the owner's rc.20 test), which is true of a line and useless.
+ */
+export const isSystemLine = (m: Pick<Message, "body" | "blocks">): boolean => m.body.trim() === "" && m.blocks.length > 0 && m.blocks.every((b) => isTurnStatus(b) && ["note", "device_wait", "trashed"].includes(str(dataOf(b).state)));
+
 /** A message that only says a turn failed: no words of its own. A failure that kept the reply's words is never dropped. */
 const onlyFailure = (m: Pick<Message, "body" | "blocks">): boolean => m.body === "" && m.blocks.length > 0 && m.blocks.every((b) => isTurnStatus(b) && str(dataOf(b).state) === "failed");
 
@@ -65,6 +71,7 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
   "provider.filtered": { message: "Your AI provider declined to answer this.", retryable: false },
   "engine.timeout": { message: "The engine did not answer in time.", retryable: true },
   "engine.session_gone": { message: "The engine lost this chat's earlier session.", cause: "Try again: it starts from the chat's summary.", retryable: true },
+  "engine.model_unavailable": { message: "That model cannot run here.", next: [{ key: "pick_model", label: "Choose another model" }, { key: "run_on_my_computer", label: "Run it on my computer" }], retryable: false },
   "engine.no_account": { message: "Connect your AI to get replies.", cause: "No AI account is saved for this chat yet.", next: [{ key: "connect_ai", label: "Connect your AI" }], retryable: false },
   "engine.account_unavailable": { message: "Your AI account could not be reached just now.", next: [{ key: "connect_ai", label: "Check your AI account" }], retryable: true },
   "engine.account_unsupported": { message: "This engine cannot run on this kind of account yet.", cause: "Use an API key for it.", next: [{ key: "connect_ai", label: "Use an API key" }], retryable: false },
@@ -114,10 +121,13 @@ export function statusView(b: MessageBlock): StatusView {
   if (state === "note" && str(d.text) !== "") return { kind: "note", id: b.id, text: str(d.text) };
   // a chat pinned to the person's computer waits for it, quietly, with the way to run it on the server instead
   if (state === "device_wait") return { kind: "wait", id: b.id, text: str(d.text) || DEVICE_WAIT_TEXT, action: { ...RUN_ON_SERVER } };
+  // files a terminal agent deleted in goal/ went to Vyre's Trash (modules/engine/goal-folder.ts): the line carries Undo, which brings them back
+  if (state === "trashed" && str(d.text) !== "" && Array.isArray(d.fileIds)) return { kind: "wait", id: b.id, text: str(d.text), action: { key: `undo_trash:${(d.fileIds as unknown[]).filter((x): x is string => typeof x === "string").join(",")}`, label: "Undo" } };
   if (state === "cancelled") return { kind: "note", id: b.id, text: "Stopped." };
   if (state === "waiting" && str(d.taskId) !== "") return { kind: "approval", id: b.id, taskId: str(d.taskId) };
   if (state === "waiting") return { kind: "note", id: b.id, text: "Waiting for your approval." };
   let w = wordsFor(str(d.code));
+  if (str(d.code) === "engine.model_unavailable" && str(d.detail) !== "") w = { ...w, message: str(d.detail) };
   // The engine that is missing is named with one button that installs it, and why the last try did not finish; one that has no build for this computer offers another account only. The reason the
   // Vault refused is the one it gave.
   const engine = Object.hasOwn(ENGINES, str(d.program)) ? ENGINES[str(d.program)] : undefined;

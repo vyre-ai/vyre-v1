@@ -227,6 +227,8 @@ interface RunTarget { host: HostKind; deviceId?: string }
 
 const NO_COMPUTER = "There is no computer for this chat to run commands on here. Use your own shell in your work folder, or ask the person to run it with terminal_request.";
 
+const OWN_COMPUTER = "This chat runs on the person's own computer, where Vyre has no terminal open yet. Use your own shell in your work folder there, or ask the person to run it with terminal_request.";
+
 async function placeFor(ctx: TermCtx, person: string, agentId: string | undefined): Promise<TurnPlace | null> {
   const place = boundPlace();
   if (!place || agentId === undefined) return null;
@@ -241,7 +243,8 @@ async function placeFor(ctx: TermCtx, person: string, agentId: string | undefine
 async function targetForRun(ctx: TermCtx, a: RunInput, person: string, agentId: string | undefined): Promise<RunTarget> {
   if (a.host === "agent_computer") return { host: "agent_computer" };
   const p = await placeFor(ctx, person, agentId);
-  const device = (): RunTarget => (p?.deviceId === undefined ? raise(ctx, "provider.unavailable", NO_COMPUTER, { reason: "no_computer" }) : { host: "device", deviceId: p.deviceId });
+  // a chat that runs on the person's own computer has a computer to run commands on: the agent's own shell there. Vyre has no terminal open on it, and the answer says that, not that there is no computer
+  const device = (): RunTarget => (p?.deviceId === undefined ? raise(ctx, "provider.unavailable", OWN_COMPUTER, { reason: "own_computer" }) : { host: "device", deviceId: p.deviceId });
   // a person's own command, or an agent that said the person's computer: the computer the chat runs on
   if (a.host === "device" || agentId === undefined) return p?.deviceId === undefined ? { host: "device" } : { host: "device", deviceId: p.deviceId };
   if (p === null) {

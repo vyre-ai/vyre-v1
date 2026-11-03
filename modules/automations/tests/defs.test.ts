@@ -6,6 +6,7 @@ import type { Harness } from "../fixtures/db.ts";
 import { alice, bob, create, goodDefinition, node } from "../fixtures/seed.ts";
 import { loadRunPlan } from "../impl.ts";
 import { findRunLink } from "../projections.ts";
+import { usableHere } from "../../../agent/src/accounts/usable.ts";
 
 const validate = async (h: Harness, definition: unknown): Promise<{ ok: boolean; issues: { nodeId?: string; severity: string; message: string }[] }> =>
   h.call("automations.validate", { definition }, alice);
@@ -152,12 +153,24 @@ test("a path that loops back is an error unless it goes through a Loop step", as
 type Prov = { id: string; handle?: string; itemId: string; name: string; connection: string; scope: string; spaceMayUse: boolean; state: string; uses?: Record<string, unknown>; capped?: boolean };
 const prov = (over: Partial<Prov> = {}): Prov => ({ id: "prv_1", handle: "#Mine_Anthropic", itemId: "vit_1", name: "Mine Anthropic", connection: "api_key", scope: "mine", spaceMayUse: false, state: "ok", ...over });
 const shared = (over: Partial<Prov> = {}): Prov => prov({ id: "prv_s", handle: "#Team_Key", itemId: "vit_s", name: "Team key", scope: "shared", ...over });
+/** The engine's answer to engine.accounts.list { place }: the Vault's rows turned into accounts and judged by the resolver's own rule (agent/src/accounts/usable.ts). */
+function accountsFrom(providers: Prov[], place: "chat" | "automation" | "agent" | "space", explicit = false) {
+  return providers.map((p) => {
+    const row = {
+      ref: p.handle, driver: "anthropic", provider: "anthropic", kind: (p.connection === "subscription" ? "subscription" : "api_key") as "subscription" | "api_key", title: p.name, mine: p.scope === "mine", ownerId: p.scope === "mine" ? "usr_alice" : null,
+      status: (p.state === "ok" ? "ok" : p.state === "needs_sign_in" ? "expired" : "failed") as "ok" | "expired" | "failed", lastProbeAt: null, spaceMayUse: p.spaceMayUse,
+      ...(p.scope === "shared" && p.uses ? { uses: p.uses } : {}), ...(p.capped === true ? { capped: true } : {}),
+    };
+    return { ref: row.ref, providerId: p.id, title: row.title, mine: row.mine, status: row.status, ...usableHere(row, place, { me: "usr_alice", policy: "any", onServer: true, ...(explicit ? { explicit: true } : {}) }) };
+  });
+}
 function liveHarness(opts: { code?: boolean | string; providers?: Prov[] } = {}) {
   const h = harness({ authorize: () => false });
   const code = opts.code ?? true;
+  let providers = opts.providers ?? [];
   h.callee("steps.support", () => ({ code: code === true ? { available: true } : { available: false, reason: code === false ? "No sandbox." : code }, ai: { available: true } }));
-  h.callee("providers.list", () => ({ providers: opts.providers ?? [] }));
-  return h;
+  h.callee("engine.accounts.list", (i) => ({ accounts: accountsFrom(providers, ((i as { place?: "chat" | "automation" | "agent" | "space" } | undefined)?.place) ?? "automation", (i as { explicit?: boolean } | undefined)?.explicit === true) }));
+  return Object.assign(h, { setProviders(p: Prov[]) { providers = p; } });
 }
 const aiNode = (over: Record<string, unknown> = {}, ai?: Record<string, unknown>) => node("a", "ai", { prompt: "Summarise", ...over }, ai ? { ai } : {});
 const draftWith = async (h: Harness, n: ReturnType<typeof node>): Promise<string> => (await h.call("automations.create", create({ definition: { triggers: trig, nodes: [n] } }), alice)).automation.id as string;
@@ -241,7 +254,7 @@ test("a Space AI step with no key is refused and the message names what to add",
   const id = await draftWith(h, aiNode());
   await h.call("automations.promote", { automationId: id, confirm: true, replaceKeys: [{ stepId: "a", keyId: "#Team_Key" }] }, alice);
   // the key is later removed from the Vault
-  h.callee("providers.list", () => ({ providers: [] }));
+  h.setProviders([]);
   await assert.rejects(turnOn(h, id), (e) => { assert.match(messageOf(e), /#Team_Key is not in the Vault/); assert.match(messageOf(e), /Space-shared AI key/); return true; });
 });
 
@@ -425,7 +438,7 @@ test("a Space automation's AI account: Automatic needs a Space account kept for 
   assert.equal((await turnOn(pick, pickId)).automation.status, "on");
   // a chosen account that is not kept for automations is refused by name
   const wrong = liveHarness({ providers: [shared({ uses: { teamChats: { who: "everyone" } } })] });
-  await assert.rejects(turnOn(wrong, await spaceDraft(wrong, { ai: { keyId: "#Team_Key" } })), (e) => { assert.match(messageOf(e), /Team key, the AI account chosen for this automation, is not set to pay for automations/); return true; });
+  await assert.rejects(turnOn(wrong, await spaceDraft(wrong, { ai: { keyId: "#Team_Key" } })), (e) => { assert.match(messageOf(e), /Team key, the AI account chosen for this automation, cannot run it\. An admin has not kept this account for this kind of work/); return true; });
   // so is a backup that is gone
   const gone = liveHarness({ providers: [kept] });
   await assert.rejects(turnOn(gone, await spaceDraft(gone, { ai: { keyId: "#Team_Key", backupKeyId: "#Missing" } })), (e) => { assert.match(messageOf(e), /#Missing is not in the Vault/); return true; });

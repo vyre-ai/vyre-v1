@@ -372,7 +372,7 @@ export default defineManifest({
       q: {
         agent: ['agents.get', { agentId: '/state/agentId' }, true], summary: ['agents.summary', { agentId: '/state/agentId' }, true],
         routines: ['agents.routines.list', { agentId: '/state/agentId' }, true], suggestions: ['agents.suggestions.list', { agentId: '/state/agentId' }, true],
-        config: ['agents.config.get', { agentId: '/state/agentId' }, true], chats: ['threads.list', {}, true], accounts: ['engine.accounts.list', {}, true],
+        config: ['agents.config.get', { agentId: '/state/agentId' }, true], chats: ['threads.list', {}, true], accounts: ['engine.accounts.list', { place: 'chat' }, true],
       },
       a: {
         chat: ['chat.start', {}], setRoleLine: ['agents.role_line.set', { agentId: '/state/agentId' }], update: ['agents.update', { agentId: '/state/agentId' }],

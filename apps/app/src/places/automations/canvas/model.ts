@@ -13,7 +13,7 @@ export type Definition = Automation["definition"];
 export type DefNode = Definition["nodes"][number];
 export type DefTrigger = Definition["triggers"][number];
 /** A sign-in or an API key the person can use. `shared` is true when it is shared with the Space and false when it is one person's own; a Space automation can run only on a shared key. */
-export interface KeyChoice { id: string; name: string; kind: "subscription" | "api"; shared?: boolean }
+export interface KeyChoice { id: string; name: string; kind: "subscription" | "api"; shared?: boolean; /** can run an automation here; false says why in `why` */ usable?: boolean; why?: string }
 export type Issue = CapMap["automations.validate"]["out"]["issues"][number];
 
 // ---------------------------------------------------------------- step kinds
@@ -798,9 +798,9 @@ export function messages(issues: readonly Issue[]): string[] {
 
 export interface Choice { label: string; checked?: boolean; run(): void }
 
-export function keyChoices(keys: readonly KeyChoice[], none: string, set: (id: string | undefined) => void): { label: string; run(): void; separator?: boolean }[] {
-  const out: { label: string; run(): void; separator?: boolean }[] = [{ label: none, run: () => set(undefined) }];
-  for (const k of keys) out.push({ label: `${k.name}${k.kind === "subscription" ? " (sign-in)" : " (API key)"}`, run: () => set(k.id) });
+export function keyChoices(keys: readonly KeyChoice[], none: string, set: (id: string | undefined) => void): { label: string; run(): void; separator?: boolean; disabled?: boolean; reason?: string }[] {
+  const out: { label: string; run(): void; separator?: boolean; disabled?: boolean; reason?: string }[] = [{ label: none, run: () => set(undefined) }];
+  for (const k of keys) out.push({ label: `${k.name}${k.kind === "subscription" ? " (sign-in)" : " (API key)"}`, run: () => set(k.id), ...(k.usable === false ? { disabled: true, ...(k.why ? { reason: k.why } : {}) } : {}) });
   return out;
 }
 

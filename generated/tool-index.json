@@ -549,7 +549,7 @@
     {
       "deferred": false,
       "name": "artifact_publish",
-      "summary": "THE way to show something you made: publish it privately to a link that opens in a tab. Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link",
+      "summary": "THE way to show something you made: publish it privately; the person gets a card in the chat to open it. The result says whether it was opened for them (opened). Give html, a file or folder in Files, a path on this machine, or a running port. Same title or artifactId updates the same link",
       "toolset": "sites"
     },
     {
@@ -2517,7 +2517,7 @@
     {
       "deferred": false,
       "name": "engine_accounts_list",
-      "summary": "Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status",
+      "summary": "Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not",
       "toolset": "meta"
     },
     {
@@ -5969,6 +5969,12 @@
       "name": "ms_workbook_update_range",
       "summary": "Write a block of cells in an Excel workbook; a single start cell grows to the size of the values",
       "toolset": "files"
+    },
+    {
+      "deferred": false,
+      "name": "my_ai",
+      "summary": "What AI this chat runs on and what else the person may use now: model, account and who paid, each usable account with models and limits (or not readable), and use today and this month. Ask it for what model, what else, what is left, /usage",
+      "toolset": "meta"
     },
     {
       "deferred": false,

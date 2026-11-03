@@ -793,6 +793,7 @@ export function createClient(transport: Transport) {
       models: {
         list: call("engine.models.list", 1),
       },
+      my_ai: call("engine.my_ai", 1),
       now: call("engine.now", 1),
       placement: {
         decide: call("engine.placement.decide", 1),

@@ -76,10 +76,10 @@ export async function configureAgent(data: Pick<ConversationData, "call" | "thre
 
 /* ---------- reading ---------- */
 
-interface AccountRow { ref: string; driver: string; kind: string; title: string; name?: string; status: string; aliases?: string[] }
+interface AccountRow { ref: string; driver: string; kind: string; title: string; name?: string; status: string; aliases?: string[]; usable?: boolean; why?: string }
 interface UsageOut {
   account: { ref: string; name: string; provider: string; plan?: string } | null;
-  context: { used: number; window: number } | null;
+  context: { used: number; window: number; approximate?: boolean } | null;
   session: { pct: number; resetsAt?: number } | null;
   week: { pct: number; resetsAt?: number } | null;
   source?: string;
@@ -98,9 +98,9 @@ export function panelUsage(out: UsageOut | null): PanelUsage | null {
 // what greys a model, in the panel's words, lives with the live list's helpers (a .ts file the unit tests load)
 export { modelReason, outOfUsage } from "./live-models.ts";
 
-/** Only accounts that are connected (signed in or not yet tested) are offered, by the name the person gave them. */
+/** Only accounts that are connected (signed in or not yet tested) and can run a chat here (engine.accounts.list with place "chat": the one rule every picker reads) are offered, by the name the person gave them. */
 export function connectedAccounts(rows: readonly AccountRow[]): PanelAccount[] {
-  return rows.filter((r) => r.status === "ok" || r.status === "untested").map((r) => ({ ref: r.ref, name: r.name ?? r.title, provider: r.driver, ...(r.kind === "api_key" ? { plan: "API key" } : {}), ...(r.aliases?.length ? { aliases: r.aliases } : {}) }));
+  return rows.filter((r) => (r.status === "ok" || r.status === "untested") && r.usable !== false).map((r) => ({ ref: r.ref, name: r.name ?? r.title, provider: r.driver, ...(r.kind === "api_key" ? { plan: "API key" } : {}), ...(r.aliases?.length ? { aliases: r.aliases } : {}) }));
 }
 
 /** The account a pinned ref shows as: itself, or the account it was folded into or listed under. */
@@ -144,7 +144,7 @@ export function useAccounts(data: { call(cap: string, input: unknown): unknown }
   const [rows, setRows] = useState<PanelAccount[] | null>(null);
   useEffect(() => {
     let live = true;
-    void Promise.resolve(data.call("engine.accounts.list", {})).then((out) => { if (live) setRows(connectedAccounts((out as { accounts?: AccountRow[] } | undefined)?.accounts ?? [])); }, () => { if (live) setRows([]); });
+    void Promise.resolve(data.call("engine.accounts.list", { place: "chat" })).then((out) => { if (live) setRows(connectedAccounts((out as { accounts?: AccountRow[] } | undefined)?.accounts ?? [])); }, () => { if (live) setRows([]); });
     return () => { live = false; };
   }, [data, version]);
   return rows;
