@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useVaultData } from "../layout/data.tsx";
 import { Btn, Glyph } from "../layout/parts.tsx";
 import { Sheet } from "../layout/Sheet.tsx";
@@ -33,6 +34,7 @@ export function BrowserSheet({ site, agents, onClose, onSaved }: { site: Browser
   };
   const seg = <T extends string>(items: ReadonlyArray<{ key: T; label: string }>, value: T, pick: (k: T) => void, id: string): ReactElement => (
     <View style={s.segs} accessibilityRole="radiogroup">
+      {/* ui-rows-lint: not a list (the choices of a segmented control) */}
       {items.map((i) => (
         <Pressable key={i.key} accessibilityRole="radio" accessibilityState={{ checked: value === i.key }} onPress={() => pick(i.key)} style={[s.seg, value === i.key && s.segOn]} testID={`${id}-${i.key}`}>
           <Text style={[s.segText, value === i.key && s.segTextOn]}>{i.label}</Text>
@@ -57,10 +59,7 @@ export function BrowserSheet({ site, agents, onClose, onSaved }: { site: Browser
       <View style={{ gap: 6 }}>
         <Text style={s.label}>What each agent may do here</Text>
         {agents.length === 0 ? <Text style={s.quiet}>You have no agents yet.</Text> : agents.map((a) => (
-          <View key={a.id} style={s.agent} testID={`browser-agent-${a.id}`}>
-            <Text style={s.agentName} numberOfLines={1}>{a.name}</Text>
-            {seg<Right>(RIGHTS, d.rights[a.id] ?? "off", (k) => setD((x) => ({ ...x, rights: { ...x.rights, [a.id]: k } })), `browser-right-${a.id}`)}
-          </View>
+          <Row key={a.id} id={`browser-agent-${a.id}`} title={a.name} trailing={seg<Right>(RIGHTS, d.rights[a.id] ?? "off", (k) => setD((x) => ({ ...x, rights: { ...x.rights, [a.id]: k } })), `browser-right-${a.id}`)} />
         ))}
       </View>
       <View style={s.held}><Glyph name="lock" /><Text style={s.quiet}>{ALWAYS_HELD}</Text></View>

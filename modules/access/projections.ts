@@ -331,6 +331,7 @@ export class AccessStore {
         ...(cut ? { home: r.parentId } : {}), ...(r.row?.["exportViewers"] === true ? { export_viewers: true } : {}),
       });
     }
+    for (const k of this.fieldLabels.keys()) if (k.startsWith("assistant:")) snap.setAssistant(k.slice("assistant:".length), true);
     for (const g of this.grants.values()) snap.putGrant(kernelGrant(g));
     for (const [k, n] of this.fieldLabels) {
       const dot = k.indexOf(".");
@@ -674,12 +675,17 @@ type PrincipalOut = { id: string; kind: PKind; name: string; owner?: string; pri
 /** The access_fields key that marks an agent private to its person (no dot: never a field label). */
 const PRIVATE_KEY = (id: string): string => `private:${id}`;
 /** Mark or unmark an agent as private to its person. True when it changed. */
-export function setPrivate(store: AccessStore, id: string, on: boolean): boolean {
+export function setPrivate(store: AccessStore, id: string, on: boolean, assistant = false): boolean {
   const had = store.fieldLabels.has(PRIVATE_KEY(id));
-  if (had === on) return false;
+  const wasAssistant = store.fieldLabels.has(ASSISTANT_KEY(id));
+  const isAssistant = on && assistant;
+  if (had === on && wasAssistant === isAssistant) return false;
   if (on) store.fieldLabels.set(PRIVATE_KEY(id), 1); else store.fieldLabels.delete(PRIVATE_KEY(id));
+  if (isAssistant) store.fieldLabels.set(ASSISTANT_KEY(id), 1); else store.fieldLabels.delete(ASSISTANT_KEY(id));
   return true;
 }
+/** The access_fields key that marks an agent as its person's own Assistant (their hands on what they own; see kernel authorize). */
+const ASSISTANT_KEY = (id: string): string => `assistant:${id}`;
 export const isPrivateAgent = (store: AccessStore, id: string): boolean => store.fieldLabels.has(PRIVATE_KEY(id));
 /** How someone else's private agent is named: its person, marked as their agent (owner ruling 3 Nov). */
 export const asAgentOf = (personName: string): string => `${personName} (Agent)`;

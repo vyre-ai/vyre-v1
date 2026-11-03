@@ -259,7 +259,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     let out: Awaited<ReturnType<Invoke>> | "gone";
     try { out = await Promise.race([s.invoke(t.cap, args, seed), s.gone]); }
     catch (e) {
-      let error = e instanceof HostError ? e.error : makeError("internal.unexpected", traceId, { message: "Something went wrong on our side." });
+      let error = e instanceof HostError ? e.error : makeError("internal.unexpected", traceId, { message: `${t.name} could not finish on the server just now, and nothing was changed. Try it once more; if it fails again, tell the person it did not work and give them this trace: ${traceId}.`, details: { tool: t.name, reason: "server_error" } });
       // a Mine item needs the person's own key, held on the server only while they are signed in: say so plainly (owner ruling 3 Nov)
       if ((error.details as { reason?: unknown } | undefined)?.reason === "vault_locked") error = { ...error, message: "Their Mine items open while they are signed in to Vyre. Ask the person you act for to sign in on this Space, in the app or the browser, then try again. Saving a new item works now." };
       deps.onCall?.(s.caller, t.name, "error", { cap: t.cap, threadId });
@@ -306,7 +306,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     let out: Awaited<ReturnType<Invoke>>;
     try { out = await s.invoke("vault.request", input, seed); }
     catch (e) {
-      const error = e instanceof HostError ? e.error : makeError("internal.unexpected", traceId, { message: "Something went wrong on our side." });
+      const error = e instanceof HostError ? e.error : makeError("internal.unexpected", traceId, { message: `${t.name} could not finish on the server just now, and nothing was changed. Try it once more; if it fails again, tell the person it did not work and give them this trace: ${traceId}.`, details: { tool: t.name, reason: "server_error" } });
       deps.onCall?.(s.caller, t.name, "error", { cap: "vault.request", threadId });
       return { result: textResult({ error }, true, { error }) };
     }

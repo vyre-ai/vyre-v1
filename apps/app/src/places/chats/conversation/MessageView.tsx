@@ -39,6 +39,7 @@ import { KeyRequestCard, isKeyRequest } from "./keyrequest.tsx";
 import { AccessRequestCard, isAccessRequest } from "./accessrequest.tsx";
 import { RedactRequestCard, isRedactRequest } from "./redactrequest.tsx";
 import { ChecklistCard, isChecklist } from "./checklist.tsx";
+import { NoteOfferCard, isNoteOffer } from "./noteoffer.tsx";
 import { QuoteCard, WebPageCard, isQuote, isWebPage } from "./webpage.tsx";
 import { ChromeStepCard, HeldSendCard, isChromeHeld, isChromeStep } from "./chrome-cards.tsx";
 import type { ChromeCardActions } from "./chrome-cards.tsx";
@@ -418,6 +419,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         if (isRedactRequest(b.type) && actions.files) return <RedactRequestCard key={b.id} block={b.data as never} agent={item.who.name} data={{ ...actions.files, nameOf: actions.nameOf ?? ((x: string) => x) }} />;
         if (isKeyRequest(b.type) && actions.files) return <KeyRequestCard key={b.id} requestId={String((b.data as { requestId?: unknown }).requestId ?? "")} agent={item.who.name} agentId={item.who.id} data={actions.files} />;
         if (isChecklist(b.type)) return <ChecklistCard key={b.id} id={b.id} data={b.data} />;
+        if (isNoteOffer(b.type) && actions.files) return <NoteOfferCard key={b.id} id={b.id} data={b.data} mine={(b.data as { person?: unknown }).person === meId} chat={actions.files} />;
         if (isWebPage(b.type)) return <WebPageCard key={b.id} id={b.id} data={b.data} />;
         if (isQuote(b.type)) return <QuoteCard key={b.id} id={b.id} data={b.data} />;
         if (isChromeHeld(b.type)) return <HeldSendCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;

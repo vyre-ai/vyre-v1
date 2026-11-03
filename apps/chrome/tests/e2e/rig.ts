@@ -14,11 +14,16 @@ export const OUT = process.env["VYRE_SHOT_DIR"] ?? path.join(os.tmpdir(), "vyre-
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, "manifest.json"), "utf8")) as { key: string };
 export const EXT_ID = [...createHash("sha256").update(Buffer.from(manifest.key, "base64")).digest("hex").slice(0, 32)].map((c) => String.fromCharCode(97 + parseInt(c, 16))).join("");
 
-export async function findChromium(): Promise<{ chromium: any; exe: string } | null> {
-  if (process.platform === "darwin" && !process.env["VYRE_E2E_ON_MAC"]) return null; // never on the Mac: the build box runs these
+/** Playwright's chromium launcher, or null when playwright-core is not installed. The one place the e2e rigs load it (scripts/boundaries.json names this file). */
+export async function playwrightChromium(): Promise<any | null> {
   let pw: any;
   try { pw = await import("playwright-core"); } catch { return null; }
-  const chromium = pw.chromium ?? pw.default?.chromium;
+  return pw.chromium ?? pw.default?.chromium ?? null;
+}
+
+export async function findChromium(): Promise<{ chromium: any; exe: string } | null> {
+  if (process.platform === "darwin" && !process.env["VYRE_E2E_ON_MAC"]) return null; // never on the Mac: the build box runs these
+  const chromium = await playwrightChromium();
   if (!chromium) return null;
   const candidates = [process.env["CHROME_BIN"], (() => { try { return chromium.executablePath(); } catch { return undefined; } })(), "/usr/bin/chromium", "/usr/bin/chromium-browser"];
   const exe = candidates.find((c) => c && fs.existsSync(c));

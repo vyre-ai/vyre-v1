@@ -59,6 +59,7 @@ export function ItemList({ items, selectedId, providerOf, healthIds, clock, onSe
         data={entries}
         rowHeight={LIST_ROW_HEIGHT}
         keyOf={(e) => keyOf(e as ListEntry)}
+        // ui-rows-lint: not a list (a section header is a label between the item Rows, not an item)
         renderItem={(e) => {
           const entry = e as ListEntry;
           if ("item" in entry) return line(entry.item);

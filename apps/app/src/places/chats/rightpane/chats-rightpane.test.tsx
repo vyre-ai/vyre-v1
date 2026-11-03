@@ -7,8 +7,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ChatRightPane, ChatRightPaneLoading } from "./ChatRightPane.tsx";
 import { RightPaneDataProvider } from "./data.tsx";
 import { FilesTab, treeOrder } from "./FilesTab.tsx";
+import { NoneBody, setupView } from "./ComputerTab.tsx";
+import type { HostsAnswer } from "./ComputerTab.tsx";
 import {
-  accept, correct, deleteRoutine, duplicateRoutine, provision, reject, removeFact, renameRoutine, saveInstructions, setRoutine, signOut, takeOver, giveBack, wake,
+  accept, correct, deleteRoutine, duplicateRoutine, provision, reasonOf, reject, removeFact, renameRoutine, saveInstructions, setRoutine, signOut, takeOver, giveBack, wake,
 } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import {
@@ -99,7 +101,7 @@ test("Computer, a Personal Space with a capable host (a server, or Docker here) 
   const s = createSample("personal");
   const withHost: Sample = { ...s, data: { ...s.data, space: { ...s.data.space, computers: true } } };
   const out = html(withHost, "computer");
-  assert.ok(has(out, 'data-testid="computer-none"') && has(out, "Set up its computer"), "no computer yet, and the way to make one");
+  assert.ok(has(out, 'data-testid="computer-none"') && has(out, "Checking where its computer can run"), "no computer yet; the button waits for the Space to say a host can run one");
   assert.ok(!has(out, "Needs a Team Space"));
 });
 
@@ -109,7 +111,7 @@ test("Computer, in a Personal Space there is no Computer tab and the pane opens 
   assert.ok(has(personal, 'data-testid="face-Assistant"'), "asking for Computer shows Threads");
   const s = createSample();
   const bare = clean(renderToStaticMarkup(<ChatRightPane data={{ ...s.data, agent: { agentId: "agt_intake", name: "Intake" } }} open onToggle={() => undefined} tab="computer" window={ALL} />));
-  assert.ok(has(bare, "No computer yet") && has(bare, 'data-testid="computer-provision"'));
+  assert.ok(has(bare, "No computer yet") && has(bare, 'data-testid="computer-checking"') && !has(bare, 'data-testid="computer-provision"'), "no button until a host says it can run one");
 });
 
 test("Threads: the threads it worked in, its helpers (running first), and its own chats; the open chat is selected", () => {
@@ -316,7 +318,7 @@ test("a failed write is one quiet line, not a thrown error", async () => {
   const { d, notes } = deps(s);
   s.failNext("memory.fact.reject");
   assert.equal(await reject(d, factsNow(s).find((f) => f.factId === "p1")!), false);
-  assert.deepEqual(notes.map((n) => n.text), ["Could not reject that fact. Try again."]);
+  assert.deepEqual(notes.map((n) => n.text), ["Could not reject that fact: memory.fact.reject failed"]);
   assert.equal(factsNow(s).find((f) => f.factId === "p1")!.status, "proposed", "nothing changed");
 });
 
@@ -504,4 +506,31 @@ test("giving back from the pane tells the agent in the chat to carry on, once, a
   posted.length = 0;
   await giveBack(mk(false), "cmp_1", "Intake");
   assert.ok(!posted.some((p) => p.cap === "chat.post"), "without a chat there is nowhere to say it");
+});
+
+test("Computer, none yet: the button is there only when a host can run one; when none can, the real reason and the next step are, never a button that cannot work", () => {
+  const render = (hosts: HostsAnswer, canProvision = true) => clean(renderToStaticMarkup(<NoneBody hosts={hosts} canProvision={canProvision} onProvision={() => undefined} />));
+  const can = render({ state: "ready", available: true, hosts: [{ hostId: "space", name: "The Space", canRun: true }] });
+  assert.ok(has(can, 'data-testid="computer-provision"') && has(can, "Set up its computer") && !has(can, 'data-testid="computer-cannot"'));
+  assert.ok(has(render({ state: "ready", available: true, hosts: [] }, false), 'data-testid="computer-provision-admin"') && !has(render({ state: "ready", available: true, hosts: [] }, false), 'data-testid="computer-provision"'), "a member is told who sets it up");
+  const why = "This server's container runner is not running, so agent computers cannot start. Start it: docker compose up -d sites-runner.";
+  const cannot = render({ state: "ready", available: false, hosts: [{ hostId: "space", name: "The Space", canRun: false, reason: why }] });
+  assert.ok(has(cannot, 'data-testid="computer-cannot"') && has(cannot, "docker compose up -d sites-runner") && !has(cannot, 'data-testid="computer-provision"') && !has(cannot, "Set up its computer"));
+  const mac = render({ state: "ready", available: false, hosts: [{ hostId: "this", name: "This computer", canRun: false, reason: "Docker is not running on this Mac. Start Docker Desktop or Colima, then set up the computer." }] });
+  assert.ok(has(mac, "Start Docker Desktop or Colima") && !has(mac, "Try again"));
+  const none = render({ state: "ready", available: false, hosts: [] });
+  assert.ok(has(none, "Add a server with Docker"));
+  const err = render({ state: "error", message: "the Space did not answer" });
+  assert.ok(has(err, "could not ask where an agent computer can run: the space did not answer".replace("the space", "the Space")) && !has(err, "Set up its computer"));
+  assert.equal(setupView({ state: "loading" }).kind, "checking");
+});
+
+test("a failed write says why in the app's own words, and a computer that could not be set up says the reason", async () => {
+  const s = createSample();
+  const { d, notes } = deps(s);
+  const reasoned: PaneDeps = { ...d, call: async () => { throw new Error("This server's container runner is not running. Start it: docker compose up -d sites-runner."); } };
+  assert.equal(await provision(reasoned, "agt_intake", "Dex"), false);
+  assert.deepEqual(notes.map((n) => n.text), ["Could not set up its computer: This server's container runner is not running. Start it: docker compose up -d sites-runner"]);
+  assert.equal(reasonOf(new Error("Not allowed.")), "Not allowed");
+  assert.equal(reasonOf("not an error"), "");
 });

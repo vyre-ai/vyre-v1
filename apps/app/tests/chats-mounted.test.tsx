@@ -5,7 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { validateInput } from "../../../generated/validators.ts";
+import { validateInput } from "./validators.support.ts";
 import { Terminal, TerminalFeed, hostMenu, keyToData } from "../../../ui/src/Terminal/index.tsx";
 import type { TerminalFrame } from "../../../ui/src/Terminal/index.tsx";
 import { PEOPLE, CHANNEL, COMPUTER, HELPER, RECORDING, SERVER_TERMINAL, TERMINAL, createMountSample } from "../src/places/chats/mounts/sample.ts";

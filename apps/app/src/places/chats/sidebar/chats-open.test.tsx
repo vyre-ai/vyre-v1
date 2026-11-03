@@ -19,7 +19,7 @@ test("every page the place can show has its open key, from a tab, a link or Cmd-
   assert.equal(openKeyOf(fromHash("subject=channel:th_general").route), "t:th_general", "a channel is its thread");
   assert.equal(openKeyOf(fromHash("screen=tasks.my-work").route), "tasks");
   assert.equal(openKeyOf(fromHash("screen=tasks.needs-you").route), "tasks", "the old Needs you link opens Tasks: one door (l-tasks)");
-  assert.equal(openKeyOf(fromHash("screen=chats.threads").route), "threads");
+  // the old Threads page is gone: its address opens Replies in the Inbox (shell/hash), and no chat row is selected
   assert.equal(openKeyOf(fromHash("screen=chats.artifacts").route), "artifacts");
   assert.equal(openKeyOf(fromHash("screen=chats.agent-page&agentId=agt_docs").route), "a:agt_docs", "Cmd-K to an agent");
   assert.equal(openKeyOf(fromHash("screen=chats.agent-form&agentId=agt_docs").route), "a:agt_docs");
@@ -43,7 +43,6 @@ test("the open row is the chat, else the channel of its thread, else the importe
   assert.equal(openEntry(entries, "i:isc_a"), "i:isc_a");
   assert.equal(openEntry(entries, "a:agt_docs"), "f:agt_docs");
   assert.equal(openEntry(entries, "tasks"), "nav:tasks");
-  assert.equal(openEntry(entries, "threads"), "nav:threads");
   assert.equal(openEntry(entries, "artifacts"), "artifacts");
   assert.equal(openEntry(entries, "t:c9"), null, "a chat with no row");
   assert.equal(openEntry(entries, "a:agt_none"), null);
@@ -65,8 +64,6 @@ test("selection follows the open page across a tab switch, a link and Cmd-K for 
   assert.deepEqual(selectedRows(root), [face], "a link to an agent's page selects its face");
   await show("tasks");
   assert.deepEqual(selectedRows(root), ["nav:tasks"]);
-  await show("threads");
-  assert.deepEqual(selectedRows(root), ["nav:threads"]);
   await show("artifacts");
   assert.deepEqual(selectedRows(root), ["artifacts"]);
   await show("i:isc_a");

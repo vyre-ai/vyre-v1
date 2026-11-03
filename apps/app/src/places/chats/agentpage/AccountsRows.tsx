@@ -43,7 +43,7 @@ export function useAccountEntries({ agent, deps, accounts, canEdit }: AccountsIn
   const openConnect = useOpenConnect();
   const fallback = agent.accountFallback ?? [];
   const chat = agent.accountPolicy === "key" ? agent.accountKey ?? null : null;
-  const spaceAi = useSpaceAi(deps.call);
+  const spaceAi = useSpaceAi(deps.call, { agentId: agent.agentId });
   const before: AccountPatch = { accountPolicy: agent.accountPolicy, accountKey: agent.accountKey ?? null, accountFallback: [...fallback], memoryKey: agent.memoryKey ?? null, workKey: agent.workKey ?? null };
   const save = (patch: AccountPatch, said: string): void => { void setAccounts(deps, agent.agentId, patch, before, said); };
   const label = (a: AccountChoice): string => `${accountName(accounts, a.ref)}${STATUS_NOTE[a.status] ? `, ${STATUS_NOTE[a.status].toLowerCase()}` : ""}`;

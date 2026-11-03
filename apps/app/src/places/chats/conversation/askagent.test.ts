@@ -11,10 +11,13 @@ const channel = (agents: Array<{ agentId: string; mode: "lead" | "listen" }>): T
 const msg = (id: string, author: { kind: "person" | "agent"; id: string }, body: string): Message => ({ messageId: id, threadId: "thr_c", threadSeq: 1, author, kind: author.kind === "agent" ? "agent" : "text", body, blocks: [], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: 1 } as Message);
 const directory = [{ id: "agt_docs", name: "Docs", kind: "agent" as const }, { id: "agt_intake", name: "Intake", kind: "agent" as const }, { id: "usr_maya", name: "Maya Chen", kind: "person" as const }];
 
-test("the picker lists the channel's agents, your own first, and a private agent reads as <Person> (Agent)", () => {
+test("the picker lists the channel's agents, your own Assistant first as Assistant; another person's Assistant and an outside agent are not offered", () => {
   const t = channel([{ agentId: "agt_docs", mode: "listen" }, { agentId: "agt_mine", mode: "listen" }, { agentId: "agt_intake", mode: "listen" }]);
   const meta = [{ agentId: "agt_docs", name: "Docs", ownerId: "usr_maya", kind: "agent" }, { agentId: "agt_mine", name: "Assistant", ownerId: "usr_me", kind: "assistant" }, { agentId: "agt_intake", name: "Intake", ownerId: "usr_me", kind: "agent" }];
-  assert.deepEqual(pickerAgents(t, meta, "usr_me", nameOf).map((a) => a.label), ["Dana Reyes (Agent)", "Intake", "Docs"]);
+  assert.deepEqual(pickerAgents(t, meta, "usr_me", nameOf).map((a) => a.label), ["Assistant", "Intake", "Docs"]);
+  const crowded = channel([{ agentId: "agt_mine", mode: "listen" }, { agentId: "agt_maya_a", mode: "listen" }, { agentId: "agt_cc", mode: "listen" }, { agentId: "agt_docs", mode: "listen" }]);
+  const more = [...meta, { agentId: "agt_maya_a", name: "Assistant", ownerId: "usr_maya", kind: "assistant" }, { agentId: "agt_cc", name: "Dana Reyes (Agent)", ownerId: "usr_me", kind: "agent" }];
+  assert.deepEqual(pickerAgents(crowded, more, "usr_me", nameOf).map((a) => a.label), ["Assistant", "Docs"], "no one else's Assistant, no outside agent");
   assert.deepEqual(pickerAgents(t, [], "usr_me", nameOf).map((a) => a.label), ["Docs", "Dana's assistant", "Intake"], "before agents.list answers, the names it already knows");
   assert.equal(ASK_AGENT_LABEL, "Ask an Agent…");
 });

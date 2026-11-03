@@ -187,6 +187,18 @@ test("a correction outside the chat: an edit of a draft makes one lesson, the sa
   assert.equal((await recordCorrection(quiet.ctx, { agentId: AGENT, how: "refuse", was: "Send it to Dana", threadId: "thr_quiet", ref: "q" })).why, "forgotten");
 });
 
+test("an undo (how reverse) of what an agent did makes one lesson in the person's layer; made in a chat other people read it keeps nothing", async () => {
+  const h = harness();
+  const input = { agentId: AGENT, how: "reverse" as const, was: 'deleted the file "Q3 plan.pdf"', ref: "reverse:evt_1" };
+  const out = await recordCorrection(h.ctx, input);
+  assert.equal(out.kept, true);
+  assert.equal(out.lesson?.lesson?.how, "reverse");
+  assert.match(out.lesson?.text ?? "", /^I undid this, so check with me before you do it again: deleted the file "Q3 plan\.pdf"/);
+  assert.equal((await recordCorrection(h.ctx, input)).why, "duplicate", "one lesson per act however often it is undone");
+  const shared = harness({ raw: h.raw, clock: h.clock, respond: { "threads.get": () => ({ thread: { kind: "channel", agents: [], members: [person(DANA), person(OMAR)] } }) } });
+  assert.equal((await recordCorrection(shared.ctx, { ...input, ref: "reverse:evt_2", threadId: "thr_chan" })).why, "nothing");
+});
+
 test("sharing a lesson goes through memory.promote: it waits for a person to accept, and says so", async () => {
   const respond: Record<string, Responder> = { "agents.get": () => ({ agent: { folderId: "fld_mira", ownerId: "usr_boss" } }) };
   const h = harness({ respond, readOnly: ["folder:fld_mira"] });

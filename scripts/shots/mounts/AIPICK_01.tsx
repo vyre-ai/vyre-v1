@@ -10,6 +10,7 @@ import { AutomationsDataProvider } from "../../../apps/app/src/places/automation
 import { AutomationConfig } from "../../../apps/app/src/places/automations/config/AutomationConfig.tsx";
 import { ConfigExtrasProvider } from "../../../apps/app/src/places/automations/config/data.tsx";
 import { ReplyDetailsPane } from "../../../apps/app/src/places/chats/details/ReplyDetailsPane.tsx";
+import { usableHere } from "../../../agent/src/accounts/usable.ts";
 import { createConfigSample, northwind } from "../../../apps/app/src/places/automations/config/sample.ts";
 
 export const title = "AI account on an agent and on an automation";
@@ -36,6 +37,15 @@ export default function Mount(): ReactNode {
     const base = sample.data.call;
     return async (cap: string, input: unknown): Promise<unknown> => {
       if (cap === "providers.list") return { providers: part === "agent-none" ? ROWS.filter((r) => r.scope === "mine" || r.id === "prv_o") : ROWS };
+      if (cap === "engine.accounts.list") {
+        // the resolver's own answer for the place, over the same scripted rows (useSpaceAi asks once per kind of work)
+        const place = (input as { place?: "chat" | "automation" | "agent" | "space" }).place ?? "chat";
+        const list = (part === "agent-none" ? ROWS.filter((r) => r.scope === "mine" || r.id === "prv_o") : ROWS);
+        return { accounts: list.map((r) => {
+          const row = { ref: r.handle, driver: r.providerKey, provider: r.providerKey, kind: "api_key" as const, title: r.name, mine: r.scope === "mine", ownerId: r.scope === "mine" ? "usr_me" : null, status: "ok" as const, lastProbeAt: null, spaceMayUse: true, ...("uses" in r ? { uses: r.uses } : {}) };
+          return { ref: r.handle, providerId: r.id, title: r.name, name: r.name, mine: row.mine, status: "ok", kind: "api_key", driver: r.providerKey, ...usableHere(row as never, place, { me: "usr_me", policy: "any", onServer: true, runsAs: "space" }) };
+        }) };
+      }
       if (cap === "providers.space_key.get") return { mayManage: part !== "agent-member" };
       if (cap === "vault.items.list") return { items: [] };
       if (cap === "engine.models.list") return { models: [{ model: "claude-opus-5-5", title: "Opus 5.5", allowed: true }, { model: "claude-sonnet-5-5", title: "Sonnet 5.5", allowed: true }] };

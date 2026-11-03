@@ -64,6 +64,11 @@ export const handlers: Handlers<HandlerCtx> = {
   "automations.validate": async (ctx) => { throw new VyreErr(notImplemented("automations.validate", ctx.trace)); },
   "automations.vault_usage": async (ctx) => { throw new VyreErr(notImplemented("automations.vault_usage", ctx.trace)); },
   "automations.versions": async (ctx) => { throw new VyreErr(notImplemented("automations.versions", ctx.trace)); },
+  "automations.watches.check": async (ctx) => { throw new VyreErr(notImplemented("automations.watches.check", ctx.trace)); },
+  "automations.watches.list": async (ctx) => { throw new VyreErr(notImplemented("automations.watches.list", ctx.trace)); },
+  "automations.watches.remove": async (ctx) => { throw new VyreErr(notImplemented("automations.watches.remove", ctx.trace)); },
+  "automations.watches.report": async (ctx) => { throw new VyreErr(notImplemented("automations.watches.report", ctx.trace)); },
+  "automations.watches.save": async (ctx) => { throw new VyreErr(notImplemented("automations.watches.save", ctx.trace)); },
   "automations.webhook_url.get": async (ctx) => { throw new VyreErr(notImplemented("automations.webhook_url.get", ctx.trace)); },
   "automations.webhook_url.rotate": async (ctx) => { throw new VyreErr(notImplemented("automations.webhook_url.rotate", ctx.trace)); },
 };

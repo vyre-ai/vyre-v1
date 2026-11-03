@@ -11,6 +11,7 @@ import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 import type { ComposerSend, ListItem } from "../../../../../../ui/src/Composer/index.tsx";
 import { DeferredComposer as Composer } from "../../../../../../ui/src/Composer/Deferred.tsx";
+import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { DropRoute } from "../../../../../../ui/src/FileDrop/index.tsx";
 import type { TransferLike } from "../../../../../../ui/src/FileDrop/index.tsx";
@@ -63,7 +64,7 @@ import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import {
   WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel, swapNeeded,
-  directWith, muteOfferFor, onBehalfOf, threadKindNote, timeline, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
+  directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeline, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 
@@ -327,7 +328,8 @@ function ConversationView(): ReactElement {
   const openAskPicker = (messageId: string, x: number, y: number): void => {
     const show = (): void => {
       const agents = pickerAgents(thread, agentMeta.current ?? [], data.me.id, nameOf);
-      menu.show(agents.map((a) => ({ label: a.label, onSelect: () => askAbout(messageId, a.id) })), x, y, "context", { label: "Ask an agent" });
+      // a mention-style picker, not a context menu: Report a problem belongs on message menus
+      menu.show(agents.map((a) => ({ label: a.label, leading: <Avatar name={a.label} seedId={a.id} kind="agent" size={16} />, onSelect: () => askAbout(messageId, a.id) })), x, y, "other", { label: "Ask an agent" });
     };
     if (agentMeta.current !== null) { show(); return; }
     void data.call("agents.list", {}).then((out) => { agentMeta.current = ((out as { agents?: AgentMeta[] } | null)?.agents ?? []); show(); }, () => { agentMeta.current = []; show(); });
@@ -399,7 +401,7 @@ function ConversationView(): ReactElement {
       ...(f.model ? [{ head: `Model · ${prettyModel(f.model)}` } as MenuEntry] : []),
       { label: `Ask ${f.name} to Review This`, onSelect: () => void act.askToReview(data, thread, f.agentId, data.newKey()).catch(fail("Could not ask.")) },
       { label: `Open ${f.name}'s Page`, onSelect: () => data.nav.openAgent(f.agentId) },
-      ...(many ? [{ separator: true } as MenuEntry, { label: "Remove From Thread", danger: true, onSelect: () => void act.removeAgent(data, f.agentId).catch(fail("Could not remove it.")) } as MenuEntry] : []),
+      ...(many ? [{ separator: true } as MenuEntry, { label: "Remove From Chat", danger: true, onSelect: () => void act.removeAgent(data, f.agentId).catch(fail("Could not remove it.")) } as MenuEntry] : []),
     ];
     menu.show(items, x, y, "other", { label: f.name });
   };
@@ -408,7 +410,7 @@ function ConversationView(): ReactElement {
     const old = mode === "lead" ? swapNeeded(thread, f.agentId) : null;
     if (old) {
       menu.show([
-        { head: `${nameOf(old.agentId)} leads this thread. Make ${f.name} lead instead? ${nameOf(old.agentId)} will keep listening.` },
+        { head: `${nameOf(old.agentId)} leads this chat. Make ${f.name} lead instead? ${nameOf(old.agentId)} will keep listening.` },
         { label: "Swap", onSelect: () => void act.setMode(data, f.agentId, "lead").then(() => data.toast(`${f.name} now replies to everything. ${nameOf(old.agentId)} replies only when @mentioned.`), fail("Could not change the mode.")) },
         { label: "Cancel" },
       ], x, y, "other", { label: f.name });
@@ -448,8 +450,8 @@ function ConversationView(): ReactElement {
   const peopleMenu = (x: number, y: number): void => {
     const list = participants(thread, nameOf);
     menu.show(
-      [{ head: `${list.length} in this thread` } as MenuEntry, ...collect(list, (p): MenuEntry => ({ label: p.kind === "person" ? p.name : `${p.name} · ${p.role}`, onSelect: () => { if (p.kind === "agent") data.nav.openAgent(p.id); } }))],
-      x, y, "other", { label: "People in this thread" },
+      [{ head: `${list.length} in this chat` } as MenuEntry, ...collect(list, (p): MenuEntry => ({ label: p.kind === "person" ? p.name : `${p.name} · ${p.role}`, onSelect: () => { if (p.kind === "agent") data.nav.openAgent(p.id); } }))],
+      x, y, "other", { label: "People in this chat" },
     );
   };
   const modelMenu = (x: number, y: number): void => {
@@ -501,7 +503,7 @@ function ConversationView(): ReactElement {
     },
     setPinned: (id, pinned) => void act.setPinned(data, id, pinned).catch(fail("Could not pin it.")),
     react: (id, emoji, remove) => void act.react(data, id, emoji, remove).catch(fail("Could not react.")),
-    openThread: (id) => void act.openMessageThread(data, id).then((tid) => data.nav.openThread(tid), fail("Could not open the thread.")),
+    openThread: (id) => void act.openMessageThread(data, id).then((tid) => data.nav.openThread(tid), fail("Could not open the replies.")),
     remove: (id) => void act.deleteMessage(data, id).catch(fail("Could not delete it.")),
     openAgent: data.nav.openAgent,
     openBeside: data.nav.openBeside,
@@ -565,12 +567,15 @@ function ConversationView(): ReactElement {
     const name = typeof x === "string" ? x : x.t;
     const id = (typeof x === "string" ? undefined : x.ref) ?? dirId(name, kind);
     const base = typeof x === "string" ? { t: x } : x;
-    const where = kind === "agent"
-      ? (id && inThread.has(id) ? (inThread.size === 1 ? "In this chat" : inThread.get(id) === "lead" ? "Replies to everything" : "Only when @mentioned") : "Not in this chat yet")
-      : (id && thread.members.some((m) => m.id === id) ? "In this chat" : "Not in this chat");
-    return { ...base, kind: kind === "agent" ? "Agent" : "Person", ...(id ? { ref: id } : {}), s: base.s ? `${base.s} \u00b7 ${where}` : where };
+    // the menu groups as the prototype draws them: the agents in this chat (Lead, Teammate), People (Member), and the agents to Bring in
+    const inChat = kind === "agent" ? id !== undefined && inThread.has(id) : id !== undefined && thread.members.some((m) => m.id === id);
+    const mineAssistant = kind === "agent" && id !== undefined && id === data.assistantId;
+    const group = kind === "agent" ? (inChat || mineAssistant ? "Agents in this chat" : "Bring in") : "People";
+    const where = kind === "agent" ? (mineAssistant ? "Yours" : inChat ? (inThread.get(id!) === "lead" ? "Lead" : "Teammate") : "Agent") : (inChat ? "Member" : "Space");
+    return { ...base, group, kind: kind === "agent" ? "Agent" : "Person", ...(id ? { ref: id } : {}), s: base.s ? `${base.s} \u00b7 ${where}` : where };
   };
-  const lists = { ...data.lists, agents: (data.lists.agents ?? []).map((x) => noteFor(x, "agent")), people: (data.lists.people ?? []).map((x) => noteFor(x, "person")), commands: commandItems(data.pluginCommands?.()) };
+  // a guest is offered only the agents this chat allows (mentionable)
+  const lists = { ...data.lists, agents: (data.lists.agents ?? []).map((x) => noteFor(x, "agent")).filter((x) => mentionable(x, data.me.guest === true, inThread)), people: (data.lists.people ?? []).map((x) => noteFor(x, "person")), commands: commandItems(data.pluginCommands?.()) };
   const mode: ChatMode = modeOver ?? modeOf(thread);
   const chooseChatMode = (m: ChatMode): void => {
     setModeOver(m);
@@ -628,7 +633,7 @@ function ConversationView(): ReactElement {
           </Pressable>
         )}
         {leadFace && !narrow ? <FaceButton key={leadFace.agentId} name={leadFace.name} seedId={leadFace.agentId} mode={leadFace.mode} working={leadFace.working} title={modeTitle(leadFace)} testID={`face-${leadFace.agentId}`} {...(title !== leadFace.name ? { label: leadFace.name } : {})} size={20} onPress={(x, y) => modeMenu(leadFace, x, y)} /> : null}
-        <View testID="conversation-faces" accessibilityRole="toolbar" accessibilityLabel="Agents in this thread" style={st.faces}>
+        <View testID="conversation-faces" accessibilityRole="toolbar" accessibilityLabel="Agents in this chat" style={st.faces}>
           {collect(narrow ? [] : otherFaces, (f) => <FaceButton key={f.agentId} name={f.name} seedId={f.agentId} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
           {narrow ? null : <IconButton icon="plus" label="Add an agent" size={24} testID="add-agent" onPress={addMenu} />}
         </View>
@@ -637,7 +642,7 @@ function ConversationView(): ReactElement {
         {online ? null : <Text testID="conversation-offline" style={st.meta}>Offline</Text>}
         {helpers.length > 0 ? <IconButton icon="helper" label={`${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running`} badge={helpers.length} testID="helpers-button" onPress={helpersMenu} /> : null}
         {isWorking ? <IconButton icon="stop" label={stopLabel(working, nameOf)} danger testID="stop-button" onPress={stopMenu} /> : null}
-        <IconButton icon="people" label={`${thread.members.length} in this thread`} badge={thread.members.length} testID="participants-button" onPress={peopleMenu} />
+        <IconButton icon="people" label={`${thread.members.length} in this chat`} badge={thread.members.length} testID="participants-button" onPress={peopleMenu} />
         <IconButton icon="search" label="Find in chat" active={finding} testID="find-button" onPress={() => setFinding((f) => !f)} />
         <IconButton icon="pane" label="Show or hide the pane" testID="pane-button" onPress={() => data.nav.togglePane()} />
         <IconButton icon="more" label="More" testID="more-button" onPress={moreMenu} />
@@ -739,7 +744,7 @@ function ConversationView(): ReactElement {
             barExtra={<MemorySwitch threadId={thread.threadId} call={data.call} say={say} />}
             suggest={composerSuggest(data)} preview={(item) => previewOf(data, item)}
             renderPanel={(agent, close, narrowPanel) => <ChatBrain data={data} thread={thread} agent={agent} accounts={accounts} mode={mode} onMode={chooseChatMode} close={close} narrow={narrowPanel} say={say} {...(place.runs ? { runs: place.runs } : {})} onCompact={(keep, always) => void compactChat(data, keep, always, agent.id).then((line) => { if (line === null) say(keep ? `Compacted, keeping ${keep}` : "Compacted"); }, fail("Could not compact."))} />}
-            {...(lead ? { lead: nameOf(lead.agentId) } : {})} listening={collect(thread.agents.filter((a) => a.mode === "listen"), (a) => nameOf(a.agentId))}
+            {...(lead ? { lead: nameOf(lead.agentId) } : {})} members={thread.members.filter((p) => p.kind === "person").map((p) => nameOf(p.id))} listening={collect(thread.agents.filter((a) => a.mode === "listen"), (a) => nameOf(a.agentId))}
             lists={lists} agentChat={thread.kind !== "channel"} onChange={(t) => { typedRef.current = t; setTyped(t); }} onCommand={(name) => void runSlash(`/${name}`, commandEnv())}
             onSubmit={(p) => submit(p, "queue")} onInterrupt={(p) => submit(p, "interrupt")}
             onStop={() => void (working.length > 1 ? act.stopAll(data) : act.stopAgent(data, working[0])).then(() => say("Stopped. The steps so far are kept."), fail("Could not stop it."))}
