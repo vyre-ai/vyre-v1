@@ -12,6 +12,7 @@ import { openDb } from "../daemon/sqlite.ts";
 import { loadRelayKeys } from "../seams/relay.ts";
 import { openPeerChannel } from "./link.ts";
 import { LEASE_ID, LEASE_MS, RENEW_MS, decide } from "./runner.ts";
+import { serveGit, syncTrees } from "./trees.ts";
 import type { Lease } from "./runner.ts";
 import type { PeerChannel, PeerTarget } from "./link.ts";
 
@@ -30,11 +31,15 @@ export type CreateCells = (db: { all(sql: string, ...a: unknown[]): unknown[]; r
 
 /** Tables that describe this computer, or are kept from this computer's own log by sequence, and never travel. The engine's queue, leases and parked turns are work this computer's own engine
  *  holds: copied, another computer's engine would take a turn that is already running here (a chat message itself travels; the turn it started stays where it was sent). */
-const LOCAL = /^(host_|health_|logs_|sync_|search_|network_(phone|endpoint|config|command|result|dns|cert|peer_request|peer_self|peer_conflict|peer_invite)|engine_(thread_queue|thread_lease|waits|crew_job|crew_wait|capture_state))/;
+const LOCAL = /^(host_|health_|logs_|sync_|search_|network_(phone|endpoint|config|command|result|dns|cert|peer_request|peer_self|peer_conflict|peer_invite|peer_blob_seen)|engine_(thread_queue|thread_lease|waits|crew_job|crew_wait|capture_state))/;
 export const denyModules = (t: string): boolean => LOCAL.test(t);
 export const DENY_COLUMNS: Readonly<Record<string, readonly string[]>> = { network_peer: ["last_seen_at"] };
 
 const ROUND_MS = 5_000;
+/** A write here wakes the other computers this long after the last one in a burst; the 5 s round stays as the fallback. */
+const WAKE_DEBOUNCE_MS = 500;
+const WATCH_MS = 200;
+const TREES_EVERY = 3;
 const BACKOFF_MS = 15_000;
 const BLOBS_EVERY = 6;
 const PAGE = 500;
@@ -55,6 +60,8 @@ export interface PeerSyncDeps {
   roundMs?: number;
   /** how long the runner lease lasts (runner.ts); tests make it short */
   leaseMs?: number;
+  /** how long after a write the other computers are woken (tests) */
+  wakeMs?: number;
 }
 
 export interface PeerSync {
@@ -86,6 +93,45 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
   let timer: ReturnType<typeof setInterval> | null = null;
   let running = false;
   let leasedAt = 0;
+  let wokeBlobs = false, wokeTrees = false;
+  // live: a write here pokes the other computers (debounced); a poke from one asks for a round soon
+  let watcher: ReturnType<typeof setInterval> | null = null;
+  let lastDirty = -1, wakeTimer: ReturnType<typeof setTimeout> | null = null, soonTimer: ReturnType<typeof setTimeout> | null = null;
+  const dirtyMark = (): number => {
+    let n = 0;
+    const h = d.db();
+    try { n += Number((h?.all("SELECT COALESCE(MAX(n), 0) AS n FROM peer_dirty")[0] as { n?: number } | undefined)?.n ?? 0); } catch { /* not installed */ }
+    try { n += Number((spaceDb?.all("SELECT COALESCE(MAX(n), 0) AS n FROM peer_dirty")[0] as { n?: number } | undefined)?.n ?? 0) * 1e9; } catch { /* no space store */ }
+    return n;
+  };
+  async function poke(): Promise<void> {
+    const h = d.db(), me = d.selfId(), token = d.token();
+    if (!h || !me || !token) return;
+    for (const p of peers(h)) {
+      if (p.id === me || !p.route || (backoff.get(p.id) ?? 0) > d.now()) continue;
+      try { const ch = await channel(p); await ch.request({ method: "POST", path: "/v1/peers/poke", headers: { authorization: `Peer ${token}` }, timeoutMs: 5_000 }); }
+      catch { channels.get(p.id)?.close(); channels.delete(p.id); }
+    }
+  }
+  function watch(): void {
+    if (watcher) return;
+    watcher = setInterval(() => {
+      if (!cells) return;
+      const m = dirtyMark();
+      if (lastDirty < 0) { lastDirty = m; return; }
+      if (m === lastDirty) return;
+      lastDirty = m;
+      if (wakeTimer) clearTimeout(wakeTimer);
+      wakeTimer = setTimeout(() => { wakeTimer = null; void poke(); }, d.wakeMs ?? WAKE_DEBOUNCE_MS);
+    }, WATCH_MS);
+    watcher.unref?.();
+  }
+  /** Another computer wrote something: take it now rather than at the next round. */
+  function soon(): void {
+    if (soonTimer) return;
+    soonTimer = setTimeout(() => { soonTimer = null; wokeBlobs = true; wokeTrees = true; void round().catch(() => {}); }, 50);
+    soonTimer.unref?.();
+  }
 
   const leaseRow = (h: HostDb): Lease | null => (h.all("SELECT peer_id, kind, since, expires_at FROM network_runner WHERE id = ?", LEASE_ID)[0] as Lease | undefined) ?? null;
   function lease(): RunnerState {
@@ -144,11 +190,49 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
     return ch;
   }
 
+  const walkBlobs = (): string[] => {
+    const base = path.join(d.root, "blobs");
+    const out: string[] = [];
+    const go = (rel: string): void => {
+      let names: fs.Dirent[];
+      try { names = fs.readdirSync(path.join(base, rel), { withFileTypes: true }); } catch { return; }
+      for (const n of names) { const r = rel ? `${rel}/${n.name}` : n.name; if (n.isDirectory()) go(r); else if (n.isFile() && !n.name.endsWith(".peer-part")) out.push(r); }
+    };
+    go("");
+    return out;
+  };
+  const gone = (h: HostDb): Set<string> => new Set((h.all("SELECT path FROM network_peer_blob_gone") as { path: string }[]).map((r) => r.path));
+
+  /** Deletions travel as tombstones: a tombstone that arrived deletes this computer's copy; a blob that was here and is not any more gets one. */
+  function settleBlobs(h: HostDb): number {
+    let changed = 0;
+    const dead = gone(h);
+    const seen = new Set((h.all("SELECT path FROM network_peer_blob_seen") as { path: string }[]).map((r) => r.path));
+    for (const rel of dead) {
+      if (!seen.has(rel)) continue;
+      fs.rmSync(path.join(d.root, "blobs", rel), { force: true });
+      h.run("DELETE FROM network_peer_blob_seen WHERE path = ?", rel);
+      seen.delete(rel);
+      changed++;
+    }
+    const now = new Set(walkBlobs());
+    for (const rel of seen) if (!now.has(rel)) { h.run("INSERT OR IGNORE INTO network_peer_blob_gone (path, at) VALUES (?, ?)", rel, d.now()); h.run("DELETE FROM network_peer_blob_seen WHERE path = ?", rel); changed++; }
+    for (const rel of now) if (!seen.has(rel)) {
+      h.run("INSERT OR IGNORE INTO network_peer_blob_seen (path) VALUES (?)", rel);
+      // made here again after it was deleted somewhere: it lives again
+      if (dead.has(rel)) h.run("DELETE FROM network_peer_blob_gone WHERE path = ?", rel);
+    }
+    return changed;
+  }
+
   async function fetchBlobs(ch: PeerChannel, auth: Record<string, string>): Promise<number> {
     const list = await ch.request({ method: "GET", path: "/v1/peers/snapshot?file=blobs", headers: auth });
     if (list.status !== 200) return 0;
     let got = 0;
+    const h0 = d.db();
+    const dead = h0 ? gone(h0) : new Set<string>();
     for (const rel of list.json<{ data: { files: string[] } }>().data.files) {
+      if (dead.has(rel)) continue;
       const n = path.posix.normalize(rel);
       if (n.startsWith("..") || n.startsWith("/") || n.includes("\0")) continue;
       const to = path.join(d.root, "blobs", n);
@@ -159,12 +243,19 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
       let ok = false;
       try { ok = (await ch.request({ method: "GET", path: `/v1/peers/snapshot?file=${encodeURIComponent(`blobs/${n}`)}`, headers: auth, sink: (c) => { fs.writeSync(fd, c); }, timeoutMs: 5 * 60_000 })).status === 200; }
       finally { fs.closeSync(fd); }
-      if (ok) { fs.renameSync(tmp, to); got++; } else fs.rmSync(tmp, { force: true });
+      if (ok) { fs.renameSync(tmp, to); h0?.run("INSERT OR IGNORE INTO network_peer_blob_seen (path) VALUES (?)", n); got++; } else fs.rmSync(tmp, { force: true });
     }
     return got;
   }
 
+  // one round at a time: a round asked for while one runs (a poke, the timer, a caller) waits for it and then runs, so it sees what changed meanwhile
+  let current: Promise<{ reached: string[]; applied: number }> | null = null;
   async function round(): Promise<{ reached: string[]; applied: number }> {
+    while (current) await current.catch(() => undefined);
+    current = roundOnce();
+    try { return await current; } finally { current = null; }
+  }
+  async function roundOnce(): Promise<{ reached: string[]; applied: number }> {
     const out = { reached: [] as string[], applied: 0 };
     if (running || !ensure() || !cells) return out;
     running = true;
@@ -173,6 +264,8 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
       if (!h || !me || !token) return out;
       rounds++;
       const auth = { authorization: `Peer ${token}`, "content-type": "application/json" };
+      // a deletion here becomes a tombstone before anyone asks; a tombstone from elsewhere deletes the copy here
+      try { out.applied += settleBlobs(h); } catch (e) { d.log("peers.blobs_failed", { why: (e as Error).message.slice(0, 120) }); }
       for (const p of peers(h)) {
         if (p.id === me || !p.route) continue;
         if ((backoff.get(p.id) ?? 0) > d.now()) continue;
@@ -197,7 +290,11 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
               if (!page.more) break;
             }
           }
-          if (rounds % BLOBS_EVERY === 1) out.applied += await fetchBlobs(ch, auth);
+          if (rounds % BLOBS_EVERY === 1 || wokeBlobs) out.applied += await fetchBlobs(ch, auth);
+          if (rounds % TREES_EVERY === 1 || wokeTrees) {
+            try { const t = await syncTrees(d.root, ch, auth, { id: p.id, name: p.name }); if (t.created.length || t.moved.length || t.kept.length) d.log("peers.trees", { from: p.id, ...t }); }
+            catch (e) { d.log("peers.trees_failed", { from: p.id, why: (e as Error).message.slice(0, 120) }); }
+          }
           h.run("UPDATE network_peer SET last_seen_at = ? WHERE id = ?", d.now(), p.id);
           out.reached.push(p.id);
           backoff.delete(p.id);
@@ -208,6 +305,7 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
           d.log("peers.unreachable", { peer: p.id, why: (e as Error).message.slice(0, 120) });
         }
       }
+      wokeBlobs = false; wokeTrees = false;
       if (out.applied) d.changed();
       if (d.now() - leasedAt >= Math.min(RENEW_MS, (d.leaseMs ?? LEASE_MS) / 3)) lease();
       try { h.run("UPDATE network_peer_self SET waiting = ?, synced_at = ? WHERE id = 1", waiting(), out.reached.length ? d.now() : null); } catch { /* an older table */ }
@@ -257,17 +355,25 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
   return {
     ensure, round, waiting, isRunner, lease,
     handle(req, res, peerOf) {
-      if (req.method === "POST" && (req.url ?? "").split("?")[0] === "/v1/peers/changes") { void changes(req, res, peerOf).catch(() => { try { res.writeHead(500); res.end(); } catch { /* sent */ } }); return true; }
+      const url = new URL(req.url ?? "/", "http://vyred");
+      if (req.method === "POST" && url.pathname === "/v1/peers/changes") { void changes(req, res, peerOf).catch(() => { try { res.writeHead(500); res.end(); } catch { /* sent */ } }); return true; }
+      const auth = async (): Promise<boolean> => { if (await peerOf(req)) return true; res.writeHead(401, { "content-type": "application/json" }); res.end('{"error":{"code":"auth.unauthenticated","message":"This computer is not part of the Space."}}'); return false; };
+      if (req.method === "POST" && url.pathname === "/v1/peers/poke") { void auth().then((ok) => { if (!ok) return; res.writeHead(202, { "cache-control": "no-store" }); res.end(); soon(); }); return true; }
+      if (req.method === "GET" && url.pathname.startsWith("/v1/peers/git/")) { void auth().then((ok) => (ok ? serveGit(d.root, req, res, url) : undefined)).catch(() => { try { res.writeHead(500); res.end(); } catch { /* sent */ } }); return true; }
       return false;
     },
     start() {
+      watch();
       if (timer) return;
       timer = setInterval(() => { void round().catch(() => {}); }, d.roundMs ?? ROUND_MS);
       timer.unref?.();
     },
     stop() {
       if (timer) clearInterval(timer);
-      timer = null;
+      if (watcher) clearInterval(watcher);
+      if (wakeTimer) clearTimeout(wakeTimer);
+      if (soonTimer) clearTimeout(soonTimer);
+      timer = null; watcher = null;
       for (const ch of channels.values()) ch.close();
       channels.clear();
       try { spaceDb?.close(); } catch { /* closed */ }

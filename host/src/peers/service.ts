@@ -85,6 +85,7 @@ export interface PeerServiceDeps {
   /** how often the computers sync while awake (tests make it short) */
   roundMs?: number;
   leaseMs?: number;
+  wakeMs?: number;
   /** a server of the Space (VYRE_PEER_KIND=server): it takes the scheduled-work lease from a computer */
   kind?: "computer" | "server";
 }
@@ -227,7 +228,7 @@ export function createPeerService(d: PeerServiceDeps): PeerService {
   const ownToken = (): string | null => { try { return fs.readFileSync(tokenFile, "utf8").trim() || null; } catch { return null; } };
   const peerSync = createPeerSync({
     root: d.root, db, createCells: () => d.createCells?.() ?? null, selfId: () => { const h = db(); return h ? selfId(h) : null; }, token: ownToken,
-    now: d.now, log: d.log, changed: () => d.changed?.(), ...(d.WebSocket ? { WebSocket: d.WebSocket } : {}), ...(d.roundMs ? { roundMs: d.roundMs } : {}), ...(d.leaseMs ? { leaseMs: d.leaseMs } : {}),
+    now: d.now, log: d.log, changed: () => d.changed?.(), ...(d.WebSocket ? { WebSocket: d.WebSocket } : {}), ...(d.roundMs ? { roundMs: d.roundMs } : {}), ...(d.leaseMs ? { leaseMs: d.leaseMs } : {}), ...(d.wakeMs ? { wakeMs: d.wakeMs } : {}),
   });
 
   /** This computer's row in network_peer, made the first time the Space has an owner and a relay route. Its token is kept in peer.token (0600) and only its hash in the row. */

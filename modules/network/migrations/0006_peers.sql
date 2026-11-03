@@ -69,3 +69,12 @@ CREATE TABLE IF NOT EXISTS network_peer_invite (
   expires_at INTEGER NOT NULL,
   used_at INTEGER
 );
+-- A file's contents (a blob under blobs/) deleted on one computer of a Personal Space: the tombstone travels like any row, and every computer deletes its copy and never fetches it again.
+CREATE TABLE IF NOT EXISTS network_peer_blob_gone (
+  path TEXT PRIMARY KEY,
+  at INTEGER NOT NULL
+);
+-- The blobs this computer has had (never copied): one that was here and is gone was deleted here, so its tombstone is written.
+CREATE TABLE IF NOT EXISTS network_peer_blob_seen (
+  path TEXT PRIMARY KEY
+);

@@ -51,7 +51,7 @@ export function applyPeerJoin(root: string, now: () => number = Date.now): Appli
   const db = openDb(path.join(root, "modules.db"));
   try {
     for (const sql of [
-      "DELETE FROM network_phone", "DELETE FROM network_endpoint", "DELETE FROM network_peer_request",
+      "DELETE FROM network_phone", "DELETE FROM network_endpoint", "DELETE FROM network_peer_request", "DELETE FROM network_peer_blob_seen", "DELETE FROM network_peer_invite",
       "UPDATE network_config SET address = NULL, relay_address = NULL",
     ]) { try { db.exec(sql); } catch { /* an older copy without that table */ } }
     db.run("INSERT OR REPLACE INTO network_peer_self (id, peer_id) VALUES (1, ?)", peerId);
