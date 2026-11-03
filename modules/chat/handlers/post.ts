@@ -184,7 +184,7 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   if (thread.kind === "helper" && !isCrewThread(ctx, thread) && !(author.kind === "agent" && agentsOf(ctx.db, thread.id).some((a) => a.agentId === author.id))) {
     raise(ctx, "validation.bad_input", "A helper chat takes no messages. Steer the helper from the chat that started it.");
   }
-  if (thread.closedAt !== undefined) raise(ctx, "validation.bad_input", "This thread is closed. Reopen it to write in it.");
+  if (thread.closedAt !== undefined) raise(ctx, "validation.bad_input", "This chat is closed. Reopen it to write in it.");
 
   const body = input.body;
   const blocks = cleanBlocks(ctx, input.blocks);
@@ -199,14 +199,14 @@ export async function post(ctx: ChatCtx, input: PostInput) {
   if (input.clientId !== undefined) {
     const prior = messageBy(ctx.db, input.clientId);
     if (prior) {
-      if (prior.thread !== thread.id) raise(ctx, "validation.bad_input", "That message id belongs to another thread.");
+      if (prior.thread !== thread.id) raise(ctx, "validation.bad_input", "That message id belongs to another chat.");
       return { message: messageOut(prior, encOf(ctx.db, thread)) };
     }
   }
   let replyTo: MessageRec | null = null;
   if (input.replyTo !== undefined) {
     replyTo = messageBy(ctx.db, input.replyTo);
-    if (!replyTo || replyTo.thread !== thread.id) raise(ctx, "validation.bad_input", "The message you reply to is not in this thread.");
+    if (!replyTo || replyTo.thread !== thread.id) raise(ctx, "validation.bad_input", "The message you reply to is not in this chat.");
   }
 
   // Hops: an agent answering another agent is one hop further from the last person who spoke; a person's message starts again at 0. A Job's line (a helper's or a teammate's

@@ -84,7 +84,7 @@ export function NoteDialog({ n, image, who, edited, from, askAgents, a }: { n: N
           <View {...menu}>
           {n.clip ? (
             <View style={s.pad}>
-              {n.clip.selection ? <Quote text={n.clip.selection} /> : null}
+              {n.clip.selection?.trim() ? <Quote text={n.clip.selection.trim()} /> : null}
               <Source icon="clip" url={n.clip.url}>
                 {openable(n.clip.url) ? <Pressable accessibilityRole="link" onPress={() => a.openUrl(openable(n.clip!.url)!)} testID="note-open-page" style={{ marginLeft: 6 }}><Text style={s.ref}>Open page</Text></Pressable> : null}
               </Source>

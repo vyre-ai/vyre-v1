@@ -6863,6 +6863,7 @@ export type ChatRecentOut = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
@@ -6875,6 +6876,7 @@ export type ChatRecentOut = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
@@ -6887,6 +6889,7 @@ export type ChatRecentOut = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
@@ -6899,6 +6902,7 @@ export type ChatRecentOut = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
@@ -6911,6 +6915,7 @@ export type ChatRecentOut = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;

@@ -139,7 +139,7 @@ export function RunLines({ run, lines, name, me, actions, canRetry, openThoughts
         return <Text key={l.id} testID={`line-${l.id}`} style={c.statl}>{l.text}</Text>;
       case "branch":
         return (
-          <View key={l.id} testID={`branch-${l.id}`} accessibilityLabel={`Side thread, ${l.label}`} style={c.branch}>
+          <View key={l.id} testID={`branch-${l.id}`} accessibilityLabel={`Side chat, ${l.label}`} style={c.branch}>
             <Text style={c.branchHead}>{l.label}</Text>
             {each(l.lines, render)}
           </View>

@@ -232,7 +232,7 @@ export const ROW_HELP: Readonly<Record<string, string>> = {
   "profile.timezone": "Used for your working hours, quiet hours and whatever agents schedule for you.",
   "profile.working_hours": "When you work. People and agents see it, Find a time keeps to it, and outside it only calls, urgent approvals and incidents interrupt you.",
   "notifications.email_backstop": "One email if an approval has been waiting on you for 4 hours.",
-  "notifications.alert_replies": "A reply in a thread you follow interrupts you. Off, it is a badge.",
+  "notifications.alert_replies": "A reply to a message you follow interrupts you. Off, it is a badge.",
   "notifications.routines_all": "Failures always reach you. On, successes do too.",
   "notifications.quiet_hours": "No sounds or pushes between these times. What arrives waits in one summary.",
   "notifications.hand_needs_you_to": "While you are away, what needs you goes to this person.",

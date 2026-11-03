@@ -1,5 +1,5 @@
 // The thread pieces as they are pressed (audit Threads 3, 4, 6, 7): the box at the top of a thread goes back to the message; the line under a message says how many replies and opens the
-// thread; the Threads page draws the threads I am in from its live read, with what is new, and loads the next page on request.
+// thread; Replies (in the Inbox) draws the replies I follow from its live read, with what is new, and loads the next page on request.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { act } from "react";
@@ -7,7 +7,7 @@ import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../../../onboarding/test-dom.ts";
 import { ThreadParent } from "../conversation/ThreadParent.tsx";
 import { ReplyLine } from "../conversation/ReplyLine.tsx";
-import { ThreadsPage, THREADS_SCREEN } from "./ThreadsPage.tsx";
+import { RepliesPage, THREADS_SCREEN } from "./RepliesPage.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 
 const NOW = Date.UTC(2026, 10, 3, 15, 0);
@@ -40,7 +40,7 @@ test("the line under a message: faces, how many replies, when the last came; pre
   assert.equal(opened, 1);
 });
 
-test("the Threads page draws the threads I am in from its live read, with what is new, and loads the next page", async () => {
+test("Replies (in the Inbox) draws the replies I follow from its live read, with what is new, and loads the next page", async () => {
   installDom();
   const row = (id: string, over: Record<string, unknown> = {}) => ({ threadId: id, kind: "thread", listed: false, planMode: false, members: [], agents: [], createdAt: NOW - 3_600_000, ...over });
   const asked: { cap: string; input: Record<string, unknown> }[] = [];
@@ -59,17 +59,17 @@ test("the Threads page draws the threads I am in from its live read, with what i
     call: async (cap: string, input: Record<string, unknown>) => { asked.push({ cap, input }); return { threads: [row("thr_2", { parentTitle: "Lee file", replyCount: 1, following: true })], total: 2 }; },
   } as unknown as ShellRuntime;
   const opened: string[] = [];
-  const root = await mount(createRoot, <ThreadsPage rt={rt} nameOf={(id) => (id === "usr_leo" ? "Leo" : id)} openChat={(id) => opened.push(id)} />);
+  const root = await mount(createRoot, <RepliesPage rt={rt} nameOf={(id) => (id === "usr_leo" ? "Leo" : id)} openChat={(id) => opened.push(id)} />);
   const one = find(root, "row-thread-thr_1");
   assert.ok(one, "the first thread is drawn");
   assert.match(textOf(one), /#intake/);
   assert.match(textOf(one), /Leo: Rivera is with me/);
   assert.equal(textOf(find(root, "thread-unread-thr_1")).trim(), "2", "how many are new");
   assert.equal(typeof one!.props.onContextMenu, "function", "right-click opens the row's menu");
-  await press(find(root, "threads-more"));
+  await press(find(root, "replies-more"));
   await flush();
-  // the Ask history under the threads is its own read (kind ask); then the next page, from where the first ended
-  assert.deepEqual(asked.map((a) => [a.cap, a.input["kind"], a.input["cursor"]]), [["threads.list", ["ask"], undefined], ["threads.list", ["thread"], "thr_1"]], "Ask history, then the next page from where the first ended");
+  // the next page is read from where the first ended; Ask history is not here any more (the chat list's Asks filter)
+  assert.deepEqual(asked.map((a) => [a.cap, a.input["kind"], a.input["cursor"]]), [["threads.list", ["thread"], "thr_1"]], "the next page from where the first ended");
   assert.match(textOf(find(root, "row-thread-thr_2")), /Lee file/);
   await press(find(root, "row-thread-thr_2"));
   assert.deepEqual(opened, ["thr_2"]);

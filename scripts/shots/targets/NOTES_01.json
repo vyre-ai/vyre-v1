@@ -125,6 +125,13 @@
       "proto": "chat,at:notes-open,{skin}",
       "waitFor": "[data-testid='note-dialog']",
       "note": "The same note opened: the link card is a card with the site, title and description."
+    },
+    {
+      "id": "NOTES_01-phone-from",
+      "route": "/m/NOTES_01?part=phone-from",
+      "proto": "chat,at:notes-from,{skin}",
+      "waitFor": "[data-testid='note-from']",
+      "note": "A note saved from a chat, on the phone: the From line with the chat, the time and Open message."
     }
   ]
 }

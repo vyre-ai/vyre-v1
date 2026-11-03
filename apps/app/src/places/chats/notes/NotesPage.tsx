@@ -696,10 +696,11 @@ export function NotesPage({ rt, nameOf, noteId = null, initial, store: given, ph
         )}
         {phoneNote ? (
           <PhoneNote
-            key={phoneNote.noteId} n={phoneNote} image={phoneNote.hasImage ? store.image(phoneNote.noteId) : null} who={who} edited={edited(phoneNote)}
+            key={phoneNote.noteId} n={phoneNote} image={phoneNote.hasImage ? store.image(phoneNote.noteId) : null} who={who} edited={edited(phoneNote)} from={fromLine(phoneNote, clock.now, clock.offsetMin)}
             a={{
               back: () => { flush(); setPhoneOpen(null); }, pin: () => pin(phoneNote.noteId), share: () => share(phoneNote.noteId), colour: (x, y) => colourMenu(phoneNote.noteId, x, y), labels: (x, y) => labelMenu(phoneNote.noteId, x, y),
               image: () => setImage(phoneNote.noteId), more: () => setPhoneSheet(phoneNote.noteId), title: (v) => edit(phoneNote.noteId, { title: v }), body: (v) => edit(phoneNote.noteId, { body: v }),
+              openFrom: (threadId, messageId) => rt.open({ screen: "chats.conversation", args: { threadId, m: messageId } }),
             }}
           />
         ) : null}

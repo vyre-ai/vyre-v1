@@ -22,3 +22,13 @@
 - A web address in a note's words gets its link card, with the site, title and picture, even when you type or paste it into the opened note and not only into Take a note. A note that already has a card keeps it; if you remove the card, the same address is not read again.
 - Agents make notes. Ask an agent to "save this as a note" and it saves a private note in your Notes that links back to that message ("From: <chat>, <time>", with Open message; the link opens only for people who can read the chat, and a note shared with someone carries no link into your chat). An agent may also offer a small "Save as a note?" card with a preview when something in a chat is worth keeping, with Save and Not now. Offers are rare: once per topic, never within 15 minutes of another, and nothing for a day after you say Not now. After Save the chat shows a quiet "Saved to Notes · Open" line that names nothing the note holds. A note made from a chat other people read is still only yours. Turn offers off in Settings, Notes.
 - notes.create takes a source (the chat and message it is saved from) and the note says where it came from (notes.get, notes.list: from). chat.note_offer.make is the agent tool (offer_note) and chat.note_offer.answer the person's Save or Not now; notes_create is the agent tool for "save this as a note". The offer card is written by Vyre itself, so an agent cannot post one with chat.post. Setting notes.offers (person, default on).
+
+## What's new (Threads)
+
+- Threads is no longer a sidebar item. A chat with unread replies you follow turns bold in the chat list and shows the count. Reply threads inside chats work as before: Reply in thread, the right pane, the replies line, follow, mute and alerts.
+- Inbox has a Replies tab. It holds the page the Threads item had: Open, Mark as read, Follow, Mute, Leave, Copy link on right-click, and J and K to move.
+- Ask history sits in the chat list under an Asks filter next to Recent.
+- No screen calls a chat a "thread" any more ("1 in this chat"). "Thread" only means the replies to one message.
+- Old links to the Threads page open Inbox > Replies.
+- chat.recent rows carry repliesUnread (the unread replies hanging off that chat). The Unread filter and the next-unread jump count them.
+- The phone note shows its "From" line like the desktop note.

@@ -50,7 +50,7 @@ const channelRow = t.obj({
   unread: t.int(), createdAt: t.ts(), restricted: t.opt(t.bool()),   // Console only: an invite-only channel the admin is not in; they can archive it and change who is in it, not read it
 });
 const recentRow = t.obj({
-  threadId: id.thread, kind: threadKind, title: t.str(), agents: t.arr(id.agent), unread: t.int(), working: t.bool(), starred: t.bool(),
+  threadId: id.thread, kind: threadKind, title: t.str(), agents: t.arr(id.agent), unread: t.int(), repliesUnread: t.opt(t.int({ minimum: 1, description: 'New replies, to messages the asker follows, in this chat: its row is bold with this count' })), working: t.bool(), starred: t.bool(),
   lastAt: t.ts(), preview: t.opt(t.str()), people: t.opt(t.arr(id.user, { description: 'The other people in the chat, never the asker: a direct message names the one person it is with' })),
 });
 const mention = t.obj({ kind: t.enm('person', 'agent'), id: t.str({ examples: ['usr_a1b2c3'] }) });
@@ -321,7 +321,7 @@ export default defineManifest({
     read('chat.recent', 'Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)', { level: 'member',
       in: { filter: t.opt(t.enm('all', 'unread', 'people', 'agents')) },
       out: { starred: t.arr(recentRow), today: t.arr(recentRow), yesterday: t.arr(recentRow), earlier: t.arr(recentRow), archived: t.arr(recentRow), nextUnread: t.nullable(id.thread),
-        threadsUnread: t.opt(t.int({ minimum: 0, description: 'Unread messages, from someone else, across the inline threads the asker is in (the Threads row)' })) }, tool: 'chats', label: 'filter',
+        threadsUnread: t.opt(t.int({ minimum: 0, description: 'New replies, from someone else, across the replies the asker follows (each chat carries its own count as repliesUnread)' })) }, tool: 'chats', label: 'filter',
     }),
     read('chat.composer.suggest', 'Composer symbol tables: @ people and agents, # folders, channels, records and files, / commands, skills and templates', {
       in: { symbol: t.enm('@', '#', '/'), q: t.str(), threadId: t.opt(id.thread) },

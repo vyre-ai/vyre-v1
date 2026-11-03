@@ -75,6 +75,9 @@ function Sidebar(): ReactElement {
   const cals = useScreenQuery<CalsOut>(SCREENS.sidebar, "calendars");
   const rows = useScreenQuery<RowsOut>(SCREENS.list, "rows");
   const meetings = useMeetingsQuery<MeetingsOut>("list");
+  // the replies to messages you follow, new since you read them: the Replies row's count
+  const replies = useScreenQuery<{ threads: readonly { unread?: number; muted?: boolean }[] }>("chats.threads", "threads", { kind: ["thread"], mine: true, order: "latest", exceptScope: ["task"], limit: 50 });
+  const repliesNew = replies.status === "ready" ? replies.data.threads.reduce((n, t) => n + (t.muted ? 0 : t.unread ?? 0), 0) : 0;
 
   const mailboxes = boxes.status === "ready" ? boxes.data.mailboxes : [];
   const calendars = cals.status === "ready" ? cals.data.calendars : [];
@@ -165,6 +168,7 @@ function Sidebar(): ReactElement {
           onPress={() => { dispatch({ type: "calendar" }); data.nav.openCalendar(); }} />
         <SideRow id="meetings" title="Meetings" selected={state.main === "meetings"} glyph={<Glyph name="video" />} count={meetings.status === "ready" ? meetings.data.ready : 0}
           onPress={() => dispatch({ type: "meetings" })} />
+        <SideRow id="replies" title="Replies" selected={state.main === "replies"} glyph={<Glyph name="reply" />} count={repliesNew} onPress={() => dispatch({ type: "replies" })} />
         {sections}
         {bare ? null : <SectionHead id="lists" label="Lists" closed={closed("lists")} onToggle={() => dispatch({ type: "section", key: "lists" })} />}
         {bare || closed("lists") ? null : [

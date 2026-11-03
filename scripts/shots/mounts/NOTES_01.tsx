@@ -42,9 +42,9 @@ const n = (id: string, o: Partial<Note>): Note => ({
   noteId: id, owner: ME, title: "", body: "", color: "", pinned: false, labels: [], hasImage: false, linked: [], share: { people: [], space: "off" }, mine: true, canEdit: true, createdAt: at(1, 9, 0), updatedAt: at(1, 9, 0), ...o,
 });
 /** A note saved from a chat (the offer card's Save): private, linked back to the message. */
-const SAVED = n("n11", { title: "Weinberger form link", body: "weinbergerlaw.com/intake-form\nSend it with the field list on Wednesday.", labels: ["Clients"], createdAt: NOW - 60_000, updatedAt: NOW - 60_000, from: { threadId: "thr_prep", messageId: "msg_prep1", title: "Weinberger Law prep", at: at(3, 9, 12), readable: true } });
+const SAVED = n("n11", { title: "Weinberger form link", body: "weinbergerlaw.com/intake-form\nSend it with the field list on Wednesday.", link: { url: "https://weinbergerlaw.com/intake-form", title: "Start your free case review", siteName: "Weinberger Law", preview: "image", description: "Tell us what happened. A lawyer calls you back the same day." }, labels: ["Clients"], createdAt: NOW - 60_000, updatedAt: NOW - 60_000, from: { threadId: "thr_prep", messageId: "msg_prep1", title: "Weinberger Law prep", at: at(3, 9, 12), readable: true } });
 /** The owner's own first note: one title, one word, an image and a link. */
-const SINGLE = n("n12", { title: "Testing", body: "Testing", hasImage: true, link: { url: "https://vyre.run", title: "Vyre", siteName: "vyre.run", description: "Your team, your agents, one place." }, updatedAt: NOW - 120_000 });
+const SINGLE = n("n12", { title: "Testing", body: "Testing", hasImage: true, link: { url: "https://vyre.run", title: "Vyre", siteName: "vyre.run", preview: "image", description: "Your team, your agents, one place." }, updatedAt: NOW - 120_000 });
 function notes(clipFresh: boolean, part = ""): Note[] {
   if (part.startsWith("single")) return [SINGLE];
   const clip = n("n5", { title: "Bailey & Galyen consult page", hasImage: true, clip: { url: "https://baileyandgalyen.com/free-consultation", title: "Free consultation", selection: "Call us 24/7. Se habla español. No fee unless we win.", hasShot: true, at: clipFresh ? NOW - 40_000 : at(3, 10, 42) }, body: "Three questions before the phone number. Try this order on the Weinberger form.", labels: ["Clients", "Reading"], createdAt: clipFresh ? NOW - 40_000 : at(3, 10, 42), updatedAt: clipFresh ? NOW - 40_000 : at(3, 10, 42) });
@@ -60,11 +60,11 @@ function notes(clipFresh: boolean, part = ""): Note[] {
     n("n8", { title: "Compliance workshop: what people asked", body: "Where do the files we upload live?\nWho owns the prompts we write?\nDo clients need to know when AI takes notes?", labels: ["Reading"], color: "sky", updatedAt: Date.UTC(2026, 9, 28, 9) }),
     n("n9", { title: "Laura Lee, probate", body: "Co-host one probate Lab in December. She brings 40 estate firms. Split the replay list.", labels: ["Partners"], color: "sage", updatedAt: Date.UTC(2026, 9, 27, 9) }),
   ];
-  return clipFresh ? [clip, ...rest] : part === "from" ? [SAVED, ...rest] : rest;
+  return clipFresh ? [clip, ...rest] : part === "from" || part === "phone-from" ? [SAVED, ...rest] : rest;
 }
 const IMAGE_OF: Record<string, string> = { n3: "luma", n5: "bg", n10: "board", n12: "luma" };
 /** Link card pictures, as the server fetched and stored them (notes.image part link). */
-const LINK_IMAGE_OF: Record<string, string> = { n4: "lawm" };
+const LINK_IMAGE_OF: Record<string, string> = { n4: "lawm", n11: "lawm", n12: "skool" };
 const TYPES = [
   { key: "client", title: "Client", plural: "Clients", icon: "", label: "internal", system: false, titleField: "name", summaryField: "stage", version: 1, fields: [{ key: "name", type: "text", title: "Name" }, { key: "contact", type: "text", title: "Contact" }, { key: "stage", type: "text", title: "Stage" }, { key: "owner", type: "text", title: "Owner" }] },
   { key: "contact", title: "Contact", plural: "Contacts", icon: "", label: "internal", system: false, titleField: "name", version: 1, fields: [{ key: "name", type: "text", title: "Name" }, { key: "firm", type: "text", title: "Firm" }, { key: "role", type: "text", title: "Role" }] },
@@ -171,6 +171,7 @@ function initialOf(part: string): NotesInitial {
     case "task": return { task: { noteId: "n2", title: "Send Joe the Lawmatics custom field list", due: "Thu 5 Nov" } };
     case "record": return { record: { noteId: "n2", type: "client" } };
     case "phone-note": return { phoneOpen: "n2" };
+    case "phone-from": return { phoneOpen: "n11" };
     case "phone-sheet": return { phoneOpen: "n2", phoneSheet: true };
     default: return withImage ? { take: withImage } : {};
   }
