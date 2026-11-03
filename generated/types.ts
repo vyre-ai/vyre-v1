@@ -614,6 +614,8 @@ export type AccessPrincipalsGetOut = {
     kind: "person" | "agent" | "actor" | "service";
     name: string;
     owner?: string;
+    private?: boolean;
+    agentName?: string;
     status: "invited" | "active" | "suspended" | "removed";
     roles: Array<string>;
     groups: Array<string>;
@@ -634,6 +636,8 @@ export type AccessPrincipalsListOut = {
       kind: "person" | "agent" | "actor" | "service";
       name: string;
       owner?: string;
+      private?: boolean;
+      agentName?: string;
       status: "invited" | "active" | "suspended" | "removed";
       roles: Array<string>;
       groups: Array<string>;
@@ -35928,6 +35932,7 @@ export type AgentCreatedPayload = {
   ownerId: string;
   folderId: string;
   templateVersion: number;
+  private?: boolean;
 };
 export type AgentDeletedPayload = {
   agentId: string;
@@ -35993,6 +35998,11 @@ export type AgentPausedPayload = {
   agentId: string;
   reason?: string;
   by: string;
+};
+export type AgentPrivacySetPayload = {
+  agentId: string;
+  ownerId: string;
+  private: boolean;
 };
 export type AgentRestoredPayload = {
   agentId: string;
@@ -39508,6 +39518,7 @@ export interface EventMap {
   "agent.model_changed": AgentModelChangedPayload;
   "agent.owner_changed": AgentOwnerChangedPayload;
   "agent.paused": AgentPausedPayload;
+  "agent.privacy_set": AgentPrivacySetPayload;
   "agent.restored": AgentRestoredPayload;
   "agent.resumed": AgentResumedPayload;
   "agent.routine_changed": AgentRoutineChangedPayload;
