@@ -11,11 +11,7 @@ const slot = t.enm('assigned', 'reviewer', 'approver');
 const taskState = t.enm('todo', 'doing', 'in_review', 'awaiting_approval', 'done', 'canceled');
 const taskKindKey = t.enm('work', 'approve', 'review', 'answer', 'unblock', 'signature');
 const blockIn = t.obj({ type: t.str({ examples: ['record_card'] }), v: t.opt(t.int({ minimum: 1 })), data: t.json() });
-<<<<<<< ours
-const source = t.obj({ kind: t.enm('chat', 'run', 'gate', 'journey', 'meeting', 'manual'), id: t.str({ examples: ['run_a1b2c3'] }) });
-=======
 const source = t.obj({ kind: t.enm('chat', 'run', 'gate', 'journey', 'meeting', 'goal', 'manual'), id: t.str({ examples: ['run_a1b2c3'] }) });
->>>>>>> theirs
 const action = t.obj({ key: t.str({ examples: ['approve'] }), label: t.str({ examples: ['Approve'] }), note: t.opt(t.enm('required', 'optional')) });
 
 const priority = t.enm('urgent', 'high', 'normal', 'low');
