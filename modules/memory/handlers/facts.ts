@@ -19,6 +19,7 @@ import { isHostService } from "../../../lib/trust.ts";
 import {
   actorOf, autoMergeKinds, bm25, ensure, factOut, liveNow, loadFact, makeAccess, mintId, num, orNull, ownerOfLayer, pageOf, raise, readFact, recencyBoost, rowsOf, sealText, snippet, sourceLinkOf,
   str, tokens, trigramSim, seenByOthers } from "../projections.ts";
+import { audienceFrom, chatAudience, othersRead } from "../../../lib/audience.ts";
 import type { Access, Fact, FactStatus, Layer, MemCtx, Row, SourceKind } from "../projections.ts";
 
 const LAYERS: readonly Layer[] = ["person", "agent", "project", "space"];
@@ -58,13 +59,12 @@ async function needEdit(ctx: MemCtx, access: Access, f: Fact): Promise<void> {
   if (!(await mayEdit(access, f))) raise(ctx, "permission.no_grant", "You cannot change this memory.");
 }
 
+/** The facts the caller may read here: every fact read goes through the one check (makeAccess), which holds a read inside a chat to everyone who reads it. */
 async function readableFacts(ctx: MemCtx, access: Access, rows: Row[]): Promise<Fact[]> {
-  const me = actorOf(ctx);
   const out: Fact[] = [];
   for (const r of rows) {
     const f = readFact(ctx, r);
-    if (f.layer === "person" && f.ownerRef !== me) continue;
-    if (await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view")) out.push(f);
+    if (await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view", f.audience)) out.push(f);
   }
   return out;
 }
@@ -80,7 +80,8 @@ export async function proposeFact(ctx: MemCtx, input: ProposeIn) {
   const actor = actorOf(ctx);
   const text = input.text.trim();
   if (text === "") raise(ctx, "validation.bad_input", "A fact needs some text.");
-  const access = makeAccess(ctx);
+  // saving is a write: an agent may save into its asker's own memory from a channel, though it may not read that memory back out into the channel
+  const access = makeAccess(ctx, { write: true });
   const agentId = input.agentId ?? null;
   const projectId = input.projectId ?? null;
   const layer: Layer = input.layer ?? (input.sourceKind === "channel" && projectId ? "project" : input.sourceKind === "run" || input.sourceKind === "journey" ? "agent" : "person");
@@ -107,11 +108,15 @@ export async function proposeFact(ctx: MemCtx, input: ProposeIn) {
   // "Require review for shared memory": what an agent learns for the Space or a project waits in Proposed. A person typing a fact in themselves is not held back.
   if (status === "current" && byAgent && (await reviewRequired(ctx, layer, layer === "project" ? projectId : null))) status = "proposed";
 
+  // shared memory saved from a chat other people read is kept for those people (agent-visibility gap 4): it never comes back in a chat whose people are not all among them
+  const from = input.threadId ?? (byAgent ? ctx.thread : undefined);
+  const heard = layer !== "person" && from !== undefined ? await chatAudience((cap, i) => ctx.call(cap, i), from) : null;
   const f = insertFact(ctx, {
     layer, ownerRef: owner, agentId: layer === "project" ? null : agentId, projectId: layer === "project" ? projectId : null, kind: input.kind ?? null, text,
     validFrom: input.validFrom ?? ctx.now(), sourceKind: input.sourceKind, sourceRef: input.sourceRef, sourcePerson: actor, proposedBy: ctx.principal.id, status, lowRisk: low,
     ...(input.threadId ? { links: [["thread", input.threadId]] as Array<[string, string]> } : {}),
     ...(byAgent ? { how: "learn" as const } : {}),
+    ...(heard && othersRead(heard, actor) && !heard.space ? { audience: heard } : {}),
   });
   emitProposed(ctx, f);
   if (status === "current") emitAccepted(ctx, f, true);
@@ -261,7 +266,7 @@ export async function factGet(ctx: MemCtx, input: { factId: string }) {
   ensure(ctx.db);
   const f = needFact(ctx, input.factId, "validation.not_found");
   const access = makeAccess(ctx);
-  if (f.layer === "person" ? f.ownerRef !== actorOf(ctx) : !(await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view"))) {
+  if (!(await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view", f.audience))) {
     raise(ctx, "validation.not_found", "There is no such fact.", { factId: input.factId });
   }
   touchIfTrashed(ctx, f);
@@ -410,7 +415,7 @@ async function pageDocs(ctx: MemCtx, access: Access, agentId: string | undefined
     const p = readPage(ctx, r);
     const key = `${p.layer}|${p.ownerRef}|${p.agentId ?? ""}|${p.projectId ?? ""}`;
     let ok = memo.get(key);
-    if (ok === undefined) { ok = p.layer === "person" ? p.ownerRef === me : await access.can(p.layer, p.ownerRef, p.agentId, p.projectId, "view"); memo.set(key, ok); }
+    if (ok === undefined) { ok = await access.can(p.layer, p.ownerRef, p.agentId, p.projectId, "view"); memo.set(key, ok); }
     if (!ok) continue;
     out.push({ kind: "page", id: p.id, title: p.title, text: p.notes, layer: p.layer, path: null, since: null, link: `/memory/pages/${p.id}`, learnedAt: p.updatedAt, shared: p.layer !== "person" });
   }
@@ -421,7 +426,7 @@ async function factDocs(ctx: MemCtx, access: Access, agentId: string | undefined
   const now = ctx.now();
   const me = actorOf(ctx);
   const args: unknown[] = [now, me];
-  let sql = "SELECT id, layer, owner_ref, agent_id, project_id, note_id, kind, text, sealed, enc, valid_from, learned_at, source_link FROM memory_facts WHERE status = 'current' AND (valid_to IS NULL OR valid_to > ?) AND (layer != 'person' OR owner_ref = ?)";
+  let sql = "SELECT id, layer, owner_ref, agent_id, project_id, note_id, kind, text, sealed, enc, valid_from, learned_at, source_link, audience FROM memory_facts WHERE status = 'current' AND (valid_to IS NULL OR valid_to > ?) AND (layer != 'person' OR owner_ref = ?)";
   if (agentId) { sql += " AND (agent_id = ? OR layer IN ('project', 'space'))"; args.push(agentId); }
   if (projectId) { sql += " AND (project_id = ? OR layer != 'project')"; args.push(projectId); }
   const paths = new Map<string, string | null>();
@@ -440,6 +445,9 @@ async function factDocs(ctx: MemCtx, access: Access, agentId: string | undefined
       allowed.set(place, ok);
     }
     if (!ok) continue;
+    // a fact kept for a channel's people is checked on its own: the place alone does not say who it is for
+    const kept = audienceFrom(r["audience"]);
+    if (kept && !(await access.can(layer, owner, agent, project, "view", kept))) continue;
     const text = num(r["enc"]) === 2 ? readFact(ctx, { ...r, status: "current" }).text : str(r["text"]);
     if (text === "") continue;
     const noteId = orNull(r["note_id"]);
@@ -531,10 +539,9 @@ export async function pointer(ctx: MemCtx, input: { threadId: string; agentId: s
     if (last && num(last["last_idx"]) === input.sinceIdx) return { lines: [], tokens: 0, skipped: "mid_tool_loop" as const };
     ctx.db.run("INSERT OR REPLACE INTO memory_pointer_state (thread_id, last_idx) VALUES (?, ?)", input.threadId, input.sinceIdx);
   }
-  const access = makeAccess(ctx);
-  const everything = [...(await factDocs(ctx, access, input.agentId, undefined)), ...(await noteDocs(ctx, access, input.agentId, undefined))];
-  // what one person told their agent never reaches a chat other people read (hole 8)
-  const docs = everything.some((d) => d.layer === "person") && await seenByOthers(ctx, input.threadId) ? everything.filter((d) => d.layer !== "person") : everything;
+  // read as the chat this message is in: what one person told their agent never reaches a chat other people read (hole 8), and shared memory only what everyone in it may open
+  const access = makeAccess(ctx, { thread: input.threadId });
+  const docs = [...(await factDocs(ctx, access, input.agentId, undefined)), ...(await noteDocs(ctx, access, input.agentId, undefined))];
   const ranked = bm25(docs, text);
   const order = docs
     .map((d, i) => ({ d, r: ranked[i]! }))
@@ -857,6 +864,9 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
   ensure(ctx.db);
   const t = ((await ctx.call("threads.get", { threadId: input.threadId })) as ThreadOut).thread;
   const page = (await ctx.call("chat.messages.list", { threadId: input.threadId, limit: 200 })) as { messages: CaptureMessage[] };
+  // who read the words: shared memory learned where more than one person reads is kept for those people only (agent-visibility gap 4). A public channel is the Space's.
+  const heard = await chatAudience((cap, i) => ctx.call(cap, i), input.threadId);
+  const keptFor = heard.space || heard.people.length < 2 ? null : heard;
   const agentId = (t.agents.find((a) => a.mode === "lead") ?? t.agents[0])?.agentId ?? null;
   const shared = t.kind === "channel" || t.kind === "thread";
   const fromRun = t.kind === "run";
@@ -886,6 +896,7 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
     const f = insertFact(ctx, {
       layer, ownerRef: owner, agentId: layer === "project" || layer === "space" ? null : agentId, projectId: layer === "project" ? projectId : null, kind: c.kind, text: c.text, validFrom: ctx.now(),
       sourceKind, sourceRef: input.threadId, sourcePerson: c.person, proposedBy: ctx.principal.id, status, lowRisk: kinds.includes(c.kind), links: [["capture", key]], how: "learn", who,
+      ...(layer !== "person" && keptFor ? { audience: keptFor } : {}),
     });
     emitProposed(ctx, f);
     emitLearned(ctx, f, status === "current", who);

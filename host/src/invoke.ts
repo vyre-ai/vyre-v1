@@ -555,6 +555,10 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         const d = deps.authorize({ principal: seed.principal.id, actingFor: seed.actingFor, action, resource, provider: seed.provider, now: now() });
         return { effect: d.effect, reason: d.reason, decisionId: d.decisionId };
       },
+      // each person on their own grants, as no one's agent: what a chat's audience may open (lib/audience.ts). A check that cannot run says no.
+      mayAll(people, action, resource): boolean {
+        return people.every((p) => { try { return deps.authorize({ principal: p, action, resource, now: now() }).effect === "allow"; } catch { return false; } });
+      },
       vault: svc.vault ?? { fill: unavailable("vault"), use: unavailable("vault") },
       http: svc.http ?? unavailable("http"),
       log,

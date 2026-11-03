@@ -426,8 +426,10 @@ export function createBridge(o: BridgeOptions): Bridge {
       }
     }
     const job = p["job"] === true ? str(p["actingFor"]) || authorId : undefined;
+    // an agent's post speaks for the person it acted for (chat.post's actingFor): a turn it sets off runs for that person, never for the chat's starter; with nobody behind it, it runs for no one
+    const speaksFor = a.kind === "agent" && str(p["actingFor"]).startsWith("usr_") ? str(p["actingFor"]) : undefined;
     const res = withMessageId(messageId, () => eng.receive({
-      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note, replyToPerson, ...(job ? { job } : {}),
+      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note, replyToPerson, ...(job ? { job } : {}), ...(speaksFor ? { asker: speaksFor } : {}),
     }));
     return { receivedAs: res.responders };
   }

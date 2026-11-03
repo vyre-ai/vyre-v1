@@ -238,7 +238,7 @@ async function main(): Promise<void> {
     say("STEP7 ok", `after the restart the second job is ${resumed.state}; cards in chat: ${(await msgs(chat)).filter((m) => (m.blocks ?? []).some((b) => b.type === "crew_result")).length}`);
     await openPage(chat); await sleep(3000); say("shot", await shot("after-restart"));
     // a person merges the footer in a terminal: no button, no lead. The open page must flip on its own.
-    const work2 = workFolder(dir, owner, job2.threadId);
+    const work2 = workFolder(dir, owner, job2.threadId, teammate);
     git(repo, "fetch", "--quiet", work2, `+${job2.branch}:refs/heads/${job2.branch}`);
     git(repo, "merge", "--no-ff", "--no-edit", job2.branch);
     let seen = false;
