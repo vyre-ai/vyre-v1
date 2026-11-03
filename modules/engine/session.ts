@@ -78,6 +78,8 @@ export interface OpenerHost {
    * from their computer. Absent: the work folder only, as before. A failed read is the work folder and the toolbox only (server), never more.
    */
   access?: (asker: string, on: "space") => Promise<AccessAsked>;
+  /** The opener of one person's own computer (node-turns.ts): the folders on it they added to Vyre, read as each engine process starts. Absent: none (a server's). */
+  folders?: () => Promise<string[]>;
   own?: (person: string) => boolean;
   now?: () => number;
   /** Set false to keep installed plugins out of a CLI engine's own config. Default: they are written there. */
@@ -329,12 +331,13 @@ export function withRule(spec: LaunchSpec, rule: EgressRule): LaunchSpec {
 export function buildNodeOpener(h: OpenerHost, launcher: Launcher): SessionOpener {
   const system = roleBlocks(h.call);
   // the Space's network rule travels with the spawn to the person's computer, whose own sandbox applies it (node-cli.ts)
-  const ruled: Launcher = h.egress || h.access ? {
+  const ruled: Launcher = h.egress || h.access || h.folders ? {
     ...launcher,
     spawn: async (spec) => {
       let s = h.egress ? withRule(spec, await ruleOf(h.egress)) : spec;
       // the person's own server: package locations, configs and the SSH agent there. Their added folders are on the computer they added them from, which is the Space's own (accessOf below).
-      if (h.access) s = withAccess(s, { where: "own", folders: [] });
+      // a person's own computer in a Team Space (lane l-runson): the folders they added to Vyre from that computer, private or shared (OpenerHost.folders)
+      if (h.access || h.folders) s = withAccess(s, { where: "own", folders: h.folders ? await h.folders().catch(() => []) : [] });
       return launcher.spawn(s);
     },
   } : launcher;
