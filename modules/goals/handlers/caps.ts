@@ -445,7 +445,8 @@ export function briefText(ctx: GoalsCtx, g: Goal): string {
   out.push(`${g.title} (goalId ${g.id}). Status: ${g.status}${g.statusReason ? ` (${g.statusReason})` : ""}.`);
   out.push(`Finish line: ${f.line}.${g.outcome ? ` Outcome wanted: ${g.outcome}.` : ""}`);
   const left = g.deadline - now;
-  out.push(`Deadline: ${when(g.deadline, g.zone)} (${left > 0 ? `${Math.floor(left / 3_600_000)} hours left` : "passed"}). Owner's time zone ${g.zone}.`);
+  out.push(`Deadline: ${when(g.deadline, g.zone)} (${left > 0 ? `${Math.floor(left / 3_600_000)} hours left` : "passed"}).`);
+  out.push(`The owner's time now: ${when(now, g.zone)} (${g.zone}). Write every time in check-ins, summaries and the retrospective in this zone, as the owner reads it, never in UTC.`);
   if (f.kind === "number") {
     const pace = paceOf(g, now);
     out.push(`The number, read by Vyre from ${sourceWords(f.source)}: ${g.value ?? "not read yet"}${f.target !== undefined ? ` of ${f.target}` : ""}${f.unit ? ` ${f.unit}` : ""}${p.percent !== undefined ? ` (${p.percent}%)` : ""}${g.valueAt ? `, read ${when(g.valueAt, g.zone)}` : ""}.${pace ? ` ${pace}` : ""}`);

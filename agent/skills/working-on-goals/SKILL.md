@@ -41,6 +41,7 @@ These are in the tasks toolset. If one is not in your list, find it with `tool_s
 - Post it with `goals_checkin_post`: `summary` is two or three sentences, `done` and `next` are short lines. Use no filler, no greetings and no restating of the goal. Plain words, no em dashes.
   Good: "212 of 300, behind pace by 30. The Lab 7 reminder brought 18 in a day; the Skool post brought 2. Next: a second reminder to Lab 7 no-shows on Thursday, and drop the Skool repost."
   Bad: "Making good progress! Continuing to work on registrations."
+- Times are the owner's: your goal section gives the owner's time now and zone. Write "Thu 9:00", never "04:00 UTC".
 
 ## Asking
 - Ask only when the decision is the person's (audience, money, tone they care about) or an act needs their approval.

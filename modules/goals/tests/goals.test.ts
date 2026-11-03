@@ -337,6 +337,7 @@ test("the brief tells the lead why it was woken, the pace, the plan, what waits 
   assert.match(text, /- VY-\d+ Remind Lab 7 \[todo\]/);
   assert.match(text, /Standing permissions \(these acts go without asking, in this goal's chats only\): Send email from the Lab template\./);
   assert.match(text, /The goal's folder in Files/);
+  assert.match(text, /The owner's time now: Wed 4 Nov, 10:00 \(Asia\/Karachi\)\. Write every time in check-ins, summaries and the retrospective in this zone/, "times are the owner's, from their profile");
 });
 
 test("the goal's folder keeps what its tasks hand in and what people drop in its chat, once each", async () => {
