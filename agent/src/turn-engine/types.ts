@@ -36,6 +36,8 @@ export interface EngineAgent {
 
 export interface OpenThread {
   id: string;
+  /** The people in the chat, when the host knows them: a person mentioned who is not among them is only talked about. */
+  people?: string[];
   kind: ThreadKind;
   /** The person who started the thread. Background wake-ups run on their account. */
   starter: string;
@@ -58,6 +60,8 @@ export interface IncomingMessage {
   /** Agent-to-agent hops since the last person message. Persons reset it to 0. */
   depth?: number;
   body?: string;
+  /** The people in the chat as the host read them for this message, so a mention of anyone else is a reference. */
+  people?: readonly string[];
 }
 
 export interface StoredMessage {
