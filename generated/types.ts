@@ -9882,6 +9882,8 @@ export type EngineModelsListIn = {
   accountRef?: string;
   threadId?: string;
   recordLabel?: "public" | "internal" | "confidential" | "restricted";
+  refresh?: boolean;
+  wait?: boolean;
 };
 export type EngineModelsListOut = {
   models: Array<{
@@ -9893,7 +9895,17 @@ export type EngineModelsListOut = {
       allowed: boolean;
       reason?: "label_provider" | "policy_model" | "not_connected" | "usage_limit";
       resetsAt?: number;
+      alias?: string;
+      isDefault?: boolean;
+      efforts?: Array<string>;
+      defaultEffort?: string;
     }>;
+  listed?: {
+    source: "live" | "saved" | "shipped";
+    updatedAt?: number;
+    refreshing: boolean;
+    failed: boolean;
+  };
 };
 export type EnginePlacementDecideIn = {
   threadId: string;
