@@ -80,7 +80,7 @@ test("the Windows sandbox: a Claude Code turn with a Bash tool call, and nothing
   const port = Number(fs.readFileSync(portFile, "utf8"));
 
   const t1 = Date.now();
-  const d = await defaultSandbox({ platform: "win32", dataDir, wslRoot, egressHosts: ["api.fake.test"], wslTestRoutes: { "api.fake.test": port }, programRead: [engines] });
+  const d = await defaultSandbox({ platform: "win32", windowsMode: "contained", dataDir, wslRoot, egressHosts: ["api.fake.test"], wslTestRoutes: { "api.fake.test": port }, programRead: [engines] });
   console.log(`the sandbox started in ${Math.round((Date.now() - t1) / 1000)} s`);
   assert.equal(d.plan.sandbox.kind, "wsl");
   try {

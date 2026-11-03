@@ -13,6 +13,7 @@ import type { Roots, SandboxSpec } from "../../sandbox/src/index.ts";
 import { toWslPath, wslExe } from "../../sandbox/src/wsl/wsl.ts";
 import type { AgentOptions, WslAgent } from "../../sandbox/src/wsl/wsl.ts";
 import type { LocalLauncherOptions } from "../../agent/src/drivers/cli/launcher.ts";
+import { labelLow, lowrunArgv } from "../../sandbox/src/win/lowrun.ts";
 
 /** What the host knows about the sandbox it runs a CLI engine in. The wall (egress proxy) is started by the host and outlives the turns. */
 export type EngineSandbox =
@@ -20,6 +21,11 @@ export type EngineSandbox =
   | { kind: "seatbelt"; proxyPort: number; programRead?: readonly string[] }
   /** Windows: bwrap and the net wall inside Vyre's WSL2 distribution (sandbox/src/wsl). Paths are Windows paths here and become the VM's (/mnt/c/...) in the wrap. */
   | { kind: "wsl"; distro: string; user: string; agent: WslAgent; wall: AgentOptions["wall"]; programRead?: readonly string[]; vmPath?: (p: string) => string }
+  /**
+   * Windows, Personal Space (owner ruling 3 Nov 2026): the engine at Low integrity in a Job Object (sandbox/src/win/lowrun.cs). It may change only its work folder, its scratch home and temp, and
+   * `writable` (the folders the person added to Vyre); it reads the computer as Claude Code does. Its network is the egress proxy on loopback, by its variables.
+   */
+  | { kind: "lowil"; helper: string; proxyPort: number; writable?: readonly string[]; bash?: string }
   /** The engine belongs in the person's container, which has no local launcher yet. */
   | { kind: "docker" | "server"; reason?: string };
 
@@ -72,12 +78,13 @@ export function sandboxWrap(plan: SandboxPlan, o: { homeFromScratch?: boolean } 
     // The roots are the real paths of the folders: a data folder reached through a symlink (/var is /private/var on a Mac) must name the same folders the work and scratch helpers returned.
     const roots: Roots = { work: [workRoot], scratch: [fs.realpathSync(path.join(plan.dataDir, "scratch"))] };
     const spec: SandboxSpec = {
-      id: sandboxId(person), person, kind: s.kind === "wsl" ? "bwrap" : s.kind, scratch,
+      id: sandboxId(person), person, kind: s.kind === "wsl" ? "bwrap" : s.kind === "lowil" ? "seatbelt" : s.kind, scratch,
       mounts: [{ host: start.cwd, mode: "rw" }],
       egressHosts: plan.egressHosts,
       env: start.env,
     };
     if (s.kind === "wsl") return wslWrap(s, plan, spec, start, argv, scratch, workRoot);
+    if (s.kind === "lowil") return lowWrap(s, plan, start, argv, person, scratch);
     if (s.kind === "bwrap") {
       // a turn on a sign-in kept in files sees them as its home: the scratch folder's own home is bound where the sandbox's home would be
       const home = o.homeFromScratch ? path.join(scratch, "home") : undefined;
@@ -124,4 +131,26 @@ function wslWrap(s: Extract<EngineSandbox, { kind: "wsl" }>, plan: SandboxPlan, 
     ...(s.programRead ? { programRead: s.programRead.map((p) => (WIN_PATH.test(p) ? v(p) : p)) } : {}),
   });
   return [wslExe(), "-d", s.distro, "-u", s.user, "--cd", "/", "--exec", "/usr/bin/bwrap", ...w.args];
+}
+
+/**
+ * The argv of a CLI engine in a Windows Personal Space: vyre-lowrun starts it at Low integrity in a Job Object. The folders it may change are labelled Low first (once each): this person's work
+ * folders, their scratch folder (the engine's home, config and temp) and the folders they added. Its home, config and temp point into the scratch folder, so the CLI's own state is somewhere it
+ * may write; its proxy variables name the egress proxy.
+ */
+function lowWrap(s: Extract<EngineSandbox, { kind: "lowil" }>, plan: SandboxPlan, start: { env: Record<string, string>; cwd?: string }, argv: readonly string[], person: string, scratch: string): string[] {
+  const home = path.join(scratch, "home");
+  const tmp = path.join(scratch, "tmp");
+  for (const dir of [path.join(plan.dataDir, "work", person), scratch, ...(s.writable ?? [])]) labelLow(dir);
+  fs.mkdirSync(home, { recursive: true });
+  fs.mkdirSync(tmp, { recursive: true });
+  const own = {
+    HOME: home, USERPROFILE: home, APPDATA: path.join(home, "AppData", "Roaming"), LOCALAPPDATA: path.join(home, "AppData", "Local"), TEMP: tmp, TMP: tmp,
+    CLAUDE_CONFIG_DIR: path.join(home, ".claude"), CLAUDE_CODE_TMPDIR: tmp, CODEX_HOME: path.join(home, ".codex"), XDG_CONFIG_HOME: path.join(home, ".config"), XDG_CACHE_HOME: path.join(home, ".cache"),
+  };
+  for (const d of [own.APPDATA, own.LOCALAPPDATA]) fs.mkdirSync(d, { recursive: true });
+  // the engine's own copy of Git Bash (sandbox/src/win/msys.ts): a person's Git Bash window must not stop the engine's Bash tool
+  if (s.bash) (own as Record<string, string>)["CLAUDE_CODE_GIT_BASH_PATH"] = s.bash;
+  void start;
+  return lowrunArgv(s.helper, argv, { ...proxyEnv(`http://127.0.0.1:${s.proxyPort}`), ...own });
 }

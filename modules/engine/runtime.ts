@@ -32,7 +32,7 @@ import { onTurnEnded, resumeTasks } from "./handlers/task-baton.ts";
 import { ensureExtra } from "./handlers/extra/schema.ts";
 import { createKeepAwake } from "./keep-awake.ts";
 import { coalesceLive } from "./live-coalesce.ts";
-import { cliSandboxCode, cliSandboxGap, defaultSandbox } from "./sandbox-default.ts";
+import { cliSandboxCode, cliSandboxGap, defaultSandbox, windowsMode } from "./sandbox-default.ts";
 import { wslOn } from "../../sandbox/src/wsl/wsl.ts";
 import { closePluginRuntime, pluginRuntime } from "./plugin-host.ts";
 import { bindOauthStore } from "./mcp-oauth.ts";
@@ -120,7 +120,7 @@ export function engineHost(): EngineHostSeam | null { return host; }
 
 /** Windows with WSL on and no plan of the host's: CLI engines run in Vyre's WSL sandbox, so the engines Vyre installs and looks for are the Linux builds in <engines>\wsl. */
 function wslEngines(h: EngineHostSeam | null): boolean {
-  return h !== null && process.platform === "win32" && h.sandbox === undefined && h.cli?.probe === undefined && wslOn();
+  return h !== null && process.platform === "win32" && h.sandbox === undefined && h.cli?.probe === undefined && windowsMode() === "contained" && wslOn();
 }
 /** How CLI programs are looked for: the host's probe, or on Windows with the WSL sandbox only Vyre's Linux builds (a Windows claude.exe cannot run in the VM). */
 function cliProbeOf(h: EngineHostSeam): NodeCliProbe | undefined {
@@ -312,7 +312,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     ...(host.cli?.command ? { command: host.cli.command } : {}), ...(cliProbeOf(host) ? { probe: cliProbeOf(host) as NodeCliProbe } : {}), ...(installer ? { engines: installer } : {}),
     ...(host.sandbox ? {} : { unsandboxed: () => cliSandboxGap(), unsandboxedCode: () => cliSandboxCode() }),
     // the Windows sandbox's first start after a restart (or its one-time set-up) is a live line, not a silent wait
-    ...(process.platform === "win32" && !host.sandbox && dataDir0 ? { warm: () => warmWindowsSandbox(dataDir0, read0) } : {}),
+    ...(process.platform === "win32" && windowsMode() === "contained" && !host.sandbox && dataDir0 ? { warm: () => warmWindowsSandbox(dataDir0, read0) } : {}),
     live: (e) => setupLine?.(e),
   });
   // a turn the person pinned to one of their servers opens through that server's opener; everything else opens as before

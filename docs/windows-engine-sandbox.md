@@ -1,6 +1,6 @@
 # CLI engines on Windows: the sandbox
 
-Status: research done, native sandbox not built. Lane l-winengine, 3 Nov 2026. Evidence: desktop.yml `sandbox-windows` job, run 41535810154 on windows-latest.
+Status: built. Personal Space engines run under option E (owner ruling 3 Nov 2026, RULINGS 14), on branch wip/l-winlow. Team Space turns on a Windows member's computer and "Contained" computers use option B (RULINGS 15), on wip/l-winwsl. Lane l-winengine, 3 Nov 2026. Evidence: desktop.yml `sandbox-windows` job, run 41535810154 on windows-latest.
 
 ## The rule we keep
 
@@ -85,3 +85,34 @@ Build option 1 with the in-container bridge. It needs no admin, no reboot and no
 3. Add a `win32` branch to `defaultSandbox` and drop the gap in `cliSandboxGap` for win32. Do that only when the launcher is present and its self-test passes on this machine. The CI test runs a fake engine in the container and proves three things: it cannot read outside its folder, it cannot reach a host not on the list, and it reaches an allowed one through the proxy.
 
 The fallback is WSL2 with bwrap, when it is already installed. Last resort: the turn runs on a Space server. Until then, Windows refuses CLI turns with plain words, CLI accounts show what they need, and API keys work.
+
+## As built: option E for a Personal Space (wip/l-winlow)
+
+- `sandbox/src/win/lowrun.cs` is compiled once with the .NET Framework `csc.exe` every Windows 10 and 11 has. It starts the engine at Low integrity, with the user's own token lowered, in a Job Object: kill on close, at most 512 processes. No admin is needed.
+- The engine may change these folders, which are labelled Low:
+  - this person's work folders;
+  - their scratch folder (the engine's home, config and temp, with `HOME`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `TEMP` pointed there);
+  - the folders they added, from l-openweb's folder builder once it lands (until then, the workspace only).
+- The engine reads the computer as Claude Code does.
+- Network: the egress proxy, by its variables, under the shared policy. A program that bypasses it is accepted on the person's own computer (the ruling).
+- MCP: the loopback URL, with the session token the opener mints. The token is the session's own (mcp.session.mint with the agent as principal, acting for the asker, for one thread). It expires by itself and is revoked when the warm session closes. It grants nothing beyond that session's MCP calls.
+- Git Bash: MSYS2 keeps its state in a kernel object folder named after its installation. A Low engine cannot open the one a normal-integrity Git Bash made, which the windows-latest proof hit. The engine therefore gets its own copy of Git's `usr\bin` and `etc` (`sandbox/src/win/msys.ts`). The copy is readable and not writable, and `CLAUDE_CODE_GIT_BASH_PATH` points at it. Git itself stays the person's.
+
+- One person's own agents are not isolated from each other under E. Integrity levels cannot separate two Low processes of the same user, so agent A can read agent B's folder. This was decided on 3 Nov 2026: it is the same person's data, and Personal is zero friction. Anything that needs isolation from other people (a Team Space turn on a member's computer) uses option B.
+
+### Vyre's own data at rest (audit, 3 Nov 2026)
+
+What a Low process could read before E's labels:
+
+| Item | Where | At rest |
+|---|---|---|
+| `admin.token` (the owner's loopback bearer) | data folder | plaintext |
+| `seal.key`, `vault-filler.key`, `relay.key` | data folder | plaintext |
+| `events.db`, `modules.db`, `logs.db`, `space.db` | data folder | plaintext SQLite (no cipher) |
+| `logs\claim-link.txt` (until the Space is claimed) | data folder | plaintext |
+| Shared Vault items, files, memory facts, Google, Microsoft and MCP OAuth tokens | `modules.db`, `blobs\` | AES-GCM, under the key files above |
+| Mine Vault items (subscription sign-ins, Mine API keys) | `modules.db` | AES-GCM under the person key, which is wrapped by Argon2id of the password and held only in memory |
+
+E labels Vyre's folders (`%APPDATA%\ai.vyre.desktop`, `%LOCALAPPDATA%\ai.vyre.desktop`) Medium with no read up and no write up, inherited. The engines folder and the engine's Git Bash are readable and not writable. The engine's own folders are explicitly Low. A Low engine can no longer read the token, the keys, the databases or the logs; the windows-latest proof checks `admin.token` and the logs folder.
+
+Out of scope: the databases stay plaintext to any normal-integrity process of the same user, as they are on a Mac.

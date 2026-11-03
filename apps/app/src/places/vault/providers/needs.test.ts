@@ -17,3 +17,11 @@ test("a CLI sign-in that cannot run here says what it needs", () => {
   assert.equal(cliDriverOf({ engine: "grok", connection: "subscription" }), "grok");
   assert.equal(cliDriverOf({ engine: "anthropic", connection: "api_key" }), null);
 });
+
+test("This computer on the Windows desktop app says how the AI runs there; elsewhere nothing", async () => {
+  const { PERSONAL_WINDOWS_LINE, engineLine } = await import("../../settings/computers-model.ts");
+  assert.equal(engineLine({ desktop: true, userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Edg/131.0" }), PERSONAL_WINDOWS_LINE);
+  assert.equal(PERSONAL_WINDOWS_LINE, "Personal: the AI can read this computer like Claude Code does; it can only change your added folders.");
+  assert.equal(engineLine({ desktop: false, userAgent: "Mozilla/5.0 (Windows NT 10.0)" }), "", "a browser on Windows is not this computer's engine");
+  assert.equal(engineLine({ desktop: true, userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)" }), "");
+});

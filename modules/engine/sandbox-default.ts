@@ -8,6 +8,8 @@ import { createEgressProxy, startNetWall } from "../../sandbox/src/index.ts";
 import { DISTRO_PIN } from "../../sandbox/src/wsl/pins.ts";
 import { ensureDistro, startWslAgent, wslOn } from "../../sandbox/src/wsl/wsl.ts";
 import type { AgentOptions } from "../../sandbox/src/wsl/wsl.ts";
+import { LABELS, ensureLowrun, lowrunPossible, setLabel } from "../../sandbox/src/win/lowrun.ts";
+import { privateBash } from "../../sandbox/src/win/msys.ts";
 import type { EngineSandbox, SandboxPlan } from "./sandbox.ts";
 
 /** What a CLI engine may reach through the proxy: its vendor's API and sign-in hosts, and nothing else. */
@@ -32,14 +34,50 @@ export interface DefaultSandboxOptions {
   wslRoot?: string;
   /** Windows tests only: host names the VM's proxy routes to a local port (sandbox/src/wsl/agent.ts). */
   wslTestRoutes?: Readonly<Record<string, number>>;
+  /** Windows: "personal" (default) runs engines at Low integrity in a Job Object (option E, RULINGS 14); "contained" runs them in Vyre's WSL2 Linux (option B, RULINGS 15). */
+  windowsMode?: WindowsMode;
+  /** Windows: where Vyre keeps the engine's sandbox helper. Default %LOCALAPPDATA%\ai.vyre.desktop\bin. */
+  winBin?: string;
+  /** Windows: the folders the person added to Vyre, which the engine may change (besides its work folder, home and temp). */
+  writable?: readonly string[];
+  /** Windows: Vyre's own folders a Low engine may not read. Default: the app's data folder (the dataDir's parent when it is ai.vyre.desktop) and %LOCALAPPDATA%\ai.vyre.desktop. */
+  privateDirs?: readonly string[];
 }
 
-/** The code a CLI turn refuses with where CLI engines cannot be sandboxed: Windows without WSL has its own, so the chat can say how to turn it on. */
-export function cliSandboxCode(platform: NodeJS.Platform = process.platform): "sandbox.wsl_off" | "sandbox.unavailable" {
-  return platform === "win32" ? "sandbox.wsl_off" : "sandbox.unavailable";
+/** How a Windows computer runs CLI engines: Personal (E) or Contained (B). VYRE_WINDOWS_SANDBOX=contained turns Contained on for the computer until it has a switch in its details. */
+export type WindowsMode = "personal" | "contained";
+export const windowsMode = (env: Readonly<Record<string, string | undefined>> = process.env): WindowsMode => (env["VYRE_WINDOWS_SANDBOX"] === "contained" ? "contained" : "personal");
+
+/** The code a CLI turn refuses with where CLI engines cannot be sandboxed: Windows Contained without WSL has its own, so the chat can say how to turn it on. */
+export function cliSandboxCode(platform: NodeJS.Platform = process.platform, mode: WindowsMode = windowsMode()): "sandbox.wsl_off" | "sandbox.unavailable" {
+  return platform === "win32" && mode === "contained" ? "sandbox.wsl_off" : "sandbox.unavailable";
 }
 
-/** The wall's egress options, built in this one place for the Linux wall and the WSL agent alike: plain data (it crosses into the VM), the policy of the turn that starts. */
+/** Vyre's own folders on Windows: the app's data folder (personal\ and vyred\ under %APPDATA%\ai.vyre.desktop) and its local folder (the webview's profile, the helper). */
+export function vyrePrivateDirs(dataDir: string, env: Readonly<Record<string, string | undefined>> = process.env): string[] {
+  const parent = path.win32.dirname(dataDir);
+  const own = path.win32.basename(parent).toLowerCase() === "ai.vyre.desktop" ? parent : dataDir;
+  const local = env["LOCALAPPDATA"] ? path.win32.join(env["LOCALAPPDATA"], "ai.vyre.desktop") : null;
+  return [own, ...(local && fs.existsSync(local) ? [local] : [])];
+}
+
+/**
+ * Keeps Vyre's own files from an engine at Low integrity (the at-rest audit: admin.token, seal.key, vault-filler.key, relay.key and the databases are files the person's account can read). The
+ * private folders get "no read up"; the engines folder is readable but not writable; the folders an engine may change are labelled Low when it starts (sandbox.ts lowWrap). Once per computer and
+ * label version: a marker beside the helper says it was done.
+ */
+export function protectVyreData(helper: string, binDir: string, dirs: readonly string[], readable: readonly string[]): void {
+  const marker = path.join(binDir, `protected-${Buffer.from(JSON.stringify([LABELS, dirs, readable])).toString("base64url").slice(0, 40)}`);
+  if (fs.existsSync(marker)) return;
+  for (const d of dirs) setLabel(helper, d, "private");
+  for (const d of readable) setLabel(helper, d, "read");
+  fs.writeFileSync(marker, "");
+}
+
+/** Where the Windows helper lives: Vyre's own folder, never the roaming profile. */
+export const winBinDir = (env: Readonly<Record<string, string | undefined>> = process.env): string => path.win32.join(env["LOCALAPPDATA"] ?? env["APPDATA"] ?? "C:\\", "ai.vyre.desktop", "bin");
+
+/** The wall's egress options, built in this one place for every platform: plain data, the policy of the turn that starts (lane l-openweb's shared policy lands here). */
 export function wallOptions(hosts: readonly string[]): AgentOptions["wall"] {
   return { allow: [...hosts] };
 }
@@ -114,12 +152,16 @@ export function selectedDeveloperDir(): string | null {
  * Why CLI engines cannot be sandboxed on this computer, in one line a person can read, or null where they can. The same answer defaultSandbox gives: a turn refuses with it (sandbox.unavailable), the
  * account picker passes over CLI accounts for it (runnable-account.ts), and the AI accounts page shows it as what the account needs (engine.providers.list). Never a reason to run an engine unwrapped.
  */
-export function cliSandboxGap(o: { platform?: NodeJS.Platform; bwrapPaths?: readonly string[] } = {}): string | null {
+export function cliSandboxGap(o: { platform?: NodeJS.Platform; bwrapPaths?: readonly string[]; windowsMode?: WindowsMode } = {}): string | null {
   const platform = o.platform ?? process.platform;
   if (platform === "darwin") return null;
   if (platform === "linux") return (o.bwrapPaths ?? BWRAP).some((p) => fs.existsSync(p)) ? null : "bubblewrap (bwrap) is not installed on this server, so CLI engines cannot be sandboxed";
-  // Windows sandboxes them in Vyre's own Linux under WSL2 (sandbox/src/wsl): that needs WSL turned on, once, with admin and a restart
-  if (platform === "win32") return wslOn() ? null : "Claude Code, Codex and Grok run in a Linux sandbox on Windows, and WSL is not turned on on this computer";
+  // Windows: Personal runs them at Low integrity in a Job Object (sandbox/src/win), built with the compiler Windows ships; Contained runs them in Vyre's own Linux under WSL2 (sandbox/src/wsl),
+  // which needs WSL turned on, once, with admin and a restart
+  if (platform === "win32") {
+    if ((o.windowsMode ?? windowsMode()) === "contained") return wslOn() ? null : "Claude Code, Codex and Grok run in a Linux sandbox on this computer, and WSL is not turned on";
+    return lowrunPossible(winBinDir()) ? null : "this Windows has no .NET Framework compiler, which Vyre needs to set up the engine's sandbox";
+  }
   return `CLI engines cannot be sandboxed on ${platform}`;
 }
 
@@ -129,21 +171,33 @@ export async function defaultSandbox(o: DefaultSandboxOptions): Promise<DefaultS
   const node = o.node ?? process.execPath;
   const unavailable = (reason: string): DefaultSandbox => ({ plan: { sandbox: { kind: "server", reason }, dataDir: o.dataDir, egressHosts: hosts }, close: async () => undefined });
   const done = (sandbox: EngineSandbox, close: () => Promise<void>): DefaultSandbox => ({ plan: { sandbox, dataDir: o.dataDir, egressHosts: hosts }, close });
-  const gap = cliSandboxGap({ platform, ...(o.bwrapPaths ? { bwrapPaths: o.bwrapPaths } : {}) });
+  const gap = cliSandboxGap({ platform, ...(o.bwrapPaths ? { bwrapPaths: o.bwrapPaths } : {}), ...(o.windowsMode ? { windowsMode: o.windowsMode } : {}) });
   if (gap !== null) return unavailable(gap);
-  const wall = wallOptions(hosts);
-  if (platform === "win32") {
+  const policy = wallOptions(hosts);
+  if (platform === "win32" && (o.windowsMode ?? windowsMode()) === "contained") {
     const root = o.wslRoot ?? path.win32.join(process.env["LOCALAPPDATA"] ?? path.win32.join(o.dataDir, ".."), "ai.vyre.desktop", "wsl");
     await ensureDistro({ root, ...(o.onPhase ? { onPhase: o.onPhase } : {}) });
-    const agent = await startWslAgent({ options: { wall, base: `/home/${DISTRO_PIN.user}/.vyre-run`, ...(o.wslTestRoutes ? { testRoutes: o.wslTestRoutes } : {}) } });
-    return done({ kind: "wsl", distro: DISTRO_PIN.name, user: DISTRO_PIN.user, agent, wall, ...(o.programRead ? { programRead: o.programRead } : {}) }, () => agent.close());
+    const agent = await startWslAgent({ options: { wall: policy, base: `/home/${DISTRO_PIN.user}/.vyre-run`, ...(o.wslTestRoutes ? { testRoutes: o.wslTestRoutes } : {}) } });
+    return done({ kind: "wsl", distro: DISTRO_PIN.name, user: DISTRO_PIN.user, agent, wall: policy, ...(o.programRead ? { programRead: o.programRead } : {}) }, () => agent.close());
+  }
+  if (platform === "win32") {
+    const bin = o.winBin ?? winBinDir();
+    const helper = await ensureLowrun(bin);
+    const msys = path.win32.join(path.win32.dirname(bin), "msys");
+    const bash = await privateBash(msys).catch(() => null);
+    // Vyre's folders (and the data folder itself, which the work folders are under) private; the roots an engine works under, its engines and its Git Bash readable
+    const priv = [...new Set([...(o.privateDirs ?? vyrePrivateDirs(o.dataDir)), o.dataDir])];
+    protectVyreData(helper, bin, priv, [path.join(o.dataDir, "work"), path.join(o.dataDir, "scratch"), path.join(o.dataDir, "engines"), ...(bash ? [msys] : [])]);
+    const proxy = createEgressProxy({ ...policy });
+    const { port } = await proxy.listen();
+    return done({ kind: "lowil", helper, proxyPort: port, ...(o.writable ? { writable: o.writable } : {}), ...(bash ? { bash } : {}) }, () => proxy.close());
   }
   if (platform === "linux") {
-    const net = await startNetWall({ ...wall });
-    return done({ kind: "bwrap", wallDir: net.dir, node, ...(o.programRead ? { programRead: o.programRead } : {}) }, () => net.close());
+    const wall = await startNetWall({ ...policy });
+    return done({ kind: "bwrap", wallDir: wall.dir, node, ...(o.programRead ? { programRead: o.programRead } : {}) }, () => wall.close());
   }
   if (platform === "darwin") {
-    const proxy = createEgressProxy({ ...wall });
+    const proxy = createEgressProxy({ ...policy });
     const { port } = await proxy.listen();
     // Seatbelt denies reads by default: the program being run (this Node, and the CLI's install folders) must be readable.
     const home = process.env["HOME"] ?? "/";
