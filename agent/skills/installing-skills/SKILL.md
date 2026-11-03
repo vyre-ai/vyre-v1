@@ -1,6 +1,7 @@
 ---
 name: installing-skills
 description: Install a skill for the person from a link, a GitHub repo or folder, or files they dropped. Use when they say "install this skill", "add this skill" or paste a skill link.
+system: true
 ---
 
 # Installing a skill

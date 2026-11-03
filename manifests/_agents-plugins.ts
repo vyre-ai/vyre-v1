@@ -27,7 +27,7 @@ const browseRow = t.obj({
 const commandRow = t.obj({ name: t.str({ examples: ['deploy-tools:status'] }), description: t.str(), argumentHint: t.opt(t.str()), plugin: t.str(), pluginId: plgId });
 const mcpSpec = t.obj({
   key: t.str({ description: 'plugin:<plugin>/<server> or <name> for a connection made by hand', examples: ['deploy-tools/api'] }), name: t.str(),
-  from: t.enm('plugin', 'connection'), pluginId: t.opt(t.str({ pattern: '^(plg|sko|skl)_[a-z0-9]+$', description: 'The plugin, or the skill (sko_ a person\'s, skl_ a Space one) whose .mcp.json it came from' })), transport: t.enm('stdio', 'http', 'sse', 'ws'),
+  from: t.enm('plugin', 'connection'), pluginId: t.opt(t.str({ pattern: '^(plg|sko|skl)_[a-z0-9]+$', examples: ['plg_a1b2c3'], description: 'The plugin, or the skill (sko_ a person\'s, skl_ a Space one) whose .mcp.json it came from' })), transport: t.enm('stdio', 'http', 'sse', 'ws'),
   command: t.opt(t.str()), args: t.arr(t.str()), env: t.rec(t.str()), url: t.opt(t.str()), headers: t.rec(t.str()),
   files: t.opt(t.str({ description: 'Plugin id whose files the command runs from; the folder is ${CLAUDE_PLUGIN_ROOT}' })),
   needs: t.arr(t.str({ description: 'Options of the plugin that have no value yet; the server is not started until they do' })),
@@ -65,7 +65,7 @@ export const pluginCapabilities: CapabilityDef[] = [
   }),
   read('plugins.hooks.list', 'The hooks of the plugins that apply to this agent. They run only in the sandbox.', { in: { agentId: t.opt(id.agent) }, out: { hooks: t.arr(hookRow) }, perm: null, level: 'view' }),
   read('plugins.files', 'The text files of an installed plugin, for the sandbox to be given (its MCP servers and hooks run from them)', {
-    in: { pluginId: t.str({ pattern: '^(plg|sko|skl)_[a-z0-9]+$', description: 'A plugin, or a skill whose bundled servers run from its files (sko_ a person\'s, skl_ a Space one)' }) }, out: { files: t.rec(t.str()) }, perm: null, level: 'view', errors: ['validation.not_found'],
+    in: { pluginId: t.str({ pattern: '^(plg|sko|skl)_[a-z0-9]+$', examples: ['plg_a1b2c3'], description: 'A plugin, or a skill whose bundled servers run from its files (sko_ a person\'s, skl_ a Space one)' }) }, out: { files: t.rec(t.str()) }, perm: null, level: 'view', errors: ['validation.not_found'],
   }),
   read('plugins.connections.list', 'MCP connections made by hand (a URL or a command)', { in: { agentId: t.opt(id.agent) }, out: { connections: t.arr(connectionRow) }, perm: null, level: 'view', tool: 'agents', mcpName: 'plugins_connections' }),
 

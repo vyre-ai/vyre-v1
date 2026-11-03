@@ -38,6 +38,7 @@ const quietText = (s: string): ReactElement => <Text style={t.quiet}>{s}</Text>;
 export function Touches({ perms, testID }: { perms: Perms; testID?: string }): ReactElement {
   return <View testID={testID} style={{ gap: 2 }}>
     <Text style={[t.quiet, { fontWeight: "600" }]}>What it can touch</Text>
+    {/* ui-rows-lint: not a list (lines of one paragraph) */}
     {touchLines(perms).map((l) => <Text key={l} style={t.lead}>{l}</Text>)}
   </View>;
 }
@@ -73,7 +74,7 @@ export function SkillsLists(p: ListsProps): ReactElement {
   const spaceRow = (s: SpaceSkill): ReactElement => <Row key={s.skillId} id={`skill-space-${s.name}`} title={titleOf(s)}
     note={`${s.description} · ${mode === "console" ? sourceLine(s) : "Set by an admin for everyone"}${s.needs.length > 0 ? ` · Needs ${s.needs.length === 1 ? "a key" : `${s.needs.length} keys`}` : ""}${s.enabled ? "" : " · Off"}`}
     onPress={() => p.onOpen({ kind: "space", skillId: s.skillId })}
-    trailing={mode === "console" ? <Switch on={s.enabled} label={`${s.name} is on for everyone`} testID={`skill-space-on-${s.name}`} onChange={(on) => p.onToggle({ kind: "space", name: s.name }, on)} /> : quietText("For everyone")} />;
+    trailing={mode === "console" ? <Switch on={s.enabled} label={`${s.name} is on`} testID={`skill-space-on-${s.name}`} onChange={(on) => p.onToggle({ kind: "space", name: s.name }, on)} /> : quietText("For everyone")} />;
   const builtin = <Section title="Built in" testID="skills-builtin">
     {page.builtin.map((b) => <Row key={b.name} id={`skill-builtin-${b.name}`} title={b.name} note={b.description} onPress={() => p.onView({ name: b.name })} trailing={quietText("Always on")} />)}
   </Section>;
@@ -91,7 +92,7 @@ export function SkillsLists(p: ListsProps): ReactElement {
       <Section title="Members' skills" testID="skills-members" note="Names only. You can read a skill only when its owner shared it.">
         {members.length > 0 ? members.map((m) => <Row key={`${m.owner}:${m.name}`} id={`skill-member-${m.owner}-${m.name}`} title={m.name} note={`${m.ownerName}${m.shared ? (m.toSpace ? " · Shared with everyone here" : " · Shared") : ""}`}
           {...(m.skillId ? { onPress: () => p.onView({ skillId: m.skillId! }) } : {})}
-          trailing={m.shared ? <SmallButton label="Make Space-wide" testID={`skill-adopt-${m.name}`} disabled={p.busy} onPress={() => p.onAdopt(m)} /> : undefined} />)
+          trailing={m.shared ? <SmallButton label="Make Space-wide" testID={`skill-adopt-${m.name}`} disabled={p.busy === true} onPress={() => p.onAdopt(m)} /> : undefined} />)
           : <Row id="skills-members-none" title="No member has a skill of their own yet" />}
       </Section>
       {builtin}
@@ -110,7 +111,8 @@ export function SkillsLists(p: ListsProps): ReactElement {
     trailing={<Switch on={c.enabled} label={`${c.name} is on`} testID={`skill-on-${c.name}`} onChange={(on) => p.onToggle({ kind: "shared", skillId: c.skillId }, on)} />} />;
   return <View testID="skills-settings" style={{ gap: 4 }}>
     {page.waiting.length > 0 ? <Section title="Waiting for you" testID="skills-waiting" note="A shared skill applies to you and your agents only after you add it.">
-      {page.waiting.map((c) => <ShareCard key={c.skillId} c={c} busy={p.busy} onAdd={() => p.onCard(c, "add")} onNotNow={() => p.onCard(c, "not_now")} onView={() => p.onView({ skillId: c.skillId })} />)}
+      {/* ui-rows-lint: not a list (approval cards with three buttons each) */}
+      {page.waiting.map((c) => <ShareCard key={c.skillId} c={c} busy={p.busy === true} onAdd={() => p.onCard(c, "add")} onNotNow={() => p.onCard(c, "not_now")} onView={() => p.onView({ skillId: c.skillId })} />)}
     </Section> : null}
     <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}><Text style={[t.lead, { flex: 1 }]}>Skills are short instructions you and your agents load when they fit the work.</Text>{addButton}</View>
     <Section title="Mine" testID="skills-mine">
@@ -118,11 +120,11 @@ export function SkillsLists(p: ListsProps): ReactElement {
     </Section>
     {later.length > 0 ? <Section title="Not now" testID="skills-later">
       {later.map((c) => <Row key={c.skillId} id={`skill-later-${c.name}`} title={titleOf(c)} note={`Shared by ${c.sharerName}`} onPress={() => p.onView({ skillId: c.skillId })}
-        trailing={<SmallButton label="Add" testID={`skill-later-add-${c.name}`} disabled={p.busy} onPress={() => p.onCard(c, "add")} />} />)}
+        trailing={<SmallButton label="Add" testID={`skill-later-add-${c.name}`} disabled={p.busy === true} onPress={() => p.onCard(c, "add")} />} />)}
     </Section> : null}
-    <Section title="From your Space" testID="skills-space" note="An admin set these for everyone here. They apply to you and your agents.">
-      {page.space.length > 0 ? page.space.map(spaceRow) : <Row id="skills-space-none" title="None set for the Space" />}
-    </Section>
+    {page.space.length > 0 ? <Section title="From your Space" testID="skills-space" note="An admin set these for everyone here. They apply to you and your agents.">
+      {page.space.map(spaceRow)}
+    </Section> : null}
     {builtin}
     {page.agents.length > 0 ? <Section title="Your agents" testID="skills-agents" note="The skills each agent uses, by the name it sees.">
       {page.agents.map((a) => { const names = skillsOfAgent(page, a.agentId); return <Row key={a.agentId} id={`skill-agent-${a.agentId}`} title={a.name} note={names.length > 0 ? names.join(", ") : "Built-in skills only"} />; })}
@@ -156,8 +158,8 @@ export function SkillSheet(p: DetailProps): ReactElement {
     p.onAgents(base.includes(id) ? base.filter((x) => x !== id) : [...base, id]);
   };
   return <Dialog title={titleOf(s)} onClose={p.onClose} width={560} fill testID="skill-sheet" actions={[
-    ...(canRemove ? [{ label: p.kind === "shared" ? "Take off my list" : "Remove", danger: true, disabled: p.busy, onPress: p.onRemove, testID: "skill-remove" }] : []),
-    ...(canUpdate ? [{ label: "Update", disabled: p.busy, onPress: p.onUpdate, testID: "skill-update" }] : []),
+    ...(canRemove ? [{ label: p.kind === "shared" ? "Take off my list" : "Remove", danger: true, disabled: p.busy === true, onPress: p.onRemove, testID: "skill-remove" }] : []),
+    ...(canUpdate ? [{ label: "Update", disabled: p.busy === true, onPress: p.onUpdate, testID: "skill-update" }] : []),
     { label: "View contents", onPress: p.onView, testID: "skill-view" },
     { label: "Done", primary: true, onPress: p.onClose, testID: "skill-done" },
   ]}>
@@ -167,16 +169,18 @@ export function SkillSheet(p: DetailProps): ReactElement {
       <Touches perms={s.perms} testID="skill-touches" />
       {servers.length > 0 ? <View style={{ gap: 6 }} testID="skill-servers">
         <Text style={[t.quiet, { fontWeight: "600" }]}>Tool servers</Text>
+        {/* ui-rows-lint: not a list (one block per server; its row is a ui/Row) */}
         {servers.map((m) => {
           const h = p.health[m.name];
           const missing = s.needs.filter((n) => keyOf(n).server === m.name);
           const state = missing.length > 0 ? `Needs ${missing.map((n) => keyOf(n).key).join(", ")}` : !h ? "Not checked yet" : h.state === "working" ? `Working · ${h.tools ?? 0} ${h.tools === 1 ? "tool" : "tools"}` : h.state === "checking" ? "Checking" : h.state === "needs" ? "Needs a key" : `Not answering${h.error ? `: ${h.error}` : ""}`;
           return <View key={m.name} style={{ gap: 6 }}>
-            <Row id={`skill-server-${m.name}`} title={m.name} note={state} trailing={missing.length === 0 ? <SmallButton label="Test" testID={`skill-test-${m.name}`} disabled={p.busy || h?.state === "checking"} onPress={() => p.onTest(m.name)} /> : undefined} />
+            <Row id={`skill-server-${m.name}`} title={m.name} note={state} trailing={missing.length === 0 ? <SmallButton label="Test" testID={`skill-test-${m.name}`} disabled={p.busy === true || h?.state === "checking"} onPress={() => p.onTest(m.name)} /> : undefined} />
+            {/* ui-rows-lint: not a list (key fields of a form) */}
             {canKeys ? missing.map((n) => <View key={n} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 12 }}>
               <Text style={[t.mono, { width: 150 }]}>{keyOf(n).key}</Text>
               <TextField secureTextEntry accessibilityLabel={`${keyOf(n).key} for ${m.name}`} testID={`skill-key-${n}`} value={value[n] ?? ""} onChangeText={(v) => setValue((was) => ({ ...was, [n]: v }))} placeholder="Paste the key" style={{ flex: 1, minWidth: 0 }} />
-              <SmallButton primary label="Add to Vault" testID={`skill-vault-${n}`} disabled={p.busy || (value[n] ?? "").trim() === ""} onPress={() => { p.onKey(n, value[n]!.trim()); setValue((was) => ({ ...was, [n]: "" })); }} />
+              <SmallButton primary label="Add to Vault" testID={`skill-vault-${n}`} disabled={p.busy === true || (value[n] ?? "").trim() === ""} onPress={() => { p.onKey(n, value[n]!.trim()); setValue((was) => ({ ...was, [n]: "" })); }} />
             </View>) : missing.length > 0 && p.kind === "shared" ? <Text style={[t.quiet, { paddingLeft: 12 }]}>{`${(s as Card).sharerName} sets its keys.`}</Text> : null}
           </View>;
         })}
@@ -192,9 +196,9 @@ export function SkillSheet(p: DetailProps): ReactElement {
         {sharing ? <View style={{ gap: 4 }}>
           {p.people.map((x) => <Row key={x.id} id={`skill-share-${x.id}`} title={x.name} trailing={<Switch on={pick.includes(x.id) || own.sharedWith.includes(x.id)} label={`Share with ${x.name}`} testID={`skill-share-${x.id}`} onChange={(on) => { if (own.sharedWith.includes(x.id)) p.onShare([x.id], false, true); else setPick((was) => (on ? [...was, x.id] : was.filter((y) => y !== x.id))); }} />} />)}
           <View style={actions}>
-            <SmallButton primary label={pick.length > 0 ? `Share with ${pick.length === 1 ? "1 person" : `${pick.length} people`}` : "Share"} testID="skill-share-people" disabled={p.busy || pick.length === 0} onPress={() => { p.onShare(pick, false, false); setPick([]); setSharing(false); }} />
+            <SmallButton primary label={pick.length > 0 ? `Share with ${pick.length === 1 ? "1 person" : `${pick.length} people`}` : "Share"} testID="skill-share-people" disabled={p.busy === true || pick.length === 0} onPress={() => { p.onShare(pick, false, false); setPick([]); setSharing(false); }} />
             {own.sharedWith.includes("*") ? <SmallButton label="Stop sharing with everyone" testID="skill-unshare-space" onPress={() => p.onShare([], true, true)} />
-              : <SmallButton label="Share with everyone here" testID="skill-share-space" disabled={p.busy} onPress={() => { p.onShare([], true, false); setSharing(false); }} />}
+              : <SmallButton label="Share with everyone here" testID="skill-share-space" disabled={p.busy === true} onPress={() => { p.onShare([], true, false); setSharing(false); }} />}
           </View>
           {quietText("Each person gets a card and decides. It never applies to them before they add it.")}
         </View> : <View style={actions}><SmallButton label="Share" testID="skill-share" onPress={() => setSharing(true)} /></View>}
@@ -233,9 +237,10 @@ export function AddSheet(p: AddProps): ReactElement {
     const list = p.found.skills.filter((s) => chosen.includes(s.path));
     return <Dialog title={p.found.skills.length === 1 ? "Add this skill?" : `${p.found.skills.length} skills found`} onClose={p.onClose} width={560} fill testID="skill-review" actions={[
       { label: "Back", onPress: p.onBack, testID: "skill-review-back" },
-      { label: p.mode === "console" ? "Add for everyone" : list.length > 1 ? `Add ${list.length} skills` : "Add to my skills", primary: true, disabled: p.busy || list.length === 0, onPress: () => p.onAdd(list), testID: "skill-review-add" },
+      { label: p.mode === "console" ? "Add for everyone" : list.length > 1 ? `Add ${list.length} skills` : "Add to my skills", primary: true, disabled: p.busy === true || list.length === 0, onPress: () => p.onAdd(list), testID: "skill-review-add" },
     ]}>
       <View style={{ gap: 12 }}>
+        {/* ui-rows-lint: not a list (review blocks; each holds a ui/Row) */}
         {p.found.skills.map((s) => <View key={s.path || s.name} style={{ gap: 6, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: "var(--line)" }} testID={`skill-found-${s.name}`}>
           <Row id={`skill-found-row-${s.name}`} title={s.taken ?? s.name} note={`${s.description}${s.kind === "codex" ? " · Codex skill" : s.kind === "plugin" ? " · From a plugin" : ""}`}
             trailing={p.found!.skills.length > 1 ? <Switch on={chosen.includes(s.path)} label={`Add ${s.name}`} testID={`skill-found-pick-${s.name}`} onChange={(on) => setPicked(on ? [...chosen, s.path] : chosen.filter((x) => x !== s.path))} /> : undefined} />
@@ -243,6 +248,7 @@ export function AddSheet(p: AddProps): ReactElement {
           <Touches perms={s.perms} />
           {quietText(`${Object.keys(s.files).length} ${Object.keys(s.files).length === 1 ? "file" : "files"} beside its SKILL.md${s.version ? ` · version ${s.version}` : ""}`)}
         </View>)}
+        {/* ui-rows-lint: not a list (lines of text) */}
         {p.found.problems.map((x) => <Text key={x} style={t.warn}>{x}</Text>)}
         {p.found.skipped.length > 0 ? quietText(`Left out (not text): ${p.found.skipped.slice(0, 5).join(", ")}${p.found.skipped.length > 5 ? ` and ${p.found.skipped.length - 5} more` : ""}`) : null}
         {quietText(p.mode === "console" ? "A Space-wide skill applies to every member and their agents at once." : "It is for you and all your agents. You can pick agents after.")}
@@ -252,15 +258,16 @@ export function AddSheet(p: AddProps): ReactElement {
   const ways = [{ value: "link", label: "Paste a link" }, { value: "drop", label: "Folder or zip" }, { value: "browse", label: "Marketplace" }, ...(p.canAsk ? [{ value: "ask", label: "Ask the Assistant" }] : [])];
   const allowed = p.browse.filter((b) => b.allowed);
   return <Dialog title={p.mode === "console" ? "Add a Space skill" : "Add a skill"} onClose={p.onClose} width={560} fill testID="skill-add-sheet" actions={[
-    ...(way === "link" ? [{ label: "Read it", primary: true, disabled: p.busy || link.trim() === "", onPress: () => p.onLink(link.trim()), testID: "skill-link-read" }] : []),
+    // a pasted SKILL.md (front matter or a heading, more than one line) is read as the file itself; anything else is a link
+    ...(way === "link" ? [{ label: "Read it", primary: true, disabled: p.busy === true || link.trim() === "", onPress: () => (/^(---|#)/.test(link.trim()) && link.trim().includes("\n") ? p.onFolder({ "SKILL.md": link.trim() + "\n" }, "skill") : p.onLink(link.trim())), testID: "skill-link-read" }] : []),
     ...(way === "ask" ? [{ label: "Ask the Assistant", primary: true, disabled: link.trim() === "", onPress: () => p.onAsk(link.trim()), testID: "skill-ask-go" }] : []),
     { label: "Cancel", onPress: p.onClose, testID: "skill-add-cancel" },
   ]}>
     <View style={{ gap: 12 }}>
       <Segmented value={way} options={ways} label="How to add it" testID="skill-add-way" onChange={(v) => setWay(v as Way)} />
       {way === "link" || way === "ask" ? <View style={{ gap: 6 }}>
-        <TextField accessibilityLabel="Link" testID="skill-link" value={link} onChangeText={setLink} placeholder="https://github.com/anthropics/skills/tree/main/pdf" autoCapitalize="none" />
-        {quietText(way === "ask" ? "The Assistant reads it beside this page, shows what it can touch, and adds it on your yes." : "A SKILL.md, a GitHub repo or a folder in one. Codex skill folders work too.")}
+        <TextField accessibilityLabel="Link" testID="skill-link" value={link} onChangeText={setLink} placeholder="https://github.com/anthropics/skills/tree/main/pdf" autoCapitalize="none" multiline={way === "link"} style={way === "link" ? { minHeight: 38, maxHeight: 160 } : undefined} />
+        {quietText(way === "ask" ? "The Assistant reads it beside this page, shows what it can touch, and adds it on your yes." : "A link to a SKILL.md, a GitHub repo or a folder in one, or paste the SKILL.md itself. Codex skill folders work too.")}
       </View> : null}
       {way === "drop" ? <View style={{ gap: 8 }}>
         <DropZone onFiles={(f) => void takeFiles(f)} label="Drop to read it" style={{ minHeight: 120, borderWidth: 1, borderStyle: "dashed", borderColor: "var(--line)", borderRadius: 10, alignItems: "center", justifyContent: "center", display: "flex" }} testID="skill-drop">

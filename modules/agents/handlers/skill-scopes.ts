@@ -537,7 +537,7 @@ export function skillServers(ctx: AgentsCtx, agentId: string | undefined): Skill
     for (const m of readPlugin({ ".mcp.json": files[".mcp.json"] }).mcpServers) {
       const needs = new Set<string>();
       const fill = (v: string): string => v.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (all, k: string) => { const h = setup[`${m.name}.${k}`]; if (h) return h; needs.add(k); return all; });
-      const env = Object.fromEntries(Object.entries(m.env).map(([k, v]) => {
+      const env = Object.fromEntries(Object.entries(m.env).map(([k, v]): [string, string] => {
         if (v.trim() === "" && setup[`${m.name}.${k}`]) return [k, setup[`${m.name}.${k}`]!];
         if (v.trim() === "" && /(KEY|TOKEN|SECRET|PASSWORD|PASS|AUTH|CREDENTIAL)S?$/i.test(k)) needs.add(k);
         return [k, fill(v)];

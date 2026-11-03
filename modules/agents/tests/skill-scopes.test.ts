@@ -41,7 +41,7 @@ async function agentOf(hn: Harness, ctx: Harness["ctx"], name: string): Promise<
 const index = async (hn: Harness, ctx: Harness["ctx"], agentId?: string): Promise<string[]> => names(await call(hn, "skills.list", agentId ? { agentId } : {}, ctx));
 
 test("a skill shared with one person is a card for them; Add puts it in their agents' index, Not now does not, and nobody else sees it", async () => {
-  const { hn, maya, leo } = world();
+  const { hn, maya, leo, member, admin } = world();
   const mayaAgent = await agentOf(hn, maya, "Maya intake");
   const leoAgent = await agentOf(hn, leo, "Leo notes");
   const mine = (await call(hn, "skills.mine.add", { text: SKILL("deploy-checks", "Run the checks before a deploy.") })).skill;
@@ -57,7 +57,9 @@ test("a skill shared with one person is a card for them; Add puts it in their ag
   assert.ok(!(await index(hn, maya, mayaAgent)).includes("deploy-checks"), "a card never runs before Add");
   assert.equal((await call(hn, "skills.page", {}, leo)).waiting.length, 0, "Leo was not given it");
   assert.match((await call(hn, "skills.view", { skillId: mine.skillId }, maya)).skill.text, /Do the thing/, "View works before Add");
-  assert.equal(await fails(call(hn, "skills.view", { skillId: mine.skillId }, leo)), "validation.not_found");
+  member();
+  assert.equal(await fails(call(hn, "skills.view", { skillId: mine.skillId }, leo)), "validation.not_found", "a member it was not shared with cannot open it");
+  admin();
 
   await call(hn, "skills.shared.decide", { skillId: mine.skillId, decision: "not_now" }, maya);
   page = await call(hn, "skills.page", {}, maya);
@@ -113,7 +115,7 @@ test("a skill set in Console applies to everyone and their agents with no card; 
   member();
   // the host refuses skills.remove for a member (agents.manage); the page's own remove never takes a Space skill
   const def = manifest.capabilities.find((c) => c.name === "skills.remove")!;
-  assert.equal(def.perm, "agents.manage");
+  assert.equal((def as { permission?: string | null }).permission, "agents.manage");
   const role = PERMISSIONS.find((p) => p.key === "agents.manage")!;
   assert.equal(role.defaults["member"], false, "members do not hold agents.manage");
   assert.equal((await call(hn, "skills.mine.remove", { skillId: "sko_notaskill" }, maya)).removed, false);
