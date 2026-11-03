@@ -2,3 +2,5 @@
 - What your private agent does where others see it is credited to you: "Irfad Imtiaz (Agent)", with your face. Its own name never shows to anyone else. You still see your agents by name.
 - Console audit: an agent's row keeps that headline and adds an Agent line with which agent it was, its id, the setup grant if it used one, and the trace.
 - Console > Agents and actors > Connected MCP apps shows who connected each outside agent, its setup grant and when it was last active. Owners and admins can remove one there.
+- The server now names someone else's private agent as its person: access.principals.list answers "Irfad Imtiaz (Agent)" with his face, and only owners and admins also get the agent's own name, for the audit details. The engine's usage, limit cards and crew name agents the same way, and never by a raw id.
+- A record created or edited by a person or an agent now names who did it (and who an agent acted for) in its history and in the log. Before, every record change was credited to the records service.
