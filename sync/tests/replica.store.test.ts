@@ -424,3 +424,22 @@ test("catalog, replica DDL and sql helpers load from the generated files", () =>
   assert.equal(isDuplicateColumn(new Error("duplicate column name: pending")), true);
   assert.equal(isDuplicateColumn(new Error("no such table")), false);
 });
+
+test("a new replica has each field-meta table's pending column in its CREATE TABLE, with the same columns, order and constraints as an older replica that got it by ALTER TABLE; reopening either keeps it", () => {
+  const ddl = loadReplicaSql();
+  const fm = ddl.tables.filter((t) => t.fm);
+  assert.ok(fm.length > 10);
+  const cols = (driver: ReturnType<typeof createNodeDriver>): string => ddl.tables.map((t) => `${t.name}: ${driver.prepare(`SELECT name, type, "notnull" AS nn, dflt_value AS dv, pk FROM pragma_table_info('${t.name}')`).all([]).map((c) => `${String(c["name"])} ${String(c["type"])} ${String(c["nn"])} ${String(c["dv"])} ${String(c["pk"])}`).join(", ")}`).join("\n");
+  // the older way: the DDL as generated, then one ALTER TABLE per field-meta table
+  const older = createNodeDriver();
+  older.exec(ddl.sql);
+  for (const t of fm) older.exec(`ALTER TABLE ${quoteIdent(t.name)} ADD COLUMN pending INTEGER NOT NULL DEFAULT 0`);
+  const made = createNodeDriver();
+  openReplica({ driver: made, deviceClass: "desktop", registryHash: "h1", personId: "usr_a" });
+  assert.equal(cols(made), cols(older));
+  assert.match(ddl.withPending, /"calendar_list__fm" \([\s\S]*?"seq" INTEGER,\n  "pending" INTEGER NOT NULL DEFAULT 0,\n  PRIMARY KEY/);
+  // an older replica opens as before: ensurePending finds the column it already added
+  openReplica({ driver: older, deviceClass: "desktop", registryHash: "h1", personId: "usr_a" });
+  openReplica({ driver: made, deviceClass: "desktop", registryHash: "h1", personId: "usr_a" });
+  assert.equal(cols(made), cols(older));
+});
