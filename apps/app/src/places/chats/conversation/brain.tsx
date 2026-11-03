@@ -6,13 +6,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 // the panel and the logo table are imported on their own, so the chat page does not pull the whole composer in before the deferred one loads
 import { ModelPanel } from "../../../../../../ui/src/Composer/ModelPanel.tsx";
-import type { PanelAccount, PanelModel, PanelRuns, PanelScope, PanelUsage } from "../../../../../../ui/src/Composer/ModelPanel.tsx";
+import type { PanelAccount, PanelRuns, PanelScope, PanelUsage } from "../../../../../../ui/src/Composer/ModelPanel.tsx";
 import { brandOf } from "../../../../../../ui/src/Composer/parts.tsx";
 import type { ChatMode, ComposerAgent, Effort } from "../../../../../../ui/src/Composer/brain.ts";
 import { isAssistantId } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import type { ConversationData } from "./data.tsx";
 import type { Thread, ThreadAgent } from "./model.ts";
+import { loadMenuModels, pickedRow } from "./live-models.ts";
+import type { MenuModel } from "./live-models.ts";
 
 /* ---------- capabilities that may not exist yet ---------- */
 
@@ -93,21 +95,8 @@ export function panelUsage(out: UsageOut | null): PanelUsage | null {
   return { context: out.context && out.context.window > 0 ? out.context : null, session: meter(out.session), week: meter(out.week), ...(out.keepEvery ? { keepEvery: out.keepEvery } : {}) };
 }
 
-/** "Out of usage until 3:40 PM": a model the provider refused for its usage limit, with when it comes back when the provider said (a later day names the day). */
-export function outOfUsage(resetsAt: number | undefined, now = Date.now()): string {
-  if (resetsAt === undefined || !Number.isFinite(resetsAt) || resetsAt <= now) return "Out of usage for now";
-  const at = new Date(resetsAt);
-  const time = at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  return new Date(now).toDateString() === at.toDateString() ? `Out of usage until ${time}` : `Out of usage until ${at.toLocaleDateString([], { weekday: "short" })} ${time}`;
-}
-
-/** Why a model is greyed, in the panel's words. */
-export function modelReason(m: { reason?: string; resetsAt?: number }, now = Date.now()): string | undefined {
-  if (!m.reason) return undefined;
-  if (m.reason === "not_connected") return "Not connected";
-  if (m.reason === "usage_limit") return outOfUsage(m.resetsAt, now);
-  return "Not allowed here";
-}
+// what greys a model, in the panel's words, lives with the live list's helpers (a .ts file the unit tests load)
+export { modelReason, outOfUsage } from "./live-models.ts";
 
 /** Only accounts that are connected (signed in or not yet tested) are offered, by the name the person gave them. */
 export function connectedAccounts(rows: readonly AccountRow[]): PanelAccount[] {
@@ -199,7 +188,8 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
   const [accountRef, setAccountRef] = useState<string | null>(member?.accountRef ?? null);
   const [model, setModel] = useState<string | null>(member?.model ?? null);
   const [effort, setEffort] = useState<Effort | undefined>(member?.effort);
-  const [models, setModels] = useState<PanelModel[] | null>(null);
+  const [models, setModels] = useState<MenuModel[] | null>(null);
+  const [modelsLine, setModelsLine] = useState<string | undefined>(undefined);
   const [fallback, setFallback] = useState<boolean | undefined>(undefined);
   const [perAccount, setPerAccount] = useState<Record<string, number | null>>({});
   const openConnect = useOpenConnect();
@@ -208,14 +198,12 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
   const shownRef = entryOf(accounts, accountRef)?.ref ?? accountRef ?? (accounts ?? []).find((a) => brandOf(a.provider) === brandOf(member?.provider))?.ref ?? accounts?.[0]?.ref ?? null;
   const usage = useUsage(data, p.agent.id, shownRef);
 
+  // the saved list at once, then the fresh one the vendor's engine gave (a refresh starts as the menu opens); never waits on the network
   useEffect(() => {
     let live = true;
     setModels(null);
-    void Promise.resolve(data.call("engine.models.list", { threadId: data.threadId, ...(shownRef ? { accountRef: shownRef } : {}) })).then((out) => {
-      if (!live) return;
-      const list = ((out as { models?: { model: string; title: string; contextTokens?: number; allowed: boolean; reason?: string; resetsAt?: number }[] } | undefined)?.models ?? []);
-      setModels(list.map((m) => { const why = modelReason(m); return { id: m.model, title: m.title, ...(m.contextTokens ? { window: m.contextTokens } : {}), allowed: m.allowed, ...(why ? { reason: why } : {}), ...(m.model === "auto" ? { note: "Picks per message" } : {}) }; }));
-    }, () => { if (live) setModels([]); });
+    setModelsLine(undefined);
+    void loadMenuModels(data.call, { threadId: data.threadId, ...(shownRef ? { accountRef: shownRef } : {}) }, (list, line) => { setModels(list); setModelsLine(line); }, () => live);
     return () => { live = false; };
   }, [data, shownRef]);
 
@@ -263,7 +251,8 @@ export function ChatBrain(p: ChatBrainProps): ReactElement {
         write({ accountRef: ref, ...(provider ? { provider } : {}), ...(keep ? { model: keep } : {}) }, `${p.agent.name} now runs on ${name} ${where}`);
       }}
       models={models}
-      model={model}
+      model={pickedRow(models, model)}
+      {...(modelsLine ? { modelsLine } : {})}
       onModel={(id) => {
         setModel(id);
         const title = models?.find((m) => m.id === id)?.title ?? id;

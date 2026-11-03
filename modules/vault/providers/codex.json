@@ -5,11 +5,18 @@
   "connections": [
     "subscription"
   ],
-  "modelsSource": "static",
+  "modelsSource": "engine",
   "engine": "codex",
   "models": [
-    "gpt-5-codex",
-    "gpt-5"
+    "gpt-6.1-sol",
+    "gpt-6-astra",
+    "gpt-6-sol",
+    "gpt-6-luna",
+    "gpt-5.6-sol",
+    "gpt-6.1-terra",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+    "gpt-5.5"
   ],
   "instruction": "Press Sign in with ChatGPT. Vyre starts ChatGPT's own sign-in and gives you its link. Approve it in your browser and the account is saved in your Mine folder."
 }

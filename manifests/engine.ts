@@ -35,6 +35,10 @@ const modelInfo = t.obj({
   provider: t.str({ examples: ['anthropic'] }), model: t.str({ examples: ['claude-sonnet-5-5'] }), title: t.str(), driver: driverId, contextTokens: t.opt(t.int()),
   allowed: t.bool(), reason: t.opt(t.enm('label_provider', 'policy_model', 'not_connected', 'usage_limit')),
   resetsAt: t.opt(t.ts()),
+  alias: t.opt(t.str({ description: "The engine's own name that resolves to this model today (Claude Code's opus); a pick saved as the alias is this model", examples: ['opus'] })),
+  isDefault: t.opt(t.bool()),
+  efforts: t.opt(t.arr(t.str({ description: 'A reasoning-effort level the vendor offers for this model, in its words', examples: ['high'] }))),
+  defaultEffort: t.opt(t.str({ examples: ['medium'] })),
 });
 const accountRow = t.obj({
   ref: accountRef, driver: driverId, kind: t.enm('api_key', 'subscription'), title: t.str(), name: t.opt(t.str({ description: 'The name the person gave this account in the Vault; title is the provider', examples: ['Dana Claude Max'] })), mine: t.bool(), ownerId: t.opt(id.user),
@@ -285,7 +289,19 @@ export default defineManifest({
       in: { accountRef }, out: { ok: t.bool(), models: t.opt(t.int()), error: t.opt(errShape) }, tool: 'meta', errors: ['provider.auth_failed', 'provider.unavailable', 'provider.network'],
     }),
     read('engine.models.list', 'Models the account can reach; models that the open labels or policy forbid are listed greyed with the reason', {
-      in: { accountRef: t.opt(accountRef), threadId: t.opt(id.thread), recordLabel: t.opt(label) }, out: { models: t.arr(modelInfo) }, tool: 'meta',
+      in: {
+        accountRef: t.opt(accountRef), threadId: t.opt(id.thread), recordLabel: t.opt(label),
+        refresh: t.opt(t.bool()),
+        wait: t.opt(t.bool()),
+      },
+      out: {
+        models: t.arr(modelInfo),
+        listed: t.opt(t.obj({
+          source: t.enm('live', 'saved', 'shipped'), updatedAt: t.opt(t.ts()), refreshing: t.bool(),
+          failed: t.bool(),
+        }, { description: 'How fresh the subscription engines\' lists are; left out when none is listed' })),
+      },
+      tool: 'meta',
     }),
     read('engine.providers.list', 'AI providers and engines (API and CLI) with whether each is connected and allowed for the open labels', {
       in: { threadId: t.opt(id.thread) },

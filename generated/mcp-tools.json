@@ -17234,12 +17234,18 @@
             ],
             "type": "string"
           },
+          "refresh": {
+            "type": "boolean"
+          },
           "threadId": {
             "examples": [
               "thr_a1b2c3"
             ],
             "pattern": "^thr_[a-z0-9]+$",
             "type": "string"
+          },
+          "wait": {
+            "type": "boolean"
           }
         },
         "type": "object"
