@@ -32,13 +32,16 @@ async function personal(): Promise<{ made: MadeBundle; keys: { personKeyByPasswo
 const sourceOf = (keys: unknown) => async (cap: string): Promise<unknown> => { assert.equal(cap, "identity.keys_get"); return { keys }; };
 const carry = (keys: unknown) => (password: string, spaceId: string) => carryIdentity({ source: sourceOf(keys), carryBundle: (p, b, s) => carryBundle(p, b, s, { argon: FAST }) }, password, spaceId);
 
-test("the known account: the Personal Space's, never the Space being set up, and none without a username", () => {
+test("the known account: the Personal Space's, never the Space being set up, and a provider sign-in last", () => {
   const mine = session("http://127.0.0.1:7801", "spc_personal", "Personal", "personal", "irfad");
   const team = session("https://acme.example", "spc_acme", "Acme", "team", "irfad.i");
   assert.equal(knownIdentity([team, mine])?.spaceId, "spc_personal", "the Personal Space first");
   assert.equal(knownIdentity([team, mine], { spaceId: "spc_personal" })?.spaceId, "spc_acme");
   assert.equal(knownIdentity([mine], { baseUrl: "http://127.0.0.1:7801" }), null);
-  assert.equal(knownIdentity([session("https://x.example", "spc_x", "X", "team")]), null, "a session with no username is not offered");
+  // rc.17: a session from a Google, Microsoft or GitHub sign-in has no username; it is offered after any whose password this device has seen
+  const sso = session("https://x.example", "spc_x", "X", "team");
+  assert.deepEqual(knownIdentity([sso]), { name: "Irfad Imtiaz", baseUrl: "https://x.example", token: "tok_spc_x", spaceId: "spc_x", spaceName: "X", provider: true });
+  assert.equal(knownIdentity([sso, team])?.spaceId, "spc_acme", "an account opened with its password comes first");
   assert.deepEqual(knownIdentity([mine]), { username: "irfad", name: "Irfad Imtiaz", baseUrl: "http://127.0.0.1:7801", token: "tok_spc_personal", spaceId: "spc_personal", spaceName: "Personal" });
 });
 

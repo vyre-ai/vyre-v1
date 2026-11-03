@@ -164,7 +164,7 @@ export async function whoami(ctx: IdentityCtx, _input: Record<string, never>) {
 export async function securityGet(ctx: IdentityCtx, _input: Record<string, never>) {
   const a = me(ctx);
   const changed = ctx.db.all(`SELECT changed_at FROM identity_password_changed WHERE person_id = ?`, a.person_id)[0] as { changed_at: number } | undefined;
-  return { passwordChangedAt: changed?.changed_at ?? a.created_at, ...(a.github_id && a.github_login ? { github: a.github_login } : {}), totp: !!a.totp_secret, passkeys: [] as string[] };
+  return { passwordChangedAt: changed?.changed_at ?? a.created_at, ...(a.github_id && a.github_login ? { github: a.github_login } : {}), totp: !!a.totp_secret, passkeys: [] as string[], username: a.username };
 }
 
 // ---- pairing: one stack for the app, the extension and the daemon

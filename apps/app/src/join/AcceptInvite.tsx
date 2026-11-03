@@ -28,6 +28,8 @@ export interface AcceptInviteProps {
   newCode: () => string;
   onEmail?: (to: string) => void;
   onOpen?: () => void;
+  /** rc.17: the person has a Vyre account already (in another Space): bring it instead of making one */
+  onHaveAccount?: () => void;
 }
 
 const STEPS = 4;
@@ -210,7 +212,9 @@ export function AcceptInvite(props: AcceptInviteProps) {
           {props.onOpenApp ? <View style={{ marginTop: 8 }}><Button quiet testID="open-app" label="Open in Vyre" onPress={props.onOpenApp} /></View> : null}
           <Links>
             {props.onDownload ? <TextButton testID="download" label="Get Vyre" onPress={props.onDownload} /> : null}
-            <TextButton testID="have-account" label="I have an account" onPress={() => dispatch({ t: "signin" })} />
+            {props.onHaveAccount
+              ? <TextButton testID="have-account" label="I already have a Vyre account" onPress={props.onHaveAccount} />
+              : <TextButton testID="have-account" label="I have an account" onPress={() => dispatch({ t: "signin" })} />}
           </Links>
         </>}
       >
@@ -245,7 +249,7 @@ export function AcceptInvite(props: AcceptInviteProps) {
   }
   return (
     <>
-      <Panel wait={running} {...(state.step === 0 || last ? { space: invite.space } : {})} bar={bar}>{body}</Panel>
+      <Panel wait={running} {...(state.step === 0 || last ? { space: invite.space } : {})} bar={bar} {...(props.onHaveAccount && (state.step === 0 || state.step === 1) && !last ? { below: <Links><TextButton testID="have-vyre-account" label="I already have a Vyre account" onPress={props.onHaveAccount} /></Links> } : {})}>{body}</Panel>
       {state.sheet ? <RecoverySheet invite={invite} state={state} dispatch={dispatch} onCopyCode={props.onCopyCode} onSaveCode={props.onSaveCode} /> : null}
     </>
   );

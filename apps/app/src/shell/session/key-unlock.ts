@@ -20,15 +20,15 @@ export async function unlockWithPassword(baseUrl: string, token: string, passwor
   const reach = createCapCaller({ baseUrl, token: () => token });
   let got: { keys: Keys };
   try { got = (await reach("identity.keys_get", {})) as { keys: Keys }; } catch (e) { throw new Error(lineOf(e)); }
-  const { openBundle, wipe } = await loadCryptoKeys();
+  const { openBundle, heldKeyOf, wipeOpened } = await loadCryptoKeys();
   let opened: Awaited<ReturnType<typeof openBundle>>;
   try { opened = await openBundle(password, { ...got.keys, personKeyByRecovery: got.keys.personKeyByRecovery ?? "" }); } catch { throw new Error(WRONG_PASSWORD); }
   try {
     let held = false;
-    try { held = await holdKeyOnOwnNode(baseUrl, token, opened.personKey); } catch { throw new Error(OFFLINE_OWN); }
+    try { held = await holdKeyOnOwnNode(baseUrl, token, heldKeyOf(opened)); } catch { throw new Error(OFFLINE_OWN); }
     if (!held) throw new Error(VAULT_REFUSED);
-    keepKey(opened.personKey);
-  } finally { wipe(opened.personKey); wipe(opened.privateKey); }
+    keepKey(heldKeyOf(opened));
+  } finally { wipeOpened(opened); }
 }
 
 /** Whether this account has a password key to open here. "no" only when the Space answered that it has none; a Space that did not answer is "unknown", never read as no password. */
