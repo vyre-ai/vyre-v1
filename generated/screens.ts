@@ -148,6 +148,48 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "access.permissions",
+    "module": "access",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsolePermissions",
+    "caller": "principal",
+    "queries": {
+      "roles": {
+        "cap": "access.roles.list",
+        "input": {},
+        "live": true
+      },
+      "exceptions": {
+        "cap": "access.exceptions.list",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "add": {
+        "cap": "access.exceptions.set",
+        "input": {
+          "subject": "/state/subject",
+          "effect": "/state/effect"
+        }
+      },
+      "remove": {
+        "cap": "access.exceptions.remove",
+        "input": {
+          "exceptionId": "/state/exceptionId"
+        }
+      }
+    },
+    "needs": [
+      "access.manage"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "access.policies",
     "module": "access",
     "place": "console",

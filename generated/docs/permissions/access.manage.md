@@ -21,6 +21,10 @@ Area: space. Risk: high. Applies to: space.
 - access.actors.update
 - access.check
 - access.connector_builder.grant
+- access.exceptions.explain
+- access.exceptions.list
+- access.exceptions.remove
+- access.exceptions.set
 - access.grants.list
 - access.groups.add_member
 - access.groups.create

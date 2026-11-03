@@ -471,6 +471,176 @@
     },
     {
       "blocks": [],
+      "cap": "access.exceptions.explain",
+      "deferred": false,
+      "description": "May this person (or the agent acting for them) do what a permission covers, and why, in plain words: the Owner, their own exception, a group exception or their role",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "perm": {
+            "type": "string"
+          },
+          "principal": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "principal",
+          "perm"
+        ],
+        "type": "object"
+      },
+      "name": "access_exceptions_explain",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "access.exceptions.list",
+      "deferred": false,
+      "description": "Permission exceptions in force: who differs from their role, on what, Allowed or Not allowed, until when and why",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "subject": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "usr_a1b2c3"
+                ],
+                "pattern": "^(usr|grp)_[a-z0-9_]+$",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "person",
+                  "group"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "name": "access_exceptions_list",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "access.exceptions.remove",
+      "deferred": false,
+      "description": "Remove a permission exception: the person or group goes back to what their role gives",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "exceptionId": {
+            "examples": [
+              "exc_a1b2c3"
+            ],
+            "pattern": "^exc_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "exceptionId"
+        ],
+        "type": "object"
+      },
+      "name": "access_exceptions_remove",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "access.exceptions.set",
+      "deferred": false,
+      "description": "Give a person or a group a permission exception: Allowed or Not allowed on a permission or a whole area, against their role. A person beats a group beats the role; the Owner is never restricted; you give only what you hold",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "area": {
+            "type": "string"
+          },
+          "effect": {
+            "enum": [
+              "allow",
+              "deny"
+            ],
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "perms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "subject": {
+            "properties": {
+              "id": {
+                "examples": [
+                  "usr_a1b2c3"
+                ],
+                "pattern": "^(usr|grp)_[a-z0-9_]+$",
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "person",
+                  "group"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          "until": {
+            "description": "Milliseconds since the Unix epoch",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "why": {
+            "maxLength": 300,
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject",
+          "effect",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "access_exceptions_set",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "access.grants.list",
       "deferred": false,
       "description": "List grants by resource, subject or source (Console Grants)",

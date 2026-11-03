@@ -28,6 +28,13 @@ export function createClient(transport: Transport) {
         status: call("access.connector_builder.status", 1),
       },
       deciders: call("access.deciders", 1),
+      exceptions: {
+        explain: call("access.exceptions.explain", 1),
+        lapse: call("access.exceptions.lapse", 1),
+        list: call("access.exceptions.list", 1),
+        remove: call("access.exceptions.remove", 1),
+        set: call("access.exceptions.set", 1),
+      },
       grants: {
         list: call("access.grants.list", 1),
         update: call("access.grants.update", 1),

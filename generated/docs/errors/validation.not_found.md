@@ -6,6 +6,8 @@ HTTP 404. Retryable: no.
 
 ## Raised by
 
+- access.exceptions.remove
+- access.exceptions.set
 - agents.builtin_skill.get
 - agents.config.get
 - agents.config.validate
@@ -29,5 +31,3 @@ HTTP 404. Retryable: no.
 - agents.update
 - agents.versions
 - automations.alerts.get
-- automations.alerts.set
-- automations.delete

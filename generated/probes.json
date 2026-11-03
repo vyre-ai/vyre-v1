@@ -31,6 +31,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.access.permissions",
+      "place": "console",
+      "screen": "access.permissions"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.access.policies",
       "place": "console",
       "screen": "access.policies"
