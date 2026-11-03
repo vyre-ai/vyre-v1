@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { shardOf } from "./golden.ts";
 
 const SCRIPT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "golden.ts");
 
@@ -37,4 +38,19 @@ test("golden: no step test means failure, and a heavy test is not run here", () 
   const heavyOnly = run(steps({ "07-x.heavy.test.ts": READY_FAIL }));
   assert.notEqual(heavyOnly.status, 0, "heavy tests belong to their own job, so there is still nothing to run");
   assert.match(heavyOnly.stderr, /no step test found/);
+});
+
+test("golden: shards split the step tests with none lost or run twice, a shard with nothing is a failure, a bad shard is refused", () => {
+  const dir = steps({ "01-a.test.ts": PASS, "02-b.test.ts": PASS, "03-c.test.ts": PASS, "04-d.test.ts": READY_FAIL });
+  const one = spawnSync(process.execPath, [SCRIPT, "--dir", dir, "--no-ready", "--shard", "1/2"], { encoding: "utf8", env: { ...process.env, NODE_TEST_CONTEXT: "" } });
+  const two = spawnSync(process.execPath, [SCRIPT, "--dir", dir, "--no-ready", "--shard", "2/2"], { encoding: "utf8", env: { ...process.env, NODE_TEST_CONTEXT: "" } });
+  assert.equal(one.status, 0, one.stdout + one.stderr);
+  assert.match(one.stdout, /shard 1\/2, 2 step tests/);
+  assert.notEqual(two.status, 0, "the failing flow is in shard 2 and turns it red");
+  assert.match(two.stdout, /shard 2\/2, 2 step tests/);
+  const none = spawnSync(process.execPath, [SCRIPT, "--dir", steps({ "01-a.test.ts": PASS }), "--no-ready", "--shard", "2/2"], { encoding: "utf8", env: { ...process.env, NODE_TEST_CONTEXT: "" } });
+  assert.notEqual(none.status, 0);
+  assert.match(none.stderr, /has no step test/);
+  assert.equal(spawnSync(process.execPath, [SCRIPT, "--dir", dir, "--shard", "3/2"], { encoding: "utf8" }).status, 2);
+  assert.deepEqual(shardOf(["a", "b", "c", "d", "e"], 1, 2).concat(shardOf(["a", "b", "c", "d", "e"], 2, 2)).sort(), ["a", "b", "c", "d", "e"]);
 });

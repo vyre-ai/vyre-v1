@@ -1,0 +1,3 @@
+- The golden job is split into two shards (golden-1 and golden-2), each with its own 5 minute cap; the required golden check passes only when both shards pass. The hourly main run does the same.
+- A release version bump no longer misses the CI dependency cache: the project's own version is left out of the cache key.
+- The release publish step can be run again after a cut run: files already on the release with the right size and checksum are skipped, half-written ones are replaced, big files upload side by side, and the channel manifest (beta.json) is always uploaded last.
