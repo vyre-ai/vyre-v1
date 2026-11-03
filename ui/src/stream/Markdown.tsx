@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { Block, Inline } from "./markdown.ts";
 import { BLOCK_GAP, BODY_LINE, BODY_SIZE } from "./Reserved.tsx";
+import { CalloutBlock, ChartBlock, CodeBlock, DetailsBlock, DiagramBlock, FootnoteLine, ImageBlock, MathBlock, MathInline } from "./Blocks.tsx";
 
 /** Draws a link its own way (a known subject with its hover card) or returns null to draw it as the plain link. */
 /** Draws something under a fenced code block (a Run bar), or null for nothing. Only called for a block that is finished. */
@@ -27,6 +28,21 @@ function inlineNodes(items: readonly Inline[], onLink?: (href: string) => void, 
         break;
       case "strong":
         out.push(<Text key={i} style={styles.strong}>{inlineNodes(n.c, onLink, renderLink)}</Text>);
+        break;
+      case "del":
+        out.push(<Text key={i} style={styles.del}>{inlineNodes(n.c, onLink, renderLink)}</Text>);
+        break;
+      case "br":
+        out.push(<Fragment key={i}>{"\n"}</Fragment>);
+        break;
+      case "fnref":
+        out.push(<Text key={i} accessibilityLabel={`Footnote ${n.id}`} testID={`fnref-${n.id}`} style={styles.fnref}>{`[${n.id}]`}</Text>);
+        break;
+      case "math":
+        out.push(<MathInline key={i} tex={n.v} />);
+        break;
+      case "html":
+        out.push(<Text key={i} style={n.tag === "kbd" ? styles.kbd : n.tag === "mark" ? styles.mark : n.tag === "sup" ? styles.sup : styles.sub}>{inlineNodes(n.c, onLink, renderLink)}</Text>);
         break;
       case "em":
         out.push(<Text key={i} style={styles.em}>{inlineNodes(n.c, onLink, renderLink)}</Text>);
@@ -85,23 +101,6 @@ function listItems(block: Extract<Block, { kind: "ul" | "ol" }>, caret: boolean,
   return out;
 }
 
-/** The copy control on a finished code block: the code goes to the clipboard, and the control says so for a moment. */
-function CopyCode({ text, lang, id }: { text: string; lang: string; id: string }) {
-  const [done, setDone] = useState(false);
-  const copy = (): void => {
-    const clip = (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator?.clipboard;
-    void clip?.writeText?.(text)?.catch(() => undefined);
-    setDone(true);
-    setTimeout(() => setDone(false), 1500);
-  };
-  return (
-    <View style={styles.codeHead}>
-      <Text style={styles.lang}>{lang}</Text>
-      <Pressable accessibilityRole="button" accessibilityLabel="Copy the code" testID={`copy-${id}`} onPress={copy} style={styles.copy}><Text style={styles.copyText}>{done ? "Copied" : "Copy"}</Text></Pressable>
-    </View>
-  );
-}
-
 /** A table: its own horizontal scroll inside the message, so a wide table never widens the page. The header is bold on a quiet ground, columns keep a readable width, and each column aligns as the separator row said. */
 function TableView({ block, onLink, renderLink }: { block: Extract<Block, { kind: "table" }>; onLink?: (href: string) => void; renderLink?: RenderLink }) {
   const row = (cs: readonly (readonly Inline[])[], head: boolean, r: number): ReactNode => {
@@ -142,13 +141,28 @@ export const BlockView = memo(function BlockView({ block, caret = false, onLink,
       return <View testID={`block-${block.key}`} style={styles.rule} />;
     case "code":
       return (
-        <View testID={`block-${block.key}`}>
-          <View style={styles.pre}>
-            {block.closed && !caret ? <CopyCode text={block.text} lang={block.lang} id={block.key} /> : null}
-            <Text style={styles.preText}>{caret ? block.text + CARET : block.text}</Text>
-          </View>
+        <View testID={`code-${block.key}`}>
+          <CodeBlock id={block.key} lang={block.lang} text={block.text} caret={caret || !block.closed} />
           {renderCode && !caret && block.closed ? renderCode(block) : null}
         </View>
+      );
+    case "mermaid":
+      return <DiagramBlock id={block.key} source={block.text} />;
+    case "chart":
+      return <ChartBlock id={block.key} spec={block.spec} error={block.error} source={block.text} />;
+    case "math":
+      return <MathBlock id={block.key} tex={block.text} />;
+    case "img":
+      return <ImageBlock id={block.key} src={block.src} alt={block.alt} />;
+    case "fn":
+      return <FootnoteLine id={block.id} blockId={block.key}>{inlineNodes(block.inline, onLink, renderLink)}</FootnoteLine>;
+    case "callout":
+      return <CalloutBlock id={block.key} variant={block.variant} title={block.title}>{block.inline.length > 0 ? <Text style={styles.quoteText}>{inlineNodes(caret ? withCaret(block.inline) : block.inline, onLink, renderLink)}</Text> : null}</CalloutBlock>;
+    case "details":
+      return (
+        <DetailsBlock id={block.key} open={block.open} summary={inlineNodes(block.summary, onLink, renderLink)}>
+          {block.blocks.map((b) => <BlockView key={b.key} block={b} {...(onLink ? { onLink } : {})} {...(renderLink ? { renderLink } : {})} {...(renderCode ? { renderCode } : {})} />)}
+        </DetailsBlock>
       );
     case "table":
       return <TableView block={block} {...(onLink ? { onLink } : {})} {...(renderLink ? { renderLink } : {})} />;
@@ -203,6 +217,12 @@ const styles = StyleSheet.create({
   p: { color: "var(--ink)" as string, fontSize: BODY_SIZE, lineHeight: BODY_LINE, marginBottom: BLOCK_GAP },
   h: { fontWeight: "600", marginTop: 4 },
   strong: { fontWeight: "600" },
+  del: { textDecorationLine: "line-through", color: "var(--ink-3)" as string },
+  fnref: { color: "var(--accent)" as string, fontSize: 11 },
+  kbd: { fontFamily: MONO, fontSize: 12, backgroundColor: "var(--sunk)" as string, color: "var(--ink)" as string },
+  mark: { backgroundColor: "var(--accent-wash)" as string },
+  sup: { fontSize: 11 },
+  sub: { fontSize: 11 },
   em: { fontStyle: "italic" },
   link: { color: "var(--accent)" as string },
   code: { fontFamily: MONO, fontSize: 13, backgroundColor: "var(--sunk)" as string },

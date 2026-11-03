@@ -2,8 +2,13 @@
 // content. The chat place uses the store, StreamText and Feed for the open message; the blocks, rows and avatars use the reserved sizes.
 export { createCoalescer, frameScheduler } from "./coalesce.ts";
 export type { Coalescer, CoalescerStats, FrameScheduler } from "./coalesce.ts";
-export { createIncrementalMarkdown, parseChunk, parseInline } from "./markdown.ts";
-export type { Block, IncrementalMarkdown, Inline, MarkdownStats, MarkdownView } from "./markdown.ts";
+export { createIncrementalMarkdown, parseChartSpec, parseChunk, parseInline } from "./markdown.ts";
+export type { Block, Callout, ChartSpec, IncrementalMarkdown, Inline, MarkdownStats, MarkdownView } from "./markdown.ts";
+export { highlight } from "./highlight.ts";
+export type { Token, TokenKind } from "./highlight.ts";
+export { chartGeometry, chartTable, niceMax } from "./charts.ts";
+export { hasDiagramLoader, hasMathLoader, renderDiagram, renderMath, setDiagramLoader, setMathLoader } from "./loaders.ts";
+export type { DiagramRender, DiagramTheme, MathRender } from "./loaders.ts";
 export { createStreamStore } from "./store.ts";
 export type { StreamSnapshot, StreamStats, StreamStore } from "./store.ts";
 export { useStream } from "./useStream.ts";
