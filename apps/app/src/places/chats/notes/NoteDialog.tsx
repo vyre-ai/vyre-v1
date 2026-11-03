@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import type { ComponentRef, ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
+import { AskButton } from "../../../../../../ui/src/AskButton/index.tsx";
+import type { AskAgent } from "../../../../../../ui/src/AskButton/index.tsx";
 import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import { Ico } from "./icons.tsx";
 import { noteFill } from "./look.ts";
@@ -33,7 +35,8 @@ export interface DialogActions {
   image(): void;
   share(): void;
   menu(x: number, y: number): void;
-  ask(): void;
+  /** Ask about this note: the Ask pane, with this agent (the Assistant when none is named). */
+  ask(agentId?: string): void;
   task(): void;
   record(): void;
   close(): void;
@@ -43,7 +46,7 @@ export interface DialogActions {
   openFrom(threadId: string, messageId: string): void;
 }
 
-export function NoteDialog({ n, image, who, edited, from, a }: { n: Note; image: string | null; who: Who; edited: string; from?: ReturnType<typeof fromLine>; a: DialogActions }): ReactElement {
+export function NoteDialog({ n, image, who, edited, from, askAgents, a }: { n: Note; image: string | null; who: Who; edited: string; from?: ReturnType<typeof fromLine>; askAgents: readonly AskAgent[]; a: DialogActions }): ReactElement {
   const [title, setTitle] = useState(n.title);
   const [body, setBody] = useState(n.body);
   const [bodyH, setBodyH] = useState(60);
@@ -121,7 +124,8 @@ export function NoteDialog({ n, image, who, edited, from, a }: { n: Note; image:
           </View>
           {/* one row: what to do with the note, then colour, image, share and more (labels are the chip above) */}
           <View style={s.acts}>
-            <Btn label="Ask about this note" icon="ask" sm onPress={() => a.ask()} title="Ask about this note (A)" testID="note-dialog-ask" />
+            {/* the one Ask control, as everywhere else: the face of the agent, Ask, and a chevron that picks the agent. It opens the Ask pane with this note attached */}
+            <AskButton place="notes" context={{ kind: "note", id: n.noteId, title: n.title || "Note", access: n.canEdit ? "edit" : "view" }} agents={askAgents} onAsk={(agent) => a.ask(agent.id)} testID="note-dialog-ask" />
             <Btn label="Turn into task" icon="task" sm onPress={() => a.task()} title="Turn into a task (T)" testID="note-dialog-task" />
             <Btn label="Turn into record" icon="record" sm onPress={() => a.record()} title="Turn into a record (R)" testID="note-dialog-record" />
             <View style={{ flex: 1 }} />
@@ -138,7 +142,7 @@ export function NoteDialog({ n, image, who, edited, from, a }: { n: Note; image:
 }
 
 const s = StyleSheet.create({
-  layer: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, zIndex: 20, backgroundColor: "var(--n-scrim)" as string },
+  layer: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, zIndex: 20, backgroundColor: "var(--n-scrim)" as string, ...(web ? ({ backdropFilter: "blur(3px)" } as object) : null) },
   scroll: { flex: 1 },
   scrollIn: { flexGrow: 1, alignItems: "center", justifyContent: "center", paddingVertical: 24, paddingHorizontal: 24 },
   stack: { width: "100%", maxWidth: 620, alignItems: "center" },

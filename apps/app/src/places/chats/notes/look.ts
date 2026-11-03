@@ -14,7 +14,7 @@ export function noteFill(c: NoteColor): string {
 }
 
 /** The dim behind an opened note or a sheet, as the prototype sets it per mode. */
-export const SCRIM = { light: "rgba(23,20,31,.28)", dark: "rgba(0,0,0,.5)" } as const;
+export const SCRIM = { light: "rgba(23,20,31,.5)", dark: "rgba(10,8,16,.6)" } as const;
 
 const vars = (m: "light" | "dark"): string => [...Object.entries(NOTE_HEX[m]).map(([k, v]) => `--n-${k}:${v}`), `--n-scrim:${SCRIM[m]}`].join(";");
 

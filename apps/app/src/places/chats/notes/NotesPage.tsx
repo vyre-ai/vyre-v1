@@ -17,6 +17,7 @@ import { Ico, icoSvg } from "./icons.tsx";
 import { cardKey, layerKey, nearest, pageKey, topLayer } from "./keys.ts";
 import type { Box, Dir } from "./keys.ts";
 import { ensureNotesCss, noteFill } from "./look.ts";
+import type { AskAgent } from "../../../../../../ui/src/AskButton/index.tsx";
 import { COLORS, SPECIAL, askWords, fromLine, dueChoices, editedWords, fillFromNote, filterLabel, firstLine, hostOf, labelCounts, noteName, splitPinned, toggle, visibleNotes } from "./model.ts";
 import type { DueChoice, Note, NoteColor, RecordType, Who } from "./model.ts";
 import { NoteCard } from "./NoteCard.tsx";
@@ -126,6 +127,8 @@ export function NotesPage({ rt, nameOf, noteId = null, initial, store: given, ph
   const [openId, setOpenId] = useState<string | null>(initial?.open ?? null);
   const [shareId, setShareId] = useState<string | null>(initial?.share ?? null);
   const [askId, setAskId] = useState<string | null>(initial?.ask ?? null);
+  // the agent the Ask pane is with: the one picked in the Ask control, else the Assistant
+  const [askWith, setAskWith] = useState<string | null>(null);
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [sel, setSel] = useState<string | null>(initial?.ask ?? null);
   const [bar, setBar] = useState<Bar | null>(null);
@@ -247,7 +250,7 @@ export function NotesPage({ rt, nameOf, noteId = null, initial, store: given, ph
     void store.restore(id).then((n) => { if (n) { setSel(n.noteId); focusCard(n.noteId); } });
   }, [store]);
   const share = useCallback((id: string): void => { const n = noteOf(id); if (!n?.mine) return; flush(); setShareId(id); }, [noteOf, flush]);
-  const ask = useCallback((id: string): void => { flush(); setAskId(id); setSel(id); setOpenId(null); setSheet(null); setPhoneOpen(null); }, [flush]);
+  const ask = useCallback((id: string, agentId?: string): void => { flush(); setAskWith(agentId ?? null); setAskId(id); setSel(id); setOpenId(null); setSheet(null); setPhoneOpen(null); }, [flush]);
   const me: Person = useMemo(() => ({ id: rt.me.id, name: rt.me.name, kind: "person" }), [rt.me.id, rt.me.name]);
   const dues = useMemo(() => dueChoices(clock.now, clock.offsetMin), [clock.now, clock.offsetMin]);
   const toTask = useCallback((id: string, title?: string, due?: string): void => {
@@ -616,6 +619,8 @@ export function NotesPage({ rt, nameOf, noteId = null, initial, store: given, ph
   const phoneNote = noteOf(phoneOpen);
   const sheetNoteFor = noteOf(phoneSheet);
   const edited = (n: Note): string => editedWords(n, clock.now, clock.offsetMin);
+  // every agent this person may ask, the Assistant first as itself (never as an outside agent credited to a person)
+  const askAgents = useMemo((): AskAgent[] => [{ id: rt.assistant.id, name: rt.assistant.name, assistant: true }, ...people.filter((p) => p.kind === "agent" && p.id !== rt.assistant.id && !p.name.endsWith(" (Agent)")).map((p) => ({ id: p.id, name: p.name }))], [rt.assistant.id, rt.assistant.name, people]);
   const choices: Person[] = useMemo(() => [me, { id: rt.assistant.id, name: rt.assistant.name, kind: "agent" as const }, ...people.filter((p) => p.id !== me.id && p.id !== rt.assistant.id)], [me, rt.assistant.id, rt.assistant.name, people]);
 
   let layer: ReactElement | null = null;
@@ -628,11 +633,11 @@ export function NotesPage({ rt, nameOf, noteId = null, initial, store: given, ph
   } else if (open && !phone) {
     layer = (
       <NoteDialog
-        key={open.noteId} n={open} image={open.hasImage ? store.image(open.noteId) : null} who={who} edited={edited(open)} from={fromLine(open, clock.now, clock.offsetMin)}
+        key={open.noteId} n={open} image={open.hasImage ? store.image(open.noteId) : null} who={who} edited={edited(open)} from={fromLine(open, clock.now, clock.offsetMin)} askAgents={askAgents}
         a={{
           title: (v) => edit(open.noteId, { title: v }), body: (v) => edit(open.noteId, { body: v }), pin: () => pin(open.noteId), colour: (x, y) => colourMenu(open.noteId, x, y),
           labels: (x, y) => labelMenu(open.noteId, x, y), image: () => setImage(open.noteId), share: () => share(open.noteId), menu: (x, y) => noteMenu(open.noteId, x, y, "button"),
-          ask: () => ask(open.noteId), task: () => toTask(open.noteId), record: () => toRecord(open.noteId), close: closeNote,
+          ask: (agentId) => ask(open.noteId, agentId), task: () => toTask(open.noteId), record: () => toRecord(open.noteId), close: closeNote,
           openLinked: (kind, id) => rt.open({ subject: { type: kind, id } }), openUrl: (u) => rt.openUrl(u),
           openFrom: (threadId, messageId) => rt.open({ screen: "chats.conversation", args: { threadId, m: messageId } }),
         }}
@@ -648,7 +653,7 @@ export function NotesPage({ rt, nameOf, noteId = null, initial, store: given, ph
   );
   const askPane = askNote ? (
     <View style={phone ? st.askPhone : st.ask} testID="notes-ask-pane">
-      <NoteAsk rt={rt} note={askNote} onClose={() => { setAskId(null); focusCard(askNote.noteId); }} onOpen={() => openNote(askNote.noteId)} onTask={() => toTask(askNote.noteId)} />
+      <NoteAsk rt={rt} note={askNote} {...(askWith ? { agentId: askWith } : {})} onClose={() => { setAskId(null); focusCard(askNote.noteId); }} onOpen={() => openNote(askNote.noteId)} onTask={() => toTask(askNote.noteId)} />
     </View>
   ) : null;
   const toast = bar ? (

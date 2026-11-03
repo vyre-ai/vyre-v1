@@ -14,7 +14,7 @@ export function ConflictCard({ clash, by, now, offsetMin, busy, onChange, onSave
   const mine = clash.rows.filter((r) => r.pick === "mine").length;
   const theirs = clash.rows.length - mine;
   return (
-    <View testID="task-conflict" accessibilityRole="alert" style={st.card}>
+    <View testID="task-conflict" accessibilityRole="alert" style={[st.card, narrow && st.cardNarrow]}>
       <View style={st.head}>
         <View style={st.icon}><Text style={st.iconText}>⇄</Text></View>
         <View style={st.headText}>
@@ -26,8 +26,8 @@ export function ConflictCard({ clash, by, now, offsetMin, busy, onChange, onSave
       <View style={[st.foot, narrow && st.footNarrow]}>
         <Pressable accessibilityRole="button" accessibilityLabel="Save" testID="task-conflict-save" disabled={busy} onPress={onSave} style={[st.btn, st.btnPrimary, narrow && st.btnFull]}><Text style={[st.btnText, st.btnPrimaryText, narrow && st.btnCenter]}>Save</Text></Pressable>
         <View style={[st.textBtns, narrow && st.textBtnsNarrow]}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Use all of ${by}'s`} testID="task-conflict-all-current" onPress={() => onChange(setAll(clash, "current"))} style={[st.btn, narrow && st.btnHalf]}><Text style={[st.btnText, narrow && st.btnCenter]}>{`Use all of ${by}'s`}</Text></Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Keep all of mine" testID="task-conflict-all-mine" onPress={() => onChange(setAll(clash, "mine"))} style={[st.btn, narrow && st.btnHalf]}><Text style={[st.btnText, narrow && st.btnCenter]}>Keep all of mine</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Use all of ${by}'s`} testID="task-conflict-all-current" onPress={() => onChange(setAll(clash, "current"))} style={[st.btn, narrow && st.btnHalf]}><Text numberOfLines={1} style={[st.btnText, narrow && st.btnCenter]}>{narrow ? `Use ${by}'s` : `Use all of ${by}'s`}</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Keep all of mine" testID="task-conflict-all-mine" onPress={() => onChange(setAll(clash, "mine"))} style={[st.btn, narrow && st.btnHalf]}><Text numberOfLines={1} style={[st.btnText, narrow && st.btnCenter]}>{narrow ? "Keep mine" : "Keep all of mine"}</Text></Pressable>
         </View>
         <Text testID="task-conflict-count" style={[st.count, narrow && st.countNarrow]}>{`${mine} yours, ${theirs} ${by}'s`}</Text>
       </View>
@@ -66,6 +66,7 @@ function Option({ on, who, text, onPress, testID, narrow }: { narrow?: boolean; 
 
 const st = StyleSheet.create({
   card: { marginTop: 16, marginLeft: 36, padding: 14, paddingBottom: 12, borderRadius: 14, backgroundColor: "var(--sunk)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object,
+  cardNarrow: { marginLeft: 0 },
   head: { flexDirection: "row", alignItems: "flex-start", gap: 11 },
   icon: { width: 28, height: 28, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sel)" as string },
   iconText: { fontSize: 15, color: "var(--warn)" as string },
