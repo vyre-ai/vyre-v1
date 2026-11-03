@@ -94,10 +94,3 @@ export async function signIn(s: FlowSpace, c: Client, person: string): Promise<{
   await c.trade(back.searchParams.get("code")!);
   return { agentId: allow.agentId, requestId };
 }
-
-const withSpace = (name: string, f: (s: FlowSpace, owner: string, mcp: string) => Promise<void>): void => {
-  test(name, async () => {
-    const s = await bootAgentGateSpace(LIVE);
-    try { await f(s, s.signedIn("usr_olivia"), `${s.d.url}/mcp`); } finally { await s.stop(); }
-  });
-};

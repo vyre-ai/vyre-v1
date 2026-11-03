@@ -71,7 +71,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   const [openedSession, setSession] = useState<RealSession | null>(null);
   const session=openedSession?.def.spaceId===stored.def.spaceId&&openedSession.baseUrl===stored.baseUrl?openedSession:null;
   const activeStored=session?{...stored,def:session.def}:stored;
-  const catalogue=sessionCatalogue(activeStored);const catalogueKey=JSON.stringify(catalogue.map(item=>[item.baseUrl,item.personId,item.def]));
+  const catalogue=sessionCatalogue(activeStored);const catalogueKey=JSON.stringify(catalogue.map(item=>{const{image:_image,...def}=item.def;return[item.baseUrl,item.personId,def];}));// the image's file id (imageKey) stands for its bytes, so the key stays small
   const hub = useMemo(() => {
     if (given) { navRef.current = given; return given; }
     // Inbox starts where this device last saw it for this person and Space, so the rail does not jump while the reads answer
@@ -188,6 +188,34 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
       hub.setInbox(has, joins ? { tip: takeInboxTip(store, me, space) ? INBOX_TIP : null } : undefined);
     });
   }, [session, hub]);
+
+  // the Space image follows Console: the tile's own read (spaces.switcher) names the image file, and only a different file fetches the picture (spaces.image); this device keeps it for the next launch
+  useEffect(() => {
+    if (!session) return undefined;
+    const q = session.hooks.capQuery<{ logoFileId?: string }>("spaces.switcher");
+    let asked: string | null | undefined;
+    const read = (): void => {
+      const s = q.getSnapshot();
+      if (s.status !== "ready") return;
+      const want = s.data.logoFileId ?? null;
+      const have = hub.session().def.imageKey ?? null;
+      if (want === have || want === asked) return;
+      asked = want;
+      const keep = (face: { image: string; imageKey: string } | null): void => {
+        hub.setFace(face);
+        const now = readStored(undefined, stored.baseUrl);
+        if (now && now.token === stored.token) { const { image: _i, imageKey: _k, ...def } = now.def; writeStored({ ...now, def: face ? { ...def, ...face } : def }); }
+      };
+      if (want === null) { keep(null); return; }
+      void (session.call("spaces.image", { known: have ?? undefined }) as Promise<{ logoFileId?: string; image?: string }>).then((out) => {
+        if (out.logoFileId === undefined) keep(null);
+        else if (typeof out.image === "string") keep({ image: out.image, imageKey: out.logoFileId });
+      }, () => { asked = undefined; });
+    };
+    const off = q.subscribe(read);
+    read();
+    return off;
+  }, [session, hub, stored.baseUrl, stored.token]);
 
   // the one badge: what waits on this person, from the one count, on the same tick as everything else on screen
   const [needsYou, setNeedsYou] = useState(0);

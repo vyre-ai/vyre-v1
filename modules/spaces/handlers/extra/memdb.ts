@@ -333,7 +333,12 @@ export interface World {
 }
 
 /** A Space spc_test: profile "Northwind" of the given kind, owner usr_owner, members usr_owner, usr_ines and usr_a1b2c3. The caller is the owner. */
-export function world(o: { kind?: "personal" | "team"; name?: string; principal?: string } = {}): World {
+/** A one-pixel PNG: what files.read answers for a file the test did not name. */
+export const PIXEL_PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+/** What files.read answers for a file: its picture, or the refusal Files gives. */
+export type FakeFile = { mime: string; base64: string; size?: number; truncated?: boolean } | { refuse: string };
+
+export function world(o: { kind?: "personal" | "team"; name?: string; principal?: string; files?: Record<string, FakeFile> } = {}): World {
   const raw = new MemDb();
   raw.run("INSERT INTO spaces_profile (id, name, logo_file_id, kind) VALUES (?, ?, ?, ?)", SPACE, o.name ?? "Northwind", null, o.kind ?? "team");
   const events: World["events"] = [];
@@ -362,6 +367,11 @@ export function world(o: { kind?: "personal" | "team"; name?: string; principal?
     call: (async (cap: string, input: unknown) => {
       calls.push({ cap, input });
       if (cap === "backup.export_start") return { runId: "run_export1" };
+      if (cap === "files.read") {
+        const f = o.files?.[String((input as { fileId?: string }).fileId)] ?? { mime: "image/png", base64: PIXEL_PNG };
+        if ("refuse" in f) throw Object.assign(new Error(f.refuse), { error: { code: f.refuse, message: f.refuse } });
+        return { base64: f.base64, mime: f.mime, size: f.size ?? Math.floor((f.base64.length * 3) / 4), version: 1, truncated: f.truncated ?? false };
+      }
       throw new Error(`unexpected call ${cap}`);
     }) as unknown as Ctx["call"],
   } as unknown as ExtraCtx;

@@ -3,7 +3,7 @@
 // with nothing to re-render, and the first frame can never be the wrong theme. The one motion is a soft fade between steps while the sheet eases to its new height; nothing slides.
 import { Children, createContext, createElement, isValidElement, cloneElement, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Dimensions } from "react-native";
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Dimensions } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
 import { Avatar } from "../../../../ui/src/Avatar/index.tsx";
 import { injectCss } from "../../../../ui/src/theme/css.ts";
@@ -105,9 +105,18 @@ export function Mark({ size = 40, wait, ink = ENTRY.ink, bloom }: { size?: numbe
     createElement("circle", { cx: 18.6, cy: 5.6, r: 2.7, fill: ink === ENTRY.ink ? ENTRY.spark : ink }));
 }
 
-/** The Space's own letter, in place of the mark, once the screen is about one Space. */
-export function SpaceTile({ name }: { name: string }): ReactElement {
+/**
+ * The Space image (a data: address from spaces.image) for the screens about one Space: sign-in, join, an invite, Continue as. The gate asks the Space for it before sign-in and provides it here,
+ * so every Panel with a Space shows the picture, and the letter only while there is none.
+ */
+export const SpaceImageContext = createContext<string | undefined>(undefined);
+
+/** The Space's own face, in place of the mark, once the screen is about one Space: its image when it has one, else its letter. */
+export function SpaceTile({ name, image }: { name: string; image?: string | undefined }): ReactElement {
   const { p } = useJoin();
+  const given = useContext(SpaceImageContext);
+  const src = image ?? given;
+  if (src) return <View testID="entry-space-tile" accessible={false} style={{ width: 40, height: 40, borderRadius: 12, overflow: "hidden", backgroundColor: p.sheet }}><Image testID="entry-space-image" source={{ uri: src }} accessibilityLabel={name} style={{ width: 40, height: 40 }} resizeMode="cover" /></View>;
   return <View testID="entry-space-tile" accessible={false} style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: p.accent, alignItems: "center", justifyContent: "center" }}><Text style={{ fontFamily: FONT, color: p.accentInk, fontSize: 17, fontWeight: "600" }}>{name.slice(0, 1).toUpperCase()}</Text></View>;
 }
 

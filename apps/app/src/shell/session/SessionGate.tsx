@@ -2,7 +2,7 @@ import{activationUrl,isPackagedOrigin,storedPlace}from'./space-catalog.ts';
 // The production session boundary. Signed-out and desktop-link flows stay in the startup chunk;
 // the authenticated application shell is loaded only after a stored or verified session exists.
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { loadCryptoKeys, loadRecoveryCrypto } from "../../../../../client/src/crypto/load.ts";
 import { keepKey } from "../../../../../client/src/gateway/key-keeper.ts";
@@ -14,7 +14,7 @@ import { deviceFor, normalizeSpaceAddress } from "../../join/logic.ts";
 import type { JoinInvite } from "../../join/logic.ts";
 import { aiHomeOf } from "../../ai-signin/own-ai.ts";
 import { spaceLabel } from "../spaces/space-label.ts";
-import { Bar, Button, ErrorLine, JoinFrame, Links, Opening, Panel, Step, TextButton, Title } from "../../join/kit.tsx";
+import { Bar, Button, ErrorLine, JoinFrame, Links, Opening, Panel, SpaceImageContext, Step, TextButton, Title } from "../../join/kit.tsx";
 import { NOT_A_SPACE, OFFLINE_SPACE } from "../../join/failure.ts";
 import { Welcome } from "../../join/Welcome.tsx";
 import { completeReset } from "../../join/reset.ts";
@@ -70,6 +70,23 @@ async function unlockOwnKey(baseUrl: string, token: string, password: string, ke
 }
 
 export const SIGNED_OUT_LINE = "You were signed out. Sign in again to continue.";
+
+/**
+ * The Space's face on the screens about one Space (sign-in, join, an invite, Continue as, recovery): the Space image, asked of the Space before sign-in (spaces.image is open to anyone, like the
+ * name). While it is on its way, or when the Space has none or is too old to answer, the letter shows.
+ */
+export function WithSpaceImage({ address, children }: { address: string | null; children: ReactNode }): ReactElement {
+  const [found, setFound] = useState<{ address: string; image: string } | null>(null);
+  useEffect(() => {
+    if (!address) return undefined;
+    let alive = true;
+    void (createCapCaller({ baseUrl: address, token: () => null })("spaces.image", {}) as Promise<{ image?: string }>)
+      .then((out) => { if (alive && typeof out?.image === "string" && out.image.startsWith("data:image/")) setFound({ address, image: out.image }); })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, [address]);
+  return <SpaceImageContext.Provider value={found && found.address === address ? found.image : undefined}>{children}</SpaceImageContext.Provider>;
+}
 
 /** `github` is true only for a caller that wires the GitHub button (the sign-in screen below); a bare invite never lists a control with nothing behind it. */
 export function signInInvite(baseUrl: string, options: SignInOptions | null, github = false, sso = false): JoinInvite {
@@ -443,17 +460,17 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   if (loadedAddress !== baseUrl || !ready || loadedProp !== props.baseUrl) return <Opening />;
   if(phase.kind==='opening-personal')return <Opening testID="opening-personal" />;
   if(phase.kind==='start-failed')return <StartFailed onRetry={()=>setStartTry(n=>n+1)} onSignIn={()=>{clearStored(undefined,phase.stored.baseUrl);setPhase({kind:'signin'});setConnectedAddress(null);}} />;
-  if(phase.kind==='shell'&&forgot)return <RecoverScreen baseUrl={phase.stored.baseUrl} space={phase.stored.def.name} username={phase.stored.username} open={open} onBack={()=>setForgot(false)} onSignedIn={(stored)=>{setForgot(false);signedIn(stored);}} />;
+  if(phase.kind==='shell'&&forgot)return <SpaceImageContext.Provider value={phase.stored.def.image}><RecoverScreen baseUrl={phase.stored.baseUrl} space={phase.stored.def.name} username={phase.stored.username} open={open} onBack={()=>setForgot(false)} onSignedIn={(stored)=>{setForgot(false);signedIn(stored);}} /></SpaceImageContext.Provider>;
   if (phase.kind === "shell") return <KeyGate baseUrl={phase.stored.baseUrl} token={phase.stored.token} name={lockName(phase.stored)} onSignOut={() => signedOut("manual", phase.stored.baseUrl)} onForgot={() => setForgot(true)}><Suspense fallback={<View style={styles.fill} />}><SignedInShell key={phase.stored.baseUrl+phase.stored.personId} stored={phase.stored} open={open} onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)} onHub={onHub} voice={props.voice} onSwitchSpace={id=>void switchSpace(id)} onAddSpace={()=>{setReturnSession(phase.stored);setEntryStart('choice');setEntry(true);}} onLocked={(identity)=>{clearStored();setReturnSession(null);setLocked(identity);setNotice(false);setPhase({kind:'signin'});}} /></Suspense></KeyGate>;
   if (desktopRoute?.kind === "pair") return <DesktopPairScreen key={`${desktopRoute.address}:${desktopRoute.code}`} route={desktopRoute} open={open} onSignedIn={signedInFromDesktop} onSignIn={()=>{const address=desktopRoute.address;setDesktopRoute({kind:'signin',address});}} />;
   if (desktopRoute?.kind === "join") {
     const present=otherAccount?null:readStored(undefined,desktopRoute.address);
     if(present)return <AlreadyIn session={present} onOpen={()=>{setDesktopRoute(null);signedInFromDesktop(present);}} onOther={()=>setOtherAccount(true)} />;
-    return <DesktopJoinScreen key={`${desktopRoute.address}:${desktopRoute.code}`} route={desktopRoute} open={open} onSignedIn={signedInFromDesktop} onBack={()=>{setEntryStart('choice');setEntry(true);}} onSignIn={()=>{const address=desktopRoute.address;setDesktopRoute({kind:'signin',address});}} deviceClass={bridge?"desktop":"web"} />;
+    return <WithSpaceImage address={desktopRoute.address}><DesktopJoinScreen key={`${desktopRoute.address}:${desktopRoute.code}`} route={desktopRoute} open={open} onSignedIn={signedInFromDesktop} onBack={()=>{setEntryStart('choice');setEntry(true);}} onSignIn={()=>{const address=desktopRoute.address;setDesktopRoute({kind:'signin',address});}} deviceClass={bridge?"desktop":"web"} /></WithSpaceImage>;
   }
   const activeAddress = desktopRoute?.address ?? connectedAddress ?? locked?.address ?? baseUrl;
   if (!activeAddress) return firstScreen;
-  return <SignInScreen baseUrl={activeAddress} open={open} onSignedIn={signedIn} notice={notice} onBack={()=>{if(returnSession){activateAddress(returnSession,true);setConnectedAddress(returnSession.baseUrl);setPhase({kind:'shell',stored:returnSession});setReturnSession(null);}else{setEntryStart('choice');setEntry(true);}}} {...(locked?{unlock:true}:{})} />;
+  return <WithSpaceImage address={activeAddress}><SignInScreen baseUrl={activeAddress} open={open} onSignedIn={signedIn} notice={notice} onBack={()=>{if(returnSession){activateAddress(returnSession,true);setConnectedAddress(returnSession.baseUrl);setPhase({kind:'shell',stored:returnSession});setReturnSession(null);}else{setEntryStart('choice');setEntry(true);}}} {...(locked?{unlock:true}:{})} /></WithSpaceImage>;
 }
 
 const styles = StyleSheet.create({ fill: { flex: 1, backgroundColor: "var(--win)" as string } });
