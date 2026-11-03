@@ -105,18 +105,21 @@ const safePart = (id: string): string => { const v = id.replace(/[^a-zA-Z0-9_-]/
 /** The environment variable a spawn carries what the engine may touch in (sandbox/src/engine-access.ts ACCESS_ENV). */
 const ACCESS_ENV = "VYRE_ENGINE_ACCESS";
 /** What each CLI keeps its sign-in in, and the variables the Space's fill puts an account in. */
+/** The path rules of the computer the homes are on (a test names another platform than the one it runs on). */
+const pathOf = (h: { platform: NodeJS.Platform }): typeof path.posix => (h.platform === "win32" ? path.win32 : path.posix);
+
 const ENGINE_HOMES: Readonly<Record<string, { dirEnv: string; dir(h: OwnHomes): string; signedIn(dir: string, h: OwnHomes): boolean; keys: readonly string[] }>> = {
   claude: {
     dirEnv: "CLAUDE_CONFIG_DIR",
-    dir: (h) => h.env["CLAUDE_CONFIG_DIR"] ?? path.join(h.home, ".claude"),
+    dir: (h) => h.env["CLAUDE_CONFIG_DIR"] ?? pathOf(h).join(h.home, ".claude"),
     // a sign-in file (Linux, Windows, or a Mac set up that way); a Mac's Keychain sign-in is handed over as a file by macClaude
-    signedIn: (dir, h) => h.exists(path.join(dir, ".credentials.json")),
+    signedIn: (dir, h) => h.exists(pathOf(h).join(dir, ".credentials.json")),
     keys: ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"],
   },
   codex: {
     dirEnv: "CODEX_HOME",
-    dir: (h) => h.env["CODEX_HOME"] ?? path.join(h.home, ".codex"),
-    signedIn: (dir, h) => h.exists(path.join(dir, "auth.json")),
+    dir: (h) => h.env["CODEX_HOME"] ?? pathOf(h).join(h.home, ".codex"),
+    signedIn: (dir, h) => h.exists(pathOf(h).join(dir, "auth.json")),
     keys: ["CODEX_API_KEY", "OPENAI_API_KEY", "VYRE_CRED_FILES"],
   },
 };

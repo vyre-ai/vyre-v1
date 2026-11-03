@@ -64,7 +64,7 @@ export async function bootSpace(o: { lan?: boolean } = {}): Promise<SpaceRig> {
     const body = (await r.json()) as { data?: unknown; error?: unknown };
     return { status: r.status, data: (body.data ?? body) as any };   // eslint-disable-line @typescript-eslint/no-explicit-any
   };
-  return { d, dir, address, as, stop: async () => { await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); } };
+  return { d, dir, address, as, stop: async () => { await d.stop(); fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } };
 }
 
 export interface DeviceRig { d: Daemon; dir: string; home: string; spawns: Array<{ argv: readonly string[]; env: Record<string, string>; proc: NodeProc }>; link(space: SpaceRig, token?: string): Promise<void>; unlink(): Promise<void>; stop(): Promise<void> }
