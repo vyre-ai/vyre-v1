@@ -3,6 +3,7 @@
 // engines run the same fake claude, told FAKE_WHERE=device, so every reply says where it ran, and they run the way the engine module runs them on a computer: spawnCli inside this machine's real
 // sandbox, in the work folder the link names, under the turn's network rule. Only the program is swapped (as the server's engineCli does). The people's sessions are injected (no sign-in flow here).
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -24,6 +25,24 @@ const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, heade
 /** The people's own sessions: Olivia on her Mac (a desktop computer) and Noah, a teammate on his. */
 export const MAC = "tok-olivia-mac";
 export const NOAH = "tok-noah-mac";
+
+/** A stopped daemon's folder is removed at once: a handle it kept would stop an update or an uninstall too. DIAG: on Windows, what is still held is printed first. */
+function rmStrict(dir: string): void {
+  try { fs.rmSync(dir, { recursive: true, force: true }); return; } catch (e) {
+    const held: string[] = [];
+    const walk = (p: string): void => {
+      let st: fs.Stats; try { st = fs.lstatSync(p); } catch { return; }
+      if (st.isDirectory()) { for (const n of fs.readdirSync(p)) walk(path.join(p, n)); try { fs.rmdirSync(p); } catch (x) { held.push(`dir ${p}: ${(x as NodeJS.ErrnoException).code}`); } return; }
+      try { fs.unlinkSync(p); } catch (x) { held.push(`file ${p} mode=${(st.mode & 0o777).toString(8)}: ${(x as NodeJS.ErrnoException).code}`); }
+    };
+    walk(dir);
+    const h = process.env["HANDLE_EXE"];
+    const handles = h ? spawnSync(h, ["-accepteula", "-nobanner", dir], { encoding: "utf8" }).stdout : "";
+    const procs = process.platform === "win32" ? spawnSync("powershell.exe", ["-NoProfile", "-Command", "Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'node|lowrun|git|bash|cmd' } | ForEach-Object { \"$($_.ProcessId) $($_.ParentProcessId) $($_.CommandLine)\" }"], { encoding: "utf8" }).stdout : "";
+    process.stderr.write(`DIAG rm ${dir} (${(e as Error).message})\nheld:\n${held.slice(0, 40).join("\n")}\nhandles:\n${handles}\nprocesses (this pid ${process.pid}):\n${procs.slice(0, 6000)}\n`);
+    throw e;
+  }
+}
 
 export interface SpaceRig { d: Daemon; dir: string; /** the address a computer links to: loopback, or this machine's private address for a LAN Space */ address: string; as(token: string | null, cap: string, input: unknown): Promise<{ status: number; data: any } >; stop(): Promise<void> }   // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -64,7 +83,7 @@ export async function bootSpace(o: { lan?: boolean } = {}): Promise<SpaceRig> {
     const body = (await r.json()) as { data?: unknown; error?: unknown };
     return { status: r.status, data: (body.data ?? body) as any };   // eslint-disable-line @typescript-eslint/no-explicit-any
   };
-  return { d, dir, address, as, stop: async () => { await d.stop(); fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } };
+  return { d, dir, address, as, stop: async () => { await d.stop(); rmStrict(dir); } };
 }
 
 export interface DeviceRig { d: Daemon; dir: string; home: string; spawns: Array<{ argv: readonly string[]; env: Record<string, string>; proc: NodeProc }>; link(space: SpaceRig, token?: string): Promise<void>; unlink(): Promise<void>; stop(): Promise<void> }
@@ -110,7 +129,7 @@ export async function bootDevice(o: { slowMs?: number; signedIn?: "claude" } = {
       const s = linked?.space;
       if (s) await waitFor(async () => (s.d.nodeRelay.devices("usr_olivia").length === 0 ? true : null), 10_000);
     },
-    stop: async () => { await d.stop(); await sandbox.close(); fs.rmSync(dir, { recursive: true, force: true }); },
+    stop: async () => { await d.stop(); await sandbox.close(); rmStrict(dir); },
   };
 }
 

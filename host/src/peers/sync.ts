@@ -84,6 +84,8 @@ export interface PeerSync {
 interface PeerRow { id: string; name: string; route: string; relay: string }
 export interface RunnerState { holder: string | null; mine: boolean; expiresAt: number }
 
+// DIAG (lane l-winengine, Windows wake): VYRE_PEERS_TRACE=1 writes the live path to stderr. Removed once the Windows cause is known.
+const trace = (m: string, a: Record<string, unknown> = {}): void => { if (process.env["VYRE_PEERS_TRACE"]) process.stderr.write(`[peers ${Date.now() % 100000}] ${m} ${JSON.stringify(a)}\n`); };
 export function createPeerSync(d: PeerSyncDeps): PeerSync {
   let cells: Record<StoreName, CellsLike> | null = null;
   let spaceDb: HostDb | null = null;
@@ -96,21 +98,25 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
   let wokeBlobs = false, wokeTrees = false;
   // live: a write here pokes the other computers (debounced); a poke from one asks for a round soon
   let watcher: ReturnType<typeof setInterval> | null = null;
-  let lastDirty = -1, wakeTimer: ReturnType<typeof setTimeout> | null = null, soonTimer: ReturnType<typeof setTimeout> | null = null;
-  const dirtyMark = (): number => {
-    let n = 0;
-    const h = d.db();
-    try { n += Number((h?.all("SELECT COALESCE(MAX(n), 0) AS n FROM peer_dirty")[0] as { n?: number } | undefined)?.n ?? 0); } catch { /* not installed */ }
-    try { n += Number((spaceDb?.all("SELECT COALESCE(MAX(n), 0) AS n FROM peer_dirty")[0] as { n?: number } | undefined)?.n ?? 0) * 1e9; } catch { /* no space store */ }
-    return n;
+  let lastDirty: string | null = null, wakeTimer: ReturnType<typeof setTimeout> | null = null, soonTimer: ReturnType<typeof setTimeout> | null = null;
+  // a local write shows as a new row in peer_dirty, or (when a round stamped it before the watcher looked) as one more stamp: peer_dirty's numbers start again once it is emptied, so a write
+  // that was stamped between two looks left MAX(n) where it was and was never sent (the Windows parity run, and one run in three on Linux)
+  const markOf = (db: HostDb | null): string => {
+    if (!db) return "-";
+    let n = "0", st = "0";
+    try { n = String((db.all("SELECT COALESCE(MAX(n), 0) AS n FROM peer_dirty")[0] as { n?: number } | undefined)?.n ?? 0); } catch { /* not installed */ }
+    try { st = String((db.all("SELECT value FROM peer_meta WHERE key = 'stamped'")[0] as { value?: string } | undefined)?.value ?? "0"); } catch { /* not installed */ }
+    return `${n}.${st}`;
   };
+  const dirtyMark = (): string => `${markOf(d.db())}|${markOf(spaceDb)}`;
   async function poke(): Promise<void> {
     const h = d.db(), me = d.selfId(), token = d.token();
     if (!h || !me || !token) return;
     for (const p of peers(h)) {
-      if (p.id === me || !p.route || (backoff.get(p.id) ?? 0) > d.now()) continue;
-      try { const ch = await channel(p); await ch.request({ method: "POST", path: "/v1/peers/poke", headers: { authorization: `Peer ${token}` }, timeoutMs: 5_000 }); }
-      catch { channels.get(p.id)?.close(); channels.delete(p.id); }
+      if (p.id === me || !p.route || (backoff.get(p.id) ?? 0) > d.now()) { trace("poke.skip", { me, p: p.id, route: Boolean(p.route), backoff: backoff.get(p.id) ?? 0 }); continue; }
+      const t0 = Date.now();
+      try { const ch = await channel(p); const r = await ch.request({ method: "POST", path: "/v1/peers/poke", headers: { authorization: `Peer ${token}` }, timeoutMs: 5_000 }); trace("poke.sent", { me, p: p.id, status: r.status, ms: Date.now() - t0 }); }
+      catch (e) { trace("poke.failed", { me, p: p.id, why: (e as Error).message, ms: Date.now() - t0 }); channels.get(p.id)?.close(); channels.delete(p.id); }
     }
   }
   function watch(): void {
@@ -118,8 +124,9 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
     watcher = setInterval(() => {
       if (!cells) return;
       const m = dirtyMark();
-      if (lastDirty < 0) { lastDirty = m; return; }
+      if (lastDirty === null) { lastDirty = m; trace("watch.base", { me: d.selfId(), m }); return; }
       if (m === lastDirty) return;
+      trace("watch.dirty", { me: d.selfId(), m, was: lastDirty });
       lastDirty = m;
       if (wakeTimer) clearTimeout(wakeTimer);
       wakeTimer = setTimeout(() => { wakeTimer = null; void poke(); }, d.wakeMs ?? WAKE_DEBOUNCE_MS);
@@ -129,7 +136,8 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
   /** Another computer wrote something: take it now rather than at the next round. */
   function soon(): void {
     if (soonTimer) return;
-    soonTimer = setTimeout(() => { soonTimer = null; wokeBlobs = true; wokeTrees = true; void round().catch(() => {}); }, 50);
+    trace("soon", { me: d.selfId() });
+    soonTimer = setTimeout(() => { soonTimer = null; wokeBlobs = true; wokeTrees = true; const t0 = Date.now(); void round().then((o) => trace("soon.round", { me: d.selfId(), ...o, ms: Date.now() - t0 })).catch((e) => trace("soon.round_failed", { why: (e as Error).message })); }, 50);
     soonTimer.unref?.();
   }
 
@@ -175,6 +183,8 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
       if (spaceDb) c.space = make(spaceDb, { site, now: d.now, deny: (t) => t.startsWith("sync_") });
       for (const x of Object.values(c)) x.install();
       cells = c as Record<StoreName, CellsLike>;
+      // the live watcher's starting point is the moment capture is on: a write made before its first look (a round, then a write at once) is a change from here, not part of the start
+      lastDirty = dirtyMark();
       d.log("peers.capture_on", {});
       return true;
     } catch (e) { d.log("peers.capture_failed", { why: (e as Error).message }); return false; }
@@ -257,6 +267,7 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
   }
   async function roundOnce(): Promise<{ reached: string[]; applied: number }> {
     const out = { reached: [] as string[], applied: 0 };
+    trace("round.start", { me: d.selfId(), running, cells: Boolean(cells) });
     if (running || !ensure() || !cells) return out;
     running = true;
     try {
@@ -290,7 +301,9 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
               if (!page.more) break;
             }
           }
+          trace("round.cells", { me, p: p.id, applied: out.applied });
           if (rounds % BLOBS_EVERY === 1 || wokeBlobs) out.applied += await fetchBlobs(ch, auth);
+          trace("round.blobs", { me, p: p.id });
           if (rounds % TREES_EVERY === 1 || wokeTrees) {
             try { const t = await syncTrees(d.root, ch, auth, { id: p.id, name: p.name }); if (t.created.length || t.moved.length || t.kept.length) d.log("peers.trees", { from: p.id, ...t }); }
             catch (e) { d.log("peers.trees_failed", { from: p.id, why: (e as Error).message.slice(0, 120) }); }

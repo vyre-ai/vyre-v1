@@ -376,6 +376,13 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - name: Sysinternals handle (DIAG, lane l-winengine)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://download.sysinternals.com/files/Handle.zip -OutFile "$env:RUNNER_TEMP\handle.zip"
+          Expand-Archive "$env:RUNNER_TEMP\handle.zip" -DestinationPath "$env:RUNNER_TEMP\handle"
+          "HANDLE_EXE=$env:RUNNER_TEMP\handle\handle64.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "VYRE_PEERS_TRACE=1" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: "runson: Runs on, Automatic, the device link and handover"
         id: runson
         continue-on-error: true
