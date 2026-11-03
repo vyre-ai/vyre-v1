@@ -55,11 +55,11 @@ test("golden: shards split the step tests with none lost or run twice, a shard w
   assert.deepEqual(shardOf(["a", "b", "c", "d", "e"], 1, 2).concat(shardOf(["a", "b", "c", "d", "e"], 2, 2)).sort(), ["a", "b", "c", "d", "e"]);
 });
 
-test("golden: the long step tests are spread over the shards, none lost, none twice", () => {
+test("golden: the long step tests are spread over three shards, none lost, none twice", () => {
   const files = stepFiles(path.resolve(path.dirname(SCRIPT), "..", "golden", "steps"));
-  const a = shardOf(files, 1, 2), b = shardOf(files, 2, 2);
-  assert.deepEqual([...a, ...b].sort(), [...files].sort());
-  const heavy = (xs: string[]) => xs.filter((f) => HEAVY.some((h) => path.basename(f).startsWith(h))).length;
-  assert.ok(Math.abs(heavy(a) - heavy(b)) <= 1, `heavy files: ${heavy(a)} and ${heavy(b)}`);
-  assert.ok(heavy(a) + heavy(b) === HEAVY.length, "every name in HEAVY matches a step test");
+  const parts = [1, 2, 3].map((i) => shardOf(files, i, 3));
+  assert.deepEqual(parts.flat().sort(), [...files].sort());
+  const heavy = parts.map((xs) => xs.filter((f) => HEAVY.some((h) => path.basename(f).startsWith(h))).length);
+  assert.ok(Math.max(...heavy) - Math.min(...heavy) <= 1, `heavy files per shard: ${heavy}`);
+  assert.equal(heavy.reduce((a, b) => a + b, 0), HEAVY.length, "every name in HEAVY matches a step test");
 });

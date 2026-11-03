@@ -19,9 +19,9 @@ export function stepFiles(dir: string): string[] {
   return fs.readdirSync(dir).filter((f) => f.endsWith(".test.ts") && !f.endsWith(".heavy.test.ts")).sort().map((f) => path.join(dir, f));
 }
 
-/** Step tests that take long on a loaded runner (golden 2, 4, 10, 12 and 14 and the senders flow took 20 to 96 s each in CI against about 10 s alone). They are dealt out first, one shard after the other, so
+/** Step tests that take long on a loaded runner (golden 2, 3, 4, 6, 9, 10, 12 and 14 and the senders flow took 20 to 96 s each in CI against about 10 s alone). They are dealt out first, one shard after the other, so
  * they never pile into one shard: in the first CI run of the split, every one of them landed in shard 2 (3m29s) and shard 1 took 30 s. */
-export const HEAVY: readonly string[] = ["02-joining", "04-offline-conflict", "05-senders", "10-keyfail", "12-matrix", "14-purge"];
+export const HEAVY: readonly string[] = ["02-joining", "03-changeset", "04-offline-conflict", "05-senders", "06-artifact-personal", "09-offboarding", "10-keyfail", "12-matrix", "14-purge"];
 
 /** The files of shard i of n (1-based): the heavy ones dealt round robin, then the rest round robin from where that stopped. Every file is in exactly one shard. */
 export function shardOf(files: string[], i: number, n: number): string[] {
