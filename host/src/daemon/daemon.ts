@@ -108,7 +108,8 @@ import { createAuditRecorder } from "../seams/audit.ts";
 import { INVITE_TRIES, inviteKeyOf, loadRelayKeys, startRelayBox } from "../seams/relay.ts";
 import { createPeerService, joinWithCode } from "../peers/service.ts";
 import type { PeerService } from "../peers/service.ts";
-import type { CreateCells } from "../peers/sync.ts";
+import type { CreateCells, PeerAccessEvent, PeerAccessPort } from "../peers/sync.ts";
+import { PEER_ACCESS } from "../peers/sync.ts";
 import { applyPeerJoin } from "../peers/join.ts";
 import { createAppFilesRoute, defaultAppDir } from "../routes/app-files.ts";
 import type { RelayBox } from "../seams/relay.ts";
@@ -446,6 +447,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // Assigned once the daemon object exists. The local route acknowledges before
   // shutdown so its caller never races the HTTP response with server.close().
   let requestStop: () => void = () => {};
+  let peerAccess: PeerAccessPort | null = null;
   // set once the peer service exists (a Personal Space on several computers): does this computer hold the scheduled-work lease now
   let scheduledHere: () => boolean = () => true;
   let gateway: ReturnType<typeof createGateway> | null = null;
@@ -1117,6 +1119,37 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       // the drivers that need the daemon's own state (the Space log, the access snapshot, the pipeline); the registry in seams/ builds the rest from the Vault
       const spaceLog = log;
+      // A Personal Space on several computers (host/src/peers): who and what exists, and who may do what, is this computer's own event log folded into access. Rows another computer made
+      // reach here as cells; the resource, principal and grant events behind them reach here through this port, under their own ids, so each is folded once on every computer.
+      peerAccess = {
+        async since(after, limit) {
+          const out: PeerAccessEvent[] = [];
+          let cursor = after;
+          for (;;) {
+            const page = await spaceLog.read({ after: cursor, limit: 2000 });
+            for (const e of page) {
+              cursor = e.seq;
+              if (!PEER_ACCESS.has(e.type) || e.enc !== 0) continue;
+              let payload: unknown;
+              try { payload = JSON.parse(new TextDecoder().decode(e.payload)); } catch { continue; }
+              out.push({ seq: e.seq, id: e.id, type: e.type, sv: e.sv, actor: e.actor, vis: e.vis, trace_id: e.trace_id, ...(e.entity ? { entity: e.entity } : {}), ...(e.entity_id ? { entity_id: e.entity_id } : {}), payload });
+              if (out.length >= limit) return { events: out, next: cursor, more: true };
+            }
+            if (page.length < 2000) return { events: out, next: cursor, more: false };
+          }
+        },
+        async import(events) {
+          let folded = 0;
+          for (const e of events) {
+            if (!PEER_ACCESS.has(e.type) || typeof e.id !== "string") continue;
+            const r = await spaceLog.appendResult({ id: e.id, type: e.type, sv: e.sv, trace_id: e.trace_id, actor: e.actor, vis: e.vis as "space", ...(e.entity ? { entity: e.entity } : {}), ...(e.entity_id ? { entity_id: e.entity_id } : {}), payload: e.payload });
+            if (!r.ok || r.duplicate) continue;
+            access.fold(r.event); accessPending.push(toAccessEvent(r.event)); headSeq = Math.max(headSeq, r.event.seq); folded++;
+          }
+          if (folded) await syncAccess(true);
+          return folded;
+        },
+      };
       matchProven = (key, who, person) => matchProvenAddress((n, i) => hookRunner.call(n, i), key, who, person);
       peopleExtras = createPeopleExtras({ access: () => access.snap, stale: (id) => staleFor(id), db: db!, recoveryCommit:createRecoveryCommit({db:db!,now}),call: (n, i, as) => hookRunner.call(n, i, as), keyring, ...(keyWraps ? { wraps: keyWraps } : {}), sso: { tickets: ssoTickets }, github: githubNow,
         // an invite on a Space reached at its phone address carries an invite key, never the box key (seams/relay.ts)
@@ -1872,6 +1905,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     restart: () => requestStop(),
     ...(o.seams?.relayWebSocket ? { WebSocket: o.seams.relayWebSocket } : {}),
     createCells: () => peerCells,
+    access: () => peerAccess,
     ...(cfg.peerKind ? { kind: cfg.peerKind } : {}),
     changed: () => { if (space) hub?.poke?.(space); },
     ...(o.peerRoundMs ? { roundMs: o.peerRoundMs } : {}), ...(o.peerLeaseMs ? { leaseMs: o.peerLeaseMs } : {}),

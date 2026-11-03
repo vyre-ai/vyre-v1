@@ -27,6 +27,19 @@ export interface CellsLike {
   cursor(peer: string): number;
   setCursor(peer: string, cursor: number): void;
 }
+/** The events behind who and what exists and who may do what (the access module folds them). Each computer's own log holds them; computers exchange them so a folder, agent, thread or
+ *  record made on one is a resource on every other one too (without it, the copied row is "not found or not visible" there). */
+export const PEER_ACCESS: ReadonlySet<string> = new Set([
+  "role.defined", "principal.created", "principal.role_set", "group.member_added", "group.member_removed", "resource.created", "grant.created", "grant.revoked",
+  "principal.suspended", "principal.reactivated", "member.removed", "space.ownership_transferred",
+]);
+export interface PeerAccessEvent { seq: number; id: string; type: string; sv: number; actor: string; vis: string; trace_id: string; entity?: string; entity_id?: string; payload: unknown }
+export interface PeerAccessPort {
+  since(after: number, limit: number): Promise<{ events: PeerAccessEvent[]; next: number; more: boolean }>;
+  /** Append the other computer's events under their own ids (a second copy is a duplicate, never a second fold). Returns how many were new here. */
+  import(events: readonly PeerAccessEvent[]): Promise<number>;
+}
+
 export type CreateCells = (db: { all(sql: string, ...a: unknown[]): unknown[]; run(sql: string, ...a: unknown[]): unknown; exec(sql: string): void }, o: { site: string; now(): number; deny?(t: string): boolean; denyColumns?: Record<string, readonly string[]> }) => CellsLike;
 
 /** Tables that describe this computer, or are kept from this computer's own log by sequence, and never travel. The engine's queue, leases and parked turns are work this computer's own engine
@@ -50,6 +63,8 @@ export interface PeerSyncDeps {
   root: string;
   db: () => HostDb | null;
   createCells: () => CreateCells | null;
+  /** this computer's access events (host/src/daemon/daemon.ts) */
+  access?: () => PeerAccessPort | null;
   selfId: () => string | null;
   token: () => string | null;
   now: () => number;
@@ -271,6 +286,19 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
         if ((backoff.get(p.id) ?? 0) > d.now()) continue;
         try {
           const ch = await channel(p);
+          // who and what exists first, so the rows that follow are visible here as soon as they land
+          const acc = d.access?.();
+          if (acc) {
+            for (;;) {
+              const since = cells.modules.cursor(`access:${p.id}`);
+              const r = await ch.request({ method: "POST", path: "/v1/peers/access", headers: auth, body: JSON.stringify({ since }) });
+              if (r.status !== 200) break;
+              const page = r.json<{ data: { events: PeerAccessEvent[]; next: number; more: boolean } }>().data;
+              out.applied += await acc.import(page.events);
+              cells.modules.setCursor(`access:${p.id}`, page.next);
+              if (!page.more) break;
+            }
+          }
           for (const store of STORES) {
             const c = cells[store];
             if (!c) continue;
@@ -358,6 +386,20 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
       const url = new URL(req.url ?? "/", "http://vyred");
       if (req.method === "POST" && url.pathname === "/v1/peers/changes") { void changes(req, res, peerOf).catch(() => { try { res.writeHead(500); res.end(); } catch { /* sent */ } }); return true; }
       const auth = async (): Promise<boolean> => { if (await peerOf(req)) return true; res.writeHead(401, { "content-type": "application/json" }); res.end('{"error":{"code":"auth.unauthenticated","message":"This computer is not part of the Space."}}'); return false; };
+      if (req.method === "POST" && url.pathname === "/v1/peers/access") {
+        void auth().then(async (ok) => {
+          if (!ok) return;
+          const parts: Buffer[] = [];
+          for await (const c of req) parts.push(c as Buffer);
+          let since = 0;
+          try { since = Math.max(0, Number((JSON.parse(Buffer.concat(parts).toString("utf8") || "{}") as { since?: unknown }).since) || 0); } catch { /* from the start */ }
+          const acc = d.access?.();
+          const page = acc ? await acc.since(since, 500) : { events: [], next: since, more: false };
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+          res.end(JSON.stringify({ data: page }));
+        }).catch(() => { try { res.writeHead(500); res.end(); } catch { /* sent */ } });
+        return true;
+      }
       if (req.method === "POST" && url.pathname === "/v1/peers/poke") { void auth().then((ok) => { if (!ok) return; res.writeHead(202, { "cache-control": "no-store" }); res.end(); soon(); }); return true; }
       if (req.method === "GET" && url.pathname.startsWith("/v1/peers/git/")) { void auth().then((ok) => (ok ? serveGit(d.root, req, res, url) : undefined)).catch(() => { try { res.writeHead(500); res.end(); } catch { /* sent */ } }); return true; }
       return false;

@@ -26,7 +26,7 @@ import type { PeerChannel, PeerTarget } from "./link.ts";
 import { JOIN_DIR, SECRET_FILES, STAGED_DBS } from "./join.ts";
 import { packagedOrigin } from "../daemon/desktop-cors.ts";
 import { createPeerSync } from "./sync.ts";
-import type { CreateCells, PeerSync } from "./sync.ts";
+import type { CreateCells, PeerAccessPort, PeerSync } from "./sync.ts";
 import { EVERY_COMPUTER } from "./runner.ts";
 
 const ASK_TTL_MS = 10 * 60_000;
@@ -78,6 +78,8 @@ export interface PeerServiceDeps {
   restart: () => void;
   WebSocket?: typeof WebSocket;
   fetch?: typeof fetch;
+  /** this computer's access events, exchanged so a resource made on another computer exists here too */
+  access?: () => PeerAccessPort | null;
   /** the cell engine (sync/src/peers/cells.ts), handed over by the sync module once it is loaded */
   createCells?: () => CreateCells | null;
   /** rows came from another computer: the open apps re-read */
@@ -227,7 +229,7 @@ export function createPeerService(d: PeerServiceDeps): PeerService {
   const tokenFile = path.join(d.root, "peer.token");
   const ownToken = (): string | null => { try { return fs.readFileSync(tokenFile, "utf8").trim() || null; } catch { return null; } };
   const peerSync = createPeerSync({
-    root: d.root, db, createCells: () => d.createCells?.() ?? null, selfId: () => { const h = db(); return h ? selfId(h) : null; }, token: ownToken,
+    root: d.root, db, createCells: () => d.createCells?.() ?? null, ...(d.access ? { access: d.access } : {}), selfId: () => { const h = db(); return h ? selfId(h) : null; }, token: ownToken,
     now: d.now, log: d.log, changed: () => d.changed?.(), ...(d.WebSocket ? { WebSocket: d.WebSocket } : {}), ...(d.roundMs ? { roundMs: d.roundMs } : {}), ...(d.leaseMs ? { leaseMs: d.leaseMs } : {}), ...(d.wakeMs ? { wakeMs: d.wakeMs } : {}),
   });
 

@@ -193,6 +193,12 @@ export function createCells(db: CellDb, o: CellOptions): Cells {
         if (c.col === DEL) { out.d = c.hlc; continue; }
         if (row && t.tracked.includes(c.col)) out.c[c.col] = { v: toWire(row[c.col]), h: c.hlc };
       }
+      // A row always travels whole: a column written before capture began (a row made at the first start, before the Space had a second computer) has no clock of its own, and without its
+      // value the other computer could not make the row at all. It carries the row's newest clock, so it never beats a column the other computer wrote later.
+      if (row) {
+        const top = clocks.filter((c) => c.col !== DEL).map((c) => c.hlc).sort().pop();
+        if (top) for (const col of t.tracked) if (!(col in out.c)) out.c[col] = { v: toWire(row[col]), h: top };
+      }
       rows.push(out);
     }
     return { rows, next: ids.length ? ids[ids.length - 1]!.v : since, more: ids.length === limit, head: Number(meta("head") ?? "0") };
