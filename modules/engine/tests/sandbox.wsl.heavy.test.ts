@@ -105,7 +105,9 @@ test("the Windows sandbox: a Claude Code turn with a Bash tool call, and nothing
     const probe = (label: string, cmd: string): string => `if ${cmd} >/dev/null 2>&1; then echo "${label}=yes"; else echo "${label}=no"; fi`;
     const script = [
       probe("READ_PROFILE", `cat ${toWslPath(secret)}`),
-      probe("LIST_DRIVE", "ls /mnt/c"),
+      // bwrap makes the folders down to the work folder as empty mount points; the drive itself (Windows, other users, the rest of the profile) is not there
+      probe("SEE_DRIVE", "test -e /mnt/c/Windows/System32"),
+      "echo \"SKELETON=$(ls /mnt/c | tr '\\n' ' ')\" >&2",
       probe("READ_DATA", `cat ${toWslPath(elsewhere)}`),
       probe("WRITE_WORK", "touch ./mine.txt"),
       probe("WRITE_DATA", `touch ${toWslPath(path.join(dataDir, "pwned.txt"))}`),
@@ -118,7 +120,7 @@ test("the Windows sandbox: a Claude Code turn with a Bash tool call, and nothing
     const p = await run(wrap(["/bin/sh", "-c", script], { cwd, env: {} }), { ms: 120_000 });
     console.log(`probes: exit ${p.code}\n${p.out}\n${p.err.slice(-800)}`);
     const got = Object.fromEntries(p.out.split(/\r?\n/).filter((l) => l.includes("=")).map((l) => l.trim().split("=") as [string, string]));
-    assert.deepEqual(got, { READ_PROFILE: "no", LIST_DRIVE: "no", READ_DATA: "no", WRITE_WORK: "yes", WRITE_DATA: "no", WRITE_ROOT: "no", NET_ALLOWED: "yes", NET_OFF_POLICY: "no", NET_NO_PROXY: "no", WIN_PROGRAM: "no" });
+    assert.deepEqual(got, { READ_PROFILE: "no", SEE_DRIVE: "no", READ_DATA: "no", WRITE_WORK: "yes", WRITE_DATA: "no", WRITE_ROOT: "no", NET_ALLOWED: "yes", NET_OFF_POLICY: "no", NET_NO_PROXY: "no", WIN_PROGRAM: "no" });
     assert.ok(!fs.existsSync(path.join(dataDir, "pwned.txt")));
 
     // 3. the MCP shim, in the sandbox, reaches Vyre's tools on Windows over the agent's relay
