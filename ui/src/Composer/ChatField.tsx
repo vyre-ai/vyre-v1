@@ -25,6 +25,14 @@ export interface ChatFieldProps {
   onBlur: () => void;
   /** Gives the composer a handle with focus(), as it had on the plain field. */
   controlRef: (c: { focus: () => void } | null) => void;
+  /** The editor could not mount (no DOM, a load that failed): the composer falls back to the plain field. */
+  onFail: () => void;
+}
+
+/** True where a real browser DOM is there to mount the editor on; a test renderer or a server render is not. */
+export function canMountChatField(): boolean {
+  const d = (globalThis as { document?: { createElement?: (t: string) => { classList?: { add?: unknown } } } }).document;
+  try { return typeof d?.createElement === "function" && typeof d.createElement("div")?.classList?.add === "function"; } catch { return false; }
 }
 
 const CSS = [
@@ -65,6 +73,7 @@ export function ChatField(p: ChatFieldProps): ReactElement {
   useEffect(() => {
     let gone = false;
     let made: EditorLike | null = null;
+    if (host.current === null || (host.current as { nodeType?: number }).nodeType !== 1) { cb.current.onFail(); return undefined; }
     void (async () => {
       const core = await import("@tiptap/core");
       const { chatExtensions } = await import("./chatnode.ts");
@@ -111,7 +120,7 @@ export function ChatField(p: ChatFieldProps): ReactElement {
       made = e;
       e.view.dom.setAttribute("data-empty", cb.current.value === "" ? "true" : "false");
       cb.current.controlRef({ focus: () => { e.commands.focus(); } });
-    })();
+    })().catch(() => { if (!gone) cb.current.onFail(); });
     return () => { gone = true; cb.current.controlRef(null); made?.destroy(); ed.current = null; };
   }, []);
 

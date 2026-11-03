@@ -107,7 +107,7 @@ export function parseInline(src: string): Inline[] {
       if (fn) { flush(); out.push({ t: "fnref", id: fn[1] ?? "" }); i += fn[0].length; continue; }
     }
     if ((ch === "h" || ch === "H") && !isWord(src.charAt(i - 1)) && src.slice(i - 2, i) !== "](" && /^https?:\/\//i.test(src.slice(i, i + 8))) {
-      const m = /^https?:\/\/[^\s<>]+/i.exec(src.slice(i));
+      const m = /^https?:\/\/[^\s<>[\]]+/i.exec(src.slice(i));
       if (m) {
         let url = m[0];
         while (/[.,;:!?)\]]$/.test(url) && !(url.endsWith(")") && url.includes("("))) url = url.slice(0, -1);

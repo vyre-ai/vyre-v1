@@ -22,7 +22,7 @@ import { DropHost, DropOverlay, useDropRoute, useFileDrop } from "../FileDrop/in
 import { Row } from "../Row/index.tsx";
 import { answering, contextRing, deleteToken, effortsFor, modeInfo, nextMode, sendControl, sizeLabel, stripName, tokenRanges } from "./brain.ts";
 import type { ChatMode, ComposerAgent, TokenRange } from "./brain.ts";
-import { ChatField } from "./ChatField.tsx";
+import { ChatField, canMountChatField } from "./ChatField.tsx";
 import { ContextRing, EffortBars, GroupHead, I, IconTile, Kbd, Pop, STOP, ensureComposerCss, useDismiss } from "./parts.tsx";
 import { composerSymbols } from "./props.ts";
 import { closeEmoji, findEmoji } from "./emoji.ts";
@@ -520,7 +520,7 @@ export interface ComposerPreview {
 }
 
 export interface ComposerProps extends ComposerShellProps {
-  /** Draw the text on the shared editor with each @mention as one chip (ChatField), instead of the plain field with a wash behind it. Off by default until it has passed every composer test in a browser. */
+  /** The text is drawn on the shared editor with each @mention as one chip (ChatField). On wherever a browser DOM is there; the plain field is only the fallback when the editor cannot mount. `false` forces the plain field (tests). */
   chatField?: boolean;
   lists?: ComposerLists;
   /** Agents that listen in this thread (answer only when @mentioned). The lead comes from `lead`. */
@@ -1123,14 +1123,15 @@ export function Composer(props: ComposerProps): ReactElement {
       </Pressable>
     </View>
   );
-  const useChat = web && props.chatField === true;
+  const [chatFailed, setChatFailed] = useState(false);
+  const useChat = web && props.chatField !== false && !chatFailed && canMountChatField();
   const fieldNode = (
     <View style={[styles.fieldWrap, ...fieldPad, oneLine && styles.fieldLine]} {...webProps({ dataSet: { cmpField: "1" } })}>
       {useChat ? (
         <ChatField
           value={state.text} cursor={state.cursor} ranges={ranges} placeholder={props.placeholder ?? "Message"} label={props.label ?? "Message"} testID="composer-field" fontSize={compact ? 14 : 15} lineHeight={22} maxHeight={MAX_FIELD}
           onChange={onChange as never} onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })} onKeyPress={onKeyPress as never} onFocus={onFocus} onBlur={onBlur}
-          controlRef={(c) => { input.current = c as never; }}
+          controlRef={(c) => { input.current = c as never; }} onFail={() => setChatFailed(true)}
         />
       ) : (
         <>

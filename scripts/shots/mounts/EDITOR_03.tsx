@@ -17,7 +17,7 @@ export default function Mount() {
       <View style={{ width: "100%", maxWidth: 720, alignSelf: "center" }}>
         <Composer
           whoWillAnswer="Aliza will reply" lead="Aliza" label="Message" placeholder="Message" lists={{ agents: ["Aliza", "Rubab", "Sol"], people: [] }}
-          chatField={field === "chat"} onSubmit={(p) => setSent((s) => [...s, JSON.stringify({ text: p.text, links: p.links, refs: p.refs, mode: p.mode, answers: p.answers })])}
+          chatField={field !== "plain"} onSubmit={(p) => setSent((s) => [...s, JSON.stringify({ text: p.text, links: p.links, refs: p.refs, mode: p.mode, answers: p.answers })])}
         />
       </View>
     </View>

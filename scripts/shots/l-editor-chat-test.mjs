@@ -130,6 +130,7 @@ await page.waitForTimeout(200);
 const inView = await page.evaluate(() => { const f = document.querySelector("[data-testid=composer-field]").getBoundingClientRect(); return [...document.querySelectorAll(".vyre-chip")].map((c) => { const r = c.getBoundingClientRect(); return { t: c.textContent, within: r.bottom > f.top - 2 && r.top < f.bottom + 2 }; }); });
 check("chips move with the text when it scrolls", inView.length === 3, JSON.stringify(inView));
 if (shotsDir) { fs.mkdirSync(shotsDir, { recursive: true }); await page.screenshot({ path: path.join(shotsDir, "chat-field-long-paper.png") }); }
+const longText = long;
 await chat.ctx.close();
 
 // the payload is the plain field's payload
@@ -147,6 +148,16 @@ if (shotsDir) {
     await o.page.keyboard.type("second line");
     await o.page.waitForTimeout(500);
     await o.page.screenshot({ path: path.join(shotsDir, `chat-field-${name}.png`) });
+    await o.ctx.close();
+  }
+}
+if (shotsDir) {
+  for (const [name, size] of [["wide", { width: 1440, height: 900 }], ["phone", { width: 390, height: 844 }]]) {
+    const o = await open("chat", size, "dark");
+    await field(o.page).click();
+    for (const [i, l] of longText.entries()) { await o.page.keyboard.type(l); if (i < longText.length - 1) await o.page.keyboard.press("Shift+Enter"); }
+    await o.page.waitForTimeout(500);
+    await o.page.screenshot({ path: path.join(shotsDir, `chat-field-long-graphite-${name}.png`) });
     await o.ctx.close();
   }
 }
