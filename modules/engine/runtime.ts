@@ -347,11 +347,12 @@ export async function closeDefaultSandbox(): Promise<void> { const d = defaultBu
  * (a daemon without the engine seam, or a unit test), in which case the control handlers keep raising internal.unavailable.
  */
 export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | null> {
+  // Built and bound only on the database of the daemon this host half belongs to. Where two daemons share the process (the two-computer tests), the other's periodic job or consumer reached here too and
+  // built the runtime on its own database with this host half; when that daemon stopped, its database closed under the runtime and every message after it failed ("database is not open").
+  // The check comes first so that daemon binds nothing, the MCP sign-in store included.
+  if (host?.ours && !host.ours(ctx.db)) return Promise.resolve(null);
   bindOauthStore(ctx as never);   // the sealed MCP sign-in tokens are read through the module's own ctx (db, seal, clock)
   if (!host || (!host.openSession && !host.session)) return Promise.resolve(null);   // no way to open a session: the control handlers keep answering internal.unavailable
-  // Built only on the database of the daemon this host half belongs to. Where two daemons share the process (the two-computer tests), the other's periodic job or consumer reached here too and
-  // built the runtime on its own database with this host half; when that daemon stopped, its database closed under the runtime and every message after it failed ("database is not open").
-  if (host.ours && !host.ours(ctx.db)) return Promise.resolve(null);
   // One runtime per host: every call after the first answers with it. The opener below is part of it; building another on each call left the first one, the one with the live CLI sessions, unreachable
   // for closeOpener, so Quit closed an empty pool and the engine process, its MCP socket and its egress proxy outlived the daemon.
   if (building) return building;
