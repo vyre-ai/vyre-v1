@@ -37958,6 +37958,132 @@
     },
     {
       "blocks": [],
+      "cap": "network.peer_allow",
+      "deferred": false,
+      "description": "Let a new computer use this Personal Space: it gets a full copy of your chats, files, records and Vault (still locked by your password) and stays in sync",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "network_peer_allow",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.peer_conflicts",
+      "deferred": false,
+      "description": "What syncing between your computers had to settle: the same name made on two computers while apart (one copy is renamed, both are kept), or an item kept aside whole",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "network_peer_conflicts",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.peer_decline",
+      "deferred": false,
+      "description": "Turn away a computer that asked to use this Personal Space",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "network_peer_decline",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.peer_remove",
+      "deferred": false,
+      "description": "Take a computer out of this Personal Space: it stops syncing with your other computers",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "peerId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "peerId"
+        ],
+        "type": "object"
+      },
+      "name": "network_peer_remove",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.peer_requests",
+      "deferred": false,
+      "description": "New computers asking to use this Personal Space, each with the six-digit code its own screen shows",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "network_peer_requests",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.peer_runner",
+      "deferred": false,
+      "description": "Which of your computers runs scheduled automations, routines and nightly jobs now (one at a time)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "network_peer_runner",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "network.peers",
+      "deferred": false,
+      "description": "The computers that hold this Personal Space: each keeps a full copy and syncs with the others through the relay. This computer, whether each is awake, and when it was last seen",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "network_peers",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "network.phone",
       "deferred": false,
       "description": "Your phone address on vyre.run: the name this computer holds, whether it is online, and the link that opens it on a phone",

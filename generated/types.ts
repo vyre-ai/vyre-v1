@@ -21475,6 +21475,67 @@ export type NetworkMyComputersOut = {
       };
     }>;
 };
+export type NetworkPeerAllowIn = {
+  requestId: string;
+};
+export type NetworkPeerAllowOut = {
+  state: "allowed";
+};
+export type NetworkPeerConflictsIn = Record<string, unknown>;
+export type NetworkPeerConflictsOut = {
+  conflicts: Array<{
+      conflictId: string;
+      table: string;
+      rowKey: string;
+      kind: "renamed" | "kept_aside";
+      detail: string;
+      at: number;
+    }>;
+};
+export type NetworkPeerDeclineIn = {
+  requestId: string;
+};
+export type NetworkPeerDeclineOut = {
+  state: "declined";
+};
+export type NetworkPeerRemoveIn = {
+  peerId: string;
+};
+export type NetworkPeerRemoveOut = {
+  removed: boolean;
+};
+export type NetworkPeerRequestsIn = Record<string, unknown>;
+export type NetworkPeerRequestsOut = {
+  requests: Array<{
+      requestId: string;
+      name: string;
+      platform: string;
+      code: string;
+      requestedAt: number;
+      expiresAt: number;
+    }>;
+};
+export type NetworkPeerRunnerIn = Record<string, unknown>;
+export type NetworkPeerRunnerOut = {
+  peerId?: string;
+  here: boolean;
+  expiresAt?: number;
+};
+export type NetworkPeersIn = Record<string, unknown>;
+export type NetworkPeersOut = {
+  waiting: number;
+  syncedAt?: number;
+  computers: Array<{
+      peerId: string;
+      name: string;
+      platform: string;
+      kind: "computer" | "server";
+      self: boolean;
+      online: boolean;
+      lastSeenAt?: number;
+      addedAt: number;
+    }>;
+};
 export type NetworkPhoneIn = Record<string, unknown>;
 export type NetworkPhoneOut = {
   state: "none" | "claiming" | "claimed" | "releasing" | "failed";
@@ -35271,6 +35332,13 @@ export interface CapMap {
   "network.my_computer_decline": { in: NetworkMyComputerDeclineIn; out: NetworkMyComputerDeclineOut };
   "network.my_computer_remove": { in: NetworkMyComputerRemoveIn; out: NetworkMyComputerRemoveOut };
   "network.my_computers": { in: NetworkMyComputersIn; out: NetworkMyComputersOut };
+  "network.peer_allow": { in: NetworkPeerAllowIn; out: NetworkPeerAllowOut };
+  "network.peer_conflicts": { in: NetworkPeerConflictsIn; out: NetworkPeerConflictsOut };
+  "network.peer_decline": { in: NetworkPeerDeclineIn; out: NetworkPeerDeclineOut };
+  "network.peer_remove": { in: NetworkPeerRemoveIn; out: NetworkPeerRemoveOut };
+  "network.peer_requests": { in: NetworkPeerRequestsIn; out: NetworkPeerRequestsOut };
+  "network.peer_runner": { in: NetworkPeerRunnerIn; out: NetworkPeerRunnerOut };
+  "network.peers": { in: NetworkPeersIn; out: NetworkPeersOut };
   "network.phone": { in: NetworkPhoneIn; out: NetworkPhoneOut };
   "network.phone_claim": { in: NetworkPhoneClaimIn; out: NetworkPhoneClaimOut };
   "network.phone_release": { in: NetworkPhoneReleaseIn; out: NetworkPhoneReleaseOut };
