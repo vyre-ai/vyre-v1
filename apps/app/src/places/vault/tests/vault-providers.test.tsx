@@ -214,9 +214,9 @@ test("import: the file is read first, then the import runs with the choices made
 
 test("a person can reach all three from the place: More holds Add an AI provider and Import, and the plus adds a provider in that section", () => {
   const out = clean(renderToStaticMarkup(<Vault data={sample().data} initial={{ kind: "providers" }} />));
-  assert.ok(has(out, 'data-testid="vault-more"') && has(out, 'aria-label="Add an AI provider"'), "More, and a plus that says what it adds here");
+  assert.ok(has(out, 'data-testid="vault-more"') && has(out, 'aria-label="Add an AI account"'), "More, and a plus that says what it adds here");
   const all = clean(renderToStaticMarkup(<Vault data={sample().data} />));
-  assert.ok(has(all, 'aria-label="Add an item"'), "elsewhere the plus adds an item");
+  assert.ok(has(all, 'aria-label="Add"'), "in All the plus asks which of the four it adds");
   const sheets = [
     clean(renderToStaticMarkup(<Vault data={sample().data} sheet={{ addProvider: true }} />)),
     clean(renderToStaticMarkup(<Vault data={sample().data} sheet={{ importFrom: true }} />)),

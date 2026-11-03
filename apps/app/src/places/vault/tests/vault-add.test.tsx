@@ -1,5 +1,6 @@
 // Vault Add sheet and item page as in the prototype (P-L9f_04c): a compact sheet with one search and a row of app icons, one hint line, fields only after an app or a paste, an Add to menu
 // in the footer; and on the item page the who line from the real grants, the Fields and .env tabs, Copy as .env, and the list of who can use it with a level menu on each line.
+import { otherTemplates } from "../layout/sections.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Dimensions } from "react-native";
@@ -43,16 +44,18 @@ test("add sheet: one search and a row of app icons, a hint line, and nothing els
   assert.ok(has(out, ">Paste a key or .env, or pick an app<"), "the single hint line");
   for (const gone of ["Agents ask for an item by its handle", "Pick an app, or paste something above", "Vyre works out what it is", "data-testid=\"add-paste\"", "data-testid=\"add-empty\""]) assert.ok(!has(out, gone), `no explaining copy: ${gone}`);
   assert.ok(!has(out, 'data-testid="add-name"') && !has(out, 'data-testid="add-key-0"'), "no name or fields yet");
-  const order = TEMPLATES.map((t) => at(out, `data-testid="add-app-${t.id}"`));
+  const order = otherTemplates(TEMPLATES).map((t) => at(out, `data-testid="add-app-${t.id}"`));
   assert.deepEqual([...order].sort((a, b) => a - b), order, "the reel runs in the order of the templates");
   assert.deepEqual(TEMPLATES.slice(0, 3).map((t) => t.id), ["custom", "login", "card"], "the three plain kinds come first, as in the prototype");
 });
 
 test("add sheet: the reel shows brand marks, not letter tiles, for the apps that have one", () => {
   const out = html(createSampleVault(), { sheet: { add: {} } });
-  for (const name of ["Stripe", "Twilio", "OpenAI", "Anthropic", "GitHub", "Slack", "Postgres"]) {
+  for (const name of ["Stripe", "Twilio", "GitHub", "Slack", "Postgres"]) {
     assert.ok(has(out, `data-testid="logo-${name}"`), `${name} has its icon`);
   }
+  // AI providers are added under AI accounts (owner, 3 Nov): the key, login or card reel has none of them
+  for (const name of ["OpenAI", "Anthropic"]) assert.ok(!has(out, `data-testid="add-app-${name.toLowerCase()}"`), `${name} is not in this reel`);
   const stripe = new RegExp(`data-testid="logo-Stripe"[\\s\\S]*?</svg>`).exec(out)?.[0] ?? "";
   assert.ok(has(stripe, "<svg") && has(stripe, "<path"), "the mark is drawn as a path");
   assert.ok(has(stripe, "color:#635BFF"), "in the brand's own colour");

@@ -27,7 +27,7 @@ import { runComputeNode } from "../../host/src/compute/node.ts";
 import type { NodeLauncher, NodeProc } from "../../host/src/compute/node.ts";
 import { defaultSandbox } from "../../modules/engine/sandbox-default.ts";
 import { spawnCli } from "../../modules/engine/session.ts";
-import { AUTOMATION_ROLE_LINE, CHAT_ROLE_LINE, PERSON_LACKS_ROLE_LINE, CONNECTION_KEY_LINE, CONNECTION_ROLE_LINE, SPACE_KEY_ROLE_LINE, VAULT_ROLE_LINE } from "../../lib/vault-lines.ts";
+import { AUTOMATION_ROLE_LINE, CHAT_ROLE_LINE, OUTSIDE_AGENT_ROLE_LINE, PERSON_LACKS_ROLE_LINE, CONNECTION_KEY_LINE, CONNECTION_ROLE_LINE, SPACE_KEY_ROLE_LINE, VAULT_ROLE_LINE } from "../../lib/vault-lines.ts";
 import { Client, signIn as mcpSignIn } from "./outside-client.ts";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -69,6 +69,7 @@ export const IMPOSSIBLE = {
   automationRole: AUTOMATION_ROLE_LINE,
   personalSpaceKey: "Needs a Team Space. Create or join one to use this.",
   agentPersonRole: PERSON_LACKS_ROLE_LINE,
+  agentRole: OUTSIDE_AGENT_ROLE_LINE,
 } as const;
 
 /** A cell that cannot exist at all: there is nobody to ask (a Personal Space has one person), or the axes contradict each other. */
@@ -90,6 +91,8 @@ export function expected(c: Cell): Record<Action, Expect> {
   const manager = c.who === "owner" || c.who === "admin";
   const out = all(OK);
   // a guest keeps nothing in the Vault: their own Mine is refused in plain words; what others share with them they use
+  // a guest connects no outside agent: their agent never gets in, said once (the Allow screen shows the same words)
+  if (c.who === "guest" && c.from === "mcp") return all({ line: IMPOSSIBLE.agentRole });
   if (c.who === "guest" && c.scope === "mine") return all({ line: IMPOSSIBLE.guestVault });
   // the Space AI key is set by an owner or admin; once set it covers everyone
   if (!manager && c.scope === "space_ai_key" && c.who !== "guest") out.save = { line: IMPOSSIBLE.spaceKeyRole };
@@ -254,7 +257,8 @@ export async function joinAs(d: Daemon, owner: string, username: string, role: s
   assert.equal(r.status, 200, await r.clone().text());
   const out = ((await r.json()) as { data: { personId: string; token: string } }).data;
   const p: Person = { id: out.personId, username, personKey: Uint8Array.from(personKey), tokens: {} };
-  assert.equal((await door(d, out.token, "unlock", p.personKey)).status, 204);
+  // the new member's session is good once the Space has folded the join in
+  await waitFor(async () => ((await door(d, out.token, "unlock", p.personKey)).status === 204 ? true : null), 5_000, `${username}'s key at the door`);
   return p;
 }
 
@@ -521,8 +525,10 @@ export async function saveClaude(rig: Rig, token: string, tag: string): Promise<
 }
 
 const agents = new Map<string, string>();
+/** The agent made for a key on one computer of a Space is the same agent on its other computers. */
+export function sameAgent(from: Rig, to: Rig, handle: string): void { const id = agents.get(`${from.d.url}${handle}`); if (id) agents.set(`${to.d.url}${handle}`, id); }
 /** An agent whose turns run on this AI key (made once per key by the Space's owner). */
-async function agentOn(rig: Rig, handle: string): Promise<string> {
+export async function agentOn(rig: Rig, handle: string): Promise<string> {
   const have = agents.get(`${rig.d.url}${handle}`);
   if (have) return have;
   const made = await ok(rig.d, rig.admin ?? rig.d.token, "agents.create", { name: `On ${handle.replace(/^#/, "").slice(0, 30)}`, role: "You answer." });
@@ -533,12 +539,14 @@ async function agentOn(rig: Rig, handle: string): Promise<string> {
 }
 
 /** A chat turn by this person on an agent that runs on the AI key: the reply names the hash of the key that reached the provider, or the turn's own failure line. */
-export async function chatUse(rig: Rig, token: string, handle: string): Promise<Outcome> {
+export async function chatUse(rig: Rig, token: string, handle: string, pin?: { serverId: string }): Promise<Outcome> {
   const d = rig.d;
   const agentId = await agentOn(rig, handle);
   const th = await api(d, token, "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: key("cs") });
   if (th.status !== 200) return outcome(th);
   const threadId = th.data.thread.threadId as string;
+  // the person pins this chat to their own server (Runs on, in the chat's menu)
+  if (pin) { const set = await api(d, token, "engine.placement.set", { threadId, target: "server", serverId: pin.serverId }); if (set.status !== 200) return outcome(set); }
   const post = await api(d, token, "chat.post", { threadId, body: "keycheck", mentions: [{ kind: "agent", id: agentId }], idempotencyKey: key("cp") });
   if (post.status !== 200) return outcome(post);
   return waitFor(async () => {
@@ -614,7 +622,8 @@ export async function runCell(rig: Rig, c: Cell): Promise<Result> {
     let a: Actor = { token };
     if (c.from === "mcp") {
       // only an owner or admin may give an outside agent the setup grant; anyone else's agent asks them for what it may not do
-      a = { token, mcp: await outsideAgent(rig.d, token, c.who === "owner" || c.who === "admin") };
+      try { a = { token, mcp: await outsideAgent(rig.d, token, c.who === "owner" || c.who === "admin") }; }
+      catch (e) { const m = String((e as Error).message); const no: Outcome = { ok: false, line: /"message":"([^"]+)"/.exec(m)?.[1] ?? m }; return { save: no, chat: no, automation: no, connection: no, share: no }; }
       // the outside agent works while the person's app is closed: their key is not on the Space
       for (const t of Object.values(p.tokens)) await door(rig.d, t!, "lock", undefined, rig.kind === "personal" && t === p.tokens.desktop);
     }
@@ -630,11 +639,12 @@ export async function runCell(rig: Rig, c: Cell): Promise<Result> {
     // on their own computer: a Mine sign-in runs the engine there; the Space fills it in, nothing is asked on the computer
     // on the owner's own server: the owner's Mine sign-in runs the engine there; anyone else's turn never does
     const onComputer = rig.computer !== undefined && c.runs === "own_computer" && c.scope === "mine";
-    const onServer = rig.server !== undefined && c.runs === "owner_server" && c.scope === "mine";
+    // the owner's own server runs the owner's turns (in a Personal Space they pin the chat to it: Automatic prefers the computer the Space is on); anyone else's turn stays on the Space
+    const onServer = rig.server !== undefined && c.runs === "owner_server" && c.scope === "mine" && c.who === "owner";
     const claude = onComputer || onServer ? (await saveClaude(rig, token, tag)).saved : undefined;
-    const chat = await chatUse(rig, token, (claude ?? saved).ai.handle);
+    const chat = await chatUse(rig, token, (claude ?? saved).ai.handle, onServer && rig.kind === "personal" ? { serverId: rig.server!.nodeId } : undefined);
     res.chat = okWith(sha12((claude ?? saved).ai.value), chat);
-    const where = onComputer ? "device" : onServer ? (c.who === "owner" ? "ownerserver" : "space") : null;
+    const where = onComputer ? "device" : onServer ? "ownerserver" : rig.server !== undefined && c.runs === "owner_server" && rig.kind === "team" ? "space" : null;
     if (res.chat.ok && where !== null && chat.where !== where) res.chat = { ok: false, line: `the turn ran on ${chat.where ?? "the server"}, not on ${where}` };
     const step = okWith(sha12(saved.ai.value), await stepUse(rig, token, saved.ai.handle));
     const httpStep = c.scope === "space_ai_key" ? null : okWith(sha12(saved.value), await automationUse(rig, { token }, saved.handle));

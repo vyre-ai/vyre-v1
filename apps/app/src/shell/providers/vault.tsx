@@ -73,6 +73,8 @@ export function vaultData(rt: ShellRuntime, browsers: VaultBrowsers | undefined 
       syncToRecords: (item) => openAsk(rt, "assistant", { kind: "vault_item", id: item.id, title: item.name }, undefined, syncOpening(item)),
       openAutomation: (automationId) => rt.open({ screen: "automations.canvas", args: { automationId } }),
       openAddProvider: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),
+      // Google and Microsoft's cards: the company connection (Console, Connect your company); a person's own mail, calendar and files are in Settings
+      openCompany: () => rt.open(rt.space.kind === "personal" ? { screen: "settings.mail" } : { screen: "company.setup" }),
     },
     clock: () => ({ now: rt.clock().now }),
     ...(browsers ? { browsers } : {}),

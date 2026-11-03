@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRelay } from "../relay/node/server.js";
 import { OWNER, boot, firstComputer, seen, stageSecond } from "./peers-kit.mjs";
-import { FAKE_CLI, IMPOSSIBLE, PASSWORD, api, chatUse, door, fakeProvider, save, sha12, stepUse } from "./support/vault-matrix.ts";
+import { FAKE_CLI, IMPOSSIBLE, PASSWORD, agentOn, api, chatUse, sameAgent, door, fakeProvider, save, sha12, stepUse } from "./support/vault-matrix.ts";
 import type { Rig } from "./support/vault-matrix.ts";
 import { makeBundle } from "../client/src/crypto/keys.ts";
 import path from "node:path";
@@ -38,6 +38,10 @@ test("Vault matrix, a Personal Space on two computers: saved on one, used on the
     saved.push(["mine, saved while locked", await save(rigA, { token: OWNER }, "two-locked", "mine", {})]);
     await A.peers.tick(); await B.peers.tick();
     await B.peers.sync.round(); await A.peers.sync.round(); await B.peers.sync.round();
+    // the agents are made on the first computer and reach the second with everything else (agent folders are made where the Space was first set up)
+    for (const [, s] of saved) if (s.saved) await agentOn(rigA, s.saved.ai.handle);
+    await A.peers.sync.round(); await B.peers.sync.round();
+    for (const [, s] of saved) if (s.saved) sameAgent(rigA, rigB, s.saved.ai.handle);
     for (const [scope, s] of saved) {
       if (!s.saved) { failures.push(`${scope}: not saved (${s.o.line ?? ""})`); rows.push(`| ${scope} | RED | - | - |`); continue; }
       const chat = await chatUse(rigB, OWNER, s.saved.ai.handle);
