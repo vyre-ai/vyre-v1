@@ -87,3 +87,13 @@ export const replyTurn = t.obj({
   error: t.opt(t.obj({ code: t.str(), message: t.str() })),
   private: t.bool(), partial: t.bool(),
 });
+// One email thread as a person reads it (owner, 3 Nov): the body is what the sender wrote this time, in full; quoted history, signature and sanitised HTML are apart.
+export const threadParty = t.obj({ address: email, name: t.opt(t.str()) });
+export const threadMessage = t.obj({
+  id: t.id('eml'), at: t.ts(), direction: t.enm('in', 'out'), mailboxId: id.mailbox, mailboxIds: t.arr(id.mailbox), from: threadParty, to: t.arr(threadParty), cc: t.arr(threadParty), subject: t.str(),
+  body: t.str({ description: 'What the sender wrote this time, never shortened' }), quoted: t.opt(t.str({ description: 'Quoted history: "On ... wrote:", Outlook From/Sent or Original Message' })),
+  signature: t.opt(t.str({ description: 'Signature, mobile footer or legal notice' })), html: t.opt(t.str({ description: 'Sanitised HTML: no scripts, styles or handlers; remote images held unless asked; links show their host' })),
+  imagesHeld: t.opt(t.int({ minimum: 0 })), reactions: t.arr(t.obj({ emoji: t.str({ examples: ['❤️'] }), from: threadParty, at: t.ts() })),
+  attachments: t.arr(t.obj({ attachmentId: t.str(), name: t.str(), mime: t.str(), size: t.int() })), isPrivate: t.bool(), rfcMessageId: t.opt(t.str()), inReplyTo: t.opt(t.str()),
+});
+export const threadRole = t.enm('started', 'to', 'cc', 'added_later', 'none');

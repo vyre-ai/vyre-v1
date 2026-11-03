@@ -5,6 +5,10 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { dayOf } from "../sidebar/model.ts";
 
 export type ThreadOut = CapMap["inbox.thread"]["out"];
+/** A contact's email threads, each whole (inbox.threads): the feed draws one card per thread. */
+export type ThreadsOut = CapMap["inbox.threads"]["out"];
+export type MailThread = ThreadsOut["threads"][number];
+export type ThreadMsg = MailThread["messages"][number]["message"];
 export type ThreadItem = ThreadOut["items"][number];
 export type Conversation = ThreadOut["conversation"];
 export type SendOptions = CapMap["inbox.send_options"]["out"];
@@ -112,6 +116,7 @@ export function duration(sec: number | undefined): string {
 export type FeedEntry =
   | { kind: "day"; key: string; label: string }
   | { kind: "email"; key: string; item: ThreadItem; ref: EmailRef }
+  | { kind: "thread"; key: string; thread: MailThread; at: number }
   | { kind: "texts"; key: string; direction: "in" | "out"; via: string; items: { id: string; at: number; body: string }[]; at: number }
   | { kind: "call"; key: string; item: ThreadItem; ref: CallRef; meeting: boolean }
   | { kind: "chip"; key: string; item: ThreadItem }
@@ -139,15 +144,27 @@ export function clockTime(at: number, offsetMin: number): string {
   return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
 }
 
-export function buildFeed(items: readonly ThreadItem[], now: number, offsetMin: number): FeedEntry[] {
-  const sorted = [...items].sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
+/**
+ * The feed. With the contact's threads (inbox.threads) every email thread is one card, placed at its last activity, and the emails it holds are not drawn again on their own;
+ * texts, calls and meetings stay where they happened. Without them (an older server, or no mail yet) each email is drawn on its own as before.
+ */
+export function buildFeed(items: readonly ThreadItem[], now: number, offsetMin: number, threads: readonly MailThread[] = []): FeedEntry[] {
+  const inThread = new Set<string>();
+  const threadIds = new Set<string>();
+  for (const t of threads) { threadIds.add(t.threadId); for (const m of t.messages) inThread.add(m.message.id); }
+  const kept = items.filter((i) => !(i.kind === "email" && (inThread.has(i.id) || threadIds.has(str(rec(i.ref)["threadId"]) ?? ""))));
+  type Step = { at: number; id: string; item?: ThreadItem; thread?: MailThread };
+  const steps: Step[] = [...kept.map((i) => ({ at: i.at, id: i.id, item: i })), ...threads.map((t) => ({ at: t.lastAt, id: `thread:${t.threadId}`, thread: t }))]
+    .sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
   const out: FeedEntry[] = [];
   let day = "";
   let open: Extract<FeedEntry, { kind: "texts" }> | null = null;
-  for (const i of sorted) {
-    if (headerRef(i)) continue;
-    const label = dayLabel(i.at, now, offsetMin);
-    if (label !== day) { out.push({ kind: "day", key: `day:${dayOf(i.at, offsetMin)}`, label }); day = label; open = null; }
+  for (const st of steps) {
+    if (st.item && headerRef(st.item)) continue;
+    const label = dayLabel(st.at, now, offsetMin);
+    if (label !== day) { out.push({ kind: "day", key: `day:${dayOf(st.at, offsetMin)}`, label }); day = label; open = null; }
+    if (st.thread) { open = null; out.push({ kind: "thread", key: st.id, thread: st.thread, at: st.at }); continue; }
+    const i = st.item as ThreadItem;
     switch (i.kind) {
       case "email": open = null; out.push({ kind: "email", key: i.id, item: i, ref: emailRef(i) }); break;
       case "sms": {
@@ -162,6 +179,118 @@ export function buildFeed(items: readonly ThreadItem[], now: number, offsetMin: 
     }
   }
   return out;
+}
+
+// ---------------------------------------------------------------- email threads
+
+/** The role line of a thread card, when it matters (owner, 3 Nov). */
+export function roleLine(role: MailThread["role"]): string {
+  switch (role) {
+    case "started": return "You started this";
+    case "added_later": return "You were added later";
+    case "cc": return "Cc";
+    default: return "";
+  }
+}
+
+const lower = (a: string): string => a.trim().toLowerCase();
+/** A person on a thread by name when the thread knows it, else by address. */
+export const partyName = (p: { address: string; name?: string }): string => p.name?.trim() || p.address;
+
+/** "With Josh Cohen and Andrey Volkov": everyone on the thread but you. */
+export function withLine(t: MailThread, mine: ReadonlySet<string>): string {
+  const names = t.participants.filter((p) => !mine.has(lower(p.address))).map(partyName);
+  if (names.length === 0) return "Only you";
+  if (names.length === 1) return `With ${names[0]}`;
+  if (names.length === 2) return `With ${names[0]} and ${names[1]}`;
+  if (names.length === 3) return `With ${names[0]}, ${names[1]} and ${names[2]}`;
+  return `With ${names[0]}, ${names[1]} and ${names.length - 2} more`;
+}
+
+/** A one-line preview that stops at a word and says so; never a broken word. */
+export function cutWords(text: string, max: number): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= max) return flat;
+  const room = Math.max(1, max - 1);
+  const at = flat.lastIndexOf(" ", room);
+  return `${(at > room * 0.5 ? flat.slice(0, at) : flat.slice(0, room)).replace(/[\s,.;:-]+$/, "")}\u2026`;
+}
+
+/** What a collapsed message says: the first words written this time, past a greeting. */
+export function msgPreview(m: ThreadMsg, max = 140): string {
+  return cutWords(m.body.replace(/^\s*(hi|hello|hey|dear)\b[^\n]{0,40}\n+/i, ""), max);
+}
+
+export const isMine = (address: string, mine: ReadonlySet<string>): boolean => mine.has(lower(address));
+
+/** Who sent a message, as the card names them: You, else their name. */
+export function senderName(m: ThreadMsg, mine: ReadonlySet<string>): string {
+  return isMine(m.from.address, mine) ? "You" : partyName(m.from);
+}
+
+/** "to you, cc Maya": the recipients in a few words, first names and you. */
+export function recipientLine(m: ThreadMsg, mine: ReadonlySet<string>): string {
+  const short = (p: { address: string; name?: string }): string => (isMine(p.address, mine) ? "you" : firstName(partyName(p)));
+  const list = (ps: readonly { address: string; name?: string }[]): string => (ps.length <= 2 ? ps.map(short).join(" and ") : `${ps.slice(0, 2).map(short).join(", ")} and ${ps.length - 2} more`);
+  return [m.to.length ? `to ${list(m.to)}` : "", m.cc.length ? `cc ${list(m.cc)}` : ""].filter(Boolean).join(", ");
+}
+
+/** A file size as people say it: 412 KB, 1.2 MB. Nothing for an unknown size. */
+export function sizeLabel(bytes: number): string {
+  if (!(bytes > 0)) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Today a clock time; otherwise the weekday or the date, and the time. */
+export function whenLabel(at: number, now: number, offsetMin: number): string {
+  const age = dayOf(now, offsetMin) - dayOf(at, offsetMin);
+  if (age <= 0) return clockTime(at, offsetMin);
+  if (age === 1) return `Yesterday ${clockTime(at, offsetMin)}`;
+  const d = new Date(at + offsetMin * 60_000);
+  return age < 7 ? `${WEEK[d.getUTCDay()] ?? ""} ${clockTime(at, offsetMin)}` : `${d.getUTCDate()} ${MONTH[d.getUTCMonth()] ?? ""}`;
+}
+
+/** Which threads open by default: any with something new, and the newest. A person's own toggle wins. */
+export function threadOpen(t: MailThread, all: readonly MailThread[], fresh: ReadonlySet<string>, toggled: Readonly<Record<string, boolean>>): boolean {
+  const own = toggled[t.threadId];
+  if (own !== undefined) return own;
+  const newest = [...all].sort((a, b) => b.lastAt - a.lastAt)[0];
+  return t === newest || t.messages.some((m) => fresh.has(m.message.id));
+}
+
+/** Inside an open thread the newest message and every new one are in full; older ones are one line. */
+export function messageOpen(t: MailThread, m: ThreadMsg, fresh: ReadonlySet<string>, toggled: Readonly<Record<string, boolean>>): boolean {
+  const own = toggled[m.id];
+  if (own !== undefined) return own;
+  return t.messages[t.messages.length - 1]?.message.id === m.id || fresh.has(m.id);
+}
+
+/** The message a reply from this mailbox answers: the newest one the mailbox holds. None when the mailbox holds none of the thread (the reply then goes as a new email with the thread's subject). */
+export function replyMessage(t: MailThread, mailboxId: string | null): ThreadMsg | undefined {
+  if (!mailboxId) return undefined;
+  return [...t.messages].reverse().map((x) => x.message).find((m) => m.mailboxIds.includes(mailboxId) || m.mailboxId === mailboxId);
+}
+
+/** The mailbox a reply in this thread goes out from by default: the newest message's mailbox that can send. */
+export function threadMailbox(t: MailThread, can: readonly string[]): string | null {
+  for (const x of [...t.messages].reverse()) for (const id of [x.message.mailboxId, ...x.message.mailboxIds]) if (can.includes(id)) return id;
+  return null;
+}
+
+/** Reply or Reply all in a thread: who it goes to, keeping Cc on Reply all, never you. */
+export function replyTarget(t: MailThread, mode: "one" | "all", mine: ReadonlySet<string>): { to: string[]; cc: string[]; subject: string } {
+  const last = [...t.messages].reverse().map((x) => x.message).find((m) => !isMine(m.from.address, mine)) ?? t.messages[t.messages.length - 1]?.message;
+  const subject = replySubject(t.subject);
+  if (!last) return { to: [], cc: [], subject };
+  const fromMe = isMine(last.from.address, mine);
+  const not = (a: string): boolean => !isMine(a, mine);
+  const uniq = (xs: string[]): string[] => [...new Map(xs.map((x) => [lower(x), x])).values()];
+  if (mode === "one") return { to: fromMe ? last.to.slice(0, 1).map((p) => p.address) : [last.from.address], cc: [], subject };
+  const to = uniq([...(fromMe ? [] : [last.from.address]), ...last.to.map((p) => p.address)].filter(not));
+  const cc = uniq(last.cc.map((p) => p.address).filter(not)).filter((a) => !to.some((x) => lower(x) === lower(a)));
+  return { to, cc, subject };
 }
 
 // ---------------------------------------------------------------- calls
@@ -217,6 +346,12 @@ export interface ComposerDraft {
   draftId: string | null;
   /** Files kept in Vyre Files that go with the send: an email's attachments, a text's pictures. */
   fileIds?: readonly string[];
+  /** The email thread a reply goes into; null starts a separate thread (New email). Absent when the contact has no threads. */
+  th?: string | null;
+  /** Reply or Reply all in that thread. */
+  mode?: "one" | "all";
+  /** The message the reply answers, picked for the sending mailbox; null sends with no reply target. Absent: the newest inbound email. */
+  replyTo?: string | null;
 }
 
 const isEmail = (a: string): boolean => a.includes("@");
@@ -238,7 +373,13 @@ export function textTarget(conv: Conversation, items: readonly ThreadItem[]): st
   return null;
 }
 
-export function initialDraft(conv: Conversation, chan: Chan, items: readonly ThreadItem[]): ComposerDraft {
+export function initialDraft(conv: Conversation, chan: Chan, items: readonly ThreadItem[], threads: readonly MailThread[] = [], mine: ReadonlySet<string> = new Set()): ComposerDraft {
+  // with threads, the composer replies in the newest one, to everyone on it
+  const newest = [...threads].sort((a, b) => b.lastAt - a.lastAt)[0];
+  if (newest) {
+    const t = replyTarget(newest, "all", mine);
+    return { chan, from: { email: null, sms: null }, to: t.to, cc: t.cc, bcc: [], subject: t.subject, text: "", draftId: null, th: newest.threadId, mode: "all" };
+  }
   const to = emailTarget(conv, items);
   const lastMail = [...items].filter((i) => i.kind === "email").sort((a, b) => b.at - a.at)[0];
   return { chan, from: { email: null, sms: null }, to: to ? [to] : [], cc: [], bcc: [], subject: replySubject(lastMail ? emailRef(lastMail).subject : undefined), text: "", draftId: null };

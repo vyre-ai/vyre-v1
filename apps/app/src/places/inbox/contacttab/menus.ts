@@ -1,6 +1,6 @@
 // The contact tab's menus, as data, so a test can read them without a click.
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
-import type { InboxChoice } from "./model.ts";
+import type { InboxChoice, MailThread } from "./model.ts";
 
 /** Header actions: the pure part, so the menus can be tested without a click. */
 export function followMenuEntries(followed: boolean, alertOnReplies: boolean, on: { follow(follow: boolean): void; alert(alert: boolean): void }): MenuEntry[] {
@@ -30,5 +30,16 @@ export function quickEntries(hasRecord: boolean, on: { dial(): void; openRecord(
     { label: "Call", onSelect: on.dial },
     { label: "Attach from Files", onSelect: on.attach },
     ...(hasRecord ? [{ label: "Open the record", onSelect: on.openRecord }] : []),
+  ];
+}
+
+/** Replying in: every thread with this contact, newest first, and New Email, which starts a separate thread. */
+export function threadMenuEntries(threads: readonly MailThread[], current: string | null, pick: (threadId: string | null) => void): MenuEntry[] {
+  const rows = [...threads].sort((a, b) => b.lastAt - a.lastAt);
+  return [
+    { head: "Reply in" },
+    ...rows.map((t) => ({ label: t.subject, checked: current === t.threadId, onSelect: () => pick(t.threadId) })),
+    { separator: true },
+    { label: "New Email", checked: current === null, onSelect: () => pick(null) },
   ];
 }

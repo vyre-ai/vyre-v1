@@ -41,5 +41,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "mail.send_preview": async () => ({"allowed":["maya@example.com"],"providerRoute":"mailbox","suppressed":[{"address":"maya@example.com","reason":"example"}]} as unknown) as never,
   "mail.status_update": async () => ({"messageId":"eml_a1b2c3","suppressed":true} as unknown) as never,
   "mail.sync_now": async () => ({"runId":"run_a1b2c3"} as unknown) as never,
+  "mail.thread.get": async () => ({"messages":[{"at":1760000000000,"attachments":[{"attachmentId":"example","mime":"example","name":"example","size":1}],"body":"example","cc":[{"address":"maya@example.com","name":"example"}],"direction":"in","from":{"address":"maya@example.com","name":"example"},"html":"example","id":"eml_a1b2c3","imagesHeld":1,"inReplyTo":"example","isPrivate":true,"mailboxId":"mbx_a1b2c3","mailboxIds":["mbx_a1b2c3"],"quoted":"example","reactions":[{"at":1760000000000,"emoji":"❤️","from":{"address":"maya@example.com","name":"example"}}],"rfcMessageId":"example","signature":"example","subject":"example","to":[{"address":"maya@example.com","name":"example"}]}],"participants":[{"address":"maya@example.com","name":"example"}],"role":"started","subject":"example","threadId":"example"} as unknown) as never,
   "mail.unsubscribe": async () => ({"ok":true} as unknown) as never,
 };

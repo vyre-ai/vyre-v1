@@ -7,8 +7,9 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 export const newKey = (): string => globalThis.crypto.randomUUID();
 
 export async function sendEmail(data: InboxData, d: ComposerDraft, inbox: InboxChoice, conv: Conversation, items: readonly ThreadItem[], key: string = newKey()): Promise<string> {
-  const reply = lastInboundEmail(items);
-  const out = (await data.call("mail.send", mailInput(d, inbox, conv, key, reply?.id))) as CapMap["mail.send"]["out"];
+  // a reply in a thread answers the message the composer picked for this mailbox; with no thread chosen, the newest inbound email
+  const reply = d.replyTo !== undefined ? (d.replyTo ?? undefined) : lastInboundEmail(items)?.id;
+  const out = (await data.call("mail.send", mailInput(d, inbox, conv, key, reply))) as CapMap["mail.send"]["out"];
   return sentNote(out.status, inbox.label);
 }
 

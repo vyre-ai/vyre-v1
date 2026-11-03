@@ -1,0 +1,85 @@
+{
+ "id": "18c3f00000000m1",
+ "threadId": "18c2a1f04e9b",
+ "labelIds": [
+  "INBOX",
+  "UNREAD"
+ ],
+ "internalDate": "1792857600000",
+ "snippet": "Hi Irfad,\n\nQuick one before Wednesday. Our lead form also feeds a Google Sheet that Rachel's team works from, so the intake team sees each lead twice.",
+ "payload": {
+  "mimeType": "multipart/mixed",
+  "headers": [
+   {
+    "name": "From",
+    "value": "Josh Cohen <josh@cohenshah.example>"
+   },
+   {
+    "name": "To",
+    "value": "Irfad Imtiaz <irfad@northwind.example>"
+   },
+   {
+    "name": "Cc",
+    "value": "Maya Chen <maya@northwind.example>"
+   },
+   {
+    "name": "Subject",
+    "value": "RE: Claude in Chrome for Clio Grow + follow-up"
+   },
+   {
+    "name": "Message-ID",
+    "value": "<c4.josh@cohenshah.example>"
+   },
+   {
+    "name": "In-Reply-To",
+    "value": "<c3.josh@cohenshah.example>"
+   },
+   {
+    "name": "References",
+    "value": "<j0.josh@cohenshah.example> <c3.josh@cohenshah.example>"
+   }
+  ],
+  "parts": [
+   {
+    "mimeType": "multipart/alternative",
+    "parts": [
+     {
+      "mimeType": "text/plain",
+      "headers": [
+       {
+        "name": "Content-Type",
+        "value": "text/plain; charset=utf-8"
+       }
+      ],
+      "body": {
+       "size": 3913,
+       "attachmentId": "ANGjdJ_bodypart_1"
+      }
+     },
+     {
+      "mimeType": "text/html",
+      "headers": [
+       {
+        "name": "Content-Type",
+        "value": "text/html; charset=utf-8"
+       }
+      ],
+      "body": {
+       "size": 40,
+       "data": "PHA-U2VlIHRoZSB0ZXh0IHBhcnQuPC9wPg"
+      }
+     }
+    ]
+   },
+   {
+    "mimeType": "application/pdf",
+    "filename": "intake-form.pdf",
+    "headers": [],
+    "body": {
+     "size": 1024,
+     "attachmentId": "ANGjdJ_pdf_1"
+    }
+   }
+  ]
+ }
+}

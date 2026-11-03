@@ -92,7 +92,7 @@ function Sidebar(): ReactElement {
 
   const inboxMenu = (b: NavInbox, x: number, y: number): void => {
     const entries: MenuEntry[] = [
-      { label: "Open", onSelect: () => pick(b.scope) },
+      { label: "Open", onSelect: () => pick(b.scope, b.channel === "sms" ? undefined : "thread") },
       { label: b.channel === "sms" ? "Number Settings…" : "Mailbox Settings…", onSelect: () => data.nav.openInboxSettings(b.id) },
     ];
     menu.show(entries, x, y);
@@ -120,7 +120,8 @@ function Sidebar(): ReactElement {
           key={b.id} id={`inbox:${b.id}`} title={b.label} selected={scoped(b.scope)} count={b.unread}
           glyph={b.agent ? <Avatar name={b.label.replace(/@$/, "").replace(/\u2019?'?s number$/, "")} kind="agent" size={18} /> : <Glyph name={b.channel === "sms" ? "call" : "mail"} />}
           trailing={b.lock ? <Glyph name="lock" size={12} /> : null}
-          onPress={() => pick(b.scope)}
+          // a mailbox lists its mail by thread, the same grouping as All inboxes (owner, 3 Nov)
+          onPress={() => pick(b.scope, b.channel === "sms" ? undefined : "thread")}
           onMenu={(x, y) => inboxMenu(b, x, y)}
         />,
       );

@@ -1,0 +1,79 @@
+{
+ "id": "18c3f00000000r1",
+ "threadId": "18c2a1f04e9b",
+ "labelIds": [
+  "SENT"
+ ],
+ "internalDate": "1792857600000",
+ "snippet": "❤️ Irfad Imtiaz reacted via Gmail",
+ "payload": {
+  "mimeType": "multipart/alternative",
+  "headers": [
+   {
+    "name": "From",
+    "value": "Irfad Imtiaz <irfad@northwind.example>"
+   },
+   {
+    "name": "To",
+    "value": "Josh Cohen <josh@cohenshah.example>"
+   },
+   {
+    "name": "Subject",
+    "value": "Re: Claude in Chrome for Clio Grow + follow-up"
+   },
+   {
+    "name": "Message-ID",
+    "value": "<r1.irfad@northwind.example>"
+   },
+   {
+    "name": "In-Reply-To",
+    "value": "<c3.josh@cohenshah.example>"
+   },
+   {
+    "name": "References",
+    "value": "<c2.irfad@northwind.example> <c3.josh@cohenshah.example>"
+   }
+  ],
+  "parts": [
+   {
+    "mimeType": "text/plain",
+    "headers": [
+     {
+      "name": "Content-Type",
+      "value": "text/plain; charset=\"UTF-8\""
+     }
+    ],
+    "body": {
+     "size": 120,
+     "data": "4p2k77iPIElyZmFkIEltdGlheiByZWFjdGVkIHZpYSBHbWFpbCA8aHR0cHM6Ly93d3cuZ29vZ2xlLmNvbS9nbWFpbC9hYm91dC8_dXRtX3NvdXJjZT1nbWFpbC1pbi1wcm9kdWN0JnV0bV9tZWRpdW09ZXQmdXRtX2NhbXBhaWduPWVtb2ppcmVhY3Rpb25lbWFpbCNhcHA-DQo"
+    }
+   },
+   {
+    "mimeType": "text/vnd.google.email-reaction+json",
+    "headers": [
+     {
+      "name": "Content-Type",
+      "value": "text/vnd.google.email-reaction+json; charset=\"UTF-8\""
+     }
+    ],
+    "body": {
+     "size": 30,
+     "data": "eyJ2ZXJzaW9uIjoxLCJlbW9qaSI6IuKdpO-4jyJ9"
+    }
+   },
+   {
+    "mimeType": "text/html",
+    "headers": [
+     {
+      "name": "Content-Type",
+      "value": "text/html; charset=\"UTF-8\""
+     }
+    ],
+    "body": {
+     "size": 200,
+     "data": "PHA-4p2k77iPIElyZmFkIEltdGlheiByZWFjdGVkIHZpYSA8YSBocmVmPSJodHRwczovL3d3dy5nb29nbGUuY29tL2dtYWlsL2Fib3V0LyI-R21haWw8L2E-PC9wPg"
+    }
+   }
+  ]
+ }
+}

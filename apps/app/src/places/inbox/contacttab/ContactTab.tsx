@@ -26,12 +26,12 @@ import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import type { IconName } from "./icons.tsx";
-import { followMenuEntries, quickEntries, templateEntries } from "./menus.ts";
+import { followMenuEntries, quickEntries, templateEntries, threadMenuEntries } from "./menus.ts";
 import {
-  buildFeed, canSend, cannedLists, choicesFor, firstName, draftCards, headerOf, initialDraft, namedTo, pickInbox, sendBlocker, startChannel, textTarget,
+  buildFeed, canSend, cannedLists, choicesFor, emailRef, firstName, draftCards, headerOf, initialDraft, messageOpen, namedTo, pickInbox, replyMessage, replyTarget, sendBlocker, startChannel, textTarget, threadMailbox, threadOpen,
 } from "./model.ts";
-import type { Chan, ComposerDraft, DraftCard, DraftRow, InboxChoice, SendOptions, ThreadOut } from "./model.ts";
-import { Bubbles, CallLine, DaySep, DraftBlock, EmailItem, QuietLine } from "./parts.tsx";
+import type { Chan, ComposerDraft, DraftCard, DraftRow, InboxChoice, MailThread, SendOptions, ThreadOut, ThreadsOut } from "./model.ts";
+import { Bubbles, CallLine, DaySep, DraftBlock, EmailItem, MailHtmlStyle, QuietLine, ThreadCard } from "./parts.tsx";
 import { usePhone } from "../softphone/phone.tsx";
 
 export const SCREEN = "inbox.contact-tab";
@@ -103,6 +103,9 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const [starMine, setStarMine] = useState<boolean | null>(null);
   const state = { ...(conversationId ? { conversationId } : {}), ...(contactId ? { contactId } : {}) };
   const thread = useScreenQuery<ThreadOut>(SCREEN, "thread", state);
+  // the contact's email threads, each whole (inbox.threads); "Show images" asks again with remote images allowed
+  const [images, setImages] = useState(false);
+  const threadsQ = useScreenQuery<ThreadsOut>(SCREEN, "threads", { ...state, ...(images ? { images: true } : {}) });
   const opts = useScreenQuery<SendOptions>(SCREEN, "options", state);
   const drafts = useScreenQuery<DraftsOut>(SCREEN, "drafts", contactId ? { contactId } : {});
   const boxes = useScreenQuery<MailboxesOut>("inbox.sidebar", "mailboxes");
@@ -138,6 +141,12 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const [note, setNote] = useState("");
   const [draftNotes, setDraftNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<readonly string[]>([]);
+  // threads and messages opened or closed by hand, signatures shown; what was new when the tab opened stays marked new for this visit, though opening reads it
+  const [thOpen, setThOpen] = useState<Record<string, boolean>>({});
+  const [msgOpen, setMsgOpen] = useState<Record<string, boolean>>({});
+  const [sigs, setSigs] = useState<readonly string[]>([]);
+  const freshRef = useRef<{ conv: string; ids: ReadonlySet<string> } | null>(null);
+  const landed = useRef<string | null>(null);
   const [attached, setAttached] = useState<readonly { name: string }[]>([]);
 
   const dock = usePhone();
@@ -157,22 +166,37 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
     if (drafts.status === "ready") for (const d of drafts.data.drafts) if (d.draftedByAgent && !m.has(d.draftedByAgent)) m.set(d.draftedByAgent, agentName(d.draftedByAgent));
     return m;
   }, [boxes, drafts]);
-  const feed = useMemo(() => buildFeed(items, clock.now, clock.offsetMin), [items, clock.now, clock.offsetMin]);
+  const mailThreads: readonly MailThread[] = threadsQ.status === "ready" ? threadsQ.data.threads : [];
+  if (threadsQ.status === "ready" && freshRef.current?.conv !== conversationId) {
+    freshRef.current = { conv: conversationId, ids: new Set(mailThreads.flatMap((t) => t.messages.filter((m) => m.unread).map((m) => m.message.id))) };
+  }
+  const fresh: ReadonlySet<string> = freshRef.current?.conv === conversationId ? freshRef.current.ids : new Set();
+  // your own addresses: every mailbox you can send from or read, so "You" and "With ..." leave you out
+  const mine = useMemo(() => {
+    const m = new Set<string>();
+    if (boxes.status === "ready") for (const b of boxes.data.mailboxes) if (b.address.includes("@")) m.add(b.address.toLowerCase());
+    for (const x of senders ?? []) if (x.address.includes("@")) m.add(x.address.toLowerCase());
+    return m;
+  }, [boxes, senders]);
+  const feed = useMemo(() => buildFeed(items, clock.now, clock.offsetMin, mailThreads), [items, clock.now, clock.offsetMin, mailThreads]);
   const cards = useMemo<DraftCard[]>(() => (drafts.status === "ready" ? draftCards(drafts.data.drafts, titles, agents) : []), [drafts, titles, agents]);
 
   const chan: Chan = over.chan ?? (conv ? startChannel(conv.lastChannel, options) : "email");
-  const base = conv ? initialDraft(conv, chan, items) : null;
+  const base = conv ? initialDraft(conv, chan, items, mailThreads, mine) : null;
   const draft: ComposerDraft | null = base ? { ...base, ...over, chan, from: { ...base.from, ...over.from } } : null;
   // every sender (comms.senders.list) when the server has the list; else the inboxes the send options name
   const choices: InboxChoice[] = senders
     ? senders.filter((x) => x.channel === (chan === "email" ? "email" : "text") && x.usable !== false).map((x) => ({ id: x.id, kind: chan === "email" ? "mailbox" as const : "number" as const, address: x.address, label: x.name, isDefault: x.default === true, senderId: x.id }))
     : choicesFor(chan, options, titles);
   const listed: ComposerSender[] = senders ?? choices.map((c) => ({ id: c.id, channel: chan === "email" ? "email" as const : "text" as const, name: c.label, address: c.address, via: chan === "email" ? "Mailboxes" : "Numbers", usable: true }));
-  const inbox = draft && conv ? (choices.find((c) => c.id === draft.from[chan]) ?? pickInbox(choices, conv.mailboxIds)) : null;
+  const inThread = draft?.th ? mailThreads.find((t) => t.threadId === draft.th) ?? null : null;
+  // a reply goes out from the mailbox the thread is in, unless the person picks another
+  const threadBox = inThread && chan === "email" ? threadMailbox(inThread, choices.map((c) => c.id)) : null;
+  const inbox = draft && conv ? (choices.find((c) => c.id === draft.from[chan]) ?? choices.find((c) => c.id === threadBox) ?? pickInbox(choices, conv.mailboxIds)) : null;
   const textTo = conv ? (ask?.phone?.to ?? textTarget(conv, items)) : null;
 
-  // the newest message is at the foot: open scrolled down, and again when something arrives
-  useEffect(() => { scroll.current?.scrollToEnd?.({ animated: false }); }, [feed.length, cards.length]);
+  // the newest message is at the foot: open scrolled down, and again when something arrives; a thread with something new is landed on, subject first
+  useEffect(() => { if (landed.current !== conversationId) scroll.current?.scrollToEnd?.({ animated: false }); }, [feed.length, cards.length]);
   // opening the conversation reads it
   const unread = conv?.unreadCount ?? 0;
   useEffect(() => { if (unread > 0) void markRead(data, conversationId); }, [conversationId, unread > 0]);
@@ -210,7 +234,9 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
       if (fresh.length > 0) setNote(fresh.length === 1 ? `Attaching ${fresh[0]!.name}` : `Attaching ${fresh.length} files`);
       const stored = fresh.length > 0 ? await uploadAttachments(uploadDeps({ call: data.call, ...(rt?.putBlob ? { putBlob: rt.putBlob.bind(rt) } : {}) }), fresh, `inbox-files:${conv.id}:${Date.now().toString(36)}`) : [];
       const fileIds = [...stored, ...kept];
-      const d = { ...draft, text, ...(fileIds.length > 0 ? { fileIds } : {}) };
+      // in a thread the reply answers the newest message the sending mailbox holds; New email answers nothing
+      const replyTo = draft.th === undefined ? undefined : inThread ? (replyMessage(inThread, inbox.id)?.id ?? null) : null;
+      const d = { ...draft, text, ...(fileIds.length > 0 ? { fileIds } : {}), ...(replyTo !== undefined ? { replyTo } : {}) };
       setNote(online ? "" : "Saved on this device. It sends when you are back online");
       const done = d.chan === "email" ? await sendEmail(data, d, inbox, conv, items) : textTo ? await sendText(data, d, inbox, conv, textTo) : "No phone number for this contact";
       setNote(online ? done : "Saved on this device. It sends when you are back online");
@@ -269,6 +295,20 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const showQuick = (x: number, y: number): void => menu.show(quickEntries(!!conv.contactId, { dial, openRecord: () => props.onOpenRecord?.(conv.contactId as string, hdr?.recordId), attach: () => { if (props.onAttach) props.onAttach(); else setNote("Attach from Files is not connected in this view"); } }), x, y);
   const mail = chan === "email";
   const unmatched = conv.needsMatch && !conv.contactId;
+  // Replying in: the thread the reply goes into, Reply or Reply all, or a New email that starts its own thread
+  const reTarget = (th: string | null, mode: "one" | "all" = draft.mode ?? "all"): void => {
+    const t = th ? mailThreads.find((x) => x.threadId === th) : undefined;
+    if (!t) { patch({ chan: "email", th: null, mode, to: conv.address.includes("@") ? [conv.address] : [], cc: [], subject: "" }); return; }
+    const r = replyTarget(t, mode, mine);
+    patch({ chan: "email", th: t.threadId, mode, to: r.to, cc: r.cc, subject: r.subject, from: { ...draft.from, email: null } });
+  };
+  // the people on the threads by name, so a reply's To and Cc read as names, not addresses
+  const names = new Map<string, string>();
+  for (const t of mailThreads) for (const p of t.participants) if (p.name) names.set(p.address.toLowerCase(), p.name);
+  const named = (list: readonly (string | { email: string; name: string })[]): (string | { email: string; name: string })[] =>
+    list.map((a) => (typeof a === "string" && names.has(a.toLowerCase()) ? { email: a, name: names.get(a.toLowerCase()) as string } : a));
+  const showThreads = (x: number, y: number): void => menu.show(threadMenuEntries(mailThreads, draft.th ?? null, reTarget), x, y);
+
   const blocker = sendBlocker(draft, inbox, online, textTo);
   const target = mail ? draft.to.join(", ") : textTo ?? "";
 
@@ -305,6 +345,27 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
         {each(feed, (f): ReactElement => {
           switch (f.kind) {
             case "day": return <DaySep key={f.key} label={f.label} />;
+            case "thread": {
+              const t = f.thread;
+              const firstFresh = mailThreads.length > 0 && feed.find((x) => x.kind === "thread" && x.thread.messages.some((m) => fresh.has(m.message.id))) === f;
+              return (
+                <ThreadCard key={f.key} e={f} v={{
+                  mine, fresh, now: clock.now, offsetMin: clock.offsetMin, narrow: phone,
+                  open: threadOpen(t, mailThreads, fresh, thOpen),
+                  msgOpen: (id) => { const m = t.messages.find((x) => x.message.id === id)?.message; return m ? messageOpen(t, m, fresh, msgOpen) : false; },
+                  quoteOpen: (id) => quotes.includes(id), sigOpen: (id) => sigs.includes(id),
+                  onToggle: () => setThOpen((o) => ({ ...o, [t.threadId]: !threadOpen(t, mailThreads, fresh, o) })),
+                  onMessage: (id, open) => setMsgOpen((o) => ({ ...o, [id]: open })),
+                  onQuote: (id) => setQuotes((q) => toggled(q, id)), onSig: (id) => setSigs((q) => toggled(q, id)), onImages: () => setImages(true),
+                  onReply: (mode) => reTarget(t.threadId, mode),
+                  viaOf: (id) => titles.get(id) ?? "",
+                  chipsOf: (id) => { const i = items.find((x) => x.id === id); return i ? (emailRef(i).chips ?? []) : []; },
+                  onChip: (title, recordId) => props.onOpenRecord?.(conv.contactId ?? "", recordId ?? title),
+                  ...(props.onOpenAttachment ? { onAttachment: props.onOpenAttachment } : {}),
+                  ...(firstFresh ? { onLayoutY: (y: number) => { if (landed.current === conversationId) return; landed.current = conversationId; scroll.current?.scrollTo?.({ y: Math.max(0, y - 16), animated: false }); } } : {}),
+                }} />
+              );
+            }
             case "email": return <EmailItem key={f.key} e={f} who={conv.displayName} offsetMin={clock.offsetMin} quoteOpen={quotes.includes(f.key)} onQuote={() => setQuotes((q) => toggled(q, f.key))} {...(props.onOpenAttachment ? { onAttachment: props.onOpenAttachment } : {})} onChip={(title, recordId) => props.onOpenRecord?.(conv.contactId ?? "", recordId ?? title)} />;
             case "texts": return <Bubbles key={f.key} t={f} offsetMin={clock.offsetMin} />;
             case "call": return <CallLine key={f.key} c={f} offsetMin={clock.offsetMin} open={transcripts.includes(f.key)} onTranscript={() => setTranscripts((t) => toggled(t, f.key))} />;
@@ -325,6 +386,26 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
                 {formBusy ? <Text style={s.qfNote} testID="quick-form-busy">Making the link</Text> : null}
               </Pressable>
             ) : <Text style={s.qfNote} testID="quick-form-note">{QUICK_FORM_NOTE}</Text>
+          ) : null}
+          {mail && mailThreads.length > 0 ? (
+            <View style={s.rin} testID="reply-in">
+              {phone ? null : inThread ? <Text style={s.rinLabel} numberOfLines={1}>Replying in</Text> : <Text style={s.rinLabel} numberOfLines={1}>New email</Text>}
+              <Pressable accessibilityRole="button" accessibilityLabel={inThread ? `Replying in ${inThread.subject}. Change the thread` : "New email, a separate thread. Reply in a thread instead"} testID="reply-in-pick" onPress={(e) => { const p = pointOf(e); showThreads(p.x, p.y); }} style={({ hovered }: { hovered?: boolean }) => [s.rinPick, hovered === true && s.hicOver]}>
+                <Icon name={inThread ? "thread" : "edit"} size={13} />
+                <Text style={s.rinName} numberOfLines={1}>{inThread ? inThread.subject : "Starts a separate thread"}</Text>
+                <Icon name="chevd" size={9} />
+              </Pressable>
+              <View style={s.grow} />
+              {inThread ? (
+                <View style={s.seg} accessibilityRole="radiogroup" accessibilityLabel="Reply or reply all">
+                  {each(["one", "all"] as const, (m) => (
+                    <Pressable key={m} accessibilityRole="radio" accessibilityState={{ checked: (draft.mode ?? "all") === m }} aria-checked={(draft.mode ?? "all") === m} testID={`reply-mode-${m}`} onPress={() => reTarget(inThread.threadId, m)} style={[s.segBtn, (draft.mode ?? "all") === m && s.segOn]}>
+                      <Text style={[s.segText, (draft.mode ?? "all") === m && s.segTextOn]}>{m === "one" ? "Reply" : "Reply all"}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </View>
           ) : null}
           <Composer
             key={`${conv.id}:${chan}`}
@@ -357,13 +438,13 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
                 channels={(["email", "sms"] as const).filter((c) => options?.channels.includes(c) ?? false).map((c) => (c === "email" ? "email" as const : "text" as const))}
                 onChannel={(c) => pickChan(c === "email" ? "email" : "sms")}
                 to={mail
-                  ? <Recipients to={namedTo(draft.to, conv.address, unmatched ? null : conv.displayName)} cc={draft.cc} bcc={draft.bcc} me={inbox?.address ?? ""} hideToLabel onChange={(r) => patch({ to: r.to, cc: r.cc, bcc: r.bcc })} testID="contact-recipients" />
+                  ? <Recipients to={named(namedTo(draft.to, conv.address, unmatched ? null : conv.displayName))} cc={named(draft.cc)} bcc={draft.bcc} me={inbox?.address ?? ""} hideToLabel onChange={(r) => patch({ to: r.to, cc: r.cc, bcc: r.bcc })} testID="contact-recipients" />
                   : <Text style={s.toText} numberOfLines={1}>{textTo ? `${conv.displayName} \u00b7 ${textTo}` : "No phone number for this contact"}</Text>}
                 senders={listed}
                 senderId={inbox?.id ?? null}
                 onSender={(id) => patch({ from: { ...draft.from, [chan]: id } })}
                 {...(connectFrom ? { onConnect: connectFrom } : {})}
-                {...(mail ? { subject: draft.subject, onSubject: (t: string) => patch({ subject: t }) } : {})}
+                {...(mail && !inThread ? { subject: draft.subject, onSubject: (t: string) => patch({ subject: t }) } : {})}
               />
             )}
           />
@@ -371,6 +452,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
         </View>
       </View>
       {menu.element}
+      <MailHtmlStyle />
     </View>
   );
 }
@@ -422,6 +504,10 @@ const s = StyleSheet.create({
   cmpWrap: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16 },
   cmpIn: { width: "100%", maxWidth: 740, alignSelf: "center" },
   toText: { fontSize: 13, color: ink("--ink") },
+  rin: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4, paddingBottom: 6, minWidth: 0 },
+  rinLabel: { fontSize: 12.5, color: ink("--ink-3"), flexShrink: 0 },
+  rinPick: { flexDirection: "row", alignItems: "center", gap: 5, height: 24, paddingHorizontal: 6, borderRadius: 6, minWidth: 0, flexShrink: 1 },
+  rinName: { fontSize: 12.5, fontWeight: "500", color: ink("--ink"), flexShrink: 1 },
   seg: { flexDirection: "row", padding: 2, borderRadius: 8, backgroundColor: ink("--hover") },
   segBtn: { height: 24, paddingHorizontal: 10, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 6 },
   segOn: { backgroundColor: ink("--win") },

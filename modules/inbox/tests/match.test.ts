@@ -324,7 +324,7 @@ test("following a contact and Alert me on replies: stored per person, the follow
 test("every capability of the inbox manifest has a handler, and none is extra", () => {
   // the module also owns the composer's sender list (comms.senders.*), so the match is by module, not by name prefix
   const caps = registry.capabilities.filter((c) => c.module === "inbox").map((c) => c.name).sort();
-  assert.equal(caps.length, 19);
+  assert.equal(caps.length, 20);
   assert.deepEqual(caps.filter((n) => !n.startsWith("inbox.")), ["comms.senders.list", "comms.senders.set_default"]);
   assert.deepEqual(Object.keys(handlers).sort(), caps);
 });
