@@ -5,9 +5,11 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "agents.assistant_of": async (ctx) => { throw new VyreErr(notImplemented("agents.assistant_of", ctx.trace)); },
   "agents.builtin_skill.get": async (ctx) => { throw new VyreErr(notImplemented("agents.builtin_skill.get", ctx.trace)); },
   "agents.builtin_skills.list": async (ctx) => { throw new VyreErr(notImplemented("agents.builtin_skills.list", ctx.trace)); },
   "agents.config.get": async (ctx) => { throw new VyreErr(notImplemented("agents.config.get", ctx.trace)); },
+  "agents.config.may_save": async (ctx) => { throw new VyreErr(notImplemented("agents.config.may_save", ctx.trace)); },
   "agents.config.validate": async (ctx) => { throw new VyreErr(notImplemented("agents.config.validate", ctx.trace)); },
   "agents.create": async (ctx) => { throw new VyreErr(notImplemented("agents.create", ctx.trace)); },
   "agents.delete": async (ctx) => { throw new VyreErr(notImplemented("agents.delete", ctx.trace)); },
@@ -79,6 +81,21 @@ export const handlers: Handlers<HandlerCtx> = {
   "skills.add": async (ctx) => { throw new VyreErr(notImplemented("skills.add", ctx.trace)); },
   "skills.list": async (ctx) => { throw new VyreErr(notImplemented("skills.list", ctx.trace)); },
   "skills.load": async (ctx) => { throw new VyreErr(notImplemented("skills.load", ctx.trace)); },
+  "skills.members": async (ctx) => { throw new VyreErr(notImplemented("skills.members", ctx.trace)); },
+  "skills.mine.add": async (ctx) => { throw new VyreErr(notImplemented("skills.mine.add", ctx.trace)); },
+  "skills.mine.remove": async (ctx) => { throw new VyreErr(notImplemented("skills.mine.remove", ctx.trace)); },
+  "skills.mine.set": async (ctx) => { throw new VyreErr(notImplemented("skills.mine.set", ctx.trace)); },
+  "skills.mine.update": async (ctx) => { throw new VyreErr(notImplemented("skills.mine.update", ctx.trace)); },
+  "skills.page": async (ctx) => { throw new VyreErr(notImplemented("skills.page", ctx.trace)); },
+  "skills.policy.set": async (ctx) => { throw new VyreErr(notImplemented("skills.policy.set", ctx.trace)); },
+  "skills.preview": async (ctx) => { throw new VyreErr(notImplemented("skills.preview", ctx.trace)); },
   "skills.remove": async (ctx) => { throw new VyreErr(notImplemented("skills.remove", ctx.trace)); },
   "skills.set_enabled": async (ctx) => { throw new VyreErr(notImplemented("skills.set_enabled", ctx.trace)); },
+  "skills.share": async (ctx) => { throw new VyreErr(notImplemented("skills.share", ctx.trace)); },
+  "skills.shared.decide": async (ctx) => { throw new VyreErr(notImplemented("skills.shared.decide", ctx.trace)); },
+  "skills.space.adopt": async (ctx) => { throw new VyreErr(notImplemented("skills.space.adopt", ctx.trace)); },
+  "skills.space.install": async (ctx) => { throw new VyreErr(notImplemented("skills.space.install", ctx.trace)); },
+  "skills.space.setup": async (ctx) => { throw new VyreErr(notImplemented("skills.space.setup", ctx.trace)); },
+  "skills.space.update": async (ctx) => { throw new VyreErr(notImplemented("skills.space.update", ctx.trace)); },
+  "skills.view": async (ctx) => { throw new VyreErr(notImplemented("skills.view", ctx.trace)); },
 };

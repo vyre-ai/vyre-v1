@@ -5,9 +5,11 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "agents.assistant_of": Handler<"agents.assistant_of", X>;
   "agents.builtin_skill.get": Handler<"agents.builtin_skill.get", X>;
   "agents.builtin_skills.list": Handler<"agents.builtin_skills.list", X>;
   "agents.config.get": Handler<"agents.config.get", X>;
+  "agents.config.may_save": Handler<"agents.config.may_save", X>;
   "agents.config.validate": Handler<"agents.config.validate", X>;
   "agents.create": Handler<"agents.create", X>;
   "agents.delete": Handler<"agents.delete", X>;
@@ -79,6 +81,21 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "skills.add": Handler<"skills.add", X>;
   "skills.list": Handler<"skills.list", X>;
   "skills.load": Handler<"skills.load", X>;
+  "skills.members": Handler<"skills.members", X>;
+  "skills.mine.add": Handler<"skills.mine.add", X>;
+  "skills.mine.remove": Handler<"skills.mine.remove", X>;
+  "skills.mine.set": Handler<"skills.mine.set", X>;
+  "skills.mine.update": Handler<"skills.mine.update", X>;
+  "skills.page": Handler<"skills.page", X>;
+  "skills.policy.set": Handler<"skills.policy.set", X>;
+  "skills.preview": Handler<"skills.preview", X>;
   "skills.remove": Handler<"skills.remove", X>;
   "skills.set_enabled": Handler<"skills.set_enabled", X>;
+  "skills.share": Handler<"skills.share", X>;
+  "skills.shared.decide": Handler<"skills.shared.decide", X>;
+  "skills.space.adopt": Handler<"skills.space.adopt", X>;
+  "skills.space.install": Handler<"skills.space.install", X>;
+  "skills.space.setup": Handler<"skills.space.setup", X>;
+  "skills.space.update": Handler<"skills.space.update", X>;
+  "skills.view": Handler<"skills.view", X>;
 }

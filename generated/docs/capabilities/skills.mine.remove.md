@@ -19,7 +19,7 @@ Remove one of your skills (and its shares), or take a shared one off your list
 | HTTP | POST /v1/skills/mine/remove |
 | MCP tool | skills_mine_remove (agents) |
 | CLI | none |
-| Emits | skill.mine_changed |
+| Emits | skill.mine_changed, skill.share_decided |
 
 ## Input
 

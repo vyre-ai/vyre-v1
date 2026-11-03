@@ -58,6 +58,21 @@ type Out = {
       displayName?: string;
       aliases?: Array<string>;
       olderOf?: string;
+      uses?: {
+        teamChats?: {
+          who: "everyone" | Array<string>;
+        };
+        automations?: true;
+        goals?: true;
+        agentWork?: {
+          which: "all" | Array<string>;
+        };
+      };
+      usesSet?: boolean;
+      capCents?: number;
+      capped?: boolean;
+      teamChatsForMe?: boolean;
+      models?: Array<string>;
     }>;
 };
 ```
@@ -85,6 +100,8 @@ type Out = {
         "aliases": [
           "#Dana_Lawmatics"
         ],
+        "capCents": 1,
+        "capped": true,
         "connection": "subscription",
         "displayName": "Claude Code, dana@example.com",
         "engine": "claude-code",
@@ -95,6 +112,9 @@ type Out = {
         "itemName": "Dana Claude Max",
         "keyless": true,
         "logo": "example",
+        "models": [
+          "example"
+        ],
         "name": "example",
         "olderOf": "prv_a1b2c3",
         "providerKey": "anthropic",
@@ -102,11 +122,23 @@ type Out = {
         "spaceKey": true,
         "spaceMayUse": true,
         "state": "ok",
+        "teamChatsForMe": true,
         "usage": {
           "costCents": 1,
           "periodStart": 1760000000000,
           "tokens": 1
         },
+        "uses": {
+          "agentWork": {
+            "which": "all"
+          },
+          "automations": true,
+          "goals": true,
+          "teamChats": {
+            "who": "everyone"
+          }
+        },
+        "usesSet": true,
         "via": "Subscription, yours"
       }
     ]

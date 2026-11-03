@@ -37,7 +37,7 @@ type Out = {
   skill: {
     name: string;
     description: string;
-    tier: "builtin" | "space" | "agent";
+    tier: "builtin" | "space" | "agent" | "mine" | "shared";
     source: string;
     body: string;
     files: Array<{

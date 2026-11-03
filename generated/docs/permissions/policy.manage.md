@@ -51,6 +51,7 @@ Area: space. Risk: high. Applies to: space.
 - plugins.connections.policy_set
 - providers.space_key.remove
 - providers.space_key.set
+- providers.uses.set
 - records.purge
 - records.purge_trashed
 - reports.policy_get

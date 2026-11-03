@@ -487,6 +487,45 @@ export type AccessGroupsUpdateOut = {
     builtIn: boolean;
   };
 };
+export type AccessJoinShareIn = {
+  resource: {
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    id: string;
+  };
+  person: string;
+  level: "view" | "use" | "edit" | "manage";
+  inviter: string;
+  source: string;
+};
+export type AccessJoinShareOut = {
+  grant: {
+    id: string;
+    subject: {
+      kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+      id: string;
+    };
+    resource: {
+      type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+      id: string;
+    };
+    level: "view" | "use" | "edit" | "manage";
+    conditions: {
+      rowFilter?: unknown;
+      hiddenFields?: Array<string>;
+      labelCeiling?: "public" | "internal" | "confidential" | "restricted";
+      window?: {
+        from: number;
+        to: number;
+      };
+      expiresAt?: number;
+      export?: boolean;
+      reshare?: boolean;
+    };
+    by: string;
+    source?: string;
+    createdAt: number;
+  };
+};
 export type AccessLabelsListIn = Record<string, unknown>;
 export type AccessLabelsListOut = {
   labels: Array<{
@@ -614,6 +653,8 @@ export type AccessPrincipalsGetOut = {
     kind: "person" | "agent" | "actor" | "service";
     name: string;
     owner?: string;
+    private?: boolean;
+    agentName?: string;
     status: "invited" | "active" | "suspended" | "removed";
     roles: Array<string>;
     groups: Array<string>;
@@ -634,6 +675,8 @@ export type AccessPrincipalsListOut = {
       kind: "person" | "agent" | "actor" | "service";
       name: string;
       owner?: string;
+      private?: boolean;
+      agentName?: string;
       status: "invited" | "active" | "suspended" | "removed";
       roles: Array<string>;
       groups: Array<string>;
@@ -1151,6 +1194,12 @@ export type AccessViewAsOut = {
   previewToken: string;
   expiresAt: number;
 };
+export type AgentsAssistantOfIn = {
+  personId: string;
+};
+export type AgentsAssistantOfOut = {
+  agentId?: string;
+};
 export type AgentsBuiltinSkillGetIn = {
   name: string;
 };
@@ -1182,6 +1231,15 @@ export type AgentsConfigGetOut = {
     agentMd: number;
     vyreMd: number;
   };
+};
+export type AgentsConfigMaySaveIn = {
+  fileId: string;
+};
+export type AgentsConfigMaySaveOut = {
+  agentId: string | null;
+  allowed: boolean;
+  reason?: "person_only" | "no_edit";
+  message?: string;
 };
 export type AgentsConfigValidateIn = {
   agentId: string;
@@ -5299,6 +5357,22 @@ export type ChannelsGetOut = {
     restricted?: boolean;
   };
 };
+export type ChannelsHomeIn = Record<string, unknown>;
+export type ChannelsHomeOut = {
+  channel: {
+    channelId: string;
+    name: string;
+    mainThreadId: string;
+    legacy: boolean;
+  } | null;
+};
+export type ChannelsHomeJoinIn = {
+  personId: string;
+};
+export type ChannelsHomeJoinOut = {
+  channelId: string | null;
+  added: boolean;
+};
 export type ChannelsJoinIn = {
   channelId: string;
 };
@@ -5547,6 +5621,13 @@ export type ChannelsUpdateOut = {
     createdAt: number;
     restricted?: boolean;
   };
+};
+export type ChatAgentDmMuteIn = {
+  personId: string;
+  undo?: boolean;
+};
+export type ChatAgentDmMuteOut = {
+  until: number | null;
 };
 export type ChatAnswerBlockIn = {
   threadId: string;
@@ -5985,6 +6066,29 @@ export type ChatMessageGetOut = {
     enc?: number;
   };
 };
+export type ChatMessagePersonIn = {
+  to: string;
+  body: string;
+  timing?: "now" | "online" | "at";
+  at?: number;
+  urgent?: boolean;
+  card?: {
+    kind: "approval" | "review" | "key";
+    title: string;
+    detail?: string;
+    fields?: Array<string>;
+  };
+  idempotencyKey: string;
+};
+export type ChatMessagePersonOut = {
+  state: "sent" | "scheduled";
+  threadId: string;
+  messageId?: string;
+  dueAt?: number;
+  when: string;
+  taskId?: string;
+  requestId?: string;
+};
 export type ChatMessagesListIn = {
   threadId: string;
   before?: number;
@@ -6079,6 +6183,25 @@ export type ChatOpenTabIn = {
 export type ChatOpenTabOut = {
   opened: boolean;
   reason?: "disabled_by_person" | "no_device";
+};
+export type ChatPeopleStatusIn = {
+  personIds?: Array<string>;
+  q?: string;
+};
+export type ChatPeopleStatusOut = {
+  people: Array<{
+      personId: string;
+      name: string;
+      state: "online" | "away" | "offline" | "unknown";
+      lastSeenAt?: number;
+      awayUntil?: number;
+      timezone?: string;
+      localTime?: string;
+      hours?: string;
+      inHours: boolean;
+      mutedUntil?: number;
+      wouldGo: string;
+    }>;
 };
 export type ChatPinIn = {
   messageId: string;
@@ -8180,7 +8303,7 @@ export type ConsoleAssistantToolsOut = {
 export type ConsoleAttentionIn = Record<string, unknown>;
 export type ConsoleAttentionOut = {
   items: Array<{
-      kind: "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due";
+      kind: "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due" | "join_stuck" | "home_channel";
       title: string;
       ref?: string;
       since: number;
@@ -8245,7 +8368,7 @@ export type ConsoleOverviewIn = Record<string, unknown>;
 export type ConsoleOverviewOut = {
   health: "healthy" | "degraded" | "down";
   attention: Array<{
-      kind: "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due";
+      kind: "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due" | "join_stuck" | "home_channel";
       title: string;
       ref?: string;
       since: number;
@@ -8633,6 +8756,17 @@ export type DevicesMineOut = {
       current?: boolean;
     }>;
 };
+export type DevicesPresenceIn = {
+  people?: Array<string>;
+};
+export type DevicesPresenceOut = {
+  people: Array<{
+      personId: string;
+      state: "online" | "away" | "offline";
+      lastSeenAt?: number;
+      awayUntil?: number;
+    }>;
+};
 export type DevicesPurgeAckIn = {
   deviceId: string;
 };
@@ -8722,11 +8856,13 @@ export type DevicesSessionsRevokeOut = {
   ok: boolean;
 };
 export type DevicesTouchIn = {
-  deviceId: string;
+  deviceId?: string;
   location?: string;
 };
 export type DevicesTouchOut = {
   ok: boolean;
+  lastSeenAt?: number;
+  back?: boolean;
 };
 export type DocumensoCancelIn = {
   remoteId: string;
@@ -9348,6 +9484,7 @@ export type EngineAccountResolveIn = {
   askerId?: string;
   stepKey?: string;
   unavailable?: Array<string>;
+  kind?: "chat" | "wake" | "automation" | "goal" | "agent_work";
 };
 export type EngineAccountResolveOut = {
   accountRef: string | null;
@@ -9356,6 +9493,11 @@ export type EngineAccountResolveOut = {
   allowed: boolean;
   itemId?: string;
   fellBack?: boolean;
+  pin?: {
+    ref: string;
+    used: boolean;
+    why?: "unknown" | "expired" | "failed" | "policy_company" | "not_yours" | "space_may_not_use" | "failed_this_turn" | "capped" | "no_model";
+  };
 };
 export type EngineAccountsListIn = Record<string, unknown>;
 export type EngineAccountsListOut = {
@@ -9882,6 +10024,9 @@ export type EngineModelsListIn = {
   accountRef?: string;
   threadId?: string;
   recordLabel?: "public" | "internal" | "confidential" | "restricted";
+  refresh?: boolean;
+  wait?: boolean;
+  probe?: boolean;
 };
 export type EngineModelsListOut = {
   models: Array<{
@@ -9893,6 +10038,29 @@ export type EngineModelsListOut = {
       allowed: boolean;
       reason?: "label_provider" | "policy_model" | "not_connected" | "usage_limit";
       resetsAt?: number;
+      alias?: string;
+      isDefault?: boolean;
+      efforts?: Array<string>;
+      defaultEffort?: string;
+    }>;
+  listed?: {
+    source: "live" | "saved" | "shipped";
+    updatedAt?: number;
+    refreshing: boolean;
+    failed: boolean;
+  };
+};
+export type EngineNowIn = Record<string, unknown>;
+export type EngineNowOut = {
+  working: Array<{
+      agentId: string;
+      forPerson: string;
+      where: "space" | "computer" | "server";
+      since: number;
+      threadId?: string;
+      title?: string;
+      channelId?: string;
+      kind?: string;
     }>;
 };
 export type EnginePlacementDecideIn = {
@@ -9905,6 +10073,7 @@ export type EnginePlacementDecideOut = {
   reason: string;
   wakeLine?: string;
   nodeId?: string;
+  deviceId?: string;
 };
 export type EnginePlacementOptionsIn = {
   threadId: string;
@@ -9916,10 +10085,18 @@ export type EnginePlacementOptionsOut = {
   effective: {
     target: "device" | "space" | "server";
     serverId?: string;
+    deviceId?: string;
+  };
+  automatic?: {
+    target: "device" | "space" | "server";
+    serverId?: string;
+    deviceId?: string;
   };
   options: Array<{
       target: "device" | "space" | "server";
       serverId?: string;
+      deviceId?: string;
+      current?: boolean;
       name: string;
       online: boolean;
       reason?: string;
@@ -9929,10 +10106,13 @@ export type EnginePlacementSetIn = {
   threadId: string;
   target: "auto" | "device" | "space" | "server";
   serverId?: string;
+  deviceId?: string;
+  once?: boolean;
 };
 export type EnginePlacementSetOut = {
   target: "auto" | "device" | "space" | "server";
   serverId?: string;
+  deviceId?: string;
 };
 export type EnginePolicyGetIn = Record<string, unknown>;
 export type EnginePolicyGetOut = {
@@ -10283,6 +10463,10 @@ export type EngineTurnFinishOut = {
       traceId: string;
     };
     nodeId?: string;
+    ranOn?: Array<{
+        kind: "computer" | "server" | "space";
+        name: string;
+      }>;
   };
 };
 export type EngineTurnGetIn = {
@@ -10316,6 +10500,10 @@ export type EngineTurnGetOut = {
         traceId: string;
       };
       nodeId?: string;
+      ranOn?: Array<{
+          kind: "computer" | "server" | "space";
+          name: string;
+        }>;
     };
     machine: "host" | "device";
     keyUsed?: string;
@@ -10335,6 +10523,7 @@ export type EngineTurnGetOut = {
         to: string;
         at: number;
       }>;
+    reached?: Array<string>;
   };
 };
 export type EngineTurnRecordIn = {
@@ -10380,6 +10569,10 @@ export type EngineTurnRecordOut = {
       traceId: string;
     };
     nodeId?: string;
+    ranOn?: Array<{
+        kind: "computer" | "server" | "space";
+        name: string;
+      }>;
   };
 };
 export type EngineTurnRecordUsageIn = {
@@ -10425,6 +10618,10 @@ export type EngineTurnRetryOut = {
       traceId: string;
     };
     nodeId?: string;
+    ranOn?: Array<{
+        kind: "computer" | "server" | "space";
+        name: string;
+      }>;
   };
 };
 export type EngineTurnStartIn = {
@@ -10464,6 +10661,10 @@ export type EngineTurnStartOut = {
       traceId: string;
     };
     nodeId?: string;
+    ranOn?: Array<{
+        kind: "computer" | "server" | "space";
+        name: string;
+      }>;
   };
 };
 export type EngineTurnWaitIn = {
@@ -10509,6 +10710,10 @@ export type EngineTurnsListOut = {
         traceId: string;
       };
       nodeId?: string;
+      ranOn?: Array<{
+          kind: "computer" | "server" | "space";
+          name: string;
+        }>;
     }>;
   next?: string;
   total?: number;
@@ -11329,6 +11534,8 @@ export type FilesListIn = {
   kind?: "text" | "markdown" | "document" | "spreadsheet" | "presentation" | "pdf" | "image" | "video" | "audio" | "code" | "archive" | "google_native" | "other";
   sort?: "name" | "updated" | "size" | "kind";
   dir?: "asc" | "desc";
+  deep?: boolean;
+  q?: string;
   cursor?: string;
   limit?: number;
 };
@@ -14656,13 +14863,13 @@ export type HealthTimeSkewOut = {
 export type HomeActivityIn = {
   since: number;
   until?: number;
-  kinds?: Array<"decision" | "finished" | "record_change" | "routine" | "waiting">;
+  kinds?: Array<"decision" | "finished" | "record_change" | "routine" | "notice" | "waiting">;
   cursor?: string;
   limit?: number;
 };
 export type HomeActivityOut = {
   items: Array<{
-      kind: "decision" | "finished" | "record_change" | "routine" | "waiting";
+      kind: "decision" | "finished" | "record_change" | "routine" | "notice" | "waiting";
       title: string;
       line: string;
       subject?: {
@@ -14694,6 +14901,13 @@ export type HomeAtRiskOut = {
       overdueTasks: number;
     }>;
 };
+export type HomeAwayDigestIn = {
+  since: number;
+};
+export type HomeAwayDigestOut = {
+  digestId?: string;
+  items: number;
+};
 export type HomeChecklistIn = Record<string, unknown>;
 export type HomeChecklistOut = {
   visible: boolean;
@@ -14712,7 +14926,7 @@ export type HomeDigestOut = {
     periodEnd: number;
     headline: Array<string>;
     items: Array<{
-        kind: "decision" | "finished" | "record_change" | "routine" | "waiting";
+        kind: "decision" | "finished" | "record_change" | "routine" | "notice" | "waiting";
         title: string;
         line: string;
         subject?: {
@@ -14757,7 +14971,7 @@ export type HomeWriteDigestIn = {
   periodEnd: number;
   headline: Array<string>;
   items: Array<{
-      kind: "decision" | "finished" | "record_change" | "routine" | "waiting";
+      kind: "decision" | "finished" | "record_change" | "routine" | "notice" | "waiting";
       title: string;
       line: string;
       subject?: {
@@ -18076,6 +18290,288 @@ export type MeetingsCancelIn = {
 export type MeetingsCancelOut = {
   meetingId: string;
 };
+export type MeetingsCloseoutApproveIn = {
+  meetingId: string;
+  itemIds?: Array<string>;
+};
+export type MeetingsCloseoutApproveOut = {
+  meetingId: string;
+  state: "preparing" | "ready" | "closed" | "nothing";
+  items: Array<{
+      itemId: string;
+      kind: "task" | "record" | "email" | "hold";
+      status: "proposed" | "approved" | "skipped" | "failed";
+      title: string;
+      assignee?: string;
+      ownerName?: string;
+      due?: number;
+      why?: string;
+      recordId?: string;
+      recordType?: string;
+      changes?: Array<{
+          field: string;
+          title: string;
+          from?: string;
+          to: string;
+        }>;
+      note?: string;
+      to?: Array<{
+          address: string;
+          name?: string;
+        }>;
+      subject?: string;
+      text?: string;
+      mailboxId?: string;
+      send?: "send" | "draft";
+      startsAt?: number;
+      endsAt?: number;
+      made?: Array<{
+          type: "task" | "record" | "comment" | "email" | "draft" | "event" | "approval";
+          id: string;
+          title?: string;
+        }>;
+      error?: string;
+    }>;
+};
+export type MeetingsCloseoutEditIn = {
+  meetingId: string;
+  itemId: string;
+  title?: string;
+  assignee?: string;
+  due?: number | null;
+  why?: string;
+  changes?: Array<{
+      field: string;
+      to: string;
+    }>;
+  note?: string;
+  to?: Array<{
+      address: string;
+      name?: string;
+    }>;
+  subject?: string;
+  text?: string;
+  send?: "send" | "draft";
+  startsAt?: number;
+  endsAt?: number;
+};
+export type MeetingsCloseoutEditOut = {
+  item: {
+    itemId: string;
+    kind: "task" | "record" | "email" | "hold";
+    status: "proposed" | "approved" | "skipped" | "failed";
+    title: string;
+    assignee?: string;
+    ownerName?: string;
+    due?: number;
+    why?: string;
+    recordId?: string;
+    recordType?: string;
+    changes?: Array<{
+        field: string;
+        title: string;
+        from?: string;
+        to: string;
+      }>;
+    note?: string;
+    to?: Array<{
+        address: string;
+        name?: string;
+      }>;
+    subject?: string;
+    text?: string;
+    mailboxId?: string;
+    send?: "send" | "draft";
+    startsAt?: number;
+    endsAt?: number;
+    made?: Array<{
+        type: "task" | "record" | "comment" | "email" | "draft" | "event" | "approval";
+        id: string;
+        title?: string;
+      }>;
+    error?: string;
+  };
+};
+export type MeetingsCloseoutGetIn = {
+  meetingId: string;
+};
+export type MeetingsCloseoutGetOut = {
+  meetingId: string;
+  title: string;
+  startsAt: number;
+  endsAt?: number;
+  attendees: Array<{
+      name: string;
+      email?: string;
+      recordId?: string;
+    }>;
+  state: "preparing" | "ready" | "closed" | "nothing";
+  summary?: string;
+  decisions: Array<string>;
+  questions: Array<string>;
+  items: Array<{
+      itemId: string;
+      kind: "task" | "record" | "email" | "hold";
+      status: "proposed" | "approved" | "skipped" | "failed";
+      title: string;
+      assignee?: string;
+      ownerName?: string;
+      due?: number;
+      why?: string;
+      recordId?: string;
+      recordType?: string;
+      changes?: Array<{
+          field: string;
+          title: string;
+          from?: string;
+          to: string;
+        }>;
+      note?: string;
+      to?: Array<{
+          address: string;
+          name?: string;
+        }>;
+      subject?: string;
+      text?: string;
+      mailboxId?: string;
+      send?: "send" | "draft";
+      startsAt?: number;
+      endsAt?: number;
+      made?: Array<{
+          type: "task" | "record" | "comment" | "email" | "draft" | "event" | "approval";
+          id: string;
+          title?: string;
+        }>;
+      error?: string;
+    }>;
+  preparedAt?: number;
+  taskId?: string;
+  agentId?: string;
+  shared: Array<{
+      type: "project" | "channel";
+      id: string;
+    }>;
+};
+export type MeetingsCloseoutListIn = {
+  state?: "preparing" | "ready" | "closed" | "nothing";
+  recordId?: string;
+  cursor?: string;
+  limit?: number;
+};
+export type MeetingsCloseoutListOut = {
+  meetings: Array<{
+      meetingId: string;
+      title: string;
+      startsAt: number;
+      endsAt?: number;
+      attendees: Array<string>;
+      state: "preparing" | "ready" | "closed" | "nothing";
+      proposed: number;
+      done: number;
+    }>;
+  ready: number;
+  next?: string;
+  total?: number;
+};
+export type MeetingsCloseoutPrepareIn = {
+  meetingId: string;
+  redo?: boolean;
+};
+export type MeetingsCloseoutPrepareOut = {
+  meetingId: string;
+  state: "preparing" | "ready" | "closed" | "nothing";
+  taskId?: string;
+};
+export type MeetingsCloseoutProposeIn = {
+  meetingId: string;
+  summary: string;
+  decisions?: Array<string>;
+  questions?: Array<string>;
+  actions?: Array<{
+      title: string;
+      owner?: string;
+      due?: string;
+      why?: string;
+    }>;
+  records?: Array<{
+      recordId: string;
+      changes?: Array<{
+          field: string;
+          value: string;
+        }>;
+      note?: string;
+    }>;
+  email?: {
+    subject: string;
+    text: string;
+  };
+  next?: {
+    title?: string;
+    startsAt: string;
+    minutes?: number;
+  };
+};
+export type MeetingsCloseoutProposeOut = {
+  meetingId: string;
+  state: "preparing" | "ready" | "closed" | "nothing";
+  items: number;
+};
+export type MeetingsCloseoutShareIn = {
+  meetingId: string;
+  projectId?: string;
+  channelId?: string;
+  on: boolean;
+};
+export type MeetingsCloseoutShareOut = {
+  meetingId: string;
+};
+export type MeetingsCloseoutSkipIn = {
+  meetingId: string;
+  itemId: string;
+  undo?: boolean;
+};
+export type MeetingsCloseoutSkipOut = {
+  item: {
+    itemId: string;
+    kind: "task" | "record" | "email" | "hold";
+    status: "proposed" | "approved" | "skipped" | "failed";
+    title: string;
+    assignee?: string;
+    ownerName?: string;
+    due?: number;
+    why?: string;
+    recordId?: string;
+    recordType?: string;
+    changes?: Array<{
+        field: string;
+        title: string;
+        from?: string;
+        to: string;
+      }>;
+    note?: string;
+    to?: Array<{
+        address: string;
+        name?: string;
+      }>;
+    subject?: string;
+    text?: string;
+    mailboxId?: string;
+    send?: "send" | "draft";
+    startsAt?: number;
+    endsAt?: number;
+    made?: Array<{
+        type: "task" | "record" | "comment" | "email" | "draft" | "event" | "approval";
+        id: string;
+        title?: string;
+      }>;
+    error?: string;
+  };
+  state: "preparing" | "ready" | "closed" | "nothing";
+};
+export type MeetingsCloseoutSyncIn = Record<string, unknown>;
+export type MeetingsCloseoutSyncOut = {
+  started: number;
+};
 export type MeetingsGetIn = {
   meetingId: string;
 };
@@ -18348,6 +18844,36 @@ export type MembersInvitesRevokeIn = {
 export type MembersInvitesRevokeOut = {
   ok: boolean;
 };
+export type MembersJoinsListIn = {
+  stuck?: boolean;
+};
+export type MembersJoinsListOut = {
+  joins: Array<{
+      personId: string;
+      name: string;
+      joinedAt: number;
+      stuck: boolean;
+      steps: Array<{
+          key: string;
+          title: string;
+          error: string;
+          tries: number;
+        }>;
+    }>;
+};
+export type MembersJoinsRetryIn = {
+  personId: string;
+};
+export type MembersJoinsRetryOut = {
+  applied: number;
+  pending: number;
+  steps: Array<{
+      key: string;
+      title: string;
+      error: string;
+      tries: number;
+    }>;
+};
 export type MembersReactivateIn = {
   personId: string;
 };
@@ -18547,11 +19073,43 @@ export type MemoryBacklinksOut = {
 };
 export type MemoryCaptureIn = {
   threadId: string;
-  reason: "closed" | "idle";
+  reason: "closed" | "idle" | "turn";
+  turnId?: string;
+  agentId?: string;
+  account?: {
+    ref: string;
+    driver: string;
+    kind?: string;
+    payer?: string;
+    spaceKey?: boolean;
+  };
 };
 export type MemoryCaptureOut = {
   proposed: number;
   merged: number;
+  updated?: number;
+  closed?: number;
+  via?: "model" | "rules" | "none";
+  skipped?: "forgotten" | "off" | "nothing_new";
+};
+export type MemoryChatLearningGetIn = {
+  threadId: string;
+};
+export type MemoryChatLearningGetOut = {
+  threadId: string;
+  remember: boolean;
+  by?: string;
+  at?: number;
+};
+export type MemoryChatLearningSetIn = {
+  threadId: string;
+  remember: boolean;
+};
+export type MemoryChatLearningSetOut = {
+  threadId: string;
+  remember: boolean;
+  by?: string;
+  at?: number;
 };
 export type MemoryCountsIn = {
   agentId: string;
@@ -18823,6 +19381,7 @@ export type MemoryFactsListOut = {
     }>;
   next?: string;
   total?: number;
+  locked?: string;
 };
 export type MemoryFactsRemoveIn = {
   factIds?: Array<string>;
@@ -18875,6 +19434,7 @@ export type MemoryFactsAsOfOut = {
     }>;
   next?: string;
   total?: number;
+  locked?: string;
 };
 export type MemoryFindBySubjectIn = {
   subject: string;
@@ -19167,6 +19727,19 @@ export type MemoryLearnedOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type MemoryLearningTodayIn = Record<string, unknown>;
+export type MemoryLearningTodayOut = {
+  day: string;
+  passes: number;
+  tokensIn: number;
+  tokensOut: number;
+  rulePasses: number;
+  capPasses: number;
+  capTokens: number;
+  resetsAt: number;
+  timezone: string;
+  state: "learning" | "rules_only";
 };
 export type MemoryMaintainIn = {
   agentId?: string;
@@ -19497,6 +20070,212 @@ export type MemoryPointerOut = {
     }>;
   tokens: number;
   skipped?: "short_ack" | "mid_tool_loop" | "no_match" | "duplicate";
+  locked?: string;
+};
+export type MemoryProfileAddIn = {
+  text: string;
+  to: "public" | "private";
+  kind?: string;
+};
+export type MemoryProfileAddOut = {
+  fact: {
+    factId: string;
+    layer: "person" | "agent" | "project" | "space";
+    ownerRef: string;
+    agentId?: string;
+    noteId?: string;
+    text: string;
+    validFrom: number;
+    validTo?: number;
+    learnedAt: number;
+    closedAt?: number;
+    sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+    sourceRef: string;
+    sourceLink?: string;
+    status: "proposed" | "current" | "closed" | "removed";
+    lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
+    subject?: {
+      pageId: string;
+      title: string;
+      kind: string;
+    };
+    sourceTitle?: string;
+    by?: string;
+    byKind?: "person" | "agent" | "upkeep" | "system";
+    versions?: number;
+    place: "public" | "private";
+    suggested?: boolean;
+    lineLink?: string;
+  };
+};
+export type MemoryProfileContextIn = {
+  threadId: string;
+};
+export type MemoryProfileContextOut = {
+  audience: "private" | "shared";
+  people: Array<{
+      personId: string;
+      self: boolean;
+      basics: Array<string>;
+      public: Array<string>;
+      private: Array<string>;
+    }>;
+};
+export type MemoryProfileGetIn = {
+  threadId?: string;
+  personId?: string;
+};
+export type MemoryProfileGetOut = {
+  audience: "private" | "shared";
+  basics: Array<{
+      key: string;
+      label: string;
+      value: string;
+    }>;
+  public: Array<{
+      factId: string;
+      layer: "person" | "agent" | "project" | "space";
+      ownerRef: string;
+      agentId?: string;
+      noteId?: string;
+      text: string;
+      validFrom: number;
+      validTo?: number;
+      learnedAt: number;
+      closedAt?: number;
+      sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+      sourceRef: string;
+      sourceLink?: string;
+      status: "proposed" | "current" | "closed" | "removed";
+      lowRisk?: boolean;
+      trashedAt?: number;
+      trashReason?: string;
+      archivedAt?: number;
+      subject?: {
+        pageId: string;
+        title: string;
+        kind: string;
+      };
+      sourceTitle?: string;
+      by?: string;
+      byKind?: "person" | "agent" | "upkeep" | "system";
+      versions?: number;
+      place: "public" | "private";
+      suggested?: boolean;
+      lineLink?: string;
+    }>;
+  private: Array<{
+      factId: string;
+      layer: "person" | "agent" | "project" | "space";
+      ownerRef: string;
+      agentId?: string;
+      noteId?: string;
+      text: string;
+      validFrom: number;
+      validTo?: number;
+      learnedAt: number;
+      closedAt?: number;
+      sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+      sourceRef: string;
+      sourceLink?: string;
+      status: "proposed" | "current" | "closed" | "removed";
+      lowRisk?: boolean;
+      trashedAt?: number;
+      trashReason?: string;
+      archivedAt?: number;
+      subject?: {
+        pageId: string;
+        title: string;
+        kind: string;
+      };
+      sourceTitle?: string;
+      by?: string;
+      byKind?: "person" | "agent" | "upkeep" | "system";
+      versions?: number;
+      place: "public" | "private";
+      suggested?: boolean;
+      lineLink?: string;
+    }>;
+};
+export type MemoryProfileMoveIn = {
+  factId: string;
+  to: "public" | "private";
+};
+export type MemoryProfileMoveOut = {
+  fact: {
+    factId: string;
+    layer: "person" | "agent" | "project" | "space";
+    ownerRef: string;
+    agentId?: string;
+    noteId?: string;
+    text: string;
+    validFrom: number;
+    validTo?: number;
+    learnedAt: number;
+    closedAt?: number;
+    sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+    sourceRef: string;
+    sourceLink?: string;
+    status: "proposed" | "current" | "closed" | "removed";
+    lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
+    subject?: {
+      pageId: string;
+      title: string;
+      kind: string;
+    };
+    sourceTitle?: string;
+    by?: string;
+    byKind?: "person" | "agent" | "upkeep" | "system";
+    versions?: number;
+    place: "public" | "private";
+    suggested?: boolean;
+    lineLink?: string;
+  };
+};
+export type MemoryProfileSuggestIn = {
+  factId?: string;
+  text?: string;
+  threadId?: string;
+};
+export type MemoryProfileSuggestOut = {
+  fact: {
+    factId: string;
+    layer: "person" | "agent" | "project" | "space";
+    ownerRef: string;
+    agentId?: string;
+    noteId?: string;
+    text: string;
+    validFrom: number;
+    validTo?: number;
+    learnedAt: number;
+    closedAt?: number;
+    sourceKind: "chat" | "channel" | "task" | "record" | "run" | "journey" | "manual";
+    sourceRef: string;
+    sourceLink?: string;
+    status: "proposed" | "current" | "closed" | "removed";
+    lowRisk?: boolean;
+    trashedAt?: number;
+    trashReason?: string;
+    archivedAt?: number;
+    subject?: {
+      pageId: string;
+      title: string;
+      kind: string;
+    };
+    sourceTitle?: string;
+    by?: string;
+    byKind?: "person" | "agent" | "upkeep" | "system";
+    versions?: number;
+    place: "public" | "private";
+    suggested?: boolean;
+    lineLink?: string;
+  };
 };
 export type MemoryPromoteIn = {
   factId: string;
@@ -19858,6 +20637,7 @@ export type MemorySearchOut = {
     model?: string;
     hint?: string;
   };
+  locked?: string;
 };
 export type MemoryTrailIn = {
   factId?: string;
@@ -20173,6 +20953,17 @@ export type MountsEditorsOut = {
       name?: string;
       email?: string;
       at?: number;
+    }>;
+};
+export type MountsEngineFoldersIn = {
+  person: string;
+};
+export type MountsEngineFoldersOut = {
+  folders: Array<{
+      mountId: string;
+      folderId: string;
+      deviceId?: string;
+      path: string;
     }>;
 };
 export type MountsFileLinkIn = {
@@ -21495,6 +22286,75 @@ export type NetworkMyComputersOut = {
       };
     }>;
 };
+export type NetworkPeerAllowIn = {
+  requestId: string;
+};
+export type NetworkPeerAllowOut = {
+  state: "allowed";
+};
+export type NetworkPeerConflictsIn = Record<string, unknown>;
+export type NetworkPeerConflictsOut = {
+  conflicts: Array<{
+      conflictId: string;
+      table: string;
+      rowKey: string;
+      kind: "renamed" | "kept_aside";
+      detail: string;
+      at: number;
+    }>;
+};
+export type NetworkPeerDeclineIn = {
+  requestId: string;
+};
+export type NetworkPeerDeclineOut = {
+  state: "declined";
+};
+export type NetworkPeerRemoveIn = {
+  peerId: string;
+};
+export type NetworkPeerRemoveOut = {
+  removed: boolean;
+};
+export type NetworkPeerRequestsIn = Record<string, unknown>;
+export type NetworkPeerRequestsOut = {
+  requests: Array<{
+      requestId: string;
+      name: string;
+      platform: string;
+      code: string;
+      requestedAt: number;
+      expiresAt: number;
+    }>;
+};
+export type NetworkPeerRunnerIn = Record<string, unknown>;
+export type NetworkPeerRunnerOut = {
+  peerId?: string;
+  here: boolean;
+  expiresAt?: number;
+};
+export type NetworkPeerServerCodeIn = {
+  nickname?: string;
+  idempotencyKey: string;
+};
+export type NetworkPeerServerCodeOut = {
+  code: string;
+  expiresAt: number;
+};
+export type NetworkPeersIn = Record<string, unknown>;
+export type NetworkPeersOut = {
+  waiting: number;
+  syncedAt?: number;
+  computers: Array<{
+      peerId: string;
+      name: string;
+      platform: string;
+      kind: "computer" | "server";
+      self: boolean;
+      online: boolean;
+      lastSeenAt?: number;
+      addedAt: number;
+    }>;
+};
 export type NetworkPhoneIn = Record<string, unknown>;
 export type NetworkPhoneOut = {
   state: "none" | "claiming" | "claimed" | "releasing" | "failed";
@@ -21623,6 +22483,13 @@ export type NotificationsAwaySetIn = {
 };
 export type NotificationsAwaySetOut = {
   until: number;
+};
+export type NotificationsAwayWhoIn = Record<string, unknown>;
+export type NotificationsAwayWhoOut = {
+  people: Array<{
+      person: string;
+      until: number;
+    }>;
 };
 export type NotificationsCountsIn = Record<string, unknown>;
 export type NotificationsCountsOut = {
@@ -21992,13 +22859,17 @@ export type PluginsConnectionAddIn = {
   headers?: Record<string, string>;
   hub?: "composio" | "pipedream";
   auth?: "oauth";
+  title?: string;
+  share?: Array<string>;
+  source?: "registry" | "paste" | "import" | "hub" | "skill" | "kit" | "hand";
+  sourceRef?: string;
   idempotencyKey: string;
 };
 export type PluginsConnectionAddOut = {
   connection: {
     connectionId: string;
     name: string;
-    scope: "space" | "agent";
+    scope: "space" | "agent" | "mine";
     agentId?: string;
     transport: "stdio" | "http";
     url?: string;
@@ -22010,7 +22881,50 @@ export type PluginsConnectionAddOut = {
     createdAt: number;
     hub?: "composio" | "pipedream";
     auth?: "oauth";
+    owner?: string;
+    share?: Array<string>;
+    source?: string;
+    sourceRef?: string;
+    title?: string;
   };
+};
+export type PluginsConnectionAddMineIn = {
+  name: string;
+  title?: string;
+  url?: string;
+  command?: string;
+  args?: Array<string>;
+  env?: Record<string, string>;
+  headers?: Record<string, string>;
+  auth?: "oauth";
+  source?: "registry" | "paste" | "import" | "hub" | "skill" | "kit" | "hand" | "plugin";
+  sourceRef?: string;
+  idempotencyKey: string;
+};
+export type PluginsConnectionAddMineOut = {
+  connection: {
+    connectionId: string;
+    name: string;
+    scope: "mine";
+    owner: string;
+  };
+};
+export type PluginsConnectionCheckedIn = {
+  connectionId: string;
+  health?: "ok" | "needs_signin" | "key_refused" | "not_answering" | "needs_setup" | "off" | "unknown";
+  note?: string;
+  tools?: number;
+  usedBy?: string;
+};
+export type PluginsConnectionCheckedOut = {
+  ok: boolean;
+};
+export type PluginsConnectionForgetIn = {
+  connectionId: string;
+  idempotencyKey: string;
+};
+export type PluginsConnectionForgetOut = {
+  removed: boolean;
 };
 export type PluginsConnectionRemoveIn = {
   connectionId?: string;
@@ -22022,6 +22936,111 @@ export type PluginsConnectionRemoveIn = {
 export type PluginsConnectionRemoveOut = {
   removed: boolean;
 };
+export type PluginsConnectionUpdateIn = {
+  connectionId: string;
+  title?: string;
+  enabled?: boolean;
+  auth?: "oauth" | "none";
+  share?: Array<string>;
+  idempotencyKey: string;
+};
+export type PluginsConnectionUpdateOut = {
+  connectionId: string;
+};
+export type PluginsConnectionsHomeIn = Record<string, unknown>;
+export type PluginsConnectionsHomeOut = {
+  mine: Array<{
+      key: string;
+      kind: "mcp" | "plugin" | "hub" | "skill";
+      name: string;
+      title: string;
+      scope: "mine" | "space" | "agent";
+      connectionId?: string;
+      pluginId?: string;
+      owner?: string;
+      agentId?: string;
+      share: Array<string>;
+      transport: "stdio" | "http" | "sse" | "ws";
+      address: string;
+      source: "registry" | "paste" | "import" | "hub" | "skill" | "kit" | "hand" | "plugin";
+      sourceRef?: string;
+      auth?: "oauth";
+      hub?: "composio" | "pipedream";
+      enabled: boolean;
+      health: "ok" | "needs_signin" | "key_refused" | "not_answering" | "needs_setup" | "off" | "unknown";
+      healthNote?: string;
+      tools?: number;
+      checkedAt?: number;
+      usedAt?: number;
+      usedBy: Array<string>;
+      keys: Array<string>;
+      needs: Array<string>;
+      canManage: boolean;
+    }>;
+  space: Array<{
+      key: string;
+      kind: "mcp" | "plugin" | "hub" | "skill";
+      name: string;
+      title: string;
+      scope: "mine" | "space" | "agent";
+      connectionId?: string;
+      pluginId?: string;
+      owner?: string;
+      agentId?: string;
+      share: Array<string>;
+      transport: "stdio" | "http" | "sse" | "ws";
+      address: string;
+      source: "registry" | "paste" | "import" | "hub" | "skill" | "kit" | "hand" | "plugin";
+      sourceRef?: string;
+      auth?: "oauth";
+      hub?: "composio" | "pipedream";
+      enabled: boolean;
+      health: "ok" | "needs_signin" | "key_refused" | "not_answering" | "needs_setup" | "off" | "unknown";
+      healthNote?: string;
+      tools?: number;
+      checkedAt?: number;
+      usedAt?: number;
+      usedBy: Array<string>;
+      keys: Array<string>;
+      needs: Array<string>;
+      canManage: boolean;
+    }>;
+  agents: Array<{
+      key: string;
+      kind: "mcp" | "plugin" | "hub" | "skill";
+      name: string;
+      title: string;
+      scope: "mine" | "space" | "agent";
+      connectionId?: string;
+      pluginId?: string;
+      owner?: string;
+      agentId?: string;
+      share: Array<string>;
+      transport: "stdio" | "http" | "sse" | "ws";
+      address: string;
+      source: "registry" | "paste" | "import" | "hub" | "skill" | "kit" | "hand" | "plugin";
+      sourceRef?: string;
+      auth?: "oauth";
+      hub?: "composio" | "pipedream";
+      enabled: boolean;
+      health: "ok" | "needs_signin" | "key_refused" | "not_answering" | "needs_setup" | "off" | "unknown";
+      healthNote?: string;
+      tools?: number;
+      checkedAt?: number;
+      usedAt?: number;
+      usedBy: Array<string>;
+      keys: Array<string>;
+      needs: Array<string>;
+      canManage: boolean;
+    }>;
+  policy: {
+    spaceAdders: "admins" | "managers";
+    allowListOn: boolean;
+    allowList: Array<string>;
+  };
+  canAddSpace: boolean;
+  admin: boolean;
+};
 export type PluginsConnectionsListIn = {
   agentId?: string;
 };
@@ -22029,7 +23048,7 @@ export type PluginsConnectionsListOut = {
   connections: Array<{
       connectionId: string;
       name: string;
-      scope: "space" | "agent";
+      scope: "space" | "agent" | "mine";
       agentId?: string;
       transport: "stdio" | "http";
       url?: string;
@@ -22041,7 +23060,33 @@ export type PluginsConnectionsListOut = {
       createdAt: number;
       hub?: "composio" | "pipedream";
       auth?: "oauth";
+      owner?: string;
+      share?: Array<string>;
+      source?: string;
+      sourceRef?: string;
+      title?: string;
     }>;
+};
+export type PluginsConnectionsPolicyIn = Record<string, unknown>;
+export type PluginsConnectionsPolicyOut = {
+  policy: {
+    spaceAdders: "admins" | "managers";
+    allowListOn: boolean;
+    allowList: Array<string>;
+  };
+};
+export type PluginsConnectionsPolicySetIn = {
+  spaceAdders?: "admins" | "managers";
+  allowListOn?: boolean;
+  allowList?: Array<string>;
+  idempotencyKey: string;
+};
+export type PluginsConnectionsPolicySetOut = {
+  policy: {
+    spaceAdders: "admins" | "managers";
+    allowListOn: boolean;
+    allowList: Array<string>;
+  };
 };
 export type PluginsFilesIn = {
   pluginId: string;
@@ -22261,6 +23306,54 @@ export type PluginsMcpServersOut = {
       oauth?: boolean;
       connectionId?: string;
     }>;
+};
+export type PluginsRegistrySearchIn = {
+  q?: string;
+  cursor?: string;
+  source?: "official" | "smithery";
+  limit?: number;
+};
+export type PluginsRegistrySearchOut = {
+  entries: Array<{
+      id: string;
+      source: "official" | "smithery";
+      name: string;
+      title: string;
+      description: string;
+      version: string;
+      website?: string;
+      repository?: string;
+      remote?: {
+        url: string;
+        transport: "http" | "sse";
+        headers: Array<{
+            name: string;
+            description: string;
+            required: boolean;
+            secret: boolean;
+            value?: string;
+          }>;
+      };
+      package?: {
+        registry: "npm" | "pypi" | "oci";
+        runner: "npx" | "uvx" | "docker";
+        identifier: string;
+        version: string;
+        env: Array<{
+            name: string;
+            description: string;
+            required: boolean;
+            secret: boolean;
+            value?: string;
+          }>;
+      };
+      signIn: "oauth" | "key" | "none";
+      allowed: boolean;
+    }>;
+  next?: string;
+  offline: boolean;
+  fetchedAt?: number;
+  source: "official" | "smithery";
 };
 export type PluginsSetEnabledIn = {
   pluginId: string;
@@ -22944,6 +24037,21 @@ export type ProvidersAddOut = {
     displayName?: string;
     aliases?: Array<string>;
     olderOf?: string;
+    uses?: {
+      teamChats?: {
+        who: "everyone" | Array<string>;
+      };
+      automations?: true;
+      goals?: true;
+      agentWork?: {
+        which: "all" | Array<string>;
+      };
+    };
+    usesSet?: boolean;
+    capCents?: number;
+    capped?: boolean;
+    teamChatsForMe?: boolean;
+    models?: Array<string>;
   };
 };
 export type ProvidersCatalogIn = Record<string, unknown>;
@@ -23004,6 +24112,21 @@ export type ProvidersCustomAddOut = {
     displayName?: string;
     aliases?: Array<string>;
     olderOf?: string;
+    uses?: {
+      teamChats?: {
+        who: "everyone" | Array<string>;
+      };
+      automations?: true;
+      goals?: true;
+      agentWork?: {
+        which: "all" | Array<string>;
+      };
+    };
+    usesSet?: boolean;
+    capCents?: number;
+    capped?: boolean;
+    teamChatsForMe?: boolean;
+    models?: Array<string>;
   };
 };
 export type ProvidersCustomListIn = Record<string, unknown>;
@@ -23052,6 +24175,21 @@ export type ProvidersListOut = {
       displayName?: string;
       aliases?: Array<string>;
       olderOf?: string;
+      uses?: {
+        teamChats?: {
+          who: "everyone" | Array<string>;
+        };
+        automations?: true;
+        goals?: true;
+        agentWork?: {
+          which: "all" | Array<string>;
+        };
+      };
+      usesSet?: boolean;
+      capCents?: number;
+      capped?: boolean;
+      teamChatsForMe?: boolean;
+      models?: Array<string>;
     }>;
 };
 export type ProvidersRemoveIn = {
@@ -23092,6 +24230,21 @@ export type ProvidersSetSpaceUseOut = {
     displayName?: string;
     aliases?: Array<string>;
     olderOf?: string;
+    uses?: {
+      teamChats?: {
+        who: "everyone" | Array<string>;
+      };
+      automations?: true;
+      goals?: true;
+      agentWork?: {
+        which: "all" | Array<string>;
+      };
+    };
+    usesSet?: boolean;
+    capCents?: number;
+    capped?: boolean;
+    teamChatsForMe?: boolean;
+    models?: Array<string>;
   };
 };
 export type ProvidersSpaceKeyGetIn = {
@@ -23178,11 +24331,27 @@ export type ProvidersSubscriptionCompleteOut = {
     displayName?: string;
     aliases?: Array<string>;
     olderOf?: string;
+    uses?: {
+      teamChats?: {
+        who: "everyone" | Array<string>;
+      };
+      automations?: true;
+      goals?: true;
+      agentWork?: {
+        which: "all" | Array<string>;
+      };
+    };
+    usesSet?: boolean;
+    capCents?: number;
+    capped?: boolean;
+    teamChatsForMe?: boolean;
+    models?: Array<string>;
   };
   waiting?: boolean;
 };
 export type ProvidersSubscriptionStartIn = {
   providerKey: string;
+  local?: boolean;
   idempotencyKey: string;
 };
 export type ProvidersSubscriptionStartOut = {
@@ -23200,6 +24369,65 @@ export type ProvidersTestOut = {
   models: Array<string>;
   latencyMs: number;
   detail?: string;
+};
+export type ProvidersUsesSetIn = {
+  providerId: string;
+  uses: {
+    teamChats?: {
+      who: "everyone" | Array<string>;
+    };
+    automations?: true;
+    goals?: true;
+    agentWork?: {
+      which: "all" | Array<string>;
+    };
+  };
+  capCents?: number | null;
+};
+export type ProvidersUsesSetOut = {
+  provider: {
+    id: string;
+    providerKey: string;
+    name: string;
+    logo?: string;
+    connection: "subscription" | "api_key" | "local_model";
+    via: string;
+    scope: "mine" | "shared";
+    itemId: string;
+    itemName?: string;
+    handle?: string;
+    agentsUsing: Array<string>;
+    usage: {
+      tokens: number;
+      costCents: number;
+      periodStart: number;
+    };
+    engine: string;
+    spaceMayUse: boolean;
+    state: "ok" | "needs_sign_in" | "failing";
+    address?: string;
+    keyless?: boolean;
+    spaceKey?: boolean;
+    identity?: string;
+    displayName?: string;
+    aliases?: Array<string>;
+    olderOf?: string;
+    uses?: {
+      teamChats?: {
+        who: "everyone" | Array<string>;
+      };
+      automations?: true;
+      goals?: true;
+      agentWork?: {
+        which: "all" | Array<string>;
+      };
+    };
+    usesSet?: boolean;
+    capCents?: number;
+    capped?: boolean;
+    teamChatsForMe?: boolean;
+    models?: Array<string>;
+  };
 };
 export type RecordsActivityIn = {
   type: string;
@@ -25745,6 +26973,17 @@ export type SettingsPagesOut = {
       rows: number;
     }>;
 };
+export type SettingsPublicOfIn = {
+  personId: string;
+};
+export type SettingsPublicOfOut = {
+  timezone?: string;
+  hours?: {
+    days: Array<number>;
+    from: string;
+    to: string;
+  };
+};
 export type SettingsResetIn = {
   key: string;
 };
@@ -26407,14 +27646,21 @@ export type SkillsAddOut = {
   skill: {
     name: string;
     description: string;
-    tier: "builtin" | "space" | "agent";
+    tier: "builtin" | "space" | "agent" | "mine" | "shared";
+    label?: string;
     source: string;
     agentId?: string;
     system: boolean;
     enabled: boolean;
     bytes: number;
     updatedAt?: number;
+    hash?: string;
+    shadowedBy?: "builtin" | "space" | "agent" | "mine" | "shared";
+    note?: string;
+    broken?: string;
   };
+  kept?: boolean;
+  note?: string;
 };
 export type SkillsListIn = {
   agentId?: string;
@@ -26424,13 +27670,18 @@ export type SkillsListOut = {
   skills: Array<{
       name: string;
       description: string;
-      tier: "builtin" | "space" | "agent";
+      tier: "builtin" | "space" | "agent" | "mine" | "shared";
+      label?: string;
       source: string;
       agentId?: string;
       system: boolean;
       enabled: boolean;
       bytes: number;
       updatedAt?: number;
+      hash?: string;
+      shadowedBy?: "builtin" | "space" | "agent" | "mine" | "shared";
+      note?: string;
+      broken?: string;
     }>;
 };
 export type SkillsLoadIn = {
@@ -26441,18 +27692,303 @@ export type SkillsLoadOut = {
   skill: {
     name: string;
     description: string;
-    tier: "builtin" | "space" | "agent";
+    tier: "builtin" | "space" | "agent" | "mine" | "shared";
     source: string;
     body: string;
     files: Array<{
         path: string;
         text: string;
       }>;
+    text?: string;
+    hash?: string;
   };
+};
+export type SkillsMembersIn = Record<string, unknown>;
+export type SkillsMembersOut = {
+  skills: Array<{
+      owner: string;
+      ownerName: string;
+      name: string;
+      shared: boolean;
+      skillId?: string;
+      toSpace: boolean;
+    }>;
+};
+export type SkillsMineAddIn = {
+  text: string;
+  files?: Record<string, string>;
+  source?: string;
+  version?: string;
+  projectId?: string;
+  agents?: Array<string>;
+  replaces?: string;
+  idempotencyKey: string;
+};
+export type SkillsMineAddOut = {
+  skill: {
+    skillId: string;
+    name: string;
+    label?: string;
+    description: string;
+    source: string;
+    origin: string;
+    version?: string;
+    projectId?: string;
+    agents: Array<string>;
+    enabled: boolean;
+    perms: {
+      scripts: Array<string>;
+      mcpServers: Array<{
+          name: string;
+          transport: "stdio" | "http" | "sse" | "ws";
+          target: string;
+          keys: Array<string>;
+        }>;
+      network: Array<string>;
+      vaultKeys: Array<string>;
+    };
+    setup: Record<string, string>;
+    needs: Array<string>;
+    sharedWith: Array<string>;
+    updatedAt: number;
+  };
+};
+export type SkillsMineRemoveIn = {
+  skillId: string;
+  idempotencyKey: string;
+};
+export type SkillsMineRemoveOut = {
+  removed: boolean;
+};
+export type SkillsMineSetIn = {
+  skillId: string;
+  enabled?: boolean;
+  agents?: Array<string>;
+  setup?: Record<string, string>;
+  idempotencyKey: string;
+};
+export type SkillsMineSetOut = {
+  skillId: string;
+  enabled: boolean;
+  agents: Array<string>;
+  setup: Record<string, string>;
+  needs: Array<string>;
+};
+export type SkillsMineUpdateIn = {
+  skillId: string;
+  idempotencyKey: string;
+};
+export type SkillsMineUpdateOut = {
+  skill: {
+    skillId: string;
+    name: string;
+    label?: string;
+    description: string;
+    source: string;
+    origin: string;
+    version?: string;
+    projectId?: string;
+    agents: Array<string>;
+    enabled: boolean;
+    perms: {
+      scripts: Array<string>;
+      mcpServers: Array<{
+          name: string;
+          transport: "stdio" | "http" | "sse" | "ws";
+          target: string;
+          keys: Array<string>;
+        }>;
+      network: Array<string>;
+      vaultKeys: Array<string>;
+    };
+    setup: Record<string, string>;
+    needs: Array<string>;
+    sharedWith: Array<string>;
+    updatedAt: number;
+  };
+  changed: boolean;
+  growth: Array<string>;
+};
+export type SkillsPageIn = {
+  projectId?: string;
+};
+export type SkillsPageOut = {
+  waiting: Array<{
+      skillId: string;
+      name: string;
+      label?: string;
+      description: string;
+      sharer: string;
+      sharerName: string;
+      toSpace: boolean;
+      source: string;
+      origin: string;
+      version?: string;
+      perms: {
+        scripts: Array<string>;
+        mcpServers: Array<{
+            name: string;
+            transport: "stdio" | "http" | "sse" | "ws";
+            target: string;
+            keys: Array<string>;
+          }>;
+        network: Array<string>;
+        vaultKeys: Array<string>;
+      };
+      state: "waiting" | "added" | "not_now";
+      growth: Array<string>;
+      agents: Array<string>;
+      enabled: boolean;
+      setup: Record<string, string>;
+      needs: Array<string>;
+      updatedAt: number;
+    }>;
+  mine: Array<{
+      skillId: string;
+      name: string;
+      label?: string;
+      description: string;
+      source: string;
+      origin: string;
+      version?: string;
+      projectId?: string;
+      agents: Array<string>;
+      enabled: boolean;
+      perms: {
+        scripts: Array<string>;
+        mcpServers: Array<{
+            name: string;
+            transport: "stdio" | "http" | "sse" | "ws";
+            target: string;
+            keys: Array<string>;
+          }>;
+        network: Array<string>;
+        vaultKeys: Array<string>;
+      };
+      setup: Record<string, string>;
+      needs: Array<string>;
+      sharedWith: Array<string>;
+      updatedAt: number;
+    }>;
+  shared: Array<{
+      skillId: string;
+      name: string;
+      label?: string;
+      description: string;
+      sharer: string;
+      sharerName: string;
+      toSpace: boolean;
+      source: string;
+      origin: string;
+      version?: string;
+      perms: {
+        scripts: Array<string>;
+        mcpServers: Array<{
+            name: string;
+            transport: "stdio" | "http" | "sse" | "ws";
+            target: string;
+            keys: Array<string>;
+          }>;
+        network: Array<string>;
+        vaultKeys: Array<string>;
+      };
+      state: "waiting" | "added" | "not_now";
+      growth: Array<string>;
+      agents: Array<string>;
+      enabled: boolean;
+      setup: Record<string, string>;
+      needs: Array<string>;
+      updatedAt: number;
+    }>;
+  space: Array<{
+      skillId: string;
+      name: string;
+      label?: string;
+      description: string;
+      source: string;
+      origin: string;
+      version?: string;
+      enabled: boolean;
+      perms: {
+        scripts: Array<string>;
+        mcpServers: Array<{
+            name: string;
+            transport: "stdio" | "http" | "sse" | "ws";
+            target: string;
+            keys: Array<string>;
+          }>;
+        network: Array<string>;
+        vaultKeys: Array<string>;
+      };
+      setup: Record<string, string>;
+      needs: Array<string>;
+      from?: string;
+      updatedAt?: number;
+    }>;
+  builtin: Array<{
+      name: string;
+      description: string;
+    }>;
+  agents: Array<{
+      agentId: string;
+      name: string;
+    }>;
+  policy: {
+    scriptsAdminOnly: boolean;
+  };
+  admin: boolean;
+  me: string;
+};
+export type SkillsPolicySetIn = {
+  scriptsAdminOnly: boolean;
+  idempotencyKey: string;
+};
+export type SkillsPolicySetOut = {
+  policy: {
+    scriptsAdminOnly: boolean;
+  };
+};
+export type SkillsPreviewIn = {
+  link?: string;
+  zip?: string;
+  files?: Record<string, string>;
+  hint?: string;
+  marketplace?: {
+    marketplaceId: string;
+    plugin: string;
+  };
+};
+export type SkillsPreviewOut = {
+  skills: Array<{
+      name: string;
+      description: string;
+      text: string;
+      files: Record<string, string>;
+      path: string;
+      source: string;
+      kind: "skill" | "plugin" | "codex";
+      version?: string;
+      perms: {
+        scripts: Array<string>;
+        mcpServers: Array<{
+            name: string;
+            transport: "stdio" | "http" | "sse" | "ws";
+            target: string;
+            keys: Array<string>;
+          }>;
+        network: Array<string>;
+        vaultKeys: Array<string>;
+      };
+      taken?: string;
+    }>;
+  problems: Array<string>;
+  skipped: Array<string>;
+  source: string;
 };
 export type SkillsRemoveIn = {
   name: string;
   agentId?: string;
+  source?: string;
   idempotencyKey: string;
 };
 export type SkillsRemoveOut = {
@@ -26468,13 +28004,223 @@ export type SkillsSetEnabledOut = {
   skill: {
     name: string;
     description: string;
-    tier: "builtin" | "space" | "agent";
+    tier: "builtin" | "space" | "agent" | "mine" | "shared";
+    label?: string;
     source: string;
     agentId?: string;
     system: boolean;
     enabled: boolean;
     bytes: number;
     updatedAt?: number;
+    hash?: string;
+    shadowedBy?: "builtin" | "space" | "agent" | "mine" | "shared";
+    note?: string;
+    broken?: string;
+  };
+};
+export type SkillsShareIn = {
+  skillId: string;
+  to?: Array<string>;
+  space?: boolean;
+  stop?: boolean;
+  idempotencyKey: string;
+};
+export type SkillsShareOut = {
+  sharedWith: Array<string>;
+};
+export type SkillsSharedDecideIn = {
+  skillId: string;
+  decision: "add" | "not_now";
+  idempotencyKey: string;
+};
+export type SkillsSharedDecideOut = {
+  card: {
+    skillId: string;
+    name: string;
+    label?: string;
+    description: string;
+    sharer: string;
+    sharerName: string;
+    toSpace: boolean;
+    source: string;
+    origin: string;
+    version?: string;
+    perms: {
+      scripts: Array<string>;
+      mcpServers: Array<{
+          name: string;
+          transport: "stdio" | "http" | "sse" | "ws";
+          target: string;
+          keys: Array<string>;
+        }>;
+      network: Array<string>;
+      vaultKeys: Array<string>;
+    };
+    state: "waiting" | "added" | "not_now";
+    growth: Array<string>;
+    agents: Array<string>;
+    enabled: boolean;
+    setup: Record<string, string>;
+    needs: Array<string>;
+    updatedAt: number;
+  };
+};
+export type SkillsSpaceAdoptIn = {
+  skillId: string;
+  idempotencyKey: string;
+};
+export type SkillsSpaceAdoptOut = {
+  skill: {
+    skillId: string;
+    name: string;
+    label?: string;
+    description: string;
+    source: string;
+    origin: string;
+    version?: string;
+    enabled: boolean;
+    perms: {
+      scripts: Array<string>;
+      mcpServers: Array<{
+          name: string;
+          transport: "stdio" | "http" | "sse" | "ws";
+          target: string;
+          keys: Array<string>;
+        }>;
+      network: Array<string>;
+      vaultKeys: Array<string>;
+    };
+    setup: Record<string, string>;
+    needs: Array<string>;
+    from?: string;
+    updatedAt?: number;
+  };
+};
+export type SkillsSpaceInstallIn = {
+  text: string;
+  files?: Record<string, string>;
+  source?: string;
+  version?: string;
+  idempotencyKey: string;
+};
+export type SkillsSpaceInstallOut = {
+  skill: {
+    skillId: string;
+    name: string;
+    label?: string;
+    description: string;
+    source: string;
+    origin: string;
+    version?: string;
+    enabled: boolean;
+    perms: {
+      scripts: Array<string>;
+      mcpServers: Array<{
+          name: string;
+          transport: "stdio" | "http" | "sse" | "ws";
+          target: string;
+          keys: Array<string>;
+        }>;
+      network: Array<string>;
+      vaultKeys: Array<string>;
+    };
+    setup: Record<string, string>;
+    needs: Array<string>;
+    from?: string;
+    updatedAt?: number;
+  };
+};
+export type SkillsSpaceSetupIn = {
+  name: string;
+  setup: Record<string, string>;
+  idempotencyKey: string;
+};
+export type SkillsSpaceSetupOut = {
+  skill: {
+    skillId: string;
+    name: string;
+    label?: string;
+    description: string;
+    source: string;
+    origin: string;
+    version?: string;
+    enabled: boolean;
+    perms: {
+      scripts: Array<string>;
+      mcpServers: Array<{
+          name: string;
+          transport: "stdio" | "http" | "sse" | "ws";
+          target: string;
+          keys: Array<string>;
+        }>;
+      network: Array<string>;
+      vaultKeys: Array<string>;
+    };
+    setup: Record<string, string>;
+    needs: Array<string>;
+    from?: string;
+    updatedAt?: number;
+  };
+};
+export type SkillsSpaceUpdateIn = {
+  name: string;
+  idempotencyKey: string;
+};
+export type SkillsSpaceUpdateOut = {
+  skill: {
+    skillId: string;
+    name: string;
+    label?: string;
+    description: string;
+    source: string;
+    origin: string;
+    version?: string;
+    enabled: boolean;
+    perms: {
+      scripts: Array<string>;
+      mcpServers: Array<{
+          name: string;
+          transport: "stdio" | "http" | "sse" | "ws";
+          target: string;
+          keys: Array<string>;
+        }>;
+      network: Array<string>;
+      vaultKeys: Array<string>;
+    };
+    setup: Record<string, string>;
+    needs: Array<string>;
+    from?: string;
+    updatedAt?: number;
+  };
+  changed: boolean;
+};
+export type SkillsViewIn = {
+  skillId?: string;
+  name?: string;
+};
+export type SkillsViewOut = {
+  skill: {
+    name: string;
+    description: string;
+    text: string;
+    files: Array<{
+        path: string;
+        bytes: number;
+        text: string;
+      }>;
+    perms: {
+      scripts: Array<string>;
+      mcpServers: Array<{
+          name: string;
+          transport: "stdio" | "http" | "sse" | "ws";
+          target: string;
+          keys: Array<string>;
+        }>;
+      network: Array<string>;
+      vaultKeys: Array<string>;
+    };
+    source: string;
+    version?: string;
   };
 };
 export type SourceRulesListIn = Record<string, unknown>;
@@ -26831,6 +28577,13 @@ export type SpacesGetOut = {
     createdAt: number;
   };
 };
+export type SpacesImageIn = {
+  known?: string;
+};
+export type SpacesImageOut = {
+  logoFileId?: string;
+  image?: string;
+};
 export type SpacesLeaveIn = {
   confirm: true;
 };
@@ -26929,7 +28682,7 @@ export type SpacesTransferOwnershipOut = {
 export type SpacesUpdateIn = {
   name?: string;
   legalName?: string;
-  logoFileId: string | null;
+  logoFileId?: string | null;
   defaults?: Record<string, unknown>;
 };
 export type SpacesUpdateOut = {
@@ -28651,7 +30404,7 @@ export type TasksActOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -28722,7 +30475,7 @@ export type TasksAskOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -28793,7 +30546,7 @@ export type TasksAssignOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -28859,7 +30612,7 @@ export type TasksBlockOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -28929,7 +30682,7 @@ export type TasksCreateIn = {
   recordId?: string;
   fileIds?: Array<string>;
   source?: {
-    kind: "chat" | "run" | "gate" | "journey" | "manual";
+    kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
     id: string;
   };
   parentTaskId?: string;
@@ -28983,7 +30736,7 @@ export type TasksCreateOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29050,7 +30803,7 @@ export type TasksDecideOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29121,7 +30874,7 @@ export type TasksDelegateOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29197,7 +30950,7 @@ export type TasksDependenciesAddOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29263,7 +31016,7 @@ export type TasksDependenciesRemoveOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29338,7 +31091,7 @@ export type TasksEscalateOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29404,7 +31157,7 @@ export type TasksFollowersAddOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29470,7 +31223,7 @@ export type TasksFollowersRemoveOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29535,7 +31288,7 @@ export type TasksGetOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29617,7 +31370,7 @@ export type TasksIndexOut = {
       threadId?: string;
       workerThread?: string;
       source?: {
-        kind: "chat" | "run" | "gate" | "journey" | "manual";
+        kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
         id: string;
       };
       snoozedUntil?: number;
@@ -29675,7 +31428,7 @@ export type TasksLinksAddOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29742,7 +31495,7 @@ export type TasksLinksRemoveOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -29818,7 +31571,7 @@ export type TasksListOut = {
       recordId?: string;
       fileIds: Array<string>;
       source?: {
-        kind: "chat" | "run" | "gate" | "journey" | "manual";
+        kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
         id: string;
       };
       parentTaskId?: string;
@@ -29887,7 +31640,7 @@ export type TasksMyWorkOut = {
       recordId?: string;
       fileIds: Array<string>;
       source?: {
-        kind: "chat" | "run" | "gate" | "journey" | "manual";
+        kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
         id: string;
       };
       parentTaskId?: string;
@@ -29960,7 +31713,7 @@ export type TasksNeedsYouOut = {
         recordId?: string;
         fileIds: Array<string>;
         source?: {
-          kind: "chat" | "run" | "gate" | "journey" | "manual";
+          kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
           id: string;
         };
         parentTaskId?: string;
@@ -30064,7 +31817,7 @@ export type TasksPlanOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30135,7 +31888,7 @@ export type TasksReleaseOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30200,7 +31953,7 @@ export type TasksRestoreOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30272,7 +32025,7 @@ export type TasksReviewOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30339,7 +32092,7 @@ export type TasksSnoozeOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30406,7 +32159,7 @@ export type TasksSubmitOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30472,7 +32225,7 @@ export type TasksTakeOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30540,7 +32293,7 @@ export type TasksTransitionOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30626,7 +32379,7 @@ export type TasksUpdateOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30701,7 +32454,7 @@ export type TasksWorkingNotesDeleteOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -30768,7 +32521,7 @@ export type TasksWorkingNotesSetOut = {
     recordId?: string;
     fileIds: Array<string>;
     source?: {
-      kind: "chat" | "run" | "gate" | "journey" | "manual";
+      kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
       id: string;
     };
     parentTaskId?: string;
@@ -33417,6 +35170,7 @@ export type VaultRequestIn = {
   forRun?: string;
   folderId?: string;
   handleOnly?: boolean;
+  to?: string;
   idempotencyKey: string;
 };
 export type VaultRequestOut = {
@@ -33460,6 +35214,7 @@ export type VaultRequestsFulfilIn = {
       value: string;
     }>;
   folderId?: string;
+  audience?: "asker" | "anyone";
 };
 export type VaultRequestsFulfilOut = {
   request: {
@@ -33571,6 +35326,13 @@ export type VaultSiteRulesSetOut = {
   host: string;
   neverFill: boolean;
   neverSave: boolean;
+};
+export type VaultTextCheckIn = {
+  text: string;
+};
+export type VaultTextCheckOut = {
+  handles: Array<string>;
+  checked: boolean;
 };
 export type VaultUnshareIn = {
   resource: {
@@ -34091,6 +35853,7 @@ export interface CapMap {
   "access.groups.list": { in: AccessGroupsListIn; out: AccessGroupsListOut };
   "access.groups.remove_member": { in: AccessGroupsRemoveMemberIn; out: AccessGroupsRemoveMemberOut };
   "access.groups.update": { in: AccessGroupsUpdateIn; out: AccessGroupsUpdateOut };
+  "access.join_share": { in: AccessJoinShareIn; out: AccessJoinShareOut };
   "access.labels.list": { in: AccessLabelsListIn; out: AccessLabelsListOut };
   "access.labels.set": { in: AccessLabelsSetIn; out: AccessLabelsSetOut };
   "access.lists": { in: AccessListsIn; out: AccessListsOut };
@@ -34126,9 +35889,11 @@ export interface CapMap {
   "access.shares_of": { in: AccessSharesOfIn; out: AccessSharesOfOut };
   "access.unshare": { in: AccessUnshareIn; out: AccessUnshareOut };
   "access.view_as": { in: AccessViewAsIn; out: AccessViewAsOut };
+  "agents.assistant_of": { in: AgentsAssistantOfIn; out: AgentsAssistantOfOut };
   "agents.builtin_skill.get": { in: AgentsBuiltinSkillGetIn; out: AgentsBuiltinSkillGetOut };
   "agents.builtin_skills.list": { in: AgentsBuiltinSkillsListIn; out: AgentsBuiltinSkillsListOut };
   "agents.config.get": { in: AgentsConfigGetIn; out: AgentsConfigGetOut };
+  "agents.config.may_save": { in: AgentsConfigMaySaveIn; out: AgentsConfigMaySaveOut };
   "agents.config.validate": { in: AgentsConfigValidateIn; out: AgentsConfigValidateOut };
   "agents.create": { in: AgentsCreateIn; out: AgentsCreateOut };
   "agents.delete": { in: AgentsDeleteIn; out: AgentsDeleteOut };
@@ -34291,6 +36056,8 @@ export interface CapMap {
   "channels.create": { in: ChannelsCreateIn; out: ChannelsCreateOut };
   "channels.erase": { in: ChannelsEraseIn; out: ChannelsEraseOut };
   "channels.get": { in: ChannelsGetIn; out: ChannelsGetOut };
+  "channels.home": { in: ChannelsHomeIn; out: ChannelsHomeOut };
+  "channels.home_join": { in: ChannelsHomeJoinIn; out: ChannelsHomeJoinOut };
   "channels.join": { in: ChannelsJoinIn; out: ChannelsJoinOut };
   "channels.leave": { in: ChannelsLeaveIn; out: ChannelsLeaveOut };
   "channels.list": { in: ChannelsListIn; out: ChannelsListOut };
@@ -34301,6 +36068,7 @@ export interface CapMap {
   "channels.stream_prefs.set": { in: ChannelsStreamPrefsSetIn; out: ChannelsStreamPrefsSetOut };
   "channels.unarchive": { in: ChannelsUnarchiveIn; out: ChannelsUnarchiveOut };
   "channels.update": { in: ChannelsUpdateIn; out: ChannelsUpdateOut };
+  "chat.agent_dm.mute": { in: ChatAgentDmMuteIn; out: ChatAgentDmMuteOut };
   "chat.answer_block": { in: ChatAnswerBlockIn; out: ChatAnswerBlockOut };
   "chat.approve_plan": { in: ChatApprovePlanIn; out: ChatApprovePlanOut };
   "chat.aside": { in: ChatAsideIn; out: ChatAsideOut };
@@ -34320,9 +36088,11 @@ export interface CapMap {
   "chat.history.search": { in: ChatHistorySearchIn; out: ChatHistorySearchOut };
   "chat.make_task": { in: ChatMakeTaskIn; out: ChatMakeTaskOut };
   "chat.message.get": { in: ChatMessageGetIn; out: ChatMessageGetOut };
+  "chat.message_person": { in: ChatMessagePersonIn; out: ChatMessagePersonOut };
   "chat.messages.list": { in: ChatMessagesListIn; out: ChatMessagesListOut };
   "chat.open_as_chat": { in: ChatOpenAsChatIn; out: ChatOpenAsChatOut };
   "chat.open_tab": { in: ChatOpenTabIn; out: ChatOpenTabOut };
+  "chat.people_status": { in: ChatPeopleStatusIn; out: ChatPeopleStatusOut };
   "chat.pin": { in: ChatPinIn; out: ChatPinOut };
   "chat.pins.list": { in: ChatPinsListIn; out: ChatPinsListOut };
   "chat.plan.propose": { in: ChatPlanProposeIn; out: ChatPlanProposeOut };
@@ -34498,6 +36268,7 @@ export interface CapMap {
   "devices.get": { in: DevicesGetIn; out: DevicesGetOut };
   "devices.list": { in: DevicesListIn; out: DevicesListOut };
   "devices.mine": { in: DevicesMineIn; out: DevicesMineOut };
+  "devices.presence": { in: DevicesPresenceIn; out: DevicesPresenceOut };
   "devices.purge_ack": { in: DevicesPurgeAckIn; out: DevicesPurgeAckOut };
   "devices.register": { in: DevicesRegisterIn; out: DevicesRegisterOut };
   "devices.rename": { in: DevicesRenameIn; out: DevicesRenameOut };
@@ -34598,6 +36369,7 @@ export interface CapMap {
   "engine.mcp.read": { in: EngineMcpReadIn; out: EngineMcpReadOut };
   "engine.mcp.tools": { in: EngineMcpToolsIn; out: EngineMcpToolsOut };
   "engine.models.list": { in: EngineModelsListIn; out: EngineModelsListOut };
+  "engine.now": { in: EngineNowIn; out: EngineNowOut };
   "engine.placement.decide": { in: EnginePlacementDecideIn; out: EnginePlacementDecideOut };
   "engine.placement.options": { in: EnginePlacementOptionsIn; out: EnginePlacementOptionsOut };
   "engine.placement.set": { in: EnginePlacementSetIn; out: EnginePlacementSetOut };
@@ -34909,6 +36681,7 @@ export interface CapMap {
   "health.time_skew": { in: HealthTimeSkewIn; out: HealthTimeSkewOut };
   "home.activity": { in: HomeActivityIn; out: HomeActivityOut };
   "home.at_risk": { in: HomeAtRiskIn; out: HomeAtRiskOut };
+  "home.away_digest": { in: HomeAwayDigestIn; out: HomeAwayDigestOut };
   "home.checklist": { in: HomeChecklistIn; out: HomeChecklistOut };
   "home.digest": { in: HomeDigestIn; out: HomeDigestOut };
   "home.dismiss_checklist": { in: HomeDismissChecklistIn; out: HomeDismissChecklistOut };
@@ -35092,6 +36865,15 @@ export interface CapMap {
   "mcp.toolsets.list": { in: McpToolsetsListIn; out: McpToolsetsListOut };
   "meetings.attach_recording": { in: MeetingsAttachRecordingIn; out: MeetingsAttachRecordingOut };
   "meetings.cancel": { in: MeetingsCancelIn; out: MeetingsCancelOut };
+  "meetings.closeout.approve": { in: MeetingsCloseoutApproveIn; out: MeetingsCloseoutApproveOut };
+  "meetings.closeout.edit": { in: MeetingsCloseoutEditIn; out: MeetingsCloseoutEditOut };
+  "meetings.closeout.get": { in: MeetingsCloseoutGetIn; out: MeetingsCloseoutGetOut };
+  "meetings.closeout.list": { in: MeetingsCloseoutListIn; out: MeetingsCloseoutListOut };
+  "meetings.closeout.prepare": { in: MeetingsCloseoutPrepareIn; out: MeetingsCloseoutPrepareOut };
+  "meetings.closeout.propose": { in: MeetingsCloseoutProposeIn; out: MeetingsCloseoutProposeOut };
+  "meetings.closeout.share": { in: MeetingsCloseoutShareIn; out: MeetingsCloseoutShareOut };
+  "meetings.closeout.skip": { in: MeetingsCloseoutSkipIn; out: MeetingsCloseoutSkipOut };
+  "meetings.closeout.sync": { in: MeetingsCloseoutSyncIn; out: MeetingsCloseoutSyncOut };
   "meetings.get": { in: MeetingsGetIn; out: MeetingsGetOut };
   "meetings.ingest": { in: MeetingsIngestIn; out: MeetingsIngestOut };
   "meetings.list": { in: MeetingsListIn; out: MeetingsListOut };
@@ -35109,6 +36891,8 @@ export interface CapMap {
   "members.invites.list": { in: MembersInvitesListIn; out: MembersInvitesListOut };
   "members.invites.preview": { in: MembersInvitesPreviewIn; out: MembersInvitesPreviewOut };
   "members.invites.revoke": { in: MembersInvitesRevokeIn; out: MembersInvitesRevokeOut };
+  "members.joins.list": { in: MembersJoinsListIn; out: MembersJoinsListOut };
+  "members.joins.retry": { in: MembersJoinsRetryIn; out: MembersJoinsRetryOut };
   "members.reactivate": { in: MembersReactivateIn; out: MembersReactivateOut };
   "members.remove": { in: MembersRemoveIn; out: MembersRemoveOut };
   "members.remove_preview": { in: MembersRemovePreviewIn; out: MembersRemovePreviewOut };
@@ -35126,6 +36910,8 @@ export interface CapMap {
   "memory.archive_sweep": { in: MemoryArchiveSweepIn; out: MemoryArchiveSweepOut };
   "memory.backlinks": { in: MemoryBacklinksIn; out: MemoryBacklinksOut };
   "memory.capture": { in: MemoryCaptureIn; out: MemoryCaptureOut };
+  "memory.chat_learning.get": { in: MemoryChatLearningGetIn; out: MemoryChatLearningGetOut };
+  "memory.chat_learning.set": { in: MemoryChatLearningSetIn; out: MemoryChatLearningSetOut };
   "memory.counts": { in: MemoryCountsIn; out: MemoryCountsOut };
   "memory.erase": { in: MemoryEraseIn; out: MemoryEraseOut };
   "memory.export_markdown": { in: MemoryExportMarkdownIn; out: MemoryExportMarkdownOut };
@@ -35149,6 +36935,7 @@ export interface CapMap {
   "memory.layout.get": { in: MemoryLayoutGetIn; out: MemoryLayoutGetOut };
   "memory.layout.save": { in: MemoryLayoutSaveIn; out: MemoryLayoutSaveOut };
   "memory.learned": { in: MemoryLearnedIn; out: MemoryLearnedOut };
+  "memory.learning.today": { in: MemoryLearningTodayIn; out: MemoryLearningTodayOut };
   "memory.maintain": { in: MemoryMaintainIn; out: MemoryMaintainOut };
   "memory.map.get": { in: MemoryMapGetIn; out: MemoryMapGetOut };
   "memory.meaning.rank": { in: MemoryMeaningRankIn; out: MemoryMeaningRankOut };
@@ -35163,6 +36950,11 @@ export interface CapMap {
   "memory.page.set_visibility": { in: MemoryPageSetVisibilityIn; out: MemoryPageSetVisibilityOut };
   "memory.page.versions": { in: MemoryPageVersionsIn; out: MemoryPageVersionsOut };
   "memory.pointer": { in: MemoryPointerIn; out: MemoryPointerOut };
+  "memory.profile.add": { in: MemoryProfileAddIn; out: MemoryProfileAddOut };
+  "memory.profile.context": { in: MemoryProfileContextIn; out: MemoryProfileContextOut };
+  "memory.profile.get": { in: MemoryProfileGetIn; out: MemoryProfileGetOut };
+  "memory.profile.move": { in: MemoryProfileMoveIn; out: MemoryProfileMoveOut };
+  "memory.profile.suggest": { in: MemoryProfileSuggestIn; out: MemoryProfileSuggestOut };
   "memory.promote": { in: MemoryPromoteIn; out: MemoryPromoteOut };
   "memory.promotion.approve": { in: MemoryPromotionApproveIn; out: MemoryPromotionApproveOut };
   "memory.promotion.reject": { in: MemoryPromotionRejectIn; out: MemoryPromotionRejectOut };
@@ -35190,6 +36982,7 @@ export interface CapMap {
   "mounts.doc_insert_text": { in: MountsDocInsertTextIn; out: MountsDocInsertTextOut };
   "mounts.doc_replace_text": { in: MountsDocReplaceTextIn; out: MountsDocReplaceTextOut };
   "mounts.editors": { in: MountsEditorsIn; out: MountsEditorsOut };
+  "mounts.engine_folders": { in: MountsEngineFoldersIn; out: MountsEngineFoldersOut };
   "mounts.file_link": { in: MountsFileLinkIn; out: MountsFileLinkOut };
   "mounts.get": { in: MountsGetIn; out: MountsGetOut };
   "mounts.history": { in: MountsHistoryIn; out: MountsHistoryOut };
@@ -35291,6 +37084,14 @@ export interface CapMap {
   "network.my_computer_decline": { in: NetworkMyComputerDeclineIn; out: NetworkMyComputerDeclineOut };
   "network.my_computer_remove": { in: NetworkMyComputerRemoveIn; out: NetworkMyComputerRemoveOut };
   "network.my_computers": { in: NetworkMyComputersIn; out: NetworkMyComputersOut };
+  "network.peer_allow": { in: NetworkPeerAllowIn; out: NetworkPeerAllowOut };
+  "network.peer_conflicts": { in: NetworkPeerConflictsIn; out: NetworkPeerConflictsOut };
+  "network.peer_decline": { in: NetworkPeerDeclineIn; out: NetworkPeerDeclineOut };
+  "network.peer_remove": { in: NetworkPeerRemoveIn; out: NetworkPeerRemoveOut };
+  "network.peer_requests": { in: NetworkPeerRequestsIn; out: NetworkPeerRequestsOut };
+  "network.peer_runner": { in: NetworkPeerRunnerIn; out: NetworkPeerRunnerOut };
+  "network.peer_server_code": { in: NetworkPeerServerCodeIn; out: NetworkPeerServerCodeOut };
+  "network.peers": { in: NetworkPeersIn; out: NetworkPeersOut };
   "network.phone": { in: NetworkPhoneIn; out: NetworkPhoneOut };
   "network.phone_claim": { in: NetworkPhoneClaimIn; out: NetworkPhoneClaimOut };
   "network.phone_release": { in: NetworkPhoneReleaseIn; out: NetworkPhoneReleaseOut };
@@ -35306,6 +37107,7 @@ export interface CapMap {
   "notifications.away.clear": { in: NotificationsAwayClearIn; out: NotificationsAwayClearOut };
   "notifications.away.get": { in: NotificationsAwayGetIn; out: NotificationsAwayGetOut };
   "notifications.away.set": { in: NotificationsAwaySetIn; out: NotificationsAwaySetOut };
+  "notifications.away.who": { in: NotificationsAwayWhoIn; out: NotificationsAwayWhoOut };
   "notifications.counts": { in: NotificationsCountsIn; out: NotificationsCountsOut };
   "notifications.delegate.get": { in: NotificationsDelegateGetIn; out: NotificationsDelegateGetOut };
   "notifications.delegate.resolve": { in: NotificationsDelegateResolveIn; out: NotificationsDelegateResolveOut };
@@ -35332,8 +37134,15 @@ export interface CapMap {
   "plugins.commands.list": { in: PluginsCommandsListIn; out: PluginsCommandsListOut };
   "plugins.config.set": { in: PluginsConfigSetIn; out: PluginsConfigSetOut };
   "plugins.connection.add": { in: PluginsConnectionAddIn; out: PluginsConnectionAddOut };
+  "plugins.connection.add_mine": { in: PluginsConnectionAddMineIn; out: PluginsConnectionAddMineOut };
+  "plugins.connection.checked": { in: PluginsConnectionCheckedIn; out: PluginsConnectionCheckedOut };
+  "plugins.connection.forget": { in: PluginsConnectionForgetIn; out: PluginsConnectionForgetOut };
   "plugins.connection.remove": { in: PluginsConnectionRemoveIn; out: PluginsConnectionRemoveOut };
+  "plugins.connection.update": { in: PluginsConnectionUpdateIn; out: PluginsConnectionUpdateOut };
+  "plugins.connections.home": { in: PluginsConnectionsHomeIn; out: PluginsConnectionsHomeOut };
   "plugins.connections.list": { in: PluginsConnectionsListIn; out: PluginsConnectionsListOut };
+  "plugins.connections.policy": { in: PluginsConnectionsPolicyIn; out: PluginsConnectionsPolicyOut };
+  "plugins.connections.policy_set": { in: PluginsConnectionsPolicySetIn; out: PluginsConnectionsPolicySetOut };
   "plugins.files": { in: PluginsFilesIn; out: PluginsFilesOut };
   "plugins.get": { in: PluginsGetIn; out: PluginsGetOut };
   "plugins.hooks.list": { in: PluginsHooksListIn; out: PluginsHooksListOut };
@@ -35344,6 +37153,7 @@ export interface CapMap {
   "plugins.marketplace.remove": { in: PluginsMarketplaceRemoveIn; out: PluginsMarketplaceRemoveOut };
   "plugins.marketplaces.list": { in: PluginsMarketplacesListIn; out: PluginsMarketplacesListOut };
   "plugins.mcp.servers": { in: PluginsMcpServersIn; out: PluginsMcpServersOut };
+  "plugins.registry.search": { in: PluginsRegistrySearchIn; out: PluginsRegistrySearchOut };
   "plugins.set_enabled": { in: PluginsSetEnabledIn; out: PluginsSetEnabledOut };
   "plugins.uninstall": { in: PluginsUninstallIn; out: PluginsUninstallOut };
   "portal.account_create": { in: PortalAccountCreateIn; out: PortalAccountCreateOut };
@@ -35403,6 +37213,7 @@ export interface CapMap {
   "providers.subscription_complete": { in: ProvidersSubscriptionCompleteIn; out: ProvidersSubscriptionCompleteOut };
   "providers.subscription_start": { in: ProvidersSubscriptionStartIn; out: ProvidersSubscriptionStartOut };
   "providers.test": { in: ProvidersTestIn; out: ProvidersTestOut };
+  "providers.uses.set": { in: ProvidersUsesSetIn; out: ProvidersUsesSetOut };
   "records.activity": { in: RecordsActivityIn; out: RecordsActivityOut };
   "records.as_of": { in: RecordsAsOfIn; out: RecordsAsOfOut };
   "records.bulk_upsert": { in: RecordsBulkUpsertIn; out: RecordsBulkUpsertOut };
@@ -35551,6 +37362,7 @@ export interface CapMap {
   "settings.kit.set_space": { in: SettingsKitSetSpaceIn; out: SettingsKitSetSpaceOut };
   "settings.list": { in: SettingsListIn; out: SettingsListOut };
   "settings.pages": { in: SettingsPagesIn; out: SettingsPagesOut };
+  "settings.public_of": { in: SettingsPublicOfIn; out: SettingsPublicOfOut };
   "settings.reset": { in: SettingsResetIn; out: SettingsResetOut };
   "settings.reset_space": { in: SettingsResetSpaceIn; out: SettingsResetSpaceOut };
   "settings.search": { in: SettingsSearchIn; out: SettingsSearchOut };
@@ -35598,8 +37410,23 @@ export interface CapMap {
   "skills.add": { in: SkillsAddIn; out: SkillsAddOut };
   "skills.list": { in: SkillsListIn; out: SkillsListOut };
   "skills.load": { in: SkillsLoadIn; out: SkillsLoadOut };
+  "skills.members": { in: SkillsMembersIn; out: SkillsMembersOut };
+  "skills.mine.add": { in: SkillsMineAddIn; out: SkillsMineAddOut };
+  "skills.mine.remove": { in: SkillsMineRemoveIn; out: SkillsMineRemoveOut };
+  "skills.mine.set": { in: SkillsMineSetIn; out: SkillsMineSetOut };
+  "skills.mine.update": { in: SkillsMineUpdateIn; out: SkillsMineUpdateOut };
+  "skills.page": { in: SkillsPageIn; out: SkillsPageOut };
+  "skills.policy.set": { in: SkillsPolicySetIn; out: SkillsPolicySetOut };
+  "skills.preview": { in: SkillsPreviewIn; out: SkillsPreviewOut };
   "skills.remove": { in: SkillsRemoveIn; out: SkillsRemoveOut };
   "skills.set_enabled": { in: SkillsSetEnabledIn; out: SkillsSetEnabledOut };
+  "skills.share": { in: SkillsShareIn; out: SkillsShareOut };
+  "skills.shared.decide": { in: SkillsSharedDecideIn; out: SkillsSharedDecideOut };
+  "skills.space.adopt": { in: SkillsSpaceAdoptIn; out: SkillsSpaceAdoptOut };
+  "skills.space.install": { in: SkillsSpaceInstallIn; out: SkillsSpaceInstallOut };
+  "skills.space.setup": { in: SkillsSpaceSetupIn; out: SkillsSpaceSetupOut };
+  "skills.space.update": { in: SkillsSpaceUpdateIn; out: SkillsSpaceUpdateOut };
+  "skills.view": { in: SkillsViewIn; out: SkillsViewOut };
   "source_rules.list": { in: SourceRulesListIn; out: SourceRulesListOut };
   "source_rules.set": { in: SourceRulesSetIn; out: SourceRulesSetOut };
   "sources.create": { in: SourcesCreateIn; out: SourcesCreateOut };
@@ -35622,6 +37449,7 @@ export interface CapMap {
   "spaces.delete": { in: SpacesDeleteIn; out: SpacesDeleteOut };
   "spaces.export": { in: SpacesExportIn; out: SpacesExportOut };
   "spaces.get": { in: SpacesGetIn; out: SpacesGetOut };
+  "spaces.image": { in: SpacesImageIn; out: SpacesImageOut };
   "spaces.leave": { in: SpacesLeaveIn; out: SpacesLeaveOut };
   "spaces.matrix": { in: SpacesMatrixIn; out: SpacesMatrixOut };
   "spaces.onboarding.complete": { in: SpacesOnboardingCompleteIn; out: SpacesOnboardingCompleteOut };
@@ -35884,6 +37712,7 @@ export interface CapMap {
   "vault.share": { in: VaultShareIn; out: VaultShareOut };
   "vault.site_rules.list": { in: VaultSiteRulesListIn; out: VaultSiteRulesListOut };
   "vault.site_rules.set": { in: VaultSiteRulesSetIn; out: VaultSiteRulesSetOut };
+  "vault.text_check": { in: VaultTextCheckIn; out: VaultTextCheckOut };
   "vault.unshare": { in: VaultUnshareIn; out: VaultUnshareOut };
   "vault.use": { in: VaultUseIn; out: VaultUseOut };
   "views.delete": { in: ViewsDeleteIn; out: ViewsDeleteOut };
@@ -35997,6 +37826,7 @@ export type AgentCreatedPayload = {
   ownerId: string;
   folderId: string;
   templateVersion: number;
+  private?: boolean;
 };
 export type AgentDeletedPayload = {
   agentId: string;
@@ -36062,6 +37892,11 @@ export type AgentPausedPayload = {
   agentId: string;
   reason?: string;
   by: string;
+};
+export type AgentPrivacySetPayload = {
+  agentId: string;
+  ownerId: string;
+  private: boolean;
 };
 export type AgentRestoredPayload = {
   agentId: string;
@@ -37004,6 +38839,10 @@ export type GateApprovedPayload = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
+  capName?: string;
+  threadId?: string;
+  agentId?: string;
+  actingFor?: string;
 };
 export type GateDeniedPayload = {
   holdId: string;
@@ -37016,6 +38855,10 @@ export type GateDeniedPayload = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
+  capName?: string;
+  threadId?: string;
+  agentId?: string;
+  actingFor?: string;
 };
 export type GateExpiredPayload = {
   holdId: string;
@@ -37511,6 +39354,17 @@ export type McpSetupChangedPayload = {
 export type MeetingCanceledPayload = {
   meetingId: string;
 };
+export type MeetingClosedPayload = {
+  meetingId: string;
+  made: Array<{
+      type: string;
+      id: string;
+    }>;
+};
+export type MeetingCloseoutReadyPayload = {
+  meetingId: string;
+  items: number;
+};
 export type MeetingEndedPayload = {
   meetingId: string;
   provider: "zoom" | "meet" | "teams" | "none";
@@ -37551,6 +39405,12 @@ export type MemberInvitedPayload = {
   role: string;
   expiresAt: number;
 };
+export type MemberJoinStuckPayload = {
+  personId: string;
+  step: string;
+  error: string;
+  tries: number;
+};
 export type MemberJoinedPayload = {
   personId: string;
   inviteId: string;
@@ -37578,6 +39438,11 @@ export type MemoryCapturedPayload = {
   threadId: string;
   proposed: number;
   merged: number;
+};
+export type MemoryChatLearningChangedPayload = {
+  threadId: string;
+  remember: boolean;
+  by: string;
 };
 export type MemoryErasedPayload = {
   count: number;
@@ -38020,13 +39885,28 @@ export type PluginChangedPayload = {
 export type PluginConnectionAddedPayload = {
   connectionId: string;
   name: string;
-  scope: "space" | "agent";
+  scope: "space" | "agent" | "mine";
   agentId?: string;
   by: string;
+};
+export type PluginConnectionChangedPayload = {
+  connectionId: string;
+  name: string;
+  by: string;
+};
+export type PluginConnectionCheckedPayload = {
+  connectionId: string;
+  name: string;
+  health: "ok" | "needs_signin" | "key_refused" | "not_answering" | "needs_setup" | "off" | "unknown";
 };
 export type PluginConnectionRemovedPayload = {
   connectionId: string;
   name: string;
+  by: string;
+};
+export type PluginConnectionsPolicyChangedPayload = {
+  spaceAdders: "admins" | "managers";
+  allowListOn: boolean;
   by: string;
 };
 export type PluginInstalledPayload = {
@@ -38733,9 +40613,32 @@ export type SkillChangedPayload = {
   enabled: boolean;
   by: string;
 };
+export type SkillMineChangedPayload = {
+  skillId: string;
+  name: string;
+  op: "added" | "changed" | "removed" | "updated";
+  by: string;
+};
+export type SkillPolicyChangedPayload = {
+  scriptsAdminOnly: boolean;
+  by: string;
+};
 export type SkillRemovedPayload = {
   name: string;
   agentId?: string;
+  by: string;
+};
+export type SkillShareDecidedPayload = {
+  skillId: string;
+  name: string;
+  decision: "add" | "not_now";
+  by: string;
+};
+export type SkillSharedPayload = {
+  skillId: string;
+  name: string;
+  to: Array<string>;
+  stop: boolean;
   by: string;
 };
 export type SmsErasedPayload = {
@@ -39016,7 +40919,7 @@ export type TaskCompletedPayload = {
   kind: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
   recordId?: string;
   source?: {
-    kind: "chat" | "run" | "gate" | "journey" | "manual";
+    kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
     id: string;
   };
 };
@@ -39030,7 +40933,7 @@ export type TaskCreatedPayload = {
   };
   recordId?: string;
   source?: {
-    kind: "chat" | "run" | "gate" | "journey" | "manual";
+    kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual";
     id: string;
   };
 };
@@ -39419,6 +41322,7 @@ export type VaultRequestDeclinedPayload = {
 export type VaultRequestFulfilledPayload = {
   requestId: string;
   itemId: string;
+  handle?: string;
   forRun?: string;
   name?: string;
   threadId?: string;
@@ -39578,6 +41482,7 @@ export interface EventMap {
   "agent.model_changed": AgentModelChangedPayload;
   "agent.owner_changed": AgentOwnerChangedPayload;
   "agent.paused": AgentPausedPayload;
+  "agent.privacy_set": AgentPrivacySetPayload;
   "agent.restored": AgentRestoredPayload;
   "agent.resumed": AgentResumedPayload;
   "agent.routine_changed": AgentRoutineChangedPayload;
@@ -39853,6 +41758,8 @@ export interface EventMap {
   "mcp.session_started": McpSessionStartedPayload;
   "mcp.setup_changed": McpSetupChangedPayload;
   "meeting.canceled": MeetingCanceledPayload;
+  "meeting.closed": MeetingClosedPayload;
+  "meeting.closeout_ready": MeetingCloseoutReadyPayload;
   "meeting.ended": MeetingEndedPayload;
   "meeting.merged": MeetingMergedPayload;
   "meeting.recording_attached": MeetingRecordingAttachedPayload;
@@ -39862,11 +41769,13 @@ export interface EventMap {
   "meeting.unmerged": MeetingUnmergedPayload;
   "member.invite_revoked": MemberInviteRevokedPayload;
   "member.invited": MemberInvitedPayload;
+  "member.join_stuck": MemberJoinStuckPayload;
   "member.joined": MemberJoinedPayload;
   "member.removal_plan_applied": MemberRemovalPlanAppliedPayload;
   "member.removed": MemberRemovedPayload;
   "memory.archived": MemoryArchivedPayload;
   "memory.captured": MemoryCapturedPayload;
+  "memory.chat_learning_changed": MemoryChatLearningChangedPayload;
   "memory.erased": MemoryErasedPayload;
   "memory.everything_viewed": MemoryEverythingViewedPayload;
   "memory.fact_accepted": MemoryFactAcceptedPayload;
@@ -39944,7 +41853,10 @@ export interface EventMap {
   "plugin.allowlist_changed": PluginAllowlistChangedPayload;
   "plugin.changed": PluginChangedPayload;
   "plugin.connection_added": PluginConnectionAddedPayload;
+  "plugin.connection_changed": PluginConnectionChangedPayload;
+  "plugin.connection_checked": PluginConnectionCheckedPayload;
   "plugin.connection_removed": PluginConnectionRemovedPayload;
+  "plugin.connections_policy_changed": PluginConnectionsPolicyChangedPayload;
   "plugin.installed": PluginInstalledPayload;
   "plugin.marketplace_added": PluginMarketplaceAddedPayload;
   "plugin.marketplace_refreshed": PluginMarketplaceRefreshedPayload;
@@ -40074,7 +41986,11 @@ export interface EventMap {
   "site.table_promoted": SiteTablePromotedPayload;
   "skill.added": SkillAddedPayload;
   "skill.changed": SkillChangedPayload;
+  "skill.mine_changed": SkillMineChangedPayload;
+  "skill.policy_changed": SkillPolicyChangedPayload;
   "skill.removed": SkillRemovedPayload;
+  "skill.share_decided": SkillShareDecidedPayload;
+  "skill.shared": SkillSharedPayload;
   "sms.erased": SmsErasedPayload;
   "sms.received": SmsReceivedPayload;
   "source.created": SourceCreatedPayload;
