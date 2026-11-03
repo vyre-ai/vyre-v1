@@ -149,7 +149,7 @@ test("a path that loops back is an error unless it goes through a Loop step", as
 
 // ---- live steps: Run code and the AI step ----
 
-type Prov = { id: string; handle?: string; itemId: string; name: string; connection: string; scope: string; spaceMayUse: boolean; state: string };
+type Prov = { id: string; handle?: string; itemId: string; name: string; connection: string; scope: string; spaceMayUse: boolean; state: string; uses?: Record<string, unknown>; capped?: boolean };
 const prov = (over: Partial<Prov> = {}): Prov => ({ id: "prv_1", handle: "#Mine_Anthropic", itemId: "vit_1", name: "Mine Anthropic", connection: "api_key", scope: "mine", spaceMayUse: false, state: "ok", ...over });
 const shared = (over: Partial<Prov> = {}): Prov => prov({ id: "prv_s", handle: "#Team_Key", itemId: "vit_s", name: "Team key", scope: "shared", ...over });
 function liveHarness(opts: { code?: boolean | string; providers?: Prov[] } = {}) {
@@ -394,4 +394,39 @@ test("a Personal copy of a Space Automation runs with only the copier's access",
   const named = await h.call("automations.make_personal_copy", { automationId: id, name: "Mine" }, bob);
   assert.equal(named.automation.name, "Mine");
   await refused(h.call("automations.make_personal_copy", { automationId: r.automation.id }, bob), "validation.precondition_failed", "not_space");
+});
+
+test("a Space automation's AI account: Automatic needs a Space account kept for automations, and a chosen account and its backup must be kept for them too", async () => {
+  const spaceDraft = async (h: Harness, definition?: Record<string, unknown>): Promise<string> => {
+    const id = await draftWith(h, aiNode({}, { keyId: "#Team_Key" }));
+    await h.call("automations.promote", { automationId: id, confirm: true }, alice);
+    if (definition) {
+      const a = (await h.call("automations.get", { automationId: id }, alice)).automation;
+      const nodes = a.definition.nodes.map((n: { ai?: Record<string, unknown> }) => ({ ...n, ai: {} }));
+      await h.call("automations.update", { automationId: id, definition: { ...a.definition, nodes, ...definition }, expectedVersion: a.version }, alice);
+    }
+    return id;
+  };
+  const kept = shared({ uses: { automations: true } });
+  // Automatic (no step key, no account on the automation): a Space account kept for automations covers it
+  const auto = liveHarness({ providers: [kept] });
+  const autoId = await spaceDraft(auto, {});
+  assert.equal((await turnOn(auto, autoId)).automation.status, "on");
+  // none kept for automations: refused, and the message says what to tick
+  const none = liveHarness({ providers: [shared({ uses: { teamChats: { who: "everyone" } } })] });
+  await assert.rejects(turnOn(none, await spaceDraft(none, {})), (e) => { assert.match(messageOf(e), /Space AI account that pays for automations/); return true; });
+  // a capped account does not count for Automatic
+  const capped = liveHarness({ providers: [{ ...kept, capped: true }] });
+  await assert.rejects(turnOn(capped, await spaceDraft(capped, {})), (e) => { assert.match(messageOf(e), /pays for automations/); return true; });
+  // the automation's own account is kept in the definition and read back
+  const pick = liveHarness({ providers: [kept, shared({ id: "prv_b", handle: "#Backup", itemId: "vit_b", name: "Backup", uses: { automations: true } })] });
+  const pickId = await spaceDraft(pick, { ai: { keyId: "#Team_Key", backupKeyId: "#Backup" } });
+  assert.deepEqual((await pick.call("automations.get", { automationId: pickId }, alice)).automation.definition.ai, { keyId: "#Team_Key", backupKeyId: "#Backup" });
+  assert.equal((await turnOn(pick, pickId)).automation.status, "on");
+  // a chosen account that is not kept for automations is refused by name
+  const wrong = liveHarness({ providers: [shared({ uses: { teamChats: { who: "everyone" } } })] });
+  await assert.rejects(turnOn(wrong, await spaceDraft(wrong, { ai: { keyId: "#Team_Key" } })), (e) => { assert.match(messageOf(e), /Team key, the AI account chosen for this automation, is not set to pay for automations/); return true; });
+  // so is a backup that is gone
+  const gone = liveHarness({ providers: [kept] });
+  await assert.rejects(turnOn(gone, await spaceDraft(gone, { ai: { keyId: "#Team_Key", backupKeyId: "#Missing" } })), (e) => { assert.match(messageOf(e), /#Missing is not in the Vault/); return true; });
 });

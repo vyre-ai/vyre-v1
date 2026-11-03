@@ -348,3 +348,19 @@ test("the server reads an agent's memory key for the nightly job without seeing 
   const other = hn.as({ kind: "service", id: "svc_deadbeefdeadbeefdeadbeefdeadbeef" });
   assert.equal(await failure(() => h["agents.memory_key.get"]!(other, { agentId: a.agentId })), "validation.not_found", "a tenant's service is not the server");
 });
+
+test("an agent's AI account for its own work is a setting: set, kept in agent.toml, checked as a Vault name, cleared back to Automatic, and hidden from a person who cannot see the setup", async () => {
+  const hn = harness();
+  const a = (await h["agents.create"]!(hn.ctx, { name: "Worker", role: "Use me for routines.", idempotencyKey: "wk1" })).agent;
+  assert.equal(a.workKey, undefined, "absent is Automatic");
+  const set = await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { workKey: "#Team_Credits" } });
+  assert.equal(set.agent.workKey, "#Team_Credits");
+  assert.equal(set.agent.accountPolicy, "asker", "the chat key is not touched: a chat still runs on the asker's own account");
+  const toml = String(hn.rows("SELECT tomlText FROM agents_agent WHERE id = ?", a.agentId)[0]!["tomlText"]);
+  assert.match(toml, /work_key = "#Team_Credits"/);
+  assert.equal((await h["agents.get"]!(hn.ctx, { agentId: a.agentId })).agent.workKey, "#Team_Credits");
+  await assert.rejects(() => h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { workKey: "nope" } }), /Vault name/);
+  const cleared = await h["agents.update"]!(hn.ctx, { agentId: a.agentId, patch: { workKey: null } });
+  assert.equal(cleared.agent.workKey, undefined);
+  assert.doesNotMatch(String(hn.rows("SELECT tomlText FROM agents_agent WHERE id = ?", a.agentId)[0]!["tomlText"]), /work_key/);
+});

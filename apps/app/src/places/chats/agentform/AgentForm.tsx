@@ -11,10 +11,14 @@ import type { ConfigDirectory } from "../../automations/config/data.tsx";
 import { Overlay } from "../../automations/config/Overlay.tsx";
 import { shareRows } from "../../automations/config/SettingsTab.tsx";
 import { ShareSheet } from "../../../../../../ui/src/ShareSheet/index.tsx";
+import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { aiMenu } from "../../vault/providers/aiMenu.ts";
+import { aiCaption, aiName, automaticLine } from "../../vault/providers/pick.ts";
+import { useSpaceAi } from "../../vault/providers/useSpaceAi.ts";
 import type { ShareInput, UnshareInput } from "../../../../../../ui/src/ShareSheet/index.tsx";
 import { Glyph as Mark } from "../conversation/parts.tsx";
 import { Glyph } from "../sidebar/parts.tsx";
-import { createInput, draftInstructions, faceChoices, faceSeed, grantsFor, reachOffers, updatePatch } from "./model.ts";
+import { createInput, draftInstructions, faceChoices, faceSeed, grantsFor, reachOffers, updatePatch, workPatch } from "./model.ts";
 import type { AgentDraft, ComputerChoice, VaultItem } from "./model.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
@@ -33,7 +37,7 @@ export interface AgentFormProps {
   sharing?: { directory: ConfigDirectory; meName: string; meId: string; nameOf(id: string): string };
 }
 
-const EMPTY: AgentDraft = { name: "", does: "", face: "", instructions: "", model: "", fallbackModel: "", computer: "none" };
+const EMPTY: AgentDraft = { name: "", does: "", face: "", instructions: "", model: "", fallbackModel: "", computer: "none", workKey: "" };
 const COMPUTERS: readonly { id: ComputerChoice; title: string; note: string }[] = [
   { id: "none", title: "No computer", note: "Works in chat, files and tools" },
   { id: "own", title: "Its own computer", note: "A browser, terminal and files of its own. Asleep until needed" },
@@ -60,6 +64,10 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
   const [folderId, setFolderId] = useState<string | null>(null);
   const [models, setModels] = useState<readonly { model: string; title: string }[]>([]);
   const [busy, setBusy] = useState(false);
+  const spaceAi = useSpaceAi(call);
+  const aiPop = useMenu();
+  // the account the agent was saved with: only a change is sent
+  const [savedWork, setSavedWork] = useState("");
   const set = (p: Partial<AgentDraft>): void => setD((c) => ({ ...c, ...p }));
 
   useEffect(() => {
@@ -70,7 +78,8 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
     void Promise.resolve(call("agents.get", { agentId })).then(async (o) => {
       const a = (o as CapMap["agents.get"]["out"]).agent;
       if (!live) return;
-      setD((c) => ({ ...c, name: a.name, does: a.role ?? "", face: a.face.startsWith("pick-") ? a.face : "", model: a.model ?? "", fallbackModel: a.fallbackModel ?? "" }));
+      setD((c) => ({ ...c, name: a.name, does: a.role ?? "", face: a.face.startsWith("pick-") ? a.face : "", model: a.model ?? "", fallbackModel: a.fallbackModel ?? "", workKey: a.workKey ?? "" }));
+      setSavedWork(a.workKey ?? "");
       setFolderId(a.folderId);
       const ls = (await call("files.list", { section: "space", folder: a.folderId, limit: 50 })) as CapMap["files.list"]["out"];
       const md = ls.files.find((f) => f.name === "AGENT.md");
@@ -93,7 +102,10 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
         const made = (await call("agents.create", createInput(d, newKey()))) as CapMap["agents.create"]["out"];
         id = made.agent.agentId;
         folder = made.agent.folderId;
-      } else await call("agents.update", { agentId: id, patch: updatePatch(d) });
+        // the AI account is not part of agents.create: set it on the new agent
+        const work = workPatch(d.workKey, "");
+        if (Object.keys(work).length > 0) await call("agents.update", { agentId: id, patch: work });
+      } else await call("agents.update", { agentId: id, patch: { ...updatePatch(d), ...workPatch(d.workKey, savedWork) } });
       if (folder) {
         const ls = (await call("files.list", { section: "space", folder, limit: 50 })) as CapMap["files.list"]["out"];
         const md = ls.files.find((f) => f.name === "AGENT.md");
@@ -168,6 +180,24 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
           </Section>
         ) : null}
 
+        {sharing ? (
+          <Section title="AI account">
+            <Pressable
+              role="button" aria-haspopup="menu" aria-label={`AI account: ${aiName(spaceAi ?? [], d.workKey)}. Change`} testID="agent-ai-account"
+              onPress={(e) => {
+                const r = (e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } }).currentTarget?.getBoundingClientRect?.();
+                aiPop.show(aiMenu(spaceAi ?? [], "agentWork", d.workKey || undefined, (h) => set({ workKey: h ?? "" }), { ...(agentId ? { agentId } : {}) }), r?.left ?? 0, (r?.bottom ?? 0) + 4, "other");
+              }}
+              style={st.kv}
+            >
+              <Text style={st.lineText}>{aiName(spaceAi ?? [], d.workKey)}</Text>
+              <Text style={st.lineNote}>{aiCaption(d.workKey || undefined, spaceAi ?? [])}</Text>
+            </Pressable>
+            <Text testID="agent-ai-note" style={st.hint}>Pays for its own work: routines, watchers and helpers that run with nobody asking. Automatic uses a Space AI account the rules allow for this agent, the cheapest that fits. In a chat, the person's own account comes first.</Text>
+            {!d.workKey && spaceAi ? <Text testID="agent-ai-today" style={st.hint}>{automaticLine(spaceAi, "agentWork", agentId ?? undefined)}</Text> : null}
+          </Section>
+        ) : null}
+
         <Section title="Preferred model" note="Only a default: a choice in a chat wins">
           <View style={st.row}>
             <Pressable role="radio" aria-checked={d.model === ""} testID="agent-model-auto" onPress={() => set({ model: "" })} style={[st.chip, d.model === "" && st.chipOn]}><Text style={st.chipText}>Whatever you have</Text></Pressable>
@@ -180,6 +210,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
           <Btn label="Cancel" testID="agent-cancel" onPress={onCancel} />
         </View>
       </View>
+      {aiPop.element}
       {sharing && sharingOpen && agentId !== null && shares ? (
         <Overlay label="Who can use it" onClose={() => setSharingOpen(false)} testID="agent-share-overlay">
           <ShareSheet
@@ -233,6 +264,8 @@ const st = StyleSheet.create({
   over: { backgroundColor: "var(--hover)" as string },
   lineText: { fontSize: 14, color: "var(--ink)" as string },
   lineNote: { fontSize: 12.5, color: "var(--ink-3)" as string },
+  kv: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, minHeight: 40, paddingHorizontal: 12, borderRadius: 11, backgroundColor: "var(--sunk)" as string },
+  hint: { marginTop: 6, fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
   opt: { flexDirection: "row", alignItems: "center", gap: 11, paddingVertical: 8 },
   optText: { flex: 1, gap: 1 },
   radio: { width: 16, height: 16, borderRadius: 8, boxShadow: "inset 0 0 0 1.5px var(--line-2)" } as object,

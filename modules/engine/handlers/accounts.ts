@@ -22,7 +22,7 @@ interface ProviderRow {
   uses?: SpaceUses; teamChatsForMe?: boolean; capped?: boolean; models?: string[];
 }
 interface ThreadOut { thread: { starter: string; agents: Array<{ agentId: string; accountRef?: string; provider?: string; model?: string }> } }
-interface AgentOut { agent: { accountPolicy: "asker" | "key"; accountKey?: string; accountFallback?: string[]; model?: string } }
+interface AgentOut { agent: { accountPolicy: "asker" | "key"; accountKey?: string; workKey?: string; accountFallback?: string[]; model?: string } }
 interface PolicyOut { allowedAccounts: "any" | "company" }
 interface DefaultsOut { fallback: Array<{ accountRef?: string }> }
 interface PlacementOut { placement: "host" | "device" | "wait" }
@@ -136,7 +136,7 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
     // the person chose the chat's account and its model together: a list that does not have the model fails the turn rather than run elsewhere
     ...(member?.accountRef && member?.model ? { modelPinned: true } : {}),
     ...(member?.accountRef ? { threadAccountRef: c(member.accountRef) } : {}),
-    agent: { agentId: input.agentId, accountPolicy: a.agent.accountPolicy, ...(a.agent.accountKey ? { accountKey: c(a.agent.accountKey) } : {}), ...(a.agent.accountFallback?.length ? { accountFallback: a.agent.accountFallback.map(c) } : {}), ...(provider ? { provider } : {}) },
+    agent: { agentId: input.agentId, accountPolicy: a.agent.accountPolicy, ...(a.agent.accountKey ? { accountKey: c(a.agent.accountKey) } : {}), ...(a.agent.workKey ? { workKey: c(a.agent.workKey) } : {}), ...(a.agent.accountFallback?.length ? { accountFallback: a.agent.accountFallback.map(c) } : {}), ...(provider ? { provider } : {}) },
     ...(input.stepKey ? { stepKey: c(input.stepKey) } : {}),
     backupRefs: defaults.fallback.flatMap((f) => (f.accountRef ? [c(f.accountRef)] : [])),
     policy: policy.allowedAccounts,

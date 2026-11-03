@@ -57,6 +57,7 @@ type Out = {
       accountKey?: string;
       accountFallback: Array<string>;
       memoryKey?: string;
+      workKey?: string;
       switchOnLimit?: boolean;
       toolsAllowed: Array<string>;
       toolsDenied: Array<string>;
@@ -149,7 +150,8 @@ type Out = {
         ],
         "vaultKeys": [
           "example"
-        ]
+        ],
+        "workKey": "#Team_Anthropic_Key"
       }
     ],
     "next": "example",

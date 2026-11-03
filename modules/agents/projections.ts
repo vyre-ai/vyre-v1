@@ -260,7 +260,7 @@ export function dumpToml(doc: TomlDoc, header = ""): string {
 export interface Limits { runCostMicros?: number; dayCostMicros?: number; monthCostMicros?: number; turnsPerDay?: number; minutesPerRun?: number; tokensPerDay?: number }
 export type LimitKey = keyof Limits;
 export interface AgentConfig {
-  name: string; description?: string; model?: string; fallbackModel?: string; accountPolicy: "asker" | "key"; accountKey?: string; accountFallback: string[]; memoryKey?: string; /** Switch to the next usable account when this one runs out of its limit. Absent means on. */ switchOnLimit?: boolean; handoffs: string[];
+  name: string; description?: string; model?: string; fallbackModel?: string; accountPolicy: "asker" | "key"; accountKey?: string; accountFallback: string[]; memoryKey?: string; /** The AI account for the agent's own work (routines, watchers, helpers: turns nobody asked for). Absent: Automatic, the cheapest Space AI account kept for that. */ workKey?: string; /** Switch to the next usable account when this one runs out of its limit. Absent means on. */ switchOnLimit?: boolean; handoffs: string[];
   toolsAllowed: string[]; toolsDenied: string[]; vaultKeys: string[]; limits: Limits; captureMode: "auto" | "propose" | "auto_low_risk" | "off";
 }
 /** manifest limit name -> key in [limits] of agent.toml (the keys files.lint knows). */
@@ -316,6 +316,7 @@ export function checkToml(text: string, o: { agentNames?: readonly string[]; sel
   let accountKey: string | undefined;
   let accountFallback: string[] = [];
   let memoryKey: string | undefined;
+  let workKey: string | undefined;
   let switchOnLimit: boolean | undefined;
   if (vault) {
     const k = strList(vault["keys"]);
@@ -324,6 +325,8 @@ export function checkToml(text: string, o: { agentNames?: readonly string[]; sel
     if (fb === null || fb.some((x) => !HANDLE.test(x))) err("vault.account_fallback", "vault.account_fallback is a list of Vault names like #Team_Anthropic_Key, best first."); else accountFallback = fb;
     const mk = vault["memory_key"];
     if (mk !== undefined) { if (typeof mk !== "string" || !HANDLE.test(mk)) err("vault.memory_key", "vault.memory_key is a Vault name like #Team_Anthropic_Key."); else memoryKey = mk; }
+    const wk = vault["work_key"];
+    if (wk !== undefined) { if (typeof wk !== "string" || !HANDLE.test(wk)) err("vault.work_key", "vault.work_key is a Vault name like #Team_Anthropic_Key."); else workKey = wk; }
     const sw = vault["switch_on_limit"];
     if (sw !== undefined) { if (typeof sw !== "boolean") err("vault.switch_on_limit", "vault.switch_on_limit is true or false."); else switchOnLimit = sw; }
     const ak = vault["account_key"];
@@ -355,6 +358,7 @@ export function checkToml(text: string, o: { agentNames?: readonly string[]; sel
   if (typeof d["fallback_model"] === "string" && d["fallback_model"] !== "") config.fallbackModel = d["fallback_model"];
   if (accountKey !== undefined) config.accountKey = accountKey;
   if (memoryKey !== undefined) config.memoryKey = memoryKey;
+  if (workKey !== undefined) config.workKey = workKey;
   if (switchOnLimit !== undefined) config.switchOnLimit = switchOnLimit;
   return { ok: true, errors, warnings, config };
 }
@@ -374,6 +378,7 @@ export function writeConfig(doc: TomlDoc, c: AgentConfig): TomlDoc {
   const vault = sub("vault"); vault["keys"] = c.vaultKeys; if (c.accountKey !== undefined) vault["account_key"] = c.accountKey; else delete vault["account_key"];
   if ((c.accountFallback ?? []).length > 0) vault["account_fallback"] = c.accountFallback; else delete vault["account_fallback"];
   if (c.memoryKey !== undefined) vault["memory_key"] = c.memoryKey; else delete vault["memory_key"];
+  if (c.workKey !== undefined) vault["work_key"] = c.workKey; else delete vault["work_key"];
   if (c.switchOnLimit !== undefined) vault["switch_on_limit"] = c.switchOnLimit; else delete vault["switch_on_limit"];
   out["vault"] = vault;
   const limits = sub("limits");
@@ -407,6 +412,7 @@ export function widenings(before: AgentConfig, after: AgentConfig): string[] {
   if (after.accountKey !== undefined && after.accountKey !== before.accountKey) out.push(`vault.account_key uses ${after.accountKey}`);
   added("vault.account_fallback", before.accountFallback ?? [], after.accountFallback ?? []);
   if (after.memoryKey !== undefined && after.memoryKey !== before.memoryKey) out.push(`vault.memory_key uses ${after.memoryKey}`);
+  if (after.workKey !== undefined && after.workKey !== before.workKey) out.push(`vault.work_key uses ${after.workKey}`);
   for (const k of LIMIT_KEYS) {
     const b = before.limits[k], a = after.limits[k];
     if (a === undefined && b !== undefined) out.push(`limits.${LIMIT_TOML[k]} is removed`);
@@ -417,7 +423,7 @@ export function widenings(before: AgentConfig, after: AgentConfig): string[] {
 
 export type PatchResult = { ok: true; doc: TomlDoc; config: AgentConfig; fields: string[]; face?: string } | { ok: false; code: "validation.field_locked" | "validation.bad_input"; message: string };
 const LOCKED = new Set(["agentId", "ownerId", "folderId", "status", "pausedReason", "pausedBy", "templateVersion", "createdAt", "lastActiveAt", "hasComputer"]);
-const SETTABLE = new Set(["name", "face", "role", "model", "fallbackModel", "accountPolicy", "accountKey", "accountFallback", "memoryKey", "switchOnLimit", "toolsAllowed", "toolsDenied", "vaultKeys", "limits", "captureMode", "handoffs"]);
+const SETTABLE = new Set(["name", "face", "role", "model", "fallbackModel", "accountPolicy", "accountKey", "accountFallback", "memoryKey", "workKey", "switchOnLimit", "toolsAllowed", "toolsDenied", "vaultKeys", "limits", "captureMode", "handoffs"]);
 
 /** Apply the fields of agents.update to the current document. Nothing is half applied: the answer is the new document or the reason it cannot be. */
 export function applyPatch(doc: TomlDoc, current: AgentConfig, patch: Record<string, unknown>): PatchResult {
@@ -439,11 +445,11 @@ export function applyPatch(doc: TomlDoc, current: AgentConfig, patch: Record<str
         if (t.trim() === "") delete next.description; else next.description = t.trim();
         break;
       }
-      case "model": case "fallbackModel": case "accountKey": case "memoryKey": {
-        if (v === null || v === "") { if (k === "model") delete next.model; else if (k === "fallbackModel") delete next.fallbackModel; else if (k === "memoryKey") delete next.memoryKey; else delete next.accountKey; break; }
+      case "model": case "fallbackModel": case "accountKey": case "memoryKey": case "workKey": {
+        if (v === null || v === "") { if (k === "model") delete next.model; else if (k === "fallbackModel") delete next.fallbackModel; else if (k === "memoryKey") delete next.memoryKey; else if (k === "workKey") delete next.workKey; else delete next.accountKey; break; }
         const t = text(); if (typeof t !== "string") return t;
-        if ((k === "accountKey" || k === "memoryKey") && !HANDLE.test(t)) return bad("A key is a Vault name like #Team_Anthropic_Key.");
-        if (k === "model") next.model = t; else if (k === "fallbackModel") next.fallbackModel = t; else if (k === "memoryKey") next.memoryKey = t; else next.accountKey = t;
+        if ((k === "accountKey" || k === "memoryKey" || k === "workKey") && !HANDLE.test(t)) return bad("A key is a Vault name like #Team_Anthropic_Key.");
+        if (k === "model") next.model = t; else if (k === "fallbackModel") next.fallbackModel = t; else if (k === "memoryKey") next.memoryKey = t; else if (k === "workKey") next.workKey = t; else next.accountKey = t;
         break;
       }
       case "switchOnLimit": if (typeof v !== "boolean") return bad("switchOnLimit is true or false."); next.switchOnLimit = v; break;
@@ -525,7 +531,7 @@ export function agentOut(a: AgentRec, now: number): Record<string, unknown> {
     agentId: a.id, name: a.name, kind: a.kind, ...(a.runtime === "outside" ? { runtime: a.runtime } : {}), face: a.face, ...(c.description !== undefined ? { role: c.description } : {}), status: statusOf(a, now),
     ...(a.paused && a.pausedReason !== undefined ? { pausedReason: a.pausedReason } : {}), ...(a.paused && a.pausedBy !== undefined ? { pausedBy: a.pausedBy } : {}),
     ownerId: a.ownerId, folderId: a.folderId ?? "fld_unset", ...(c.model !== undefined ? { model: c.model } : {}), ...(c.fallbackModel !== undefined ? { fallbackModel: c.fallbackModel } : {}),
-    accountPolicy: c.accountPolicy, ...(c.accountKey !== undefined ? { accountKey: c.accountKey } : {}), accountFallback: c.accountFallback ?? [], ...(c.memoryKey !== undefined ? { memoryKey: c.memoryKey } : {}), ...(c.switchOnLimit !== undefined ? { switchOnLimit: c.switchOnLimit } : {}), toolsAllowed: c.toolsAllowed, toolsDenied: c.toolsDenied, vaultKeys: c.vaultKeys,
+    accountPolicy: c.accountPolicy, ...(c.accountKey !== undefined ? { accountKey: c.accountKey } : {}), accountFallback: c.accountFallback ?? [], ...(c.memoryKey !== undefined ? { memoryKey: c.memoryKey } : {}), ...(c.workKey !== undefined ? { workKey: c.workKey } : {}), ...(c.switchOnLimit !== undefined ? { switchOnLimit: c.switchOnLimit } : {}), toolsAllowed: c.toolsAllowed, toolsDenied: c.toolsDenied, vaultKeys: c.vaultKeys,
     limits: c.limits, captureMode: c.captureMode, hasComputer: a.hasComputer, templateVersion: a.templateVersion, createdAt: a.createdAt,
     ...(a.lastActiveAt !== undefined ? { lastActiveAt: a.lastActiveAt } : {}),
   };
@@ -1161,7 +1167,7 @@ export function mustChangeSettings(ctx: AgentsCtx, a: AgentRec): void {
 
 /** An agent's shape without its setup: the fields the contract requires stay, empty. */
 export function withoutSetup<T extends object>(out: T): T {
-  const { accountKey: _key, memoryKey: _memory, ...rest } = out as T & { accountKey?: unknown; memoryKey?: unknown };
+  const { accountKey: _key, memoryKey: _memory, workKey: _work, ...rest } = out as T & { accountKey?: unknown; memoryKey?: unknown; workKey?: unknown };
   return { ...rest, accountFallback: [], vaultKeys: [], limits: {} } as unknown as T;
 }
 /** An agent as the contract returns it, with the project it is a teammate of when it is one. */

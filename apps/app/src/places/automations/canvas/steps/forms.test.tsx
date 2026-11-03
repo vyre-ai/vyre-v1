@@ -109,8 +109,8 @@ test("the AI step says whose account it runs on: a Personal one on the owner's, 
   assert.ok(has(personal, "A Personal automation runs on your own AI account unless you pick another."));
   assert.equal(has(personal, "needs a key shared with the Space"), false);
   const space = panel(bare, "space");
-  assert.match(tag(space, "choose-key"), /aria-label="Runs on: Choose a shared key"/);
-  assert.ok(has(space, "A Space automation runs as itself and can use only a key shared with the Space."));
+  assert.match(tag(space, "choose-key"), /aria-label="Runs on: Automatic"/);
+  assert.ok(has(space, "A Space automation runs as itself and can use only a Space AI account. With none chosen here, the step runs on the automation&#x27;s AI account in Settings, or on the cheapest Space AI account kept for automations."));
   assert.ok(has(space, "a Space automation needs a key shared with the Space, pick one"), "the check names the missing key on the step");
   const free = panel(bare, "personal");
   assert.match(tag(free, "choose-answer"), /aria-label="Answer as: Free text"/);

@@ -225,3 +225,8 @@ export function collect<T, U>(list: readonly T[], fn: (item: T, index: number) =
   for (const [i, x] of list.entries()) out.push(fn(x, i));
   return out;
 }
+
+/** The AI account for the agent's own work (routines, watchers, helpers), in a line: Automatic, or the Space AI account by name. */
+export function workKeyNote(a: Pick<AgentRow, "workKey">, accounts: readonly AccountChoice[]): string {
+  return a.workKey ? `Its own work runs on ${accountName(accounts, a.workKey)}, where the Space keeps it for this agent` : "Its own work runs on the cheapest Space AI account kept for it. In a chat, the person's own account comes first";
+}

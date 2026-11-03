@@ -78,6 +78,10 @@ type In = {
       }>;
     start?: Array<string>;
     allowSelfTrigger?: boolean;
+    ai?: {
+      keyId?: string;
+      backupKeyId?: string;
+    };
   };
   kind?: "personal" | "space";
 };
@@ -110,6 +114,10 @@ type Out = {
   "name": "example",
   "input": {
     "definition": {
+      "ai": {
+        "backupKeyId": "example",
+        "keyId": "example"
+      },
       "allowSelfTrigger": true,
       "nodes": [
         {

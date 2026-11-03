@@ -5030,6 +5030,19 @@
         "properties": {
           "definition": {
             "properties": {
+              "ai": {
+                "properties": {
+                  "backupKeyId": {
+                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "type": "string"
+                  },
+                  "keyId": {
+                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
               "allowSelfTrigger": {
                 "type": "boolean"
               },
@@ -6622,6 +6635,19 @@
           },
           "definition": {
             "properties": {
+              "ai": {
+                "properties": {
+                  "backupKeyId": {
+                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "type": "string"
+                  },
+                  "keyId": {
+                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
               "allowSelfTrigger": {
                 "type": "boolean"
               },
@@ -6933,6 +6959,19 @@
         "properties": {
           "definition": {
             "properties": {
+              "ai": {
+                "properties": {
+                  "backupKeyId": {
+                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "type": "string"
+                  },
+                  "keyId": {
+                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
               "allowSelfTrigger": {
                 "type": "boolean"
               },

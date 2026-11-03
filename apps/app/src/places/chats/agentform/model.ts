@@ -5,7 +5,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 export type VaultItem = CapMap["vault.items.list"]["out"]["items"][number];
 export type ComputerChoice = "none" | "own" | "yours";
 
-export interface AgentDraft { name: string; does: string; face: string; instructions: string; model: string; fallbackModel: string; computer: ComputerChoice }
+export interface AgentDraft { name: string; does: string; face: string; instructions: string; model: string; fallbackModel: string; computer: ComputerChoice; /** The Space AI account for its own work (a Vault handle); empty or absent is Automatic. */ workKey?: string }
 
 export const FACES_OFFERED = 6;
 
@@ -46,4 +46,11 @@ export function createInput(d: AgentDraft, key: string): CapMap["agents.create"]
 
 export function updatePatch(d: AgentDraft): Record<string, unknown> {
   return { name: d.name.trim(), role: d.does.trim(), ...(d.face ? { face: d.face } : {}), model: d.model === "" ? null : d.model, fallbackModel: d.fallbackModel === "" ? null : d.fallbackModel };
+}
+
+/** What agents.update gets for the AI account: nothing when it is as saved, null to go back to Automatic, else the Vault handle. */
+export function workPatch(workKey: string | undefined, saved: string): { workKey?: string | null } {
+  const now = workKey ?? "";
+  if (now === saved) return {};
+  return { workKey: now === "" ? null : now };
 }

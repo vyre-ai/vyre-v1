@@ -1,0 +1,51 @@
+{
+  "targets": [
+    {
+      "id": "AIPICK_01-agent",
+      "route": "/m/AIPICK_01?part=agent",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='agent-ai-account']",
+      "note": "New agent: AI account sits after Who can use it and before Preferred model. Automatic, Cheapest that fits, and what it pays for.",
+      "protoClick": "[data-a='newagent']"
+    },
+    {
+      "id": "AIPICK_01-agent-menu",
+      "route": "/m/AIPICK_01?part=agent-menu",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='agent-ai-account']",
+      "click": "[data-testid='agent-ai-account']",
+      "note": "The picker: Automatic, then each Space AI account; one not kept for the agent's work is shown with the reason.",
+      "protoClick": "[data-a='newagent']"
+    },
+    {
+      "id": "AIPICK_01-agent-set",
+      "route": "/m/AIPICK_01?part=agent-set",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='agent-ai-account']",
+      "note": "A saved agent with an account chosen: Space AI account.",
+      "protoClick": "[data-a='newagent']"
+    },
+    {
+      "id": "AIPICK_01-settings",
+      "route": "/m/AIPICK_01?part=settings",
+      "proto": "automations,{skin}",
+      "waitFor": "[data-testid='ai-account']",
+      "note": "A Space automation's Settings: AI account group, Automatic main and no backup."
+    },
+    {
+      "id": "AIPICK_01-settings-menu",
+      "route": "/m/AIPICK_01?part=settings-menu",
+      "proto": "automations,{skin}",
+      "waitFor": "[data-testid='ai-main']",
+      "click": "[data-testid='ai-main']",
+      "note": "The main account picker."
+    },
+    {
+      "id": "AIPICK_01-settings-set",
+      "route": "/m/AIPICK_01?part=settings-set",
+      "proto": "automations,{skin}",
+      "waitFor": "[data-testid='ai-account']",
+      "note": "Main and backup chosen."
+    }
+  ]
+}

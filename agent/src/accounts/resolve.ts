@@ -11,7 +11,7 @@
 import { sameProviderFamily } from "./provider.ts";
 import type { AccountRow, Attempt, NeedsYou, ResolveReason, ResolveRequest, Resolution, SkipWhy, SpaceUses, Trigger } from "./types.ts";
 
-interface Candidate { ref: string; reason: ResolveReason; pin?: true; space?: true; strict?: true }
+interface Candidate { ref: string; reason: ResolveReason; pin?: true; space?: true; strict?: true; use?: true }
 
 function payerOf(req: ResolveRequest): { payer: string; reason: "starter" | "steerer" } {
   if (req.trigger === "routine" && req.routineOwner) return { payer: req.routineOwner, reason: "starter" };
@@ -55,7 +55,7 @@ const fits = (a: AccountRow, req: ResolveRequest): boolean => req.model === unde
 const SUBSTITUTES: ReadonlySet<Use> = new Set<Use>(["teamChats", "agentWork"]);
 
 /** Why this row cannot pay for this turn, or null when it can. */
-export function skipReason(row: AccountRow | undefined, req: ResolveRequest, payer: string, how: { space?: boolean; strict?: boolean } = {}): SkipWhy | null {
+export function skipReason(row: AccountRow | undefined, req: ResolveRequest, payer: string, how: { space?: boolean; strict?: boolean; use?: boolean } = {}): SkipWhy | null {
   if (!row) return "unknown";
   if (req.unavailable?.includes(row.ref)) return "failed_this_turn";
   if (req.policy === "company" && (row.mine || row.kind === "subscription")) return "policy_company";
@@ -63,6 +63,8 @@ export function skipReason(row: AccountRow | undefined, req: ResolveRequest, pay
   if (row.kind === "subscription" && req.onServer && !row.spaceMayUse && !ownTurn(row, req, payer)) return "space_may_not_use";
   if (row.status === "expired") return "expired";
   if (row.status === "failed") return "failed";
+  // a pick made for this kind of work (an agent's own work, an automation's AI account): a Space account pays only for what its "Used for" says
+  if (how.use === true && !row.mine && !covers(row, req)) return "not_used_for";
   if (row.capped === true) return "capped";
   if (how.space === true && !fits(row, req)) return "no_model";
   // the chat's own account and model, chosen together: a list that says it does not serve the model is final
@@ -74,7 +76,7 @@ function candidates(req: ResolveRequest, payerReason: "starter" | "steerer", pay
   const out: Candidate[] = [];
   // the fallbacks someone configured (the agent's ordered list, the Space's backups) keep that reason wherever they land in the order, so moving on to one never stops to ask (switch-on-limit.ts)
   const configured = new Set<string>([...(req.trigger !== "task" ? req.agent.accountFallback ?? [] : []), ...req.backupRefs]);
-  const add = (ref: string | undefined, reason: ResolveReason, o: { pin?: true; space?: true } = {}): void => {
+  const add = (ref: string | undefined, reason: ResolveReason, o: { pin?: true; space?: true; use?: true } = {}): void => {
     if (ref !== undefined && ref !== "" && !out.some((c) => c.ref === ref)) out.push({ ref, reason: configured.has(ref) && o.pin !== true ? "backup_key" : reason, ...o });
   };
   const own = (): void => {
@@ -95,6 +97,8 @@ function candidates(req: ResolveRequest, payerReason: "starter" | "steerer", pay
     if (req.stepKey === undefined && req.agent.accountPolicy !== "key") own();
   } else {
     add(req.threadAccountRef, payerReason, req.modelPinned === true ? { pin: true, strict: true } : { pin: true });
+    // the AI account picked for the agent's own work (routines, watchers, helpers): before its chat key, and only a Space account that is kept for this agent's work
+    if (req.trigger === "routine") add(req.agent.workKey, payerReason, { pin: true, use: true });
     if (req.agent.accountPolicy === "key") {
       add(req.agent.accountKey, payerReason, { pin: true });
       // an agent pinned to a key goes on down its own ordered fallback list, as configured, before anything else
@@ -124,7 +128,7 @@ export function resolveAccount(req: ResolveRequest): Resolution {
 
   for (const c of candidates(req, payerReason, payer)) {
     const row = byRef.get(c.ref);
-    const why = skipReason(row, req, payer, { ...(c.space ? { space: true } : {}), ...(c.strict ? { strict: true } : {}) });
+    const why = skipReason(row, req, payer, { ...(c.space ? { space: true } : {}), ...(c.strict ? { strict: true } : {}), ...(c.use === true || req.useChecked?.includes(c.ref) ? { use: true } : {}) });
     if (why !== null) {
       const at: Attempt = { ref: c.ref, used: false, why };
       tried.push(at);

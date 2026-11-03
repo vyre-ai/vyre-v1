@@ -505,7 +505,7 @@ export function changedFields(a: AgentConfig, b: AgentConfig): string[] {
   const out: string[] = [];
   const diff = (k: string, x: unknown, y: unknown): void => { if (JSON.stringify(x) !== JSON.stringify(y)) out.push(k); };
   diff("name", a.name, b.name); diff("role", a.description, b.description); diff("model", a.model, b.model); diff("fallbackModel", a.fallbackModel, b.fallbackModel);
-  diff("accountPolicy", a.accountPolicy, b.accountPolicy); diff("accountKey", a.accountKey, b.accountKey); diff("accountFallback", (a.accountFallback ?? []).join(", "), (b.accountFallback ?? []).join(", ")); diff("memoryKey", a.memoryKey, b.memoryKey); diff("handoffs", a.handoffs, b.handoffs);
+  diff("accountPolicy", a.accountPolicy, b.accountPolicy); diff("accountKey", a.accountKey, b.accountKey); diff("accountFallback", (a.accountFallback ?? []).join(", "), (b.accountFallback ?? []).join(", ")); diff("memoryKey", a.memoryKey, b.memoryKey); diff("workKey", a.workKey, b.workKey); diff("handoffs", a.handoffs, b.handoffs);
   diff("toolsAllowed", a.toolsAllowed, b.toolsAllowed); diff("toolsDenied", a.toolsDenied, b.toolsDenied); diff("vaultKeys", a.vaultKeys, b.vaultKeys);
   diff("limits", a.limits, b.limits); diff("captureMode", a.captureMode, b.captureMode);
   return out.length > 0 ? out : ["agent.toml"];

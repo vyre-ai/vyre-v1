@@ -1395,6 +1395,7 @@ export type AgentsCreateOut = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    workKey?: string;
     switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
@@ -1443,6 +1444,7 @@ export type AgentsGetOut = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    workKey?: string;
     switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
@@ -1511,6 +1513,7 @@ export type AgentsListOut = {
       accountKey?: string;
       accountFallback: Array<string>;
       memoryKey?: string;
+      workKey?: string;
       switchOnLimit?: boolean;
       toolsAllowed: Array<string>;
       toolsDenied: Array<string>;
@@ -1610,6 +1613,7 @@ export type AgentsPauseOut = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    workKey?: string;
     switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
@@ -1652,6 +1656,7 @@ export type AgentsRestoreOut = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    workKey?: string;
     switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
@@ -1696,6 +1701,7 @@ export type AgentsRestoreVersionOut = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    workKey?: string;
     switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
@@ -1738,6 +1744,7 @@ export type AgentsResumeOut = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    workKey?: string;
     switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
@@ -1781,6 +1788,7 @@ export type AgentsRoleLineSetOut = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    workKey?: string;
     switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
@@ -1974,6 +1982,7 @@ export type AgentsSetOwnerOut = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    workKey?: string;
     switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
@@ -2166,6 +2175,7 @@ export type AgentsUpdateOut = {
     accountKey?: string;
     accountFallback: Array<string>;
     memoryKey?: string;
+    workKey?: string;
     switchOnLimit?: boolean;
     toolsAllowed: Array<string>;
     toolsDenied: Array<string>;
@@ -2621,6 +2631,10 @@ export type AutomationsCreateIn = {
       }>;
     start?: Array<string>;
     allowSelfTrigger?: boolean;
+    ai?: {
+      keyId?: string;
+      backupKeyId?: string;
+    };
   };
   groupId?: string;
   folderId?: string;
@@ -2690,6 +2704,10 @@ export type AutomationsCreateOut = {
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
     };
     followers: Array<string>;
     alerts: {
@@ -2928,6 +2946,10 @@ export type AutomationsGetOut = {
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
     };
     followers: Array<string>;
     alerts: {
@@ -3136,6 +3158,10 @@ export type AutomationsMakePersonalCopyOut = {
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
     };
     followers: Array<string>;
     alerts: {
@@ -3262,6 +3288,10 @@ export type AutomationsMoveOut = {
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
     };
     followers: Array<string>;
     alerts: {
@@ -3401,6 +3431,10 @@ export type AutomationsPackagesImportOut = {
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
     };
     followers: Array<string>;
     alerts: {
@@ -3549,6 +3583,10 @@ export type AutomationsPromoteOut = {
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
     };
     followers: Array<string>;
     alerts: {
@@ -3713,6 +3751,10 @@ export type AutomationsRestoreVersionOut = {
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
     };
     followers: Array<string>;
     alerts: {
@@ -3860,6 +3902,10 @@ export type AutomationsSetEnabledOut = {
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
     };
     followers: Array<string>;
     alerts: {
@@ -3996,6 +4042,10 @@ export type AutomationsTemplatesUseOut = {
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
     };
     followers: Array<string>;
     alerts: {
@@ -4126,6 +4176,10 @@ export type AutomationsUndeleteOut = {
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
     };
     followers: Array<string>;
     alerts: {
@@ -4211,6 +4265,10 @@ export type AutomationsUpdateIn = {
       }>;
     start?: Array<string>;
     allowSelfTrigger?: boolean;
+    ai?: {
+      keyId?: string;
+      backupKeyId?: string;
+    };
   };
   expectedVersion?: number;
 };
@@ -4278,6 +4336,10 @@ export type AutomationsUpdateOut = {
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
     };
     followers: Array<string>;
     alerts: {
@@ -4360,6 +4422,10 @@ export type AutomationsValidateIn = {
       }>;
     start?: Array<string>;
     allowSelfTrigger?: boolean;
+    ai?: {
+      keyId?: string;
+      backupKeyId?: string;
+    };
   };
   kind?: "personal" | "space";
 };
@@ -10787,6 +10853,7 @@ export type EngineStepTurnIn = {
   agentId?: string;
   keyId?: string;
   backupKeyId?: string;
+  keyFrom?: "automation";
   timeoutMinutes?: number;
   recordIds?: Array<string>;
   runId: string;

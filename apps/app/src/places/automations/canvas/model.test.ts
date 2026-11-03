@@ -5,7 +5,7 @@ import {
   CARD_H, CARD_W, GAP_Y, addAfter, addInto, addTrigger, blankStep, check, clampZoom, describeTrigger, duplicateStep, fitScale, joinOf, kindOfKey, layout, moveStep, neighbour, removeStep,
   removeTrigger, runStates, sortedIssues, subtitleOf, successors, titleOfKey, updateStep,
 } from "./model.ts";
-import type { Definition } from "./model.ts";
+import type { Definition, Issue } from "./model.ts";
 import { LEAD_FOLLOW_UP } from "../sidebar/sample.ts";
 
 const linear = (): Definition => ({
@@ -309,4 +309,15 @@ test("only an Automation with a Run by hand trigger offers Run now", async () =>
   const { startsByHand } = await import("./model.ts");
   assert.equal(startsByHand({ triggers: [{ key: "manual" }], nodes: [] } as never), true);
   assert.equal(startsByHand({ triggers: [{ key: "schedule" }], nodes: [] } as never), false);
+});
+
+test("a Space AI step with no account of its own is fine when the automation has one or Automatic has an account kept for automations; otherwise it is still asked for one", () => {
+  const d: Definition = { triggers: [{ key: "manual" }], start: ["x"], nodes: [{ id: "x", key: "ai", input: { prompt: "Hi" } }] };
+  const asks = (issues: Issue[]): boolean => issues.some((i) => i.nodeId === "x" && /needs a key shared with the Space/.test(i.message));
+  assert.equal(asks(check(d)), true, "nothing known: still asked");
+  assert.equal(asks(check(d, "space", { automatic: false })), true);
+  assert.equal(asks(check(d, "space", { automatic: true })), false, "Automatic has an account that pays for automations");
+  assert.equal(asks(check({ ...d, ai: { keyId: "#Team_Credits" } })), false, "the automation's own AI account covers the step");
+  assert.equal(asks(check({ ...d, ai: { backupKeyId: "#Backup" } })), true, "a backup alone is not a main");
+  assert.equal(asks(check(d, "personal")), false);
 });
