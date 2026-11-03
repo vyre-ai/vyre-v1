@@ -249,23 +249,27 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
   const name = optStr(ctx, o, "name");
   const deployed = !isNull(site.source) || (o.source !== undefined && o.source !== null);
   const access = accessOf(ctx, optStr(ctx, o, "access"), str(site.access) as Access, deployed);
-  if (o.source !== undefined && o.source !== null) ctx.db.run("UPDATE sites_site SET source = ? WHERE id = ?", JSON.stringify(cleanSource(ctx, o.source)), site.id);
-  if (o.limits !== undefined && o.limits !== null) ctx.db.run("UPDATE sites_site SET limits = ? WHERE id = ?", JSON.stringify(cleanLimits(ctx, o.limits)), site.id);
+  // every refusal comes before the first write (ruling 90): the checks, then the source, limits and auto-deploy, then the rest
+  const source = o.source !== undefined && o.source !== null ? JSON.stringify(cleanSource(ctx, o.source)) : null;
+  const limits = o.limits !== undefined && o.limits !== null ? JSON.stringify(cleanLimits(ctx, o.limits)) : null;
   const auto = optBool(ctx, o, "autoDeploy");
-  if (auto !== undefined) ctx.db.run("UPDATE sites_site SET auto_deploy = ? WHERE id = ?", auto ? 1 : 0, site.id);
   if (access === "password" && isNull(site.password_hash)) fail(ctx, "validation.precondition_failed", "Set the password first, then switch access to password.", { field: "access" });
   const port = cleanPort(ctx, optInt(ctx, o, "port"));
   const computerId = optStr(ctx, o, "computerId");
   await mustComputer(ctx, computerId);
   const folderId = optStr(ctx, o, "folderId");
   mustFolder(ctx, folderId);
+  const cleanedName = name === undefined ? site.name : cleanName(ctx, name);
+  if (source !== null) ctx.db.run("UPDATE sites_site SET source = ? WHERE id = ?", source, site.id);
+  if (limits !== null) ctx.db.run("UPDATE sites_site SET limits = ? WHERE id = ?", limits, site.id);
+  if (auto !== undefined) ctx.db.run("UPDATE sites_site SET auto_deploy = ? WHERE id = ?", auto ? 1 : 0, site.id);
   // becoming public is an outward act: it comes down here and goes back up through sites.promote and the Gate
   const live = flag(site.live) && !(access === "public" && site.access !== "public");
   // and a site that stops being public takes its custom domains down with it
   if (site.access === "public" && access !== "public") await routeDomains(ctx, site, false);
   ctx.db.run(
     "UPDATE sites_site SET name = ?, access = ?, port = ?, computer_id = ?, target_folder = ?, live = ?, updated_at = ? WHERE id = ?",
-    name === undefined ? site.name : cleanName(ctx, name), access, port ?? site.port ?? null, computerId ?? site.computer_id ?? null, folderId ?? site.target_folder ?? null, live ? 1 : 0, ctx.now(), site.id,
+    cleanedName, access, port ?? site.port ?? null, computerId ?? site.computer_id ?? null, folderId ?? site.target_folder ?? null, live ? 1 : 0, ctx.now(), site.id,
   );
   return { site: siteOut(ctx, mustSite(ctx, str(site.id))) };
 }

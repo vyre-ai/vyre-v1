@@ -27,6 +27,34 @@ export interface CellsLike {
   cursor(peer: string): number;
   setCursor(peer: string, cursor: number): void;
 }
+/** The events behind who and what exists and who may do what (the access module folds them). Each computer's own log holds them; computers exchange them so a folder, agent, thread or
+ *  record made on one is a resource on every other one too (without it, the copied row is "not found or not visible" there). */
+export const PEER_ACCESS: ReadonlySet<string> = new Set([
+  "role.defined", "principal.created", "principal.role_set", "group.member_added", "group.member_removed", "resource.created", "grant.created", "grant.revoked",
+  "principal.suspended", "principal.reactivated", "member.removed",
+]);
+export interface PeerAccessEvent { seq: number; id: string; type: string; sv: number; actor: string; vis: string; trace_id: string; entity?: string; entity_id?: string; payload: unknown }
+export interface PeerAccessPort {
+  since(after: number, limit: number): Promise<{ events: PeerAccessEvent[]; next: number; more: boolean }>;
+  /** Append the other computer's events under their own ids. A second copy is a duplicate, never a second fold; an id reused with other content, an event about another Space and anything that
+   *  would make or move the Space itself are refused (accessCheck). Returns how many were new here and how many were refused. */
+  fold(events: readonly PeerAccessEvent[]): Promise<{ folded: number; refused: number }>;
+}
+
+/** Why an access event from another computer is refused here, or null when it may be appended: it must be of a kind in PEER_ACCESS, and never name another Space or make a Space. */
+export function accessCheck(e: PeerAccessEvent, space: string): string | null {
+  if (!PEER_ACCESS.has(e.type) || typeof e.id !== "string" || !e.id) return "not an access event";
+  const p = (e.payload && typeof e.payload === "object" ? e.payload : {}) as Record<string, unknown>;
+  for (const k of ["space", "spaceId", "space_id"]) if (k in p && p[k] !== space) return "about another Space";
+  if (e.type === "resource.created" && (p["type"] === "space" || p["id"] === space)) return "makes or moves the Space itself";
+  return null;
+}
+/** The same content, whatever order its keys were written in. */
+export function sameContent(a: unknown, b: unknown): boolean {
+  const canon = (v: unknown): unknown => (Array.isArray(v) ? v.map(canon) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v as object).sort().map((k) => [k, canon((v as Record<string, unknown>)[k])])) : v);
+  return JSON.stringify(canon(a)) === JSON.stringify(canon(b));
+}
+
 export type CreateCells = (db: { all(sql: string, ...a: unknown[]): unknown[]; run(sql: string, ...a: unknown[]): unknown; exec(sql: string): void }, o: { site: string; now(): number; deny?(t: string): boolean; denyColumns?: Record<string, readonly string[]> }) => CellsLike;
 
 /** Tables that describe this computer, or are kept from this computer's own log by sequence, and never travel. The engine's queue, leases and parked turns are work this computer's own engine
@@ -36,7 +64,7 @@ export const denyModules = (t: string): boolean => LOCAL.test(t);
 export const DENY_COLUMNS: Readonly<Record<string, readonly string[]>> = { network_peer: ["last_seen_at"] };
 
 const ROUND_MS = 5_000;
-/** A write here wakes the other computers this long after the last one in a burst; the 5 s round stays as the fallback. */
+/** A write here wakes the other computers this long after the first one in a burst (the rest of the burst goes with it); the 5 s round stays as the fallback. */
 const WAKE_DEBOUNCE_MS = 500;
 const WATCH_MS = 200;
 const TREES_EVERY = 3;
@@ -50,6 +78,8 @@ export interface PeerSyncDeps {
   root: string;
   db: () => HostDb | null;
   createCells: () => CreateCells | null;
+  /** this computer's access events (host/src/daemon/daemon.ts) */
+  access?: () => PeerAccessPort | null;
   selfId: () => string | null;
   token: () => string | null;
   now: () => number;
@@ -124,8 +154,8 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
       if (lastDirty === null) { lastDirty = m; return; }
       if (m === lastDirty) return;
       lastDirty = m;
-      if (wakeTimer) clearTimeout(wakeTimer);
-      wakeTimer = setTimeout(() => { wakeTimer = null; void poke(); }, d.wakeMs ?? WAKE_DEBOUNCE_MS);
+      // at most this long after the first write: a computer whose rounds keep writing (the lease, access it folds) must not push its own wake back forever
+      if (!wakeTimer) wakeTimer = setTimeout(() => { wakeTimer = null; void poke(); }, d.wakeMs ?? WAKE_DEBOUNCE_MS);
     }, WATCH_MS);
     watcher.unref?.();
   }
@@ -276,6 +306,21 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
         if ((backoff.get(p.id) ?? 0) > d.now()) continue;
         try {
           const ch = await channel(p);
+          // who and what exists first, so the rows that follow are visible here as soon as they land
+          const acc = d.access?.();
+          if (acc) {
+            for (;;) {
+              const since = cells.modules.cursor(`access:${p.id}`);
+              const r = await ch.request({ method: "POST", path: "/v1/peers/access", headers: auth, body: JSON.stringify({ since }) });
+              if (r.status !== 200) break;
+              const page = r.json<{ data: { events: PeerAccessEvent[]; next: number; more: boolean } }>().data;
+              const got = await acc.fold(page.events);
+              out.applied += got.folded;
+              if (got.refused) d.log("peers.access_refused", { from: p.id, n: got.refused });
+              cells.modules.setCursor(`access:${p.id}`, page.next);
+              if (!page.more) break;
+            }
+          }
           for (const store of STORES) {
             const c = cells[store];
             if (!c) continue;
@@ -363,6 +408,20 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
       const url = new URL(req.url ?? "/", "http://vyred");
       if (req.method === "POST" && url.pathname === "/v1/peers/changes") { void changes(req, res, peerOf).catch(() => { try { res.writeHead(500); res.end(); } catch { /* sent */ } }); return true; }
       const auth = async (): Promise<boolean> => { if (await peerOf(req)) return true; res.writeHead(401, { "content-type": "application/json" }); res.end('{"error":{"code":"auth.unauthenticated","message":"This computer is not part of the Space."}}'); return false; };
+      if (req.method === "POST" && url.pathname === "/v1/peers/access") {
+        void auth().then(async (ok) => {
+          if (!ok) return;
+          const parts: Buffer[] = [];
+          for await (const c of req) parts.push(c as Buffer);
+          let since = 0;
+          try { since = Math.max(0, Number((JSON.parse(Buffer.concat(parts).toString("utf8") || "{}") as { since?: unknown }).since) || 0); } catch { /* from the start */ }
+          const acc = d.access?.();
+          const page = acc ? await acc.since(since, 500) : { events: [], next: since, more: false };
+          res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+          res.end(JSON.stringify({ data: page }));
+        }).catch(() => { try { res.writeHead(500); res.end(); } catch { /* sent */ } });
+        return true;
+      }
       if (req.method === "POST" && url.pathname === "/v1/peers/poke") { void auth().then((ok) => { if (!ok) return; res.writeHead(202, { "cache-control": "no-store" }); res.end(); soon(); }); return true; }
       if (req.method === "GET" && url.pathname.startsWith("/v1/peers/git/")) { void auth().then((ok) => (ok ? serveGit(d.root, req, res, url) : undefined)).catch(() => { try { res.writeHead(500); res.end(); } catch { /* sent */ } }); return true; }
       return false;

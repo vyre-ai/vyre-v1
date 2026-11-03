@@ -1,5 +1,5 @@
 // The speed half of personal-keys.test.ts (ruling 46: only speed tests here). 50,000 of one person's facts under her own key: how long the in-memory index takes to build when her key is first
-// held (the background job's warm pass), how fast her pointer and search are once it is built, and how fast the job re-seals rows from the old server seal. Numbers are printed for the report.
+// held (the background job's warm pass), how fast her pointer and search are once it is built, (the re-seal pass is in personal-keys.reseal.perf.test.ts). Numbers are printed for the report.
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
@@ -71,23 +71,5 @@ test(`50,000 personal facts under her own key: index build, pointer and search`,
   assert.ok(out.pointer.best < 150, `pointer best ${out.pointer.best} ms`);
   assert.ok(out.search.best < 400, `search best ${out.search.best} ms`);
   assert.ok(warmMs < 8000, `index build ${warmMs} ms`);
-  held.delete("usr_dana"); sweepHeld();
-});
-
-test("the job re-seals 10,000 rows from the old server seal", (t) => {
-  t.after(() => { held.delete("usr_dana"); sweepHeld(); });
-  const h = harness();
-  for (let i = 0; i < 10_000; i++) seedFact(h, { id: `fct_o${i}`, layer: "person", agentId: "agt_intake", text: textOf(i) });
-  assert.match(String(h.rows("SELECT sealed FROM memory_facts WHERE id = 'fct_o1'")[0]?.["sealed"]), /^\{/);
-  held.set("usr_dana", KEY);
-  const svc = asPerson(h, { kind: "service", id: "svc_host" });
-  const t0 = performance.now();
-  let passes = 0;
-  let moved = 0;
-  for (;;) { passes++; const r = settlePersonal(asPerson(h, { kind: "service", id: "svc_host" }).ctx); moved += r.resealed; if (r.left === 0) break; }
-  const ms = performance.now() - t0;
-  console.log(`PERF personal-keys reseal ${JSON.stringify({ rows: moved, passes, ms: Math.round(ms), perRowUs: Math.round((ms * 1000) / moved) })}`);
-  assert.equal(moved, 10_000);
-  assert.equal(svc.rows("SELECT COUNT(*) AS n FROM memory_facts WHERE sealed NOT LIKE 'pm1.o.%'")[0]?.["n"], 0);
   held.delete("usr_dana"); sweepHeld();
 });

@@ -372,11 +372,9 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
   const o = rec(ctx, input);
   let site = mustSite(ctx, reqStr(ctx, o, "siteId"));
   if (site.kind === "artifact") fail(ctx, "validation.bad_input", "An artifact is published with artifact_publish, not deployed.");
-  if (o.source !== undefined && o.source !== null) {
-    const s = cleanSource(ctx, o.source);
-    ctx.db.run("UPDATE sites_site SET source = ?, updated_at = ? WHERE id = ?", JSON.stringify(s), ctx.now(), site.id);
-    site = mustSite(ctx, str(site.id));
-  }
+  // a new source is kept once the deploy is going ahead: every refusal below comes before the write (ruling 90)
+  const newSource = o.source !== undefined && o.source !== null ? JSON.stringify(cleanSource(ctx, o.source)) : null;
+  if (newSource !== null) site = { ...site, source: newSource };
   const source = sourceOf(site);
   if (!source) fail(ctx, "validation.precondition_failed", "Give the site its source first: a GitHub repo, a folder or zip in Files, or a folder on this computer.");
   const need = deployNeed();
@@ -392,6 +390,7 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
     if (last && head && (last.commit_sha === head || (last.state !== "ready" && last.state !== "failed"))) return { deployment: depRow(last, current) };
     if (!head) fail(ctx, "validation.precondition_failed", "The repo could not be read just now.");
   }
+  if (newSource !== null) { ctx.db.run("UPDATE sites_site SET source = ?, updated_at = ? WHERE id = ?", newSource, ctx.now(), siteId); site = mustSite(ctx, siteId); }
   const busy = one(ctx, "SELECT * FROM sites_deployment WHERE site_id = ? AND env = ? AND state IN ('queued', 'building')", siteId, "production");
   if (busy && done.has(str(busy.id))) {
     // one deploy at a time per site: a second ask joins the one running, and waits for it when asked to
