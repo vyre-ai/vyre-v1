@@ -18,6 +18,8 @@ export function inboxData(rt: ShellRuntime, openConversation: (id: string) => vo
     connect: (kind) => kind === "twilio" ? rt.open({ screen: "vault.layout", args: { add: "twilio" } }) : rt.open({ screen: "settings.page", args: { page: "mail" } }),
     openEmailDesign: (emailId) => rt.open({ screen: "apps.email-builder", ...(emailId ? { args: { emailId } } : {}) }),
     openInboxSettings: (inboxId) => rt.open({ screen: "settings.page", args: { page: "inboxes", inboxId } }),
+    openCalendarSettings: () => rt.open({ screen: "settings.page", args: { page: "mail" } }),
+    openExternal: (url) => rt.openUrl(url),
   };
-  return { screens: rt.screens, call: rt.call, connection: rt.connection, clock: rt.clock, nav };
+  return { screens: rt.screens, call: rt.call, connection: rt.connection, clock: rt.clock, nav, me: rt.me.id };
 }

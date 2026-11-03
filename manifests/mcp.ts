@@ -19,9 +19,13 @@ const requestId = t.id('oar');
 const allowRow = t.obj({
   requestId, clientName: t.str({ description: 'What the app calls itself. Vyre has not checked it.', examples: ['Claude Code'] }), redirectHost: t.opt(t.str({ description: 'Where it goes when allowed, when that is not this computer', examples: ['tools.example.com'] })),
   spaceName: t.str(), match: t.str({ description: 'The code the tab that asked shows too', pattern: '^[0-9]{4}$', examples: ['4821'] }), expiresAt: t.ts(), rejoins: t.bool(),
+  // canSetup: the person may let it act for them, including setup (owner ruling 3 Nov), because they hold those rights themselves
+  canSetup: t.opt(t.bool()),
 });
 const connectedRow = t.obj({
   agentId: id.agent, clientName: t.str(), redirectHost: t.opt(t.str()), connectedAt: t.ts(), lastSeenAt: t.opt(t.ts()), calls: t.int({ minimum: 0 }),
+  // setup: acts for its person including setup, without a card (owner ruling 3 Nov)
+  setup: t.opt(t.bool()), person: t.opt(t.str()),
 });
 const activityRow = t.obj({
   id: t.id('mca'), tool: t.str({ examples: ['records_query'] }), cap: t.opt(t.str()), outcome: t.enm('ok', 'error', 'held'), threadId: t.opt(id.thread), taskId: t.opt(id.task), at: t.ts(),
@@ -37,7 +41,8 @@ export default defineManifest({
       in: { requestId }, out: { request: allowRow }, level: 'member', errors: ['validation.not_found', 'auth.expired'], ex: { output: { request: { requestId: 'oar_a1b2c3', clientName: 'Claude Code', spaceName: 'Northwind', match: '4821', expiresAt: 1760000300000, rejoins: false } } },
     }),
     write('mcp.oauth.allow', 'A person allows an app to join: it becomes an agent they own, acting for them, and only the tab that asked can collect the sign-in', {
-      in: { requestId }, out: { agentId: id.agent, name: t.str() }, level: 'member', emits: ['mcp.client_allowed'], audit: 'always', risk: 'high', idem: 'natural', offline: 'online', errors: ['validation.not_found', 'auth.expired', 'permission.no_grant'],
+      // setup: "Act for me, including setup" (owner ruling 3 Nov). Only a person who holds those rights may give it; off when left out.
+      in: { requestId, setup: t.opt(t.bool()) }, out: { agentId: id.agent, name: t.str(), setup: t.opt(t.bool()) }, level: 'member', emits: ['mcp.client_allowed', 'mcp.setup_changed'], audit: 'always', risk: 'high', idem: 'natural', offline: 'online', errors: ['validation.not_found', 'auth.expired', 'permission.no_grant'],
     }),
     write('mcp.oauth.decline', 'A person says no to an app that asked to join', {
       in: { requestId }, out: { declined: t.bool() }, level: 'member', emits: ['mcp.client_declined'], audit: 'always', idem: 'natural', risk: 'low', offline: 'online',
@@ -45,7 +50,10 @@ export default defineManifest({
     write('mcp.oauth.replayed', 'System: a used code or refresh token came back, so that sign-in ended', {
       in: { agentId: id.agent, person: t.str(), why: t.str() }, out: { noted: t.bool() }, emits: ['mcp.client_replayed'], audit: 'always', idem: 'none', risk: 'medium',
     }),
-    read('mcp.connected.list', 'The outside agents you connected', { out: { agents: t.arr(connectedRow) }, level: 'member' }),
+    read('mcp.connected.list', 'The outside agents you connected; with all, every outside agent in the Space (owners and admins, Console)', { in: { all: t.opt(t.bool()) }, out: { agents: t.arr(connectedRow) }, level: 'member', errors: ['permission.no_grant'] }),
+    write('mcp.setup.set', 'Let an outside agent act for its person including setup, or take that back. Its person turns it on (they must hold the rights); its person or an owner or admin turns it off. Not a tool: no agent reaches it', {
+      in: { agentId: id.agent, setup: t.bool() }, out: { setup: t.bool() }, level: 'member', emits: ['mcp.setup_changed'], audit: 'always', risk: 'high', idem: 'natural', offline: 'online', errors: ['validation.not_found', 'permission.no_grant', 'permission.role_lacks_permission'],
+    }),
     read('mcp.connected.link', 'The address to paste into an MCP app, and the one line for Claude Code', {
       out: { url: t.str({ pattern: '^https?://', examples: ['https://northwind.vyre.run/mcp'] }), claudeCode: t.str({ examples: ['claude mcp add --transport http vyre https://northwind.vyre.run/mcp'] }) }, level: 'member', tool: 'meta', agent: { planMode: 'allowed' },
     }),
@@ -90,6 +98,7 @@ export default defineManifest({
       p: { agentId: id.agent, person: t.str(), clientName: t.str(), redirectHost: t.opt(t.str()) }, subject: ['agent', '/agentId'], vis: 'participants', retention: 'audit',
     }),
     ev('mcp.client_declined', 'A person said no to an app', { p: { requestId: t.str(), person: t.str(), clientName: t.str() }, subject: ['entity', '/requestId'], vis: 'participants' }),
+    ev('mcp.setup_changed', 'An outside agent may now act for its person including setup, or may not any more', { p: { agentId: id.agent, person: t.str(), setup: t.bool(), by: t.str() }, subject: ['agent', '/agentId'], vis: 'participants', retention: 'audit' }),
     ev('mcp.client_removed', 'A person removed an outside agent; its sign-in ended', { p: { agentId: id.agent, by: t.str() }, subject: ['agent', '/agentId'], vis: 'participants', retention: 'audit' }),
     ev('mcp.client_replayed', 'A used code or refresh token came back, so that sign-in ended', { p: { agentId: id.agent, person: t.str(), why: t.str() }, subject: ['agent', '/agentId'], vis: 'participants', retention: 'audit' }),
     ev('mcp.session_started', 'An MCP session started', {

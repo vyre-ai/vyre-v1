@@ -4440,6 +4440,7 @@ export type CalendarCreateCalendarOut = {
     ownerId: string;
     personal: boolean;
     state: "syncing" | "paused" | "error";
+    lastSyncAt?: number;
   };
 };
 export type CalendarCreateEventIn = {
@@ -4660,6 +4661,7 @@ export type CalendarListCalendarsOut = {
       ownerId: string;
       personal: boolean;
       state: "syncing" | "paused" | "error";
+      lastSyncAt?: number;
     }>;
 };
 export type CalendarListEventsIn = {
@@ -4817,6 +4819,7 @@ export type CalendarUpdateCalendarOut = {
     ownerId: string;
     personal: boolean;
     state: "syncing" | "paused" | "error";
+    lastSyncAt?: number;
   };
 };
 export type CalendarUpdateEventIn = {
@@ -6285,6 +6288,7 @@ export type ChatRecentOut = {
       starred: boolean;
       lastAt: number;
       preview?: string;
+      people?: Array<string>;
     }>;
   today: Array<{
       threadId: string;
@@ -6296,6 +6300,7 @@ export type ChatRecentOut = {
       starred: boolean;
       lastAt: number;
       preview?: string;
+      people?: Array<string>;
     }>;
   yesterday: Array<{
       threadId: string;
@@ -6307,6 +6312,7 @@ export type ChatRecentOut = {
       starred: boolean;
       lastAt: number;
       preview?: string;
+      people?: Array<string>;
     }>;
   earlier: Array<{
       threadId: string;
@@ -6318,6 +6324,7 @@ export type ChatRecentOut = {
       starred: boolean;
       lastAt: number;
       preview?: string;
+      people?: Array<string>;
     }>;
   archived: Array<{
       threadId: string;
@@ -6329,8 +6336,10 @@ export type ChatRecentOut = {
       starred: boolean;
       lastAt: number;
       preview?: string;
+      people?: Array<string>;
     }>;
   nextUnread: string | null;
+  threadsUnread?: number;
 };
 export type ChatRememberIn = {
   threadId: string;
@@ -12474,6 +12483,10 @@ export type GateHoldsGetOut = {
     payloadHash: string;
     createdAt: number;
     expiresAt: number;
+    askedBy?: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
+    };
   };
 };
 export type GateHoldsListIn = {
@@ -12499,6 +12512,10 @@ export type GateHoldsListOut = {
       payloadHash: string;
       createdAt: number;
       expiresAt: number;
+      askedBy?: {
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      };
     }>;
   next?: string;
   total?: number;
@@ -12529,6 +12546,13 @@ export type GateParkIn = {
     nodeId: string;
     defHash: string;
     ask?: boolean;
+  };
+  ask?: {
+    by: {
+      kind: "person" | "agent" | "actor" | "service";
+      id: string;
+    };
+    what: string;
   };
   idempotencyKey: string;
 };
@@ -17807,7 +17831,9 @@ export type McpConnectedLinkOut = {
   url: string;
   claudeCode: string;
 };
-export type McpConnectedListIn = Record<string, unknown>;
+export type McpConnectedListIn = {
+  all?: boolean;
+};
 export type McpConnectedListOut = {
   agents: Array<{
       agentId: string;
@@ -17816,6 +17842,8 @@ export type McpConnectedListOut = {
       connectedAt: number;
       lastSeenAt?: number;
       calls: number;
+      setup?: boolean;
+      person?: string;
     }>;
 };
 export type McpConnectedRemoveIn = {
@@ -17834,10 +17862,12 @@ export type McpHealthOut = {
 };
 export type McpOauthAllowIn = {
   requestId: string;
+  setup?: boolean;
 };
 export type McpOauthAllowOut = {
   agentId: string;
   name: string;
+  setup?: boolean;
 };
 export type McpOauthDeclineIn = {
   requestId: string;
@@ -17865,6 +17895,7 @@ export type McpOauthRequestOut = {
     match: string;
     expiresAt: number;
     rejoins: boolean;
+    canSetup?: boolean;
   };
 };
 export type McpSessionCloseIn = {
@@ -17909,6 +17940,13 @@ export type McpSessionsListOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type McpSetupSetIn = {
+  agentId: string;
+  setup: boolean;
+};
+export type McpSetupSetOut = {
+  setup: boolean;
 };
 export type McpToolDescribeIn = {
   names: Array<string>;
@@ -32136,6 +32174,7 @@ export type ThreadsMakeChannelOut = {
 export type ThreadsMarkReadIn = {
   threadId: string;
   upto?: number;
+  unread?: boolean;
 };
 export type ThreadsMarkReadOut = {
   unread: number;
@@ -33314,6 +33353,7 @@ export type VaultRequestIn = {
   reason: string;
   forRun?: string;
   folderId?: string;
+  handleOnly?: boolean;
   idempotencyKey: string;
 };
 export type VaultRequestOut = {
@@ -34981,6 +35021,7 @@ export interface CapMap {
   "mcp.session.close": { in: McpSessionCloseIn; out: McpSessionCloseOut };
   "mcp.session.mint": { in: McpSessionMintIn; out: McpSessionMintOut };
   "mcp.sessions.list": { in: McpSessionsListIn; out: McpSessionsListOut };
+  "mcp.setup.set": { in: McpSetupSetIn; out: McpSetupSetOut };
   "mcp.tool.describe": { in: McpToolDescribeIn; out: McpToolDescribeOut };
   "mcp.tool.search": { in: McpToolSearchIn; out: McpToolSearchOut };
   "mcp.tools.list": { in: McpToolsListIn; out: McpToolsListOut };
@@ -36890,6 +36931,10 @@ export type GateApprovedPayload = {
   taskId: string;
   by: string;
   forPerson?: string;
+  askedBy?: {
+    kind: "person" | "agent" | "actor" | "service";
+    id: string;
+  };
 };
 export type GateDeniedPayload = {
   holdId: string;
@@ -36898,6 +36943,10 @@ export type GateDeniedPayload = {
   by: string;
   mode: "send_back" | "drop";
   note?: string;
+  askedBy?: {
+    kind: "person" | "agent" | "actor" | "service";
+    id: string;
+  };
 };
 export type GateExpiredPayload = {
   holdId: string;
@@ -36905,6 +36954,10 @@ export type GateExpiredPayload = {
   taskId: string;
   outcome: "dropped" | "escalated";
   escalatedTo?: string;
+  askedBy?: {
+    kind: "person" | "agent" | "actor" | "service";
+    id: string;
+  };
 };
 export type GateRequestedPayload = {
   holdId: string;
@@ -36918,6 +36971,10 @@ export type GateRequestedPayload = {
   actingFor?: string;
   runId?: string;
   expiresAt: number;
+  askedBy?: {
+    kind: "person" | "agent" | "actor" | "service";
+    id: string;
+  };
 };
 export type GateRuleChangedPayload = {
   act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
@@ -37375,6 +37432,12 @@ export type McpSessionStartedPayload = {
   principal: string;
   actingFor?: string;
   threadId?: string;
+};
+export type McpSetupChangedPayload = {
+  agentId: string;
+  person: string;
+  setup: boolean;
+  by: string;
 };
 export type MeetingCanceledPayload = {
   meetingId: string;
@@ -39718,6 +39781,7 @@ export interface EventMap {
   "mcp.client_replayed": McpClientReplayedPayload;
   "mcp.session_ended": McpSessionEndedPayload;
   "mcp.session_started": McpSessionStartedPayload;
+  "mcp.setup_changed": McpSetupChangedPayload;
   "meeting.canceled": MeetingCanceledPayload;
   "meeting.ended": MeetingEndedPayload;
   "meeting.merged": MeetingMergedPayload;

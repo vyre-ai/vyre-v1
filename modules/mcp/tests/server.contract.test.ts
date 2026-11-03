@@ -14,7 +14,7 @@ const mine = registry.capabilities.filter((c) => c.module === "mcp");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any> | any>;
 
 test("the handler table covers exactly the capabilities of the mcp manifest", () => {
-  assert.equal(mine.length, 16);
+  assert.equal(mine.length, 17);
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });

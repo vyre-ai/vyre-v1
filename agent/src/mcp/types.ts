@@ -53,6 +53,8 @@ export interface McpServerDeps {
   /** An outside agent took a job in this chat: what the chat is, so its tools there follow the chat's mode. */
   bindThread?(caller: McpCaller, threadId: string): Promise<Partial<Pick<McpCaller, "mode" | "planMode" | "threadKind" | "scope">>>;
   onClose?(caller: McpCaller): void;
+  /** Does this outside agent act for its person including setup (owner ruling 3 Nov)? Read on every call, so taking it back counts at the next one. */
+  setupGrant?(caller: McpCaller): boolean;
   now?(): number;
   info?: { name: string; version: string };
   /** A 401 for an outside client: what its WWW-Authenticate says, naming where to sign in. */

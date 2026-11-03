@@ -1,6 +1,6 @@
 # mcp.connected.list
 
-The outside agents you connected
+The outside agents you connected; with all, every outside agent in the Space (owners and admins, Console)
 
 | | |
 |---|---|
@@ -24,7 +24,9 @@ The outside agents you connected
 ## Input
 
 ```ts
-type In = Record<string, unknown>;
+type In = {
+  all?: boolean;
+};
 ```
 
 ## Output
@@ -38,6 +40,8 @@ type Out = {
       connectedAt: number;
       lastSeenAt?: number;
       calls: number;
+      setup?: boolean;
+      person?: string;
     }>;
 };
 ```
@@ -54,7 +58,9 @@ type Out = {
 ```json
 {
   "name": "example",
-  "input": {},
+  "input": {
+    "all": true
+  },
   "output": {
     "agents": [
       {
@@ -63,7 +69,9 @@ type Out = {
         "clientName": "example",
         "connectedAt": 1760000000000,
         "lastSeenAt": 1760000000000,
-        "redirectHost": "example"
+        "person": "example",
+        "redirectHost": "example",
+        "setup": true
       }
     ]
   }

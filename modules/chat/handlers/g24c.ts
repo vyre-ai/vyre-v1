@@ -173,6 +173,8 @@ export async function recent(ctx: ChatCtx, input: { filter?: "all" | "unread" | 
     const lastAt = last?.createdAt ?? t.createdAt;
     const title = t.title ?? (t.channelId ? channelBy(ctx.db, t.channelId)?.name : undefined) ?? (t.kind === "ask" ? "Ask" : "New chat");
     const row: Record<string, unknown> = { threadId: t.id, kind: t.kind, title, agents, unread: 0, working: false, starred: false, lastAt };
+    // a chat's other people (a channel's members are its own list): a direct message is named and counted by the one person it is with
+    if (t.kind === "chat") row["people"] = people.filter((p) => p !== asker);
     // A sealed thread holds ciphertext: no preview of it.
     if (last && last.body.trim() !== "" && encOf(ctx.db, t) === 0) row["preview"] = last.body.trim().slice(0, PREVIEW);
     rows.push({ lastAt, row, archived: mine.has(t.id) });

@@ -78,7 +78,7 @@ Requires: engine, mcp.
 - [threads.leave](../capabilities/threads.leave.md): Leave a chat that has other people in it: I stop being a member, they keep it. A channel is left with channels.leave
 - [threads.list](../capabilities/threads.list.md): List threads by kind, folder, scope or record
 - [threads.make_channel](../capabilities/threads.make_channel.md): Make a private chat into a channel with another person; the new channel links back to the chat
-- [threads.mark_read](../capabilities/threads.mark_read.md): Mark a thread read up to a sequence number
+- [threads.mark_read](../capabilities/threads.mark_read.md): Mark a thread read up to a sequence number, or unread again (the newest message from someone else counts as new)
 - [threads.members.add](../capabilities/threads.members.add.md): Add a person to a thread; a private chat never gains people, so this offers a channel instead
 - [threads.members.remove](../capabilities/threads.members.remove.md): Remove a person from a thread
 - [threads.remove_agent](../capabilities/threads.remove_agent.md): Remove an agent from a thread

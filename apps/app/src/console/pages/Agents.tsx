@@ -89,6 +89,33 @@ function AgentObject({ agent, busy, note, onBack, onRun, onDeleted }: { agent: A
 type Actors = CapMap["access.actors.list"]["out"];
 type Actor = Actors["actors"][number];
 export const actorActivityQuery = (actorId: string) => ({ target: { kind: "actor", id: actorId }, limit: 50 } as const);
+type Connected = CapMap["mcp.connected.list"]["out"]["agents"][number];
+
+/** Outside agents people connected through /mcp, and which of them act for their person including setup (owner ruling 3 Nov). An owner or admin takes a setup grant back here; only its person gives it. */
+export function ConnectedApps(): ReactElement {
+  const consoleData = useConsoleData();
+  const list = useRead<CapMap["mcp.connected.list"]["out"]>("mcp.connected.list", { all: true });
+  const action = useAction(list.refresh);
+  if (!list.data) return <ReadState error={list.error} retry={list.refresh} />;
+  const rows: readonly Connected[] = list.data.agents;
+  return (
+    <View testID="console-connected-apps">
+      <Section title="Connected MCP apps" count={rows.length}>
+        <Group>
+          {rows.length === 0 ? <Empty icon="doc">Nobody has connected an MCP app yet</Empty> : rows.map((a) => (
+            <Row
+              key={a.agentId} id={`connected-${a.agentId}`} title={a.clientName}
+              note={`For ${consoleData.name(a.person ?? "")} · ${a.setup === true ? "Acts for them, including setup" : "Asks them first"}`}
+              {...(a.setup === true ? { trailing: <Button label="Turn off setup" testID={`connected-setup-off-${a.agentId}`} disabled={action.busy} onPress={() => void action.run("mcp.setup.set", { agentId: a.agentId, setup: false }, "Setup turned off. It asks first now.")} /> } : {})}
+            />
+          ))}
+        </Group>
+      </Section>
+      {action.note ? <Note>{action.note}</Note> : null}
+    </View>
+  );
+}
+
 export function OutsideActors({ initialActorId = null }: { initialActorId?: string | null } = {}): ReactElement {
   const consoleData = useConsoleData();
   const list = useRead<Actors>("access.actors.list", {});
@@ -108,7 +135,7 @@ export function OutsideActors({ initialActorId = null }: { initialActorId?: stri
   if (selected) return <ActorObject key={selected.id} actor={selected} busy={action.busy} note={action.note} onBack={() => setSelectedId(null)} onRun={action.run} />;
   const rows: ObjectListRow<Actor>[] = list.data.actors.map((actor) => ({ id: actor.id, title: actor.name, note: `${providerTitle(actor.provider)} · ${cap1(actor.status)}${actor.engineerMcp ? " · Engineer MCP" : ""}`, search: `${consoleData.name(actor.owner)} ${actor.roles.join(" ")}`, filters: [actor.status, ...(actor.engineerMcp ? ["engineer"] : [])], value: actor, actions: [{ label: "Open", onSelect: () => setSelectedId(actor.id) }, { label: "Review access", onSelect: () => setSelectedId(actor.id) }, { separator: true }, { label: "Revoke", danger: true, onSelect: () => { setPicked(new Set([actor.id])); setBulkConfirm(true); } }] }));
   const revokePicked = async (): Promise<void> => { for (const actorId of picked) { const out = await action.run("access.actors.revoke", { actorId }, "Actor revoked"); if (out === undefined) return; } setPicked(new Set()); setBulkConfirm(false); };
-  return <View testID="console-outside-actors"><Section title="Outside actors" count={rows.length} right={<Button label="Connect a tool" testID="actor-new" onPress={() => setConnecting(true)} />}><ObjectList rows={rows} selectedId={null} onOpen={(row) => setSelectedId(row.id)} filters={[{ id: "active", label: "Active" }, { id: "pending", label: "Pending" }, { id: "revoked", label: "Revoked" }, { id: "engineer", label: "Engineer MCP" }]} activeFilters={filters} onFilters={setFilters} picked={picked} onPicked={setPicked} bulkActions={[{ label: "Revoke selected…", danger: true, onSelect: () => setBulkConfirm(true) }]} empty="No outside actors or API keys yet." testID="actors-object-list" /></Section>{bulkConfirm ? <Section title="Revoke selected actors?"><Group><Note>{picked.size} actor{picked.size === 1 ? "" : "s"} will lose access immediately. Open sessions and credentials stop working.</Note><Actions><Button label="Cancel" onPress={() => setBulkConfirm(false)} /><Button label="Confirm revoke" danger disabled={action.busy || picked.size === 0} onPress={() => void revokePicked()} /></Actions></Group></Section> : null}{connecting ? <FormSheet title="Connect an outside tool" testID="actor-new-sheet" onClose={() => { setConnecting(false); setToken(null); }} submit={token ? "Done" : "Issue token"} disabled={!token && (!name.trim() || !provider.trim() || action.busy)} why={!name.trim() ? "Name it first" : !provider.trim() ? "Add the provider" : undefined}
+  return <View testID="console-outside-actors"><ConnectedApps /><Section title="Outside actors" count={rows.length} right={<Button label="Connect a tool" testID="actor-new" onPress={() => setConnecting(true)} />}><ObjectList rows={rows} selectedId={null} onOpen={(row) => setSelectedId(row.id)} filters={[{ id: "active", label: "Active" }, { id: "pending", label: "Pending" }, { id: "revoked", label: "Revoked" }, { id: "engineer", label: "Engineer MCP" }]} activeFilters={filters} onFilters={setFilters} picked={picked} onPicked={setPicked} bulkActions={[{ label: "Revoke selected…", danger: true, onSelect: () => setBulkConfirm(true) }]} empty="No outside actors or API keys yet." testID="actors-object-list" /></Section>{bulkConfirm ? <Section title="Revoke selected actors?"><Group><Note>{picked.size} actor{picked.size === 1 ? "" : "s"} will lose access immediately. Open sessions and credentials stop working.</Note><Actions><Button label="Cancel" onPress={() => setBulkConfirm(false)} /><Button label="Confirm revoke" danger disabled={action.busy || picked.size === 0} onPress={() => void revokePicked()} /></Actions></Group></Section> : null}{connecting ? <FormSheet title="Connect an outside tool" testID="actor-new-sheet" onClose={() => { setConnecting(false); setToken(null); }} submit={token ? "Done" : "Issue token"} disabled={!token && (!name.trim() || !provider.trim() || action.busy)} why={!name.trim() ? "Name it first" : !provider.trim() ? "Add the provider" : undefined}
     onSubmit={() => { if (token) { setConnecting(false); setToken(null); setName(""); return; } void action.run<CapMap["access.actors.create"]["out"]>("access.actors.create", { name: name.trim(), provider: provider.trim(), ...(newRole ? { roleIds: [newRole] } : {}), idempotencyKey: attempt() }, "One-time token issued").then((out) => { if (out) setToken({ value: out.oneTimeToken, expires: out.expiresAt }); }); }}>
     {token ? <><Note>Shown once. Expires {new Date(token.expires).toLocaleString()}.</Note><Text selectable testID="actor-token">{token.value}</Text></> : <><Field label="Name" value={name} onChange={setName} /><Select label="Provider" value={provider} options={PROVIDERS} onChange={setProvider} />{rolesForNew.data ? <Select label="Role" value={newRole} options={[{ key: "", title: "No role yet" }, ...rolesForNew.data.roles.filter((r) => r.id !== "rol_owner" && r.id !== "owner" && r.assignableToAgents !== false).map((r) => ({ key: r.id, title: r.name }))]} onChange={setNewRole} /> : null}</>}
   </FormSheet> : null}{action.note ? <Note>{action.note}</Note> : null}</View>;

@@ -43,6 +43,7 @@ type Out = {
       starred: boolean;
       lastAt: number;
       preview?: string;
+      people?: Array<string>;
     }>;
   today: Array<{
       threadId: string;
@@ -54,6 +55,7 @@ type Out = {
       starred: boolean;
       lastAt: number;
       preview?: string;
+      people?: Array<string>;
     }>;
   yesterday: Array<{
       threadId: string;
@@ -65,6 +67,7 @@ type Out = {
       starred: boolean;
       lastAt: number;
       preview?: string;
+      people?: Array<string>;
     }>;
   earlier: Array<{
       threadId: string;
@@ -76,6 +79,7 @@ type Out = {
       starred: boolean;
       lastAt: number;
       preview?: string;
+      people?: Array<string>;
     }>;
   archived: Array<{
       threadId: string;
@@ -87,8 +91,10 @@ type Out = {
       starred: boolean;
       lastAt: number;
       preview?: string;
+      people?: Array<string>;
     }>;
   nextUnread: string | null;
+  threadsUnread?: number;
 };
 ```
 
@@ -115,6 +121,9 @@ type Out = {
         ],
         "kind": "chat",
         "lastAt": 1760000000000,
+        "people": [
+          "usr_a1b2c3"
+        ],
         "preview": "example",
         "starred": true,
         "threadId": "thr_a1b2c3",
@@ -130,6 +139,9 @@ type Out = {
         ],
         "kind": "chat",
         "lastAt": 1760000000000,
+        "people": [
+          "usr_a1b2c3"
+        ],
         "preview": "example",
         "starred": true,
         "threadId": "thr_a1b2c3",
@@ -146,6 +158,9 @@ type Out = {
         ],
         "kind": "chat",
         "lastAt": 1760000000000,
+        "people": [
+          "usr_a1b2c3"
+        ],
         "preview": "example",
         "starred": true,
         "threadId": "thr_a1b2c3",
@@ -154,6 +169,7 @@ type Out = {
         "working": true
       }
     ],
+    "threadsUnread": 1,
     "today": [
       {
         "agents": [
@@ -161,6 +177,9 @@ type Out = {
         ],
         "kind": "chat",
         "lastAt": 1760000000000,
+        "people": [
+          "usr_a1b2c3"
+        ],
         "preview": "example",
         "starred": true,
         "threadId": "thr_a1b2c3",
@@ -176,6 +195,9 @@ type Out = {
         ],
         "kind": "chat",
         "lastAt": 1760000000000,
+        "people": [
+          "usr_a1b2c3"
+        ],
         "preview": "example",
         "starred": true,
         "threadId": "thr_a1b2c3",

@@ -135,9 +135,10 @@ test("the sidebar counts unread conversations per inbox, once each", () => {
   assert.ok(groups[0]!.items[1]!.lock, "a private mailbox shows its lock");
 });
 
-test("a hidden calendar is dimmed in the sidebar and Show Only This keeps one", () => {
+test("a hidden calendar's dot is hollow in the sidebar and Show only this calendar keeps one", () => {
   const out = side({ hiddenCalendars: ["cal_ms"] });
-  assert.ok(has(out, "opacity:0.45"), "the hidden calendar is quiet");
+  const dot = (id: string): string => (out.match(new RegExp(`<div[^>]*data-testid="cal-dot-${id}"[^>]*>`)) ?? [""])[0];
+  assert.ok(dot("cal_ms").includes('aria-label="Hidden"') && dot("cal_work").includes('aria-label="Shown"'), "the hidden calendar's dot is hollow, the others are filled");
   const only = reduce(INITIAL_STATE, { type: "calendarOnly", id: "cal_work", all: ["cal_work", "cal_ms", "cal_pers"] });
   assert.deepEqual(only.hiddenCalendars, ["cal_ms", "cal_pers"]);
   assert.deepEqual(reduce(only, { type: "calendarVisible", id: "cal_ms" }).hiddenCalendars, ["cal_pers"]);

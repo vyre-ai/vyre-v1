@@ -627,6 +627,10 @@ export async function onFileVersion(ctx: AgentsCtx, event: FileVersionEvent): Pr
     ctx.emit("agent.config_changed", a.id, { agentId: a.id, fields: ["AGENT.md"], versionId, by: who });
     return [a.id];
   }
+  // The host delivers this after commit and at least once, so the event for an older version (the one agents.create wrote, or a replay after a restart) can arrive after a newer save
+  // (agents.update, a later edit). Only the file's newest version is the configuration: an older one would undo what was saved after it, such as a memory key just set.
+  const newest = (await versionsOf(ctx, fileId)).reduce<VersionOut | undefined>((m, v) => (m === undefined || v.n > m.n ? v : m), undefined);
+  if (newest !== undefined && newest.versionId !== versionId) return [a.id];
   const text = await textOf(ctx, fileId, versionId);
   if (text === a.tomlText) return [a.id];
   const checked = checkToml(text, { self: a.name });

@@ -5,7 +5,7 @@
 // A person's own message asks for an act this turn: the engine reads the words with lib/asked.ts and writes single-use rows here, as that person. No model output reaches this path. A row follows the request
 // through wakes, Jobs and plan approval because it is matched on the thread and the threads above it, and the Gate spends it at the moment the act happens.
 import { ANY_TARGET, namedCovers, normalLink, targetsOf } from "../../../lib/grants.ts";
-import { isHostService } from "../../../lib/trust.ts";
+import { isHostService, isPersonPress } from "../../../lib/trust.ts";
 import { actOf, clean, newHoldId, raise, sha } from "../projections.ts";
 import type { GateCtx, Hold, StepRef } from "../projections.ts";
 
@@ -29,7 +29,8 @@ export async function grantsSet(ctx: GateCtx, input: In): Promise<unknown> {
   // the automation capability a person pressed calls this, and it checked their access to the automation; nobody calls it from outside
   if ((ctx.depth ?? 0) === 0 && !isHostService(ctx.principal)) raise(ctx, "permission.role_lacks_permission", "An automation sets this when it is saved.", { reason: "system_only" });
   const by = ctx.principal;
-  const pressed = by.kind === "person" || isHostService(by);
+  // a person's own press; an outside agent working under its person's setup grant runs as them but has not pressed anything (lib/trust.ts isPersonPress)
+  const pressed = isPersonPress(ctx) || isHostService(by);
   const before = standing(ctx, input.automationId);
   ctx.db.run("DELETE FROM gate_grants WHERE kind = 'standing' AND subject_id = ?", input.automationId);
   if (!pressed) return { grants: [] };                                     // an agent's save: the automation holds nothing until a person presses

@@ -29,5 +29,9 @@ type Payload = {
   actingFor?: string;
   runId?: string;
   expiresAt: number;
+  askedBy?: {
+    kind: "person" | "agent" | "actor" | "service";
+    id: string;
+  };
 };
 ```

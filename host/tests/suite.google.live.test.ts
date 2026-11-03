@@ -186,6 +186,9 @@ test("Google Workspace: setup, check, then mail, calendar, Meet and Drive reach 
     assert.deepEqual(seen.events.map((e: { title: string }) => e.title), ["Intake call"]);
     const mia = await w.ok(OTHER, "calendar.list_calendars", {});
     assert.equal(mia.calendars.some((c: { id: string }) => c.id === gcal.id), false, "another member does not see Noah's calendar");
+    assert.equal(gcal.title, NOAH, "the calendar is named for Noah's account, not \"Google Calendar\"");
+    await w.ok(MEMBER, "calendar.sync_now", { calendarId: gcal.id });   // Sync now on the sidebar row: Noah may pull his own calendar
+    assert.notEqual((await w.call(OTHER, "calendar.sync_now", { calendarId: gcal.id })).status, 200, "and Mia may not pull his");
 
     // 6 Meet: the same pass handed the conference's transcript to Meetings
     const meetings = await w.ok(MEMBER, "meetings.list", {});

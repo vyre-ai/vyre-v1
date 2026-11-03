@@ -8313,7 +8313,7 @@
     {
       "deferred": false,
       "name": "threads_mark_read",
-      "summary": "Mark a thread read up to a sequence number",
+      "summary": "Mark a thread read up to a sequence number, or unread again (the newest message from someone else counts as new)",
       "toolset": "chats"
     },
     {

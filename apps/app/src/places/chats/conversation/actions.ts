@@ -17,6 +17,14 @@ export interface SendResult { messageId: string; threadSeq: number }
 /** A thing linked from the text or a chip: sent with the message so the reader (and the agent) get the id, not only the title. */
 export interface Ref { kind: string; id: string; title: string }
 
+/**
+ * What a sent message links: the composer's # and [[ picks and the tray chips that name a thing. The composer names a pick's kind as its menu does ("File", "Folder"); a ref carries the lower-case
+ * subject type, which is what opens it beside the chat, draws a connected source's chip and tells the agent "(folder fld_...)".
+ */
+export function sendRefs(payload: { refs: readonly { kind: string; id: string; title: string }[]; chips: readonly { kind: string; id?: string; name: string }[] }): Ref[] {
+  return [...payload.refs.map((r) => ({ kind: r.kind.toLowerCase(), id: r.id, title: r.title })), ...payload.chips.flatMap((c) => (c.id !== undefined ? [{ kind: c.kind.toLowerCase(), id: c.id, title: c.name }] : []))];
+}
+
 /** A file to send with a message: the browser File behind the tray chip. */
 export interface Upload { name: string; file?: unknown; size?: number; mime?: string }
 

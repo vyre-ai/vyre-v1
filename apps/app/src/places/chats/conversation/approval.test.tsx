@@ -157,3 +157,25 @@ test("a press that comes too late hears it was decided, and the card shows the d
   assert.match(textOf(find(root, "approval-done-tsk_1")), /Allowed/);
   assert.doesNotMatch(textOf(root), /Failed/);
 });
+
+test("an outside agent asking its person (docs/ask-the-person.md): who asks, what happens, that it runs as you, and every input; no Always allow", async () => {
+  const provider = { key: "google", clientId: "8812.apps.googleusercontent.com", clientSecretHandle: "#Google_Client_Secret" };
+  const ask = {
+    task: { id: "tsk_ask", kind: "approve", title: "Simba asks", state: "awaiting_approval", actions: [{ key: "approve", label: "Approve" }, { key: "reject", label: "Send back", note: "required" }], blocks: [
+      { type: "pairs", v: 1, data: { pairs: [["What happens", "Add or change an OIDC provider"]], act: "signin_change", cap: "members.sso.set", input: { provider }, ask: { what: "Add or change an OIDC provider", by: "Simba (Claude Code)" } } },
+      { type: "table", v: 1, data: { columns: ["Input", "Value"], rows: [["provider", JSON.stringify(provider)]] } },
+    ] },
+  };
+  const calls: { cap: string; input: unknown }[] = [];
+  const d = { call: async (cap: string, input: unknown) => { calls.push({ cap, input }); return cap === "tasks.get" ? ask : {}; }, nav: { openBeside: () => undefined } } as never;
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_ask" agent="Simba (Claude Code)" agentId="agt_out" data={d} />);
+  const text = textOf(root);
+  assert.match(text, /Simba \(Claude Code\) asks you to: add or change an OIDC provider/);
+  assert.match(text, /Runs as/);
+  assert.match(text, /You, once, exactly as shown/);
+  assert.match(text, /#Google_Client_Secret/, "the secret as its handle");
+  assert.equal(find(root, "approval-always-tsk_ask"), null, "an ask is never a standing rule");
+  await press(find(root, "approval-allow-tsk_ask"));
+  await flush();
+  assert.deepEqual(calls.find((c) => c.cap === "tasks.act")?.input, { taskId: "tsk_ask", action: "approve" });
+});

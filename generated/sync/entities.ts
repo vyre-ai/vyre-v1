@@ -66,6 +66,11 @@ export const syncEntities: SyncEntityConfig[] = [
         "type": "status",
         "label": null,
         "required": false
+      },
+      "lastSyncAt": {
+        "type": "datetime",
+        "label": null,
+        "required": false
       }
     },
     "fts": [],

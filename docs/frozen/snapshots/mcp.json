@@ -3,16 +3,17 @@
   "capabilities": {
     "mcp.activity.list@1": "0bcd8ecb55aa79e1b6a00a61f23caad99ba9be81f0a136579df658da7a8b3418",
     "mcp.connected.link@1": "8456fe41f3cca08fbcc83180a94d19332502331e84a7f5972b29df5707272eb6",
-    "mcp.connected.list@1": "6b3ad1e151907ad7a56ffa55cc59882721c59c0b8935223f88ae08fed737e2ab",
+    "mcp.connected.list@1": "8a6dd1f4d2cd47700c2604b10367ef55064574ba89a1019c9d98d0c14ac15512",
     "mcp.connected.remove@1": "fcfed588dce0fd9a3b56adc8703aa526417e876bd1fff270513aaf9101cacb42",
     "mcp.health@1": "f58b9fad935725415c0fa3f85a78e9710e7f9066ddeebc1515327d0adf31b0b6",
-    "mcp.oauth.allow@1": "81ac2a630e02edd284f97d5c3fac300403f9ca48c949630372f913ec47b8811d",
+    "mcp.oauth.allow@1": "27dc7fe2237778b5aa1c05847939d79e35b0a6609f2bb002eaa87c54066710f2",
     "mcp.oauth.decline@1": "b744c9ba46ae8cf1c75d8e53251a7ec3187cda21f06af8f2dd90d7f632ebcb67",
     "mcp.oauth.replayed@1": "9d53afd06f5caec0f679af75e45673237eba72f946ba618c3dc40e81db55ef19",
-    "mcp.oauth.request@1": "ea277578069ccbd8e2eaeae4b7d973e9efb3e5754eacaec2d8610d3ab2e8b7cb",
+    "mcp.oauth.request@1": "2a35dd7878e861b81847466af28fa3dbc977c47cc87672d74a06e2b119a240b6",
     "mcp.session.close@1": "ddb7326a34b6056a6c7da8fa9755702085cada6178947958c2e7a1efaa0018ea",
     "mcp.session.mint@1": "ceac8b1130a0caea597c372b4b508bc2757a31ae49924986bdf985e789ab0944",
     "mcp.sessions.list@1": "4a0219b545c76871d171cfefdea5a32348f5d1f52a69b9d8d1dabd146efeff71",
+    "mcp.setup.set@1": "58feacc7d80dc0ab25e70711aa18ccd17013b7d41768cc93ac3a544e055e07b2",
     "mcp.tool.describe@1": "741daa901489b36529df5a88ce30616395686184433ba3cfe56965580ae5abb2",
     "mcp.tool.search@1": "eead54eb8cbf7ed269b9659d7f28483300078fb443032de0821301d039151e18",
     "mcp.tools.list@1": "a69d1180317a019c7531206cc4abc4eae1e60e2fc4c37038b0883b38ab2f88f3",
@@ -24,6 +25,7 @@
     "mcp.client_removed": "9ac8ef380beb1a2fa1a452e846fcbc7e19ca10220400f4a48ad09d6c67c02f07",
     "mcp.client_replayed": "e4d802cef30c2a2051369a45bf45c1be534b75b6c1d6fb2d2a0d4c2b6e26263e",
     "mcp.session_ended": "0c71914ce6626c0276f1cd073f5b881e5d11d916cb616d50f32b1c35e60ea46a",
-    "mcp.session_started": "c30a64f7042e84ad672d85162f91c28a14f70293279fd2903f10fc31bd74ae84"
+    "mcp.session_started": "c30a64f7042e84ad672d85162f91c28a14f70293279fd2903f10fc31bd74ae84",
+    "mcp.setup_changed": "324db5d209cdf8fd349b969c40a37a4b35e1fff344a082b21a54cff2eefdb7e1"
   }
 }

@@ -1,6 +1,6 @@
 # threads.mark_read
 
-Mark a thread read up to a sequence number
+Mark a thread read up to a sequence number, or unread again (the newest message from someone else counts as new)
 
 | | |
 |---|---|
@@ -27,6 +27,7 @@ Mark a thread read up to a sequence number
 type In = {
   threadId: string;
   upto?: number;
+  unread?: boolean;
 };
 ```
 
@@ -53,6 +54,7 @@ type Out = {
   "name": "example",
   "input": {
     "threadId": "thr_a1b2c3",
+    "unread": true,
     "upto": 1
   },
   "output": {
