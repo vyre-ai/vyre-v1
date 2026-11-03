@@ -1,0 +1,9 @@
+{
+  "targets": [
+    { "id": "TURNINFO_01-card", "route": "/m/TURNINFO_01?part=card", "proto": "chat,at:ti-card,{skin}", "waitFor": "[data-testid='conversation']", "note": "Hovering the agent's face on a reply: the card names the model and effort, the AI account, who asked, where it ran, the cost (included in the plan for a sign-in), tokens in and out, and how long it took, with Details." },
+    { "id": "TURNINFO_01-menu", "route": "/m/TURNINFO_01?part=menu", "proto": "chat,at:ti-menu,{skin}", "waitFor": "[data-testid='conversation']", "note": "The reply's right-click menu: Details is the last item. Show What the Agent Knew Here is gone from it; that is now a section of Details." },
+    { "id": "TURNINFO_01-details", "route": "/m/TURNINFO_01?part=details", "proto": "chat,at:ti-details,{skin}", "waitFor": "[data-testid='reply-details']", "note": "The Details tab of a sign-in reply: ids with copy, who and where, timing, tokens (reasoning not reported by Claude Code), cost included in the plan, tools with durations and the held one, what the agent knew, skills, files, and one retry when the provider was busy." },
+    { "id": "TURNINFO_01-api", "route": "/m/TURNINFO_01?part=api", "proto": "chat,at:ti-sol,{skin}", "waitFor": "[data-testid='reply-details']", "note": "The Details of a reply on a Space key: the cost per line from the list price of the day, and cache writes not reported." },
+    { "id": "TURNINFO_01-member", "route": "/m/TURNINFO_01?part=member", "proto": "chat,at:ti-member,{skin}", "waitFor": "[data-testid='reply-details']", "note": "Another member's view of Irfad's reply: on Irfad's account, no cost, tool arguments and files hidden." }
+  ]
+}

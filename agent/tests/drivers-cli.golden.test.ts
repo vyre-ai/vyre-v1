@@ -19,7 +19,7 @@ function decode(file: string, decoder: CliDecoder): CliEvent[] {
   return out;
 }
 
-const usage = (inputTokens: number, outputTokens: number): CliEvent => ({ type: "usage", inputTokens, outputTokens });
+const usage = (inputTokens: number, outputTokens: number, more: Partial<Extract<CliEvent, { type: "usage" }>> = {}): CliEvent => ({ type: "usage", inputTokens, outputTokens, ...more });
 const S1: CliEvent = { type: "session", id: "S1" };
 const MCP_OK: CliEvent = { type: "mcp", status: "ok" };
 
@@ -27,7 +27,7 @@ const MCP_OK: CliEvent = { type: "mcp", status: "ok" };
 
 test("claude: a streamed answer is passed on as its deltas, once, with the cache counted into input tokens", () => {
   assert.deepEqual(decode("claude-text", createClaudeDecoder()), [
-    S1, MCP_OK, { type: "text", text: "Hello" }, { type: "text", text: " from Claude." }, usage(112, 6), { type: "end" },
+    S1, MCP_OK, { type: "text", text: "Hello" }, { type: "text", text: " from Claude." }, usage(112, 6, { cacheReadTokens: 100, cacheWriteTokens: 0, costUsd: 0.0012 }), { type: "end" },
   ]);
 });
 
@@ -44,7 +44,7 @@ test("claude: a tool call shows as activity once, its result as ok, and the answ
     { type: "tool", phase: "call", id: "toolu_01", name: "mcp__vyre__schema_describe" },
     { type: "tool", phase: "result", id: "toolu_01", ok: true },
     { type: "text", text: "Found the types." },
-    usage(80, 19), { type: "end" },
+    usage(80, 19, { cacheReadTokens: 0, cacheWriteTokens: 0 }), { type: "end" },
   ]);
 });
 
@@ -59,20 +59,22 @@ test("claude: a tool the MCP server refused arrives as a result that is not ok",
 
 test("claude: failures keep the engine's words; a turn limit gets its own code; a Vyre server that did not connect is reported", () => {
   assert.deepEqual(decode("claude-error-auth", createClaudeDecoder()).slice(-1), [{ type: "end", error: { message: "Invalid API key · Please run /login" } }]);
+  // a count the engine left out stays out (not reported), and one it gave as 0 is 0
+  assert.deepEqual(decode("claude-nopartial", createClaudeDecoder()).find((e) => e.type === "usage"), usage(8, 5));
   assert.deepEqual(decode("claude-max-turns", createClaudeDecoder()).slice(-2), [usage(900, 120), { type: "end", error: { code: "engine.step_limit", message: "error_max_turns" } }]);
   assert.deepEqual(decode("claude-mcp-failed", createClaudeDecoder()), [S1, { type: "mcp", status: "failed", detail: "failed" }]);
 });
 
 test("codex: reasoning and messages arrive whole, an MCP call is started and finished, input tokens already include the cache", () => {
   assert.deepEqual(decode("codex-text", createCodexDecoder()), [
-    S1, { type: "thinking", text: "Thinking about the greeting." }, { type: "text", text: "Hello from Codex." }, usage(1200, 18), { type: "end" },
+    S1, { type: "thinking", text: "Thinking about the greeting." }, { type: "text", text: "Hello from Codex." }, usage(1200, 18, { cacheReadTokens: 1000 }), { type: "end" },
   ]);
   assert.deepEqual(decode("codex-tool", createCodexDecoder()), [
     S1,
     { type: "tool", phase: "call", id: "item_0", name: "vyre.schema_describe" },
     { type: "tool", phase: "result", id: "item_0", ok: true },
     { type: "text", text: "Found the types." },
-    usage(2400, 40), { type: "end" },
+    usage(2400, 40, { cacheReadTokens: 2000 }), { type: "end" },
   ]);
   assert.deepEqual(decode("codex-tool-denied", createCodexDecoder()).filter((e) => e.type === "tool"), [
     { type: "tool", phase: "call", id: "item_0", name: "vyre.schema_describe" },

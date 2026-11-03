@@ -22,6 +22,9 @@ import { TOKEN_ENV } from "./types.ts";
 
 interface Tally { input: number; output: number }
 
+/** A count the engine put in its usage, or nothing when it left the field out: "not reported" stays apart from 0. */
+const given = (u: Json | null, key: string): number | undefined => (u && typeof u[key] === "number" && Number.isFinite(u[key]) ? (u[key] as number) : undefined);
+
 function tallyOf(u: Json | null): Tally {
   if (!u) return { input: 0, output: 0 };
   return { input: num(u["input_tokens"]) + num(u["cache_read_input_tokens"]) + num(u["cache_creation_input_tokens"]), output: num(u["output_tokens"]) };
@@ -138,7 +141,14 @@ export function createClaudeDecoder(): CliDecoder {
     const u = obj(j["usage"]);
     let total = tallyOf(u);
     if (!u) { total = { input: 0, output: 0 }; for (const t of perMessage.values()) { total.input += t.input; total.output += t.output; } }
-    if (total.input > 0 || total.output > 0) out.push({ type: "usage", inputTokens: total.input, outputTokens: total.output });
+    // the result line's own split and the dollar figure Claude Code priced the turn at (for a sign-in it is what the API would have charged, which the turn record does not bill)
+    const cacheRead = given(u, "cache_read_input_tokens"), cacheWrite = given(u, "cache_creation_input_tokens"), costUsd = given(j, "total_cost_usd");
+    if (total.input > 0 || total.output > 0) {
+      out.push({
+        type: "usage", inputTokens: total.input, outputTokens: total.output,
+        ...(cacheRead !== undefined ? { cacheReadTokens: cacheRead } : {}), ...(cacheWrite !== undefined ? { cacheWriteTokens: cacheWrite } : {}), ...(costUsd !== undefined ? { costUsd } : {}),
+      });
+    }
     streamed.clear(); called.clear(); perMessage.clear(); current = ""; sawText = false;
     if (!failed) { out.push({ type: "end" }); return out; }
     const subtype = str(j["subtype"]);

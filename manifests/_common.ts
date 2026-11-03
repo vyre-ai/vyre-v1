@@ -67,3 +67,23 @@ export const url = t.str({ pattern: '^https?://', examples: ['https://example.co
 
 /** What an age purge answers (P-CC_39): how many it removed in this batch, whether more are left, and how many a hold kept. */
 export const purgeOut = { removed: t.int({ minimum: 0 }), more: t.bool(), skippedOnHold: t.opt(t.int({ minimum: 0 })) };
+
+// A reply's Details (engine.turn.of_message, chat.reply_details). A count that is absent was not reported by the provider: never shown as 0.
+const turnCost = t.obj({
+  source: t.enm('subscription', 'reported', 'catalog', 'unknown'), micros: t.opt(t.int()),
+  lines: t.opt(t.arr(t.obj({ kind: t.enm('input', 'output', 'cache_read', 'cache_write'), tokens: t.int(), perMillion: t.num(), micros: t.int() }))),
+  priceAsOf: t.opt(t.str({ examples: ['2026-10-06'] })), missing: t.opt(t.arr(t.str())),
+});
+export const replyTurn = t.obj({
+  turnId: id.turn, traceId: id.trace, agentId: id.agent, asker: t.str(), model: t.str(), effort: t.opt(t.str()), engine: t.str(), provider: t.opt(t.str()),
+  accountKind: t.opt(t.enm('api_key', 'subscription')), shared: t.opt(t.bool()), accountRef: t.opt(t.str({ description: 'Vault handle or subscription account reference; never a secret value' })), state: t.enm('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled'),
+  ranOn: t.arr(t.obj({ kind: t.str(), name: t.str() })),
+  timing: t.obj({ queuedAt: t.opt(t.ts()), startedAt: t.ts(), firstTokenAt: t.opt(t.ts()), endedAt: t.opt(t.ts()) }),
+  tokens: t.obj({ in: t.int(), out: t.int(), cacheRead: t.opt(t.int()), cacheWrite: t.opt(t.int()), reasoning: t.opt(t.int()) }),
+  cost: t.opt(turnCost),
+  tools: t.arr(t.obj({ name: t.str(), args: t.opt(t.str()), ok: t.opt(t.bool()), durationMs: t.opt(t.int()), heldTaskId: t.opt(id.task) })),
+  files: t.obj({ read: t.arr(t.str()), written: t.arr(t.str()) }), skills: t.arr(t.str()),
+  switches: t.arr(t.obj({ at: t.ts(), why: t.str(), sameAccount: t.bool(), from: t.opt(t.str()), to: t.opt(t.str()) })),
+  error: t.opt(t.obj({ code: t.str(), message: t.str() })),
+  private: t.bool(), partial: t.bool(),
+});

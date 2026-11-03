@@ -11,6 +11,8 @@ import { open } from "../control.ts";
 import type { EngineCtx } from "../../projections.ts";
 import { blockedBy, readPolicy } from "./config.ts";
 import { ensureExtra } from "./schema.ts";
+import { saveTurnInfo } from "./reply-info.ts";
+import type { TurnInfo } from "../../../../agent/src/turn-engine/types.ts";
 import { num, optStr, pageOf, rows, str, turnOf } from "./util.ts";
 import type { ErrShape, Row, TurnOut, TurnState } from "./util.ts";
 
@@ -28,7 +30,7 @@ function withNode(ctx: EngineCtx, r: Row): Row {
   return { ...r, ...(node === undefined || node.startsWith("device:") ? {} : { node_id: node }), ...(ran.length > 0 ? { ran_on: ran } : {}) };
 }
 
-function loadTurn(ctx: EngineCtx, turnId: string): Row {
+export function loadTurn(ctx: EngineCtx, turnId: string): Row {
   ensureExtra(ctx.db);
   const r = rows(ctx, "SELECT * FROM engine_turns WHERE turn_id = ?", turnId)[0];
   if (!r) raise(ctx, "validation.not_found", "There is no such turn.", { turnId });
@@ -228,7 +230,7 @@ export async function turnFinish(
  */
 export async function turnRecord(
   ctx: EngineCtx,
-  input: { threadId: string; turnId: string; agentId: string; phase: "started" | "completed" | "failed" | "cancelled"; qseq: number; asker?: string; engine?: string; model?: string; accountRef?: string; tokensIn?: number; tokensOut?: number; costMicros?: number; code?: string; message?: string },
+  input: { threadId: string; turnId: string; agentId: string; phase: "started" | "completed" | "failed" | "cancelled"; qseq: number; asker?: string; engine?: string; model?: string; accountRef?: string; tokensIn?: number; tokensOut?: number; costMicros?: number; code?: string; message?: string; info?: TurnInfo },
 ): Promise<{ turn: TurnOut }> {
   ensureExtra(ctx.db);
   for (const [field, v] of [["tokensIn", input.tokensIn], ["tokensOut", input.tokensOut], ["costMicros", input.costMicros]] as const) {
@@ -257,7 +259,10 @@ export async function turnRecord(
   }
   if (input.phase === "started" || !isOpen(str(row["state"]))) return { turn: turnOf(row) };
 
-  const tokensIn = input.tokensIn ?? num(row["tokens_in"]), tokensOut = input.tokensOut ?? num(row["tokens_out"]), costMicros = input.costMicros ?? num(row["cost_micros"]);
+  const tokensIn = input.tokensIn ?? num(row["tokens_in"]), tokensOut = input.tokensOut ?? num(row["tokens_out"]);
+  // what the turn engine saw is kept for the reply's Details, and the turn is priced once, at today's price (reply-info.ts); a cost the caller gave wins
+  const priced = input.info ? saveTurnInfo(ctx.db, { turnId: input.turnId, threadId: input.threadId, model: input.model ?? str(row["model"]), ...(input.engine ? { driver: input.engine } : {}), tokensIn, tokensOut }, input.info, now) : undefined;
+  const costMicros = input.costMicros ?? priced?.micros ?? num(row["cost_micros"]);
   const error: ErrShape | undefined = input.phase === "failed" ? { code: input.code ?? "unknown", message: input.message ?? "The turn failed.", next: [], traceId: str(row["trace_id"]) } : undefined;
   ctx.db.run(
     "UPDATE engine_turns SET state = ?, ended_at = ?, tokens_in = ?, tokens_out = ?, cost_micros = ?, error = ?, engine = COALESCE(?, engine), model = COALESCE(?, model), account_ref = COALESCE(?, account_ref) WHERE turn_id = ?",
@@ -313,6 +318,10 @@ export function turnGet(ctx: EngineCtx, input: { turnId: string }): {
   };
 } {
   const t = loadTurn(ctx, input.turnId);
+  // the turn of a chat you cannot open does not exist for you, as the chat itself does not (its id alone used to be enough to read it)
+  if (str(t["asker"]) !== actorOf(ctx) && ctx.authorize({ perm: null, level: "view" }, { type: "thread", id: str(t["thread_id"]) }).effect !== "allow") {
+    raise(ctx, "validation.not_found", "There is no such turn.", { turnId: input.turnId });
+  }
   const blocks = rows(ctx, "SELECT * FROM engine_turn_blocks WHERE turn_id = ? ORDER BY idx ASC", input.turnId);
   let prev = num(t["started_at"]);
   const steps: Step[] = [];

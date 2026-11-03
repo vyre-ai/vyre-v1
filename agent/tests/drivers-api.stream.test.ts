@@ -36,7 +36,7 @@ for (const provider of PROVIDERS) {
     const kinds = events.map((e) => e.type);
     assert.deepEqual(kinds, ["text", "text", "text", "text", "usage", "done"]);
     const usage = events.find((e) => e.type === "usage");
-    assert.deepEqual(usage, { type: "usage", inputTokens: 2200, outputTokens: 12 });
+    assert.deepEqual(usage && usage.type === "usage" ? { type: usage.type, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens } : usage, { type: "usage", inputTokens: 2200, outputTokens: 12 });
     assert.equal(f.requests.length, 1);
   });
 

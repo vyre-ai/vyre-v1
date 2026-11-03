@@ -120,6 +120,9 @@ function decoder(): StreamDecoder {
         const d = u["prompt_tokens_details"] as Record<string, any> | undefined;
         if (typeof d?.["cached_tokens"] === "number") usage.cacheReadTokens = d["cached_tokens"];
         if (typeof d?.["cache_write_tokens"] === "number") usage.cacheWriteTokens = d["cache_write_tokens"];
+        const c = u["completion_tokens_details"] as Record<string, any> | undefined;
+        if (typeof c?.["reasoning_tokens"] === "number") usage.reasoningTokens = c["reasoning_tokens"];
+        if (typeof u["cost"] === "number" && Number.isFinite(u["cost"])) usage.costUsd = u["cost"];
         out.push({ type: "usage", usage });
       }
       return out;

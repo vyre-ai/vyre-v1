@@ -9,7 +9,7 @@
 //   threads.make_channel channels.create; so no `chat.thread.*` names exist (prefix rule).
 // DECISION: capabilities backing agent tools carry mcpName equal to the tool name (see module agents agentTools); one tool is generated.
 import { block, create, defineManifest, entity, ev, list, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
-import { blockSchema, id, level, pageIn, pageOut, principalRef, purgeOut } from './_common.ts';
+import { blockSchema, id, level, pageIn, pageOut, principalRef, purgeOut, replyTurn } from './_common.ts';
 
 const threadKind = t.enm('chat', 'channel', 'thread', 'ask', 'run', 'helper', 'console');
 const agentMode = t.enm('lead', 'listen');
@@ -299,6 +299,21 @@ export default defineManifest({
     }),
     read('chat.message.get', 'Read one message with its blocks', {
       in: { ...threadT, messageId: id.message }, out: { message: messageRow }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',
+    }),
+    read('chat.reply_details', 'How one agent reply was made, for its hover card and Details tab: its turn, what the agent knew, and its own steps when no turn was kept. Account, cost and tool arguments are for the asker and AI-spend managers only', {
+      in: { ...threadT, messageId: id.message },
+      out: {
+        details: t.obj({
+          messageId: id.message, threadId: id.thread, agentId: id.agent, at: t.ts(),
+          turn: t.opt(replyTurn),
+          memory: t.opt(t.obj({
+            facts: t.arr(t.obj({ factId: t.str(), text: t.str(), sourceTitle: t.opt(t.str()) })),
+            quotes: t.arr(t.obj({ ref: t.str(), text: t.str(), threadTitle: t.opt(t.str()), at: t.ts() })),
+          })),
+          steps: t.arr(t.obj({ name: t.str(), ok: t.opt(t.bool()), secs: t.opt(t.int()) }), { description: 'The tool steps saved on the reply itself: the fallback when no turn was recorded for it' }),
+        }),
+      },
+      on: ['thread', '/threadId'], tool: 'chats', label: 'check', errors: ['validation.not_found', 'validation.bad_input'],
     }),
     read('chat.pins.list', 'Pinned messages of a thread', {
       in: threadT, out: { messages: t.arr(messageRow) }, on: ['thread', '/threadId'], tool: 'chats', label: 'filter',

@@ -16,7 +16,7 @@ import { PRIORITY_INTERRUPT } from "./queue.ts";
 import { preview, withMode } from "./lead.ts";
 import type {
   AgentMode, DriverEvent, EngineAgent, EngineEvent, EngineSession, IncomingMessage, OpenSession, OpenThread, Placement, PreviewResult,
-  QueueItem, ReceiveResult, SpendRow, StoredMessage, ToolResult, TurnRow,
+  QueueItem, ReceiveResult, SpendRow, StoredMessage, ToolResult, ToolTrace, TurnInfo, TurnRow,
   AccountQuery, ResolvedAccount,
 } from "./types.ts";
 import type { RoutePolicy, RouteMention } from "../../../lib/route.ts";
@@ -357,7 +357,12 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       id: nextId("t"), threadId: st.thread.id, agentId: item.agentId, asker, payerReason: reason, model: agent?.model ?? null, state: "running",
       traceId: nextId("tr"), qseq: item.qseq, kind: item.kind, routine: item.routine, startedAt: now(), endedAt: null,
       tokensIn: 0, tokensOut: 0, error: null, firstTokenOverheadMs: null, injected: 0,
+      info: { ...(agent?.effort ? { effort: agent.effort } : {}), tools: [], switches: [] },
     };
+    const info = turn.info!;
+    // the provider's dollar figure stands only when every call of the turn reported one
+    let usages = 0, priced = 0;
+    let lastCode = "";
     turnRows.push(turn);
     if (turnRows.length > KEEP_TURNS) turnRows.splice(0, turnRows.length - KEEP_TURNS);
     const run: Running = { turnId: turn.id, agentId: item.agentId, asker, qseq: item.qseq, session: null, cancelled: false, lostLease: false };
@@ -424,6 +429,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           case "text":
           case "thinking":
             if (turn.firstTokenOverheadMs === null) turn.firstTokenOverheadMs = Math.max(0, hr() - t0 - (session.providerLatencyMs ?? 0));
+            info.firstTokenAt ??= now();
             if (ev.type === "text") { reply += ev.text; pending += ev.text; if (hr() - lastFlush >= blockMs) flush("text"); }
             break;
           case "tool_call": {
@@ -431,7 +437,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             flush("tool_call");
             inTool = true;
             queue.touch(st.thread.id, item.qseq);
+            const trace = traceTool(info, { id: ev.id, name: ev.name, startedAt: now(), ...detailOf(ev.input) });
             const result = await runTool(opts.callTool, { id: ev.id, name: ev.name, input: ev.input }, { threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker }).finally(() => { inTool = false; lastSeen = hr(); });
+            if (trace) { trace.endedAt = now(); trace.ok = result.ok; if (result.held) trace.held = result.held.taskId; }
             if (run.cancelled || run.lostLease) break;
             if (result.held) {
               // Held at the Gate: no mode, Ask, Allow or Auto, turns this into a result. The turn parks on the task.
@@ -446,6 +454,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           }
           case "block":
             // an engine that runs its own tools reports them as blocks: the same line is crossed
+            noteBlock(info, ev.kind, ev.payload, now());
             queue.touch(st.thread.id, item.qseq);
             flush("text");
             flush(ev.kind);
@@ -454,6 +463,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           case "usage":
             turn.tokensIn += ev.inputTokens;
             turn.tokensOut += ev.outputTokens;
+            usages += 1;
+            if (ev.cacheReadTokens !== undefined) info.cacheReadTokens = (info.cacheReadTokens ?? 0) + ev.cacheReadTokens;
+            if (ev.cacheWriteTokens !== undefined) info.cacheWriteTokens = (info.cacheWriteTokens ?? 0) + ev.cacheWriteTokens;
+            if (ev.reasoningTokens !== undefined) info.reasoningTokens = (info.reasoningTokens ?? 0) + ev.reasoningTokens;
+            if (ev.costUsd !== undefined) { priced += 1; info.costUsd = (info.costUsd ?? 0) + ev.costUsd; }
             break;
           case "limits":
             if (paying && opts.onLimits) { try { void Promise.resolve(opts.onLimits(paying, { window: ev.window, pct: ev.pct, ...(ev.resetsAt !== undefined ? { resetsAt: ev.resetsAt } : {}) })).catch(() => undefined); } catch { /* a limit reading is a convenience, never a reason to fail a turn */ } }
@@ -463,6 +477,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             ended = true;
             break;
           case "error": {
+            lastCode = ev.code;
             // An overloaded vendor before the turn said anything: the same account once more, then the backup below.
             if (ev.code === OVERLOADED && paying && reply === "" && blockIdx === 0 && !busyTried.has(paying.ref)) {
               busyTried.add(paying.ref);
@@ -491,6 +506,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       }
       if (switchTo) {
         try { await session.close(); } catch { /* dropped */ }
+        info.switches.push({ at: now(), from: paying?.ref ?? "", to: switchTo.ref, why: lastCode });
         paying = switchTo;
         continue;
       }
@@ -511,6 +527,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     st.running = null;
     if (!mineStill) { turn.endedAt = now(); turn.state = "failed"; turn.error ??= { code: "lease_lost", message: "another host took this thread" }; return; }   // the new holder owns the row
     if (parked && !run.cancelled && !turn.error) {
+      settleInfo(info, paying ?? null, usages, priced);
       turn.state = "waiting";
       waits.put({
         taskId: parked.held.taskId, threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, callId: parked.callId, toolName: parked.name, asker: turn.asker,
@@ -522,6 +539,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       return;
     }
     turn.endedAt = now();
+    settleInfo(info, paying ?? null, usages, priced);
     if (run.cancelled) turn.state = "cancelled";
     else if (turn.error) turn.state = "failed";
     else turn.state = "completed";
@@ -675,4 +693,43 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     messages: (threadId) => need(threadId).messages.slice(),
     queue: (threadId) => queue.list(threadId),
   };
+}
+
+// ---- what a reply's Details shows (chat.reply_details): the tool calls, the account and the provider's counts of one turn
+
+const MAX_TRACES = 200;
+const DETAIL_KEYS = ["file_path", "path", "pattern", "query", "url", "command", "skill", "description", "title", "name"] as const;
+
+/** A short, plain summary of what a call was asked to do: the first telling field of its input, cut to one line. Who may read it is decided when it is read. */
+function detailOf(input: unknown): { detail?: string } {
+  if (typeof input !== "object" || input === null) return {};
+  const o = input as Record<string, unknown>;
+  for (const k of DETAIL_KEYS) {
+    const v = o[k];
+    if (typeof v === "string" && v.trim() !== "") return { detail: v.replace(/\s+/g, " ").trim().slice(0, 160) };
+  }
+  return {};
+}
+
+function traceTool(info: TurnInfo, t: ToolTrace): ToolTrace | null {
+  if (info.tools.length >= MAX_TRACES) return null;
+  info.tools.push(t);
+  return t;
+}
+
+/** An engine that runs its own tools reports them as blocks: a call, what it touches, then its result. */
+function noteBlock(info: TurnInfo, kind: string, payload: unknown, at: number): void {
+  const p = (typeof payload === "object" && payload !== null ? payload : {}) as { id?: unknown; name?: unknown; detail?: unknown; ok?: unknown };
+  const id = typeof p.id === "string" ? p.id : "";
+  if (id === "") return;
+  const known = info.tools.find((t) => t.id === id);
+  if (kind === "tool_call") { if (!known) traceTool(info, { id, name: typeof p.name === "string" ? p.name : "", startedAt: at }); }
+  else if (kind === "tool_input") { if (known && typeof p.detail === "string" && p.detail !== "") known.detail = p.detail.slice(0, 160); }
+  else if (kind === "tool_result") { if (known) { known.endedAt = at; known.ok = p.ok !== false; } }
+}
+
+/** At the end of a turn: the account that paid last, and the provider's dollar figure only when every call gave one. */
+function settleInfo(info: TurnInfo, paying: ResolvedAccount | null, usages: number, priced: number): void {
+  if (paying) info.account = { ref: paying.ref, driver: paying.driver, provider: paying.provider, kind: paying.kind, ...(paying.shared ? { shared: true } : {}), ...(paying.spaceKey ? { spaceKey: true } : {}) };
+  if (usages === 0 || priced !== usages) delete info.costUsd;
 }

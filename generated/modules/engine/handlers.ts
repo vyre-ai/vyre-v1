@@ -75,6 +75,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.turn.fallback": Handler<"engine.turn.fallback", X>;
   "engine.turn.finish": Handler<"engine.turn.finish", X>;
   "engine.turn.get": Handler<"engine.turn.get", X>;
+  "engine.turn.of_message": Handler<"engine.turn.of_message", X>;
   "engine.turn.record": Handler<"engine.turn.record", X>;
   "engine.turn.record_usage": Handler<"engine.turn.record_usage", X>;
   "engine.turn.retry": Handler<"engine.turn.retry", X>;

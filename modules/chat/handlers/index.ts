@@ -1,8 +1,9 @@
-// Handler table of the chat module: all 64 capabilities. P-L2_10 wrote the first eight (post, start, thread, blocks, plans, channels); chat.post runs behind the sealed-thread guard of private chats
+// Handler table of the chat module: all 65 capabilities. P-L2_10 wrote the first eight (post, start, thread, blocks, plans, channels); chat.post runs behind the sealed-thread guard of private chats
 // (P-L2_11, with the three Ask capabilities). P-L2_24a to d wrote the other 51: threads (g24a), channels (g24b), messages and pins (g24c), transcript, plans and helpers (g24d).
 import { archiveHandlers } from "./archive.ts";
 import { messagePerson, mute as agentDmMute, peopleStatus } from "./agent-dm.ts";
 import { catchUp } from "./catch-up.ts";
+import { replyDetails } from "./reply-details.ts";
 import { aside, asideKeep } from "./aside.ts";
 import { share } from "./share.ts";
 import { makeTask } from "./make-task.ts";
@@ -37,6 +38,7 @@ export const handlers = {
   "chat.post": guardPrivate(post),
   "chat.start": start,
   "chat.make_task": makeTask,
+  "chat.reply_details": replyDetails,
   "chat.share": share,
   "chat.aside": aside,
   "chat.aside_keep": asideKeep,

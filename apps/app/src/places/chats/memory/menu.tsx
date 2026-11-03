@@ -1,6 +1,6 @@
-// The memory items of a message's right-click menu (and of the hover bar's More menu): Remember This, Add to a Page, Show What the Agent Knew Here and Forget This. They are added to the menu the
+// The memory items of a message's right-click menu (and of the hover bar's More menu): Remember This, Add to a Page and Forget This. They are added to the menu the
 // conversation already has, never instead of its items. Remember writes a fact from the message (memory.remember) and flashes "Remembered." with Undo; Add to a Page lists the pages and appends the
-// message as a line to that page's Notes (memory.page.put with the version it read, so a stale write refuses); Show What the Agent Knew pins the right pane's Knows tab to this reply;
+// message as a line to that page's Notes (memory.page.put with the version it read, so a stale write refuses); what the agent knew for a reply is a section of its Details tab (owner, 3 Nov 2026);
 // Forget This moves what the message taught to Trash, or says there is nothing to forget.
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { KIND_ONE } from "../../files/memory/know.ts";
@@ -32,7 +32,6 @@ export function memoryEntries(thread: ThreadMemory, m: MenuMessage, at: { x: num
     { separator: true },
     { label: "Remember This", onSelect: () => void rememberMessage(memory, thread.threadId, m, say) },
     { label: "Add to a Page\u2026", onSelect: pick },
-    { label: "Show What the Agent Knew Here", onSelect: () => { memory.store.pinKnows(m.messageId, m.createdAt); memory.showKnows?.(); } },
     { label: "Forget This", danger: true, onSelect: () => void forgetMessage(memory, thread.currentFrom(m.messageId), say) },
   ];
 }

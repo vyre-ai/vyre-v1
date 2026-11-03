@@ -7,6 +7,7 @@ import { placementDecide, poolStatus, warm } from "../place.ts";
 import { reviewList, reviewMark } from "./review.ts";
 import { reviewerGet, reviewerSet } from "../reviewer.ts";
 import { engineHealth, leaseAcquire, leaseHeartbeat, leaseRelease, queueList, queuePeek, routePreview } from "./threads.ts";
+import { turnOfMessage } from "./reply-info.ts";
 import { turnAppend, turnEnqueue, turnFallback, turnFinish, turnGet, turnRecord, turnRetry, turnStart, turnWait, turnsList } from "./turns.ts";
 
 export const extraHandlers = {
@@ -36,6 +37,7 @@ export const extraHandlers = {
   "engine.turn.record": turnRecord,
   "engine.turn.fallback": turnFallback,
   "engine.turn.get": turnGet,
+  "engine.turn.of_message": turnOfMessage,
   "engine.turns.list": turnsList,
   "engine.turn.retry": turnRetry,
   "engine.lease.acquire": leaseAcquire,

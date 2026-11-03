@@ -34,6 +34,8 @@ import { configureEngines, engines, enginesRoot } from "./engine-install.ts";
 import { capabilitySkills, createContextBuilder, takeHandoff, withTurnContext } from "./context.ts";
 import { withTranscript } from "./transcript.ts";
 import { withNativeSkills } from "./skills-native.ts";
+import { linkReply } from "./handlers/extra/reply-info.ts";
+import { costOf } from "./turn-cost.ts";
 import { workFolder } from "./sandbox.ts";
 import { createCompactor, withCompaction } from "./compact.ts";
 import type { Compactor } from "./compact.ts";
@@ -241,9 +243,20 @@ async function askToPay(h: EngineHostSeam, db: Db, q: AccountQuery, to: Resolved
   if (taskId) db.run("INSERT OR REPLACE INTO engine_unblock (task_id, thread_id, agent_id, asker, at, paid_ref) VALUES (?, ?, ?, ?, ?, ?)", taskId, q.threadId, q.agentId, q.askerId, (h.now ?? Date.now)(), to.ref);
 }
 
+/** The turn's usage against the spend limits, at what it really cost (turn-cost.ts): a sign-in is in its plan (0), an API key turn is the provider's price or the list price, an unknown price is 0. */
+export function costMicrosOf(turn: Readonly<TurnRow>, account: ResolvedAccount | null): number {
+  const i = turn.info;
+  return costOf({
+    model: turn.model ?? "", tokensIn: turn.tokensIn, tokensOut: turn.tokensOut,
+    ...(account ? { driver: account.driver, provider: account.provider, accountKind: account.kind } : {}),
+    ...(i?.cacheReadTokens !== undefined ? { cacheReadTokens: i.cacheReadTokens } : {}), ...(i?.cacheWriteTokens !== undefined ? { cacheWriteTokens: i.cacheWriteTokens } : {}),
+    ...(i?.costUsd !== undefined ? { costUsd: i.costUsd } : {}),
+  }).micros ?? 0;
+}
+
 async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: ResolvedAccount | null): Promise<void> {
   if (turn.tokensIn + turn.tokensOut === 0) return;
-  await h.call("engine.turn.record_usage", { turnId: turn.id, tokensIn: turn.tokensIn, tokensOut: turn.tokensOut, costMicros: 0, ...(account?.itemId ? { itemId: account.itemId } : {}) }, turn.asker);
+  await h.call("engine.turn.record_usage", { turnId: turn.id, tokensIn: turn.tokensIn, tokensOut: turn.tokensOut, costMicros: costMicrosOf(turn, account), ...(account?.itemId ? { itemId: account.itemId } : {}) }, turn.asker);
 }
 
 export interface CompleteIn { account: ResolvedAccount; system?: string; prompt: string; model?: string }
@@ -407,7 +420,12 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     const crewWatch = h.postAs ? createCrewWatcher({ db: ctx.db, host: h, now }) : null;
     const live = h.stream ? coalesceLive(h.stream, { now }) : null;
     setupLine = live;
-    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, stream: (e) => { live?.(e); crewWatch?.(e); }, addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
+    // the chat message a turn's reply became, so the reply's Details find its turn (chat.reply_details); a reply without its turn only loses its Details, never the post
+    const linkPosted = (e: { threadId: string; turnId: string; messageId: string | null }): void => {
+      try { if (e.messageId) linkReply(ctx.db, { threadId: e.threadId, turnId: e.turnId, messageId: e.messageId }, now()); }
+      catch (err) { h.log?.("a reply could not be linked to its turn", { turnId: e.turnId, error: err instanceof Error ? err.message : String(err) }); }
+    };
+    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, stream: (e) => { if (e.kind === "final" && e.messageId) linkPosted(e); live?.(e); crewWatch?.(e); }, addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
     // The turn context is built as the asker before each turn (modules/engine/context.ts); what the agent waits on is read off the engine once it exists.
     let running: TurnEngine | null = null;
     const turnContext = createContextBuilder({
@@ -463,7 +481,9 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       const phase = ev.type === "turn.started" ? "started" : ev.type === "turn.completed" ? "completed" : ev.type === "turn.failed" ? "failed" : "cancelled";
       const input = {
         threadId: turn.threadId, turnId, agentId: turn.agentId, phase, qseq: turn.qseq, asker: turn.asker, ...(turn.model ? { model: turn.model } : {}),
-        ...(phase === "started" ? {} : { tokensIn: turn.tokensIn, tokensOut: turn.tokensOut }), ...(ev.type === "turn.failed" ? { code: ev.code, ...(ev.message ? { message: ev.message.slice(0, 500) } : {}) } : {}),
+        ...(phase === "started" ? {} : { tokensIn: turn.tokensIn, tokensOut: turn.tokensOut }),
+        // what the reply's Details show: the engine and account it ended on, and what the turn engine saw (reply-info.ts)
+        ...(phase !== "started" && turn.info ? { info: turn.info, ...(turn.info.account ? { engine: turn.info.account.driver, accountRef: turn.info.account.ref } : {}) } : {}), ...(ev.type === "turn.failed" ? { code: ev.code, ...(ev.message ? { message: ev.message.slice(0, 500) } : {}) } : {}),
       };
       const done = (recording.get(turnId) ?? Promise.resolve()).then(() => h.call("engine.turn.record", input, turn.asker)).then(() => undefined, (err: unknown) => {
         h.log?.("a turn could not be recorded", { turnId, phase, error: err instanceof Error ? err.message : String(err) });

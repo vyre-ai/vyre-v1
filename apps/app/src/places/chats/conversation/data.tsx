@@ -17,6 +17,8 @@ export interface ConversationNav {
   openThread(threadId: string, messageId?: string): void;
   /** Search every chat (the page of results). Left out where the shell has no such page. */
   openSearch?(query: string): void;
+  /** A reply's Details: the right pane opens on its Details tab. Left out where the shell has no right pane. */
+  openDetails?(threadId: string, messageId: string): void;
   /** Shows or hides the pane on the right (Computer, Threads, Files, Memory, Routines). */
   togglePane(): void;
   /** A card's file, record or diff opens beside the chat. A "computer" card or the Computer chip passes the agent's id. */

@@ -9,7 +9,7 @@
 // DECISION: the three hop and loop limits (agent_hops, review_loops, ci_fix_loops) are declared here; route() reads agent_hops and
 //   tasks.transition reads the other two.
 import { create, defineManifest, ev, health, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
-import { id, label, pageIn, pageOut } from './_common.ts';
+import { id, label, pageIn, pageOut, replyTurn } from './_common.ts';
 
 const effort = t.enm('low', 'medium', 'high', 'max');
 // Outside tools (CHAT-DESIGN ruling 6): the MCP servers of plugins and connections, run in the sandbox. A call is one capability, so access, the Gate and the audit trail apply to it like any other.
@@ -52,6 +52,15 @@ const turnRow = t.obj({
   turnId: id.turn, threadId: id.thread, agentId: id.agent, asker: t.str(), accountRef: t.opt(accountRef), engine: t.str(), model: t.str(), state: turnState,
   traceId: id.trace, runId: t.opt(id.run), startedAt: t.ts(), endedAt: t.opt(t.ts()), tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), error: t.opt(errShape), nodeId: t.opt(t.str({ description: 'The server of the asker\'s the turn ran on, when the chat was pinned to one' })),
   ranOn: t.opt(t.arr(t.obj({ kind: t.enm('computer', 'server', 'space'), name: t.str({ examples: ['Dana\'s MacBook', 'the Northwind server'] }) }), { description: 'Where the turn ran, in order: two places when its computer went to sleep and it went on elsewhere' })),
+});
+// A reply's Details (chat.reply_details, reply-info.ts). A count that is absent was not reported by the provider: never shown as 0.
+const toolTrace = t.obj({ id: t.str(), name: t.str(), detail: t.opt(t.str()), startedAt: t.ts(), endedAt: t.opt(t.ts()), ok: t.opt(t.bool()), held: t.opt(id.task) });
+const turnInfoIn = t.obj({
+  effort: t.opt(t.str({ examples: ['high'] })),
+  account: t.opt(t.obj({ ref: accountRef, driver: t.str(), provider: t.str(), kind: t.enm('api_key', 'subscription'), shared: t.opt(t.bool()), spaceKey: t.opt(t.bool()) })),
+  firstTokenAt: t.opt(t.ts()), cacheReadTokens: t.opt(t.int()), cacheWriteTokens: t.opt(t.int()), reasoningTokens: t.opt(t.int()),
+  costUsd: t.opt(t.num({ description: 'The provider\'s own price for the turn, when every call reported one' })),
+  tools: t.arr(toolTrace), switches: t.arr(t.obj({ at: t.ts(), from: t.str(), to: t.str(), why: t.str() })),
 });
 const whatHappened = t.obj({
   turn: turnRow, machine: t.enm('host', 'device'), keyUsed: t.opt(t.str()), steps: t.arr(t.obj({ idx: t.int(), kind: t.str(), title: t.str(), durationMs: t.int(), ok: t.bool() })),
@@ -187,6 +196,9 @@ export default defineManifest({
     read('engine.turn.get', 'What happened: steps, durations, machine, model, key used and denials of one turn', {
       in: { turnId: id.turn }, out: { what: whatHappened }, label: 'check', tool: 'chats', errors: ['validation.not_found'],
     }),
+    read('engine.turn.of_message', 'The turn behind one reply in a chat: model, effort, account, where it ran, timing, tokens, cost and tool calls; the account, cost and tool arguments only for the asker and managers of AI spend', {
+      in: { ...threadT, messageId: id.message }, out: { turn: replyTurn }, on: ['thread', '/threadId'], label: 'check', errors: ['validation.not_found'],
+    }),
     read('engine.turns.list', 'Turns of a thread, newest first', {
       in: { ...threadT, state: t.opt(t.arr(turnState)), ...pageIn }, out: { turns: t.arr(turnRow), ...pageOut }, on: ['thread', '/threadId'], tool: 'chats',
     }),
@@ -219,6 +231,7 @@ export default defineManifest({
       in: {
         ...threadT, turnId: id.turn, agentId: id.agent, phase: t.enm('started', 'completed', 'failed', 'cancelled'), qseq: t.int(), asker: t.opt(t.str()), engine: t.opt(t.str()), model: t.opt(t.str()), accountRef: t.opt(accountRef),
         tokensIn: t.opt(t.int()), tokensOut: t.opt(t.int()), costMicros: t.opt(t.int()), code: t.opt(t.str()), message: t.opt(t.str()),
+        info: t.opt(turnInfoIn),
       },
       out: { turn: turnRow }, emits: ['turn.started', 'turn.completed', 'turn.failed', 'turn.cancelled', 'agent.task_finished'], idem: 'natural', risk: 'low',
     }),
