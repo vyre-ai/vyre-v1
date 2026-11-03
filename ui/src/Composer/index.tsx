@@ -293,6 +293,8 @@ export interface WhoContext {
   listening?: readonly string[];
   agents?: readonly ListItem[];
   people?: readonly ListItem[];
+  /** The thread kind when known: in a channel a lone listening agent still waits to be named, as the engine routes it (lib/route.ts). */
+  kind?: string;
 }
 
 function mentionsIn(text: string, items: readonly ListItem[] | undefined): string[] {
@@ -314,11 +316,15 @@ export interface WhoAnswer {
   reason: string;
 }
 
+/** What the composer says when nobody is named and no agent leads (owner ruling, 3 Nov 2026). */
+export const NO_AGENT_LINE = "No agent will reply. @mention one";
+
 /** The composer's who-will-answer line for the text typed so far, from lib/route.ts. */
 export function whoAnswers(text: string, ctx: WhoContext): WhoAnswer {
   const agentNames = mentionsIn(text, ctx.agents);
   const personNames = mentionsIn(text, ctx.people);
   const thread: RouteThread = {
+    ...(ctx.kind === undefined ? {} : { kind: ctx.kind }),
     agents: [
       ...(ctx.lead === undefined ? [] : [{ id: ctx.lead, mode: "lead" as const }]),
       ...(ctx.listening ?? []).filter((n) => n !== ctx.lead).map((id) => ({ id, mode: "listen" as const })),
@@ -334,7 +340,8 @@ export function whoAnswers(text: string, ctx: WhoContext): WhoAnswer {
     const who = firstWord(personNames[0] ?? "They");
     return { line: `${who} will see this · no agent will reply`, responders: [], dim: true, reason: result.reason };
   }
-  return { line: "No agent will reply · type @ to ask one", responders: [], dim: true, reason: result.reason };
+  // owner ruling, 3 Nov 2026: agents listen until named, and the line says so plainly
+  return { line: NO_AGENT_LINE, responders: [], dim: true, reason: result.reason };
 }
 
 /** The line to show: computed when the text addresses someone or the caller gave a thread; otherwise the caller's own line. */
@@ -735,7 +742,7 @@ export function Composer(props: ComposerProps): ReactElement {
   const lists = props.lists ?? {};
   const hasLead = props.lead !== undefined && props.lead.length > 0;
   const whoCtx: WhoContext | undefined = hasLead || lists.agents !== undefined || lists.people !== undefined
-    ? { ...(hasLead ? { lead: props.lead as string } : {}), ...(props.listening === undefined ? {} : { listening: props.listening }), ...(lists.agents === undefined ? {} : { agents: lists.agents }), ...(lists.people === undefined ? {} : { people: lists.people }) }
+    ? { ...(hasLead ? { lead: props.lead as string } : {}), ...(props.listening === undefined ? {} : { listening: props.listening }), ...(lists.agents === undefined ? {} : { agents: lists.agents }), ...(lists.people === undefined ? {} : { people: lists.people }), ...(props.agentChat === false ? { kind: "channel" } : {}) }
     : undefined;
   const who = answerLine(state.text, props.whoWillAnswer, whoCtx);
   const answerers = props.sendsOutside === true || props.hideWho === true ? [] : answering(who.responders, props.agents);

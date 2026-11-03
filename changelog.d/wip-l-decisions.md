@@ -3,3 +3,4 @@
 - The Console stays in the app rail for owners, admins and developers on a computer (owner ruling, 3 Nov); a plain member never sees it.
 - Agents get 8 turns since a person last wrote (was 4), and helpers and teammates now count. At the limit the chat shows a Continue card (owner ruling, 3 Nov).
 - When an AI vendor says it is overloaded, Vyre tries the same account once more, then moves to your backup account and says so in the chat. Overloaded no longer counts as a limit (owner ruling, 3 Nov).
+- In a channel, a message that names no agent shows "No agent will reply. @mention one". Click that line, or use Ask an Agent… on any message, to have an agent answer it without retyping. Editing your message to add an @mention also works, and the agent answers once (owner ruling, 3 Nov).
