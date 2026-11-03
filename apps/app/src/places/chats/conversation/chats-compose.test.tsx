@@ -548,3 +548,13 @@ test("an agent's answer in a chat of people carries Make task and Remember; in a
   assert.ok(!many.includes('data-testid="reply-actions-m_own"'), "none under a person's own message");
   assert.ok(!render(false).includes('data-testid="reply-actions-m_ans"'), "a chat of one person has the message menu only");
 });
+
+test("at rest a message shows no hover action as text: Copy, Reply in thread, Fork and Pin appear only when the message is hovered or focused", async () => {
+  const r = rig();
+  const reply: Message = { messageId: "m_ans", threadId: r.data.threadId, threadSeq: 2, author: { kind: "agent", id: "agt_billing" }, kind: "agent", body: "Three invoices are paid, two are open.", blocks: [], createdAt: 2, reactions: [], pinned: false } as unknown as Message;
+  const items = timeline([reply], { meId: r.data.me.id, nameOf: r.data.nameOf, kindOf: r.data.kindOf, clock: r.data.clock() });
+  const html = clean(items.map((it) => renderToStaticMarkup(<MessageView item={it} actions={{ openBeside: () => undefined, nameOf: r.data.nameOf, makeTask: () => undefined, withPeople: true, copy: () => undefined, openThread: () => undefined, setPinned: () => undefined, fork: () => undefined } as never} meId={r.data.me.id} />)).join(""));
+  const text = html.replace(/<[^>]+>/g, " ");
+  for (const word of ["Copy", "Reply in thread", "Fork from here", "Pin"]) assert.ok(!new RegExp(`\\b${word}\\b`).test(text), `${word} is not shown at rest`);
+  assert.ok(text.includes("Make task"), "Make task is a real button under the answer, drawn with a ring");
+});

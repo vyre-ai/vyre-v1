@@ -50,3 +50,4 @@
 - chat.title_make names a chat from its first real request. Notifications say where in the chat's one name, never "a chat".
 - The cheapest-model pick moved to lib/cheap-model.ts so chat and memory share it.
 - Inbox > Replies on a phone is a two-line row: who replied and the chat name with the time, then the words with the count or Muted. A chat that is not a direct message shows the other people's faces in its header.
+- Make task and Remember under an agent's answer in a chat of people are drawn as buttons with an edge and an icon, so they no longer read as stray text.

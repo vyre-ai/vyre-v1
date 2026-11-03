@@ -461,8 +461,8 @@ function ReplyActions({ m, actions }: { m: Message; actions: MessageActions }): 
   const mark = (k: string): void => setDone((d) => new Set(d).add(k));
   return (
     <View testID={`reply-actions-${m.messageId}`} style={st.replyActs}>
-      {actions.makeTask ? <TextButton label={done.has("task") ? "Task made" : "Make task"} testID={`reply-task-${m.messageId}`} onPress={() => { if (!done.has("task")) { actions.makeTask!(m.messageId); mark("task"); } }} /> : null}
-      {memory ? <TextButton label={done.has("remember") ? "Remembered" : "Remember"} testID={`reply-remember-${m.messageId}`} onPress={() => { if (!done.has("remember")) { void rememberMessage(memory.memory, memory.threadId, { messageId: m.messageId, body: m.body }, memory.flash); mark("remember"); } }} /> : null}
+      {actions.makeTask ? <TextButton ring icon="task" label={done.has("task") ? "Task made" : "Make task"} testID={`reply-task-${m.messageId}`} onPress={() => { if (!done.has("task")) { actions.makeTask!(m.messageId); mark("task"); } }} /> : null}
+      {memory ? <TextButton ring label={done.has("remember") ? "Remembered" : "Remember"} testID={`reply-remember-${m.messageId}`} onPress={() => { if (!done.has("remember")) { void rememberMessage(memory.memory, memory.threadId, { messageId: m.messageId, body: m.body }, memory.flash); mark("remember"); } }} /> : null}
     </View>
   );
 }
@@ -604,7 +604,7 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
 }
 
 export const st = StyleSheet.create({
-  replyActs: { flexDirection: "row", gap: 4, marginTop: 4, marginLeft: -6 },
+  replyActs: { flexDirection: "row", gap: 6, marginTop: 6 },
   day: { alignSelf: "center", fontSize: 12, color: "var(--ink-3)" as string, marginTop: 18, marginBottom: 6 },
   eventCard: { flexShrink: 1, minWidth: 0 },
   event: { minHeight: 28, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8, marginBottom: 2 },
