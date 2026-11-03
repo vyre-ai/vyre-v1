@@ -19,7 +19,6 @@ async function namesFor(s: Parameters<Parameters<typeof withOutsideSpace>[1]>[0]
   const principals = expectStatus(await s.call("access.principals.list", who, {}), 200, "access.principals.list").principals as Json[];
   return new Map(directoryOf(principals, NO_OWN, id, new Set(agents.map((a) => a.agentId as string))).map((p) => [p.id, p] as const));
 }
-const actorsIn = (v: unknown): string[] => [...new Set(JSON.stringify(v).match(/agt_[a-z0-9]+|usr_[a-z0-9]+/g) ?? [])];
 
 withOutsideSpace("Simba and the owner's assistant are invisible to members, refused by id, named where Simba worked; an admin sees and removes outside agents in Console", async (s, owner, mcp) => {
   const c = new Client(mcp, {}, "Simba (Claude Code)");
@@ -34,7 +33,11 @@ withOutsideSpace("Simba and the owner's assistant are invisible to members, refu
     const agents = expectStatus(await s.call("agents.list", who, { teammates: "include", limit: 500 }), 200, "agents.list").agents as Json[];
     const principals = expectStatus(await s.call("access.principals.list", who, {}), 200, "access.principals.list").principals as Json[];
     // what was visible before: the Space's principal directory names every agent, Simba and every assistant included, and the shell offered all of it to mention and to Cmd-K
-    assert.ok(principals.some((p) => p.id === simba), `${id}: the directory still names Simba, so its work stays attributed`);
+    const named = principals.find((p) => p.id === simba);
+    assert.match(named?.name ?? "", /^Olivia\b.* \(Agent\)$/, `${id}: the server names Simba as Olivia's agent`);
+    assert.deepEqual([named?.private, named?.owner, named?.agentName], [true, OLIVIA, undefined], `${id}: with her face, and no own name for a member`);
+    assert.equal(JSON.stringify(principals).includes("Simba"), false, `${id}: the agent's own name is nowhere in what the server answers`);
+    if (oliviasAssistant) assert.match(principals.find((p) => p.id === oliviasAssistant)?.name ?? "", /^Olivia\b.* \(Agent\)$/, `${id}: the same for her assistant`);
     assert.equal(agents.some((a) => a.agentId === simba), false, `${id}: agents.list has no row for Simba`);
     if (oliviasAssistant) assert.equal(agents.some((a) => a.agentId === oliviasAssistant), false, `${id}: nor for Olivia's assistant`);
     assert.equal(agents.some((a) => a.kind === "assistant" && a.ownerId !== id), false, `${id}: no one else's assistant`);
@@ -68,27 +71,31 @@ withOutsideSpace("Simba and the owner's assistant are invisible to members, refu
   const oliviaSees = await namesFor(s, owner, OLIVIA);
   assert.equal(oliviaSees.get(simba)?.name, "Simba (Claude Code)", "Olivia sees her agent by name");
 
-  // a record and an automation Simba creates: whoever the history names for it reads, to Noah, as Olivia's agent
+  // a record and an automation Simba creates: the stored actor is Simba, for Olivia, in the log and in the record's own history; to Noah that reads as Olivia's agent
   const rec = await c.tool("use_tool", { name: "records_create", arguments: { type: "contact", fields: { name: "Ada Lovelace" }, idempotencyKey: "simba-rec" } });
   const recordId = rec.json.result?.structuredContent?.data?.record?.id as string;
   assert.ok(recordId, JSON.stringify(rec.json).slice(0, 400));
-  // Noah can read the record; the one log that names who made it (the audit row, below) names Simba, and Noah's shell names that id as Olivia's agent
-  expectStatus(await s.call("records.activity", noah, { type: "contact", recordId }), 200, "records.activity");
   const auto = await c.tool("use_tool", { name: "automations_create", arguments: { name: "Weekly digest", idempotencyKey: "simba-auto" } });
   const automationId = auto.json.result?.structuredContent?.data?.automation?.id as string;
   assert.ok(automationId, JSON.stringify(auto.json).slice(0, 400));
-  const versions = await s.call("automations.versions", owner, { automationId });
-  const who = actorsIn(versions.body).filter((x) => x === simba || x === OLIVIA);
-  assert.ok(who.length > 0, `the automation's history names its maker: ${JSON.stringify(versions.body).slice(0, 300)}`);
-  for (const x of who) assert.match(noahSees.get(x)?.name ?? "", /^Olivia\b/, "to Noah, the automation is Olivia's (or her agent's)");
+  const logged = expectStatus(await s.call("events.list", owner, { types: ["record.created", "automation.created"], limit: 200 }), 200, "events.list").events as Json[];
+  for (const [type, id] of [["record.created", recordId], ["automation.created", automationId]] as const) {
+    const e = logged.find((x) => x.type === type && JSON.stringify(x).includes(id));
+    assert.ok(e, `${type} is in the log`);
+    assert.deepEqual([e.actor, e.onBehalf], [simba, OLIVIA], `${type}: stored as Simba, for Olivia (never svc_records)`);
+  }
+  const activity = expectStatus(await s.call("records.activity", noah, { type: "contact", recordId }), 200, "records.activity").entries as Json[];
+  assert.equal(activity.find((x) => x.kind === "created")?.actor, simba, "the record's history names Simba as its maker");
+  assert.match(noahSees.get(simba)?.name ?? "", /^Olivia\b.* \(Agent\)$/, "which Noah reads as Olivia's agent");
 
   // the audit row: the headline credits Olivia's agent; the details line says which agent, its id, the setup grant and the trace
   const audit = expectStatus(await s.call("audit.list", owner, { limit: 300 }), 200, "audit.list").rows as Json[];
   const row = audit.find((r) => r.actor?.id === simba && r.action === "records.create");
   assert.ok(row, "an audit row for Simba's record");
+  assert.equal(row.onBehalfOf?.id, OLIVIA);
   const details = agentDetails(row, oliviaSees.get(simba)?.agentName ?? oliviaSees.get(simba)?.name);
-  assert.match(details ?? "", new RegExp(`^Simba \\(Claude Code\\) · ${simba} · .*trace ${row.traceId}$`));
-  assert.equal(agentDetails(row, noahSees.get(simba)?.agentName)?.startsWith("Simba (Claude Code)"), true, "the log names the agent, the screens never do");
+  assert.match(details ?? "", new RegExp(`^Simba \\(Claude Code\\) · ${simba} · under the setup grant · trace ${row.traceId}$`));
+  assert.equal(noahSees.get(simba)?.agentName, undefined, "a member's directory never holds the agent's own name");
 
   // and Noah cannot @mention it there
   const mention = await s.call("chat.post", noah, { threadId: channel.mainThreadId, body: "@Simba hi", mentions: [{ kind: "agent", id: simba }], idempotencyKey: "noah-at-simba" });
@@ -99,6 +106,9 @@ withOutsideSpace("Simba and the owner's assistant are invisible to members, refu
   const n = new Client(mcp, {}, "Noah's Codex");
   const { agentId: noahs } = await signIn(s, n, noah);
   expectStatus(await s.call("agents.visibility.set", owner, { all: true }), 200, "agents.visibility.set");
+  const asAdmin = (expectStatus(await s.call("access.principals.list", owner, {}), 200, "access.principals.list").principals as Json[]).find((p) => p.id === noahs);
+  assert.match(asAdmin?.name ?? "", /\(Agent\)$/, "an admin sees Noah's agent credited to Noah too");
+  assert.equal(asAdmin?.agentName, "Noah's Codex", "and its own name for the audit details");
   const console = expectStatus(await s.call("mcp.connected.list", owner, { all: true }), 200, "mcp.connected.list").agents as Json[];
   assert.deepEqual(console.filter((a) => a.agentId === noahs).map((a) => a.person), [NOAH], "Console shows Noah's agent and who connected it");
   assert.equal((expectStatus(await s.call("agents.list", owner, { limit: 500 }), 200, "agents.list").agents as Json[]).some((a) => a.agentId === noahs), false, "not in her own lists");
@@ -106,4 +116,4 @@ withOutsideSpace("Simba and the owner's assistant are invisible to members, refu
   const removed = await s.call("mcp.connected.remove", owner, { agentId: noahs });
   assert.equal(removed.status, 200, JSON.stringify(removed.body));
   assert.equal((expectStatus(await s.call("mcp.connected.list", owner, { all: true }), 200, "mcp.connected.list").agents as Json[]).some((a) => a.agentId === noahs), false, "gone from Console");
-}, ["records", "automations"]);
+}, ["records", "automations", "events"]);

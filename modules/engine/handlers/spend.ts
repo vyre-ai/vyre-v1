@@ -3,6 +3,7 @@
 // Needs you card "<agent> hit its daily limit: Raise once or Stop" is created for the person who pays. Money is in micros of a dollar.
 import { actorOf, boundEngine, dayKey, dayStart, ensure, monthKey, monthStart, raise } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
+import { agentDisplay } from "../agent-names.ts";
 
 export type Scope = "space" | "person" | "agent";
 export type LimitKind = "run" | "day" | "month" | "turns" | "time";
@@ -193,9 +194,9 @@ export async function usageQuery(ctx: EngineCtx, input: { by: UsageBy; from?: nu
     await Promise.all(list.map(async (row: { key: string; title: string; face?: string }) => {
       try {
         if (input.by === "agent") {
-          const a = (await ctx.call("agents.get", { agentId: row.key })) as { agent?: { name?: string; face?: string } } | null;
-          if (a?.agent?.name) row.title = a.agent.name;
-          if (a?.agent?.face) row.face = a.agent.face;
+          const a = await agentDisplay((cap, i) => ctx.call(cap, i), row.key);
+          row.title = a.name;
+          if (a.face) row.face = a.face;
         } else {
           const p = (await ctx.call("access.principals.get", { principal: { kind: "person", id: row.key } })) as { principal?: { name?: string } } | null;
           if (p?.principal?.name) row.title = p.principal.name;
@@ -239,7 +240,7 @@ async function limitCard(ctx: EngineCtx, hit: Hit, who: { agentId: string; threa
   if (had) return String(had["task_id"]);
   let agentName = who.agentId;
   if (hit.scope === "agent") {
-    try { const a = (await ctx.call("agents.get", { agentId: who.agentId })) as { agent?: { name?: string } } | null; if (a?.agent?.name) agentName = a.agent.name; } catch { /* the id stands */ }
+    agentName = (await agentDisplay((cap, i) => ctx.call(cap, i), who.agentId)).name;
   }
   const title = hit.scope === "agent" ? `${agentName} hit its ${LIMIT_WORD[hit.limit]} limit` : hit.scope === "person" ? `You hit your ${LIMIT_WORD[hit.limit]} limit` : `The Space hit its ${LIMIT_WORD[hit.limit]} limit`;
   const onceInput = { scope: hit.scope, ...(hit.scopeId === "" ? {} : { scopeId: hit.scopeId }), limit: hit.limit, mode: "once" as const };

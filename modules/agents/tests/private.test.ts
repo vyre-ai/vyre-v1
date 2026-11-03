@@ -3,7 +3,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { consumers, handlers } from "../impl.ts";
-import { DANA, LEO, harness } from "../fixtures/harness.ts";
+import { DANA, LEO, assertEventsConform, harness } from "../fixtures/harness.ts";
+import { announcePrivacy } from "../handlers/crud.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { PRIVATE_AGENT, isPrivateAgent } from "../projections.ts";
 
@@ -61,4 +62,26 @@ test("an admin cannot reach someone's assistant to remove it, and the assistant 
   const hn = harness();
   const [assistant] = await consumers["agents.ensure_assistant"].run(hn.person(DANA), { payload: { principalId: DANA, kind: "person", name: "Dana Reyes" } } as never);
   assert.equal((await refusal(() => h["agents.delete"]!(hn.person(LEO), { agentId: assistant! }))).code, "validation.not_found");
+});
+
+test("access learns which agents are private: agent.created says so and agent.privacy_set follows; a Space agent says nothing", async () => {
+  const hn = harness();
+  const simba = await connect(hn);
+  const [assistant] = await consumers["agents.ensure_assistant"].run(hn.person(DANA), { payload: { principalId: DANA, kind: "person", name: "Dana Reyes" } } as never);
+  const plain = (await h["agents.create"]!(hn.ctx, { name: "Docs", idempotencyKey: "d" })).agent.agentId;
+  const created = new Map(hn.named("agent.created").map((e) => [e.subject, e.payload["private"]] as const));
+  assert.deepEqual([created.get(simba), created.get(assistant!), created.get(plain)], [true, true, undefined]);
+  assert.deepEqual(hn.named("agent.privacy_set").map((e) => e.payload).sort((a, b) => String(a["agentId"]).localeCompare(String(b["agentId"]))),
+    [{ agentId: simba, ownerId: DANA, private: true }, { agentId: assistant!, ownerId: DANA, private: true }].sort((a, b) => a.agentId.localeCompare(b.agentId)));
+  assert.deepEqual(assertEventsConform(hn), []);
+});
+
+test("at boot, a private agent made before access learnt of privacy is announced once", async () => {
+  const hn = harness();
+  const simba = await connect(hn);
+  hn.db.run(`DELETE FROM agents_meta WHERE key = ?`, `privacy:${simba}`);
+  hn.clear();
+  assert.deepEqual(await announcePrivacy(hn.ctx), [simba]);
+  assert.deepEqual(await announcePrivacy(hn.ctx), [], "once");
+  assert.equal(hn.named("agent.privacy_set").length, 1);
 });
