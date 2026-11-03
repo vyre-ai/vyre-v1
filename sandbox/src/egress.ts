@@ -4,22 +4,33 @@
 //   CONNECT host:443   tunnelled, for HTTPS. The proxy sees the name and port, never the bytes.
 //   GET http://host/   forwarded, for plain HTTP, with hop-by-hop headers removed.
 //
-// The name is matched against the allow-list as written (policy.hostAllowed), then resolved here, once; every address must be public (no loopback, private, link-local or metadata address, so a
-// name that points inside is refused, and a DNS answer that changes between check and connect cannot matter), and the connection goes to the address that was checked. IP literals are refused:
-// the list is by name. Ports are 443 and 80 unless the caller says otherwise. Events carry the host and port and the verdict, never a path, a header or a byte.
+// Two rules (egress-policy.ts). A list: the name is matched against the allow-list as written (policy.hostAllowed), IP literals are refused (the list is by name), and ports are 443 and 80 unless
+// the caller says otherwise. Public (owner ruling 3 Nov): any name or public address on any port, except Vyre's own ports. Either way a name is resolved here, once; every address must be public
+// (no loopback, private, link-local or metadata address) and off this machine's own networks, so a name that points inside is refused, a DNS answer that changes between check and connect cannot
+// matter, and the connection goes to the address that was checked. A host that does not answer is refused after `connectMs` with 502, never a hang. Events carry the host and port and the verdict,
+// never a path, a header or a byte.
 import dns from "node:dns/promises";
 import http from "node:http";
 import net from "node:net";
 import type { Duplex } from "node:stream";
-import { hostAllowed, isPrivateAddress } from "./policy.ts";
+import { hostAllowed } from "./policy.ts";
+import { VYRE_PORTS, addressRefusal, ownNetworks } from "./egress-policy.ts";
+import type { Cidr, EgressRule } from "./egress-policy.ts";
 
 export type Verdict = "allow" | "deny";
-export interface EgressEvent { verdict: Verdict; host: string; port: number; reason: "ok" | "not_listed" | "bad_port" | "private_address" | "no_address" | "bad_request" | "busy" | "unreachable" }
+export interface EgressEvent { verdict: Verdict; host: string; port: number; reason: "ok" | "not_listed" | "bad_port" | "private_address" | "own_network" | "no_address" | "bad_request" | "busy" | "unreachable" }
 
 export interface EgressOptions {
   /** Host patterns, or a function so the list can change while the proxy runs (a policy change takes effect on the next connection). */
   allow: readonly string[] | (() => readonly string[]);
+  /** The rule (egress-policy.ts). When given it decides, and `allow` is not read. A function lets it change under a running proxy. */
+  rule?: EgressRule | (() => EgressRule);
+  /** The list rule's ports. Default 443 and 80. The public rule takes any port but Vyre's own. */
   ports?: readonly number[];
+  /** This machine's networks, refused whatever the rule. Default: read from the system every 30 s. */
+  ownNetworks?: () => readonly Cidr[];
+  /** Give up on a host that does not answer after this long. Default 20 s. */
+  connectMs?: number;
   /** Resolve a name to addresses. Default: the system resolver. */
   lookup?: (host: string) => Promise<readonly string[]>;
   /** Open the connection to the address that passed. Default: net.connect. */
@@ -45,16 +56,33 @@ async function systemLookup(host: string): Promise<readonly string[]> {
   const r = await dns.lookup(host, { all: true, verbatim: true });
   return r.map((x) => x.address);
 }
-const defaultConnect = (_h: string, port: number, ip: string): Promise<net.Socket> =>
-  new Promise((resolve, reject) => { const s = net.connect({ host: ip, port }); s.once("connect", () => { s.removeAllListeners("error"); resolve(s); }); s.once("error", reject); });
+const connectWithin = (ms: number) => (_h: string, port: number, ip: string): Promise<net.Socket> =>
+  new Promise((resolve, reject) => {
+    const s = net.connect({ host: ip, port });
+    const t = setTimeout(() => { s.destroy(); reject(new Error("timed out")); }, ms);
+    s.once("connect", () => { clearTimeout(t); s.removeAllListeners("error"); resolve(s); });
+    s.once("error", (e) => { clearTimeout(t); reject(e); });
+  });
+
+/** The networks of this machine, read at most every 30 s (an interface can come and go while the proxy runs). */
+function cachedOwnNetworks(): () => readonly Cidr[] {
+  let at = 0;
+  let last: readonly Cidr[] = [];
+  return () => { const now = Date.now(); if (now - at > 30_000) { try { last = ownNetworks(); } catch { /* keep the last answer */ } at = now; } return last; };
+}
 
 export function createEgressProxy(o: EgressOptions): EgressProxy {
   const ports = new Set(o.ports ?? [443, 80]);
   const lookup = o.lookup ?? systemLookup;
-  const connect = o.connect ?? defaultConnect;
+  const connect = o.connect ?? connectWithin(o.connectMs ?? 20_000);
+  const own = o.ownNetworks ?? cachedOwnNetworks();
   const maxConnections = o.maxConnections ?? 256;
   const idleMs = o.idleMs ?? 120_000;
   const allowList = (): readonly string[] => (typeof o.allow === "function" ? o.allow() : o.allow);
+  const rule = (): EgressRule => {
+    if (o.rule !== undefined) return typeof o.rule === "function" ? o.rule() : o.rule;
+    return { egress: "list", allow: allowList() };
+  };
   const sockets = new Set<Duplex>();
   let allowed = 0;
   let denied = 0;
@@ -64,13 +92,24 @@ export function createEgressProxy(o: EgressOptions): EgressProxy {
 
   /** Check a target and resolve it. Returns the address to connect to, or the reason it was refused. */
   async function admit(host: string, port: number): Promise<{ ok: true; ip: string } | { ok: false; reason: EgressEvent["reason"] }> {
-    if (!ports.has(port)) return { ok: false, reason: "bad_port" };
-    if (!hostAllowed(host, allowList())) return { ok: false, reason: "not_listed" };
+    const r = rule();
     let ips: readonly string[];
-    try { ips = await lookup(host); } catch { return { ok: false, reason: "no_address" }; }
+    if (r.egress === "public") {
+      if (!Number.isInteger(port) || port < 1 || port > 65535 || VYRE_PORTS.includes(port)) return { ok: false, reason: "bad_port" };
+      if (net.isIP(host) !== 0) ips = [host];   // a public address is as good as a public name; the checks below refuse every other kind
+      else if (!/^[A-Za-z0-9.-]{1,253}$/.test(host) || !host.includes(".")) return { ok: false, reason: "not_listed" };   // a single label (localhost, a LAN name) is never public
+      else {
+        try { ips = await lookup(host); } catch { return { ok: false, reason: "no_address" }; }
+      }
+    } else {
+      if (!ports.has(port)) return { ok: false, reason: "bad_port" };
+      if (!hostAllowed(host, r.allow)) return { ok: false, reason: "not_listed" };
+      try { ips = await lookup(host); } catch { return { ok: false, reason: "no_address" }; }
+    }
     if (ips.length === 0) return { ok: false, reason: "no_address" };
-    // Every address must be public: a name that also points inside is refused whole, so a resolver cannot pick the private one at connect time.
-    if (ips.some(isPrivateAddress)) return { ok: false, reason: "private_address" };
+    // Every address must be public and off this machine's networks: a name that also points inside is refused whole, so a resolver cannot pick the private one at connect time.
+    const nets = own();
+    for (const ip of ips) { const why = addressRefusal(ip, nets); if (why) return { ok: false, reason: why }; }
     return { ok: true, ip: ips[0] as string };
   }
 
@@ -81,12 +120,15 @@ export function createEgressProxy(o: EgressOptions): EgressProxy {
     s.once("close", () => { sockets.delete(s); if (counted) open--; });
   }
 
-  /** "host:port" of a CONNECT line. The host is a name (no brackets, no address, no spaces). */
+  /** "host:port" of a CONNECT line: a name or an IPv4 address, or a bracketed IPv6 address ([2606:4700::1111]:443). No spaces, no path. */
   function parseAuthority(t: string): { host: string; port: number } | null {
-    const m = /^([A-Za-z0-9.-]{1,253}):(\d{1,5})$/.exec(t);
+    const m = /^([A-Za-z0-9.-]{1,253}|\[[0-9A-Fa-f:.]{2,45}\]):(\d{1,5})$/.exec(t);
     if (!m) return null;
     const port = Number(m[2]);
-    return port >= 1 && port <= 65535 ? { host: m[1] as string, port } : null;
+    const raw = m[1] as string;
+    const host = raw.startsWith("[") ? raw.slice(1, -1) : raw;
+    if (raw.startsWith("[") && net.isIPv6(host) === false) return null;
+    return port >= 1 && port <= 65535 ? { host, port } : null;
   }
 
   const refuse = (socket: Duplex, status: number, text: string): void => {
@@ -98,7 +140,7 @@ export function createEgressProxy(o: EgressOptions): EgressProxy {
     let url: URL;
     try { url = new URL(req.url ?? ""); } catch { note({ verdict: "deny", host: "", port: 0, reason: "bad_request" }); res.writeHead(400, { "content-type": "text/plain", connection: "close" }).end("This is a proxy: send absolute URLs.\n"); return; }
     if (url.protocol !== "http:") { note({ verdict: "deny", host: url.hostname, port: Number(url.port || 0), reason: "bad_request" }); res.writeHead(400, { connection: "close" }).end(); return; }
-    const host = url.hostname;
+    const host = url.hostname.startsWith("[") ? url.hostname.slice(1, -1) : url.hostname;
     const port = Number(url.port || 80);
     if (open >= maxConnections) { note({ verdict: "deny", host, port, reason: "busy" }); res.writeHead(503, { connection: "close" }).end("Busy.\n"); return; }
     const v = await admit(host, port);
