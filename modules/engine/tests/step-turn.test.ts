@@ -89,7 +89,7 @@ test("a Space automation runs as its service on a Space-shared key only", async 
   const mine = scene({ principal: svc, providers: [key()] });
   await assert.rejects(run(mine.h, { keyId: "#Mine_Anthropic" }), (e) => { assert.equal(codeOf(e), "provider.auth_failed"); assert.match((e as { error: { message: string } }).error.message, /Space-shared/); return true; });
   const none = scene({ principal: svc, providers: [team()] });
-  await assert.rejects(run(none.h), (e) => { assert.match((e as { error: { message: string } }).error.message, /Space automation needs a Space-shared AI key/); return true; });
+  await assert.rejects(run(none.h), (e) => { assert.match((e as { error: { message: string } }).error.message, /Space automation needs a Space AI account that pays for automations/); return true; });
   assert.equal(none.provider.specs.length, 0);
 });
 

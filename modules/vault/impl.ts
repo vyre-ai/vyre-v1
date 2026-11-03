@@ -53,6 +53,7 @@ export const handlers: Record<string, Handler> = {
   "providers.add": (ctx, i) => pr.add(ctx, i),
   "providers.remove": (ctx, i) => pr.remove(ctx, i),
   "providers.set_space_use": (ctx, i) => pr.setSpaceUse(ctx, i),
+  "providers.uses.set": (ctx, i) => pr.usesSet(ctx, i),
   "providers.subscription_start": (ctx, i) => pr.subscriptionStart(ctx, i),
   "providers.subscription_complete": (ctx, i) => pr.subscriptionComplete(ctx, i),
   "providers.test": (ctx, i) => pr.test(ctx, i),

@@ -13,7 +13,8 @@ import { currentKeyPort } from "./crypto.ts";
 import type { SigninPort } from "./use.ts";
 import { readFileSync } from "node:fs";
 import { addressProblem, builtinDefs } from "./provider-defs.ts";
-import { forget as forgetSpaceKey, spaceKeyProviderId } from "./space-key.ts";
+import { forget as forgetSpaceKey, spaceKeyModels, spaceKeyProviderId } from "./space-key.ts";
+import { isSpaceAccount, keepModels, setUses, spaceFields } from "./space-accounts.ts";
 import type { CatalogEntry } from "./provider-defs.ts";
 import { identityOfFields } from "../../../host/src/seams/signin-identity.ts";
 import { decideRefresh } from "../../../host/src/seams/signin-refresh.ts";
@@ -131,8 +132,10 @@ export async function list(ctx: VaultCtx, _input: Record<string, never>) {
   for (const p of rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter(live).sort((a, b) => num(a, "createdAt") - num(b, "createdAt") || str(a, "id").localeCompare(str(b, "id")))) {
     if (!itemOf(ctx, str(p, "itemId"))) continue;
     if (str(p, "scope") === "mine") { if (str(p, "owner") !== me(ctx)) continue; }
-    else if (str(p, "owner") !== me(ctx) && str(p, "id") !== spaceKey && !atLeast(levelOn(ctx, "vault_item", str(p, "itemId")), "use")) continue;
-    out.push(rowOut(ctx, p, await usageThisMonth(ctx, str(p, "itemId")), spaceKey, older));
+    // a Space AI account (uses set by an owner or admin) is every member's to reach through its uses, like the Space AI key: listed for all (a handle and a name, never a value)
+    else if (str(p, "owner") !== me(ctx) && str(p, "id") !== spaceKey && !isSpaceAccount(ctx, str(p, "id")) && !atLeast(levelOn(ctx, "vault_item", str(p, "itemId")), "use")) continue;
+    const used = await usageThisMonth(ctx, str(p, "itemId"));
+    out.push({ ...rowOut(ctx, p, used, spaceKey, older), ...await spaceFields(ctx, p, used.costCents, str(p, "id") === spaceKey ? spaceKeyModels(ctx) : undefined) });
   }
   return { providers: out };
 }
@@ -217,6 +220,17 @@ export async function remove(ctx: VaultCtx, input: { providerId: string }) {
   forgetSpaceKey(ctx, str(p, "id"));
   ctx.emit("provider.removed", `entity/${str(p, "id")}`, { providerId: str(p, "id") }, { vis: "participants" });
   return { ok: true };
+}
+
+/** providers.uses.set (owner ruling 9): what a shared provider may pay for in this Space, and its monthly cap. The capability is gated on policy.manage (owners and admins). */
+export async function usesSet(ctx: VaultCtx, input: { providerId: string; uses: unknown; capCents?: number | null }) {
+  ensureProviders(ctx);
+  const p = providerById(ctx, input.providerId);
+  setUses(ctx, p, input);
+  // the models it serves, so a turn can tell whether it fits (a provider that does not answer leaves the list as it was)
+  if (hostOf()?.probe) { try { await test(ctx, { providerId: str(p, "id") }); } catch { /* listed again on the next test */ } }
+  const used = await usageThisMonth(ctx, str(p, "itemId"));
+  return { provider: { ...rowOut(ctx, providerById(ctx, str(p, "id")), used), ...await spaceFields(ctx, p, used.costCents) } };
 }
 
 export async function setSpaceUse(ctx: VaultCtx, input: { providerId: string; allow: boolean }) {
@@ -450,6 +464,7 @@ export async function test(ctx: VaultCtx, input: { providerId: string }) {
   try {
     const r = await probe({ providerKey: str(p, "providerKey"), connection: str(p, "connection"), caller: me(ctx), ...(value("api_key") ? { apiKey: value("api_key")! } : {}), ...(value("address") ? { address: value("address")! } : extra ? { address: str(extra, "address") } : {}), engine: c?.engine ?? str(p, "providerKey") });
     // only the vendor refusing the key (401 or 403) marks the account failing; any other miss leaves it usable
+    if (r.ok) keepModels(ctx, str(p, "id"), r.models);
     if (r.ok || r.refused === true) return done(r.ok, r.models, r.detail);
     return unchecked(r.detail ?? "The provider did not answer.");
   } catch (e) {

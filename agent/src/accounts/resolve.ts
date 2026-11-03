@@ -1,10 +1,16 @@
 // resolveAccount (ARCH 6.4). Who pays: the steerer for the turn their message causes, the starter for everything else (wake-ups included), a routine's setter for a routine.
-// Which account: the thread pin, the agent's team key, the payer's own, then the Space AI key, then the backups. A task uses the step key, then the Space AI key, then a backup, else it waits in Needs you.
-// DECISION: the Space AI key comes after everything that is the person's or the agent's own (own wins) and before the fallback lists, so a member with no account of their own runs on it with no setup.
+// Which account (owner ruling 9, Space AI accounts):
+//   a pin first: the chat's account, the agent's key, an automation step's key. A pin that cannot pay is passed over with its reason (Resolution.pin).
+//   a person's message or a wake of their chat: their own accounts, then the Space accounts kept for team chats (teamChats is only for someone with no own account that can pay), or for goals.
+//   an automation step, a goal's turn, or work an agent does with no asker: the Space accounts kept for that (automations, goals, agentWork), then the person's own (a sign-in only with the switch on;
+//   an automation step that names a key keeps to it, the Space accounts and its backup).
+//   then the agent's own fallback list and the Space's backups.
+// Among Space accounts, one fits when its provider lists the turn's model (any fits an Automatic turn), capped ones are passed over, and the cheapest pays (cost.ts).
+// DECISION: a person's own sign-in always answers their own turns, wherever they run (owner ruling, member keys on the server); "Let the Space run work on my subscription" is only for others and automations.
 import { sameProviderFamily } from "./provider.ts";
-import type { AccountRow, Attempt, NeedsYou, ResolveReason, ResolveRequest, Resolution, SkipWhy } from "./types.ts";
+import type { AccountRow, Attempt, NeedsYou, ResolveReason, ResolveRequest, Resolution, SkipWhy, SpaceUses, Trigger } from "./types.ts";
 
-interface Candidate { ref: string; reason: ResolveReason }
+interface Candidate { ref: string; reason: ResolveReason; pin?: true; space?: true }
 
 function payerOf(req: ResolveRequest): { payer: string; reason: "starter" | "steerer" } {
   if (req.trigger === "routine" && req.routineOwner) return { payer: req.routineOwner, reason: "starter" };
@@ -12,43 +18,79 @@ function payerOf(req: ResolveRequest): { payer: string; reason: "starter" | "ste
   return { payer: req.starter, reason: "starter" };
 }
 
-/** A turn the account's owner asked for themselves: their message, or a wake of their own chat. A routine or an automation's step is not (it needs the standing switch). */
+/** A turn the account's owner asked for themselves: their message, or a wake of their own chat. A routine, a goal or an automation's step is not (a sign-in needs the standing switch for those). */
 const ownTurn = (row: AccountRow, req: ResolveRequest, payer: string): boolean => row.mine && row.ownerId === payer && (req.trigger === "message" || req.trigger === "wake");
 
+type Use = keyof SpaceUses;
+const USE: Readonly<Record<Trigger, Use>> = { message: "teamChats", wake: "goals", goal: "goals", routine: "agentWork", task: "automations" };
+
+/** The uses of a Space account. The Space AI key from before Space accounts reads as kept for team chats, for everyone. */
+function usesOf(a: AccountRow): SpaceUses | undefined {
+  if (a.mine) return undefined;
+  return a.uses ?? (a.spaceKey === true ? { teamChats: { who: "everyone" } } : undefined);
+}
+
+/** May this Space account pay for this kind of turn, for this person and this agent? */
+function covers(a: AccountRow, req: ResolveRequest): boolean {
+  const u = usesOf(a);
+  if (!u || a.older === true) return false;
+  switch (USE[req.trigger]) {
+    case "teamChats": return u.teamChats !== undefined && (a.teamChatsForMe ?? (a.spaceKey === true || u.teamChats.who === "everyone"));
+    case "automations": return u.automations === true;
+    case "goals": return u.goals === true;
+    case "agentWork": {
+      const which = u.agentWork?.which;
+      return which === "all" || (which !== undefined && req.agent.agentId !== undefined && which.includes(req.agent.agentId));
+    }
+  }
+}
+
+/** A Space account fits when its provider lists the model the turn needs; an Automatic turn runs on the account's default. */
+const fits = (a: AccountRow, req: ResolveRequest): boolean => req.model === undefined || req.model === "" || (a.models ?? []).includes(req.model);
+
 /** Why this row cannot pay for this turn, or null when it can. */
-export function skipReason(row: AccountRow | undefined, req: ResolveRequest, payer: string): SkipWhy | null {
+export function skipReason(row: AccountRow | undefined, req: ResolveRequest, payer: string, how: { space?: boolean } = {}): SkipWhy | null {
   if (!row) return "unknown";
   if (req.unavailable?.includes(row.ref)) return "failed_this_turn";
   if (req.policy === "company" && (row.mine || row.kind === "subscription")) return "policy_company";
   if (row.mine && row.ownerId !== payer) return "not_yours";
-  // the standing switch is for others and for automations: a person's own sign-in always answers their own turns, wherever they run (owner ruling, member keys on the server)
   if (row.kind === "subscription" && req.onServer && !row.spaceMayUse && !ownTurn(row, req, payer)) return "space_may_not_use";
   if (row.status === "expired") return "expired";
   if (row.status === "failed") return "failed";
+  if (row.capped === true) return "capped";
+  if (how.space === true && !fits(row, req)) return "no_model";
   return null;
 }
 
 function candidates(req: ResolveRequest, payerReason: "starter" | "steerer", payer: string): Candidate[] {
   const out: Candidate[] = [];
-  const add = (ref: string | undefined, reason: ResolveReason): void => {
-    if (ref !== undefined && ref !== "" && !out.some((c) => c.ref === ref)) out.push({ ref, reason });
+  const add = (ref: string | undefined, reason: ResolveReason, o: { pin?: true; space?: true } = {}): void => {
+    if (ref !== undefined && ref !== "" && !out.some((c) => c.ref === ref)) out.push({ ref, reason, ...o });
+  };
+  const own = (): void => {
+    // the payer's own accounts: subscription sign-ins before keys (already paid for); an older sign-in listed under another row of the provider is not picked on its own
+    const mine = req.accounts.filter((a) => a.mine && a.ownerId === payer && a.older !== true && (req.agent.provider === undefined || sameProviderFamily(a.provider, req.agent.provider)));
+    for (const a of [...mine.filter((a) => a.kind === "subscription"), ...mine.filter((a) => a.kind === "api_key")]) add(a.ref, payerReason);
+  };
+  const space = (): void => {
+    const kept = req.accounts.map((a, i) => ({ a, i })).filter(({ a }) => covers(a, req));
+    kept.sort((x, y) => (x.a.cost ?? 3) - (y.a.cost ?? 3) || x.i - y.i);
+    for (const { a } of kept) add(a.ref, payerReason, { space: true });
   };
   if (req.trigger === "task") {
-    add(req.stepKey, "step_key");
-    for (const a of req.accounts) if (a.spaceKey === true && !a.mine) add(a.ref, payerReason);
+    add(req.stepKey, "step_key", { pin: true });
+    if (req.agent.accountPolicy === "key") add(req.agent.accountKey, payerReason, { pin: true });
+    space();
+    // a step that names no key is the person's own Run: their own accounts after the Space's; a step with a key keeps to it, the Space's and its backup
+    if (req.stepKey === undefined && req.agent.accountPolicy !== "key") own();
   } else {
-    add(req.threadAccountRef, payerReason);
-    if (req.agent.accountPolicy === "key") add(req.agent.accountKey, payerReason);
-    else {
-      // The payer's own accounts: subscription sign-ins before keys (already paid for). A shared key is used only when the agent points at it, the thread pins it, or it is a backup.
-      // an older sign-in listed under another row of the provider is not picked on its own: the row it is listed under is
-      const own = req.accounts.filter((a) => a.mine && a.ownerId === payer && a.older !== true && (req.agent.provider === undefined || sameProviderFamily(a.provider, req.agent.provider)));
-      for (const a of [...own.filter((a) => a.kind === "subscription"), ...own.filter((a) => a.kind === "api_key")]) add(a.ref, payerReason);
-    }
-    // the Space AI key: usage is the payer's (whose turn it is), so the reason stays theirs
-    for (const a of req.accounts) if (a.spaceKey === true && !a.mine) add(a.ref, payerReason);
+    add(req.threadAccountRef, payerReason, { pin: true });
+    if (req.agent.accountPolicy === "key") add(req.agent.accountKey, payerReason, { pin: true });
+    const chat = req.trigger === "message" || req.trigger === "wake";
+    if (chat) { if (req.agent.accountPolicy !== "key") own(); space(); }
+    else { space(); if (req.agent.accountPolicy !== "key") own(); }
   }
-  // The agent's own ordered fallback list comes before the Space's backups; a task keeps to its step key and the Space backups.
+  // The agent's own ordered fallback list comes before the Space's backups; a task keeps to its step key, the Space accounts and the Space backups.
   if (req.trigger !== "task") for (const f of req.agent.accountFallback ?? []) add(f, "backup_key");
   for (const b of req.backupRefs) add(b, "backup_key");
   return out;
@@ -62,26 +104,30 @@ export function resolveAccount(req: ResolveRequest): Resolution {
   const tried: Attempt[] = [];
   let broken: { ref: string; why: "expired" | "failed" } | null = null;
   let policyBlocked = false;
+  let pin: Attempt | undefined;
 
   for (const c of candidates(req, payerReason, payer)) {
     const row = byRef.get(c.ref);
-    const why = skipReason(row, req, payer);
+    const why = skipReason(row, req, payer, c.space ? { space: true } : {});
     if (why !== null) {
-      tried.push({ ref: c.ref, used: false, why });
+      const at: Attempt = { ref: c.ref, used: false, why };
+      tried.push(at);
+      if (c.pin && pin === undefined) pin = at;
       if (why === "policy_company") policyBlocked = true;
       // A payer's own account that is signed out or failing is theirs to fix.
       if ((why === "expired" || why === "failed") && row && row.mine && row.ownerId === payer && broken === null) broken = { ref: c.ref, why };
       continue;
     }
     tried.push({ ref: c.ref, used: true });
-    const res: Resolution = { accountRef: c.ref, payer, reason: c.reason, allowed: true, tried };
+    if (c.pin && pin === undefined) pin = { ref: c.ref, used: true };
+    const res: Resolution = { accountRef: c.ref, payer, reason: c.reason, allowed: true, tried, ...(pin ? { pin } : {}) };
     if (broken) res.unblock = needs(payer, broken.ref, broken.why, true);
     return res;
   }
 
   const owner = req.trigger === "routine" && req.routineOwner ? req.routineOwner : req.starter;
   const why = broken?.why ?? (policyBlocked ? "policy" : "no_account");
-  return { accountRef: null, payer: null, reason: "none", allowed: false, tried, unblock: needs(owner, broken?.ref ?? null, why, false) };
+  return { accountRef: null, payer: null, reason: "none", allowed: false, tried, unblock: needs(owner, broken?.ref ?? null, why, false), ...(pin ? { pin } : {}) };
 }
 
 function needs(to: string, ref: string | null, why: NeedsYou["why"], covered: boolean): NeedsYou {

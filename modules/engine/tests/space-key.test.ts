@@ -54,9 +54,9 @@ test("the order: thread pin, agent key, own accounts, the Space AI key, then the
   const r = resolveAccount(base({ starter: "usr_mia", accounts: [SPACE, BACKUP], backupRefs: ["#Backup_Key"], agent: { accountPolicy: "asker", accountFallback: ["#Backup_Key"] } }));
   assert.equal(r.accountRef, "#OpenCode_Go_for_everyone");
   assert.deepEqual(r.tried.map((t) => t.ref), ["#OpenCode_Go_for_everyone"]);
-  // a task: its step key, then the Space AI key, then its backup
+  // a task: its step key, then its backup; the Space AI key is kept for team chats (owner ruling 9), so an automation does not run on it
   assert.equal(resolveAccount(base({ trigger: "task", stepKey: "#Team_Anthropic_Key" })).accountRef, "#Team_Anthropic_Key");
-  assert.equal(resolveAccount(base({ trigger: "task", starter: "usr_mia", accounts: [SPACE, BACKUP], backupRefs: ["#Backup_Key"] })).accountRef, "#OpenCode_Go_for_everyone");
+  assert.equal(resolveAccount(base({ trigger: "task", starter: "usr_mia", accounts: [SPACE, BACKUP], backupRefs: ["#Backup_Key"] })).accountRef, "#Backup_Key");
 });
 
 test("Company accounts only: personal accounts are skipped, so everyone runs on the Space AI key", () => {
@@ -86,7 +86,7 @@ test("a Mine row that claims to be the Space AI key is never a Space key", () =>
 // ---- the engine handlers over providers.list
 
 const PROVIDERS = [
-  { id: "prv_space", providerKey: "opencode-go", name: "OpenCode Go", connection: "api_key", scope: "shared", handle: "#OpenCode_Go_for_everyone", itemId: "vit_space", itemName: "OpenCode Go for everyone", engine: "opencode-go", spaceMayUse: true, state: "ok", spaceKey: true },
+  { id: "prv_space", providerKey: "opencode-go", name: "OpenCode Go", connection: "api_key", scope: "shared", handle: "#OpenCode_Go_for_everyone", itemId: "vit_space", itemName: "OpenCode Go for everyone", engine: "opencode-go", spaceMayUse: true, state: "ok", spaceKey: true, models: ["glm-5.3", "kimi-k3", "deepseek-v4-pro"] },
 ];
 
 function ctxWith(over: Record<string, (input: Record<string, unknown>) => unknown>, threads = [{ threadId: "thr_1", starter: "usr_mia", agents: [{ agentId: "agt_1", mode: "lead" as const, model: "claude-sonnet-5-5" }] }]) {
@@ -118,8 +118,15 @@ test("every member sees the Space AI key as the provider it is, not a special op
   const listed = await accountsList(ctx, {} as never);
   assert.deepEqual(validate(out("engine.accounts.list"), listed, "", {}), []);
   assert.deepEqual(listed.accounts.map((a) => [a.ref, a.driver, a.title, "name" in a, a.spaceKey]), [["#OpenCode_Go_for_everyone", "opencode_go", "OpenCode Go", false, true]]);
-  const r = await accountResolve(ctx, { threadId: "thr_1", agentId: "agt_1" });
+  // the chat's model is one the key serves, or Automatic: it fits (owner ruling 9)
+  const served = ctxWith({}, [{ threadId: "thr_1", starter: "usr_mia", agents: [{ agentId: "agt_1", mode: "lead" as const, model: "glm-5.3" }] }]).ctx;
+  const r = await accountResolve(served, { threadId: "thr_1", agentId: "agt_1" });
   assert.deepEqual([r.accountRef, r.payer, r.allowed, r.itemId], ["#OpenCode_Go_for_everyone", "usr_mia", true, "vit_space"], "usage is metered against the key's item and the member");
+  const automatic = ctxWith({}, [{ threadId: "thr_1", starter: "usr_mia", agents: [{ agentId: "agt_1", mode: "lead" as const }] }] as never).ctx;
+  assert.equal((await accountResolve(automatic, { threadId: "thr_1", agentId: "agt_1" })).accountRef, "#OpenCode_Go_for_everyone");
+  // a Claude model the key does not list does not fit, and says why
+  const other = await accountResolve(ctx, { threadId: "thr_1", agentId: "agt_1" });
+  assert.equal(other.allowed, false);
 });
 
 test("the model list of the Space AI key comes from the Vault's kept list, never from a member testing the key", async () => {

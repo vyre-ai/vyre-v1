@@ -262,9 +262,15 @@ export default defineManifest({
       },
       on: ['thread', '/threadId'], tool: 'chats', label: 'check',
     }),
-    read('engine.account.resolve', 'Resolve the account that pays for a turn: starter, steerer, step key, backup key, else an Unblock', {
-      in: { ...threadT, agentId: id.agent, askerId: t.opt(id.user), stepKey: t.opt(t.str()), unavailable: t.opt(t.arr(t.str(), { description: 'Accounts that already failed this turn: the answer is the next one in the agent\'s order' })) },
-      out: { accountRef: t.nullable(accountRef), payer: t.nullable(id.user), reason: t.enm('starter', 'steerer', 'step_key', 'backup_key', 'none'), allowed: t.bool(), itemId: t.opt(id.vaultItem), fellBack: t.opt(t.bool()) }, on: ['thread', '/threadId'],
+    read('engine.account.resolve', 'Resolve the account that pays for a turn: a pin (the chat\'s account, the agent\'s key, the step\'s key), the person\'s own, the Space AI accounts whose uses cover the turn (cheapest that fits, not capped), the backups, else an Unblock', {
+      in: {
+        ...threadT, agentId: id.agent, askerId: t.opt(id.user), stepKey: t.opt(t.str()), unavailable: t.opt(t.arr(t.str(), { description: 'Accounts that already failed this turn: the answer is the next one in the agent\'s order' })),
+        kind: t.opt({ ...t.enm('chat', 'wake', 'automation', 'goal', 'agent_work'), description: 'What caused the turn, which says which Space AI accounts may pay: a person\'s chat (team chats), a wake-up of a chat or a goal\'s turn (goals), an automation step (automations), or agent work with no asker (agent work). Default chat; a step key means automation' }),
+      },
+      out: {
+        accountRef: t.nullable(accountRef), payer: t.nullable(id.user), reason: t.enm('starter', 'steerer', 'step_key', 'backup_key', 'none'), allowed: t.bool(), itemId: t.opt(id.vaultItem), fellBack: t.opt(t.bool()),
+        pin: t.opt(t.obj({ ref: accountRef, used: t.bool(), why: t.opt(t.enm('unknown', 'expired', 'failed', 'policy_company', 'not_yours', 'space_may_not_use', 'failed_this_turn', 'capped', 'no_model')) }, { description: 'The account the chat, agent or step is pinned to; when it did not pay, why' })),
+      }, on: ['thread', '/threadId'],
     }),
     write('engine.step_turn', 'Run one AI turn for an automation step: on the owner\'s own account (Personal) or a Space-shared key (Space), optionally as an agent, with no tools. A repeat of the same key returns the first answer.', {
       in: {
