@@ -16,15 +16,10 @@ import { openAsk } from "../providers/ask.ts";
 import { sampleRuntime } from "../providers/misc-test-runtime.tsx";
 import { ShellRuntimeProvider } from "../providers/runtime.tsx";
 import type { ShellRuntime } from "../providers/runtime.tsx";
-import { settingsData } from "../providers/settings.tsx";
-import { vaultData } from "../providers/vault.tsx";
-import { createSampleSettings } from "../../places/settings/sample.ts";
 import { askAboutRecord } from "../providers/record-detail.tsx";
 import { RecordPage, RecordPageDataProvider } from "../../places/records/recordpage/index.ts";
 import { createSamplePage } from "../../places/records/recordpage/sample.ts";
 import { ThreadsPage } from "../../places/chats/mounts/ThreadsPage.tsx";
-import { SettingsDataProvider } from "../../places/settings/data.tsx";
-import { SettingsPlace } from "../../places/settings/SettingsPlace.tsx";
 
 const LOADING = { status: "loading" } as const;
 const quiet = { query: () => ({ subscribe: () => () => undefined, getSnapshot: () => LOADING }) };
