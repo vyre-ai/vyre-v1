@@ -146,6 +146,44 @@ test("each value `vyre run --env` fetches (fill with returnValue) is a use in th
   h.cleanup();
 });
 
+test("a shared item at Use is usable by the person and not viewable: the sink gets it, reveal and a returned value are refused", async () => {
+  const h = harness();
+  const f = await folder(h);
+  const id = await put(h, f, "Dana Lawmatics");
+  const got = sinks();
+  h.grant(ROB, id, "use");
+  h.actAs("person", ROB);
+  assert.equal(out(await u.use(h.ctx, { item: "#Dana_Lawmatics" })).itemId, id, "usable by name");
+  const r = out(await u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" } }));
+  assert.equal(r.filled, true);
+  assert.equal(got[0]?.value, SECRET, "the place got the value");
+  assert.equal("value" in r, false, "and the answer holds none");
+  assert.equal(await refusedWith(u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" }, returnValue: true })), "permission.no_grant", "no value back below View");
+  assert.equal(await refusedWith(v.itemReveal(h.ctx, { itemId: id })), "permission.no_grant", "reveal needs View");
+  h.cleanup();
+});
+
+test("search finds an item by name, handle, kind, field name or folder across Mine, Shared with me and the Space, and never by a value", async () => {
+  const h = harness();
+  const shared = await folder(h);
+  const mine = await folder(h, "mine");
+  const a = await put(h, shared, "Dana Lawmatics");
+  const b = await put(h, mine, "Claude sign in");
+  h.grant(ROB, a, "use");
+  const find = async (q: string): Promise<string[]> => (out(await v.itemsList(h.ctx, { q })).items as Json[]).map((i) => String(i.id)).sort();
+  assert.deepEqual(await find("lawmatics"), [a]);
+  assert.deepEqual(await find("#Dana_Lawmatics"), [a], "by handle");
+  assert.deepEqual(await find("claude"), [b], "a Mine item is found with the others");
+  assert.deepEqual(await find("api_key"), [a, b].sort(), "by field name, across both");
+  assert.deepEqual(await find("api key"), [a, b].sort());
+  assert.deepEqual(await find("shared u-"), [a], "by folder name");
+  assert.deepEqual(await find(SECRET), [], "never by a value");
+  h.actAs("person", ROB);
+  assert.deepEqual(await find("lawmatics"), [a], "shared with me is found; another person's Mine is not");
+  assert.deepEqual(await find("claude"), []);
+  h.cleanup();
+});
+
 test("export_env seals a .env under the filler, keeps only the token hash, expires, revokes and notifies the folder", async () => {
   const h = harness();
   const f = await folder(h);
