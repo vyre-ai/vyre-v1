@@ -117,6 +117,8 @@ import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { createWebhookRoute } from "../routes/webhooks.ts";
 import { createComputeRoute } from "../routes/compute.ts";
 import { createComputeStream } from "../routes/compute-stream.ts";
+import { createTeamLinksRoute } from "../routes/team-links.ts";
+import type { TeamLink } from "../routes/team-links.ts";
 import type { ComputeStream } from "../routes/compute-stream.ts";
 import { createRunsHost } from "../seams/runs.ts";
 import type { WebhookAccept } from "../routes/webhooks.ts";
@@ -287,6 +289,11 @@ export interface DaemonOptions {
   computeStreamRecheckMs?: number;
   /** Tests: decide whether a node's link counts as private (default: TLS, or a peer on this machine). */
   computeStreamSecure?: (req: import("node:http").IncomingMessage) => boolean;
+  /**
+   * A device-role daemon's links to the Team Spaces its person is signed in to (routes/team-links.ts, compute/device-link.ts): the launcher their engines start with, the engines it says it runs,
+   * the name it shows and the socket it dials with. Default: the engine module's own launcher in this computer's sandbox, the CLI engines the sandbox can run, the host name, the platform WebSocket.
+   */
+  deviceLink?: { launcher?: import("../compute/node.ts").NodeLauncher; engines?: readonly string[]; name?: string; socket?: (url: string, headers: Record<string, string>) => import("../compute/node.ts").NodeSocket; retryMs?: number };
   /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
   engineSandbox?: unknown;
   /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
@@ -343,7 +350,9 @@ export interface Daemon {
   /** The Chrome bridge behind /chrome-bridge/v1/*: agent tool calls to the extension, and the extension's requests (apps/chrome native host) */
   chromeBridge: ChromeBridge;
   /** Engine processes on computers that joined (a turn pinned to a server): start one on a node, over its live socket. */
-  nodeRelay: { spawnProc: ComputeStream["spawnProc"]; connected(nodeId: string): boolean; secure(nodeId: string): boolean };
+  nodeRelay: { spawnProc: ComputeStream["spawnProc"]; connected(nodeId: string): boolean; secure(nodeId: string): boolean; devices: ComputeStream["devices"] };
+  /** A device-role daemon: the Team Spaces it links to for its person's turns (POST /local/chrome/spaces). */
+  teamLinks: () => string[];
   /** One Personal Space on several computers (host/src/peers): null unless a Personal Space started with --peers. */
   peers: PeerService | null;
   stop(): Promise<void>;
@@ -475,8 +484,42 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let computeHome: (nodeId: string, a: { token: string; computerId: string; cap: string; input: unknown }) => Promise<{ ok: true; output: unknown } | null> = () => Promise.resolve(null);
   let computeStreamOpen: (ticket: string, computerId: string) => Promise<{ nodeId: string; personId: string; input: boolean } | null> = () => Promise.resolve(null);
   let computeStreamInput: (computerId: string, personId: string) => Promise<boolean> = () => Promise.resolve(false);
-  const computeStream = createComputeStream({ poll: (c) => computePoll(c, {}), open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}), ...(o.computeStreamSecure ? { secure: o.computeStreamSecure } : {}) });
+  // a person's own computer links with their signed-in session (lane l-runson); who it is comes from the same resolver as the gateway, once the Space is open
+  let deviceOfToken: (token: string) => Promise<{ person: string; device: string; name?: string } | null> = () => Promise.resolve(null);
+  const computeStream = createComputeStream({ poll: (c) => computePoll(c, {}), device: (t) => deviceOfToken(t), open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}), ...(o.computeStreamSecure ? { secure: o.computeStreamSecure } : {}) });
   closers.push(() => computeStream.close());
+  // A device-role daemon (the Vyre app's, on the person's own computer) links to each Team Space its person is signed in to here, so their chats there can run on this computer (lane l-runson).
+  // A daemon that hosts a Space does not: its Space is here, and its turns already run here.
+  const linkDevice = async (l: TeamLink, signal: AbortSignal): Promise<void> => {
+    const { runDeviceLink } = await import("../compute/device-link.ts");
+    const { platformSocket } = await import("../compute/node.ts");
+    type EngineExports = { nodeCliLauncher?: (dataDir: string, deps?: { install?: boolean }) => import("../compute/node.ts").NodeLauncher; nodeCliReport?: () => { sandbox: { ok: boolean } } };
+    const engine = o.deviceLink?.launcher && o.deviceLink.engines ? undefined : ((await fileExportsImporter(codeRoot)("engine")) as EngineExports | undefined);
+    let made: import("../compute/node.ts").NodeLauncher | undefined;
+    const launcher = o.deviceLink?.launcher ?? { spawn: (spec: Parameters<import("../compute/node.ts").NodeLauncher["spawn"]>[0]) => {
+      if (!engine?.nodeCliLauncher) return Promise.reject(Object.assign(new Error("this computer has no engine module"), { code: "engine.cli_failed" }));
+      made ??= engine.nodeCliLauncher(paths.root, { install: o.engineInstall === true });
+      return made.spawn(spec);
+    } };
+    // the CLI engines: Vyre installs a missing one the first time a turn needs it, so what decides is whether this computer can sandbox an engine at all (Windows waits for lane l-winengine)
+    const engines = o.deviceLink?.engines ?? (engine?.nodeCliReport?.().sandbox.ok === true ? ["claude_code", "codex", "grok"] : []);
+    await runDeviceLink({
+      server: l.address, token: l.token, dataDir: paths.root, name: o.deviceLink?.name ?? platform.hostname, engines, launcher,
+      socket: o.deviceLink?.socket ?? platformSocket, signal, ...(o.deviceLink?.retryMs !== undefined ? { retryMs: o.deviceLink.retryMs } : {}),
+      sleep: (ms, sig) => new Promise<void>((resolve, reject) => { const t = setTimeout(resolve, ms); t.unref?.(); sig.addEventListener("abort", () => { clearTimeout(t); reject(new Error("stopped")); }, { once: true }); }),
+      log: (line) => sink.log({ space: l.id, level: 20, msg: "team.link", place: "device-link", attrs: { line } }),
+    });
+  };
+  const teamLinks = createTeamLinksRoute({
+    token, sameToken, log: (msg, attrs) => sink.log({ space: "-", level: 20, msg, place: "device-link", attrs }),
+    start: (l) => {
+      if (hasSpace || !cfg.roles.includes("device")) return () => undefined;
+      const abort = new AbortController();
+      void linkDevice(l, abort.signal).catch((e: unknown) => sink.log({ space: l.id, level: 40, msg: "team.link_failed", place: "device-link", attrs: { error: e instanceof Error ? e.message : String(e) } }));
+      return () => abort.abort();
+    },
+  });
+  closers.push(() => teamLinks.close());
   let computeRecording: (nodeId: string, a: { token: string; computerId: string; url: string; bytes: Buffer }) => Promise<boolean> = () => Promise.resolve(false);
   const computeRoute = createComputeRoute({ poll: (c, r) => computePoll(c, r), jobs: (n, r) => computeJobs(n, r), result: (n, a) => computeResult(n, a), home: (n, a) => computeHome(n, a), recording: (n, a) => computeRecording(n, a) });
   const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), automation: (a) => webhooks.automation(a), publicBase: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } });
@@ -1383,7 +1426,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           log: (u) => sink.log({ space: spaceId, level: 30, msg: "computers.fill", place: "computers", attrs: { ...u } }),
         }) : null,
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
-        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, ...(cfg.roles.includes("device") ? {} : { keyHeld: (p: string) => { const k = keyring.get(p); k?.fill(0); return k !== null; } }), nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineInstall ? { engineInstall: true } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}), saveSignin: (r) => signinRefresh.save(r), closing: (done) => { engineClosing = done; } })),
+        setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, ...(cfg.roles.includes("device") ? {} : { keyHeld: (p: string) => { const k = keyring.get(p); k?.fill(0); return k !== null; } }), nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p), onDevice: (f) => computeStream.onDevice(f) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineInstall ? { engineInstall: true } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}), saveSignin: (r) => signinRefresh.save(r), closing: (done) => { engineClosing = done; } })),
         // Report a problem: the bundle sources (the person's last actions from the log, the versions) and the reports.vyre.run client, signed with a key derived from this Space's seal key
         configureReports: () => createReportsHost({
           space: spaceId, now, fetch: o.reportsFetch ?? ((u, i) => globalThis.fetch(u, i as RequestInit) as never),
@@ -1611,6 +1654,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         })();
       });
       ownerOfSpace = () => access.owner() ?? cfg.owner ?? null;
+      deviceOfToken = async (t) => {
+        if (t.startsWith("vas_") || sameToken(t, token)) return null;   // a preview, or the admin token: neither is a person's computer
+        const who = await session({ authorization: `Bearer ${t}` });
+        if (!who || who.principal.kind !== "person" || who.previewToken !== undefined || !who.device || who.device === ADMIN_DEVICE) return null;
+        // a phone, a browser tab or an extension runs no engine: only a desktop app or a daemon links as a computer
+        let row: { class?: string; name?: string } | undefined;
+        try { row = db!.all("SELECT class, name FROM devices_device WHERE id = ? AND person = ?", who.device, who.principal.id)[0] as typeof row; } catch { row = undefined; }
+        if (row?.class !== undefined && row.class !== "desktop" && row.class !== "daemon") return null;
+        return { person: who.principal.id, device: who.device, ...(row?.name ? { name: row.name } : {}) };
+      };
       callerOf = async (h) => {
         if (bearer(h["authorization"])?.startsWith("vas_")) return null;
         const who = await session(h);
@@ -1949,7 +2002,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         return;
       }
       if (peerService?.handle(req, res)) return;
-      if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
+      if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || teamLinks.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
       listener(req, res);
     });
     await new Promise<void>((resolve, reject) => {
@@ -2050,7 +2103,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   requestStop = () => { void stop(); };
 
   return {
-    url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n) },
+    url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p) }, teamLinks: () => teamLinks.ids(),
     runProbes: (names) => runProbes(names), pollCommands: runCommands, ensureIngress: () => ensureIngress(false),
     peers: peerService,
     stop,

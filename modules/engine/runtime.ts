@@ -11,7 +11,10 @@ import type { StreamEvent } from "./handlers/bridge.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { createEngineApiTools } from "./api-tools.ts";
 import { buildNodeOpener, buildOpener, roleBlocks } from "./session.ts";
-import { remoteLauncher, routed } from "./node-turns.ts";
+import { remoteLauncher, routed, waitsForComputer } from "./node-turns.ts";
+import { bindRelay } from "./relay.ts";
+import { BRIDGE_PREFIX } from "./handlers/bridge.ts";
+import { DEVICE_WAIT_LINE, DEVICE_WAIT_STEP, SLEPT_WAIT_LINE } from "./device-turns.ts";
 import type { NodeRelay } from "./node-turns.ts";
 import { withRecall } from "./recall.ts";
 import { withChatSettings } from "./chat-settings.ts";
@@ -32,7 +35,9 @@ import { onTurnEnded, resumeTasks } from "./handlers/task-baton.ts";
 import { ensureExtra } from "./handlers/extra/schema.ts";
 import { createKeepAwake } from "./keep-awake.ts";
 import { coalesceLive } from "./live-coalesce.ts";
-import { defaultSandbox } from "./sandbox-default.ts";
+import { defaultSandbox, egressPolicyOf, wallEgress } from "./sandbox-default.ts";
+import { EGRESS_SETTING, recordEgress } from "./egress-log.ts";
+import type { AccessAsked, EgressRule } from "../../sandbox/src/index.ts";
 import { closePluginRuntime, pluginRuntime } from "./plugin-host.ts";
 import { bindOauthStore } from "./mcp-oauth.ts";
 import { createPluginTools } from "./plugin-tools.ts";
@@ -111,6 +116,7 @@ export function setEngineHost(h: EngineHostSeam | null): void {
   closeOpener = null;
   host = h;
   building = null;
+  bindRelay(h?.nodes ?? null);
   const root = h?.engines?.install ? enginesRoot({ dataDir: h.dataDir }) : null;
   configureEngines(root !== null ? { root, ...(h?.log ? { log: h.log } : {}) } : null);
   if (h === null) { bindEngine(null); bindBridge(null); bindOpener(null); completer = null; compactor = null; bindStepOpen(null); }
@@ -243,6 +249,25 @@ async function oneShot(openSession: OpenSession, i: CompleteIn, now: () => numbe
   return { text, tokensIn, tokensOut };
 }
 
+/** The Space's internet setting as the wall's rule, read now (each engine process start): the setting's value through wallEgress, the one builder. */
+export async function spaceRule(call: EngineHostSeam["call"]): Promise<EgressRule> {
+  const out = (await call("settings.get", { key: EGRESS_SETTING })) as { row?: { value?: unknown } } | undefined;
+  return wallEgress(egressPolicyOf(out?.row?.value)).rule;
+}
+
+/**
+ * What a CLI engine may touch on files, asked as each engine process starts (owner ruling 3 Nov): on the person's own computer (their Personal Space, or a Space their computer hosts) the folders they
+ * added to Vyre from it; anywhere else the Space's server rules (the work folder and the Space's toolbox). A Space that cannot be read is a server; folders that cannot be read are none.
+ */
+export async function engineAccessFor(call: EngineHostSeam["call"], asker: string): Promise<AccessAsked> {
+  const out = (await call("spaces.get", {}, asker)) as { space?: { kind?: string; owner?: string; address?: { mode?: string } } } | undefined;
+  const s = out?.space;
+  const own = s !== undefined && s.owner === asker && (s.kind === "personal" || s.address?.mode === "device");
+  if (!own) return { where: "server", folders: [] };
+  const mounts = (await call("mounts.engine_folders", { person: asker }).catch(() => ({ folders: [] }))) as { folders?: Array<{ path?: unknown }> };
+  return { where: "own", folders: (mounts.folders ?? []).map((f) => f.path).filter((p): p is string => typeof p === "string") };
+}
+
 let defaultBuilt: DefaultSandbox | null = null;
 /** What the sandbox lets a CLI engine read besides the system: the host's extra folders and Vyre's engines folder, where an engine Vyre installed lives (it may be installed after the sandbox is built). */
 function cliRead(h: EngineHostSeam): readonly string[] | undefined {
@@ -275,20 +300,47 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     checkpoint: (k: { threadId: string; agentId: string; person: string; driver: string; tools?: "none" }, id: string | null) => { if (keepsSession(k)) saveResumeId(ctx.db, k, id, now0()); },
     keep: (threadId: string) => keepEvery(ctx.db, threadId),
   };
-  const opener = host.openSession ? null : buildOpener({ sessions, ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.cli?.probe ? { cliProbe: host.cli.probe } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
+  // the Space's internet setting, read as each engine process starts, and where the process went (the turn's details, and the audit log for a refusal)
+  const egress = { rule: () => spaceRule(h.call), record: (where: { person: string; threadId: string }, e: Parameters<typeof recordEgress>[3]) => recordEgress(ctx.db, h.call, where, e, now0, h.log) };
+  const access = (asker: string) => engineAccessFor(h.call, asker);
+  const opener = host.openSession ? null : buildOpener({ sessions, egress, access, ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.cli?.probe ? { cliProbe: host.cli.probe } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
   // a turn whose engine Vyre is installing says so on its live line ("Setting up Codex"); the line is the bridge's, which exists once the runtime is built below
   let setupLine: ((e: StreamEvent) => void) | null = null;
   const installer = engines();
   const baseOpen = host.openSession ?? checkedOpen((opener as NonNullable<typeof opener>).openSession, { ...(host.cli?.command ? { command: host.cli.command } : {}), ...(host.cli?.probe ? { probe: host.cli.probe } : {}), ...(installer ? { engines: installer } : {}), live: (e) => setupLine?.(e) });
   // a turn the person pinned to one of their servers opens through that server's opener; everything else opens as before
   const nodeOpeners = new Map<string, ReturnType<typeof buildNodeOpener>>();
-  const openerHost = { ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call };
-  const nodeOpener = (nodeId: string) => {
-    let o = nodeOpeners.get(nodeId);
-    if (!o) { o = buildNodeOpener(openerHost, remoteLauncher(h.nodes as NodeRelay, nodeId)); nodeOpeners.set(nodeId, o); }
+  const openerHost = { ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, egress: { rule: egress.rule }, access };
+  // a person's own computer (node device:<id>): their turns only, and the engine there works in the folders they added to Vyre from that computer (mounts.engine_folders, lane l-openweb's list)
+  const deviceFolders = (person: string, deviceId: string) => async (): Promise<string[]> => {
+    const out = (await h.call("mounts.engine_folders", { person }).catch(() => ({ folders: [] }))) as { folders?: Array<{ path?: unknown; deviceId?: unknown }> };
+    return (out.folders ?? []).filter((f) => f.deviceId === deviceId && typeof f.path === "string").map((f) => f.path as string);
+  };
+  const nodeOpener = (nodeId: string, person?: string) => {
+    const key = person === undefined ? nodeId : `${nodeId}\u0000${person}`;
+    let o = nodeOpeners.get(key);
+    if (!o) {
+      const device = nodeId.startsWith("device:") && person !== undefined ? nodeId.slice(7) : null;
+      o = buildNodeOpener(device ? { ...openerHost, folders: deviceFolders(person!, device) } : openerHost, remoteLauncher(h.nodes as NodeRelay, nodeId, person));
+      nodeOpeners.set(key, o);
+    }
     return o.openSession;
   };
-  const openSession = host.session && h.nodes && !host.openSession ? routed(baseOpen, { call: h.call, relay: h.nodes, nodeOpener, db: ctx.db }) : baseOpen;
+  // the Space's own server, as a line says it ("continuing on the Northwind server"); a Personal Space is the person's computer
+  let spaceLine: Promise<string> | null = null;
+  const spaceName = (): Promise<string> => (spaceLine ??= (h.call("spaces.get", {}) as Promise<{ space?: { name?: string; kind?: string } }>).then((r) => (r.space?.kind === "personal" ? "this computer" : r.space?.name ? `the ${r.space.name} server` : "the Space's server")).catch(() => { spaceLine = null; return "the Space's server"; }));
+  const serverName = async (serverId: string, person: string): Promise<string | undefined> => (((await h.call("network.my_computers", {}, person)) as { computers?: Array<{ serverId: string; name: string }> }).computers ?? []).find((x) => x.serverId === serverId)?.name;
+  // a line in the chat from the agent whose turn it is, as the bridge posts its own (a turn_status block)
+  const noteLine = (agentId: string, actingFor: string, threadId: string, data: Record<string, unknown>): void => {
+    if (!h.postAs) return;
+    void Promise.resolve(h.postAs(agentId, { actingFor, threadId, body: "", mentions: [], clientId: BRIDGE_PREFIX + mintEngineId("b", now0()).slice(2), blocks: [{ type: "turn_status", v: 1, data }] }))
+      .catch((e: unknown) => h.log?.("a line about where a chat runs was not posted", { threadId, error: e instanceof Error ? e.message : String(e) }));
+  };
+  const openSession = host.session && h.nodes && !host.openSession ? routed(baseOpen, {
+    call: h.call, relay: h.nodes, nodeOpener, db: ctx.db, now: now0, spaceName, serverName,
+    note: (spec, text) => noteLine(spec.agent.id, spec.asker, spec.threadId, text === SLEPT_WAIT_LINE ? { state: "device_wait", text, threadId: spec.threadId } : { state: "note", text }),
+    live: (spec, phase) => setupLine?.({ kind: "step", threadId: spec.threadId, turnId: spec.turnId, agentId: spec.agent.id, phase, id: `${DEVICE_WAIT_STEP}_${spec.turnId}`, name: DEVICE_WAIT_STEP, ...(phase === "result" ? { ok: true } : {}) }),
+  }) : baseOpen;
   closeOpener = opener ? async () => { await opener.close(); await Promise.all([...nodeOpeners.values()].map((o) => o.close())); } : null;
   building ??= (async () => {
     const now = h.now ?? Date.now;
@@ -327,6 +379,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       onTurnEnd: (turn, account) => meter(h, turn, account),
       onLimits: (account, reading) => recordAccountLimits(ctx.db, account.ref, reading, now()),
       ...(apiTools ? { callTool: apiTools.runner } : {}),
+      // a chat pinned to a computer that is not linked waits in the queue for it: the turn does not start (nothing reads "Working"), the chat says so once, and it starts when the computer links
+      ...(h.nodes?.devices ? { place: (thread: { id: string }) => (waitsForComputer(ctx.db, h.nodes, thread.id) ? "device" as const : "host" as const) } : {}),
     });
     running = engine;
     // The reviewer seat: after a lead turn completes, the chat's reviewer is asked to check it.
@@ -346,7 +400,25 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       recording.set(turnId, done);
       if (phase !== "started") void done.then(() => { if (recording.get(turnId) === done) recording.delete(turnId); });
     };
+    // the chats waiting for a computer, so the line is said once per wait and the right ones start when a computer links
+    const waitingFor = new Set<string>();
+    h.nodes?.onDevice?.((link, up) => {
+      if (!up || link.engines.length === 0) return;
+      for (const threadId of [...waitingFor]) {
+        if (waitsForComputer(ctx.db, h.nodes, threadId)) continue;
+        waitingFor.delete(threadId);
+        try { engine.kick(threadId); } catch { /* not open here any more: its next message opens it */ }
+      }
+    });
     engine.subscribe((ev) => {
+      if (ev.type === "agent.handoff" && ev.to === "device") {
+        if (waitingFor.has(ev.threadId)) return;
+        waitingFor.add(ev.threadId);
+        const row = engine.queue(ev.threadId).find((q) => q.state === "queued");
+        if (row) noteLine(row.agentId, row.from.startsWith("usr_") ? row.from : (waitsForComputer(ctx.db, h.nodes, ev.threadId)?.person ?? row.from), ev.threadId, { state: "device_wait", text: DEVICE_WAIT_LINE, threadId: ev.threadId });
+        return;
+      }
+      if (ev.type === "turn.started") waitingFor.delete(ev.threadId);
       // a message for an agent that runs outside Vyre waits in its queue: the owner's only, the queue checks that
       if (ev.type === "agent.outside_asked") {
         void h.call("agents.outside.enqueue", { agentId: ev.agentId, kind: "mention", threadId: ev.threadId, messageId: ev.messageId, asker: ev.asker, title: "A message for you", text: ev.body })

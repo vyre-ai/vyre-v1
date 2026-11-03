@@ -1589,6 +1589,7 @@ export function createClient(transport: Transport) {
       doc_insert_text: call("mounts.doc_insert_text", 1),
       doc_replace_text: call("mounts.doc_replace_text", 1),
       editors: call("mounts.editors", 1),
+      engine_folders: call("mounts.engine_folders", 1),
       file_link: call("mounts.file_link", 1),
       get: call("mounts.get", 1),
       history: call("mounts.history", 1),

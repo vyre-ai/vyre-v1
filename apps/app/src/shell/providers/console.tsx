@@ -33,6 +33,7 @@ import { Spend } from "../../console/pages/Spend.tsx";
 import { ReviewSampling } from "../../console/pages/AiSettings.tsx";
 import { Incidents } from "../../console/pages/Incidents.tsx";
 import { AiPolicy } from "../../console/pages/AiPolicy.tsx";
+import { InternetAccess } from "../../console/pages/InternetAccess.tsx";
 import { GateRules } from "../../console/pages/GateRules.tsx";
 import { Retention } from "../../console/pages/Retention.tsx";
 import { Holds } from "../../console/pages/Holds.tsx";
@@ -101,6 +102,7 @@ export function aiDataPageFor(id: string): ReactElement | null {
   if (id === "review") return <ReviewSampling />;
   if (id === "incidents") return <Incidents />;
   if (id === "aipolicy") return <AiPolicy />;
+  if (id === "internet") return <InternetAccess />;
   if (id === "gate") return <GateRules />;
   if (id === "retention") return <Retention />;
   if (id === "holds") return <Holds />;

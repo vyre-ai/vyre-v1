@@ -53,8 +53,9 @@ export function createRunnableAccount(d: RunnableDeps): (q: AccountQuery) => Pro
 
   async function pinnedToServer(q: AccountQuery): Promise<boolean> {
     try {
-      const p = (await d.call("engine.placement.decide", { threadId: q.threadId, agentId: q.agentId, kind: "message" }, q.askerId)) as { reason?: string };
-      return p.reason === "chosen_server" || p.reason === "server_off";
+      const p = (await d.call("engine.placement.decide", { threadId: q.threadId, agentId: q.agentId, kind: "message" }, q.askerId)) as { reason?: string; placement?: string };
+      // a turn on one of the person's servers or computers is checked there (node-cli.ts), never against this server's programs
+      return p.reason === "chosen_server" || p.reason === "server_off" || p.reason === "own_server" || p.placement === "device";
     } catch { return false; }
   }
 

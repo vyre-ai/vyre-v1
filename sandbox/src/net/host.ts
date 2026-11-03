@@ -1,5 +1,5 @@
 // The host side of a walled sandbox (S8): the egress proxy on the machine's loopback, a unix socket in a folder of its own that leads to it, and the bridge program for the inside. The folder is
-// what the sandbox gets, read-only: the socket and bridge.mjs, nothing else. Only this process and the sandbox ever hold the other end of the socket.
+// what the sandbox gets, read-only: the socket, bridge.mjs and connect.mjs (the CONNECT helper for ssh), nothing else. Only this process and the sandbox ever hold the other end of the socket.
 //
 // The proxy listens on 127.0.0.1 of the host. The sandbox has no network, so it cannot open that port; the socket is its only way to it. The socket's mode is 0666 inside a folder only this sandbox
 // is given: anything that can open the folder can use the proxy, which is the allow-list and nothing more.
@@ -10,11 +10,14 @@ import path from "node:path";
 import { createEgressProxy } from "../egress.ts";
 import type { EgressOptions } from "../egress.ts";
 import { SandboxError } from "../types.ts";
-import { BRIDGE_SOURCE } from "./guest.ts";
+import type { EgressRule } from "../egress-policy.ts";
+import { BRIDGE_SOURCE, CONNECT_SOURCE } from "./guest.ts";
 
 export interface NetWallOptions {
   /** Host patterns the proxy lets through (the person's egress list). */
   allow: readonly string[];
+  /** The rule (egress-policy.ts, plain JSON). Given, it decides and `allow` is not read: `{ egress: "public" }` opens every public host. */
+  rule?: EgressRule;
   /** How the proxy resolves and connects, and who watches. Default: the system's. */
   egress?: Partial<EgressOptions>;
   /** Where to make the folder. Default: the system's temp folder. Linux hosts only (a unix socket path must stay under 100 characters). */
@@ -22,7 +25,7 @@ export interface NetWallOptions {
 }
 
 export interface NetWall {
-  /** The folder the sandbox is given (read-only): proxy.sock and bridge.mjs. */
+  /** The folder the sandbox is given (read-only): proxy.sock, bridge.mjs and connect.mjs. */
   dir: string;
   socket: string;
   /** The proxy's own port on the host's loopback, for tests that must prove the sandbox cannot use it directly. */
@@ -39,7 +42,7 @@ export async function startNetWall(o: NetWallOptions): Promise<NetWall> {
     fs.rmSync(dir, { recursive: true, force: true });
     throw new SandboxError("sandbox.net", `the socket path is too long for a unix socket: ${socket.length} characters`);
   }
-  const proxy = createEgressProxy({ ...o.egress, allow: o.allow });
+  const proxy = createEgressProxy({ ...o.egress, allow: o.allow, ...(o.rule ? { rule: o.rule } : {}) });
   const live = new Set<net.Socket>();
   const server = net.createServer((client) => {
     const up = net.connect({ host: "127.0.0.1", port });
@@ -66,6 +69,7 @@ export async function startNetWall(o: NetWallOptions): Promise<NetWall> {
     fs.chmodSync(dir, 0o755);
     fs.chmodSync(socket, 0o666);
     fs.writeFileSync(path.join(dir, "bridge.mjs"), BRIDGE_SOURCE, { mode: 0o644 });
+    fs.writeFileSync(path.join(dir, "connect.mjs"), CONNECT_SOURCE, { mode: 0o644 });
   } catch (e) {
     await close().catch(() => undefined);
     throw e;
