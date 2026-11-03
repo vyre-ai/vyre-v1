@@ -1,7 +1,7 @@
 // What the goals module reads from the event log: its tasks moving, turns in its chats (budget), turns parked on a person (waiting), mentions (folder access). Each is safe to read twice.
-import { ENDED, LIVE, addTask, addThread, allGoals, dispatch, ensure, getGoal, goalOfTask, goalOfThread, note, queueWake, rootOf, saveGoal, setStatus, threadsOf } from "../projections.ts";
+import { ENDED, LIVE, addTask, addThread, allGoals, dispatch, ensure, getGoal, goalOfTask, goalOfThread, openWake, note, queueWake, rootOf, saveGoal, setStatus, threadsOf } from "../projections.ts";
 import type { Goal, GoalsCtx, Who } from "../projections.ts";
-import { addWait, dropWait, ensureFolder, setTaskState, spend, syncGrants, tick, tickFromTask, tryCall, unstick } from "./life.ts";
+import { addWait, dropWait, ensureFolder, setTaskState, spend, stuck, syncGrants, tick, tickFromTask, tryCall, unstick } from "./life.ts";
 
 type Obj = Record<string, unknown>;
 interface Ev { name: string; id?: string; payload: Obj }
@@ -84,6 +84,8 @@ export async function onTurn(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
   // one count per turn, however often the event is read
   if (ctx.db.run("INSERT OR IGNORE INTO goals_step (goal_id, step_id, title, state, by, at) VALUES (?, ?, NULL, 'done', 'turn', ?)", g.id, `turn:${str(ev.payload["turnId"])}`, ctx.now()).changes === 0) return [];
   await spend(ctx, g, Number(ev.payload["costMicros"] ?? 0), 1);
+  // the lead's turn ended and the wake-up it was on got no check-in: offer it again now, once, rather than after the clock's wait; then the goal is stuck, never silent
+  if (str(ev.payload["agentId"]) === g.leadAgentId && (LIVE.has(g.status) || ENDED.has(g.status))) await unanswered(ctx, g, ev.name === "turn.failed" ? `the turn failed (${str(ev.payload["code"]) || "no reason given"})` : "the turn ended without a check-in");
   finishGoal(ctx, g);
   return [g.id];
 }
@@ -156,4 +158,17 @@ export async function onMessage(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
   if (n > 0) note(ctx, g.id, "files", `Kept ${n} file${n === 1 ? "" : "s"} dropped in the goal chat in the goal's folder.`, messageId);
   saveGoal(ctx, g);
   return [g.id];
+}
+
+/** A wake-up the lead took and ended its turn on without a check-in. */
+async function unanswered(ctx: GoalsCtx, g: Goal, why: string): Promise<void> {
+  const w = openWake(ctx.db, g.id);
+  if (!w || w.state !== "claimed") return;
+  if (w.attempt < 2) {
+    ctx.db.run("UPDATE goals_wake SET state = 'pending', reason = reason || ',retry', due_at = ? WHERE id = ?", ctx.now(), w.id);
+    note(ctx, g.id, "wake", `The lead's wake-up got no check-in (${why}); asking once more.`, w.id);
+    return;
+  }
+  ctx.db.run("UPDATE goals_wake SET state = 'dropped' WHERE id = ?", w.id);
+  if (LIVE.has(g.status) && g.status !== "stuck") await stuck(ctx, g, `The lead agent did not check in after two wake-ups: ${why}.`, ["Ask the lead agent in the goal chat what is wrong", "Give the goal another lead agent"]);
 }

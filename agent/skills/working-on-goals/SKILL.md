@@ -38,7 +38,7 @@ These are in the tasks toolset. If one is not in your list, find it with `tool_s
 - Compare it with the pace: on pace, ahead, or behind, and by how much.
 - Say what changed since the last check-in and why you think it changed.
 - Decide the next best step. Behind pace means the plan changes: add a step, drop one that is not working, or move effort. Say which and why.
-- Post it with `goals_checkin_post`: `summary` is two or three sentences, `done` and `next` are short lines. Use no filler, no greetings and no restating of the goal.
+- Post it with `goals_checkin_post`: `summary` is two or three sentences, `done` and `next` are short lines. Use no filler, no greetings and no restating of the goal. Plain words, no em dashes.
   Good: "212 of 300, behind pace by 30. The Lab 7 reminder brought 18 in a day; the Skool post brought 2. Next: a second reminder to Lab 7 no-shows on Thursday, and drop the Skool repost."
   Bad: "Making good progress! Continuing to work on registrations."
 

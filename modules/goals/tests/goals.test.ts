@@ -354,3 +354,18 @@ test("the goal's folder keeps what its tasks hand in and what people drop in its
   const listed = await w.call("goals.list", { scope: "mine" });
   assert.equal(listed.goals[0].folderId, goal.folderId, "the Files folder knows its goal");
 });
+
+test("a lead whose turn ends without a check-in is asked again at once, then the goal is stuck with why", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal({ plan: [step("a", "Remind Lab 7")] }));
+  await claim(w, w.woken()[0]!);
+  await w.turn("turn.failed", { turnId: "trn_a", threadId: goal.threadId, agentId: LEAD, code: "engine.step_limit" });
+  const again = w.woken().at(-1)!;
+  assert.equal(again.payload.attempt, 2);
+  assert.match(again.payload.reason, /retry/);
+  await claim(w, again);
+  await w.turn("turn.completed", { turnId: "trn_b", threadId: goal.threadId, agentId: LEAD, costMicros: 1 });
+  const g = getGoal(w.db, goal.id)!;
+  assert.equal(g.status, "stuck");
+  assert.equal(g.statusReason, "The lead agent did not check in after two wake-ups: the turn ended without a check-in.");
+});
