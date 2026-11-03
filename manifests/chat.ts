@@ -333,6 +333,15 @@ export default defineManifest({
       tool: 'chats', label: 'filter', mcpName: 'chat_search', agent: { planMode: 'allowed' }, rate: { n: 60, perSeconds: 60, scope: 'principal' },
     }),
     // ---- native blocks, plan mode
+    write('chat.note_offer.make', 'Offer to save something from this chat as a note: a small card with a preview of the note, Save and Not now. At most once per topic and rarely; says offered false with a reason when the person has it off or it is too soon', {
+      in: { ...threadT, title: t.str({ maxLength: 200 }), body: t.str({ maxLength: 4000 }), topic: t.str({ description: 'What it is about, in a few words; the same topic is offered once in a chat' }), messageId: t.opt(id.message) },
+      out: { offered: t.bool(), why: t.opt(t.enm('off', 'already_offered', 'too_soon', 'declined_recently')), blockId: t.opt(id.block), messageId: t.opt(id.message) },
+      on: ['thread', '/threadId'], level: 'use', tool: 'chats', mcpName: 'offer_note', agent: { planMode: 'blocked', blocks: ['note_offer'] }, errors: ['validation.bad_input', 'validation.not_found'],
+    }),
+    write('chat.note_offer.answer', 'Save or dismiss an offer to keep something from this chat as a note. Save makes the person\'s own private note that links back to the message', {
+      in: { ...threadT, blockId: id.block, decision: t.enm('save', 'dismiss') }, out: { state: t.enm('saved', 'dismissed'), noteId: t.opt(t.str()) },
+      on: ['thread', '/threadId'], level: 'use', offline: 'online', agent: false, errors: ['validation.not_found', 'validation.precondition_failed'],
+    }),
     write('chat.answer_block', 'Answer a question or plan block; the answer is queued as a wake so the parked turn continues', {
       in: { ...threadT, blockId: id.block, answer: t.json() }, out: { ok: t.bool() }, on: ['thread', '/threadId'], level: 'use',
       emits: ['block.answered'], tool: 'chats', offline: 'queue', errors: ['validation.precondition_failed'],
@@ -577,6 +586,9 @@ export default defineManifest({
         { key: 'reject', label: 'Reject', cap: 'chat.plan.reject', input: { threadId: '/threadId', planId: '/planId' } },
       ],
     }),
+    block('note_offer', {
+      threadId: id.thread, blockId: id.block, person: t.opt(id.user), title: t.str(), body: t.str(), topic: t.str(), messageId: t.opt(id.message), state: t.enm('offered', 'saved', 'dismissed'), noteId: t.opt(t.str()),
+    }, 'Offer to save a note: {{title}}', { actions: [{ key: 'save', label: 'Save', cap: 'chat.note_offer.answer', input: { threadId: '/threadId', blockId: '/blockId', decision: 'save' } }, { key: 'dismiss', label: 'Not now', cap: 'chat.note_offer.answer', input: { threadId: '/threadId', blockId: '/blockId', decision: 'dismiss' } }] }),
     block('tab_opened', { targetType: t.str(), targetId: t.str(), title: t.str(), agentId: id.agent }, 'Opened {{title}} beside the chat', { opens: { tab: 'target', input: { type: '/targetType', id: '/targetId' } } }),
     block('helper', {
       threadId: id.thread, parentThreadId: id.thread, title: t.str(), status: t.enm('running', 'done', 'failed', 'stopped'), agentId: id.agent, model: t.opt(t.str()),

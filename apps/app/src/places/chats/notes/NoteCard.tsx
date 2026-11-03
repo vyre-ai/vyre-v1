@@ -25,8 +25,8 @@ export interface CardActions {
   sheet(id: string): void;
 }
 
-export const NoteCard = memo(function NoteCard({ n, image, who, selected, tabbable, phone = false, a }: {
-  n: Note; image: string | null; who: Who; selected: boolean; tabbable: boolean; phone?: boolean; a: CardActions;
+export const NoteCard = memo(function NoteCard({ n, image, who, selected, tabbable, phone = false, covered = false, a }: {
+  n: Note; image: string | null; who: Who; selected: boolean; tabbable: boolean; phone?: boolean; /** Its note is open over the grid: the card stays out of sight, so it never shows half hidden beside the note. */ covered?: boolean; a: CardActions;
 }): ReactElement {
   const words = shareWords(n, who);
   const tint = n.color !== "";
@@ -79,7 +79,7 @@ export const NoteCard = memo(function NoteCard({ n, image, who, selected, tabbab
           <View style={s.pin} {...dom({ dataSet: { nfade: n.pinned ? "on" : "off" } })}>
             <IconBtn
               icon={n.pinned ? "pinf" : "pin"} label={`${n.pinned ? "Unpin" : "Pin"} (P)`} iconSize={15} on={false} tabbable={false} color={n.pinned ? "var(--ink)" : "var(--ink-3)"}
-              onPress={() => a.pin(n.noteId)} testID={`note-pin-${n.noteId}`} over={n.hasImage}
+              onPress={() => a.pin(n.noteId)} testID={`note-pin-${n.noteId}`} over={n.hasImage || n.clip !== undefined}
             />
           </View>
         )}
@@ -87,7 +87,7 @@ export const NoteCard = memo(function NoteCard({ n, image, who, selected, tabbab
   );
   // a card never splits across two columns of the grid
   return web
-    ? createElement("div", { style: { breakInside: "avoid", width: "100%", marginBottom: phone ? 10 : 14 }, "data-testid": `note-wrap-${n.noteId}`, ...trigger }, card)
+    ? createElement("div", { style: { breakInside: "avoid", width: "100%", marginBottom: phone ? 10 : 14, ...(covered ? { visibility: "hidden" } : {}) }, "data-testid": `note-wrap-${n.noteId}`, ...trigger }, card)
     : <View style={[s.wrap, phone ? s.wrapPhone : null]} {...trigger}>{card}</View>;
 });
 

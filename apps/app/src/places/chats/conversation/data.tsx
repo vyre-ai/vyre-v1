@@ -21,6 +21,8 @@ export interface ConversationNav {
   openDetails?(threadId: string, messageId: string): void;
   /** Shows or hides the pane on the right (Computer, Threads, Files, Memory, Routines). */
   togglePane(): void;
+  /** A saved note opens in Notes. Left out where the shell has no Notes. */
+  openNote?(noteId: string): void;
   /** A card's file, record or diff opens beside the chat. A "computer" card or the Computer chip passes the agent's id. */
   openBeside(kind: string, id: string): void;
   /** A goal's page (a goal card's Open). Left out where the shell has no such page. */

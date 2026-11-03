@@ -6557,6 +6557,28 @@ export type ChatMessagesListOut = {
     }>;
   hasMore: boolean;
 };
+export type ChatNoteOfferAnswerIn = {
+  threadId: string;
+  blockId: string;
+  decision: "save" | "dismiss";
+};
+export type ChatNoteOfferAnswerOut = {
+  state: "saved" | "dismissed";
+  noteId?: string;
+};
+export type ChatNoteOfferMakeIn = {
+  threadId: string;
+  title: string;
+  body: string;
+  topic: string;
+  messageId?: string;
+};
+export type ChatNoteOfferMakeOut = {
+  offered: boolean;
+  why?: "off" | "already_offered" | "too_soon" | "declined_recently";
+  blockId?: string;
+  messageId?: string;
+};
 export type ChatOpenAsChatIn = {
   threadId: string;
 };
@@ -25521,6 +25543,13 @@ export type NotesClipOut = {
       hasShot: boolean;
       at: number;
     };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
+    };
     linked: Array<{
         kind: "task" | "record";
         id: string;
@@ -25551,6 +25580,10 @@ export type NotesCreateIn = {
     contentType: "image/png" | "image/jpeg" | "image/gif" | "image/webp";
   };
   link?: string;
+  source?: {
+    threadId: string;
+    messageId: string;
+  };
   idempotencyKey: string;
 };
 export type NotesCreateOut = {
@@ -25576,6 +25609,13 @@ export type NotesCreateOut = {
       selection?: string;
       hasShot: boolean;
       at: number;
+    };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
     };
     linked: Array<{
         kind: "task" | "record";
@@ -25631,6 +25671,13 @@ export type NotesGetOut = {
       selection?: string;
       hasShot: boolean;
       at: number;
+    };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
     };
     linked: Array<{
         kind: "task" | "record";
@@ -25688,6 +25735,13 @@ export type NotesLabelOut = {
       hasShot: boolean;
       at: number;
     };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
+    };
     linked: Array<{
         kind: "task" | "record";
         id: string;
@@ -25737,6 +25791,13 @@ export type NotesListOut = {
         selection?: string;
         hasShot: boolean;
         at: number;
+      };
+      from?: {
+        threadId?: string;
+        messageId?: string;
+        title?: string;
+        at: number;
+        readable: boolean;
       };
       linked: Array<{
           kind: "task" | "record";
@@ -25791,6 +25852,13 @@ export type NotesPinOut = {
       hasShot: boolean;
       at: number;
     };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
+    };
     linked: Array<{
         kind: "task" | "record";
         id: string;
@@ -25836,6 +25904,13 @@ export type NotesRestoreOut = {
       selection?: string;
       hasShot: boolean;
       at: number;
+    };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
     };
     linked: Array<{
         kind: "task" | "record";
@@ -25902,6 +25977,13 @@ export type NotesShareOut = {
       hasShot: boolean;
       at: number;
     };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
+    };
     linked: Array<{
         kind: "task" | "record";
         id: string;
@@ -25951,6 +26033,13 @@ export type NotesToRecordOut = {
       selection?: string;
       hasShot: boolean;
       at: number;
+    };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
     };
     linked: Array<{
         kind: "task" | "record";
@@ -26007,6 +26096,13 @@ export type NotesToTaskOut = {
       hasShot: boolean;
       at: number;
     };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
+    };
     linked: Array<{
         kind: "task" | "record";
         id: string;
@@ -26061,6 +26157,13 @@ export type NotesUpdateOut = {
       selection?: string;
       hasShot: boolean;
       at: number;
+    };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
     };
     linked: Array<{
         kind: "task" | "record";
@@ -40381,6 +40484,8 @@ export interface CapMap {
   "chat.message.get": { in: ChatMessageGetIn; out: ChatMessageGetOut };
   "chat.message_person": { in: ChatMessagePersonIn; out: ChatMessagePersonOut };
   "chat.messages.list": { in: ChatMessagesListIn; out: ChatMessagesListOut };
+  "chat.note_offer.answer": { in: ChatNoteOfferAnswerIn; out: ChatNoteOfferAnswerOut };
+  "chat.note_offer.make": { in: ChatNoteOfferMakeIn; out: ChatNoteOfferMakeOut };
   "chat.open_as_chat": { in: ChatOpenAsChatIn; out: ChatOpenAsChatOut };
   "chat.open_tab": { in: ChatOpenTabIn; out: ChatOpenTabOut };
   "chat.people_status": { in: ChatPeopleStatusIn; out: ChatPeopleStatusOut };

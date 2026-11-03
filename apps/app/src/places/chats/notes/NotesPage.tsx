@@ -17,7 +17,7 @@ import { Ico, icoSvg } from "./icons.tsx";
 import { cardKey, layerKey, nearest, pageKey, topLayer } from "./keys.ts";
 import type { Box, Dir } from "./keys.ts";
 import { ensureNotesCss, noteFill } from "./look.ts";
-import { COLORS, SPECIAL, askWords, dueChoices, editedWords, fillFromNote, filterLabel, firstLine, hostOf, labelCounts, noteName, splitPinned, toggle, visibleNotes } from "./model.ts";
+import { COLORS, SPECIAL, askWords, fromLine, dueChoices, editedWords, fillFromNote, filterLabel, firstLine, hostOf, labelCounts, noteName, splitPinned, toggle, visibleNotes } from "./model.ts";
 import type { DueChoice, Note, NoteColor, RecordType, Who } from "./model.ts";
 import { NoteCard } from "./NoteCard.tsx";
 import type { CardActions } from "./NoteCard.tsx";
@@ -575,7 +575,7 @@ export function NotesPage({ rt, nameOf, noteId = null, initial, store: given, ph
   }), [openNote, pin, share, ask, noteMenu, colourMenu, labelMenu]);
   // ui-rows-lint: not a list (note cards in a masonry grid)
   const cards = (list: readonly Note[]): ReactElement[] => list.map((n) => (
-    <NoteCard key={n.noteId} n={n} image={n.hasImage ? store.image(n.noteId) : null} who={who} selected={!phone && (askId === n.noteId || sel === n.noteId)} tabbable={tabStop === n.noteId} phone={phone} a={cardActs} />
+    <NoteCard key={n.noteId} n={n} image={n.hasImage ? store.image(n.noteId) : null} who={who} selected={!phone && (askId === n.noteId || sel === n.noteId)} tabbable={tabStop === n.noteId} phone={phone} covered={!phone && openId === n.noteId} a={cardActs} />
   ));
   const grid = (list: readonly Note[], id: string): ReactElement => (web
     ? createElement("div", { "data-testid": id, style: { ...(phone ? { columnCount: 2, columnGap: 10 } : view === "list" ? { columnCount: 1, maxWidth: 600, margin: "0 auto" } : { columnWidth: 236, columnGap: 14 }), marginBottom: 22 } }, cards(list))
@@ -628,12 +628,13 @@ export function NotesPage({ rt, nameOf, noteId = null, initial, store: given, ph
   } else if (open && !phone) {
     layer = (
       <NoteDialog
-        key={open.noteId} n={open} image={open.hasImage ? store.image(open.noteId) : null} who={who} edited={edited(open)}
+        key={open.noteId} n={open} image={open.hasImage ? store.image(open.noteId) : null} who={who} edited={edited(open)} from={fromLine(open, clock.now, clock.offsetMin)}
         a={{
           title: (v) => edit(open.noteId, { title: v }), body: (v) => edit(open.noteId, { body: v }), pin: () => pin(open.noteId), colour: (x, y) => colourMenu(open.noteId, x, y),
           labels: (x, y) => labelMenu(open.noteId, x, y), image: () => setImage(open.noteId), share: () => share(open.noteId), menu: (x, y) => noteMenu(open.noteId, x, y, "button"),
           ask: () => ask(open.noteId), task: () => toTask(open.noteId), record: () => toRecord(open.noteId), close: closeNote,
           openLinked: (kind, id) => rt.open({ subject: { type: kind, id } }), openUrl: (u) => rt.openUrl(u),
+          openFrom: (threadId, messageId) => rt.open({ screen: "chats.conversation", args: { threadId, m: messageId } }),
         }}
       />
     );

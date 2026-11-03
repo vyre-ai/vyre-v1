@@ -35,7 +35,7 @@ export const NOTES_CSS =
   + "[data-nfield]:focus-within{box-shadow:0 0 0 2px var(--accent-line)}"
   + "[data-ndrop=true]{box-shadow:0 0 0 2px var(--accent-line),var(--sh-2)!important}"
   // tints React Native's style colours cannot say (color-mix): a button over a picture, the link card's wash, the foot bar's action, the phone's fade behind Take a note
-  + "[data-nover]{background-color:color-mix(in srgb,var(--raised) 85%,transparent)!important}"
+  + "[data-nover]{background-color:color-mix(in srgb,var(--raised) 94%,transparent)!important;box-shadow:0 0 0 1px var(--line),var(--sh-1)}"
   + "[data-nlk]{background-color:color-mix(in srgb,var(--ink) 4%,transparent)}"
   + "[data-nbaract]{color:color-mix(in srgb,var(--accent) 60%,var(--win))!important}"
   + "[data-nfadebg]{background-image:linear-gradient(to top,var(--win) 70%,transparent)}"

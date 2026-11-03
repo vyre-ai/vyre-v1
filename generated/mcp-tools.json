@@ -41766,6 +41766,117 @@
     },
     {
       "blocks": [],
+      "cap": "notes.create",
+      "deferred": false,
+      "description": "Take a note: text, an image, or a link that becomes a card. Private to the person until shared",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "body": {
+            "maxLength": 100000,
+            "type": "string"
+          },
+          "color": {
+            "enum": [
+              "",
+              "rose",
+              "sand",
+              "sage",
+              "sky",
+              "lilac",
+              "slate"
+            ],
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "image": {
+            "properties": {
+              "contentType": {
+                "enum": [
+                  "image/png",
+                  "image/jpeg",
+                  "image/gif",
+                  "image/webp"
+                ],
+                "type": "string"
+              },
+              "data": {
+                "description": "The image bytes, base64",
+                "maxLength": 14000000,
+                "type": "string"
+              }
+            },
+            "required": [
+              "data",
+              "contentType"
+            ],
+            "type": "object"
+          },
+          "labels": {
+            "items": {
+              "examples": [
+                "Lab 8"
+              ],
+              "maxLength": 40,
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "link": {
+            "maxLength": 2000,
+            "type": "string"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "source": {
+            "description": "The chat message this note is saved from. The caller must read that chat; the note stays private to them and links back to the message",
+            "properties": {
+              "messageId": {
+                "examples": [
+                  "msg_a1b2c3"
+                ],
+                "pattern": "^msg_[a-z0-9]+$",
+                "type": "string"
+              },
+              "threadId": {
+                "examples": [
+                  "thr_a1b2c3"
+                ],
+                "pattern": "^thr_[a-z0-9]+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "threadId",
+              "messageId"
+            ],
+            "type": "object"
+          },
+          "title": {
+            "maxLength": 500,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "notes_create",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "notes.get",
       "deferred": false,
       "description": "Read one note the asker may read. An agent reads a note only when everyone in its chat may read it",
@@ -42579,6 +42690,56 @@
       "name": "notifications_send",
       "planMode": "blocked",
       "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "note_offer"
+      ],
+      "cap": "chat.note_offer.make",
+      "deferred": false,
+      "description": "Offer to save something from this chat as a note: a small card with a preview of the note, Save and Not now. At most once per topic and rarely; says offered false with a reason when the person has it off or it is too soon",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "body": {
+            "maxLength": 4000,
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "type": "string"
+          },
+          "topic": {
+            "description": "What it is about, in a few words; the same topic is offered once in a chat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "title",
+          "body",
+          "topic"
+        ],
+        "type": "object"
+      },
+      "name": "offer_note",
+      "planMode": "blocked",
+      "toolset": "chats",
       "v": 1
     },
     {

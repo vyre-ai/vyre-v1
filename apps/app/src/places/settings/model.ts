@@ -4,7 +4,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 
 export type SettingRow = CapMap["settings.list"]["out"]["rows"][number];
 export type PageInfo = CapMap["settings.pages"]["out"]["pages"][number];
-export type YouPage = "profile" | "notifications" | "appearance" | "ai" | "memory" | "skills" | "connected" | "mail" | "signin" | "computer" | "about";
+export type YouPage = "profile" | "notifications" | "appearance" | "ai" | "memory" | "notes" | "skills" | "connected" | "mail" | "signin" | "computer" | "about";
 export type SpacePage = "space" | "people" | "agents" | "data" | "apps" | "advanced";
 export type PageKey = YouPage | SpacePage;
 
@@ -16,6 +16,7 @@ export const PAGES: readonly PageDef[] = [
   { key: "appearance", title: "Appearance", group: "you", icon: "palette", pages: [] },
   { key: "ai", title: "AI", group: "you", icon: "chip", pages: ["Models and usage", "Chats", "Memory and privacy"] },
   { key: "memory", title: "Memory and privacy", group: "you", icon: "lock", pages: [] },
+  { key: "notes", title: "Notes", group: "you", icon: "doc", pages: ["Notes"] },
   { key: "skills", title: "Skills", group: "you", icon: "spark", pages: ["Skills"] },
   { key: "connected", title: "Connected", group: "you", icon: "link", pages: ["Connections"] },
   { key: "mail", title: "Email and calendar", group: "you", icon: "mail", pages: [] },
@@ -66,6 +67,7 @@ export const SECTIONS: Readonly<Record<YouPage, readonly SectionDef[]>> = {
   appearance: [],
   ai: [{ title: "Working with agents", keys: ["engine.local_runs", "chat.agent_tabs"] }],
   memory: [],
+  notes: [{ title: "From chats", keys: ["notes.offers"] }],
   skills: [],
   connected: [],
   mail: [],
@@ -223,6 +225,7 @@ export const ROW_LABELS: Readonly<Record<string, string>> = {
   "notifications.quiet_hours": "Quiet hours",
   "engine.local_runs": "Run my chats on this computer",
   "chat.agent_tabs": "Agents can open side tabs",
+  "notes.offers": "Offer to save things from chats as notes",
 };
 /** What a row does. It shows on hover, never as a line on the page. */
 export const ROW_HELP: Readonly<Record<string, string>> = {
@@ -235,6 +238,7 @@ export const ROW_HELP: Readonly<Record<string, string>> = {
   "notifications.hand_needs_you_to": "While you are away, what needs you goes to this person.",
   "engine.local_runs": "Your private chats run here while this computer is on. Off, they run on the Space's computer. One chat can pick its own place in the model menu.",
   "chat.agent_tabs": "Lets an agent open or switch a tab beside your chat to show you something.",
+  "notes.offers": "When something in a chat is worth keeping (a link, an answer, a decision), an agent may offer to save it as a private note. Nothing is saved until you press Save.",
   "model.default": "The model a new chat starts with. You can change it in any chat.",
   "model.fallback": "Used when the default is out of credits or down.",
 };

@@ -23,7 +23,7 @@ const BLOCK_TYPE = /^[a-z][a-z0-9_]*$/;
 /** Blocks that wait for an answer have their own tools (they need a row to answer against); a plain post cannot carry them. */
 const OWN_TOOL = new Set(["question", "plan"]);
 /** Blocks only the server writes: who an agent's message to a teammate speaks for, a line that carries a teammate's reply back, the state of a message that waits (handlers/agent-dm.ts). */
-const SERVER_ONLY = new Set(["on_behalf", "relay", "agent_dm"]);
+const SERVER_ONLY = new Set(["on_behalf", "relay", "agent_dm", "note_offer"]);
 
 /** The top of a thread chain: the chat, Ask pane or channel an inline thread hangs under. */
 export function rootOf(ctx: Pick<ChatCtx, "db">, t: ThreadRec): ThreadRec {

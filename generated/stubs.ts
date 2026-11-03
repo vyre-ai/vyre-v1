@@ -396,6 +396,10 @@ export function stubs(ctx: CallCtx) {
       messages: {
         list: call("chat.messages.list"),
       },
+      note_offer: {
+        answer: call("chat.note_offer.answer"),
+        make: call("chat.note_offer.make"),
+      },
       open_as_chat: call("chat.open_as_chat"),
       open_tab: call("chat.open_tab"),
       people_status: call("chat.people_status"),

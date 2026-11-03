@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "NOTEOFFER_01-offer",
+      "route": "/m/NOTEOFFER_01?view=offer",
+      "proto": "chat,at:notes-offer,{skin}",
+      "waitFor": "[data-testid='noteoffer-blk_offer']",
+      "note": "The agent offers to save something from the chat as a note: a card with a preview of the note, Private to you, Save and Not now."
+    },
+    {
+      "id": "NOTEOFFER_01-saved",
+      "route": "/m/NOTEOFFER_01?view=saved",
+      "proto": "chat,at:notes-saved,{skin}",
+      "waitFor": "[data-testid='noteoffer-saved-blk_offer']",
+      "note": "After Save: a quiet Saved to Notes line with Open. It names nothing the note holds."
+    }
+  ]
+}

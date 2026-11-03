@@ -30,4 +30,4 @@ HTTP 422. Retryable: no.
 - chat.fork
 - chat.handoff
 - chat.message_person
-- chat.share
+- chat.note_offer.answer
