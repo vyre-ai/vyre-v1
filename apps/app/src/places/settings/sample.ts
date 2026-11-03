@@ -277,6 +277,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     "memory.forget": (i: { factIds: string[] }) => { const gone = replica.rows("profile").filter((x) => i.factIds.includes(String(x.id))); replica.put("forgotten", gone); replica.remove("profile", i.factIds); return { removed: gone.length }; },
     "memory.restore": (i: { factId: string }) => { const f = replica.rows("forgotten").find((x) => x.id === i.factId); if (f) replica.put("profile", [f]); return { restoredFrom: "trash" }; },
     "memory.erase": (i: { factIds: string[] }) => { replica.remove("profile", i.factIds); return { erased: i.factIds.length }; },
+    "memory.learning.today": () => ({ day: "2025-10-25", passes: 14, tokensIn: 38_000, tokensOut: 4_100, rulePasses: 0, capPasses: 200, capTokens: 2_000_000, resetsAt: SAMPLE_NOW + DAY, timezone: "Asia/Karachi", state: "learning" }),
     "spaces.leave": () => ({ ok: true }),
   };
 

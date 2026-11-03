@@ -304,7 +304,7 @@ export const DRAWN_ROWS: readonly { key: string; page: PageKey; title: string; s
   { key: "usage", page: "ai", title: "Usage this month", sub: "You and your agents", words: "limit cost tokens spend" },
   { key: "open-vault", page: "ai", title: "AI accounts", sub: "Sign-ins and keys live in the Vault", words: "provider api key openai anthropic subscription" },
   { key: "memory.about", page: "memory", title: "About you", sub: "What agents know about you, public and private", words: "profile personal private public remember forget erase" },
-  { key: "memory.keys", page: "memory", title: "Who pays for memory", sub: "The account memory upkeep uses", words: "upkeep spend" },
+  { key: "memory.keys", page: "memory", title: "Who pays for memory", sub: "Learning uses the AI account you chat with", words: "upkeep spend learning limit" },
   { key: "connect-mailbox", page: "connected", title: "Connect a mailbox", sub: "Google, Microsoft or IMAP", words: "email gmail outlook" },
   { key: "connect-calendar", page: "connected", title: "Connect a calendar", sub: "Google or Microsoft", words: "events" },
   { key: "connect-twilio", page: "connected", title: "Connect Twilio", sub: "Texts and calls", words: "phone number sms" },

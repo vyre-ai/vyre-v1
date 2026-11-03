@@ -14,6 +14,7 @@ import { buildNodeOpener, buildOpener, roleBlocks } from "./session.ts";
 import { remoteLauncher, routed } from "./node-turns.ts";
 import type { NodeRelay } from "./node-turns.ts";
 import { withRecall } from "./recall.ts";
+import { withAudienceReset } from "./audience-reset.ts";
 import { withChatSettings } from "./chat-settings.ts";
 import { withSpaceKeyTurns } from "./space-key-turns.ts";
 import { createLimitSwitch } from "./switch-on-limit.ts";
@@ -314,7 +315,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       },
     });
     const engine = createTurnEngine({
-      holder: h.holder, openSession: withChatSettings(withSpaceKeyTurns(withTurnContext(withCompaction(withTranscript(withRecall(bridge ? bridge.tap(openSession) : openSession, h.call), h.call, now), ctx.db), turnContext), { call: h.call, db: ctx.db, now }), h.call), now,
+      holder: h.holder, openSession: withChatSettings(withSpaceKeyTurns(withTurnContext(withCompaction(withTranscript(withRecall(withAudienceReset(bridge ? bridge.tap(openSession) : openSession, { db: ctx.db, call: h.call, now, ...(opener ? { drop: (threadId: string) => opener.pool.drop(threadId) } : {}), ...(h.log ? { log: h.log } : {}) }), h.call), h.call, now), ctx.db), turnContext), { call: h.call, db: ctx.db, now }), h.call), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       admit: (q) => admission(h, q),
       lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),

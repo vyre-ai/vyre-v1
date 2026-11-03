@@ -319,15 +319,14 @@ test("no em dash in any copy on any page", () => {
 test("Who pays for memory splits by who it affects: your own picker in Settings, the Space and project pickers in the Console", async () => {
   const s = createSampleSettings(northwind);
   const out = html(s, { initialPage: "memory" });
-  for (const t of ["Who pays for memory", "Your memory", "None (rules only)", 'data-testid="ctl-memory-key-person"']) assert.ok(out.includes(t), t);
+  for (const t of ["Who pays for memory", "Your memory", "Learning uses the AI account you chat with, on its cheapest model, up to your daily limit."]) assert.ok(out.includes(t), t);
+  assert.ok(!out.includes('data-testid="ctl-memory-key-person"') && !out.includes("None (rules only)"), "nothing to pick for your own memory");
   for (const t of ["Space memory", "Project memory", "Memory spend"]) assert.ok(!out.includes(t), `${t} is the Console's`);
   const space = renderToStaticMarkup(<SettingsDataProvider value={s.data}><SpaceDefaults page="memory" /></SettingsDataProvider>).replaceAll("<!-- -->", "");
   for (const t of ["Space memory", "Project memory", "Rivera matter", "Probate GTM", "Memory spend"]) assert.ok(space.includes(t), t);
   assert.ok(!space.includes("Your memory"), "a person's own choice is not in the Console");
-  await s.data.call("memory.key.set", { layer: "person", accountRef: "#Team_OpenAI_Key" });
   await s.data.call("memory.key.set", { layer: "project", projectId: "prj_rivera", accountRef: "#Team_Anthropic_Key" });
-  assert.ok(html(s, { initialPage: "memory" }).includes("OpenAI team key (shared)"), "the chosen account is on the picker");
-  assert.deepEqual(s.calls.map((c) => c.cap), ["memory.key.set", "memory.key.set"]);
+  assert.deepEqual(s.calls.map((c) => c.cap), ["memory.key.set"]);
   await assert.rejects(() => createSampleSettings(harbor).data.call("memory.key.set", { layer: "space", accountRef: "#Team_OpenAI_Key" }), /Only a Space admin/);
 });
 

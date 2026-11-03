@@ -8,7 +8,7 @@ import { find, flush, installDom, mount, press, textOf, typeInto } from "../../.
 import type { Node } from "../../../../../ui/src/testing/dom.ts";
 import { SettingsDataProvider } from "./data.tsx";
 import { SavedBar, SavedProvider } from "./saved.tsx";
-import { AboutYou, sourceText } from "./AboutYou.tsx";
+import { AboutYou, MemoryPage, sourceText } from "./AboutYou.tsx";
 import type { ProfileFact } from "./AboutYou.tsx";
 import { createSampleSettings, northwind } from "./sample.ts";
 
@@ -120,4 +120,16 @@ test("adding a fact by hand to either part, with Enter", async () => {
   await key(find(root, "about-add-public"), "Enter");
   await flush();
   assert.match(partText(root, "public"), /Writes in British English\./);
+});
+
+test("Who pays for memory: nothing to pick for your own memory, the plain line and today's use", async () => {
+  const s = createSampleSettings(northwind);
+  const root = await mount(createRoot, <SavedProvider><SettingsDataProvider value={s.data}><MemoryPage /></SettingsDataProvider></SavedProvider>);
+  await flush();
+  const text = textOf(root);
+  assert.match(text, /Your memory/);
+  assert.match(text, /Learning uses the AI account you chat with, on its cheapest model, up to your daily limit\./);
+  assert.match(textOf(find(root, "memory-learning-today")), /14 of 200 today/);
+  assert.equal(find(root, "ctl-memory-key-person"), null);
+  assert.ok(s.calls.some((c) => c.cap === "memory.learning.today"));
 });

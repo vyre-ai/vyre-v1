@@ -1,13 +1,40 @@
-// Settings > Memory and privacy > Who pays for memory (memory ruling 6). Upkeep is the model pass that merges, dates and tidies memory; the account behind it is picked here, never typed:
-// "Your memory" is yours (your own accounts and the shared Vault AI providers you can use); "Space memory" and "Projects" are an admin's and take shared providers only. No account picked means
-// rule-based upkeep, and the sub line says so. Each change saves as it is made, with Undo.
+// Settings > Memory and privacy > Who pays for memory. Learning from your chats runs on the AI account you chat with, on its cheapest model, up to your daily limit (owner ruling 3 Nov, lane
+// l-memlearn): there is nothing to pick, so "you" shows that line and today's use (memory.learning.today, when the server has it). The Space's and projects' upkeep accounts are an admin's
+// and stay in the Console ("space"): each is picked, never typed; no account picked means rule-based upkeep, and the sub line says so. Each change saves as it is made, with Undo.
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import type { CapMap } from "../../../../../generated/types.ts";
 import type { ConnectNeed } from "../../shell/connect/model.ts";
 import { MEMORY_KEYS, useIsPersonal, useScreenQuery, useSettingsData } from "./data.tsx";
 import { useSaved } from "./saved.tsx";
 import { MemorySpend } from "./MemorySpend.tsx";
-import { Choice, Section, SettingsRow } from "./ui.tsx";
+import { Choice, Section, SettingsRow, Value } from "./ui.tsx";
+
+/** What "you" says about who pays: learning needs no setup. */
+export const LEARNING_LINE = "Learning uses the AI account you chat with, on its cheapest model, up to your daily limit.";
+
+/** memory.learning.today (lane l-memlearn): what learning used today against the daily limit. */
+export interface LearningToday { passes: number; capPasses: number; tokensIn: number; capTokens: number; state: "learning" | "rules_only" }
+
+/** The line under the row: how learning is paid for, or why it is on simple notes today. The count of model passes today is the row's value. */
+export function todaySub(t: LearningToday): string {
+  if (t.capPasses === 0 || t.capTokens === 0) return "Your Space turned model learning off. Vyre keeps simple notes from your chats instead.";
+  if (t.state === "rules_only") return "Today's limit is reached. Vyre keeps simple notes until midnight, then learns as usual.";
+  return LEARNING_LINE;
+}
+
+/** Today's use, read once; a server without memory.learning.today leaves it out. */
+function useLearningToday(on: boolean): LearningToday | null {
+  const data = useSettingsData();
+  const [t, setT] = useState<LearningToday | null>(() => (on ? (data.peek?.("memory.learning.today", {}) as LearningToday | undefined) ?? null : null));
+  useEffect(() => {
+    if (!on) return undefined;
+    let live = true;
+    (data.call("memory.learning.today", {}) as Promise<LearningToday>).then((v) => { if (live) setT(v); }, () => undefined);
+    return () => { live = false; };
+  }, [data, on]);
+  return t;
+}
 
 type KeysOut = CapMap["memory.keys.get"]["out"];
 type ProjectsOut = CapMap["projects.list"]["out"];
@@ -28,6 +55,7 @@ export function MemoryKeys({ tier = "you" }: { tier?: "you" | "space" }): ReactE
   const personal = useIsPersonal();
   const saved = useSaved();
   const keys = useScreenQuery<KeysOut>(MEMORY_KEYS, "keys", {});
+  const today = useLearningToday(tier === "you");
   const projects = useScreenQuery<ProjectsOut>(MEMORY_KEYS, "projects", {});
   if (keys.status !== "ready") return null;
   const k = keys.data;
@@ -55,10 +83,10 @@ export function MemoryKeys({ tier = "you" }: { tier?: "you" | "space" }): ReactE
   }
   return (
     <>
-      {showYou || (showSpace && k.space) ? <Section title="Who pays for memory" help="Memory upkeep merges duplicates, dates facts and tidies pages. With no account it follows rules only; nothing is sent to a model.">
+      {showYou || (showSpace && k.space) ? <Section title="Who pays for memory" help={showYou ? "Nothing to set up: learning runs on the account that answered you. Your Space sets the daily limit." : "Memory upkeep merges duplicates, dates facts and tidies pages. With no account it follows rules only; nothing is sent to a model."}>
         {showYou ? <SettingsRow
-          id="memory.key.person" label="Your memory" first
-          control={<Choice value={k.personal.accountRef ?? NONE} options={optionsOf(k.personal, personalNone)} label="Your memory account" testID="ctl-memory-key-person" onChange={(v) => set("person", v === NONE ? null : v, k.personal.accountRef)} />}
+          id="memory.key.person" label="Your memory" first sub={today ? todaySub(today) : LEARNING_LINE}
+          {...(today ? { control: <Value text={`${today.passes} of ${today.capPasses} today`} accent={today.state === "rules_only"} testID="memory-learning-today" /> } : {})}
         /> : null}
         {showSpace && k.space ? (
           <SettingsRow
