@@ -51,6 +51,7 @@ const turnRow = t.obj({
 const whatHappened = t.obj({
   turn: turnRow, machine: t.enm('host', 'device'), keyUsed: t.opt(t.str()), steps: t.arr(t.obj({ idx: t.int(), kind: t.str(), title: t.str(), durationMs: t.int(), ok: t.bool() })),
   denials: t.arr(t.obj({ cap: t.str(), reason: t.str() })), fallbacks: t.arr(t.obj({ kind: t.str(), to: t.str(), at: t.ts() })),
+  reached: t.opt(t.arr(t.str({ examples: ['github.com'] }), { description: 'Hosts the engine reached on the internet while the turn ran (a sample, at most 20)' })),
 });
 const incidentRow = t.obj({
   incidentId: t.id('inc'), kind: t.enm('label_denied', 'scrub_miss', 'runaway_spend', 'repeated_failure', 'person_report', 'other'), title: t.str(),
@@ -469,6 +470,11 @@ export default defineManifest({
     setting('engine.allowed_accounts', 'space', 'Models and providers', 'Allowed AI accounts', t.enm('any', 'company'), 'any', { floorable: true }),
     setting('engine.review_sampling', 'space', 'Review sampling', 'Share of turns sampled for human review', t.obj({ percent: t.int({ minimum: 0, maximum: 100 }), labels: t.arr(label) }), { percent: 5, labels: ['confidential', 'restricted'] }),
     setting('engine.local_runs', 'person', 'Models and usage', 'Run my private chats on this computer', t.bool(), true),
+    // owner ruling 3 Nov: AI tools use the internet as they do in Claude Code and Codex. Read when each engine process starts, on Space servers and on members' computers (modules/engine/egress-log.ts)
+    setting('engine.egress', 'space', 'Internet access', 'What AI tools can reach on the internet', t.obj({
+      mode: t.enm('public', 'providers', 'list'),
+      hosts: t.arr(t.str({ pattern: '^(\\*\\.)?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$', maxLength: 253, examples: ['github.com'] }), { maxItems: 500 }),
+    }), { mode: 'public', hosts: [] }),
   ],
   screens: [
     screen('settings.models-usage', 'settings', 'ui:ModelsUsage', {

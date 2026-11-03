@@ -144,3 +144,131 @@ test("git works under the profile: a crew teammate can init, add and commit in i
   assert.equal(r.code, 0, r.err);
   assert.match(r.out, /first/);
 });
+
+// ---- open web (owner ruling 3 Nov): the same rules as bwrap, under Seatbelt, through spawnCli and a wall of the process's own
+
+test("open web under Seatbelt: a public host through the proxy, inside addresses refused, no way around the proxy, and the providers-only rule blocks the public host again", { skip }, async () => {
+  const { createEgressProxy, RULE_ENV } = await import("../../../sandbox/src/index.ts");
+  const { spawnCli } = await import("../session.ts");
+  const { wallEgress } = await import("../sandbox-default.ts");
+  const http = await import("node:http");
+  const up = http.createServer((_q, r) => { r.writeHead(200); r.end("hello-public\n"); });
+  await new Promise<void>((ok) => up.listen(0, "127.0.0.1", ok));
+  const upPort = (up.address() as net.AddressInfo).port;
+  const base = (await plan()).plan;
+  const proxies: Array<{ close(): Promise<void> }> = [];
+  const p = {
+    ...base,
+    openWall: async (e: { allow: string[]; rule: never }) => {
+      const px = createEgressProxy({ ...e, lookup: async (h: string) => (h === "pkg.example.com" ? ["203.0.113.10"] : h === "api.anthropic.com" ? ["203.0.113.12"] : []), connect: async () => net.connect(upPort, "127.0.0.1") });
+      proxies.push(px);
+      const l = await px.listen();
+      return { sandbox: { kind: "seatbelt" as const, proxyPort: l.port, ...(base.sandbox.kind === "seatbelt" && base.sandbox.programRead ? { programRead: base.sandbox.programRead } : {}) }, close: () => px.close() };
+    },
+  };
+  const go = async (rule: unknown, script: string): Promise<string> => {
+    const cwd = workFolder(data, PERSON, "thr_web");
+    const proc = await spawnCli(p, { argv: ["/bin/sh", "-c", script], cwd, env: { [RULE_ENV]: JSON.stringify(rule) } }, ["/bin/sh", "-c", script]);
+    let out = "";
+    for await (const c of proc.stdout) out += typeof c === "string" ? c : Buffer.from(c).toString("utf8");
+    await proc.exited;
+    return out;
+  };
+  try {
+    const out = await go({ egress: "public" }, [
+      'echo "fetch=$(/usr/bin/curl -s --max-time 10 http://pkg.example.com/hello)"',
+      'echo "tunnel=$(/usr/bin/curl -s -p --max-time 10 http://pkg.example.com:8443/hello)"',
+      "echo \"meta=$(/usr/bin/curl -s -o /dev/null -w '%{http_code}' --noproxy '' -x $HTTP_PROXY --max-time 5 http://169.254.169.254/)\"",
+      "echo \"loop=$(/usr/bin/curl -s -o /dev/null -w '%{http_code}' --noproxy '' -x $HTTP_PROXY --max-time 5 http://127.0.0.1:8420/)\"",
+      "/usr/bin/curl -s --noproxy '*' --max-time 10 http://1.1.1.1/ >/dev/null 2>&1; echo \"direct=$?\"",
+    ].join("\n"));
+    assert.match(out, /fetch=hello-public/);
+    assert.match(out, /tunnel=hello-public/);
+    assert.match(out, /meta=403/);
+    assert.match(out, /loop=403/);
+    assert.doesNotMatch(out, /direct=0/, "Seatbelt lets the process reach only its proxy");
+    const tight = await go(wallEgress({ mode: "providers", hosts: [] }).rule, "echo \"fetch=$(/usr/bin/curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://pkg.example.com/hello)\"");
+    assert.match(tight, /fetch=403/);
+  } finally { for (const px of proxies) await px.close().catch(() => undefined); await new Promise((ok) => up.close(ok)); }
+});
+
+test("open web under Seatbelt, live: curl and git clone over HTTPS reach github.com through the default plan", { skip: ON && process.env["VYRE_LIVE_NET"] !== "0" ? false : "needs a Mac and VYRE_HEAVY_MAC=1" }, async () => {
+  const { spawnCli } = await import("../session.ts");
+  const cwd = workFolder(data, PERSON, "thr_live");
+  const script = "echo \"code=$(/usr/bin/curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://github.com/)\"; git clone -q --depth 1 https://github.com/octocat/Hello-World.git hw 2>&1; echo \"clone=$?\"";
+  const proc = await spawnCli((await plan()).plan, { argv: ["/bin/sh", "-c", script], cwd, env: {} }, ["/bin/sh", "-c", script]);
+  let out = "";
+  for await (const c of proc.stdout) out += typeof c === "string" ? c : Buffer.from(c).toString("utf8");
+  await proc.exited;
+  assert.match(out, /code=200/);
+  assert.match(out, /clone=0/);
+});
+
+// ---- files and installs on the person's own computer (owner rulings 3 Nov), under the exact Seatbelt profile, through spawnCli
+
+async function ownRun(dataDir: string, script: string, folders: string[], thread: string): Promise<string> {
+  const { ACCESS_ENV, RULE_ENV } = await import("../../../sandbox/src/index.ts");
+  const { spawnCli } = await import("../session.ts");
+  const own = await defaultSandbox({ dataDir, programRead: [path.dirname(FAKE_CLI)] });
+  try {
+    const cwd = workFolder(dataDir, PERSON, thread);
+    scratchFolder(dataDir, PERSON);
+    const proc = await spawnCli(own.plan, { argv: ["/bin/sh", "-c", script], cwd, env: { [RULE_ENV]: JSON.stringify({ egress: "public" }), [ACCESS_ENV]: JSON.stringify({ where: "own", folders }) } }, ["/bin/sh", "-c", script]);
+    let out = "";
+    for await (const c of proc.stdout) out += typeof c === "string" ? c : Buffer.from(c).toString("utf8");
+    await proc.exited;
+    return out + proc.stderrTail();
+  } finally { await own.close(); }
+}
+
+test("own computer under Seatbelt: an added folder reads and writes; Vyre's data folder and a private key inside it stay closed; known_hosts and .gitconfig read; sudo says how to ask", { skip }, async () => {
+  // a home of its own under the real home (/Users/runner), with Vyre's data folder inside it, as on a desktop
+  const fake = fs.realpathSync(fs.mkdtempSync(path.join(os.homedir(), "vyre-acc-")));
+  const savedHome = process.env["HOME"];
+  try {
+    const dataDir = path.join(fake, "Library", "Application Support", "ai.vyre.desktop", "personal");
+    fs.mkdirSync(path.join(fake, "code", "proj"), { recursive: true });
+    fs.mkdirSync(path.join(fake, ".ssh"), { recursive: true });
+    fs.mkdirSync(dataDir, { recursive: true });
+    fs.writeFileSync(path.join(fake, "code", "proj", "notes.txt"), "added-folder-notes\n");
+    fs.writeFileSync(path.join(dataDir, "vault.sqlite"), "VAULT-SECRET\n");
+    fs.writeFileSync(path.join(fake, ".ssh", "id_ed25519"), "FAKE-KEY-FILE-MARKER\n");
+    fs.writeFileSync(path.join(fake, ".ssh", "known_hosts"), "# known\n");
+    fs.writeFileSync(path.join(fake, ".gitconfig"), "[user]\n\tname = Dana Wall\n");
+    process.env["HOME"] = fake;
+    const out = await ownRun(dataDir, [
+      `echo "added=$(cat ${fake}/code/proj/notes.txt)"`,
+      `echo w > ${fake}/code/proj/new.txt && echo "write=ok"`,
+      `echo "vault=$(cat '${dataDir}/vault.sqlite' 2>&1)"`,
+      `echo "key=$(cat ${fake}/.ssh/id_ed25519 2>&1)"`,
+      `echo "known=$(cat ${fake}/.ssh/known_hosts 2>&1)"`,
+      'echo "gituser=$(git config --global user.name 2>&1)"',
+      'echo "work=$(echo here > w.txt && cat w.txt)"',
+      "sudo true; echo \"sudo=$?\"",
+    ].join("\n"), [fake], "thr_own");
+    assert.match(out, /added=added-folder-notes/, out);
+    assert.match(out, /write=ok/, out);
+    assert.doesNotMatch(out, /VAULT-SECRET/, out);
+    assert.doesNotMatch(out, /FAKE-KEY-FILE-MARKER/, out);
+    assert.match(out, /known=# known/, out);
+    assert.match(out, /gituser=Dana Wall/, out);
+    assert.match(out, /work=here/, out);
+    assert.match(out, /sudo=126/, out);
+  } finally { if (savedHome === undefined) delete process.env["HOME"]; else process.env["HOME"] = savedHome; fs.rmSync(fake, { recursive: true, force: true }); }
+});
+
+test("own computer under Seatbelt: brew install and pip install --user work and are there the next turn", { skip: ON && fs.existsSync("/opt/homebrew/bin/brew") ? false : "needs a Mac with Homebrew and VYRE_HEAVY_MAC=1" }, async () => {
+  const dataDir = fs.realpathSync(fs.mkdtempSync(path.join(os.homedir(), "vyre-acc-data-")));
+  try {
+    const brew = "HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_NO_ENV_HINTS=1";
+    const first = await ownRun(dataDir, [
+      `${brew} /opt/homebrew/bin/brew install --quiet hello >/dev/null 2>&1; echo "brew=$?"`,
+      "python3 -m pip install --user --quiet --break-system-packages six >/dev/null 2>&1 || python3 -m pip install --user --quiet six >/dev/null 2>&1; echo \"pip=$?\"",
+    ].join("\n"), [], "thr_inst1");
+    assert.match(first, /brew=0/, first);
+    assert.match(first, /pip=0/, first);
+    const next = await ownRun(dataDir, ['echo "hello=$(/opt/homebrew/bin/hello)"', "echo \"six=$(python3 -c 'import six; print(six.__name__)' 2>&1)\""].join("\n"), [], "thr_inst2");
+    assert.match(next, /hello=Hello, world!/, next);
+    assert.match(next, /six=six/, next);
+  } finally { fs.rmSync(dataDir, { recursive: true, force: true }); }
+});

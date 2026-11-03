@@ -10335,6 +10335,7 @@ export type EngineTurnGetOut = {
         to: string;
         at: number;
       }>;
+    reached?: Array<string>;
   };
 };
 export type EngineTurnRecordIn = {

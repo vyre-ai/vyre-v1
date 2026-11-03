@@ -8,6 +8,7 @@
 // Before a container is created its config goes through reviewContainerConfig: whatever built it, a config that gives more than the above is refused.
 import http from "node:http";
 import { createEgressProxy } from "./egress.ts";
+import { toolProxyEnv } from "./egress-policy.ts";
 import type { EgressOptions } from "./egress.ts";
 import { validateSpec } from "./policy.ts";
 import type { PolicyOptions } from "./policy.ts";
@@ -204,8 +205,9 @@ const UID = 10001;
 export function networkName(id: string): string { return `${id}-net`; }
 
 /** Proxy variables for a process inside: the only route out. */
+/** The proxy variables every sandbox sets, and the tools' own (npm, pip, cargo, Node's fetch): egress-policy.ts toolProxyEnv. */
 export function proxyEnv(proxyUrl: string): Record<string, string> {
-  return { HTTP_PROXY: proxyUrl, HTTPS_PROXY: proxyUrl, ALL_PROXY: proxyUrl, http_proxy: proxyUrl, https_proxy: proxyUrl, all_proxy: proxyUrl, NO_PROXY: "localhost,127.0.0.1", no_proxy: "localhost,127.0.0.1" };
+  return toolProxyEnv(proxyUrl);
 }
 
 export function containerConfig(spec: SandboxSpec, mounts: ReadonlyArray<{ host: string; guest: string; mode: "ro" | "rw" }>, proxyUrl: string): ContainerConfig {

@@ -32,7 +32,9 @@ import { onTurnEnded, resumeTasks } from "./handlers/task-baton.ts";
 import { ensureExtra } from "./handlers/extra/schema.ts";
 import { createKeepAwake } from "./keep-awake.ts";
 import { coalesceLive } from "./live-coalesce.ts";
-import { defaultSandbox } from "./sandbox-default.ts";
+import { defaultSandbox, egressPolicyOf, wallEgress } from "./sandbox-default.ts";
+import { EGRESS_SETTING, recordEgress } from "./egress-log.ts";
+import type { AccessAsked, EgressRule } from "../../sandbox/src/index.ts";
 import { closePluginRuntime, pluginRuntime } from "./plugin-host.ts";
 import { bindOauthStore } from "./mcp-oauth.ts";
 import { createPluginTools } from "./plugin-tools.ts";
@@ -243,6 +245,25 @@ async function oneShot(openSession: OpenSession, i: CompleteIn, now: () => numbe
   return { text, tokensIn, tokensOut };
 }
 
+/** The Space's internet setting as the wall's rule, read now (each engine process start): the setting's value through wallEgress, the one builder. */
+export async function spaceRule(call: EngineHostSeam["call"]): Promise<EgressRule> {
+  const out = (await call("settings.get", { key: EGRESS_SETTING })) as { row?: { value?: unknown } } | undefined;
+  return wallEgress(egressPolicyOf(out?.row?.value)).rule;
+}
+
+/**
+ * What a CLI engine may touch on files, asked as each engine process starts (owner ruling 3 Nov): on the person's own computer (their Personal Space, or a Space their computer hosts) the folders they
+ * added to Vyre from it; anywhere else the Space's server rules (the work folder and the Space's toolbox). A Space that cannot be read is a server; folders that cannot be read are none.
+ */
+export async function engineAccessFor(call: EngineHostSeam["call"], asker: string): Promise<AccessAsked> {
+  const out = (await call("spaces.get", {}, asker)) as { space?: { kind?: string; owner?: string; address?: { mode?: string } } } | undefined;
+  const s = out?.space;
+  const own = s !== undefined && s.owner === asker && (s.kind === "personal" || s.address?.mode === "device");
+  if (!own) return { where: "server", folders: [] };
+  const mounts = (await call("mounts.engine_folders", { person: asker }).catch(() => ({ folders: [] }))) as { folders?: Array<{ path?: unknown }> };
+  return { where: "own", folders: (mounts.folders ?? []).map((f) => f.path).filter((p): p is string => typeof p === "string") };
+}
+
 let defaultBuilt: DefaultSandbox | null = null;
 /** What the sandbox lets a CLI engine read besides the system: the host's extra folders and Vyre's engines folder, where an engine Vyre installed lives (it may be installed after the sandbox is built). */
 function cliRead(h: EngineHostSeam): readonly string[] | undefined {
@@ -275,14 +296,17 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     checkpoint: (k: { threadId: string; agentId: string; person: string; driver: string; tools?: "none" }, id: string | null) => { if (keepsSession(k)) saveResumeId(ctx.db, k, id, now0()); },
     keep: (threadId: string) => keepEvery(ctx.db, threadId),
   };
-  const opener = host.openSession ? null : buildOpener({ sessions, ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.cli?.probe ? { cliProbe: host.cli.probe } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
+  // the Space's internet setting, read as each engine process starts, and where the process went (the turn's details, and the audit log for a refusal)
+  const egress = { rule: () => spaceRule(h.call), record: (where: { person: string; threadId: string }, e: Parameters<typeof recordEgress>[3]) => recordEgress(ctx.db, h.call, where, e, now0, h.log) };
+  const access = (asker: string) => engineAccessFor(h.call, asker);
+  const opener = host.openSession ? null : buildOpener({ sessions, egress, access, ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(host.cli?.probe ? { cliProbe: host.cli.probe } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
   // a turn whose engine Vyre is installing says so on its live line ("Setting up Codex"); the line is the bridge's, which exists once the runtime is built below
   let setupLine: ((e: StreamEvent) => void) | null = null;
   const installer = engines();
   const baseOpen = host.openSession ?? checkedOpen((opener as NonNullable<typeof opener>).openSession, { ...(host.cli?.command ? { command: host.cli.command } : {}), ...(host.cli?.probe ? { probe: host.cli.probe } : {}), ...(installer ? { engines: installer } : {}), live: (e) => setupLine?.(e) });
   // a turn the person pinned to one of their servers opens through that server's opener; everything else opens as before
   const nodeOpeners = new Map<string, ReturnType<typeof buildNodeOpener>>();
-  const openerHost = { ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call };
+  const openerHost = { ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, egress: { rule: egress.rule }, access };
   const nodeOpener = (nodeId: string) => {
     let o = nodeOpeners.get(nodeId);
     if (!o) { o = buildNodeOpener(openerHost, remoteLauncher(h.nodes as NodeRelay, nodeId)); nodeOpeners.set(nodeId, o); }

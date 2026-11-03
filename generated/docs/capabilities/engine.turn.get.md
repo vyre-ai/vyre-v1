@@ -79,6 +79,7 @@ type Out = {
         to: string;
         at: number;
       }>;
+    reached?: Array<string>;
   };
 };
 ```
@@ -116,6 +117,9 @@ type Out = {
       ],
       "keyUsed": "example",
       "machine": "host",
+      "reached": [
+        "github.com"
+      ],
       "steps": [
         {
           "durationMs": 1,
