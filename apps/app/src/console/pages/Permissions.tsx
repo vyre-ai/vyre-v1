@@ -100,10 +100,12 @@ export function Permissions(): ReactElement {
   const areaCell = (r: RoleLite, area: string, keys: readonly string[]): ReactElement => {
     const cs = keys.map((k) => roleCell(r, k)), word = isOwnerRole(r) ? "allow" : areaWord(area, (k) => roleCell(r, k) === "allow", cs);
     const allowed = cs.filter((c) => c === "allow").length;
+    // ui-rows-lint: not a list (the marks of one cell, one glyph per permission)
+    const strip = cs.map((c, i) => <Text key={i} style={{ color: INK[c] as string }}>{MARK[c]}</Text>);
     return <View key={r.id} style={{ width: COL, alignItems: "center", justifyContent: "center" }}>
       {word ? <Text style={{ fontSize: 12.5, color: "var(--ink-2)" as string }}><Text style={{ color: INK[word] as string }}>{isOwnerRole(r) ? "🔒" : MARK[word]}</Text>{` ${CELL_WORD[word]}`}</Text>
         : cs.length > 6 ? <Text style={{ fontSize: 12.5, color: "var(--ink-2)" as string }}>{`${allowed} of ${cs.length} allowed`}</Text>
-        : <Text accessibilityLabel={`${r.name}: ${allowed} of ${cs.length} allowed`} numberOfLines={1} style={{ fontSize: 11, letterSpacing: 1 }}>{cs.map((c, i) => <Text key={i} style={{ color: INK[c] as string }}>{MARK[c]}</Text>)}</Text>}
+        : <Text accessibilityLabel={`${r.name}: ${allowed} of ${cs.length} allowed`} numberOfLines={1} style={{ fontSize: 11, letterSpacing: 1 }}>{strip}</Text>}
     </View>;
   };
   const rows: ReactElement[] = [];
@@ -129,6 +131,7 @@ export function Permissions(): ReactElement {
       <View style={{ minWidth: 220 + COL * cols.length, flexGrow: 1, borderRadius: 12, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string }} testID="perms-grid">
         <View style={{ flexDirection: "row", alignItems: "center", height: 48, backgroundColor: "var(--sunk)" as string }}>
           <View style={{ flex: 1, minWidth: 220, paddingHorizontal: 12 }}><Text style={{ fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string }}>What people do</Text></View>
+          {/* ui-rows-lint: not a list (the column headings of the grid, one per role) */}
           {cols.map((r) => <View key={r.id} style={{ width: COL, alignItems: "center" }}><Text style={{ fontWeight: "600", color: "var(--ink)" as string, fontSize: 13 }}>{r.name}</Text><Text style={{ fontSize: 11, color: "var(--ink-3)" as string }}>{r.builtIn ? "Built in" : "Custom"}</Text></View>)}
         </View>
         {rows}
@@ -156,8 +159,10 @@ function PreviewAs({ person, role, roles, exceptions, now }: { person?: PersonLi
     <Group>{areasOf(PERMS).map((a) => {
       const vs = a.perms.map((p) => ({ p, ...value(p.key) })), on = vs.filter((v) => v.c === "allow").length, marked = vs.filter((v) => v.ex).length;
       const word = areaWord(a.area, (k) => value(k).c === "allow", vs.map((v) => v.c));
+      // ui-rows-lint: not a list (the marks of one area, one glyph per permission)
+      const marks = vs.map((v, i) => <Text key={i} style={{ color: INK[v.c] as string }}>{MARK[v.c]}</Text>);
       return <Row key={a.area} id={`preview-${a.area}`} title={a.title} note={`${word ? CELL_WORD[word] : `${on} of ${vs.length} allowed`}${marked ? ` · ${marked} by exception` : ""}`}
-        trailing={<Text style={{ fontSize: 12, letterSpacing: 2 }}>{vs.map((v, i) => <Text key={i} style={{ color: INK[v.c] as string }}>{MARK[v.c]}</Text>)}</Text>} />;
+        trailing={<Text style={{ fontSize: 12, letterSpacing: 2 }}>{marks}</Text>} />;
     })}</Group>
   </Section>;
 }

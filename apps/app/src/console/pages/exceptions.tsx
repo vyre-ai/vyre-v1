@@ -102,6 +102,7 @@ export function ExceptionsList({ onAdd }: { onAdd: () => void }): ReactElement {
   const action = useAction(list.refresh);
   if (!list.data) return <ReadState error={list.error} retry={list.refresh} />;
   return <Section title="Exceptions" count={list.data.exceptions.length} right={<Button label="Add an exception" onPress={onAdd} testID="exception-add" />} testID="exceptions-list">
+    {/* ui-rows-lint: not a list (each ExceptionRow is a ui/Row) */}
     {list.data.exceptions.length ? <Group>{list.data.exceptions.map((e) => <ExceptionRow key={e.exceptionId} e={e} busy={action.busy} onRemove={() => void action.run("access.exceptions.remove", { exceptionId: e.exceptionId }, "Exception removed")} />)}</Group>
       : <Empty icon="key">No exceptions. Everyone has what their role gives.</Empty>}
     {action.note ? <Note>{action.note}</Note> : null}
@@ -117,6 +118,7 @@ export function PersonExceptions({ person, owner }: { person: { id: string; name
   const rows = (all.data?.exceptions ?? []).filter((e) => (e.subject.kind === "person" && e.subject.id === person.id) || (e.subject.kind === "group" && person.groups.includes(e.subject.id)));
   return <Section title="Exceptions" count={rows.length} right={owner ? <Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>The Owner is never restricted</Text> : <Button label="Add an exception" onPress={() => setAdding(true)} testID="person-exception-add" />} testID="person-exceptions">
     {!all.data ? <ReadState error={all.error} retry={all.refresh} /> : rows.length
+      // ui-rows-lint: not a list (each ExceptionRow is a ui/Row)
       ? <Group>{rows.map((e) => <ExceptionRow key={e.exceptionId} e={e} whoFirst={false} busy={action.busy} {...(e.subject.kind === "person" ? { onRemove: () => void action.run("access.exceptions.remove", { exceptionId: e.exceptionId }, "Exception removed") } : {})} />)}</Group>
       : <Empty icon="key">{`None. ${first} has what their role gives.`}</Empty>}
     {owner ? null : <Help>{`Agents acting for ${first} follow these too.`}</Help>}
