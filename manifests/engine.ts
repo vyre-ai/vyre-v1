@@ -298,7 +298,8 @@ export default defineManifest({
         accountRef: t.opt(accountRef), threadId: t.opt(id.thread), recordLabel: t.opt(label),
         refresh: t.opt(t.bool()),
         wait: t.opt(t.bool()),
-        probe: t.opt(t.bool({ description: 'false: the saved or shipped lists only, for a background reader; no vendor is asked and no account state changes' })),
+        // false: the saved or shipped lists only, for a background reader (memory learning); no vendor is asked and no account state changes
+        probe: t.opt(t.bool()),
       },
       out: {
         models: t.arr(modelInfo),
