@@ -24,6 +24,7 @@
     "access.groups.list@1": "2aef8e572e42668b90944725f52ecf2c3d3b0fcb1b0b2b4453ed4b157c11e7a1",
     "access.groups.remove_member@1": "100d88cb9e6832708a0d529b9d762dfa2f407207057f09c8d519b6e9f998b337",
     "access.groups.update@1": "d626987126d06854b0974d51e58d7ed783d5ef3e3d205b8bc6170abc6fb7bd45",
+    "access.join_share@1": "c1dd39e8965e311f7b7fb44826ed80ce3b8eb3d859beb8e8d9e651c9f93c7501",
     "access.labels.list@1": "e93d52632557258bae9fc63ae0f99f27fde0e2121fd4997c70f6baaba642f6cf",
     "access.labels.set@1": "5fab3f390d9d645bc114809b76ed4b97bd87e6a6d2719034e9b72362dfc387d7",
     "access.lists@1": "091e497d37feeb2381addba80c46f62dc3a26eb96cbdd8f74e9b99ea3dda4ca8",

@@ -19,7 +19,7 @@ Mute agent messages from one person for the rest of my day; what their agents se
 | HTTP | POST /v1/chat/agent_dm/mute |
 | MCP tool | none |
 | CLI | none |
-| Emits | none |
+| Emits | message.received |
 
 ## Input
 
