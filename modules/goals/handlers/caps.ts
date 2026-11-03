@@ -7,7 +7,7 @@ import type { Finish, Goal, GoalsCtx, Permission, Retro, Who } from "../projecti
 import {
   addPlan, addWait, budgetLine, endGoal, ensureFolder, ensureThread, numberLine, planTasks, post, readNow, seat, shareFolder, startGoal, stuck, syncGrants, taskCounts, tryCall, waits,
 } from "./life.ts";
-import type { PlanChild } from "./life.ts";
+import type { PlanChild, Seat } from "./life.ts";
 import { sourceWords } from "../sources.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -69,7 +69,8 @@ export async function create(ctx: GoalsCtx, input: In) {
   if (g.finish.kind === "checklist") g.finish.items = (g.finish.items ?? []).map((i) => ({ ...i, done: false }));
   saveGoal(ctx, g);
   link(ctx, g);
-  await ensureThread(ctx, g);
+  const seated: Seat[] = [];
+  await ensureThread(ctx, g, seated);
   emit(ctx, g, "goal.created", { title: g.title, owner: g.owner, leadAgentId: g.leadAgentId, status: g.status });
   note(ctx, g.id, "created", `Made by ${ctx.principal.kind === "agent" ? "an agent for the owner" : "the owner"}. Finish line: ${g.finish.line}.`);
   const found = overlaps(ctx, g);
@@ -89,7 +90,7 @@ export async function create(ctx: GoalsCtx, input: In) {
   }
   dispatch(ctx, g);
   saveGoal(ctx, g);
-  return { ...out(ctx, g), overlaps: found };
+  return { ...out(ctx, g), overlaps: found, seated, plan: { drafted: !LIVE.has(g.status) ? plan.length : 0, attached: LIVE.has(g.status) ? plan.length : 0 } };
 }
 
 export async function confirm(ctx: GoalsCtx, input: In) {
@@ -167,7 +168,8 @@ export async function update(ctx: GoalsCtx, input: In) {
   if (input.recordIds) link(ctx, g);
   if (input.title && g.folderId) await tryCall(ctx, "files.folder.rename", { folderId: g.folderId, name: g.title.replace(/[/\\]/g, "-").slice(0, 120) });
   if (input.title && g.rootTaskId) await tryCall(ctx, "tasks.update", { taskId: g.rootTaskId, title: g.title });
-  if (input.helpers) { await seat(ctx, g); await shareFolder(ctx, g); }
+  let seated: Seat[] | undefined;
+  if (input.helpers) { seated = await seat(ctx, g); await shareFolder(ctx, g); }
   emit(ctx, g, "goal.updated", { fields, by: ctx.principal.id });
   note(ctx, g.id, "edit", `Changed ${fields.join(", ")}.`);
   if (input.finish && LIVE.has(g.status)) { delete g.startValue; await readNow(ctx, g, "edit"); }
@@ -178,7 +180,7 @@ export async function update(ctx: GoalsCtx, input: In) {
     note(ctx, g.id, "budget", `Budget raised from ${money(budgetBefore.spendMicros ?? 0)} to ${money(g.budget.spendMicros ?? 0)}.`);
   }
   saveGoal(ctx, g);
-  return out(ctx, g);
+  return { ...out(ctx, g), ...(seated ? { seated } : {}) };
 }
 const overBudget = (g: Goal): boolean => (g.budget.spendMicros !== undefined && g.spentMicros >= g.budget.spendMicros) || (g.budget.turns !== undefined && g.turns >= g.budget.turns);
 
@@ -281,6 +283,19 @@ export async function checklistTick(ctx: GoalsCtx, input: In) {
 export async function plan(ctx: GoalsCtx, input: In) {
   const g = visible(ctx, input.goalId);
   if (!isLead(ctx, g) && !isOwner(ctx, g) && !isSystem(ctx)) raise(ctx, "validation.precondition_failed", "The lead agent or the owner plans this goal.", { reason: "not_lead" });
+  if (g.status === "draft") {
+    // a draft has no tasks yet: the steps join the drafted plan and become tasks when the owner presses Start
+    const row = ctx.db.all("SELECT result FROM goals_step WHERE goal_id = ? AND step_id = 'draft:plan'", g.id)[0] as { result?: string } | undefined;
+    let drafted: PlanChild[] = [];
+    try { drafted = JSON.parse(row?.result ?? "[]") as PlanChild[]; } catch { drafted = []; }
+    const incoming = input.children as PlanChild[];
+    const keys = new Set(incoming.map((c) => c.key));
+    drafted = [...drafted.filter((c) => !keys.has(c.key)), ...incoming];
+    ctx.db.run("INSERT OR REPLACE INTO goals_step (goal_id, step_id, title, state, result, by, at) VALUES (?, 'draft:plan', 'The drafted plan', 'started', ?, ?, ?)", g.id, JSON.stringify(drafted), ctx.principal.id, ctx.now());
+    note(ctx, g.id, "plan", `Added ${incoming.length} step${incoming.length === 1 ? "" : "s"} to the drafted plan. They become tasks when the owner starts the goal.`);
+    saveGoal(ctx, g);
+    return { tasks: [], drafted: drafted.length };
+  }
   if (!LIVE.has(g.status)) raise(ctx, "validation.precondition_failed", `A ${g.status} goal takes no new tasks.`, { reason: "not_live" });
   const tasks = await addPlan(ctx, g, input.children as PlanChild[]);
   saveGoal(ctx, g);

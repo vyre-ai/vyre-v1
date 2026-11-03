@@ -60,6 +60,7 @@ type Out = {
       taskId: string;
       created: boolean;
     }>;
+  drafted?: number;
 };
 ```
 
@@ -109,6 +110,7 @@ type Out = {
     "goalId": "gol_a1b2c3"
   },
   "output": {
+    "drafted": 1,
     "tasks": [
       {
         "created": true,
