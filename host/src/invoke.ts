@@ -13,7 +13,8 @@ import { noteRead } from "./seams/answer-reads.ts";
 import type { Decision as KernelDecision, Req as AuthReq, ResourceRef } from "../../kernel/src/authorize/index.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
 import type { CallOpts, Ctx, Decision, EmitOpts, Logger, StepRef } from "../../packages/contracts/src/ctx.ts";
-import type { CapabilityDef, CapName, EventName, TraceContext } from "../../packages/contracts/src/types.ts";
+import type { CapabilityDef, CapName, ErrorCode, EventName, TraceContext } from "../../packages/contracts/src/types.ts";
+import type { AgentGate } from "./seams/agent-read.ts";
 import { BindingError, resolveResource } from "./routes/resource.ts";
 import { auditTargets } from "./routes/audit-targets.ts";
 import type { AuditTarget } from "./routes/audit-targets.ts";
@@ -93,6 +94,8 @@ export interface CtxSeed {
    * that person instead, without a card: their own access decides, now; an audit row says which agent did it for whom under the grant. Never for an outward act. Set only by the MCP door, with askPerson.
    */
   setupGrant?: boolean | undefined;
+  /** The agent a call runs for when it runs as a person (the setup grant reruns an outside agent's call as the person): the read gate (seams/agent-read.ts) still treats it as the agent's. */
+  forAgent?: string | undefined;
 }
 
 export interface AuditRow {
@@ -141,6 +144,8 @@ export interface InvokeDeps {
   scheduledHere?(): boolean;
   /** The Files mutation guard for connector sources (host/src/daemon/connector-source-guard.ts): an extra check on top of normal Files authorization. */
   sourceGuard?: { check(a: { cap: string; input: unknown; seed: CtxSeed; now: number }): { key: string; reason: string } | null };
+  /** The read gate (Redaction for AI): what a call an agent is behind may hand back (seams/agent-read.ts). Absent in a hand-built pipeline, as before. */
+  agentGate?: AgentGate;
   recordAccess?: {
     facts(cap:string,input:unknown,req:AuthReq,trace:string):Promise<AuthReq>;
     project(cap:string,input:unknown,seed:CtxSeed,output:unknown,trace:string):Promise<()=>unknown>;
@@ -423,7 +428,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
           // Setting the Space AI key puts the value the agent itself sent into a Restricted folder and answers nothing secret: the provider label (which keeps Restricted data from reaching a provider)
           // has nothing to keep from it there, so the call runs as the person alone. Every other call keeps the label.
           const keyIn = c.name === "providers.space_key.set" ? { provider: undefined } : {};
-          const asPerson: CtxSeed = { ...seed, principal: { kind: "person", id: seed.actingFor! }, actingFor: undefined, askPerson: undefined, setupGrant: undefined, askFirst: undefined, askable: undefined, chatMode: undefined, auditAll: true, ...keyIn };
+          const asPerson: CtxSeed = { ...seed, principal: { kind: "person", id: seed.actingFor! }, actingFor: undefined, askPerson: undefined, setupGrant: undefined, askFirst: undefined, askable: undefined, chatMode: undefined, auditAll: true, forAgent: seed.principal.id, ...keyIn };
           return stepsFour(c, input, asPerson, trace, depth, true);
         }
         return park(c, input, seed, traceId, pd.decisionId, c.gate?.act && c.gate.act !== "none" ? c.gate.act : "approve", audit("hold", "asks_person"), "person");
@@ -469,6 +474,11 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       if (seed.mustAsk === true || !(await deps.gate?.allowed?.(c, input, seed))) return park(c, input, seed, traceId, did(), c.gate?.act ?? "approve", null);
     }
 
+    // the read gate, before: an agent may not copy, move or send a file out of its Redacted or Not available folder (Redaction for AI)
+    if (deps.agentGate && (depth === 0 || approved)) {
+      const refused = await deps.agentGate.before(c.name, input, seed);
+      if (refused) throw fail(refused.code as ErrorCode, traceId, { message: refused.message, details: { cap: c.name, ...refused.details } });
+    }
     // 6 handler, with a ctx whose emit buffers events for the one commit
     const h = deps.handler(c.name, c.v);
     if (!h) throw fail("internal.not_implemented", traceId, { details: { cap: c.name } });
@@ -518,7 +528,14 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     if (stored.length) deps.publish?.(stored);
     // Before the answer reaches the model: a failure to mark costs the next outward act nothing it should have, so it is logged and the answer still goes. The grant check reads the mark.
     if (deps.gate?.seen && (depth === 0 || approved)) await deps.gate.seen(c, input, output, seed).catch((e: unknown) => log.warn("the Gate did not hear what a call brought in", { cap: c.name, traceId, error: e instanceof Error ? e.message : String(e) }));
-    return { status: "ok", output:finishOutput?await finishOutput():output, traceId };
+    let answer = finishOutput ? await finishOutput() : output;
+    // the read gate, after: what a call an agent is behind hands back is the redacted rendition, or a refusal (Redaction for AI, seams/agent-read.ts)
+    if (deps.agentGate && (depth === 0 || approved)) {
+      const g = await deps.agentGate.after(c.name, c.effects, input, answer, seed);
+      if ("refuse" in g) throw fail(g.refuse.code as ErrorCode, traceId, { message: g.refuse.message, details: { cap: c.name, ...g.refuse.details } });
+      answer = g.output;
+    }
+    return { status: "ok", output: answer, traceId };
   }
 
   async function park(c: CapabilityDef, input: unknown, seed: CtxSeed, traceId: string, decisionId: string, act: string, row: AuditRow | null, runAs?: "person"): Promise<InvokeResult> {

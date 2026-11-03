@@ -93,7 +93,7 @@ test("each person's value is their own: Omar's change does not move Maya's", asy
   assert.equal(omar.value, true);
   assert.equal((await handlers["settings.get"](asMaya(h), { key: "chat.agent_tabs" })).row.value, false);
   const lists = (await handlers["settings.list"](asMaya(h), { page: "ai" })).rows;
-  assert.deepEqual(lists.map((r) => r.key).sort(), ["chat.agent_tabs", "chat.ask_agent", "engine.local_runs"], "a page of You lists no Space row, even one declared under the same name");
+  assert.deepEqual(lists.map((r) => r.key).sort(), ["chat.agent_tabs", "chat.ask_agent", "engine.local_runs", "memory.lessons"], "a page of You lists no Space row, even one declared under the same name");
 });
 
 test("a value the schema refuses is refused with a sentence and nothing is written", async () => {

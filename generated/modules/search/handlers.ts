@@ -6,6 +6,7 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "search.actions.list": Handler<"search.actions.list", X>;
+  "search.ask": Handler<"search.ask", X>;
   "search.embed.run": Handler<"search.embed.run", X>;
   "search.health": Handler<"search.health", X>;
   "search.index.apply": Handler<"search.index.apply", X>;

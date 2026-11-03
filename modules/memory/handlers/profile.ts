@@ -99,6 +99,8 @@ function ownFact(ctx: MemCtx, factId: string): Fact {
   if (!f) raise(ctx, "validation.bad_input", "That fact is not there.", { factId });
   if (f.layer !== "person" || f.ownerRef !== actorOf(ctx)) raise(ctx, "permission.no_grant", "Only facts about you can go on your profile, and only you can move them.");
   if (f.status !== "current") raise(ctx, "validation.bad_input", "Only a current fact can move.", { status: f.status });
+  // a lesson is what an agent learned about how to work for you: it is never part of what you say about yourself, so it never goes on a profile, public or private
+  if (f.kind === "lesson") raise(ctx, "validation.bad_input", "A lesson stays with the agent that learned it. It is not part of your profile.");
   return f;
 }
 

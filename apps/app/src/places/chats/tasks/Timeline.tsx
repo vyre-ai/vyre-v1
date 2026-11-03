@@ -1,7 +1,7 @@
 // The timeline and the month: the same rows, by date. Fourteen days from three days back, a line per task in one virtual list, and a bar from its start to its due date. A project's plan adds the starts it keeps.
-import { useMemo, useState } from "react";
+import { createElement, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
@@ -11,45 +11,55 @@ import { barOf, DAY, monthCells } from "./model.ts";
 import type { TaskRow } from "./model.ts";
 import type { RowEnv } from "./parts.tsx";
 import { useLiveTurn } from "./parts.tsx";
+import { rowStep } from "./keys.ts";
+import { CARD_ATTR, useRoving } from "./roving.ts";
 
-const DAYS = 14;
+const DAYS = 14, BACK = 3;
+// at phone width a week fits with the day labels readable: today is the second day, and the name column is narrow
+const PHONE_DAYS = 7, PHONE_BACK = 1, PHONE_NAME = 108;
 const ROW_H = 40;
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const BAR: Record<string, string> = { todo: "var(--line-2)", doing: "var(--accent)", in_review: "var(--accent)", awaiting_approval: "var(--warn)", done: "var(--ok)", canceled: "var(--line)" };
 
-function Line({ row, env, first }: { row: TaskRow; env: RowEnv; first: number }): ReactElement {
+function Line({ row, env, first, tab, onActive, days, back, nameW }: { row: TaskRow; env: RowEnv; first: number; tab: boolean; onActive(id: string): void; days: number; back: number; nameW: number }): ReactElement {
   const turn = useLiveTurn(env.turns, row.workerThread ?? row.threadId);
-  const bar = barOf(row, first, DAYS);
+  const bar = barOf(row, first, days);
   return <View testID={`timeline-row-${row.id}`} style={st.row}>
-    <Pressable accessibilityRole="link" accessibilityLabel={row.title} onPress={() => env.open(row.id)} style={st.name}><Text numberOfLines={1} style={st.nameText}>{row.title}</Text></Pressable>
+    <Pressable accessibilityRole="link" accessibilityLabel={row.title} onPress={() => env.open(row.id)} onFocus={() => onActive(row.id)} {...(Platform.OS === "web" ? { focusable: true, dataSet: { [CARD_ATTR.slice(5)]: row.id }, tabIndex: tab ? 0 : -1 } : {})} style={[st.name, { width: nameW }]}><Text numberOfLines={1} style={st.nameText}>{row.title}</Text></Pressable>
     <View style={st.track}>
-      {bar ? <Pressable accessibilityRole="button" accessibilityLabel={`${row.title}, on the timeline`} onPress={() => env.open(row.id)} style={[st.bar, { left: `${bar.left * 100}%`, width: `${bar.width * 100}%`, backgroundColor: BAR[row.state] as string, opacity: turn ? 1 : 0.85 }]} /> : null}
-      <View style={[st.today, { left: `${(3 / DAYS) * 100}%` }]} />
+      {bar ? <Pressable accessibilityRole="button" accessibilityLabel={`${row.title}, on the timeline`} onPress={() => env.open(row.id)} {...(Platform.OS === "web" ? { tabIndex: -1 } : {})} style={[st.bar, { left: `${bar.left * 100}%`, width: `${bar.width * 100}%`, backgroundColor: BAR[row.state] as string, opacity: turn ? 1 : 0.85 }]} /> : null}
+      <View style={[st.today, { left: `${(back / days) * 100}%` }]} />
     </View>
   </View>;
 }
 
 export function Timeline({ rows, env, window }: { rows: readonly TaskRow[]; env: RowEnv; window?: VirtualWindow }): ReactElement {
   const [shift, setShift] = useState(0);
+  const narrow = useWindowDimensions().width < 720;
+  const days = narrow ? PHONE_DAYS : DAYS, back = narrow ? PHONE_BACK : BACK, nameW = narrow ? PHONE_NAME : 240;
   const today = Math.floor((env.now + env.offsetMin * 60_000) / DAY) * DAY - env.offsetMin * 60_000;
-  const first = today + (shift - 3) * DAY;
+  const first = today + (shift - back) * DAY;
   const dated = useMemo(() => rows.filter((t) => t.due !== undefined || t.start !== undefined), [rows]);
+  const order = useMemo(() => [dated.map((r) => r.id)], [dated]);
+  const roving = useRoving({ cols: order, step: (at, dir) => rowStep(order[0]!, at, dir), open: (id) => env.open(id), status: (id, at) => { const r = dated.find((x) => x.id === id); if (r) env.status(r, at); } });
   const heads: ReactElement[] = [];
-  for (let i = 0; i < DAYS; i++) { const d = new Date(first + i * DAY + env.offsetMin * 60_000); const on = shift === 0 && i === 3; heads.push(<Text key={i} style={[st.day, on && st.dayNow]}>{on ? "Today" : String(d.getUTCDate())}</Text>); }
-  return <View testID="tasks-timeline" style={st.root}>
+  for (let i = 0; i < days; i++) { const d = new Date(first + i * DAY + env.offsetMin * 60_000); const on = shift === 0 && i === back; heads.push(<Text key={i} style={[st.day, on && st.dayNow]}>{on ? "Today" : String(d.getUTCDate())}</Text>); }
+  const body = <View testID="tasks-timeline" style={st.root}>
     <View style={st.bar0}>
-      <View style={st.name}><View style={st.arrows}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Two weeks back" onPress={() => setShift((n) => n - 14)} style={st.arrow}><Glyph name="back" size={13} color="var(--ink-3)" /></Pressable>
+      <View style={[st.name, { width: nameW }]}><View style={st.arrows}>
+        <Pressable accessibilityRole="button" accessibilityLabel={narrow ? "A week back" : "Two weeks back"} onPress={() => setShift((n) => n - days)} style={st.arrow}><Glyph name="back" size={13} color="var(--ink-3)" /></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Back to today" onPress={() => setShift(0)} style={st.arrow}><Text style={st.todayText}>Today</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Two weeks on" onPress={() => setShift((n) => n + 14)} style={st.arrow}><Glyph name="chev" size={13} color="var(--ink-3)" /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={narrow ? "A week on" : "Two weeks on"} onPress={() => setShift((n) => n + days)} style={st.arrow}><Glyph name="chev" size={13} color="var(--ink-3)" /></Pressable>
       </View></View>
       <View style={st.days}>{heads}</View>
     </View>
     {dated.length === 0 ? <Text style={st.empty}>No task here has a date yet.</Text> : <View style={{ flex: 1, minHeight: 0 }}>
       {/* ui-rows-lint: not a list (a timeline: a name and a bar on a track per line) */}
-      <VirtualList data={dated} rowHeight={ROW_H} keyOf={(r) => r.id} renderItem={(r) => <Line row={r} env={env} first={first} />} {...(window ? { window } : {})} />
+      <VirtualList data={dated} rowHeight={ROW_H} keyOf={(r) => r.id} renderItem={(r) => <Line row={r} env={env} first={first} days={days} back={back} nameW={nameW} tab={r.id === roving.tab} onActive={roving.setActive} />} reveal={roving.active === null ? -1 : (order[0] ?? []).indexOf(roving.active)} {...(window ? { window } : {})} />
     </View>}
   </View>;
+  if (Platform.OS !== "web") return body;
+  return createElement("div", { "data-testid": "tasks-timeline-keys", style: { display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }, onKeyDownCapture: roving.onKeyDownCapture, onKeyUpCapture: roving.onKeyUpCapture }, body);
 }
 
 export function CalendarView({ rows, env }: { rows: readonly TaskRow[]; env: RowEnv }): ReactElement {

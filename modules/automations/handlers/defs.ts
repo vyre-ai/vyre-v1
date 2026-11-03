@@ -262,7 +262,7 @@ const hasErrors = (issues: readonly Issue[]): boolean => issues.some((i) => i.se
 //   Run code needs the sandbox (steps.support says whether this server has it), and is refused with the reason where it does not.
 //   An AI step in a Personal automation runs on its owner's own account (keyId may pick one); in a Space automation it needs a Space-shared key in keyId. The message names what to add.
 interface Support { code: { available: boolean; reason?: string }; ai: { available: boolean; reason?: string } }
-interface ProviderLite { id: string; handle?: string; itemId: string; name: string; connection: string; scope: string; spaceMayUse: boolean; state: string }
+interface ProviderLite { id: string; handle?: string; itemId: string; name: string; connection: string; scope: string; spaceMayUse: boolean; state: string; uses?: { automations?: true }; capped?: boolean }
 
 async function supportOf(ctx: AutoCtx): Promise<Support> {
   const none = { available: false, reason: "This server has not started the part that runs it." };
@@ -296,6 +296,8 @@ async function providersOf(ctx: AutoCtx): Promise<ProviderLite[] | null> {
 
 const refOf = (p: ProviderLite): string[] => [p.handle, p.itemId, p.id, p.name].filter((x): x is string => typeof x === "string" && x !== "");
 const works = (p: ProviderLite): boolean => p.state === "ok" && (p.connection !== "subscription" || p.spaceMayUse);
+/** A Space AI account that is kept for automations, works, and is under its cap: what Automatic picks from. */
+const paysForAutomations = (p: ProviderLite): boolean => p.scope === "shared" && works(p) && p.uses?.automations === true && p.capped !== true;
 
 /** Why the AI steps of this definition cannot pay for their turns when it goes live, one issue per step. */
 async function aiAccountIssues(ctx: AutoCtx, kind: Automation["kind"], def: Definition): Promise<Issue[]> {
@@ -305,15 +307,24 @@ async function aiAccountIssues(ctx: AutoCtx, kind: Automation["kind"], def: Defi
   const out: Issue[] = [];
   for (const n of nodes) {
     const have = { ...(n.ai ?? {}), ...n.input } as Record<string, unknown>;
-    const key = typeof have["keyId"] === "string" && have["keyId"] !== "" ? have["keyId"] : undefined;
-    const backup = typeof have["backupKeyId"] === "string" && have["backupKeyId"] !== "" ? have["backupKeyId"] : undefined;
+    // the step's own account, else the automation's AI account and backup (Settings > AI account); neither is Automatic
+    const own = typeof have["keyId"] === "string" && have["keyId"] !== "" ? have["keyId"] : undefined;
+    const key = own ?? (def.ai?.keyId && def.ai.keyId !== "" ? def.ai.keyId : undefined);
+    const backup = typeof have["backupKeyId"] === "string" && have["backupKeyId"] !== "" ? have["backupKeyId"] : (own === undefined && def.ai?.backupKeyId ? def.ai.backupKeyId : undefined);
+    const fromAutomation = own === undefined;
     const pick = (ref: string): ProviderLite | undefined => providers?.find((p) => refOf(p).includes(ref));
     if (providers === null) { out.push(issue("error", "AI steps run on the agent runtime, which this server has not started.", n.id)); continue; }
     if (kind === "space") {
-      if (!key) { out.push(issue("error", "A Space AI step needs a Space-shared AI key. Add one in the Vault under AI providers (Shared), then choose it in this step.", n.id)); continue; }
+      if (!key) {
+        // Automatic: the cheapest Space AI account that is kept for automations
+        if (!providers.some(paysForAutomations)) out.push(issue("error", "A Space AI step needs a Space AI account that pays for automations. An admin adds one in the Vault under AI accounts and ticks Automations, or you choose one in this step or in the automation's Settings.", n.id));
+        if (backup) { const b = pick(backup); if (!b) out.push(issue("error", `The backup AI account ${backup} is not in the Vault. Choose another in Settings.`, n.id)); }
+        continue;
+      }
       for (const ref of [key, ...(backup ? [backup] : [])]) {
         const p = pick(ref);
         if (!p) out.push(issue("error", `The AI key ${ref} is not in the Vault. Add a Space-shared AI key and choose it in this step.`, n.id));
+        else if (fromAutomation && p.scope === "shared" && p.uses?.automations !== true) out.push(issue("error", `${p.name}, the AI account chosen for this automation, is not set to pay for automations. An admin can tick Automations for it in the Vault under AI accounts, or choose another.`, n.id));
         else if (p.scope !== "shared") out.push(issue("error", `The AI key ${p.name} belongs to one person. A Space automation needs a Space-shared AI key: share it with the Space in the Vault, or add one.`, n.id));
         else if (!works(p)) out.push(issue("error", `The AI key ${p.name} does not work right now (${p.state === "ok" ? "it needs a sign-in" : p.state.replace("_", " ")}). Fix it in AI settings or choose another.`, n.id));
       }

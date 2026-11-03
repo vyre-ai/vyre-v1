@@ -3,7 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 export const SKINS = ["paper", "graphite"];
-export const SIZES = { desktop: { width: 1280, height: 800 }, phone: { width: 390, height: 844 } };
+// SHOTS_DESKTOP_WIDTH and SHOTS_DESKTOP_HEIGHT look at the desktop size another way (a lane that must be seen at 1440); unset, it is 1280 by 800 as ever.
+export const SIZES = { desktop: { width: Number(process.env.SHOTS_DESKTOP_WIDTH) || 1280, height: Number(process.env.SHOTS_DESKTOP_HEIGHT) || 800 }, phone: { width: 390, height: 844 } };
 export const MAX_EXPORT_S = 120;
 
 /** `--key value` and `--flag` arguments. */

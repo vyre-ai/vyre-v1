@@ -19,6 +19,9 @@ import { TypeTile } from "../FileList.tsx";
 import { tileLabel } from "../tree/model.ts";
 import { GoogleTile, WithProviderMark, googleAppOf } from "../marks.tsx";
 import type { FileComment, ViewerData } from "./model.ts";
+import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { ActivityPanel, LayerBanner, LayerTools, RedactPanel, jumpToMark, useLayer, viewerMarks } from "./redact.tsx";
+import type { Access } from "./redact.tsx";
 
 type Markup = CapMap["files.markup.get"]["out"];
 const SAVE_DELAY_MS = 600;
@@ -41,6 +44,11 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   const version = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const say = useCallback((e: unknown): void => setNote(e instanceof Error ? e.message : "That did not work."), []);
+  // Redaction for AI: the layer of this file, the Redact and Activity tabs, and the access menu
+  const layer = useLayer(d, fileId);
+  const [panel, setPanel] = useState<"redact" | "activity" | null>(null);
+  const accessMenu = useMenu();
+  useEffect(() => { if (layer.said) { setNote(layer.said); layer.setSaid(null); } }, [layer]);
 
   useEffect(() => {
     let live = true;
@@ -112,6 +120,24 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   };
 
   const node = ready.graph ? nodeFor(ready.graph, file.name) : null;
+  // Preview as agent: the words an agent reads, as blocks of the same kind
+  const shownBlocks = layer.preview && layer.view?.text ? textToBlocks(layer.view.text, file.kind) : blocks;
+  const done = (): void => { void layer.run("files.review", { fileId }, "Reviewed. Agents can read the redacted version"); };
+  const setAccess = (value: Access | null): void => { void layer.run("files.agent_access.set", { target: { type: "file", id: fileId }, value }, value === null ? "Follows the folder again" : "Agent access changed"); };
+  const openAccess = (x: number, y: number): void => {
+    const cur = layer.list?.access;
+    accessMenu.show([
+      { label: "Available", checked: cur?.value === "on" && cur.own, onSelect: () => setAccess("on") },
+      { label: "Redacted", checked: cur?.value === "redact" && cur.own, onSelect: () => setAccess("redact") },
+      { label: "Not available", checked: cur?.value === "off" && cur.own, onSelect: () => setAccess("off") },
+      { separator: true },
+      { label: `Same as the folder (${cur?.inherited === "redact" ? "Redacted" : cur?.inherited === "off" ? "Not available" : "Available"})`, checked: cur?.own === false, onSelect: () => setAccess(null) },
+    ], x, y, "other");
+  };
+  const toggle = (k: "redact" | "activity"): void => setPanel((p) => (p === k ? null : k));
+  const side = panel === "redact"
+    ? <RedactPanel layer={layer} name={d.name} now={now} fileName={file.name} path={(d.pathOf?.(file.folderId) ?? "").replace(/ \/ /g, " / ")} onDone={done} onAccess={openAccess} onJump={jumpToMark} />
+    : panel === "activity" ? <ActivityPanel rows={layer.activity} now={now} onOpen={(r) => { if (r.markId) jumpToMark(r.markId); }} /> : undefined;
   const siblings = file.kind === "image" ? d.siblings?.(file.folderId) : undefined;
   // Word, Excel and PowerPoint files wear the list's own type tile (DOCX, XLSX, PPTX), with the provider's mark when they come from SharePoint or OneDrive
   const label = office ? tileLabel(file.name, file.kind) : null;
@@ -122,24 +148,33 @@ export function FileViewer({ fileId, pane = "main" }: FileViewerProps): ReactEle
   return (
     <View testID="file-viewer" accessibilityLabel={`Viewer, ${file.name}`} style={s.frame}>
       <Viewer
-        key={fileId}
+        key={`${fileId}:${layer.preview && layer.view?.text ? "agent" : "people"}`}
         fileId={fileId} title={file.name} kind={kind} pane={pane}
         kindLabel={kindLabel(file.name)} subtitle={subtitleOf(ready.data, now, path)}
-        {...(mark !== undefined ? { kindMark: mark } : {})} {...(app !== null || office ? { readOnly: true } : {})}
+        {...(mark !== undefined ? { kindMark: mark } : {})} {...(app !== null || office || file.kind === "pdf" ? { readOnly: true } : {})}
         {...(office ? { noPreview: noPreviewWords(file.name) ?? "No preview of this file here. Open it in its own app." } : {})}
         {...(kind === "image" && ready.data.previewUrl ? { src: ready.data.previewUrl } : {})}
-        boxes={boxes} strokes={strokes} blocks={blocks} {...(fileLinks ? { fileLinks } : {})} {...(sheet ? { sheet } : {})}
-        comments={docCommentsOf(ready.comments, d.name, now)}
+        boxes={boxes} strokes={strokes} blocks={shownBlocks} {...(fileLinks ? { fileLinks } : {})} {...(sheet ? { sheet } : {})}
+        comments={layer.preview ? [] : docCommentsOf(ready.comments, d.name, now)}
         ask={{ place: "files", context: { kind: "file", id: fileId, title: file.name, access: ready.data.canEdit ? "edit" : "view" }, agents: d.agents, testID: "file-ask", onAsk: (agent, mode, about) => d.ask?.(agent.id, mode, { kind: about.kind, id: about.id, title: about.title }) }}
         {...(siblings ? { siblings, current: fileId, onSibling: (id: string) => d.openFile?.(id) } : {})}
         {...(ready.graph && node ? { graph: ready.graph, nodeId: node, onOpenLink: (id: string) => d.openFile?.(id) } : {})}
         agentName={d.agentFor?.(fileId) ?? d.agents.find((a) => a.assistant)?.name ?? "the agent"}
         {...(ready.data.canMark ? { onBoxes: addBox, onStrokes: saveStrokes } : {})} {...(isEditable(ready.data) ? { onEdit: edit } : {})}
         {...(link && d.openUrl ? { openIn: { label: openInWords(link.openIn), onOpen: () => d.openUrl?.(link.webUrl) } } : {})}
+        layer={{ marks: viewerMarks(layer.list, d.name, now), preview: layer.preview }}
+        onLayer={layer.mark}
+        onUnmark={(markId) => void layer.run("files.marks.remove", { markId }, "Agents can read it again")}
+        onMarkActivity={() => setPanel("activity")}
+        tools={<LayerTools open={panel} onToggle={toggle} />}
+        banner={<LayerBanner layer={layer} name={d.name} onOpen={() => setPanel("redact")} onDone={done} panelOpen={panel === "redact"} />}
+        {...(side !== undefined ? { side } : {})}
+        {...(d.ask ? { onAskQuote: (quote: string) => d.ask?.(d.agents.find((a) => a.assistant)?.id ?? "assistant", "chat", { kind: "file", id: fileId, title: `“${quote.slice(0, 60)}” in ${file.name}` }) } : {})}
         onComment={(quote, textIn) => void commentOnQuote(d, fileId, quote, textIn).then(reload).catch(say)}
         onResolve={(id) => void resolveComment(d, id).then(reload).catch(say)}
         onAskMarkup={(marked) => d.ask?.(d.agents.find((a) => a.assistant)?.id ?? "assistant", "do", { kind: "file_markup", id: fileId, title: `${marked.length} marks on ${file.name}` })}
       />
+      {accessMenu.element}
       {note ? <Text style={s.note} accessibilityLiveRegion="polite" testID="file-viewer-note">{note}</Text> : null}
     </View>
   );

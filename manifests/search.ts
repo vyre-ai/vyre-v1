@@ -11,6 +11,10 @@ const hit = t.obj({
   link: t.str({ description: 'Source link that opens through the place', examples: ['vyre://record/rec_a1b2c3'] }),
   label: t.opt(label), score: t.num(), updatedAt: t.opt(t.ts()),
 });
+const askSource = t.obj({
+  kind, id: t.str(), title: t.str(), recordType: t.opt(t.str()), snippet: t.opt(t.str()), path: t.opt(t.str()), link: t.str({ examples: ['vyre://record/rec_a1b2c3'] }), label: t.opt(label), score: t.num(), updatedAt: t.opt(t.ts()),
+  n: t.int({ minimum: 1, description: 'The number the answer cites it by' }), where: t.str({ description: 'Chat, Channel, Inbox, Record, File, Task or Note', examples: ['File'] }),
+});
 const action = t.obj({ key: t.str({ examples: ['task.new'] }), title: t.str({ examples: ['New task'] }), icon: t.str(), cap: t.opt(t.str()), keys: t.opt(t.str()) });
 
 export default defineManifest({
@@ -25,6 +29,14 @@ export default defineManifest({
       },
       out: { hits: t.arr(hit), tookMs: t.int(), ...pageOut }, label: 'filter', tool: 'meta', cli: 'vyre search',
       rate: { n: 120, perSeconds: 60, scope: 'principal' },
+    }),
+    read('search.ask', 'Ask the Space: answer a question from the chats, records, files, tasks and notes the caller may read, on the caller\'s own AI account, with numbered citations; nothing readable gives the no-access answer and calls no model', {
+      in: { q: t.str({ minLength: 1, maxLength: 500 }) },
+      out: {
+        state: t.enm('answered', 'no_access', 'no_account', 'failed'), answer: t.opt(t.str()), sources: t.arr(askSource), cited: t.arr(t.int({ minimum: 1 })),
+        account: t.opt(t.obj({ title: t.str(), mine: t.bool() })),
+      },
+      label: 'filter', tool: 'meta', rate: { n: 20, perSeconds: 60, scope: 'principal' },
     }),
     read('search.recent.list', 'Recent items before typing (opened and edited by the caller)', {
       in: { types: t.opt(t.arr(kind)), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) }, out: { hits: t.arr(hit) }, label: 'filter', tool: 'meta',
@@ -69,7 +81,7 @@ export default defineManifest({
     screen('shell.cmdk', 'shell', 'ui:CmdK', {
       slot: 'sheet',
       q: { hits: ['search.query', { q: '/query/q', types: '/query/types', mode: '/query/mode' }, false], recent: ['search.recent.list', {}, false], actions: ['search.actions.list', { q: '/query/q' }, false] },
-      a: { opened: ['search.recent.record', { kind: '/hit/kind', itemId: '/hit/id' }] },
+      a: { opened: ['search.recent.record', { kind: '/hit/kind', itemId: '/hit/id' }], asked: ['search.ask', { q: '/query/q' }] },
       empty: 'No results', primary: 'Clear search', perf: { firstPaintMs: 50, completeMs: 300 },
     }),
     screen('shell.new-tab', 'shell', 'ui:NewTabSearch', {

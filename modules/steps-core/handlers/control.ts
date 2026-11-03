@@ -76,7 +76,7 @@ export interface StepCall {
 }
 export interface StepEnv {
   ctx: StepsCtx;
-  run: { id: string; label?: string; automation?: string; defHash?: string; depth?: number };
+  run: { id: string; label?: string; automation?: string; defHash?: string; depth?: number; /** The automation's own AI account: the key and backup an AI step uses when it chooses none. */ ai?: { keyId?: string; backupKeyId?: string } };
   defaults?: { mailboxId?: string; numberId?: string };
   /** AI and code steps run in the agent and sandbox services */
   ai?: (node: StepNode, input: Record<string, unknown>, call: StepCall) => Promise<StepResult>;

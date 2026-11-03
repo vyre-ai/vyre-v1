@@ -21,6 +21,8 @@ export interface StepTurnIn {
   agentId?: string;
   keyId?: string;
   backupKeyId?: string;
+  /** The key and backup came from the automation's own AI account setting (not a step): each is a Space account that pays only when its "Used for" includes automations. */
+  keyFrom?: "automation";
   timeoutMinutes?: number;
   /** The records the run read before this step: their data may be in the prompt, so the Space's label rule is asked of each. */
   recordIds?: string[];
@@ -109,13 +111,20 @@ async function accountFor(ctx: EngineCtx, i: StepTurnIn, asker: string, service:
     agent: { ...(agent?.agentId ? { agentId: agent.agentId } : {}), accountPolicy: agent?.accountPolicy ?? "asker", ...(agent?.accountKey ? { accountKey: agent.accountKey } : {}), ...(provider ? { provider } : {}) },
     ...(agent?.model ? { model: agent.model } : {}),
     backupRefs: backupRef ? [backupRef] : [],
+    ...(i.keyFrom === "automation" ? { useChecked: [keyRef, backupRef].filter((x): x is string => x !== undefined) } : {}),
     policy: policy.allowedAccounts,
     accounts: usable,
     onServer: true,
   });
   const row = res.accountRef ? usable.find((r) => r.ref === res.accountRef) : undefined;
   if (!res.allowed || !row || !res.payer) {
-    const why = service
+    const pinWhy = res.pin?.why;
+    const pinName = res.pin ? rows.find((r) => r.ref === res.pin?.ref)?.title ?? res.pin.ref : "";
+    const why = i.keyFrom === "automation" && (pinWhy === "not_used_for" || pinWhy === "capped")
+      ? pinWhy === "capped"
+        ? `${pinName}, the AI account chosen for this automation, has reached its monthly cap, and no other Space AI account that pays for automations could take the step. An admin can raise the cap in the Vault under AI accounts.`
+        : `${pinName}, the AI account chosen for this automation, is not set to pay for automations, and no other Space AI account that does could take the step. An admin can tick Automations for it in the Vault under AI accounts.`
+      : service
       ? i.keyId
         ? "The key chosen for this AI step is not a Space-shared key that works. Share the key with the Space in the Vault (AI providers), or choose another."
         : "A Space automation needs a Space AI account that pays for automations. An owner or admin sets one in the Vault, under AI accounts, or chooses a key in the AI step."

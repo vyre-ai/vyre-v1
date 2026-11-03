@@ -1,7 +1,7 @@
 // Files toolbar (P-L9e_01b): the path as a breadcrumb you can click back through, the count, the sort button that names the current sort, and the list/grid toggle.
 // Matches the prototype's Files header (.bc, .hm, .segsm). Colours are skin tokens, so a skin switch repaints with no re-render.
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { PaneToggleButton } from "../../../../../ui/src/SidePane/index.tsx";
 import { Glyph, pointOf } from "./tree/parts.tsx";
 import type { ViewMode } from "./tree/model.ts";
@@ -36,6 +36,8 @@ export interface ToolbarProps {
   pane?: { open: boolean; toggle(): void } | undefined;
   /** The phone: the title, New and one "..." menu (the sort, view, upload and options live in it). */
   compact?: boolean | undefined;
+  /** Redaction for AI: the folder's Agent access control, a quiet text button before the sort. */
+  access?: ReactNode | undefined;
 }
 
 /** The crumbs of a place: Files and each folder down to this one for a folder, the place's own name for Recent, Shared with me, Trash or Knowledge. */
@@ -110,7 +112,7 @@ function anchorOf(e: unknown): { x: number; y: number } {
   return pointOf(e);
 }
 
-export function Toolbar({ crumbs, count, sortLabel, view, onGo, onSort, onView, onBack, onForward, onUpload, onNew, onMore, pane, compact }: ToolbarProps): ReactElement {
+export function Toolbar({ crumbs, count, sortLabel, view, onGo, onSort, onView, onBack, onForward, onUpload, onNew, onMore, pane, compact, access }: ToolbarProps): ReactElement {
   if (compact === true) {
     return (
       <View style={styles.head} testID="files-head">
@@ -136,6 +138,7 @@ export function Toolbar({ crumbs, count, sortLabel, view, onGo, onSort, onView, 
       <Breadcrumb crumbs={crumbs} onGo={onGo} />
       {count !== null ? <Text style={styles.meta} testID="files-count">{count}</Text> : null}
       <View style={styles.grow} />
+      {access}
       <SortButton label={sortLabel} onSort={onSort} />
       <ViewToggle view={view} onView={onView} />
       {onUpload ? <HeadIcon icon="upload" label="Upload files" testID="files-upload" onPress={() => onUpload()} /> : null}

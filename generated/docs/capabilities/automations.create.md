@@ -80,6 +80,10 @@ type In = {
       }>;
     start?: Array<string>;
     allowSelfTrigger?: boolean;
+    ai?: {
+      keyId?: string;
+      backupKeyId?: string;
+    };
   };
   groupId?: string;
   folderId?: string;
@@ -154,6 +158,10 @@ type Out = {
         }>;
       start?: Array<string>;
       allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
     };
     followers: Array<string>;
     alerts: {
@@ -199,6 +207,10 @@ type Out = {
   "name": "example",
   "input": {
     "definition": {
+      "ai": {
+        "backupKeyId": "example",
+        "keyId": "example"
+      },
       "allowSelfTrigger": true,
       "nodes": [
         {
@@ -302,6 +314,10 @@ type Out = {
       },
       "createdAt": 1760000000000,
       "definition": {
+        "ai": {
+          "backupKeyId": "example",
+          "keyId": "example"
+        },
         "allowSelfTrigger": true,
         "nodes": [
           {

@@ -50,7 +50,7 @@ test("journey 2, Team: the admin sets the app once, two members connect their ow
     const anaBox = ((await ana.ok("mail.mailbox.list", { scope: "all" })).mailboxes as { id: string }[])[0]!;
     const boBox = ((await bo.ok("mail.mailbox.list", { scope: "all" })).mailboxes as { id: string }[])[0]!;
     const list = (mailboxId: string) => `TOOL mail_message_list ${JSON.stringify({ mailboxId })}`;
-    const anaHelper = await makeAgent(ana, "Ana helper", account);
+    const anaHelper = await makeAgent(ana, "Ana helper", account, w.owner);
     assert.ok((await ask(w, ana, anaHelper, list(anaBox.id))).includes("Ana's contract"), "Ana's assistant reads Ana's mailbox");
     assert.ok(!(await ask(w, ana, anaHelper, list(boBox.id))).includes("Bo's invoice"), "and not Bo's");
     const adminHelper = await makeAgent(w.owner, "Olivia helper", account);

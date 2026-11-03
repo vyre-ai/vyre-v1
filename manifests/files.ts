@@ -13,6 +13,20 @@ const fileKind = t.enm('text', 'markdown', 'document', 'spreadsheet', 'presentat
 const section = t.opt(t.enm('personal', 'shared', 'space'));
 const commentId = t.id('fcm');
 const linkId = t.id('lnk');
+// Redaction for AI (owner 3 Nov, rc.20): Agent access on folders and files, the redaction and highlight layer, review, and agents' requests to read
+const markId = t.id('mrk');
+const redactRequestId = t.id('rrq');
+const agentAccess = t.enm('on', 'redact', 'off');
+const target = t.obj({ type: t.enm('file', 'folder'), id: t.str({ examples: ['fil_a1b2c3'] }) }, { description: 'The file or folder' });
+const box = t.obj({ x: t.num({ minimum: 0, maximum: 1 }), y: t.num({ minimum: 0, maximum: 1 }), w: t.num({ minimum: 0, maximum: 1 }), h: t.num({ minimum: 0, maximum: 1 }) }, { description: 'Fractions of the page or picture' });
+const markRow = t.obj({
+  markId, targetId: t.str(), version: t.int({ minimum: 0 }), kind: t.enm('redact', 'highlight'), shape: t.enm('span', 'box', 'range', 'name'), text: t.opt(t.str()), occurrence: t.opt(t.int({ minimum: 0 })),
+  page: t.opt(t.int({ minimum: 1 })), box: t.opt(box), from: t.opt(t.num()), to: t.opt(t.num()), label: t.opt(t.str()), by: t.str(), byAgent: t.opt(t.str()), via: t.opt(t.str()), at: t.ts(), unplaced: t.bool(),
+});
+const accessOut = {
+  value: agentAccess, own: t.bool(), inherited: agentAccess, from: t.opt(t.obj({ kind: t.enm('file', 'folder'), id: t.str(), name: t.str() })), setBy: t.opt(t.str()), setAt: t.opt(t.ts()),
+  overrides: t.opt(t.arr(t.obj({ kind: t.enm('file', 'folder'), id: t.str(), name: t.str(), value: agentAccess }))), files: t.opt(t.int({ minimum: 0 })),
+};
 const rowId = t.str({ description: 'Stable row id inside a sheet', examples: ['r_12'] });
 
 const fileRow = t.obj({
@@ -106,6 +120,11 @@ export default defineManifest({
     block('file', { fileId: id.file, name: t.str(), kind: fileKind, size: t.int(), version: t.int(), thumb: t.bool() }, 'File {{name}}', {
       opens: { tab: 'viewer', input: { fileId: '/fileId' } },
     }),
+    // Redaction for AI: an agent's "Redact before I can read" in a chat; Open to review opens the file with its Redact tab, Done there wakes the agent
+    block('redact_request', { requestId: redactRequestId, fileId: id.file, name: t.str(), agentId: t.opt(t.str()), state: t.enm('waiting', 'done', 'later') }, 'Redact before I can read: {{name}} is in a Redacted folder.', {
+      actions: [{ key: 'later', label: 'Not now', cap: 'files.redact.later', input: { requestId: '/requestId' } }],
+      opens: { tab: 'viewer', input: { fileId: '/fileId' } },
+    }),
     block('mount', { mountId: id.mount, folderId: id.folder, name: t.str(), provider: t.str(), state: t.str(), lagSeconds: t.opt(t.int()) }, 'Mounted {{name}} from {{provider}}', {
       actions: [{ key: 'sync', label: 'Sync now', cap: 'mounts.sync_now', input: { mountId: '/mountId' } }],
       opens: { tab: 'files', input: { folderId: '/folderId' } },
@@ -128,6 +147,17 @@ export default defineManifest({
     ev('file.comment_added', 'A comment or pin was added to a file', { p: { fileId: id.file, commentId, pin: t.opt(t.int()), mentions: t.arr(t.str()) }, subject: ['file', '/fileId'], label: 'subject' }),
     ev('file.comment_resolved', 'A comment was resolved', { p: { fileId: id.file, commentId }, subject: ['file', '/fileId'], label: 'subject' }),
     ev('file.markup_saved', 'Freehand markup on an image or page was saved', { p: { fileId: id.file, versionId: t.opt(id.version) }, subject: ['file', '/fileId'], label: 'subject' }),
+    ev('file.redacted', 'Part of a file (or a piece of a name) was hidden from AI', { p: { fileId: t.opt(id.file), folderId: t.opt(id.folder), markId, shape: t.str(), label: t.opt(t.str()), by: t.str(), byAgent: t.opt(t.str()), placed: t.opt(t.bool()) }, subject: ['file', '/fileId'], label: 'subject' }),
+    ev('file.unredacted', 'A redaction was taken off (or dropped after a new version)', { p: { fileId: t.opt(id.file), folderId: t.opt(id.folder), markId, shape: t.str(), label: t.opt(t.str()), by: t.str(), dropped: t.opt(t.bool()) }, subject: ['file', '/fileId'], label: 'subject' }),
+    ev('file.highlighted', 'Part of a file was highlighted for the team', { p: { fileId: t.opt(id.file), folderId: t.opt(id.folder), markId, shape: t.str(), label: t.opt(t.str()), by: t.str(), byAgent: t.opt(t.str()) }, subject: ['file', '/fileId'], label: 'subject' }),
+    ev('file.highlight_removed', 'A highlight was removed', { p: { fileId: t.opt(id.file), folderId: t.opt(id.folder), markId, shape: t.str(), label: t.opt(t.str()), by: t.str() }, subject: ['file', '/fileId'], label: 'subject' }),
+    ev('file.reviewed', 'A person reviewed a file for AI: agents may read its redacted version', { p: { fileId: id.file, version: t.int(), by: t.str(), requests: t.int({ minimum: 0 }) }, subject: ['file', '/fileId'], label: 'subject' }),
+    ev('file.needs_review', 'A new version left redactions it could not place: agents wait for a review', { p: { fileId: id.file, version: t.int(), unplaced: t.int({ minimum: 1 }) }, subject: ['file', '/fileId'], label: 'subject' }),
+    ev('file.agent_read', 'An agent read a file from a Redacted folder, or one with parts hidden from AI', { p: { fileId: id.file, version: t.int(), redacted: t.bool(), agentId: t.opt(t.str()), actingFor: t.opt(t.str()) }, subject: ['file', '/fileId'], label: 'subject' }),
+    ev('file.redact_requested', 'An agent asked to read a file nobody has reviewed yet ("Redact before I can read")', { p: { requestId: redactRequestId, fileId: id.file, name: t.str(), agentId: t.opt(t.str()), actingFor: t.opt(t.str()), threadId: t.opt(t.str()) }, subject: ['file', '/fileId'], label: 'subject' }),
+    ev('file.redact_ready', 'A file an agent asked for was reviewed: the agent is woken to read it', { p: { requestId: redactRequestId, fileId: id.file, name: t.str(), by: t.str(), agentId: t.opt(t.str()), actingFor: t.opt(t.str()), threadId: t.opt(t.str()), taskId: t.opt(t.str()) }, subject: ['file', '/fileId'], label: 'subject' }),
+    ev('file.agent_access_changed', 'Agent access of a file changed', { p: { fileId: id.file, value: agentAccess, own: t.bool(), by: t.str() }, subject: ['file', '/fileId'] }),
+    ev('folder.agent_access_changed', 'Agent access of a folder changed', { p: { folderId: id.folder, value: agentAccess, own: t.bool(), by: t.str() }, subject: ['folder', '/folderId'] }),
     ev('folder.created', 'A folder was created', { p: { folderId: id.folder, parentId: t.opt(id.folder), name: t.str() }, subject: ['folder', '/folderId'] }),
     ev('folder.renamed', 'A folder was renamed', { p: { folderId: id.folder, from: t.str(), to: t.str() }, subject: ['folder', '/folderId'] }),
     ev('folder.moved', 'A folder moved', { p: { folderId: id.folder, fromParentId: t.opt(id.folder), toParentId: id.folder }, subject: ['folder', '/folderId'] }),
@@ -294,6 +324,61 @@ export default defineManifest({
     write('files.markup.save', 'Save freehand markup on an image or page', {
       in: { fileId: id.file, page: t.opt(t.int({ minimum: 1 })), strokes: t.arr(t.obj({ color: t.str(), width: t.num(), points: t.arr(t.arr(t.num())) })) },
       out: { ok: t.bool() }, on: ['file', '/fileId'], emits: ['file.markup_saved'], tool: 'files',
+    }),
+    // ---- Redaction for AI (owner 3 Nov): Agent access, the layer, review and requests. Agents read through the host's read gate (host/src/seams/agent-read.ts); these are what people and agents act on.
+    read('files.agent_access.get', 'What agents may read in a folder or of a file: Available, Redacted or Not available, where it comes from, and what is set differently inside', {
+      in: { target }, out: accessOut, dyn: { ref: '/target', allowed: ['file', 'folder'] }, tool: 'files', label: 'check',
+    }),
+    write('files.agent_access.set', 'Set Agent access on a folder or a file (on Available, redact Redacted, off Not available); null follows the folder above', {
+      in: { target, value: t.nullable(agentAccess) }, out: accessOut, dyn: { ref: '/target', allowed: ['file', 'folder'] }, level: 'manage', audit: 'always', emits: ['file.agent_access_changed', 'folder.agent_access_changed'], agent: false,
+    }),
+    read('files.marks.list', 'The redactions and highlights on a file, its review for AI, what a new version could not place, and agents waiting to read it', {
+      in: { fileId: id.file },
+      out: {
+        state: t.enm('available', 'reviewed', 'needs_review', 'off'), access: t.obj(accessOut), version: t.int(), reviewed: t.opt(t.obj({ by: t.str(), at: t.ts(), version: t.int() })),
+        marks: t.arr(markRow), unplaced: t.arr(markRow), names: t.arr(t.obj({ markId, text: t.str() })), requests: t.arr(t.obj({ requestId: redactRequestId, agentId: t.opt(t.str()), actingFor: t.opt(t.str()), at: t.ts() })),
+      },
+      on: ['file', '/fileId'], emits: ['file.needs_review'], label: 'check', agent: false,
+    }),
+    write('files.marks.add', 'Highlight part of a file for the team, or hide it from AI (a span, a box on a scan or picture, a transcript range, or a piece of the name); anyone who can open the file may', {
+      in: {
+        target, kind: t.enm('redact', 'highlight'), shape: t.enm('span', 'box', 'range', 'name'), text: t.opt(t.str({ maxLength: 4000 })), occurrence: t.opt(t.int({ minimum: 0 })),
+        page: t.opt(t.int({ minimum: 1 })), box: t.opt(box), from: t.opt(t.num({ minimum: 0 })), to: t.opt(t.num({ minimum: 0 })), label: t.opt(t.str({ maxLength: 80 })), via: t.opt(t.enm('select', 'check', 'box', 'range', 'name')),
+      },
+      out: { mark: markRow }, dyn: { ref: '/target', allowed: ['file', 'folder'] }, level: 'view', emits: ['file.redacted', 'file.highlighted'], tool: 'files', mcpName: 'files_redact',
+    }),
+    write('files.marks.remove', 'Un-redact or remove a highlight; only a person takes a redaction off', {
+      in: { markId }, out: { removed: t.bool() }, level: 'view', emits: ['file.unredacted', 'file.highlight_removed'], agent: false,
+    }),
+    write('files.marks.place', 'A redaction a new version could not carry over: place it on a near match, or drop it', {
+      in: { markId, text: t.opt(t.str({ minLength: 1 })), drop: t.opt(t.bool()) }, out: { ok: t.bool() }, level: 'view', emits: ['file.redacted', 'file.unredacted'], agent: false,
+    }),
+    write('files.review', 'Mark a file reviewed for AI (Done): agents may read its redacted version, and every agent that asked is woken', {
+      in: { fileId: id.file }, out: { reviewed: t.obj({ by: t.str(), at: t.ts(), version: t.int() }), woke: t.int({ minimum: 0 }) }, on: ['file', '/fileId'], level: 'view', audit: 'always', emits: ['file.reviewed', 'file.redact_ready', 'file.needs_review'], agent: false,
+      errors: ['validation.precondition_failed'],
+    }),
+    write('files.redact.request', 'Ask a person to review a file in a Redacted folder before you read it (Redact before I can read); you are woken when it is ready', {
+      in: { fileId: id.file }, out: { requestId: t.nullable(redactRequestId), state: t.enm('clear', 'redacted', 'needs', 'off') }, on: ['file', '/fileId'], level: 'view', emits: ['file.redact_requested', 'file.needs_review'], tool: 'files', mcpName: 'files_ask_to_read',
+    }),
+    write('files.redact.later', 'Not now: put an agent\'s request to read aside', { in: { requestId: redactRequestId }, out: { ok: t.bool() }, level: 'view', agent: false }),
+    read('files.redact.detect', 'Find things to redact: names from Records, SSNs, dates of birth, account and case numbers, phones, emails and addresses, by pattern checks on the server (no AI reads the file)', {
+      in: { fileId: id.file, names: t.opt(t.arr(t.str())) },
+      out: { suggestions: t.arr(t.obj({ kind: t.str(), label: t.str(), text: t.str(), count: t.int({ minimum: 1 }) })), textLayer: t.bool(), checkedBy: t.enm('patterns') },
+      on: ['file', '/fileId'], label: 'check', agent: false,
+    }),
+    read('files.agent_view', 'What an agent gets of a file now (Preview as agent): its text with [REDACTED], its name and path as agents read them, or why it gets nothing', {
+      in: { fileId: id.file, versionId: t.opt(id.version) },
+      out: { state: t.enm('clear', 'redacted', 'needs', 'off'), name: t.str(), path: t.str(), text: t.nullable(t.str()), boxes: t.opt(t.arr(t.obj({ page: t.int(), box: t.nullable(box) }))) },
+      on: ['file', '/fileId'], emits: ['file.needs_review'], label: 'check', agent: false,
+    }),
+    read('files.agent_states', 'Redaction for AI in a folder: each file\'s badge (Reviewed, Needs review, Not available to AI), each subfolder\'s setting and how many below it wait, and the files to review next', {
+      in: { folderId: id.folder },
+      out: {
+        access: t.obj(accessOut), needs: t.int({ minimum: 0 }), queue: t.arr(id.file),
+        files: t.arr(t.obj({ fileId: id.file, state: t.enm('clear', 'hidden', 'reviewed', 'needs_review', 'off'), own: t.bool(), waiting: t.opt(t.arr(t.str())) })),
+        folders: t.arr(t.obj({ folderId: id.folder, value: agentAccess, own: t.bool(), needs: t.int({ minimum: 0 }) })),
+      },
+      on: ['folder', '/folderId'], emits: ['file.needs_review'], label: 'check', agent: false,
     }),
     // ---- file-tree folders
     create('files.folder.create', 'Create a folder', {

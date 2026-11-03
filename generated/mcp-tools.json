@@ -3123,6 +3123,37 @@
     },
     {
       "blocks": [],
+      "cap": "agents.instruction.append",
+      "deferred": false,
+      "description": "Make a lesson an instruction: one line added to the agent's AGENT.md under Lessons from corrections, as a new version with an inline Undo; needs Edit on the agent",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "line": {
+            "maxLength": 240,
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "line"
+        ],
+        "type": "object"
+      },
+      "name": "agents_instruction_append",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.limits.get",
       "deferred": false,
       "description": "Effective limits of an agent: agent.toml capped by Space caps",
@@ -5030,6 +5061,19 @@
         "properties": {
           "definition": {
             "properties": {
+              "ai": {
+                "properties": {
+                  "backupKeyId": {
+                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "type": "string"
+                  },
+                  "keyId": {
+                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
               "allowSelfTrigger": {
                 "type": "boolean"
               },
@@ -6622,6 +6666,19 @@
           },
           "definition": {
             "properties": {
+              "ai": {
+                "properties": {
+                  "backupKeyId": {
+                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "type": "string"
+                  },
+                  "keyId": {
+                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
               "allowSelfTrigger": {
                 "type": "boolean"
               },
@@ -6933,6 +6990,19 @@
         "properties": {
           "definition": {
             "properties": {
+              "ai": {
+                "properties": {
+                  "backupKeyId": {
+                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "type": "string"
+                  },
+                  "keyId": {
+                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
               "allowSelfTrigger": {
                 "type": "boolean"
               },
@@ -19083,6 +19153,74 @@
     },
     {
       "blocks": [],
+      "cap": "files.agent_access.get",
+      "deferred": false,
+      "description": "What agents may read in a folder or of a file: Available, Redacted or Not available, where it comes from, and what is set differently inside",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "target": {
+            "description": "The file or folder",
+            "properties": {
+              "id": {
+                "examples": [
+                  "fil_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "file",
+                  "folder"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "target"
+        ],
+        "type": "object"
+      },
+      "name": "files_agent_access_get",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "files.redact.request",
+      "deferred": false,
+      "description": "Ask a person to review a file in a Redacted folder before you read it (Redact before I can read); you are woken when it is ready",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "name": "files_ask_to_read",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "files.comments.add",
       "deferred": false,
       "description": "Comment on a file, a range, a cell, a page or an area (area comments are numbered pins); @ people and agents",
@@ -20237,6 +20375,132 @@
       },
       "name": "files_recent",
       "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "files.marks.add",
+      "deferred": false,
+      "description": "Highlight part of a file for the team, or hide it from AI (a span, a box on a scan or picture, a transcript range, or a piece of the name); anyone who can open the file may",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "box": {
+            "description": "Fractions of the page or picture",
+            "properties": {
+              "h": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "w": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "x": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "y": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "w",
+              "h"
+            ],
+            "type": "object"
+          },
+          "from": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "kind": {
+            "enum": [
+              "redact",
+              "highlight"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 80,
+            "type": "string"
+          },
+          "occurrence": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "page": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "shape": {
+            "enum": [
+              "span",
+              "box",
+              "range",
+              "name"
+            ],
+            "type": "string"
+          },
+          "target": {
+            "description": "The file or folder",
+            "properties": {
+              "id": {
+                "examples": [
+                  "fil_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "file",
+                  "folder"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "type": "object"
+          },
+          "text": {
+            "maxLength": 4000,
+            "type": "string"
+          },
+          "to": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "via": {
+            "enum": [
+              "select",
+              "check",
+              "box",
+              "range",
+              "name"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "kind",
+          "shape"
+        ],
+        "type": "object"
+      },
+      "name": "files_redact",
+      "planMode": "blocked",
       "toolset": "files",
       "v": 1
     },
@@ -35733,6 +35997,65 @@
     },
     {
       "blocks": [],
+      "cap": "memory.corrections.record",
+      "deferred": false,
+      "description": "Keep a lesson from a correction made outside the chat's own words: an edit of the agent's draft, a declined or sent-back action, an undo. Called as the person who corrected; kept only when their switch Learn from my corrections is on",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "how": {
+            "enum": [
+              "edit",
+              "refuse",
+              "reverse",
+              "rewrite"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "description": "The person's own words, when they gave a reason",
+            "type": "string"
+          },
+          "now": {
+            "description": "What the person changed it to",
+            "type": "string"
+          },
+          "ref": {
+            "description": "What was corrected, so the same correction makes one lesson",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "was": {
+            "description": "What the agent did or wrote",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "how"
+        ],
+        "type": "object"
+      },
+      "name": "memory_corrections_record",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.counts",
       "deferred": false,
       "description": "Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own",
@@ -35977,6 +36300,10 @@
           },
           "fromMe": {
             "type": "boolean"
+          },
+          "kind": {
+            "description": "Only facts of this kind, for example lesson",
+            "type": "string"
           },
           "layer": {
             "enum": [
@@ -49281,6 +49608,30 @@
     },
     {
       "blocks": [],
+      "cap": "search.ask",
+      "deferred": false,
+      "description": "Ask the Space: answer a question from the chats, records, files, tasks and notes the caller may read, on the caller's own AI account, with numbered citations; nothing readable gives the no-access answer and calls no model",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "q": {
+            "maxLength": 500,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "q"
+        ],
+        "type": "object"
+      },
+      "name": "search_ask",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "search.index.rebuild",
       "deferred": false,
       "description": "Rebuild the index for an entity or the whole Space from the projections",
@@ -59503,6 +59854,11 @@
                 "type": "null"
               }
             ]
+          },
+          "expectedVersion": {
+            "description": "The version the editor saw; a task that moved on is refused with what changed, never overwritten",
+            "minimum": 0,
+            "type": "integer"
           },
           "fields": {
             "additionalProperties": true,

@@ -3,6 +3,7 @@
 // Private content never reaches the index: a source answers `e2e` (the name of the row's encryption label, not a claim about the chat) for a private chat, a Restricted row or a sealed message, and apply then removes whatever was there.
 import { askerOf, embed, ensure, mintId, num, putDoc, removeDoc, rowsOf, str, vectorsOf, writeVector, sourceFor } from "../projections.ts";
 import type { IndexDoc, Resolved, SearchCtx, Source } from "../projections.ts";
+import { ask } from "./ask.ts";
 import { actionsList, query, recentList, related, resolveItem } from "./query.ts";
 
 const NOT_FOUND = new Set(["validation.not_found", "permission.not_found"]);
@@ -76,14 +77,26 @@ const fileSource: Source = async (ctx, id) => {
     const p = text(fo?.folder?.["path"]);
     if (p) path = `${p.replace(/\/$/, "")}/${name}`;
   }
+  const textual = TEXTUAL.has(text(f["kind"]));
   let body = "";
-  if (TEXTUAL.has(text(f["kind"]))) {
+  if (textual) {
     const r = await read<{ text?: string }>(ctx, "files.read", { fileId: id, as: "text", length: 20_000 });
     body = text(r?.text);
   }
+  // Redaction for AI: a person's search keeps the whole text (a person who may read the file finds a redacted word in it). When an agent may read less, the agent's view is kept beside it, and an
+  // agent's search matches and quotes only that: [REDACTED] where a part is hidden, no body while the file waits for review, nothing at all while agents may not see it or the view is not there.
+  type View = { state?: string; name?: string; path?: string; text?: string | null };
+  let v: View | null;
+  try { v = await read<View>(ctx, "files.agent_view", { fileId: id }); } catch { v = null; }   // fail closed: no view, nothing for an agent; a person's search is untouched
+  const agentTitle = text(v?.name) || name;
+  const agentFolder = text(v?.path);
+  const agentPath = agentFolder ? `${agentFolder.replace(/\/$/, "")}/${agentTitle}` : agentTitle;
+  const agentBody = textual ? text(v?.text).slice(0, 20_000) : "";
+  const differs = !v || (v.state ?? "clear") !== "clear" || agentTitle !== name || agentBody !== body.slice(0, 20_000);
   const doc: IndexDoc = {
     entity: "file", id, kind: "file", title: name, body, path, link: `vyre://file/${id}`, label, resource: { type: "file", id }, ...(folderId ? { folderId } : {}),
     ...(typeof f["updatedAt"] === "number" ? { updatedAt: f["updatedAt"] } : {}),
+    ...(differs ? { agent: { title: agentTitle, path: agentPath, body: v ? agentBody : "", withheld: !v || v.state === "off" } } : {}),
   };
   return { doc };
 };
@@ -339,6 +352,7 @@ export async function recentRecord(ctx: SearchCtx, input: { kind: string; itemId
 
 export const handlers = {
   "search.query": query,
+  "search.ask": ask,
   "search.resolve": resolveItem,
   "search.recent.list": recentList,
   "search.recent.record": recentRecord,

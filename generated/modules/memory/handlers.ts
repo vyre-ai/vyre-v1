@@ -10,6 +10,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "memory.capture": Handler<"memory.capture", X>;
   "memory.chat_learning.get": Handler<"memory.chat_learning.get", X>;
   "memory.chat_learning.set": Handler<"memory.chat_learning.set", X>;
+  "memory.corrections.record": Handler<"memory.corrections.record", X>;
   "memory.counts": Handler<"memory.counts", X>;
   "memory.erase": Handler<"memory.erase", X>;
   "memory.export_markdown": Handler<"memory.export_markdown", X>;

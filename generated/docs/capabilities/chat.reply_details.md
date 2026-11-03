@@ -52,6 +52,7 @@ type Out = {
       shared?: boolean;
       accountRef?: string;
       state: "queued" | "running" | "waiting" | "completed" | "failed" | "cancelled";
+      paid?: string;
       ranOn: Array<{
           kind: string;
           name: string;
@@ -212,6 +213,7 @@ type Out = {
           ]
         },
         "model": "example",
+        "paid": "example",
         "partial": true,
         "private": true,
         "provider": "example",

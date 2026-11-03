@@ -11,7 +11,7 @@ import { open } from "../control.ts";
 import type { EngineCtx } from "../../projections.ts";
 import { blockedBy, readPolicy } from "./config.ts";
 import { ensureExtra } from "./schema.ts";
-import { saveTurnInfo } from "./reply-info.ts";
+import { ensureInfo, saveTurnInfo } from "./reply-info.ts";
 import type { TurnInfo } from "../../../../agent/src/turn-engine/types.ts";
 import { num, optStr, pageOf, rows, str, turnOf } from "./util.ts";
 import type { ErrShape, Row, TurnOut, TurnState } from "./util.ts";
@@ -311,9 +311,15 @@ function stepOf(block: Row, prevAt: number): Step {
   return { idx: num(block["idx"]), kind: str(block["kind"]), title, durationMs: Math.max(0, num(block["at"]) - prevAt), ok: !failed };
 }
 
+/** The stored line of who paid and why (engine_turn_info); an older turn has none. */
+function paidOf(ctx: EngineCtx, turnId: string): string | undefined {
+  ensureInfo(ctx.db);
+  try { const r = rows(ctx, "SELECT info FROM engine_turn_info WHERE turn_id = ?", turnId)[0]; const p = r && typeof r["info"] === "string" ? (JSON.parse(r["info"]) as { paid?: unknown }).paid : undefined; return typeof p === "string" ? p : undefined; } catch { return undefined; }
+}
+
 export function turnGet(ctx: EngineCtx, input: { turnId: string }): {
   what: {
-    turn: TurnOut; machine: "host" | "device"; keyUsed?: string; steps: Step[];
+    turn: TurnOut; machine: "host" | "device"; keyUsed?: string; paid?: string; steps: Step[];
     denials: Array<{ cap: string; reason: string }>; fallbacks: Array<{ kind: string; to: string; at: number }>; reached?: string[];
   };
 } {
@@ -342,7 +348,7 @@ export function turnGet(ctx: EngineCtx, input: { turnId: string }): {
   const net = egressOfTurn(ctx.db, { threadId: str(t["thread_id"]), person: str(t["asker"]), from: num(t["started_at"]), to: t["ended_at"] === null || t["ended_at"] === undefined ? ctx.now() : num(t["ended_at"]) });
   for (const r of net.refused) denials.push({ cap: "internet", reason: `${r.host}:${r.port} blocked: ${REFUSAL_WORDS[r.reason]}` });
   const firstRan = (Array.isArray(t["ran_on"]) ? (t["ran_on"] as Array<{ kind?: string }>)[0]?.kind : undefined);
-  return { what: { turn: turnOf(t), machine: str(t["placement"]) === "device" || firstRan === "computer" ? "device" : "host", ...(key === undefined ? {} : { keyUsed: key }), steps, denials, fallbacks, ...(net.reached.length > 0 ? { reached: net.reached } : {}) } };
+  return { what: { turn: turnOf(t), machine: str(t["placement"]) === "device" || firstRan === "computer" ? "device" : "host", ...(key === undefined ? {} : { keyUsed: key }), ...(paidOf(ctx, input.turnId) ? { paid: paidOf(ctx, input.turnId) } : {}), steps, denials, fallbacks, ...(net.reached.length > 0 ? { reached: net.reached } : {}) } };
 }
 
 export function turnsList(ctx: EngineCtx, input: { threadId: string; state?: TurnState[]; cursor?: string; limit?: number }): { turns: TurnOut[]; next?: string; total?: number } {

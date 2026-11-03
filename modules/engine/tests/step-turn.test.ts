@@ -10,7 +10,7 @@ import { capsSet, pauseAll, usageQuery } from "../handlers/spend.ts";
 import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
 import type { DriverEvent } from "../../../agent/src/turn-engine/types.ts";
 
-type Prov = { id: string; handle?: string; itemId: string; name: string; providerKey: string; connection: "subscription" | "api_key" | "local_model"; scope: "mine" | "shared"; engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing" };
+type Prov = { id: string; handle?: string; itemId: string; name: string; providerKey: string; connection: "subscription" | "api_key" | "local_model"; scope: "mine" | "shared"; engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing"; uses?: Record<string, unknown>; capped?: boolean };
 const key = (over: Partial<Prov> = {}): Prov => ({ id: "prv_1", handle: "#Mine_Anthropic", itemId: "vit_1", name: "Mine Anthropic", providerKey: "anthropic", connection: "api_key", scope: "mine", engine: "anthropic", spaceMayUse: false, state: "ok", ...over });
 const team = (over: Partial<Prov> = {}): Prov => key({ id: "prv_t", handle: "#Team_Key", itemId: "vit_t", name: "Team key", scope: "shared", ...over });
 const sub = (over: Partial<Prov> = {}): Prov => key({ id: "prv_s", handle: "#My_Claude", itemId: "vit_c", name: "My Claude", providerKey: "claude-code", connection: "subscription", engine: "claude-code", spaceMayUse: true, ...over });
@@ -194,4 +194,37 @@ test("the Space's label rule is asked of every record the run read: a provider i
   assert.equal((await run(h, { recordIds: ["rec_ok"], idempotencyKey: "l2" })).keyUsed, "#Mine_Anthropic");
   assert.equal((await run(h, { idempotencyKey: "l3" })).keyUsed, "#Mine_Anthropic");
   assert.equal(asked.length >= 2, true);
+});
+
+test("an automation's AI account pays only when the Space kept it for automations, and its cap and backup are honoured; a step's own key keeps the old rule", async () => {
+  const svc = { kind: "service" as const, id: "svc_abc" };
+  const credits = team({ id: "prv_c", handle: "#Team_Credits", itemId: "vit_c", name: "Team credits", uses: { automations: true } });
+  const chatsOnly = team({ id: "prv_o", handle: "#Chats_Only", itemId: "vit_o", name: "Chats only", uses: { teamChats: { who: "everyone" } } });
+  const backup = team({ id: "prv_b", handle: "#Backup_Credits", itemId: "vit_b", name: "Backup credits", uses: { automations: true } });
+  const withAccount = { keyFrom: "automation" as const };
+  // the picked account pays, ahead of a cheaper one kept for the same thing
+  const a = scene({ principal: svc, providers: [backup, credits] });
+  const out = await run(a.h, { ...withAccount, keyId: "prv_c", idempotencyKey: "a1" });
+  assert.equal(out.keyUsed, "#Team_Credits");
+  assert.equal(a.provider.specs[0]!.account?.ref, "#Team_Credits");
+  assert.equal(a.provider.specs[0]!.account?.payer, "svc_abc");
+  // a pick kept for team chats only is passed over: Automatic (the account kept for automations) takes the step
+  const b = scene({ principal: svc, providers: [chatsOnly, credits] });
+  assert.equal((await run(b.h, { ...withAccount, keyId: "prv_o", idempotencyKey: "b1" })).keyUsed, "#Team_Credits");
+  // and with nothing else kept for automations the step is refused, naming the account and what to tick
+  const c = scene({ principal: svc, providers: [chatsOnly] });
+  await assert.rejects(run(c.h, { ...withAccount, keyId: "prv_o", idempotencyKey: "c1" }), (e) => { assert.equal(codeOf(e), "provider.auth_failed"); assert.match((e as { error: { message: string } }).error.message, /Chats only.*not set to pay for automations/); return true; });
+  assert.equal(c.provider.specs.length, 0, "nothing ran on the wrong account");
+  // a main at its cap hands the step to the backup, and with no backup the refusal names the cap
+  const d = scene({ principal: svc, providers: [{ ...credits, capped: true }, backup] });
+  assert.equal((await run(d.h, { ...withAccount, keyId: "prv_c", backupKeyId: "prv_b", idempotencyKey: "d1" })).keyUsed, "#Backup_Credits");
+  const e = scene({ principal: svc, providers: [{ ...credits, capped: true }] });
+  await assert.rejects(run(e.h, { ...withAccount, keyId: "prv_c", idempotencyKey: "e1" }), (x) => { assert.match((x as { error: { message: string } }).error.message, /Team credits.*reached its monthly cap/); return true; });
+  assert.equal(e.provider.specs.length, 0);
+  // a backup that is not kept for automations does not pay
+  const f = scene({ principal: svc, providers: [{ ...credits, capped: true }, chatsOnly] });
+  await assert.rejects(run(f.h, { ...withAccount, keyId: "prv_c", backupKeyId: "prv_o", idempotencyKey: "f1" }), (x) => codeOf(x) === "provider.auth_failed");
+  // a key named on the step itself (no keyFrom) keeps the old rule: it pays even where uses would not reach
+  const g = scene({ principal: svc, providers: [chatsOnly, credits] });
+  assert.equal((await run(g.h, { keyId: "prv_o", idempotencyKey: "g1" })).keyUsed, "#Chats_Only");
 });

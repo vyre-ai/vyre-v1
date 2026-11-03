@@ -137,3 +137,46 @@ test("an agent pinned to a key goes down its own ordered fallback list as config
   assert.equal(last.accountRef, "#F");
   assert.notEqual(last.reason, "backup_key", "a Space account nobody listed as a fallback is not one");
 });
+
+test("an agent's AI account pick pays for its own work (routines, watchers, helpers) and only where the Space kept that account for this agent; a chat stays on the asker's own account", () => {
+  const accounts = [OWN, WORK_ALL, WORK_SCOUT, CREDITS];
+  const scout = { accountPolicy: "asker" as const, agentId: "agt_scout", workKey: "#Scout_Work" };
+  // the pick pays, even though a cheaper account that covers the work exists
+  const cheap = row({ ref: "#Cheap_Work", cost: 1, uses: { agentWork: { which: "all" } }, models: ["claude-sonnet-5-5"] });
+  const picked = resolveAccount(base({ trigger: "routine", agent: { ...scout, workKey: "#Agent_Work" }, accounts: [OWN, cheap, WORK_ALL] }));
+  assert.deepEqual([picked.accountRef, picked.pin], ["#Agent_Work", { ref: "#Agent_Work", used: true }]);
+  // Automatic (no pick) is the cheapest that covers it
+  assert.equal(ref(resolveAccount(base({ trigger: "routine", agent: { accountPolicy: "asker", agentId: "agt_scout" }, accounts: [OWN, cheap, WORK_ALL] }))), "#Cheap_Work");
+  // the same pick in a chat does nothing: the asker's own account answers
+  assert.equal(ref(resolveAccount(base({ trigger: "message", agent: scout, accounts }))), "#Dana_Anthropic");
+  // an account kept for another agent's work is passed over with its reason, and the work falls to the account that does cover it
+  const other = resolveAccount(base({ trigger: "routine", agent: { accountPolicy: "asker", agentId: "agt_spark", workKey: "#Scout_Work" }, accounts: [OWN, WORK_SCOUT, WORK_ALL] }));
+  assert.deepEqual([other.accountRef, other.pin], ["#Agent_Work", { ref: "#Scout_Work", used: false, why: "not_used_for" }]);
+  // an account kept for automations only is not for agent work
+  const wrong = resolveAccount(base({ trigger: "routine", agent: { ...scout, workKey: "#Anthropic_Team_credits" }, accounts: [OWN, CREDITS, WORK_ALL] }));
+  assert.deepEqual([wrong.accountRef, wrong.pin?.why], ["#Agent_Work", "not_used_for"]);
+  // a capped pick is passed over with its reason
+  const capped = resolveAccount(base({ trigger: "routine", agent: { ...scout, workKey: "#Agent_Work" }, accounts: [{ ...WORK_ALL, capped: true }, WORK_SCOUT] }));
+  assert.deepEqual([capped.accountRef, capped.pin], ["#Scout_Work", { ref: "#Agent_Work", used: false, why: "capped" }]);
+  // nothing else could pay: the run waits and says no account
+  assert.equal(resolveAccount(base({ trigger: "routine", agent: { accountPolicy: "asker", agentId: "agt_spark", workKey: "#Scout_Work" }, accounts: [WORK_SCOUT] })).allowed, false);
+});
+
+test("an automation's AI account and backup pay only when kept for automations; Automatic is the cheapest that is; a step's own key keeps the old rule", () => {
+  const OC = row({ ref: "#OpenCode_Go_for_everyone", cost: 1, uses: { teamChats: { who: "everyone" } }, models: ["glm-5.3"] });
+  const AUTO_B = row({ ref: "#Backup_Credits", cost: 4, uses: { automations: true }, models: ["claude-sonnet-5-5"] });
+  const run = (o: Partial<ResolveRequest>) => resolveAccount(base({ trigger: "task", accounts: [CREDITS, AUTO_B, OC], ...o }));
+  assert.equal(ref(run({})), "#Anthropic_Team_credits", "Automatic: the cheapest kept for automations");
+  const picked = run({ stepKey: "#Backup_Credits", useChecked: ["#Backup_Credits"] });
+  assert.deepEqual([picked.accountRef, picked.pin], ["#Backup_Credits", { ref: "#Backup_Credits", used: true }]);
+  // the pick is kept for team chats only: passed over with its reason, and Automatic takes the step
+  const notFor = run({ stepKey: "#OpenCode_Go_for_everyone", useChecked: ["#OpenCode_Go_for_everyone"] });
+  assert.deepEqual([notFor.accountRef, notFor.pin], ["#Anthropic_Team_credits", { ref: "#OpenCode_Go_for_everyone", used: false, why: "not_used_for" }]);
+  // a capped main hands the step to the backup first
+  const cap = run({ stepKey: "#Anthropic_Team_credits", backupRefs: ["#Backup_Credits"], useChecked: ["#Anthropic_Team_credits", "#Backup_Credits"], accounts: [{ ...CREDITS, capped: true }, AUTO_B] });
+  assert.deepEqual([cap.accountRef, cap.pin], ["#Backup_Credits", { ref: "#Anthropic_Team_credits", used: false, why: "capped" }]);
+  // a backup that is not kept for automations does not pay either
+  assert.equal(run({ stepKey: "#Anthropic_Team_credits", backupRefs: ["#OpenCode_Go_for_everyone"], useChecked: ["#Anthropic_Team_credits", "#OpenCode_Go_for_everyone"], accounts: [{ ...CREDITS, capped: true }, OC] }).allowed, false);
+  // a key named on the step itself keeps the old rule: the pin decides
+  assert.equal(ref(run({ stepKey: "#OpenCode_Go_for_everyone" })), "#OpenCode_Go_for_everyone");
+});

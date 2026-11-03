@@ -8,6 +8,8 @@ import type { TaskState } from "../../../../../../ui/src/TaskPage/model.ts";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import { BOARD_STATES, cardHeight, dueLabel, holderOf } from "./model.ts";
+import { gridStep } from "./keys.ts";
+import { CARD_ATTR, useRoving } from "./roving.ts";
 import type { TaskRow } from "./model.ts";
 import { BatonMarks, FaceButton, LiveWords, useLiveTurn } from "./parts.tsx";
 import type { RowEnv } from "./parts.tsx";
@@ -15,12 +17,12 @@ import type { RowEnv } from "./parts.tsx";
 type Drag = { current: TaskRow | null };
 type DragStart = { dataTransfer?: { setData(t: string, v: string): void; effectAllowed: string } };
 
-const Card = memo(function Card({ row, env, drag }: { row: TaskRow; env: RowEnv; drag: Drag }): ReactElement {
+const Card = memo(function Card({ row, env, drag, tab, onActive }: { row: TaskRow; env: RowEnv; drag: Drag; tab: boolean; onActive(id: string): void }): ReactElement {
   const turn = useLiveTurn(env.turns, row.workerThread ?? row.threadId);
   const h = holderOf(row) ?? row.assigned;
   const due = dueLabel(row.due, env.now, env.offsetMin);
   const context = row.recordId ? env.project(row.recordId) : undefined;
-  const card = <Pressable accessibilityRole="button" accessibilityLabel={row.title} testID={`task-card-${row.id}`} onPress={() => env.open(row.id)} {...menuTrigger((x, y) => env.menu(row, { x, y }))} style={({ hovered }: { hovered?: boolean }) => [st.card, hovered === true && st.cardOver]}>
+  const card = <Pressable accessibilityRole="button" accessibilityLabel={row.title} testID={`task-card-${row.id}`} onPress={() => env.open(row.id)} onFocus={() => onActive(row.id)} {...(Platform.OS === "web" ? { focusable: true, dataSet: { [CARD_ATTR.slice(5)]: row.id }, tabIndex: tab ? 0 : -1 } : {})} {...menuTrigger((x, y) => env.menu(row, { x, y }))} style={({ hovered }: { hovered?: boolean }) => [st.card, hovered === true && st.cardOver]}>
     <Text numberOfLines={2} style={st.title}>{row.title}</Text>
     {turn ? <LiveWords turn={turn} turns={env.turns} name={env.nameOf(turn.agentId)} /> : context ? <Text numberOfLines={1} style={st.sub}>{context}</Text> : null}
     <View style={{ flex: 1 }} />
@@ -41,14 +43,14 @@ const Card = memo(function Card({ row, env, drag }: { row: TaskRow; env: RowEnv;
   }, card);
 });
 
-function Column({ state, rows, env, drag, drop, window }: { state: TaskState; rows: readonly TaskRow[]; env: RowEnv; drag: Drag; drop(state: TaskState): void; window?: VirtualWindow }): ReactElement {
+function Column({ state, rows, env, drag, drop, window, tab, active, onActive }: { state: TaskState; rows: readonly TaskRow[]; env: RowEnv; drag: Drag; drop(state: TaskState): void; window?: VirtualWindow; tab: string | null; active: string | null; onActive(id: string): void }): ReactElement {
   const [over, setOver] = useState(false);
   const heightOf = useCallback((r: TaskRow): number => cardHeight(r, r.recordId ? env.project(r.recordId) !== undefined : false), [env]);
   const body = <View testID={`board-col-${state}`} style={[st.col, over && st.colOver]}>
     <View style={st.head}><StatusDot state={state} size={13} /><Text style={st.headText}>{stateTitle(state)}</Text><Text style={st.count}>{rows.length}</Text></View>
     <View style={{ flex: 1, minHeight: 0 }}>
       {/* ui-rows-lint: not a list (board cards, not rows) */}
-      <VirtualList data={rows} rowHeight="measure" heightOf={heightOf} keyOf={(r) => r.id} renderItem={(r) => <Card row={r} env={env} drag={drag} />} {...(window ? { window } : {})} />
+      <VirtualList data={rows} rowHeight="measure" heightOf={heightOf} keyOf={(r) => r.id} renderItem={(r) => <Card row={r} env={env} drag={drag} tab={r.id === tab} onActive={onActive} />} reveal={active === null ? -1 : rows.findIndex((r) => r.id === active)} {...(window ? { window } : {})} />
     </View>
   </View>;
   if (Platform.OS !== "web") return body;
@@ -70,9 +72,15 @@ export function Board({ rows, doneRows, env, onDrop, window }: { rows: readonly 
     return by;
   }, [rows, doneRows]);
   const drop = (state: TaskState): void => { const r = drag.current; drag.current = null; if (r && r.state !== state) onDrop(r, state); };
+  // the keys: one card takes Tab, arrows move between cards, Enter opens, Space or S changes status, Esc lets go
+  const order = useMemo(() => BOARD_STATES.map((s) => (cols.get(s) ?? []).map((r) => r.id)), [cols]);
+  const byId = useMemo(() => { const m = new Map<string, TaskRow>(); for (const list of cols.values()) for (const r of list) m.set(r.id, r); return m; }, [cols]);
+  const roving = useRoving({ cols: order, step: (at, dir) => gridStep(order, at, dir), open: (id) => env.open(id), status: (id, at) => { const r = byId.get(id); if (r) env.status(r, at); } });
   const lanes: ReactElement[] = [];
-  for (const s of BOARD_STATES) lanes.push(<Column key={s} state={s} rows={cols.get(s) ?? []} env={env} drag={drag} drop={drop} {...(window ? { window } : {})} />);
-  return <ScrollView horizontal testID="tasks-board" style={{ flex: 1 }} contentContainerStyle={st.board}>{lanes}</ScrollView>;
+  for (const s of BOARD_STATES) lanes.push(<Column key={s} state={s} rows={cols.get(s) ?? []} env={env} drag={drag} drop={drop} tab={roving.tab} active={roving.active} onActive={roving.setActive} {...(window ? { window } : {})} />);
+  const board = <ScrollView horizontal testID="tasks-board" style={{ flex: 1 }} contentContainerStyle={st.board}>{lanes}</ScrollView>;
+  if (Platform.OS !== "web") return board;
+  return createElement("div", { "data-testid": "tasks-board-keys", style: { display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }, onKeyDownCapture: roving.onKeyDownCapture, onKeyUpCapture: roving.onKeyUpCapture }, board);
 }
 
 const CARD_GAP = 7, COL_MIN = 176, COL_MAX = 320;

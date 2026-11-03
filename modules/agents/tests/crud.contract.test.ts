@@ -37,7 +37,7 @@ const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
 test("the handler table covers exactly the 93 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 93);   // 68, agents.config.may_save (l-agenttoml), the eight Connections of l-connections, agents.assistant_of (l-meetings) and the fifteen skill scopes of l-skills2
+  assert.equal(mine.length, 94);   // 68, agents.config.may_save (l-agenttoml), the eight Connections of l-connections, agents.assistant_of (l-meetings) and the fifteen skill scopes of l-skills2, agents.instruction.append (lessons)
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
@@ -101,6 +101,9 @@ const scenarios: Scenario[] = [
   { cap: "agents.update", run: (hn) => h["agents.update"]!(hn.ctx, { agentId: "agt_none", patch: {} }), expect: "validation.not_found" },
   { cap: "agents.role_line.set", setup: withAgent, run: (hn, s) => h["agents.role_line.set"]!(hn.ctx, { agentId: s.id, description: "Use me for new matters." }) },
   { cap: "agents.role_line.set", setup: withAgent, run: (hn, s) => h["agents.role_line.set"]!(hn.ctx, { agentId: s.id, description: "two\nlines" }), expect: "validation.bad_input" },
+  { cap: "agents.instruction.append", setup: withAgent, run: (hn, s) => h["agents.instruction.append"]!(hn.ctx, { agentId: s.id, line: "Notes to Sara: three lines, the number first." }) },
+  { cap: "agents.instruction.append", setup: withAgent, run: (hn, s) => h["agents.instruction.append"]!(hn.ctx, { agentId: s.id, line: "" }), expect: "validation.bad_input" },
+  { cap: "agents.instruction.append", run: (hn) => h["agents.instruction.append"]!(hn.ctx, { agentId: "agt_none", line: "x" }), expect: "validation.not_found" },
   { cap: "agents.role_line.set", run: (hn) => h["agents.role_line.set"]!(hn.ctx, { agentId: "agt_none", description: "x" }), expect: "validation.not_found" },
   { cap: "agents.pause", setup: withAgent, run: (hn, s) => h["agents.pause"]!(hn.ctx, { agentId: s.id, reason: "Cost review" }) },
   { cap: "agents.pause", run: (hn) => h["agents.pause"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },

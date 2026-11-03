@@ -4,7 +4,7 @@
 // The person themselves sees their agents by name. Logs (Console audit) add which agent it was in a details line, from `agentName`.
 import type { Principal } from "../../places/home/sections-a/data.tsx";
 
-export interface PrincipalIn { id: string; name: string; kind: string; owner?: string; private?: boolean; agentName?: string }
+export interface PrincipalIn { id: string; name: string; kind: string; owner?: string; private?: boolean; agentName?: string; roles?: readonly string[] }
 
 /** How someone else's private agent is named: its person, marked as their agent. The server already answers it so (access.principals.list); this is the same words. */
 export const asAgentOf = (personName: string): string => `${personName} (Agent)`;
@@ -20,6 +20,8 @@ export function directoryOf(rows: readonly PrincipalIn[], own: { id: string; nam
   return rows.map((x) => {
     const kind = x.kind === "person" ? "person" : "agent";
     const out: Principal = { id: x.id, name: x.id === own.id ? own.name : x.name, kind };
+    // a guest works inside what was shared with them: the one built-in role they hold is Guest
+    if (kind === "person" && x.roles && x.roles.length > 0 && x.roles.every((r) => r === "rol_guest")) out.guest = true;
     if (kind !== "agent" || x.owner === undefined) return out;
     out.owner = x.owner;
     if (x.private === true) {

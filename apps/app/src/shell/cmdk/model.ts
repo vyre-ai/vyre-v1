@@ -109,14 +109,20 @@ export const GROUPS: readonly (readonly [HitKind, string])[] = [
   ["task", "Tasks"], ["file", "Files"], ["automation", "Automations"], ["app", "Apps"], ["setting", "Settings"], ["memory", "Memory"], ["note", "Notes"],
 ];
 
+/** What a source of an answer is, as search.ask returns it: a search hit with its number and where it lives (Chat, File, Record ...). */
+export type AskAnswer = CapMap["search.ask"]["out"];
+export type AskSource = AskAnswer["sources"][number];
+
 export type RowModel =
   | { type: "head"; key: string; title: string }
+  | { type: "ask"; key: string; question: string }
+  | { type: "source"; key: string; source: AskSource }
   | { type: "hit"; key: string; hit: Hit }
   | { type: "action"; key: string; action: CmdAction }
   | { type: "skin"; key: string; id: string; name: string; swatch?: string; current: boolean }
   | { type: "empty"; key: string; title: string };
 
-export const isSelectable = (r: RowModel): boolean => r.type === "hit" || r.type === "action" || r.type === "skin";
+export const isSelectable = (r: RowModel): boolean => r.type === "hit" || r.type === "action" || r.type === "skin" || r.type === "ask" || r.type === "source";
 
 export function groupRows(hits: readonly Hit[], cap: number): RowModel[] {
   const rows: RowModel[] = [];
@@ -153,3 +159,64 @@ export function stepActive(rows: readonly RowModel[], from: number, dir: 1 | -1 
   if (at < 0) return (dir === 1 ? sel[0] : sel[sel.length - 1]) ?? -1;
   return sel[(at + dir + sel.length) % sel.length] ?? -1;
 }
+
+/* ---------- Ask the Space (owner decision, 3 Nov 2026): a question typed in the search is answered from what the person may read ---------- */
+
+const QUESTION = /^(who|whom|what|when|where|why|how|which|did|does|do|is|are|was|were|can|could|should|has|have|any)\b/i;
+const STOP = new Set(["what", "who", "whom", "when", "where", "why", "how", "which", "did", "does", "do", "is", "are", "was", "were", "can", "could", "should", "has", "have", "had", "any", "say", "said", "about", "the", "a", "an", "of", "to", "for", "on", "in", "me", "my", "i", "we", "and", "with", "tell"]);
+
+/** A question (it ends in "?" or starts with a question word). */
+export const isQuestion = (text: string): boolean => /\?\s*$/.test(text) || QUESTION.test(text.trim());
+
+/** Worth offering to ask: a question, or a phrase of four words or more. A prefixed search (@ # / >) never is. */
+export function askable(parsed: ParsedQuery): boolean {
+  const t = parsed.text.trim();
+  return parsed.prefix === null && t.length > 3 && (isQuestion(t) || t.split(/\s+/).length >= 4);
+}
+
+/** The words that say what a question is about ("what did Elena say about the lease" searches Elena and lease). All of it when nothing is left. */
+export function keywords(text: string): string {
+  const words = text.toLowerCase().match(/[\p{L}\p{N}_]+/gu) ?? [];
+  const kept = words.filter((w) => !STOP.has(w));
+  return (kept.length > 0 ? kept : words).join(" ");
+}
+
+/** What the search looks up for a typed text: the words of a question, else the text as typed. */
+export const searchText = (parsed: ParsedQuery): string => (askable(parsed) ? keywords(parsed.text) : parsed.text);
+
+export type AnswerPart = { text: string } | { cite: number };
+
+/** An answer's text as plain text and citation marks: "Elena asked [1]." is "Elena asked ", mark 1, ".". */
+export function answerParts(text: string): AnswerPart[] {
+  const out: AnswerPart[] = [];
+  let last = 0;
+  for (const m of text.matchAll(/\[(\d{1,2})\]/g)) {
+    if (m.index > last) out.push({ text: text.slice(last, m.index) });
+    out.push({ cite: Number(m[1]) });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push({ text: text.slice(last) });
+  return out;
+}
+
+/** The parts shown after `shown` characters of text have streamed in: a mark appears with the text before it. */
+export function revealed(parts: readonly AnswerPart[], shown: number): AnswerPart[] {
+  const out: AnswerPart[] = [];
+  let left = shown;
+  for (const p of parts) {
+    if ("cite" in p) { out.push(p); continue; }
+    if (left < p.text.length) { if (left > 0) out.push({ text: p.text.slice(0, left) }); break; }
+    out.push(p);
+    left -= p.text.length;
+  }
+  return out;
+}
+
+export const plainLength = (parts: readonly AnswerPart[]): number => parts.reduce((n, p) => n + ("text" in p ? p.text.length : 0), 0);
+
+/** The answer as one plain text with its marks, for Copy and for a chat that continues it. */
+export const answerText = (a: Pick<AskAnswer, "answer" | "sources" | "cited">): string => {
+  const lines = (a.answer ?? "").trim();
+  const src = a.cited.map((n) => a.sources.find((s) => s.n === n)).filter((s): s is AskSource => s !== undefined);
+  return src.length === 0 ? lines : `${lines}\n\n${src.map((s) => `[${s.n}] ${s.title}`).join("\n")}`;
+};

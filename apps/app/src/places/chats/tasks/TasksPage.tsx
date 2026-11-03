@@ -41,6 +41,7 @@ import { AwayLine } from "./AwayLine.tsx";
 import { canTake, movesFor } from "./moves.ts";
 import type { Move } from "./moves.ts";
 import { useTaskPeople } from "./people.ts";
+import { giveWithCare, guestNote } from "./guest.ts";
 
 export const TASKS_SCREEN = "tasks.my-work";
 type NeedsOut = CapMap["tasks.needs_you"]["out"];
@@ -84,6 +85,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
   const [saving, setSaving] = useState<string | null>(null);
   const addRef = useRef<TextInput | null>(null);
   const searchRef = useRef<TextInput | null>(null);
+  const heldGuest = useRef<string | null>(null);
 
   const say = useCallback((text: string, undo?: () => void): void => setLine(undo ? { text, undo } : { text }), []);
   useEffect(() => { if (!line) return undefined; const t = setTimeout(() => setLine(null), line.undo ? 8000 : 4000); return () => clearTimeout(t); }, [line]);
@@ -99,7 +101,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
   const needsQ = useLive<NeedsOut>(rt.screens, TASKS_SCREEN, "needs", { limit: 200 });
   const needs = needsQ.status === "ready" ? needsQ.data.items : NO_NEEDS;
   const who = useTaskPeople(rt);
-  const list = who.list as ReadonlyArray<{ id: string; name: string; kind: string; username?: string }>;
+  const list = who.list as ReadonlyArray<{ id: string; name: string; kind: string; username?: string; guest?: boolean }>;
   const [projects, setProjects] = useState<readonly ProjectRow[]>([]);
   const [savedViews, setSavedViews] = useState<readonly ViewRow[]>([]);
   const readViews = useCallback((): void => { void rt.call("views.list", { type: "task" }).then((o) => setSavedViews((o as CapMap["views.list"]["out"]).views), () => setSavedViews([])); }, [rt]);
@@ -134,7 +136,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
     let teamsHead = false;
     for (const p of who.seats) {
       if ((p.kind === "group" || p.kind === "role") && !teamsHead) { entries.push({ head: "Teams and roles" }); teamsHead = true; }
-      entries.push({ label: p.name, leading: <Avatar name={p.name} seedId={p.id} kind={faceKind({ kind: p.kind, id: p.id })} size={16} />, onSelect: () => void bulkAssign(act, ids, { kind: p.kind, id: p.id }, p.id === rt.me.id ? "you" : p.name) });
+      entries.push({ label: p.name, leading: <Avatar name={p.name} seedId={p.id} kind={faceKind({ kind: p.kind, id: p.id })} size={16} />, onSelect: () => giveWithCare(menu.show, p, at, () => void bulkAssign(act, ids, { kind: p.kind, id: p.id }, p.id === rt.me.id ? "you" : p.name)) });
     }
     menu.show(entries, at.x, at.y, "other", { label: "Assign" }, { search: "Find someone" });
   }, [act, who.seats, menu, rt.me.id]);
@@ -231,6 +233,10 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
     const title = q.title !== "" ? q.title : files[0]?.name ?? "";
     if (title === "") return;
     const assigned: Who = q.assignee ? { kind: q.assignee.kind as Who["kind"], id: q.assignee.id } : { kind: "person", id: rt.me.id };
+    // a guest sees the task, its thread and its files: say so once, and the same line sent again goes ahead
+    const guest = q.assignee ? list.find((p) => p.id === q.assignee!.id) : undefined;
+    if (guest?.guest === true && heldGuest.current !== quick) { heldGuest.current = quick; say(`${guestNote(guest.name)} Press Enter again to add it.`); return; }
+    heldGuest.current = null;
     setQuick("");
     setQuickFiles([]);
     const key = newKey();
@@ -261,7 +267,8 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
     if (Platform.OS !== "web") return undefined;
     const g = globalThis as unknown as { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void };
     const onKey = (e: KeyboardEvent): void => {
-      const target = e.target as { tagName?: string; isContentEditable?: boolean } | null;
+      const target = e.target as { tagName?: string; isContentEditable?: boolean; getAttribute?(n: string): string | null } | null;
+      if (target?.getAttribute?.("data-tkcard") != null) return;   // a Board card or Timeline row keeps its own keys (roving.ts)
       if (e.metaKey || e.ctrlKey || e.altKey || target?.isContentEditable === true || /INPUT|TEXTAREA/.test(target?.tagName ?? "")) return;
       const at = (): { x: number; y: number } => { const d = (globalThis as unknown as { document: Document }).document.querySelector(`[data-tk="${currentRow?.id ?? ""}"]`)?.getBoundingClientRect(); return { x: d?.left ?? 240, y: (d?.bottom ?? 160) + 4 }; };
       const ids = selected.size > 0 ? [...selected] : currentRow ? [currentRow.id] : [];

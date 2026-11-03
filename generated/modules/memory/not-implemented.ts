@@ -10,6 +10,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "memory.capture": async (ctx) => { throw new VyreErr(notImplemented("memory.capture", ctx.trace)); },
   "memory.chat_learning.get": async (ctx) => { throw new VyreErr(notImplemented("memory.chat_learning.get", ctx.trace)); },
   "memory.chat_learning.set": async (ctx) => { throw new VyreErr(notImplemented("memory.chat_learning.set", ctx.trace)); },
+  "memory.corrections.record": async (ctx) => { throw new VyreErr(notImplemented("memory.corrections.record", ctx.trace)); },
   "memory.counts": async (ctx) => { throw new VyreErr(notImplemented("memory.counts", ctx.trace)); },
   "memory.erase": async (ctx) => { throw new VyreErr(notImplemented("memory.erase", ctx.trace)); },
   "memory.export_markdown": async (ctx) => { throw new VyreErr(notImplemented("memory.export_markdown", ctx.trace)); },

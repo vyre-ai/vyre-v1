@@ -12,6 +12,7 @@ export interface Principal {
   /** An agent's person. */ owner?: string;
   /** Someone else's agent this person may not open or @mention (their assistant, an outside agent they connected): named as its person, "Irfad Imtiaz (Agent)", never offered. */ private?: boolean;
   /** A private agent's own name, for owners and admins only (Console audit details). */ agentName?: string;
+  /** A person who holds only the Guest role: they see what is shared with them. */ guest?: boolean;
   /** An agent this person may not use that is not someone's private one (a Space agent kept from them): named as it is, never offered. */ hidden?: boolean;
 }
 

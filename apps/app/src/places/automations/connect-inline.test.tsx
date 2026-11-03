@@ -109,7 +109,7 @@ test("the AI step's Runs on picker offers Add an AI account and takes the one th
       </ConnectInlineHost>
     ));
     await press(find(root, "choose-key"));
-    assert.ok(find(root, "menu-item-No key"), "No key stays a choice");
+    assert.ok(find(root, "menu-item-Automatic"), "Automatic stays a choice");
     await press(find(root, "menu-item-Add an AI account"));
     await flush();
     assert.deepEqual(asked, [{ kind: "ai" }]);

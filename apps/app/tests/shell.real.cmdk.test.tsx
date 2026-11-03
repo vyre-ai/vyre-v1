@@ -22,6 +22,7 @@ const hit = (kind: Hit["kind"], id: string, title: string, extra: Partial<Hit> =
 
 function setup(opts: { online?: boolean; fail?: boolean } = {}) {
   const calls: { cap: string; input: unknown }[] = [];
+  const opened: unknown[] = [];
   const serverHits = [hit("file", "fil_ref", "Referral policy.docx", { score: 0.9 })];
   const rt = {
     space: { id: "spc_nw", kind: "team", name: "Northwind" },
@@ -30,8 +31,12 @@ function setup(opts: { online?: boolean; fail?: boolean } = {}) {
       ? { starred: [], today: [{ threadId: "thr_ref", title: "Referral questions", kind: "chat" }], yesterday: [], earlier: [] }
       : {}) },
     connection: { get: () => (opts.online === false ? "offline" : "online"), subscribe: () => () => undefined },
+    assistant: { id: "agt_assistant", name: "Assistant" },
+    open: (target: unknown) => void opened.push(target),
     call: async (cap: string, input: unknown) => {
       calls.push({ cap, input });
+      if (cap === "search.ask") return { state: "answered", answer: "The deposit is 4200 dollars [1].", sources: [{ ...hit("file", "fil_dep", "Lease.docx"), n: 1, where: "File" }], cited: [1], account: { title: "Claude", mine: true } };
+      if (cap === "chat.start") return { thread: { threadId: "thr_new" } };
       if (cap === "search.query") { if (opts.fail) throw new Error("down"); return { hits: serverHits, tookMs: 3 }; }
       if (cap === "search.recent.list") return { hits: [hit("record", "rec_a", "Recent record")] };
       return { ok: true };
@@ -49,7 +54,7 @@ function setup(opts: { online?: boolean; fail?: boolean } = {}) {
   const state = { away: false, offline: false };
   const recent = [hit("chat", "thr_ref", "Referral questions"), hit("person", "usr_maya", "Maya Chen")];
   const data = createGateSearch({ runtime: rt, nav, state, recent: () => recent });
-  return { data, calls, went, log, state };
+  return { data, calls, went, log, state, opened };
 }
 
 const titles = (c: CmdKController): string[] => c.getState().rows.flatMap((r) => (r.type === "hit" ? [r.hit.title] : r.type === "action" ? [r.action.title] : []));
@@ -208,4 +213,31 @@ test("discovery options do not expose inert GitHub or SSO controls", () => {
   const out = renderToStaticMarkup(<JoinFlow invite={invite} initial={{ stage: "signin" }} hold />);
   assert.match(out, /Sign in to Northwind/);
   assert.doesNotMatch(out, /Single sign-on|GitHub|Google/);
+});
+
+test("Ask the Space in the real shell: the question goes to search.ask as typed, a source opens its place, and Continue in a chat starts a real chat with the assistant and opens it", async () => {
+  const { data, calls, went, log, opened } = setup();
+  const c = new CmdKController(data, { revealMs: 0 });
+  c.setRaw("what is the lease deposit");
+  assert.equal(c.getState().rows[c.getState().active]?.type, "ask");
+  c.choose();
+  await wait(30);
+  assert.deepEqual(calls.filter((x) => x.cap === "search.ask").map((x) => x.input), [{ q: "what is the lease deposit" }]);
+  assert.equal(c.getState().ask?.phase, "answered");
+  c.copyAnswer();
+  assert.ok(log.includes("flash:Answer copied"));
+  c.continueInChat();
+  await wait(20);
+  const start = calls.find((x) => x.cap === "chat.start")!.input as Record<string, unknown>;
+  assert.deepEqual([start["kind"], start["agentIds"]], ["chat", ["agt_assistant"]]);
+  assert.match(String(start["first"]), /^what is the lease deposit\n\nWhat the Space says:\nThe deposit is 4200 dollars \[1\]\./);
+  assert.deepEqual(opened, [{ subject: { type: "thread", id: "thr_new" } }]);
+  void went;
+});
+
+test("a window offline offers no Ask row: there is no Space to ask", () => {
+  const { data } = setup({ online: false });
+  const c = new CmdKController(data);
+  c.setRaw("what is the lease deposit");
+  assert.ok(!c.getState().rows.some((r) => r.type === "ask"));
 });

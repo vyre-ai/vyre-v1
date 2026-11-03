@@ -336,12 +336,36 @@ export async function myWorkList(ctx: TasksCtx, input: In): Promise<unknown> {
   return clean({ tasks: p.rows.map((t) => outFor(ctx, t, idx)), counts: r.counts, next: p.next, total: p.total });
 }
 
+const EDIT_FIELDS = ["title", "summary", "why", "due", "effort", "priority", "labels", "start", "recur", "fields", "blocks", "parentTaskId"] as const;
+const FIELD_WORDS: Record<string, string> = { title: "the title", summary: "the summary", why: "the reason", due: "the due date", effort: "the estimate", priority: "the priority", labels: "the labels", start: "the start date", recur: "the repeat", fields: "the fields", blocks: "the content", parentTaskId: "the parent" };
+function wordsOf(k: string, v: unknown): string {
+  if (v === undefined || v === null) return "empty";
+  if ((k === "due" || k === "start") && typeof v === "number") return new Date(v).toISOString().slice(0, 10);
+  if (k === "blocks") return "different";
+  return typeof v === "string" ? `"${v}"` : Array.isArray(v) ? (v.length ? v.join(", ") : "empty") : JSON.stringify(v);
+}
+/** Refuse an edit made on an old version, and say what the fields it tried to change hold now. */
+function staleVersion(ctx: TasksCtx, t: Task, input: In): never {
+  const rec = t as unknown as Record<string, unknown>;
+  const current: Record<string, unknown> = {};
+  const lines: string[] = [];
+  for (const k of EDIT_FIELDS) {
+    if (!(k in input) || (input as Record<string, unknown>)[k] === undefined) continue;
+    current[k] = rec[k] ?? null;
+    lines.push(`${FIELD_WORDS[k] ?? k} is now ${wordsOf(k, rec[k])}`);
+  }
+  const what = lines.length ? ` Now ${lines.join("; ")}.` : "";
+  raise(ctx, "validation.precondition_failed", `This task changed while you were editing it.${what} Your change was not saved.`, { reason: "stale_version", version: t.version, updatedAt: t.updatedAt, current });
+}
+
 export async function update(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
   // linking the thread someone made on opening a task is open to anyone who sees it; every other change is for someone on the task
-  const onlyThread = Object.keys(input).every((k) => k === "taskId" || k === "threadId" || k === "idempotencyKey");
+  const onlyThread = Object.keys(input).every((k) => k === "taskId" || k === "threadId" || k === "idempotencyKey" || k === "expectedVersion");
   if (onlyThread ? !visibleTo(ctx, t) && !isTrustedService(whoIs(ctx)) : !mayEdit(ctx, t)) raise(ctx, "validation.precondition_failed", "Only someone on this task can change it.", { reason: "wrong_actor" });
   if (!isOpen(t.state) && !onlyThread) raise(ctx, "validation.precondition_failed", "Reopen the task before editing it.", { reason: "closed" });
+  // two people editing the same task: the second save is told it changed and what it is now, and nothing is overwritten
+  if (typeof input.expectedVersion === "number" && input.expectedVersion !== t.version) staleVersion(ctx, t, input);
   const locked = t.source?.kind === "gate" || t.payloadHash !== undefined;
   const changed: string[] = [];
   const set = (k: "title" | "blocks" | "summary" | "why" | "due" | "effort" | "priority" | "labels" | "start" | "fields" | "recur" | "parentTaskId" | "workerThread", v: unknown): void => {

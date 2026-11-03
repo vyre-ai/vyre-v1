@@ -9,6 +9,7 @@ import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 import { Icon, pointOf } from "../files/memory/parts.tsx";
 import { useSettingsData } from "./data.tsx";
+import { LessonsSection } from "./Lessons.tsx";
 import { MemoryKeys } from "./MemoryKeys.tsx";
 import { useSaved } from "./saved.tsx";
 import { SettingsRow, SmallButton, pointer, s as ui } from "./ui.tsx";
@@ -39,6 +40,7 @@ export function MemoryPage(_props: { found?: string | null }): ReactElement {
   return (
     <>
       <AboutYou />
+      <LessonsSection />
       <MemoryKeys />
     </>
   );

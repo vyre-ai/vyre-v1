@@ -125,10 +125,11 @@ test("records sharing: Ada shares Deals with Bea to edit and Cal to view; Dee se
       }, 40_000, () => hostLog(d));
     };
     const deeAgent = (await D("agents.create", { name: "Dee helper", role: "You answer questions." })).data.agent.agentId as string;
-    const pin = await D("agents.update", { agentId: deeAgent, patch: { accountPolicy: "key", accountKey: handle } });
+    // pinning an agent to the Space's AI account is the admin's call (the Chat key, owner 3 Nov), so Ada pins both helpers
+    const pin = await A("agents.update", { agentId: deeAgent, patch: { accountPolicy: "key", accountKey: handle } });
     assert.equal(pin.status, 200, JSON.stringify(pin.data));
     const beaAgent = (await B("agents.create", { name: "Bea helper", role: "You answer questions." })).data.agent.agentId as string;
-    assert.equal((await B("agents.update", { agentId: beaAgent, patch: { accountPolicy: "key", accountKey: handle } })).status, 200);
+    assert.equal((await A("agents.update", { agentId: beaAgent, patch: { accountPolicy: "key", accountKey: handle } })).status, 200);
     // both agents are added to the Deals sheet like people, so the only difference left is whose access they act with
     for (const agentId of [deeAgent, beaAgent]) assert.equal((await A("access.share", { resource: deal, subject: { kind: "agent", id: agentId }, level: "edit" })).status, 200);
     for (const [tool, input] of [["records_query", { type: "rt_deal" }], ["records_get", { type: "rt_deal", recordId: deals["Acme renewal"] }], ["search_query", { q: "Acme" }], ["schema_describe", {}], ["schema_map", {}]] as const) {

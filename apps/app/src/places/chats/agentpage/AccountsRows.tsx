@@ -10,9 +10,12 @@ import { useOpenConnect } from "../../../shell/connect/context.ts";
 import { connectEntries } from "../../../shell/connect/model.ts";
 import { Icon, LeadIcon } from "../rightpane/parts.tsx";
 import type { Entry } from "../rightpane/parts.tsx";
+import { aiMenu } from "../../vault/providers/aiMenu.ts";
+import { aiName } from "../../vault/providers/pick.ts";
+import { useSpaceAi } from "../../vault/providers/useSpaceAi.ts";
 import { setAccounts } from "./actions.ts";
 import type { AccountPatch, PageDeps } from "./actions.ts";
-import { STATUS_NOTE, accountName, accountOptions, chatKeyNote, memoryKeyNote, moveRef } from "./model.ts";
+import { STATUS_NOTE, accountName, accountOptions, chatKeyNote, memoryKeyNote, moveRef, workKeyNote } from "./model.ts";
 import type { AccountChoice, AgentRow } from "./model.ts";
 
 const menuAt = (e: unknown): { x: number; y: number } => {
@@ -40,7 +43,8 @@ export function useAccountEntries({ agent, deps, accounts, canEdit }: AccountsIn
   const openConnect = useOpenConnect();
   const fallback = agent.accountFallback ?? [];
   const chat = agent.accountPolicy === "key" ? agent.accountKey ?? null : null;
-  const before: AccountPatch = { accountPolicy: agent.accountPolicy, accountKey: agent.accountKey ?? null, accountFallback: [...fallback], memoryKey: agent.memoryKey ?? null };
+  const spaceAi = useSpaceAi(deps.call);
+  const before: AccountPatch = { accountPolicy: agent.accountPolicy, accountKey: agent.accountKey ?? null, accountFallback: [...fallback], memoryKey: agent.memoryKey ?? null, workKey: agent.workKey ?? null };
   const save = (patch: AccountPatch, said: string): void => { void setAccounts(deps, agent.agentId, patch, before, said); };
   const label = (a: AccountChoice): string => `${accountName(accounts, a.ref)}${STATUS_NOTE[a.status] ? `, ${STATUS_NOTE[a.status].toLowerCase()}` : ""}`;
 
@@ -88,6 +92,17 @@ export function useAccountEntries({ agent, deps, accounts, canEdit }: AccountsIn
       ),
     });
   }
+  entries.push({
+    key: "acct-work", type: "row", title: "AI account", note: workKeyNote(agent, accounts), leading: <LeadIcon name="lock" />, testID: "setting-work-key",
+    ...(canEdit ? { onPress: () => undefined, trailing: (
+      <Pressable
+        accessibilityRole="button" accessibilityLabel={`AI account: ${aiName(spaceAi ?? [], agent.workKey)}. Change`} testID="pick-work-key"
+        onPress={(e) => { const { x, y } = menuAt(e); menu.show(aiMenu(spaceAi ?? [], "agentWork", agent.workKey, (h) => save({ workKey: h ?? null }, h ? `${agent.name}'s own work now runs on ${aiName(spaceAi ?? [], h)}.` : `${agent.name}'s own work is Automatic again.`), { agentId: agent.agentId }), x, y, "other"); }}
+        style={st.pick}
+      >
+        <Text numberOfLines={1} style={st.pickText}>{aiName(spaceAi ?? [], agent.workKey)}</Text><Icon name="chev" size={12} />
+      </Pressable>) } : {}),
+  });
   entries.push({
     key: "acct-memory", type: "row", title: "Memory key", note: memoryKeyNote(agent, accounts), leading: <LeadIcon name="lock" />, testID: "setting-memory-key",
     ...(canEdit ? { onPress: () => undefined, trailing: (

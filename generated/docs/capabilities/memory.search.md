@@ -40,6 +40,20 @@ type In = {
 type Out = {
   hits: Array<{
       kind: "note" | "fact" | "page";
+      lesson?: {
+        how?: "edit" | "refuse" | "reverse" | "rewrite";
+        used: number;
+        scope: "you" | "proposed" | "space";
+      };
+      subject?: {
+        pageId: string;
+        title: string;
+        kind: string;
+      };
+      sourceTitle?: string;
+      by?: string;
+      byKind?: "person" | "agent" | "upkeep" | "system";
+      versions?: number;
       noteId?: string;
       factId?: string;
       pageId?: string;
@@ -50,15 +64,6 @@ type Out = {
       layer: "person" | "agent" | "project" | "space";
       sourceLink?: string;
       score: number;
-      subject?: {
-        pageId: string;
-        title: string;
-        kind: string;
-      };
-      sourceTitle?: string;
-      by?: string;
-      byKind?: "person" | "agent" | "upkeep" | "system";
-      versions?: number;
     }>;
   tookMs: number;
   meaning?: {
@@ -100,6 +105,11 @@ type Out = {
         "factId": "fct_a1b2c3",
         "kind": "note",
         "layer": "person",
+        "lesson": {
+          "how": "edit",
+          "scope": "you",
+          "used": 1
+        },
         "noteId": "not_a1b2c3",
         "pageId": "example",
         "path": "example",

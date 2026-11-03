@@ -54,6 +54,7 @@ type In = {
     cacheWriteTokens?: number;
     reasoningTokens?: number;
     costUsd?: number;
+    paid?: string;
     tools: Array<{
         id: string;
         name: string;
@@ -144,6 +145,7 @@ type Out = {
       "costUsd": 1,
       "effort": "high",
       "firstTokenAt": 1760000000000,
+      "paid": "example",
       "reasoningTokens": 1,
       "switches": [
         {

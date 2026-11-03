@@ -6,7 +6,7 @@ import { routes } from "../../../generated/routes.ts";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding} from "./real-app-harness.test.ts";
 import type { CapMap } from "../../../generated/types.ts";
 
-test("a canonical task opens from a copied Home link, edits, transitions, follows, reloads and keeps actual activity", async (t) => {
+test("a task opens in the Tasks place from a link, and its title, status, assignee, due date and comments change and persist; a second editor on an old version is told, not overwritten", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) { t.skip("VYRE_APP_DIST is required for actual task-page proof"); return; }
   const { chromium } = await import("playwright-core");
@@ -25,33 +25,61 @@ test("a canonical task opens from a copied Home link, edits, transitions, follow
     const token = await page.evaluate(() => { const saved = JSON.parse(localStorage.getItem("vyre.session.v1")!); return saved.sessions?.[location.origin]?.token ?? saved.token; });
     const api = createCapCaller({ baseUrl: web.origin, token: () => token, routes: async () => routes });
     const profile = await api("spaces.get", {}) as CapMap["spaces.get"]["out"];
-    const created = await api("tasks.create", { title: "Review the release brief", assigned: { kind: "person", id: profile.space.owner }, why: "Check the facts before publishing", idempotencyKey: "task-page-fixture" }) as CapMap["tasks.create"]["out"];
-    const taskId = created.task.id, url = `${web.origin}/home#screen=tasks.page&taskId=${taskId}`;
-    await page.goto(url, { waitUntil: "load" }); await page.getByTestId("task-page").waitFor({ timeout: 20_000 });
-    await page.getByText("Review the release brief", { exact: true }).waitFor();
-    await page.getByRole("button", { name: "Edit task", exact: true }).click();
-    await page.getByLabel("Task title", { exact: true }).fill("Review the final release brief");
-    await page.getByLabel("Summary", { exact: true }).fill("Confirm contents and links");
-    await page.getByLabel("Effort in minutes", { exact: true }).fill("20");
-    await page.getByRole("button", { name: "Save task", exact: true }).click(); await page.getByText("Task updated", { exact: true }).waitFor();
-    let actual = (await api("tasks.get", { taskId }) as CapMap["tasks.get"]["out"]).task;
-    assert.equal(actual.title, "Review the final release brief"); assert.equal(actual.effort, 20); assert.equal(actual.summary, "Confirm contents and links");
-    await page.getByRole("button", { name: "Add a note", exact: true }).click(); await page.getByLabel("Note name", { exact: true }).fill("Release checks"); await page.getByLabel("Note", { exact: true }).fill("Verified links and contents");
-    await page.getByRole("button", { name: "Save", exact: true }).click(); await page.getByText("Note saved", { exact: true }).waitFor();
-    assert.equal((await api("tasks.get", { taskId }) as CapMap["tasks.get"]["out"]).task.workingNotes["Release checks"], "Verified links and contents");
-    await page.getByRole("button", { name: "Task status", exact: true }).click(); await page.getByRole("menuitem", { name: "Doing", exact: true }).click();
-    await page.getByText("Status: Doing", { exact: true }).waitFor();
-    assert.equal((await api("tasks.get", { taskId }) as CapMap["tasks.get"]["out"]).task.state, "doing");
-    actual = (await api("tasks.get", { taskId }) as CapMap["tasks.get"]["out"]).task;
-    const followed = actual.followers.includes(profile.space.owner);
-    await page.getByRole("button", { name: followed ? "Unfollow" : "Follow", exact: true }).click();
-    await page.getByText(followed ? "Unfollowed" : "Following", { exact: true }).waitFor();
-    assert.equal((await api("tasks.get", { taskId }) as CapMap["tasks.get"]["out"]).task.followers.includes(profile.space.owner), !followed);
-    await page.reload({ waitUntil: "load" }); await page.getByText("Review the final release brief", { exact: true }).waitFor();
-    await page.getByRole("tab", { name: "Activity", exact: true }).click(); await page.getByText("Transitioned", { exact: true }).waitFor();
+    const owner = profile.space.owner;
+    const created = await api("tasks.create", { title: "Review the release brief", assigned: { kind: "person", id: owner }, why: "Check the facts before publishing", idempotencyKey: "task-page-fixture" }) as CapMap["tasks.create"]["out"];
+    const taskId = created.task.id;
+    const read = async (): Promise<CapMap["tasks.get"]["out"]["task"]> => (await api("tasks.get", { taskId }) as CapMap["tasks.get"]["out"]).task;
+    // the link opens in the Tasks place (Chats); a link that still says Home lands there too
+    const url = `${web.origin}/chats#screen=tasks.page&taskId=${taskId}`;
+    await page.goto(url, { waitUntil: "load" }); await page.getByTestId("task-detail").waitFor({ timeout: 20_000 });
+    await page.getByTestId("task-title").waitFor();
+    assert.equal(await page.getByTestId("task-title").inputValue(), "Review the release brief");
+    await page.goto(`${web.origin}/home#screen=tasks.page&taskId=${taskId}`, { waitUntil: "load" }); await page.getByTestId("task-detail").waitFor({ timeout: 20_000 });
+    // title
+    await page.getByTestId("task-title").fill("Review the final release brief"); await page.getByTestId("task-title").blur();
+    for (let i = 0; i < 40 && (await read()).title !== "Review the final release brief"; i++) await page.waitForTimeout(250);
+    assert.equal((await read()).title, "Review the final release brief");
+    // status
+    await page.getByTestId("task-start").click();
+    for (let i = 0; i < 40 && (await read()).state !== "doing"; i++) await page.waitForTimeout(250);
+    assert.equal((await read()).state, "doing");
+    // due date
+    await page.getByTestId("rail-due").click(); await page.getByRole("menuitem", { name: "Tomorrow", exact: true }).click();
+    for (let i = 0; i < 40 && (await read()).due === undefined; i++) await page.waitForTimeout(250);
+    assert.notEqual((await read()).due, undefined);
+    // assignee: the first seat that is not the owner
+    await page.getByTestId("rail-assigned").click();
+    const seats = await page.getByRole("menuitem").allTextContents();
+    const other = seats.map((s) => s.trim()).find((s) => s !== "" && !s.startsWith("You") && !s.endsWith("✓"));
+    assert.ok(other, "the assignee menu offers someone besides you");
+    await page.getByRole("menuitem", { name: other, exact: true }).first().click();
+    for (let i = 0; i < 40 && (await read()).assigned.id === owner; i++) await page.waitForTimeout(250);
+    assert.notEqual((await read()).assigned.id, owner);
+    // a comment on the task's thread
+    await page.getByTestId("composer-field").first().fill("Checked the dates, all good"); await page.getByTestId("composer-field").first().press("Enter");
+    await page.getByText("Checked the dates, all good", { exact: true }).first().waitFor({ timeout: 15_000 });
+    // the person on an old version: the title is started on this version, someone else changes the task, and the save is told, not applied
+    const base = (await read()).version!;
+    await page.getByTestId("task-title").focus();
+    await page.getByTestId("task-title").fill("My edit on an old version");
+    await page.route("**/v1/tasks/update", async (route) => {   // the change by someone else lands between this person's focus and save
+      await api("tasks.update", { taskId, title: "Someone else's title" });
+      await route.continue();
+    });
+    await page.getByTestId("task-title").blur();
+    await page.getByTestId("task-line").waitFor({ timeout: 15_000 });
+    const said = await page.getByTestId("task-line").innerText();
+    assert.match(said, /changed while you were editing/); assert.match(said, /Someone else's title/); assert.match(said, /not saved/);
+    const after = await read();
+    assert.equal(after.title, "Someone else's title", "the second save did not overwrite the first");
+    assert.ok(after.version! > base);
+    await page.unroute("**/v1/tasks/update");
+    // it all persists across a reload and fits a phone
+    await page.reload({ waitUntil: "load" }); await page.getByTestId("task-title").waitFor();
+    assert.equal(await page.getByTestId("task-title").inputValue(), "Someone else's title");
     const captureDir = process.env["VYRE_TEST_CAPTURE_DIR"];
-    if (captureDir) { fs.mkdirSync(captureDir, { recursive: true }); await page.screenshot({ path: `${captureDir}/task-activity-desktop.png`, fullPage: true }); }
-    await page.setViewportSize({ width: 390, height: 844 }); await page.reload({ waitUntil: "load" }); await page.getByTestId("task-page").waitFor();
+    if (captureDir) { fs.mkdirSync(captureDir, { recursive: true }); await page.screenshot({ path: `${captureDir}/task-detail-desktop.png`, fullPage: true }); }
+    await page.setViewportSize({ width: 390, height: 844 }); await page.reload({ waitUntil: "load" }); await page.getByTestId("task-detail").waitFor();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "the task page fits phone width");
     if (captureDir) await page.screenshot({ path: `${captureDir}/task-phone.png`, fullPage: true });
     assert.deepEqual(errors, []);

@@ -53,6 +53,12 @@ type Out = {
     trashedAt?: number;
     trashReason?: string;
     archivedAt?: number;
+    kind?: string;
+    lesson?: {
+      how?: "edit" | "refuse" | "reverse" | "rewrite";
+      used: number;
+      scope: "you" | "proposed" | "space";
+    };
     subject?: {
       pageId: string;
       title: string;
@@ -93,8 +99,14 @@ type Out = {
       "byKind": "person",
       "closedAt": 1760000000000,
       "factId": "fct_a1b2c3",
+      "kind": "example",
       "layer": "person",
       "learnedAt": 1760000000000,
+      "lesson": {
+        "how": "edit",
+        "scope": "you",
+        "used": 1
+      },
       "lineLink": "vyre://thread/thr_a1b2c3?m=msg_a1b2c3",
       "lowRisk": true,
       "noteId": "not_a1b2c3",

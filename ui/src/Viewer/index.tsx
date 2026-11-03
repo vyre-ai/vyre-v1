@@ -3,7 +3,7 @@
 // notes are numbered pins kept in unit coordinates (0..1 of the image), so they stay on the same spot at any zoom. Plans and documents edit in place
 // and take highlight-and-comment. The Ask control is the shared AskButton. Colours are skin tokens (CSS variables on web).
 
-import { createElement, useMemo, useRef, useState } from "react";
+import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AskButton } from "../AskButton/index.tsx";
@@ -17,6 +17,10 @@ import type { MarkupTool, ViewerPin, ViewerProps } from "./props.ts";
 export type { MarkupTool, ViewerKind, ViewerPane, ViewerPin, ViewerProps } from "./props.ts";
 import { FileLinkText, withFileLinks } from "./FileLinkText.tsx";
 import { splitRefs } from "./links.ts";
+import { LAYER_ICON, LayerText, MarkCard, PreviewText, SelectionBar, layerRuns, layerSpans, occurrences, useLayerCss } from "./layer.tsx";
+import type { LayerAct, Span, ViewerLayer, ViewerMark } from "./layer.tsx";
+export { LAYER_CSS, layerRuns, layerSpans, previewRuns, REDACTED } from "./layer.tsx";
+export type { LayerAct, ViewerLayer, ViewerMark } from "./layer.tsx";
 import type { FileLinks } from "./links.ts";
 export { distinctRefs, refsIn, splitRefs } from "./links.ts";
 export type { FileLinkTarget, FileLinks, FileRef } from "./links.ts";
@@ -296,6 +300,21 @@ export interface ViewerViewProps extends ViewerProps {
   onStrokes?: (strokes: readonly Stroke[]) => void;
   onEdit?: (blocks: readonly DocBlock[]) => void;
   onZoom?: (zoom: number) => void;
+  /**
+   * Redaction for AI: the file's redactions and highlights (and, with `preview`, the agent's text in the blocks). With `onLayer` a selection offers Highlight, Redact, Comment and Ask, and an image
+   * takes Redact an area. `onUnmark` takes one off (a person only), `onMarkActivity` opens the file's Activity at that mark, `onAskQuote` asks the agent about a selection.
+   */
+  layer?: ViewerLayer;
+  onLayer?: (a: LayerAct) => void;
+  onUnmark?: (markId: string) => void;
+  onMarkActivity?: (markId: string) => void;
+  onAskQuote?: (quote: string) => void;
+  /** More header buttons, before Find (Redact for AI, Comments, Activity). */
+  tools?: ReactNode;
+  /** A side column beside the body (the Redact and Activity panels). */
+  side?: ReactNode;
+  /** A quiet line under the header (Needs review, an agent waiting, Preview as agent). */
+  banner?: ReactNode;
 }
 
 /** Web-only attributes. react-native-web drops unknown props, so `data-x` becomes `dataSet.x` and `data-testid` becomes `testID`. */
@@ -350,8 +369,50 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const [replying, setReplying] = useState<Record<string, string>>({});
   const [detailsOpen, setDetailsOpen] = useState(props.detailsOpen === true);
   const stage = useRef<{ w: number; h: number }>({ w: IMAGE_W, h: IMAGE_H });
+  useLayerCss();
+  const [sel, setSel] = useState<{ quote: string; occurrence: number; x: number; y: number } | null>(null);
+  const [hover, setHover] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [rtool, setRtool] = useState(false);
+  const hoverT = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const docRoot = useRef<View | null>(null);
 
   const texts = useMemo(() => each(blocks, (b) => stripInline(b.text)), [blocks]);
+  const layerMarks = props.layer?.marks;
+  const spansBy = useMemo<Span[][]>(() => layerSpans(texts, layerMarks ?? []), [texts, layerMarks]);
+  const markById = useMemo(() => new Map<string, ViewerMark>(each(layerMarks ?? [], (m) => [m.id, m] as const)), [layerMarks]);
+  const onLayer = props.onLayer;
+  // a selection in the words offers Highlight, Redact, Comment and Ask; a redaction or highlight shows its card on hover or focus (web: the browser's own selection and pointer)
+  useEffect(() => {
+    if (Platform.OS !== "web" || onLayer === undefined) return undefined;
+    const root = docRoot.current as unknown as HTMLElement | null;
+    if (!root || typeof root.addEventListener !== "function") return undefined;
+    const place = (r: DOMRect): { x: number; y: number } => { const c = root.getBoundingClientRect(); return { x: Math.max(8, Math.min(c.width - 368, r.left - c.left + r.width / 2 - 180)), y: Math.max(4, r.top - c.top - 42) }; };
+    const up = (): void => { setTimeout(() => {
+      const sl = window.getSelection();
+      if (!sl || sl.isCollapsed || sl.rangeCount === 0) { setSel(null); return; }
+      const range = sl.getRangeAt(0);
+      const start = (range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement) as HTMLElement | null;
+      const blockEl = start?.closest("[data-testid^='vw-block-']") as HTMLElement | null;
+      if (!blockEl || !root.contains(blockEl)) { setSel(null); return; }
+      const bi = blocks.findIndex((b) => `vw-block-${b.id}` === blockEl.getAttribute("data-testid"));
+      const quote = (sl.toString().split("\n")[0] ?? "").trim();
+      if (bi < 0 || quote === "") { setSel(null); return; }
+      const pre = document.createRange(); pre.setStart(blockEl, 0); pre.setEnd(range.startContainer, range.startOffset);
+      let earlier = 0; for (let i = 0; i < bi; i++) earlier += occurrences(texts[i] ?? "", quote).length;
+      setSel({ quote, occurrence: earlier + occurrences(pre.toString(), quote).length, ...place(range.getBoundingClientRect()) });
+    }, 0); };
+    const over = (e: Event): void => {
+      const el = (e.target as HTMLElement | null)?.closest?.("[data-mark]") as HTMLElement | null;
+      if (!el || !root.contains(el)) return;
+      const id = el.getAttribute("data-mark") ?? "";
+      if (hoverT.current) clearTimeout(hoverT.current);
+      hoverT.current = setTimeout(() => { const r = el.getBoundingClientRect(), c = root.getBoundingClientRect(); setHover({ id, x: Math.max(8, Math.min(c.width - 280, r.left - c.left)), y: r.bottom - c.top + 6 }); }, e.type === "focusin" ? 0 : 260);
+    };
+    const out = (e: Event): void => { const el = (e.target as HTMLElement | null)?.closest?.("[data-mark]"); if (!el) return; if (hoverT.current) clearTimeout(hoverT.current); hoverT.current = setTimeout(() => setHover(null), 220); };
+    const key = (e: KeyboardEvent): void => { if (e.key === "Escape") { setSel(null); setHover(null); } };
+    root.addEventListener("mouseup", up); root.addEventListener("mouseover", over); root.addEventListener("focusin", over); root.addEventListener("mouseout", out); root.addEventListener("keydown", key);
+    return () => { root.removeEventListener("mouseup", up); root.removeEventListener("mouseover", over); root.removeEventListener("focusin", over); root.removeEventListener("mouseout", out); root.removeEventListener("keydown", key); };
+  }, [onLayer, blocks, texts]);
   const hits = useMemo(() => findMatches(texts, find), [texts, find]);
   const at = hits.length === 0 ? 0 : cur % hits.length;
   const pins: readonly ViewerPin[] = props.pins ?? each(boxes, (b, i) => ({ id: b.id, n: i + 1, text: b.text }));
@@ -414,6 +475,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
         <Pressable accessibilityRole="button" accessibilityLabel={props.openIn.label} testID="vw-open-in" onPress={props.openIn.onOpen}
           style={({ hovered }: { hovered?: boolean }) => [s.openIn, hovered === true && s.toolOver]}><Text style={s.openInText} numberOfLines={1}>{props.openIn.label}</Text></Pressable>
       ) : null}
+      {props.tools}
       {iconBtn("Find in file", ICON.find, "vw-find-btn", () => setFindOpen((o) => !o), findOpen)}
       {iconBtn("Details", ICON.info, "vw-info", () => { setDetailsOpen((o) => !o); props.onInfo?.(); }, detailsOpen)}
       {iconBtn("History", ICON.history, "vw-history", props.onHistory)}
@@ -425,7 +487,8 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   const markBar = props.kind === "image" ? (
     <View style={s.mark} testID="vw-markup" accessibilityRole="toolbar" accessibilityLabel="Mark up">
       <Tool label="Draw" icon={ICON.draw} on={tool === "draw"} onPress={() => pick("draw")} testID="vw-tool-draw" />
-      <Tool label="Comment on an area" icon={ICON.area} on={tool === "comment"} onPress={() => pick("comment")} testID="vw-tool-comment" />
+      <Tool label="Comment on an area" icon={ICON.area} on={tool === "comment"} onPress={() => { setRtool(false); pick("comment"); }} testID="vw-tool-comment" />
+      {onLayer !== undefined && props.layer?.preview !== true ? <Tool label="Redact an area" icon={LAYER_ICON.eyeoff} on={rtool} onPress={() => { setTool(null); setRtool((r) => !r); }} testID="vw-tool-redact" /> : null}
       <View style={s.grow} />
       {boxes.length + strokes.length > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Clear markup" testID="vw-clear" onPress={() => { changeBoxes([]); changeStrokes([]); setNote(null); }}><Text style={s.toolText}>Clear</Text></Pressable> : null}
       {boxes.length + strokes.length > 0 ? (
@@ -437,8 +500,16 @@ export function Viewer(props: ViewerViewProps): ReactElement {
   ) : null;
 
   const pointer = (phase: "down" | "move" | "up", e: { nativeEvent: { locationX: number; locationY: number } }): void => {
-    if (tool === null) return;
+    if (tool === null && !rtool) return;
     const p = toUnit(e.nativeEvent.locationX, e.nativeEvent.locationY, stage.current.w * zoom, stage.current.h * zoom);
+    if (rtool) {
+      if (phase === "down") { setDrag({ a: p, b: p }); return; }
+      if (phase === "move") { setDrag((d) => (d === null ? d : { a: d.a, b: p })); return; }
+      const rb = drag === null ? null : boxFrom(drag.a, drag.b);
+      setDrag(null);
+      if (rb !== null) onLayer?.({ kind: "redact", shape: "box", box: { x: rb.x, y: rb.y, w: rb.w, h: rb.h } });
+      return;
+    }
     if (phase === "down") { if (tool === "draw") setLine([p]); else setDrag({ a: p, b: p }); return; }
     if (phase === "move") { if (tool === "draw") setLine((l) => (l === null ? l : [...l, p])); else setDrag((d) => (d === null ? d : { a: d.a, b: p })); return; }
     if (tool === "draw") { if (line !== null && line.length > 1) changeStrokes([...strokes, { points: line }]); setLine(null); return; }
@@ -451,7 +522,7 @@ export function Viewer(props: ViewerViewProps): ReactElement {
     <ScrollView style={s.scroll} contentContainerStyle={s.imgWrap} testID="vw-image">
       <View style={[s.stageBox, { width: `${Math.min(100, 100 * zoom)}%`, aspectRatio: IMAGE_W / IMAGE_H }]} testID="vw-stage"
         onLayout={(e) => { stage.current = { w: e.nativeEvent.layout.width / zoom, h: e.nativeEvent.layout.height / zoom }; }}
-        onStartShouldSetResponder={() => tool !== null} onResponderGrant={(e) => pointer("down", e)} onResponderMove={(e) => pointer("move", e)} onResponderRelease={(e) => pointer("up", e)}>
+        onStartShouldSetResponder={() => tool !== null || rtool} onResponderGrant={(e) => pointer("down", e)} onResponderMove={(e) => pointer("move", e)} onResponderRelease={(e) => pointer("up", e)}>
         {props.src !== undefined
           ? <Image accessibilityIgnoresInvertColors accessibilityLabel={props.title} source={{ uri: props.src }} resizeMode="cover" style={s.pictureImg} testID="vw-picture" />
           : <View style={s.picture}><Text style={s.pictureText}>{props.title}</Text></View>}
@@ -463,6 +534,13 @@ export function Viewer(props: ViewerViewProps): ReactElement {
             <View style={s.handle} testID={`vw-handle-${i + 1}`} />
             <View style={s.pin} testID={`vw-pin-${i + 1}`} {...web({ "data-anchor": `${b.x.toFixed(3)},${b.y.toFixed(3)}` })}><Text style={s.pinText}>{i + 1}</Text></View>
             {b.text !== "" ? <View style={s.bubble} testID={`vw-bubble-${i + 1}`}><Text style={s.bubbleText} numberOfLines={1}>{b.text}</Text></View> : null}
+          </View>
+        ))}
+        {each((props.layer?.marks ?? []).filter((m) => m.shape === "box" && m.box !== undefined), (m) => (
+          <View key={m.id} testID={`vw-rbox-${m.id}`} focusable accessibilityLabel={props.layer?.preview === true ? "REDACTED" : `Hidden from AI: ${m.label ?? "an area"}`}
+            style={[s.rbox, { left: `${m.box!.x * 100}%`, top: `${m.box!.y * 100}%`, width: `${m.box!.w * 100}%`, height: `${m.box!.h * 100}%` }]}
+            {...web({ "data-rxbox": props.layer?.preview === true ? "ai" : "1", "data-mark": m.id })}>
+            {props.layer?.preview === true ? <Text style={s.rboxText}>REDACTED</Text> : null}
           </View>
         ))}
         {drag !== null ? (() => { const d = boxFrom(drag.a, drag.b); return d === null ? null : <View pointerEvents="none" style={[s.box, s.boxLive, { left: `${d.x * 100}%`, top: `${d.y * 100}%`, width: `${d.w * 100}%`, height: `${d.h * 100}%` }]} />; })() : null}
@@ -528,6 +606,18 @@ export function Viewer(props: ViewerViewProps): ReactElement {
     const lead = b.tag === "li" ? "•  " : "";
     const nest = (b.level ?? 0) > 0 ? { paddingLeft: (b.tag === "li" ? 6 : 0) + 20 * Math.min(6, b.level ?? 0) } : b.tag === "note" && blocks[bi - 1]?.tag !== "note" ? s.noteFirst : null;
     const marks = commentRuns(b.text, shownComments);
+    // Redaction for AI: the block's words with its redactions and highlights (comments as dotted underlines), or in Preview as agent the agent's own words
+    if (props.layer !== undefined && find === "") {
+      const sp = spansBy[bi] ?? [];
+      if (props.layer.preview === true) return <Text key={b.id} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag], nest]} {...web({ "data-tag": b.tag })}>{lead}<PreviewText text={stripInline(b.text)} /></Text>;
+      if (sp.length > 0) {
+        const t = texts[bi] ?? "";
+        const cs: Span[] = [];
+        for (const c of shownComments) for (const at of occurrences(t, c.quote)) cs.push({ s: at, e: at + c.quote.length, mark: { id: c.id, kind: "comment" as never, shape: "span", by: c.by, when: c.at } });
+        const runs = each(layerRuns(t, [...sp, ...cs]), (r) => { const cm = r.marks.find((m) => (m.kind as string) === "comment"); return { text: r.text, marks: r.marks.filter((m) => (m.kind as string) !== "comment"), ...(cm ? { comment: cm.id } : {}) }; });
+        return <Text key={b.id} testID={`vw-block-${b.id}`} style={[s.block, s[b.tag], nest]} {...web({ "data-tag": b.tag, "data-layer": "1" })}>{lead}<LayerText runs={runs} /></Text>;
+      }
+    }
     if (find !== "") {
       const runs = markRuns(stripInline(b.text), hits, bi, at, hits);
       return (
@@ -641,9 +731,25 @@ export function Viewer(props: ViewerViewProps): ReactElement {
     <View accessibilityLabel={viewerLabel(props)} style={s.root} testID="viewer"
       {...web({ "data-testid": "viewer", "data-kind": props.kind, "data-pane": props.pane ?? "side", "data-tool": tool ?? "none", "data-zoom": String(zoom), "data-density": props.density ?? "regular" })}>
       {bar}
+      {props.banner}
       {markBar}
       <View style={s.main}>
-        <View style={s.fill}>{body}</View>
+        <View style={s.fill} ref={docRoot}>
+          {body}
+          {sel !== null && onLayer !== undefined && props.layer?.preview !== true ? (
+            <SelectionBar at={{ x: sel.x, y: sel.y }} agentName={props.agentName ?? "the agent"}
+              onHighlight={() => { onLayer({ kind: "highlight", shape: "span", text: sel.quote, occurrence: sel.occurrence }); setSel(null); clearSelection(); }}
+              onRedact={() => { onLayer({ kind: "redact", shape: "span", text: sel.quote, occurrence: sel.occurrence }); setSel(null); clearSelection(); }}
+              onComment={() => { setQuoted({ id: "", quote: sel.quote }); setSel(null); }}
+              {...(props.onAskQuote ? { onAsk: () => { props.onAskQuote?.(sel.quote); setSel(null); } } : {})} />
+          ) : null}
+          {hover !== null && markById.get(hover.id) !== undefined ? (
+            <MarkCard mark={markById.get(hover.id)!} at={{ x: hover.x, y: hover.y }} canUnmark={props.onUnmark !== undefined}
+              onEnter={() => { if (hoverT.current) clearTimeout(hoverT.current); }} onLeave={() => { hoverT.current = setTimeout(() => setHover(null), 220); }}
+              onUnmark={() => { props.onUnmark?.(hover.id); setHover(null); }} onComment={() => { const m = markById.get(hover.id); if (m?.text) setQuoted({ id: "", quote: m.text }); setHover(null); }}
+              onActivity={() => { props.onMarkActivity?.(hover.id); setHover(null); }} />
+          ) : null}
+        </View>
         {(props.kind === "document" || props.kind === "plan") && shownComments.length > 0 ? (
           <View style={s.commentsPane} testID="vw-comments">
             <Text style={s.detailSec}>{`Comments · ${shownComments.length}`}</Text>
@@ -680,11 +786,15 @@ export function Viewer(props: ViewerViewProps): ReactElement {
             </ScrollView>
           </View>
         ) : null}
+        {props.side}
       </View>
       {strip}
     </View>
   );
 }
+
+/** The browser's selection, once acted on, goes away (web). */
+function clearSelection(): void { if (Platform.OS === "web" && typeof window !== "undefined") window.getSelection()?.removeAllRanges(); }
 
 const s = StyleSheet.create({
   root: { flex: 1, minHeight: 0, minWidth: 0, backgroundColor: "var(--win)" as string },
@@ -772,7 +882,9 @@ const s = StyleSheet.create({
   noteLabel: { color: "var(--ink-3)" as string, fontSize: 11.5, fontWeight: "600" },
   link: { color: "var(--accent)" as string },
   handle: { position: "absolute", right: -7, top: -7, width: 14, height: 14, borderRadius: 7, backgroundColor: "#E5483A", borderWidth: 2, borderColor: "#FFFFFF" },
-  commented: { backgroundColor: "rgba(229,165,92,0.45)" },
+  commented: { textDecorationLine: "underline", textDecorationStyle: "dotted", textDecorationColor: "var(--accent)" as string },
+  rbox: { position: "absolute", alignItems: "center", justifyContent: "center", backgroundColor: Platform.OS === "web" ? "transparent" : "rgba(77,66,54,0.25)" },
+  rboxText: { color: "#FFFFFF", fontSize: 10.5, fontWeight: "700", letterSpacing: 1 },
   commentsPane: { width: 240, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, padding: 12, gap: 10 },
   commentCard: { borderWidth: 1, borderColor: "var(--warn)" as string, borderRadius: 10, padding: 10, gap: 4 },
   commentQuote: { color: "var(--ink-3)" as string, fontSize: 12, fontStyle: "italic" },

@@ -41,3 +41,25 @@ test("Done on open work is a hand-in, from every door (one path)", () => {
   assert.equal(isHandIn({ kind: "work", state: "doing", reviewer: person(maya) }, "done"), false);
   assert.equal(isHandIn({ kind: "approve", state: "awaiting_approval" }, "done"), false);
 });
+
+import { withVersion } from "./actions.ts";
+
+test("an edit from the task page carries the version it was made on; a thread link and other calls do not", () => {
+  assert.deepEqual(withVersion("tasks.update", { title: "New" }, 4), { title: "New", expectedVersion: 4 });
+  assert.deepEqual(withVersion("tasks.update", { threadId: "thr_1" }, 4), { threadId: "thr_1" });
+  assert.deepEqual(withVersion("tasks.update", { title: "New" }, undefined), { title: "New" });
+  assert.deepEqual(withVersion("tasks.assign", { slot: "assigned" }, 4), { slot: "assigned" });
+});
+
+import { bulkAssign } from "./actions.ts";
+import type { ActEnv } from "./actions.ts";
+
+test("giving a task to a team reads the list again at once", async () => {
+  let refreshed = 0;
+  const calls: string[] = [];
+  const store = { refresh: () => { refreshed += 1; }, patch: () => () => undefined, byId: () => undefined } as unknown as ActEnv["store"];
+  const env: ActEnv = { call: async (cap) => { calls.push(cap); return {}; }, say: () => undefined, store, newKey: () => "k", now: () => 0, offsetMin: 0 };
+  await bulkAssign(env, ["tsk_1"], { kind: "group", id: "grp_ops" }, "Ops");
+  assert.deepEqual(calls, ["tasks.assign"]);
+  assert.equal(refreshed, 1);
+});

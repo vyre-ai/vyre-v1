@@ -13,6 +13,7 @@ HTTP 404. Retryable: no.
 - agents.config.validate
 - agents.delete
 - agents.get
+- agents.instruction.append
 - agents.limits.get
 - agents.memory_key.get
 - agents.pause
@@ -30,4 +31,3 @@ HTTP 404. Retryable: no.
 - agents.summary
 - agents.update
 - agents.versions
-- automations.alerts.get

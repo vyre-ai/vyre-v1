@@ -30,7 +30,8 @@ import { accessRequestOf, blockView } from "../needsyou/model.ts";
 import { TaskBlock } from "../needsyou/NeedsYou.tsx";
 import { heldMail } from "../needsyou/heldmail.ts";
 import { HeldMailCard } from "../needsyou/HeldMail.tsx";
-import { dueEntries, failure, priorityEntries } from "./actions.ts";
+import { giveWithCare } from "./guest.ts";
+import { dueEntries, failure, priorityEntries, withVersion } from "./actions.ts";
 import { dueLabel, holderOf, isOpenState, KIND_TITLE, planOrder, PRIORITIES } from "./model.ts";
 import type { IndexOut, TaskFull, TaskRow, Who } from "./model.ts";
 import { faceKind, LiveWords, TextMenu, useLiveTurn, webProps } from "./parts.tsx";
@@ -88,6 +89,8 @@ export function TaskDetail({ rt, taskId, conversationFor, openTask, openAgent, o
   const menu = useMenu();
   const task = (q.status === "ready" ? q.data.task : null);
   const shown = override && task && override.updatedAt >= task.updatedAt ? override : task;
+  const versionRef = useRef<number | undefined>(undefined);
+  versionRef.current = shown?.version;
   useEffect(() => { setOverride(null); setLine(""); setMode(""); }, [taskId]);
   const readKids = useCallback((): void => {
     void rt.call("tasks.index", { scope: "everyone", parentTaskId: taskId }).then((o) => setKids((o as IndexOut).rows.filter((r) => r.kind === "work").sort(planOrder)), () => setKids([]));
@@ -100,10 +103,10 @@ export function TaskDetail({ rt, taskId, conversationFor, openTask, openAgent, o
   const run = useCallback(async (cap: string, input: Record<string, unknown>): Promise<boolean> => {
     setLine("");
     try {
-      const out = await rt.call(cap, { taskId, ...input }) as { task?: TaskFull };
+      const out = await rt.call(cap, { taskId, ...withVersion(cap, input, versionRef.current) }) as { task?: TaskFull };
       if (out.task) setOverride(out.task);
       return true;
-    } catch (e) { setLine(failure(e, "That could not be changed.")); return false; }
+    } catch (e) { setOverride(null); setLine(failure(e, "That could not be changed.")); return false; }
   }, [rt, taskId]);
 
   // a task with no thread yet (a planned child before it starts) gets one when someone opens it: comments need somewhere to go
@@ -183,7 +186,9 @@ function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, seats, openTa
     g.addEventListener("keydown", f);
     return () => g.removeEventListener("keydown", f);
   }, []);
-  const saveTitle = (): void => { const t = title.trim(); if (t === "" || t === task.title) { setTitle(task.title); return; } void run("tasks.update", { title: t }); };
+  // the title is saved against the version it was started on, so a change someone else made meanwhile is told, not overwritten
+  const titleBase = useRef<number | undefined>(undefined);
+  const saveTitle = (): void => { const t = title.trim(); const base = titleBase.current; titleBase.current = undefined; if (t === "" || t === task.title) { setTitle(task.title); return; } void run("tasks.update", { title: t, ...(base !== undefined ? { expectedVersion: base } : {}) }); };
   const steps = isBaton(view) || task.reviewer || task.approver ? stepsOf(view) : [];
   const labels: ReactElement[] = [];
   for (const l of (task.labels ?? []).slice(0, 4)) labels.push(<Text key={l} style={st.label}>{`#${l}`}</Text>);
@@ -201,7 +206,7 @@ function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, seats, openTa
     <View style={st.titleRow}>
       <View style={{ marginTop: 7 }}><StatusDot state={task.state} size={24} live={turn !== undefined} onPress={(at) => menu.show(statusEntries(task, rt.me.id, run, begin), at.x, at.y, "other", { label: "Status" })} testID="task-status" /></View>
       {/* the title wraps to as many lines as it needs (a phone, the side pane); Enter saves it, it never holds a line break */}
-      <TextInput accessibilityLabel="Task title" testID="task-title" value={title} onChangeText={(v) => setTitle(v.replace(/\n/g, ""))} onBlur={saveTitle} onSubmitEditing={saveTitle} multiline blurOnSubmit scrollEnabled={false} onContentSizeChange={(e) => setTitleH(Math.max(34, Math.ceil(e.nativeEvent.contentSize.height)))} style={[st.h1, { height: titleH }]} />
+      <TextInput accessibilityLabel="Task title" testID="task-title" value={title} onFocus={() => { titleBase.current = task.version; }} onChangeText={(v) => setTitle(v.replace(/\n/g, ""))} onBlur={saveTitle} onSubmitEditing={saveTitle} multiline blurOnSubmit scrollEnabled={false} onContentSizeChange={(e) => setTitleH(Math.max(34, Math.ceil(e.nativeEvent.contentSize.height)))} style={[st.h1, { height: titleH }]} />
     </View>
     {steps.length > 2 ? <BatonPath steps={steps} nameOf={nameOf} /> : null}
     {turn ? <View style={st.liveLine}><LiveWords turn={turn} turns={rt.turns} name={nameOf(turn.agentId)} /></View> : null}
@@ -485,7 +490,7 @@ function Rail({ task, rt, nameOf, run, menu, seats, openTask, kidsCount, begin }
     let teams = false;
     for (const p of seats) {
       if ((p.kind === "group" || p.kind === "role") && !teams) { items.push({ head: "Teams and roles" }); teams = true; }
-      items.push({ label: p.name, leading: <Avatar name={p.name} seedId={p.id} kind={faceKind({ kind: p.kind, id: p.id })} size={16} />, checked: task[slot]?.id === p.id, onSelect: () => void run("tasks.assign", { slot, to: { kind: p.kind, id: p.id } }) });
+      items.push({ label: p.name, leading: <Avatar name={p.name} seedId={p.id} kind={faceKind({ kind: p.kind, id: p.id })} size={16} />, checked: task[slot]?.id === p.id, onSelect: () => giveWithCare(menu.show, p, at, () => void run("tasks.assign", { slot, to: { kind: p.kind, id: p.id } })) });
     }
     if (slot !== "assigned" && task[slot]) items.push({ separator: true }, { label: "Clear", onSelect: () => void run("tasks.assign", { slot, to: null }) });
     menu.show(items, at.x, at.y, "other", { label: slot }, { search: "Find someone" });

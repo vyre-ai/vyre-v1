@@ -213,9 +213,15 @@ test("a Space AI step runs as its service on a Space-shared key, and refuses a k
     assert.match(JSON.stringify(refused.data), /belongs to one person/);
     assert.match(JSON.stringify(refused.data), /Space-shared AI key/);
     await ok(w.d, "automations.update", { automationId: id, definition: { triggers: [{ key: "manual" }], nodes: [{ id: "ask", key: "ai", input: { prompt: "Say hi" } }] } });
+    // a step with no key of its own runs on Automatic (l-aipick): the Space AI account kept for automations, here the team key; with none kept it is refused (modules/automations/tests/defs.test.ts)
     const bare = await call(w.d, "automations.set_enabled", { automationId: id, enabled: true });
-    assert.equal(bare.status, 422, JSON.stringify(bare.data));
-    assert.match(JSON.stringify(bare.data), /needs a Space-shared AI key/);
+    assert.equal(bare.status, 200, JSON.stringify(bare.data));
+    w.v.script.push({ text: "Hi on Automatic." });
+    const seen = w.v.auth.length;
+    const autoRun = String((await ok(w.d, "automations.run", { automationId: id, idempotencyKey: "ai-space-auto-run" })).runId);
+    await finished(w.d, autoRun, "succeeded");
+    assert.equal(outputOf(w.d, autoRun, "ask").text, "Hi on Automatic.");
+    assert.equal(w.v.auth[seen], `Bearer ${KEY}`, "Automatic picks the Space key that pays for automations");
   } finally { await w.stop(); }
 });
 

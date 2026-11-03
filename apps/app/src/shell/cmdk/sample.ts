@@ -2,7 +2,7 @@
 // Matching is a plain case-insensitive contains over title, snippet and path, the way a small FTS would answer a short query.
 import { skins } from "../../../../../ui/src/tokens/skins.ts";
 import type { CmdKData } from "./controller.ts";
-import type { CmdAction, Hit, HitKind } from "./model.ts";
+import type { AskAnswer, AskSource, CmdAction, Hit, HitKind } from "./model.ts";
 
 const hit = (kind: HitKind, id: string, title: string, extra: Partial<Hit> = {}): Hit => ({ kind, id, title, link: `vyre://${kind}/${id}`, score: 1, ...extra });
 
@@ -43,7 +43,26 @@ export const ACTIONS: readonly CmdAction[] = [
 
 const has = (h: Hit, q: string): boolean => `${h.title} ${h.snippet ?? ""} ${h.path ?? ""}`.toLowerCase().includes(q.toLowerCase());
 
+const src = (n: number, kind: HitKind, id: string, title: string, where: string, extra: Partial<Hit> = {}): AskSource => ({ n, where, ...hit(kind, id, title, extra) });
+
+/** The answer behind the Ask the Space scenes: Elena and the lease, four sources a person may read. */
+export const SAMPLE_ANSWER: AskAnswer = {
+  state: "answered",
+  answer: "Elena asked for the lease documents by Thursday [1]. Intake booked her consult for Thursday at 10:00 [2], and the engagement letter is drafted and waits for her signature [3]. The project is in Drafting, due 14 Nov [4].",
+  sources: [
+    src(1, "inbox", "ib_lease", "Lease documents for Thursday", "Inbox", { snippet: "Elena Rivera, 2 Nov" }),
+    src(2, "inbox", "ib_consult", "Rivera consult", "Meeting", { snippet: "Thursday 10:00, with Intake" }),
+    src(3, "file", "fi_engage_letter", "rivera-engagement-letter.docx", "File", { path: "Projects / Rivera matter" }),
+    src(4, "record", "rec_rivera", "Rivera engagement", "Record", { snippet: "Project, Drafting" }),
+  ],
+  cited: [1, 2, 3, 4],
+  account: { title: "Claude", mine: true },
+};
+export const SAMPLE_NO_ACCESS: AskAnswer = { state: "no_access", answer: "I can't see anything about that you can read.", sources: [], cited: [], account: { title: "Claude", mine: true } };
+
 export interface SampleOptions {
+  /** Ask the Space on (the default answer, or your own). Left out: the search offers no Ask row. */
+  ask?: boolean | ((question: string) => Promise<AskAnswer>);
   serverDelayMs?: number;
   scope?: "space" | "device";
   online?: boolean;
@@ -59,10 +78,13 @@ export interface SampleCalls {
   copied: string[];
   ran: string[];
   recorded: string[];
+  asked: string[];
+  answerCopied: string[];
+  chats: { question: string; answer: string }[];
 }
 
 export function createSampleData(opts: SampleOptions = {}): { data: CmdKData; calls: SampleCalls } {
-  const calls: SampleCalls = { previews: [], setSkins: [], opened: [], copied: [], ran: [], recorded: [] };
+  const calls: SampleCalls = { previews: [], setSkins: [], opened: [], copied: [], ran: [], recorded: [], asked: [], answerCopied: [], chats: [] };
   const local = opts.local ?? LOCAL_HITS;
   const server = opts.server ?? SERVER_HITS;
   const data: CmdKData = {
@@ -83,6 +105,11 @@ export function createSampleData(opts: SampleOptions = {}): { data: CmdKData; ca
     copyLink: (h) => { calls.copied.push(h.link); },
     runAction: (a) => { calls.ran.push(a.key); },
     recordOpened: (h) => { calls.recorded.push(h.id); },
+    ...(opts.ask ? {
+      ask: (q: string) => { calls.asked.push(q); return typeof opts.ask === "function" ? opts.ask(q) : Promise.resolve(SAMPLE_ANSWER); },
+      copyText: (t: string) => { calls.answerCopied.push(t); },
+      continueInChat: (c: { question: string; answer: string }) => { calls.chats.push(c); },
+    } : {}),
   };
   return { data, calls };
 }

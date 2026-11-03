@@ -14,7 +14,13 @@ import { id, pageIn, pageOut, versionRow } from './_common.ts';
 const layer = t.enm('person', 'agent', 'project', 'space');
 const factStatus = t.enm('proposed', 'current', 'closed', 'removed');
 const sourceKind = t.enm('chat', 'channel', 'task', 'record', 'run', 'journey', 'manual');
+const lessonHow = t.enm('edit', 'refuse', 'reverse', 'rewrite');
 const factExtras = {
+  kind: t.opt(t.str({ description: 'What sort of fact it is: preference, profile, decision, deadline, relationship, note or lesson' })),
+  lesson: t.opt(t.obj({
+    how: t.opt(lessonHow), used: t.int({ minimum: 0, description: 'How many of the agent\'s answers used it' }),
+    scope: t.enm('you', 'proposed', 'space'),
+  }, { description: 'Only on a lesson: how the person corrected the agent, how often it was used, and who may read it (only the person; waiting for a person to accept sharing it; kept for the Space)' })),
   subject: t.opt(t.obj({ pageId: t.str(), title: t.str(), kind: t.str() }, { description: 'The page this fact is about' })),
   sourceTitle: t.opt(t.str({ description: 'Title of the chat, run or record the fact came from, when the reader may open it' })),
   by: t.opt(t.str({ description: 'Id of who wrote it: a person, an agent or upkeep' })), byKind: t.opt(t.enm('person', 'agent', 'upkeep', 'system')),
@@ -59,7 +65,8 @@ const trailRow = t.obj({
   runId: t.opt(t.str()), detail: t.opt(t.rec(t.any())),
 });
 const noteRow = t.obj({ noteId: id.note, path: t.str({ examples: ['Agents/Intake/memory/notes/clients.md'] }), title: t.str(), layer, agentId: t.opt(id.agent), updatedAt: t.ts() });
-const hit = t.obj({ kind: t.enm('note', 'fact', 'page'), noteId: t.opt(id.note), factId: t.opt(id.fact), pageId: t.opt(t.str()), title: t.str(), text: t.str(), path: t.opt(t.str()), trueSince: t.opt(t.ts()), layer, sourceLink: t.opt(t.str()), score: t.num(), ...factExtras });
+// the hit's own kind (what was found) comes after the fact's extras, whose kind is what sort of fact it is
+const hit = t.obj({ ...factExtras, kind: t.enm('note', 'fact', 'page'), noteId: t.opt(id.note), factId: t.opt(id.fact), pageId: t.opt(t.str()), title: t.str(), text: t.str(), path: t.opt(t.str()), trueSince: t.opt(t.ts()), layer, sourceLink: t.opt(t.str()), score: t.num() });
 const quoteRow = t.obj({
   ref: t.str({ description: 'Source id of the line: a message id, or <thread>#<index> for a transcript row', examples: ['msg_a1b2c3'] }), source: t.enm('message', 'step'),
   text: t.str({ description: 'The stored words, exactly as written' }), truncated: t.opt(t.bool()),
@@ -143,7 +150,7 @@ export default defineManifest({
       label: 'filter', tool: 'memory', mcpName: 'facts_as_of', agent: { planMode: 'allowed' },
     }),
     read('memory.facts.list', 'List facts by layer, agent, status or "From you"; proposed facts wait here for acceptance', {
-      in: { layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), status: t.opt(t.arr(factStatus)), fromMe: t.opt(t.bool()), q: t.opt(t.str()), ...pageIn },
+      in: { layer: t.opt(layer), agentId: t.opt(id.agent), projectId: t.opt(id.project), status: t.opt(t.arr(factStatus)), fromMe: t.opt(t.bool()), q: t.opt(t.str()), kind: t.opt(t.str({ description: 'Only facts of this kind, for example lesson' })), ...pageIn },
       out: { facts: t.arr(factRow), ...pageOut, locked }, label: 'filter', tool: 'memory',
     }),
     read('memory.fact.get', 'Read one fact with its history of closed versions', {
@@ -236,6 +243,11 @@ export default defineManifest({
     write('memory.promote', 'Promote a fact to the agent, a project or the Space layer; a task for the right approver carries the name and time, no admin needed when the person can edit the target', {
       in: { ...factT, toLayer: t.enm('agent', 'project', 'space'), agentId: t.opt(id.agent), projectId: t.opt(id.project), note: t.opt(t.str()) },
       out: { promotionId, promoted: t.bool(), taskId: t.opt(id.task) }, emits: ['memory.promotion_requested', 'memory.promoted'], tool: 'memory', agent: { planMode: 'blocked', blocks: ['memory_saved'] },
+    }),
+    write('memory.corrections.record', 'Keep a lesson from a correction made outside the chat\'s own words: an edit of the agent\'s draft, a declined or sent-back action, an undo. Called as the person who corrected; kept only when their switch Learn from my corrections is on', {
+      in: { agentId: id.agent, how: lessonHow, was: t.opt(t.str({ description: 'What the agent did or wrote' })), now: t.opt(t.str({ description: 'What the person changed it to' })), note: t.opt(t.str({ description: 'The person\'s own words, when they gave a reason' })), threadId: t.opt(id.thread), ref: t.opt(t.str({ description: 'What was corrected, so the same correction makes one lesson' })) },
+      out: { kept: t.bool(), why: t.opt(t.enm('off', 'forgotten', 'nothing', 'duplicate')), lesson: t.opt(factRow) },
+      emits: ['memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], idem: 'natural', risk: 'low', tool: 'memory', errors: ['permission.no_grant'],
     }),
     write('memory.promotion.approve', 'Approve a promotion request (the approver action on its task)', {
       in: { promotionId }, out: { fact: factRow }, emits: ['memory.promoted'], tool: 'memory', audit: 'sensitive', errors: ['validation.precondition_failed'],
@@ -456,6 +468,7 @@ export default defineManifest({
     setting('memory.trash_days', 'space', 'Policies', 'Days in Trash before Archive (30 to 90)', t.int({ minimum: 30, maximum: 90 }), 60),
     setting('memory.upkeep_monthly_cap', 'space', 'Policies', 'Monthly spend cap for model upkeep, in US dollars', t.num({ minimum: 0 }), 5),
     setting('memory.meaning_search', 'space', 'Policies', 'Meaning search: local model, the memory key, or off', t.enm('local', 'key', 'off'), 'local'),
+    setting('memory.lessons', 'person', 'Memory and privacy', 'Learn from my corrections', t.bool(), true),
     setting('memory.learn_daily_passes', 'space', 'Policies', 'Memory learning: model passes per person per day', t.int({ minimum: 0, maximum: 5000 }), 150),
     setting('memory.learn_daily_tokens', 'space', 'Policies', 'Memory learning: input tokens per person per day', t.int({ minimum: 0, maximum: 50000000 }), 400000),
   ],

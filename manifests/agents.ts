@@ -26,6 +26,7 @@ const agentRow = t.obj({
   model: t.opt(t.str()), fallbackModel: t.opt(t.str()), accountPolicy: t.enm('asker', 'key'), accountKey: t.opt(t.str({ description: 'Vault handle, never a value', examples: ['#Team_Anthropic_Key'] })),
   accountFallback: t.arr(t.str({ description: 'Vault handles, best first: tried in this order when the chat key fails, before the Space backups' })),
   memoryKey: t.opt(t.str({ description: 'Vault handle that pays for this agent memory upkeep; never a value', examples: ['#Team_Anthropic_Key'] })),
+  workKey: t.opt(t.str({ description: 'Vault handle of the AI account that pays for this agent\'s own work (routines, watchers, helpers); absent is Automatic, the cheapest Space AI account kept for it; never a value', examples: ['#Team_Anthropic_Key'] })),
   switchOnLimit: t.opt(t.bool()),  // on unless false: switch to the next usable account when this one runs out of its limit; a paid key that is not on a fallback list asks first
   toolsAllowed: t.arr(t.str()), toolsDenied: t.arr(t.str()), vaultKeys: t.arr(t.str()), limits, captureMode, hasComputer: t.bool(), templateVersion: t.int(),
   createdAt: t.ts(), lastActiveAt: t.opt(t.ts()),
@@ -141,6 +142,10 @@ export default defineManifest({
     }),
     write('agents.role_line.set', 'Edit the role line in place: saves the description of agent.toml with an inline Undo; read-only without Edit', {
       in: { ...target, description: t.str({ maxLength: 200 }) }, out: { agent: agentRow, undoVersionId: id.version }, on: ['agent', '/agentId'], emits: ['agent.config_changed'], tool: 'agents', offline: 'patch',
+    }),
+    write('agents.instruction.append', 'Make a lesson an instruction: one line added to the agent\'s AGENT.md under Lessons from corrections, as a new version with an inline Undo; needs Edit on the agent', {
+      in: { ...target, line: t.str({ maxLength: 240 }) }, out: { agent: agentRow, added: t.bool(), versionId: t.opt(id.version), undoVersionId: t.opt(id.version) }, on: ['agent', '/agentId'], emits: ['agent.config_changed'], tool: 'agents',
+      errors: ['validation.bad_input'],
     }),
     // ---- outside agents: an app that signed in from outside Vyre is a normal agent that runs elsewhere. Work waits for it here, because it is not running all the time.
     write('agents.outside.connect', 'System: make the agent an app becomes when a person allows it. Called by mcp.oauth.allow, never by a client', {

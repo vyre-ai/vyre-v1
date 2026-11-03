@@ -5,7 +5,7 @@ import type { PlaceId } from "../rail/kits.ts";
 import { skins, system } from "../../../../../ui/src/tokens/skins.ts";
 import { applySkinToWindow } from "../providers/settings-skin.ts";
 import type { CmdKData } from "./controller.ts";
-import type { CmdAction, Hit, HitKind } from "./model.ts";
+import type { AskAnswer, CmdAction, Hit, HitKind } from "./model.ts";
 import { requestChannelSheet } from "../../places/chats/channels/request.ts";
 import { offered } from "../session/private-agents.ts";
 import { activePlace, openAskPane, placeTitle, thingOfScreen } from "../ask/pane.ts";
@@ -163,6 +163,19 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
       else if (a.key === "channel.new") { nav.go("chats"); requestChannelSheet("new"); }
       else if (a.key === SKIN) nav.go("settings", "page=appearance");
       else if (a.key === "mail.connect") nav.go("settings", MAIL_PAGE_HASH);
+    },
+    // Ask the Space: the question is answered on the server from what this person may read, on their own AI account (search.ask); the answer and its sources come back whole and are written onto the page by the sheet
+    ask: async (question) => (await rt.call("search.ask", { q: question })) as AskAnswer,
+    copyText: (text) => {
+      const clip = (globalThis as { navigator?: { clipboard?: { writeText(s: string): Promise<void> } } }).navigator?.clipboard;
+      void clip?.writeText(text);
+      nav.flash("Answer copied");
+    },
+    // Continue in a chat: a real chat with the assistant that starts from the question and the answer, opened where the person is
+    continueInChat: ({ question, answer }) => {
+      const key = `askchat_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+      void Promise.resolve(rt.call("chat.start", { kind: "chat", agentIds: [rt.assistant.id], title: question.length > 80 ? `${question.slice(0, 77)}...` : question, first: `${question}\n\nWhat the Space says:\n${answer}`, idempotencyKey: key }))
+        .then((out) => { const id = (out as { thread?: { threadId?: string } } | null)?.thread?.threadId; if (id) rt.open({ subject: { type: "thread", id } }); else nav.flash("Could not open a chat"); }, () => nav.flash("Could not open a chat"));
     },
     recordOpened: (hit) => { if (shellHitTarget(hit, state)) return; void rt.call("search.recent.record", { kind: hit.kind, itemId: hit.id }).catch(() => undefined); },
   };

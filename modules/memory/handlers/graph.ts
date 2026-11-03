@@ -102,7 +102,8 @@ async function indexFile(ctx: MemCtx, fileId: string): Promise<{ nodes: number; 
   if (!where || (file.kind !== "markdown" && file.kind !== "text" && !/\.(md|markdown|txt)$/i.test(file.name))) return gone();
 
   let md = "";
-  try { md = str(((await ctx.call("files.read", { fileId, as: "text" })) as { text?: string }).text); } catch { md = ""; }
+  // what an agent may read of the note (Redaction for AI): [REDACTED] where a part is hidden, nothing while it waits for review or is Not available
+  try { md = str(((await ctx.call("files.agent_view", { fileId })) as { text?: string | null }).text); } catch { md = ""; }
   const fm = frontmatter(md);
   const title = fm.data["title"] ?? headings(fm.body).find((h) => h.level === 1)?.text ?? file.name.replace(/\.[a-z0-9]+$/i, "");
   const agentId = where.agentName ? await idByName(ctx, "agent", where.agentName) : null;

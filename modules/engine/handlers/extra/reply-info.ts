@@ -87,6 +87,8 @@ export interface ReplyTurn {
   turnId: string; traceId: string; agentId: string; asker: string; model: string; effort?: string; engine: string; provider?: string;
   /** "subscription" (a sign-in) or "api_key"; with `shared` it is a key of the Space, not the asker's own. */
   accountKind?: string; shared?: boolean;
+  /** Who paid and why, in a plain line. The asker's and managers' only. */
+  paid?: string;
   /** The asker's and managers' only. */
   accountRef?: string;
   state: string; ranOn: Array<{ kind: string; name: string }>;
@@ -135,7 +137,7 @@ export function turnOfMessage(ctx: EngineCtx, input: { threadId: string; message
     turn: {
       turnId: str(t["turn_id"]), traceId: str(t["trace_id"]), agentId: str(t["agent_id"]), asker, model: str(t["model"]),
       ...(info?.effort ? { effort: info.effort } : {}), engine: info?.account?.driver ?? str(t["engine"]), ...(info?.account ? { provider: info.account.provider, accountKind: info.account.kind } : {}),
-      ...(info?.account?.shared || info?.account?.spaceKey ? { shared: true } : {}), ...(full && accountRef ? { accountRef } : {}),
+      ...(info?.account?.shared || info?.account?.spaceKey ? { shared: true } : {}), ...(full && accountRef ? { accountRef } : {}), ...(full && info?.paid ? { paid: info.paid } : {}),
       state: str(t["state"]), ranOn: Array.isArray(t["ran_on"]) ? (t["ran_on"] as Array<{ kind: string; name: string }>) : [],
       timing: { ...(queuedAt !== undefined && queuedAt <= startedAt ? { queuedAt } : {}), startedAt, ...(info?.firstTokenAt ? { firstTokenAt: info.firstTokenAt } : {}), ...(endedAt === undefined ? {} : { endedAt }) },
       tokens: {

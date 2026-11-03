@@ -12,7 +12,7 @@ import { each } from "../../files/memory/model.ts";
 import { Icon } from "../../files/memory/parts.tsx";
 import { forgetFacts } from "./actions.ts";
 import { useChatMemory, useRead } from "./data.tsx";
-import { USED_FOOT, factLine, quoteDate, quoteSub, shapedReply, usedCount, usedLabel } from "./model.ts";
+import { USED_FOOT, factLine, isLesson, quoteDate, quoteSub, shapedReply, usedCount, usedLabel } from "./model.ts";
 import type { ChatFact, ChatQuote, UsedOut } from "./model.ts";
 import { ChipLink, LinkButton, QuoteIcon, glyphOf, sourceLabel, useOpenSource, webProps, ownMenu, ownMenuKeys } from "./parts.tsx";
 import { useThreadMemory } from "./thread.tsx";
@@ -25,13 +25,30 @@ export function ReplyMemory({ messageId, threadId, reply = "", startOpen = false
   if (!mem || read.status !== "ready") return null;
   // what an older reply recorded may include a greeting or an imported session's preamble matched as a quote: those say nothing and are not shown or counted
   // and a fact is shown only when the reply carries it (most replies match some memory a little and are not shaped by it); quotes are only recalled when the person asked to find words
-  const used = { ...read.data, quotes: read.data.quotes.filter((q) => recallable(q.text)), facts: read.data.facts.filter((f) => reply === "" || shapedReply(factLine(f), reply)) };
-  if (usedCount(used) === 0) return null;
+  // a lesson is a rule the agent follows, not a fact its words repeat: it is shown whenever it was put in front of the agent, on a line of its own ("Used a lesson"), outside the fold of the work so it is seen
+  const lessons = read.data.facts.filter(isLesson);
+  const used = { ...read.data, quotes: read.data.quotes.filter((q) => recallable(q.text)), facts: read.data.facts.filter((f) => !isLesson(f) && (reply === "" || shapedReply(factLine(f), reply))) };
+  if (usedCount(used) === 0 && lessons.length === 0) return null;
   return (
     <View testID={`used-${messageId}`} style={st.root}>
-      {part !== "cards" ? <UsedLine messageId={messageId} used={used} startOpen={startOpen} /> : null}
+      {part !== "cards" && usedCount(used) > 0 ? <UsedLine messageId={messageId} used={used} startOpen={startOpen} /> : null}
+      {part !== "line" ? each(lessons, (l) => <LessonUsed key={l.factId} lesson={l} />) : null}
       {part !== "line" ? each(used.quotes, (q) => <QuoteCard key={q.ref} quote={q} />) : null}
     </View>
+  );
+}
+
+/** "Used a lesson: Notes to Sara, three lines, the number first." A press opens Knows, where the lesson can be edited or forgotten. */
+function LessonUsed({ lesson }: { lesson: ChatFact }): ReactElement {
+  const mem = useChatMemory()!;
+  return (
+    <Pressable
+      accessibilityRole="button" accessibilityLabel={`Used a lesson: ${lesson.text}. See what the agent has learned`} testID={`mused-lesson-${lesson.factId}`} onPress={() => mem.showKnows?.()}
+      style={({ hovered }: { hovered?: boolean }) => [st.lessonLine, hovered === true && st.headOver]}
+    >
+      <Icon name="bulb" size={13} color="var(--ink-3)" />
+      <Text style={st.lessonText} numberOfLines={2}><Text style={st.lessonBold}>Used a lesson</Text>{`  ${lesson.text}`}</Text>
+    </Pressable>
   );
 }
 
@@ -160,6 +177,9 @@ const st = StyleSheet.create({
   headOver: { backgroundColor: "var(--hover)" as string },
   headText: { fontSize: 12, fontWeight: "500", color: "var(--ink-3)" as string },
   flip: { transform: [{ rotate: "180deg" }] },
+  lessonLine: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, minHeight: 24, marginTop: 6, paddingLeft: 4, paddingRight: 6, marginLeft: -4, borderRadius: 6 },
+  lessonText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
+  lessonBold: { fontWeight: "500", color: "var(--ink-2)" as string },
   list: { alignSelf: "stretch", marginTop: 4, marginBottom: 2, paddingTop: 4, paddingHorizontal: 12, paddingBottom: 8, borderRadius: 12, backgroundColor: "var(--sunk)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object,
   item: { flexDirection: "row", columnGap: 8, paddingVertical: 9 },
   itemRule: { borderTopWidth: 1, borderTopColor: "var(--line)" as string },
