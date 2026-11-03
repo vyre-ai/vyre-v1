@@ -568,6 +568,36 @@ export const redactConsumers = {
   },
 };
 
+/** Every file below a folder that waits for review, nearest first (bounded): the folder's "N files need review" line and Review next. */
+async function needsBelow(ctx: Ctx, folderId: string, cap = 2000): Promise<string[]> {
+  const out: string[] = [], walk = [folderId], seen = new Set(walk);
+  for (let i = 0; i < walk.length && out.length < cap; i++) {
+    for (const f of many(ctx, "SELECT id FROM files_file WHERE folder_id = ? AND deleted_at IS NULL", walk[i])) { const st = await stateOf(ctx, str(f.id)); if (st?.state === "needs") out.push(str(f.id)); }
+    for (const c of many(ctx, "SELECT id FROM files_folder WHERE parent_id = ? AND deleted_at IS NULL", walk[i])) { const k = str(c.id); if (!seen.has(k)) { seen.add(k); walk.push(k); } }
+  }
+  return out;
+}
+
+/** What a folder's list shows of the layer: each file's badge, each subfolder's own setting and how many below it wait, and the files to review next. */
+async function agentStates(ctx: Ctx, input: unknown): Promise<O> {
+  const o = rec(ctx, input), folderId = reqId(ctx, o, "folderId");
+  if (!folderRow(ctx, folderId)) fail(ctx, "validation.not_found", "That folder is not here.", { folderId });
+  const files: O[] = [];
+  for (const f of many(ctx, "SELECT id FROM files_file WHERE folder_id = ? AND deleted_at IS NULL", folderId)) {
+    const st = await stateOf(ctx, str(f.id)); if (!st) continue;
+    const waiting = many(ctx, "SELECT agent FROM files_redact_request WHERE file_id = ? AND state = ?", str(f.id), "waiting");
+    const badge = st.state === "off" ? "off" : st.state === "needs" ? "needs_review" : st.access.value === "redact" ? "reviewed" : st.marks.some((m) => m.kind === "redact") ? "hidden" : "clear";
+    files.push({ fileId: str(f.id), state: badge, own: st.access.own, ...(waiting.length ? { waiting: waiting.map((w) => str(w.agent)).filter(Boolean) } : {}) });
+  }
+  const folders: O[] = [];
+  for (const c of many(ctx, "SELECT id FROM files_folder WHERE parent_id = ? AND deleted_at IS NULL", folderId)) {
+    const a = accessOf(ctx, { folderId: str(c.id) });
+    folders.push({ folderId: str(c.id), value: a.value, own: a.own, needs: a.value === "off" ? 0 : (await needsBelow(ctx, str(c.id), 200)).length });
+  }
+  const queue = accessOf(ctx, { folderId }).value === "off" ? [] : await needsBelow(ctx, folderId);
+  return { access: accessReply(ctx, { kind: "folder", id: folderId }), files, folders, needs: queue.length, queue: queue.slice(0, 50) };
+}
+
 export const redactHandlers = {
   "files.agent_access.get": accessGet,
   "files.agent_access.set": accessSet,
@@ -580,6 +610,7 @@ export const redactHandlers = {
   "files.redact.later": requestLater,
   "files.redact.detect": detectCap,
   "files.agent_view": agentView,
+  "files.agent_states": agentStates,
 };
 
 export { REDACTED };

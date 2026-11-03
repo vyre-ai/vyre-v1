@@ -371,6 +371,15 @@ export default defineManifest({
       out: { state: t.enm('clear', 'redacted', 'needs', 'off'), name: t.str(), path: t.str(), text: t.nullable(t.str()), boxes: t.opt(t.arr(t.obj({ page: t.int(), box: t.nullable(box) }))) },
       on: ['file', '/fileId'], label: 'check', agent: false,
     }),
+    read('files.agent_states', 'Redaction for AI in a folder: each file\'s badge (Reviewed, Needs review, Not available to AI), each subfolder\'s setting and how many below it wait, and the files to review next', {
+      in: { folderId: id.folder },
+      out: {
+        access: t.obj(accessOut), needs: t.int({ minimum: 0 }), queue: t.arr(id.file),
+        files: t.arr(t.obj({ fileId: id.file, state: t.enm('clear', 'hidden', 'reviewed', 'needs_review', 'off'), own: t.bool(), waiting: t.opt(t.arr(t.str())) })),
+        folders: t.arr(t.obj({ folderId: id.folder, value: agentAccess, own: t.bool(), needs: t.int({ minimum: 0 }) })),
+      },
+      on: ['folder', '/folderId'], label: 'check', agent: false,
+    }),
     // ---- file-tree folders
     create('files.folder.create', 'Create a folder', {
       in: { parentId: id.folder, name: t.str(), reviewChanges: t.opt(t.bool()), subject: t.opt(t.obj({ kind: t.enm('agent', 'project'), id: t.str({ examples: ['agt_a1b2c3'] }) })) }, out: { folder: folderRow }, make: ['folder', '/parentId'], perm: 'files.write', emits: ['folder.created'], tool: 'files', offline: 'queue', errors: ['validation.duplicate'],
