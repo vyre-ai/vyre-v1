@@ -19,6 +19,21 @@ export const handlers: Record<string, Handler> = {
   "meetings.transcript.get": (ctx, i) => h.transcriptGet(ctx, i),
   "meetings.summarize": (ctx, i) => h.summarize(ctx, i),
   "meetings.set_summary": (ctx, i) => h.setSummary(ctx, i),
+  "meetings.closeout.list": (ctx, i) => h.closeoutList(ctx, i),
+  "meetings.closeout.get": (ctx, i) => h.closeoutGet(ctx, i),
+  "meetings.closeout.prepare": (ctx, i) => h.closeoutPrepare(ctx, i),
+  "meetings.closeout.sync": (ctx, i) => h.closeoutSync(ctx, i),
+  "meetings.closeout.propose": (ctx, i) => h.closeoutPropose(ctx, i),
+  "meetings.closeout.edit": (ctx, i) => h.closeoutEdit(ctx, i),
+  "meetings.closeout.approve": (ctx, i) => h.closeoutApprove(ctx, i),
+  "meetings.closeout.skip": (ctx, i) => h.closeoutSkip(ctx, i),
+  "meetings.closeout.share": (ctx, i) => h.closeoutShare(ctx, i),
+};
+
+/** The close-out starts by itself when a transcript lands, and an Assistant that submitted its close-out task with the package as outputs still hands it in. */
+export const consumers = {
+  "meetings.closeout": { on: ["meeting.transcript_ready"], run: (ctx: Parameters<typeof h.onTranscriptReady>[0], event: Parameters<typeof h.onTranscriptReady>[1]) => h.onTranscriptReady(ctx, event) },
+  "meetings.closeout_done": { on: ["task.completed"], run: (ctx: Parameters<typeof h.onPrepareDone>[0], event: Parameters<typeof h.onPrepareDone>[1]) => h.onPrepareDone(ctx, event) },
 };
 
 export const projections = { inline: {}, consumers: {} };

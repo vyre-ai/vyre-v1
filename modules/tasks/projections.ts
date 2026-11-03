@@ -12,7 +12,7 @@ export type AssigneeKind = "person" | "agent" | "group" | "role" | "automation";
 export interface Assignee { kind: AssigneeKind; id: string }
 export interface Block { type: string; v?: number; data: unknown }
 export interface ActionDef { key: string; label: string; note?: "required" | "optional" }
-export interface TaskSource { kind: "chat" | "run" | "gate" | "journey" | "manual"; id: string }
+export interface TaskSource { kind: "chat" | "run" | "gate" | "journey" | "meeting" | "manual"; id: string }
 export type Priority = "urgent" | "high" | "normal" | "low";
 export interface Recur { every: "day" | "week" | "month"; n?: number }
 

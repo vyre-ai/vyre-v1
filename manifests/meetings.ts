@@ -19,6 +19,30 @@ const meetingRow = t.obj({
 const attendeeIn = t.obj({ email, name: t.opt(t.str()), contactId: t.opt(id.record) });
 const sourceKind = t.enm('zoom', 'meet', 'teams', 'upload');
 
+// ---- close-out (lane l-meetings, owner 3 Nov: "Meetings close themselves", in the Inbox's Meetings tab)
+// DECISION: one package per meeting, prepared by the meeting owner's own Assistant in a task of its own (its turn is placed like any private chat: the owner's computer when it is on).
+// The Assistant hands the package back with meetings.closeout.propose; nothing leaves Vyre until a person approves an item, and an approved item goes through the capability it names
+// (tasks.create, records.update and records.comments.add, mail.send or mail.draft, calendar.create_event), so the Gate rules every outward send as usual.
+const closeState = t.enm('preparing', 'ready', 'closed', 'nothing');
+const itemKind = t.enm('task', 'record', 'email', 'hold');
+const itemStatus = t.enm('proposed', 'approved', 'skipped', 'failed');
+const madeRef = t.obj({ type: t.enm('task', 'record', 'comment', 'email', 'draft', 'event', 'approval'), id: t.str(), title: t.opt(t.str()) });
+const mailTo = t.obj({ address: email, name: t.opt(t.str()) });
+const fieldChange = t.obj({ field: t.str(), title: t.str(), from: t.opt(t.str()), to: t.str() });
+const closeItem = t.obj({
+  itemId: t.str({ examples: ['mci_a1b2c3'] }), kind: itemKind, status: itemStatus, title: t.str({ description: 'One line: the task, the record, the email subject or the hold' }),
+  assignee: t.opt(id.user), ownerName: t.opt(t.str({ description: 'Who said they would do it, as the transcript names them' })), due: t.opt(t.ts()), why: t.opt(t.str()),
+  recordId: t.opt(id.record), recordType: t.opt(t.str()), changes: t.opt(t.arr(fieldChange)), note: t.opt(t.str()),
+  to: t.opt(t.arr(mailTo)), subject: t.opt(t.str()), text: t.opt(t.str()), mailboxId: t.opt(id.mailbox), send: t.opt(t.enm('send', 'draft')),
+  startsAt: t.opt(t.ts()), endsAt: t.opt(t.ts()),
+  made: t.opt(t.arr(madeRef)), error: t.opt(t.str()),
+});
+const closeRow = t.obj({
+  meetingId: id.record, title: t.str(), startsAt: t.ts(), endsAt: t.opt(t.ts()), attendees: t.arr(t.str({ description: 'A name, or the address when no record names them' })), state: closeState,
+  proposed: t.int(), done: t.int(),
+});
+const attendeeOut = t.obj({ name: t.str(), email: t.opt(email), recordId: t.opt(id.record) });
+
 export default defineManifest({
   id: 'meetings',
   title: 'Meetings',
@@ -55,6 +79,11 @@ export default defineManifest({
     ev('meeting.summary_ready', 'A summary and decisions were written to the meeting', { p: { meetingId: id.record, byAgent: t.opt(id.agent) }, subject: ['record', '/meetingId'], label: 'subject' }),
     ev('meeting.merged', 'A calendar event and a provider meeting became one Meeting', {
       p: { meetingId: id.record, eventId: t.opt(cevId), providerRef: t.opt(t.str()), by: t.enm('time_and_attendees', 'link', 'person') }, subject: ['record', '/meetingId'], label: 'subject',
+    }),
+    ev('meeting.closeout_ready', 'The close-out package of a meeting is ready to approve', { p: { meetingId: id.record, items: t.int() }, subject: ['record', '/meetingId'], label: 'subject' }),
+    // the hook for Goals (lane l-goals): what closing a meeting made, so a goal can link to the meeting and its work
+    ev('meeting.closed', 'Every item of a meeting close-out was approved or skipped', {
+      p: { meetingId: id.record, made: t.arr(t.obj({ type: t.str(), id: t.str() })) }, subject: ['record', '/meetingId'], label: 'subject',
     }),
     ev('meeting.unmerged', 'A merged event was split off again', { p: { meetingId: id.record, eventId: cevId }, subject: ['record', '/meetingId'], label: 'subject' }),
   ],
@@ -113,8 +142,63 @@ export default defineManifest({
       in: { meetingId: id.record, summary: t.opt(t.str()), decisions: t.opt(t.str()) }, out: { meetingId: id.record }, on: ['record', '/meetingId'], perm: 'records.edit',
       emits: ['meeting.summary_ready'], tool: 'inbox', offline: 'patch',
     }),
+    read('meetings.closeout.list', 'The Meetings tab of the Inbox: your meetings (and meetings shared to a project or channel you can read) with their close-out state', {
+      in: { state: t.opt(closeState), recordId: t.opt(id.record), ...pageIn }, out: { meetings: t.arr(closeRow), ready: t.int(), ...pageOut }, tool: 'inbox', label: 'filter',
+    }),
+    read('meetings.closeout.get', 'One meeting close-out: summary, decisions, open questions and the proposed tasks, record updates, follow-up email and calendar hold', {
+      in: { meetingId: id.record },
+      out: {
+        meetingId: id.record, title: t.str(), startsAt: t.ts(), endsAt: t.opt(t.ts()), attendees: t.arr(attendeeOut), state: closeState, summary: t.opt(t.str()), decisions: t.arr(t.str()),
+        questions: t.arr(t.str()), items: t.arr(closeItem), preparedAt: t.opt(t.ts()), taskId: t.opt(id.task), agentId: t.opt(id.agent), shared: t.arr(t.obj({ type: t.enm('project', 'channel'), id: t.str() })),
+      },
+      on: ['record', '/meetingId'], tool: 'inbox', label: 'check',
+    }),
+    write('meetings.closeout.prepare', "Have the meeting owner's Assistant prepare the close-out from the transcript; redo starts it again without duplicating what was approved", {
+      in: { meetingId: id.record, redo: t.opt(t.bool()) }, out: { meetingId: id.record, state: closeState, taskId: t.opt(id.task) }, on: ['record', '/meetingId'], perm: 'records.edit', tool: 'inbox', idem: 'natural',
+      errors: ['validation.precondition_failed'],
+    }),
+    write('meetings.closeout.sync', 'Prepare the close-out of each of your recent meetings that has a transcript and none yet', {
+      in: {}, out: { started: t.int() }, tool: 'inbox', idem: 'natural',
+    }),
+    write('meetings.closeout.propose', "The Assistant's close-out of a meeting: summary, decisions, open questions, action items, record updates, the follow-up email and the next meeting", {
+      in: {
+        meetingId: id.record, summary: t.str({ maxLength: 4000 }), decisions: t.opt(t.arr(t.str({ maxLength: 500 }), { maxItems: 30 })), questions: t.opt(t.arr(t.str({ maxLength: 500 }), { maxItems: 30 })),
+        actions: t.opt(t.arr(t.obj({ title: t.str({ minLength: 1, maxLength: 300 }), owner: t.opt(t.str({ description: 'The name or email of who said they would do it' })), due: t.opt(t.str({ description: 'YYYY-MM-DD, only when a date was said' })), why: t.opt(t.str({ maxLength: 1000 })) }), { maxItems: 30 })),
+        records: t.opt(t.arr(t.obj({ recordId: id.record, changes: t.opt(t.arr(t.obj({ field: t.str(), value: t.str() }), { maxItems: 20 })), note: t.opt(t.str({ maxLength: 4000 })) }), { maxItems: 20 })),
+        email: t.opt(t.obj({ subject: t.str({ minLength: 1, maxLength: 300 }), text: t.str({ minLength: 1, maxLength: 20000 }) })),
+        next: t.opt(t.obj({ title: t.opt(t.str()), startsAt: t.str({ description: 'The agreed date and time, ISO 8601 with its offset' }), minutes: t.opt(t.int({ minimum: 5, maximum: 600 })) })),
+      },
+      out: { meetingId: id.record, state: closeState, items: t.int() }, on: ['record', '/meetingId'], emits: ['meeting.closeout_ready', 'meeting.summary_ready'], tool: 'inbox', idem: 'natural',
+      errors: ['validation.precondition_failed'],
+    }),
+    write('meetings.closeout.edit', 'Change one proposed close-out item before it is approved', {
+      in: {
+        meetingId: id.record, itemId: t.str(), title: t.opt(t.str({ minLength: 1, maxLength: 300 })), assignee: t.opt(id.user), due: t.opt(t.nullable(t.ts())), why: t.opt(t.str()),
+        changes: t.opt(t.arr(t.obj({ field: t.str(), to: t.str() }))), note: t.opt(t.str({ maxLength: 4000 })), to: t.opt(t.arr(mailTo, { minItems: 1 })), subject: t.opt(t.str({ minLength: 1, maxLength: 300 })),
+        text: t.opt(t.str({ minLength: 1, maxLength: 20000 })), send: t.opt(t.enm('send', 'draft')), startsAt: t.opt(t.ts()), endsAt: t.opt(t.ts()),
+      },
+      out: { item: closeItem }, on: ['record', '/meetingId'], perm: 'records.edit', tool: 'inbox', offline: 'patch', errors: ['validation.precondition_failed'],
+    }),
+    write('meetings.closeout.approve', 'Approve close-out items (all the proposed ones when none are named): create the tasks, apply the record updates, send or save the email, add the holds', {
+      in: { meetingId: id.record, itemIds: t.opt(t.arr(t.str(), { minItems: 1 })) }, out: { meetingId: id.record, state: closeState, items: t.arr(closeItem) },
+      on: ['record', '/meetingId'], perm: 'records.edit', emits: ['meeting.closed'], tool: 'inbox', idem: 'natural', errors: ['validation.precondition_failed'],
+    }),
+    write('meetings.closeout.skip', 'Skip a proposed close-out item, or bring a skipped one back', {
+      in: { meetingId: id.record, itemId: t.str(), undo: t.opt(t.bool()) }, out: { item: closeItem, state: closeState }, on: ['record', '/meetingId'], perm: 'records.edit', emits: ['meeting.closed'], tool: 'inbox', idem: 'natural',
+    }),
+    write('meetings.closeout.share', 'Share a meeting and its close-out with a project or channel (everyone who can read it sees it in their Meetings tab), or stop sharing', {
+      in: { meetingId: id.record, projectId: t.opt(id.project), channelId: t.opt(id.channel), on: t.bool() }, out: { meetingId: id.record }, on: ['record', '/meetingId'], perm: 'records.edit', tool: 'inbox', idem: 'natural',
+    }),
   ],
   screens: [
+    screen('meetings.closeout', 'inbox', 'ui:MeetingsTab', {
+      q: { list: ['meetings.closeout.list', {}, true], meeting: ['meetings.closeout.get', { meetingId: '/state/meetingId' }, true] },
+      a: {
+        approve: ['meetings.closeout.approve', { meetingId: '/state/meetingId', itemIds: '/state/itemIds' }], edit: ['meetings.closeout.edit', { meetingId: '/state/meetingId', itemId: '/state/itemId' }],
+        skip: ['meetings.closeout.skip', { meetingId: '/state/meetingId', itemId: '/state/itemId' }], redo: ['meetings.closeout.prepare', { meetingId: '/state/meetingId', redo: true }],
+      },
+      empty: 'No meetings to close yet',
+    }),
     screen('meetings.panel', 'inbox', 'ui:MeetingPanel', {
       slot: 'side',
       q: { meeting: ['meetings.get', { meetingId: '/state/meetingId' }, true], transcript: ['meetings.transcript.get', { meetingId: '/state/meetingId' }, true] },
