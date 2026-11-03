@@ -2,7 +2,7 @@
 //   engine.turn.enqueue/start/append/wait/finish/fallback, engine.turn.get, engine.turns.list, engine.turn.retry.
 // The worker in @vyre/agent calls these through invoke, so every turn event has an owning capability and a trace id. Each turn is one engine_turns row;
 // queue rows stay in engine_thread_queue (shared with the in-process engine). A write that repeats (same queue row, same outcome) answers with the first result.
-import { movedOfTurn, nodeOfTurn, whereOfTurn } from "../../node-turns.ts";
+import { nodeOfTurn, whereOfTurn } from "../../node-turns.ts";
 import { REFUSAL_WORDS, egressOfTurn } from "../../egress-log.ts";
 import { engines } from "../../engine-install.ts";
 import { PRIORITY_INTERRUPT } from "../../../../agent/src/turn-engine/queue.ts";
@@ -26,9 +26,8 @@ const DEFAULT_SAMPLE_PERCENT = 5;
 /** The server a turn ran on, when its chat was pinned to one, and every place it ran, in order (node-turns.ts). */
 function withNode(ctx: EngineCtx, r: Row): Row {
   const node = nodeOfTurn(ctx.db, str(r["turn_id"]));
-  const ran = whereOfTurn(ctx.db, str(r["turn_id"])).map((w) => ({ kind: w.kind, name: w.name }));
-  const moved = movedOfTurn(ctx.db, str(r["turn_id"]));
-  return { ...r, ...(node === undefined || node.startsWith("device:") ? {} : { node_id: node }), ...(ran.length > 0 ? { ran_on: ran } : {}), ...(moved ? { moved_from: moved } : {}) };
+  const ran = whereOfTurn(ctx.db, str(r["turn_id"])).map((w) => ({ kind: w.kind, name: w.name, ...(w.note ? { note: w.note } : {}) }));
+  return { ...r, ...(node === undefined || node.startsWith("device:") ? {} : { node_id: node }), ...(ran.length > 0 ? { ran_on: ran } : {}) };
 }
 
 export function loadTurn(ctx: EngineCtx, turnId: string): Row {

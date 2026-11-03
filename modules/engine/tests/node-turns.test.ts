@@ -1,7 +1,7 @@
 // A turn pinned to one of the person's servers (node-turns.ts): which turns are routed, what a server that is off does, and how the server is remembered on the turn record.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { movedOfTurn, remoteLauncher, routed, serverFor, nodeOfTurn, setTurnNode } from "../node-turns.ts";
+import { remoteLauncher, routed, serverFor, nodeOfTurn, setTurnNode } from "../node-turns.ts";
 import type { NodeRelay } from "../node-turns.ts";
 import { turnGet, turnEnqueue, turnStart } from "../handlers/extra/turns.ts";
 import { harness } from "../fixtures/harness.ts";
@@ -58,18 +58,17 @@ test("a server whose link is not private gets no key: the turn fails with engine
   assert.equal(nodeOfTurn(h.db, "trn_1"), undefined, "and the turn is not recorded as run there");
 });
 
-test("a turn placed after a machine with no room was skipped keeps the line and shows it in its chat (lane l-machines)", async () => {
+test("a turn Automatic moved off a busy machine keeps the reason on its record, and the turn's Ran on says it", async () => {
+  const { whereOfTurn } = await import("../node-turns.ts");
   const h = harness();
-  const notes: string[] = [];
-  const opened: string[] = [];
-  const open = (label: string) => async (): Promise<never> => { opened.push(label); return {} as never; };
-  const line = "Moved from Berlin box because it was busy: 4 of 4 turns";
-  const go = routed(open("host") as never, { call: async () => ({ placement: "host", reason: "space", movedLine: line }), relay: relay(true), nodeOpener: (id) => open(`node:${id}`) as never, db: h.db, note: (_s, text) => { notes.push(text); } });
-  await go(spec);
-  assert.deepEqual(opened, ["host"]);
-  assert.deepEqual(notes, [line]);
-  assert.equal(movedOfTurn(h.db, "trn_1"), line);
-  const { qseq } = turnEnqueue(h.ctx as never, { threadId: "thr_1", agentId: "agt_1", kind: "message", messageId: "msg_9", from: "usr_dana" });
-  const { turn } = turnStart(h.ctx as never, { threadId: "thr_1", agentId: "agt_1", qseq, placement: "host", engine: "claude_code", model: "m" });
-  assert.equal(turnGet(h.ctx as never, { turnId: turn.turnId }).what.turn.movedFrom, undefined, "a turn that was not moved says nothing");
+  const open = async (): Promise<never> => ({}) as never;
+  const moved = { from: "Dana's MacBook", why: "it was busy, 4 of 4 turns running" };
+  await routed(open as never, { call: async () => ({ placement: "host", reason: "own_server", nodeId: "srv_home", moved }), relay: relay(true), nodeOpener: () => open as never, db: h.db, serverName: async () => "home-box" })(spec);
+  assert.deepEqual(whereOfTurn(h.db, "trn_1"), [{ kind: "server", name: "home-box", nodeId: "srv_home", note: "Moved from Dana's MacBook because it was busy, 4 of 4 turns running" }]);
+  const spaceSpec = { ...spec, turnId: "trn_2" } as SessionSpec;
+  await routed(open as never, { call: async () => ({ placement: "host", reason: "space", moved }), relay: relay(true), nodeOpener: () => open as never, db: h.db, spaceName: async () => "the Northwind server" })(spaceSpec);
+  assert.equal(whereOfTurn(h.db, "trn_2")[0]?.note, "Moved from Dana's MacBook because it was busy, 4 of 4 turns running");
+  const calm = { ...spec, turnId: "trn_3" } as SessionSpec;
+  await routed(open as never, { call: async () => ({ placement: "host", reason: "space" }), relay: relay(true), nodeOpener: () => open as never, db: h.db })(calm);
+  assert.equal(whereOfTurn(h.db, "trn_3")[0]?.note, undefined, "a turn that was not moved has no note");
 });

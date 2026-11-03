@@ -19,11 +19,11 @@ async function runCompute(config: DaemonConfig): Promise<number> {
   const { runComputeNode } = await import("../compute/node.ts");
   const os = await import("node:os");
   if (!config.server) { process.stderr.write("vyred: --role compute needs --server <the Space address>\n"); return 2; }
+  const { createReporter } = await import("./machines.ts");
+  const reporter = createReporter({ dir: config.dataDir, version, can: () => ["claude_code", "codex", ...(dockerUp ? ["docker"] : [])] });
+  const { runFix } = await import("./machine-fix.ts");
   const abort = new AbortController();
   process.once("SIGTERM", () => abort.abort()); process.once("SIGINT", () => abort.abort());
-  // the 30-second report of this server (specs, load, what it can run), sent over the live socket (host/src/machines)
-  const { createReporter } = await import("../machines/reporter.ts");
-  const reporter = createReporter({ dataDir: config.dataDir, version, runs: () => ({ turns: 0, agentComputers: 0, sites: 0, automations: 0 }), engines: () => ["claude_code", "codex"] });
   const docker = async (): Promise<boolean> => { try { const { execFileSync } = await import("node:child_process"); execFileSync("docker", ["info", "--format", "{{.ServerVersion}}"], { stdio: "ignore", timeout: 4000 }); return true; } catch { return false; } };
   let dockerUp = await docker();
   const timer = setInterval(() => { void docker().then((v) => { dockerUp = v; }); }, 60_000); timer.unref();
@@ -71,7 +71,8 @@ async function runCompute(config: DaemonConfig): Promise<number> {
       },
       pollMs: Number(process.env["VYRE_POLL_MS"]) || 3_000, log: (line) => process.stdout.write(`vyred: ${line}\n`),
       facts: () => ({ os: process.platform, arch: process.arch, docker: dockerUp, version }),
-      report: (now) => reporter.report({ turns: now.turns }),
+      report: (now) => { const r = reporter.report(); return { ...r, runs: { ...r.runs, turns: now.turns } }; },
+      fix: (fix, service) => (fix === "clear_caches" || fix === "stop_idle" || fix === "restart_service" ? runFix(fix, service, { dataDir: config.dataDir, now: Date.now }) : Promise.reject(new Error("unknown fix"))),
     });
     return end === "stopped" ? 0 : end === "declined" ? 3 : 4;
   } catch (e) { process.stderr.write(`vyred: ${e instanceof Error ? e.message : String(e)}\n`); return 1; } finally { clearInterval(timer); }

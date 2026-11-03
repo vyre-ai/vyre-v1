@@ -63,11 +63,11 @@ test("search finds rows by words in any order, ranks a title that starts with th
 
 test("the page list in a Team Space is You, then one way to the Console, and no Space pages", () => {
   const out = html(createSampleSettings(northwind));
-  assert.deepEqual(PAGES.filter((p) => p.group === "you").map((p) => p.title), ["Profile", "Notifications", "Appearance", "AI", "Memory and privacy", "Skills", "Connected", "Email and calendar", "Sign-in and devices", "This computer", "About Vyre"]);
+  assert.deepEqual(PAGES.filter((p) => p.group === "you").map((p) => p.title), ["You", "Your AI", "Notifications", "Appearance", "Connected", "This device", "Privacy and security"]);
   assert.deepEqual(PAGES.filter((p) => p.group === "space").map((p) => p.title), ["Space", "People and access", "Agents and rules", "Data", "Connected apps", "Advanced"]);
   for (const p of PAGES) assert.equal(has(out, `data-testid="row-page-${p.key}"`), p.group === "you", p.key);
   const at = (t: string): number => { const i = out.indexOf(`>${t}<`); assert.ok(i >= 0, t); return i; };
-  assert.ok(at("You") < at("Profile") && at("This computer") < at("Console"));
+  assert.ok(at("Settings") < at("You") && at("This device") < at("Console"));
   assert.ok(!has(html(createSampleSettings(harbor)), 'data-testid="row-open-console"'), "a member has no way there");
   assert.match(tag(out, "row-page-profile"), /var\(--sel\)/);
   assert.doesNotMatch(tag(out, "row-page-ai"), /var\(--sel\)/);
@@ -175,7 +175,8 @@ test("Email and calendar lists mailboxes with their state and a way to pause, ca
   assert.ok(!has(empty, 'data-testid="connect-twilio"') && !has(empty, "Numbers assigned to you"), "no Twilio tile, and no numbers section without numbers");
   assert.ok(!has(empty, "Through your Space") && !has(empty, "Ask your admin"), "nothing comes through the Space: no section at all");
   const conn = html(createSampleSettings(northwind), { initialPage: "connected" });
-  assert.ok(!has(conn, "irfad@northwind.example") && !has(conn, "Through your Space"), "mail and calendars live on their own page now");
+  assert.ok(has(conn, "irfad@northwind.example"), "mail and calendars are on Connected now, under the apps");
+  assert.ok(has(html(createSampleSettings(northwind), { initialPage: "mail" }), "irfad@northwind.example"), "the old address lands on Connected");
 });
 
 test("removing the last source empties Email and calendar back to the connect tiles", async () => {

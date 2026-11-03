@@ -17,9 +17,7 @@ export interface TurnOut {
   /** The server of the person's the turn ran on, when the chat was pinned to one. */
   nodeId?: string;
   /** Where the turn ran, in order (its computer, then the server it went on to when the computer slept). */
-  ranOn?: Array<{ kind: "computer" | "server" | "space"; name: string }>;
-  /** "Moved from Berlin box because it was busy: 4 of 4 turns": set when placement skipped a machine with no room. */
-  movedFrom?: string;
+  ranOn?: Array<{ kind: "computer" | "server" | "space"; name: string; note?: string }>;
 }
 
 /** The contract's turn row from an engine_turns row. */
@@ -31,7 +29,6 @@ export function turnOf(r: Row): TurnOut {
     ...(runId === undefined ? {} : { runId }), startedAt: num(r["started_at"]), ...(endedAt === undefined ? {} : { endedAt }),
     tokensIn: num(r["tokens_in"]), tokensOut: num(r["tokens_out"]), costMicros: num(r["cost_micros"]), ...(error === undefined ? {} : { error: JSON.parse(error) as ErrShape }),
     ...(nodeId === undefined ? {} : { nodeId }), ...(Array.isArray(r["ran_on"]) ? { ranOn: r["ran_on"] as NonNullable<TurnOut["ranOn"]> } : {}),
-    ...(typeof r["moved_from"] === "string" ? { movedFrom: r["moved_from"] } : {}),
   };
 }
 

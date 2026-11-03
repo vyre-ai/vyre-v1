@@ -51,8 +51,8 @@ type Out = {
     ranOn: Array<{
         kind: string;
         name: string;
+        note?: string;
       }>;
-    movedFrom?: string;
     timing: {
       queuedAt?: number;
       startedAt: number;
@@ -161,7 +161,6 @@ type Out = {
         ]
       },
       "model": "example",
-      "movedFrom": "example",
       "paid": "example",
       "partial": true,
       "private": true,
@@ -169,7 +168,8 @@ type Out = {
       "ranOn": [
         {
           "kind": "example",
-          "name": "example"
+          "name": "example",
+          "note": "example"
         }
       ],
       "shared": true,

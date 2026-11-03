@@ -35,6 +35,8 @@ export { nodeCliLauncher, nodeCliReport } from "./node-cli.ts";
 
 /** The host half arrives here at boot (ruling 31 and 32): the runtime opens real sessions through it. */
 export const hostSeams = { setEngineHost };
+/** The warm pool the Machines page can empty (host/src/daemon/machine-fix.ts). */
+export { openerOf } from "./projections.ts";
 
 /** The runtime is built at boot, not at the first message, and recovers threads a dead host left mid-turn. */
 export const periodic = {

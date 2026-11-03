@@ -12,6 +12,16 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "network.enroll_status": Handler<"network.enroll_status", X>;
   "network.health": Handler<"network.health", X>;
   "network.ingress_check": Handler<"network.ingress_check", X>;
+  "network.machine": Handler<"network.machine", X>;
+  "network.machine_alerts": Handler<"network.machine_alerts", X>;
+  "network.machine_alerts_notify": Handler<"network.machine_alerts_notify", X>;
+  "network.machine_fix": Handler<"network.machine_fix", X>;
+  "network.machine_move_record": Handler<"network.machine_move_record", X>;
+  "network.machine_moves": Handler<"network.machine_moves", X>;
+  "network.machine_pin": Handler<"network.machine_pin", X>;
+  "network.machine_place": Handler<"network.machine_place", X>;
+  "network.machine_set": Handler<"network.machine_set", X>;
+  "network.machines": Handler<"network.machines", X>;
   "network.my_computer_approve": Handler<"network.my_computer_approve", X>;
   "network.my_computer_code": Handler<"network.my_computer_code", X>;
   "network.my_computer_decline": Handler<"network.my_computer_decline", X>;

@@ -49,7 +49,7 @@ export function lanAddress(): string {
 }
 
 /** The Team Space server, with Olivia's Claude account connected. `lan`: it listens on this machine's private address instead of loopback, so a sandboxed engine reaches it only through its wall. */
-export async function bootSpace(o: { lan?: boolean; machineReport?: NonNullable<Parameters<typeof startDaemon>[0]["machineReport"]> } = {}): Promise<SpaceRig> {
+export async function bootSpace(o: { lan?: boolean; machineReport?: NonNullable<Parameters<typeof startDaemon>[0]["machineReport"]>; commandsMs?: number } = {}): Promise<SpaceRig> {
   const dir = seededDir();
   let admin = "";
   const d = await startDaemon({
@@ -57,7 +57,7 @@ export async function bootSpace(o: { lan?: boolean; machineReport?: NonNullable<
     codeRoot: CODE_ROOT,
     platform: fakePlatform({ os: "linux", hostname: "mla-server", free: 80e9, commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" }, "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" } } }),
     fetch: caddyFetch,
-    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: o.commandsMs ?? 3_600_000, hooks: 3_600_000 },
     vault: { secret: async () => KEY, signRs256: async () => "" },
     engineCli: { command: { claude: [process.execPath, FAKE_CLI, "claude"] }, programRead: [path.dirname(FAKE_CLI)] } as never,
     computeStreamSecure: () => true, computeStreamRecheckMs: 200, ...(o.machineReport ? { machineReport: o.machineReport } : {}),

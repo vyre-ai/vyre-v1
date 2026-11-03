@@ -19,7 +19,8 @@ import { HEALTH_LABEL, HEALTH_TONE, Overview } from "../pages/overview/Overview.
 import { ConsoleDataProvider, useConsoleData, useScreenQuery } from "./data.tsx";
 import type { ConsoleData } from "./data.tsx";
 import { Dot, Glyph } from "./glyphs.tsx";
-import { DEFAULT_PAGE, GROUPS, PAGES, PAGE_NOTE, pageById, visiblePages } from "./nav.ts";
+import { DEFAULT_PAGE, PAGES, PAGE_NOTE, pageById, visiblePages } from "./nav.ts";
+import { OLD_NAMES, landing, nowIn, resolve, sectionOf, visibleSections, visibleTabs } from "./sections.ts";
 import type { PageDef } from "./nav.ts";
 import { Lead, PageHelpContext, pointer } from "./ui.tsx";
 import { Info } from "../../../../../ui/src/Tip/index.tsx";
@@ -84,10 +85,11 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
   const data = useConsoleData();
   const measured = useWindowDimensions().width;
   const narrow = (given ?? measured) < 900;
-  const [page, setPage] = useState<string>(pageById(initialPage) ? initialPage : DEFAULT_PAGE);
+  const [page, setPage] = useState<string>(pageById(resolve(initialPage)) ? resolve(initialPage) : DEFAULT_PAGE);
   const [pageState, setPageState] = useState<Record<string, unknown>>({});
   const [assistantOn, setAssistantOn] = useState(assistantOpen);
-  const [openGroups, setOpenGroups] = useState<ReadonlySet<string>>(() => new Set(["Space defaults", pageById(initialPage)?.group ?? ""]));
+  /** The page each section was last on, so a click on a section returns to it. */
+  const [lastIn, setLastIn] = useState<Readonly<Record<string, string>>>({});
   const menu = useMenu();
   const searchBtn = useRef<unknown>(null);
   const skinBtn = useRef<unknown>(null);
@@ -95,18 +97,31 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
   const [pageHelps, setPageHelps] = useState<readonly string[]>([]);
   const registerHelp = useCallback((text: string) => { setPageHelps((h) => [...h, text]); return () => setPageHelps((h) => h.filter((x) => x !== text)); }, []);
   const pages = visiblePages(data.can, data.allowedScreens);
+  // the dot on Machines: how many alerts the machines have (a disk nearly full, memory pressure, offline with pinned work, a failed backup, an update waiting)
+  const [machineAlerts, setMachineAlerts] = useState(0);
+  const machinesOpen = pages.some((p) => p.id === "machines");
+  useEffect(() => {
+    if (!machinesOpen) return undefined;
+    let live = true;
+    const load = (): void => { void (data.call("network.machine_alerts", {}) as Promise<{ alerts?: unknown[] }>).then((o) => { if (live) setMachineAlerts(o.alerts?.length ?? 0); }, () => undefined); };
+    load();
+    const t = setInterval(load, 60_000);
+    return () => { live = false; clearInterval(t); };
+  }, [machinesOpen, data]);
   const def = pageById(page) ?? PAGES[0]!;
   const helpLine = [PAGE_NOTE[def.id], ...pageHelps].filter(Boolean).join(". ");
 
-  const go = useCallback((id: string, state: Record<string, unknown> = {}): void => {
+  const go = useCallback((raw: string, state: Record<string, unknown> = {}): void => {
+    const id = resolve(raw);
     const d = pageById(id);
     if (!d) return;
     setPage(id);
     setPageState(state);
     data.nav.openPage(id, state);
-    if (d.group) setOpenGroups((g) => (g.has(d.group) ? g : new Set([...g, d.group])));
+    const sec = sectionOf(id);
+    if (sec) setLastIn((m) => (m[sec.id] === id ? m : { ...m, [sec.id]: id }));
   }, [data.nav]);
-  useEffect(() => { if (pageById(initialPage)) setPage(initialPage); }, [initialPage]);
+  useEffect(() => { if (pageById(resolve(initialPage))) setPage(resolve(initialPage)); }, [initialPage]);
   // the pages other pages open (a tile, an attention row, the activity list) go through the shell, never around it
   const shellData = { ...data, nav: { ...data.nav, openPage: (id: string, state?: Record<string, unknown>): void => { go(id, state); } } };
 
@@ -117,13 +132,14 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
   const openSearch = useCallback((from: { current: unknown } = searchBtn): void => {
     const a = below(from);
     const entries: MenuEntry[] = [{ head: "Go to" }];
-    let group: string | null = null;
-    for (const p of visiblePages(data.can, data.allowedScreens)) {
-      if (p.group !== "" && p.group !== group) entries.push({ separator: true }, { head: p.group });
-      if (p.group === "") { if (group !== "") entries.push({ separator: true }); }
-      group = p.group;
-      entries.push({ label: p.title, onSelect: () => go(p.id) });
+    const ok = (p: PageDef): boolean => (data.allowedScreens ? data.allowedScreens.has(p.screen) : data.can(p.needs));
+    for (const sec of visibleSections(ok)) {
+      entries.push({ separator: true }, { head: sec.title });
+      for (const t of visibleTabs(sec, ok)) for (const x of t.views) entries.push({ label: t.views.length > 1 ? `${t.tab.label}: ${x.label}` : t.tab.label, onSelect: () => go(x.page) });
     }
+    // names people knew: the search finds them and says where they went
+    const old = OLD_NAMES.filter(([, id]) => { const d = pageById(resolve(id)); return d !== undefined && ok(d); });
+    if (old.length > 0) { entries.push({ separator: true }, { head: "Old names" }); for (const [name, id] of old) entries.push({ label: `${name}, now in ${nowIn(id)}`, onSelect: () => go(id) }); }
     menu.show(entries, a.x, a.y, "other", { label: "Console search" });
   }, [data, go, menu]);
 
@@ -143,26 +159,33 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
   const overview = useScreenQuery<CapMap["console.overview"]["out"]>("console.overview", "overview", {});
   const health = overview.status === "ready" ? overview.data.health : null;
 
+  const ok = (p: PageDef): boolean => (data.allowedScreens ? data.allowedScreens.has(p.screen) : data.can(p.needs));
+  const sections = visibleSections(ok);
+  const here = sectionOf(page);
   const navRows: ReactElement[] = [];
-  const pushPage = (p: PageDef, indent: boolean): void => {
-    navRows.push(<View key={p.id} style={indent ? s.indent : undefined}><Row id={`nav-${p.id}`} title={p.title} selected={page === p.id} leading={<Lead><Glyph name={p.icon} size={15} color={page === p.id ? "var(--ink)" : "var(--ink-3)"} /></Lead>} onPress={() => go(p.id)} /></View>);
-  };
-  for (const p of pages.filter((x) => x.group === "" && x.id === "overview")) pushPage(p, false);
-  for (const g of GROUPS) {
-    const inGroup = pages.filter((x) => x.group === g);
-    if (inGroup.length === 0) continue;
-    const open = openGroups.has(g);
-    navRows.push(
-      <Pressable key={`g-${g}`} accessibilityRole="button" accessibilityLabel={g} accessibilityState={{ expanded: open }} aria-expanded={open} testID={`navgroup-${g}`} onPress={() => setOpenGroups((cur) => { const n = new Set(cur); if (n.has(g)) n.delete(g); else n.add(g); return n; })} style={[s.groupHead, pointer]}>
-        <View style={{ transform: [{ rotate: open ? "0deg" : "-90deg" }] }}><Glyph name="chevD" size={11} color="var(--ink-4)" /></View>
-        <Text style={s.groupTitle}>{g}</Text>
-      </Pressable>,
-    );
-    if (open) for (const p of inGroup) pushPage(p, true);
+  for (const sec of sections) {
+    if (sec.id === "space") navRows.push(<View key="gap" style={{ height: 12 }} />);
+    navRows.push(<Row key={sec.id} id={`nav-${sec.id}`} title={sec.title} selected={here?.id === sec.id} leading={<Lead><Glyph name={sec.icon} size={15} color={here?.id === sec.id ? "var(--ink)" : "var(--ink-3)"} /></Lead>} {...(sec.id === "machines" && machineAlerts > 0 ? { trailing: <View style={s.alertDot} testID="nav-machines-alerts" accessibilityLabel={`${machineAlerts} machine alert${machineAlerts === 1 ? "" : "s"}`}><Text style={s.alertDotText}>{machineAlerts}</Text></View> } : {})} onPress={() => { const to = landing(sec, ok, lastIn[sec.id]); if (to) go(to); }} />);
   }
-  for (const p of pages.filter((x) => x.group === "" && x.id !== "overview")) pushPage(p, false);
+  const tabs = here ? visibleTabs(here, ok) : [];
+  const activeTab = tabs.find((t) => t.views.some((x) => x.page === page));
+  const strip = tabs.length > 1 ? (
+    <View style={s.tabs} accessibilityRole="tablist" testID="console-tabs">
+      {tabs.map((t) => {
+        const on = t === activeTab, to = t.views.find((x) => x.page === lastIn[here!.id])?.page ?? t.views[0]!.page;
+        return <Pressable key={t.tab.label} accessibilityRole="tab" accessibilityState={{ selected: on }} aria-selected={on} testID={`tab-${t.tab.views[0]!.page}`} onPress={() => go(on ? t.views[0]!.page : to)} style={[s.tab, on && s.tabOn, pointer]}><Text style={[s.tabText, on && s.tabTextOn]}>{t.tab.label}</Text></Pressable>;
+      })}
+    </View>
+  ) : null;
+  const views = activeTab && activeTab.views.length > 1 ? (
+    <View style={s.views} accessibilityRole="tablist" testID="console-views">
+      {activeTab.views.map((x) => <Pressable key={x.page} accessibilityRole="tab" accessibilityState={{ selected: x.page === page }} aria-selected={x.page === page} testID={`view-${x.page}`} onPress={() => go(x.page)} style={[s.view, pointer]}><Text style={[s.viewText, x.page === page && s.viewTextOn]}>{x.label}</Text></Pressable>)}
+    </View>
+  ) : null;
+  const extras = activeTab?.tab.extras?.[page] ?? [];
 
   const allowed = data.allowedScreens ? data.allowedScreens.has(def.screen) : data.can(def.needs);
+  const drawn = (id: string): ReactElement => <>{renderPage?.(id, pageState) ?? <States kind="error" message={`${pageById(id)?.title ?? id} is not implemented in this candidate yet.`} />}</>;
   const body = ((): ReactElement => {
     if (!allowed) {
       return <LockedState resourceType="space" resourceId={data.space.id} title={def.title} reason="role_lacks_permission" level="manage" status="none" canRequest note="" density="regular" {...(invoke ? { invoke } : {})} />;
@@ -173,7 +196,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
       const open = (pageState["open"] as string | undefined) ?? initialAudit?.open;
       return <Audit key={JSON.stringify(pageState)} {...(filter ? { initialFilter: filter } : {})} {...(open ? { initialOpen: open } : {})} />;
     }
-    return <>{renderPage?.(def.id, pageState) ?? <States kind="error" message={`${def.title} is not implemented in this candidate yet.`} />}</>;
+    return <>{drawn(def.id)}{extras.filter((x) => { const d = pageById(x); return d !== undefined && ok(d); }).map((x) => <View key={x} style={s.extra} testID={`extra-${x}`}>{drawn(x)}</View>)}</>;
   })();
 
   return (
@@ -207,15 +230,17 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
           <View style={s.head}>
             {narrow ? (
               <Pressable ref={(r) => { pagesBtn.current = r; }} accessibilityRole="button" accessibilityLabel={`${def.title}. Go to another page`} testID="console-pages" onPress={() => openSearch(pagesBtn)} style={[s.pages, pointer]}>
-                <Text accessibilityRole="header" aria-level={1} style={s.title}>{def.title}</Text><Glyph name="chevD" size={12} color="var(--ink-3)" />
+                <Text accessibilityRole="header" aria-level={1} style={s.title}>{here?.title ?? def.title}</Text><Glyph name="chevD" size={12} color="var(--ink-3)" />
               </Pressable>
-            ) : <Text accessibilityRole="header" aria-level={1} style={s.title}>{def.title}</Text>}
+            ) : <Text accessibilityRole="header" aria-level={1} style={s.title}>{here?.title ?? def.title}</Text>}
             {helpLine ? <Info help={helpLine} testID="page-help" /> : null}
             {embedded && health ? <View style={s.health} testID="console-health" accessibilityLabel={`Server ${HEALTH_LABEL[health].toLowerCase()}`}><Dot tone={HEALTH_TONE[health]} size={8} /></View> : null}
             {embedded ? <><View style={{ flex: 1 }} /><Pressable accessibilityRole="button" accessibilityLabel="Setup guide" testID="console-setup-guide" onPress={() => { openOnboarding(); }} style={[s.chip, pointer]}><Glyph name="ok" size={14} color="var(--ink-2)" /><Text style={s.chipText}>Setup guide</Text></Pressable></> : null}
           </View>
+          {strip}
           <ScrollView style={{ flex: 1 }} contentContainerStyle={s.content}>
-            <View style={def.id === "audit" ? s.wide : s.column}>
+            <View style={def.id === "audit" ? s.wide : def.id === "machines" || def.id === "permissions" || def.id === "roles" ? s.machines : s.column}>
+              {views}
               <PageHelpContext.Provider value={registerHelp}><ShellDataGate value={shellData}>{body}</ShellDataGate></PageHelpContext.Provider>
             </View>
           </ScrollView>
@@ -260,6 +285,19 @@ const s = StyleSheet.create({
   title: { fontSize: 14.5, fontWeight: "600", color: "var(--ink)" as string },
   content: { padding: 24, alignItems: "center", flexGrow: 1 },
   column: { width: "100%", maxWidth: 960 },
+  machines: { width: "100%", maxWidth: 1200 },
+  tabs: { flexDirection: "row", gap: 20, paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  tab: { height: 38, justifyContent: "center", borderBottomWidth: 2, borderBottomColor: "transparent", marginBottom: -1 },
+  tabOn: { borderBottomColor: "var(--accent)" as string },
+  tabText: { fontSize: 13.5, fontWeight: "500", color: "var(--ink-3)" as string },
+  tabTextOn: { color: "var(--ink)" as string },
+  views: { flexDirection: "row", flexWrap: "wrap", gap: 18, marginBottom: 18 },
+  view: { paddingVertical: 2 },
+  viewText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-3)" as string },
+  viewTextOn: { color: "var(--ink)" as string },
+  extra: { marginTop: 8 },
+  alertDot: { minWidth: 18, height: 18, paddingHorizontal: 5, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: "var(--warn)" as string },
+  alertDotText: { fontSize: 11, fontWeight: "600", color: "#fff" },
   wide: { width: "100%", maxWidth: 1200, flex: 1, minHeight: 480 },
   soon: { fontSize: 13, color: "var(--ink-3)" as string, padding: 14 },
   assistant: { width: ASSISTANT_WIDTH, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string, backgroundColor: "var(--side)" as string, padding: 14 },

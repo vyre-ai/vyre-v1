@@ -13,7 +13,6 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { REPORT_EVERY_MS } from "../machines/report.ts";
 import { cliRelay } from "./node.ts";
 import type { NodeLauncher, NodeSocket } from "./node.ts";
 
@@ -33,12 +32,16 @@ export interface DeviceLinkDeps {
   sleep(ms: number, signal: AbortSignal): Promise<void>;
   signal: AbortSignal;
   log(line: string): void;
+  /** What this computer reports of itself (specs, load, what runs here: lib/machines.ts Report). Sent as a {t:"report"} frame at once and every `reportMs`. Absent: nothing is sent. */
+  report?: () => Record<string, unknown>;
+  /** Pause between reports. Default 30 s. */
+  reportMs?: number;
+  /** Run one of the Doctor's Fixes on this computer when the Space asks (machine-fix.ts); one plain line back. The Space checks who may ask. */
+  fix?: (fix: string, service?: string) => Promise<string>;
+  /** Run one of the Doctor's Fixes on this computer when the Space asks (machine-fix.ts). Only the Space's admin or this person can ask; the Space checks. */
+  fix?: (fix: string, service?: string) => Promise<string>;
   /** Pause between dials after a drop. Default 2 s. */
   retryMs?: number;
-  /** This computer's 30-second report (specs, load, what Vyre runs, what it can run): sent right after the hello and every 30 s while linked. Absent: none is sent (an older daemon, a test). */
-  report?: (now: { turns: number }) => unknown;
-  /** How often the report is sent. Default 30 s. */
-  reportMs?: number;
   /** Where the person's own engine homes are looked for (tests). Default: this computer's home and environment. */
   homes?: OwnHomes;
 }
@@ -202,7 +205,7 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
     return new Promise((resolve) => {
       let opened = false;
       let hb: ReturnType<typeof setInterval> | undefined;
-      let rep: ReturnType<typeof setInterval> | undefined;
+      let rp: ReturnType<typeof setInterval> | undefined;
       const up = d.socket(url, { authorization: `Bearer ${d.token}` });
       const say = (m: Record<string, unknown>): void => { try { up.send(JSON.stringify(m)); } catch { /* the socket is going away */ } };
       const end = (): void => {
@@ -210,7 +213,7 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
         engines.killAll();
         person = null;
         if (hb) clearInterval(hb);
-        if (rep) clearInterval(rep);
+        if (rp) clearInterval(rp);
         d.signal.removeEventListener("abort", stop);
         resolve(opened ? "closed" : "refused");
       };
@@ -221,9 +224,9 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
         say({ t: "hello", engines: [...d.engines], name: d.name });
         hb = setInterval(() => say({ t: "hb" }), 15_000); hb.unref?.();
         if (d.report) {
-          const send = (): void => { try { const r = d.report!({ turns: engines.running() }); if (r) say({ t: "report", ...(r as Record<string, unknown>) }); } catch { /* a report that cannot be read is skipped this time */ } };
+          const send = (): void => { try { say({ t: "report", report: d.report!() }); } catch { /* a report that cannot be made is skipped; the next is in 30 s */ } };
           send();
-          rep = setInterval(send, d.reportMs ?? REPORT_EVERY_MS); rep.unref?.();
+          rp = setInterval(send, d.reportMs ?? 30_000); rp.unref?.();
         }
       });
       up.onClose(end);
@@ -231,8 +234,11 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
         if (typeof data !== "string") return;
         let m: Record<string, unknown>;
         try { m = JSON.parse(data) as Record<string, unknown>; } catch { return; }
-        // the Space measures the round trip to this computer: it asks, this answers at once
-        if (m["t"] === "ping") { say({ t: "pong", at: m["at"] }); return; }
+        if (m["t"] === "ask" && m["kind"] === "fix" && d.fix) {
+          const id = String(m["id"]), x = (m["input"] ?? {}) as { fix?: unknown; service?: unknown };
+          d.fix(String(x.fix), typeof x.service === "string" ? x.service : undefined).then((result) => say({ t: "ask_res", id, ok: true, result }), (e: unknown) => say({ t: "ask_res", id, ok: false, reason: e instanceof Error ? e.message : "It could not do that." }));
+          return;
+        }
         if (m["t"] === "ready") { person = typeof m["person"] === "string" ? m["person"] : null; if (person) d.log(`Linked to ${server} for ${person}.`); return; }
         if (typeof m["t"] === "string" && m["t"].startsWith("cli_")) engines.frame(m, say);
         // views, ports and machine questions are a server's; a person's computer answers none of them

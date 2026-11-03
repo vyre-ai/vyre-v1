@@ -57,7 +57,6 @@ Counts are not written down: they change with every contract change. Run `node t
 - [kits](modules/kits.md) (L10, module)
 - [law-firm-intake](modules/law-firm-intake.md) (L8, kit)
 - [logs](modules/logs.md) (L7b, module)
-- [machines](modules/machines.md) (L2, module)
 - [mail](modules/mail.md) (L5, module)
 - [mailgun](modules/mailgun.md) (L5, connector)
 - [mcp](modules/mcp.md) (L2, module)

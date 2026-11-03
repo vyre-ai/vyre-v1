@@ -222,11 +222,6 @@
       "status": "live"
     },
     {
-      "id": "machines",
-      "owner": "L2",
-      "status": "live"
-    },
-    {
       "id": "notes",
       "owner": "L2",
       "status": "live"

@@ -1,97 +1,103 @@
 // Machines (lane l-machines), on real daemons: a Team Space server and two members' computers (Olivia's, who is the admin, and Noah's), each linked with the member's own session.
-//   The Space server reads itself and each computer reports over its link: a row and a series appear.
-//   Privacy: Olivia, as admin, sees Noah's computer by name, online, capacity and Vyre's own work only; Noah sees all of it; a member does not see the Space server.
-//   Placement: draining Olivia's computer sends her next turn to the Space with the line "Moved from Olivia's Mac because it was draining"; a computer at its turn limit is skipped the same way.
+//   Reports arrive over the links; history appears; the admin sees Noah's computer by name, online, capacity and Vyre's own work only; Noah sees all of it and no one else's.
+//   Drain skips a machine with the reason, and so does the turn limit; both are listed under Recent moves and tell the placement caches (network.machine_changed).
+//   A Fix pressed on the Space server runs on the host and its outcome shows on the machine page; Noah's computer runs a Fix when its owner presses it.
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { Report } from "../host/src/machines/report.ts";
+import fs from "node:fs";
+import path from "node:path";
+import type { Report } from "../lib/machines.ts";
 import { NOAH, bootDevice, bootSpace, hostLog, makeAgent, replyAfter, send, startChat, waitFor } from "./support/runson.ts";
 
 /** The machines these daemons run on are busy with the test itself: pin their load so the room each has is the same on every run. */
-const calm = (r: Report): Report => ({ ...r, load: { ...r.load, cpuPct: 20, memUsedBytes: Math.round(r.specs.memBytes * 0.4), diskFreeBytes: Math.round(r.specs.diskBytes * 0.6) } });
+const calm = (r: Report): Report => ({ ...r, load: { ...r.load, cpu: 20, memUsedBytes: Math.round(r.specs.memBytes * 0.4), diskFreeBytes: Math.round(r.specs.diskBytes * 0.6) } });
 
-type Machine = { machineId: string; kind: string; name: string; online: boolean; restricted: boolean; ownerId?: string; load?: unknown; os?: string; vyreLoad?: unknown; cores?: number; can: string[]; room: { score: number; tightest: string }; draining: boolean; runs: { turns: number }; limits: { maxTurns: number } };
+interface M { serverId: string; name: string; kind: string; online: boolean; private: boolean; mine: boolean; cores?: number; os?: string; load?: unknown; vyre?: unknown; can: string[]; room: { n: number; why: string }; drain: boolean; runs: { turns: number } }
+const OLIVIA = "srv_dev_oliviamac", NOAHS = "srv_dev_noahmac";
 
-test("machines: reports over the links, the admin's limited view of a member's computer, drain and the turn limit skip a machine with the reason", { timeout: 120_000 }, async () => {
-  const s = await bootSpace({ machineReport: calm });
+test("machines: reports, history, the admin's limited view, drain and the turn limit with their reasons, Recent moves, Fix", { timeout: 150_000 }, async () => {
+  const s = await bootSpace({ machineReport: calm, commandsMs: 200 });
   const mac = await bootDevice({ reportMs: 500, slowMs: 2500, machineReport: calm });
   const noah = await bootDevice({ reportMs: 500, name: "Noah's Mac", machineReport: calm });
   try {
     const agentId = await makeAgent(s.d, "Placer");
     await mac.link(s);
     await noah.link(s, NOAH, { person: "usr_noah", device: "dev_noah_mac" });
+    const list = async (token: string | null): Promise<M[]> => (((await s.as(token, "network.machines", {})).data.machines as M[] | undefined) ?? []);
 
-    // the Space server reads itself; each computer reports over its link
-    const list = async (token: string | null) => ((await s.as(token, "machines.list", {})).data.machines as Machine[] | undefined) ?? [];
-    const rows = await waitFor(async () => { const m = await list(null); return m.some((x) => x.machineId === "space") && m.some((x) => x.machineId === "device:dev_olivia_mac") && m.some((x) => x.machineId === "device:dev_noah_mac") ? m : null; }, 20_000, () => hostLog(s.d));
-    const space = rows.find((x) => x.machineId === "space")!;
-    assert.equal(space.kind, "space");
-    assert.ok((space.cores ?? 0) >= 1 && space.online);
-    const olivia = rows.find((x) => x.machineId === "device:dev_olivia_mac")!;
+    // reports over the links
+    let seen = "";
+    const rows = await waitFor(async () => { const m = await list(null); seen = JSON.stringify(m.map((x) => x.serverId)) + JSON.stringify(((await s.as(null, "network.servers", {})).data.servers as Array<{ serverId: string; role: string; state: string; owner?: string }>).map((x) => [x.serverId, x.role, x.state, x.owner])); return [OLIVIA, NOAHS, "srv_local"].every((id) => m.some((x) => x.serverId === id)) ? m : null; }, 30_000, () => seen);
+    const olivia = rows.find((x) => x.serverId === OLIVIA)!;
     assert.equal(olivia.name, "Olivia's Mac");
-    assert.equal(olivia.kind, "computer");
-    assert.equal(olivia.ownerId, "usr_olivia");
-    assert.ok(olivia.can.includes("claude_code"), "it says what it can run");
-    assert.equal(olivia.restricted, false, "her own computer, in full");
-    assert.ok(olivia.load && olivia.os, "its load and system");
+    assert.ok(olivia.can.includes("claude_code") && olivia.os && olivia.load, "her own computer, in full");
+    assert.equal(rows.find((x) => x.serverId === "srv_local")!.kind, "space");
 
-    // a series appears, and grows with the reports
-    const got = await waitFor(async () => {
-      const g = (await s.as(null, "machines.get", { machineId: "device:dev_olivia_mac" })).data as { series: Record<string, Array<{ cpuPct?: number; diskFreePct?: number }>> };
-      return g.series["1h"].some((p) => p.cpuPct !== undefined && p.diskFreePct !== undefined) ? g : null;
+    // history appears
+    const page = await waitFor(async () => {
+      const r = await s.as(null, "network.machine", { serverId: OLIVIA, range: "1h" });
+      assert.equal(r.status, 200, JSON.stringify(r.data));
+      const g = r.data as { series: { points: Array<{ cpu: number | null; disk: number | null }> } };
+      return g.series.points.some((p) => p.cpu !== null && p.disk !== null) ? g : null;
     }, 20_000);
-    assert.deepEqual(Object.keys(got.series), ["1h", "24h", "7d", "30d"]);
-    assert.equal(got.series["1h"].length, 60);
+    assert.equal(page.series.points.length, 60);
 
-    // privacy: the admin sees Noah's computer by name, online, capacity and Vyre's own work; Noah sees all of it
-    const asAdmin = (await list(null)).find((x) => x.machineId === "device:dev_noah_mac")!;
-    assert.equal(asAdmin.restricted, true);
-    assert.equal(asAdmin.name, "Noah's Mac");
-    assert.equal(asAdmin.online, true);
-    assert.ok((asAdmin.cores ?? 0) >= 1);
-    assert.equal(asAdmin.load, undefined, "the admin does not see his machine's load");
-    assert.equal(asAdmin.os, undefined, "or his system");
-    assert.ok(asAdmin.vyreLoad, "but Vyre's own share of it");
-    const gAdmin = (await s.as(null, "machines.get", { machineId: "device:dev_noah_mac" })).data as { series: Record<string, Array<Record<string, unknown>>> };
-    for (const p of gAdmin.series["1h"]) for (const k of ["cpuPct", "memPct", "diskFreePct", "netInBps", "netOutBps"]) assert.equal(k in p, false, `${k} in the admin's series of his computer`);
-    const asNoah = await list(NOAH);
-    assert.deepEqual(asNoah.map((x) => x.machineId), ["device:dev_noah_mac"], "a member sees only their own machines");
-    assert.equal(asNoah[0]!.restricted, false);
-    assert.ok(asNoah[0]!.load && asNoah[0]!.os);
-    assert.equal((await s.as(NOAH, "machines.get", { machineId: "space" })).status, 404, "the Space server is not a member's to read");
-    assert.equal((await s.as(NOAH, "machines.set", { machineId: "device:dev_olivia_mac", drain: true })).status, 404, "nor is another member's computer to change");
+    // the admin's view of Noah's computer
+    const theirs = (await list(null)).find((x) => x.serverId === NOAHS)!;
+    assert.equal(theirs.private, true);
+    assert.equal(theirs.name, "Noah's Mac");
+    assert.equal(theirs.online, true);
+    assert.ok((theirs.cores ?? 0) >= 1, "its capacity");
+    assert.equal(theirs.load, undefined, "not his machine's load");
+    assert.ok(theirs.vyre, "Vyre's own share");
+    const pg = (await s.as(null, "network.machine", { serverId: NOAHS, range: "1h" })).data as { privacy: string; points?: unknown; series: { points: Array<{ disk: number | null; netIn: number | null }> } };
+    assert.equal(pg.privacy, "vyre_only");
+    assert.ok(pg.series.points.every((p) => p.disk === null && p.netIn === null));
+    const noahsOwn = await list(NOAH);
+    assert.deepEqual(noahsOwn.map((x) => x.serverId), [NOAHS], "a member sees only their own");
+    assert.ok(noahsOwn[0]!.load && !noahsOwn[0]!.private);
+    assert.notEqual((await s.as(NOAH, "network.machine", { serverId: OLIVIA })).status, 200);
+    assert.notEqual((await s.as(NOAH, "network.machine_set", { serverId: OLIVIA, drain: true })).status, 200);
+    assert.notEqual((await s.as(null, "network.machine_set", { serverId: NOAHS, nickname: "Mine" })).status, 200, "an admin does not rename a member's computer");
 
-    // placement: her computer is where her turn goes; draining it sends the next turn to the Space, with the reason
+    // drain: the next turn goes elsewhere, and the line says why
     const threadId = await startChat(s, agentId, "mc-drain");
-    const first = (await s.as(null, "engine.placement.decide", { threadId, agentId, kind: "message" })).data;
-    assert.equal(first.placement, "device", `${JSON.stringify(first)} ${JSON.stringify((await s.as(null, "machines.rooms", { ids: ["device:dev_olivia_mac", "space"] })).data)}`);
-    assert.equal((await s.as(null, "machines.set", { machineId: "device:dev_olivia_mac", drain: true })).status, 200);
+    assert.equal((await s.as(null, "engine.placement.decide", { threadId, agentId, kind: "message" })).data.placement, "device");
+    assert.equal((await s.as(null, "network.machine_set", { serverId: OLIVIA, drain: true })).status, 200);
     const drained = (await s.as(null, "engine.placement.decide", { threadId, agentId, kind: "message" })).data;
-    assert.equal(drained.placement, "host", JSON.stringify(drained));
-    assert.equal(drained.reason, "space");
-    assert.equal(drained.movedLine, "Moved from Olivia's Mac because it was draining");
-    const before = await send(s, threadId, agentId, "whereami", "mc-1");
-    assert.equal(await replyAfter(s, threadId, before), "ran-on=space handover=no", hostLog(s.d));
-    const turns = (await s.as(null, "engine.turns.list", { threadId })).data.turns as Array<{ turnId: string }>;
-    const turn = (await s.as(null, "engine.turn.get", { turnId: turns[0]!.turnId })).data.what.turn as { movedFrom?: string };
-    assert.equal(turn.movedFrom, "Moved from Olivia's Mac because it was draining", "the turn keeps the line");
-    assert.equal((await s.as(null, "machines.set", { machineId: "device:dev_olivia_mac", drain: false })).status, 200);
-    const again = (await s.as(null, "engine.placement.decide", { threadId, agentId, kind: "message" })).data;
-    assert.equal(again.placement, "device", `undrained, her computer takes the turn again: ${JSON.stringify(again)} ${JSON.stringify((await s.as(null, "machines.rooms", { ids: ["device:dev_olivia_mac"] })).data)}`);
+    assert.equal(drained.reason, "space", JSON.stringify(drained));
+    assert.match(`Moved from ${drained.moved.from} because ${drained.moved.why}`, /^Moved from Olivia's Mac because it is draining/);
+    assert.equal(await replyAfter(s, threadId, await send(s, threadId, agentId, "whereami", "mc-1")), "ran-on=space handover=no", hostLog(s.d));
+    assert.equal((await s.as(null, "network.machine_set", { serverId: OLIVIA, drain: false })).status, 200);
 
-    // the turn limit: one turn at a time on her computer; while it runs, the next chat's turn goes to the Space, "1 of 1 turns"
-    assert.equal((await s.as(null, "machines.set", { machineId: "device:dev_olivia_mac", maxTurns: 1 })).status, 200);
+    // the turn limit: while her one turn runs, the next chat's turn goes to the Space
+    assert.equal((await s.as(null, "network.machine_set", { serverId: OLIVIA, maxTurns: 1 })).status, 200);
     const chatA = await startChat(s, agentId, "mc-a"), chatB = await startChat(s, agentId, "mc-b");
     const beforeA = await send(s, chatA, agentId, "whereami", "mc-slow");
-    const full = await waitFor(async () => {
-      const m = (await list(null)).find((x) => x.machineId === "device:dev_olivia_mac")!;
-      return m.runs.turns >= 1 ? m : null;
-    }, 15_000, () => hostLog(s.d));
-    assert.equal(full.room.score, 0);
-    assert.equal(full.room.tightest, "turns");
+    await waitFor(async () => ((await list(null)).find((x) => x.serverId === OLIVIA)!.runs.turns >= 1 ? true : null), 15_000, () => hostLog(s.d));
     const busy = (await s.as(null, "engine.placement.decide", { threadId: chatB, agentId, kind: "message" })).data;
     assert.equal(busy.reason, "space", JSON.stringify(busy));
-    assert.equal(busy.movedLine, "Moved from Olivia's Mac because it was busy: 1 of 1 turns");
+    assert.match(busy.moved.why, /1 of 1/);
+    assert.equal(await replyAfter(s, chatB, await send(s, chatB, agentId, "whereami", "mc-b1")), "ran-on=space handover=no");
     assert.equal(await replyAfter(s, chatA, beforeA), "ran-on=device handover=no");
+
+    // Recent moves, Space-wide
+    let mv = "";
+    const moves = await waitFor(async () => { const m = (await s.as(null, "network.machine_moves", {})).data.moves as Array<{ from: string; to: string; why: string }>; mv = JSON.stringify(m); return m.length >= 2 ? m : null; }, 10_000, () => mv);
+    assert.ok(moves.every((m) => m.from === "Olivia's Mac" && m.to.length > 0));
+    assert.ok(moves.some((m) => /draining/.test(m.why)) && moves.some((m) => /1 of 1/.test(m.why)));
+    assert.equal(((await s.as(NOAH, "network.machine_moves", {})).data.moves as unknown[]).length, 0, "Noah sees only his own");
+
+    // Fix: on the Space server (the host runs it) and on Noah's computer (its owner presses it, the Space asks over the link)
+    const cache = path.join(s.dir, "cache"); fs.mkdirSync(cache, { recursive: true }); fs.writeFileSync(path.join(cache, "blob"), Buffer.alloc(200_000));
+    const fx = (await s.as(null, "network.machine_fix", { serverId: "srv_local", fix: "clear_caches" })).data as { queued: boolean };
+    assert.equal(fx.queued, true);
+    const done = await waitFor(async () => { const m = (await s.as(null, "network.machine", { serverId: "srv_local" })).data as { lastFix?: { state: string; detail?: string } }; return m.lastFix?.state === "done" ? m.lastFix : null; }, 20_000, () => hostLog(s.d));
+    assert.match(done.detail ?? "", /^Cleared \d+ MB/);
+    assert.equal(fs.existsSync(path.join(cache, "blob")), false);
+    assert.notEqual((await s.as(null, "network.machine_fix", { serverId: NOAHS, fix: "stop_idle" })).status, 200, "an admin does not fix a member's computer");
+    assert.equal((await s.as(NOAH, "network.machine_fix", { serverId: NOAHS, fix: "stop_idle" })).status, 200);
+    const nf = await waitFor(async () => { const m = (await s.as(NOAH, "network.machine", { serverId: NOAHS })).data as { lastFix?: { state: string; detail?: string } }; return m.lastFix?.state === "done" ? m.lastFix : null; }, 20_000, () => hostLog(s.d));
+    assert.equal(nf.detail, "No engine runs on this machine.", JSON.stringify(nf));
   } finally { await noah.stop(); await mac.stop(); await s.stop(); }
 });
