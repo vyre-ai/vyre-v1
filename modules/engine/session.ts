@@ -14,6 +14,7 @@ import { placeCredentialFiles, takeCredentialFiles } from "./credential-files.ts
 import type { Placed } from "./credential-files.ts";
 import type { CliProcess, LaunchSpec, Launcher } from "../../agent/src/drivers/cli/types.ts";
 import { nativePlugins } from "./plugin-native.ts";
+import { syncNativeSkills } from "./skills-native.ts";
 import type { SandboxPlan } from "./sandbox.ts";
 import type { ApiTools } from "../../agent/src/drivers/open/api-tools.ts";
 import type { SystemBlock } from "../../agent/src/drivers/api/types.ts";
@@ -70,6 +71,8 @@ export interface OpenerHost {
   now?: () => number;
   /** Set false to keep installed plugins out of a CLI engine's own config. Default: they are written there. */
   pluginsNative?: boolean;
+  /** Set false to keep the agent's skills out of a Claude Code or Codex work folder (skills-native.ts). Default: they are written there. */
+  skillsNative?: boolean;
   /**
    * What a chat keeps between engine sessions (modules/engine/cli-sessions.ts): the CLI engine's own session id per chat, agent, person and engine (read when a session opens, written when the engine
    * names a new one), and the chat's "Keep this every time", written into the work folder's compact instructions. Absent: every session starts new, as before.
@@ -269,7 +272,14 @@ export function buildOpener(h: OpenerHost): SessionOpener {
     },
     // Behind the wall the engine cannot reach the daemon's loopback: its MCP config starts a stdio shim that talks to a unix socket in the person's scratch folder (ruling 61).
     ...(dataDir ? { mcpBridge: (m: { url: string; token: string }, spec: { asker: string }) => openMcpBridge(m, { scratch: scratchFolder(dataDir, spec.asker) }) } : {}),
-    ...(dataDir && h.pluginsNative !== false ? { nativePlugins: (spec: SessionSpec, driver: "claude_code" | "codex") => nativePlugins({ call: h.call }, driver, spec.agent.id, spec.asker, workFolder(dataDir, spec.asker, spec.threadId)) } : {}),
+    // before a Claude Code or Codex engine starts: the agent's skills where the CLI reads its own (refreshed before each turn by the runtime), then its plugins
+    ...(dataDir && (h.pluginsNative !== false || h.skillsNative !== false) ? {
+      nativePlugins: async (spec: SessionSpec, driver: "claude_code" | "codex") => {
+        const work = workFolder(dataDir, spec.asker, spec.threadId);
+        if (h.skillsNative !== false && spec.tools !== "none") await syncNativeSkills({ call: h.call }, driver, spec.agent.id, spec.asker, work).catch(() => undefined);
+        return h.pluginsNative !== false ? nativePlugins({ call: h.call }, driver, spec.agent.id, spec.asker, work) : null;
+      },
+    } : {}),
     ...(dataDir ? {
       cli: {
         workFolder: (spec: SessionSpec) => workFolder(dataDir, spec.asker, spec.threadId),
