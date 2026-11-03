@@ -91,14 +91,14 @@ function merged(live: readonly LiveModel[], driver: string): LiveModel[] {
 
 /**
  * The account's models now, and whether a refresh runs. `refresh`: the menu opened (start one unless one ran a moment ago). `waitMs`: wait this long for a run in flight (the menu's
- * second, quiet call). A saved list a day old is refreshed whatever is asked.
+ * second, quiet call). A saved list a day old is refreshed whatever is asked, unless `passive`: a background reader (memory learning) gets the saved or shipped list and starts nothing.
  */
-export async function modelsFor(db: Db, account: { ref: string; driver: string }, asker: string, o: { now: () => number; refresh?: boolean; waitMs?: number }): Promise<{ models: LiveModel[]; state: ModelsState }> {
+export async function modelsFor(db: Db, account: { ref: string; driver: string }, asker: string, o: { now: () => number; refresh?: boolean; waitMs?: number; passive?: boolean }): Promise<{ models: LiveModel[]; state: ModelsState }> {
   const before = saved(db, account.ref);
   const t = o.now();
   const old = before?.fetchedAt == null || t - before.fetchedAt > DAY_MS;
   const triedLately = before?.triedAt != null && t - before.triedAt < RETRY_GAP_MS;
-  if (lister && !inflight.has(account.ref) && ((o.refresh === true && !triedLately) || (old && !triedLately))) void refreshModels(db, account, asker, o.now);
+  if (o.passive !== true && lister && !inflight.has(account.ref) && ((o.refresh === true && !triedLately) || (old && !triedLately))) void refreshModels(db, account, asker, o.now);
   const running = inflight.get(account.ref);
   if (running && o.waitMs !== undefined && o.waitMs > 0) {
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -120,3 +120,12 @@ export function resolvePick(models: readonly LiveModel[], pick: string): string 
 
 /** Tests: forget runs in flight. */
 export function resetLiveModels(): void { inflight.clear(); }
+
+/** An API key's models as its last good test listed them (providers.test through engine.models.list), saved so a background reader can have them without asking the vendor again. */
+export function saveTested(db: Db, ref: string, driver: string, at: number, models: readonly string[]): void {
+  if (models.length > 0) write(db, ref, driver, at, { models: models.map((id) => ({ id })) as LiveModel[] });
+}
+/** The saved list of an API key, or none. Asks nobody. */
+export function savedTested(db: Db, ref: string): string[] {
+  return saved(db, ref)?.models.map((m) => m.id) ?? [];
+}

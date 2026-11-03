@@ -6,7 +6,7 @@
 import { windowFor } from "../../../../agent/src/transcript/windows.ts";
 import { actorOf, raise } from "../../projections.ts";
 import { ensureRuntime } from "../../runtime.ts";
-import { LIVE_DRIVERS, modelsFor } from "../../live-models.ts";
+import { LIVE_DRIVERS, modelsFor, savedTested, saveTested } from "../../live-models.ts";
 import type { LiveModel, ModelsState } from "../../live-models.ts";
 import type { EngineCtx } from "../../projections.ts";
 import { blockedBy, readPolicy } from "./config.ts";
@@ -82,7 +82,12 @@ function listState(states: readonly ModelsState[], now: number): ListState | und
   return { source: !failed && now - updatedAt <= JUST_NOW_MS ? "live" : "saved", ...(updatedAt > 0 ? { updatedAt } : {}), refreshing, failed };
 }
 
-export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; threadId?: string; recordLabel?: Label; refresh?: boolean; wait?: boolean }): Promise<{ models: ModelInfo[]; listed?: ListState }> {
+/**
+ * `probe: false` is the background read (memory learning after a turn): the saved or shipped lists only. It never asks a vendor and never starts a CLI, so it cannot change an account's
+ * state; an API key with no saved list lists nothing here.
+ */
+export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; threadId?: string; recordLabel?: Label; refresh?: boolean; wait?: boolean; probe?: boolean }): Promise<{ models: ModelInfo[]; listed?: ListState }> {
+  const passive = input.probe === false;
   const [all, policy, tl] = await Promise.all([myProviders(ctx), readPolicy(ctx), threadLabel(ctx, input.threadId)]);
   const label = input.recordLabel ?? tl;
   // a pin that still names a folded handle reads the row that kept the account
@@ -92,12 +97,12 @@ export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; t
   const live = new Map<string, LiveModel>();
   const subs = chosen.filter((p) => p.state === "ok" && p.connection === "subscription" && LIVE_DRIVERS.has(driverOf(p)));
   // the runtime's opener runs the engines; without a runtime (no host half) the saved and shipped lists answer
-  if (subs.length > 0) await ensureRuntime(ctx).catch(() => null);
+  if (subs.length > 0 && !passive) await ensureRuntime(ctx).catch(() => null);
   const found = await Promise.all(chosen.map(async (p) => {
     // A provider that is not signed in cannot list its models; it is shown as one greyed row so the person sees what to reconnect.
     if (p.state !== "ok") return { p, models: [] as string[] };
     if (subs.includes(p)) {
-      const got = await modelsFor(ctx.db, { ref: p.handle ?? p.itemId, driver: driverOf(p) }, actorOf(ctx), { now: ctx.now, ...(input.refresh === true ? { refresh: true } : {}), ...(input.wait === true ? { waitMs: WAIT_MS } : {}) });
+      const got = await modelsFor(ctx.db, { ref: p.handle ?? p.itemId, driver: driverOf(p) }, actorOf(ctx), passive ? { now: ctx.now, passive: true } : { now: ctx.now, ...(input.refresh === true ? { refresh: true } : {}), ...(input.wait === true ? { waitMs: WAIT_MS } : {}) });
       states.push(got.state);
       for (const m of got.models) live.set(`${p.providerKey}/${m.id}`, m);
       return { p, models: got.models.map((m) => m.id) };
@@ -105,7 +110,9 @@ export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; t
     try {
       // the Space AI key: no member may test it, so its models are the list the Vault keeps (asked again from the provider when it is old)
       if (p.spaceKey === true) return { p, models: ((await ctx.call("providers.space_key.get", {})) as { models?: string[] }).models ?? [] };
+      if (passive) return { p, models: savedTested(ctx.db, p.handle ?? p.itemId) };
       const r = (await ctx.call("providers.test", { providerId: p.id })) as { ok: boolean; models: string[] };
+      if (r.ok) saveTested(ctx.db, p.handle ?? p.itemId, driverOf(p), ctx.now(), r.models);
       return { p, models: r.ok ? r.models : [] };
     } catch (e) {
       ctx.log.warn("model list was not read", { provider: p.providerKey, error: e instanceof Error ? e.message : "unknown" });

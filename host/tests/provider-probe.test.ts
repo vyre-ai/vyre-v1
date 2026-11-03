@@ -93,9 +93,19 @@ test("a provider key is only sent to its own provider, and a refused key says so
   const seen: string[] = [];
   const fetchFn = (async (url: string, init?: { headers?: Record<string, string> }) => { seen.push(`${url} ${JSON.stringify(init?.headers)}`); return new Response("{}", { status: 401 }); }) as unknown as typeof fetch;
   const r = await createProviderProbe({ fetch: fetchFn })({ providerKey: "anthropic", connection: "api_key", caller: "usr_a", apiKey: KEY });
-  assert.deepEqual([r.ok, r.detail], [false, "The provider did not accept this key."]);
+  assert.deepEqual([r.ok, r.detail, r.refused], [false, "The provider did not accept this key.", true]);
   assert.ok(!JSON.stringify(r).includes(KEY));
   assert.match(seen[0]!, /^https:\/\/api\.anthropic\.com\/v1\/models/);
+});
+
+test("only a 401 or 403 is a refused key; a 5xx or a provider it cannot reach is not", async () => {
+  const answering = (status: number) => (async () => new Response("{}", { status })) as unknown as typeof fetch;
+  const probe = (f: typeof fetch) => createProviderProbe({ fetch: f })({ providerKey: "anthropic", connection: "api_key", caller: "usr_a", apiKey: KEY });
+  assert.equal((await probe(answering(403))).refused, true);
+  const busy = await probe(answering(503));
+  assert.deepEqual([busy.ok, busy.refused, busy.detail], [false, undefined, "The provider answered 503."]);
+  const down = await probe((async () => { throw new Error("getaddrinfo ENOTFOUND"); }) as unknown as typeof fetch);
+  assert.deepEqual([down.ok, down.refused, down.detail], [false, undefined, "The provider could not be reached."]);
 });
 
 test("blockedAddress: the shared list refuses reserved and wrapped forms, on the own computer too where they are never right", () => {

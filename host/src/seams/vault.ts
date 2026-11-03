@@ -75,7 +75,7 @@ export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: 
       return Array.isArray(rows) ? rows.map((r) => String((r as Record<string, unknown>)[key] ?? "")).filter(Boolean) : [];
     };
   }
-  return async (p: { providerKey: string; connection: string; caller: string; apiKey?: string; address?: string; engine?: string }): Promise<{ ok: boolean; models: string[]; detail?: string }> => {
+  return async (p: { providerKey: string; connection: string; caller: string; apiKey?: string; address?: string; engine?: string }): Promise<{ ok: boolean; models: string[]; detail?: string; refused?: boolean }> => {
     let url: string, headers: Record<string, string> = {}, pick: (j: unknown) => string[] = ids("data", "id");
     if (p.connection === "local_model" || (p.address && !LISTS[p.providerKey])) {
       if (!p.address) return { ok: false, models: [], detail: "This local model has no address." };
@@ -87,7 +87,7 @@ export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: 
         const tail = p.engine === "custom" || /\/v1\/?$/.test(checked.url.pathname) ? "/models" : "/v1/models";
         const base = new URL(`${checked.url.pathname.replace(/\/$/, "")}${tail}`, checked.url);
         const r = await (o.request ?? pinnedGet)(base, { headers, ips: checked.ips });
-        if (r.status === 401 || r.status === 403) return { ok: false, models: [], detail: "The model did not accept this key." };
+        if (r.status === 401 || r.status === 403) return { ok: false, models: [], detail: "The model did not accept this key.", refused: true };
         if (!r.ok) return { ok: false, models: [], detail: `The model answered ${r.status}.` };
         return { ok: true, models: ids("data", "id")(await r.json()) };
       } catch {
@@ -101,7 +101,7 @@ export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: 
     }
     try {
       const r = await fetchFn(url, { headers, redirect: "error", signal: AbortSignal.timeout(10_000) });
-      if (r.status === 401 || r.status === 403) return { ok: false, models: [], detail: "The provider did not accept this key." };
+      if (r.status === 401 || r.status === 403) return { ok: false, models: [], detail: "The provider did not accept this key.", refused: true };
       if (!r.ok) return { ok: false, models: [], detail: `The provider answered ${r.status}.` };
       return { ok: true, models: pick(await r.json()) };
     } catch {

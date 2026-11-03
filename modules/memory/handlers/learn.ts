@@ -132,12 +132,15 @@ async function modeOf(ctx: MemCtx, agentId: string | null): Promise<CaptureMode 
 
 interface ThreadIn extends LearnThread { kind?: string; agents?: Array<{ agentId: string; mode: string }>; members?: Array<{ kind?: string; id?: string }> }
 
-/** The model this account learns with: the one remembered for it, else the cheapest on its live list. A list that cannot be read is asked again in an hour. */
+/**
+ * The model this account learns with: the one remembered for it, else the cheapest on its saved list. The list is read passively (probe: false): a learning pass never asks the vendor,
+ * so it can never mark the account failing for the person's next turn. A list that cannot be read is asked again in an hour.
+ */
 async function modelFor(ctx: MemCtx, acct: TurnAccount, now: number): Promise<string | null> {
   const known = accountOf(ctx, acct.ref);
   if (known.model !== null && now - known.modelAt < (known.model === "-" ? MODEL_TTL_MS / 12 : MODEL_TTL_MS)) return known.model === "-" ? null : known.model;
   let listed: ListedModel[] = [];
-  try { listed = ((await ctx.call("engine.models.list", { accountRef: acct.ref })) as { models?: ListedModel[] }).models ?? []; } catch { listed = []; }
+  try { listed = ((await ctx.call("engine.models.list", { accountRef: acct.ref, probe: false })) as { models?: ListedModel[] }).models ?? []; } catch { listed = []; }
   const pick = cheapestModel(acct.driver, listed);
   rememberModel(ctx, acct.ref, pick ?? "-", now);
   return pick;

@@ -46,7 +46,7 @@ export const PAGES: readonly PageDef[] = [
   p("review", "Review sampling", "AI", "eye", "ai.incidents", "console.ai-review"),
   p("incidents", "Incidents", "AI", "warn", "ai.incidents", "console.ai-incidents"),
   p("aipolicy", "AI use policy", "AI", "scale", "policy.manage", "console.ai-spend"),
-  p("memlearn", "Memory learning", "AI", "pulse", "policy.manage", "access.policies"),
+  p("memlearn", "Memory learning", "AI", "learn", "policy.manage", "access.policies"),
   p("domains", "Sending domains", "Comms", "mail", "comms.domains", "mail.domains"),
   p("numbers", "Numbers", "Comms", "phone", "comms.numbers", "telephony.numbers"),
   p("inboxes", "Shared inboxes", "Comms", "inbox", "comms.shared_send", "mail.shared-inboxes"),
