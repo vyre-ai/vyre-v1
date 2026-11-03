@@ -42,8 +42,8 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
     ...(r.paused_by ? { pausedBy: r.paused_by } : {}), scopes: JSON.parse(r.scopes) as string[], ...(r.last_sync_at !== null ? { lastSyncAt: r.last_sync_at } : {}), createdAt: r.created_at,
     handles: Object.values(JSON.parse(r.secrets) as Record<string, string>).sort(), filled: Object.keys(JSON.parse(r.secrets) as Record<string, string>).sort(),
   });
-  /** A person sees their own connections and the Space's; nobody sees another person's. */
-  const visible = (ctx: ConnectorsCtx, r: ConnectionDb): boolean => r.owner_kind === "space" || r.owner_id === actorOf(ctx);
+  /** A person sees their own connections and the Space's (a guest, who does not see the Space, only their own); nobody sees another person's. */
+  const visible = (ctx: ConnectorsCtx, r: ConnectionDb): boolean => (r.owner_kind === "space" && (ctx.canViewSpace?.() ?? true)) || (r.owner_kind === "person" && r.owner_id === actorOf(ctx));
   const need = (ctx: ConnectorsCtx, id: string): ConnectionDb => {
     ready();
     const r = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", id);
@@ -96,7 +96,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       const me = actorOf(ctx);
       const whose = input.whose ?? "all";
       let rows = tx.all<ConnectionDb>(`SELECT * FROM cn_connections ${input.connector !== undefined ? "WHERE connector = ?" : ""} ORDER BY created_at, connection_id`, ...(input.connector !== undefined ? [input.connector] : []));
-      rows = rows.filter((r) => (whose === "mine" ? r.owner_kind === "person" && r.owner_id === me : whose === "space" ? r.owner_kind === "space" : visible(ctx, r)));
+      rows = rows.filter((r) => (whose === "mine" ? r.owner_kind === "person" && r.owner_id === me : whose === "space" ? r.owner_kind === "space" && visible(ctx, r) : visible(ctx, r)));
       const { start, limit } = PAGE(input);
       return { connections: rows.slice(start, start + limit).map(rowOf), ...(start + limit < rows.length ? { next: String(start + limit) } : {}), total: rows.length };
     },

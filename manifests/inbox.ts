@@ -73,7 +73,7 @@ const manifest = defineManifest({
   capabilities: [
     // ---- erase (P-CC_39)
     write('inbox.item.erase', 'Erase the conversation entries of one message, text or call for good: previews, subjects and participants go, the conversation keeps only what other items still say (governance erase)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { refId: t.str({ examples: ['sms_a1b2c3'] }) }, out: { erased: t.bool() }, emits: ['inbox.item_erased'], audit: 'always', risk: 'high' }),
-    read('inbox.list_by_contact', 'Inbox default view: one row per person, newest message across email, text and calls', {
+    read('inbox.list_by_contact', 'Inbox default view: one row per person, newest message across email, text and calls', { level: 'member',
       in: { ...listFilter, ...pageIn }, out: { rows: t.arr(conversationRow), showing: t.str({ description: 'Plain words for the header: what is showing' }), ...pageOut },
       tool: 'inbox', label: 'filter', cli: 'vyre inbox list',
     }),

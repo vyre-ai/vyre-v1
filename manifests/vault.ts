@@ -99,7 +99,7 @@ export default defineManifest({
   capabilities: [
     // ---- items: lists, metadata, reveal
     read('vault.items.list', 'List items (names and metadata only, never values) by section, folder, kind or text', {
-      ...V, in: { section: t.opt(section), folder: t.opt(id.vaultFolder), kind: t.opt(itemKind), q: t.opt(t.str()), ...pageIn },
+      level: 'member', in: { section: t.opt(section), folder: t.opt(id.vaultFolder), kind: t.opt(itemKind), q: t.opt(t.str()), ...pageIn },
       out: { items: t.arr(itemMeta), counts: t.rec(t.int({ minimum: 0 })), ...pageOut }, tool: 'vault', label: 'filter', cli: 'vyre vault list',
     }),
     read('vault.items.match', 'Items that fit a website address (the Chrome extension offers them to fill)', { ...V, in: { url }, out: { items: t.arr(t.obj({ item: itemMeta, usernameField: t.opt(fieldKey) })) }, tool: 'vault', label: 'filter' }),
@@ -192,7 +192,7 @@ export default defineManifest({
     }),
 
     // ---- folders
-    read('vault.folders.list', 'Vault folders with counts and my level', { ...V, in: { scope: t.opt(t.enm('mine', 'shared')) }, out: { folders: t.arr(folderRow) }, tool: 'vault', label: 'filter' }),
+    read('vault.folders.list', 'Vault folders with counts and my level', { level: 'member', in: { scope: t.opt(t.enm('mine', 'shared')) }, out: { folders: t.arr(folderRow) }, tool: 'vault', label: 'filter' }),
     write('vault.folders.create', 'Make a vault folder (Mine, or Shared when the person may create shared items)', {
       ...V, idem: 'key', in: { name: t.str(), parentId: t.opt(id.vaultFolder), scope: t.enm('mine', 'shared') }, out: { folder: folderRow }, perm: 'vault.shared_create', emits: ['vault.folder_created'], tool: 'vault', offline: 'online',
     }),

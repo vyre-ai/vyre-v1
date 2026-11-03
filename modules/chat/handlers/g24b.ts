@@ -11,7 +11,7 @@ import {
 } from "../projections.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 import type { ChannelRec, ChatCtx, Db, Mode } from "../projections.ts";
-import { mayGovernChannel } from "./post.ts";
+import { mayGovernChannel, seesSpace } from "./post.ts";
 
 type Row = Record<string, unknown>;
 const KINDS = ["people", "agents", "runs"] as const;
@@ -86,10 +86,13 @@ export async function channelsList(ctx: ChatCtx, input: { section?: "personal" |
   const rows = ctx.db.all("SELECT id FROM chat_channel ORDER BY archived, createdAt, id") as Row[];
   const seen: ChannelRec[] = [];
   const restricted = new Set<string>();
+  const whole = seesSpace(ctx);
   for (const r of rows) {
     const ch = channelBy(ctx.db, String(r["id"]))!;
     if (input.folderId !== undefined && ch.folderId !== input.folderId) continue;
     const mine = isMember(ctx.db, ch.mainThread, asker);
+    // a guest (no View on the Space) lists only the channels they were added to
+    if (!mine && !whole) continue;
     // Console asks with `governance`: an admin sees that an invite-only channel exists (name, members, archived), marked restricted, and still cannot open it
     if (ch.visibility === "invite" && !mine) {
       if (input.governance !== true || !mayGovernChannel(ctx, ch.id)) continue;

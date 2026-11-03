@@ -30,7 +30,7 @@ export default defineManifest({
 
   capabilities: [
     read('settings.pages', 'The settings pages a person has, with row counts', {
-      ...V, in: {}, out: { pages: t.arr(t.obj({ key: t.str(), title: t.str(), group: t.enm('you', 'space'), rows: t.int({ minimum: 0 }) })) }, tool: 'meta',
+      level: 'member', in: {}, out: { pages: t.arr(t.obj({ key: t.str(), title: t.str(), group: t.enm('you', 'space'), rows: t.int({ minimum: 0 }) })) }, tool: 'meta',
     }),
     read('settings.list', 'Rows of one page (or all) with the value that applies to me', { ...V, in: { page: t.opt(t.str()), scope: t.opt(scope) }, out: { rows: t.arr(settingRow) }, tool: 'meta' }),
     read('settings.get', 'One setting with its value, default and floor', { ...V, in: { key }, out: { row: settingRow }, tool: 'meta' }),

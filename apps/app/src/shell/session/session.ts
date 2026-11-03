@@ -36,7 +36,7 @@ import { createRemoteScreenHooks } from "./remote-hooks.ts";
 import type { RemoteHooks } from "./remote-hooks.ts";
 import { onRetryLoads } from "../../../../../ui/src/States/retry.ts";
 import { speed } from "../../speed/recorder.ts";
-import { GATE } from "./gates.ts";
+import { GATE, hiddenPlaces } from "./gates.ts";
 
 export interface OpenSessionOptions {
   /** The sign-in name this device typed, when it did. */
@@ -187,6 +187,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const space = spaceOut.space;
   const deferred = createDeferred(who.deferred, (who as typeof who & {deferredModules?:readonly string[]}).deferredModules);
   const me: Principal = { id: who.principal.id, name: who.name, kind: "person", ...(o.username ? { username: o.username } : {}) };
+  // a place whose first permission the role lacks is off the rail and never warmed (a guest: no Mine automations, nothing kept in the Vault)
+  const offRail: readonly string[] = who.permissions && space.kind === "team" ? hiddenPlaces(who.permissions) : [];
 
   // A 401 means signed out (once, to sign-in): it is never a failure state a screen reacts to by asking again.
   const hooks = createRemoteScreenHooks({ screens, read: (cap, input) => reach(cap, input), ignoreError: (e) => e instanceof CapError && e.status === 401 });
@@ -295,7 +297,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   };
   // Idle warm-up: once the Space is open, read each place's first list one after another so the first visit paints from the session's cache.
   const warmTimers: ReturnType<typeof setTimeout>[] = [];
-  WARM_ORDER.forEach((place, i) => { warmTimers.push(setTimeout(() => prefetchPlace(place), o.warmAfterMs === undefined ? 1500 + i * 250 : o.warmAfterMs + i * 250)); });
+  WARM_ORDER.filter((place) => !offRail.includes(place)).forEach((place, i) => { warmTimers.push(setTimeout(() => prefetchPlace(place), o.warmAfterMs === undefined ? 1500 + i * 250 : o.warmAfterMs + i * 250)); });
 
   const connections = hooks.capQuery<Out<"connections.list">>("connections.list", {});
   const principalsList = hooks.capQuery<Out<"access.principals.list">>("access.principals.list", {});
@@ -355,6 +357,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     needsYou: (switcher?.needsYou ?? 0) > 0,
     // whoever holds console.access gets the rail button: the same answer as opening the Console by its address
     console: await railConsole(who.roles, () => reach("console.nav", {}).then(() => true, () => false)),
+    ...(offRail.length ? { hidden: offRail as PlaceId[] } : {}),
     // a Personal Space has one person and their own computer: the terminal is always theirs. A Team Space gives it to owners and developers
     terminal: space.kind === "personal" || holdsRole(who.roles, "owner", "developer"),
     // members.invite is the Owner's and Admins' (manifests/permissions.ts); a Personal Space has nobody to invite
