@@ -669,7 +669,7 @@
     {
       "deferred": false,
       "name": "automations_get",
-      "summary": "Read an Automation with its definition, alerts and followers",
+      "summary": "Read an Automation with its definition, alerts and followers, and whether the caller may change it (a Space one: owners, admins and people given Edit on it)",
       "toolset": "automations"
     },
     {

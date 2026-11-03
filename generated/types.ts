@@ -2855,6 +2855,7 @@ export type AutomationsGetOut = {
     createdAt: number;
     updatedAt: number;
   };
+  canEdit?: boolean;
 };
 export type AutomationsGroupsCreateIn = {
   name: string;

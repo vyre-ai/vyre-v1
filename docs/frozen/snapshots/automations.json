@@ -20,7 +20,7 @@
     "automations.fire@1": "a0f8583a09aecdad7d66de55984dff17fd0b8c87852bd74b056a65f590bf103d",
     "automations.followers.add@1": "75be240d07c6ef2b183dfdc61d9b9a33aad5cb8d85f87ebe0691dab9f2d372e1",
     "automations.followers.remove@1": "d8df8764e0b11403c36fa1708c0f6e1af86dfaa50f4c1f3aac9e6e3f8607175f",
-    "automations.get@1": "3583e2463709661e0808eaabeda91b96373c9771daf5c9feaa77e8e2aabfa306",
+    "automations.get@1": "e1366d6ae9d88afdff5dfba1dce72061267378c90688353162a09bdb16b95f2d",
     "automations.groups.create@1": "59e377ce64fc6d895ee8cf2b0816ff01875a6fdde635b91cab183015115377b0",
     "automations.groups.delete@1": "1f14bab6a011f3734bcc449affd0845a4c632c6b0f1f5946da16e902d753cef4",
     "automations.groups.list@1": "21e855e269f7492e8634c89ed953462c6142774fbfb50de02e891d79ba826514",

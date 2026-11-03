@@ -5323,7 +5323,7 @@
       "blocks": [],
       "cap": "automations.get",
       "deferred": false,
-      "description": "Read an Automation with its definition, alerts and followers",
+      "description": "Read an Automation with its definition, alerts and followers, and whether the caller may change it (a Space one: owners, admins and people given Edit on it)",
       "effects": "read",
       "inputSchema": {
         "properties": {
