@@ -1,7 +1,7 @@
 // Finding and pressing things inside a closed shadow root (the agent bar, the save card, the field badge and its picker) in a real Chromium: the DevTools protocol can pierce a closed root, a page script cannot.
 import assert from "node:assert/strict";
 
-/** The centre of the first element with this tag whose own text is `label` (or whose aria-label is), anywhere on the page including closed shadow roots. */
+/** The centre of the first element with this tag whose own text is `label` (or whose aria-label is), anywhere on the page including closed shadow roots. Waits until it is on the page and laid out (it has a box), up to `waitMs`. */
 export async function boxOf(page: any, tag: string, label: string, waitMs = 4000) {
   const until = Date.now() + waitMs;
   for (;;) {
@@ -28,8 +28,11 @@ async function once(page: any, tag: string, label: string) {
     };
     const node = walk(root);
     if (!node) return null;
-    const { model } = await cdp.send("DOM.getBoxModel", { nodeId: node.nodeId });
-    const [x1, y1, , , x3, y3] = model.content;
+    // found but not laid out yet (a bar just drawn, a button just shown): no box is the same as not there yet, and the caller waits for one
+    let model: { content: number[] };
+    try { ({ model } = await cdp.send("DOM.getBoxModel", { nodeId: node.nodeId })); } catch { return null; }
+    const [x1, y1, , , x3, y3] = model.content as [number, number, number, number, number, number];
+    if (!(x3 - x1 > 0) || !(y3 - y1 > 0)) return null;
     return { x: (x1 + x3) / 2, y: (y1 + y3) / 2 };
   } finally { await cdp.detach().catch(() => {}); }
 }
