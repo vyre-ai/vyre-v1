@@ -13,11 +13,11 @@ const row = (id: string, title: string, a: number, b: number, o: Partial<EventRo
   ({ id, calendarId: "cal_work", title, startsAt: D0 + a * HOUR, endsAt: D0 + b * HOUR, allDay: false, joinProvider: "none", attendees: [], recordIds: [], status: "confirmed", ...o });
 const allDay = (id: string, title: string, from: number, days = 1, o: Partial<EventRow> = {}): EventRow => row(id, title, 0, 0, { allDay: true, startsAt: D0 + from * DAY, endsAt: D0 + (from + days) * DAY, ...o });
 
-test("overlap: events that start together share the width, a later start sits on top 14 px further in, past three the first two show and a +N tile holds the rest", () => {
+test("overlap: events that start together share the width, a later start sits on top 12 px further in, past three the first two show and a +N tile holds the rest", () => {
   const l = lanesOf([row("a", "NDA", 10, 10.5), row("b", "Meeting with Priya", 10, 10.5), row("c", "Hartwell intake", 10.25, 11), row("d", "Lunch", 12, 13)]);
   assert.deepEqual(l.map((x) => [x.e.id, x.lane, x.lanes, x.level]), [["a", 0, 2, 0], ["b", 1, 2, 0], ["c", 0, 1, 1], ["d", 0, 1, 0]]);
   assert.equal(blockOf(l[0]!, D0).width, "calc((100% - 0px) / 2 - 4px)");
-  assert.equal(blockOf(l[2]!, D0).left, "calc(14px + 0 * (100% - 14px) / 1 + 2px)");
+  assert.equal(blockOf(l[2]!, D0).left, "calc(12px + 0 * (100% - 12px) / 1 + 2px)");
   assert.ok(blockOf(l[2]!, D0).z > blockOf(l[0]!, D0).z, "the later card is drawn on top");
   assert.equal(blockOf(l[3]!, D0).width, "calc((100% - 0px) / 1 - 4px)");
   const many = lanesOf([row("a", "A", 10, 11), row("b", "B", 10.25, 11), row("c", "C", 10.5, 11), row("d", "D", 10.75, 11), row("e", "E", 10.75, 11)]);
@@ -51,7 +51,7 @@ test("titles and time: two lines before a cut, the time on its own line only whe
   const t = one(row("t", "Three quarters", 10, 10.75));
   assert.deepEqual([t.lines, t.time], [2, "range"], "45 minutes alone in its width: title and the whole range");
   const n = one(row("n", "Three quarters", 10, 10.75), 3);
-  assert.deepEqual([n.lines, n.time], [2, "start"], "in a crowded group only the start");
+  assert.deepEqual([n.lines, n.time], [1, "none"], "side by side in a narrow lane: one line with an ellipsis, no time line, so no word is split");
   const c = one(row("c", "Short", 10, 10.25), 2);
   assert.equal(c.time, "none", "a narrow one-line block has no room for a time");
 });
@@ -102,4 +102,19 @@ test("screen: the crowded week shows the band behind, the 10:00 group in three c
   assert.ok(!chips.includes("e_x_up2b") && !chips.includes("e_x_up3b"), "a copy on the same day is not drawn twice");
   assert.deepEqual(chips, ["e_x_up1", "e_x_up2", "e_x_up3"], "Monday, Tuesday and Wednesday show their one chip; Thursday's rows are full (the summit bar, Lena out), so its updates fold into the +N");
   assert.ok(!out.includes(String.fromCharCode(0x2014)), "no em dash");
+});
+
+test("month: a wide window keeps the event rows and has no phone agenda (the phone dots and agenda are shot, CALWEEK_01-month phone)", () => {
+  const sm = createCalendarSample();
+  const html = (w: number): string => renderToStaticMarkup(<InboxDataProvider value={sm.data}><InboxStateProvider initial={{}}><Calendar me={ME} team={TEAM} initial={{ mode: "month" }} /></InboxStateProvider></InboxDataProvider>).replaceAll("<!-- -->", "") + String(w);
+  const wide = html(1440);
+  assert.ok(wide.includes('data-testid="cal-month"') && !wide.includes('data-testid="cal-agenda"'), "a wide window keeps the event rows and has no agenda");
+});
+
+test("a card keeps no time line under the card drawn over it", () => {
+  const l = lanesOf([row("p", "Pipeline review", 10, 10.75), row("q", "Quick sync", 10.5, 11)]);
+  const p = l.find((x) => x.e.id === "p")!;
+  assert.equal(p.room, HH / 2, "the next card starts half an hour below");
+  assert.deepEqual([blockOf(p, D0).lines, blockOf(p, D0).time], [2, "none"], "so the range would sit under it and is left out");
+  assert.equal(l.find((x) => x.e.id === "q")!.room, undefined, "the card on top has all its room");
 });

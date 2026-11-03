@@ -27,7 +27,11 @@ const BASE_BUSY: Record<string, readonly (readonly [number, number, number, numb
 };
 
 const DAY0 = Date.UTC(2025, 9, 24); // Friday 24 October, midnight UTC (the sample person's day is UTC)
-const at = (dayOffset: number, h: number, m = 0): number => DAY0 + dayOffset * DAY + h * HOUR + m * MIN;
+// whole weeks the sample is moved by, so a screenshot can show the current week (the weekdays stay the same); 0 for the tests
+let SHIFT = 0;
+const at = (dayOffset: number, h: number, m = 0): number => DAY0 + SHIFT + dayOffset * DAY + h * HOUR + m * MIN;
+/** The whole weeks from the sample's week to the one `now` falls in. */
+export const weeksTo = (now: number): number => Math.round((now - SAMPLE_NOW) / (7 * DAY));
 const att = (...emails: string[]): EventRow["attendees"] => emails.map((email) => ({ email, name: TEAM.find((t) => t.email === email)?.name ?? email, response: "accepted" as const }));
 const ev = (id: string, calendarId: string, title: string, startsAt: number, endsAt: number, o: Partial<EventRow> = {}): EventRow =>
   ({ id, calendarId, title, startsAt, endsAt, allDay: false, joinProvider: "none", attendees: [], recordIds: [], status: "confirmed", ...o });
@@ -36,7 +40,7 @@ function nwEvents(): EventRow[] {
   const out: EventRow[] = [];
   // the daily standup, Monday to Friday, three weeks around today
   for (let d = -18; d <= 17; d++) {
-    const wd = new Date(DAY0 + d * DAY).getUTCDay();
+    const wd = new Date(DAY0 + SHIFT + d * DAY).getUTCDay();
     if (wd === 0 || wd === 6) continue;
     out.push(ev(`standup_${d}`, "cal_work", "Team standup", at(d, 9, 30), at(d, 10, 0), { seriesId: "standup", organizer: "maya@northwind.example", attendees: att(ME, "maya@northwind.example", "omar@northwind.example", "lena@northwind.example") }));
   }
@@ -135,8 +139,9 @@ export function slotsFor(people: readonly string[], minutes: number, from: numbe
   return out;
 }
 
-export function createCalendarSample(space: SampleSpace = northwind, o: { online?: boolean; bulk?: number } = {}): CalendarSample {
-  const base = createSampleInbox(space, o);
+export function createCalendarSample(space: SampleSpace = northwind, o: { online?: boolean; bulk?: number; shiftWeeks?: number } = {}): CalendarSample {
+  SHIFT = (o.shiftWeeks ?? 0) * 7 * DAY;
+  const base = createSampleInbox(space, { online: o.online, bulk: o.bulk } as Parameters<typeof createSampleInbox>[1]);
   const { replica } = base;
   const writes: CalendarSample["writes"] = [];
   const rows = (): EventRow[] => replica.rows("events") as unknown as EventRow[];
@@ -166,7 +171,7 @@ export function createCalendarSample(space: SampleSpace = northwind, o: { online
       // All events of a series: every instance not yet ended takes the title and moves by the same amount (the server does the same, modules/calendar updateSeries)
       const shift = i.startsAt !== undefined ? i.startsAt - cur.startsAt : 0;
       const len = i.startsAt !== undefined && i.endsAt !== undefined ? i.endsAt - i.startsAt : cur.endsAt - cur.startsAt;
-      const series = i.scope === "all" && cur.seriesId ? rows().filter((e) => e.seriesId === cur.seriesId && (e.id === cur.id || e.endsAt > SAMPLE_NOW)) : [cur];
+      const series = i.scope === "all" && cur.seriesId ? rows().filter((e) => e.seriesId === cur.seriesId && (e.id === cur.id || e.endsAt > SAMPLE_NOW + SHIFT)) : [cur];
       const out = series.map((e) => {
         const startsAt = e.id === cur.id ? (i.startsAt ?? e.startsAt) : e.startsAt + shift;
         return { ...e, ...(i.startsAt !== undefined || i.endsAt !== undefined ? { startsAt, endsAt: e.id === cur.id ? (i.endsAt ?? startsAt + len) : startsAt + len } : {}), ...(i.title !== undefined ? { title: i.title } : {}), ...(i.attendees !== undefined ? { attendees: i.attendees } : {}) };
@@ -230,6 +235,7 @@ export function createCalendarSample(space: SampleSpace = northwind, o: { online
   };
   const data: InboxData = {
     ...base.data,
+    clock: () => ({ now: SAMPLE_NOW + SHIFT, offsetMin: 0 }),
     async call(cap, input) {
       const r = reads[cap];
       if (r) return r(input as never);

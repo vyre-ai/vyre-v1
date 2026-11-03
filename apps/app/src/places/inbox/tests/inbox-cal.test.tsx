@@ -52,7 +52,7 @@ test("screen: an event sits at its start time (64 px an hour) and overlapping ev
   const { out } = cal();
   const at = (id: string): string => { const i = out.indexOf(`data-testid="event:${id}"`); assert.ok(i >= 0, id); return out.slice(Math.max(0, i - 400), i + 40); };
   assert.ok(at("e_lease_call").includes(`top:${11 * HH}px`), "11:00 is 11 hours down the grid");
-  assert.ok(at("e_planning").includes("width:calc((100% - 0px) / 1 - 4px)") && at("e_invoices").includes("width:calc((100% - 14px) / 1 - 4px)"), "14:30 sits on top of the 14:00 card, 14 px further in");
+  assert.ok(at("e_planning").includes("width:calc((100% - 0px) / 1 - 4px)") && at("e_invoices").includes("width:calc((100% - 12px) / 1 - 4px)"), "14:30 sits on top of the 14:00 card, 12 px further in");
   const lane = lanesOf(events(createCalendarSample()).filter((e) => e.id === "e_planning" || e.id === "e_invoices"));
   assert.deepEqual(lane.map((l) => [l.e.id, l.lane, l.lanes, l.level]), [["e_planning", 0, 1, 0], ["e_invoices", 0, 1, 1]]);
   assert.ok(has(out, "Lease call with Elena") && has(out, "11:00 to 11:45 AM"), "a taller event shows its time under the title");

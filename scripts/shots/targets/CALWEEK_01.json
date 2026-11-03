@@ -2,21 +2,21 @@
   "targets": [
     {
       "id": "CALWEEK_01-week",
-      "route": "/m/CALWEEK_01?mode=week",
+      "route": "/m/CALWEEK_01?view=week",
       "proto": "inbox,{skin}",
       "waitFor": "[data-testid='cal-allday']",
       "note": "The week: three events at 10:00 in equal columns with their titles wrapped, Block and Focus as quiet bands behind, the all-day lane with one chip per event per day, a summit bar across two days and a +N, the 15 minute grid, today tinted with the time pill and line, the weekend quieter."
     },
     {
       "id": "CALWEEK_01-day",
-      "route": "/m/CALWEEK_01?mode=day&day=-2",
+      "route": "/m/CALWEEK_01?view=day&day=-2",
       "proto": "inbox,{skin}",
       "waitFor": "[data-testid='cal-scroll']",
       "note": "The day view of the crowded Wednesday to the same standard: the 10:00 group in three equal columns, the Block band behind, the all-day lane."
     },
     {
       "id": "CALWEEK_01-month",
-      "route": "/m/CALWEEK_01?mode=month",
+      "route": "/m/CALWEEK_01?view=month",
       "proto": "inbox,{skin}",
       "waitFor": "[data-testid='cal-month']",
       "note": "The month: up to three events a day, then +N more; the bands are left out."

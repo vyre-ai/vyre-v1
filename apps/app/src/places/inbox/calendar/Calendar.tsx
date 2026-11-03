@@ -329,13 +329,16 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
   const [hov, setHov] = useState<{ id: string; x: number; y: number; w: number } | null>(null);
   const hovTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hovOff = (): void => { if (hovTimer.current) clearTimeout(hovTimer.current); hovTimer.current = null; setHov(null); };
+  const [rise, setRise] = useState<string | null>(null);
   const hoverIn = (id: string) => (ev: unknown): void => {
+    setRise(id);
     const r = (ev as { currentTarget?: { getBoundingClientRect?: () => { left: number; right: number; top: number; width: number } } } | undefined)?.currentTarget?.getBoundingClientRect?.();
     if (!r || phone || drag) return;
     if (hovTimer.current) clearTimeout(hovTimer.current);
     hovTimer.current = setTimeout(() => setHov({ id, x: r.right + 6, y: r.top, w: r.width }), hov ? 60 : 420);
   };
-  const hoverOut = (): void => { if (hovTimer.current) clearTimeout(hovTimer.current); hovTimer.current = setTimeout(() => setHov(null), 140); };
+  const hoverOut = (): void => {
+    setRise(null); if (hovTimer.current) clearTimeout(hovTimer.current); hovTimer.current = setTimeout(() => setHov(null), 140); };
   const hovEvent = hov ? events.find((x) => x.id === hov.id) : undefined;
   const hovCard = hov && hovEvent ? (() => {
     const e = hovEvent, who = e.attendees.filter((a) => a.email !== p.me).map((a) => a.name ?? names.get(a.email) ?? a.email);
@@ -378,10 +381,10 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
     const when = b.time === "range" ? range(span.startsAt, span.endsAt, off) : clock(span.startsAt, off);
     const inline = b.lines === 1 && b.time === "start";
     return (
-      <View key={e.id} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.cev, { top: b.top, height: b.height, left: b.left as unknown as number, width: b.width as unknown as number, zIndex: b.z, backgroundImage: tint(col, isPast(e, clockNow.now) ? 9 : 15), borderLeftColor: col }, cal.selected === e.id && s.cevSel]} testID={`event:${e.id}`}>
+      <View key={e.id} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.cev, { top: b.top, height: b.height, left: b.left as unknown as number, width: b.width as unknown as number, zIndex: rise === e.id ? 20 : b.z, backgroundImage: tint(col, isPast(e, clockNow.now) ? 9 : 15), borderLeftColor: col }, cal.selected === e.id && s.cevSel]} testID={`event:${e.id}`}>
         <Pressable
           accessibilityRole="button" accessibilityLabel={`${e.title}, ${eventLine(e, off)}`} accessibilityState={{ selected: cal.selected === e.id }} testID={`event-body:${e.id}`}
-          onPress={(ev) => pressEvent(e.id, ev)} onHoverIn={hoverIn(e.id)} onHoverOut={hoverOut} {...({ onPointerDown: startEvent(e, "move") } as object)} style={[s.cevIn, inline && s.cevInline]}
+          onPress={(ev) => pressEvent(e.id, ev)} onHoverIn={hoverIn(e.id)} onHoverOut={hoverOut} {...({ onPointerDown: startEvent(e, "move") } as object)} style={[s.cevIn, inline && s.cevInline, laid.lanes > 1 && s.cevInNarrow]}
         >
           <Text numberOfLines={b.lines} style={[s.cevTitle, inline && s.cevTitleInline, isPast(e, clockNow.now) && s.cevPast]}>{e.title}</Text>
           {b.time === "none" ? null : <Text numberOfLines={1} style={s.cevSmall}>{when}</Text>}
@@ -494,21 +497,37 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
               key={d} accessibilityRole="none" accessibilityLabel={`${weekdayShort(d, off)} ${dateOf(d, off)}`} testID={`cell:${d}`}
               {...menuTrigger((x, y) => menu.show(dayMenuEntries({ newHere: () => withDraft(clickCreate(d, 9 * HH)), goDay: () => { dispatch({ type: "mode", mode: "day" }); dispatch({ type: "go", day: d }); } }), x, y))}
               {...({ onDoubleClick: () => withDraft(clickCreate(d, 9 * HH)) } as object)}
-              onPress={() => dispatch({ type: "go", day: d })} style={({ hovered }: { hovered?: boolean }) => [s.mc, hovered === true && s.hicOver]}
+              onPress={() => dispatch({ type: "go", day: d })} style={({ hovered }: { hovered?: boolean }) => [s.mc, phone && s.mcPhone, hovered === true && s.hicOver]}
             >
-              <View style={[s.mn, d === today && s.mnToday]}><Text style={[s.mnText, out && s.mnOut, d === today && s.mnTodayText]}>{dateOf(d, off)}</Text></View>
-              {each(show, (e) => (
+              <View style={[s.mn, phone && s.mnCenter, d === today && s.mnToday, phone && d === cal.day && d !== today && s.mnSel]}><Text style={[s.mnText, out && s.mnOut, d === today && s.mnTodayText]}>{dateOf(d, off)}</Text></View>
+              {phone ? (
+                // iOS style: up to three dots coloured by calendar; a tap shows that day's agenda under the grid
+                <View style={s.dots} testID={`dots:${d}`}>{each(es.slice(0, 3), (e) => <View key={e.id} style={[s.cdotS, { backgroundColor: colorOf(calendars, e.calendarId) }]} />)}</View>
+              ) : null}
+              {phone ? null : each(show, (e) => (
                 <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={e.title} testID={`mev:${e.id}`} onPress={(ev) => pressEvent(e.id, ev)} onHoverIn={hoverIn(e.id)} onHoverOut={hoverOut} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={({ hovered }: { hovered?: boolean }) => [s.mev, (hovered === true || cal.selected === e.id) && s.mevOver]}>
                   <View style={[s.cdotS, { backgroundColor: colorOf(calendars, e.calendarId) }]} />
                   {e.allDay ? null : <Text style={s.mevTime}>{clock(e.startsAt, off).replace(":00", "").replace(" ", "").toLowerCase()}</Text>}
                   <Text numberOfLines={1} style={[s.mevText, isPast(e, clockNow.now) && s.cevPast]}>{e.title}</Text>
                 </Pressable>
               ))}
-              {es.length > cap ? <Pressable accessibilityRole="button" accessibilityLabel={`${es.length - cap} more events`} testID={`more:${d}`} onPress={() => { dispatch({ type: "mode", mode: "day" }); dispatch({ type: "go", day: d }); }} style={({ hovered }: { hovered?: boolean }) => [s.mmoreBtn, hovered === true && s.hicOver]}><Text style={s.mmore}>{`+${es.length - cap} more`}</Text></Pressable> : null}
+              {phone ? null : es.length > cap ? <Pressable accessibilityRole="button" accessibilityLabel={`${es.length - cap} more events`} testID={`more:${d}`} onPress={() => { dispatch({ type: "mode", mode: "day" }); dispatch({ type: "go", day: d }); }} style={({ hovered }: { hovered?: boolean }) => [s.mmoreBtn, hovered === true && s.hicOver]}><Text style={s.mmore}>{`+${es.length - cap} more`}</Text></Pressable> : null}
             </Pressable>
           );
         })}
       </View>
+      {phone ? (
+        <View style={s.agenda} testID="cal-agenda">
+          <Text style={s.agendaHead}>{dayText(cal.day, off)}</Text>
+          {monthCell(events, cal.day).length === 0 ? <Text style={s.agendaNone}>Nothing planned</Text> : each(monthCell(events, cal.day), (e) => (
+            <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={e.title} testID={`agenda:${e.id}`} onPress={(ev) => pressEvent(e.id, ev)} style={({ hovered }: { hovered?: boolean }) => [s.agendaRow, hovered === true && s.hicOver]}>
+              <View style={[s.cdotS, { backgroundColor: colorOf(calendars, e.calendarId) }]} />
+              <Text style={s.agendaTime}>{eventLine(e, off).replace(/ (AM|PM)/g, (m) => m.toLowerCase())}</Text>
+              <Text numberOfLines={1} style={s.agendaTitle}>{e.title}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 
@@ -719,6 +738,7 @@ const s = StyleSheet.create({
   cev: { position: "absolute", borderRadius: 5, overflow: "hidden", borderLeftWidth: 3, zIndex: 2, boxShadow: "0 0 0 1px var(--win)" as unknown as undefined },
   cevSel: { zIndex: 4, boxShadow: "0 0 0 2px var(--accent)" as unknown as undefined },
   cevIn: { flex: 1, paddingTop: 3, paddingBottom: 2, paddingLeft: 5, paddingRight: 4 },
+  cevInNarrow: { paddingTop: 1 },
   cevInline: { flexDirection: "row", alignItems: "baseline", gap: 6, paddingTop: 2 },
   cevTitleInline: { flexShrink: 1 },
   cevTitle: { fontSize: 11.5, lineHeight: 14, fontWeight: "600", color: ink("--ink"), ...({ overflowWrap: "normal", wordBreak: "normal" } as object) },
@@ -735,6 +755,16 @@ const s = StyleSheet.create({
   mwkText: { flex: 1, paddingTop: 8, paddingBottom: 6, paddingHorizontal: 10, fontSize: 11.5, fontWeight: "500", color: ink("--ink-3") },
   mgrid: { flex: 1, minHeight: 0, flexDirection: "row", flexWrap: "wrap" },
   mc: { width: "14.2857%" as unknown as number, minHeight: 104, flexGrow: 1, borderRightWidth: 1, borderBottomWidth: 1, borderRightColor: ink("--line"), borderBottomColor: ink("--line"), paddingVertical: 4, paddingHorizontal: 5, overflow: "hidden", gap: 1 },
+  mcPhone: { minHeight: 44, alignItems: "center", paddingHorizontal: 1 },
+  dots: { flexDirection: "row", gap: 3, justifyContent: "center", height: 8, marginTop: 2 },
+  mnCenter: { alignSelf: "center" },
+  mnSel: { boxShadow: "inset 0 0 0 1.5px var(--accent)" as unknown as undefined },
+  agenda: { borderTopWidth: 1, borderTopColor: ink("--line"), paddingVertical: 8, paddingHorizontal: 14, gap: 2, maxHeight: 220 },
+  agendaHead: { fontSize: 12, fontWeight: "600", color: ink("--ink-3"), marginBottom: 2 },
+  agendaNone: { fontSize: 12.5, color: ink("--ink-3"), paddingVertical: 4 },
+  agendaRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 30, borderRadius: 6 },
+  agendaTime: { fontSize: 12, color: ink("--ink-3"), width: 112, fontVariant: ["tabular-nums"] },
+  agendaTitle: { flex: 1, fontSize: 13, color: ink("--ink") },
   mn: { alignSelf: "flex-start", height: 20, minWidth: 20, paddingHorizontal: 5, borderRadius: 20, alignItems: "center", justifyContent: "center", marginBottom: 1 },
   mnToday: { backgroundColor: ink("--accent") },
   mnText: { fontSize: 12, color: ink("--ink-2"), fontVariant: ["tabular-nums"] },

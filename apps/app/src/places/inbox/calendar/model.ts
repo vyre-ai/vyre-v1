@@ -176,16 +176,18 @@ export interface Laid {
   /** Side by side: events that start together (within 15 minutes) share the width; this is the place among them and `lanes` how many. */
   lane: number;
   lanes: number;
-  /** Cascade level: a later start is drawn on top of the card below, `CASCADE` px further in (0 to 3). */
+  /** Cascade level: a later start is drawn on top of the card below, 12 px further in (0 to 3). */
   level: number;
   /** A long background block (Block, Focus): drawn as a tinted band behind the day, taking no column. */
   band: boolean;
+  /** Pixels of this card left above the next card drawn over it (unset when nothing covers it): a title or time line that would sit under that card is not drawn. */
+  room?: number;
   /** Past three events in a group the first two show and this tile lists the rest. */
   more?: EventRow[];
 }
 
 /** Pixels each cascade level is drawn further in. */
-export const CASCADE = 14;
+export const CASCADE = 12;
 const TOGETHER = 15 * MIN;
 
 /** A long "Block", "Focus", "Busy" or "Hold" (two hours or more), or any event of seven hours or more, is a background band, not a column. */
@@ -202,6 +204,7 @@ export function lanesOf(list: readonly EventRow[]): Laid[] {
   let group: EventRow[] = [];
   let end = 0;
   const flush = (): void => {
+    const from = out.length;
     const keep = group.slice(0, group.length > 3 ? 2 : group.length), more = group.slice(keep.length);
     const subs: { at: number; end: number; es: EventRow[] }[] = [];
     for (const e of keep) {
@@ -214,6 +217,11 @@ export function lanesOf(list: readonly EventRow[]): Laid[] {
       const level = Math.min(3, subs.slice(0, i).filter((x) => x.end > g.at).length);
       g.es.forEach((e, k) => out.push({ e, lane: k, lanes: g.es.length, level, band: false }));
     });
+    const mine = out.slice(from);
+    for (const a of mine) {
+      const over = mine.filter((b) => b !== a && b.e.startsAt > a.e.startsAt && b.e.startsAt < a.e.endsAt).map((b) => offsetToY(b.e.startsAt - a.e.startsAt));
+      if (over.length > 0) a.room = Math.min(...over);
+    }
     if (more.length > 0) out.push({ e: more[0] as EventRow, lane: 0, lanes: 1, level: 0, band: false, more });
     group = [];
   };
@@ -240,8 +248,11 @@ export interface Block {
 export function blockOf(l: Laid, day: number): Block {
   const top = offsetToY(Math.max(0, l.e.startsAt - day));
   const height = Math.max(20, offsetToY(Math.min(l.e.endsAt, day + DAY) - Math.max(l.e.startsAt, day)) - 1);
-  const lines = height < 30 ? 1 : 2;
-  const time = height >= 44 ? (l.lanes > 1 ? "start" : "range") : lines === 1 && l.lanes === 1 ? "start" : "none";
+  // a narrow lane (events that start together) shows its title on one line with an ellipsis and no time line, so no word is ever split
+  const narrow = l.lanes > 1;
+  const seen = Math.min(height, l.room ?? Infinity);
+  const lines = seen < 30 || narrow ? 1 : 2;
+  const time = narrow ? "none" : seen >= 44 ? "range" : height < 30 ? "start" : "none";
   const off = l.level * CASCADE;
   return { top, height, left: `calc(${off}px + ${l.lane} * (100% - ${off}px) / ${l.lanes} + 2px)`, width: `calc((100% - ${off}px) / ${l.lanes} - 4px)`, z: 2 + l.level, one: height < 40, lines, time };
 }
