@@ -449,3 +449,18 @@ test("sharing with Everyone skips the admin check for the host's own service alo
   // the host's own service passes the Everyone gate; the share then needs the right to share the item, like any share (this rig gives the host no grant, so that is where it stops)
   assert.equal(await code(toEveryone(asP("service", "svc_host"))), "permission.no_grant", "the host's own service is past the Everyone gate");
 });
+
+test("a guest never shares with Everyone, not even an item Everyone already holds at that level: refused before the existing-grant shortcut; an admin may repeat it", async () => {
+  const r = rig();
+  putPrincipal(r.store, { id: "usr_guest", kind: "person", name: "usr_guest" });
+  r.store.setRoles("usr_guest", ["rol_guest"]);
+  r.store.bump();
+  r.item("sit_open", "usr_admin");
+  const toEveryone = (ctx: ShareCtx, level: "view" | "use") => share(ctx, { resource: { type: "site", id: "sit_open" }, subject: { kind: "group", id: EVERYONE }, level });
+  await toEveryone(r.as("usr_admin"), "use");   // the admin shares it with Everyone first
+  assert.equal(await code(toEveryone(r.as("usr_guest"), "use")), "permission.role_lacks_permission", "the same level again: still refused for a guest");
+  assert.equal(await code(toEveryone(r.as("usr_guest"), "view")), "permission.role_lacks_permission", "a lower level: refused for a guest");
+  const agentForGuest: ShareCtx = { ...r.ctx, principal: { kind: "agent", id: "agt_guestbot" }, actingFor: "usr_guest" } as ShareCtx;
+  assert.equal(await code(toEveryone(agentForGuest, "use")), "permission.role_lacks_permission", "an agent acting for a guest: refused");
+  assert.equal(await code(toEveryone(r.as("usr_admin"), "use")), "no error", "an admin repeats it");
+});

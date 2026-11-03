@@ -70,7 +70,7 @@ export const IMPOSSIBLE = {
   personalSpaceKey: "Needs a Team Space. Create or join one to use this.",
   agentPersonRole: PERSON_LACKS_ROLE_LINE,
   agentRole: OUTSIDE_AGENT_ROLE_LINE,
-  // Sharing with Everyone is an admin's (owner D22, l-team1): a member or guest shares with the people who need it, or a group
+  // Sharing with Everyone is an admin's (owner D22, l-team1): a member shares with the people who need it, or a group
   everyoneRole: "Only an admin shares with everyone in the Space. Ask an admin, or share it with the people who need it.",
 } as const;
 
@@ -99,7 +99,8 @@ export function expected(c: Cell): Record<Action, Expect> {
   // the Space AI key is set by an owner or admin; once set it covers everyone
   if (!manager && c.scope === "space_ai_key" && c.who !== "guest") out.save = { line: IMPOSSIBLE.spaceKeyRole };
   // a key for the whole Space is shared with Everyone, which only an owner or admin does (owner D22, l-team1)
-  if (!manager && c.scope === "space") out.share = { line: IMPOSSIBLE.everyoneRole };
+  // (a guest's group and Space items are saved and shared by the owner, below, so a guest's own share with Everyone never happens here; modules/access/tests/share.test.ts refuses it)
+  if (!manager && c.who !== "guest" && c.scope === "space") out.share = { line: IMPOSSIBLE.everyoneRole };
   // apps are connected by owners and admins (a member's own connections come with Vault, Connections: lane l-connections)
   // (their outside agent is told the same in its own words: the person it acts for cannot either)
   if (!manager) out.connection = { line: c.from === "mcp" ? IMPOSSIBLE.agentPersonRole : IMPOSSIBLE.connectionRole };
