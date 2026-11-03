@@ -5325,6 +5325,15 @@ export const screens: ScreenIndexEntry[] = [
         },
         "live": true
       },
+      "threads": {
+        "cap": "inbox.threads",
+        "input": {
+          "conversationId": "/state/conversationId",
+          "contactId": "/state/contactId",
+          "images": "/state/images"
+        },
+        "live": true
+      },
       "options": {
         "cap": "inbox.send_options",
         "input": {

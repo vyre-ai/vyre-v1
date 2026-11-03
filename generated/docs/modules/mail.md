@@ -4,7 +4,7 @@ Lane L5. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (38)
+## Capabilities (39)
 
 - [mail.attachment.save](../capabilities/mail.attachment.save.md): Save an attachment into Files
 - [mail.auto_connect_members](../capabilities/mail.auto_connect_members.md): Create Pending mail connections for every mapped member when delegation is set and auto-connect is on (one notice each)
@@ -43,6 +43,7 @@ Requires: nothing.
 - [mail.send_preview](../capabilities/mail.send_preview.md): Dry run of a send: who would be reached and who is suppressed, without sending
 - [mail.status_update](../capabilities/mail.status_update.md): Apply a provider status (delivered, bounced, complained, opened, clicked, failed); hard bounces and complaints write the suppression list
 - [mail.sync_now](../capabilities/mail.sync_now.md): Sync a mailbox now
+- [mail.thread.get](../capabilities/mail.thread.get.md): Read one email thread whole: every message you may see, oldest first, with quoted history and signatures apart, Gmail reactions on the message they answer, and your role (you started it, To, Cc, or added later)
 - [mail.unsubscribe](../capabilities/mail.unsubscribe.md): Inbound: a person pressed the unsubscribe link in an email; writes the Suppression list
 
 ## Events (25)
