@@ -37,15 +37,10 @@ export default function Mount(): ReactNode {
       return sample.data.call(cap, input);
     },
   }), [sample, part]);
-  useEffect(() => {
-    if (part !== "open") return;
-    const t = setTimeout(() => { (globalThis as { document?: { querySelector(s: string): { click(): void } | null } }).document?.querySelector("[data-row='watch-wch_1'] [role=button]")?.click(); }, 400);
-    return () => clearTimeout(t);
-  }, [part]);
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   return (
     <AutomationsDataProvider value={data}>
-      <View style={{ height, backgroundColor: "var(--win)" as string }}><Watching /></View>
+      <View style={{ height, backgroundColor: "var(--win)" as string }}><Watching {...(part === "open" ? { initialOpen: "wch_1" } : {})} /></View>
     </AutomationsDataProvider>
   );
 }

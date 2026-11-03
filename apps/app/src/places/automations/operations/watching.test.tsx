@@ -49,11 +49,11 @@ test("a row's menu: details, Check now (not while paused), Pause or Resume, the 
 test("an opened watch shows what the page was and what it is, who checks it and where", () => {
   const [w] = watchItems({ watches: [raw()] })!;
   const html = renderToStaticMarkup(<WatchDetail w={w!} agent="Ops" />).replaceAll("<!-- -->", "");
-  assert.ok(html.includes("Checks guest count on lu.ma."));
+  assert.ok(html.includes("Checks guest count on lu.ma.") && html.includes("It has changed 4 times."));
   assert.ok(html.includes("Ops checks it on their computer, signed in with the Vault."));
   assert.ok(html.includes("Before") && html.includes("3,412 going") && html.includes("Now") && html.includes("3,598 going"));
   const quiet = renderToStaticMarkup(<WatchDetail w={{ ...w!, lastChange: null, runsOn: "chrome", mode: "page", error: "timed out" }} agent="Ops" />).replaceAll("<!-- -->", "");
-  assert.ok(quiet.includes("Checks any change on lu.ma.") && quiet.includes("Your Chrome checks it in the background") && quiet.includes("It reads: 3,598 going") && quiet.includes("timed out"));
+  assert.ok(quiet.includes("It has changed 4 times.") && quiet.includes("Checks any change on lu.ma.") && quiet.includes("Your Chrome checks it in the background") && quiet.includes("It reads: 3,598 going") && quiet.includes("timed out"));
 });
 
 test("Watching is a place view of its own, after Needs you", () => {

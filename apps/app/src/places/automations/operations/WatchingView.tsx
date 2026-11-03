@@ -29,6 +29,7 @@ export function WatchDetail({ w, agent }: { w: WatchItem; agent: string }): Reac
     <View testID={`watch-detail-${w.id}`} style={[v.detail, { marginLeft: 12 }]}>
       <Text style={v.dim}>{w.mode === "region" && w.region ? `Checks ${w.region.toLowerCase()} on ${w.host}.` : `Checks any change on ${w.host}.`}</Text>
       <Text style={v.dim}>{w.runsOn === "computer" ? `${agent} checks it on their computer, signed in with the Vault.` : "Your Chrome checks it in the background while it is open."}</Text>
+      <Text style={v.dim}>{w.changes === 0 ? "It has not changed yet." : `It has changed ${w.changes} ${w.changes === 1 ? "time" : "times"}.`}</Text>
       {w.lastChange ? (
         <View testID={`watch-change-${w.id}`} style={v.stack}>
           <Text style={v.section}>Before</Text>
@@ -42,10 +43,11 @@ export function WatchDetail({ w, agent }: { w: WatchItem; agent: string }): Reac
   );
 }
 
-export function Watching(): ReactElement {
+/** `initialOpen`: the watch that starts opened (the proof mount shows one open). */
+export function Watching({ initialOpen = null }: { initialOpen?: string | null } = {}): ReactElement {
   const data = useAutomationsData();
   const [again, setAgain] = useState(0);
-  const [picked, setPicked] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(initialOpen);
   const [note, setNote] = useState<string | null>(null);
   const rm = useRowMenu();
   const list = useCall("browser.watches.list", {}, watchItems, again);
@@ -69,8 +71,8 @@ export function Watching(): ReactElement {
           const row = (
             <Row
               key={w.id} id={`watch-${w.id}`} title={w.title} note={watchNote(w, now)} selected={isOpen} tall
-              leading={<View style={{ width: 22, alignItems: "center", justifyContent: "center" }}><Glyph name={w.runsOn === "computer" ? "panel" : "record"} size={15} color="var(--ink-3)" /></View>}
-              trailing={w.changes > 0 ? <Text style={v.right}>{`${w.changes} ${w.changes === 1 ? "change" : "changes"}`}</Text> : undefined}
+              leading={<View style={{ width: 22, alignItems: "center", justifyContent: "center" }}><Glyph name="eye" size={15} color="var(--ink-3)" /></View>}
+              trailing={<View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><Glyph name={w.runsOn === "computer" ? "server" : "monitor"} size={13} color="var(--ink-3)" /><Text style={v.right}>{w.runsOn === "computer" ? `${agent(w.agentId)}'s computer` : "My Chrome"}</Text></View>}
               onPress={() => setPicked(isOpen ? null : w.id)}
               domProps={{
                 "aria-label": `${w.title}. ${watchNote(w, now)}. ${isOpen ? "Hide" : "Show"} details`,

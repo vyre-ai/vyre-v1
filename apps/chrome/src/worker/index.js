@@ -281,7 +281,7 @@ export function createWorker(ext) {
     /** @param {number} tabId @param {{ status?: string, url?: string }} info @param {any} tab */
     async onTabUpdated(tabId, info, tab) {
       await save.tabUpdated(tabId, info);
-      await recorder.tabUpdated(tabId, info, tab);
+      await recorder.tabUpdated(tabId, info, tab).catch(() => {});
       if ((info.status === "complete" || info.url) && tab && tab.active) panel.tabChanged(tab);
       if (info.status === "complete" && tab) await refreshBadge(tab);
     },

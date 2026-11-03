@@ -10,7 +10,7 @@
 //   hello          the Spaces the person is signed in to here, and the one picked, as the extension's Space switcher shows them
 //   space.select   pick one of them
 //   whoami         identity.whoami in the picked Space: who the extension acts as
-//   agents.list    agents.list, with the Assistant marked and suggested
+//   agents.list    agents.list, with the Assistant marked and suggested, and each agent that has a computer marked (a watch or a recorded skill runs there when it can)
 //   chat.ask       chat.start (first message) or chat.post (later ones), the page as a web_page block and the selection as a quote; the reply streams back as chat.delta pushes
 //   chat.search    chat.search (words) or chat.recent (empty search), one row per chat
 //   chat.thread    threads.get and chat.messages.list
