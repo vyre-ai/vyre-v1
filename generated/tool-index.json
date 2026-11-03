@@ -4700,9 +4700,21 @@
     },
     {
       "deferred": false,
+      "name": "mcp_call",
+      "summary": "Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that may change things, as mcp_tools lists it; an agent's call goes through the Gate",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "mcp_connected_link",
       "summary": "The address to paste into an MCP app, and the one line for Claude Code",
       "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "mcp_read",
+      "summary": "Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that only reads, as mcp_tools lists it with readOnly true; a tool that may change things goes through mcp_call",
+      "toolset": "agents"
     },
     {
       "deferred": false,
@@ -7245,7 +7257,7 @@
     {
       "deferred": false,
       "name": "skills_list",
-      "summary": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones",
+      "summary": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. Two with one name are both listed, the one not used marked shadowedBy; a broken one is marked broken. With no agentId, the Space library and built-in ones",
       "toolset": "agents"
     },
     {

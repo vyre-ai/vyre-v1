@@ -1,6 +1,6 @@
 # skills.list
 
-Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones
+Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. Two with one name are both listed, the one not used marked shadowedBy; a broken one is marked broken. With no agentId, the Space library and built-in ones
 
 | | |
 |---|---|
@@ -44,6 +44,10 @@ type Out = {
       enabled: boolean;
       bytes: number;
       updatedAt?: number;
+      hash?: string;
+      shadowedBy?: "builtin" | "space" | "agent";
+      note?: string;
+      broken?: string;
     }>;
 };
 ```
@@ -68,10 +72,14 @@ type Out = {
     "skills": [
       {
         "agentId": "agt_a1b2c3",
+        "broken": "example",
         "bytes": 1,
         "description": "example",
         "enabled": true,
+        "hash": "example",
         "name": "deploy-checks",
+        "note": "example",
+        "shadowedBy": "builtin",
         "source": "upload",
         "system": true,
         "tier": "builtin",

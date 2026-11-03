@@ -48,7 +48,13 @@ type Out = {
     enabled: boolean;
     bytes: number;
     updatedAt?: number;
+    hash?: string;
+    shadowedBy?: "builtin" | "space" | "agent";
+    note?: string;
+    broken?: string;
   };
+  kept?: boolean;
+  note?: string;
 };
 ```
 
@@ -75,12 +81,18 @@ type Out = {
     "text": "example"
   },
   "output": {
+    "kept": true,
+    "note": "example",
     "skill": {
       "agentId": "agt_a1b2c3",
+      "broken": "example",
       "bytes": 1,
       "description": "example",
       "enabled": true,
+      "hash": "example",
       "name": "deploy-checks",
+      "note": "example",
+      "shadowedBy": "builtin",
       "source": "upload",
       "system": true,
       "tier": "builtin",

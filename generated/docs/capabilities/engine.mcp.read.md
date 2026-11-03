@@ -1,6 +1,6 @@
 # engine.mcp.read
 
-Call an outside MCP tool that only reads (the server says so); runs in the sandbox or at the remote server
+Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that only reads, as mcp_tools lists it with readOnly true; a tool that may change things goes through mcp_call
 
 | | |
 |---|---|
@@ -17,7 +17,7 @@ Call an outside MCP tool that only reads (the server says so); runs in the sandb
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/engine/mcp/read |
-| MCP tool | none |
+| MCP tool | mcp_read (agents) |
 | CLI | none |
 | Emits | none |
 
@@ -50,6 +50,7 @@ type Out = {
 - provider.unavailable
 - validation.bad_input
 - validation.not_found
+- validation.precondition_failed
 
 ## Example
 

@@ -31590,6 +31590,56 @@
     },
     {
       "blocks": [],
+      "cap": "engine.mcp.call",
+      "deferred": false,
+      "description": "Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that may change things, as mcp_tools lists it; an agent's call goes through the Gate",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "input": {
+            "description": "Any JSON value"
+          },
+          "server": {
+            "description": "The server key mcp_tools lists",
+            "examples": [
+              "greeter/echo"
+            ],
+            "type": "string"
+          },
+          "tool": {
+            "description": "The tool name as the server lists it",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "server",
+          "tool",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "mcp_call",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mcp.connected.link",
       "deferred": false,
       "description": "The address to paste into an MCP app, and the one line for Claude Code",
@@ -31601,6 +31651,48 @@
       "name": "mcp_connected_link",
       "planMode": "allowed",
       "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.mcp.read",
+      "deferred": false,
+      "description": "Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that only reads, as mcp_tools lists it with readOnly true; a tool that may change things goes through mcp_call",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "input": {
+            "description": "Any JSON value"
+          },
+          "server": {
+            "description": "The server key mcp_tools lists",
+            "examples": [
+              "greeter/echo"
+            ],
+            "type": "string"
+          },
+          "tool": {
+            "description": "The tool name as the server lists it",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "server",
+          "tool"
+        ],
+        "type": "object"
+      },
+      "name": "mcp_read",
+      "planMode": "allowed",
+      "toolset": "agents",
       "v": 1
     },
     {
@@ -47946,7 +48038,7 @@
       "blocks": [],
       "cap": "skills.list",
       "deferred": false,
-      "description": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones",
+      "description": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. Two with one name are both listed, the one not used marked shadowedBy; a broken one is marked broken. With no agentId, the Space library and built-in ones",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -47991,6 +48083,10 @@
             "type": "string"
           },
           "name": {
+            "type": "string"
+          },
+          "source": {
+            "description": "Remove it only when this source added it (a Kit undo names its own)",
             "type": "string"
           }
         },

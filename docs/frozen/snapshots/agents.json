@@ -64,11 +64,11 @@
     "plugins.mcp.servers@1": "322d27ab1ad2032eb0b75bc8b70300ee6aad17054a49b3af42a628308f4e463e",
     "plugins.set_enabled@1": "309b2ecee3e9eae1daf4b81ce7e1f2c225ad6d4442ae923e757e9f732581ab5b",
     "plugins.uninstall@1": "03063c16bf9ea9c38431207d9f92010966d6f9c4f2edd6b2b8adeb3fb1ae05ce",
-    "skills.add@1": "0240f263453945071e71cb4553e6bea52d59c1fdbc9579cc4611d3c2a0474dd1",
-    "skills.list@1": "799387814df7c5eb73aea5a339d31e50294d7ab7f75670e713771edf4affbb75",
-    "skills.load@1": "76c9078bfaf0591cbeacd14eda27e23144f03e43bbbf6a37b25c85e3212bb96c",
-    "skills.remove@1": "9c5b4bbf15389958eb698ea4389611ad03e566e6dfaa58bc1f2e2b0c4e8b52ff",
-    "skills.set_enabled@1": "1bada912f022a67b54921712916c6ad4b75d697ed2d990f72bc040ae5e8da542"
+    "skills.add@1": "5774798299d6cb0990e86bd52179cd8f908040af2059d562feb7a461b8e0daeb",
+    "skills.list@1": "cba7d7e05598134e345a523eb680b6bf99833905fce1037f2d27983a88d5a0b1",
+    "skills.load@1": "fb7213f31d49feae361ff66e31ce2511c73ac7d5bca4f1d5f62eb7f31e782af4",
+    "skills.remove@1": "bef6679a0edbfbea95ddf1361a6e2a34d2ad14f38ceb3e4f4028a3c35826291d",
+    "skills.set_enabled@1": "dc353122176c11937507b5d542d5d35c4e565d7e08b57bdb554f2745c9d49eeb"
   },
   "events": {
     "agent.config_changed": "7c928543a20c07e6adcdedb7fade1a78d79b2885f422825ddb697d1e13a3616c",

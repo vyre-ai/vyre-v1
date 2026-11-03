@@ -20125,6 +20125,17 @@ export type MountsEditorsOut = {
       at?: number;
     }>;
 };
+export type MountsEngineFoldersIn = {
+  person: string;
+};
+export type MountsEngineFoldersOut = {
+  folders: Array<{
+      mountId: string;
+      folderId: string;
+      deviceId?: string;
+      path: string;
+    }>;
+};
 export type MountsFileLinkIn = {
   fileId: string;
 };
@@ -26364,7 +26375,13 @@ export type SkillsAddOut = {
     enabled: boolean;
     bytes: number;
     updatedAt?: number;
+    hash?: string;
+    shadowedBy?: "builtin" | "space" | "agent";
+    note?: string;
+    broken?: string;
   };
+  kept?: boolean;
+  note?: string;
 };
 export type SkillsListIn = {
   agentId?: string;
@@ -26381,6 +26398,10 @@ export type SkillsListOut = {
       enabled: boolean;
       bytes: number;
       updatedAt?: number;
+      hash?: string;
+      shadowedBy?: "builtin" | "space" | "agent";
+      note?: string;
+      broken?: string;
     }>;
 };
 export type SkillsLoadIn = {
@@ -26398,11 +26419,14 @@ export type SkillsLoadOut = {
         path: string;
         text: string;
       }>;
+    text?: string;
+    hash?: string;
   };
 };
 export type SkillsRemoveIn = {
   name: string;
   agentId?: string;
+  source?: string;
   idempotencyKey: string;
 };
 export type SkillsRemoveOut = {
@@ -26425,6 +26449,10 @@ export type SkillsSetEnabledOut = {
     enabled: boolean;
     bytes: number;
     updatedAt?: number;
+    hash?: string;
+    shadowedBy?: "builtin" | "space" | "agent";
+    note?: string;
+    broken?: string;
   };
 };
 export type SourceRulesListIn = Record<string, unknown>;
@@ -35139,6 +35167,7 @@ export interface CapMap {
   "mounts.doc_insert_text": { in: MountsDocInsertTextIn; out: MountsDocInsertTextOut };
   "mounts.doc_replace_text": { in: MountsDocReplaceTextIn; out: MountsDocReplaceTextOut };
   "mounts.editors": { in: MountsEditorsIn; out: MountsEditorsOut };
+  "mounts.engine_folders": { in: MountsEngineFoldersIn; out: MountsEngineFoldersOut };
   "mounts.file_link": { in: MountsFileLinkIn; out: MountsFileLinkOut };
   "mounts.get": { in: MountsGetIn; out: MountsGetOut };
   "mounts.history": { in: MountsHistoryIn; out: MountsHistoryOut };
