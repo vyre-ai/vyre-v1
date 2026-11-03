@@ -2,7 +2,7 @@
 // A Vite + React project (a build script, no start) is built to static files and served; a route the app owns answers with its index.html.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { deployWorld, SKIP } from "./deploy-kit.ts";
+import { deployWorld, SKIP } from "./deploy-kit.test.ts";
 
 test("vite: built to static files and served, client routes fall back to index.html", { skip: SKIP }, async (t) => {
   const w = deployWorld();

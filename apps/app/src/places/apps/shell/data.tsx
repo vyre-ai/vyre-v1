@@ -42,6 +42,8 @@ export interface AppsData {
   deferred?: readonly string[];
   /** The Space's own address, when this app reaches it by one. */
   baseUrl?: string | undefined;
+  /** Put bytes at a one-time upload address from files.upload_url (a large file in New site), signed in as the person. */
+  putBlob?(url: string, bytes: Uint8Array): Promise<void>;
   /** A person's or agent's name by id (the id until the people list has loaded). */
   nameOf?(id: string): string;
   /** The share sheet, on a resource. */

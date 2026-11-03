@@ -3,7 +3,7 @@
 // last deploy and who deployed it, which is what the Sites list draws.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { deployWorld, SKIP } from "./deploy-kit.ts";
+import { deployWorld, SKIP } from "./deploy-kit.test.ts";
 
 test("static: plain files deploy and serve at the site's own address", { skip: SKIP }, async (t) => {
   const w = deployWorld();

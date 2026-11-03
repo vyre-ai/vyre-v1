@@ -3,7 +3,7 @@
 // Removing a member ends their way in at once; a stopped site answers nothing; our cookie never reaches the app.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { deployWorld, SKIP } from "./deploy-kit.ts";
+import { deployWorld, SKIP } from "./deploy-kit.test.ts";
 
 test("access: public, space, private and password at the site's own address", { skip: SKIP }, async (t) => {
   const w = deployWorld({ members: ["usr_anem"] });

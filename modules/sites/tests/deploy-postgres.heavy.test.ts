@@ -3,7 +3,7 @@
 // redeploy, and a pg_dump from Files copies an existing database in.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { deployWorld, SKIP } from "./deploy-kit.ts";
+import { deployWorld, SKIP } from "./deploy-kit.test.ts";
 
 test("postgres: add one, the app uses it across a redeploy, and a dump imports", { skip: SKIP }, async (t) => {
   const w = deployWorld();

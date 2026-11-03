@@ -49,9 +49,9 @@ export async function uploadPicked(d: AppsData, p: Picked, onProgress: (done: nu
     let content: Record<string, unknown>;
     if (f.file.size <= INLINE) content = { base64: await b64(f.file) };
     else {
+      if (!d.putBlob) throw new Error(`${f.path} is over 2 MB. Upload it as part of a .zip, or put the project on GitHub.`);
       const slot = (await d.call("files.upload_url", { size: f.file.size, mime: f.file.type || "application/octet-stream" })) as { blobId: string; url: string };
-      const put = await fetch(slot.url, { method: "PUT", body: f.file });
-      if (!put.ok) throw new Error(`${f.path} did not upload.`);
+      await d.putBlob(slot.url, new Uint8Array(await f.file.arrayBuffer()));
       content = { blobId: slot.blobId };
     }
     const out = (await d.call("files.create", { folderId, name, content, idempotencyKey: actionKey() })) as { file: { fileId: string } };

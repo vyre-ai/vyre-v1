@@ -3,7 +3,7 @@
 // The site is for the Space by default: a member signs in through the link and gets in; nobody else does.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { deployWorld, SKIP } from "./deploy-kit.ts";
+import { deployWorld, SKIP } from "./deploy-kit.test.ts";
 
 test("next: builds, starts on PORT, reads its env from the Vault, and its API route answers", { skip: SKIP }, async (t) => {
   const w = deployWorld({ vault: { "#Greeting": "hello-from-vault" } });

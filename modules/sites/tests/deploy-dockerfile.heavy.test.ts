@@ -3,7 +3,7 @@
 // with no build, and the container runs with the per-site CPU, memory and process caps and rotated logs.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { deployWorld, docker, SKIP } from "./deploy-kit.ts";
+import { deployWorld, docker, SKIP } from "./deploy-kit.test.ts";
 
 test("dockerfile: its own Dockerfile on its own port, then a redeploy and a rollback", { skip: SKIP }, async (t) => {
   const w = deployWorld({ vault: { "#Tag1": "v1", "#Tag2": "v2" } });

@@ -21,7 +21,7 @@ export function appsData(rt: ShellRuntime): AppsData {
   return {
     assistantId: rt.assistant.id, me: { id: rt.me.id, name: rt.me.name }, connection: rt.connection,
     screens: rt.screens, call: rt.call, clock: () => ({ now: rt.clock().now }), team: rt.space.kind === "team", deferred: [...deferred], ...(rt.baseUrl ? { baseUrl: rt.baseUrl } : {}),
-    nameOf: nameOf(rt),
+    nameOf: nameOf(rt), ...(rt.putBlob ? { putBlob: (url: string, bytes: Uint8Array) => rt.putBlob!(url, bytes) } : {}),
     renderShare: (resource, onClose) => <FolderShareSheet rt={rt} folderId={resource.id} resource={resource} onClose={onClose} />,
     nav: {
       open: (group, id) => rt.open({ screen: SCREEN[group] ?? "apps.forms", args: { selected: id } }),

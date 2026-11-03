@@ -2,7 +2,7 @@
 // A Node/Express API: env from the Vault, the app's own log in sites.logs, and on a Space site the app learns who is asking (x-vyre-user) while our cookie never reaches it.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { deployWorld, SKIP } from "./deploy-kit.ts";
+import { deployWorld, SKIP } from "./deploy-kit.test.ts";
 
 test("express: an API with env from the Vault, its log, and who is asking", { skip: SKIP }, async (t) => {
   const w = deployWorld({ vault: { "#Greeting": "hi-express" }, members: ["usr_anem"] });

@@ -7,7 +7,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 import { test } from "node:test";
-import { deployWorld, FIXTURES, SKIP } from "./deploy-kit.ts";
+import { deployWorld, FIXTURES, SKIP } from "./deploy-kit.test.ts";
 
 test("sources: a zip in Files, a folder in Files, a GitHub repo, and a bad repo", { skip: SKIP }, async (t) => {
   const w = deployWorld();

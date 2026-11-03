@@ -2,7 +2,7 @@
 // Python: FastAPI from requirements.txt and main.py (started under uvicorn on PORT), and Flask started by a Procfile web line under gunicorn.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { deployWorld, SKIP } from "./deploy-kit.ts";
+import { deployWorld, SKIP } from "./deploy-kit.test.ts";
 
 test("python: FastAPI under uvicorn, and Flask from a Procfile", { skip: SKIP }, async (t) => {
   const w = deployWorld({ vault: { "#Greeting": "hi-python" } });
