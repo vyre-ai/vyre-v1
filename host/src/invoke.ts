@@ -3,6 +3,7 @@
 //   1 resolve  2 validate  3 idempotency  4 rate limit  5 authorize (+ Gate)  6 handler  7 commit (events, audit)  8 publish
 // Everything the pipeline needs from outside is a port in InvokeDeps, so the same code runs against the real kernel (authorize, LogClient idempotency, tx) and against fakes in tests.
 // Errors leave as HostError (a shaped VyreError with its HTTP status); nothing here throws a raw exception to a caller.
+import { roleLine } from "../../lib/vault-lines.ts";
 import { formatHlc, tickHlc } from "../../lib/hlc.ts";
 import type { Hlc } from "../../lib/hlc.ts";
 import { mintId } from "../../lib/ids.ts";
@@ -415,7 +416,10 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         const code = codeForReason(d.reason);
         // an agent stopped at a folder or a file its person may be able to share: the refusal names the press, so the person gets it in Needs you
         const askShare = d.reason === "no_grant" && seed.principal.kind === "agent" && seed.actingFor !== undefined && resource !== null && (resource.type === "folder" || resource.type === "file");
-        throw fail(code, traceId, { details: { cap: c.name, reason: d.reason, steps: d.steps.map((s) => s.text) }, ...(askShare ? { message: "You have not been given this. Call access_request now with the resource and level in next, without asking first: it only asks, and a person shares it with you with one press.", next: [{ kind: "ask_access", label: "Ask to share this", action: { cap: "access.request", input: { resource: { type: resource.type, id: resource.id }, level: c.effects === "read" ? "view" : "edit" } } }] } : {}) });
+        // a role that does not reach a Vault, AI key or connection call: plain words with what to do instead (lib/vault-lines.ts)
+        // (a person whose access to the Space itself is too low for the call is the same thing said another way)
+        const plain = seed.principal.kind === "person" && (d.reason === "role_lacks_permission" || (d.reason === "no_grant" && resource?.type === "space")) ? roleLine(c.name) : null;
+        throw fail(code, traceId, { details: { cap: c.name, reason: d.reason, steps: d.steps.map((s) => s.text) }, ...(plain ? { message: plain } : {}), ...(askShare ? { message: "You have not been given this. Call access_request now with the resource and level in next, without asking first: it only asks, and a person shares it with you with one press.", next: [{ kind: "ask_access", label: "Ask to share this", action: { cap: "access.request", input: { resource: { type: resource.type, id: resource.id }, level: c.effects === "read" ? "view" : "edit" } } }] } : {}) });
       }
       if (d.effect === "hold") {
         const g = d.obligations.find((o) => o.type === "gate");

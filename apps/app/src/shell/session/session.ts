@@ -17,7 +17,7 @@ import { withVaultGate } from "./vault-gate.ts";
 import { attemptKey } from "../providers/files-review.ts";
 import { loadCryptoKeys } from "../../../../../client/src/crypto/load.ts";
 import { keepKey, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
-import { holdKeyOnOwnNode, serverKeyState, setServerKeyKept } from "../../../../../client/src/gateway/local-key.ts";
+import { holdKeyOnOwnNode, keyDoor, serverKeyState, setServerKeyKept } from "../../../../../client/src/gateway/local-key.ts";
 import { shellDesktopLinkBridge } from "../../../../../client/src/connection/desktop-link.ts";
 import { aiHomeOf } from "../../ai-signin/own-ai.ts";
 import { spaceLabel } from "../spaces/space-label.ts";
@@ -211,11 +211,13 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     if (!reads?.has(cap)) refresh();
     return r;
   };
-  // where the Space runs (ai-signin/own-ai.ts): only a Space on this computer takes the key from this app (the local key route), so only there does a locked key ask for the password
+  // where the Space runs (ai-signin/own-ai.ts), for the words of a refusal
   const aiHome = aiHomeOf(o.baseUrl, shellDesktopLinkBridge() !== null);
-  // a locked vault key asks for the password in place (one prompt for every call that meets it) and tries again; it never ends the session. On a Space that runs elsewhere signing in opens
-  // the key (no separate prompt), so the refusal passes through untouched and the screen says so in plain words, instead of a prompt that could never open anything there.
-  const gated: CapCall = withVaultGate(once, aiHome === "here" ? unlockVault : undefined, () => rehandKey(o.baseUrl, token ?? ""));
+  // A locked vault key is opened where the call met it (the Vault matrix, owner 3 Nov: "it just needs to work"): first silently, with the key this app kept from its one password at launch (a Space
+  // that restarted behind the open app), then with one password prompt in place, and the call goes again. Every Space that has a key door takes the key: this computer's own (loopback) and a Space
+  // server over https (owner ruling 3 Nov, R62 amended). Only a Space over plain http to another machine has no door; there the refusal passes through in plain words.
+  const door = keyDoor(o.baseUrl) !== null;
+  const gated: CapCall = withVaultGate(once, door ? unlockVault : undefined, () => rehandKey(o.baseUrl, token ?? ""));
   // one idempotency key per logical call: the gate's retry after the password, and any other send of the same call, carries the same opts and so the same key
   const call: CapCall = (cap, input, given) => gated(cap, input, given?.idempotencyKey ? given : { ...given, idempotencyKey: attemptKey() });
 
@@ -344,7 +346,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
       const r = await send(new URL(path, o.baseUrl).toString(), { method: "PUT", headers: { authorization: `Bearer ${token}`, "content-type": "application/octet-stream" }, body: bytes as unknown as BodyInit });
       if (!r.ok) throw new Error(r.status === 413 ? "The file is over the size limit" : "The upload did not go through");
     },
-    ...(aiHome === "here" ? { unlockVault } : {}),
+    ...(door ? { unlockVault } : {}),
     aiHome,
     // a Space server keeps a wrap of the person's key for their Google or GitHub sign-ins: the Vault shows it, with Forget on this server
     serverKey: { state: () => serverKeyState(o.baseUrl, token ?? ""), keep: (keep: boolean) => setServerKeyKept(o.baseUrl, token ?? "", keep) },

@@ -83,8 +83,8 @@ export function createOauth(deps: ConnectorsDeps) {
   function vaultFailure(ctx: ConnectorsCtx, e: unknown, conn: ConnectionDb): never {
     if (codeOf(e) === "auth.unauthenticated" || /key is locked/i.test((e as { error?: { message?: string } })?.error?.message ?? "")) {
       return refuse(ctx, "auth.unauthenticated", conn.owner_kind === "person"
-        ? "Your vault is locked on this computer. Unlock it (sign in on the computer that runs this server), then connect again: a personal account's tokens are kept in your own vault and are never put anywhere shared."
-        : "The Vault is locked, so the sign-in cannot be kept. Try again from a signed-in session.");
+        ? "Your vault is locked until you sign in to Vyre: a personal account's tokens are kept in your own Mine items. Sign in on this Space, in the app or the browser, then connect again."
+        : "The Vault could not keep the sign-in just now. Connect again while you are signed in to Vyre.");
     }
     throw e;
   }

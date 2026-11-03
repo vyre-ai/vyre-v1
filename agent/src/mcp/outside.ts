@@ -57,7 +57,11 @@ const SETUP_FAMILIES = /^(members|company|settings|connections|connectors|import
 const SETUP_PREFIXED = /^(telephony\.number\.(import|assign|list|get|search|set_hours|set_recording|set_route)|telephony\.registration\.(get|save|refresh)|schema\.(apply|layout\.set|set_label|gap_rules\.set|restore_field|describe|diff|infer|types\.|layout\.get|field_types|view_kinds|map|changes\.list|gap_rules\.list|trash\.list|sensitivity\.scan)|journeys\.(create|design|rename|rules\.set|start|move_stage|get|list|versions|stage_counts|preview_migrate|migrate)|automations\.(create|update|promote|preview_promote|set_enabled|validate|get|list|versions|steps\.list|triggers\.list|templates\.|groups\.|dependencies)|skills\.(add|remove|set_enabled|list)|channels\.(create|update|members\.|get|list|archive|unarchive)|projects\.(create|members\.set|members\.list|get|list|stages\.set|templates\.list|overview)|calendar\.(connect_provider|sync_now|list_calendars))/;
 const SETUP_CAPS: ReadonlySet<string> = new Set([
   "vault.item.put", "vault.item.update", "vault.folders.create", "vault.folders.update", "vault.folders.list", "vault.items.list", "vault.request",
+  // sharing a Vault item with people, a group of people or a role (never with an agent: setupRefusal), as the person would press Share
+  "vault.share", "vault.unshare",
   "providers.add", "providers.list", "providers.catalog", "providers.test", "providers.set_space_use", "providers.remove",
+  // the Space AI key (owner ruling 3 Nov: the setup grant covers the Space's AI key); the person's own role decides, as in Console
+  "providers.space_key.get", "providers.space_key.set",
   "spaces.update", "spaces.get",
   // groups and roles, for people only: every subject is checked by setupRefusal
   "access.groups.create", "access.groups.update", "access.groups.add_member", "access.groups.remove_member", "access.groups.delete", "access.groups.list", "access.groups.get",
@@ -82,6 +86,11 @@ const subjectsOf = (input: unknown): Array<{ kind?: unknown; id?: unknown }> => 
  * agents) is refused, so the grant can never widen an agent's own access. Checked where the call is classified, at the MCP door.
  */
 export function setupRefusal(t: Pick<ToolDef, "cap">, input: unknown): string | null {
+  // a Vault item is shared with people, a group of them or a role, as the person would; giving an agent, an actor or a service a key stays with the person
+  if (t.cap === "vault.share") {
+    const to = subjectsOf(input).find((x) => x === null || typeof x !== "object" || (x.kind !== "person" && x.kind !== "group" && x.kind !== "role"));
+    return to === undefined ? null : "The setup grant shares Vault items with people, groups and roles only. Giving a key to an agent stays with a person: they press Share on the item in Vyre.";
+  }
   if (!PEOPLE_ONLY.has(t.cap)) return null;
   const bad = subjectsOf(input).find((s) => s === null || typeof s !== "object" || s.kind !== "person");
   return bad === undefined ? null : "The setup grant gives groups and roles to people only. Putting an agent, actor, service or group in a group or a role stays with a person.";

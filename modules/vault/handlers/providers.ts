@@ -4,7 +4,7 @@
 // ever sees the key for that one call.
 // DECISION: a Shared provider is an API key or a local model; a subscription sign-in is Mine for ever (the kind cannot be shared). The Space may use a Mine provider only when its owner says so.
 import { fail } from "../../../host/src/routes/errors.ts";
-import { itemDelete, itemPut, itemUpdate, openFields, resealOwn } from "./items.ts";
+import { MINE_CLOSED, itemDelete, itemPut, itemUpdate, maySealMine, openFields, resealOwn } from "./items.ts";
 import { atLeast, bad, denied, ensure, first, isId, levelOn, newId, num, patchMeta, record, rowsOf, statements, str } from "../projections.ts";
 import type { Row, VaultCtx } from "../projections.ts";
 import { hostOf } from "./use.ts";
@@ -256,7 +256,7 @@ export async function subscriptionComplete(ctx: VaultCtx, input: { flowId: strin
   if (port?.active(input.flowId) && !pasted && saved()) port.cancel(input.flowId);
   if (port?.active(input.flowId)) {
     // the credential is sealed with the person's own key: a locked key is asked for before the provider is, so a pasted code is not spent on a save that cannot happen
-    if (!(await currentKeyPort()?.personKey(me(ctx)))) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your vault key is locked. Unlock it to save the sign-in.", details: { reason: "vault_locked" } });
+    if (!(await maySealMine(me(ctx)))) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: MINE_CLOSED, details: { reason: "vault_locked" } });
     const step = await port.step({ id: input.flowId, person: me(ctx), ...(pasted ? { code: input.code as string } : {}) });
     if (step.state === "waiting") return { waiting: true };
     if (step.state === "failed") throw fail("provider.auth_failed", ctx.trace.traceId, { message: step.message });

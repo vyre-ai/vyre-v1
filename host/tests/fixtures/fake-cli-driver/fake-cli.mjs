@@ -24,6 +24,7 @@ import process from "node:process";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 
 const argv = process.argv.slice(2);
 const flag = (name) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : undefined; };
@@ -276,6 +277,8 @@ async function run(raw) {
   if (lastLine === "resumecheck") { reply([`resumed=${resumed ?? "none"} session=${session}`]); return; }
   if (lastLine === "rawecho") { reply([raw]); return; }
   // where the engine ran (lane l-runson): FAKE_WHERE is set by the test's launcher on the person's computer; a turn that went on after the computer slept says so
+  // "keycheck": which key the engine was started with, as a short hash (never the key), and where it ran: the Vault matrix (test/support/vault-matrix.ts) checks the right value was filled
+  if (lastLine === "keycheck") { reply([`key=${secret() === "" ? "none" : createHash("sha256").update(secret()).digest("hex").slice(0, 12)} ran-on=${process.env.FAKE_WHERE ?? "space"}`]); return; }
   if (lastLine === "whereami") { reply([`ran-on=${process.env.FAKE_WHERE ?? "space"} handover=${raw.includes("which went to sleep") ? "yes" : "no"}`]); return; }
   // "slowwhere": the first words at once, the rest after FAKE_SLOW_MS (default 4 s): a turn that is in the middle when its computer goes away
   if (lastLine === "slowwhere") {
