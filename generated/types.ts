@@ -33397,6 +33397,7 @@ export type VaultRequestsFulfilIn = {
       value: string;
     }>;
   folderId?: string;
+  audience?: "asker" | "anyone";
 };
 export type VaultRequestsFulfilOut = {
   request: {

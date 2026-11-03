@@ -59211,10 +59211,17 @@
       "blocks": [],
       "cap": "vault.requests.fulfil",
       "deferred": false,
-      "description": "Supply the key: attach an existing item, or save new fields as an item in the requested folder",
+      "description": "Supply the key: attach an existing item, or save new fields as an item in the requested folder; say who may use it through the agent that asked",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "audience": {
+            "enum": [
+              "asker",
+              "anyone"
+            ],
+            "type": "string"
+          },
           "fields": {
             "items": {
               "properties": {

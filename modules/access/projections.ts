@@ -4,6 +4,7 @@
 import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
 import { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
+import { THROUGH_AGENT } from "../../lib/through-agent.ts";
 import { isElevatedRole, isOwnerRole } from "../../kernel/src/authorize/snapshot.ts";
 import type { Expr, GrantRow, Policy, PrincipalRow } from "../../kernel/src/authorize/index.ts";
 
@@ -581,6 +582,7 @@ function kernelGrant(g: GrantRec): GrantRow {
     expires_at: c.expiresAt ?? null,
     by: g.by,
   };
+  if (g.source?.startsWith(THROUGH_AGENT)) row.source = g.source;
   return row;
 }
 
