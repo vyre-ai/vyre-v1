@@ -37,6 +37,8 @@ export interface MarkdownEditorProps {
   onSave?: () => void;
   /** Escape was pressed in the editor. */
   onEscape?: () => void;
+  /** The editor lost focus (not for a press on its own bar or bubble). */
+  onBlur?: () => void;
   /** A quiet line about what a paste did ("Removed 4 spaces of indent"). Without it the editor shows its own small pill. */
   onNote?: (note: string) => void;
   minHeight?: number;
@@ -119,7 +121,7 @@ export function highlightMarkdown(text: string): RawSpan[][] {
 
 interface DomTextArea { value: string; style: { height: string }; scrollHeight: number; selectionStart: number; selectionEnd: number; focus(): void; setSelectionRange(a: number, b: number): void; setRangeText(t: string, a: number, b: number, m: string): void }
 
-function RawMarkdown(p: { value: string; onChange: (v: string) => void; editable: boolean; label: string; placeholder: string; autoFocus: boolean; jump: { line: number; n: number } | null; onSave?: () => void; onEscape?: () => void; onNote: (s: string) => void; minHeight: number }): ReactElement {
+function RawMarkdown(p: { value: string; onChange: (v: string) => void; editable: boolean; label: string; placeholder: string; autoFocus: boolean; jump: { line: number; n: number } | null; onSave?: () => void; onEscape?: () => void; onBlur?: () => void; onNote: (s: string) => void; minHeight: number }): ReactElement {
   const area = useRef<DomTextArea | null>(null);
   const size = useCallback(() => { const a = area.current; if (a?.style) { a.style.height = "auto"; a.style.height = `${Math.max(a.scrollHeight, p.minHeight)}px`; } }, [p.minHeight]);
   useEffect(() => { size(); }, [p.value, size]);
@@ -158,6 +160,7 @@ function RawMarkdown(p: { value: string; onChange: (v: string) => void; editable
         p.onChange(area.current?.value ?? p.value);
         p.onNote(`Removed ${d.removed} ${d.removed === 1 ? "space" : "spaces"} of indent from the paste`);
       },
+      onBlur: () => p.onBlur?.(),
       onKeyDown: (e: { key: string; metaKey: boolean; ctrlKey: boolean; preventDefault(): void; stopPropagation(): void }) => {
         e.stopPropagation();
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") { e.preventDefault(); p.onSave?.(); }
@@ -364,7 +367,7 @@ export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
           const b = ed.view.coordsAtPos(to);
           setBubble({ left: Math.max(4, (a.left + b.right) / 2 - box.left - 110), top: Math.min(a.top, b.top) - box.top - 42 });
         },
-        onBlur: () => setBubble(null),
+        onBlur: () => { setBubble(null); cb.current.onBlur?.(); },
       }) as unknown as EditorLike;
       editorRef.current = e;
       e.view.dom.setAttribute("data-empty", last.current.trim() === "" ? "true" : "false");
@@ -421,7 +424,7 @@ export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
   };
   const styleLabel = TEXT_STYLES.find((s) => s.id === style)?.label ?? "Paragraph";
   const bar = barOn ? (
-    <View style={[st.bar, phone && st.barPhone]} testID="md-bar" accessibilityRole="toolbar" accessibilityLabel="Formatting" onLayout={(e: LayoutChangeEvent) => setBarW(e.nativeEvent.layout.width)}>
+    <View style={[st.bar, phone && st.barPhone]} testID="md-bar" accessibilityRole="toolbar" accessibilityLabel="Formatting" {...webProps({ onMouseDown: (e: { target?: { tagName?: string }; preventDefault(): void }) => { if (e.target?.tagName !== "INPUT") e.preventDefault(); } })} onLayout={(e: LayoutChangeEvent) => setBarW(e.nativeEvent.layout.width)}>
       {linkAt !== null ? (
         <View style={st.linkRow} testID="md-link-row">
           <TextInput autoFocus value={linkAt} onChangeText={setLinkAt} placeholder="Paste or type an address" placeholderTextColor="var(--ink-4)" accessibilityLabel="Link address" testID="md-link-input" autoCapitalize="none"
@@ -469,7 +472,7 @@ export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
   let body: ReactElement;
   if (view === "raw" || !web) {
     body = <RawMarkdown value={props.value} onChange={onRawChange} editable={editable} label={props.label} placeholder={placeholder} autoFocus={props.autoFocus === true} jump={props.jump ?? null} onNote={say} minHeight={minHeight}
-      {...(props.onSave ? { onSave: props.onSave } : {})} {...(props.onEscape ? { onEscape: props.onEscape } : {})} />;
+      {...(props.onSave ? { onSave: props.onSave } : {})} {...(props.onEscape ? { onEscape: props.onEscape } : {})} {...(props.onBlur ? { onBlur: props.onBlur } : {})} />;
   } else {
     body = createElement("div", { ref: (el: unknown) => { host.current = el; }, "data-testid": "markdown-editor-host", style: { minHeight } });
   }

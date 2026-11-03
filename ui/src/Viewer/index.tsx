@@ -299,6 +299,8 @@ export interface ViewerViewProps extends ViewerProps {
   onBoxes?: (boxes: readonly MarkupBox[]) => void;
   onStrokes?: (strokes: readonly Stroke[]) => void;
   onEdit?: (blocks: readonly DocBlock[]) => void;
+  /** The editor a Markdown file is edited in (ui/RichEditor MarkdownEditor with its own autosave). While Edit is on, it takes the page in place of the editable blocks. */
+  docEditor?: ReactElement;
   onZoom?: (zoom: number) => void;
   /**
    * Redaction for AI: the file's redactions and highlights (and, with `preview`, the agent's text in the blocks). With `onLayer` a selection offers Highlight, Redact, Comment and Ask, and an image
@@ -644,7 +646,9 @@ export function Viewer(props: ViewerViewProps): ReactElement {
     );
   };
 
-  const docBody = (
+  const docBody = props.docEditor !== undefined && editing ? (
+    <View style={s.scroll} testID="vw-doc-editor">{props.docEditor}</View>
+  ) : (
     <ScrollView style={s.scroll} contentContainerStyle={s.docWrap} testID="vw-doc">
       {quoted !== null && (props.kind === "document" || props.kind === "plan") ? (
         <View style={s.pickBar} testID="vw-pick">
