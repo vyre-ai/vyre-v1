@@ -3123,6 +3123,37 @@
     },
     {
       "blocks": [],
+      "cap": "agents.instruction.append",
+      "deferred": false,
+      "description": "Make a lesson an instruction: one line added to the agent's AGENT.md under Lessons from corrections, as a new version with an inline Undo; needs Edit on the agent",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "line": {
+            "maxLength": 240,
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "line"
+        ],
+        "type": "object"
+      },
+      "name": "agents_instruction_append",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.limits.get",
       "deferred": false,
       "description": "Effective limits of an agent: agent.toml capped by Space caps",
@@ -35772,6 +35803,65 @@
     },
     {
       "blocks": [],
+      "cap": "memory.corrections.record",
+      "deferred": false,
+      "description": "Keep a lesson from a correction made outside the chat's own words: an edit of the agent's draft, a declined or sent-back action, an undo. Called as the person who corrected; kept only when their switch Learn from my corrections is on",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "how": {
+            "enum": [
+              "edit",
+              "refuse",
+              "reverse",
+              "rewrite"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "description": "The person's own words, when they gave a reason",
+            "type": "string"
+          },
+          "now": {
+            "description": "What the person changed it to",
+            "type": "string"
+          },
+          "ref": {
+            "description": "What was corrected, so the same correction makes one lesson",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "was": {
+            "description": "What the agent did or wrote",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "how"
+        ],
+        "type": "object"
+      },
+      "name": "memory_corrections_record",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.counts",
       "deferred": false,
       "description": "Counts for the agent strip: current facts, proposed facts, facts from the caller and facts merged on their own",
@@ -36016,6 +36106,10 @@
           },
           "fromMe": {
             "type": "boolean"
+          },
+          "kind": {
+            "description": "Only facts of this kind, for example lesson",
+            "type": "string"
           },
           "layer": {
             "enum": [
