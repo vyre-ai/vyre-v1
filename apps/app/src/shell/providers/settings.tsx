@@ -64,6 +64,7 @@ export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["man
       openSpace: (id) => rt.open({ screen: "spaces.switcher", args: { id } }),
       connect: (kind) => kind === "twilio" ? rt.open({ screen: "vault.layout", args: { add: "twilio" } }) : rt.open({ screen: "settings.page", args: { page: "mail" } }),
       openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
+      openLink: (link) => rt.openUrl(link),
       choosePhoto: () => chooseProfilePhoto(rt),
       applySkin: (skinId) => void applySkinToWindow(rt, skinId),
       ...(manageSecurity ? { manageSecurity } : {}),

@@ -15,6 +15,7 @@ import { quote } from "./quotes.ts";
 import { recallRecord, used } from "./recalllog.ts";
 import { forget, remember } from "./tools.ts";
 import { chatLearningGet, chatLearningSet, learningToday } from "./learn.ts";
+import { profileAdd, profileContext, profileGet, profileMove, profileSuggest } from "./profile.ts";
 
 export const handlers = {
   "memory.search": search,
@@ -80,4 +81,9 @@ export const handlers = {
   "memory.learning.today": learningToday,
   "memory.chat_learning.get": chatLearningGet,
   "memory.chat_learning.set": chatLearningSet,
+  "memory.profile.get": profileGet,
+  "memory.profile.context": profileContext,
+  "memory.profile.move": profileMove,
+  "memory.profile.suggest": profileSuggest,
+  "memory.profile.add": profileAdd,
 };

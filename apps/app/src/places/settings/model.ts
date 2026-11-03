@@ -4,7 +4,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 
 export type SettingRow = CapMap["settings.list"]["out"]["rows"][number];
 export type PageInfo = CapMap["settings.pages"]["out"]["pages"][number];
-export type YouPage = "profile" | "notifications" | "appearance" | "ai" | "connected" | "mail" | "signin" | "computer";
+export type YouPage = "profile" | "notifications" | "appearance" | "ai" | "memory" | "connected" | "mail" | "signin" | "computer";
 export type SpacePage = "space" | "people" | "agents" | "data" | "apps" | "advanced";
 export type PageKey = YouPage | SpacePage;
 
@@ -15,6 +15,7 @@ export const PAGES: readonly PageDef[] = [
   { key: "notifications", title: "Notifications", group: "you", icon: "bell", pages: ["Notifications"] },
   { key: "appearance", title: "Appearance", group: "you", icon: "palette", pages: [] },
   { key: "ai", title: "AI", group: "you", icon: "chip", pages: ["Models and usage", "Chats", "Memory and privacy"] },
+  { key: "memory", title: "Memory and privacy", group: "you", icon: "lock", pages: [] },
   { key: "connected", title: "Connected", group: "you", icon: "link", pages: ["Connections"] },
   { key: "mail", title: "Email and calendar", group: "you", icon: "mail", pages: [] },
   { key: "signin", title: "Sign-in and devices", group: "you", icon: "key", pages: ["Sign-in and devices"] },
@@ -62,6 +63,7 @@ export const SECTIONS: Readonly<Record<YouPage, readonly SectionDef[]>> = {
   notifications: [{ title: "Delivery", keys: ["notifications.email_backstop", "notifications.alert_replies", "notifications.routines_all"] }],
   appearance: [],
   ai: [{ title: "Working with agents", keys: ["engine.local_runs", "chat.agent_tabs"] }],
+  memory: [],
   connected: [],
   mail: [],
   signin: [],
@@ -302,7 +304,8 @@ export const DRAWN_ROWS: readonly { key: string; page: PageKey; title: string; s
   { key: "model.fallback", page: "ai", title: "Fallback model", sub: "When the default is unavailable", words: "backup" },
   { key: "usage", page: "ai", title: "Usage this month", sub: "You and your agents", words: "limit cost tokens spend" },
   { key: "open-vault", page: "ai", title: "AI accounts", sub: "Sign-ins and keys live in the Vault", words: "provider api key openai anthropic subscription" },
-  { key: "memory.keys", page: "ai", title: "Who pays for memory", sub: "The account memory upkeep uses", words: "upkeep spend" },
+  { key: "memory.about", page: "memory", title: "About you", sub: "What agents know about you, public and private", words: "profile personal private public remember forget erase" },
+  { key: "memory.keys", page: "memory", title: "Who pays for memory", sub: "Learning uses the AI account you chat with", words: "upkeep spend learning limit" },
   { key: "connect-mailbox", page: "connected", title: "Connect a mailbox", sub: "Google, Microsoft or IMAP", words: "email gmail outlook" },
   { key: "connect-calendar", page: "connected", title: "Connect a calendar", sub: "Google or Microsoft", words: "events" },
   { key: "connect-twilio", page: "connected", title: "Connect Twilio", sub: "Texts and calls", words: "phone number sms" },

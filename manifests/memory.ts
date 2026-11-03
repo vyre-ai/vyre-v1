@@ -82,6 +82,15 @@ const graphIn = {
   focus: t.opt(t.str({ description: 'A node id: draw only it and the nodes near it' })), hops: t.opt(t.int({ minimum: 1, maximum: 6, description: 'How far from the focus, two by default' })),
 };
 const graphOut = { nodes: t.arr(node), edges: t.arr(edge), clusters: t.arr(t.obj({ name: t.str(), hub: t.str(), size: t.int() })) };
+const profilePlace = t.enm('public', 'private');
+const profileFact = t.obj({
+  ...factFields, place: profilePlace, suggested: t.opt(t.bool()),
+  lineLink: t.opt(t.str({ description: 'The chat line it was learned from', examples: ['vyre://thread/thr_a1b2c3?m=msg_a1b2c3'] })),
+});
+const profileBasic = t.obj({ key: t.str({ description: 'The Profile setting it comes from', examples: ['profile.timezone'] }), label: t.str(), value: t.str() });
+const profilePerson = t.obj({
+  personId: t.str(), self: t.bool(), basics: t.arr(t.str()), public: t.arr(t.str({ description: 'One fact a line, with its id' })), private: t.arr(t.str()),
+});
 const factT = { factId: id.fact };
 const promotionId = t.id('prm');
 
@@ -175,6 +184,25 @@ export default defineManifest({
     write('memory.forget', 'Forget facts by id: they stop being recalled and stay in history', {
       in: { factIds: t.arr(id.fact, { minItems: 1 }) }, out: { removed: t.int() }, emits: ['memory.removed'], tool: 'memory', mcpName: 'memory_forget', agent: { planMode: 'allowed' }, audit: 'sensitive', risk: 'medium',
       cli: 'vyre memory forget', idem: 'natural',
+    }),
+    // ---- the person profile (owner ruling 3 Nov): public is what teammates' chats may hear, private only the person's own chats; every agent of the person reads it
+    read('memory.profile.get', 'Your profile in this Space, as a chat may use it: the public part always, the private part only where nobody else reads the chat (your own chats, your private Ask); with personId, that teammate\'s public part', {
+      in: { threadId: t.opt(id.thread), personId: t.opt(t.str({ description: 'A teammate: their public profile only', examples: ['usr_a1b2c3'] })) },
+      out: { audience: t.enm('private', 'shared'), basics: t.arr(profileBasic), public: t.arr(profileFact), private: t.arr(profileFact) },
+      label: 'check', tool: 'memory', mcpName: 'memory_profile', agent: { planMode: 'allowed' },
+    }),
+    read('memory.profile.context', 'The profile lines a turn loads, as the person who asked: their public part, their private part only when nobody else reads the chat, and the public part of the other people in it', {
+      in: { threadId: id.thread }, out: { audience: t.enm('private', 'shared'), people: t.arr(profilePerson) }, label: 'check',
+    }),
+    write('memory.profile.move', 'Move a fact about you between your public and private profile; only you can make one public (an agent suggests it instead)', {
+      in: { factId: id.fact, to: profilePlace }, out: { fact: profileFact }, tool: 'memory', mcpName: 'memory_profile_move', agent: { planMode: 'allowed' }, audit: 'sensitive', idem: 'natural',
+    }),
+    write('memory.profile.suggest', 'Suggest a fact for the person\'s public profile ("Add to your public profile?"); it stays private until they say yes in About you; with text, it is remembered privately first', {
+      in: { factId: t.opt(id.fact), text: t.opt(t.str()), threadId: t.opt(id.thread) }, out: { fact: profileFact }, emits: ['memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'],
+      tool: 'memory', mcpName: 'memory_profile_suggest', agent: { planMode: 'allowed' }, idem: 'natural',
+    }),
+    write('memory.profile.add', 'Add a fact about yourself to your public or private profile', {
+      in: { text: t.str({ minLength: 1 }), to: profilePlace, kind: t.opt(t.str({ examples: ['preference'] })) }, out: { fact: profileFact }, emits: ['memory.fact_proposed', 'memory.fact_accepted', 'memory.learned'], idem: 'natural',
     }),
     write('memory.recall.record', 'Record which facts and quotes recall handed the agent for one message (ids only), for memory.used; the engine writes this as the person whose message it was', {
       in: { threadId: id.thread, messageId: id.message, agentId: t.opt(id.agent), lines: t.arr(t.obj({ kind: t.enm('fact', 'quote'), ref: t.str() }), { maxItems: 50 }) },
