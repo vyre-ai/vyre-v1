@@ -6025,7 +6025,7 @@ export const screens: ScreenIndexEntry[] = [
         "cap": "meetings.closeout.prepare",
         "input": {
           "meetingId": "/state/meetingId",
-          "redo": true
+          "redo": "/state/redo"
         }
       }
     },

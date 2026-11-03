@@ -1151,6 +1151,12 @@ export type AccessViewAsOut = {
   previewToken: string;
   expiresAt: number;
 };
+export type AgentsAssistantOfIn = {
+  personId: string;
+};
+export type AgentsAssistantOfOut = {
+  agentId?: string;
+};
 export type AgentsBuiltinSkillGetIn = {
   name: string;
 };
@@ -34345,6 +34351,7 @@ export interface CapMap {
   "access.shares_of": { in: AccessSharesOfIn; out: AccessSharesOfOut };
   "access.unshare": { in: AccessUnshareIn; out: AccessUnshareOut };
   "access.view_as": { in: AccessViewAsIn; out: AccessViewAsOut };
+  "agents.assistant_of": { in: AgentsAssistantOfIn; out: AgentsAssistantOfOut };
   "agents.builtin_skill.get": { in: AgentsBuiltinSkillGetIn; out: AgentsBuiltinSkillGetOut };
   "agents.builtin_skills.list": { in: AgentsBuiltinSkillsListIn; out: AgentsBuiltinSkillsListOut };
   "agents.config.get": { in: AgentsConfigGetIn; out: AgentsConfigGetOut };
