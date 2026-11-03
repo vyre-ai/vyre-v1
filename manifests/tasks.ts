@@ -216,7 +216,7 @@ export default defineManifest({
       in: { ...target, follower: t.str({ examples: ['usr_a1b2c3'] }) }, out: { task: taskRow }, on: ['task', '/taskId'], emits: ['task.follower_removed'], tool: 'tasks', offline: 'patch',
     }),
     write('tasks.working_notes.set', 'Write a working note (key and value) that any person or agent on the task can read', {
-      in: { ...target, key: t.str({ minLength: 1 }), value: t.str() }, out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.note_set'], tool: 'tasks', offline: 'patch',
+      in: { ...target, key: t.str({ minLength: 1 }), value: t.str(), expectedFrom: t.opt(t.str({ description: 'The value of this note the writer started from (empty when there was none). When the note holds something else now, nothing is written and the refusal says what it holds' })) }, out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.note_set'], tool: 'tasks', offline: 'patch',
     }),
     write('tasks.working_notes.delete', 'Delete a working note', { in: { ...target, key: t.str() }, out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.note_set'], tool: 'tasks', offline: 'patch' }),
     write('tasks.links.add', 'Link a record or a file to a task', {

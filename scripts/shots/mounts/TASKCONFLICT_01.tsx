@@ -1,6 +1,6 @@
 // Mount for TASKCONFLICT_01 (lane l-learn2): two people edited one task. The page is the real task page over a runtime whose tasks.update refuses a save made on version 4 (the task is on 5, changed by Sara)
 // with what the task holds now, exactly as the server does. After the page has drawn, the mount makes the edits a person would: a new due date and a new priority from the Details menus, then a new title.
-// Each is refused, and the card shows each field's value beside the current one. ?view=conflict shows the card with the picks Keep mine, Keep mine, Use Sara's; ?view=saved shows the line after Save; ?view=long edits a long title, so the card shows only the part that differs, with Show all.
+// Each is refused, and the card shows each field's value beside the current one. ?view=conflict shows the card with the picks Keep mine, Keep mine, Use Sara's; ?view=saved shows the line after Save; ?view=long makes the description a long text, so the card shows only the part that differs, with Show all. The edits are the Due and Priority menus (a wide window), the title and the description.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
@@ -18,10 +18,15 @@ type Row = Record<string, unknown>;
 const TASK: Row = {
   id: "tsk_1", key: "NW-47", kind: "work", state: "doing", blocked: false, blocks: [], actions: [], labels: [], dependsOn: [], fileIds: [], followers: [ME, "usr_sara"], reviewLoops: 0,
   title: "Draft the renewal note", assigned: { kind: "agent", id: "agt_mira" }, reviewer: { kind: "person", id: ME }, createdBy: ME, version: 4, due: NOW + 3 * DAY, priority: "high",
-  workingNotes: { brief: "Short note to Dana covering the new term and what changes. Keep pricing out until Sara signs off." }, createdAt: NOW - 2 * DAY, updatedAt: NOW - 3_600_000,
+  workingNotes: { brief: OLD_BRIEF }, createdAt: NOW - 2 * DAY, updatedAt: NOW - 3_600_000,
 };
-const LONG = "Draft the renewal note for Dana covering the new twelve month term, the retainer and the two filing dates, with the fee schedule attached as a table at the end. Pricing stays out until Sara signs off.";
-const CURRENT: Row = { title: "Draft the renewal note", due: NOW + 3 * DAY, priority: "high" };
+const OLD_BRIEF = "Short note to Dana covering the new term and what changes. Keep pricing out until Sara signs off.";
+const SARA_BRIEF = "Short note to Dana covering the new term. Pricing stays out until Sara signs off.";
+const MINE_BRIEF = "Short note to Dana covering the new term and what changes. Pricing goes in as a table at the end.";
+const LONG_BASE = "Note to Dana covering the new twelve month term, the retainer, the two filing dates and the fee schedule, with each change from last year's engagement letter listed on its own line so she can check them one by one before she signs. ";
+const SARA_LONG = `${LONG_BASE}Pricing stays out until Sara has signed off the figures.`;
+const MINE_LONG = `${LONG_BASE}Pricing goes in as a table at the end, after Sara signed off the figures.`;
+const CURRENT: Row = { title: "Draft the renewal note", due: NOW + 3 * DAY, priority: "high", brief: SARA_BRIEF };
 
 interface RootLike { setAttribute(name: string, value: string): void; style: { setProperty(name: string, value: string): void; removeProperty(name: string): void } }
 type Pick1 = { click?: () => void; focus?: () => void; blur?: () => void; textContent?: string | null; value?: string; dispatchEvent?: (e: unknown) => boolean };
@@ -38,6 +43,11 @@ function runtime(): unknown {
   const call = async (cap: string, input: Row): Promise<unknown> => {
     if (cap === "tasks.index") return { rev: "r1", unchanged: false, rows: [], doneThisWeek: 0, total: 0 };
     if (cap === "tasks.update") { if (input.expectedVersion === 5) return { task: { ...TASK, ...input, version: 6, updatedAt: NOW + 1000 } }; throw stale(input); }
+    if (cap === "tasks.working_notes.set") {
+      if (input.expectedFrom !== undefined && input.expectedFrom !== CURRENT.brief) throw stale({ brief: CURRENT.brief });
+      CURRENT.brief = String(input.value);
+      return { task: { ...TASK, workingNotes: { brief: CURRENT.brief }, version: 6, updatedAt: NOW + 1000 } };
+    }
     if (cap === "projects.list") return { projects: [] };
     if (cap === "schema.types.get") return { type: { fields: [] } };
     if (cap === "access.groups.list") return { groups: [] };
@@ -70,7 +80,7 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
     const themeRoot: ThemeRoot = { setAttribute: (n, v) => { root?.setAttribute(n, v); }, setProperty: (n, v) => { root?.style.setProperty(n, v); }, removeProperty: (n) => { root?.style.removeProperty(n); } };
     return createThemeController({ personId: "irfad", spaceId: "nw", spaceSkin: { nw: skin }, prefersDark: skin === "graphite", root: themeRoot, storage: null });
   }, [skin]);
-  const rt = useMemo(() => { if (view === "long") { TASK.title = LONG; CURRENT.title = LONG; } return runtime() as never; }, [view]);
+  const rt = useMemo(() => { if (view === "long") { CURRENT.brief = SARA_LONG; (TASK.workingNotes as Row).brief = LONG_BASE; } return runtime() as never; }, [view]);
   // the edits a person would make, one after the other, once the page has drawn
   useEffect(() => {
     const d = (globalThis as { document?: Doc }).document;
@@ -79,20 +89,23 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
     const at = (ms: number, f: () => void): void => { timers.push(setTimeout(f, ms)); };
     const item = (text: string): Pick1 | undefined => Array.from(d.querySelectorAll("[role='menuitem']")).find((e) => e.textContent?.trim() === text);
     const pick = (row: string, word: string): void => { d.querySelector(`[data-testid='${row}']`)?.click?.(); at(250, () => item(word)?.click?.()); };
-    at(500, () => d.querySelector("[data-testid='task-rail-toggle']")?.click?.());
-    at(1000, () => pick("rail-due", "Tomorrow"));
-    at(1700, () => pick("rail-priority", "Urgent"));
-    at(2500, () => {
-      const el = d.querySelector("[data-testid='task-title']");
+    const wide = ((globalThis as { innerWidth?: number }).innerWidth ?? 1440) >= 980;
+    const type = (testId: string, tag: "HTMLTextAreaElement" | "HTMLInputElement", text: string): void => {
+      const el = d.querySelector(`[data-testid='${testId}']`);
       if (!el) return;
       el.focus?.();
-      const proto = (globalThis as unknown as { HTMLTextAreaElement: { prototype: object } }).HTMLTextAreaElement.prototype;
-      (Object.getOwnPropertyDescriptor(proto, "value")?.set as ((v: string) => void) | undefined)?.call(el, view === "long" ? LONG.replace("Pricing stays out until Sara signs off.", "Pricing is in, Sara has signed off.") : "Draft the Northwind renewal note");
+      const proto = (globalThis as unknown as Record<string, { prototype: object }>)[tag]!.prototype;
+      (Object.getOwnPropertyDescriptor(proto, "value")?.set as ((v: string) => void) | undefined)?.call(el, text);
       el.dispatchEvent?.(new (globalThis as unknown as { Event: new (t: string, i: object) => unknown }).Event("input", { bubbles: true }));
       el.blur?.();
-    });
-    if (view === "conflict" || view === "long") at(3400, () => d.querySelector("[data-testid='task-conflict-current-priority']")?.click?.());
-    if (view === "saved") { at(3400, () => d.querySelector("[data-testid='task-conflict-current-priority']")?.click?.()); at(3900, () => d.querySelector("[data-testid='task-conflict-save']")?.click?.()); }
+    };
+    if (wide) { at(500, () => d.querySelector("[data-testid='task-rail-toggle']")?.click?.()); at(1000, () => pick("rail-due", "Tomorrow")); at(1700, () => pick("rail-priority", "Urgent")); }
+    at(2500, () => type("task-title", "HTMLTextAreaElement", "Draft the Northwind renewal note"));
+    at(3000, () => d.querySelector("[data-testid='task-brief']")?.click?.());
+    at(3400, () => type("task-brief-edit", "HTMLTextAreaElement", view === "long" ? MINE_LONG : MINE_BRIEF));
+    const takeTheirs = (): void => { (d.querySelector("[data-testid='task-conflict-current-priority']") ?? d.querySelector("[data-testid='task-conflict-current-title']"))?.click?.(); };
+    if (view === "conflict" || view === "long") at(4300, takeTheirs);
+    if (view === "saved") { at(4300, takeTheirs); at(4800, () => d.querySelector("[data-testid='task-conflict-save']")?.click?.()); }
     return () => timers.forEach(clearTimeout);
   }, [view]);
   const none = (): void => undefined;

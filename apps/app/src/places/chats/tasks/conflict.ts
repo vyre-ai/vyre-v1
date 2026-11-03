@@ -7,7 +7,7 @@ export interface ClashRow { key: string; label: string; mine: unknown; current: 
 export interface Clash { version: number; by: string | undefined; rows: ClashRow[] }
 
 export const FIELD_LABEL: Record<string, string> = {
-  title: "Title", summary: "Summary", why: "Reason", due: "Due", start: "Start", effort: "Estimate", priority: "Priority", labels: "Labels", recur: "Repeat", fields: "Fields", blocks: "Content", parentTaskId: "Parent",
+  title: "Title", brief: "Description", summary: "Summary", why: "Reason", due: "Due", start: "Start", effort: "Estimate", priority: "Priority", labels: "Labels", recur: "Repeat", fields: "Fields", blocks: "Content", parentTaskId: "Parent",
 };
 
 const SKIP = new Set(["taskId", "expectedVersion", "idempotencyKey"]);
@@ -76,4 +76,18 @@ export function shortDiff(a: unknown, b: unknown): [string, string] | null {
     return `${from > 0 ? "\u2026" : ""}${v.slice(from, to)}${to < v.length ? "\u2026" : ""}`;
   };
   return [cut(a), cut(b)];
+}
+
+const list = (v: string | undefined): unknown[] => { try { const x = JSON.parse(v ?? "[]") as unknown; return Array.isArray(x) ? x : []; } catch { return []; } };
+/** The notes that are lists (Done means, and which of them are ticked). Two people changing one do not clash: both changes are kept. */
+export const LIST_NOTES: ReadonlySet<string> = new Set(["done_means", "done_ticks"]);
+/**
+ * What a list note becomes when the writer changed it from `base` to `mine` while someone else changed it to `current`: the other person's changes and the writer's, together. Items the writer added
+ * join the end; items the writer removed or unticked leave; items the other person added or ticked stay.
+ */
+export function mergeList(base: string | undefined, mine: string, current: string | undefined): string {
+  const b = list(base), m = list(mine), c = list(current);
+  const has = (xs: unknown[], x: unknown): boolean => xs.some((y) => JSON.stringify(y) === JSON.stringify(x));
+  const added = m.filter((x) => !has(b, x)), removed = b.filter((x) => !has(m, x));
+  return JSON.stringify([...c.filter((x) => !has(removed, x)), ...added.filter((x) => !has(c, x))]);
 }

@@ -36612,6 +36612,7 @@ export type TasksWorkingNotesSetIn = {
   taskId: string;
   key: string;
   value: string;
+  expectedFrom?: string;
 };
 export type TasksWorkingNotesSetOut = {
   task: {

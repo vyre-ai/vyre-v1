@@ -28,6 +28,7 @@ type In = {
   taskId: string;
   key: string;
   value: string;
+  expectedFrom?: string;
 };
 ```
 
@@ -114,6 +115,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "expectedFrom": "example",
     "key": "example",
     "taskId": "tsk_a1b2c3",
     "value": "example"

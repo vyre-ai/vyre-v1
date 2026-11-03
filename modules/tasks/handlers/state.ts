@@ -566,6 +566,11 @@ export async function notesSet(ctx: TasksCtx, input: In): Promise<unknown> {
   const key = String(input.key ?? "");
   if (!key.trim()) raise(ctx, "validation.bad_input", "A note needs a key.", { errors: ["/key: required"] });
   const value = String(input.value ?? "");
+  // a writer that names the value it started from is refused when someone changed the note meanwhile: nothing is overwritten, and the refusal says what the note holds now and who changed it
+  if (typeof input.expectedFrom === "string" && (t.workingNotes[key] ?? "") !== input.expectedFrom) {
+    const by = historyOf(ctx.db, t.id).find((h) => h.type === "note_set" || h.type === "updated")?.by;
+    raise(ctx, "validation.precondition_failed", `This task changed while you were editing it. The note ${key} is now different. Your change was not saved.`, { reason: "stale_version", version: t.version, updatedAt: t.updatedAt, current: { [key]: t.workingNotes[key] ?? "" }, ...(by ? { by } : {}) });
+  }
   const reserved = (RESERVED_NOTES as Record<string, "decisionId" | "payloadHash">)[key];
   if (reserved) {
     if (t.source?.kind !== "gate") raise(ctx, "validation.field_locked", "Only a held act carries that.", { field: key });

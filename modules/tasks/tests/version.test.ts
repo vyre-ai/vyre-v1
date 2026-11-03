@@ -49,3 +49,23 @@ test("the refusal also says who changed the task last and which version it is on
     return true;
   });
 });
+
+test("a note written from an old value is refused with what the note holds now and who changed it; two saves race and the second is told", async () => {
+  const h = harness();
+  const made = (await h.call("tasks.create", newTask({ assigned: bob }), me)).task;
+  await h.call("tasks.working_notes.set", { taskId: made.id, key: "brief", value: "First", expectedFrom: "" }, me);
+  // both read "First"; Alice saves first, Bob second
+  await h.call("tasks.working_notes.set", { taskId: made.id, key: "brief", value: "Alice's brief", expectedFrom: "First" }, me);
+  await assert.rejects(h.call("tasks.working_notes.set", { taskId: made.id, key: "brief", value: "Bob's brief", expectedFrom: "First" }, { id: bob.id }), (e) => {
+    const d = (e as { error?: { code?: string; details?: Record<string, unknown> } }).error;
+    assert.equal(d?.code, "validation.precondition_failed");
+    assert.equal(d?.details?.reason, "stale_version");
+    assert.deepEqual(d?.details?.current, { brief: "Alice's brief" });
+    assert.equal(d?.details?.by, alice.id);
+    return true;
+  });
+  assert.equal((await h.call("tasks.get", { taskId: made.id }, me)).task.workingNotes.brief, "Alice's brief", "nothing was overwritten");
+  // a writer that names no start value, as an agent does, still writes
+  await h.call("tasks.working_notes.set", { taskId: made.id, key: "brief", value: "Agent's brief" }, { id: bob.id });
+  assert.equal((await h.call("tasks.get", { taskId: made.id }, me)).task.workingNotes.brief, "Agent's brief");
+});

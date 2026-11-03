@@ -11,7 +11,7 @@ import { CapError } from "../../../../../../client/src/gateway/index.ts";
 import { createSample } from "../conversation/sample.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { TaskDetail } from "./TaskDetail.tsx";
-import { clashFrom, keptPatch, leftOut, mergeClash, setAll, setPick, shortDiff, wordsOf } from "./conflict.ts";
+import { clashFrom, keptPatch, leftOut, mergeClash, mergeList, setAll, setPick, shortDiff, wordsOf } from "./conflict.ts";
 
 const NOW = Date.UTC(2026, 10, 3, 9);
 const DAY = 86_400_000;
@@ -81,6 +81,13 @@ function runtime(): { rt: ShellRuntime; calls: Call[] } {
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     calls.push({ cap, input: input as Record<string, unknown> });
     if (cap === "tasks.index") return { rev: "1", unchanged: false, rows: [], doneThisWeek: 0, total: 0 };
+    if (cap === "tasks.working_notes.set") {
+      const i = input as Record<string, unknown>;
+      const now = NOTES[String(i["key"])] ?? "";
+      if (i["expectedFrom"] !== undefined && i["expectedFrom"] !== now) throw stale({ [String(i["key"])]: now });
+      NOTES[String(i["key"])] = String(i["value"]);
+      return { task: { ...TASK, workingNotes: { ...TASK.workingNotes, ...NOTES }, version: 6, updatedAt: NOW + 1 } };
+    }
     if (cap === "tasks.update") {
       const i = input as Record<string, unknown>;
       if (i["expectedVersion"] === 4) throw stale({ title: "Review the renewal lease" });
@@ -95,6 +102,7 @@ function runtime(): { rt: ShellRuntime; calls: Call[] } {
   } as unknown as ShellRuntime;
   return { rt, calls };
 }
+const NOTES: Record<string, string> = {};
 const wait = async (until: () => boolean): Promise<void> => { for (let i = 0; i < 20 && !until(); i++) await flush(); };
 const page = (rt: ShellRuntime) => <TaskDetail rt={rt} taskId="tsk_1" rail={false} conversationFor={() => { throw new Error("no thread in this test"); }} openTask={() => undefined} openAgent={() => undefined} openChat={() => undefined} />;
 const fire = async (n: Node | null, name: string): Promise<void> => {
@@ -143,5 +151,51 @@ test("taking the current value for every field saves nothing and says what was n
     await wait(() => find(root, "task-conflict") === null);
     assert.equal(calls.filter((c) => c.cap === "tasks.update").length, writes);
     assert.match(textOf(find(root, "task-conflict-left")), /Not kept from you: title "Review the lease today"/);
+  } finally { off(); }
+});
+
+test("the description is saved against the note it started from: two saves race, the second gets the card, and Save writes on what the note holds now", async () => {
+  const off = installDom();
+  try {
+    const { rt, calls } = runtime();
+    NOTES["brief"] = "Alice's brief";   // Sara saved first; this page still shows "Check the renewal terms."
+    const root = await mount(createRoot, page(rt));
+    await press(find(root, "task-brief"));
+    await typeInto(find(root, "task-brief-edit"), "Irfad's brief");
+    await fire(find(root, "task-brief-edit"), "onBlur");
+    await wait(() => find(root, "task-conflict") !== null);
+    assert.match(textOf(find(root, "task-conflict")), /Description/);
+    assert.match(textOf(find(root, "task-conflict")), /Irfad's brief/);
+    assert.match(textOf(find(root, "task-conflict")), /Alice's brief/);
+    assert.equal(NOTES["brief"], "Alice's brief", "nothing was overwritten");
+    const first = calls.filter((c) => c.cap === "tasks.working_notes.set")[0]!;
+    assert.equal(first.input["expectedFrom"], "Check the renewal terms.", "it names the note it started from");
+    await press(find(root, "task-conflict-save"));
+    await wait(() => find(root, "task-conflict") === null);
+    assert.equal(NOTES["brief"], "Irfad's brief");
+    assert.equal(calls.filter((c) => c.cap === "tasks.working_notes.set").at(-1)!.input["expectedFrom"], "Alice's brief");
+    delete NOTES["brief"];
+  } finally { off(); }
+});
+
+test("list notes (Done means, the ticks) are merged, not refused: both people's changes stay", () => {
+  assert.equal(mergeList('["a"]', '["a","mine"]', '["a","theirs"]'), '["a","theirs","mine"]');
+  assert.equal(mergeList("[0]", "[0,1]", "[0,2]"), "[0,2,1]", "both ticked");
+  assert.equal(mergeList("[0,1]", "[0]", "[0,1,2]"), "[0,2]", "I unticked 1, they ticked 2");
+  assert.equal(mergeList(undefined, '["x"]', undefined), '["x"]');
+});
+
+test("adding to Done means while someone else added too keeps both, with no card", async () => {
+  const off = installDom();
+  try {
+    const { rt, calls } = runtime();
+    NOTES["done_means"] = '["theirs"]';
+    const root = await mount(createRoot, page(rt));
+    await typeInto(find(root, "task-add-means"), "mine");
+    await act(async () => { (find(root, "task-add-means")!.props["onKeyDown"] as (e: unknown) => void)({ key: "Enter", shiftKey: false, nativeEvent: { isComposing: false }, target: { value: "mine", blur() {} }, stopPropagation() {}, preventDefault() {}, isDefaultPrevented: () => false }); });
+    await wait(() => calls.filter((c) => c.cap === "tasks.working_notes.set").length >= 2);
+    assert.equal(find(root, "task-conflict"), null);
+    assert.equal(NOTES["done_means"], '["theirs","mine"]');
+    delete NOTES["done_means"];
   } finally { off(); }
 });

@@ -89461,6 +89461,7 @@ if (!("value" in o5709)) e.push(p + "/value" + ': required');
 if ("taskId" in o5709) lf(o5709["taskId"], p + "/taskId", e, L17);
 if ("key" in o5709) lf(o5709["key"], p + "/key", e, L44);
 if ("value" in o5709) lf(o5709["value"], p + "/value", e, L1);
+if ("expectedFrom" in o5709) lf(o5709["expectedFrom"], p + "/expectedFrom", e, L1);
 }
 }
 }
