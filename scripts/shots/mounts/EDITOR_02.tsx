@@ -39,7 +39,7 @@ function Body({ q }: { q: URLSearchParams }): ReactNode {
     w.setTimeout(() => {
       const d = w.document; const ed = d?.querySelector(".vyre-md"); if (!d || !ed) return;
       ed.focus();
-      if (part === "select") { const p = ed.querySelector("p"); const r = d.createRange(); r.setStart(p?.firstChild, 6); r.setEnd(p?.firstChild, 17); const s = d.getSelection(); s?.removeAllRanges(); s?.addRange(r); }
+      if (part === "select") { const p = ed.querySelector("p"); const r = d.createRange(); r.setStart(p?.firstChild, 8); r.setEnd(p?.firstChild, 12); const s = d.getSelection(); s?.removeAllRanges(); s?.addRange(r); }
       if (part === "problem") { const b = d.querySelector("[data-testid=lint-problems]"); b?.dispatchEvent(new (globalThis as unknown as { MouseEvent: new (t: string, o: object) => unknown }).MouseEvent("click", { bubbles: true })); }
     }, 2500);
   }, [part]);
