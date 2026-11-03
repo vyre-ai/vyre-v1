@@ -74,7 +74,8 @@ test("flow 4, @agent in a chat between people: the agent joins when mentioned, t
   let release: () => void = () => undefined;
   const gate = new Promise<void>((r) => { release = r; });
   const model = scriptedModel(async function* (input) {
-    askers.push(input.asker);
+    // memory learning reads the chat in its own one-shot after a turn; it is not a turn of the chat, so only chat turns count here
+    if (!input.threadId.startsWith("oneshot_")) askers.push(input.asker);
     yield { type: "text", text: "Three invoices are paid" };
     if (/slowly/.test(input.trigger?.body ?? "")) await gate;
     yield { type: "text", text: ", two are open." };

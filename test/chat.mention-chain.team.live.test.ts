@@ -1,5 +1,6 @@
 // An @mention hop runs for the person who asked, not the chat's starter (agent-visibility gap 1). Olivia starts a channel with agents X and Y. Mia asks X; X hands to Y with an @mention.
-// Y's turn runs for Mia, never on Olivia's account: Olivia's Mine AI account does not exist for it, so with no account of Mia's own it stops and asks her for one. Real chats on a booted daemon; only the model is a stand-in.
+// Y's turn runs for Mia, never on Olivia's account: Olivia's Mine AI account does not exist for it, so it runs on the Space's shared Team AI key (l-vaultfix: Space AI accounts pay Team turns). Real chats on a
+// booted daemon; only the model is a stand-in.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CORE_SPACE } from "../fixtures/seed/core/index.ts";
@@ -70,10 +71,10 @@ test("Team: Mia asks X in Olivia's channel, X @mentions Y; Y runs for Mia and ca
     assert.equal(x?.asker, "usr_mia");
     assert.equal(x?.account, teamRef);
     assert.ok(!turns.some((t) => t.asker === "usr_olivia"), `no turn ran for Olivia, who started the channel: ${JSON.stringify(turns)}`);
-    assert.ok(!turns.some((t) => t.agent === ids.y), "Y never ran on Olivia's Mine account");
-    // Y ran for Mia, who has no account of her own: it asks her to connect one, it does not borrow Olivia's
-    assert.equal(yMsg.body ?? "", "");
-    assert.equal(yMsg.blocks?.find((b) => b.type === "turn_status")?.data?.code, "no_account", JSON.stringify(yMsg));
+    // Y ran for Mia on the Space's shared Team AI key (Space AI accounts pay Team turns, l-vaultfix), never on Olivia's Mine account
+    const y = turns.filter((t) => t.agent === ids.y);
+    assert.ok(y.length > 0 && y.every((t) => t.asker === "usr_mia" && t.account === teamRef), `Y ran for Mia on the team key only: ${JSON.stringify(y)}`);
+    assert.equal(yMsg.body, "Checked, for usr_mia.");
     assert.notEqual(yMsg.paidBy, "usr_olivia");
   } catch (e) { console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1500) : e); throw e; } finally { await stop(d); }
 });

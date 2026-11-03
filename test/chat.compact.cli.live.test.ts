@@ -40,7 +40,7 @@ test("Compact keeps what the person names: Claude Code compacts itself and the l
     const file = under(path.join(dir, "scratch"), "home", ".fake-claude", "sessions", sid)[0];
     assert.ok(file, "the session the chat holds");
     assert.match(fs.readFileSync(file, "utf8"), /^resumecheck\n\/compact the lease dates\n$/, "the engine's own compact went to the chat's session with the words to keep");
-    const guide = under(path.join(dir, "work"), threadId, "CLAUDE.md")[0];
+    const guide = under(path.join(dir, "work"), threadId, agentId, "CLAUDE.md")[0];   // the agent's own work folder, person/thread/agent (l-chatleaks)
     assert.ok(guide);
     assert.match(fs.readFileSync(guide, "utf8"), /# Compact instructions\n\nWhen this conversation is compacted or summarised, keep this, as the person asked: the lease dates\n$/, "the engine's own automatic compaction keeps them too");
 
