@@ -27,3 +27,5 @@
 - The Save to Vault card follows the prototype: header with a menu and close, the site, Keep in with a Mine and Shared segment and a one-line note, Not now and Save.
 - Chrome tests: the booted daemon with the real extension and a scripted chat turn (host/tests/chrome-chat.live.test.ts) and the device-link questions (host/tests/device-link.chrome.test.ts).
 - Chrome tests: a server-side turn for a member drives the extension on the member's own computer over the device link, with an edited send, and another person's turn cannot reach that Chrome (host/tests/chrome-team.live.test.ts, two booted daemons and the real extension). An error code the extension gives (held_gone) now survives the trip over the link.
+- Vyre for Chrome: the Vyre badge now sits in every sign-in field at once (and the card number), the Save card has icons on Mine and Shared and an eye on Peek, and the chat's step card shows the tab's picture at full size.
+- Chrome tests: the two-daemon test now also signs a second real member in on their own computer (real invite and accept, real device link): their turn is refused and the first member's page is not touched.

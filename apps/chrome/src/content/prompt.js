@@ -43,6 +43,18 @@
     .hintline { margin-top: 6px; font-size: 11.5px; opacity: .65; }
   `;
 
+  /** A small stroke icon from path data, or null where the document cannot draw one. @param {any} d @param {string[]} paths */
+  function icon(d, paths) {
+    if (typeof d.createElementNS !== "function") return null;
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = d.createElementNS(ns, "svg");
+    for (const [k, v] of [["width", "13"], ["height", "13"], ["viewBox", "0 0 16 16"], ["fill", "none"], ["stroke", "currentColor"], ["stroke-width", "1.4"], ["stroke-linecap", "round"], ["stroke-linejoin", "round"]]) svg.setAttribute(/** @type {string} */ (k), /** @type {string} */ (v));
+    svg.style.verticalAlign = "-2px";
+    svg.style.marginRight = "5px";
+    for (const p of paths) { const el = d.createElementNS(ns, "path"); el.setAttribute("d", p); svg.append(el); }
+    return svg;
+  }
+
   /**
    * @param {{ host: string, username: string, password: string, mode: "save"|"update", name: string, agent: { id: string, name: string } | null }} p
    */
@@ -94,7 +106,8 @@
     out.textContent = MASK;
     const peek = d.createElement("button");
     peek.type = "button";
-    peek.textContent = "Peek";
+    const eye = icon(d, ["M1.5 8s2.3-4.500 6.500-4.500S14.500 8 14.500 8 12.200 12.500 8 12.500 1.500 8 1.500 8z", "M8 9.800a1.800 1.800 0 100-3.600 1.800 1.800 0 000 3.600z"]);
+    if (eye) { peek.append(eye); peek.append(d.createTextNode("Peek")); } else peek.textContent = "Peek";
     /** @type {any} */
     let peekTimer = null;
     peek.addEventListener("click", () => {
@@ -115,10 +128,12 @@
     seg.className = "seg";
     const mineBtn = d.createElement("button");
     mineBtn.type = "button";
-    mineBtn.textContent = "Mine";
+    const personIcon = icon(d, ["M8 7.500a2.700 2.700 0 100-5.400 2.700 2.700 0 000 5.400z", "M2.800 14c.3-2.600 2.400-4.300 5.200-4.300s4.900 1.700 5.200 4.300"]);
+    if (personIcon) { mineBtn.append(personIcon); mineBtn.append(d.createTextNode("Mine")); } else mineBtn.textContent = "Mine";
     const sharedBtn = d.createElement("button");
     sharedBtn.type = "button";
-    sharedBtn.textContent = "Shared";
+    const peopleIcon = icon(d, ["M6 7.200a2.300 2.300 0 100-4.600 2.300 2.300 0 000 4.600z", "M1.500 13.500c.2-2.300 2-3.700 4.500-3.700s4.300 1.400 4.500 3.700", "M10.800 3a2.300 2.300 0 010 4.400", "M12 9.900c1.500.4 2.400 1.600 2.500 3.600"]);
+    if (peopleIcon) { sharedBtn.append(peopleIcon); sharedBtn.append(d.createTextNode("Shared")); } else sharedBtn.textContent = "Shared";
     seg.append(mineBtn, sharedBtn);
     const sharedBox = d.createElement("div");
     sharedBox.style.display = "none";
