@@ -3,6 +3,7 @@
 import { HostError, makeError } from "../../../host/src/routes/errors.ts";
 import type { CtxSeed, Invoke } from "../../../host/src/invoke.ts";
 import { heldCard, recordWork, workCardOf } from "./work-cards.ts";
+import { modelError } from "./model-error.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
@@ -67,7 +68,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
 
   const fail = (code: ErrorCode, traceId: string, o: { message?: string; details?: Record<string, unknown>; next?: NextStep[] } = {}): ToolOutcome => {
     const error = makeError(code, traceId, o);
-    return { kind: "error", error, result: { ok: false, content: { error } } };
+    return { kind: "error", error, result: { ok: false, content: { error: modelError(error) } } };
   };
 
   const askAccessNext = (ctx: ToolCtx, t: ToolDef): NextStep[] => {
@@ -173,8 +174,8 @@ export function createToolSession(deps: CallDeps): ToolSession {
       if (deps.hooks?.after) void Promise.resolve(deps.hooks.after(ctx, t, input, { ok: true, output: res.output })).catch(() => undefined);
       return { kind: "result", traceId: res.traceId, result: { ok: true, content } };
     } catch (e) {
-      if (e instanceof HostError) return { kind: "error", error: e.error, result: { ok: false, content: { error: e.error } } };
-      // a failure nobody named (a crash inside a module): the model gets a plain sentence it can act on, never a bare "500"; the trace id stays in the error's own fields (traceId, details), out of the words the agent would repeat; the server log already holds the cause and stack under that trace (host/src/invoke.ts)
+      if (e instanceof HostError) return { kind: "error", error: e.error, result: { ok: false, content: { error: modelError(e.error) } } };
+      // a failure nobody named (a crash inside a module): a plain sentence the model can act on, never a bare "500"; the cause and stack are in the server log under this trace (host/src/invoke.ts)
       return fail("internal.unexpected", traceId, {
         message: `${t.name} could not finish on the server just now, and nothing was changed. Try it once more; if it fails again, tell the person in plain words that it did not work. Do not paste ids or traces.`,
         details: { tool: t.name, reason: "server_error" },
