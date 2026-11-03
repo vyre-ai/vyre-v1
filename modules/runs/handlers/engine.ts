@@ -519,10 +519,12 @@ function waitsForWorkingKey(step: PlanStep, code: string): boolean {
   if (code !== "provider.auth_failed") return false;
   return step.key === "ai" || (step.key === undefined && step.id === "ai");
 }
-interface Caught { code: string; message: string; retryable: boolean }
+/** How long a step that met "not the scheduling computer" waits before the lease holder tries it. */
+export const SCHEDULER_WAIT_MS = 10_000;
+interface Caught { code: string; message: string; retryable: boolean; reason?: string }
 function caught(e: unknown): Caught {
-  const he = (e as { error?: { code?: unknown; message?: unknown; retryable?: unknown } } | null)?.error;
-  if (he && typeof he.code === "string") return { code: he.code, message: typeof he.message === "string" ? he.message : he.code, retryable: he.retryable !== false };
+  const he = (e as { error?: { code?: unknown; message?: unknown; retryable?: unknown; details?: { reason?: unknown } } } | null)?.error;
+  if (he && typeof he.code === "string") return { code: he.code, message: typeof he.message === "string" ? he.message : he.code, retryable: he.retryable !== false, ...(typeof he.details?.reason === "string" ? { reason: he.details.reason } : {}) };
   const m = (e as { message?: unknown } | null)?.message;
   return { code: "step.failed", message: typeof m === "string" && m ? m : "The step failed.", retryable: true };
 }
@@ -683,6 +685,13 @@ export async function drive(ctx: RunsCtx, runId: string, plan: readonly PlanStep
         }
         saveStep(ctx.db, { ...rowOf(ctx.db, runId, cur, attempt), state: "waiting" });
         await markWaiting(ctx, run, { reason: "key", on: "a working key" });
+        return { status: "waiting" };
+      }
+      if (c.reason === "not_scheduling_computer") {
+        // a Personal Space on several computers: this computer no longer holds the schedule lease, so the send waits; the computer that does resumes the Run when the wait's time comes
+        // (runs.sweep_waits runs only there) and the step runs again with the same key
+        saveStep(ctx.db, { ...rowOf(ctx.db, runId, cur, attempt), state: "waiting" });
+        await markWaiting(ctx, run, { reason: "background", on: "the computer that runs scheduled work", wait: { on: { at: ctx.now() + SCHEDULER_WAIT_MS } } });
         return { status: "waiting" };
       }
       if (c.retryable && attempt <= policy.max) {

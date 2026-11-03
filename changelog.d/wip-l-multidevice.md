@@ -11,3 +11,4 @@
 - A scheduled run is keyed by its automation and its scheduled time. If two computers fired the same tick while they could not reach each other, they made the same Run, and syncing leaves one.
 - A chat message that reaches a computer by sync starts nothing there: no turn, no mention and no watcher. The turn runs where the message was sent. The engine's queue and its running turns stay on their own computer.
 - When two computers made something with the same name while apart, both are kept. The later one keeps the name and the other gets " (2)", the same on every computer. Anything a sync could not merge is kept whole, never dropped. Settings, Computers lists these under Sync conflicts.
+- A scheduled automation sends, posts or pays only from the computer that holds the schedule at that moment. If another computer took over between the tick and the send, the step waits for that computer, which carries it on after the next sync. The step runs once, with the same key.

@@ -432,6 +432,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // Assigned once the daemon object exists. The local route acknowledges before
   // shutdown so its caller never races the HTTP response with server.close().
   let requestStop: () => void = () => {};
+  // set once the peer service exists (a Personal Space on several computers): does this computer hold the scheduled-work lease now
+  let scheduledHere: () => boolean = () => true;
   let gateway: ReturnType<typeof createGateway> | null = null;
   let blobRoute: ReturnType<typeof createBlobRoute> | null = null;
   let portalLinkRoute: ReturnType<typeof createPortalLinkRoute> | null = null;
@@ -897,6 +899,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // the Personal Space gate (P-H_19): a test or boot may pass one; otherwise the matrix over the registry's teamOnly rows, which refuses while cfg.spaceKind is "personal"
       const personal = o.personal ?? personalMatrix({ kind: () => cfg.spaceKind ?? "team", caps: registryCaps as unknown as Array<{ name: string; teamOnly?: boolean }>, owns: (subject, person) => (db ? ownsSubject(db, subject, person) : false) });
       const invoke = createInvoke({
+        scheduledHere: () => scheduledHere(),
         caps: indexCapabilities(caps),
         validateInput: (cap, v, input) => (extraCaps.has(cap) ? [] : validateInput(cap, v, input)),
         validateEvent: (name, payload) => (extraEvents.has(name) ? [] : validateEvent(name, payload)),
@@ -1815,6 +1818,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     ...(o.peerRoundMs ? { roundMs: o.peerRoundMs } : {}), ...(o.peerLeaseMs ? { leaseMs: o.peerLeaseMs } : {}),
   }) : null;
   if (peerService) closers.push(() => peerService.stop());
+  if (peerService) scheduledHere = () => peerService.sync.isRunner();
   const phone: PhonePort = createPhonePort({ current: () => relayBox, start: () => startPhoneRelay?.() ?? null, dropped: () => { relayBox = null; }, configured: Boolean(cfg.relayUrl) });
   const runCommands = (): Promise<number> => {
     if (!db) return Promise.resolve(0);
