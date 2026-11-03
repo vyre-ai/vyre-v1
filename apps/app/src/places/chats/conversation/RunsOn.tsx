@@ -47,7 +47,12 @@ const AUTOMATIC = "auto:";
 export function runsOptions(s: RunsOnState): PanelRuns["options"] {
   return [
     { key: AUTOMATIC, name: "Automatic", note: currentOption(s).name, online: true },
-    ...s.options.map((o) => ({ key: keyOf(o), name: o.name, online: o.online, ...(o.target === "server" ? { note: "Your server" } : o.target === "device" && o.deviceId !== undefined && o.current !== true ? { note: "Your computer" } : {}), ...(o.reason ? { reason: o.reason } : {}) })),
+    ...s.options.map((o) => {
+      const what = o.target === "server" ? "Your server" : o.target === "device" && o.deviceId !== undefined && o.current !== true ? "Your computer" : "";
+      // an off place says so on its row, beside what it is: the menu never shows a machine as ready when it is not
+      const note = [what, !o.online && o.reason ? o.reason : ""].filter((x) => x !== "").join(" · ");
+      return { key: keyOf(o), name: o.name, online: o.online, ...(note ? { note } : {}), ...(o.reason ? { reason: o.reason } : {}) };
+    }),
   ];
 }
 

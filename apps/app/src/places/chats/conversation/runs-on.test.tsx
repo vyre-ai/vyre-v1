@@ -48,6 +48,6 @@ test("each computer is its own row: This computer for the one the person is on, 
     ],
   };
   assert.equal(currentOption(s).name, "Desk", "the pinned computer, by its id");
-  assert.deepEqual(runsOptions(s).map((o) => [o.key, o.name, o.note ?? "", o.online]), [["auto:", "Automatic", "Desk", true], ["device:dev_mac", "This computer", "", false], ["device:dev_desk", "Desk", "Your computer", true], ["space:", "The Space", "", true]]);
+  assert.deepEqual(runsOptions(s).map((o) => [o.key, o.name, o.note ?? "", o.online]), [["auto:", "Automatic", "Desk", true], ["device:dev_mac", "This computer", "Off", false], ["device:dev_desk", "Desk", "Your computer", true], ["space:", "The Space", "", true]]);
   assert.equal(currentOption({ ...s, effective: { target: "device" as const } }).name, "This computer", "a pin that names no computer is the one the person is on");
 });

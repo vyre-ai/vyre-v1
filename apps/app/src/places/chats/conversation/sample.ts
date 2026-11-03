@@ -12,7 +12,7 @@ import type { Candidate, Helper, Message, MessageBlock, Thread } from "./model.t
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const at = (h: number, min: number, sec = 0, dayOffset = 0): number => Date.UTC(2025, 9, 24 + dayOffset, h, min, sec);
 
-export type Variant = "idle" | "streaming" | "busy" | "errors" | "plan" | "long" | "nolead" | "closed" | "channel";
+export type Variant = "idle" | "streaming" | "busy" | "errors" | "plan" | "long" | "nolead" | "closed" | "channel" | "runson";
 
 export const NAMES: Record<string, string> = {
   agt_intake: "Intake", agt_docs: "Docs", agt_research: "Research", agt_scout: "Scout", agt_billing: "Billing",
@@ -52,6 +52,21 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
     messages.push(
       m("c1", { kind: "person", id: "usr_maya" }, "Did the Rivera intake form come back?", at(9, 20)),
       m("c2", me, "Can someone check the Rivera dates before Tuesday?", at(9, 21)),
+    );
+    return { thread, messages, helpers: [] };
+  }
+  if (variant === "runson") {
+    // where a chat runs (lane l-runson): pinned to this computer; it went to sleep mid-turn once (the turn went on on the server), and now it is off and the next message waits for it
+    thread.title = "Rivera engagement letter";
+    const status = (id: string, data: Record<string, unknown>): MessageBlock => ({ type: "turn_status", v: 1, id, data });
+    messages.push(
+      m("r1", me, "Pull this year's fee schedule and draft the Rivera engagement letter.", at(9, 40)),
+      m("r2", intake, "", at(9, 41), { blocks: [status("st1", { state: "note", text: "Your computer went to sleep; continuing on the Northwind server" })] }),
+      m("r3", intake, "Drafted the engagement letter from the standard template with this year's consult fee. The retainer is **$2,500**; Maya has not confirmed it yet.", at(9, 42), {
+        blocks: [step("s1", "Read fee-schedule-2025.csv", "Projects/Rivera matter", 3), step("s2", "Filled the engagement letter", "templates/engagement-letter.docx", 6), card("b1", "file", { name: "rivera-engagement-letter.docx", sub: "Word · 38 KB", id: "doc1" }, "done")],
+      }),
+      m("r4", me, "Now check the retainer clause against Maya's notes.", at(9, 50)),
+      m("r5", intake, "", at(9, 50, 5), { blocks: [status("st2", { state: "device_wait", text: "Your computer is off. This chat runs when it is back." })] }),
     );
     return { thread, messages, helpers: [] };
   }
@@ -252,6 +267,22 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
     "threads.make_channel": () => ({ channelId: "ch_new" }),
     "threads.reopen": () => { const { closedAt: _c, ...rest } = threadRow(); replica.put("threads", [rest]); return { ok: true }; },
     "engine.turn.retry": () => ({ turn: { turnId: "turn_10" } }),
+    // where the chat runs: each of the person's computers with its real state, the Space, their server (lane l-runson)
+    "engine.placement.options": () => ({
+      private: true, pinned: true, effective: { target: "device", deviceId: "dev_mac" },
+      options: [
+        { target: "device", deviceId: "dev_mac", current: true, name: "This computer", online: false, reason: "Off" },
+        { target: "device", deviceId: "dev_imac", name: "Office iMac", online: true },
+        { target: "space", name: "The Space", online: true },
+        { target: "server", serverId: "srv_home", name: "home-box", online: false, reason: "Off" },
+      ],
+    }),
+    "engine.placement.set": (i: { target: string; once?: boolean }) => ({ target: i.target }),
+    "engine.turn.get": (i: { turnId: string }) => ({ what: {
+      turn: { turnId: i.turnId, threadId: "c1", agentId: "agt_intake", asker: "usr_irfad", engine: "claude_code", model: "opus", state: "failed", traceId: "tr_r9", startedAt: at(9, 41), endedAt: at(9, 52), tokensIn: 0, tokensOut: 0, costMicros: 0,
+        error: { code: "turn_timeout", message: "That took too long, so it was stopped.", next: [], traceId: "tr_r9" }, ranOn: [{ kind: "computer", name: "Irfad's MacBook" }, { kind: "space", name: "the Northwind server" }] },
+      machine: "device", steps: [], denials: [], fallbacks: [],
+    } }),
   };
 
   const nav: ConversationNav = {
