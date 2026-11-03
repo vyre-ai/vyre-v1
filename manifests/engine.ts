@@ -75,7 +75,7 @@ const incidentRow = t.obj({
 });
 const scope = t.enm('space', 'person', 'agent');
 const caps = t.obj({ run: t.opt(t.int()), dayMicros: t.opt(t.int()), monthMicros: t.opt(t.int()), turnsPerDay: t.opt(t.int()), timeMinutesPerRun: t.opt(t.int()) });
-const usageTotals = t.obj({ turns: t.int(), tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int() });
+const usageTotals = t.obj({ turns: t.int(), tokensIn: t.int({ description: 'Every input token the turns sent, cached ones included' }), tokensOut: t.int(), costMicros: t.int(), cachedIn: t.opt(t.int({ description: 'The part of tokensIn the provider served from its cache: a turn of many requests sends the chat again with each one' })) });
 const threadT = { threadId: id.thread };
 
 export default defineManifest({
@@ -312,6 +312,11 @@ export default defineManifest({
         week: t.nullable(t.obj({ pct: t.num({ minimum: 0, maximum: 100 }), resetsAt: t.opt(t.ts()) })),
         source: t.enm('provider', 'estimate', 'none'),
         keepEvery: t.opt(t.str({ description: 'What every compaction of this chat keeps ("Keep this every time"), when set' })),
+        lastTurn: t.opt(t.obj({
+          model: t.opt(t.str({ description: 'The model the latest turn really ran on, as its engine said' })),
+          account: t.opt(t.obj({ ref: accountRef, name: t.opt(t.str()), provider: t.str(), shared: t.opt(t.bool()) })),
+          paid: t.opt(t.str({ description: 'Who paid and why, for the asker only' })),
+        }, { description: 'What the latest turn of this chat ran on, which can differ from the account shown above when the account that would pay now is not the one that paid then' })),
       },
       on: ['thread', '/threadId'], tool: 'meta', errors: ['validation.not_found'],
     }),
@@ -386,7 +391,7 @@ export default defineManifest({
       out: { raised: t.bool() }, perm: 'ai.spend', level: 'manage', emits: ['spend.raised'], gate: { act: 'spend_raise', when: "actor.kind != 'person'" }, tool: 'meta', audit: 'always', risk: 'high',
     }),
     read('engine.usage.query', 'Usage by day, person, agent or model; people see their own, managers their agents, admins all', {
-      in: { by: t.enm('day', 'person', 'agent', 'model'), from: t.opt(t.ts()), to: t.opt(t.ts()), personId: t.opt(id.user), agentId: t.opt(id.agent), itemId: t.opt(id.vaultItem) },
+      in: { by: t.enm('day', 'person', 'agent', 'model', 'account'), from: t.opt(t.ts()), to: t.opt(t.ts()), personId: t.opt(id.user), agentId: t.opt(id.agent), itemId: t.opt(id.vaultItem) },
       out: { rows: t.arr(t.obj({ key: t.str(), title: t.str(), face: t.opt(t.str()), totals: usageTotals })), totals: usageTotals }, label: 'filter', tool: 'meta',
     }),
     read('engine.incidents.list', 'AI incidents for review', {

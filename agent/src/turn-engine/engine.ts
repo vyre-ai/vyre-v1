@@ -464,6 +464,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           case "usage":
             turn.tokensIn += ev.inputTokens;
             turn.tokensOut += ev.outputTokens;
+            // the driver says which model ran: an agent that picked none runs on the engine's own default, and a turn moved to a Space account's model ran on that one. That is the turn's model, never "unknown"
+            if (ev.model) turn.model = ev.model;
+            if (ev.contextTokens !== undefined) info.contextTokens = ev.contextTokens;
             usages += 1;
             if (ev.cacheReadTokens !== undefined) info.cacheReadTokens = (info.cacheReadTokens ?? 0) + ev.cacheReadTokens;
             if (ev.cacheWriteTokens !== undefined) info.cacheWriteTokens = (info.cacheWriteTokens ?? 0) + ev.cacheWriteTokens;

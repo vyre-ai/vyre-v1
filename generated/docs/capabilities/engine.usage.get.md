@@ -55,6 +55,16 @@ type Out = {
   } | null;
   source: "provider" | "estimate" | "none";
   keepEvery?: string;
+  lastTurn?: {
+    model?: string;
+    account?: {
+      ref: string;
+      name?: string;
+      provider: string;
+      shared?: boolean;
+    };
+    paid?: string;
+  };
 };
 ```
 
@@ -88,6 +98,16 @@ type Out = {
       "window": 1
     },
     "keepEvery": "example",
+    "lastTurn": {
+      "account": {
+        "name": "example",
+        "provider": "example",
+        "ref": "#Team_Anthropic_Key",
+        "shared": true
+      },
+      "model": "example",
+      "paid": "example"
+    },
     "session": {
       "pct": 1,
       "resetsAt": 1760000000000

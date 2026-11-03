@@ -11412,9 +11412,19 @@ export type EngineUsageGetOut = {
   } | null;
   source: "provider" | "estimate" | "none";
   keepEvery?: string;
+  lastTurn?: {
+    model?: string;
+    account?: {
+      ref: string;
+      name?: string;
+      provider: string;
+      shared?: boolean;
+    };
+    paid?: string;
+  };
 };
 export type EngineUsageQueryIn = {
-  by: "day" | "person" | "agent" | "model";
+  by: "day" | "person" | "agent" | "model" | "account";
   from?: number;
   to?: number;
   personId?: string;
@@ -11431,6 +11441,7 @@ export type EngineUsageQueryOut = {
         tokensIn: number;
         tokensOut: number;
         costMicros: number;
+        cachedIn?: number;
       };
     }>;
   totals: {
@@ -11438,6 +11449,7 @@ export type EngineUsageQueryOut = {
     tokensIn: number;
     tokensOut: number;
     costMicros: number;
+    cachedIn?: number;
   };
 };
 export type EngineUsePolicyExportIn = Record<string, unknown>;
