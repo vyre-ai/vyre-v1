@@ -43,17 +43,17 @@ function Row({ row, by, now, offsetMin, onPick }: { row: ClashRow; by: string; n
     <View testID={`task-conflict-row-${row.key}`} style={[st.row, narrow && st.rowNarrow]}>
       <Text style={[st.label, narrow && st.labelNarrow]}>{row.label}</Text>
       <View style={[st.options, narrow && st.optionsNarrow]}>
-        <Option testID={`task-conflict-mine-${row.key}`} on={row.pick === "mine"} who="Yours" text={mine} onPress={() => onPick("mine")} />
-        <Option testID={`task-conflict-current-${row.key}`} on={row.pick === "current"} who={`Now, from ${by}`} text={cur} onPress={() => onPick("current")} />
+        <Option testID={`task-conflict-mine-${row.key}`} on={row.pick === "mine"} who="Yours" narrow={narrow} text={mine} onPress={() => onPick("mine")} />
+        <Option testID={`task-conflict-current-${row.key}`} on={row.pick === "current"} who={`Now, from ${by}`} narrow={narrow} text={cur} onPress={() => onPick("current")} />
         {long ? <Pressable accessibilityRole="button" accessibilityLabel={all ? "Show less" : "Show all"} testID={`task-conflict-more-${row.key}`} onPress={() => setAll_((v) => !v)} style={st.more}><Text style={st.moreText}>{all ? "Show less" : "Show all"}</Text></Pressable> : null}
       </View>
     </View>
   );
 }
 
-function Option({ on, who, text, onPress, testID }: { on: boolean; who: string; text: string; onPress(): void; testID: string }): ReactElement {
+function Option({ on, who, text, onPress, testID, narrow }: { narrow?: boolean; on: boolean; who: string; text: string; onPress(): void; testID: string }): ReactElement {
   return (
-    <Pressable accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={`${who}: ${text}`} testID={testID} onPress={onPress} style={[st.option, on && st.optionOn]}>
+    <Pressable accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={`${who}: ${text}`} testID={testID} onPress={onPress} style={[st.option, narrow && st.optionNarrow, on && st.optionOn]}>
       <View style={[st.radio, on && st.radioOn]} />
       <View style={st.optionText}><Text style={st.who}>{who}</Text><Text style={st.value}>{text}</Text></View>
     </Pressable>
@@ -77,6 +77,7 @@ const st = StyleSheet.create({
   label: { width: 78, fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string },
   options: { flex: 1, flexBasis: 240, flexDirection: "row", flexWrap: "wrap", gap: 8 },
   option: { flex: 1, flexBasis: 150, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 9, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 11, backgroundColor: "var(--win)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object,
+  optionNarrow: { flexGrow: 0, flexShrink: 0, flexBasis: "auto", width: "100%" },
   optionOn: { boxShadow: "inset 0 0 0 1.5px var(--accent)" } as object,
   radio: { width: 16, height: 16, borderRadius: 8, boxShadow: "inset 0 0 0 1.5px var(--ink-4)" } as object,
   radioOn: { boxShadow: "inset 0 0 0 5px var(--accent)" } as object,
