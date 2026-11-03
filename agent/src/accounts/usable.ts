@@ -23,15 +23,15 @@ export const WHY: Readonly<Record<SkipWhy, string>> = {
 };
 
 /** Usable here, or the reason it is not. `model` narrows to accounts that list it; `me` is the person picking. */
-export function usableHere(row: AccountRow, place: Place, o: { me: string; policy: "any" | "company"; onServer: boolean; model?: string; agentId?: string }): { usable: true } | { usable: false; why: string } {
+export function usableHere(row: AccountRow, place: Place, o: { me: string; policy: "any" | "company"; onServer: boolean; model?: string; agentId?: string; explicit?: boolean }): { usable: true } | { usable: false; why: string } {
   // a signed-out or failing account says so first, whatever else would also stop it
   if (row.status === "expired") return { usable: false, why: WHY.expired };
   if (row.status === "failed") return { usable: false, why: WHY.failed };
   const req: ResolveRequest = {
     starter: o.me, trigger: TRIGGER[place], agent: { agentId: o.agentId ?? "", accountPolicy: "asker" }, backupRefs: [], policy: o.policy, accounts: [row],
-    ...(o.model ? { model: o.model } : {}), onServer: place === "chat" ? o.onServer : true,
+    ...(o.model ? { model: o.model } : {}), onServer: o.onServer,
   };
   // a Space account is checked against the work of the place; the person's own account is theirs for chats and needs the switch elsewhere
-  const why = skipReason(row, req, o.me, { ...(row.mine ? {} : { use: place !== "space" }), ...(o.model ? { space: !row.mine } : {}) });
+  const why = skipReason(row, req, o.me, { ...(row.mine ? {} : { use: place !== "space" && o.explicit !== true }), ...(o.model ? { space: !row.mine } : {}) });
   return why === null ? { usable: true } : { usable: false, why: WHY[why] };
 }

@@ -86,7 +86,7 @@ export async function load(ctx: Pick<Ctx, "actingFor" | "principal" | "call">): 
 }
 
 /** One entry per account: older sign-ins of a provider whose account cannot be read are listed under the row they show as (and can be removed there), and a pin to a folded handle or an older sign-in shows that row. */
-export async function accountsList(ctx: Ctx, input: { place?: "chat" | "automation" | "agent" | "space"; model?: string; agentId?: string }) {
+export async function accountsList(ctx: Ctx, input: { place?: "chat" | "automation" | "agent" | "space"; model?: string; agentId?: string; explicit?: boolean }) {
   const { rows, where, names, idByRef, aliasOf, underOf } = await load(ctx);
   // with a place, every account says whether it can run there and why not (the same rule the resolver applies), so every picker lists the same accounts
   const place = input?.place;
@@ -105,8 +105,9 @@ export async function accountsList(ctx: Ctx, input: { place?: "chat" | "automati
         ref: r.ref, driver: r.driver, kind: r.kind, title: r.title, ...(names.has(r.ref) ? { name: names.get(r.ref) } : {}), mine: r.mine, ...(r.ownerId ? { ownerId: r.ownerId } : {}), status: r.status,
         ...(r.lastProbeAt !== null ? { lastProbeAt: r.lastProbeAt } : {}), ...(r.spaceKey === true ? { spaceKey: true } : {}),
         ...(aliases.length > 0 ? { aliases } : {}), ...(older.length > 0 ? { older } : {}),
+        ...(idByRef.get(r.ref) ? { providerId: idByRef.get(r.ref)! } : {}),
         ...(r.models?.length ? { models: [...r.models] } : {}),
-        ...(place && checks ? usableHere(r, place, { me, policy: checks.policy, onServer: checks.onServer, ...(input.model ? { model: input.model } : {}), ...(input.agentId ? { agentId: input.agentId } : {}) }) : {}),
+        ...(place && checks ? usableHere(r, place, { me, policy: checks.policy, onServer: checks.onServer, ...(input.model ? { model: input.model } : {}), ...(input.agentId ? { agentId: input.agentId } : {}), ...(input.explicit === true ? { explicit: true } : {}) }) : {}),
       };
     }),
   };

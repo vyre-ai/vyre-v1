@@ -10062,6 +10062,7 @@ export type EngineAccountsListIn = {
   place?: "chat" | "automation" | "agent" | "space";
   model?: string;
   agentId?: string;
+  explicit?: boolean;
 };
 export type EngineAccountsListOut = {
   accounts: Array<{
@@ -10083,6 +10084,7 @@ export type EngineAccountsListOut = {
           providerId: string;
           name: string;
         }>;
+      providerId?: string;
       models?: Array<string>;
       usable?: boolean;
       why?: string;

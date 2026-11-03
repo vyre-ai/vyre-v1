@@ -28,6 +28,7 @@ type In = {
   place?: "chat" | "automation" | "agent" | "space";
   model?: string;
   agentId?: string;
+  explicit?: boolean;
 };
 ```
 
@@ -54,6 +55,7 @@ type Out = {
           providerId: string;
           name: string;
         }>;
+      providerId?: string;
       models?: Array<string>;
       usable?: boolean;
       why?: string;
@@ -75,6 +77,7 @@ type Out = {
   "name": "example",
   "input": {
     "agentId": "agt_a1b2c3",
+    "explicit": true,
     "model": "example",
     "place": "chat"
   },
@@ -102,6 +105,7 @@ type Out = {
           }
         ],
         "ownerId": "usr_a1b2c3",
+        "providerId": "prv_a1b2c3",
         "ref": "#Team_Anthropic_Key",
         "spaceKey": true,
         "status": "ok",

@@ -39290,6 +39290,7 @@ if (g2410 === 'object') { const o2410 = x2410 as Record<string, unknown>;
 if ("place" in o2410) lf(o2410["place"], p + "/place", e, L572);
 if ("model" in o2410) lf(o2410["model"], p + "/model", e, L1);
 if ("agentId" in o2410) lf(o2410["agentId"], p + "/agentId", e, L10);
+if ("explicit" in o2410) lf(o2410["explicit"], p + "/explicit", e, L3);
 }
 }
 }
@@ -39377,6 +39378,7 @@ if ("name" in o2416) lf(o2416["name"], p + "/accounts" + '/' + i2412 + "/older" 
 }
 }
 }
+if ("providerId" in o2413) lf(o2413["providerId"], p + "/accounts" + '/' + i2412 + "/providerId", e, L268);
 if ("models" in o2413) {
 {
 const x2417 = o2413["models"];
