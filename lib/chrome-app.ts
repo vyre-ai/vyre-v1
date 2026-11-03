@@ -15,13 +15,11 @@
 //   chat.search    chat.search (words) or chat.recent (empty search), one row per chat
 //   chat.thread    threads.get and chat.messages.list
 //   records.match  search.query for the email addresses and phone numbers on the page, then search.related for the record's chats
-//   artifact.open  sites.artifact_open as the person (a 60 second single-use code for the artifact host), answered as the address to open: https://<artifact host>/x/<code>. With no artifact host
-//                  the answer is the Space's plain /a/<id>, which the web app opens after its own sign-in. A token never rides in a URL here.
 //   app.open       answered "not_available" here: the desktop app opens places itself; the extension then opens the web app
 
 export const CHROME_CAPABILITIES = Object.freeze([
   "vault.items.match", "vault.items.list", "vault.use", "vault.fill", "vault.item.put", "vault.item.update", "vault.folders.list", "vault.site_rules.list", "vault.site_rules.set", "vault.share",
-  "notes.clip", "skills.mine.add", "skills.mine.set", "skills.share", "engine.models.list", "sites.artifact_open",
+  "notes.clip", "skills.mine.add", "skills.mine.set", "skills.share", "engine.models.list",
   "browser.sites.list", "automations.watches.list", "automations.watches.save", "automations.watches.remove", "automations.watches.check", "automations.watches.report",
 ]);
 
@@ -207,6 +205,7 @@ export function createChromeApp(deps: ChromeAppDeps) {
     const mine = await me();
     const messages = (Array.isArray(list?.messages) ? list.messages : []).filter((m: any) => m.kind !== "quiet" && m.kind !== "system").map((m: any) => ({
       id: String(m.messageId), text: String(m.body ?? ""), at: m.createdAt ?? m.at ?? null,
+      artifacts: (Array.isArray(m.blocks) ? m.blocks : []).filter((b: any) => b?.type === "artifact" && /^sit_[a-z0-9]+$/.test(String(b?.data?.artifactId ?? ""))).slice(0, 4).map((b: any) => ({ id: String(b.data.artifactId), title: str(b.data.title ?? "Artifact", 120) })),
       author: { kind: m.author?.kind ?? "agent", id: m.author?.id ?? "", me: m.author?.kind === "person" && m.author?.id === mine, name: m.author?.kind === "agent" ? agents.get(m.author.id)?.name ?? "Agent" : m.author?.id === mine ? "You" : "Someone", assistant: m.author?.kind === "agent" ? Boolean(agents.get(m.author.id)?.assistant) : false },
     }));
     return { threadId, title: t?.thread?.title ?? "", agentId: t?.thread?.agents?.[0]?.agentId ?? null, messages };
@@ -233,25 +232,6 @@ export function createChromeApp(deps: ChromeAppDeps) {
     return { records };
   }
 
-  async function artifactOpen(input: Record<string, unknown>) {
-    const s = session();
-    const id = str(input["artifactId"], 80);
-    if (!/^sit_[a-z0-9_]{1,76}$/.test(id)) throw new AppError("validation.invalid", "That is not an artifact.");
-    const base = (() => { try { return new URL(s.address).origin; } catch { return ""; } })();
-    const plain = base ? { url: `${base}/a/${id}`, plain: true } : null;
-    let out: any;
-    try { out = await call("sites.artifact_open", { artifactId: id }); } catch (e) {
-      // not shared with this person, or stopped: the plain address shows the app's own page for that
-      if (plain && (e as { code?: string }).code !== "auth.unauthenticated") return plain;
-      throw e;
-    }
-    const u = typeof out?.url === "string" ? out.url : "";
-    // only the one-time code on the artifact host is opened here; a keyed address (a token in the URL) is never handed to a browser tab
-    if (/^https:\/\/[a-z0-9.-]{3,253}\/x\/[0-9a-f]{48}$/.test(u) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/x\/[0-9a-f]{48}$/.test(u)) return { url: u, plain: false };
-    if (plain) return plain;
-    throw new AppError("not_available", "This artifact has no address to open here.");
-  }
-
   return {
     /** A capability call from the extension. */
     async invoke(cap: string, input: Record<string, unknown>): Promise<unknown> {
@@ -271,6 +251,27 @@ export function createChromeApp(deps: ChromeAppDeps) {
           if (!deps.sessions().some((x) => x.id === id)) throw new AppError("validation.not_found", "You are not signed in to that Space on this computer.");
           picked = id;
           return { active: id };
+        }
+        case "artifact.open": {
+          // The person's own session mints the single-use code (sites.artifact_open, View level: a non-shared artifact is refused by the Space). The extension then opens the address in a tab; it never touches page cookies.
+          const raw = str(input["url"], 2000);
+          let id = str(input["artifactId"], 80);
+          let s: ChromeSession | undefined;
+          if (raw) {
+            let u: URL;
+            try { u = new URL(raw); } catch { throw new AppError("validation.bad_input", "That is not an address."); }
+            const m = /^\/a\/(sit_[a-z0-9]+)\/?$/.exec(u.pathname);
+            if (!m) throw new AppError("validation.bad_input", "That is not an artifact link.");
+            id = m[1]!;
+            // the link is for the Space it points at: a link to a Space this person is not signed in to here is not ours to open
+            s = deps.sessions().find((x) => { try { return new URL(x.address).host === u.host; } catch { return false; } });
+            if (!s) { if (deps.sessions().length === 0) throw new AppError("signed_out", SIGNED_OUT); throw new AppError("not_this_space", "You are not signed in to that Space on this computer."); }
+          } else s = session();
+          if (!/^sit_[a-z0-9]+$/.test(id)) throw new AppError("validation.bad_input", "Say which artifact.");
+          const out = await deps.call(s, "sites.artifact_open", { artifactId: id });
+          const url = typeof out?.url === "string" ? out.url : typeof out?.path === "string" ? `${s.address.replace(/\/+$/, "")}${out.path}` : "";
+          if (!/^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)[:/]/.test(url)) throw new AppError("provider.unavailable", "The Space did not give an address to open.");
+          return { url, expiresAt: out?.expiresAt ?? null };
         }
         case "whoami": {
           const w = await call("identity.whoami", {});
@@ -304,7 +305,6 @@ export function createChromeApp(deps: ChromeAppDeps) {
         case "chat.search": return chatSearch(input);
         case "chat.thread": return chatThread(input);
         case "records.match": return recordsMatch(input);
-        case "artifact.open": return artifactOpen(input);
         default: throw new AppError("not_available", "The Vyre app cannot answer that here.");
       }
     },

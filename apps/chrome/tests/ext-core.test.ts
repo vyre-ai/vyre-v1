@@ -96,7 +96,7 @@ test("the extension may call only the listed capabilities and bridge operations"
   }
   assert.throws(() => request("r", "bridge", "shell.exec"), BridgeFailure);
   assert.ok(!("vault.item.reveal" in CAPABILITIES), "an extension can never ask to see a value");
-  assert.ok(Object.keys(CAPABILITIES).every((c) => /^(vault|notes|skills|engine|browser|automations)\.|^sites\.artifact_open$/.test(c)), "the Vault, Notes clips, skills from a recording, the model list, Browser connections and watches, and opening an artifact");
+  assert.ok(Object.keys(CAPABILITIES).every((c) => /^(vault|notes|skills|engine|browser|automations)\./.test(c)), "the Vault, Notes clips, skills from a recording, the model list, and Browser connections and watches");
   assert.ok(Object.keys(BRIDGE_OPS).length >= 6);
 });
 
@@ -432,7 +432,7 @@ test("the manifest asks for the smallest set of powers and one content script gr
   assert.equal(m.background.type, "module");
   assert.equal(m.action.default_popup, undefined, "the toolbar icon opens the side panel (worker: setPanelBehavior)");
   assert.equal(m.side_panel.default_path, "src/panel/panel.html");
-  assert.deepEqual(m.content_scripts[0].js, ["src/content/finder.js", "src/content/autofill.js", "src/content/capture.js", "src/content/badge.js", "src/content/prompt.js", "src/content/select.js"]);
+  assert.deepEqual(m.content_scripts[0].js, ["src/content/finder.js", "src/content/autofill.js", "src/content/capture.js", "src/content/artifact.js", "src/content/badge.js", "src/content/prompt.js", "src/content/select.js"]);
   assert.equal(m.commands._execute_action.suggested_key.mac, "Command+Shift+L");
   const csp: string = m.content_security_policy.extension_pages;
   assert.ok(!/connect-src/.test(csp) && /default-src 'none'/.test(csp) && /script-src 'self'/.test(csp), "extension pages can reach no network");

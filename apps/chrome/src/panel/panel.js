@@ -84,6 +84,7 @@ function msgView(m) {
       h("div.who", null, who.name, h("span", null, t)),
       h(`div.txt${m.error ? ".err" : ""}`, null, m.error ? m.error : m.text, m.streaming ? h("span.caret") : null),
       att,
+      ...(m.artifacts || []).map((/** @type {any} */ a) => h("button.btn.q", act("openArtifact", { data: { id: a.id } }), ic("open", "s"), `Open ${a.title}`)),
       m.who !== "me" && !m.streaming && !m.error ? h("div.mline", null, h("button.btn.q", act("openVyre"), ic("open", "s"), "Open in Vyre"), ib("copy", "copy", "Copy", { data: { a: "copy", id: m.id } })) : null));
 }
 
@@ -334,6 +335,7 @@ async function openThread(/** @type {string} */ id) {
     S.conv = (Array.isArray(t.messages) ? t.messages : []).map((/** @type {any} */ m) => ({
       id: String(m.id), who: m.author && m.author.me ? "me" : String((m.author && m.author.name) || "Vyre"), kind: m.author ? m.author.kind : "agent",
       avatar: m.author ? m.author.avatar ?? null : null, assistant: Boolean(m.author && m.author.assistant), text: String(m.text ?? ""), at: Date.parse(m.at) || Date.now(),
+      artifacts: Array.isArray(m.artifacts) ? m.artifacts.map((/** @type {any} */ a) => ({ id: String(a.id), title: String(a.title || "Artifact") })) : [],
     }));
     if (t.agentId && S.agents.some((a) => a.id === t.agentId)) S.agent = t.agentId;
     S.view = "chat";
@@ -428,6 +430,7 @@ const A = /** @type {Record<string, (el: HTMLElement) => void | Promise<void>>} 
   retry: () => void loadState(),
   rec: () => { S.recOpen = !S.recOpen; render(); },
   openThread: (el) => void openThread(String(el.dataset["id"])),
+  openArtifact: (el) => void ask("panel.openArtifact", { id: el.dataset["id"] }).catch(() => {}),
   openGoal: (el) => void ask("panel.open", { place: "goal", id: el.dataset["id"] }).catch(() => {}),
   openRecord: (el) => void ask("panel.open", { place: "record", id: el.dataset["id"] }).catch(() => {}),
   sugg: (el) => void send(String(el.dataset["t"])),

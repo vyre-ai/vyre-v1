@@ -9,18 +9,18 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { fileExportsImporter } from "../src/loader.ts";
-import { fakePlatform } from "../src/platform/index.ts";
-import type { FetchFn } from "../src/platform/probes.ts";
-import { loadConfig } from "../src/daemon/config.ts";
-import { issueSessionToken } from "../src/daemon/session.ts";
-import { startDaemon } from "../src/daemon/daemon.ts";
-import type { Daemon } from "../src/daemon/daemon.ts";
+import { fileExportsImporter } from "../host/src/loader.ts";
+import { fakePlatform } from "../host/src/platform/index.ts";
+import type { FetchFn } from "../host/src/platform/probes.ts";
+import { loadConfig } from "../host/src/daemon/config.ts";
+import { issueSessionToken } from "../host/src/daemon/session.ts";
+import { startDaemon } from "../host/src/daemon/daemon.ts";
+import type { Daemon } from "../host/src/daemon/daemon.ts";
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 const KEYS = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] };
 const PASSWORD = "correct horse battery staple 9";
-const ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 async function until<T>(what: string, f: () => Promise<T | undefined | false> | T | undefined | false, ms = 10_000): Promise<T> {
   const t0 = Date.now();
@@ -49,12 +49,12 @@ async function boot(): Promise<{ d: Daemon; owner: string; dir: string }> {
   return { d, owner: signedIn.json.data.session.token as string, dir };
 }
 
-import { findChromium, launch, site } from "../../apps/chrome/tests/e2e/rig.ts";
-import { bindPersonalChrome } from "../../lib/personal-chrome.ts";
-import { harness } from "../../modules/computers/fixtures/harness.ts";
-import { tool } from "../../modules/computers/tests/tools.fixture.ts";
-import { handlers as browser } from "../../modules/browser/impl.ts";
-import { world as browserWorld } from "../../modules/browser/fixtures/world.ts";
+import { findChromium, launch, site } from "../apps/chrome/tests/e2e/rig.ts";
+import { bindPersonalChrome } from "../lib/personal-chrome.ts";
+import { harness } from "../modules/computers/fixtures/harness.ts";
+import { tool } from "../modules/computers/tests/tools.fixture.ts";
+import { handlers as browser } from "../modules/browser/impl.ts";
+import { world as browserWorld } from "../modules/browser/fixtures/world.ts";
 
 const found = await findChromium();
 const MAIL = `<!doctype html><meta charset="utf-8"><title>Mail</title><main><form method="post" action="/send"><label for="to">To</label><input id="to" name="to" value="dana@client.test">

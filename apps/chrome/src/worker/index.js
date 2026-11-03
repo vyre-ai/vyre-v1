@@ -52,9 +52,9 @@ export function createWorker(ext) {
   const context = createContext(ext, privacy);
   /** @type {Map<number, string>} the view a side panel should open on, by window (a right-click Watch or Show Vyre how) */
   const views = new Map();
-  const panel = createPanel({ ext, bridge, store, privacy, context, views });
-  const notes = createNotes({ ext, bridge, privacy, context });
   const artifacts = createArtifacts({ ext, bridge, store });
+  const panel = createPanel({ ext, bridge, store, privacy, context, views, artifacts });
+  const notes = createNotes({ ext, bridge, privacy, context });
   const menus = createMenus({ ext, notes, panel, views, privacy });
   const recorder = createRecorder({ ext, bridge, privacy });
   const watches = createWatches({ ext, bridge, privacy });
@@ -67,7 +67,6 @@ export function createWorker(ext) {
     }
     if (m && m.type === "tab.open" && ext.tabs) void ext.tabs.create({ url: m.url });
     if (m && m.type === "watch.run") void watches.look();
-    if (m && m.type === "artifact.open" && ext.tabs) void artifacts.open(m.artifactId).catch(() => { /* the app shows its own card */ });
   });
 
   async function activeTab() {
@@ -128,7 +127,6 @@ export function createWorker(ext) {
     const tab = await activeTab();
     switch (msg.type) {
       case "popup.state": return { data: await popupState() };
-      case "popup.artifact": return { data: await artifacts.open(String(msg.artifactId || "")) };
       case "popup.fill": {
         if (!tab) return failure(new BridgeFailure("no_page", ""));
         const r = await fill.fill({ tabId: tab.id, url: tab.url, itemId: String(msg.itemId), usernameField: msg.usernameField ? String(msg.usernameField) : undefined, kind: msg.kind === "otp" ? "otp" : msg.kind === "card" ? "card" : "login", signIn: Boolean(msg.signIn) });
@@ -215,6 +213,8 @@ export function createWorker(ext) {
         const kind = msg.kind === "otp" ? "otp" : msg.kind === "card" ? "card" : "login";
         return { data: await fill.fill({ tabId, url: String(sender.tab.url || ""), itemId: String(msg.itemId || ""), usernameField: msg.usernameField ? String(msg.usernameField) : undefined, kind, signIn: false }) };
       }
+      case "vyre.artifact.hosts": return { data: { hosts: await artifacts.hosts() } };
+      case "vyre.artifact": return { data: await artifacts.open({ href: String(msg.href || "").slice(0, 2000) }) };
       case "vyre.dismiss": return { data: await save.dismissed({ tabId, origin }, { never: Boolean(msg.never) }) };
       default: return failure(new BridgeFailure("not_allowed", String(msg.type)));
     }
@@ -302,7 +302,7 @@ export function createWorker(ext) {
   }
 
   return {
-    bridge, store, rules, fill, save, privacy, context, panel, notes, menus, recorder, watches, popupState, refreshBadge, onMessage,
+    bridge, store, rules, fill, save, privacy, context, panel, notes, artifacts, menus, recorder, watches, popupState, refreshBadge, onMessage,
     /** @param {number} tabId @param {{ status?: string, url?: string }} info @param {any} tab */
     async onTabUpdated(tabId, info, tab) {
       await save.tabUpdated(tabId, info);
