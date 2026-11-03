@@ -269,7 +269,7 @@ function YourAction({ task, view, me, run, menu, list, mode, setMode, nameOf }: 
   const close = (ok: boolean): void => { if (ok) { setMode(""); setText(""); } };
   useEffect(() => { setMode(""); setText(""); }, [task.state]);   // eslint-disable-line react-hooks/exhaustive-deps
   if (task.kind !== "work") return null;
-  if (canTake(task)) return <View style={st.actions}><Btn label="Take it" primary testID="task-take" onPress={() => void run("tasks.take", {})} /><Text style={st.waiting}>{`For ${nameOf(task.assigned.id)}. Whoever takes it does it.`}</Text></View>;
+  if (canTake(task)) return <View style={st.actions}><Btn label="Take it" primary testID="task-take" onPress={() => void run("tasks.take", {})} /><Text style={[st.waiting, st.besideBtn]}>{`For ${nameOf(task.assigned.id)}. Whoever takes it does it.`}</Text></View>;
   const taken = task.takenBy !== undefined && (task.assigned.kind === "group" || task.assigned.kind === "role") && task.takenBy !== me && isOpenState(task.state as TaskState) ? <Text style={st.waiting}>{`Taken by ${nameOf(task.takenBy)}`}</Text> : null;
   const move = myMove({ ...view, takenBy: task.takenBy ?? (task.yourTurn ? me : undefined) } as TaskView, me);
   if (task.blocked && move === null) return <Text style={st.waiting}>{"This waits on something else and starts by itself."}</Text>;
@@ -583,10 +583,12 @@ function RailLink({ label, onPress, testID }: { label: string; onPress(e: unknow
 }
 
 const st = StyleSheet.create({
+  besideBtn: { paddingLeft: 8, paddingTop: 0, alignSelf: "center" },
   root: { flex: 1, padding: 28, backgroundColor: "var(--win)" as string },
   row: { flex: 1, minHeight: 0, flexDirection: "row", backgroundColor: "var(--win)" as string },
   main: { flex: 1, minWidth: 0, minHeight: 0 },
-  col: { width: "100%", maxWidth: 640, alignSelf: "center", paddingTop: 26 },
+  // a gutter of its own, so the page in a side pane or on a phone does not touch the edges
+  col: { width: "100%", maxWidth: 672, alignSelf: "center", paddingTop: 26, paddingHorizontal: 16 },
   crumbs: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 24 },
   key: { marginRight: 8, fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   label: { fontSize: 12, color: "var(--ink-3)" as string },
@@ -595,7 +597,7 @@ const st = StyleSheet.create({
   chipText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   titleRow: { flexDirection: "row", alignItems: "flex-start", gap: 12, marginTop: 10 },
   h1: { flex: 1, minWidth: 0, fontSize: 27, lineHeight: 34, fontWeight: "600", letterSpacing: -0.5, color: "var(--ink)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
-  pathRow: { flexDirection: "row", alignItems: "center", marginTop: 18, paddingLeft: 36 },
+  pathRow: { flexDirection: "row", flexWrap: "wrap", rowGap: 8, alignItems: "center", marginTop: 18, paddingLeft: 36 },
   path: { flexDirection: "row", alignItems: "center", gap: 8 },
   pathLine: { width: 34, height: 1, marginHorizontal: 10, backgroundColor: "var(--line-2)" as string },
   pathDone: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },

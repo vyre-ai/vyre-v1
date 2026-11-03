@@ -167,7 +167,9 @@ function NativeLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv
 /** One request waiting on you: who asks, what, and the one action. */
 export const NeedLine = memo(function NeedLine({ item, env }: { item: NeedItem; env: RowEnv }): ReactElement {
   const t = item.task;
-  const by = t.createdBy;
+  // who the turn came from: the doer who handed it in, the reviewer or approver who sent it back, else whoever asked
+  const sentBack = t.kind === "work" && (t.state === "todo" || t.state === "doing") && t.workingNotes["fixes"] !== undefined;
+  const by = t.kind === "work" && (t.state === "in_review" || t.state === "awaiting_approval") ? t.assigned.id : sentBack ? (t.reviewer ?? t.approver)?.id ?? t.createdBy : t.createdBy;
   const who: Who = { kind: by.startsWith("agt_") ? "agent" : "person", id: by };
   // a team task is taken first; a held act is approved here; anything else opens, where its move is
   const primary = canTake(t) ? { key: "take", label: "Take" } : t.kind === "approve" ? { key: "approve", label: "Approve" } : { key: "open", label: "Open" };

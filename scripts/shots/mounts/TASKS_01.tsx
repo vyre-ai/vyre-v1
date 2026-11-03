@@ -58,7 +58,8 @@ function answer(cap: string, input: Row): unknown {
   switch (cap) {
     case "tasks.index": {
       const q = String(input.q ?? "").toLowerCase();
-      const rows = TASKS.filter((t) => (q === "" || String(t.title).toLowerCase().includes(q)) && input.done !== true);
+      // a task's breakdown asks for its children: none in this sample
+      const rows = input.parentTaskId !== undefined ? [] : TASKS.filter((t) => (q === "" || String(t.title).toLowerCase().includes(q)) && input.done !== true);
       return { rev: "r1", unchanged: false, rows, doneThisWeek: 6, total: rows.length };
     }
     case "tasks.get": { const t = byId.get(String(input.taskId)); if (!t) throw new Error("That task is not available."); return { task: t }; }
