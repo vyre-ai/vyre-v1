@@ -98,6 +98,8 @@ export interface WiredSeams {
   missing: MissingDriver[];
   /** Take every seam back out (shutdown, tests). */
   unwire(): void;
+  /** This daemon's driver is still the one the module holds (a later daemon in the same process has not wired over it). */
+  owns(setter: string): boolean;
 }
 
 export const defaultFetch: SeamFetch = async (url, init) => {
@@ -162,7 +164,12 @@ export function createPushPort(deps: PushTransportDeps = {}): PushPortSeam {
   };
 }
 
+/** Which daemon wired each module setter last. A module's seam is one value per process, so where two daemons share a process (the tests that boot two computers of one Personal Space)
+ *  the one that stops first must not unwire what the other wired after it; a daemon only ever clears a seam it still holds. One daemon per process (every install) is unaffected. */
+const holders = new Map<string, symbol>();
+
 export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
+  const me = Symbol("daemon");
   const fetch = deps.fetch ?? defaultFetch;
   const common = { vault: deps.vault, fetch, files: deps.files, blobs: deps.blobs, members: deps.members };
   const driverDeps: SeamDriverDeps = { ...deps, fetch, common };
@@ -171,6 +178,7 @@ export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
   const wired: string[] = [];
   const missing: MissingDriver[] = [];
   const called: ((driver: unknown) => void)[] = [];
+  const names: string[] = [];
   for (const [name, fn] of Object.entries(setters)) {
     if (typeof fn !== "function") continue;
     const module = deps.owners?.get(name);
@@ -181,13 +189,21 @@ export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
     try { set(make(driverDeps)); } catch (e) { missing.push({ setter: name, ...where, reason: `The driver failed: ${e instanceof Error ? e.message : String(e)}` }); continue; }
     wired.push(name);
     called.push(set);
+    names.push(name);
+    holders.set(name, me);
     const legacy = LEGACY[name];
     if (legacy) state[legacy] = "wired";
   }
   return {
     state, wired, missing,
     unwire() {
-      for (const set of called) { try { set(null); } catch { /* shutting down: one module's refusal must not keep the others wired */ } }
+      called.forEach((set, i) => {
+        const name = names[i]!;
+        if (holders.get(name) !== me) return;
+        holders.delete(name);
+        try { set(null); } catch { /* shutting down: one module's refusal must not keep the others wired */ }
+      });
     },
+    owns: (setter) => holders.get(setter) === me,
   };
 }
