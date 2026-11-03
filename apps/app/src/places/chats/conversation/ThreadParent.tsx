@@ -25,16 +25,20 @@ export function ThreadParent({ threadId, messageId, call, nameOf, onOpen }: { th
       <Text style={st.body} numberOfLines={8}>{parent.body}</Text>
     </>
   );
-  if (!onOpen) return <View testID="thread-parent" style={st.box} accessibilityRole="summary">{words}</View>;
+  if (!onOpen) return <View style={st.gutter}><View testID="thread-parent" style={st.box} accessibilityRole="summary">{words}</View></View>;
   return (
-    <Pressable testID="thread-parent" accessibilityRole="link" accessibilityLabel="Back to the message" accessibilityHint="Scrolls the chat to the message this thread hangs off" onPress={onOpen} style={({ hovered }: { hovered?: boolean }) => [st.box, hovered === true && st.over]}>
-      {words}
-    </Pressable>
+    <View style={st.gutter}>
+      <Pressable testID="thread-parent" accessibilityRole="link" accessibilityLabel="Back to the message" accessibilityHint="Scrolls the chat to the message this thread hangs off" onPress={onOpen} style={({ hovered }: { hovered?: boolean }) => [st.box, hovered === true && st.over]}>
+        {words}
+      </Pressable>
+    </View>
   );
 }
 
 const st = StyleSheet.create({
-  box: { marginHorizontal: 16, marginTop: 8, padding: 12, gap: 4, borderRadius: 12, backgroundColor: "var(--raised)" as string, maxWidth: 660, alignSelf: "center", width: "100%" },
+  // the gutter keeps the box inside a narrow pane; the box keeps the chat's reading width in a wide one
+  gutter: { paddingHorizontal: 16, marginTop: 8 },
+  box: { padding: 12, gap: 4, borderRadius: 12, backgroundColor: "var(--raised)" as string, maxWidth: 660, alignSelf: "center", width: "100%" },
   over: { backgroundColor: "var(--hover)" as string },
   who: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   body: { fontSize: 14, lineHeight: 20, color: "var(--ink-2)" as string },

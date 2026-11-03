@@ -2,6 +2,7 @@
 // thread; the Threads page draws the threads I am in from its live read, with what is new, and loads the next page on request.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { act } from "react";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../../../onboarding/test-dom.ts";
 import { ThreadParent } from "../conversation/ThreadParent.tsx";
@@ -71,4 +72,23 @@ test("the Threads page draws the threads I am in from its live read, with what i
   assert.match(textOf(find(root, "row-thread-thr_2")), /Lee file/);
   await press(find(root, "row-thread-thr_2"));
   assert.deepEqual(opened, ["thr_2"]);
+});
+
+test("a banner for a burst of replies says the count once, in its title, with Reply", async () => {
+  installDom();
+  const { NotificationBanners } = await import("../../../shell/notifications/Banners.tsx");
+  const { BannerStack } = await import("../../../shell/notifications/model.ts");
+  const stack = new BannerStack(() => NOW);
+  stack.push({ id: "ntf_1", kind: "reply.thread", level: "interrupt", place: "chats", title: "3 new replies in #intake", body: "Calling at 3", count: 3, at: NOW, actions: [{ label: "Reply", cap: "chat.post" }], spaceId: "spc_1", subject: { type: "thread", id: "thr_1" } } as never);
+  const opened: string[] = [];
+  const r = createRoot();
+  await act(async () => { r.render(<NotificationBanners stack={stack} onAction={(n, a) => opened.push(`${a.label}:${n.id}`)} onOpen={() => undefined} />); });
+  await flush();
+  const root = r.container as unknown as Parameters<typeof find>[0];
+  const card = find(root, "banner-ntf_1");
+  assert.match(textOf(card), /3 new replies in #intake/);
+  assert.equal(find(root, "banner-count-ntf_1"), null, "the title already says how many");
+  await press(find(root, "banner-action-Reply"));
+  assert.deepEqual(opened, ["Reply:ntf_1"]);
+  await act(async () => { r.unmount(); });   // the banners' expiry clock stops with them
 });
