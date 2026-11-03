@@ -574,7 +574,7 @@ function integrity(db: string): { ok: string; rows: number } {
   return o;
 }
 
-test("a backup taken while the daemon keeps writing restores with databases that pass integrity_check", async () => {
+test("a plain backup takes the Space with the server up and the daemon writing, and restores with databases that pass integrity_check", async () => {
   const dir = tmp();
   const space = path.join(dir, "data", "space");
   fs.mkdirSync(space, { recursive: true });
@@ -585,9 +585,9 @@ test("a backup taken while the daemon keeps writing restores with databases that
   try {
     for (let n = 0; n < 100 && !fs.existsSync(path.join(space, "ready")); n++) await new Promise((r) => setTimeout(r, 50));
     assert.ok(fs.existsSync(path.join(space, "ready")), "the writer started");
-    // dc is a no-op, so the writer keeps going through the whole backup: the worst case.
+    // A plain backup keeps the server running: dc is never called, and the writer goes on through the whole backup (the worst case).
     for (let round = 0; round < 3; round++) {
-      const r = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ return 0; }; backup_data live${round}; echo "$BACKUP_FILE"`, { VYRE_DIR: dir });
+      const r = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ echo "$*" >>"${dir}/dc.log"; }; cmd_backup; echo "$BACKUP_FILE"`, { VYRE_DIR: dir });
       assert.equal(r.status, 0, r.stderr);
       const file = r.stdout.trim().split("\n").pop()!;
       const restore = path.join(dir, "restore" + round);
@@ -601,6 +601,7 @@ test("a backup taken while the daemon keeps writing restores with databases that
       assert.ok(!fs.existsSync(path.join(restore, "space", "events.db-wal")), "no stray wal in the backup");
       assert.equal(fs.readFileSync(path.join(restore, "caddy", "cert.pem"), "utf8"), "cert");
     }
+    assert.equal(fs.existsSync(path.join(dir, "dc.log")), false, "a plain backup never stops or starts the server");
     assert.equal(fs.readdirSync(path.join(dir, "backups")).filter((f) => f.startsWith(".stage")).length, 0, "the staging folder is gone");
   } finally {
     fs.writeFileSync(path.join(space, "stop"), "1");
@@ -705,5 +706,116 @@ test("a lock left by a process that is gone is reclaimed; a lock with a live own
     fs.writeFileSync(path.join(lock, "pid"), `${process.pid}\n`);
     const live = sh(SERVER, 'lock_update_operation', { VYRE_DIR: dir });
     assert.equal(live.status, 75);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("an update backup also stops a container outside compose that still mounts the data folder, names it, and starts it again", () => {
+  const dir = tmp();
+  try {
+    fs.mkdirSync(path.join(dir, "data", "space"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "data", "space", "events.db-x"), "x");
+    const fake = `docker(){ echo "docker $*" >>"${dir}/docker.log"; case "$1 $2" in "volume ls") echo vyre-server_vyre-data ;; "volume inspect") printf '%s' "${dir}/data/space" ;; "ps -q") echo abc123 ;; "inspect -f") echo /vyre-site-9-app ;; esac; return 0; }`;
+    const r = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ echo "dc $*" >>"${dir}/docker.log"; }; ${fake}; backup_data pre; resume_strays`, { VYRE_DIR: dir });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /Stopping vyre-site-9-app too/);
+    const log = read(path.join(dir, "docker.log"));
+    assert.match(log, /^dc stop/m);
+    assert.match(log, /^docker stop abc123/m);
+    assert.match(log, /^docker start abc123/m);
+    assert.ok(log.indexOf("docker stop abc123") < log.indexOf("docker start abc123"));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+function mkSpace(dir: string, marker: string): void {
+  const space = path.join(dir, "data", "space");
+  fs.mkdirSync(space, { recursive: true });
+  fs.mkdirSync(path.join(dir, "data", "caddy"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "data", "caddy", "cert.pem"), marker);
+  for (const n of ["events.db", "modules.db"]) {
+    const r = spawnSync("node", ["--no-warnings", "-e", `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1]);d.exec("PRAGMA journal_mode=WAL;CREATE TABLE t(v TEXT);INSERT INTO t VALUES('"+process.argv[2]+"')");d.close()`, path.join(space, n), marker]);
+    assert.equal(r.status, 0, String(r.stderr));
+  }
+}
+const valueIn = (db: string): string => JSON.parse(spawnSync("node", ["--no-warnings", "-e", `const {DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});console.log(JSON.stringify(d.prepare("SELECT v FROM t").get().v))`, db], { encoding: "utf8" }).stdout);
+const treeSig = (d: string): string => spawnSync("sh", ["-c", `cd "${d}" && find . -type f | sort | xargs cat | shasum`], { encoding: "utf8" }).stdout;
+
+test("restore puts a backup back after backing up the current data, and starts and checks the server", () => {
+  const dir = tmp();
+  try {
+    mkSpace(dir, "OLD");
+    const mk = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data good live; echo "$BACKUP_FILE"`, { VYRE_DIR: dir });
+    assert.equal(mk.status, 0, mk.stderr);
+    const file = mk.stdout.trim().split("\n").pop()!;
+    fs.rmSync(path.join(dir, "data"), { recursive: true });
+    mkSpace(dir, "NEW");
+    assert.equal(valueIn(path.join(dir, "data", "space", "events.db")), "NEW");
+    const r = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ echo "$*" >>"${dir}/dc.log"; }; wait_healthy(){ echo healthy >>"${dir}/dc.log"; }; trap cleanup EXIT; cmd_restore "${file}" --yes`, { VYRE_DIR: dir });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(valueIn(path.join(dir, "data", "space", "events.db")), "OLD");
+    assert.equal(valueIn(path.join(dir, "data", "space", "modules.db")), "OLD");
+    assert.equal(read(path.join(dir, "data", "caddy", "cert.pem")), "OLD");
+    const pre = fs.readdirSync(path.join(dir, "backups")).filter((f) => f.startsWith("vyre-pre-restore"));
+    assert.equal(pre.length, 1, "the current data was backed up first");
+    const log = read(path.join(dir, "dc.log"));
+    assert.ok(log.indexOf("stop") < log.indexOf("up -d") && log.indexOf("up -d") < log.indexOf("healthy"));
+    // the backup it made holds what was replaced
+    const chk = path.join(dir, "chk"); fs.mkdirSync(chk);
+    assert.equal(spawnSync("tar", ["-xzf", path.join(dir, "backups", pre[0]!), "-C", chk]).status, 0);
+    assert.equal(valueIn(path.join(chk, "space", "events.db")), "NEW");
+    assert.deepEqual(fs.readdirSync(path.join(dir, "data")).sort(), ["caddy", "space"], "no leftovers");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("restore refuses a bad file, an unconfirmed run and a backup of the wrong shape, and changes nothing", () => {
+  const dir = tmp();
+  try {
+    mkSpace(dir, "LIVE");
+    const mk = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data good live; echo "$BACKUP_FILE"`, { VYRE_DIR: dir });
+    const good = mk.stdout.trim().split("\n").pop()!;
+    const bytes = fs.readFileSync(good);
+    const bad: Record<string, string> = {};
+    bad.truncated = path.join(dir, "truncated.tar.gz"); fs.writeFileSync(bad.truncated, bytes.subarray(0, Math.floor(bytes.length / 2)));
+    bad.text = path.join(dir, "text.tar.gz"); fs.writeFileSync(bad.text, "not an archive");
+    // a tar with a path outside space/ and caddy/
+    const odd = path.join(dir, "odd"); fs.mkdirSync(path.join(odd, "etc"), { recursive: true }); fs.writeFileSync(path.join(odd, "etc", "passwd"), "x");
+    bad.shape = path.join(dir, "shape.tar.gz"); spawnSync("tar", ["-czf", bad.shape, "-C", odd, "etc"]);
+    // a good-looking backup whose database is damaged
+    const dmg = path.join(dir, "dmg"); fs.mkdirSync(dmg); spawnSync("tar", ["-xzf", good, "-C", dmg]);
+    const db = path.join(dmg, "space", "events.db"); const buf = fs.readFileSync(db); for (let i = 100; i < buf.length; i++) buf[i] = 0xff; fs.writeFileSync(db, buf);
+    bad.corrupt = path.join(dir, "corrupt.tar.gz"); spawnSync("tar", ["-czf", bad.corrupt, "-C", dmg, "space", "caddy"]);
+    const before = treeSig(path.join(dir, "data"));
+    const backupsBefore = fs.readdirSync(path.join(dir, "backups")).sort();
+    for (const [name, file] of Object.entries({ ...bad, missing: path.join(dir, "nope.tar.gz") })) {
+      const r = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ echo "$*" >>"${dir}/dc.log"; }; wait_healthy(){ :; }; trap cleanup EXIT; cmd_restore "${file}" --yes`, { VYRE_DIR: dir });
+      assert.notEqual(r.status, 0, name);
+      assert.match(r.stderr, /nothing was changed|no such backup/, name);
+      assert.equal(treeSig(path.join(dir, "data")), before, `${name}: data unchanged`);
+      assert.deepEqual(fs.readdirSync(path.join(dir, "data")).sort(), ["caddy", "space"], `${name}: no staging left`);
+    }
+    assert.equal(fs.existsSync(path.join(dir, "dc.log")), false, "the server was never touched");
+    assert.deepEqual(fs.readdirSync(path.join(dir, "backups")).sort(), backupsBefore, "no backup was made either");
+    // no --yes and no terminal
+    const unconfirmed = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ echo "$*" >>"${dir}/dc.log"; }; trap cleanup EXIT; cmd_restore "${good}" </dev/null`, { VYRE_DIR: dir });
+    assert.notEqual(unconfirmed.status, 0);
+    assert.match(unconfirmed.stderr, /--yes|terminal/);
+    assert.equal(treeSig(path.join(dir, "data")), before);
+    assert.equal(fs.existsSync(path.join(dir, "dc.log")), false);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("restore puts the old data back when the server is not healthy on the restored data", () => {
+  const dir = tmp();
+  try {
+    mkSpace(dir, "OLD");
+    const mk = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data good live; echo "$BACKUP_FILE"`, { VYRE_DIR: dir });
+    const file = mk.stdout.trim().split("\n").pop()!;
+    fs.rmSync(path.join(dir, "data"), { recursive: true });
+    mkSpace(dir, "KEEP");
+    const r = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ echo "$*" >>"${dir}/dc.log"; }; wait_healthy(){ return 1; }; trap cleanup EXIT; cmd_restore "${file}" --yes`, { VYRE_DIR: dir });
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /health check.*the data that was there before is back/);
+    assert.equal(valueIn(path.join(dir, "data", "space", "events.db")), "KEEP");
+    assert.equal(read(path.join(dir, "data", "caddy", "cert.pem")), "KEEP");
+    assert.deepEqual(fs.readdirSync(path.join(dir, "data")).sort(), ["caddy", "space"]);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

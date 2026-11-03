@@ -72,8 +72,10 @@ export async function runEnv(io: CliIo, p: Parsed): Promise<number> {
   const handles = d.handles ?? [], keys = d.keys ?? [];
   if (handles.length !== keys.length) { errLine(io, "The server sent a different number of keys and handles; nothing was run."); return EXIT.FAILED; }
   const env: Record<string, string> = {};
+  // Nothing the CLI prints may hold a value it has fetched, whatever text came back with an error.
+  const mask = (t: string): string => { for (const v of Object.values(env)) if (v.length >= 4) t = t.split(v).join("[vault]"); return t; };
   try { for (let i = 0; i < keys.length; i++) env[keys[i]!] = await filler(handles[i]!); }
-  catch (e) { errLine(io, e instanceof Error ? e.message : String(e)); return EXIT.FAILED; }
+  catch (e) { errLine(io, mask(e instanceof Error ? e.message : String(e))); return EXIT.FAILED; }
   const [cmd, ...args] = p.rest;
   return new Promise<number>((resolve) => {
     const child = spawn(cmd!, args, { env: { ...io.env, ...env }, cwd: io.cwd, stdio: io.inherit && !viaServer ? "inherit" : ["ignore", "pipe", "pipe"], windowsHide: true });
@@ -81,7 +83,7 @@ export async function runEnv(io: CliIo, p: Parsed): Promise<number> {
     const out = viaServer ? scrubber(values, io.out) : null, err = viaServer ? scrubber(values, io.err) : null;
     child.stdout?.on("data", (c: Buffer) => { if (out) out.push(c.toString()); else io.out(c.toString()); });
     child.stderr?.on("data", (c: Buffer) => { if (err) err.push(c.toString()); else io.err(c.toString()); });
-    child.once("error", (e) => { errLine(io, `${cmd}: ${e.message}`); resolve(127); });
+    child.once("error", (e) => { errLine(io, mask(`${cmd}: ${e.message}`)); resolve(127); });
     child.once("close", (code, signal) => { out?.end(); err?.end(); resolve(code ?? (signal ? 128 : EXIT.FAILED)); });
   });
 }

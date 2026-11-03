@@ -283,6 +283,25 @@ test("`vyre run --env` reads values from the filler socket named by VYRE_FILLER_
   } finally { srv.close(); await s.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+test("`vyre run --env` never prints a fetched value, not in an error from the server and not in a failed launch", async () => {
+  const dir = dirOf();
+  const VALUE = "sk-live-leak-1234";
+  const s = await fakeServer((req) => {
+    if (req.path.endsWith("/inject_env")) return { body: { data: { handles: ["#A.k", "#B.k"], keys: ["A_K", "B_K"] } } };
+    if ((req.body as { handle: string }).handle === "#A.k") return { body: { data: { filled: false, field: "k", where: "host", value: VALUE } } };
+    return { status: 500, body: { error: { code: "internal.unexpected", message: `could not read #B.k (the other value was ${VALUE})`, retryable: false, traceId: "d".repeat(32), next: [] } } };
+  });
+  const ok = await fakeServer((req) => req.path.endsWith("/inject_env") ? { body: { data: { handles: ["#A.k"], keys: ["A_K"] } } } : { body: { data: { filled: false, field: "k", where: "host", value: VALUE } } });
+  try {
+    const t = mkIo(target(s.url, dir));
+    assert.equal(await main(["run", "--env", "fld_x", "--", process.execPath, "-e", "0"], t.io), 1);
+    assert.ok(!t.err().includes(VALUE) && !t.out().includes(VALUE), t.err());
+    const launch = mkIo(target(ok.url, dir));
+    assert.equal(await main(["run", "--env", "fld_x", "--", path.join(dir, `no-such-${VALUE}`)], launch.io), 127);
+    assert.ok(!launch.err().includes(VALUE) && !launch.out().includes(VALUE), launch.err());
+  } finally { await s.close(); await ok.close(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 test("the output scrubber removes a value that arrives in two pieces", () => {
   const out: string[] = [];
   const sc = scrubber(["sk-secret-123"], (t) => out.push(t));

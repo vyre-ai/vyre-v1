@@ -129,6 +129,23 @@ test("inject_env refuses, naming both items, when the prefixed name is taken too
   h.cleanup();
 });
 
+test("each value `vyre run --env` fetches (fill with returnValue) is a use in the item's history and a vault.used event, with the person as the actor, and no value is written anywhere", async () => {
+  const h = harness();
+  const f = await folder(h);
+  const id = await put(h, f, "Dana Lawmatics");
+  u.configureVault(null);
+  const inj = out(await u.injectEnv(h.ctx, { folderId: f, purpose: "vyre run --env" }));
+  for (const handle of inj.handles as string[]) await u.fill(h.ctx, { handle, target: { kind: "env", ref: "vyre-run" }, returnValue: true });
+  const hist = out(await v.itemHistory(h.ctx, { itemId: id })).entries as Json[];
+  const used = hist.filter((e) => e.action === "used");
+  assert.ok(used.length >= 3, "one for the injection and one per field fetched");
+  assert.deepEqual([...new Set(used.map((e) => JSON.stringify(e.actor)))], [JSON.stringify({ kind: "person", id: MAYA })], "the person is the actor");
+  assert.deepEqual(used.map((e) => e.field).filter(Boolean).sort(), ["api_key", "username"]);
+  assert.equal(h.named("vault.used").length, 3);
+  assert.ok(!h.everything().includes(SECRET), "no value in the database, events or logs");
+  h.cleanup();
+});
+
 test("export_env seals a .env under the filler, keeps only the token hash, expires, revokes and notifies the folder", async () => {
   const h = harness();
   const f = await folder(h);

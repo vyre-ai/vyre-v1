@@ -9,7 +9,8 @@
 #   vyre-server claim-link                  print the one-time link that claims a fresh Space as its owner (valid 24 hours; each start makes a new one)
 #   vyre-server update [--check] [--yes]    read the channel's signed manifest; if it names a newer version: back up the data, switch, check health, roll back on failure
 #   vyre-server rollback                    switch back to the previous release (code only; data written by the newer one stays)
-#   vyre-server backup                      write a backup of the data directory to $VYRE_DIR/backups (the server is stopped for it)
+#   vyre-server backup                      write a backup of the data directory to $VYRE_DIR/backups (the server keeps running)
+#   vyre-server restore FILE [--yes]        put a backup back: checks it, backs up the current data, stops, restores, starts, checks health
 #   vyre-server version
 #
 # Environment: VYRE_DIR (found from this script when unset).
@@ -29,6 +30,7 @@ YES=0
 TMP=""
 LOCKDIR=""
 STAGE=""
+RSTAGE=""
 WANT=""
 WANT_SHA256=""
 CHANNEL=$(cat "$DIR/channel" 2>/dev/null || printf stable)
@@ -40,7 +42,7 @@ KEEP_RELEASES=3
 
 say() { printf '%s\n' "$*"; }
 die() { printf 'vyre-server: %s\n' "$*" >&2; exit "${2:-1}"; }
-cleanup() { [ -z "$TMP" ] || rm -rf "$TMP"; [ -z "${STAGE:-}" ] || rm -rf "$STAGE"; [ -z "${LOCKDIR:-}" ] || rm -f "$LOCKDIR/pid"; rmdir "$LOCKDIR" 2>/dev/null || true; return 0; }
+cleanup() { [ -z "$TMP" ] || rm -rf "$TMP"; [ -z "${STAGE:-}" ] || rm -rf "$STAGE"; [ -z "${RSTAGE:-}" ] || rm -rf "$RSTAGE"; [ -z "${LOCKDIR:-}" ] || rm -f "$LOCKDIR/pid"; rmdir "$LOCKDIR" 2>/dev/null || true; return 0; }
 
 # BEGIN diskcheck
 # disk_encrypted DIR: 0 when the volume that holds DIR is encrypted, 1 when it is not, 2 when it cannot be told.
@@ -403,21 +405,54 @@ stage_copy() {
   rm -f "$list"
 }
 
-# backup_fail MESSAGE: remove the partial backup, put the server back as it was (it was stopped for the backup), then stop with MESSAGE.
+# data_volumes: the Docker volumes that are the Space's data folder (a local volume bound to $DATA_DIR/space).
+data_volumes() {
+  docker volume ls -q 2>/dev/null | while IFS= read -r v; do
+    dev=$(docker volume inspect -f '{{index .Options "device"}}' "$v" 2>/dev/null || true)
+    [ "$dev" != "$DATA_DIR/space" ] || printf '%s\n' "$v"
+  done
+}
+
+# stop_strays: `dc stop` stops what compose runs. Anything else with the data folder mounted (a container started outside compose) would still be writing, so it is stopped
+# too, by name in the output, and written to state/stopped-strays for resume_strays to start again.
+stop_strays() {
+  : >"$DIR/state/stopped-strays" 2>/dev/null || { mkdir -p "$DIR/state"; : >"$DIR/state/stopped-strays"; }
+  ids=""
+  for v in $(data_volumes) "$DATA_DIR/space"; do
+    ids="$ids $(docker ps -q --filter "volume=$v" 2>/dev/null || true)"
+  done
+  for id in $(printf '%s\n' $ids | sort -u); do
+    nm=$(docker inspect -f '{{.Name}}' "$id" 2>/dev/null | sed 's|^/||')
+    say "  Stopping $nm too: it was still running against the data folder after the server stopped."
+    docker stop "$id" >/dev/null 2>&1 && printf '%s\n' "$id" >>"$DIR/state/stopped-strays"
+  done
+  return 0
+}
+resume_strays() {
+  [ -f "$DIR/state/stopped-strays" ] || return 0
+  while IFS= read -r id; do [ -z "$id" ] || docker start "$id" >/dev/null 2>&1 || true; done <"$DIR/state/stopped-strays"
+  rm -f "$DIR/state/stopped-strays"
+  return 0
+}
+
+# backup_fail MESSAGE: remove the partial backup, put the server back as it was (it was stopped for the backup unless the backup was live), then stop with MESSAGE.
 backup_fail() {
   rm -rf "$out.part" "${STAGE:-/nonexistent-stage}"; STAGE=""
-  dc up -d --remove-orphans >/dev/null 2>&1 || true
+  if [ "${BACKUP_MODE:-stopped}" = stopped ]; then dc up -d --remove-orphans >/dev/null 2>&1 || true; resume_strays; fi
   die "$1"
 }
 
+# backup_data TAG [live]: without `live` the server is stopped first (an update wants the data still while it switches); with `live` it keeps running, and every database is
+# still one consistent snapshot (VACUUM INTO reads a single transaction while writers go on).
 backup_data() {
-  mkdir -p "$DIR/backups"
+  BACKUP_MODE=${2:-stopped}
+  mkdir -p "$DIR/backups" "$DIR/state"
   chmod 0700 "$DIR/backups"
   out="$DIR/backups/vyre-$1-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
   need_mb=$(du -sm "$DATA_DIR/space" "$DATA_DIR/caddy" 2>/dev/null | awk '{ n += $1 } END { print n + 0 }')
   free_mb=$(df -Pm "$DIR/backups" | awk 'NR==2 {print $4}')
   [ "${free_mb:-0}" -gt "$((need_mb * 2 + 256))" ] || die "not enough room for a backup ($need_mb MB of data, $free_mb MB free); nothing was changed."
-  dc stop >/dev/null || true
+  if [ "$BACKUP_MODE" = stopped ]; then dc stop >/dev/null || true; stop_strays; fi
   umask 077
   STAGE=$(mktemp -d "$DIR/backups/.stage.XXXXXX") || backup_fail "could not make room to stage the backup; nothing was changed."
   stage_copy "$DATA_DIR/space" "$STAGE/space" || backup_fail "the backup could not be written (a database would not copy cleanly); nothing was changed."
@@ -431,11 +466,80 @@ backup_data() {
   BACKUP_FILE=$out
 }
 
+# The server keeps running for a plain backup: nothing is stopped, nothing needs starting.
 cmd_backup() {
   lock_update_operation
-  backup_data manual
-  dc up -d --remove-orphans --wait --wait-timeout "${VYRE_UP_WAIT:-180}" >/dev/null
+  backup_data manual live
   say "Backup written: $BACKUP_FILE"
+}
+
+# restore_check FILE DEST: the backup is a tar.gz of space/ and caddy/ only, no links, no path outside, and every database in it opens and passes integrity_check. Unpacked into DEST.
+restore_check() {
+  [ -f "$1" ] || die "no such backup file: $1"
+  tar -tzf "$1" >/dev/null 2>&1 || die "$1 is not a readable backup (not a gzip tar, or cut short); nothing was changed."
+  tar -tzf "$1" | awk '{ if ($0 ~ /^\// || $0 ~ /(^|\/)\.\.(\/|$)/ || ($0 != "space" && $0 != "space/" && $0 != "caddy" && $0 != "caddy/" && $0 !~ /^(space|caddy)\//)) bad = 1 } END { exit bad }' || die "$1 does not look like a Vyre Server backup (it holds paths other than space/ and caddy/); nothing was changed."
+  tar -tvzf "$1" | awk '$1 ~ /^[lh]/ { bad = 1 } END { exit bad }' || die "$1 holds a link; nothing was changed."
+  tar -tzf "$1" | grep -q '^space/events\.db$' || die "$1 has no space/events.db; it is not a backup of a Space; nothing was changed."
+  mkdir -p "$2"
+  tar -xzf "$1" -C "$2" || die "$1 could not be unpacked (cut short?); nothing was changed."
+  [ -d "$2/space" ] || die "$1 has no space folder; nothing was changed."
+  [ -d "$2/caddy" ] || mkdir -p "$2/caddy"
+  list=$2/.dblist
+  find "$2/space" -type f \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) >"$list"
+  while IFS= read -r f; do
+    is_sqlite "$f" || continue
+    sqlite_check "$f" || die "a database in the backup fails integrity_check ($f); nothing was changed."
+  done <"$list"
+  rm -f "$list"
+}
+
+# sqlite_check DB: integrity_check is ok (sqlite3 tool, else node, else the server image).
+sqlite_check() {
+  if command -v sqlite3 >/dev/null 2>&1; then [ "$(sqlite3 "$1" 'PRAGMA integrity_check' 2>/dev/null)" = ok ]; return; fi
+  if command -v node >/dev/null 2>&1 && node --no-warnings -e "require('node:sqlite')" >/dev/null 2>&1; then
+    node --no-warnings -e 'const{DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});process.exit(d.prepare("PRAGMA integrity_check").get().integrity_check==="ok"?0:1)' "$1"; return
+  fi
+  img=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  [ -n "$img" ] || return 1
+  docker run --rm --network none --user 1000:1000 -v "$(dirname "$1"):/in:ro" --entrypoint node "$img" -e 'const{DatabaseSync}=require("node:sqlite");const d=new DatabaseSync(process.argv[1],{readOnly:true});process.exit(d.prepare("PRAGMA integrity_check").get().integrity_check==="ok"?0:1)' "/in/$(basename "$1")"
+}
+
+cmd_restore() {
+  file=""; yes=0
+  for a in "$@"; do case "$a" in --yes|-y) yes=1 ;; -*) die "restore takes a backup file and --yes" 2 ;; *) [ -z "$file" ] || die "restore takes one backup file" 2; file=$a ;; esac; done
+  [ -n "$file" ] || die "restore needs the backup file: vyre-server restore FILE" 2
+  lock_update_operation
+  RSTAGE=$(mktemp -d "$DATA_DIR/.restore.XXXXXX") || die "could not make room to unpack the backup; nothing was changed."
+  restore_check "$file" "$RSTAGE"
+  if [ "$yes" != 1 ]; then
+    [ -t 0 ] || die "restore replaces the Space's data; run it from a terminal, or pass --yes. Nothing was changed."
+    printf 'This replaces the data of this server with %s. A backup of the current data is taken first. Type yes to go on: ' "$file"
+    read -r answer || answer=""
+    [ "$answer" = yes ] || die "not confirmed; nothing was changed."
+  fi
+  say "  Backing up the current data first"
+  backup_data pre-restore
+  say "  Backed up to $BACKUP_FILE"
+  ts=$(date -u +%Y%m%dT%H%M%SZ)
+  mv "$DATA_DIR/space" "$DATA_DIR/space.replaced-$ts" || { dc up -d --remove-orphans >/dev/null 2>&1 || true; resume_strays; die "could not move the current data aside; nothing was changed."; }
+  if [ -d "$DATA_DIR/caddy" ]; then mv "$DATA_DIR/caddy" "$DATA_DIR/caddy.replaced-$ts"; fi
+  mv "$RSTAGE/space" "$DATA_DIR/space" && mv "$RSTAGE/caddy" "$DATA_DIR/caddy" || restore_undo "$ts" "could not put the backup in place"
+  dc up -d --remove-orphans >/dev/null 2>&1 || restore_undo "$ts" "the server did not start on the restored data"
+  wait_healthy || restore_undo "$ts" "the server did not pass its health check on the restored data"
+  resume_strays
+  rm -rf "$DATA_DIR/space.replaced-$ts" "$DATA_DIR/caddy.replaced-$ts" "$RSTAGE"; RSTAGE=""
+  say "Restored from $file. The data it replaced is in $BACKUP_FILE."
+}
+
+# restore_undo TS WHY: put the data that was there back, start the server, and stop with WHY.
+restore_undo() {
+  dc stop >/dev/null 2>&1 || true
+  rm -rf "$DATA_DIR/space" "$DATA_DIR/caddy"
+  mv "$DATA_DIR/space.replaced-$1" "$DATA_DIR/space"
+  if [ -d "$DATA_DIR/caddy.replaced-$1" ]; then mv "$DATA_DIR/caddy.replaced-$1" "$DATA_DIR/caddy"; else mkdir -p "$DATA_DIR/caddy"; fi
+  dc up -d --remove-orphans >/dev/null 2>&1 || true
+  resume_strays
+  die "$2; the data that was there before is back. Backup of it: $BACKUP_FILE"
 }
 
 record_update() {
@@ -574,6 +678,7 @@ cmd_update() {
   elif ! wait_healthy; then reason="the new version did not pass its health check"
   fi
   secs=$(( $(date +%s) - started ))
+  resume_strays
   if [ -z "$reason" ]; then
     # Only a healthy install changes the daily updater's selected feed.
     printf '%s\n' "$CHANNEL" >"$DIR/channel"
@@ -614,7 +719,7 @@ cmd_rollback() {
 
 main() {
   trap cleanup EXIT
-  [ $# -gt 0 ] || { sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+  [ $# -gt 0 ] || { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
   cmd=$1; shift
   case "$cmd" in
     doctor) cmd_doctor "$@" ;;
@@ -627,8 +732,9 @@ main() {
     update) cmd_update "$@" ;;
     rollback) cmd_rollback ;;
     backup) cmd_backup ;;
+    restore) cmd_restore "$@" ;;
     version|--version) say "$(cur_version)" ;;
-    -h|--help|help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//' ;;
+    -h|--help|help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' ;;
     *) die "unknown command $cmd (try: vyre-server help)" 2 ;;
   esac
 }
