@@ -4,8 +4,11 @@
 // (Claude Code's manifest.json and manifest.zst.json, the digests GitHub shows on a Codex release; Grok publishes none, so its sums were taken from the files and matched against a copy xAI's own installer
 // put on a Mac), and write all four numbers.
 
-/** The computers Vyre installs engines on. A Linux built against musl (Alpine) is its own entry: Claude Code ships a separate build for it; Codex and Grok are static, so the same file serves both. */
-export type EnginePlatform = "darwin-arm64" | "darwin-x64" | "linux-x64" | "linux-arm64" | "linux-x64-musl" | "linux-arm64-musl";
+/**
+ * The computers Vyre installs engines on. A Linux built against musl (Alpine) is its own entry: Claude Code ships a separate build for it; Codex and Grok are static, so the same file serves both.
+ * Windows builds are programs ending in .exe (engine-install.ts programFile).
+ */
+export type EnginePlatform = "darwin-arm64" | "darwin-x64" | "linux-x64" | "linux-arm64" | "linux-x64-musl" | "linux-arm64-musl" | "win32-x64" | "win32-arm64";
 
 export interface EngineBuild {
   /** The vendor's file: the program, compressed with zstd. */
@@ -25,8 +28,8 @@ export interface EnginePin {
   builds: Readonly<Partial<Record<EnginePlatform, EngineBuild>>>;
 }
 
-const claude = (platform: string, size: number, sha256: string, binarySize: number, binarySha256: string): EngineBuild =>
-  ({ url: `https://downloads.claude.ai/claude-code-releases/2.1.316/${platform}/claude.zst`, size, sha256, binarySize, binarySha256 });
+const claude = (platform: string, size: number, sha256: string, binarySize: number, binarySha256: string, file = "claude.zst"): EngineBuild =>
+  ({ url: `https://downloads.claude.ai/claude-code-releases/2.1.316/${platform}/${file}`, size, sha256, binarySize, binarySha256 });
 const codex = (triple: string, size: number, sha256: string, binarySize: number, binarySha256: string): EngineBuild =>
   ({ url: `https://github.com/openai/codex/releases/download/rust-v0.166.0/codex-${triple}.zst`, size, sha256, binarySize, binarySha256 });
 const grok = (platform: string, size: number, sha256: string, binarySize: number, binarySha256: string): EngineBuild =>
@@ -47,6 +50,9 @@ export const ENGINE_PINS: Readonly<Record<EnginePin["program"], EnginePin>> = Ob
       "linux-arm64": claude("linux-arm64", 117001734, "d4ed34a7ecd889497fccc0951c869867b2369196804e3d83b8e486d424b973e1", 328459544, "55cdb8e162d190432696ea54010e0fca2e18d06fa7a7127fd563b9ffd4f22624"),
       "linux-x64-musl": claude("linux-x64-musl", 113886207, "113294cd5db89a1a8b94406622cbe2b663a7c922a43b2e0d44bfd7d93d931438", 314779944, "8bc3d015479b8b87dfde3f69f9bdb96c658758a8eb31892fd8fbece8d8a08bcf"),
       "linux-arm64-musl": claude("linux-arm64-musl", 112468657, "de9af064a067f4c2944c65751f76b671c1228465c271a8e1773ac65598ca04cc", 311914480, "d774cb39055cff62af476af32702f1fc4f888a7e395a37434a95d6f5a98818a0"),
+      // manifest.zst.json (claude.exe.zst) and manifest.json (claude.exe) of 2.1.316; the downloads were checked against both
+      "win32-x64": claude("win32-x64", 122064664, "26af66d4fa70e980047d54c85140579de0271d79a9257ac467f90a0ecdca528d", 335469216, "e896a9d8da519353a49bf69ca4a695ba7e09067752687c675b3969041e632d52", "claude.exe.zst"),
+      "win32-arm64": claude("win32-arm64", 115553923, "fc420bf59ecf1f27bdf8aff5d06dc6ed01187f6ada3f71411ce45ce392f210fb", 315967648, "a44168f2360bf21709855321b25f1eeb021de8a8d4be5d25a8b397dcbf9043f8", "claude.exe.zst"),
     },
   },
   codex: {
@@ -56,6 +62,9 @@ export const ENGINE_PINS: Readonly<Record<EnginePin["program"], EnginePin>> = Ob
       "darwin-x64": codex("x86_64-apple-darwin", 84411155, "54de013d725a174ae86d8a3692c46ffa8ae6f9158fc4d5c1155307f17206e116", 289445104, "1361e18268866b7f9f5e8703fabcea0a2a990a439eedcce03940abb4ba9eaaeb"),
       "linux-x64": CODEX_LINUX_X64, "linux-x64-musl": CODEX_LINUX_X64,
       "linux-arm64": CODEX_LINUX_ARM64, "linux-arm64-musl": CODEX_LINUX_ARM64,
+      // the digests GitHub shows for codex-<triple>.exe.zst and codex-<triple>.exe; the downloads were checked against both
+      "win32-x64": codex("x86_64-pc-windows-msvc.exe", 91527326, "5aa3c88e75bd0c843c48e2fe7062999546f0d3094a3361659c2d731dfdf84960", 371735856, "9d563ee4e0441ff9d59d612013e0460ddf8e5709735c2d9f6b98b7ef8ca4eb42"),
+      "win32-arm64": codex("aarch64-pc-windows-msvc.exe", 84641843, "c87aa6cd5e52b782fe656321847dce0633d1fb7dc51f5f1fbe58f32975d31b1b", 313027888, "d92bb6a3259980a742049882f396eb09eb26734589accc7f2c5173b7ab926138"),
     },
   },
   grok: {
@@ -65,6 +74,9 @@ export const ENGINE_PINS: Readonly<Record<EnginePin["program"], EnginePin>> = Ob
       "darwin-x64": grok("macos-x86_64", 57935399, "9b47b294f70df257e73536dcf1a52bfa034861961d47dec153980771f4f55506", 193578304, "d9ecd462f1f3c3b40a7a131944987ee7ed1c38069b7009cc4107398ab767f484"),
       "linux-x64": GROK_LINUX_X64, "linux-x64-musl": GROK_LINUX_X64,
       "linux-arm64": GROK_LINUX_ARM64, "linux-arm64-musl": GROK_LINUX_ARM64,
+      // taken from the files (xAI publishes no sums); the .exe.zst unpacks to the same bytes as the plain .exe its own installer fetches
+      "win32-x64": grok("windows-x86_64.exe", 52172755, "cc69e42ea18aeb73ca90015139ddc01e1969d34e02a0cdda75803eb78c84587a", 176011920, "1e03c16cf2bd4626a79d6b1ea1430f88c38e0c8ec75edd283a60de11296ba326"),
+      "win32-arm64": grok("windows-aarch64.exe", 49847430, "3d69574f1499813a38c88b476e4941767821ce99e0161e2da0f8de61693d1af7", 149485200, "0e3584b6ab8df12e480c1b9ef37f26330b68c080b50bdb7b2f386de8133bc6c0"),
     },
   },
 });

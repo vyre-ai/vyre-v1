@@ -34,7 +34,7 @@ import { onTurnEnded, resumeTasks } from "./handlers/task-baton.ts";
 import { ensureExtra } from "./handlers/extra/schema.ts";
 import { createKeepAwake } from "./keep-awake.ts";
 import { coalesceLive } from "./live-coalesce.ts";
-import { defaultSandbox, egressPolicyOf, wallEgress } from "./sandbox-default.ts";
+import { cliSandboxGap, defaultSandbox, egressPolicyOf, wallEgress } from "./sandbox-default.ts";
 import { EGRESS_SETTING, recordEgress } from "./egress-log.ts";
 import type { AccessAsked, EgressRule } from "../../sandbox/src/index.ts";
 import { closePluginRuntime, pluginRuntime } from "./plugin-host.ts";
@@ -152,6 +152,8 @@ function runnableAccount(h: EngineHostSeam): (q: AccountQuery) => Promise<Resolv
   return createRunnableAccount({
     call: h.call, resolve, ...(h.cli?.command ? { command: h.cli.command } : {}), ...(h.cli?.probe ? { probe: h.cli.probe } : {}),
     ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}), ...(engines() ? { engines: engines()! } : {}),
+    // the host's own sandbox plan decides where it gives one; otherwise this computer's (sandbox-default.ts)
+    ...(h.sandbox ? {} : { unsandboxed: () => cliSandboxGap() }),
   });
 }
 
@@ -308,7 +310,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   // a turn whose engine Vyre is installing says so on its live line ("Setting up Codex"); the line is the bridge's, which exists once the runtime is built below
   let setupLine: ((e: StreamEvent) => void) | null = null;
   const installer = engines();
-  const baseOpen = host.openSession ?? checkedOpen((opener as NonNullable<typeof opener>).openSession, { ...(host.cli?.command ? { command: host.cli.command } : {}), ...(host.cli?.probe ? { probe: host.cli.probe } : {}), ...(installer ? { engines: installer } : {}), live: (e) => setupLine?.(e) });
+  const baseOpen = host.openSession ?? checkedOpen((opener as NonNullable<typeof opener>).openSession, { ...(host.cli?.command ? { command: host.cli.command } : {}), ...(host.cli?.probe ? { probe: host.cli.probe } : {}), ...(installer ? { engines: installer } : {}), ...(host.sandbox ? {} : { unsandboxed: () => cliSandboxGap() }), live: (e) => setupLine?.(e) });
   // a turn the person pinned to one of their servers opens through that server's opener; everything else opens as before
   const nodeOpeners = new Map<string, ReturnType<typeof buildNodeOpener>>();
   const openerHost = { ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, egress: { rule: egress.rule }, access };

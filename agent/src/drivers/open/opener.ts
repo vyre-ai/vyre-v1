@@ -50,9 +50,9 @@ export interface SessionOpenerDeps {
   mcp: McpPort;
   /**
    * Sandboxed engines (ruling 61): called after the MCP session is minted; returns the stdio command the engine runs as its Vyre MCP server (a shim that talks to a socket bind-mounted into the
-   * sandbox) and how to close the bridge. The token stays in the process environment (VYRE_MCP_TOKEN); the shim sends it on each request. Omitted: the engine uses the loopback URL.
+   * sandbox) and how to close the bridge. The token stays in the process environment (VYRE_MCP_TOKEN); the shim sends it on each request. Omitted, or answering null: the engine uses the loopback URL.
    */
-  mcpBridge?(m: { url: string; token: string }, spec: OpenerSpec): Promise<{ stdio: { command: string; args: string[] }; close(): Promise<void> }>;
+  mcpBridge?(m: { url: string; token: string }, spec: OpenerSpec): Promise<{ stdio: { command: string; args: string[] }; close(): Promise<void> } | null>;
   /** Before a CLI engine starts: put what it reads from its folder in place (the memory guide as CLAUDE.md and AGENTS.md). A failure never stops the session. */
   prepare?(spec: OpenerSpec): Promise<void>;
   /** Plugins installed on the agent, written into a Claude Code or Codex engine's own config in its work folder (modules/engine/plugin-native.ts). A secret goes by Vault handle through the fill. */
@@ -110,6 +110,8 @@ export function createSessionOpener(d: SessionOpenerDeps): SessionOpener {
     minted.set(m.sessionToken, m.sessionId);
     if (!d.mcpBridge) return { url: m.url, token: m.sessionToken };
     const bridge = await d.mcpBridge({ url: m.url, token: m.sessionToken }, spec);
+    // null: this sandbox reaches the loopback endpoint itself (a Windows Personal Space)
+    if (bridge === null) return { url: m.url, token: m.sessionToken };
     sockets.set(m.sessionToken, bridge.close);
     return { url: m.url, token: m.sessionToken, stdio: bridge.stdio };
   }

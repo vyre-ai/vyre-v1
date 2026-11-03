@@ -11,6 +11,7 @@ import type { NodeCliProbe } from "./cli-programs.ts";
 import { EngineInstallError, configureEngines, enginesRoot } from "./engine-install.ts";
 import type { EngineInstaller } from "./engine-install.ts";
 import { defaultPlan } from "./runtime.ts";
+import { cliSandboxGap } from "./sandbox-default.ts";
 import { ownedArgv, spawnCli } from "./session.ts";
 
 /** The engines the report checks for. Grok is left out: current images bake it, and a server without it installs it the first time a turn needs it (engine-install.ts), as it would any of these. */
@@ -36,7 +37,11 @@ export function nodeCliReport(o: NodeCliProbe = {}): NodeCliReport {
     const ok = (o.bwrapPaths ?? BWRAP).some((p) => exists(p));
     sandbox = ok ? { ok, kind: "bwrap" } : { ok, kind: "bwrap", reason: "bubblewrap (bwrap) is not installed on this server" };
   } else if (platform === "darwin") sandbox = { ok: true, kind: "seatbelt" };
-  else sandbox = { ok: false, kind: "none", reason: `engines cannot be sandboxed on ${platform}` };
+  else if (platform === "win32") {
+    // Windows runs the engine at Low integrity in a Job Object (sandbox/src/win), which needs the compiler Windows ships: a Windows computer reports its engines, and Automatic can pick it
+    const gap = cliSandboxGap({ platform });
+    sandbox = gap === null ? { ok: true, kind: "lowil" } : { ok: false, kind: "lowil", reason: gap };
+  } else sandbox = { ok: false, kind: "none", reason: `engines cannot be sandboxed on ${platform}` };
   const missing = [
     ...NODE_ENGINES.filter((n) => programs[n] === null).map((n) => `${n} is not installed on this server`),
     ...(sandbox.ok ? [] : [sandbox.reason ?? "no sandbox is available on this server"]),

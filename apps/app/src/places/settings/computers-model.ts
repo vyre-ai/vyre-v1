@@ -39,6 +39,13 @@ export function factsLine(f: ServerInfo["facts"]): string {
 }
 
 /** The note under a row: how many agent computers it holds, or why it cannot hold one. */
+/** How Claude Code, Codex and Grok run on this computer, in the computer's details, where it is not the Mac's or Linux's full sandbox (owner ruling 3 Nov 2026). */
+export const PERSONAL_WINDOWS_LINE = "Personal: the AI can read this computer like Claude Code does; it can only change your added folders.";
+/** The line for This computer: the desktop app on Windows runs a Personal Space's CLI engines at Low integrity (sandbox/src/win). */
+export function engineLine(o: { desktop: boolean; userAgent: string }): string {
+  return o.desktop && /\bWindows\b/.test(o.userAgent) ? PERSONAL_WINDOWS_LINE : "";
+}
+
 export function runsLine(h: Pick<HostInfo, "runs" | "canRun" | "reason">): string {
   if (h.runs > 0) return h.runs === 1 ? "1 agent computer" : `${h.runs} agent computers`;
   return h.canRun ? "" : h.reason ?? "";

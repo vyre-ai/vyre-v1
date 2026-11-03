@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { createEgressProxy } from "../egress.ts";
 import type { EgressOptions } from "../egress.ts";
+import { MAX_SOCKET_PATH, shortTempRoot } from "../sock.ts";
 import { SandboxError } from "../types.ts";
 import type { EgressRule } from "../egress-policy.ts";
 import { BRIDGE_SOURCE, CONNECT_SOURCE } from "./guest.ts";
@@ -20,7 +21,7 @@ export interface NetWallOptions {
   rule?: EgressRule;
   /** How the proxy resolves and connects, and who watches. Default: the system's. */
   egress?: Partial<EgressOptions>;
-  /** Where to make the folder. Default: the system's temp folder. Linux hosts only (a unix socket path must stay under 100 characters). */
+  /** Where to make the folder. Default: the system's temp folder, or /tmp when that is too long for a unix socket path (sandbox/src/sock.ts). Linux hosts only. */
   baseDir?: string;
 }
 
@@ -33,10 +34,11 @@ export interface NetWall {
   close(): Promise<void>;
 }
 
-const MAX_SOCKET_PATH = 100;
-
 export async function startNetWall(o: NetWallOptions): Promise<NetWall> {
-  const dir = fs.realpathSync(fs.mkdtempSync(path.join(o.baseDir ?? os.tmpdir(), "vyre-net-")));
+  // a long TMPDIR (or a long base a caller gave) must not break the socket: the folder goes under a short temp root instead
+  const fits = (base: string): boolean => Buffer.byteLength(path.join(base, "vyre-net-XXXXXX", "proxy.sock")) <= MAX_SOCKET_PATH;
+  const asked = o.baseDir ?? os.tmpdir();
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(fits(asked) ? asked : shortTempRoot(asked), "vyre-net-")));
   const socket = path.join(dir, "proxy.sock");
   if (Buffer.byteLength(socket) > MAX_SOCKET_PATH) {
     fs.rmSync(dir, { recursive: true, force: true });
