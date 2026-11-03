@@ -1,7 +1,7 @@
 - The golden job is split into two shards (golden-1 and golden-2), each with its own 5 minute cap; the required golden check passes only when both shards pass. The hourly main run does the same.
 - A release version bump no longer misses the CI dependency cache: the project's own version is left out of the cache key.
 - The release publish step can be run again after a cut run: files already on the release with the right size and checksum are skipped, half-written ones are replaced, big files upload side by side, and the channel manifest (beta.json) is always uploaded last.
-- The seed speed test (schema seed.perf) holds its 200 ms budget to the fastest of five rounds after a warm-up round, so one slow disk flush on a shared host no longer fails it.
+- The seed speed test (schema seed.perf) holds its 200 ms budget to the median of five rounds after a warm-up round, so one slow disk flush on a shared host no longer fails it.
 - Two daemons in one process: when a second engine host half is wired over the first, the first one's opener (CLI sessions, MCP socket, egress proxy) is now closed, and its host half is told to wait for it.
 - portal.live test: seven daemon boots became three (one shared by the tests that can share, one for the rate limit test, one for the landing page test); the file runs in 15 s instead of 29 s on the same host.
 - The nightly perf file perf/server/server.test.ts is split into three files (load, write, sockets) with a shared support module, each its own perf entry in test/slow.json with the same 120 s cap and the same assertions. They share the seed template cache of the host instead of each building the full 100k contact Space.
