@@ -281,6 +281,18 @@ export function uniqueHandle(ctx: Pick<VaultCtx, "db">, name: string, except?: s
   return h;
 }
 
+/** The folder company keys live in. */
+export const COMPANY_FOLDER = "Company connections";
+
+/** The Restricted shared folder for company keys: the one there is, else made now (through the host, so it is a resource at once), labelled Restricted before anything goes in. Labelling needs an owner or admin. */
+async function companyFolder(ctx: VaultCtx, idem: string): Promise<string> {
+  const have = rowsOf(ctx.db.all(`SELECT * FROM vault_folder WHERE "name" = ?`, COMPANY_FOLDER)).find((f) => (f["deleted_at"] === null || f["deleted_at"] === undefined) && str(f, "scope") === "shared");
+  const id = have ? str(have, "id") : String(((await ctx.call("vault.folders.create", { name: COMPANY_FOLDER, scope: "shared", idempotencyKey: `${idem}:company-folder` })) as { folder: { id: string } }).folder.id);
+  try { await ctx.call("access.labels.set", { resource: { type: "vault_folder", id }, label: "restricted" }); }
+  catch { return refuse(ctx, "A company key is kept in the Restricted Company connections folder, which only an owner or admin can set up. Ask one of them to add it."); }
+  return id;
+}
+
 export async function itemPut(ctx: VaultCtx, input: {
   folderId: string; name: string; kind: string; fields: unknown[]; template?: string; spaceOnly?: boolean; injectIntoDeployments?: boolean; rotateEveryDays?: number; idempotencyKey: string;
 }) {
@@ -293,7 +305,10 @@ export async function itemPut(ctx: VaultCtx, input: {
   if (fields.length === 0) bad(ctx, "An item needs at least one field.");
   for (const [k, v] of [["spaceOnly", input.spaceOnly], ["injectIntoDeployments", input.injectIntoDeployments]] as const) if (v !== undefined && typeof v !== "boolean") bad(ctx, `${k} is true or false.`);
   if (input.rotateEveryDays !== undefined && (!isInt(input.rotateEveryDays) || input.rotateEveryDays < 1)) bad(ctx, "The rotation reminder is a whole number of days.");
-  const folder = liveFolder(ctx, input.folderId);
+  // a company key (Google delegation, the Microsoft app, a sign-in app's secret) is filed in the Restricted "Company connections" folder whoever puts it and whichever shared folder they named, so a
+  // member with Edit on that folder can never reveal a key that reads every mailbox (vault audit, Broken 8)
+  const asked = liveFolder(ctx, input.folderId);
+  const folder = str(asked, "scope") === "shared" && isCompanyKey(handleOf(name)) ? liveFolder(ctx, await companyFolder(ctx, input.idempotencyKey)) : asked;
   const scope = str(folder, "scope") === "mine" ? "mine" : "shared";
   if (scope === "mine" && str(folder, "owner") !== ctx.principal.id) throw fail("validation.not_found", ctx.trace.traceId, { message: "That folder is not in this Vault." });
   if (scope === "shared" && !atLeast(levelOn(ctx, "vault_folder", str(folder, "id")), "edit") && str(folder, "owner") !== ctx.principal.id) return denied(ctx, "Adding to this folder needs edit access.");
