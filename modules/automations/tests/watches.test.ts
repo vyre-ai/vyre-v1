@@ -55,6 +55,7 @@ test("a change is told in the watch's chat with what it was and what it is, once
   assert.match(posts[0].body, /Acme pricing changed \(Pro price\)\.\n\nBefore: \$49 per month\nNow: \$59 per month/);
   assert.deepEqual(members.map((m) => m.personId), ["usr_bob"]);
   assert.equal(moved.watch.threadId, posts[0].threadId);
+  assert.equal(w.threadId, posts[0].threadId, "the chat was made when the watch was, by the person, so the agent in it acts for them");
   assert.deepEqual(h.events.map((e) => e.name), ["browser.watch.changed"]);
   await h.call("browser.watches.report", { watchId: w.watchId, value: "$59 per month" }, alice);
   assert.equal(posts.length, 1, "the same reading again says nothing more");

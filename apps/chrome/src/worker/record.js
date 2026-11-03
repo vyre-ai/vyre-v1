@@ -10,10 +10,11 @@
 
 import { maskedShot } from "./shot.js";
 import { BridgeFailure } from "./protocol.js";
-import { applyEdits, buildSkill, inputsOf, words } from "./skill.js";
+import { applyEdits, buildSkill, cleanUrl, inputsOf, words } from "./skill.js";
 
 export const MAX_STEPS = 60;
 const SHOT = { maxW: 520, quality: 0.55 };
+const SHOT_GAP_MS = 600;
 /** A page change this soon after a click or a key is that action's result, not a step of its own. */
 const CAUSED_MS = 2500;
 /** A username typed this recently before a password is part of the same sign-in. */
@@ -29,9 +30,9 @@ const KEEP_FINISHED = 6;
 function hostOf(u) { try { return new URL(String(u)).hostname.replace(/^www\./, ""); } catch { return ""; } }
 
 /**
- * @param {{ ext: any, bridge: { invoke(c: string, i?: any): Promise<any>, op(o: string, i?: any): Promise<any> }, privacy: { of(tab: any): Promise<any> }, now?: () => number, shot?: typeof maskedShot }} deps
+ * @param {{ ext: any, bridge: { invoke(c: string, i?: any): Promise<any>, op(o: string, i?: any): Promise<any> }, privacy: { of(tab: any): Promise<any> }, now?: () => number, shot?: typeof maskedShot, sleep?: (ms: number) => Promise<void> }} deps
  */
-export function createRecorder({ ext, bridge, privacy, now = Date.now, shot = maskedShot }) {
+export function createRecorder({ ext, bridge, privacy, now = Date.now, shot = maskedShot, sleep = (/** @type {number} */ ms) => new Promise((r) => setTimeout(r, ms)) }) {
   const area = ext.storage && ext.storage.session ? ext.storage.session : null;
   /** @type {null | { rec: Recording, tabs: number[], paused: boolean, lastActionAt: number, secret: boolean }} */
   let live = null;
@@ -82,15 +83,20 @@ export function createRecorder({ ext, bridge, privacy, now = Date.now, shot = ma
     try { await ext.scripting.executeScript({ target: { tabId, allFrames: true }, files: ["src/content/record.js"] }); } catch { /* a page we may not script */ }
   }
 
-  /** @param {Step[]} steps @param {number} tabId @param {string} url */
+  // Chrome lets an extension take two screenshots of a tab a second; a step that comes sooner waits its turn, so every step still gets its picture
+  let lastShot = 0;
+  /** @param {number} tabId */
   const picture = async (tabId) => {
+    const wait = lastShot + SHOT_GAP_MS - now();
+    if (wait > 0) await sleep(wait);
+    lastShot = now();
     try { const s = await shot(ext, tabId, SHOT); return s ? s.dataUrl : null; } catch { return null; }
   };
 
   /** @param {Partial<Step> & { kind: Step["kind"], url: string }} s @param {number} [tabId] */
   async function add(s, tabId) {
     if (!live || live.rec.steps.length >= MAX_STEPS) return null;
-    const step = /** @type {Step} */ ({ id: stepId(live.rec), host: hostOf(s.url), at: now(), shot: tabId === undefined ? null : await picture(tabId), ...s });
+    const step = /** @type {Step} */ ({ id: stepId(live.rec), host: hostOf(s.url), at: now(), shot: tabId === undefined ? null : await picture(tabId), ...s, url: cleanUrl(s.url) });
     live.rec.steps.push(step);
     live.lastActionAt = now();
     return step;
@@ -105,11 +111,12 @@ export function createRecorder({ ext, bridge, privacy, now = Date.now, shot = ma
     if (!live || live.paused || !live.tabs.includes(tabId)) return;
     const may = await privacy.of(tab);
     if (!may.read) return; // a site that is never sent is not recorded
-    const url = String(m.url || tab.url || "");
+    const url = cleanUrl(String(m.url || tab.url || ""));
     const host = hostOf(url);
     const steps = live.rec.steps;
     const last = steps[steps.length - 1];
     const recent = live.lastActionAt && now() - live.lastActionAt < LOGIN_MS;
+    live.lastActionAt = now(); // whatever the person just did, the page change that follows is its result
     switch (m.kind) {
       case "secret": {
         live.secret = true;

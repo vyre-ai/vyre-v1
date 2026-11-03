@@ -109,7 +109,16 @@ export function createWatches({ ext, bridge, privacy, now = Date.now }) {
     return (Array.isArray(out && out.watches) ? out.watches : []).filter((/** @type {any} */ w) => w.state !== "paused" && (w.checkNow || w.nextDueAt === undefined || w.nextDueAt <= t));
   }
 
+  /** Whether a watch may be made on this tab: not in incognito, not on a site that is never sent. @param {any} tab */
+  async function guard(tab) {
+    const may = await privacy.of(tab);
+    if (may.why === "incognito") throw new BridgeFailure("incognito", "");
+    if (!may.read) throw new BridgeFailure(may.why === "never" ? "never_site" : "no_page", "");
+    return may;
+  }
+
   return {
+    guard,
     /** Start the once-a-minute look. Chrome keeps the alarm across worker restarts. */
     schedule() {
       if (!ext.alarms) return;
@@ -138,9 +147,7 @@ export function createWatches({ ext, bridge, privacy, now = Date.now }) {
      * @param {any} tab @param {{ watchId?: string, title?: string, mode: "region" | "page", region?: { label: string, selector?: string }, everyMinutes: number, agentId?: string, runsOn: "computer" | "chrome", paused?: boolean }} w
      */
     async save(tab, w) {
-      const may = await privacy.of(tab);
-      if (may.why === "incognito") throw new BridgeFailure("incognito", "");
-      if (!may.read) throw new BridgeFailure(may.why === "never" ? "never_site" : "no_page", "");
+      const may = await guard(tab);
       const url = String(tab.url);
       const input = {
         ...(w.watchId ? { watchId: w.watchId } : {}), title: String(w.title || tab.title || may.host || "A page").slice(0, 200), url, mode: w.mode === "page" ? "page" : "region",
@@ -179,8 +186,7 @@ export function createWatches({ ext, bridge, privacy, now = Date.now }) {
      * @param {any} tab
      */
     async pick(tab) {
-      const may = await privacy.of(tab);
-      if (!may.read) throw new BridgeFailure(may.why === "never" ? "never_site" : may.why === "incognito" ? "incognito" : "no_page", "");
+      await guard(tab);
       return new Promise(async (resolve) => {
         pickers.set(tab.id, resolve);
         try { await ext.scripting.executeScript({ target: { tabId: tab.id }, files: ["src/content/pick.js"] }); } catch { pickers.delete(tab.id); resolve(null); }

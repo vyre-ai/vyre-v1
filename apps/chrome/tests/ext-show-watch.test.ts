@@ -5,7 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRecorder, MAX_STEPS } from "../src/worker/record.js";
-import { applyEdits, buildSkill, inputsOf, keyOf, replayOf, skillName, words } from "../src/worker/skill.js";
+import { applyEdits, buildSkill, cleanUrl, inputsOf, keyOf, replayOf, skillName, words } from "../src/worker/skill.js";
 import { createWatches, readRegion } from "../src/worker/watch.js";
 import { FREQS, agoWords, freqLabel, runsOnFor, watchLine } from "../src/ui/watch-model.js";
 import { createPrivacy } from "../src/worker/privacy.js";
@@ -37,7 +37,7 @@ async function recorder(o: { hosts?: string[]; bridge?: any } = {}) {
   const f = fakeExt();
   const calls: any[] = [];
   const bridge = o.bridge ?? { async invoke(c: string, i: any) { calls.push({ c, i }); if (c === "skills.mine.add") return { skill: { skillId: "sko_1", name: i.text.match(/^name: (.*)$/m)[1] } }; return {}; }, async op(op: string, i: any) { calls.push({ op, i }); return { threadId: "thr_9" }; } };
-  const r = createRecorder({ ext: f.ext, bridge, privacy: await never(o.hosts), now: f.now, shot: async () => ({ dataUrl: "data:image/jpeg;base64,QUJD" }) as any });
+  const r = createRecorder({ ext: f.ext, bridge, privacy: await never(o.hosts), now: f.now, sleep: async () => {}, shot: async () => ({ dataUrl: "data:image/jpeg;base64,QUJD" }) as any });
   return { r, f, calls };
 }
 
@@ -54,6 +54,12 @@ test("a step in plain words: an input asked for each time is a name in braces, a
   assert.equal(words({ id: "s6", kind: "type", url: "https://a.test/", host: "a.test", target: { role: "textbox", name: "Card number" }, value: "", secret: true, at: 0 }, []), "Type {card number} in \"Card number\"");
   assert.equal(keyOf("Contact name!"), "contact_name");
   assert.equal(skillName("Add a Lab registrant to GHL"), "add-a-lab-registrant-to-ghl");
+});
+
+test("an address is kept without its fragment, a login in it, or a query value that looks like a secret", () => {
+  assert.equal(cleanUrl("https://app.test/new?email=a%40b.co&password=hunter2&token=abc&page=2#frag"), "https://app.test/new?email=a%40b.co&page=2");
+  assert.equal(cleanUrl("https://user:pw@app.test/x?sessionId=1&api_key=2&id=7"), "https://app.test/x?id=7");
+  assert.equal(cleanUrl("not a url"), "not a url");
 });
 
 const REC = () => ({
@@ -199,7 +205,7 @@ test("a recording stops growing at the step limit, and survives the worker being
   for (let i = 0; i < MAX_STEPS + 5; i++) await r.step(5, TAB, { kind: "click", url: TAB.url, target: { role: "button", name: `B${i}` } });
   assert.equal(((await r.state()) as any).count, MAX_STEPS);
   // a new recorder on the same session storage picks the running recording up
-  const again = createRecorder({ ext: f.ext, bridge: {} as any, privacy: await never(), now: f.now, shot: async () => null });
+  const again = createRecorder({ ext: f.ext, bridge: {} as any, privacy: await never(), now: f.now, sleep: async () => {}, shot: async () => null });
   assert.deepEqual(await again.state(), { running: true, paused: false, count: MAX_STEPS, name: "Task on lu.ma", secret: false });
 });
 

@@ -126,6 +126,14 @@
     step({ kind: "click", target: t, submit: Boolean(el.type && /^(submit|image)$/i.test(el.type)) || (el.tagName === "BUTTON" && (!el.type || el.type === "submit")) });
   }, true);
 
+  // arriving in a secret field is already "a sign-in": the bar says the password is not recorded before a key is pressed
+  doc.addEventListener("focusin", (/** @type {any} */ e) => {
+    if (!e.isTrusted || onBar(e) || paused) return;
+    const el = e.target;
+    const secret = secretKind(el);
+    if (secret) step({ kind: "secret", what: secret, target: targetOf(el) });
+  }, true);
+
   doc.addEventListener("change", (/** @type {any} */ e) => {
     if (!e.isTrusted || onBar(e) || paused) return;
     const el = e.target;

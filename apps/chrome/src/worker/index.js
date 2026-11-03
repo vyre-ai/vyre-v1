@@ -224,6 +224,7 @@ export function createWorker(ext) {
       }
       case "panel.watch.pick": {
         const tab = await panelTab(msg);
+        await watches.guard(tab);
         // the picker answers when the person clicks; the panel is told by its port so the sheet can show the choice
         void watches.pick(tab).then((region) => panel.tell({ type: "picked", region }, tab.windowId));
         return { data: { picking: true } };

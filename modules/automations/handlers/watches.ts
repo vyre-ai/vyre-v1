@@ -106,6 +106,8 @@ export async function save(ctx: AutoCtx, input: SaveIn): Promise<{ watch: WatchO
   if (prior && (prior["url"] !== url || prior["region_json"] !== r["region_json"] || prior["mode"] !== input.mode)) Object.assign(r, { value: baseline ?? null, last_checked_at: baseline === undefined ? null : now, error: null, errors_in_row: 0 });
   if (input.paused !== undefined) r["state"] = input.paused ? "paused" : "on";
   if (!prior || prior["every_min"] !== input.everyMinutes || r["state"] === "on") r["next_due_at"] = now + (baseline === undefined ? 0 : input.everyMinutes * 60_000);
+  // the chat is made now, by the person: an agent woken in it acts for them, which is what lets it report what it read
+  if (!r["thread_id"] && r["agent_id"]) await alertThread(ctx, r);
   put(ctx, r);
   ctx.emit("browser.watch.saved", String(r["id"]), { watchId: String(r["id"]), owner: person, op: prior ? "changed" : "added" }, { vis: "owner" });
   return { watch: watchOut(r) };

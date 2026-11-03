@@ -43,6 +43,8 @@ function pills(text) {
   return out;
 }
 
+/** "A", "A and B", "A, B and C". @param {string[]} xs */
+const listWords = (xs) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 const hostsOf = () => [...new Set(S.rec.steps.map((/** @type {any} */ s) => s.host).filter(Boolean))];
 const took = () => { const ms = (S.rec.endedAt || S.rec.startedAt) - S.rec.startedAt; const s = Math.max(1, Math.round(ms / 1000)); return s >= 60 ? `${Math.floor(s / 60)} min ${s % 60} s` : `${s} s`; };
 const when = () => new Date(S.rec.startedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -112,7 +114,7 @@ function render() {
   if (!S.rec) { mount(app, h("div.gone", null, "Loading")); return; }
   const signins = hostsOf().filter((hh) => S.rec.steps.some((/** @type {any} */ s) => s.kind === "signin" && s.host === hh));
   mount(app, h("div.rv", null,
-    S.saved ? h("div.full", null, h("div.banner", null, h("span.okc", null, ic("check")), h("span.grow", null, `Saved as a skill. ${S.agents.filter((a) => S.who.has(a.id)).map((a) => a.name).join(" and ") || "You"} can use it now.`),
+    S.saved ? h("div.full", null, h("div.banner", null, h("span.okc", null, ic("check")), h("span.grow", null, `Saved as a skill. ${listWords(S.agents.filter((a) => S.who.has(a.id)).map((a) => a.name)) || "You"} can use it now.`),
       S.tried ? h("button.btn", { data: { a: "chat" } }, ic("open", "s"), "Open the chat") : null), S.note ? h("div.xs.mut", { css: { marginTop: "6px" } }, S.note) : null) : null,
     h("div", null,
       h("div.rvk", null, mark(13), "Review what you showed"),

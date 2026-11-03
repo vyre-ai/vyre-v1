@@ -12,6 +12,21 @@
 
 export const REPLAY_VERSION = 1;
 
+const SECRET_PARAM = /token|key|secret|sess|sid$|auth|pass|pwd|code|otp|sig|jwt|bearer|credential/i;
+/**
+ * An address as the recording keeps it: no fragment, and no query value whose name looks like a secret (a token, a key, a session, a password). Everything else stays, since
+ * a page often needs its query to be the same page. @param {string} url
+ */
+export function cleanUrl(url) {
+  try {
+    const u = new URL(url);
+    u.hash = "";
+    u.username = ""; u.password = "";
+    for (const k of [...u.searchParams.keys()]) if (SECRET_PARAM.test(k)) u.searchParams.delete(k);
+    return u.toString();
+  } catch { return String(url).slice(0, 2000); }
+}
+
 /** A label as a key: "Contact name" -> "contact_name". @param {string} s */
 export const keyOf = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "value";
 

@@ -86,7 +86,7 @@ export function watchingSheet(s) {
   const rows = s.list || [];
   const nameOf = (/** @type {string} */ id) => (s.agents.find((a) => a.id === id) || { name: "An agent" }).name;
   return h("div.sheet", null,
-    h("div.shh", null, h("button.ib", act("sheetX", { "data-tip": "Back", "aria-label": "Back" }), ic("chevl")), h("h3", null, "Watching"), h("span.xs.mut.grow", null, String(rows.length)),
+    h("div.shh", null, h("button.ib", act("sheetX", { "data-tip": "Back", "aria-label": "Back" }), ic("chevl")), h("h3", null, "Watching"), h("span.xs.mut", null, String(rows.length)), h("span.grow"),
       h("button.ib", act("wNew", { "data-tip": "Watch this page", "aria-label": "Watch this page" }), ic("plus"))),
     h("div.shb", { css: { padding: "0 6px" } },
       s.list === null ? h("div.qline.pad", null, "Loading") : null,
