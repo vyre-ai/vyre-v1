@@ -45,8 +45,9 @@ type Out = {
       name: string;
     };
     perms: Array<string>;
+    own?: Array<string>;
     area?: string;
-    effect: "allow" | "deny";
+    effect: "allow" | "deny" | "own" | "ask";
     until?: number;
     why?: string;
     by: {
@@ -86,6 +87,9 @@ type Out = {
       },
       "effect": "allow",
       "exceptionId": "exc_a1b2c3",
+      "own": [
+        "example"
+      ],
       "perms": [
         "example"
       ],

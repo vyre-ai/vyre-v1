@@ -574,7 +574,9 @@
           "effect": {
             "enum": [
               "allow",
-              "deny"
+              "deny",
+              "own",
+              "ask"
             ],
             "type": "string"
           },

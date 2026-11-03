@@ -24,7 +24,7 @@ type Payload = {
     id: string;
   };
   perms: Array<string>;
-  effect: "allow" | "deny";
+  effect: "allow" | "deny" | "own" | "ask";
   area?: string;
   until?: number;
   by: string;

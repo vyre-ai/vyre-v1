@@ -216,8 +216,9 @@ export type AccessExceptionsExplainOut = {
       name: string;
     };
     perms: Array<string>;
+    own?: Array<string>;
     area?: string;
-    effect: "allow" | "deny";
+    effect: "allow" | "deny" | "own" | "ask";
     until?: number;
     why?: string;
     by: {
@@ -248,8 +249,9 @@ export type AccessExceptionsListOut = {
         name: string;
       };
       perms: Array<string>;
+      own?: Array<string>;
       area?: string;
-      effect: "allow" | "deny";
+      effect: "allow" | "deny" | "own" | "ask";
       until?: number;
       why?: string;
       by: {
@@ -272,7 +274,7 @@ export type AccessExceptionsSetIn = {
   };
   perms?: Array<string>;
   area?: string;
-  effect: "allow" | "deny";
+  effect: "allow" | "deny" | "own" | "ask";
   until?: number;
   why?: string;
   idempotencyKey: string;
@@ -286,8 +288,9 @@ export type AccessExceptionsSetOut = {
       name: string;
     };
     perms: Array<string>;
+    own?: Array<string>;
     area?: string;
-    effect: "allow" | "deny";
+    effect: "allow" | "deny" | "own" | "ask";
     until?: number;
     why?: string;
     by: {
@@ -41445,7 +41448,7 @@ export type AccessExceptionRemovedPayload = {
     id: string;
   };
   perms: Array<string>;
-  effect: "allow" | "deny";
+  effect: "allow" | "deny" | "own" | "ask";
   lapsed: boolean;
   by: string;
 };
@@ -41456,7 +41459,7 @@ export type AccessExceptionSetPayload = {
     id: string;
   };
   perms: Array<string>;
-  effect: "allow" | "deny";
+  effect: "allow" | "deny" | "own" | "ask";
   area?: string;
   until?: number;
   by: string;
