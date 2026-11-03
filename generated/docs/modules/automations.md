@@ -94,5 +94,5 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automation.trigger_dropped](../events/automation.trigger_dropped.md): A trigger event was ignored: self-trigger, chain depth 8 or paused
 - [automation.updated](../events/automation.updated.md): An Automation definition or settings changed; a definition change saves a version
 - [automation.version_restored](../events/automation.version_restored.md): An earlier version was restored as the newest version
-- [automations.watch.changed](../events/automations.watch.changed.md): A watched page changed since its last reading
-- [automations.watch.saved](../events/automations.watch.saved.md): A watch was made, changed, paused, resumed or removed
+- [automation.watch_changed](../events/automation.watch_changed.md): A watched page changed since its last reading
+- [automation.watch_saved](../events/automation.watch_saved.md): A watch was made, changed, paused, resumed or removed

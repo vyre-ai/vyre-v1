@@ -19,7 +19,7 @@ Vyre for Chrome: watch a page or a region of one. It runs in the person's Chrome
 | HTTP | POST /v1/automations/watches/save |
 | MCP tool | none |
 | CLI | none |
-| Emits | automations.watch.saved |
+| Emits | automation.watch_saved |
 
 ## Input
 

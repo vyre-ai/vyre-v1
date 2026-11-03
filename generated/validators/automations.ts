@@ -4808,8 +4808,8 @@ export const eventValidators: Record<string, Check> = {
   "automation.trigger_dropped": e56_payload,
   "automation.updated": e57_payload,
   "automation.version_restored": e58_payload,
-  "automations.watch.changed": e59_payload,
-  "automations.watch.saved": e60_payload,
+  "automation.watch_changed": e59_payload,
+  "automation.watch_saved": e60_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);
