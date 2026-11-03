@@ -27,7 +27,8 @@ test("the version row: the version, the channel, when it last checked, and Check
 
 test("a newer version waiting: a quiet Update available row with its notes and Update now; while it installs, the progress", () => {
   const out = draw({ state: { check: some, installing: false } });
-  assert.ok(out.includes("Update available") && out.includes("Vyre updates itself. Calmer start."));
+  assert.ok(out.includes("Update available") && out.includes("Vyre 1.0.0-rc.17 is ready. Vyre updates itself."));
+  assert.ok(!out.includes("Update available 1.0.0-rc.17"), "said once, on its own row");
   assert.match(out, /data-testid="update-install"/);
   const going = draw({ state: { check: some, installing: true }, busy: true, progress: { phase: "download", downloaded: 1024 * 1024, total: 2 * 1024 * 1024 } });
   assert.ok(going.includes("Updating to 1.0.0-rc.17") && going.includes("1.0 MB of 2.0 MB, 50%"));

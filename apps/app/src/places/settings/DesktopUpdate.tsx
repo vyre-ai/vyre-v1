@@ -44,11 +44,12 @@ export function AboutBody(p: AboutBodyProps): ReactElement {
   const check = p.state.check;
   const installing = p.state.installing;
   const version = check?.current ?? p.webVersion;
-  const status = p.desktop ? updateLine(check) : "";
+  const waiting = p.desktop && updateWaiting(p.state);
+  // the row under it says a newer version waits, so this one only says up to date
+  const status = p.desktop && !waiting && !installing ? updateLine(check) : "";
   const sub = p.desktop
     ? [check ? `${channelLabel(check.channel)} channel` : null, checkedLabel(check?.checkedAt ?? null, p.now)].filter(Boolean).join(". ")
     : "Vyre here is always the newest version: it updates each time it opens.";
-  const waiting = p.desktop && updateWaiting(p.state);
   const lines = noteLines(check?.notes);
   const rows: ReactElement[] = [];
   rows.push(
@@ -66,7 +67,7 @@ export function AboutBody(p: AboutBodyProps): ReactElement {
     rows.push(
       <SettingsRow
         key="available" id="about.available" label={installing ? `Updating to ${check?.version ?? ""}` : "Update available"}
-        sub={installing ? progressLine(p.progress) : p.failure ? p.failure : lines.length > 0 ? lines.join(" ") : `Vyre ${check?.version ?? ""} is ready to install. Vyre restarts to finish.`}
+        sub={installing ? progressLine(p.progress) : p.failure ? p.failure : `Vyre ${check?.version ?? ""} is ready.${lines[0] ? ` ${lines[0]}` : " Vyre restarts to finish."}`}
         subAlert={!installing && p.failure !== ""}
         control={<SmallButton label={installing ? "Updating…" : "Update now"} testID="update-install" primary disabled={p.busy} onPress={p.onInstall} />}
       />,

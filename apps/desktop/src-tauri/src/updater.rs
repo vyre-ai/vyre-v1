@@ -295,7 +295,7 @@ async fn install(app: &AppHandle, st: &SharedUpdate) -> Result<(), String> {
     update.timeout = None;
     println!("vyre-desktop: update: downloading {} from {}", update.version, update.download_url);
     tell(app, "download", 0, None, 0);
-    let (mut got, mut last) = (0u64, Instant::now() - Duration::from_secs(1));
+    let (mut got, mut last) = (0u64, Instant::now().checked_sub(Duration::from_secs(1)).unwrap_or_else(Instant::now));
     let on_chunk = app.clone();
     let on_done = app.clone();
     let bytes = update
