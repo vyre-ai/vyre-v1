@@ -218,19 +218,27 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
         let text = "";
         const pending: ToolCall[] = [];
         const u = zero();
+        // the fields the provider actually sent: one it left out is "not reported", not 0
+        const told = new Set<string>();
         let stop: Extract<Decoded, { type: "stop" }>["reason"] = "end";
         for await (const d of call(req, ac.signal)) {
           if (d.type === "text") { text += d.text; yield { type: "text", text: d.text }; }
           else if (d.type === "thinking") yield { type: "thinking", text: d.text };
           else if (d.type === "tool_call") { pending.push(d.call); yield { type: "tool_call", id: d.call.id, name: d.call.name, input: d.call.input }; }
-          else if (d.type === "usage") Object.assign(u, d.usage);
+          else if (d.type === "usage") { Object.assign(u, d.usage); for (const k of Object.keys(d.usage)) told.add(k); }
           else if (d.type === "stop") stop = d.reason;
           else { yield { type: "error", code: d.code ?? "provider.error", message: d.message, ...(d.retryAfterMs !== undefined ? { resetsAt: deps.clock.now() + d.retryAfterMs } : {}) }; return; }
         }
         if (ac.signal.aborted) return;
         const inTokens = deps.adapter.inputIncludesCache ? u.inputTokens : u.inputTokens + u.cacheReadTokens + u.cacheWriteTokens;
         tracker.settle(u.cacheReadTokens, u.cacheWriteTokens);
-        if (inTokens > 0 || u.outputTokens > 0) yield { type: "usage", inputTokens: inTokens, outputTokens: u.outputTokens };
+        if (inTokens > 0 || u.outputTokens > 0) {
+          yield {
+            type: "usage", inputTokens: inTokens, outputTokens: u.outputTokens,
+            ...(told.has("cacheReadTokens") ? { cacheReadTokens: u.cacheReadTokens } : {}), ...(told.has("cacheWriteTokens") ? { cacheWriteTokens: u.cacheWriteTokens } : {}),
+            ...(u.reasoningTokens !== undefined ? { reasoningTokens: u.reasoningTokens } : {}), ...(u.costUsd !== undefined ? { costUsd: u.costUsd } : {}),
+          };
+        }
         if (stop === "filtered" && text === "" && pending.length === 0) { yield { type: "error", code: "provider.filtered", message: "The provider declined to answer." }; return; }
 
         if (pending.length > 0) {

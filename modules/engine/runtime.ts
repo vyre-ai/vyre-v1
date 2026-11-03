@@ -31,6 +31,7 @@ import { configureEngines, engines, enginesRoot } from "./engine-install.ts";
 import { capabilitySkills, createContextBuilder, takeHandoff, withTurnContext } from "./context.ts";
 import { withTranscript } from "./transcript.ts";
 import { withNativeSkills } from "./skills-native.ts";
+import { linkReply } from "./handlers/extra/reply-info.ts";
 import { workFolder } from "./sandbox.ts";
 import { createCompactor, withCompaction } from "./compact.ts";
 import type { Compactor } from "./compact.ts";
@@ -365,7 +366,12 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     const crewWatch = h.postAs ? createCrewWatcher({ db: ctx.db, host: h, now }) : null;
     const live = h.stream ? coalesceLive(h.stream, { now }) : null;
     setupLine = live;
-    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, stream: (e) => { live?.(e); crewWatch?.(e); }, addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
+    // the chat message a turn's reply became, so the reply's Details find its turn (chat.reply_details); a reply without its turn only loses its Details, never the post
+    const linkPosted = (e: { threadId: string; turnId: string; messageId: string | null }): void => {
+      try { if (e.messageId) linkReply(ctx.db, { threadId: e.threadId, turnId: e.turnId, messageId: e.messageId }, now()); }
+      catch (err) { h.log?.("a reply could not be linked to its turn", { turnId: e.turnId, error: err instanceof Error ? err.message : String(err) }); }
+    };
+    const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, stream: (e) => { if (e.kind === "final" && e.messageId) linkPosted(e); live?.(e); crewWatch?.(e); }, addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
     // The turn context is built as the asker before each turn (modules/engine/context.ts); what the agent waits on is read off the engine once it exists.
     let running: TurnEngine | null = null;
     const turnContext = createContextBuilder({
@@ -421,7 +427,9 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       const phase = ev.type === "turn.started" ? "started" : ev.type === "turn.completed" ? "completed" : ev.type === "turn.failed" ? "failed" : "cancelled";
       const input = {
         threadId: turn.threadId, turnId, agentId: turn.agentId, phase, qseq: turn.qseq, asker: turn.asker, ...(turn.model ? { model: turn.model } : {}),
-        ...(phase === "started" ? {} : { tokensIn: turn.tokensIn, tokensOut: turn.tokensOut }), ...(ev.type === "turn.failed" ? { code: ev.code, ...(ev.message ? { message: ev.message.slice(0, 500) } : {}) } : {}),
+        ...(phase === "started" ? {} : { tokensIn: turn.tokensIn, tokensOut: turn.tokensOut }),
+        // what the reply's Details show: the engine and account it ended on, and what the turn engine saw (reply-info.ts)
+        ...(phase !== "started" && turn.info ? { info: turn.info, ...(turn.info.account ? { engine: turn.info.account.driver, accountRef: turn.info.account.ref } : {}) } : {}), ...(ev.type === "turn.failed" ? { code: ev.code, ...(ev.message ? { message: ev.message.slice(0, 500) } : {}) } : {}),
       };
       const done = (recording.get(turnId) ?? Promise.resolve()).then(() => h.call("engine.turn.record", input, turn.asker)).then(() => undefined, (err: unknown) => {
         h.log?.("a turn could not be recorded", { turnId, phase, error: err instanceof Error ? err.message : String(err) });

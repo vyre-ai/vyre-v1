@@ -109,6 +109,28 @@ export interface TurnRow {
   /** Receive of the triggering message to first text, minus the provider's own latency. The send budget row. */
   firstTokenOverheadMs: number | null;
   injected: number;
+  /** What the reply's Details shows (chat.reply_details): filled as the turn runs, recorded with it by engine.turn.record. Absent on a row made by older code. */
+  info?: TurnInfo;
+}
+
+/** A tool call of one turn, as the engine saw it: when it started and ended, whether it worked, and whether it was held for a person's yes. */
+export interface ToolTrace { id: string; name: string; detail?: string; startedAt: number; endedAt?: number; ok?: boolean; held?: string }
+/** The turn left one account for another (or tried the same one again when the vendor was busy): from and to are account refs. */
+export interface TurnSwitch { at: number; from: string; to: string; why: string }
+/** The parts of a turn the turn record keeps for its Details. A count that is absent was not reported by the provider. */
+export interface TurnInfo {
+  effort?: Effort;
+  /** The account that paid at the end (after any switch). */
+  account?: { ref: string; driver: string; provider: string; kind: AccountKind; shared?: boolean; spaceKey?: boolean };
+  /** The first word or thought, epoch ms. */
+  firstTokenAt?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  reasoningTokens?: number;
+  /** The provider's own dollar figure, summed over the turn's calls, when every call reported one. */
+  costUsd?: number;
+  tools: ToolTrace[];
+  switches: TurnSwitch[];
 }
 
 export interface SpendRow { agentId: string; turnId: string; payer: string; tokensIn: number; tokensOut: number }
@@ -135,7 +157,11 @@ export type DriverEvent =
   | { type: "thinking"; text: string }
   | { type: "tool_call"; id: string; name: string; input: unknown }
   | { type: "block"; kind: string; payload?: unknown }
-  | { type: "usage"; inputTokens: number; outputTokens: number }
+  /**
+   * inputTokens counts every input token, cache reads and writes included. The optional fields are present only when the provider reported them: cache reads and writes, reasoning tokens
+   * (already inside outputTokens), and the provider's own price for the call in dollars (Claude Code's total_cost_usd, OpenRouter's usage.cost). Absent means not reported, never zero.
+   */
+  | { type: "usage"; inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number; reasoningTokens?: number; costUsd?: number }
   /** A subscription limit window as the engine reported it (percent used 0 to 100, reset time in epoch ms). Kept per account; shown only when reported. */
   | { type: "limits"; window: "session" | "week"; pct: number; resetsAt?: number }
   | { type: "done"; mentions?: readonly RouteMention[] }

@@ -78,7 +78,10 @@ export function createCodexDecoder(): CliDecoder {
           const out: CliEvent[] = [];
           const input = num(u?.["input_tokens"]);
           const output = num(u?.["output_tokens"]);
-          if (input > 0 || output > 0) out.push({ type: "usage", inputTokens: input, outputTokens: output });
+          // cached_input_tokens is the part of input_tokens read from the cache; reasoning_output_tokens is inside output_tokens. Codex reports no cache writes and no price.
+          const cached = u && typeof u["cached_input_tokens"] === "number" ? num(u["cached_input_tokens"]) : undefined;
+          const reasoning = u && typeof u["reasoning_output_tokens"] === "number" ? num(u["reasoning_output_tokens"]) : undefined;
+          if (input > 0 || output > 0) out.push({ type: "usage", inputTokens: input, outputTokens: output, ...(cached !== undefined ? { cacheReadTokens: cached } : {}), ...(reasoning !== undefined ? { reasoningTokens: reasoning } : {}) });
           out.push({ type: "end" });
           return out;
         }

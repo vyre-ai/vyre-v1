@@ -214,7 +214,13 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
                 ? { type: "block", kind: "tool_input", payload: { id: item.id, detail: item.detail } }
                 : { type: "block", kind: "tool_result", payload: { id: item.id, ok: item.ok } };
             break;
-          case "usage": yield { type: "usage", inputTokens: item.inputTokens, outputTokens: item.outputTokens }; break;
+          case "usage":
+            yield {
+              type: "usage", inputTokens: item.inputTokens, outputTokens: item.outputTokens,
+              ...(item.cacheReadTokens !== undefined ? { cacheReadTokens: item.cacheReadTokens } : {}), ...(item.cacheWriteTokens !== undefined ? { cacheWriteTokens: item.cacheWriteTokens } : {}),
+              ...(item.reasoningTokens !== undefined ? { reasoningTokens: item.reasoningTokens } : {}), ...(item.costUsd !== undefined ? { costUsd: item.costUsd } : {}),
+            };
+            break;
           case "limits": yield { type: "limits", window: item.window, pct: item.pct, ...(item.resetsAt !== undefined ? { resetsAt: item.resetsAt } : {}) }; break;
           case "read": unread.shift(); break;
           case "end":
