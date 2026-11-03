@@ -25,6 +25,7 @@ export const CAPABILITIES = Object.freeze({
   "vault.folders.list": "find the person's Mine folder to save into",
   "vault.site_rules.list": "Never Fill and Never Save sites",
   "vault.site_rules.set": "set or clear one site's rule",
+  "notes.clip": "clip the page into a private note: its address, title, the selected text and a screenshot",
   "vault.share": "share a saved login with the person's agent at Use level",
 });
 

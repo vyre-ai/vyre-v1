@@ -96,13 +96,14 @@ test("the extension may call only the listed capabilities and bridge operations"
   }
   assert.throws(() => request("r", "bridge", "shell.exec"), BridgeFailure);
   assert.ok(!("vault.item.reveal" in CAPABILITIES), "an extension can never ask to see a value");
-  assert.ok(Object.keys(CAPABILITIES).every((c) => c.startsWith("vault.")));
+  assert.ok(Object.keys(CAPABILITIES).every((c) => c.startsWith("vault.") || c === "notes.clip"), "vault, and clipping a page into Notes");
   assert.ok(Object.keys(BRIDGE_OPS).length >= 6);
 });
 
 test("every capability the extension names exists in the frozen contract", () => {
   const manifest = fs.readFileSync(path.join(REPO, "manifests/vault.ts"), "utf8");
-  for (const c of Object.keys(CAPABILITIES)) assert.ok(manifest.includes(`'${c}'`), `${c} is in manifests/vault.ts`);
+  const notes = fs.readFileSync(path.join(REPO, "manifests/notes.ts"), "utf8");
+  for (const c of Object.keys(CAPABILITIES)) assert.ok(manifest.includes(`'${c}'`) || (c === "notes.clip" && notes.includes(`'${c}'`)), `${c} is in manifests/vault.ts or manifests/notes.ts`);
 });
 
 test("incoming messages are checked before anyone acts on them", () => {

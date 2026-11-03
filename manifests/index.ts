@@ -44,6 +44,7 @@ import m_memory from './memory.ts';
 import m_microsoft from './microsoft.ts';
 import m_mounts from './mounts.ts';
 import m_network from './network.ts';
+import m_notes from './notes.ts';
 import m_notifications from './notifications.ts';
 import m_portal from './portal.ts';
 import m_previews from './previews.ts';
@@ -126,6 +127,7 @@ export const all: Manifest[] = [
   m_microsoft,
   m_mounts,
   m_network,
+  m_notes,
   m_notifications,
   m_portal,
   m_previews,

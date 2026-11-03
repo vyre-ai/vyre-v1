@@ -5,6 +5,7 @@ import { logLink } from "../../../lib/grants.ts";
 import { docsView } from "../docs-text.ts";
 import { documentNetwork } from "../document-network.ts";
 import { fetchPublicDocument } from "../public-fetch.ts";
+import { pageMeta } from "../page-meta.ts";
 import type { AutoCtx } from "../projections.ts";
 
 type In = { url?: unknown; focus?: unknown };
@@ -21,5 +22,6 @@ export async function readDocs(ctx: AutoCtx, input: In): Promise<unknown> {
   ctx.log?.info("link read", { link: logLink(url), ok: fetched.ok });
   if (!fetched.ok) return { ok: false, reason: fetched.reason };
   const view = docsView(fetched.text, new URL(fetched.finalUrl), typeof input.focus === "string" ? input.focus : undefined);
-  return { ok: true, finalUrl: fetched.finalUrl, kind: view.kind, text: view.text, links: view.links, truncated: view.truncated };
+  const meta = view.kind === "html" ? pageMeta(fetched.text, new URL(fetched.finalUrl)) : null;
+  return { ok: true, finalUrl: fetched.finalUrl, kind: view.kind, text: view.text, links: view.links, truncated: view.truncated, ...(meta && Object.keys(meta).length ? { meta } : {}) };
 }

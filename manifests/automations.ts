@@ -389,7 +389,8 @@ export default defineManifest({
     }),
     read('automations.read_link', 'Open a web page from the server and read it as plain text, with its links. Use it for any link the person gave or a page you read links to. A link you put together yourself waits for the person, because its address can carry data. GET only, no key, public hosts only', {
       in: { url: t.str(), focus: t.opt(t.str()) },
-      out: { ok: t.bool(), reason: t.opt(t.str()), finalUrl: t.opt(t.str()), kind: t.opt(t.enm('openapi', 'html', 'text')), text: t.opt(t.str()), links: t.opt(t.arr(t.obj({ text: t.str(), url: t.str() }))), truncated: t.opt(t.bool()) },
+      out: { ok: t.bool(), reason: t.opt(t.str()), finalUrl: t.opt(t.str()), kind: t.opt(t.enm('openapi', 'html', 'text')), text: t.opt(t.str()), links: t.opt(t.arr(t.obj({ text: t.str(), url: t.str() }))), truncated: t.opt(t.bool()),
+        meta: t.opt(t.obj({ title: t.opt(t.str()), image: t.opt(t.str()), siteName: t.opt(t.str()), description: t.opt(t.str()) }, { description: 'For an HTML page: its title, image address, site name and description, for a link card' })) },
       gate: { act: 'send', when: 'links.is_composed(input.url)' }, tool: 'automations', mcpName: 'read_link', agent: { planMode: 'allowed' }, errors: ['permission.needs_approval'],
     }),
     read('automations.read_docs', 'Read one public API docs page as plain text, with its same-site links. For an OpenAPI document, one line per operation. GET only, no key, public hosts only. Give focus to get just the passages around a word.', {

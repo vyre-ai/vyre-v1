@@ -37,6 +37,7 @@
         "modules/computers/",
         "modules/terminal/",
         "modules/mcp/",
+        "modules/notes/",
         "package-lock.json"
       ],
       "modules": [
@@ -46,7 +47,8 @@
         "memory",
         "computers",
         "terminal",
-        "mcp"
+        "mcp",
+        "notes"
       ]
     },
     {
@@ -450,6 +452,7 @@
     "microsoft": "L5",
     "mounts": "L4",
     "network": "L7b",
+    "notes": "L2",
     "notifications": "L6",
     "portal": "L8",
     "previews": "L4",
