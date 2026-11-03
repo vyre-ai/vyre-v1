@@ -24,6 +24,13 @@ const conditions = t.obj({
   reshare: t.opt(t.bool()),
 });
 const audience = t.enm('space', 'added', 'me');
+// permission exceptions (owner, 3 Nov 2026): a person or group differs from their role; handlers/exceptions.ts
+const excSubject = t.obj({ kind: t.enm('person', 'group'), id: t.str({ pattern: '^(usr|grp)_[a-z0-9_]+$', examples: ['usr_a1b2c3'] }) });
+const excEffect = t.enm('allow', 'deny');
+const exceptionRow = t.obj({
+  exceptionId: t.id('exc'), subject: t.obj({ kind: t.enm('person', 'group'), id: t.str(), name: t.str() }), perms: t.arr(t.str()), area: t.opt(t.str()), effect: excEffect,
+  until: t.opt(t.ts()), why: t.opt(t.str()), by: t.obj({ id: t.str(), name: t.str() }), at: t.ts(),
+});
 const exporters = t.enm('admins', 'viewers', 'chosen');
 const rights = t.obj({ manage: t.bool(), edit: t.opt(t.bool()), share: t.bool(), export: t.bool() });
 const roleHolderRef = t.obj({ kind: t.enm('person', 'agent', 'actor', 'service', 'group'), id: t.str({ pattern: '^(usr|agt|act|svc|grp)_[a-z0-9]+$', examples: ['usr_a1b2c3'] }) });
@@ -77,6 +84,8 @@ export default defineManifest({
     ev('access.changed', 'Roles, groups, labels or membership changed; bumps the authorize cache epoch', { p: { epoch: t.int(), what: t.enm('role', 'group', 'membership', 'label', 'actor', 'assignment'), by: t.str() }, subject: ['entity', '/epoch'], retention: 'audit' }),
     ev('grant.created', 'A grant was given to a person, group, role or link', { p: { grantId: id.grant, subject: subjectRef, resource: resourceRef, level, source: t.opt(t.str()) }, subject: ['entity', '/grantId'], retention: 'audit' }),
     ev('grant.updated', 'The level, conditions or expiry of a grant changed', { p: { grantId: id.grant, level, expiresAt: t.opt(t.ts()) }, subject: ['entity', '/grantId'], retention: 'audit' }),
+    ev('access.exception_set', 'A person or group was given a permission exception: Allowed or Not allowed on permissions, against their role', { p: { exceptionId: t.id('exc'), subject: excSubject, perms: t.arr(t.str()), effect: excEffect, area: t.opt(t.str()), until: t.opt(t.ts()), by: t.str() }, subject: ['entity', '/exceptionId'], retention: 'audit' }),
+    ev('access.exception_removed', 'A permission exception was removed by an admin, or lapsed at its end (lapsed)', { p: { exceptionId: t.id('exc'), subject: excSubject, perms: t.arr(t.str()), effect: excEffect, lapsed: t.bool(), by: t.str() }, subject: ['entity', '/exceptionId'], retention: 'audit' }),
     ev('access.everyone_defaults_changed', 'The default grants of the Everyone group changed', { p: { grants: t.int({ minimum: 0 }), by: t.str() }, subject: ['entity', '/by'], retention: 'audit' }),
     ev('grant.revoked', 'A grant was removed', { p: { grantId: id.grant, subject: subjectRef, resource: resourceRef, reason: t.opt(t.str()) }, subject: ['entity', '/grantId'], retention: 'audit' }),
     ev('policy.changed', 'A Space policy was set or reset (Gate rule, spend, label rule, sign-in, sharing, retention, vault)', { p: { key: t.str(), scope: t.str(), kind: t.str(), by: t.str() }, subject: ['entity', '/key'], retention: 'audit' }),
@@ -123,6 +132,21 @@ export default defineManifest({
     write('access.groups.add_member', 'Add a person or agent to a group (groups hold no groups)', { ...V, in: { groupId: id.group, member: principalRef }, out: { group: groupRow }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.precondition_failed'] }),
     write('access.groups.remove_member', 'Remove a person or agent from a group', { ...V, in: { groupId: id.group, member: principalRef }, out: { group: groupRow }, perm: 'access.manage', emits: ['access.changed'], audit: 'always', tool: 'engineer' }),
     read('access.groups.defaults_get', 'Default grants of the built-in Everyone group (every member holds them; Kits ship the first set and invites add new people to the group)', { ...V, out: { groupId: id.group, grants: t.arr(t.obj({ resource: resourceRef, level })) }, tool: 'meta' }),
+    // ---- permission exceptions (the Console Permissions page, People > a person > Access, the Access checker's In the app)
+    read('access.exceptions.list', 'Permission exceptions in force: who differs from their role, on what, Allowed or Not allowed, until when and why', { ...V, in: { subject: t.opt(excSubject) }, out: { exceptions: t.arr(exceptionRow) }, perm: 'access.manage', tool: 'engineer' }),
+    write('access.exceptions.set', 'Give a person or a group a permission exception: Allowed or Not allowed on a permission or a whole area, against their role. A person beats a group beats the role; the Owner is never restricted; you give only what you hold', {
+      ...V, idem: 'key', in: { subject: excSubject, perms: t.opt(t.arr(t.str())), area: t.opt(t.str()), effect: excEffect, until: t.opt(t.ts()), why: t.opt(t.str({ maxLength: 300 })) },
+      out: { exception: exceptionRow }, perm: 'access.manage', emits: ['access.exception_set', 'access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.bad_input', 'validation.not_found', 'permission.role_lacks_permission'],
+    }),
+    write('access.exceptions.remove', 'Remove a permission exception: the person or group goes back to what their role gives', {
+      ...V, in: { exceptionId: t.id('exc') }, out: { removed: t.bool() }, perm: 'access.manage', emits: ['access.exception_removed', 'access.changed'], audit: 'always', tool: 'engineer', errors: ['validation.not_found'],
+    }),
+    write('access.exceptions.lapse', 'The server ends a permission exception whose end has come (the periodic job); audited', {
+      ...V, in: { exceptionId: t.id('exc') }, out: { removed: t.bool() }, emits: ['access.exception_removed', 'access.changed'], audit: 'always', agent: false, errors: ['permission.role_lacks_permission'],
+    }),
+    read('access.exceptions.explain', 'May this person (or the agent acting for them) do what a permission covers, and why, in plain words: the Owner, their own exception, a group exception or their role', {
+      ...V, in: { principal: t.str(), perm: t.str() }, out: { allowed: t.bool(), source: t.enm('owner', 'person', 'group', 'role'), words: t.str(), exception: t.opt(exceptionRow) }, perm: 'access.manage', tool: 'engineer',
+    }),
     write('access.groups.defaults_set', 'Replace the default grants of the Everyone group; the sheet shows who gains what, then applies', { ...V, in: { grants: t.arr(t.obj({ resource: resourceRef, level })) }, out: { groupId: id.group, grants: t.arr(t.obj({ resource: resourceRef, level })) }, perm: 'access.manage', emits: ['access.everyone_defaults_changed', 'access.changed'], audit: 'always', tool: 'engineer' }),
 
     // ---- grants and sharing (no explicit deny grants exist)

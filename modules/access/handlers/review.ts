@@ -58,7 +58,7 @@ export async function reviewsStart(ctx: ReviewCtx, input: { scope?: string[]; id
 
   const now = ctx.now();
   const live = [...store.grants.values()]
-    .filter((g) => g.conditions.expiresAt === undefined || g.conditions.expiresAt > now)
+    .filter((g) => (g.conditions.expiresAt === undefined || g.conditions.expiresAt > now) && g.conditions.exception === undefined)
     .filter((g) => !input.scope || input.scope.length === 0 || input.scope.includes(g.resource.type))
     .sort((a, b) => (a.id < b.id ? -1 : 1));
   const id = nid("rvw");

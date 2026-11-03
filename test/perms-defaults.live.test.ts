@@ -101,6 +101,6 @@ test("a guest's places list only what is shared with them: the channel they were
 });
 
 test("the member met no refusal the walk did not mean", () => {
-  // automations.get asks access.shares_of whether she was given Edit on a Space automation; with no grant of her own there the access module refuses that inner read, which is the answer
-  assert.deepEqual(unexpectedRefusals(h, [m]).filter((r) => r !== "log: access.shares_of permission.no_grant for Aina"), []);
+  // opening a Space automation asks the kernel directly whether she was given Edit on it: no inner read is refused and logged
+  assert.deepEqual(unexpectedRefusals(h, [m]), []);
 });

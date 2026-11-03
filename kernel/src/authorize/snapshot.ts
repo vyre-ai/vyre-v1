@@ -53,6 +53,12 @@ export class AccessSnapshot {
   private policyList: Policy[] = [];
 
   private infoCache = new Map<string, SubjectInfo | null>();
+  /** The earliest end of a permission exception folded into a cached SubjectInfo: past it the cache is dropped, so an exception lapses at its end even before the lapse is written. */
+  private infoUntil = Infinity;
+  /** The exception rows, read once per change (most Spaces have none, so a SubjectInfo pays nothing for them). */
+  private excRows: GrantRow[] | null = null;
+  /** Time for exception ends; a test sets it. */
+  clock: () => number = () => Date.now();
   private grantsOnCache: Map<string, GrantRec[]> | null = null;
   private typeWideCache: Map<string, GrantRec[]> | null = null;
   private chainCache = new Map<string, readonly ResourceRow[] | null>();
@@ -64,7 +70,7 @@ export class AccessSnapshot {
   /** `access.changed`: drop every derived view and bump the epoch. A label or a parent changes only through putResource, so the effective labels are dropped with the rest. */
   changed(): void {
     this.epoch++;
-    this.infoCache.clear(); this.chainCache.clear(); this.labelCache.clear(); this.labelWalks = 0;
+    this.infoCache.clear(); this.infoUntil = Infinity; this.excRows = null; this.chainCache.clear(); this.labelCache.clear(); this.labelWalks = 0;
     this.grantsOnCache = null; this.typeWideCache = null; this.cutCache = null;
   }
 
@@ -115,6 +121,7 @@ export class AccessSnapshot {
 
   /** Roles of a subject: its own plus its groups' roles; an agent loses owner and admin. Null for an unknown principal. */
   info(id: string): SubjectInfo | null {
+    if (this.infoUntil !== Infinity && this.clock() >= this.infoUntil) { this.infoCache.clear(); this.infoUntil = Infinity; }
     const hit = this.infoCache.get(id);
     if (hit !== undefined) return hit;
     const p = this.principals.get(id);
@@ -135,14 +142,51 @@ export class AccessSnapshot {
       if (r.clearance > clearance) clearance = r.clearance;
       for (const x of r.perms) perms.add(x);
     }
+    this.applyExceptions(id, groups, roleIds, perms);
     const info: SubjectInfo = { p, perms, clearance, keys, roleNames: names.join(", ") || "no role" };
     this.infoCache.set(id, info);
     return info;
   }
 
+  /** Live permission exceptions for one subject (person or group id), or for all. */
+  exceptions(subjectId?: string): GrantRow[] {
+    const now = this.clock(), out: GrantRow[] = [];
+    for (const g of this.grants.values()) {
+      if (!g.exception || (subjectId !== undefined && g.subject_id !== subjectId)) continue;
+      if (g.expires_at !== null && g.expires_at !== undefined && g.expires_at <= now) continue;
+      out.push(g);
+    }
+    return out;
+  }
+
+  /** Fold a person's exceptions into the permissions their roles give: their own beat their groups', which beat the role; among peers Allow wins; the Owner keeps everything. */
+  private applyExceptions(id: string, groups: readonly string[], roleIds: ReadonlySet<string>, perms: Set<string>): void {
+    const p = this.principals.get(id);
+    if (!p || p.kind !== "person") return;   // agents follow the person they act for (authorize checks both), never a group's exception of their own
+    if (!this.excRows) { this.excRows = []; for (const g of this.grants.values()) if (g.exception) this.excRows.push(g); }
+    if (!this.excRows.length) return;
+    const now = this.clock();
+    const own = new Map<string, "allow" | "deny">(), viaGroup = new Map<string, "allow" | "deny">();
+    for (const g of this.excRows) {
+      if (!g.exception) continue;
+      const end = g.expires_at ?? null;
+      if (end !== null && end <= now) continue;
+      const mine = g.subject_kind === "actor" && g.subject_id === id, group = g.subject_kind === "group" && groups.includes(g.subject_id);
+      if (!mine && !group) continue;
+      if (end !== null && end < this.infoUntil) this.infoUntil = end;
+      const into = mine ? own : viaGroup;
+      for (const k of g.exception.perms) if (into.get(k) !== "allow") into.set(k, g.exception.effect);
+    }
+    if (!own.size && !viaGroup.size) return;
+    const owner = [...roleIds].some((r) => isOwnerRole(r, this.roles.get(r)?.name));
+    for (const [k, e] of viaGroup) if (!own.has(k)) own.set(k, e);
+    for (const [k, e] of own) { if (e === "allow") perms.add(k); else if (!owner) perms.delete(k); }
+  }
+
   private buildGrantIndex(): void {
     const on = new Map<string, GrantRec[]>(), tw = new Map<string, GrantRec[]>();
     for (const row of this.grants.values()) {
+      if (row.exception) continue;   // a permission exception reaches no resource
       const c: Conditions = row.conditions ?? {};
       const hidden = c.hiddenFields ?? NONE;
       const rec: GrantRec = {

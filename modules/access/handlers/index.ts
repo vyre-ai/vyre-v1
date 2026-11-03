@@ -14,6 +14,7 @@ import {
   rolesPreview, rolesUnassign, rolesUpdate,
 } from "./roles.ts";
 import { proposeChange } from "./propose.ts";
+import { exceptionsExplain, exceptionsLapse, exceptionsList, exceptionsRemove, exceptionsSet } from "./exceptions.ts";
 import { requestCreate, requestsApprove, requestsDecline, requestsList } from "./request.ts";
 import { reviewsClose, reviewsDecide, reviewsGet, reviewsList, reviewsStart } from "./review.ts";
 
@@ -32,6 +33,11 @@ export const handlers = {
   "access.groups.create": groupsCreate,
   "access.groups.defaults_get": defaultsGet,
   "access.groups.defaults_set": defaultsSet,
+  "access.exceptions.list": exceptionsList,
+  "access.exceptions.set": exceptionsSet,
+  "access.exceptions.remove": exceptionsRemove,
+  "access.exceptions.lapse": exceptionsLapse,
+  "access.exceptions.explain": exceptionsExplain,
   "access.groups.delete": groupsDelete,
   "access.groups.get": groupsGet,
   "access.groups.list": groupsList,

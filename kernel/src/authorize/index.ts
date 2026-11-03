@@ -86,8 +86,9 @@ function evalSubject(snap: AccessSnapshot, s: SubjectInfo, req: Req, res: Resour
   // rule 2: grants on the resource, an ancestor, or the whole type
   const need = rankOf(req.action.level);
   scratch.length = 0; sawExpired = false; max = 0;
-  for (let i = 0; i < chain.length; i++) { const l = snap.grantsOn(chain[i]!.id); if (l) collect(l, s, need, req, res, label); }
-  const tw = snap.typeWide(res.type);
+  const reach = req.action.direct === true ? Math.min(1, chain.length) : chain.length;
+  for (let i = 0; i < reach; i++) { const l = snap.grantsOn(chain[i]!.id); if (l) collect(l, s, need, req, res, label); }
+  const tw = req.action.direct === true ? undefined : snap.typeWide(res.type);
   if (tw) collect(tw, s, need, req, res, label);
   const matched = scratch.length;
   // a permission the role lacks may come with the grant (export), or with a setting on the thing itself (anyone who can view may export)
