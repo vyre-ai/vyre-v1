@@ -12,6 +12,7 @@ import { live, openFields } from "./items.ts";
 import { ensureProviders, entry } from "./providers.ts";
 import type { CatalogEntry } from "./providers.ts";
 import { hostOf, touch } from "./use.ts";
+import { keepSpaceKey, useSpaceAccount } from "./space-accounts.ts";
 
 /** How long a model list is trusted before the next read asks the provider again. */
 export const REFRESH_MS = 15 * 60_000;
@@ -45,6 +46,12 @@ function current(ctx: VaultCtx): Current | null {
 /** The provider row id of the Space AI key, for providers.list (every member lists it) and the engine's account rows. */
 export function spaceKeyProviderId(ctx: VaultCtx): string | null {
   try { return current(ctx) ? str(first(ctx.db.all(`SELECT "providerId" FROM vault_space_key WHERE "id" = ?`, ROW)), "providerId") : null; } catch { return null; }
+}
+
+/** The models the Space AI key unlocks, as last kept (providers.list shows them on its row). */
+export function spaceKeyModels(ctx: VaultCtx): string[] {
+  const s = current(ctx);
+  return s ? parseJson<string[]>(s.rec["models"], []) : [];
 }
 
 const me = (ctx: VaultCtx): string => ctx.actingFor ?? ctx.principal.id;
@@ -159,6 +166,8 @@ export async function set(ctx: VaultCtx, input: { providerKey: string; apiKey: s
   ctx.db.run(`DELETE FROM vault_space_key WHERE "id" = ?`, ROW);
   ctx.db.run(`INSERT INTO vault_space_key ("id", "providerId", "folderId", "setBy", "setAt", "checkedAt", "models", "state") VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ROW, providerId, folderId, ctx.principal.id, ctx.now(), ctx.now(), JSON.stringify(r.models), "ok");
+  // a Space account with every use on (owner ruling 9; admins narrow it with providers.uses.set)
+  keepSpaceKey(ctx, providerId, r.models);
   ctx.emit("provider.added", `entity/${providerId}`, { providerId, providerKey: def.key, connection: "api_key", scope: "shared" }, { vis: "participants" });
   return out(ctx, current(ctx));
 }
@@ -182,11 +191,15 @@ export async function remove(ctx: VaultCtx, _input: Record<string, never>) {
 
 // ---- the engine's use
 
-/** One turn on the Space AI key: the handle and item, never the value. The use is an audit row for the person the turn is for. */
+/** One turn on the Space AI key, or on any Space AI account whose uses reach the person (space-accounts.ts): the handle and item, never the value. The use is an audit row for the person the turn is for. */
 export async function use(ctx: VaultCtx, input: { handle: string }) {
   const s = current(ctx);
   const want = typeof input.handle === "string" ? input.handle.replace(/^#/, "").split(".")[0]!.toLowerCase() : "";
-  if (!s || want === "" || str(s.item, "handle").replace(/^#/, "").toLowerCase() !== want) throw fail("validation.not_found", ctx.trace.traceId, { message: "That is not the Space AI key." });
+  if (!s || want === "" || str(s.item, "handle").replace(/^#/, "").toLowerCase() !== want) {
+    const other = want === "" ? null : await useSpaceAccount(ctx, want);
+    if (other) return other;
+    throw fail("validation.not_found", ctx.trace.traceId, { message: "That is not the Space AI key." });
+  }
   touch(ctx, s.item, { purpose: `Space AI key, a turn for ${me(ctx)}` });
   return { handle: str(s.item, "handle"), itemId: str(s.item, "id") };
 }

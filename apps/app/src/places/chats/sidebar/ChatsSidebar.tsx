@@ -34,15 +34,23 @@ import { Mark } from "../../../onboarding/ProviderLogo.tsx";
 import { dayLabel, importedRows, importedStartsOpen, providerMark, providerName } from "../imported/model.ts";
 import type { ImportedRow } from "../imported/model.ts";
 import { importedChanged, onImportedChange } from "../imported/changes.ts";
+import { useGoals } from "../goals/data.ts";
+import { sidebarGoals } from "../goals/model.ts";
+import type { GoalLine } from "../goals/model.ts";
+import { GOAL_ROW_H, GoalRow } from "../goals/GoalRow.tsx";
 import { RenameField } from "../conversation/parts.tsx";
 import { ChannelSheets } from "../channels/Sheets.tsx";
 import { onChannelRequest, takeChannelRequest } from "../channels/request.ts";
+import { usePulse } from "./pulse.ts";
+import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import type { ChannelSheetKind } from "../channels/request.ts";
 
 export const SIDEBAR_SCREEN = "chats.sidebar";
 export const AGENTS_SCREEN = "chats.all-agents";
-export const NEEDS_SCREEN = "home.needs-you-top3";
+/** Tasks is the one door to what needs you: the sidebar reads its Needs you and its count (tasks.my-work), never the Home screen. */
+export const NEEDS_SCREEN = "tasks.my-work";
 export const ROW_H = 34;
+const NO_GOALS: GoalLine[] = [];
 /** A section head sits a little apart from the rows above it. */
 const WORK_SCREEN = "tasks.my-work";
 
@@ -97,8 +105,12 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < 560;
   const [filter, setFilter] = useState<SideFilter>("all");
-  const [more, setMore] = useState<{ recent?: boolean; people?: boolean; faces?: boolean }>({});
-  const [closed, setClosed] = useState<ReadonlySet<SectionKey>>(new Set());
+  const [more, setMore] = useState<{ recent?: boolean; people?: boolean; faces?: boolean; goals?: boolean }>({});
+  // Goals: yours and the ones you help with, what needs you first (goals/model.ts). They follow the Space's changes, as a card that reads by capability does.
+  const goalsQ = useGoals(data.call, data.changes);
+  const goalRows = useMemo(() => (goalsQ.state.status === "ready" ? sidebarGoals(goalsQ.state.data, data.clock().now) : NO_GOALS), [goalsQ.state, data]);
+  // Team now starts folded (owner D24: collapsed in Chats, open in Console); a press opens it
+  const [closed, setClosed] = useState<ReadonlySet<SectionKey>>(new Set<SectionKey>(["team"]));
   // The imported coding sessions (sessions.list): read on open and again when the chats change, so a continued session shows its chat. A Space that cannot list them shows no group.
   const [archive, setArchive] = useState<ImportedRow[]>([]);
   // null: the group follows its default (open unless long); a press on its head decides.
@@ -112,6 +124,9 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   const [renaming, setRenaming] = useState<string | null>(null);
   // The New channel and Browse channels sheets: opened from this sidebar, or by a request from Cmd-K or the new menu (one waiting before this mounted is taken now). A Personal Space has none.
   const personal = data.space.personal === true;
+  // New chat, channel and agent each need their permission (a guest holds none): what the person cannot make is not offered (l-perms)
+  const rtPerms = useOptionalShellRuntime();
+  const canChat = allows(rtPerms, GATE.newChat), canChannel = allows(rtPerms, GATE.newChannel), canAgent = allows(rtPerms, GATE.newAgent);
   const [sheet, setSheet] = useState<ChannelSheetKind | null>(null);
   useEffect(() => {
     const take = (): void => { const k = takeChannelRequest(); if (k && !personal) setSheet(k); };
@@ -127,8 +142,8 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   const channelsQ = useScreenQuery<ChannelsOut>(SIDEBAR_SCREEN, "channels", {});
   const agentsQ = useScreenQuery<AgentsOut>(AGENTS_SCREEN, "agents", {});
   // The prototype lists every request under Needs you, not only the top three.
-  const needsQ = useScreenQuery<NeedsOut>(NEEDS_SCREEN, "items", {});
-  const workQ = useScreenQuery<{ tasks: readonly unknown[] }>(WORK_SCREEN, "list", { section: "open" });
+  const needsQ = useScreenQuery<NeedsOut>(NEEDS_SCREEN, "needs", { limit: 50 });
+  const countQ = useScreenQuery<{ count: number }>(WORK_SCREEN, "count", {});
   const peopleQ = useMemo(() => data.people ?? [], [data.people]);
   // read again after a rename, archive or delete here or on the transcript page
   const [reread, setReread] = useState(0);
@@ -149,6 +164,9 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   const agentName = useCallback((id: string) => nameOr(names.get(id), id), [names]);
   const personNames = useMemo(() => new Map(peopleQ.map((p) => [p.id, p.name])), [peopleQ]);
   const personName = useCallback((id: string) => nameOr(personNames.get(id), id), [personNames]);
+  // the While you were away row, who is around and what agents are doing (pulse.ts)
+  const { pulse, reread: rereadPulse } = usePulse({ call: data.call, changes: data.changes, personal, me: data.me?.id, personName: (id) => (id === data.me?.id ? "you" : personName(id)), agentName });
+  const digestCount = pulse.digest ? pulse.digest.items.length : 0;
   // The Agents group is the Space's agents (agents.list takes no "starred" input; starring becomes its own packet): the first FACES_SHOWN of them, the rest behind All agents.
   // Not the assistant (its mark sits beside New chat). An agent waiting on you always comes first, so the cap can never hide one; everyone else keeps the Space's order.
   // Next come the agents with something new for you, so "N more" never hides an unread chat either.
@@ -168,7 +186,8 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   const channels: Channel[] = useMemo(() => allChannels.filter((c) => (meId === undefined || c.recordId !== undefined || c.members.some((m) => m.id === meId)) && matchesQuery(query, c.name)), [allChannels, query, meId]);
   const allNeeds: NeedsItem[] = needsQ.status === "ready" ? needsQ.data.items : [];
   const waitingThreads = useMemo(() => new Set(allNeeds.flatMap((n) => { const id = (n.task as { threadId?: string }).threadId; return id ? [id] : []; })), [allNeeds]);
-  const tasksCount = (needsQ.status === "ready" ? needsQ.data.total : 0) + (workQ.status === "ready" ? workQ.data.tasks.length : 0);
+  // exactly what waits on you: the rows of Tasks' Needs you group, each once (tasks.count_needs_you)
+  const tasksCount = countQ.status === "ready" ? countQ.data.count : 0;
   // A read that failed ends the skeleton and says so, for that section only (never the empty state: empty means nothing is here). The other sections draw what they have.
   const errors: Partial<Record<SectionKey, SectionError>> = {};
   for (const [section, label, q] of [["recent", "Chats", recentQ], ["channels", "Channels", channelsQ], ["faces", "Agents", agentsQ]] as const) {
@@ -203,8 +222,8 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   }, [groups, agents]);
 
   const entries = useMemo(
-    () => buildEntries({ tasksCount, threadsDot, agentUnread: byAgent, waitingThreads, assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name }, people, moreRecent: more.recent === true, morePeople: more.people === true, moreAgents: more.faces === true, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(liveImported)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, archivedImported, personal, searching: query.trim() !== "" }),
-    [personal, query, tasksCount, threadsDot, byAgent, waitingThreads, people, more, data.space.assistant.agentId, data.space.assistant.name, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, imported, archivedImported, importedOpen, liveImported, archivedChats, archivedOpen],
+    () => buildEntries({ goals: goalRows, moreGoals: more.goals === true, digest: digestCount > 0 ? { count: digestCount } : null, team: pulse.team, presence: pulse.presence, tasksCount, threadsDot, notes: data.nav.openNotes !== undefined, agentUnread: byAgent, waitingThreads, assistant: { agentId: data.space.assistant.agentId, name: data.space.assistant.name }, people, moreRecent: more.recent === true, morePeople: more.people === true, moreAgents: more.faces === true, faces, workingAgents: working, waitingAgents: waiting, groups, channels, filter, archived: archivedChats, archivedOpen, closed: (importedOpen ?? importedStartsOpen(liveImported)) ? closed : new Set([...closed, "imported" as const]), facesMore, errors, imported, archivedImported, personal, searching: query.trim() !== "" }),
+    [goalRows, digestCount, pulse.team, pulse.presence, personal, query, tasksCount, threadsDot, data.nav.openNotes, byAgent, waitingThreads, people, more, data.space.assistant.agentId, data.space.assistant.name, faces, facesMore, recentQ, channelsQ, agentsQ, working, waiting, groups, channels, filter, closed, imported, archivedImported, importedOpen, liveImported, archivedChats, archivedOpen],
   );
   const order = useMemo(() => selectable(entries), [entries]);
   const byKey = useMemo(() => new Map(entries.map((e) => [e.key, e])), [entries]);
@@ -313,21 +332,54 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
     else if (e.type === "imported") { if (e.row.continuedThreadId) data.nav.openChat(e.row.continuedThreadId); else data.nav.openImported?.(e.row.conversationId); }
     else if (e.type === "face") data.nav.openAgentChat(e.agent.agentId);
     else if (e.type === "channel") data.nav.openChannel(e.channel.channelId);
-    else if (e.type === "nav") { (e.to === "tasks" ? data.nav.openTasks : data.nav.openThreads)?.(); }
+    else if (e.type === "nav") { (e.to === "tasks" ? data.nav.openTasks : e.to === "notes" ? data.nav.openNotes : data.nav.openThreads)?.(); }
+    else if (e.type === "goal") data.nav.openGoal?.(e.goal.id);
     else if (e.type === "person") void api.chatWithPerson(e.id);
+    else if (e.type === "pulse") { if (e.kind === "person") void api.chatWithPerson(e.id); else if (e.threadId) data.nav.openChat(e.threadId); else data.nav.openAgentChat(e.id); }
+    else if (e.type === "digest") { digestMenu(8, 48); return; }
     else if (e.type === "action") { setSheet("new"); return; }
     else if (e.type === "more") { if (e.to === "agents") data.nav.openAllAgents(); else { setMore((m) => ({ ...m, [e.to]: true })); return; } }
     else if (e.type === "head") { toggle(e.section); return; }
     leave();
   };
+  // While you were away: what happened, in the order the digest ranks it; choosing a line opens it and the row goes (the digest resets once seen)
+  const seenDigest = (): void => {
+    const d = pulse.digest;
+    if (d) void data.call("home.mark_digest_seen", { digestId: d.id }).then(rereadPulse, () => undefined);
+  };
+  const openDigestItem = (subject: { type: string; id: string }): void => {
+    if (subject.type === "thread") data.nav.openChat(subject.id);
+    else if (subject.type === "task") data.nav.openNeedsYou(subject.id);
+    else data.nav.openSubject?.(subject);
+    seenDigest();
+    leave();
+  };
+  const digestMenu = (x: number, y: number): void => {
+    const d = pulse.digest;
+    if (!d) return;
+    const items: MenuEntry[] = d.headline.map((h): MenuEntry => ({ head: h }));
+    for (const it of d.items) {
+      const subject = it.subject;
+      items.push({ label: `${it.title}: ${it.line}`, ...(subject && (subject.type === "thread" || subject.type === "task" || data.nav.openSubject) ? { onSelect: () => openDigestItem(subject) } : {}) });
+    }
+    items.push({ separator: true }, { label: "Mark as Seen", onSelect: seenDigest });
+    menu.show(items, x, y, "other", { label: "While you were away" });
+  };
+  const at = (ev: unknown): [number, number] => { const n = (ev as { nativeEvent?: { pageX?: number; pageY?: number } } | undefined)?.nativeEvent; return [n?.pageX ?? 8, n?.pageY ?? 48]; };
   // a person: Message, and Mark as Read or Unread once you have a direct message with them
   const personMenu = (e: Extract<Entry, { type: "person" }>): MenuEntry[] => {
     const dm = dms.get(e.id);
     const mark: MenuEntry[] = !dm ? [] : [{ separator: true }, e.unread > 0 ? { label: "Mark as Read", onSelect: () => guard(api.markRead(dm)) } : { label: "Mark as Unread", onSelect: () => guard(api.markUnread(dm)) }];
     return [{ label: "Message", onSelect: () => open(e) }, ...mark];
   };
+  // Notes: Open, Open in a new tab, Take a note
+  const notesMenu = (e: Entry): MenuEntry[] => [
+    { label: "Open", onSelect: () => open(e) },
+    ...(data.nav.openNotesTab ? [{ label: "Open in a new tab", onSelect: () => data.nav.openNotesTab?.() }] : []),
+    ...(data.nav.takeNote ? [{ label: "Take a note", onSelect: () => { setCursor(e.key); data.nav.takeNote?.(); leave(); } }] : []),
+  ];
   const menuFor = (e: Entry, x: number, y: number): MenuEntry[] | null =>
-    e.type === "chat" ? chatMenu(e.row) : e.type === "face" ? faceMenu(e.agent) : e.type === "channel" ? channelMenu(e.channel) : e.type === "imported" ? importedMenu(e, x, y) : e.type === "person" ? personMenu(e) : null;
+    e.type === "nav" && e.to === "notes" ? notesMenu(e) : e.type === "chat" ? chatMenu(e.row) : e.type === "face" ? faceMenu(e.agent) : e.type === "channel" ? channelMenu(e.channel) : e.type === "imported" ? importedMenu(e, x, y) : e.type === "person" ? personMenu(e) : null;
   /** A row's "...", drawn while the pointer is on it: the same menu as a right-click. */
   const moreTool = (e: Entry, label: string): ReactElement => (
     <Tool icon="more" label={`More for ${label}`} onPress={(x, y) => { const m = menuFor(e, x, y); if (m) menu.show(m, x, y, "context", { label: e.key }); }} testID={`more-${e.key}`} />
@@ -369,11 +421,12 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
         return (
           <SectionHead id={e.section} label={e.label} count={!e.open ? e.count : undefined} open={e.open} onToggle={() => toggle(e.section)}>
             {e.section === "channels" ? <Tool icon="search" label="Browse channels" onPress={() => setSheet("browse")} testID="browse-channels-tool" /> : null}
-            {e.section === "channels" ? <Tool icon="plus" label="New channel" onPress={() => setSheet("new")} testID="new-channel" /> : null}
-            {e.section === "faces" ? <Tool icon="plus" label="New agent" onPress={() => { (data.nav.openNewAgent ?? data.nav.openAllAgents)(); leave(); }} testID="all-agents" /> : null}
+            {e.section === "channels" && canChannel ? <Tool icon="plus" label="New channel" onPress={() => setSheet("new")} testID="new-channel" /> : null}
+            {e.section === "faces" && canAgent ? <Tool icon="plus" label="New agent" onPress={() => { (data.nav.openNewAgent ?? data.nav.openAllAgents)(); leave(); }} testID="all-agents" /> : null}
           </SectionHead>
         );
       }
+      case "goal": return <GoalRow goal={e.goal} selected={sel} hovered={lit} now={data.clock().now} offsetMin={data.clock().offsetMin} me={data.me?.id} leadName={agentName(e.goal.leadAgentId)} onPress={() => open(e)} />;
       case "group": return <GroupLabel label={e.label} />;
       case "action": return (
         <Row id={e.key} title={e.label} selected={sel} hovered={lit} onPress={() => open(e)} leading={<LeadGlyph name="plus" />} />
@@ -399,15 +452,30 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
           <EmptyLine text={e.text} />
         </View>
       );
-      case "nav": return (
-        <Row
-          id={e.key} title={e.label} selected={sel} hovered={lit} onPress={() => open(e)} leading={<LeadGlyph name={e.to === "tasks" ? "task" : "reply"} />}
-          trailing={e.count > 0 ? <Text testID={`count-${e.to}`} style={st.navCount}>{e.count}</Text> : e.dot ? <UnreadDot /> : null}
-        />
+      case "nav": {
+        const row = (
+          <Row
+            id={e.key} title={e.label} selected={sel} hovered={lit} onPress={() => open(e)} leading={<LeadGlyph name={e.to === "tasks" ? "task" : e.to === "notes" ? "note" : "reply"} />}
+            trailing={e.count > 0 ? <Text testID={`count-${e.to}`} style={st.navCount}>{e.count}</Text> : e.dot ? <UnreadDot /> : null}
+          />
+        );
+        return e.to === "notes" ? wrap(row) : row;
+      }
+      case "digest": return (
+        <View style={{ height: ROW_H }} testID="away-digest-row">
+          <Row id={e.key} title="While you were away" selected={sel} hovered={lit} onPress={(ev) => { setCursor(e.key); const [x, y] = at(ev); digestMenu(x, y); }} leading={<LeadGlyph name="clock" />}
+            trailing={<Text testID="away-digest-count" style={st.navCount}>{e.count}</Text>} />
+        </View>
+      );
+      case "pulse": return (
+        <View style={{ height: ROW_H }} testID={`pulse-${e.kind}-${e.id}`}>
+          <Row id={e.key} title={e.name} titleSuffix={e.line} selected={sel} hovered={lit} onPress={() => open(e)}
+            leading={<View style={{ marginRight: 9 }}><Face name={e.name} seedId={e.id} kind={e.kind} size={18} presence={e.presence} /></View>} />
+        </View>
       );
       case "person": return wrap(
         <Row id={e.key} title={e.name} selected={sel} hovered={lit} emphasis={e.unread > 0 && !sel} onPress={() => open(e)}
-          leading={<View style={{ marginRight: 9 }}><Face name={e.name} seedId={e.id} kind="person" size={18} /></View>}
+          leading={<View style={{ marginRight: 9 }}><Face name={e.name} seedId={e.id} kind="person" size={18} presence={e.presence} /></View>}
           trailing={e.unread > 0 && !sel ? <UnreadDot /> : null} />,
       );
       case "face": return wrap(
@@ -478,9 +546,9 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
   const headBusy = dot || !online;
   // Filter, then New: a chat, a channel, an agent. A Personal Space has no channels.
   const newMenu = (x: number, y: number): void => menu.show([
-    { label: "New chat", onSelect: () => { (data.nav.openNew ?? (() => void api.newChat()))(); leave(); } },
-    ...(personal ? [] : [{ label: "New channel", onSelect: () => setSheet("new") }, { label: "Browse channels", onSelect: () => setSheet("browse") }]),
-    { label: "New agent", onSelect: () => { (data.nav.openNewAgent ?? data.nav.openAllAgents)(); leave(); } },
+    ...(canChat ? [{ label: "New chat", onSelect: () => { (data.nav.openNew ?? (() => void api.newChat()))(); leave(); } }] : []),
+    ...(personal ? [] : [...(canChannel ? [{ label: "New channel", onSelect: () => setSheet("new") }] : []), { label: "Browse channels", onSelect: () => setSheet("browse") }]),
+    ...(canAgent ? [{ label: "New agent", onSelect: () => { (data.nav.openNewAgent ?? data.nav.openAllAgents)(); leave(); } }] : []),
   ], x, y, "other");
   const newButton = <Tool icon="plus" label="New" onPress={newMenu} testID="new-menu" />;
   const newChatButton = <Tool icon="filter" label="Filter" active={filter !== "all"} onPress={filterMenu} testID="filter-chats" />;
@@ -498,7 +566,7 @@ function Sidebar({ window, query, slot, open: shown }: { window?: VirtualWindow;
       {data.nav.openArtifacts ? <View style={{ height: ROW_H }}><Row id="artifacts" testID="chats-artifacts" title="Artifacts" selected={selected === "artifacts"} hovered={follows && cursor === "artifacts" && selected !== "artifacts"} leading={<LeadGlyph name="project" />} onPress={() => { setCursor("artifacts"); data.nav.openArtifacts?.(); leave(); }} /></View> : null}
       <View style={st.list}>
         {loading ? <ChatsSidebarLoading /> : (
-          <VirtualList data={entries} rowHeight={ROW_H} keyOf={(e) => e.key} renderItem={(e) => renderEntry(e)} {...(window ? { window } : {})} />
+          <VirtualList data={entries} rowHeight={ROW_H} heightOf={(e) => (e.type === "goal" ? GOAL_ROW_H : ROW_H)} keyOf={(e) => e.key} renderItem={(e) => renderEntry(e)} {...(window ? { window } : {})} />
         )}
       </View>
       {undo ? (

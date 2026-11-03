@@ -9,6 +9,7 @@ import { menuTrigger, useMenu } from "../../../../../ui/src/Menu/index.tsx";
 import { sq } from "../../../../../ui/src/SidePane/host.tsx";
 import { Tooltip } from "../../../../../ui/src/Tooltip/index.tsx";
 import { ShellIcon, iconMarkup } from "./icons.tsx";
+import { PHONE_BAR, phoneMore } from "./kits.ts";
 import type { PlaceId, RailEntry, RailGroups } from "./kits.ts";
 
 export const RAIL_WIDTH = 60;
@@ -65,10 +66,8 @@ export function Rail({ groups, active, onSelect, onOpenInTab, onPrefetch, header
   };
   if (bottom === true) {
     // The bar is the prototype's five places; the bottom group sits behind More.
-    const barPlaces: readonly PlaceId[] = ["chats", "inbox", "records", "files"];
-    const inBar = (e: RailEntry): boolean => barPlaces.includes(e.place);
-    const barEntries = groups.top.filter(inBar);
-    const more = [...groups.top.filter((e) => !inBar(e)), ...groups.bottom];
+    const barEntries = groups.top.filter((e) => PHONE_BAR.includes(e.place));
+    const more = phoneMore(groups);
     const moreOn = more.some((e) => e.place === active);
     const openMore = (x: number, y: number): void => show(
       more.map((e) => ({ label: e.title, icon: iconMarkup(e.place), onSelect: () => onSelect(e.place), ...(e.place === active ? { checked: true } : {}) })),

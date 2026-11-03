@@ -22,7 +22,8 @@ const post = async (d: Space, p: string, body: unknown, token?: string): Promise
 /** The same shape the screen's CapCall has: a capability name and its input, as a signed-in person. */
 const caller = (d: Space, token: string): CapCall => (async (cap: string, input: unknown) => {
   const r = await post(d, `/v1/${cap.replaceAll(".", "/")}`, input, token);
-  if (r.status !== 200) throw Object.assign(new Error(r.json.error?.message ?? `${cap} ${r.status}`), { code: r.json.error?.code });
+  // the error carries its code and details, as the app's client hands them on (details.reason says why, e.g. vault_locked)
+  if (r.status !== 200) throw Object.assign(new Error(r.json.error?.message ?? `${cap} ${r.status}`), { code: r.json.error?.code, ...(r.json.error?.details ? { details: r.json.error.details } : {}) });
   return r.json.data;
 }) as unknown as CapCall;
 

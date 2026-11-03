@@ -8,6 +8,7 @@ HTTP 401. Retryable: no.
 
 - identity.change_password
 - identity.github_sign_in
+- identity.link_account
 - identity.sign_in
 - identity.sso_sign_in
 - identity.totp_remove

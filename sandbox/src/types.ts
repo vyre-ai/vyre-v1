@@ -22,6 +22,8 @@ export interface SandboxSpec {
   scratch?: string;
   /** Hosts the process may reach, by name (`api.anthropic.com`, `*.openai.com`). Everything else is refused at the proxy. */
   egressHosts: readonly string[];
+  /** The network rule (egress-policy.ts). Given, it decides instead of egressHosts: `{ egress: "public" }` is every public host. Plain JSON. */
+  egressRule?: import("./egress-policy.ts").EgressRule;
   limits?: Partial<Limits>;
   /** Extra environment. Proxy variables are set by the sandbox and cannot be overridden. */
   env?: Readonly<Record<string, string>>;

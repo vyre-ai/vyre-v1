@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fail } from "../../../host/src/routes/errors.ts";
 import type { Field } from "./crypto.ts";
-import { ENC_MINE, currentFiller, currentKeyPort, openMine, wrapKeyFromPersonKey } from "./crypto.ts";
+import { ENC_MINE, ENC_MINE_SEALED, currentFiller, currentKeyPort, openMine, openMineSealed, wrapKeyFromPersonKey } from "./crypto.ts";
 import { filler, live, openFields, reachable, turnFor, visible } from "./items.ts";
 import { aliasTarget } from "./signins.ts";
 import {
@@ -59,7 +59,8 @@ export interface SigninPort {
   has(provider: string): boolean;
   /** True while the host holds this flow (it is lost when the server restarts). */
   active(id: string): boolean;
-  start(p: { id: string; provider: string; person: string }): Promise<{ url: string; userCode?: string; needsCode: boolean; expiresInSec: number }>;
+  /** `local`: the sign-in already on this computer (Personal Space only): the flow is done at once and has no link. */
+  start(p: { id: string; provider: string; person: string; local?: boolean }): Promise<{ url: string; userCode?: string; needsCode: boolean; expiresInSec: number }>;
   /** `identity` names the account the provider says this is (an id compared, a label shown); absent when the answer names nobody. */
   step(p: { id: string; person: string; code?: string }): Promise<{ state: "waiting" } | { state: "done"; fields: { key: string; value: string; secret: boolean }[]; identity?: { id: string; label?: string } } | { state: "failed"; message: string }>;
   cancel(id: string): void;
@@ -92,8 +93,14 @@ export function secretPort(db: VaultDb): SecretPort {
     let fields: Field[];
     if (str(meta, "scope") === "mine") {
       const key = await currentKeyPort()?.personKey(str(meta, "owner"));
-      if (!key) throw new Error("Your vault key is locked on this computer.");
-      fields = openMine(str(meta, "id"), { enc: ENC_MINE, keyId: str(row, "keyId"), box, rev: num(row, "rev"), wrapped: parseJson(row["wrapped"], { iv: "", ct: "", tag: "" }) }, wrapKeyFromPersonKey(key));
+      // the words the engine and the app read as a locked key (vault_locked): the owner's Mine items open while they are signed in
+      if (!key) throw new Error("Your vault key is locked: your Mine items open while you are signed in to Vyre.");
+      const sealed = { keyId: str(row, "keyId"), box, rev: num(row, "rev"), wrapped: parseJson(row["wrapped"], { iv: "", ct: "", tag: "" }) };
+      if (num(row, "enc") === ENC_MINE_SEALED) {
+        const priv = await currentKeyPort()?.privateKey?.(str(meta, "owner"));
+        if (!priv) throw new Error("Your vault key is locked: your Mine items open while you are signed in to Vyre.");
+        fields = openMineSealed(str(meta, "id"), { enc: ENC_MINE_SEALED, ...sealed }, priv);
+      } else fields = openMine(str(meta, "id"), { enc: ENC_MINE, ...sealed }, wrapKeyFromPersonKey(key));
     } else {
       const f = currentFiller();
       if (!f) throw new Error("The vault service is not running.");
@@ -140,7 +147,7 @@ function itemBy(ctx: VaultCtx, ref: string, forTurn = false): Row {
   const byHandle = (w: string): Row | undefined => rows.find((r) => str(r, "handle").replace(/^#/, "").toLowerCase() === w);
   const folded = (): Row | undefined => { const to = aliasTarget(ctx.db, want); return to ? byHandle(to.replace(/^#/, "").toLowerCase()) : undefined; };
   const hit = byHandle(want) ?? rows.find((r) => str(r, "name").toLowerCase() === ref.trim().toLowerCase()) ?? folded();
-  if (!hit) throw fail("validation.not_found", ctx.trace.traceId, { message: "That item is not in this Vault, or you cannot use it." });
+  if (!hit) throw fail("validation.not_found", ctx.trace.traceId, { message: "That item is not in this Vault, or you cannot use it. Ask its owner to share it with you." });
   return reachable(ctx, str(hit, "id"), "use", { forTurn });
 }
 

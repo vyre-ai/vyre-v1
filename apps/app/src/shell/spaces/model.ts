@@ -14,6 +14,10 @@ export interface SpaceDef {
   role: string;
   /** The tile gradient. */
   tint: readonly [string, string];
+  /** The Space image (a data: address from spaces.image), shown on the tile and in the switcher in place of the letter. */
+  image?: string;
+  /** The file the image was made from (logoFileId): asking spaces.image with it again costs nothing until it changes. */
+  imageKey?: string;
   /** Which Kit draws the rail (rail/kits.ts). */
   kit: string;
   /** The Space's default skin; a person's own choice wins (3.9). */
@@ -24,17 +28,21 @@ export interface SpaceDef {
   needsYou: boolean;
   /** console.access in this Space. */
   console: boolean;
+  /** Places this person's role cannot use here (a guest: Automations and the Vault), off the rail (l-perms). Absent: none. */
+  hidden?: readonly PlaceId[];
   /** This person has a mailbox, calendar or number flowing in: Inbox is on the rail. Absent until the shell knows (it keeps the last answer this device saw). */
   inbox?: boolean;
   /** Owner or developer: Open Terminal in the switcher menu. */
   terminal: boolean;
+  /** May invite people (members.invite: Owner and Admin, Team Spaces only): Invite People in the switcher menu. */
+  invite?: boolean;
   counts: Readonly<Partial<Record<PlaceId, number>>>;
   dots: Readonly<Partial<Record<PlaceId, boolean>>>;
 }
 
 export const NORTHWIND: SpaceDef = {
   spaceId: "nw", name: "Northwind", kind: "team", address: "northwind.vyre.run", role: "Owner", tint: ["#6E5CF0", "#9B6BE8"],
-  kit: "northwind", skinDefault: "system", starred: true, needsYou: false, console: true, terminal: true,
+  kit: "northwind", skinDefault: "system", starred: true, needsYou: false, console: true, terminal: true, invite: true,
   counts: { chats: 7 }, dots: { inbox: true, records: true },
 };
 

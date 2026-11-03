@@ -10,6 +10,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "spaces.delete": async (ctx) => { throw new VyreErr(notImplemented("spaces.delete", ctx.trace)); },
   "spaces.export": async (ctx) => { throw new VyreErr(notImplemented("spaces.export", ctx.trace)); },
   "spaces.get": async (ctx) => { throw new VyreErr(notImplemented("spaces.get", ctx.trace)); },
+  "spaces.image": async (ctx) => { throw new VyreErr(notImplemented("spaces.image", ctx.trace)); },
   "spaces.leave": async (ctx) => { throw new VyreErr(notImplemented("spaces.leave", ctx.trace)); },
   "spaces.matrix": async (ctx) => { throw new VyreErr(notImplemented("spaces.matrix", ctx.trace)); },
   "spaces.onboarding.complete": async (ctx) => { throw new VyreErr(notImplemented("spaces.onboarding.complete", ctx.trace)); },

@@ -28,5 +28,9 @@ type Payload = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
+  capName?: string;
+  threadId?: string;
+  agentId?: string;
+  actingFor?: string;
 };
 ```

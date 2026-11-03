@@ -39,13 +39,14 @@ type In = {
 type Out = {
   rule: {
     id: string;
-    kind: "standing" | "always";
+    kind: "standing" | "always" | "goal";
     act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
     target: string;
     agentId?: string;
     threadId?: string;
     automationId?: string;
     stepId?: string;
+    goalId?: string;
     expiresAt?: number;
   };
 };
@@ -77,6 +78,7 @@ type Out = {
       "agentId": "agt_a1b2c3",
       "automationId": "aut_a1b2c3",
       "expiresAt": 1760000000000,
+      "goalId": "gol_a1b2c3",
       "id": "example",
       "kind": "standing",
       "stepId": "example",

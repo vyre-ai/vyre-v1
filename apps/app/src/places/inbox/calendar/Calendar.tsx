@@ -1,10 +1,18 @@
 // Inbox > Calendar (spec 3.3, 2.18): Day, Week (the default) and Month over the calendars the sidebar shows. Drag on the grid to make an event in 15 minute steps; a small card takes the title, length,
 // people and calendar; shaded stripes show when the people you add are busy; "Find a time" lists the next free slots. Drag an event to move it and its bottom edge to resize, both on 15 minute
-// steps; right-click for Open, Join, Open Record, Open Conversation, Move to a calendar, Duplicate and Delete (Undo on the line that follows). Everything reads from the local copy.
+// steps; right-click for Open, Edit, Join, Going?, Prepare, Ask, Copy Link, Open Record, Open Conversation, Move to a calendar, Duplicate and Delete (Undo on the line that follows). A click on an event
+// opens it in the event pane beside the calendar (a sheet on a phone), Enter too, and Escape closes it; a double-click edits it; a click on an empty slot starts a new event there.
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { Recipients } from "../../../../../../ui/src/Recipients/index.tsx";
+import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
+import { Sheet } from "../../../mobile/sheets/Sheet.tsx";
+import { EventPane } from "./eventpane/EventPane.tsx";
+import { eventLink } from "./eventpane/model.ts";
+import { BrandMark } from "./eventpane/BrandMark.tsx";
+import { PROVIDER_NAME, telUrl, videoDefault, videoOptions } from "./eventpane/join.ts";
+import { usePhone } from "../softphone/phone.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { useInboxData, useOnline, useOptionalInboxData, useScreenQuery } from "../sidebar/data.tsx";
 import { useInboxState } from "../sidebar/state.tsx";
@@ -32,11 +40,21 @@ export interface CalendarProps {
   /** People who can be added to an event and shaded as busy. */
   team: readonly Person[];
   onOpenEvent?(eventId: string): void;
+  /** the event pane closed (the shell clears the event from the address) */
+  onCloseEvent?(): void;
   onOpenRecord?(recordId: string): void;
   onOpenConversation?(contactId: string): void;
   onJoin?(url: string): void;
-  /** Where the view opens: a deep link, or a test. */
-  initial?: { mode?: Mode; day?: number; people?: readonly string[]; draft?: Draft };
+  /** Ask About This: the Ask pane about the event */
+  onAsk?(e: { id: string; title: string }): void;
+  /** Open close-out: the meeting in the Inbox's Meetings tab */
+  onOpenMeeting?(meetingId: string): void;
+  onOpenFile?(fileId: string): void;
+  onOpenUrl?(url: string): void;
+  /** Call a number: through Vyre's telephony when a number is connected; absent, the phone's own dialer (tel:) */
+  onCall?(number: string, pin?: string): void;
+  /** Where the view opens: a deep link, or a test. `openId` opens that event in the pane. */
+  initial?: { mode?: Mode; day?: number; people?: readonly string[]; draft?: Draft; openId?: string; edit?: boolean };
 }
 
 const GRID = HH * 24;
@@ -100,7 +118,43 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
   const [first, setFirst] = useState<Slot | undefined>(undefined);
   const [panel, setPanel] = useState<readonly Slot[] | null>(null);
   const [cardSlots, setCardSlots] = useState<readonly Slot[] | null>(null);
-  const [undo, setUndo] = useState<{ id: string; title: string } | null>(null);
+  const [undo, setUndo] = useState<{ label: string; run?: () => Promise<unknown> } | null>(null);
+  // the event open in the pane, and whether it opened in edit (a double-click)
+  const [open, setOpen] = useState<{ id: string; edit: boolean } | null>(p.initial?.openId ? { id: p.initial.openId, edit: p.initial.edit === true } : null);
+  const openEvent = (id: string, edit = false): void => { dispatch({ type: "select", id }); setOpen({ id, edit }); p.onOpenEvent?.(id); };
+  const closeEvent = (): void => { setOpen(null); p.onCloseEvent?.(); };
+  // Vyre's own phone, when a number is connected: a phone meeting is called through it
+  const phoneDock = usePhone();
+  // Zoom connected? (the new-event card and Add a video call offer it then)
+  const [zoomOn, setZoomOn] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void Promise.resolve(data.call("connections.list", {})).then((o) => { if (live) setZoomOn(((o as { connections?: Array<{ connector: string; state: string }> }).connections ?? []).some((c) => /zoom/.test(c.connector) && c.state === "active")); }, () => undefined);
+    return () => { live = false; };
+  }, [data]);
+  // the person's usual video call, remembered on this device when they pick one
+  const VIDEO_KEY = "vyre.calendar.video";
+  const store = (globalThis as { localStorage?: { getItem(k: string): string | null; setItem(k: string, v: string): void } }).localStorage;
+  const videosFor = (calendarId: string): Array<"meet" | "teams" | "zoom"> => videoOptions(calendars.find((c) => c.id === calendarId)?.provider, zoomOn);
+  const videoOf = (d: Draft): "meet" | "teams" | "zoom" | "none" => d.video ?? videoDefault(videosFor(d.calendarId), (() => { try { return store?.getItem(VIDEO_KEY) ?? null; } catch { return null; } })());
+  // a second press on the same event soon after the first edits it: react-native-web's Pressable drops onDoubleClick, and a re-render between the clicks would break a native one
+  const lastPress = useRef<{ id: string; at: number }>({ id: "", at: 0 });
+  const pressEvent = (id: string): void => {
+    const now = Date.now();
+    const twice = lastPress.current.id === id && now - lastPress.current.at < 450;
+    lastPress.current = twice ? { id: "", at: 0 } : { id, at: now };
+    openEvent(id, twice);
+  };
+  // a link to an event opens it, and the view goes to its day
+  const linked = p.initial?.openId;
+  useEffect(() => {
+    if (!linked) return;
+    setOpen((o) => (o?.id === linked ? o : { id: linked, edit: p.initial?.edit === true }));
+    dispatch({ type: "select", id: linked });
+    let live = true;
+    void Promise.resolve(data.call("calendar.get_event", { eventId: linked })).then((o) => { const ev = (o as { event?: { startsAt: number } }).event; if (live && ev) dispatch({ type: "go", day: startOfDay(ev.startsAt, off) }); }, () => undefined);
+    return () => { live = false; };
+  }, [linked]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
   const body = useRef<{ getBoundingClientRect?: () => { left: number; width: number } } | null>(null);
   const scroll = useRef<ScrollView | null>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -139,20 +193,39 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
 
   const fail = (): void => undefined;
   const add = (d: Draft): void => {
-    void createEvent(data, d).then((e) => { dispatch({ type: "draft", draft: null }); dispatch({ type: "select", id: e.id }); setCardSlots(null); }).catch(fail);
+    void createEvent(data, { ...d, video: videoOf(d) }).then((e) => { dispatch({ type: "draft", draft: null }); dispatch({ type: "select", id: e.id }); setCardSlots(null); }).catch(fail);
   };
-  const remove = (e: EventRow): void => { void deleteEvent(data, e.id).then(() => { setUndo({ id: e.id, title: e.title }); dispatch({ type: "select", id: null }); }).catch(fail); };
+  const deleted = (e: EventRow): void => {
+    setUndo({ label: `Deleted “${e.title}”`, run: () => restoreEvent(data, e.id).then(() => dispatch({ type: "select", id: e.id })) });
+    dispatch({ type: "select", id: null });
+    if (open?.id === e.id) closeEvent();
+  };
+  const remove = (e: EventRow): void => { void deleteEvent(data, e.id).then(() => deleted(e)).catch(fail); };
+  const copyLink = (e: EventRow): void => {
+    void (globalThis as { navigator?: { clipboard?: { writeText(s: string): Promise<void> } } }).navigator?.clipboard?.writeText(eventLink(e.id))?.catch(() => undefined);
+    setUndo({ label: "Link copied" });
+  };
   const eventMenu = (e: EventRow, x: number, y: number): void => {
     dispatch({ type: "select", id: e.id });
-    menu.show(eventMenuEntries(menuFacts(e, calendars), {
-      open: () => p.onOpenEvent?.(e.id),
+    // the same menu as the pane: Going? needs the person's own answer, which the event read says (a local read, so the menu waits for it only a moment)
+    const show = (mine?: "accepted" | "declined" | "tentative" | "needs_action"): void => menu.show(eventMenuEntries(menuFacts(e, calendars), {
+      open: () => openEvent(e.id),
+      edit: () => openEvent(e.id, true),
+      ...(isPast(e, clockNow.now) ? {} : { prepare: () => { openEvent(e.id); void data.call("meetings.prep.start", { eventId: e.id }).catch(fail); } }),
+      respond: (response) => void data.call("calendar.respond", { eventId: e.id, response }).catch(fail),
+      ask: () => p.onAsk?.({ id: e.id, title: e.title }),
+      copyLink: () => copyLink(e),
       join: () => { if (e.joinUrl) { if (p.onJoin) p.onJoin(e.joinUrl); else (globalThis as { open?: (u: string) => void }).open?.(e.joinUrl); } },
       openRecord: () => { const r = e.recordIds[0]; if (r) p.onOpenRecord?.(r); },
       openConversation: () => { const c = e.attendees.find((a) => a.contactId)?.contactId; if (c) p.onOpenConversation?.(c); },
       moveTo: (id) => void moveToCalendar(data, e.id, id).catch(fail),
       duplicate: () => void duplicateEvent(data, e).then((c) => dispatch({ type: "select", id: c.id })).catch(fail),
       remove: () => remove(e),
-    }), x, y);
+    }, mine), x, y);
+    void Promise.resolve(data.call("calendar.get_event", { eventId: e.id })).then((o) => {
+      const f = o as { mine?: { email: string; response: "accepted" | "declined" | "tentative" | "needs_action" } };
+      show(f.mine && f.mine.email !== e.organizer && !isPast(e, clockNow.now) ? f.mine.response : undefined);
+    }, () => show());
   };
   const openFind = (): void => {
     const pp = shaded.length ? shaded : [];
@@ -187,12 +260,17 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
       setDrag(null);
       if (!d) return;
       if (d.kind === "create") {
+        // a drag makes the event it covers; one click on an empty slot starts half an hour there
         if (Math.abs(d.y1 - d.y0) > 4) dispatch({ type: "draft", draft: newDraft(dragCreate(d.day, d.y0, d.y1), calId, cal.people) });
+        else { const c0 = clickCreate(d.day, d.y0); dispatch({ type: "draft", draft: newDraft({ startsAt: c0.startsAt, endsAt: c0.startsAt + 30 * 60_000 }, calId, cal.people) }); }
         return;
       }
-      if (!d.moved) { dispatch({ type: "select", id: d.id }); return; }
+      if (!d.moved) return;   // a press without a drag is a click: the event opens (onPress)
       const next = d.kind === "move" ? dragMove(d.orig, d.dy, d.dDays, off) : dragResize(d.orig, d.dy, off);
-      if (next.startsAt !== d.orig.startsAt || next.endsAt !== d.orig.endsAt) void setTimes(data, d.id, next).catch(fail);
+      const ev = events.find((x) => x.id === d.id);
+      if (next.startsAt !== d.orig.startsAt || next.endsAt !== d.orig.endsAt) {
+        void setTimes(data, d.id, next).then(() => setUndo({ label: d.kind === "move" ? `Moved “${ev?.title ?? "the event"}”` : `Changed the length of “${ev?.title ?? "the event"}”`, run: () => setTimes(data, d.id, d.orig) })).catch(fail);
+      }
     };
     g.addEventListener?.("pointermove", move);
     g.addEventListener?.("pointerup", up as never);
@@ -215,6 +293,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
   const onKeyDown = (k: { key?: string; target?: { tagName?: string }; preventDefault?(): void }): void => {
     const tag = k.target?.tagName?.toLowerCase();
     if (tag === "input" || tag === "textarea") { if (k.key === "Escape") dispatch({ type: "draft", draft: null }); return; }
+    if (k.key === "Escape" && open && !cal.draft) { k.preventDefault?.(); closeEvent(); return; }
     if (k.key === "ArrowLeft") { k.preventDefault?.(); dispatch({ type: "step", dir: -1, offsetMin: off }); }
     else if (k.key === "ArrowRight") { k.preventDefault?.(); dispatch({ type: "step", dir: 1, offsetMin: off }); }
     else if (k.key === "t") dispatch({ type: "today", today });
@@ -240,7 +319,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
       <View key={e.id} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.cev, { top: b.top, height: b.height, left: b.left as unknown as number, width: b.width as unknown as number, backgroundImage: tint(col, isPast(e, clockNow.now) ? 9 : 15), borderLeftColor: col }, cal.selected === e.id && s.cevSel]} testID={`event:${e.id}`}>
         <Pressable
           accessibilityRole="button" accessibilityLabel={`${e.title}, ${eventLine(e, off)}`} accessibilityState={{ selected: cal.selected === e.id }} testID={`event-body:${e.id}`}
-          onPress={() => dispatch({ type: "select", id: e.id })} {...({ onPointerDown: startEvent(e, "move"), onDoubleClick: () => p.onOpenEvent?.(e.id) } as object)} style={s.cevIn}
+          onPress={() => pressEvent(e.id)} {...({ onPointerDown: startEvent(e, "move") } as object)} style={s.cevIn}
         >
           <Text numberOfLines={1} style={[s.cevTitle, isPast(e, clockNow.now) && s.cevPast]}>{e.title}</Text>
           {b.one ? null : <Text numberOfLines={1} style={s.cevSmall}>{range(span.startsAt, span.endsAt, off)}</Text>}
@@ -306,6 +385,17 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
           <Text style={s.pkText}>{calendars.find((c) => c.id === draft.calendarId)?.title ?? "Calendar"}</Text><Icon name="chevd" size={9} />
         </Pressable>
       </View>
+      {videosFor(draft.calendarId).length ? (
+        <View style={s.pr}>{videoOf(draft) === "none" ? <Icon name="video" size={14} /> : <BrandMark provider={videoOf(draft) as "meet"} size={14} />}
+          <Pressable accessibilityRole="button" accessibilityLabel="Video call" testID="cal-card-video" onPress={(e) => {
+            const q = pointOf(e);
+            const pick = (v: "meet" | "teams" | "zoom" | "none"): void => { try { store?.setItem(VIDEO_KEY, v); } catch { /* remembered for this visit only */ } dispatch({ type: "draft", draft: { ...draft, video: v } }); };
+            menu.show([{ head: "Video call" }, ...videosFor(draft.calendarId).map((v) => ({ label: PROVIDER_NAME[v], checked: videoOf(draft) === v, onSelect: () => pick(v) })), { separator: true }, { label: "None", checked: videoOf(draft) === "none", onSelect: () => pick("none") }], q.x, q.y);
+          }} style={({ hovered }: { hovered?: boolean }) => [s.pk, hovered === true && s.hicOver]}>
+            <Text style={s.pkText}>{videoOf(draft) === "none" ? "No video call" : PROVIDER_NAME[videoOf(draft) as "meet"]}</Text><Icon name="chevd" size={9} />
+          </Pressable>
+        </View>
+      ) : null}
       {cardSlots ? <FindTimeList slots={cardSlots} offsetMin={off} onPick={pickSlot} testID="cal-card-slots" /> : null}
       <View style={s.pf}>
         <Pressable accessibilityRole="button" accessibilityLabel="Find a time" testID="cal-card-find" onPress={() => openCardFind(draft)} style={({ hovered }: { hovered?: boolean }) => [s.btn, hovered === true && s.btnOver]}><Icon name="spark" size={14} color="var(--ink)" /><Text style={s.btnText}>Find a time</Text></Pressable>
@@ -335,7 +425,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
             >
               <View style={[s.mn, d === today && s.mnToday]}><Text style={[s.mnText, out && s.mnOut, d === today && s.mnTodayText]}>{dateOf(d, off)}</Text></View>
               {each(show, (e) => (
-                <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={e.title} testID={`mev:${e.id}`} onPress={() => dispatch({ type: "select", id: e.id })} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={({ hovered }: { hovered?: boolean }) => [s.mev, (hovered === true || cal.selected === e.id) && s.mevOver]}>
+                <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={e.title} testID={`mev:${e.id}`} onPress={() => pressEvent(e.id)} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={({ hovered }: { hovered?: boolean }) => [s.mev, (hovered === true || cal.selected === e.id) && s.mevOver]}>
                   <View style={[s.cdotS, { backgroundColor: colorOf(calendars, e.calendarId) }]} />
                   {e.allDay ? null : <Text style={s.mevTime}>{clock(e.startsAt, off).replace(":00", "").replace(" ", "").toLowerCase()}</Text>}
                   <Text numberOfLines={1} style={[s.mevText, isPast(e, clockNow.now) && s.cevPast]}>{e.title}</Text>
@@ -361,7 +451,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
               <Text style={[s.dhWk, d === today && s.dhToday]}>{weekdayShort(d, off)}</Text>
               <View style={[s.dhNum, d === today && s.dhNumToday]}><Text style={[s.dhNumText, d === today && s.dhNumTodayText]}>{dateOf(d, off)}</Text></View>
             </Pressable>
-            {each(allDays[i] ?? [], (e) => <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={e.title} testID={`allday:${e.id}`} onPress={() => dispatch({ type: "select", id: e.id })} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.cevAll, { backgroundImage: tint(colorOf(calendars, e.calendarId), 15), borderLeftColor: colorOf(calendars, e.calendarId) }]}><Text numberOfLines={1} style={s.cevTitle}>{e.title}</Text></Pressable>)}
+            {each(allDays[i] ?? [], (e) => <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={e.title} testID={`allday:${e.id}`} onPress={() => pressEvent(e.id)} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.cevAll, { backgroundImage: tint(colorOf(calendars, e.calendarId), 15), borderLeftColor: colorOf(calendars, e.calendarId) }]}><Text numberOfLines={1} style={s.cevTitle}>{e.title}</Text></Pressable>)}
           </View>
         ))}
       </View>
@@ -388,20 +478,40 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
     </View>
   );
 
+  const nav = {
+    join: (url: string) => { if (p.onJoin) p.onJoin(url); else (globalThis as { open?: (u: string) => void }).open?.(url); },
+    call: (number: string, pin?: string) => { if (p.onCall) p.onCall(number, pin); else if (phoneDock) phoneDock.dial(number); else if (p.onOpenUrl) p.onOpenUrl(telUrl(number, pin)); else (globalThis as { open?: (u: string) => void }).open?.(telUrl(number, pin)); },
+    openUrl: (url: string) => { if (p.onOpenUrl) p.onOpenUrl(url); else (globalThis as { open?: (u: string) => void }).open?.(url); },
+    openRecord: (id: string) => p.onOpenRecord?.(id), openMeeting: (id: string) => p.onOpenMeeting?.(id), openFile: (id: string) => p.onOpenFile?.(id),
+    ask: (e: { id: string; title: string }) => p.onAsk?.({ id: e.id, title: e.title }),
+  };
+  const openRow = open ? events.find((x) => x.id === open.id) : undefined;
+  const pane = open ? (
+    <EventPane
+      key={`${open.id}:${open.edit ? "edit" : "view"}`} eventId={open.id} editing={open.edit} inSheet={phone} calendars={calendars} names={names} directory={directoryOf(p.team)} me={p.me} nav={nav}
+      stamp={openRow ? `${openRow.title}|${openRow.startsAt}|${openRow.endsAt}|${openRow.calendarId}|${JSON.stringify(openRow.attendees)}` : ""}
+      onClose={closeEvent} onUndo={(label, run) => setUndo(run ? { label, run } : { label })} onDeleted={deleted} zoom={zoomOn}
+    />
+  ) : null;
   return (
+    <View style={s.row}>
     <View style={s.cal} testID="calendar" accessibilityLabel={`Calendar, ${mode}`} {...({ onKeyDown } as object)}>
       {header}
       {online ? null : <Text style={s.offline} accessibilityRole="alert" testID="cal-offline">Offline, showing your saved copy</Text>}
       {availBar}
       {panel ? <View style={s.panel}><Text style={s.panelHead}>Everyone is free</Text><FindTimeList slots={panel} offsetMin={off} onPick={pickSlot} testID="cal-slots" /></View> : null}
       {undo ? (
-        <View style={s.undo} testID="cal-undo"><Text style={s.undoText}>{`Deleted “${undo.title}”`}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Undo" testID="cal-undo-btn" onPress={() => { void restoreEvent(data, undo.id).then(() => { dispatch({ type: "select", id: undo.id }); setUndo(null); }).catch(fail); }} style={({ hovered }: { hovered?: boolean }) => [s.lnk, hovered === true && s.lnkOver]}><Text style={s.lnkText}>Undo</Text></Pressable>
+        <View style={s.undo} testID="cal-undo"><Text style={s.undoText}>{undo.label}</Text>
+          {undo.run ? <Pressable accessibilityRole="button" accessibilityLabel="Undo" testID="cal-undo-btn" onPress={() => { void undo.run?.().then(() => setUndo(null)).catch(fail); }} style={({ hovered }: { hovered?: boolean }) => [s.lnk, hovered === true && s.lnkOver]}><Text style={s.lnkText}>Undo</Text></Pressable> : null}
         </View>
       ) : null}
       {mode === "month" ? monthBody : timeBody}
       {card}
       {menu.element}
+    </View>
+    {/* the event opens where it was pressed: beside the calendar, or in a sheet on a phone */}
+    {pane && !phone ? <ResizableColumn paneKey="calendar-event" defaultWidth={360} grow="left" min={300} maxFraction={0.5} maxWidth={520} inline style={s.paneCol} testID="calendar-event-col" label="Event">{pane}</ResizableColumn> : null}
+    {phone ? <Sheet open={pane !== null} title={openRow?.title ?? "Event"} onClose={closeEvent}>{pane}</Sheet> : null}
     </View>
   );
 }
@@ -414,6 +524,8 @@ export function Calendar(props: CalendarProps): ReactElement {
 
 const ink = (v: string): string => `var(${v})`;
 const s = StyleSheet.create({
+  row: { flex: 1, minHeight: 0, minWidth: 0, flexDirection: "row" },
+  paneCol: { minHeight: 0, borderLeftWidth: 1, borderLeftColor: ink("--line") },
   cal: { flex: 1, minHeight: 0, minWidth: 0, backgroundColor: ink("--win") },
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 18, paddingRight: 10, borderBottomWidth: 1, borderBottomColor: ink("--line") },
   h1: { fontSize: 14, fontWeight: "600", letterSpacing: -0.07, color: ink("--ink"), flexShrink: 1, fontVariant: ["tabular-nums"] },

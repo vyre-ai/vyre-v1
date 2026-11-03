@@ -11,7 +11,9 @@ import { each } from "../../../shell/sidebar/model.ts";
 type AgentOut = CapMap["agents.get"]["out"]["agent"];
 type SummaryOut = CapMap["agents.summary"]["out"];
 
-export interface ProfileTab { key: string; id: string; title: string; kind: "agent" | "assistant" | "person" }
+export interface ProfileTab { key: string; id: string; title: string; kind: "agent" | "assistant" | "person" | "details";
+  /** A reply's Details tab (kind "details"): id is the message, and these say where it is and whose face leads the tab. */
+  threadId?: string; agentId?: string }
 
 /** The tab for a face: one per person or agent, opening it again finds it. */
 export function profileTab(id: string, name: string, kind: ProfileTab["kind"]): ProfileTab {

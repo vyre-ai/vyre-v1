@@ -28,6 +28,8 @@ export const PATHS = {
   tpl: ["M2.5 3.5h11v9h-11z", "M2.5 6.5h11M6.5 6.5v6"],
   bolt: ["M9 2L4 9h3.5L7 14l5-7H8.5z"],
   ask: ["M8 2.5l1.2 3.3 3.3 1.2-3.3 1.2L8 11.5 6.8 8.2 3.5 7l3.3-1.2z"],
+  reply: ["M6.5 4L3 7.5 6.5 11", "M3 7.5h6.5a4 4 0 014 4V12"],
+  thread: ["M3 4h10M3 8h10M3 12h6"],
 } as const;
 export type IconName = keyof typeof PATHS;
 const FILLED: ReadonlySet<IconName> = new Set(["play", "stop"]);

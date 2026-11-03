@@ -46,6 +46,7 @@ type Out = {
     }>;
   tokens: number;
   skipped?: "short_ack" | "mid_tool_loop" | "no_match" | "duplicate";
+  locked?: string;
 };
 ```
 
@@ -78,6 +79,7 @@ type Out = {
         "trueSince": 1760000000000
       }
     ],
+    "locked": "example",
     "skipped": "short_ack",
     "tokens": 1
   }

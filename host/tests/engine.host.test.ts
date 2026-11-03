@@ -63,3 +63,16 @@ test("what the model thought goes to the person whose turn it is and nobody else
   assert.equal(await frames[1]!.allow("usr_maya"), true, "the words themselves are for the chat");
   assert.equal(w.calls.filter((c) => c.cap === "threads.get").length, 1, "thinking asked nobody: only the words read the thread");
 });
+
+test("the live text of a turn that read something goes to its asker only (gap 6); the checked answer is posted for all", async () => {
+  const w = world();
+  const frames: Array<{ allow: (p: string) => boolean | Promise<boolean> }> = [];
+  const h = createEngineHost({ space: "spc_1", invoke: w.invoke, publishTurn: () => (_frame, allow) => { frames.push({ allow }); } });
+  h.stream!({ kind: "delta", threadId: "thr_1", turnId: "trn_1", agentId: "agt_1", text: "The deal is at 310k", asker: "usr_dana", privately: true });
+  assert.equal(await frames[0]!.allow("usr_dana"), true);
+  assert.equal(await frames[0]!.allow("usr_maya"), false, "a member of the same chat does not get it live");
+  const mayAll = (people: readonly string[]) => people.every((p) => p !== "usr_gus");
+  const seam = createEngineHost({ space: "spc_1", invoke: w.invoke, mayAll });
+  assert.equal(seam.mayAll?.(["usr_maya"], { perm: null, level: "view" }, { type: "record", id: "rec_1" }), true, "the daemon's per-person check reaches the engine");
+  assert.equal(seam.mayAll?.(["usr_maya", "usr_gus"], { perm: null, level: "view" }, { type: "record", id: "rec_1" }), false);
+});

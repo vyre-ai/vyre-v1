@@ -35,6 +35,10 @@ type In = {
   headers?: Record<string, string>;
   hub?: "composio" | "pipedream";
   auth?: "oauth";
+  title?: string;
+  share?: Array<string>;
+  source?: "registry" | "paste" | "import" | "hub" | "skill" | "kit" | "hand";
+  sourceRef?: string;
   idempotencyKey: string;
 };
 ```
@@ -46,7 +50,7 @@ type Out = {
   connection: {
     connectionId: string;
     name: string;
-    scope: "space" | "agent";
+    scope: "space" | "agent" | "mine";
     agentId?: string;
     transport: "stdio" | "http";
     url?: string;
@@ -58,6 +62,11 @@ type Out = {
     createdAt: number;
     hub?: "composio" | "pipedream";
     auth?: "oauth";
+    owner?: string;
+    share?: Array<string>;
+    source?: string;
+    sourceRef?: string;
+    title?: string;
   };
 };
 ```
@@ -70,6 +79,7 @@ type Out = {
 - permission.role_lacks_permission
 - validation.bad_input
 - validation.duplicate
+- validation.precondition_failed
 
 ## Example
 
@@ -89,6 +99,12 @@ type Out = {
     "idempotencyKey": "idem_1",
     "name": "crm",
     "scope": "space",
+    "share": [
+      "example"
+    ],
+    "source": "registry",
+    "sourceRef": "example",
+    "title": "example",
     "url": "example"
   },
   "output": {
@@ -106,7 +122,14 @@ type Out = {
       "headers": {},
       "hub": "composio",
       "name": "example",
+      "owner": "example",
       "scope": "space",
+      "share": [
+        "example"
+      ],
+      "source": "example",
+      "sourceRef": "example",
+      "title": "example",
       "transport": "stdio",
       "url": "example"
     }

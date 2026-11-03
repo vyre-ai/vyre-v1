@@ -37,13 +37,15 @@ type Out = {
   skill: {
     name: string;
     description: string;
-    tier: "builtin" | "space" | "agent";
+    tier: "builtin" | "space" | "agent" | "mine" | "shared";
     source: string;
     body: string;
     files: Array<{
         path: string;
         text: string;
       }>;
+    text?: string;
+    hash?: string;
   };
 };
 ```
@@ -75,8 +77,10 @@ type Out = {
           "text": "example"
         }
       ],
+      "hash": "example",
       "name": "example",
       "source": "example",
+      "text": "example",
       "tier": "builtin"
     }
   }

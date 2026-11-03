@@ -90,6 +90,7 @@ export async function submit(ctx: TasksCtx, input: In): Promise<unknown> {
   t.workingNotes = { ...t.workingNotes, [NOTE.outputs]: JSON.stringify(outputs), [NOTE.summary]: summary };
   delete t.workingNotes[NOTE.fixes];
   const applied = commitMove(ctx, t, to, checked);
+  if (applied.took) await syncThread(ctx, t);
   const shown = Object.keys(outputs).length > 0 ? `\n\nDeliverable:\n${JSON.stringify(outputs, null, 2)}` : "";
   await line(ctx, t, "submit", `Submitted: ${summary}${shown}`);
   return { task: out(ctx, t), next: to === "in_review" ? "review" : to === "awaiting_approval" ? "approval" : "done", from: applied.from };
@@ -169,7 +170,7 @@ export async function review(ctx: TasksCtx, input: In): Promise<unknown> {
     t.reviewer = person;
     t.workingNotes = { ...t.workingNotes, [NOTE.fixes]: JSON.stringify(fixes) };
     touch(ctx, ctx.db, t);
-    emitTask(ctx, ctx.db, "task.assigned", t, { slot: "reviewer", to: person, from }, { type: "assigned", by: ctx.principal.id, note: "review loop limit" });
+    emitTask(ctx, ctx.db, "task.assigned", t, { slot: "reviewer", to: person, from, title: t.title, by: ctx.principal.id }, { type: "assigned", by: ctx.principal.id, note: "review loop limit" });
     await syncThread(ctx, t);
     await line(ctx, t, "review", `Sent back ${t.reviewLoops} times already, so a person decides. Open fixes:\n${numbered(fixes)}`);
     return { task: out(ctx, t), next: "person" };

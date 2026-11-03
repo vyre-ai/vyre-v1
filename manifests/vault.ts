@@ -29,6 +29,13 @@ const folderRow = t.obj({
   whoCanExport: t.arr(subjectRef), yourLevel: level,
 });
 const handleField = t.str({ pattern: '^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$', description: 'A handle, with a field after the dot to name one field', examples: ['#Dana_Lawmatics.api_key'] });
+/** What a Space AI account may pay for (owner ruling 9). Each use is off unless named. */
+const spaceUses = t.obj({
+  teamChats: t.opt(t.obj({ who: t.union(t.lit('everyone'), t.arr(id.group, { minItems: 1 })) }, { description: 'A member\'s own chat, only when they have no account of their own that can pay: everyone, or the people in these groups' })),
+  automations: t.opt({ ...t.lit(true), description: 'Automation steps' }),
+  goals: t.opt({ ...t.lit(true), description: 'Goal turns and wake-ups' }),
+  agentWork: t.opt(t.obj({ which: t.union(t.lit('all'), t.arr(id.agent, { minItems: 1 })) }, { description: 'Work an agent does with no asker (routines, watchers, helpers): every agent, or these' })),
+}, { description: 'What a Space AI account may pay for' });
 const providerRow = t.obj({
   id: t.id('prv'), providerKey: t.str({ examples: ['anthropic'] }), name: t.str(), logo: t.opt(t.str()),
   connection: t.enm('subscription', 'api_key', 'local_model'), via: t.str({ examples: ['Subscription, yours'] }), scope: t.enm('mine', 'shared'),
@@ -41,6 +48,12 @@ const providerRow = t.obj({
   displayName: t.opt(t.str({ description: 'What a sign-in reads by in the composer and pickers: the name the person gave it, else the provider and its account. Never a counter', examples: ['Claude Code, dana@example.com'] })),
   aliases: t.opt(t.arr(id.handle, { description: 'Handles of sign-ins of the same account that were folded into this row; they lead here' })),
   olderOf: t.opt({ ...t.id('prv'), description: 'An older sign-in of the same provider whose account cannot be read: the row it is listed under' }),
+  uses: t.opt({ ...spaceUses, description: 'A shared provider: what it may pay for in this Space. usesSet false is the default a shared key has while the Space may use it' }),
+  usesSet: t.opt(t.bool()),
+  capCents: t.opt(t.int({ minimum: 0, description: 'The monthly spend cap, in cents' })),
+  capped: t.opt(t.bool()),
+  teamChatsForMe: t.opt(t.bool()),
+  models: t.opt(t.arr(t.str(), { description: 'The models the provider last listed for this account: a turn fits it when its model is here, or when it is Automatic' })),
 });
 const spaceKeyRow = {
   set: t.bool(), providerKey: t.opt(t.str({ examples: ['opencode-go'] })), name: t.opt(t.str({ examples: ['OpenCode Go'] })), providerId: t.opt(t.id('prv')),
@@ -86,7 +99,7 @@ export default defineManifest({
   capabilities: [
     // ---- items: lists, metadata, reveal
     read('vault.items.list', 'List items (names and metadata only, never values) by section, folder, kind or text', {
-      ...V, in: { section: t.opt(section), folder: t.opt(id.vaultFolder), kind: t.opt(itemKind), q: t.opt(t.str()), ...pageIn },
+      level: 'member', in: { section: t.opt(section), folder: t.opt(id.vaultFolder), kind: t.opt(itemKind), q: t.opt(t.str()), ...pageIn },
       out: { items: t.arr(itemMeta), counts: t.rec(t.int({ minimum: 0 })), ...pageOut }, tool: 'vault', label: 'filter', cli: 'vyre vault list',
     }),
     read('vault.items.match', 'Items that fit a website address (the Chrome extension offers them to fill)', { ...V, in: { url }, out: { items: t.arr(t.obj({ item: itemMeta, usernameField: t.opt(fieldKey) })) }, tool: 'vault', label: 'filter' }),
@@ -144,6 +157,10 @@ export default defineManifest({
     write('vault.inject_env', 'Inject a folder into one child process environment (vyre run --env folder -- command); returns key names only', {
       in: { folderId: id.vaultFolder, purpose: t.opt(t.str()) }, out: { handles: t.arr(id.handle), keys: t.arr(fieldKey) }, on: ['vault_folder', '/folderId'], level: 'use', emits: ['vault.used'], audit: 'sensitive', tool: 'vault', cli: 'vyre run --env', offline: 'online',
     }),
+    // Before an agent's words go to a teammate (lane l-agentdm): which of the person's own Mine items have a value in this text. Names only, never a value; the person's key must be held.
+    read('vault.text_check', 'Which of my own Mine items have a value in this text: their handles, never a value', {
+      ...V, in: { text: t.str({ maxLength: 20000 }) }, out: { handles: t.arr(t.str()), checked: t.bool() },
+    }),
     write('vault.report_scrub_miss', 'System: the filler reports a value it could not scrub from an output stream', {
       ...V, in: { itemId: id.vaultItem, place: t.enm('terminal', 'http', 'browser', 'file', 'chat'), traceId: id.trace }, out: ok, emits: ['vault.scrub_miss'], audit: 'always',
     }),
@@ -175,7 +192,7 @@ export default defineManifest({
     }),
 
     // ---- folders
-    read('vault.folders.list', 'Vault folders with counts and my level', { ...V, in: { scope: t.opt(t.enm('mine', 'shared')) }, out: { folders: t.arr(folderRow) }, tool: 'vault', label: 'filter' }),
+    read('vault.folders.list', 'Vault folders with counts and my level', { level: 'member', in: { scope: t.opt(t.enm('mine', 'shared')) }, out: { folders: t.arr(folderRow) }, tool: 'vault', label: 'filter' }),
     write('vault.folders.create', 'Make a vault folder (Mine, or Shared when the person may create shared items)', {
       ...V, idem: 'key', in: { name: t.str(), parentId: t.opt(id.vaultFolder), scope: t.enm('mine', 'shared') }, out: { folder: folderRow }, perm: 'vault.shared_create', emits: ['vault.folder_created'], tool: 'vault', offline: 'online',
     }),
@@ -198,10 +215,15 @@ export default defineManifest({
       out: { provider: providerRow }, emits: ['provider.added', 'vault.item_created', 'vault.folder_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['validation.duplicate', 'provider.auth_failed'],
     }),
     write('providers.subscription_start', 'Start a subscription sign-in (Claude, ChatGPT through Codex, Grok): the server starts the provider\'s own sign-in and answers its link, and the code to type where the provider shows one. A person does this, never an agent.', {
-      ...V, idem: 'key', in: { providerKey: t.str({ examples: ['claude-code'] }) }, out: { flowId: t.id('sub'), instruction: t.str(), url: t.opt(url), userCode: t.opt(t.str()), needsCode: t.opt(t.bool()) }, audit: 'sensitive', tool: 'vault', offline: 'online',
+      // local (owner decision D2, 3 Nov 2026): use the Claude Code or Codex sign-in already on this computer; a Personal Space only. The flow is done at once and has no link.
+      ...V, idem: 'key', in: { providerKey: t.str({ examples: ['claude-code'] }), local: t.opt(t.bool()) }, out: { flowId: t.id('sub'), instruction: t.str(), url: t.opt(url), userCode: t.opt(t.str()), needsCode: t.opt(t.bool()) }, audit: 'sensitive', tool: 'vault', offline: 'online',
     }),
     write('providers.subscription_complete', 'Finish a subscription sign-in. Pass the pasted code where the provider shows one; call again until it answers a provider (waiting means the person has not approved yet). The credential goes straight into a Mine item of kind ai_subscription and is never returned.', {
       ...V, in: { flowId: t.id('sub'), code: t.opt(t.str({ description: 'The code the provider\'s page showed, pasted back' })) }, out: { provider: t.opt(providerRow), waiting: t.opt(t.bool()) }, emits: ['provider.added', 'provider.updated', 'provider.removed', 'vault.item_created', 'vault.item_updated', 'vault.item_deleted', 'vault.folder_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['provider.auth_failed', 'timeout.deadline'],
+    }),
+    write('providers.uses.set', 'An owner or admin makes a shared provider a Space AI account: what it may pay for (team chats, automations, goals, agent work) and an optional monthly spend cap. The engine picks the cheapest Space account that fits a turn and is not capped', {
+      in: { providerId: t.id('prv'), uses: spaceUses, capCents: t.opt(t.nullable(t.int({ minimum: 0, description: 'The monthly spend cap in cents; null removes it; left out keeps it' }))) },
+      out: { provider: providerRow }, perm: 'policy.manage', emits: ['provider.updated'], audit: 'always', tool: 'vault', offline: 'online',
     }),
     write('providers.set_space_use', 'Let the Space run work on my subscription, or stop it (stopping ends my sandbox)', {
       ...V, in: { providerId: t.id('prv'), allow: t.bool() }, out: { provider: providerRow }, emits: ['provider.updated'], audit: 'always', tool: 'vault', offline: 'online',
@@ -217,10 +239,10 @@ export default defineManifest({
     }),
     // ---- the Space AI key: one API key an owner or admin sets for everyone. It sits in a Restricted Shared folder, so no member, agent or process can read, fill or export it; the engine alone uses it for turns.
     read('providers.space_key.get', 'The Space AI key for the Space: whether one is set, its provider and the models it unlocks (read live from the provider and kept for a while). Never the key', {
-      in: { refresh: t.opt(t.bool()) }, out: spaceKeyRow, level: 'member', offline: 'online',
+      in: { refresh: t.opt(t.bool()) }, out: spaceKeyRow, level: 'member', offline: 'online', tool: 'vault',
     }),
-    write('providers.space_key.set', 'An owner or admin sets or replaces the Space AI key: it is checked with the provider at once (its model list), then kept in a Restricted Shared folder. A person does this, never an agent', {
-      idem: 'key', in: { providerKey: t.str({ examples: ['opencode-go'] }), apiKey: t.str() }, out: spaceKeyRow, perm: 'policy.manage', audit: 'always', offline: 'online',
+    write('providers.space_key.set', 'An owner or admin sets or replaces the Space AI key: it is checked with the provider at once (its model list), then kept in a Restricted Shared folder. A person does this, or their outside agent under the setup grant; never an agent on its own', {
+      idem: 'key', in: { providerKey: t.str({ examples: ['opencode-go'] }), apiKey: t.str() }, out: spaceKeyRow, perm: 'policy.manage', audit: 'always', offline: 'online', tool: 'vault',
       emits: ['provider.added', 'provider.removed', 'vault.item_created', 'vault.item_deleted', 'vault.folder_created'], errors: ['provider.auth_failed', 'provider.unavailable'],
     }),
     write('providers.space_key.remove', 'Remove the Space AI key; people with their own accounts keep working', {

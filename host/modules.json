@@ -222,6 +222,11 @@
       "status": "live"
     },
     {
+      "id": "notes",
+      "owner": "L2",
+      "status": "live"
+    },
+    {
       "id": "notifications",
       "owner": "L6",
       "status": "live"
@@ -314,6 +319,11 @@
     {
       "id": "sync",
       "owner": "L1",
+      "status": "live"
+    },
+    {
+      "id": "goals",
+      "owner": "L6",
       "status": "live"
     },
     {

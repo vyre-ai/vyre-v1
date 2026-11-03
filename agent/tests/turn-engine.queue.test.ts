@@ -152,7 +152,7 @@ test("stop cancels the running turn; clearQueue also drops what waits", async ()
   assert.equal(engine.turns("T").at(-1)?.state, "completed");
 });
 
-test("hop limit: two agents mentioning each other stop after 4 hops and wait for a person", async () => {
+test("hop limit: two agents mentioning each other stop after 8 hops (owner ruling, 3 Nov; was 4) and wait for a person", async () => {
   const p = scriptedProvider({
     script: (_in, spec) => [{ type: "text", text: "your turn" }, { type: "done", mentions: [agent(spec.agent.id === "a" ? "b" : "a")] as RouteMention[] }],
   });
@@ -160,12 +160,12 @@ test("hop limit: two agents mentioning each other stop after 4 hops and wait for
   engine.openThread({ id: "C", kind: "channel", starter: "dana", agents: [{ id: "a", mode: "listen" }, { id: "b", mode: "listen" }] });
   engine.receive({ threadId: "C", author: person("dana"), mentions: [agent("a")] });
   await engine.idle("C");
-  assert.deepEqual(engine.turns("C").map((t) => t.agentId), ["a", "b", "a", "b", "a"]);
+  assert.deepEqual(engine.turns("C").map((t) => t.agentId), ["a", "b", "a", "b", "a", "b", "a", "b", "a"]);
   assert.equal(engine.events("C").filter((e) => e.type === "turn.waiting").length, 1);
   // a person reply resets the count
   engine.receive({ threadId: "C", author: person("dana"), mentions: [agent("b")] });
   await engine.idle("C");
-  assert.equal(engine.turns("C").length, 10);
+  assert.equal(engine.turns("C").length, 18);
 });
 
 test("hop limit is configurable through policy", async () => {

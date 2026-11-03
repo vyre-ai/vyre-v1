@@ -14,6 +14,7 @@ mod links;
 mod native;
 mod sidecar;
 mod updater;
+mod winsandbox;
 mod personal;
 mod macserver;
 
@@ -253,7 +254,9 @@ pub fn run() {
             chrome::open_chrome_extensions,
             chrome::reveal_chrome_extension,
             chrome::link_chrome_space,
-            chrome::unlink_chrome_space
+            chrome::unlink_chrome_space,
+            winsandbox::windows_sandbox_state,
+            winsandbox::setup_windows_sandbox
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

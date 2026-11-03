@@ -236,7 +236,7 @@ test("step 1: welcome, name and photo, what the person starts with", () => {
 
 test("step 2: the username at the Space address, the strength meter and the messages", () => {
   const ok = html({ stage: "steps", step: 1, ...FILLED });
-  for (const text of ["Your account", "Username", "Password", "Confirm"]) assert.ok(ok.includes(text), text);
+  for (const text of ["Your Vyre account", "Username", "Password", "Confirm"]) assert.ok(ok.includes(text), text);
   assert.match(ok, /data-testid="username-ok"/);
   assert.match(ok, /aria-label="Password strength 3 of 3"/);
   const taken = html({ stage: "steps", step: 1, ...FILLED, user: "irfad" });

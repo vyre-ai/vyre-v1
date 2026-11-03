@@ -47,7 +47,7 @@ for (const provider of PROVIDERS) {
     assert.equal(call.name, "records_list");
     assert.deepEqual(call.input, { type: "lead", limit: 3 });
     assert.equal(events.filter((e) => e.type === "text").map((e) => (e as { text: string }).text).join(""), "Let me look.Found 3 leads.");
-    assert.deepEqual(events.filter((e) => e.type === "usage"), [
+    assert.deepEqual(events.flatMap((e) => (e.type === "usage" ? [{ type: e.type, inputTokens: e.inputTokens, outputTokens: e.outputTokens }] : [])), [
       { type: "usage", inputTokens: 900, outputTokens: 40 },
       { type: "usage", inputTokens: 1050, outputTokens: 6 },
     ], "usage is reported once per provider call, input counted with cached tokens");

@@ -15,6 +15,7 @@ import { KNOW_SCREEN, routeToArgs } from "../../places/files/memory/know.ts";
 import { nameLookup } from "./records-live.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 import { nameOr } from "../../places/chats/names.ts";
+import { offered } from "../session/private-agents.ts";
 import { requestChannelSheet } from "../../places/chats/channels/request.ts";
 
 export interface ChatsActions {
@@ -32,7 +33,7 @@ const kindOf = (p: Principal | undefined): "person" | "agent" => (p && p.kind ==
 
 export function candidates(list: readonly Principal[], meId: string): Candidate[] {
   const out: Candidate[] = [];
-  for (const p of list) if (p.id !== meId && (p.kind === "person" || p.kind === "agent")) out.push({ id: p.id, name: p.name, kind: p.kind });
+  for (const p of list) if (p.id !== meId && offered(p) && (p.kind === "person" || p.kind === "agent")) out.push({ id: p.id, name: p.name, kind: p.kind });
   return out;
 }
 
@@ -40,7 +41,7 @@ export function composerLists(list: readonly Principal[], meId: string): Compose
   const people: ListItem[] = [];
   const agents: ListItem[] = [];
   for (const p of list) {
-    if (p.id === meId) continue;
+    if (p.id === meId || !offered(p)) continue;
     if (p.kind === "person") people.push(p.name);
     else if (p.kind === "agent") agents.push(p.name);
   }
@@ -80,6 +81,7 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
     openSearch: () => rt.open({ screen: "shell.cmdk" }),
     openSpaceSwitcher: () => rt.open({ screen: "spaces.switcher" }),
     openNewChannel: () => requestChannelSheet("new"),
+    openSubject: (subject) => rt.open({ subject }),
   };
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.changes ? { changes: rt.changes } : {}),
@@ -107,6 +109,7 @@ export function chatMemory(rt: ShellRuntime, a: ChatsActions): ChatMemoryData {
     nameOf: nameLookup(rt),
     nav: {
       openLink: (link) => rt.openUrl(link),
+      openAboutYou: () => rt.open({ screen: "settings.page", args: { page: "memory" } }),
       openPage: (pageId) => know({ v: "page", pageId }),
       openGraph: (pageId) => know({ v: "graph", focus: pageId }),
       openKnowledge: () => know({ v: "learned" }),
@@ -145,7 +148,9 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     openThread: a.openThread,
     togglePane: a.togglePane,
     openBeside: (kind, id) => (kind === "artifact" ? rt.open({ screen: "apps.artifacts", args: { selected: id } }) : rt.open({ subject: { type: kind, id } })),
+    openGoal: (goalId) => rt.open({ subject: { type: "goal", id: goalId } }),
     openAiSetup: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),   // the same page the Needs you sign-in opens
+    openSpaceAiKey: () => rt.open({ screen: "console.ai-models" }),
     ...(rt.unlockVault ? { unlockVault: () => askVaultUnlock(rt.unlockVault!) } : {}),
   };
   return {
@@ -190,6 +195,8 @@ export function paneData(rt: ShellRuntime, a: ChatsActions, threadId: string, ag
     agent: { agentId: agent.agentId, name: agent.name },
     space: { name: rt.space.name, personal: rt.space.kind === "personal", computers: computersAvailableNow(rt.space) },
     nav, clock: rt.clock,
+    me: { id: rt.me.id }, nameOf: nameLookup(rt),
+    ownerOf: (id) => { const p = rt.principals.getSnapshot(); return p.status === "ready" ? p.data.find((x) => x.id === id)?.owner : undefined; },
     memory: chatMemory(rt, a),
     ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}),
   };

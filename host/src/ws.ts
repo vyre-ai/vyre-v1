@@ -184,6 +184,8 @@ export interface LiveHub {
   publish(space: string, events: EventEnvelope[]): void;
   /** A live turn frame (text as it is written) to the sockets whose person `allow` accepts, in the order given. Never replayed, never held for an ack: a device that missed it reads the finished message. */
   publishTurn(frame: { t: "turn"; turn: string; delta: Record<string, unknown> }, allow: (personId: string) => boolean | Promise<boolean>): void;
+  /** Rows changed with no event of this computer's own (another computer of a Personal Space synced them, host/src/peers): every app on the Space gets the bare `changed` tick and re-reads. */
+  poke?(space: string): void;
   connections(space?: string): { device: string; acked: number; pending: number }[];
   /** A person's epoch moved: every socket of theirs is told to purge and closed. Returns how many. (The sync module's LiveHub port.) */
   purge(person: string, epoch: number): number;
@@ -335,6 +337,9 @@ export function createLiveHub(o: LiveOptions): LiveHub {
         if (c.link) { if (last) send(c, { t: "changed", seq: last.seq }); continue; }
         for (const e of events) { c.pending.push(e); send(c, eventFrame(e)); }
       }
+    },
+    poke(space) {
+      for (const c of conns.values()) if (c.session.space === space && c.link) send(c, { t: "changed", seq: o.head?.(space) ?? 0 });
     },
     publishTurn(frame, allow) {
       turnChain = turnChain.then(async () => {

@@ -20,15 +20,23 @@ export interface ChatsNav {
   openSpaceSwitcher(): void;
   /** Opens the New channel sheet. */
   openNewChannel(): void;
+  /** One goal's page, from its row in the Goals group. */
+  openGoal?(goalId: string): void;
   /** The two rows at the top of the list: everything you owe, and the threads you are in. */
   openTasks?(): void;
   openThreads?(): void;
+  /** Notes: the grid of your notes; the same in a tab behind this one; the grid with Take a note open. Left out where the shell has no Notes page. */
+  openNotes?(): void;
+  openNotesTab?(): void;
+  takeNote?(): void;
   /** The first screen: a new chat. */
   openNew?(): void;
   /** The one agent page, empty. */
   openNewAgent?(): void;
   /** Hides the sidebar (the panel button in its header). Left out where the shell keeps the sidebar always. */
   toggleSidebar?(): void;
+  /** Open anything by what it is (a run, a record, a task): the place it lives in decides how. Left out where the shell has no such door. */
+  openSubject?(subject: { type: string; id: string }): void;
 }
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }
@@ -37,6 +45,8 @@ export interface ChatsSidebarData {
   screens: ScreenHooks;
   /** One capability call as the signed-in person; rejects with the capability's error. */
   call(cap: string, input: unknown): Promise<unknown>;
+  /** Something changed in the Space (the same tick that re-reads the live queries). Left out where nothing announces changes. */
+  changes?: { subscribe(listener: () => void): () => void } | undefined;
   connection: Connection;
   /** The Space's name and whether another Space needs you (the red dot). */
   space: { name: string; otherNeedsYou: boolean; /** A Personal Space: no channels */ personal?: boolean; /** your assistant: the new-chat icon starts a chat with it */ assistant: { agentId: string; name: string } };
@@ -45,6 +55,8 @@ export interface ChatsSidebarData {
   people?: readonly { id: string; name: string }[];
   /** You: left out of the people a channel can add (you are always in), and the test for "a channel you are not in". */
   me?: { id: string };
+  /** The Space changed: what a group that reads by capability (Goals) follows. */
+  changes?: { subscribe(listener: () => void): () => void };
   clock(): { now: number; offsetMin: number };
 }
 

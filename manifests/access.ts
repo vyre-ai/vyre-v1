@@ -29,6 +29,9 @@ const rights = t.obj({ manage: t.bool(), edit: t.opt(t.bool()), share: t.bool(),
 const roleHolderRef = t.obj({ kind: t.enm('person', 'agent', 'actor', 'service', 'group'), id: t.str({ pattern: '^(usr|agt|act|svc|grp)_[a-z0-9]+$', examples: ['usr_a1b2c3'] }) });
 const principalRow = t.obj({
   id: pid, kind: t.enm('person', 'agent', 'actor', 'service'), name: t.str(), owner: t.opt(pid),
+  // someone else's private agent (their assistant, an outside agent they connected): `name` is its person's, "Irfad Imtiaz (Agent)", and it wears `owner`'s face (owner ruling 3 Nov).
+  // `agentName` is its own name, for owners and admins only (the audit details line).
+  private: t.opt(t.bool()), agentName: t.opt(t.str()),
   status: t.enm('invited', 'active', 'suspended', 'removed'), roles: t.arr(id.role), groups: t.arr(id.group),
   title: t.opt(t.str()), createdAt: t.ts(),
 });
@@ -130,6 +133,10 @@ export default defineManifest({
     write('access.automation_senders', "A person's press gives a Space Automation use of the mailboxes and numbers its send steps name, inside that person's own access, and takes back what no step names any more", {
       ...V, in: { automationId: id.automation, give: t.arr(resourceRef), keep: t.arr(resourceRef) }, out: { granted: t.arr(grantRow), revoked: t.int({ minimum: 0 }), refused: t.arr(resourceRef) },
       emits: ['grant.created', 'grant.revoked', 'access.changed'], audit: 'always',
+    }),
+    write('access.join_share', "System: the join step of an invite that picked an agent; the new member gets the level as the inviter's act, while the inviter could still give it", {
+      ...V, in: { resource: resourceRef, person: id.user, level, inviter: id.user, source: t.str({ examples: ['invite:inv_a1b2c3'] }) }, out: { grant: grantRow },
+      emits: ['grant.created', 'access.changed'], audit: 'always', errors: ['permission.not_contained'],
     }),
     write('access.unshare', 'Remove a grant, or every grant of one source on a resource', { ...V, in: { grantId: t.opt(id.grant), resource: t.opt(resourceRef), subject: t.opt(subjectRef), source: t.opt(t.str()) }, out: { revoked: t.int({ minimum: 0 }) }, emits: ['grant.revoked', 'access.changed', 'folder.shared'], audit: 'always', tool: 'meta', team: true }),
     read('access.shares_of', 'Who has access to a resource, through what (direct, group, role, folder), with conditions and expiry; for a record type or a record also who it is open to and who may export', { ...V, in: { resource: resourceRef }, out: { shares: t.arr(t.obj({ grant: grantRow, through: t.enm('direct', 'group', 'role', 'folder', 'owner') })), audience: t.opt(audience), exporters: t.opt(exporters), inherits: t.opt(t.str({ description: 'The container this resource follows (the record type of a record), when it follows it' })), outside: t.opt(t.bool()), can: t.opt(rights) }, tool: 'meta' }),

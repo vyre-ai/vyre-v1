@@ -1,5 +1,5 @@
 // Mount for P-L9c_02: a contact's tab over the Northwind sample Space (or Harbor Studio with ?space=harbor).
-// ?c=<conversation id> (default elena)  ?open=transcript opens the call's transcript and the lease email's quoted text  ?mail=held makes the next send wait for the Gate
+// ?c=<conversation id> (default elena)  ?open=eml_<id> opens that thread message  ?open=transcript opens the call's transcript and the lease email's quoted text  ?mail=held makes the next send wait for the Gate
 // Every control works against the sample replica; on a phone the tab fills the width, as the prototype's tab does.
 import { useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
@@ -18,6 +18,12 @@ export default function Mount(): ReactNode {
   const contactId = (sample.replica.rows("contacts") as unknown as { id: string; contactId?: string }[]).find((c) => c.id === id)?.contactId;
   useEffect(() => {
     if (q.get("mail") === "held") sample.mailStatus.next = "held";
+    // ?open=eml_<id> opens that message of a thread (a closed one-line message opens on a press)
+    const msg = q.get("open");
+    if (msg && msg.startsWith("eml_")) {
+      const t = setTimeout(() => (globalThis as { document?: { querySelector(s: string): { click?: () => void } | null } }).document?.querySelector(`[data-testid="email:${msg}"]`)?.click?.(), 400);
+      return () => clearTimeout(t);
+    }
     if (q.get("open") !== "transcript") return;
     // opened parts make the feed taller: stay at the newest end so the agent's draft with Send, Edit and Discard is in view, as it is on opening
     const g = globalThis as { document?: { querySelector(s: string): { click?: () => void } | null } };

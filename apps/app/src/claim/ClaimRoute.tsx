@@ -10,8 +10,10 @@ import { openRealSession } from "../shell/session/session.ts";
 import { readStoredSessions, readStoredSpace, spaceAddress, writeStored } from "../shell/session/stored.ts";
 import { claimAppLink } from "../shell/session/entry.ts";
 import { useRelayAddress } from "../shell/session/use-relay-address.ts";
-import { carryIdentity, knownIdentity } from "../join/identity.ts";
-import type { KnownIdentity } from "../join/identity.ts";
+import { knownIdentity } from "../join/identity.ts";
+import type { Carried, KnownIdentity } from "../join/identity.ts";
+import { carried, checkKnownCode, haveAccountDeps, knownProof, rememberAccount } from "../join/carry-wiring.ts";
+import { HaveAccount } from "../join/HaveAccount.tsx";
 import { claimOwner } from "./claim.ts";
 import { fingerprintOf, spaceIdOf, spaceNameOf } from "./logic.ts";
 import { storeClaimedOwnerSession } from "./session.ts";
@@ -38,6 +40,8 @@ export function ClaimRoute({ token, onDone, onSignIn, onBack, address, fragment,
   const [spent] = useState(() => !!spaceId && readStoredSpace(spaceId) !== null);
   const [known] = useState(() => identity !== undefined ? identity : knownIdentity(readStoredSessions(), { spaceId, baseUrl }));
   const relay = useRelayAddress(baseUrl, deviceClass === "web" && !local);
+  // rc.17: "I already have a Vyre account", for an account this device has no session for
+  const [have, setHave] = useState(false);
 
   if (!call || !baseUrl) return null;
   // A link without the Space id (#s=) is not the link the server printed.
@@ -64,19 +68,23 @@ export function ClaimRoute({ token, onDone, onSignIn, onBack, address, fragment,
     rememberClaimed({ name: v.name, username: v.username, address: baseUrl });
     onDone();
   };
-  // The account this device already has: the same keys, opened with the current password, and a new Space key for this Space. No new password, no new recovery code.
-  const claimAs = known ? async (password: string): Promise<void> => {
-    const crypto = await loadCryptoKeys();
-    const source = createCapCaller({ baseUrl: known.baseUrl, token: () => known.token });
+  // An account the person already has: the same keys, opened on this device, and a new Space key for this Space. No new recovery code; a new password only when the recovery code proved it.
+  const claimWith = async (c: Carried, from?: KnownIdentity): Promise<void> => {
+    const { wipe } = await loadCryptoKeys();
     const claimed = await claimOwner(
-      { call, makeBundle: (pw, _code, id) => carryIdentity({ source, carryBundle: (p, b, sid) => crypto.carryBundle(p, b, sid) }, pw, id), holdKey: (t, key) => holdKeyOnOwnNode(baseUrl, t, key), wipe: crypto.wipe },
-      { token, spaceId, name: known.name, username: known.username, password, recoveryCode: "", ...deviceFor(deviceClass) },
+      { call, makeBundle: (_pw, _code, id) => c.carry(id), holdKey: (t, key) => holdKeyOnOwnNode(baseUrl, t, key), wipe },
+      { token, spaceId, name: c.name, username: c.username, password: c.password, recoveryCode: "", ...deviceFor(deviceClass) },
     );
-    await finish(claimed, known.username);
+    await finish(claimed, c.username);
+    if (from?.provider && c.viaPassword) rememberAccount(from, c.username);
     onDone();
-  } : undefined;
+  };
+  const claimAs = known ? async (password: string): Promise<void> => claimWith(await carried(await knownProof(known, { password })), known) : undefined;
+  if (have) return <HaveAccount prefix="claim-have" space={spaceNameOf(hash)} working={spaceNameOf(hash) ? `Setting up ${spaceNameOf(hash)}` : "Setting up your Space"} deps={haveAccountDeps(deviceFor(deviceClass))} onProof={async (proof) => claimWith(await carried(proof))} onBack={() => setHave(false)} />;
   const appLink = deviceClass === "web" && !local && onComputer() ? claimAppLink(baseUrl, token, hash, relay) : null;
   return <ClaimOwner space={spaceNameOf(hash)} newCode={makeRecoveryCode} onClaim={claim} onSignIn={onSignIn} {...(onBack ? { onBack } : {})} fingerprint={local ? null : fingerprintOf(hash)} prefill={prefillFor(baseUrl)}
-    {...(known && claimAs ? { known: { username: known.username, name: known.name }, onClaimAs: claimAs } : {})}
+    {...(known && claimAs ? { known: { username: known.username ?? known.name, name: known.name, ...(known.provider ? { provider: true as const } : {}) }, onClaimAs: claimAs } : {})}
+    {...(known?.provider ? { either: { onCheckCode: (code: string) => checkKnownCode(known, code), onRecovery: async (code: string, newPassword: string) => claimWith(await carried(await knownProof(known, { code, newPassword })), known) } } : {})}
+    onHaveAccount={() => setHave(true)}
     {...(appLink ? { onOpenApp: () => { (globalThis as { location?: { assign(url: string): void } }).location?.assign(appLink); } } : {})} />;
 }

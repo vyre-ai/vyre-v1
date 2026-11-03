@@ -1,0 +1,9 @@
+- Calendar events open on a click: the event opens beside the calendar (a sheet on a phone) with when in your time zone and how it repeats, the calendar, who organised it, a big Join button, Going? Yes, No or Maybe, the guests and how each answered, and the description with its links. Enter opens a focused event and Escape closes it.
+- From the event: Edit in place (title, day, time, length, guests; a repeating event asks This Event or All Events), Prepare (your Assistant drafts prep notes from the attendees' records and past meetings), Ask about this, Copy Link and Delete. Right-click gives the same menu and a double-click edits.
+- A past meeting shows its close-out (summary, tasks, Open close-out) and its recording and transcript.
+- Dragging an event to move it or change its length says what changed, with Undo. One click on an empty slot starts a new event there. Move to a calendar works again (it called the wrong capability).
+- Calendar events from Google and Microsoft now bring their description and the series they repeat in.
+- Events made, changed or deleted in Vyre now go to the Google or Microsoft calendar they are on, and the provider sends the invitations. A retry never makes a second event; when the event changed on the provider in the meantime, its version is kept and you are told.
+- New events and Add a video call make a real Google Meet, Teams or Zoom call: the new-event card has a Video call row that starts on your calendar's own (Meet on Google, Teams on Microsoft) or your last pick, with Zoom when it is connected, and None.
+- The event pane shows how a meeting happens: Join with the service's mark (Google Meet, Zoom, Teams, Webex, Whereby, Around) and its dial-in, PIN and passcode to copy; Call for a phone meeting (through your Vyre number when one is connected); a place with Open in Maps and Copy; several at once under Other ways to join.
+- Zoom meetings bring their dial-in numbers.

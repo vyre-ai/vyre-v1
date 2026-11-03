@@ -17,6 +17,7 @@ import type {
   AggregateRow, AggregateSpec, ChangeEntry, DefineDiff, DefineResult, ExportChunk, FieldDef, Page, QuerySpec, SearchHit, SearchSpec, Store, StoredRecord, TypeDef,
 } from "./types.ts";
 import { checkValue } from "./values.ts";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 /** The conformance suite revision this store last passed. Bump with kernel/conformance/suite.ts. */
 export const CONFORMANCE_REVISION = 7;
@@ -97,6 +98,10 @@ const clone = <T,>(v: T): T => structuredClone(v);
 const fail = (code: ConstructorParameters<typeof StoreError>[0], message: string): StoreError => new StoreError(code, message);
 const TRACE = (): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
 
+/** Who a record write is for, for the length of one call: the records module runs each handler inside `recordWriter.run`, so every event the store appends names the real actor. */
+export interface RecordWriter { actor: string; onBehalf?: string | undefined; traceId?: string | undefined; runId?: string | undefined }
+export const recordWriter = new AsyncLocalStorage<RecordWriter>();
+
 export interface RecordStoreOptions {
   /** Who the events are attributed to. */
   actor?: string;
@@ -109,8 +114,12 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
   const tx = host.tx;
 
   const emit = (type: string, entity: string, entityId: string | undefined, payload: object): void => {
+    // whoever made the call this write is part of (recordWriter.run): the person or agent, the person an agent acts for, the trace and the run; the store's own actor only when nobody is
+    const w = recordWriter.getStore();
+    const who = w ? { actor: w.actor, ...(w.onBehalf !== undefined && w.onBehalf !== w.actor ? { on_behalf: w.onBehalf } : {}), ...(w.runId !== undefined ? { run_id: w.runId } : {}) } : { actor };
+    const trace = w?.traceId !== undefined && /^[0-9a-f]{32}$/.test(w.traceId) ? w.traceId : TRACE();
     try {
-      host.append({ type, sv: 1, trace_id: TRACE(), actor, vis: "space", entity, ...(entityId ? { entity_id: entityId } : {}), payload });
+      host.append({ type, sv: 1, trace_id: trace, ...who, vis: "space", entity, ...(entityId ? { entity_id: entityId } : {}), payload });
     } catch (e) { throw fail("unavailable", e instanceof Error ? e.message : String(e)); }
   };
 

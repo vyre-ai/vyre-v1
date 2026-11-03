@@ -36,8 +36,8 @@ const withMarket = async (hn: Harness) => {
 const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
-test("the handler table covers exactly the 68 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 68);
+test("the handler table covers exactly the 93 capabilities of the agents manifest", () => {
+  assert.equal(mine.length, 93);   // 68, agents.config.may_save (l-agenttoml), the eight Connections of l-connections, agents.assistant_of (l-meetings) and the fifteen skill scopes of l-skills2
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
@@ -63,6 +63,18 @@ const DIFF = "@@ -7,1 +7,2 @@\n - Work that fits that job is yours: take it from
 const nested = (hn: Harness): Harness["ctx"] => ({ ...hn.ctx, depth: 1 });
 const withOutside = async (hn: Harness): Promise<{ id: string }> => ({ id: (await h["agents.outside.connect"]!(nested(hn), { clientName: "Claude Code" })).agentId });
 
+// Skills for a person and the skills they share (l-skills2): one happy path each here; the flows are in skill-scopes.test.ts
+const SK = (name: string, desc: string): string => `---\nname: ${name}\ndescription: ${desc}\n---\n\nDo the thing.\n`;
+const SK_TREE: Record<string, string> = { "skills/pdf/SKILL.md": SK("pdf", "Fill and read PDFs.") };
+const fetching = async <T>(f: () => Promise<T>): Promise<T> => {
+  setPluginsHost({ async fetchTree() { return { files: SK_TREE, revision: "abc", skipped: [] }; } });
+  try { return await f(); } finally { setPluginsHost(null); }
+};
+const withMine = async (hn: Harness) => ({ s: (await h["skills.mine.add"]!(hn.ctx, { text: SK("deploy-checks", "Run the checks before a deploy."), idempotencyKey: k() })).skill });
+const withSharedTo = async (hn: Harness, to: { to?: string[]; space?: boolean }) => { const { s } = await withMine(hn); await h["skills.share"]!(hn.ctx, { skillId: s.skillId, ...to, idempotencyKey: k() }); return { s }; };
+const withLinked = (hn: Harness) => fetching(async () => ({ s: (await h["skills.mine.add"]!(hn.ctx, { text: SK("pdf", "Fill and read PDFs."), source: "github:acme/skills@main/skills/pdf", idempotencyKey: k() })).skill }));
+const withSpaceSkill = async (hn: Harness) => ({ s: (await h["skills.space.install"]!(hn.ctx, { text: SK("pdf", "Fill and read PDFs."), source: "github:acme/skills@main/skills/pdf", idempotencyKey: k() })).skill });
+
 const scenarios: Scenario[] = [
   { cap: "agents.outside.connect", run: (hn) => h["agents.outside.connect"]!(nested(hn), { clientName: "Claude Code" }) },
   { cap: "agents.outside.enqueue", setup: withOutside, run: (hn, s) => h["agents.outside.enqueue"]!(nested(hn), { agentId: s.id, kind: "mention", threadId: "thr_a", messageId: "msg_a", asker: DANA, title: "A message", text: "Hello" }) },
@@ -75,6 +87,8 @@ const scenarios: Scenario[] = [
   { cap: "agents.list", setup: withAgent, run: (hn) => h["agents.list"]!(hn.ctx, { section: "personal", status: ["awake"], limit: 10 }) },
   { cap: "agents.get", setup: withAgent, run: (hn, s) => h["agents.get"]!(hn.ctx, { agentId: s.id }) },
   { cap: "agents.get", run: (hn) => h["agents.get"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
+  { cap: "agents.assistant_of", run: (hn) => h["agents.assistant_of"]!(hn.as({ kind: "service", id: "svc_host" }), { personId: DANA }) },
+  { cap: "agents.assistant_of", run: (hn) => h["agents.assistant_of"]!(hn.ctx, { personId: "usr_someone1" }) },
   { cap: "agents.memory_key.get", setup: withAgent, run: (hn, s) => h["agents.memory_key.get"]!(hn.ctx, { agentId: s.id }) },
   { cap: "agents.memory_key.get", run: (hn) => h["agents.memory_key.get"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
   { cap: "agents.status", setup: withAgent, run: (hn, s) => h["agents.status"]!(hn.ctx, { agentId: s.id }) },
@@ -103,6 +117,7 @@ const scenarios: Scenario[] = [
   { cap: "agents.config.get", run: (hn) => h["agents.config.get"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
   { cap: "agents.config.validate", setup: withAgent, run: (hn, s) => h["agents.config.validate"]!(hn.ctx, { agentId: s.id, toml: 'name = "Intake"\n' }) },
   { cap: "agents.config.validate", run: (hn) => h["agents.config.validate"]!(hn.ctx, { agentId: "agt_none", toml: "" }), expect: "validation.not_found" },
+  { cap: "agents.config.may_save", setup: withAgent, run: (hn) => h["agents.config.may_save"]!(hn.ctx, { fileId: "fil_notanagentfile" }) },
   { cap: "agents.limits.get", setup: withAgent, run: (hn, s) => h["agents.limits.get"]!(hn.ctx, { agentId: s.id }) },
   { cap: "agents.limits.get", run: (hn) => h["agents.limits.get"]!(hn.ctx, { agentId: "agt_none" }), expect: "validation.not_found" },
   { cap: "agents.snapshot.take", setup: withAgent, run: (hn, s) => h["agents.snapshot.take"]!(hn.ctx, { agentId: s.id, runId: "run_a1" }) },
@@ -197,6 +212,27 @@ const scenarios: Scenario[] = [
   { cap: "plugins.connection.add", run: (hn) => h["plugins.connection.add"]!(hn.ctx, { name: "crm", scope: "space", url: "https://crm.example.com/mcp", idempotencyKey: k() }) },
   { cap: "plugins.connection.add", run: (hn) => h["plugins.connection.add"]!(hn.ctx, { name: "crm", scope: "space", idempotencyKey: k() }), expect: "validation.bad_input" },
   { cap: "plugins.connection.remove", setup: async (hn) => (await h["plugins.connection.add"]!(hn.ctx, { name: "crm", scope: "space", url: "https://crm.example.com/mcp", idempotencyKey: k() })).connection, run: (hn, s) => h["plugins.connection.remove"]!(hn.ctx, { connectionId: s.connectionId, idempotencyKey: k() }) },
+  // Vault > Connections (handlers/connections.ts)
+  { cap: "plugins.connections.home", run: (hn) => h["plugins.connections.home"]!(hn.ctx, {}) },
+  { cap: "plugins.registry.search", run: (hn) => h["plugins.registry.search"]!(hn.ctx, { q: "notion" }) },
+  { cap: "plugins.connection.add_mine", run: (hn) => h["plugins.connection.add_mine"]!(hn.ctx, { name: "notion", url: "https://mcp.notion.com/mcp", auth: "oauth", idempotencyKey: k() }) },
+  { cap: "plugins.connection.add_mine", run: (hn) => h["plugins.connection.add_mine"]!(hn.ctx, { name: "leaky", command: "npx", args: ["--token", "#Key.value"], idempotencyKey: k() }), expect: "validation.bad_input" },
+  {
+    cap: "plugins.connection.update", setup: async (hn) => (await h["plugins.connection.add"]!(hn.ctx, { name: "crm", scope: "space", url: "https://crm.example.com/mcp", idempotencyKey: k() })).connection,
+    run: (hn, s) => h["plugins.connection.update"]!(hn.ctx, { connectionId: s.connectionId, title: "CRM", share: ["everyone"], idempotencyKey: k() }),
+  },
+  { cap: "plugins.connection.update", run: (hn) => h["plugins.connection.update"]!(hn.ctx, { connectionId: "mcs_none", title: "x", idempotencyKey: k() }), expect: "validation.not_found" },
+  {
+    cap: "plugins.connection.forget", setup: async (hn) => (await h["plugins.connection.add_mine"]!(hn.ctx, { name: "mine", url: "https://m.example.com/mcp", idempotencyKey: k() })).connection,
+    run: (hn, s) => h["plugins.connection.forget"]!(hn.ctx, { connectionId: s.connectionId, idempotencyKey: k() }),
+  },
+  {
+    cap: "plugins.connection.checked", setup: async (hn) => (await h["plugins.connection.add_mine"]!(hn.ctx, { name: "mine", url: "https://m.example.com/mcp", idempotencyKey: k() })).connection,
+    run: (hn, s) => h["plugins.connection.checked"]!(hn.as({ kind: "service", id: "svc_host" }), { connectionId: s.connectionId, health: "ok", tools: 3 }),
+  },
+  { cap: "plugins.connection.checked", run: (hn) => h["plugins.connection.checked"]!(hn.ctx, { connectionId: "mcs_none", health: "ok" }), expect: "permission.no_grant" },
+  { cap: "plugins.connections.policy", run: (hn) => h["plugins.connections.policy"]!(hn.ctx, {}) },
+  { cap: "plugins.connections.policy_set", run: (hn) => h["plugins.connections.policy_set"]!(hn.ctx, { spaceAdders: "admins", allowListOn: false, idempotencyKey: k() }) },
   { cap: "skills.list", run: (hn) => h["skills.list"]!(hn.ctx, {}) },
   { cap: "skills.load", run: (hn) => h["skills.load"]!(hn.ctx, { name: "working-in-vyre" }) },
   { cap: "skills.load", run: (hn) => h["skills.load"]!(hn.ctx, { name: "no-such-skill" }), expect: "validation.not_found" },
@@ -211,6 +247,21 @@ const scenarios: Scenario[] = [
     cap: "skills.remove", setup: (hn) => h["skills.add"]!(hn.ctx, { text: "---\nname: one\ndescription: One.\n---\nBody.\n", idempotencyKey: k() }).then(() => hn.clear()),
     run: (hn) => h["skills.remove"]!(hn.ctx, { name: "one", idempotencyKey: k() }),
   },
+  { cap: "skills.page", run: (hn) => h["skills.page"]!(hn.ctx, {}) },
+  { cap: "skills.view", setup: withMine, run: (hn, st) => h["skills.view"]!(hn.ctx, { skillId: st.s.skillId }) },
+  { cap: "skills.preview", run: (hn) => h["skills.preview"]!(hn.ctx, { files: { "handover/SKILL.md": SK("handover", "Hand a matter over.") }, hint: "handover" }) },
+  { cap: "skills.members", run: (hn) => h["skills.members"]!(hn.ctx, {}) },
+  { cap: "skills.mine.add", run: (hn) => h["skills.mine.add"]!(hn.ctx, { text: SK("deploy-checks", "Run the checks before a deploy."), idempotencyKey: k() }) },
+  { cap: "skills.mine.set", setup: withMine, run: (hn, st) => h["skills.mine.set"]!(hn.ctx, { skillId: st.s.skillId, enabled: false, idempotencyKey: k() }) },
+  { cap: "skills.mine.remove", setup: withMine, run: (hn, st) => h["skills.mine.remove"]!(hn.ctx, { skillId: st.s.skillId, idempotencyKey: k() }) },
+  { cap: "skills.mine.update", setup: withLinked, run: (hn, st) => fetching(() => h["skills.mine.update"]!(hn.ctx, { skillId: st.s.skillId, idempotencyKey: k() })) },
+  { cap: "skills.share", setup: withMine, run: (hn, st) => h["skills.share"]!(hn.ctx, { skillId: st.s.skillId, to: [MAYA], idempotencyKey: k() }) },
+  { cap: "skills.shared.decide", setup: (hn) => withSharedTo(hn, { to: [MAYA] }), run: (hn, st) => h["skills.shared.decide"]!(hn.person(MAYA), { skillId: st.s.skillId, decision: "add", idempotencyKey: k() }) },
+  { cap: "skills.space.install", run: (hn) => h["skills.space.install"]!(hn.ctx, { text: SK("house-style", "Write in the house style."), idempotencyKey: k() }) },
+  { cap: "skills.space.update", setup: withSpaceSkill, run: (hn) => fetching(() => h["skills.space.update"]!(hn.ctx, { name: "pdf", idempotencyKey: k() })) },
+  { cap: "skills.space.adopt", setup: (hn) => withSharedTo(hn, { space: true }), run: (hn, st) => h["skills.space.adopt"]!(hn.ctx, { skillId: st.s.skillId, idempotencyKey: k() }) },
+  { cap: "skills.space.setup", setup: withSpaceSkill, run: (hn) => h["skills.space.setup"]!(hn.ctx, { name: "pdf", setup: {}, idempotencyKey: k() }) },
+  { cap: "skills.policy.set", run: (hn) => h["skills.policy.set"]!(hn.ctx, { scriptsAdminOnly: true, idempotencyKey: k() }) },
 ];
 
 test("every path through every capability: answers match the schema, errors are declared, events are declared and match their schemas", async () => {

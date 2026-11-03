@@ -1,20 +1,23 @@
 // The production shell under the phone breakpoint (spec 3.11): the five bottom tabs and one history from mobile/shell, over the same session as the desktop shell. A tab's first screen is
 // the place itself; opening an item (a chat, a record, a file) puts it on top and Back returns to where you came from. The places are the same modules the desktop draws; the ones that
-// have a list and a detail (Chats) draw one at a time under their compact width.
+// have a list and a detail (Chats) draw one at a time under their compact width. Automations and the Console are not on the phone (owner ruling, 3 Nov): a link to either draws the
+// Chat-about-it line, whose action opens an Ask with the assistant about that item.
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { View } from "react-native";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { useResume } from "../../onboarding/ResumeChip.tsx";
-import { MobileShell, YouScreen } from "../../mobile/shell/index.ts";
+import { DesktopOnly, InstallRow, MobileShell, YouScreen } from "../../mobile/shell/index.ts";
 import type { Entry, MobileNav } from "../../mobile/shell/index.ts";
 import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../generated/types.ts";
 import type { PlaceHash } from "../hash/context.tsx";
 import type { PlaceId } from "../rail/kits.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
-import { entryFor, headerBack, phoneStart, placeOf } from "./mobile-map.ts";
+import { chatAboutOf, desktopLine, desktopOnly, entryFor, headerBack, isAskEntry, phoneStart, placeOf, subjectEntry } from "./mobile-map.ts";
+import { openAsk } from "../providers/ask.ts";
 import { othersNeedingYou } from "../spaces/model.ts";
+import { threadsNote } from "../../places/chats/mounts/threads-model.ts";
 import type { RealSession } from "./session.ts";
 
 const NEVER: LiveQuery<never> = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "loading" }) };
@@ -27,13 +30,17 @@ function You({ session, nav, onSignOut, onAddSpace, onLock, onSwitchSpace }: { s
   const work = useLive(session.hooks.capQuery<CapMap["tasks.my_work"]["out"]>("tasks.my_work", {}));
   const stars = useLive(session.hooks.capQuery<CapMap["stars.list"]["out"]>("stars.list", {}));
   const resume = useResume();
+  // the threads I am in: how many replies in them are new (the Threads row of Chats, on the phone)
+  const recent = useLive(session.hooks.capQuery<CapMap["chat.recent"]["out"]>("chat.recent", { filter: "all" }));
+  const threadsNew = recent.status === "ready" ? recent.data.threadsUnread ?? 0 : 0;
   return (
     <View style={{ flex: 1 }}>
       <YouScreen nav={nav} data={{ name: session.me.name, space: session.def.name, workOpen: work.status === "ready" ? work.data.tasks.length : 0, starred: stars.status === "ready" ? stars.data.stars.length : 0 }} />
+      <InstallRow />
+      <Row id="you-threads" title="Threads" note={threadsNote(threadsNew)} emphasis={threadsNew > 0} onPress={() => nav.open(entryFor("chats", "screen=chats.threads"))} />
       {resume ? <Row id="you-finish-setup" title="Finish setup" note={`${resume.done} of ${resume.total} done`} onPress={resume.open} /> : null}
-      <Row id="you-vault" title="Vault" note="Keys, logins and cards" onPress={() => nav.open(entryFor("vault", "")!)} />
-      <Row id="you-automations" title="Automations" note="What runs on its own" onPress={() => nav.open(entryFor("automations", "")!)} />
-      {session.runtime.space.kind === "team" ? <Row id="you-apps" title="Apps" note="Forms and templates" onPress={() => nav.open(entryFor("apps", "")!)} /> : null}
+      <Row id="you-vault" title="Vault" note="Keys, logins and cards" onPress={() => nav.open(entryFor("vault", ""))} />
+      {session.runtime.space.kind === "team" ? <Row id="you-apps" title="Apps" note="Sites, forms and templates" onPress={() => nav.open(entryFor("apps", ""))} /> : null}
       {onSwitchSpace?session.runtime.knownSpaces?.filter(space=>space.spaceId!==session.def.spaceId).map(space=><Row key={space.spaceId} id={'you-switch-'+space.spaceId} title={space.name} note={space.kind==='personal'?'Personal Space':'Team Space'} onPress={()=>onSwitchSpace(space.spaceId)}/>):null}
       {onAddSpace?<Row id="you-add-space" title="Add a Space" note="Create or join another Space" onPress={onAddSpace}/>:null}
       {onLock?<Row id="you-lock" title="Lock Vyre" note="Sign in again to continue" onPress={onLock}/>:null}
@@ -62,7 +69,7 @@ export function PhoneHost({ session, location, needsYou, registerGo, onSignOut, 
   const go = useCallback((place: PlaceId, hash: string): void => {
     const nav = navRef.current;
     const e = entryFor(place, hash);
-    if (!nav || !e) return;
+    if (!nav) return;
     if (e.screen === e.tab) nav.selectTab(e.tab);
     else nav.open(e);
   }, []);
@@ -81,11 +88,19 @@ export function PhoneHost({ session, location, needsYou, registerGo, onSignOut, 
   const render = (e: Entry, nav: MobileNav): ReactNode => {
     navRef.current = nav;
     if (e.screen === "you") return session ? <You session={session} nav={nav} onSignOut={onSignOut} {...(onSwitchSpace?{onSwitchSpace}:{})} {...(onAddSpace?{onAddSpace}:{})} {...(onLock?{onLock}:{})} /> : null;
+    const away = desktopOnly(e);
+    if (away) {
+      const rt = session?.runtime;
+      return <DesktopOnly line={desktopLine(away.place)} {...(rt ? { onChat: () => openAsk(rt, "assistant", chatAboutOf(away.place, away.hash)) } : {})} />;
+    }
     const where = placeOf(e);
     if (!where) return null;
     const opened: PlaceHash["opened"] = (t) => {
       const sub = t.subject;
-      if (sub) nav.open({ tab: e.tab, screen: `${sub.type}:${sub.id}` });
+      if (!sub) return;
+      // an Ask link that found its thread: the thread takes the link's place, so Back returns to where the Ask was opened from
+      if (isAskEntry(e)) nav.replace(subjectEntry(e.tab, sub));
+      else nav.open(subjectEntry(e.tab, sub));
     };
     return <PlaceHost place={where.place} runtime={session?.runtime ?? null} hash={where.hash} opened={opened} />;
   };

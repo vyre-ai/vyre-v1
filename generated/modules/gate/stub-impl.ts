@@ -5,14 +5,15 @@ import type { Handlers } from './handlers.ts';
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
   "gate.acts.list": async () => ({"acts":[{"humanToo":true,"key":"send","peopleOnly":true,"risk":"low","title":"example"}]} as unknown) as never,
-  "gate.allow.list": async () => ({"rules":[{"act":"send","agentId":"agt_a1b2c3","automationId":"aut_a1b2c3","expiresAt":1760000000000,"id":"example","kind":"standing","stepId":"example","target":"example","threadId":"thr_a1b2c3"}]} as unknown) as never,
+  "gate.allow.list": async () => ({"rules":[{"act":"send","agentId":"agt_a1b2c3","automationId":"aut_a1b2c3","expiresAt":1760000000000,"goalId":"gol_a1b2c3","id":"example","kind":"standing","stepId":"example","target":"example","threadId":"thr_a1b2c3"}]} as unknown) as never,
   "gate.allow.remove": async () => ({"ok":true} as unknown) as never,
-  "gate.allow.set": async () => ({"rule":{"act":"send","agentId":"agt_a1b2c3","automationId":"aut_a1b2c3","expiresAt":1760000000000,"id":"example","kind":"standing","stepId":"example","target":"example","threadId":"thr_a1b2c3"}} as unknown) as never,
+  "gate.allow.set": async () => ({"rule":{"act":"send","agentId":"agt_a1b2c3","automationId":"aut_a1b2c3","expiresAt":1760000000000,"goalId":"gol_a1b2c3","id":"example","kind":"standing","stepId":"example","target":"example","threadId":"thr_a1b2c3"}} as unknown) as never,
   "gate.deny": async () => ({"ok":true} as unknown) as never,
   "gate.effective_rule": async () => ({"adminRule":true,"afterHours":1,"approvers":"role:admin","hold":true,"onTimeout":"drop","peopleOnly":true,"reason":"example","sources":{"agent":"hold","floor":"hold","space":"hold"}} as unknown) as never,
   "gate.expire": async () => ({"escalatedTo":"example","outcome":"dropped"} as unknown) as never,
   "gate.grants.ask": async () => ({"ok":true} as unknown) as never,
   "gate.grants.give_back": async () => ({"returned":1} as unknown) as never,
+  "gate.grants.goal": async () => ({"acts":1,"rows":1} as unknown) as never,
   "gate.grants.set": async () => ({"grants":[{"act":"send","id":"example","stepId":"example","target":"example"}]} as unknown) as never,
   "gate.grants.take": async () => ({"granted":true,"spent":["example"]} as unknown) as never,
   "gate.holds.get": async () => ({"hold":{"act":"send","actingFor":"example","askedBy":{"id":"usr_a1b2c3","kind":"person"},"capName":"mail.send","createdAt":1760000000000,"expiresAt":1760000000000,"id":"hld_a1b2c3","payloadHash":"example","principal":{"id":"usr_a1b2c3","kind":"person"},"runId":"run_a1b2c3","state":"held","taskId":"tsk_a1b2c3"}} as unknown) as never,

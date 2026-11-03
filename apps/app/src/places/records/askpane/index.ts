@@ -1,2 +1,2 @@
 export * from "./model.ts";
-export { AskPane } from "./AskPane.tsx";
+export { openRecordsAsk } from "./open.ts";

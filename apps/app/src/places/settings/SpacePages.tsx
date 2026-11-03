@@ -9,6 +9,7 @@ import type { SettingRow, SpacePage, SpaceRowDef } from "./model.ts";
 import { subOf } from "./rows.tsx";
 import { SavedBar, SavedProvider, useSaved } from "./saved.tsx";
 import { MemoryKeys } from "./MemoryKeys.tsx";
+import { MemoryLearningLimits } from "./MemoryLearning.tsx";
 import { Choice, Field, Section, SettingsRow, Stepper, Switch } from "./ui.tsx";
 
 type ListOut = CapMap["settings.list"]["out"];
@@ -74,8 +75,8 @@ export function SpacePageBody({ page, rows, reload, found, personal = false }: {
 }
 
 /** One page of Space defaults, as the Console opens it. */
-export function SpaceDefaults({ page }: { page: SpacePage | "memory" }): ReactElement {
-  return <SavedProvider><SavedBar />{page === "memory" ? <MemoryKeys tier="space" /> : <SpaceDefaultRows page={page} />}</SavedProvider>;
+export function SpaceDefaults({ page }: { page: SpacePage | "memory" | "memlearn" }): ReactElement {
+  return <SavedProvider><SavedBar />{page === "memory" ? <MemoryKeys tier="space" /> : page === "memlearn" ? <MemoryLearningLimits /> : <SpaceDefaultRows page={page} />}</SavedProvider>;
 }
 
 function SpaceDefaultRows({ page }: { page: SpacePage }): ReactElement {

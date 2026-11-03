@@ -7,7 +7,7 @@ import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 import type { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 import { isElevatedRole } from "../../kernel/src/authorize/snapshot.ts";
 import { fail } from "../../host/src/routes/errors.ts";
-import { AccessStore, CURSOR_KEY, EVERYONE, changed, labelOf, storeOf } from "./projections.ts";
+import { AccessStore, CURSOR_KEY, EVERYONE, changed, labelOf, setPrivate, storeOf } from "./projections.ts";
 import type { AccessCtx, Cond, GrantRec, Label, Level, PKind, Ref, Status, SubjectKind } from "./projections.ts";
 
 export interface LogEvent { seq: number; type: string; payload: unknown }
@@ -18,7 +18,7 @@ const CURSOR = CURSOR_KEY;
 /** the event names access.sync folds; the host sends only these */
 export const ACCESS_EVENTS = [
   "role.defined", "principal.created", "principal.role_set", "group.member_added", "resource.created", "grant.created", "grant.revoked",
-  "principal.suspended", "principal.reactivated", "member.removed", "space.ownership_transferred",
+  "principal.suspended", "principal.reactivated", "member.removed", "space.ownership_transferred", "agent.privacy_set",
 ] as const;
 
 const rec = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {});
@@ -87,6 +87,12 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number): boolean
       const next = { id, kind: pkind(p["kind"]), name: str(p["name"]) ?? have?.name ?? id, status, createdAt: have?.createdAt ?? at, ...(str(p["owner"]) ? { owner: str(p["owner"])! } : {}) };
       store.principals.set(id, next);
       return true;
+    }
+    case "agent.privacy_set": {
+      // a person's own assistant or outside agent: to everyone else it is named as its person (owner ruling 3 Nov). Kept beside the cursor in access_fields (a key with no dot is no field label).
+      const id = str(p["agentId"]);
+      if (!id) return false;
+      return setPrivate(store, id, p["private"] === true);
     }
     case "principal.role_set": {
       const holder = str(p["holder"]), given = str(p["role"]);

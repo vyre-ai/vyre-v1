@@ -25,7 +25,7 @@ Items related to one item by links, relations and shared terms
 
 ```ts
 type In = {
-  kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
+  kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note";
   itemId: string;
   limit?: number;
 };
@@ -36,7 +36,7 @@ type In = {
 ```ts
 type Out = {
   hits: Array<{
-      kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
+      kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note";
       id: string;
       title: string;
       recordType?: string;

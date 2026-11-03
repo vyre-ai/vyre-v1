@@ -12,6 +12,7 @@ import { LiveScreen } from "../computer/LiveScreen.tsx";
 import { copyText, giveBack, provision, signOut, sleep, takeOver, wake } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import { useOnline, usePaneData, useScreenQuery } from "./data.tsx";
+import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { agoLabel, computerView, dayMonth, stepRows, stepWho, stepsLine } from "./model.ts";
 import type { Computer, Session, Step } from "./model.ts";
 import { Icon, LeadIcon, PaneList, TextButton, Tool } from "./parts.tsx";
@@ -58,20 +59,25 @@ function Screen({ view, caption, onPress, name, online, live }: { view: ReturnTy
 
 export function ComputerTab({ deps, window }: { deps: PaneDeps; window?: VirtualWindow }): ReactElement {
   const data = usePaneData();
+  const rt = useOptionalShellRuntime();
+  // computers.provision takes Manage on the Space, which only owners and admins hold (the same people as access.manage); Take over needs computers.take_over (l-perms: hide what you cannot do)
+  const canProvision = allows(rt, GATE.provisionComputer);
   const name = data.agent.name;
   const computerId = data.agent.computerId ?? "";
   if (computerId === "") {
     return (
       <View testID="computer-none" style={st.padded}>
         <Text style={st.none}>No computer yet</Text>
-        <View style={{ alignItems: "flex-start", marginTop: 8 }}><TextButton label="Set up its computer" primary onPress={() => void provision(deps, data.agent.agentId, name)} testID="computer-provision" /></View>
+        {canProvision
+          ? <View style={{ alignItems: "flex-start", marginTop: 8 }}><TextButton label="Set up its computer" primary onPress={() => void provision(deps, data.agent.agentId, name)} testID="computer-provision" /></View>
+          : <Text style={st.none} testID="computer-provision-admin">An owner or admin sets up an agent's computer.</Text>}
       </View>
     );
   }
-  return <ComputerBody deps={deps} computerId={computerId} {...(window ? { window } : {})} />;
+  return <ComputerBody deps={deps} computerId={computerId} canTake={allows(rt, GATE.takeOver)} {...(window ? { window } : {})} />;
 }
 
-function ComputerBody({ deps, computerId, window }: { deps: PaneDeps; computerId: string; window?: VirtualWindow }): ReactElement {
+function ComputerBody({ deps, computerId, window, canTake }: { deps: PaneDeps; computerId: string; window?: VirtualWindow; canTake: boolean }): ReactElement {
   const data = usePaneData();
   const online = useOnline();
   const [sel, setSel] = useState<number | null>(null);
@@ -97,7 +103,7 @@ function ComputerBody({ deps, computerId, window }: { deps: PaneDeps; computerId
     ? [{ label: "Wake", onSelect: () => void wake(deps, c.computerId, name) }, { label: "Pop Out", onSelect: () => data.nav.openComputer(c.computerId) }]
     : view.screen === "mine"
       ? [{ label: "Give Back", onSelect: () => void giveBack(deps, c.computerId, name, { threadId: data.threadId, agentId: data.agent.agentId }) }, { label: "Pop Out", onSelect: () => data.nav.openComputer(c.computerId) }, { separator: true }, { label: "Put to Sleep", onSelect: () => void sleep(deps, c.computerId, name) }]
-      : [{ label: "Take Over", onSelect: () => void takeOver(deps, c.computerId, name) }, { label: "Pop Out", onSelect: () => data.nav.openComputer(c.computerId) }, { separator: true }, { label: "Put to Sleep", onSelect: () => void sleep(deps, c.computerId, name) }];
+      : [...(canTake ? [{ label: "Take Over", onSelect: () => void takeOver(deps, c.computerId, name) }] : []), { label: "Pop Out", onSelect: () => data.nav.openComputer(c.computerId) }, { separator: true }, { label: "Put to Sleep", onSelect: () => void sleep(deps, c.computerId, name) }];
 
   const head = (
     <View testID="computer-head" style={st.head}>
@@ -112,7 +118,7 @@ function ComputerBody({ deps, computerId, window }: { deps: PaneDeps; computerId
       </View>
       {view.action === "wake" ? <TextButton label="Wake" onPress={() => void wake(deps, c.computerId, name)} testID="computer-wake" /> : null}
       {view.action === "give" ? <TextButton label="Give back" primary onPress={() => void giveBack(deps, c.computerId, name, { threadId: data.threadId, agentId: data.agent.agentId })} testID="computer-give" /> : null}
-      {view.action === "take" || shown ? <Tool icon="hand" label="Take over" onPress={() => void takeOver(deps, c.computerId, name)} testID="computer-take" /> : null}
+      {canTake && (view.action === "take" || shown) ? <Tool icon="hand" label="Take over" onPress={() => void takeOver(deps, c.computerId, name)} testID="computer-take" /> : null}
       {view.screen !== "asleep" ? <Tool icon="terminal" label="Open terminal" onPress={() => data.nav.openTerminal(c.computerId)} testID="computer-terminal" /> : null}
       <Tool icon="expand" label="Pop out" onPress={() => data.nav.openComputer(c.computerId)} testID="computer-pop" />
       <Tool icon="more" label="More" onPress={(x, y) => headMenu.show(moreItems(), x, y, "other")} testID="computer-more" />

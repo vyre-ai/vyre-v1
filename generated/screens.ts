@@ -1981,6 +1981,47 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "chats.threads",
+    "module": "chat",
+    "place": "chats",
+    "slot": "main",
+    "builtin": "ui:ThreadsPage",
+    "caller": "principal",
+    "queries": {
+      "threads": {
+        "cap": "threads.list",
+        "input": {
+          "kind": "/state/kind",
+          "mine": "/state/mine",
+          "order": "/state/order",
+          "exceptScope": "/state/exceptScope",
+          "limit": "/state/limit"
+        },
+        "live": true
+      }
+    },
+    "actions": {
+      "follow": {
+        "cap": "threads.follow",
+        "input": {
+          "threadId": "/state/threadId",
+          "mode": "/state/mode"
+        }
+      },
+      "markRead": {
+        "cap": "threads.mark_read",
+        "input": {
+          "threadId": "/state/threadId"
+        }
+      }
+    },
+    "needs": [],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "company.setup",
     "module": "members",
     "place": "console",
@@ -5325,6 +5366,15 @@ export const screens: ScreenIndexEntry[] = [
         },
         "live": true
       },
+      "threads": {
+        "cap": "inbox.threads",
+        "input": {
+          "conversationId": "/state/conversationId",
+          "contactId": "/state/contactId",
+          "images": "/state/images"
+        },
+        "live": true
+      },
       "options": {
         "cap": "inbox.send_options",
         "input": {
@@ -5973,6 +6023,63 @@ export const screens: ScreenIndexEntry[] = [
     "needs": [
       "connectors.manage"
     ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "meetings.closeout",
+    "module": "meetings",
+    "place": "inbox",
+    "slot": "main",
+    "builtin": "ui:MeetingsTab",
+    "caller": "principal",
+    "queries": {
+      "list": {
+        "cap": "meetings.closeout.list",
+        "input": {},
+        "live": true
+      },
+      "meeting": {
+        "cap": "meetings.closeout.get",
+        "input": {
+          "meetingId": "/state/meetingId"
+        },
+        "live": true
+      }
+    },
+    "actions": {
+      "approve": {
+        "cap": "meetings.closeout.approve",
+        "input": {
+          "meetingId": "/state/meetingId",
+          "itemIds": "/state/itemIds"
+        }
+      },
+      "edit": {
+        "cap": "meetings.closeout.edit",
+        "input": {
+          "meetingId": "/state/meetingId",
+          "itemId": "/state/itemId"
+        }
+      },
+      "skip": {
+        "cap": "meetings.closeout.skip",
+        "input": {
+          "meetingId": "/state/meetingId",
+          "itemId": "/state/itemId"
+        }
+      },
+      "redo": {
+        "cap": "meetings.closeout.prepare",
+        "input": {
+          "meetingId": "/state/meetingId",
+          "redo": "/state/redo"
+        }
+      }
+    },
+    "needs": [],
     "perf": {
       "firstPaintMs": 50,
       "completeMs": 100
@@ -7426,10 +7533,6 @@ export const screens: ScreenIndexEntry[] = [
       "shareSubscription": {
         "cap": "engine.subscription_share.set",
         "input": {}
-      },
-      "runtime": {
-        "cap": "engine.runtime.opt_in",
-        "input": {}
       }
     },
     "needs": [],
@@ -7497,6 +7600,61 @@ export const screens: ScreenIndexEntry[] = [
       }
     },
     "actions": {},
+    "needs": [],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "settings.skills",
+    "module": "agents",
+    "place": "settings",
+    "slot": "main",
+    "builtin": "ui:SettingsSkills",
+    "caller": "principal",
+    "queries": {
+      "page": {
+        "cap": "skills.page",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "add": {
+        "cap": "skills.mine.add",
+        "input": {}
+      },
+      "set": {
+        "cap": "skills.mine.set",
+        "input": {
+          "skillId": "/state/skillId"
+        }
+      },
+      "remove": {
+        "cap": "skills.mine.remove",
+        "input": {
+          "skillId": "/state/skillId"
+        },
+        "confirm": "Remove this skill?"
+      },
+      "share": {
+        "cap": "skills.share",
+        "input": {
+          "skillId": "/state/skillId"
+        }
+      },
+      "decide": {
+        "cap": "skills.shared.decide",
+        "input": {
+          "skillId": "/state/skillId"
+        }
+      },
+      "preview": {
+        "cap": "skills.preview",
+        "input": {}
+      }
+    },
     "needs": [],
     "perf": {
       "firstPaintMs": 50,
@@ -7938,6 +8096,11 @@ export const screens: ScreenIndexEntry[] = [
         "input": {
           "limit": "/state/limit"
         },
+        "live": true
+      },
+      "count": {
+        "cap": "tasks.count_needs_you",
+        "input": {},
         "live": true
       }
     },
@@ -8754,7 +8917,8 @@ export const screens: ScreenIndexEntry[] = [
           "requestId": "/state/requestId",
           "itemId": "/state/itemId",
           "fields": "/state/fields",
-          "folderId": "/state/folderId"
+          "folderId": "/state/folderId",
+          "audience": "/state/audience"
         }
       },
       "cancel": {

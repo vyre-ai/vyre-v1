@@ -4,7 +4,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 
 export type SettingRow = CapMap["settings.list"]["out"]["rows"][number];
 export type PageInfo = CapMap["settings.pages"]["out"]["pages"][number];
-export type YouPage = "profile" | "notifications" | "appearance" | "ai" | "connected" | "mail" | "signin" | "computer" | "about";
+export type YouPage = "profile" | "notifications" | "appearance" | "ai" | "memory" | "skills" | "connected" | "mail" | "signin" | "computer" | "about";
 export type SpacePage = "space" | "people" | "agents" | "data" | "apps" | "advanced";
 export type PageKey = YouPage | SpacePage;
 
@@ -15,6 +15,8 @@ export const PAGES: readonly PageDef[] = [
   { key: "notifications", title: "Notifications", group: "you", icon: "bell", pages: ["Notifications"] },
   { key: "appearance", title: "Appearance", group: "you", icon: "palette", pages: [] },
   { key: "ai", title: "AI", group: "you", icon: "chip", pages: ["Models and usage", "Chats", "Memory and privacy"] },
+  { key: "memory", title: "Memory and privacy", group: "you", icon: "lock", pages: [] },
+  { key: "skills", title: "Skills", group: "you", icon: "spark", pages: ["Skills"] },
   { key: "connected", title: "Connected", group: "you", icon: "link", pages: ["Connections"] },
   { key: "mail", title: "Email and calendar", group: "you", icon: "mail", pages: [] },
   { key: "signin", title: "Sign-in and devices", group: "you", icon: "key", pages: ["Sign-in and devices"] },
@@ -63,6 +65,8 @@ export const SECTIONS: Readonly<Record<YouPage, readonly SectionDef[]>> = {
   notifications: [{ title: "Delivery", keys: ["notifications.email_backstop", "notifications.alert_replies", "notifications.routines_all"] }],
   appearance: [],
   ai: [{ title: "Working with agents", keys: ["engine.local_runs", "chat.agent_tabs"] }],
+  memory: [],
+  skills: [],
   connected: [],
   mail: [],
   signin: [],
@@ -115,7 +119,7 @@ export const SPACE_ROWS: readonly SpaceRowDef[] = [
   sr("tasks.require_human_approver", "agents", "Approvals", "Only people can approve", { kind: "switch" }, "An agent can never be the approver of a task."),
   sr("tasks.allow_self_review", "agents", "Approvals", "A reviewer can also be the assignee", { kind: "switch" }, "Off, whoever does the work cannot also review or approve it."),
   sr("changesets.different_person", "agents", "Approvals", "The approver must be someone else", { kind: "switch" }, "The person who asked an agent for file changes cannot approve them."),
-  sr("engine.agent_hops", "agents", "Limits", "Agents can reply to each other", { kind: "number", min: 1, max: 20, unit: "times" }, "After this many replies between agents, a person has to answer. It stops loops."),
+  sr("engine.agent_hops", "agents", "Limits", "Agents can reply to each other", { kind: "number", min: 1, max: 20, unit: "times" }, "After this many agent turns, helpers and teammates counted, a person has to answer or press Continue. It stops loops."),
   sr("tasks.review_loop_limit", "agents", "Limits", "A reviewer can send work back", { kind: "number", min: 1, max: 10, unit: "times" }, "After this many send-backs, a person decides."),
   sr("memory.require_review", "agents", "Memory and automations", "Review shared memory first", { kind: "switch" }, "Everything an agent learns for the Space waits in Proposed until someone accepts it."),
   sr("memory.meaning_search", "agents", "Memory and automations", "Search by meaning", { kind: "choice", options: [{ value: "local", label: "On this server" }, { value: "key", label: "With the memory key" }, { value: "off", label: "Off" }] }, "Finds memory by meaning as well as by its words."),
@@ -293,6 +297,7 @@ export const HIT_HELP: Readonly<Record<string, { sub?: string; words?: string }>
 export const DRAWN_ROWS: readonly { key: string; page: PageKey; title: string; sub: string; words: string }[] = [
   { key: "signin.password", page: "signin", title: "Password", sub: "Change your password", words: "sign in login" },
   { key: "signin.recovery", page: "signin", title: "Recovery code", sub: "Make a new recovery code", words: "recovery code lost forgot reset new" },
+  { key: "signin.link", page: "signin", title: "Use one account everywhere", sub: "Keep one of two Vyre accounts", words: "merge link join two accounts username password" },
   { key: "signin.github", page: "signin", title: "GitHub", sub: "Sign in with one click", words: "sign in login" },
   { key: "signin.totp", page: "signin", title: "Authenticator app", sub: "One-time codes on your phone", words: "second factor 2fa totp" },
   { key: "signin.passkey", page: "signin", title: "Passkeys", sub: "Touch ID and security keys", words: "second factor biometric" },
@@ -303,7 +308,8 @@ export const DRAWN_ROWS: readonly { key: string; page: PageKey; title: string; s
   { key: "model.fallback", page: "ai", title: "Fallback model", sub: "When the default is unavailable", words: "backup" },
   { key: "usage", page: "ai", title: "Usage this month", sub: "You and your agents", words: "limit cost tokens spend" },
   { key: "open-vault", page: "ai", title: "AI accounts", sub: "Sign-ins and keys live in the Vault", words: "provider api key openai anthropic subscription" },
-  { key: "memory.keys", page: "ai", title: "Who pays for memory", sub: "The account memory upkeep uses", words: "upkeep spend" },
+  { key: "memory.about", page: "memory", title: "About you", sub: "What agents know about you, public and private", words: "profile personal private public remember forget erase" },
+  { key: "memory.keys", page: "memory", title: "Who pays for memory", sub: "Learning uses the AI account you chat with", words: "upkeep spend learning limit" },
   { key: "connect-mailbox", page: "connected", title: "Connect a mailbox", sub: "Google, Microsoft or IMAP", words: "email gmail outlook" },
   { key: "connect-calendar", page: "connected", title: "Connect a calendar", sub: "Google or Microsoft", words: "events" },
   { key: "connect-twilio", page: "connected", title: "Connect Twilio", sub: "Texts and calls", words: "phone number sms" },

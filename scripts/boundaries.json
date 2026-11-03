@@ -325,6 +325,48 @@
       "spec": "../../client/src/crypto/keys.ts",
       "reason": "test-only interop proof: it must use the other side's real implementation to show both speak the same bytes; no production code crosses this edge",
       "until": "2027-01-31"
+    },
+    {
+      "rule": "B3",
+      "file": "apps/chrome/tests/e2e/rig.ts",
+      "spec": "node:crypto",
+      "reason": "test-only: the extension's end-to-end rig makes random test tokens; no product code uses it",
+      "until": "2027-01-31"
+    },
+    {
+      "rule": "B6",
+      "file": "apps/chrome/tests/e2e/rig.ts",
+      "spec": "playwright-core",
+      "reason": "test-only: the extension's end-to-end rig drives Chromium; it is imported only by the e2e test",
+      "until": "2027-01-31"
+    },
+    {
+      "rule": "B1",
+      "file": "modules/goals/tests/mcp-bridge.test.ts",
+      "spec": "../../engine/mcp-bridge.ts",
+      "reason": "test-only: the goals tools are proven through the real engine MCP bridge a CLI engine calls them by",
+      "until": "2027-01-31"
+    },
+    {
+      "rule": "layer",
+      "file": "modules/goals/tests/mcp-bridge.test.ts",
+      "spec": "../../../agent/src/mcp/index.ts",
+      "reason": "test-only: the goals tools are proven through the real MCP client an engine uses",
+      "until": "2027-01-31"
+    },
+    {
+      "rule": "layer",
+      "file": "modules/goals/tests/mcp-bridge.test.ts",
+      "spec": "../../../agent/src/tools/harness.ts",
+      "reason": "test-only: the goals tools are proven through the real tool harness an engine uses",
+      "until": "2027-01-31"
+    },
+    {
+      "rule": "forbidden",
+      "file": "sandbox/tests/wsl.test.ts",
+      "spec": "../../modules/engine/mcp-bridge.ts",
+      "reason": "test-only: the WSL bridge is proven against the engine's real MCP bridge; no sandbox code crosses this edge",
+      "until": "2027-01-31"
     }
   ]
 }

@@ -10,7 +10,7 @@ export type Scope =
   | { kind: "number"; id: string }
   | { kind: "starred" }
   | { kind: "follow" }
-export type MainView = "list" | "calendar" | "connect";
+export type MainView = "list" | "calendar" | "connect" | "meetings";
 
 export interface InboxState {
   main: MainView;
@@ -91,6 +91,8 @@ export interface Entry {
   openId: string;
   /** The matched record's contact, when there is one: follow and match act on it. */
   contactId?: string;
+  /** An email thread's conversation: the row opens it there. */
+  conversationId?: string;
 }
 
 export function inboxName(id: string | undefined, mailboxes: readonly Mailbox[]): string {
@@ -112,6 +114,8 @@ export function threadEntry(t: ThreadRow, mailboxes: readonly Mailbox[], names: 
   return {
     key: t.threadId, kind: "thread", name: who, snippet: t.subject ?? "", at: t.lastAt, unread: t.unread, channel: t.channel, via: inboxName(t.mailboxId, mailboxes),
     inboxIds: t.mailboxId ? [t.mailboxId] : [], needsMatch: false, followed: false, starred: false, missed: false, openId: t.threadId, ...(t.contactId ? { contactId: t.contactId } : {}),
+    // an email thread opens in its conversation, where it is one card; a text thread opens as before
+    ...(t.channel === "email" && t.conversationId ? { conversationId: t.conversationId } : {}),
   };
 }
 
@@ -273,6 +277,7 @@ export type Action =
   | { type: "select"; key: string | null }
   | { type: "section"; key: string }
   | { type: "calendar" }
+  | { type: "meetings" }
   | { type: "connect" }
   | { type: "calendarVisible"; id: string }
   | { type: "calendarOnly"; id: string; all: readonly string[] };
@@ -289,6 +294,7 @@ export function reduce(s: InboxState, a: Action): InboxState {
     case "select": return { ...s, selected: a.key };
     case "section": return { ...s, closed: toggled(s.closed, a.key) };
     case "calendar": return { ...s, main: "calendar", selected: null };
+    case "meetings": return { ...s, main: "meetings", selected: null };
     case "connect": return { ...s, main: "connect", selected: null };
     case "calendarVisible": return { ...s, hiddenCalendars: toggled(s.hiddenCalendars, a.id) };
     case "calendarOnly": return { ...s, hiddenCalendars: a.all.filter((id) => id !== a.id) };

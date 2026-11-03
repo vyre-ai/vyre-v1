@@ -6,9 +6,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { RUNTIME_DIRS, REPO, SKIP, STAGE_FILES, plan, stageAppWeb } from "../src-tauri/stage-runtime.ts";
+import { ROOT_FILES, RUNTIME_DIRS, REPO, SKIP, STAGE_FILES, plan, stageAppWeb } from "../src-tauri/stage-runtime.ts";
 
-const staged = (rel: string): boolean => (RUNTIME_DIRS as readonly string[]).some((d) => rel === d || rel.startsWith(`${d}/`)) || (STAGE_FILES as readonly string[]).includes(rel);
+const staged = (rel: string): boolean => (RUNTIME_DIRS as readonly string[]).some((d) => rel === d || rel.startsWith(`${d}/`)) || (STAGE_FILES as readonly string[]).includes(rel) || (ROOT_FILES as readonly string[]).includes(rel);   // the root files (package.json and the rest) are copied as well
 
 test("the plan copies docs/frozen, where agent-tools.md is read at start", () => {
   const p = plan(["lib", "host"], () => true);

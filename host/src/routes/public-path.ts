@@ -25,7 +25,7 @@ const FROM_SITE = new Set(["accept-ranges", "cache-control", "content-dispositio
 const DROP = ["cookie", "authorization", "x-forwarded-for", "x-real-ip", "x-vyre-public-base", "x-vyre-public-origin"];
 
 interface Inner { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean }
-export interface ServedTarget { computerId?: string; port?: number; folderId?: string }
+export interface ServedTarget { computerId?: string; port?: number; folderId?: string; container?: string }
 export interface ServedSite { siteId: string; access: string; live: boolean; blocked: boolean; target: ServedTarget }
 export interface PublicPathDeps {
   forms(): Inner | null;

@@ -22,6 +22,8 @@ export interface VaultNav {
   openOutsideActors?(): void;
   /** Who may export, the longest a download link lasts, and whether a reveal asks why. */
   openPolicy(): void;
+  /** Google and Microsoft: the company connection, or a person's own mail and calendar in a Personal Space. */
+  openCompany?(): void;
   /** The Automation or agent that is asking for a key. */
   openRequests(): void;
   openAgent(agentId: string): void;
@@ -35,6 +37,8 @@ export interface VaultNav {
   openAutomation?(automationId: string): void;
   /** The Add an AI account sheet, for a blocker that says to connect one. */
   openAddProvider?(): void;
+  /** Vault > Connections (owner ruling D28): the one home for every app and tool server. Absent: the Vault draws no Connections row. */
+  openConnections?(): void;
 }
 
 /** The desktop app's way to put Vyre for Chrome into Chrome (no Web Store listing yet). Only the desktop shell supplies it; the web app and the phone have no Advanced row for it. */

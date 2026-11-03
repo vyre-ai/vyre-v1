@@ -29,7 +29,8 @@ test("the manifest: going public is held for an agent and a person's press is th
 });
 
 test("what stays dormant refuses, and what ships answers", async () => {
-  for (const n of ["sites.build", "sites.deploy", "sites.previews", "sites.rollback", "sites.table_create", "sites.env_set"]) await assert.rejects(async () => h[n]!({ trace: { traceId: "0" } }, {}), /Not in this version yet|unavailable/i, n);
+  // deploy, rollback and env came back with sites Vyre builds and runs (handlers/release.ts); the staging and preview pipeline stays dormant
+  for (const n of ["sites.build", "sites.previews", "sites.table_create", "sites.staging_password_set"]) await assert.rejects(async () => h[n]!({ trace: { traceId: "0" } }, {}), /Not in this version yet|unavailable/i, n);
 });
 
 test("a site: created with a free name, not live, reachable by slug once published, and stop takes it down", async () => {
@@ -103,7 +104,7 @@ test("custom domains: the records are exact, an apex takes an A, the three state
     assert.equal((await h["sites.domain_check"]!(w.ctx, { siteId, domain: "shop.example.org" })).state, "live");
     const closed = await h["sites.create"]!(w.ctx, { name: "Closed", access: "space", port: 3000 });
     await assert.rejects(() => h["sites.domain_add"]!(w.ctx, { siteId: closed.site.siteId, domain: "closed.example.org" }), /A custom domain is public/);
-    await assert.rejects(() => h["sites.update"]!(w.ctx, { siteId, access: "password" }), /not in this version/);
+    await assert.rejects(() => h["sites.update"]!(w.ctx, { siteId, access: "password" }), /A password needs a site Vyre deploys/);
     configureDomainEdge({ public: async () => null, dnsOk: async () => false, certIssued: async () => false, setRoute: async () => undefined, removeRoute: async () => undefined });
     await assert.rejects(() => h["sites.domain_add"]!(w.ctx, { siteId, domain: "other.example.org" }), /needs a server with a public address/);
   } finally { configureRoutes(null); configureDomainEdge(null); }

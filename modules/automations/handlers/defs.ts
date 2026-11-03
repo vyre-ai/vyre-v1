@@ -410,13 +410,39 @@ async function blocksGoingLive(ctx: AutoCtx, kind: Automation["kind"], def: Defi
 // ---- reads ----
 
 export async function get(ctx: AutoCtx, input: In): Promise<unknown> {
-  return { automation: out(visible(ctx, getAutomation(ctx, input.automationId))) };
+  const a = visible(ctx, getAutomation(ctx, input.automationId));
+  return { automation: out(a), canEdit: await canChangeSpace(ctx, a) };
 }
 
 /** Who may see an Automation: the owner, a follower, a service caller, or anyone the kernel lets view it. */
 export function canView(ctx: AutoCtx, a: Automation): boolean {
   if (isTrustedService(ctx.principal) || isOwner(ctx, a) || a.followers.includes(me(ctx)) || a.createdBy === ctx.principal.id) return true;
   return !!ctx.authorize && ctx.authorize({ perm: null, level: "view" }, { type: "automation", id: a.id }).effect === "allow";
+}
+/**
+ * May the caller change or delete this Automation (owner ruling, 3 Nov 2026)? A Personal one: whoever the gateway let through. A Space one: the Space's owners and admins (Manage on the
+ * Space), its accountable owner, the server itself, and a person or group given Edit on that automation itself. Everyone else, including a member whose Edit comes only from the Space, reads
+ * it, runs it as its run permission allows, makes a personal copy, or asks an admin.
+ */
+export async function canChangeSpace(ctx: AutoCtx, a: Automation): Promise<boolean> {
+  if (a.kind !== "space" || isTrustedService(ctx.principal) || isOwner(ctx, a) || !ctx.authorize) return true;
+  if (ctx.authorize({ perm: null, level: "manage" }, { type: "space", id: ctx.space }).effect === "allow") return true;
+  if (ctx.authorize({ perm: null, level: "manage" }, { type: "automation", id: a.id }).effect === "allow") return true;
+  // Edit given on the automation itself: only the access module tells it from the Edit every member holds on the Space. It lists shares only to someone with a grant of their own here,
+  // so a member with none is refused that read, which is the answer.
+  if (!ctx.call) return false;
+  const who = me(ctx);
+  let groups: string[] = [];
+  try { groups = ((await ctx.call("identity.whoami", {})) as { groups?: string[] }).groups ?? []; } catch { /* a person with no directory row holds no group grant */ }
+  try {
+    const out = (await ctx.call("access.shares_of", { resource: { type: "automation", id: a.id } })) as { shares?: Array<{ grant: { subject: { kind: string; id: string }; level: string }; through: string }> };
+    return (out.shares ?? []).some(({ grant, through }) => (through === "direct" || through === "group") && (grant.level === "edit" || grant.level === "manage")
+      && (grant.subject.kind === "group" ? groups.includes(grant.subject.id) : grant.subject.id === who));
+  } catch { return false; }
+}
+/** Refuse a change to a Space Automation the caller may not change, before anything is written. */
+export async function mustChange(ctx: AutoCtx, a: Automation): Promise<void> {
+  if (!(await canChangeSpace(ctx, a))) raise(ctx, "permission.role_lacks_permission", "Owners and admins change Space automations. Make a personal copy, or ask an admin.", { reason: "space_automation" });
 }
 function visible(ctx: AutoCtx, a: Automation): Automation {
   if (!canView(ctx, a)) raise(ctx, "permission.not_found", "That automation is not available.");
@@ -522,6 +548,7 @@ const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.str
 
 export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
+  await mustChange(ctx, a);
   if (input.expectedVersion !== undefined && input.expectedVersion !== a.version) {
     raise(ctx, "validation.version_conflict", `This automation is at version ${a.version} now.`, { current: a.version, expected: input.expectedVersion });
   }
@@ -557,6 +584,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
 
 export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
+  await mustChange(ctx, a);
   if (input.enabled) {
     if (a.status === "on") { await regrant(ctx, a, "on"); return { automation: out(a) }; }
     const issues = await blocksGoingLive(ctx, a.kind, a.definition, readPolicy(ctx.db));
@@ -583,6 +611,7 @@ export async function setEnabled(ctx: AutoCtx, input: In): Promise<unknown> {
 
 export async function remove(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
+  await mustChange(ctx, a);
   markDeleted(ctx, a.id);
   emitAuto(ctx, "automation.deleted", a.id, {});
   return { deleted: true };
@@ -607,6 +636,7 @@ export async function versions(ctx: AutoCtx, input: In): Promise<unknown> {
 
 export async function restoreVersion(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
+  await mustChange(ctx, a);
   const v = versionById(ctx.db, a.id, input.versionId);
   if (!v) raise(ctx, "validation.not_found", "That version does not exist.", { reason: "no_version" });
   refuseSecret(ctx, v.definition);
@@ -663,6 +693,7 @@ export async function groupsDelete(ctx: AutoCtx, input: In): Promise<unknown> {
 }
 export async function move(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = visible(ctx, getAutomation(ctx, input.automationId));
+  await mustChange(ctx, a);
   const gid: string | null = input.groupId ?? null;
   if (gid !== null && !findGroup(ctx.db, gid)) raise(ctx, "validation.not_found", "That Group does not exist.", { reason: "no_group" });
   if (gid === null) delete a.groupId; else a.groupId = gid;

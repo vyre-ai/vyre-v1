@@ -15,6 +15,7 @@ export const handlers: Record<string, Handler> = {
   "inbox.list_by_contact": (ctx, i) => h.listByContact(ctx, i),
   "inbox.list_by_thread": (ctx, i) => h.listByThread(ctx, i),
   "inbox.thread": (ctx, i) => h.thread(ctx, i),
+  "inbox.threads": (ctx, i) => h.threads(ctx, i),
   "inbox.unmatched": (ctx, i) => h.unmatched(ctx, i),
   "inbox.needs_match": (ctx, i) => h.needsMatch(ctx, i),
   "inbox.match_suggestions": guarded((ctx, i) => h.matchSuggestions(ctx, i)),

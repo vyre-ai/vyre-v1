@@ -59,6 +59,8 @@ async function boot(spaceKind: "personal" | "team" = "personal") {
       if (cap.startsWith("schema.")) return (schema.handlers as Record<string, (c: unknown, i: unknown) => Promise<unknown>>)[cap]!(schemaCtx, input);
       if (cap === "runs.start") { const runId = `run_${runs.length + 1}`; runs.push({ runId }); return { runId }; }
       if (cap === "runs.finish") { const i = input as { runId: string; status: string; summary?: string }; Object.assign(runs.find((r) => r.runId === i.runId)!, { status: i.status, ...(i.summary ? { summary: i.summary } : {}) }); return { run: { id: i.runId } }; }
+      // the Vault's Use check (lib/vault-check.ts): the person here owns the keys their connections keep
+      if (cap === "vault.use") return { handle: (input as { item: string }).item, itemId: "vit_crm0001", fields: ["value"] };
       if (cap === "spaces.get") return { space: { kind: spaceKind, address: "https://team.example" } };
       if (cap === "connectors.sync_now") return (conn.handlers as Record<string, (c: unknown, i: unknown) => Promise<unknown>>)[cap]!(ctx, input);
       if (cap === "tasks.create") { tasks.push({ input }); return { task: { id: `tsk_${tasks.length}` } }; }

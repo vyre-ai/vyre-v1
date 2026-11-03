@@ -5,7 +5,9 @@
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import { resolveAccount, probeAccount, providerOfModel, UnknownAccount } from "../../../agent/src/accounts/index.ts";
-import type { AccountRow, AccountStatus, ProbeResult } from "../../../agent/src/accounts/index.ts";
+import type { AccountRow, AccountStatus, ProbeResult, SpaceUses, Trigger } from "../../../agent/src/accounts/index.ts";
+import { costTier } from "../../../agent/src/accounts/cost.ts";
+import { savedTested } from "../live-models.ts";
 
 interface ProviderRow {
   id: string; providerKey: string; name: string; connection: "subscription" | "api_key" | "local_model"; scope: "mine" | "shared"; handle?: string; itemId: string;
@@ -16,6 +18,8 @@ interface ProviderRow {
   aliases?: string[];
   /** An older sign-in of the same provider whose account cannot be read: the provider id of the row it is listed under. */
   olderOf?: string;
+  /** A Space AI account (owner ruling 9): what it pays for, whether team chats reach this person, whether it hit its cap, and the models it serves. */
+  uses?: SpaceUses; teamChatsForMe?: boolean; capped?: boolean; models?: string[];
 }
 interface ThreadOut { thread: { starter: string; agents: Array<{ agentId: string; accountRef?: string; provider?: string; model?: string }> } }
 interface AgentOut { agent: { accountPolicy: "asker" | "key"; accountKey?: string; accountFallback?: string[]; model?: string } }
@@ -74,6 +78,8 @@ export async function load(ctx: Pick<Ctx, "actingFor" | "principal" | "call">): 
       ref, driver: driverOf(p), provider: p.providerKey, kind: p.connection === "subscription" ? "subscription" : "api_key", title: p.name,
       mine: p.scope === "mine", ownerId: p.scope === "mine" ? me : null, status: STATUS[p.state], lastProbeAt: null, spaceMayUse: p.spaceMayUse,
       ...(p.spaceKey === true ? { spaceKey: true } : {}), ...(under ? { older: true } : {}),
+      ...(p.scope === "shared" && p.uses ? { uses: p.uses, ...(p.teamChatsForMe !== undefined ? { teamChatsForMe: p.teamChatsForMe } : {}), ...(p.capped === true ? { capped: true } : {}), cost: costTier(driverOf(p)) } : {}),
+      ...(p.models?.length ? { models: p.models } : {}),
     });
   }
   return { rows, idByRef, itemByRef, where, names, aliasOf, underOf };
@@ -96,7 +102,11 @@ export async function accountsList(ctx: Ctx, _input: Record<string, never>) {
   };
 }
 
-export async function accountResolve(ctx: Ctx, input: { threadId: string; agentId: string; askerId?: string; stepKey?: string; unavailable?: string[] }) {
+/** What caused the turn, as the turn engine says it, to the resolver's trigger. */
+type TurnKind = "chat" | "wake" | "automation" | "goal" | "agent_work";
+const TRIGGER: Readonly<Record<TurnKind, Trigger>> = { chat: "message", wake: "wake", automation: "task", goal: "goal", agent_work: "routine" };
+
+export async function accountResolve(ctx: Ctx, input: { threadId: string; agentId: string; askerId?: string; stepKey?: string; unavailable?: string[]; kind?: TurnKind; dry?: boolean }) {
   const [t, a, policy, defaults, placement, accounts] = await Promise.all([
     ctx.call("threads.get", { threadId: input.threadId }) as Promise<ThreadOut>,
     ctx.call("agents.get", { agentId: input.agentId }) as Promise<AgentOut>,
@@ -111,12 +121,22 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
   const provider = member?.provider ?? providerOfModel(member?.model ?? a.agent.model);
   // a Personal Space runs on the person's own computer, so a turn on its host is a turn on their computer: their sign-in needs no "the Space may use it" switch there
   const personal = await (ctx.call("spaces.get", {}) as Promise<{ space?: { kind?: string } }>).then((r) => r.space?.kind === "personal", () => false);
+  // a Space account fits when its provider lists the turn's model: the Vault's kept list, else the one this engine saved from its last test
+  for (const r of accounts.rows) if (!r.mine && !r.models?.length) { try { const m = savedTested(ctx.db as never, r.ref); if (m.length > 0) r.models = m; } catch { /* nothing saved */ } }
+  const trigger: Trigger = input.stepKey ? "task" : TRIGGER[input.kind ?? "chat"];
+  const model = member?.model ?? a.agent.model;
+  // the composer's check before sending: the caller is the one who would ask (their own accounts, their team chats)
+  const asker = input.askerId ?? (input.dry === true ? ctx.actingFor ?? ctx.principal.id : undefined);
   const res = resolveAccount({
     starter: t.thread.starter,
-    ...(input.askerId ? { steerer: input.askerId } : {}),
-    trigger: input.stepKey ? "task" : "message",
+    ...(asker ? { steerer: asker } : {}),
+    trigger,
+    ...(trigger === "routine" ? { routineOwner: input.askerId ?? t.thread.starter } : {}),
+    ...(model ? { model } : {}),
+    // the person chose the chat's account and its model together: a list that does not have the model fails the turn rather than run elsewhere
+    ...(member?.accountRef && member?.model ? { modelPinned: true } : {}),
     ...(member?.accountRef ? { threadAccountRef: c(member.accountRef) } : {}),
-    agent: { accountPolicy: a.agent.accountPolicy, ...(a.agent.accountKey ? { accountKey: c(a.agent.accountKey) } : {}), ...(a.agent.accountFallback?.length ? { accountFallback: a.agent.accountFallback.map(c) } : {}), ...(provider ? { provider } : {}) },
+    agent: { agentId: input.agentId, accountPolicy: a.agent.accountPolicy, ...(a.agent.accountKey ? { accountKey: c(a.agent.accountKey) } : {}), ...(a.agent.accountFallback?.length ? { accountFallback: a.agent.accountFallback.map(c) } : {}), ...(provider ? { provider } : {}) },
     ...(input.stepKey ? { stepKey: c(input.stepKey) } : {}),
     backupRefs: defaults.fallback.flatMap((f) => (f.accountRef ? [c(f.accountRef)] : [])),
     policy: policy.allowedAccounts,
@@ -127,8 +147,9 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
   // the Vault item behind the account, so the turn worker can meter usage against it (record_usage itemId)
   const itemId = res.accountRef ? accounts.itemByRef.get(res.accountRef) : undefined;
   // an account ahead of this one was passed over: what pays is a fallback, whatever the reason word says
-  const fellBack = res.accountRef !== null && res.tried.some((a) => !a.used && (a.why === "expired" || a.why === "failed" || a.why === "failed_this_turn"));
-  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}), ...(fellBack ? { fellBack: true } : {}) };
+  const fellBack = res.accountRef !== null && res.tried.some((a) => !a.used && (a.why === "expired" || a.why === "failed" || a.why === "failed_this_turn" || a.why === "capped"));
+  return { accountRef: res.accountRef, payer: res.payer, reason: res.reason, allowed: res.allowed, ...(itemId ? { itemId } : {}), ...(fellBack ? { fellBack: true } : {}), ...(res.pin ? { pin: res.pin } : {}), ...(!res.allowed && res.unblock ? { why: res.unblock.why } : {}),
+    ...(res.modelFallback && res.accountRef && model ? { modelFallback: { from: model, ...(accounts.rows.find((r) => r.ref === res.accountRef)?.models?.[0] ? { to: accounts.rows.find((r) => r.ref === res.accountRef)!.models![0]! } : {}) } } : {}) };
 }
 
 export async function accountProbe(ctx: Ctx, input: { accountRef: string }) {

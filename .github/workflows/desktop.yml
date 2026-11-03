@@ -2,7 +2,18 @@ name: desktop
 
 on:
   workflow_call:
+    inputs:
+      only:
+        description: "Run one job only (sandbox-windows)"
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
+    inputs:
+      only:
+        description: "Run one job only (sandbox-windows), to prove a lane's change without the full build"
+        required: false
+        default: ""
   pull_request:
     paths:
       - "apps/desktop/**"
@@ -32,6 +43,7 @@ permissions:
 
 jobs:
   desktop:
+    if: ${{ !inputs.only }}
     name: desktop (${{ matrix.os }})
     strategy:
       fail-fast: false
@@ -271,6 +283,7 @@ jobs:
   # long socket path, a write outside the work folder is refused, and the real CLIs (installed on this runner only) start under the profile and do not die on a signal. Blocks the release because
   # release.yml calls this whole workflow.
   sandbox-macos:
+    if: ${{ !inputs.only }}
     name: sandbox (macos-latest)
     runs-on: macos-latest
     timeout-minutes: 20
@@ -298,13 +311,128 @@ jobs:
           VYRE_HEAVY_MAC: "1"
         run: |
           set -euo pipefail
-          node --test --test-force-exit --test-reporter=spec modules/engine/tests/sandbox.mac.heavy.test.ts modules/engine/tests/cli.heavy.test.ts modules/engine/tests/sandbox.test.ts sandbox/tests/sandbox.escape.test.ts
+          node --test --test-force-exit --test-reporter=spec modules/engine/tests/sandbox.mac.heavy.test.ts modules/engine/tests/mac-claude-signin.heavy.test.ts modules/engine/tests/cli.heavy.test.ts modules/engine/tests/sandbox.test.ts sandbox/tests/sandbox.escape.test.ts
           VYRE_HEAVY_DOCKER=1 node --test --test-force-exit --test-reporter=spec golden/steps/07-reply.heavy.test.ts
+  # CLI engines on Windows: the local sockets the daemon makes (a named pipe, never a unix socket path a long profile folder breaks) and the MCP shim reaching Vyre over one from a
+  # 120-character data folder. Blocks the release because release.yml calls this whole workflow.
+  sandbox-windows:
+    if: ${{ !inputs.only || inputs.only == 'sandbox-windows' }}
+    name: sandbox (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Local sockets and the MCP bridge
+        run: node --test --test-force-exit --test-reporter=spec sandbox/tests/sock.test.ts modules/engine/tests/mcp-bridge.test.ts
+      # A Windows Personal Space (owner ruling 3 Nov 2026): Claude Code at Low integrity in a Job Object, built and started by Vyre's own code. A turn with one Bash tool call against a fake
+      # model API, git over HTTPS through the egress proxy, no change outside the work folder and the added folders, Vyre's own secrets unreadable, nothing left running after the job.
+      - name: A Windows Personal Space, a real Claude Code turn, git, and what it may change
+        env:
+          VYRE_HEAVY_LOWIL: "1"
+        timeout-minutes: 30
+        run: node --test --test-force-exit --test-reporter=spec --test-timeout=1800000 modules/engine/tests/sandbox.lowil.heavy.test.ts
+      # The Windows sandbox (sandbox/src/wsl): the runner has WSL2 and no distribution, like a person's computer with WSL on. Vyre imports its own, installs Linux Claude Code, and runs a turn
+      # with one Bash tool call against a fake model API in the VM; then proves reads, writes and the network are held, and that the MCP shim reaches Vyre over the agent's relay.
+      - name: The Windows sandbox, a real Claude Code turn and the denials
+        env:
+          VYRE_HEAVY_WSL: "1"
+        timeout-minutes: 40
+        run: node --test --test-force-exit --test-reporter=spec --test-timeout=2400000 modules/engine/tests/sandbox.wsl.heavy.test.ts
+  # Windows parity for what other lanes built (lane l-winfix): the Windows-shaped unit tests on real Windows, then the real engines at Low integrity: claude.exe and codex.exe list their models
+  # and end by themselves, native skills with bad names and a path past MAX_PATH are read by claude.exe, an added folder with a space is read and changed, git over SSH signs through the
+  # ssh-agent service's named pipe, and Codex's plugin launcher starts a .cmd server. Run alone with only=winfix-windows.
+  winfix-windows:
+    if: ${{ !inputs.only || inputs.only == 'winfix-windows' }}
+    name: winfix (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Windows-shaped unit tests, on Windows
+        run: node --test --test-force-exit --test-reporter=spec sandbox/tests/sandbox.access.win.test.ts modules/engine/tests/skills-native.win.test.ts modules/engine/tests/sudo-shim.win.test.ts agent/tests/codex-server.win.test.ts agent/tests/drivers-cli.models-close.test.ts
+      - name: The ssh-agent service and an SSH server for the proof
+        shell: pwsh
+        run: |
+          Set-Service ssh-agent -StartupType Manual
+          Start-Service ssh-agent
+          Get-Service ssh-agent | Format-List Name,Status
+          & C:\Windows\System32\OpenSSH\ssh.exe -V
+          npm install --silent --no-audit --no-fund --prefix "$env:RUNNER_TEMP\ssh2" ssh2@1.16.0
+          "VYRE_PROOF_SSH2=$env:RUNNER_TEMP\ssh2" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: The real engines at Low integrity
+        env:
+          VYRE_HEAVY_WINFIX: "1"
+        timeout-minutes: 30
+        run: node --test --test-force-exit --test-reporter=spec --test-timeout=1800000 modules/engine/tests/winfix.heavy.test.ts
+  # Windows parity for the features of 3 Nov (lane l-winengine): each lane's own tests on real Windows and, beside it, the same steps on a Mac, one step per feature so the table reads off the run. The sandbox proofs (E, B, a
+  # Team turn under B) are in sandbox-windows; the real engines with skills, model lists, folders and ssh are in winfix-windows. Run alone with only=parity-windows.
+  parity-windows:
+    if: ${{ !inputs.only || inputs.only == 'parity-windows' }}
+    name: parity (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: "runson: Runs on, Automatic, the device link and handover"
+        id: runson
+        continue-on-error: true
+        run: node --test --test-force-exit --test-reporter=spec test/runson.device.live.test.ts test/runson.handover.live.test.ts test/runson.pinned.live.test.ts test/runson.approvals.device.live.test.ts test/runson.approvals.space.live.test.ts modules/engine/tests/place.test.ts agent/tests/pool.placement.test.ts
+      - name: "skills: native skills written for Claude Code and Codex"
+        id: skills
+        continue-on-error: true
+        run: node --test --test-force-exit --test-reporter=spec modules/engine/tests/skills-native.test.ts modules/engine/tests/skills-native.win.test.ts
+      - name: "livemodels: the engines' own model lists"
+        id: livemodels
+        continue-on-error: true
+        run: node --test --test-force-exit --test-reporter=spec agent/tests/drivers-cli.models.test.ts modules/engine/tests/live-models.test.ts
+      - name: "openweb: the internet rule, folders and ssh"
+        id: openweb
+        continue-on-error: true
+        run: node --test --test-force-exit --test-reporter=spec sandbox/tests/sandbox.openweb.test.ts sandbox/tests/sandbox.access.win.test.ts modules/engine/tests/egress-log.test.ts modules/mounts/tests/engine-folders.test.ts apps/app/src/console/pages/internet-values.test.ts
+      - name: "multidevice: a Personal Space on several computers"
+        id: multidevice
+        continue-on-error: true
+        run: node --test --test-force-exit --test-reporter=spec test/peers.enrol.live.test.mjs test/peers.sync.live.test.mjs test/peers.trees.live.test.mjs test/peers.link.test.mjs modules/engine/tests/place.personal-peers.test.ts modules/network/tests/peers.test.ts host/tests/device-link.test.ts
+      - name: The parity table
+        if: always()
+        run: |
+          printf '| feature | ${{ matrix.os }} |\n|---|---|\n| runson | %s |\n| skills | %s |\n| livemodels | %s |\n| openweb | %s |\n| multidevice | %s |\n' "${{ steps.runson.outcome }}" "${{ steps.skills.outcome }}" "${{ steps.livemodels.outcome }}" "${{ steps.openweb.outcome }}" "${{ steps.multidevice.outcome }}" | tee -a "$GITHUB_STEP_SUMMARY"
+          for o in "${{ steps.runson.outcome }}" "${{ steps.skills.outcome }}" "${{ steps.livemodels.outcome }}" "${{ steps.openweb.outcome }}" "${{ steps.multidevice.outcome }}"; do [ "$o" = success ] || exit 1; done
   # The Mac server installer on a real macOS runner: BSD tar, shasum, diskutil, plutil and the system LibreSSL beside Homebrew's OpenSSL 3. No Docker and no launchd changes.
   # Its unit tests (scripts/install/macos/install.test.ts) also run on the Linux runners with the main suite. There is no self-hosted macOS runner. A tag run skips it:
   # the release already ran it on the commit that was merged.
   installer-macos:
-    if: github.ref_type != 'tag'
+    if: ${{ github.ref_type != 'tag' && !inputs.only }}
     runs-on: macos-latest
     timeout-minutes: 15
     steps:

@@ -2,6 +2,7 @@
 // that leads out of them, or anything in the short list of places that must never be inside (the Docker socket, system folders, other people's homes, key stores) is refused before anything starts.
 // The checks are on the spec, in this one place, so the Docker config, the Seatbelt profile and the bwrap arguments are all built from a spec that already passed.
 import { SandboxError } from "./types.ts";
+import { validateRule } from "./egress-policy.ts";
 import type { Mount, Roots, SandboxSpec } from "./types.ts";
 
 /** Names of folders and files that must not be inside a sandbox even when they sit under a root. */
@@ -81,6 +82,7 @@ export function validateSpec(spec: SandboxSpec, roots: Roots, o: PolicyOptions =
   const out: Checked = { mounts };
   if (spec.scratch !== undefined) out.scratch = checkPath("the scratch folder", spec.scratch, roots.scratch, o);
   for (const h of spec.egressHosts) if (!validHostPattern(h)) throw new SandboxError("sandbox.policy", `${JSON.stringify(h).slice(0, 80)} is not a host name the allow-list can hold`);
+  if (spec.egressRule !== undefined) validateRule(spec.egressRule);
   for (const k of Object.keys(spec.env ?? {})) if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) throw new SandboxError("sandbox.policy", `${k} is not an environment variable name`);
   return out;
 }
@@ -146,6 +148,13 @@ export function isPrivateAddress(ip: string): boolean {
   const first = s.split(":")[0] ?? "";
   const w = first === "" ? 0 : parseInt(first, 16);
   if (Number.isNaN(w)) return true;
-  // fc00::/7 unique local, fe80::/10 link-local, ff00::/8 multicast, 64:ff9b::/96 NAT64 (could reach a private v4), 100::/64 discard, 2001:db8::/32 documentation
-  return (w & 0xfe00) === 0xfc00 || (w & 0xffc0) === 0xfe80 || (w & 0xff00) === 0xff00 || s.startsWith("64:ff9b:") || s.startsWith("100:") || s.startsWith("2001:db8:") || s.startsWith("2001:0db8:");
+  // Only global unicast (2000::/3) is public: that leaves out ::/8 (with the old IPv4-compatible ::a.b.c.d), fc00::/7 unique local, fe80::/10 link-local, ff00::/8 multicast, 64:ff9b::/96 NAT64
+  // (could reach a private v4) and 100::/64 discard. Inside 2000::/3: 2001:db8::/32 documentation, and 6to4 (2002::/16), whose embedded v4 address is checked like any v4.
+  if ((w & 0xe000) !== 0x2000) return true;
+  if (w === 0x2002) {
+    const parts = s.split(":");
+    const hi = parseInt(parts[1] || "0", 16), lo = parseInt(parts[2] || "0", 16);
+    return Number.isNaN(hi) || Number.isNaN(lo) || isPrivateAddress(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
+  }
+  return s.startsWith("2001:db8:") || s.startsWith("2001:0db8:");
 }

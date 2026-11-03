@@ -1,0 +1,10 @@
+{
+  "targets": [
+    { "id": "TEAM1_01-chats", "route": "/m/TEAM1_01?part=chats", "proto": "chats,{skin}", "waitFor": "[data-testid='away-digest-row']", "note": "After an absence: one quiet While you were away row on top of Chats; Team now opened shows Intake in #sales for Omar and who is around; steady dots on People." },
+    { "id": "TEAM1_01-chats-digest", "route": "/m/TEAM1_01?part=chats", "proto": "chats,{skin}", "waitFor": "[data-testid='away-digest-row']", "note": "Pressing While you were away: what happened, by name, each line opens it; Mark as Seen resets it." },
+    { "id": "TEAM1_01-chats-quiet", "route": "/m/TEAM1_01?part=chats-quiet", "proto": "chats,{skin}", "waitFor": "[data-testid='head-team']", "note": "No absence: no digest row, Team now folded." },
+    { "id": "TEAM1_01-overview", "route": "/m/TEAM1_01?part=overview", "proto": "console,{skin}", "waitFor": "[data-testid='team-now']", "note": "Console Overview: a stuck join with Retry, the #general offer, Working now open." },
+    { "id": "TEAM1_01-invite", "route": "/m/TEAM1_01?part=invite", "proto": "console,{skin}", "waitFor": "[data-testid='everyone-gets']", "note": "Console People: the invite sheet with where they start, and What everyone gets." },
+    { "id": "TEAM1_01-menu", "route": "/m/TEAM1_01?part=menu", "proto": "chats,{skin}", "waitFor": "[data-testid='space-tile']", "note": "The Space menu of an admin: Invite People copies a real link." }
+  ]
+}

@@ -9,11 +9,15 @@ export interface SpaceTile { id: string; name: string; addr: string; kind: "pers
 
 export interface SettingsNav {
   openVault(): void;
+  /** Vault > Connections, where every connection lives (owner ruling D28). Absent: the Vault itself. */
+  openConnections?(): void;
   openSpace(id: string): void;
   /** Provider or mailbox sign-in lives in the Vault or the Connections flow. */
   connect(kind: "mailbox" | "calendar" | "twilio"): void;
   /** An agent's page. Absent where the shell has no way there: the row then only reads. */
   openAgent?(agentId: string): void;
+  /** A Vyre link (a chat line, vyre://thread/<id>?m=<message>, or /chats/<id>). Absent: the source shows but does not open. */
+  openLink?(link: string): void;
   /** The shell's file picker for a profile photo: the file id, or null when nothing was chosen. */
   choosePhoto(): Promise<string | null>;
   /** Applies a skin to the window at once, before it is saved. */
@@ -21,19 +25,21 @@ export interface SettingsNav {
   /** Applies a chosen skin to the window for good (the setting is saved by the page). */
   applySkin?(skinId: string): void;
   /** Starts a sign-in change that needs its own flow (password, authenticator app, passkey, GitHub) for a Space. The shell opens it; the page only asks. */
-  manageSecurity?(kind: "password" | "totp-on" | "totp-off" | "passkey" | "github-on" | "github-off" | "recovery", spaceId: string): void;
+  manageSecurity?(kind: "password" | "totp-on" | "totp-off" | "passkey" | "github-on" | "github-off" | "recovery" | "link", spaceId: string): void;
 }
 
 /** What one Space asks of this person's sign-in: its second factor, passkeys, the floor its admins set and single sign-on. */
 export interface SpaceSecurity { totp: boolean; passkeys: readonly string[]; floor: string; floorBy: string; sso: string; devices: number }
 /** The sign-in that is the same for every Space: the password and a linked GitHub account. */
-export interface AccountSecurity { passwordChanged: string; github: string | null }
+export interface AccountSecurity { passwordChanged: string; github: string | null; /** rc.17: sign-ins from another Space's page that brought this account there, newest first */ carried?: ReadonlyArray<{ host: string; day: string }> }
 
 /** The desktop app's own updates (startup/update/store.ts). Only the desktop shell supplies it; the web app and the phone are the new version as soon as they load. */
 export type DesktopUpdater = DesktopUpdates;
 
 /** What this person may do for the Space: which Console pages they can open and whether they can change Space-wide rows. Absent in a Personal Space and for someone with neither. */
 export interface SettingsData {
+  /** Ask Vyre about the open page: the Ask pane opens beside Settings, about that page. Left out where the shell has no assistant. */
+  ask?(page: { key: string; title: string }): void;
   /** Opens the Console, for a person who may. */
   openConsole?(): void;
   /** Opens Connect your company, for a person who may change the company's connection. */

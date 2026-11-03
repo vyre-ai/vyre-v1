@@ -16,4 +16,5 @@ RUN if [ -n "$BUILD_CMD" ]; then sh -c "$BUILD_CMD"; fi
 USER site
 ENV PORT=3000 VYRE_START="$START_CMD"
 EXPOSE 3000
-CMD ["sh", "-c", "exec $VYRE_START"]
+# eval: a start command that names $PORT (a Procfile, uvicorn --port $PORT) gets the value, not the text
+CMD ["sh", "-c", "eval \"exec $VYRE_START\""]

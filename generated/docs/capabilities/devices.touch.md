@@ -1,6 +1,6 @@
 # devices.touch
 
-System: update last seen and location of a device
+Last seen of one of my devices (the current one when none is named): the app calls it on activity, at most once a minute; coming back after four hours or more writes the While you were away digest
 
 | | |
 |---|---|
@@ -25,7 +25,7 @@ System: update last seen and location of a device
 
 ```ts
 type In = {
-  deviceId: string;
+  deviceId?: string;
   location?: string;
 };
 ```
@@ -35,6 +35,8 @@ type In = {
 ```ts
 type Out = {
   ok: boolean;
+  lastSeenAt?: number;
+  back?: boolean;
 };
 ```
 
@@ -55,6 +57,8 @@ type Out = {
     "location": "example"
   },
   "output": {
+    "back": true,
+    "lastSeenAt": 1760000000000,
     "ok": true
   }
 }

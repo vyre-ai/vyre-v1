@@ -17,6 +17,8 @@ export interface ChatMemoryNav {
   openKnowledge(): void;
   /** The source of a fact that is not a chat line: a record, a run, a task. */
   openSource(kind: string, ref: string, link?: string): void;
+  /** Settings > Memory and privacy, on About you. Absent where the shell has no way there. */
+  openAboutYou?(): void;
 }
 
 export interface ChatMemoryData {

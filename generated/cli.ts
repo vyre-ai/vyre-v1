@@ -226,6 +226,16 @@ export const cliCommands: Array<{ command: string; cap: string; v: number }> = [
     "v": 1
   },
   {
+    "command": "vyre goals create",
+    "cap": "goals.create",
+    "v": 1
+  },
+  {
+    "command": "vyre goals list",
+    "cap": "goals.list",
+    "v": 1
+  },
+  {
     "command": "vyre home digest",
     "cap": "home.digest",
     "v": 1

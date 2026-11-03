@@ -11,6 +11,7 @@ import {DEFAULT_SIGN_IN_POLICY,parseSignInPolicy} from "../../../lib/sign-in-pol
 //   members.factors     second factors per person: TOTP when identity holds a secret for them
 //   members.owned      routines, agents, automations, Mine vault items, records, projects, files, channels, private chats, memory and mailbox connections, through those modules' host calls (P-L7_21)
 //   spaces.directory    the role name shown in the switcher
+//   agents.directory    the groups of the person asking, for connections shared with groups (handlers/connections.ts)
 //   spaces.attention    Needs you from tasks (tasks.attention) and unread from chat (chat.attention), asked as the person
 import { pinIssuer } from "../../../lib/oidc-issuer.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/snapshot.ts";
@@ -174,7 +175,7 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
   const directory = {
     of(personId: string) {
       const info = d.access().info(personId);
-      return { roles: info && info.roleNames !== "no role" ? info.roleNames.split(", ") : [], groups: d.access().groupsOf(personId) };
+      return { roles: info && info.roleNames !== "no role" ? info.roleNames.split(", ") : [], groups: d.access().groupsOf(personId), permissions: info ? [...info.perms].sort() : [] };
     },
     roleName(personId: string) { return d.access().info(personId)?.roleNames.split(", ")[0] ?? "member"; },
   };
@@ -292,6 +293,8 @@ export function createPeopleExtras(d: PeopleDeps): (module: string, ctx: { devic
         },
       },
     },
+    // Vault > Connections: a Space connection shared with groups reaches only their members; the groups come from the access projection, never from what a caller says
+    agents: { directory },
   };
   return (module, ctx) => {
     const base = extras[module];

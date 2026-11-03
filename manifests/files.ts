@@ -155,11 +155,11 @@ export default defineManifest({
     // ---- erase and purge (P-CC_39)
     write('files.versions_purge', 'Remove file versions older than a time except the newest of each file and any named version; files listed in skipFileIds (held ones) are left whole (retention)', { level: 'manage', perm: 'policy.manage', idem: 'key', in: { before: t.ts(), limit: t.opt(t.int({ minimum: 1, maximum: 5000 })), skipFileIds: t.opt(t.arr(id.file)) }, out: purgeOut, emits: ['file_versions.purged'], audit: 'always', risk: 'high' }),
     // ---- tree and listing
-    read('files.tree', 'The roots of the file tree: Agents, Projects, People, Channels, shared knowledge, Agent template, Deployments, GitHub, plus Recent, Shared with me, Trash and Knowledge', {
+    read('files.tree', 'The roots of the file tree: Agents, Projects, People, Channels, shared knowledge, Agent template, Deployments, GitHub, plus Recent, Shared with me, Trash and Knowledge', { level: 'member',
       out: { roots: t.arr(t.obj({ key: t.str(), title: t.str(), kind: t.enm('folder', 'virtual'), folderId: t.opt(id.folder), count: t.int({ minimum: 0 }), subject: t.opt(folderSubject) })) }, tool: 'files', label: 'filter',
     }),
-    read('files.list', 'List files and folders in a folder or a section (Personal, Shared with me, Space)', {
-      in: { section, folder: t.opt(id.folder), kind: t.opt(fileKind), sort: t.opt(t.enm('name', 'updated', 'size', 'kind')), dir: t.opt(t.enm('asc', 'desc')), ...pageIn },
+    read('files.list', 'List files and folders in a folder or a section (Personal, Shared with me, Space). deep with section space lists every file in every Space folder the caller may see; q keeps names that contain it', { level: 'member',
+      in: { section, folder: t.opt(id.folder), kind: t.opt(fileKind), sort: t.opt(t.enm('name', 'updated', 'size', 'kind')), dir: t.opt(t.enm('asc', 'desc')), deep: t.opt(t.bool()), q: t.opt(t.str({ maxLength: 200 })), ...pageIn },
       out: { files: t.arr(fileRow), folders: t.arr(folderRow), ...pageOut }, tool: 'files', label: 'filter', cli: 'vyre files ls',
     }),
     write('files.star', 'Star a file or take the star off; a star is mine alone', {
@@ -202,7 +202,7 @@ export default defineManifest({
       in: { q: t.str(), scope: t.opt(t.enm('folders', 'channels', 'all')), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) },
       out: { folders: t.arr(folderRow) }, tool: 'files', label: 'filter',
     }),
-    read('files.trash.list', 'Files and folders in Trash (30 days)', {
+    read('files.trash.list', 'Files and folders in Trash (30 days)', { level: 'member',
       in: { ...pageIn }, out: { files: t.arr(fileRow), folders: t.arr(folderRow), ...pageOut }, tool: 'files', label: 'filter',
     }),
     // ---- write

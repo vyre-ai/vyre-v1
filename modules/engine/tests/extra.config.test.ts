@@ -1,8 +1,9 @@
 // Policy, defaults, the person switches, the use-policy export, models and providers, route preview and review (engine capabilities left over from P-L2_13).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bindSandboxStopper, flagOn, wrappedRuntimeKey } from "../handlers/extra/config.ts";
+import { FLAG_DEFAULT, bindSandboxStopper, flagOn, wrappedRuntimeKey } from "../handlers/extra/config.ts";
 import { extraHandlers } from "../handlers/extra/index.ts";
+import { NEEDS_SANDBOX, providerState } from "../handlers/extra/models.ts";
 import { assertEventsConform, codeOf, contractErrors, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import type { EngineCtx } from "../projections.ts";
@@ -102,6 +103,16 @@ test("providers.list names every API and CLI engine with connected and allowed, 
   assert.match(openai?.reason ?? "", /restricted records may not go/);
 });
 
+test("providers.list: where CLI engines cannot be sandboxed, a connected CLI account says what it needs and is not offered; API engines are unchanged", () => {
+  const rows = [{ id: "p1", providerKey: "anthropic", name: "Claude Code", connection: "subscription", scope: "mine", itemId: "i1", engine: "claude-code", spaceMayUse: false, state: "ok" }] as never;
+  const policy = { allowedAccounts: "any", allowedModels: [], allowedProviders: [], labelProviders: {} } as never;
+  const cli = providerState("claude_code", rows, policy, undefined, NEEDS_SANDBOX);
+  assert.deepEqual([cli.connected, cli.allowed, cli.reason], [true, false, NEEDS_SANDBOX]);
+  assert.match(NEEDS_SANDBOX, /^Needs .*\. Use an API key/);
+  assert.equal(providerState("anthropic", rows, policy, undefined, NEEDS_SANDBOX).allowed, true);
+  assert.equal(providerState("claude_code", rows, policy, undefined, null).allowed, true, "a computer that can sandbox offers it");
+});
+
 test("the person switches: sharing a subscription kills the sandbox when turned off, and the runtime opt-in keeps a wrapped key only while on", async () => {
   const h = harness();
   const stopped: string[] = [];
@@ -121,11 +132,44 @@ test("the person switches: sharing a subscription kills the sandbox when turned 
   assert.throws(() => H["engine.runtime.opt_in"](h.ctx, { enabled: true }), (e) => codeOf(e) === "validation.bad_input");
   assert.deepEqual(H["engine.runtime.opt_in"](h.ctx, { enabled: true, wrappedRuntimeKey: "ciphertext-1" }), { enabled: true });
   assert.equal(wrappedRuntimeKey(h.ctx, "usr_dana"), "ciphertext-1");
+  assert.equal(h.named("engine.runtime_opt_in_changed").length, 0, "it was already on by default: storing the key changes nothing anyone sees");
   assert.deepEqual(H["engine.runtime.opt_in"](h.ctx, { enabled: false }), { enabled: false });
   assert.equal(wrappedRuntimeKey(h.ctx, "usr_dana"), null, "turning it off deletes the key");
-  assert.equal(h.named("engine.runtime_opt_in_changed").length, 2);
+  assert.equal(h.named("engine.runtime_opt_in_changed").length, 1);
   assert.ok(!JSON.stringify(h.emitted).includes("ciphertext"), "no key material in any event");
   assert.deepEqual(assertEventsConform(h), []);
+});
+
+test("Let the Space continue my chats when my computer is off is on by default (owner ruling, 3 Nov); a person who turned it off stays off", () => {
+  const h = harness();
+  assert.deepEqual(FLAG_DEFAULT, { subscription_share: false, runtime_opt_in: true });
+  assert.equal(flagOn(h.ctx, "usr_dana", "runtime_opt_in"), true, "never set: on");
+  assert.equal(flagOn(h.ctx, "usr_never_seen", "runtime_opt_in"), true, "anyone who never chose: on");
+  assert.equal(flagOn(h.ctx, "usr_dana", "subscription_share"), false, "the other switch keeps its own default");
+  H["engine.runtime.opt_in"](h.ctx, { enabled: false });
+  assert.equal(flagOn(h.ctx, "usr_dana", "runtime_opt_in"), false, "their own choice is kept");
+  assert.equal(h.named("engine.runtime_opt_in_changed").length, 1);
+  assert.equal(flagOn(h.ctx, "usr_never_seen", "runtime_opt_in"), true, "one person's choice is theirs alone");
+});
+
+test("the opt-in has no Settings toggle until sealed chats ship: the Models and usage screen offers no runtime action, and no app code calls it", async () => {
+  const { screens } = await import("../../../generated/screens.ts");
+  const caps = screens.flatMap((sc) => Object.values(sc.actions).map((a) => `${sc.id}:${a.cap}`));
+  assert.ok(screens.some((sc) => sc.id === "settings.models-usage"), "the screen is still there");
+  assert.deepEqual(caps.filter((c) => c.endsWith(":engine.runtime.opt_in")), []);
+  const { readdirSync, readFileSync, statSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const root = new URL("../../../apps/app/src/", import.meta.url).pathname;
+  const hits: string[] = [];
+  const walk = (dir: string): void => {
+    for (const name of readdirSync(dir)) {
+      const at = join(dir, name);
+      if (statSync(at).isDirectory()) walk(at);
+      else if (/\.(ts|tsx)$/.test(name) && !/\.test\./.test(name) && readFileSync(at, "utf8").includes("engine.runtime.opt_in")) hits.push(at);
+    }
+  };
+  walk(root);
+  assert.deepEqual(hits, []);
 });
 
 test("use_policy.export writes the policy as a Markdown file in the shared knowledge folder", async () => {
@@ -143,7 +187,7 @@ test("use_policy.export writes the policy as a Markdown file in the shared knowl
   const text = ((created[0]?.["content"] as { text: string }).text);
   assert.match(text, /Allowed providers: anthropic/);
   assert.match(text, /- restricted: anthropic/);
-  assert.match(text, /Agent-to-agent hops before a person must reply: 4/);
+  assert.match(text, /Agent-to-agent hops before a person must reply: 8/);
   const none = withRoutes(h, { "files.tree": () => ({ roots: [{ key: "recent", title: "Recent", kind: "virtual", count: 0 }] }) });
   await assert.rejects(H["engine.use_policy.export"](none, {}), (e) => codeOf(e) === "validation.precondition_failed");
 });
@@ -155,7 +199,7 @@ test("route.preview says who will reply with the same route() the server uses", 
   const two = await H["engine.route.preview"](ctx, { threadId: "thr_1", mentions: [{ kind: "agent", id: "agt_docs" }, { kind: "agent", id: "agt_intake" }] });
   assert.equal(two.line, "Docs and Intake will reply");
   assert.deepEqual(contractErrors("engine.route.preview", "out", two), []);
-  assert.equal((await H["engine.route.preview"](ctx, { threadId: "thr_1", mentions: [{ kind: "person", id: "usr_sam" }] })).line, "No agent will reply, type @ to ask one");
+  assert.equal((await H["engine.route.preview"](ctx, { threadId: "thr_1", mentions: [{ kind: "person", id: "usr_sam" }] })).line, "No agent will reply. @mention one");
   await assert.rejects(H["engine.route.preview"](h.ctx, { threadId: "thr_missing" }), (e) => codeOf(e) === "validation.not_found");
 });
 

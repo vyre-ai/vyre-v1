@@ -84,6 +84,8 @@ export interface RailInput {
   kit: KitDef;
   /** console.access in this Space. */
   console: boolean;
+  /** Places the person's role cannot use (SpaceDef.hidden): not on the rail. */
+  hidden?: readonly PlaceId[];
   /** This person has a mailbox, calendar or number flowing in. False takes Inbox off the rail; absent (not known yet) leaves it where the Kit puts it. */
   inbox?: boolean;
   counts: Readonly<Partial<Record<PlaceId, number>>>;
@@ -97,8 +99,18 @@ export function railFor(input: RailInput): RailGroups {
     const count = input.counts[place] ?? 0;
     return { place, title: PLACE_TITLE[place], count, dot: count === 0 && input.dots[place] === true && input.active !== place };
   };
-  const keep = (place: PlaceId): boolean => (place !== "console" || input.console) && (place !== "inbox" || input.inbox !== false);
+  const keep = (place: PlaceId): boolean => (place !== "console" || input.console) && (place !== "inbox" || input.inbox !== false) && !(input.hidden ?? []).includes(place);
   return { top: input.kit.top.filter(keep).map(entry), bottom: input.kit.bottom.filter(keep).map(entry) };
+}
+
+/** The phone-width rail: these places are the bar, the rest sit behind More. */
+export const PHONE_BAR: readonly PlaceId[] = ["chats", "inbox", "records", "files"];
+/** Places a phone never offers (owner ruling, 3 Nov 2026): you chat about Automations and the Console in Chats instead. */
+export const NOT_ON_PHONE_PLACES: readonly PlaceId[] = ["automations", "console"];
+
+/** What the phone-width rail's More menu lists: every place off the bar, less the ones the phone does not have. */
+export function phoneMore(groups: RailGroups): RailEntry[] {
+  return [...groups.top.filter((e) => !PHONE_BAR.includes(e.place)), ...groups.bottom].filter((e) => !NOT_ON_PHONE_PLACES.includes(e.place));
 }
 
 /** The rail is the places you can reach; a place outside the Kit (opened from a link) still opens, it just has no rail button. */

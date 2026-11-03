@@ -4,13 +4,14 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (14)
+## Capabilities (15)
 
 - [devices.epoch](../capabilities/devices.epoch.md): System: the person epoch and Space key epoch a client compares in hello
 - [devices.epoch_bump](../capabilities/devices.epoch_bump.md): System: advance a person epoch (device revoked, suspended, removed, password reset, clearance lowered)
 - [devices.get](../capabilities/devices.get.md): One device with its sessions
 - [devices.list](../capabilities/devices.list.md): All devices in the Space, by person or class (Console > Sessions and devices)
 - [devices.mine](../capabilities/devices.mine.md): My devices and sessions in this Space (Settings > Sign-in and devices)
+- [devices.presence](../capabilities/devices.presence.md): Who is around: for each person, online (a device seen in the last five minutes), away (they set themselves away) or offline, with when they were last seen. Says when, never where
 - [devices.purge_ack](../capabilities/devices.purge_ack.md): System: a device reports that its replica, keychain entries and caches are gone
 - [devices.register](../capabilities/devices.register.md): Host only (svc_host): create the device and session rows at sign-in; every person, admin, agent and other service is refused
 - [devices.rename](../capabilities/devices.rename.md): Rename one of my devices
@@ -19,7 +20,7 @@ Requires: nothing.
 - [devices.rotate_space_key](../capabilities/devices.rotate_space_key.md): Rotate the Space data key epoch (wrapped anew for each remaining member; old data re-encrypted in the background)
 - [devices.sessions.list](../capabilities/devices.sessions.list.md): Sessions of a person (own, or any with access.manage)
 - [devices.sessions.revoke](../capabilities/devices.sessions.revoke.md): End one session
-- [devices.touch](../capabilities/devices.touch.md): System: update last seen and location of a device
+- [devices.touch](../capabilities/devices.touch.md): Last seen of one of my devices (the current one when none is named): the app calls it on activity, at most once a minute; coming back after four hours or more writes the While you were away digest
 
 ## Events (6)
 

@@ -29,5 +29,5 @@ HTTP 500. Retryable: yes.
 - access.groups.list
 - access.groups.remove_member
 - access.groups.update
+- access.join_share
 - access.labels.list
-- access.labels.set

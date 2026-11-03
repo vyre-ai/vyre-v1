@@ -34,6 +34,7 @@ type In = {
   text?: string;
   html?: string;
   conversationId?: string;
+  replyTo?: string;
   attachments?: Array<string>;
   idempotencyKey: string;
 };
@@ -79,6 +80,7 @@ type Out = {
     "conversationId": "example",
     "html": "example",
     "idempotencyKey": "idem_1",
+    "replyTo": "example",
     "subject": "example",
     "text": "example",
     "to": [

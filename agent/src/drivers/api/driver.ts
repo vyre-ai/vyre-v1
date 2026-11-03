@@ -3,7 +3,7 @@
 import { anthropic } from "./anthropic.ts";
 import { classify } from "./errors.ts";
 import { google } from "./google.ts";
-import { custom, local, withV1, openai, openaiCompatible, openrouter, opencodeGo, xai } from "./openai.ts";
+import { custom, local, opencodeHeaders, withV1, openai, openaiCompatible, openrouter, opencodeGo, xai } from "./openai.ts";
 import type { ApiSession, SessionDeps } from "./session.ts";
 import { createApiSession } from "./session.ts";
 import type { SessionSpec } from "../../turn-engine/types.ts";
@@ -97,7 +97,7 @@ export function createApiDriver(adapter: ProviderAdapter, deps: ApiDriverDeps): 
     const timer = setTimeout(() => ac.abort(), 15_000);
     try {
       let res: FetchResponse;
-      try { res = await doFetch(target, { method: "GET", headers: { ...wire.headers, ...auth }, signal: ac.signal }); }
+      try { res = await doFetch(target, { method: "GET", headers: { ...wire.headers, ...opencodeHeaders(target), ...auth }, signal: ac.signal }); }
       catch { throw new DriverError("provider.network", "Could not reach the provider."); }
       if (!res.ok) {
         const text = (await res.text().catch(() => "")).slice(0, 200);

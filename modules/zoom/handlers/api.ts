@@ -27,6 +27,8 @@ function meetingOut(j: Json): Json {
   if (strOrUndef(j["password"])) out["password"] = text(j["password"]);
   if (strOrUndef(j["host_email"]) && EMAIL.test(text(j["host_email"]))) out["hostEmail"] = text(j["host_email"]);
   if (strOrUndef(j["timezone"])) out["timezone"] = text(j["timezone"]);
+  const dial = Array.isArray(obj(j["settings"])["global_dial_in_numbers"]) ? (obj(j["settings"])["global_dial_in_numbers"] as unknown[]).map(obj).filter((d) => strOrUndef(d["number"])) : [];
+  if (dial.length) out["dialIns"] = dial.slice(0, 8).map((d) => ({ number: text(d["number"]), ...(strOrUndef(d["country_name"]) ? { country: text(d["country_name"]) } : {}) }));
   return out;
 }
 

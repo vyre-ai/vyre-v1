@@ -20,6 +20,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "providers.subscription_complete": async (ctx) => { throw new VyreErr(notImplemented("providers.subscription_complete", ctx.trace)); },
   "providers.subscription_start": async (ctx) => { throw new VyreErr(notImplemented("providers.subscription_start", ctx.trace)); },
   "providers.test": async (ctx) => { throw new VyreErr(notImplemented("providers.test", ctx.trace)); },
+  "providers.uses.set": async (ctx) => { throw new VyreErr(notImplemented("providers.uses.set", ctx.trace)); },
   "vault.export_env": async (ctx) => { throw new VyreErr(notImplemented("vault.export_env", ctx.trace)); },
   "vault.exports.list": async (ctx) => { throw new VyreErr(notImplemented("vault.exports.list", ctx.trace)); },
   "vault.exports.revoke": async (ctx) => { throw new VyreErr(notImplemented("vault.exports.revoke", ctx.trace)); },
@@ -53,6 +54,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "vault.share": async (ctx) => { throw new VyreErr(notImplemented("vault.share", ctx.trace)); },
   "vault.site_rules.list": async (ctx) => { throw new VyreErr(notImplemented("vault.site_rules.list", ctx.trace)); },
   "vault.site_rules.set": async (ctx) => { throw new VyreErr(notImplemented("vault.site_rules.set", ctx.trace)); },
+  "vault.text_check": async (ctx) => { throw new VyreErr(notImplemented("vault.text_check", ctx.trace)); },
   "vault.unshare": async (ctx) => { throw new VyreErr(notImplemented("vault.unshare", ctx.trace)); },
   "vault.use": async (ctx) => { throw new VyreErr(notImplemented("vault.use", ctx.trace)); },
 };

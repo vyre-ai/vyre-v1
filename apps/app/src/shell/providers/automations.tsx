@@ -24,19 +24,17 @@ import { SideTask } from "./automations-task.tsx";
 import { AutomationRuns, FailedView, JourneyNewView, JourneyView, RunView, configExtras, runsData, useDirectory } from "./automations-parts.tsx";
 import { AllRuns, Dependencies, LiveEvents, NeedsYou, Packages, SpaceAnalytics, TemplateGallery } from "../../places/automations/operations/StudioViews.tsx";
 import { AutomationsStart } from "../../places/automations/start/AutomationsStart.tsx";
-import { AskPane } from "../../places/records/askpane/index.ts";
-import { RecordsAssistant } from "./records-ask.tsx";
-import type { AskScope } from "./records-ask.tsx";
+import { openAskPane } from "../ask/pane.ts";
 import { AutomationsSidebarSlot, StudioNav } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
 import { AutomationsSidebar } from "../../places/automations/sidebar/AutomationsSidebar.tsx";
 import type { StudioView } from "../../places/automations/sidebar/AutomationsSidebarSlot.tsx";
 import { keysFromProviders } from "../../places/automations/values/typed.ts";
 import { nameOf } from "./misc-common.ts";
-import { useOptionalShellRuntime } from "./runtime.tsx";
+import { GATE, allows, useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 
 export function automationsData(rt: ShellRuntime, nav: AutomationsData["nav"], keys: readonly KeyChoice[] = [], keysStatus?: KeysStatus, accounts?: readonly AccountOption[], lastPicks?: Readonly<Record<string, string>>): AutomationsData {
-  return { screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name }, name: nameOf(rt), keys, ...(keysStatus ? { keysStatus } : {}), ...(accounts ? { accounts } : {}), ...(lastPicks ? { lastPicks } : {}), nav, clock: () => ({ now: rt.clock().now }) };
+  return { screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name }, name: nameOf(rt), keys, ...(keysStatus ? { keysStatus } : {}), ...(accounts ? { accounts } : {}), ...(lastPicks ? { lastPicks } : {}), nav, clock: () => ({ now: rt.clock().now }), canSpace: allows(rt, GATE.spaceAutomations) };
 }
 
 type Overlay = { kind: "failed" } | { kind: "run"; id: string } | { kind: "journey"; id: string } | { kind: "journeyNew" };
@@ -55,8 +53,6 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   const [sideRun, setSideRun] = useState<string | null>(null);
   // a task a run made, beside the run: its thread, brief and baton buttons (the Back button returns to the run)
   const [sideTask, setSideTask] = useState<string | null>(null);
-  // Ask Vyre opens a pane beside the body, in this tab; it never goes to Chats.
-  const [asking, setAsking] = useState(false);
   const setView = (next: StudioView): void => { setOverlay(null); setViewRaw(next); };
   const [keys, setKeys] = useState<readonly KeyChoice[]>([]);
   const [keysStatus, setKeysStatus] = useState<KeysStatus>("loading");
@@ -111,15 +107,28 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     openTemplates: () => setView("templates"),
     openRun: (runId) => { setViewRaw("automations"); setOverlay({ kind: "run", id: runId }); },
     ask: (id, context) => {
+      // the Ask pane opens beside the automation, about it, with the scrubbed failure (step, error code, trace) as what the agent is told; the message is put in the composer to send
       const bundle = scrubAskContext({ ...(context ?? {}), resource: context?.resource ?? id });
-      rt.open({ screen: "chats.conversation", args: { with: "assistant", about: id, context: bundle } });
+      // a door that only knows "automation" or a step id (a step's test, a list's error) asks about Automations itself, with what it does know as context
+      const isAutomation = /^aut_[A-Za-z0-9_]+$/.test(id);
+      const ask = (title?: string): void => { openAskPane({
+        thing: isAutomation ? { kind: "automation", id, ...(title ? { title } : {}) } : null,
+        ...(bundle.message ? { draft: bundle.message.trim().endsWith("?") ? bundle.message : `Why does this fail? ${bundle.message}` } : {}),
+        context: {
+          actions: ["explain a failed run", "propose a fix as a draft", "suggest a template"],
+          ...(bundle.nodeId ? { selection: [{ type: "step", id: bundle.nodeId, ...(bundle.stepKey ? { title: bundle.stepKey } : {}) }] } : !isAutomation && id !== "automation" ? { selection: [{ type: "step", id }] } : {}),
+          ...(bundle.errorCode || bundle.traceId ? { filters: { ...(bundle.errorCode ? { errorCode: bundle.errorCode } : {}), ...(bundle.traceId ? { traceId: bundle.traceId } : {}) } } : {}),
+        },
+      }, "automations"); };
+      if (!isAutomation) { ask(); return; }
+      void Promise.resolve(rt.call("automations.get", { automationId: id })).then((o) => ask((o as { automation?: { name?: string } } | null)?.automation?.name), () => ask());
     },
     connect: (target) => {
       const route = connectionRoute(target, rt.space.kind === "personal");
       rt.open({ screen: route.screen, args: route.args });
     },
     openKeys: () => rt.open({ screen: "vault.providers" }),
-    buildConnector: () => rt.open({ screen: "chats.conversation", args: { with: rt.assistant.id, first: BUILD_CONNECTOR_OPENING } }),
+    buildConnector: () => { openAskPane({ thing: null, first: BUILD_CONNECTOR_OPENING }, "automations"); },
     setUpConnector: async (offer) => {
       // the offer holds an item id and a name; the handle comes from the Vault, which never sends a value
       const got = (await rt.call("vault.item.get", { itemId: offer.itemId })) as { item?: { handle?: string; name?: string } } | null;
@@ -178,7 +187,7 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
     : canvas
     ? canvas
     : phone ? <PhoneList view={view} onView={setView} />
-    : <AutomationsStart onTemplates={() => setView("templates")} onAsk={() => setAsking(true)} />;
+    : <AutomationsStart onTemplates={() => setView("templates")} onAsk={() => openAskPane({ thing: null, hint: ASK_HINT, context: ASK_AUTOMATIONS }, "automations")} />;
   return (
     <AutomationsDataProvider value={data}>
       <RunsDataProvider value={runs}>
@@ -189,7 +198,6 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
               {phone && view !== "automations" && !openId ? <Pressable accessibilityRole="button" testID="phone-back-to-list" onPress={() => setView("automations")} style={s.backChip}><Text style={s.backText}>{"‹ Automations"}</Text></Pressable> : null}
               {main}
             </View>
-            {asking ? <AskPane about={{}} paneKey="automations-ask" idPrefix="automations-ask" hint="Say what you want to automate. I will draft it and you decide what to keep." onClose={() => setAsking(false)}><RecordsAssistant rt={rt} about={{}} scope={ASK_AUTOMATIONS} /></AskPane> : null}
           </View>
         </ConfigExtrasProvider>
       </RunsDataProvider>
@@ -214,11 +222,9 @@ function PhoneList({ view, onView }: { view: StudioView; onView(next: StudioView
   );
 }
 
-/** What the in-tab Ask pane tells the assistant: it is in Automations, with the focus skill for it. Ids and names only. */
-const ASK_AUTOMATIONS: AskScope = {
-  type: "automations", id: "place", title: "Automations",
-  context: { title: "Automations", actions: ["propose an automation", "suggest a template", "explain a failed run"], focus: "focus-automations" },
-};
+/** What the Automations Ask pane tells the assistant about the place: the focus skill for it and what it may propose. Ids and names only. */
+const ASK_AUTOMATIONS = { title: "Automations", actions: ["propose an automation", "suggest a template", "explain a failed run"], focus: "focus-automations" };
+const ASK_HINT = "Say what you want to automate. I will draft it and you decide what to keep.";
 
 const s = StyleSheet.create({
   phoneList: { flex: 1, minHeight: 0 },

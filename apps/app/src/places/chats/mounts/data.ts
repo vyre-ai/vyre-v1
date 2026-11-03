@@ -15,7 +15,10 @@ import type { ComposerFill, ConversationData } from "../conversation/data.tsx";
 import type { ChatRightPaneData } from "../rightpane/data.tsx";
 import { LOCAL_PREFIX } from "../sidebar/model.ts";
 import { openSession } from "../terminal/session.ts";
-import { anchorOfFocus } from "./route.ts";
+import { anchorOfFocus, threadDoor } from "./route.ts";
+export { threadDoor } from "./route.ts";
+import { broughtSummary, openingTitle } from "./opening.ts";
+export { broughtSummary, openingTitle } from "./opening.ts";
 import type { Act } from "./route.ts";
 import { WaitingLine } from "./WaitingOn.tsx";
 import { MountSheets } from "../../../shell/providers/files-mounts.tsx";
@@ -56,8 +59,10 @@ export interface Go {
   /** Search every chat; the words start the box. */
   search(query?: string): void;
   closeSearch(): void;
-  /** A thread of any kind: a helper opens as the helper chat, anything else as a chat. */
+  /** A thread of any kind: a helper opens as the helper chat, a reply thread beside the message it hangs off, a task's thread on its task, anything else as a chat. */
   thread(threadId: string): void;
+  /** Close the reply thread beside the chat. */
+  closeSide(): void;
   agent(agentId: string, tab?: TabKey): void;
   needs(taskId?: string): void;
   tasks(): void;
@@ -210,19 +215,6 @@ export async function chatWith(rt: Pick<ShellRuntime, "call">, agentId: string):
   }
 }
 
-/** The title of a session that starts from a ready-made first message (Add to Automations, Build a connector). The agent side loads the connector-builder skill for exactly these titles. */
-export function openingTitle(first: string): string | undefined {
-  const add = /^Add (.+?) to Automations\./.exec(first);
-  if (add) return `Add ${add[1]} to Automations`;
-  if (/^Build a connector\b/.test(first)) return "Build a connector";
-  const sync = /^Sync (.+?) to Records\./.exec(first);
-  if (sync) return `Sync ${sync[1]} to Records`;
-  if (/^Bring my CRM into Records\./.test(first)) return "Bring my CRM into Records";
-  const edit = /^Change how (.+?) syncs to Records\./.exec(first);
-  if (edit) return `Change how ${edit[1]} syncs to Records`;
-  return undefined;
-}
-
 /** A chat with an agent that opens with the person's own first message. The same message to the same agent comes back to the same chat, so a reload does not start a twin. Null when it could not start. */
 export async function chatOpening(rt: Pick<ShellRuntime, "call">, agentId: string, first: string): Promise<string | null> {
   let h = 0;
@@ -265,17 +257,6 @@ export async function askWith(rt: Pick<ShellRuntime, "call">, agentId: string, s
   }
 }
 
-/** What the person brings into an Ask from the chat they were in: its rolling summary and its last few messages, as one message. Null when there is nothing to bring. */
-export async function broughtSummary(rt: Pick<ShellRuntime, "call">, threadId: string): Promise<string | null> {
-  try {
-    const sum = (await rt.call("chat.transcript.summary", { threadId })) as { summary?: string };
-    const msgs = (await rt.call("chat.messages.list", { threadId })) as { messages?: Array<{ body: string; author: { kind: string } }> };
-    const last = (msgs.messages ?? []).filter((m) => m.body.trim() !== "").slice(-6).map((m) => `${m.author.kind === "agent" ? "Agent" : "Me"}: ${m.body.replace(/\s+/g, " ").slice(0, 400)}`);
-    const parts = [sum.summary?.trim() ? `Summary so far:\n${sum.summary.trim()}` : "", last.length > 0 ? `The last messages:\n${last.join("\n")}` : ""].filter((x) => x !== "");
-    return parts.length === 0 ? null : `I am bringing this conversation with me, so you can carry on from it.\n\n${parts.join("\n\n")}`;
-  } catch { return null; }
-}
-
 /** The place's doors over `act`. A thread that is a helper opens as the helper chat; a computer is found from its agent; a terminal on a computer is the open one or a new one. */
 export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: string) => string, say: (text: string, action?: LineAction) => void): Go {
   return {
@@ -286,10 +267,16 @@ export function createGo(rt: ShellRuntime, act: (a: Act) => void, nameOf: (id: s
     thread: (threadId) => {
       if (threadId.startsWith(LOCAL_PREFIX)) return;
       void rt.call("threads.get", { threadId }).then(
-        (out) => act({ t: (out as ThreadOut).thread.kind === "helper" ? "helper" : "chat", threadId }),
+        (out) => {
+          const t = (out as ThreadOut).thread;
+          const where = threadDoor(t);
+          if (where.t === "task") rt.open({ subject: { type: "task", id: where.taskId } });
+          else act(where.t === "side" ? { t: "chat", threadId: where.parent, focus: where.messageId, side: threadId } : { t: where.t, threadId });
+        },
         () => act({ t: "chat", threadId }),
       );
     },
+    closeSide: () => act({ t: "side-close" }),
     agent: (agentId, tab) => act({ t: "agent", agentId, ...(tab ? { tab } : {}) }),
     needs: (taskId) => act({ t: "needs", ...(taskId ? { taskId } : {}) }),
     tasks: () => rt.open({ screen: "tasks.my-work" }),
@@ -344,11 +331,12 @@ export function wireSidebar(rt: ShellRuntime, go: Go, toggleSidebar?: () => void
 }
 
 /** The open chat: a face's page, a helper, the Computer chip, a channel's Connect sheet and the Waiting on line are all this place's doors. */
-export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string; list: readonly Principal[]; nameOf: (id: string) => string; leadId: string; fill?: ComposerFill; focus?: string }): ConversationData {
+export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string; list: readonly Principal[]; nameOf: (id: string) => string; leadId: string; fill?: ComposerFill; focus?: string; focusN?: number }): ConversationData {
   const base = conversationData(rt, chatsActions(go, o.fill), o.threadId, o.list, o.fill);
   return {
     ...base,
     ...(o.focus ? { focus: o.focus } : {}),
+    ...(o.focusN ? { focusN: o.focusN } : {}),
     nav: {
       ...base.nav, openAgent: (id: string) => go.agent(id), openThread: (id: string, messageId?: string) => (messageId ? go.message(id, messageId) : go.thread(id)), openSearch: (q: string) => go.search(q), togglePane: () => go.togglePane(),
       openBeside: (kind: string, id: string) => (kind === "computer" ? go.computerOfAgent(id) : base.nav.openBeside(kind, id)),

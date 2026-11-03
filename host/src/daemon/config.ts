@@ -64,6 +64,15 @@ export interface DaemonConfig {
   spaceKind?: "personal" | "team";
   /** the name a fresh Space is made with (--space-name or VYRE_SPACE_NAME); the Space id when absent */
   spaceName?: string;
+  /** --peers (VYRE_PEERS=1): a Personal Space that may live on several computers (host/src/peers). It keeps a relay link once it has an owner, so a new computer can find it by name and the
+   *  computers sync with each other; the relay is --relay when given, else the phone relay. The desktop app passes it for the Personal Space. */
+  peers?: boolean;
+  /** --peer-name (VYRE_PEER_NAME): what other computers call this one; the host name when absent. */
+  peerName?: string;
+  /** VYRE_PEER_KIND=server: an always-on server of a Personal Space (it takes the scheduled-work lease from a computer). */
+  peerKind?: "computer" | "server";
+  /** VYRE_PEER_JOIN: the one-time code from Settings, Computers, Add a server in a Personal Space. A fresh data directory joins that Space with it at the first start. */
+  peerJoin?: string;
 }
 
 export const DEFAULTS = { host: "127.0.0.1", port: 8420, caddyAdmin: "http://127.0.0.1:2019" } as const;
@@ -102,6 +111,10 @@ export function loadConfig(argv: readonly string[], env: NodeJS.ProcessEnv = pro
     address: flag(argv, "address") ?? env["VYRE_ADDRESS"] ?? null,
     ...spaceKindOf(flag(argv, "space-kind") ?? env["VYRE_SPACE_KIND"]),
     ...((flag(argv, "space-name") ?? env["VYRE_SPACE_NAME"]) ? { spaceName: (flag(argv, "space-name") ?? env["VYRE_SPACE_NAME"])! } : {}),
+    ...(argv.includes("--peers") || env["VYRE_PEERS"] === "1" ? { peers: true } : {}),
+    ...((flag(argv, "peer-name") ?? env["VYRE_PEER_NAME"]) ? { peerName: (flag(argv, "peer-name") ?? env["VYRE_PEER_NAME"])!.slice(0, 60) } : {}),
+    ...((flag(argv, "peer-kind") ?? env["VYRE_PEER_KIND"]) === "server" ? { peerKind: "server" as const } : {}),
+    ...((flag(argv, "peer-join") ?? env["VYRE_PEER_JOIN"]) ? { peerJoin: (flag(argv, "peer-join") ?? env["VYRE_PEER_JOIN"])!.trim() } : {}),
   };
 }
 

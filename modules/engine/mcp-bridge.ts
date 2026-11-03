@@ -4,22 +4,26 @@
 // The first line on a connection is {"auth": "<token>"}; a wrong token closes the connection before anything is posted.
 import fs from "node:fs";
 import net from "node:net";
-import os from "node:os";
 import path from "node:path";
+import { localSocket } from "../../sandbox/src/sock.ts";
+import { toWslPath } from "../../sandbox/src/wsl/wsl.ts";
+import type { WslAgent } from "../../sandbox/src/wsl/wsl.ts";
 
-/** The program the CLI starts. Plain Node, no imports beyond the standard library. argv[2] is the socket; the token comes from VYRE_MCP_TOKEN. */
+/** The program the CLI starts. Plain Node, no imports beyond the standard library. argv[2] is the socket (a pipe on Windows); the token comes from VYRE_MCP_TOKEN. */
 export const SHIM_SOURCE = `import net from "node:net";
+import path from "node:path";
 const sock = process.argv[2];
 const token = process.env.VYRE_MCP_TOKEN ?? "";
 if (!sock || !token) { process.stderr.write("vyre mcp shim: no socket or token\\n"); process.exit(2); }
-const c = net.connect(sock);
+// a pipe (Windows) or a short path is connected as it is; a path too long for a unix socket is reached from its own folder
+let c;
+if (sock.startsWith("\\\\") || Buffer.byteLength(sock) <= 100) c = net.connect(sock);
+else { process.chdir(path.dirname(sock)); c = net.connect(path.basename(sock)); }
 c.on("error", (e) => { process.stderr.write("vyre mcp shim: " + e.message + "\\n"); process.exit(1); });
 c.on("connect", () => { c.write(JSON.stringify({ auth: token }) + "\\n"); process.stdin.pipe(c); });
 c.pipe(process.stdout);
 c.on("close", () => process.exit(0));
 `;
-
-const MAX_SOCKET_PATH = 100;
 
 export interface McpBridgeOptions {
   /** The person's scratch folder: the sandbox holds it read-write, so the socket and the shim live there. */
@@ -40,37 +44,25 @@ function replyLines(contentType: string, text: string): string[] {
   return t === "" ? [] : [t.replace(/\r?\n/g, " ")];
 }
 
-export async function openMcpBridge(m: { url: string; token: string }, o: McpBridgeOptions): Promise<McpBridge> {
-  const doFetch = o.fetch ?? fetch;
-  fs.mkdirSync(o.scratch, { recursive: true });
-  const shim = path.join(o.scratch, "mcp-shim.mjs");
-  fs.writeFileSync(shim, SHIM_SOURCE, { mode: 0o644 });
-  const name = `mcp-${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("")}.sock`;
-  let socket = path.join(o.scratch, name);
-  // A unix socket path holds about 100 bytes. A Mac's data folder ("~/Library/Application Support/<app>/personal/scratch/<person>") is already longer than that, so there the socket is reached through a
-  // short link: a private (0700, random-named) folder in the temp area holds one symlink to the scratch folder. Seatbelt resolves the link, so the profile's rule for the scratch folder still decides.
-  let alias: string | undefined;
-  if (Buffer.byteLength(socket) > MAX_SOCKET_PATH && process.platform === "darwin") {
-    alias = fs.mkdtempSync(path.join(fs.realpathSync("/tmp"), "vyre-"));
-    fs.symlinkSync(fs.realpathSync(o.scratch), path.join(alias, "s"));
-    socket = path.join(alias, "s", name);
-  }
-  if (Buffer.byteLength(socket) > MAX_SOCKET_PATH) throw new Error(`the MCP socket path is too long for a unix socket: ${socket.length} characters`);
-  const live = new Set<net.Socket>();
-  const server = net.createServer({ allowHalfOpen: true }, (c) => {
-    live.add(c);
-    c.once("close", () => live.delete(c));
-    c.on("error", () => c.destroy());
-    c.setEncoding("utf8");
-    let buf = "";
-    let authed = false;
-    let sessionId: string | undefined;
-    // The shim ends its side when stdin ends; replies still owed are written before this side ends.
-    let pending = 0;
-    let ended = false;
-    const settle = (): void => { if (ended && pending === 0 && !c.destroyed) c.end(); };
-    c.once("end", () => { ended = true; settle(); });
-    c.on("data", (chunk: string) => {
+/** The far end of one shim connection, whatever carries it (a unix socket here, the WSL agent's relay in sandbox/src/wsl). */
+export interface McpWire { write(line: string): void; end(): void; destroy(): void }
+
+/**
+ * One connection from the shim: the first line is {"auth": "<token>"}, and a wrong token destroys the connection before anything is posted. Every later line is posted to the endpoint with the session
+ * token as the bearer, and the replies come back as lines. When the shim ends its side, the replies still owed are written before this side ends.
+ */
+export function mcpConnection(m: { url: string; token: string }, doFetch: typeof fetch, wire: McpWire): { data(chunk: string): void; end(): void } {
+  let buf = "";
+  let authed = false;
+  let sessionId: string | undefined;
+  let pending = 0;
+  let ended = false;
+  let dead = false;
+  const settle = (): void => { if (ended && pending === 0 && !dead) wire.end(); };
+  return {
+    end() { ended = true; settle(); },
+    data(chunk) {
+      if (dead) return;
       buf += chunk;
       let i: number;
       while ((i = buf.indexOf("\n")) >= 0) {
@@ -80,7 +72,7 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
         if (!authed) {
           let tok: unknown;
           try { tok = (JSON.parse(line) as { auth?: unknown }).auth; } catch { tok = undefined; }
-          if (tok !== m.token) { c.destroy(); return; }
+          if (tok !== m.token) { dead = true; wire.destroy(); return; }
           authed = true;
           continue;
         }
@@ -94,31 +86,73 @@ export async function openMcpBridge(m: { url: string; token: string }, o: McpBri
             });
             const sid = r.headers.get("mcp-session-id");
             if (sid) sessionId = sid;
-            for (const out of replyLines(r.headers.get("content-type") ?? "", await r.text())) if (!c.destroyed) c.write(`${out}\n`);
+            for (const out of replyLines(r.headers.get("content-type") ?? "", await r.text())) if (!dead) wire.write(out);
           } catch {
             // Preserve the request id. MCP clients wait for the matching id; id:null
             // turns an endpoint outage into a permanently running agent turn.
             let id: unknown = null;
             try { id = (JSON.parse(line) as { id?: unknown }).id ?? null; } catch { /* invalid JSON keeps null */ }
-            if (!c.destroyed) c.write(`${JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32603, message: "The Vyre endpoint could not be reached." } })}\n`);
+            if (!dead) wire.write(JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32603, message: "The Vyre endpoint could not be reached." } }));
           } finally {
             pending--;
             settle();
           }
         })();
       }
-    });
+    },
+  };
+}
+
+export async function openMcpBridge(m: { url: string; token: string }, o: McpBridgeOptions): Promise<McpBridge> {
+  const doFetch = o.fetch ?? fetch;
+  fs.mkdirSync(o.scratch, { recursive: true });
+  const shim = path.join(o.scratch, "mcp-shim.mjs");
+  fs.writeFileSync(shim, SHIM_SOURCE, { mode: 0o644 });
+  const name = `mcp-${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("")}.sock`;
+  // The socket lives in the scratch folder, so the sandbox's rule for that folder decides who reaches it. A data folder can be longer than a unix socket path holds (a Mac's Application Support, a
+  // Windows profile): sandbox/src/sock.ts listens through a short private link there, and on Windows on a named pipe. Seatbelt resolves the link, so a Mac's shim is given the link; inside
+  // bubblewrap /tmp is its own, so a Linux shim is given the real path and connects from the folder.
+  const sock = localSocket(o.scratch, name, "mcp");
+  const socket = process.platform === "linux" ? sock.real : sock.connect;
+  const live = new Set<net.Socket>();
+  const server = net.createServer({ allowHalfOpen: true }, (c) => {
+    live.add(c);
+    c.once("close", () => live.delete(c));
+    c.on("error", () => c.destroy());
+    c.setEncoding("utf8");
+    const conn = mcpConnection(m, doFetch, { write: (l) => { if (!c.destroyed) c.write(`${l}\n`); }, end: () => { if (!c.destroyed) c.end(); }, destroy: () => c.destroy() });
+    c.on("data", (chunk: string) => conn.data(chunk));
+    c.once("end", () => conn.end());
   });
-  await new Promise<void>((ok, bad) => { server.once("error", bad); server.listen(socket, () => ok()); });
-  fs.chmodSync(socket, 0o600);
+  try {
+    await new Promise<void>((ok, bad) => { server.once("error", bad); server.listen(sock.listen, () => ok()); });
+    if (process.platform !== "win32") fs.chmodSync(sock.listen, 0o600);
+  } catch (e) {
+    sock.remove();
+    throw e;
+  }
   return {
     stdio: { command: o.node ?? process.execPath, args: [shim, socket] },
     socket,
     async close() {
       for (const c of live) c.destroy();
       await new Promise<void>((ok) => server.close(() => ok()));
-      fs.rmSync(socket, { force: true });
-      if (alias !== undefined) fs.rmSync(alias, { recursive: true, force: true });
+      sock.remove();
     },
   };
+}
+
+/**
+ * The bridge for an engine in the Windows sandbox (sandbox/src/wsl): the same shim, written to the scratch folder, run by the VM's Node. Its socket is one the WSL agent opens in the wall's folder
+ * (bound read-only into the sandbox). Each connection to it is relayed over the agent's own stdin and stdout and served here by mcpConnection, so the session's token is checked on this side and no
+ * port is opened anywhere.
+ */
+export async function openWslMcpBridge(agent: Pick<WslAgent, "openMcp" | "closeMcp" | "node">, m: { url: string; token: string }, o: { scratch: string; fetch?: typeof fetch }): Promise<McpBridge> {
+  const doFetch = o.fetch ?? fetch;
+  fs.mkdirSync(o.scratch, { recursive: true });
+  const shim = path.join(o.scratch, "mcp-shim.mjs");
+  fs.writeFileSync(shim, SHIM_SOURCE, { mode: 0o644 });
+  const id = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, "0")).join("");
+  const socket = await agent.openMcp(id, (wire) => mcpConnection(m, doFetch, wire));
+  return { stdio: { command: agent.node, args: [toWslPath(shim), socket] }, socket, async close() { agent.closeMcp(id); } };
 }

@@ -26,6 +26,8 @@ const graphMessage = t.obj({
 const graphEvent = t.obj({
   id: t.str(), subject: t.opt(t.str()), start: t.rec(), end: t.rec(), location: t.opt(t.rec()), onlineMeeting: t.opt(t.rec()),
   attendees: t.opt(t.arr(t.obj({ email, response: t.opt(t.str()), type: t.opt(t.str()) }))), organizer: t.opt(t.rec()), isCancelled: t.opt(t.bool()),
+  bodyPreview: t.opt(t.str()), seriesMasterId: t.opt(t.str({ description: 'The series an occurrence of a repeating event belongs to' })),
+  onlineMeetingProvider: t.opt(t.str()),
 });
 const driveItem = t.obj({ id: t.str(), name: t.str(), size: t.opt(t.int()), lastModifiedDateTime: t.opt(t.str()), folder: t.opt(t.bool()), webUrl: t.opt(t.str()), parentId: t.opt(t.str()), eTag: t.opt(t.str()), lastModifiedBy: t.opt(t.obj({ name: t.opt(t.str()), email: t.opt(t.str()) })) });
 const eventWrite = {
@@ -93,7 +95,7 @@ const capabilities = [
   read('ms.user.list', 'Your own signed-in Microsoft accounts', { in: {}, out: { accounts: t.arr(t.obj({ accountId: t.str(), email })) } }),
   write('ms.user.remove', 'Sign out of your own Microsoft account and remove its token', { in: { accountId: t.str() }, out: { removed: t.bool() }, audit: 'always' }),
   outward('ms.user.send_message', "Send a message from your own signed-in Outlook (mail.send_as uses it for a mailbox made by ms.user.complete)", {
-    in: { accountId: t.str(), to: t.arr(email), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), conversationId: t.opt(t.str()), attachments: t.opt(t.arr(id.file)) },
+    in: { accountId: t.str(), to: t.arr(email), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), conversationId: t.opt(t.str()), replyTo: t.opt(t.str({ description: 'Graph id, in this mailbox, of the message this answers: the reply joins its conversation (createReply)' })), attachments: t.opt(t.arr(id.file)) },
     out: { sent: t.bool() }, gate: 'send', errors: ['provider.rate_limited', 'provider.auth_failed', 'validation.not_found'],
   }),
   read('ms.consent.members', 'Tenant users mapped to Space members by email, with exclusion and mailbox state', {
@@ -142,7 +144,7 @@ const capabilities = [
   gw('ms.mail.move_message', 'Move a message to another folder', { messageId: t.str(), folderId: t.str() }, { message: graphMessage }, { gate: quiet("Moves a message inside the member's own mailbox; nothing is sent to anyone"), tool: 'inbox', deferred: true }),
   gw('ms.mail.create_draft', 'Create a draft in the member mailbox', { to: t.arr(email), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()) }, { draftId: t.str() },
     { gate: quiet('The draft stays in the member mailbox; nothing is sent'), tool: 'inbox', deferred: true }),
-  gw('ms.mail.send_message', 'Send a message from the member mailbox', { to: t.arr(email), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), conversationId: t.opt(t.str()), attachments: t.opt(t.arr(id.file)) },
+  gw('ms.mail.send_message', 'Send a message from the member mailbox', { to: t.arr(email), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), conversationId: t.opt(t.str()), replyTo: t.opt(t.str({ description: 'Graph id, in this mailbox, of the message this answers: the reply joins its conversation (createReply)' })), attachments: t.opt(t.arr(id.file)) },
     { sent: t.bool() }, { gate: 'send', errors: ['provider.rate_limited', 'provider.auth_failed'] }),
   gw('ms.mail.delete_message', 'Delete a message (moves it to Deleted Items)', { messageId: t.str() }, { deleted: t.bool() }, { gate: 'delete', tool: 'inbox', deferred: true }),
   gw('ms.mail.subscribe', 'Subscribe to change notifications for a mail folder', { folderId: t.str(), notificationUrl: t.str() }, { subscriptionId: t.str(), expiresAt: t.ts() }, { gate: quiet('Registers a change subscription for the Space; nothing is sent to anyone') }),

@@ -33,6 +33,7 @@ import { Spend } from "../../console/pages/Spend.tsx";
 import { ReviewSampling } from "../../console/pages/AiSettings.tsx";
 import { Incidents } from "../../console/pages/Incidents.tsx";
 import { AiPolicy } from "../../console/pages/AiPolicy.tsx";
+import { InternetAccess } from "../../console/pages/InternetAccess.tsx";
 import { GateRules } from "../../console/pages/GateRules.tsx";
 import { Retention } from "../../console/pages/Retention.tsx";
 import { Holds } from "../../console/pages/Holds.tsx";
@@ -101,6 +102,7 @@ export function aiDataPageFor(id: string): ReactElement | null {
   if (id === "review") return <ReviewSampling />;
   if (id === "incidents") return <Incidents />;
   if (id === "aipolicy") return <AiPolicy />;
+  if (id === "internet") return <InternetAccess />;
   if (id === "gate") return <GateRules />;
   if (id === "retention") return <Retention />;
   if (id === "holds") return <Holds />;
@@ -112,12 +114,12 @@ function consoleData(rt: ShellRuntime, allowed: ReadonlySet<string>, openPage: C
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.createRecordsPreview?{createRecordsPreview:rt.createRecordsPreview}:{}), me: { id: rt.me.id, name: rt.me.name, role: "" }, space: { id: rt.space.id, name: rt.space.name, address: "" },
     can: (permission) => permission === "console.access" || PAGES.some((page) => page.needs === permission && allowed.has(page.screen)), allowedScreens: allowed,
-    name: nameLookup(rt), clock: rt.clock,
+    name: nameLookup(rt), agentName: (id: string) => { const q = rt.principals.getSnapshot(); const p = q.status === "ready" ? q.data.find((x) => x.id === id) : undefined; return p ? p.agentName ?? p.name : undefined; }, clock: rt.clock,
     nav: { openApp: (target) => rt.open(target ?? { screen: "chats.conversation" }), openPage },
   };
 }
 
-const DEFAULTS: Readonly<Record<string, SpacePage | "memory">> = { "def-access": "people", "def-agents": "agents", "def-memory": "memory", "def-data": "data", "def-apps": "apps", "def-advanced": "advanced" };
+const DEFAULTS: Readonly<Record<string, SpacePage | "memory" | "memlearn">> = { memlearn: "memlearn", "def-access": "people", "def-agents": "agents", "def-memory": "memory", "def-data": "data", "def-apps": "apps", "def-advanced": "advanced" };
 
 /** Space defaults are drawn by the rows Settings shows in a Personal Space, so one row has one home in each kind of Space. */
 function spaceDefaults(rt: ShellRuntime, id: string): ReactElement | null {

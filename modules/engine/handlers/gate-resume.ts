@@ -14,6 +14,8 @@ export const gateResumeConsumers = {
       if (event.payload.askedBy !== undefined) return { skipped: "outside_ask" };
       let engine;
       try { engine = boundEngine(ctx); } catch { return { skipped: "engine_not_running" }; }
+      // only a turn that parked on this hold (an API engine's) is resumed here; a CLI engine's held call over MCP ended its turn, and engine.hold_answered wakes it with the answer (held-notes.ts)
+      try { if (ctx.db.all("SELECT 1 AS x FROM engine_waits WHERE task_id = ?", event.payload.taskId).length === 0) return { skipped: "no_parked_turn" }; } catch { /* the table is made with the first parked turn */ return { skipped: "no_parked_turn" }; }
       const approved = event.name === "gate.approved";
       let result: { ok: boolean; content: unknown } | undefined;
       if (approved) {

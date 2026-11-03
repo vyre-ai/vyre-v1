@@ -6,7 +6,7 @@
 // stays undoable: Undo gives the history back to the sender. Nothing is ever deleted, only folded (the sender's row is hidden) and restored.
 // DECISION: a match remembers the sender's address on the record (contacts.address.add) unless the caller says rememberAddress false; Undo takes it back off again.
 // DECISION: the Needs you task is assigned to the person route_owner names, else to the admin role; closing it when the sender is matched is the task module's job.
-import { newId, bad, ensure, findRecord, first, followOf, getConversation, isId, privateIds, kindOfAddress, list, missing, nameOf, nextVersion, normAddress, num, obj, refuse, rowsOf, str, strOrNull, text, toConversation, toJson, codeOf } from "../projections.ts";
+import { conversationsShowing, itemsOf, newId, bad, ensure, findRecord, first, followOf, getConversation, isId, privateIds, kindOfAddress, list, missing, nameOf, nextVersion, normAddress, num, obj, refuse, rowsOf, str, strOrNull, text, toConversation, toJson, codeOf } from "../projections.ts";
 import type { Channel, ConversationRow, InboxCtx, Json, RecordLite, Row } from "../projections.ts";
 
 const REF_KIND: Record<Channel, string> = { email: "mail_message", sms: "sms", call: "call" };
@@ -70,7 +70,7 @@ async function ownerFor(ctx: InboxCtx, a: { contactId?: string | null | undefine
 export function refresh(ctx: InboxCtx, id: string): void {
   const conv = getConversation(ctx, id);
   if (!conv) return;
-  const items = rowsOf(ctx.db.all(`SELECT * FROM inbox_item WHERE "conversationId" = ? ORDER BY "at" DESC`, id));
+  const items = itemsOf(ctx, conv).sort((a, b) => num(b, "at") - num(a, "at"));
   const latest = items[0];
   if (!latest) return;
   const mailboxIds = items.map((i) => strOrNull(i, "mailboxId")).filter((v): v is string => v !== null);
@@ -299,12 +299,44 @@ export async function linkMessage(
   // replies reach the people who follow
   conv = getConversation(ctx, id) as Row;
   const cid = strOrNull(conv, "contactId");
+  if (input.channel === "email" && facts.participants.length > 1) await linkOthers(ctx, input, itemId, facts.participants, address, cid);
   if (cid && input.direction === "in") {
     if (first(ctx.db.all(`SELECT id FROM inbox_follow WHERE "contactId" = ? AND deleted_at IS NULL`, cid))) {
       ctx.emit("conversation.reply_received", `record/${cid}`, { conversationId: id, contactId: cid, channel: input.channel }, { vis: "participants" });
     }
   }
   return answer(ctx, conv, taskId);
+}
+
+const OTHERS_MAX = 12;
+
+/**
+ * An email belongs to every contact on it. Each other participant who is a known contact (a sure match; strangers on Cc stay out of the Inbox) gets the item in
+ * their own conversation too, opened for them when they have none, so the thread shows whole under each of them and its read state is the item's, shared.
+ * A lookup that fails costs that participant only.
+ */
+async function linkOthers(ctx: InboxCtx, input: LinkIn, itemId: string, participants: string[], address: string, primary: string | null): Promise<void> {
+  const others = [...new Set(participants.map((p) => normAddress(p)).filter((p) => p && p !== address))].slice(0, OTHERS_MAX);
+  for (const other of others) {
+    try {
+      const sure = (await candidatesFor(ctx, other)).sure[0];
+      if (!sure || sure.recordId === primary) continue;
+      let conv = first(ctx.db.all(`SELECT * FROM inbox_conversation WHERE "contactId" = ? AND deleted_at IS NULL`, sure.recordId));
+      if (!conv) {
+        conv = insertConversation(ctx, {
+          contactId: sure.recordId, address: other, displayName: sure.name || other, at: input.at, channel: "email", preview: input.preview ?? "", needsMatch: false,
+          ownerId: await ownerFor(ctx, { contactId: sure.recordId, mailboxId: input.mailboxId }),
+        });
+        const cid = str(conv, "id");
+        ctx.emit("conversation.created", `entity/${cid}`, { conversationId: cid, contactId: sure.recordId, channel: "email" });
+        ctx.emit("conversation.matched", `record/${sure.recordId}`, { conversationId: cid, recordId: sure.recordId, by: "rule", undoable: false });
+      }
+      ctx.db.run(`INSERT OR IGNORE INTO inbox_party ("itemId", "contactId") VALUES (?, ?)`, itemId, sure.recordId);
+      refresh(ctx, str(conv, "id"));
+    } catch (e) {
+      ctx.log.warn("inbox: another contact on the email was not linked", { code: codeOf(e) });
+    }
+  }
 }
 
 /** The Needs you task of a conversation that needs a match: the one already raised, else a new one (and the event, once). A task module that is down never fails the linking. */
@@ -515,16 +547,19 @@ export function markRead(ctx: InboxCtx, input: { conversationId: string; read?: 
   if (!isId("cnv", input.conversationId)) bad(ctx, "That is not a conversation id.");
   const conv = getConversation(ctx, input.conversationId) ?? missing(ctx, "There is no such conversation.");
   const read = input.read !== false;
-  if (read) ctx.db.run(`UPDATE inbox_item SET unread = ? WHERE "conversationId" = ?`, 0, input.conversationId);
-  else {
-    const latest = first(ctx.db.all(`SELECT id FROM inbox_item WHERE "conversationId" = ? AND direction = ? ORDER BY at DESC, id ASC LIMIT ?`, input.conversationId, "in", 1));
-    if (latest) ctx.db.run(`UPDATE inbox_item SET unread = ? WHERE id = ?`, 1, str(latest, "id"));
+  // read state is the item's: an email read under one contact is read under every contact on it
+  const changed: string[] = [];
+  if (read) {
+    for (const i of itemsOf(ctx, conv, "unread = ?", 1)) { ctx.db.run(`UPDATE inbox_item SET unread = ? WHERE id = ?`, 0, str(i, "id")); changed.push(str(i, "id")); }
+  } else {
+    const latest = itemsOf(ctx, conv, "direction = ?", "in").sort((a, b) => num(b, "at") - num(a, "at") || str(a, "id").localeCompare(str(b, "id")))[0];
+    if (latest) { ctx.db.run(`UPDATE inbox_item SET unread = ? WHERE id = ?`, 1, str(latest, "id")); changed.push(str(latest, "id")); }
   }
-  const items = rowsOf(ctx.db.all(`SELECT unread FROM inbox_item WHERE "conversationId" = ?`, input.conversationId));
-  const unread = items.filter((i) => num(i, "unread") === 1).length;
+  const unread = itemsOf(ctx, conv).filter((i) => num(i, "unread") === 1).length;
   if (unread !== num(conv, "unreadCount")) {
     ctx.db.run(`UPDATE inbox_conversation SET "unreadCount" = ?, version = ?, updated_at = ? WHERE id = ?`, unread, nextVersion(conv), ctx.now(), input.conversationId);
   }
+  for (const other of conversationsShowing(ctx, changed)) if (other !== input.conversationId) refresh(ctx, other);
   return { conversation: toConversation(ctx, getConversation(ctx, input.conversationId) as Row) };
 }
 

@@ -1,0 +1,8 @@
+{
+  "targets": [
+    { "id": "THREADS_01-side", "route": "/m/THREADS_01?part=side", "proto": "chats,{skin}", "waitFor": "[data-testid='thread-side']", "note": "A reply thread open beside Intake's booking message: the chat stays put with the message marked, the line under it reads 3 replies in bold (2 are new) with the faces of who replied and the time of the last reply; the thread shows the message on top (a link back to it), the Following control and the three replies with a composer." },
+    { "id": "THREADS_01-side-phone", "route": "/m/THREADS_01?part=side", "proto": "chats,{skin}", "waitFor": "[data-testid='thread-side']", "note": "On a phone the same thread is a sheet over the chat, with Done to close it." },
+    { "id": "THREADS_01-page", "route": "/m/THREADS_01?part=page", "proto": "chats,{skin}", "waitFor": "[data-testid='threads-page']", "note": "Threads: newest reply first; where each hangs, who wrote the newest line, when, and how many are new (bold); a muted one says Muted; Show more threads loads the next page." },
+    { "id": "THREADS_01-banners", "route": "/m/THREADS_01?part=banners", "proto": "chats,{skin}", "waitFor": "[data-testid='banners']", "note": "A burst of replies in one thread is one banner (3 new replies in ...) with Reply; a mention is its own banner." }
+  ]
+}

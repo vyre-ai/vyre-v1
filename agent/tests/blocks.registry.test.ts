@@ -21,8 +21,8 @@ const fail = (f: () => unknown): { code: string; details?: Record<string, unknow
 
 test("every block type of the contract has an emitter, and the native ones and the seven named ones are among them", () => {
   const b = make();
-  // the contract grew by crew_result (the crew lane) and artifact (published pages); link_card is not here on purpose: only the host writes it, and a card an agent posts loses its buttons
-  assert.equal(reg.defs.length, 24);
+  // the contract grew by crew_result (the crew lane), artifact (published pages) and goal (l-goals: a goal's draft, update, stuck and end cards); link_card is not here on purpose: only the host writes it, and a card an agent posts loses its buttons
+  assert.equal(reg.defs.length, 25);
   assert.deepEqual(b.types(), [...new Set(reg.defs.map((d) => d.type))].sort());
   for (const t of [...NATIVE_14, ...NAMED_7]) assert.ok(b.has(t), t);
   assert.equal(b.has("nope"), false);

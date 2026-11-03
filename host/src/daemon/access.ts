@@ -44,7 +44,7 @@ export function buildAccess(events: readonly FoldableEvent[]): AccessSnapshot {
 /** The events the access module folds into its store (modules/access/consumers.ts ACCESS_EVENTS). */
 const MODULE_EVENTS = new Set([
   "role.defined", "principal.created", "principal.role_set", "group.member_added", "resource.created", "grant.created", "grant.revoked",
-  "principal.suspended", "principal.reactivated", "member.removed", "space.ownership_transferred",
+  "principal.suspended", "principal.reactivated", "member.removed", "space.ownership_transferred", "agent.privacy_set",
 ]);
 export const isAccessEvent = (type: string): boolean => MODULE_EVENTS.has(type);
 /** Events after which the module's tables may differ from the snapshot the daemon holds: the ones it folds, plus what its own capabilities emit when a role, share, revoke or policy changes. */

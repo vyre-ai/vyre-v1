@@ -142,6 +142,7 @@ export async function act(ctx: TasksCtx, input: In): Promise<unknown> {
   if (edits && Object.keys(edits).length > 0) t.workingNotes = { ...t.workingNotes, edits: JSON.stringify(edits) };
 
   const applied = commitMove(ctx, t, to, checked);
+  if (applied.took) await syncThread(ctx, t);
   if (applied.handled) emitTask(ctx, ctx.db, "task.handled", t, { by: ctx.principal.id }, { type: "handled", by: ctx.principal.id });
 
   // continue the source at once; a failure here is reported in the result, never undoes the decision

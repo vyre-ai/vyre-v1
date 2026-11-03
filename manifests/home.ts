@@ -7,7 +7,7 @@
 import { defineManifest, entity, ev, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, resourceRef } from './_common.ts';
 
-const itemKind = t.enm('decision', 'finished', 'record_change', 'routine', 'waiting');
+const itemKind = t.enm('decision', 'finished', 'record_change', 'routine', 'notice', 'waiting');
 const digestItem = t.obj({
   kind: itemKind, title: t.str(), line: t.str(), subject: t.opt(resourceRef), at: t.opt(t.ts()),
   undo: t.opt(t.obj({ cap: t.str({ examples: ['runs.undo'] }), input: t.json() })),
@@ -42,6 +42,9 @@ export default defineManifest({
     write('home.write_digest', 'Store a digest the assistant wrote for a person (scheduled)', {
       in: { person: t.str(), periodStart: t.ts(), periodEnd: t.ts(), headline: t.arr(t.str(), { maxItems: 3 }), items: t.arr(digestItem, { maxItems: 7 }), builtBy: t.str() },
       out: { digestId }, level: 'use', emits: ['digest.written'], idem: 'key',
+    }),
+    write('home.away_digest', 'Write my While you were away digest for the time since I was last here: what my agents and routines did, changes on records I follow and the quiet notices that waited (an agent past its interrupt cap, a person who joined), by name. Writes nothing when nothing happened', {
+      in: { since: t.ts() }, out: { digestId: t.opt(digestId), items: t.int({ minimum: 0 }) }, level: 'use', emits: ['digest.written'], tool: 'meta',
     }),
     write('home.mark_digest_seen', 'Mark the digest seen so it resets', { in: { digestId }, out: { ok: t.bool() }, level: 'use', emits: ['digest.seen'], tool: 'meta', offline: 'queue' }),
     read('home.activity', 'See all: the full activity for the digest period on records I follow, my agents, and my routines', {

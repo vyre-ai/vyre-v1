@@ -37,6 +37,7 @@
         "modules/computers/",
         "modules/terminal/",
         "modules/mcp/",
+        "modules/notes/",
         "package-lock.json"
       ],
       "modules": [
@@ -46,7 +47,8 @@
         "memory",
         "computers",
         "terminal",
-        "mcp"
+        "mcp",
+        "notes"
       ]
     },
     {
@@ -140,6 +142,7 @@
         "modules/steps-core/",
         "modules/scheduler-api/",
         "modules/tasks/",
+        "modules/goals/",
         "modules/runs/",
         "modules/gate/",
         "modules/notifications/",
@@ -153,6 +156,7 @@
         "steps-core",
         "scheduler-api",
         "tasks",
+        "goals",
         "runs",
         "gate",
         "notifications",
@@ -450,6 +454,7 @@
     "microsoft": "L5",
     "mounts": "L4",
     "network": "L7b",
+    "notes": "L2",
     "notifications": "L6",
     "portal": "L8",
     "previews": "L4",
@@ -469,6 +474,7 @@
     "steps-core": "L6",
     "stripe": "L5",
     "sync": "L1",
+    "goals": "L6",
     "tasks": "L6",
     "telephony": "L5",
     "templates": "L8",

@@ -17,6 +17,7 @@ test("Models and providers mounts a real Console page", () => {
   assert.ok(aiDataPageFor("review"));
   assert.ok(aiDataPageFor("incidents"));
   assert.ok(aiDataPageFor("aipolicy"));
+  assert.ok(aiDataPageFor("internet"), "AI, Internet access: what AI tools can reach on the internet");
   assert.ok(aiDataPageFor("gate"));
   assert.ok(aiDataPageFor("retention"));
   assert.ok(aiDataPageFor("holds"));

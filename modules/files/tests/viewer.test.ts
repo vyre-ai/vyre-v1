@@ -270,6 +270,18 @@ test("share_external: an expiry must be in the future and within a year; restric
   assert.equal(await code(call(ctx, "files.share_external", { fileId: f, idempotencyKey: "gone" })), "validation.precondition_failed");
 });
 
+test("share_external: a file anywhere below a Restricted folder is Restricted; files.get says so, and no outside link is made (lead ruling 3 Nov)", async () => {
+  const { ctx } = world();
+  const top = (await call(ctx, "files.folder.create", { parentId: await personal(ctx), name: "HR", idempotencyKey: "hr" })).folder.folderId;
+  const pay = (await call(ctx, "files.folder.create", { parentId: top, name: "Pay", idempotencyKey: "pay" })).folder.folderId;
+  const f = await make(ctx, "payroll.pdf", "pdf", { base64: "JVBERi0=" }, pay);
+  assert.equal((await call(ctx, "files.get", { fileId: f })).file.label, 0);
+  ctx.db.run("UPDATE files_folder SET label = ? WHERE id = ?", 3, top);
+  const next: Ctx = { ...ctx };   // a new call: the per-call folder cache starts empty
+  assert.equal((await call(next, "files.get", { fileId: f })).file.label, 3, "the file reports the label it inherits from two folders up");
+  assert.equal(await code(call(next, "files.share_external", { fileId: f, idempotencyKey: "deep" })), "permission.above_clearance");
+});
+
 test("revoke_external: revokes one link of that file once, says so once, drops it from the list, is repeatable, and refuses another file's link", async () => {
   const { ctx, events } = world();
   const a = await make(ctx, "a.pdf", "pdf", { base64: "JVBERi0=" });

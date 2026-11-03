@@ -188,3 +188,9 @@ test("the host's event shape (name and subject) reaches the index as the stored 
   assert.equal(indexEventOf(stored), stored, "the stored shape passes through");
   assert.equal(targetOf(indexEventOf({ name: "turn.started", seq: 1, payload: {} })), null);
 });
+
+test("a deleted task leaves search; one restored or handed to someone is read again (l-tasks)", () => {
+  assert.deepEqual(targetsOf({ type: "task.deleted", seq: 50, payload: { taskId: "tsk_gone", title: "Old" } }), [{ entity: "task", id: "tsk_gone", op: "delete", seq: 50 }]);
+  assert.deepEqual(targetsOf({ type: "task.restored", seq: 51, payload: { taskId: "tsk_gone" } }), [{ entity: "task", id: "tsk_gone", op: "upsert", seq: 51 }]);
+  assert.deepEqual(targetsOf({ type: "task.assigned", seq: 52, payload: { taskId: "tsk_two" } }), [{ entity: "task", id: "tsk_two", op: "upsert", seq: 52 }]);
+});

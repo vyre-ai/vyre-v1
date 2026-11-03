@@ -1,0 +1,4 @@
+- Vault: a Space member no longer sees "Shared with the Space" when adding an AI key or a connection, a choice the server would refuse after they filled it in. They see "Ask an admin to add it for the team", which sends a Vault request to the Space's admins and saves nothing. Admins and owners keep the shared choice.
+- Windows: each agent in a chat keeps its own work folder beside the chat's shared folder (the rc.17 layout), now with short hashed folder names on Windows so paths stay under MAX_PATH.
+- Opening a reply's Details from a chat with a task open beside it now shows the Details: the task steps aside.
+- Goals: an Automation, a form or a site acting inside another call is no longer treated as the server by goals, so it cannot claim a goal's wake-up or finish someone else's goal.

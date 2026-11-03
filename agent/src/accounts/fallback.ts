@@ -3,7 +3,8 @@ import { resolveAccount } from "./resolve.ts";
 import type { NeedsYou, ResolveRequest, Resolution } from "./types.ts";
 
 /** Provider errors that mean "this account cannot serve the turn". Anything else (bad request, context too long, content filter) is the same on every account and is surfaced. */
-export const ACCOUNT_FAILURE_CODES: ReadonlySet<string> = new Set(["provider.auth_failed", "auth.expired", "provider.rate_limited"]);
+/** "provider.overloaded" is here for the move after the engine's one retry on the same account (owner ruling, 3 Nov 2026). */
+export const ACCOUNT_FAILURE_CODES: ReadonlySet<string> = new Set(["provider.auth_failed", "auth.expired", "provider.rate_limited", "provider.overloaded"]);
 
 export type FallbackDecision =
   /** Run the turn again on `accountRef`. `unblock` is an extra card for the person when their own account is the one that broke. */

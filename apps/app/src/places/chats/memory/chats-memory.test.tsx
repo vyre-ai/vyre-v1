@@ -252,7 +252,7 @@ const threadOf = (s: ChatMemorySample, taught: LearnedRow[] = []): { thread: Thr
   return { lines, thread: { memory: s.memory, threadId: "c1", index: subjectIndex(PAGES), pages: PAGES, learnedFrom: () => [], currentFrom: () => taught, supersede: () => undefined, flash: say } };
 };
 
-test("the message menu keeps every item it had and adds Remember This, Add to a Page, Show What the Agent Knew Here and Forget This", async () => {
+test("the message menu keeps every item it had and adds Remember This, Add to a Page and Forget This", async () => {
   const s = await withWarm();
   const { thread } = threadOf(s);
   const shown: string[][] = [];
@@ -260,10 +260,10 @@ test("the message menu keeps every item it had and adds Remember This, Add to a 
   const withMemory = labels(menuFor(msg("m1", "hello"), false, actions, () => undefined, { x: 5, y: 6 }));
   const plain = labels(menuFor(msg("m1", "hello"), false, { ...actions, memoryEntries: undefined } as MessageActions, () => undefined));
   assert.deepEqual(plain, ["Copy", "Reply in Thread", "Pin Message", "Add Reaction"]);
-  assert.deepEqual(withMemory, ["Copy", "Reply in Thread", "Pin Message", "Add Reaction", "-", "Remember This", "Add to a Page…", "Show What the Agent Knew Here", "Forget This"]);
+  assert.deepEqual(withMemory, ["Copy", "Reply in Thread", "Pin Message", "Add Reaction", "-", "Remember This", "Add to a Page…", "Forget This"]);
   const mine = labels(menuFor(msg("m1", "hello", "text"), true, actions, () => undefined));
   assert.deepEqual(mine.slice(0, 3), ["Copy", "Edit", "Reply in Thread"]);
-  assert.deepEqual(mine.slice(-4), ["Show What the Agent Knew Here", "Forget This", "-", "Delete"]);
+  assert.deepEqual(mine.slice(-4), ["Add to a Page…", "Forget This", "-", "Delete"]);
   assert.deepEqual(labels(menuFor(msg("q1", "", "quiet"), false, actions, () => undefined)), ["Copy", "Reply in Thread", "Pin Message", "Add Reaction"], "a quiet event line has no memory items");
   const entries = memoryEntries(thread, { messageId: "m1", body: "hi", createdAt: 1 }, { x: 5, y: 6 }, (items, x, y) => void shown.push([...labels(items as never), `@${x},${y}`]));
   const add = entries.find((e) => "label" in e && e.label.startsWith("Add to a Page"))!;
@@ -335,15 +335,12 @@ test("Forget in the Used list takes the fact out of what the reply used", async 
   assert.ok(has(out, "Used 2 memories") && !has(out, "Used 3 memories"));
 });
 
-test("Show What the Agent Knew Here pins the Knows tab to that reply and asks the pane to open", async () => {
+test("Show What the Agent Knew Here left the menu: it is the What the agent knew section of the reply's Details tab", async () => {
   const s = await withWarm();
   const { thread } = threadOf(s);
-  const entries = memoryEntries(thread, { messageId: MESSAGE_IDS.reply, body: "x", createdAt: Date.UTC(2025, 9, 24, 9, 31) }, { x: 0, y: 0 }, () => undefined);
-  (entries.find((e) => "label" in e && e.label.startsWith("Show What"))! as { onSelect: () => void }).onSelect();
-  assert.deepEqual(s.opened, ["knows"]);
-  assert.deepEqual([s.memory.store.knows().messageId, s.memory.store.knows().asOf], [MESSAGE_IDS.reply, Date.UTC(2025, 9, 24, 9, 31)]);
-  assert.equal(s.memory.store.takeKnowsRequest(), true);
-  assert.equal(s.memory.store.takeKnowsRequest(), false, "a request is read once");
+  const entries = memoryEntries(thread, { messageId: MESSAGE_IDS.reply, body: "x", createdAt: 1 }, { x: 0, y: 0 }, () => undefined);
+  assert.equal(entries.find((e) => "label" in e && e.label.startsWith("Show What")), undefined);
+  assert.deepEqual(s.opened, []);
 });
 
 /* ---------- the Knows tab ---------- */

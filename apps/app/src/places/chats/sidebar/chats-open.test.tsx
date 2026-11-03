@@ -18,12 +18,13 @@ test("every page the place can show has its open key, from a tab, a link or Cmd-
   assert.equal(openKeyOf(fromHash("screen=chats.conversation&threadId=c2").route), "t:c2", "a link to a chat");
   assert.equal(openKeyOf(fromHash("subject=channel:th_general").route), "t:th_general", "a channel is its thread");
   assert.equal(openKeyOf(fromHash("screen=tasks.my-work").route), "tasks");
+  assert.equal(openKeyOf(fromHash("screen=tasks.needs-you").route), "tasks", "the old Needs you link opens Tasks: one door (l-tasks)");
   assert.equal(openKeyOf(fromHash("screen=chats.threads").route), "threads");
   assert.equal(openKeyOf(fromHash("screen=chats.artifacts").route), "artifacts");
   assert.equal(openKeyOf(fromHash("screen=chats.agent-page&agentId=agt_docs").route), "a:agt_docs", "Cmd-K to an agent");
   assert.equal(openKeyOf(fromHash("screen=chats.agent-form&agentId=agt_docs").route), "a:agt_docs");
   assert.equal(openKeyOf(step(START, { t: "imported", conversationId: "isc_a" }).route), "i:isc_a");
-  for (const none of [START, fromHash("screen=chats.agent-form"), fromHash("subject=task:tsk_1"), fromHash("screen=tasks.needs-you"), fromHash("screen=chats.helper-chat&threadId=h1"), step(START, { t: "search", q: "x" })]) {
+  for (const none of [START, fromHash("screen=chats.agent-form"), fromHash("subject=task:tsk_1"), fromHash("screen=chats.helper-chat&threadId=h1"), step(START, { t: "search", q: "x" })]) {
     assert.equal(openKeyOf(none.route), null, JSON.stringify(none.route));
   }
 });

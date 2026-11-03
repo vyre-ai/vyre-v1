@@ -1,5 +1,6 @@
 // The Settings place in the shell: You, and for someone who can change it, the Space with the Console's pages. The open Space is the one Space the runtime knows; leaving Settings goes out
 // through the shell's door. Before the runtime exists the place draws its loading frame.
+import { connectionsTarget } from "../../places/vault/connections/links.ts";
 import { useEffect, useMemo, useState } from "react";
 import { desktopSessionImporter } from "../../../../../client/src/session-import/desktop.ts";
 import type { ReactElement } from "react";
@@ -8,6 +9,9 @@ import { SettingsDataProvider } from "../../places/settings/data.tsx";
 import type { SettingsData } from "../../places/settings/data.tsx";
 import { desktopUpdates } from "../../startup/update/store.ts";
 import { SecuritySheet } from "../../places/settings/SecuritySheet.tsx";
+import { LinkSheet } from "../../places/settings/LinkSheet.tsx";
+import { readStoredSpace, writeStored } from "../session/stored.ts";
+import { deviceFor } from "../../join/logic.ts";
 import type { SettingsNav } from "../../places/settings/data.tsx";
 import { SettingsPlace } from "../../places/settings/SettingsPlace.tsx";
 import { OLD_PAGES, PAGES } from "../../places/settings/model.ts";
@@ -15,6 +19,7 @@ import type { PageKey } from "../../places/settings/model.ts";
 import { usePlaceHash } from "../hash/context.tsx";
 import { applySkinToWindow } from "./settings-skin.ts";
 import { nameOf } from "./misc-common.ts";
+import { openAskPane } from "../ask/pane.ts";
 import { chooseProfilePhoto } from "./settings-photo.ts";
 import { loadSecurity } from "./settings-security.ts";
 import { adminPages, adminTarget } from "./settings-admin.ts";
@@ -28,6 +33,8 @@ import type { ShellRuntime } from "./runtime.tsx";
 export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["manageSecurity"], security?: SettingsData["security"], consoleAllowed = false): SettingsData {
   return {
     ...(security ? { security } : {}),
+    // Ask about a Settings page opens the pane beside it, about that page; the person's own settings are theirs to change, so the assistant may propose changes they then approve
+    ask: (page) => { openAskPane({ thing: { kind: "settings_page", id: page.key, title: page.title }, context: { actions: ["explain a setting", "find a setting", "change a setting after the person says yes"] } }, "settings"); },
     ...(consoleAllowed ? { openConsole: () => rt.open({ screen: "console.overview" }), openCompany: () => rt.open({ screen: "company.setup" }) } : {}),
     screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name, ...(rt.me.username ? { username: rt.me.username } : {}) }, space: { id: rt.space.id, name: rt.space.name },
     spaces: rt.knownSpaces?.map(space=>({id:space.spaceId,name:space.name,addr:space.address,kind:space.kind,role:space.role,needsYou:space.needsYou?1:0,current:space.spaceId===rt.space.id}))??[{ id: rt.space.id, name: rt.space.name, addr: "", kind: rt.space.kind, role: "", needsYou: 0, current: true }],
@@ -41,15 +48,34 @@ export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["man
     },
     nav: {
       openVault: () => rt.open({ screen: "vault.layout" }),
+      openConnections: () => rt.open(connectionsTarget()),
       openSpace: (id) => rt.open({ screen: "spaces.switcher", args: { id } }),
       connect: (kind) => kind === "twilio" ? rt.open({ screen: "vault.layout", args: { add: "twilio" } }) : rt.open({ screen: "settings.page", args: { page: "mail" } }),
       openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
+      openLink: (link) => rt.openUrl(link),
       choosePhoto: () => chooseProfilePhoto(rt),
       applySkin: (skinId) => void applySkinToWindow(rt, skinId),
       ...(manageSecurity ? { manageSecurity } : {}),
     },
     clock: () => rt.clock(),
   };
+}
+
+const isDesktopWindow = (): boolean => !!(globalThis as { __TAURI__?: unknown }).__TAURI__;
+
+/** Every Space this device is in, this one first, for "Use one account everywhere" (rc.17). */
+export function linkSpaces(rt: ShellRuntime): { name: string; spaceId: string; call: (cap: string, input: unknown) => Promise<unknown> }[] {
+  const callIn = rt.callIn;
+  const here = { name: rt.space.name, spaceId: rt.space.id, call: rt.call };
+  if (!callIn || !rt.knownSpaces) return [here];
+  return [here, ...rt.knownSpaces.filter((x) => x.spaceId !== rt.space.id).map((x) => ({ name: x.name, spaceId: x.spaceId, call: (cap: string, input: unknown) => callIn(x.spaceId, cap, input) }))];
+}
+
+/** A Space that took the kept account answered with a new session for this device (its old ones ended): store it; the open Space reloads on it. */
+export function storeLinkedSession(spaceId: string, token: string, username: string, openSpace: string): void {
+  const stored = readStoredSpace(spaceId);
+  if (stored) writeStored({ ...stored, token, username });
+  if (spaceId === openSpace) (globalThis as { location?: { reload(): void } }).location?.reload();
 }
 
 /** The other Spaces this device is in, reached as the same person: a new recovery code replaces the old one there too. */
@@ -94,7 +120,7 @@ export default function SettingsShellPlace(_props: { place: string }): ReactElem
   }, [rt, askedAdmin]);
   const data = useMemo(() => (rt ? settingsData(rt, (kind) => setSecurity(kind), signIn, consoleAllowed) : null), [rt, signIn, consoleAllowed]);
   if (!data) return <View style={s.page} testID="settings-loading" />;
-  return <SettingsDataProvider value={data}><SettingsPlace key={`${nonce}:${page ?? ""}:${askedAdmin ?? ""}`} {...(addServerAsked() ? { initialPage: "computer" as const } : page ? { initialPage: page } : {})} />{security ? <SecuritySheet key={security} action={security} call={rt!.call} onClose={() => setSecurity(null)} spaceName={rt!.space.name} others={otherSpaces(rt!)} /> : null}</SettingsDataProvider>;
+  return <SettingsDataProvider value={data}><SettingsPlace key={`${nonce}:${page ?? ""}:${askedAdmin ?? ""}`} {...(addServerAsked() ? { initialPage: "computer" as const } : page ? { initialPage: page } : {})} />{security === "link" ? <LinkSheet spaces={linkSpaces(rt!)} device={deviceFor(isDesktopWindow() ? "desktop" : "web")} onSession={(id, token, username) => storeLinkedSession(id, token, username, rt!.space.id)} onClose={() => setSecurity(null)} /> : security ? <SecuritySheet key={security} action={security} call={rt!.call} onClose={() => setSecurity(null)} spaceName={rt!.space.name} others={otherSpaces(rt!)} /> : null}</SettingsDataProvider>;
 }
 
 const s = StyleSheet.create({ page: { flex: 1, backgroundColor: "var(--win)" as string } });

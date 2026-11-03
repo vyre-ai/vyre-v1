@@ -1,6 +1,6 @@
 # files.list
 
-List files and folders in a folder or a section (Personal, Shared with me, Space)
+List files and folders in a folder or a section (Personal, Shared with me, Space). deep with section space lists every file in every Space folder the caller may see; q keeps names that contain it
 
 | | |
 |---|---|
@@ -8,7 +8,7 @@ List files and folders in a folder or a section (Personal, Shared with me, Space
 | Version | 1 (since 1.0.0) |
 | Effects | read |
 | Permission | grant only |
-| Grant level | view |
+| Grant level | member |
 | Risk | low |
 | Resource | space |
 | Gate | none |
@@ -30,6 +30,8 @@ type In = {
   kind?: "text" | "markdown" | "document" | "spreadsheet" | "presentation" | "pdf" | "image" | "video" | "audio" | "code" | "archive" | "google_native" | "other";
   sort?: "name" | "updated" | "size" | "kind";
   dir?: "asc" | "desc";
+  deep?: boolean;
+  q?: string;
   cursor?: string;
   limit?: number;
 };
@@ -101,10 +103,12 @@ type Out = {
   "name": "example",
   "input": {
     "cursor": "example",
+    "deep": true,
     "dir": "asc",
     "folder": "fld_a1b2c3",
     "kind": "text",
     "limit": 1,
+    "q": "example",
     "section": "personal",
     "sort": "name"
   },

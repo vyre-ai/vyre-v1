@@ -23,5 +23,6 @@ type Payload = {
   ownerId: string;
   folderId: string;
   templateVersion: number;
+  private?: boolean;
 };
 ```

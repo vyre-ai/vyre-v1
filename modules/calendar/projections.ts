@@ -222,6 +222,34 @@ export interface EventOut {
   status: "confirmed" | "tentative" | "canceled";
   bookedByAgentId?: string;
   fromBookingPage?: string;
+  seriesId?: string;
+  conference?: Conference;
+}
+
+export type ConferenceProvider = "meet" | "zoom" | "teams" | "webex" | "whereby" | "around" | "other";
+export interface Conference { provider: ConferenceProvider; url?: string; meetingId?: string; passcode?: string; dialIns: Array<{ number: string; pin?: string; label?: string }> }
+
+/** The video service a join link belongs to, by its host. */
+export function conferenceOfUrl(url: string | undefined): ConferenceProvider | null {
+  if (!url) return null;
+  let host = "";
+  try { host = new URL(url).hostname.toLowerCase(); } catch { return null; }
+  if (host === "meet.google.com") return "meet";
+  if (host.endsWith("zoom.us") || host.endsWith("zoom.com")) return "zoom";
+  if (host.endsWith("teams.microsoft.com") || host.endsWith("teams.live.com")) return "teams";
+  if (host.endsWith("webex.com")) return "webex";
+  if (host.endsWith("whereby.com")) return "whereby";
+  if (host.endsWith("around.co")) return "around";
+  return "other";
+}
+
+/** The conference a stored row carries; nothing when the column is empty or not readable. */
+export function readConference(v: unknown): Conference | undefined {
+  if (typeof v !== "string" || !v) return undefined;
+  try {
+    const c = JSON.parse(v) as Conference;
+    return c && typeof c.provider === "string" ? { ...c, dialIns: Array.isArray(c.dialIns) ? c.dialIns : [] } : undefined;
+  } catch { return undefined; }
 }
 
 export function toEvent(row: Row): EventOut {
@@ -233,10 +261,12 @@ export function toEvent(row: Row): EventOut {
     attendees: readAttendees(row.attendees), recordIds: readStrings(row.recordIds),
     status: status === "tentative" || status === "canceled" ? status : "confirmed",
   };
-  for (const key of ["location", "joinUrl", "description", "agenda", "organizer", "meetingId", "bookedByAgentId", "fromBookingPage"] as const) {
+  for (const key of ["location", "joinUrl", "description", "agenda", "organizer", "meetingId", "bookedByAgentId", "fromBookingPage", "seriesId"] as const) {
     const v = strOrNull(row, key);
     if (v) out[key] = v;
   }
+  const conf = readConference(row.conference);
+  if (conf) out.conference = conf;
   return out;
 }
 
@@ -350,7 +380,7 @@ export function graphTime(value: unknown): number | undefined {
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = ["0001_calendar_core.sql", "0002_calendar_account.sql", "0003_calendar_last_sync.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
+const migrationSql = ["0001_calendar_core.sql", "0002_calendar_account.sql", "0003_calendar_last_sync.sql", "0004_calendar_series.sql", "0005_calendar_conference.sql"].map((f) => readFileSync(fileURLToPath(new URL(`./migrations/${f}`, import.meta.url)), "utf8")).join("\n");
 
 export function statements(sql: string): string[] {
   const out: string[] = [];

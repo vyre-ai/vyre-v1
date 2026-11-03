@@ -12,16 +12,20 @@ type RecentOut = CapMap["chat.recent"]["out"];
 
 export type Route =
   /** `focus`: a message to open on and mark (a link from memory `...&m=<messageId>`, a search result or the link a fork starts with). */
-  | { view: "chat"; threadId: string | null; focus?: string }
+  | { view: "chat"; threadId: string | null; focus?: string; /** counts each time the same message is asked for again, so it is marked again */ focusN?: number }
   /** The first screen: a new chat, with what needs you and what is running under the composer. */
   | { view: "new" }
   /** Tasks and one task's page: the routes the Tasks lane fills. */
   | { view: "tasks" }
   | { view: "task"; taskId: string }
+  /** One goal's page, with its chat under it. */
+  | { view: "goal"; goalId: string }
   /** The threads you are in. */
   | { view: "threads" }
   /** What models made to show you. */
   | { view: "artifacts" }
+  /** Your notes: the grid. `noteId` opens one (a search hit, a link); `take` opens Take a note (each new number opens it again). */
+  | { view: "notes"; noteId?: string; take?: number }
   /** One page to make an agent (null) or change one. */
   | { view: "agent-form"; agentId: string | null }
   | { view: "search"; q: string; from: string | null }
@@ -51,18 +55,24 @@ export interface Shown {
   /** The terminal drawn beside the chat, as a side tab. */
   terminalId: string | null;
   layer: Layer | null;
+  /** An inline thread open beside its message (the chat stays put): on a computer in the right column, on a phone as a sheet over the chat. */
+  side?: string | null;
 }
 
 export const START: Shown = { route: { view: "new" }, pane: false, terminalId: null, layer: null };
 
 export type Act =
   /** `pane` opens the agent's pane beside the chat (a click on an agent). */
-  | { t: "chat"; threadId: string; pane?: boolean; focus?: string }
+  | { t: "chat"; threadId: string; pane?: boolean; focus?: string; /** the inline thread to open beside the chat */ side?: string }
+  /** Close the thread beside the chat (Escape, its close button). */
+  | { t: "side-close" }
   | { t: "new" }
   | { t: "tasks" }
   | { t: "task"; taskId: string }
+  | { t: "goal"; goalId: string }
   | { t: "threads" }
   | { t: "artifacts" }
+  | { t: "notes"; noteId?: string; take?: boolean }
   | { t: "agent-form"; agentId?: string }
   /** Search every chat. `q` starts the box with those words. */
   | { t: "search"; q?: string }
@@ -84,19 +94,32 @@ export type Act =
 
 export function step(s: Shown, a: Act): Shown {
   switch (a.t) {
-    case "chat": return a.threadId.startsWith(LOCAL_PREFIX) ? s : { ...s, route: a.threadId === "" ? { view: "new" } : { view: "chat", threadId: a.threadId, ...(a.focus ? { focus: a.focus } : {}) }, ...(a.pane ? { pane: true, terminalId: null } : {}), layer: null };
+    case "chat": {
+      if (a.threadId.startsWith(LOCAL_PREFIX)) return s;
+      const same = s.route.view === "chat" && s.route.threadId === a.threadId;
+      // the same message asked for again (the box at the top of its thread) is marked again
+      const n = same && s.route.view === "chat" && a.focus !== undefined && s.route.focus === a.focus ? (s.route.focusN ?? 0) + 1 : 0;
+      // a thread beside the chat stays while the chat does, and goes when another one opens
+      const side = a.side ?? (same ? s.side ?? null : null);
+      return {
+        ...s, route: a.threadId === "" ? { view: "new" } : { view: "chat", threadId: a.threadId, ...(a.focus ? { focus: a.focus } : {}), ...(n > 0 ? { focusN: n } : {}) },
+        ...(a.pane ? { pane: true, terminalId: null } : {}), side: a.threadId === "" ? null : side, layer: null,
+      };
+    }
+    case "side-close": return { ...s, side: null };
     case "new": return { ...s, route: { view: "new" }, layer: null };
-    case "tasks": return { ...s, route: { view: "tasks" }, layer: null };
-    case "task": return { ...s, route: { view: "task", taskId: a.taskId }, layer: null };
+    case "goal": return { ...s, route: { view: "goal", goalId: a.goalId }, pane: false, terminalId: null, layer: null };
     case "threads": return { ...s, route: { view: "threads" }, layer: null };
     case "artifacts": return { ...s, route: { view: "artifacts" }, layer: null };
+    case "notes": return { ...s, route: { view: "notes", ...(a.noteId ? { noteId: a.noteId } : {}), ...(a.take ? { take: (s.route.view === "notes" ? s.route.take ?? 0 : 0) + 1 } : {}) }, layer: null };
     case "agent-form": return { ...s, route: { view: "agent-form", agentId: a.agentId ?? null }, layer: null };
     case "search": return { ...s, route: { view: "search", q: a.q ?? "", from: s.route.view === "chat" ? s.route.threadId : s.route.view === "search" ? s.route.from : null }, layer: null };
     case "search-close": { const from = s.route.view === "search" ? s.route.from : null; return { ...s, route: from === null ? { view: "new" } : { view: "chat", threadId: from }, layer: null }; }
     case "helper": return { ...s, route: { view: "helper", threadId: a.threadId }, layer: null };
     case "imported": return { ...s, route: { view: "imported", conversationId: a.conversationId }, layer: null };
     case "ask": return { ...s, route: { view: "ask", agentId: a.agentId, scopeType: a.scopeType, scopeId: a.scopeId, bringFrom: a.bringFrom ?? null, ...(a.draft ? { draft: a.draft } : {}), ...(a.first ? { first: a.first } : {}) }, layer: null };
-    case "needs": return { ...s, route: { view: "needs", taskId: a.taskId ?? null }, layer: null };
+    // one Tasks door: a Needs you link opens Tasks, or the task it names (the old Needs you page is gone)
+    case "needs": return a.taskId ? step(s, { t: "task", taskId: a.taskId }) : step(s, { t: "tasks" });
     case "tasks": return { ...s, route: { view: "tasks" }, pane: false, terminalId: null, layer: null };
     case "task": return { ...s, route: { view: "task", taskId: a.taskId }, pane: false, terminalId: null, layer: null };
     case "agent": return { ...s, route: { view: "agent", agentId: a.agentId, tab: a.tab ?? null }, layer: null };
@@ -112,13 +135,14 @@ export function step(s: Shown, a: Act): Shown {
 
 /**
  * What the middle shows, as the key the Chats sidebar selects its row by: `t:<thread>` a chat or a channel, `i:<conversation>` an imported transcript, `a:<agent>` an agent's page or its
- * form, and `tasks`, `threads`, `artifacts`. Null for a page that has no row (a new chat, one task, search, Needs you, a helper). A tab switch, a link and Cmd-K all arrive as a route, so
+ * form, and `tasks`, `threads`, `artifacts`, `notes`. Null for a page that has no row (a new chat, one task, search, Needs you, a helper). A tab switch, a link and Cmd-K all arrive as a route, so
  * the selection follows each of them.
  */
 export function openKeyOf(r: Route): string | null {
   switch (r.view) {
     case "chat": return r.threadId ? `t:${r.threadId}` : null;
-    case "tasks": case "threads": case "artifacts": return r.view;
+    case "tasks": case "threads": case "artifacts": case "notes": return r.view;
+    case "goal": return `g:${r.goalId}`;
     case "imported": return `i:${r.conversationId}`;
     case "agent": return `a:${r.agentId}`;
     case "agent-form": return r.agentId ? `a:${r.agentId}` : null;
@@ -143,8 +167,10 @@ export const SCREEN = {
   needs: "tasks.needs-you",
   tasks: "tasks.my-work",
   task: "tasks.page",
+  goal: "goals.page",
   threads: "chats.threads",
   artifacts: "chats.artifacts",
+  notes: "chats.notes",
   agentForm: "chats.agent-form",
   conversation: "chats.conversation",
   ask: "chats.ask",
@@ -183,13 +209,16 @@ export function fromHash(hash: string): Shown {
   const screen = p.get("screen") ?? "";
   const arg = (k: string): string => p.get(k) ?? "";
   const fixed = { x: 8, y: 48 };
-  const subject = /^(thread|chat|channel|task):(.+)$/.exec(arg("subject"));
+  const subject = /^(thread|chat|channel|task|goal):(.+)$/.exec(arg("subject"));
+  if (subject?.[1] === "goal") return step(START, { t: "goal", goalId: subject[2]! });
   if (subject) return subject[1] === "task" ? step(START, { t: "task", taskId: subject[2]! }) : step(START, { t: "chat", threadId: subject[2]! });
   switch (screen) {
     case SCREEN.tasks: return step(START, { t: "tasks" });
     case SCREEN.task: return arg("taskId") === "" ? step(START, { t: "tasks" }) : step(START, { t: "task", taskId: arg("taskId") });
+    case SCREEN.goal: return arg("goalId") === "" ? START : step(START, { t: "goal", goalId: arg("goalId") });
     case SCREEN.threads: return step(START, { t: "threads" });
     case SCREEN.artifacts: return step(START, { t: "artifacts" });
+    case SCREEN.notes: return step(START, { t: "notes", ...(arg("noteId") === "" ? {} : { noteId: arg("noteId") }) });
     case SCREEN.agentForm: return step(START, { t: "agent-form", ...(arg("agentId") === "" ? {} : { agentId: arg("agentId") }) });
     case SCREEN.agent: { const tab = arg("tab"); return arg("agentId") === "" ? START : step(START, { t: "agent", agentId: arg("agentId"), ...(isTabKey(tab) ? { tab } : {}) }); }
     case SCREEN.helper: return arg("threadId") === "" ? START : step(START, { t: "helper", threadId: arg("threadId") });
@@ -219,4 +248,15 @@ export function anchorOfFocus(fallback: { x: number; y: number } = { x: 8, y: 48
   const box = doc?.activeElement?.getBoundingClientRect?.();
   if (!box || (box.width === 0 && box.height === 0)) return fallback;
   return { x: box.left, y: box.bottom + 4 };
+}
+
+/**
+ * Where a thread opens: a helper as the helper chat; a reply thread beside the message it hangs off (the chat stays put); a task's thread on its task; anything else as a chat.
+ */
+export type ThreadDoor = { t: "helper" | "chat" } | { t: "side"; parent: string; messageId: string } | { t: "task"; taskId: string };
+export function threadDoor(t: { kind: string; parentThreadId?: string | undefined; parentMessageId?: string | undefined; scopeType?: string | undefined; scopeId?: string | undefined }): ThreadDoor {
+  if (t.kind === "helper") return { t: "helper" };
+  if (t.kind === "thread" && t.scopeType === "task" && t.scopeId) return { t: "task", taskId: t.scopeId };
+  if (t.kind === "thread" && t.parentThreadId && t.parentMessageId) return { t: "side", parent: t.parentThreadId, messageId: t.parentMessageId };
+  return { t: "chat" };
 }

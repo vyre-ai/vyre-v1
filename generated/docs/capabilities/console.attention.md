@@ -32,7 +32,7 @@ type In = Record<string, unknown>;
 ```ts
 type Out = {
   items: Array<{
-      kind: "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due";
+      kind: "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due" | "join_stuck" | "home_channel" | "no_ai_account";
       title: string;
       ref?: string;
       since: number;

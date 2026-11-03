@@ -4,15 +4,15 @@ import {CapError} from '../shell/session/caps.ts';
 import type {CapCall} from '../shell/session/caps.ts';
 import {deviceFor} from './logic.ts';
 export class RecoveryAppliedError extends Error{constructor(){super('Your password was updated. Sign in with your new password to continue.');this.name='RecoveryAppliedError';}}
-interface Deps{call:CapCall;recover(code:string,password:string,download:RecoveryDownload):Promise<{keys:unknown;recoveryProof:string;personKey:Uint8Array}>;verify(token:string):Promise<StoredSession>;holdKey(token:string,key:Uint8Array):Promise<boolean>;wipe(key:Uint8Array):void}
+interface Deps{call:CapCall;recover(code:string,password:string,download:RecoveryDownload):Promise<{keys:unknown;recoveryProof:string;personKey:Uint8Array;/** a linked Space's earlier key (rc.17), the one it takes */dataKey?:Uint8Array}>;verify(token:string):Promise<StoredSession>;holdKey(token:string,key:Uint8Array):Promise<boolean>;wipe(key:Uint8Array):void}
 export async function completeRecovery(deps:Deps,input:{username:string;code:string;password:string;deviceClass:'web'|'desktop'}):Promise<StoredSession>{
  const username=input.username.trim().toLowerCase();
  const download=await deps.call('identity.recovery_fetch',{username}) as RecoveryDownload;
  const recovered=await deps.recover(input.code.trim(),input.password,download);
  try{const answer=await deps.call('identity.recovery_restore',{username,recoveryProof:recovered.recoveryProof,newPassword:input.password,keys:recovered.keys,...deviceFor(input.deviceClass)}) as {session?:{token?:string}};const token=answer.session?.token;if(!token)throw new RecoveryAppliedError();
  let stored:StoredSession;try{stored=await deps.verify(token);}catch{throw new RecoveryAppliedError();}
- await deps.holdKey(token,recovered.personKey).catch(()=>false);return stored;
- }finally{deps.wipe(recovered.personKey);}
+ await deps.holdKey(token,recovered.dataKey??recovered.personKey).catch(()=>false);return stored;
+ }finally{deps.wipe(recovered.personKey);if(recovered.dataKey)deps.wipe(recovered.dataKey);}
 }
 
 /** What a failed recovery means to the person. A wrong username or code share one line so the form never says which account exists; rate limits, outages and a dead connection each get their own. */

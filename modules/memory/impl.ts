@@ -9,6 +9,8 @@ import { configureMeaning } from "./meaning.ts";
 import type { MeaningHost } from "./meaning.ts";
 import type { Candidate, CaptureMessage, Extractor } from "./handlers/facts.ts";
 import type { Handler } from "../../host/src/invoke.ts";
+import { setMemoryKeyPort } from "./personal.ts";
+import type { MemoryKeyPort } from "./personal.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 
@@ -18,8 +20,12 @@ export { ensure } from "./projections.ts";
 export { setEmbedder, configureMeaning } from "./meaning.ts";
 export type { Embedder, MeaningHost } from "./meaning.ts";
 export { setUpkeepModel } from "./handlers/upkeep.ts";
+export { setLearnSeams, shouldLearn } from "./handlers/learn.ts";
+export type { LearnSeams, LearnThread } from "./handlers/learn.ts";
 export type { UpkeepAction, UpkeepModel, UpkeepRequest, UpkeepResult, UpkeepScope } from "./handlers/upkeep.ts";
 export { periodic } from "./hooks.ts";
+export { setMemoryKeyPort } from "./personal.ts";
+export type { MemoryKeyPort } from "./personal.ts";
 
 /**
  * Host calls for the removal wizard (members.owned, host/src/seams/people.ts): what a person owns here and what happens to it (P-L7_21). The host runs them with this module's ctx, so no other module
@@ -49,5 +55,11 @@ export const hostCalls = {
   },
 };
 
-/** The host binds what it runs locally for meaning search (a small embedding model on this server) through this one setter; the daemon wires it by name at boot. */
-export const hostSeams = { setMemoryMeaningHost: (host: MeaningHost | null): void => configureMeaning(host) };
+/**
+ * What the host binds at boot, by name: what it runs locally for meaning search (a small embedding model on this server), and the keyring's person keys, for a person's own memory
+ * (owner ruling 3 Nov 2026, personal.ts).
+ */
+export const hostSeams = {
+  setMemoryMeaningHost: (host: MeaningHost | null): void => configureMeaning(host),
+  setMemoryKeyPort: (port: MemoryKeyPort | null): void => setMemoryKeyPort(port),
+};

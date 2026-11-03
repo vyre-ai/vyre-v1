@@ -24,7 +24,7 @@ test("warm reuse: the process starts when the session opens, answers turn after 
   const one = await collect(session.send(turnOf("text")));
   assert.deepEqual(kinds(one), ["text", "text", "usage", "done"]);
   assert.deepEqual(texts(one), ["Hello", " from Claude."]);
-  assert.deepEqual(one.find((e) => e.type === "usage"), { type: "usage", inputTokens: 112, outputTokens: 6 });
+  assert.deepEqual(one.find((e) => e.type === "usage"), { type: "usage", inputTokens: 112, outputTokens: 6, cacheReadTokens: 100, cacheWriteTokens: 0, costUsd: 0.0012 });
 
   const two = await collect(session.send(turnOf("text")));
   assert.equal(two.at(-1)?.type, "done");

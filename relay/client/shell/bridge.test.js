@@ -87,3 +87,18 @@ test("the box key the accept hands back reaches the worker on the answer, untouc
   const res = await bridge.handle(new Request("https://acme.vyre.run/v1/members/accept", { method: "POST", body: "{}" }));
   assert.equal(res?.headers.get("x-vyre-box"), key);
 });
+
+test("the computer the phone dialled sleeps: the worker is told first, and a page comes from whichever computer of the Space the gateway finds awake", async () => {
+  /** @type {any[]} */ const told = [];
+  const bridge = createBridge({
+    label: () => "Home laptop", waitMs: 20,
+    box: async () => ({ fetch: (_p, init) => new Promise((_r, rej) => init.signal?.addEventListener("abort", () => rej(Object.assign(new Error("aborted"), { name: "AbortError" })))) }),
+    asleep: async (req, navigation) => { told.push([new URL(req.url).pathname, navigation]); return navigation ? new Response("shell from the office computer", { status: 200 }) : null; },
+  });
+  const nav = await bridge.handle(new Request("https://alex.vyre.run/chat", { headers: { accept: "text/html" } }));
+  assert.equal(nav?.status, 200);
+  assert.equal(await nav?.text(), "shell from the office computer");
+  const api = await bridge.handle(new Request("https://alex.vyre.run/v1/x", { headers: { accept: "application/json" } }));
+  assert.equal(api?.status, 503, "a call says asleep once; the next one dials again");
+  assert.deepEqual(told, [["/chat", true], ["/v1/x", false]]);
+});

@@ -115,6 +115,26 @@ export type FormFieldsBlockData = {
       kind: string;
     }>;
 };
+export type GoalBlockData = {
+  goalId: string;
+  threadId: string;
+  kind: "draft" | "update" | "stuck" | "ended";
+  title: string;
+  line: string;
+  status: "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
+  value?: number;
+  prev?: number;
+  target?: number;
+  unit?: string;
+  deadline: number;
+  summary?: string;
+  done?: Array<string>;
+  next?: Array<string>;
+  needs?: Array<string>;
+  plan?: Array<string>;
+  permissions?: Array<string>;
+  outcome?: "done" | "missed" | "stopped";
+};
 export type HelperBlockData = {
   threadId: string;
   parentThreadId: string;
@@ -264,6 +284,7 @@ export interface BlockDataMap {
   "doc_excerpt": DocExcerptBlockData;
   "file": FileBlockData;
   "form_fields": FormFieldsBlockData;
+  "goal": GoalBlockData;
   "helper": HelperBlockData;
   "memory_saved": MemorySavedBlockData;
   "model_switch": ModelSwitchBlockData;
@@ -515,6 +536,46 @@ export const blockRegistry = [
     "waitsForAnswer": false,
     "actions": [],
     "opens": null
+  },
+  {
+    "type": "goal",
+    "v": 1,
+    "module": "goals",
+    "component": "ui:BlockGoal",
+    "fallback": "Goal {{title}}: {{line}}",
+    "waitsForAnswer": false,
+    "actions": [
+      {
+        "key": "start",
+        "label": "Start goal",
+        "cap": "goals.confirm",
+        "input": {
+          "goalId": "/goalId"
+        }
+      },
+      {
+        "key": "extend",
+        "label": "Extend",
+        "cap": "goals.extend",
+        "input": {
+          "goalId": "/goalId"
+        }
+      },
+      {
+        "key": "resume",
+        "label": "Resume",
+        "cap": "goals.resume",
+        "input": {
+          "goalId": "/goalId"
+        }
+      }
+    ],
+    "opens": {
+      "tab": "goal",
+      "input": {
+        "goalId": "/goalId"
+      }
+    }
   },
   {
     "type": "helper",

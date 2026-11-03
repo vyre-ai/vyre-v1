@@ -16,7 +16,7 @@ test("codex: a turn is a process; the thread id from the first turn is passed as
 
   const one = await collect(session.send(turnOf("text")));
   assert.deepEqual(kinds(one), ["thinking", "text", "usage", "done"]);
-  assert.deepEqual(one.find((e) => e.type === "usage"), { type: "usage", inputTokens: 1200, outputTokens: 18 });
+  assert.deepEqual(one.find((e) => e.type === "usage"), { type: "usage", inputTokens: 1200, outputTokens: 18, cacheReadTokens: 1000 });
   assert.equal(session.warm, true, "the thread id is known: the next turn resumes it");
   const first = session.pid;
   assert.equal(first, undefined, "no process is left running");

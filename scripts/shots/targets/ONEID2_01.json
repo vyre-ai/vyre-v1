@@ -1,0 +1,15 @@
+{
+  "targets": [
+    { "id": "ONEID2_01-join-form", "route": "/m/ONEID2_01?view=join-form", "proto": "join,at:s2,{skin}", "waitFor": "[data-testid='have-vyre-account']", "note": "rc.17: the invite's account step on a device with no account. It says it creates your Vyre account, and offers I already have a Vyre account." },
+    { "id": "ONEID2_01-claim-form", "route": "/m/ONEID2_01?view=claim-form", "proto": "join,at:s2,{skin}", "waitFor": "[data-testid='claim-have-account']", "note": "rc.17: the owner claim form with I already have a Vyre account." },
+    { "id": "ONEID2_01-have-home", "route": "/m/ONEID2_01?view=have-home", "proto": "join,at:s2,{skin}", "waitFor": "[data-testid='join-have-address']", "note": "I already have a Vyre account: the address of a Space you are in. The account comes with the same password and recovery code." },
+    { "id": "ONEID2_01-have-password", "route": "/m/ONEID2_01?view=have-password", "proto": "join,at:s2,{skin}", "waitFor": "[data-testid='join-have-password-field']", "note": "Sign in to that Space with the username and password; Use your recovery code below." },
+    { "id": "ONEID2_01-have-code", "route": "/m/ONEID2_01?view=have-code", "proto": "join,at:s2,{skin}", "waitFor": "[data-testid='join-have-code-field']", "note": "A Space that signs you in with Google: the username and recovery code bring the account here." },
+    { "id": "ONEID2_01-have-code-error", "route": "/m/ONEID2_01?view=have-code-error", "proto": "join,at:s2,{skin}", "waitFor": "[data-testid='join-have-error']", "note": "A wrong username or code: one line, the same for both." },
+    { "id": "ONEID2_01-have-newpass", "route": "/m/ONEID2_01?view=have-newpass", "proto": "join,at:s2,{skin}", "waitFor": "[data-testid='join-have-new-password']", "note": "After the recovery code: a password chosen once. The recovery code stays the same." },
+    { "id": "ONEID2_01-sso-known", "route": "/m/ONEID2_01?view=sso-known", "proto": "join,at:s2,{skin}", "waitFor": "[data-testid='join-as-password']", "note": "Continue as for a person this device knows from Google: one field takes the password set at joining, or the recovery code. Asked once on this device." },
+    { "id": "ONEID2_01-sso-newpass", "route": "/m/ONEID2_01?view=sso-newpass", "proto": "join,at:s2,{skin}", "waitFor": "[data-testid='join-as-new-password']", "note": "After the recovery code on Continue as: a password chosen once." },
+    { "id": "ONEID2_01-link", "route": "/m/ONEID2_01?view=link", "proto": "settings,{skin}", "waitFor": "[data-testid='link-keep-password']", "note": "Settings > Sign-in > Use one account everywhere: keep the Personal account, prove both." },
+    { "id": "ONEID2_01-link-done", "route": "/m/ONEID2_01?view=link-done", "proto": "settings,{skin}", "waitFor": "[data-testid='link-done']", "note": "Done: MLA now signs you in as irfad, with the same password and recovery code; your work there is unchanged." }
+  ]
+}

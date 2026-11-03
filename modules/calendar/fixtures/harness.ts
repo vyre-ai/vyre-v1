@@ -38,6 +38,8 @@ export function harness(opts: HarnessOptions = {}) {
   const members = new Map<string, string>(Object.entries(opts.members ?? { usr_maya01: "maya@vyre.test", usr_omar01: "omar@vyre.test" }));
   const meetings: Meeting[] = (opts.meetings ?? []).map((m) => ({ ...m, emails: [...m.emails], sources: [...m.sources] }));
   const failing = new Set<string>();
+  // recorded provider answers for the push (google.calendar.*, ms.calendar.*, zoom.meetings.create): a test scripts the ones it needs
+  const scripts = new Map<string, (input: Record<string, unknown>) => unknown>();
   const google: { pages: Record<string, unknown>[]; refuseToken?: boolean } = { pages: [] };
   const graph: { answers: Record<string, unknown>[]; refuseLink?: boolean } = { answers: [] };
   let clock = NOW;
@@ -64,6 +66,8 @@ export function harness(opts: HarnessOptions = {}) {
       if (misfit.length) throw new Error(`${cap} was called with input its contract refuses: ${misfit.join("; ")}`);
       const trace = ctx.trace.traceId;
       if (failing.has(cap)) throw fail("internal.unavailable", trace);
+      const scripted = scripts.get(cap);
+      if (scripted) return scripted(body);
       switch (cap) {
         case "mail.mailbox.list":
           return {
@@ -107,6 +111,13 @@ export function harness(opts: HarnessOptions = {}) {
           }
           return graph.answers.shift() ?? { changed: [], removed: [], deltaLink: "delta_empty" };
         }
+        // a provider calendar's push when a test did not script one: Google and Graph answer the event as sent, with an id of their own
+        case "google.calendar.create_event": return { event: { id: `g_${++serial}`, status: "confirmed", summary: body.summary, start: body.start ?? {}, end: body.end ?? {}, ...(body.attendees ? { attendees: body.attendees } : {}) } };
+        case "google.calendar.update_event": return { event: { id: String(body.eventId), status: "confirmed", summary: body.summary, start: body.start ?? {}, end: body.end ?? {}, ...(body.attendees ? { attendees: body.attendees } : {}) } };
+        case "google.calendar.delete_event": case "ms.calendar.delete_event": return { deleted: true };
+        case "ms.calendar.create_event": return { event: { id: `m_${++serial}`, subject: body.subject, start: body.start ?? {}, end: body.end ?? {} } };
+        case "ms.calendar.update_event": return { event: { id: String(body.eventId), subject: body.subject, start: body.start ?? {}, end: body.end ?? {} } };
+        case "google.calendar.get_event": return { event: { id: String(body.eventId), status: "confirmed", start: {}, end: {} } };
         default: throw new Error(`unexpected capability ${cap}`);
       }
     },
@@ -118,6 +129,7 @@ export function harness(opts: HarnessOptions = {}) {
     ctx, emitted, called, denied, members, meetings, google, graph,
     advance(ms: number) { clock += ms; },
     fail(cap: string, on = true) { if (on) failing.add(cap); else failing.delete(cap); },
+    script(cap: string, fn: (input: Record<string, unknown>) => unknown) { scripts.set(cap, fn); },
     /** The same data seen by another person. */
     as(principal: CalCtx["principal"]): CalCtx { return Object.assign(Object.create(ctx) as CalCtx, { principal }); },
     rows(sql: string, ...args: unknown[]): Row[] { return ctx.db.all(sql, ...args) as Row[]; },

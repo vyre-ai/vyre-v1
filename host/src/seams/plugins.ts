@@ -8,7 +8,11 @@ import path from "node:path";
 
 export interface TreeSource { kind: "git" | "local"; url?: string; path?: string; ref?: string; subdir?: string }
 export interface TreeResult { files: Record<string, string>; revision: string; skipped: string[] }
-export interface PluginsHostSeam { fetchTree(src: TreeSource): Promise<TreeResult> }
+export interface PluginsHostSeam {
+  fetchTree(src: TreeSource): Promise<TreeResult>;
+  /** One JSON document over https (the MCP server catalog). Only when the daemon gave a fetch. */
+  fetchJson?(url: string): Promise<unknown>;
+}
 
 export const LIMITS = { files: 2000, fileBytes: 300_000, totalBytes: 6_000_000 } as const;
 const SKIP_DIRS = new Set([".git", "node_modules", ".DS_Store"]);
@@ -57,14 +61,32 @@ export interface PluginsHostDeps {
   /** The git program. Default: git. */
   git?: string;
   timeoutMs?: number;
+  /** The daemon's guarded fetch, for the MCP server catalog. Without it the catalog answers from what it kept. */
+  fetch?: (url: string, init?: { method?: string; headers?: Record<string, string> }) => Promise<{ status: number; text(): Promise<string> }>;
 }
+
+/** Catalog pages are small; a larger answer is not a catalog page. */
+export const CATALOG_MAX_BYTES = 2_000_000;
 
 const literalPrivate = (host: string): boolean => /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$)/i.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host);
 
 export function createPluginsHost(d: PluginsHostDeps = {}): PluginsHostSeam {
   const git = d.git ?? "git";
   const timeout = d.timeoutMs ?? 90_000;
+  const get = d.fetch;
   return {
+    ...(get ? {
+      async fetchJson(url: string): Promise<unknown> {
+        const u = new URL(url);
+        if (u.protocol !== "https:") throw new Error("The catalog is read over https.");
+        if (literalPrivate(u.hostname)) throw new Error("That address is on a private network.");
+        const r = await get(url, { method: "GET", headers: { accept: "application/json" } });
+        if (r.status < 200 || r.status >= 300) throw new Error(`The catalog answered ${r.status}.`);
+        const text = await r.text();
+        if (text.length > CATALOG_MAX_BYTES) throw new Error("The catalog answered too much.");
+        return JSON.parse(text) as unknown;
+      },
+    } : {}),
     async fetchTree(src) {
       const sub = src.subdir ? src.subdir.replace(/^\/+|\/+$/g, "") : "";
       if (sub.split("/").includes("..")) throw new Error("The folder inside the repository is not allowed.");

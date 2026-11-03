@@ -3,11 +3,13 @@
 //   1 resolve  2 validate  3 idempotency  4 rate limit  5 authorize (+ Gate)  6 handler  7 commit (events, audit)  8 publish
 // Everything the pipeline needs from outside is a port in InvokeDeps, so the same code runs against the real kernel (authorize, LogClient idempotency, tx) and against fakes in tests.
 // Errors leave as HostError (a shaped VyreError with its HTTP status); nothing here throws a raw exception to a caller.
+import { PERSON_LACKS_ROLE_LINE, roleLine } from "../../lib/vault-lines.ts";
 import { formatHlc, tickHlc } from "../../lib/hlc.ts";
 import type { Hlc } from "../../lib/hlc.ts";
 import { mintId } from "../../lib/ids.ts";
 import {isHostService} from "../../lib/trust.ts";
 import { mintEventId } from "./ids.ts";
+import { noteRead } from "./seams/answer-reads.ts";
 import type { Decision as KernelDecision, Req as AuthReq, ResourceRef } from "../../kernel/src/authorize/index.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
 import type { CallOpts, Ctx, Decision, EmitOpts, Logger, StepRef } from "../../packages/contracts/src/ctx.ts";
@@ -131,7 +133,12 @@ export interface GateHook {
   seen?(cap: CapabilityDef, input: unknown, output: unknown, seed: CtxSeed): Promise<void>;
 }
 
+/** The reason a step's outward act was refused on a computer that does not hold the schedule lease now; the Run waits for the one that does (modules/runs). */
+export const NOT_SCHEDULING_COMPUTER = "not_scheduling_computer";
+
 export interface InvokeDeps {
+  /** A Personal Space on several computers: does this computer hold the scheduled-work lease now. Absent: always. */
+  scheduledHere?(): boolean;
   /** The Files mutation guard for connector sources (host/src/daemon/connector-source-guard.ts): an extra check on top of normal Files authorization. */
   sourceGuard?: { check(a: { cap: string; input: unknown; seed: CtxSeed; now: number }): { key: string; reason: string } | null };
   recordAccess?: {
@@ -153,7 +160,8 @@ export interface InvokeDeps {
   audit?(row: AuditRow): void | Promise<void>;
   publish?(events: EventEnvelope[]): void;
   idem?: {
-    once<T>(principal: string, cap: string, key: string | undefined | null, input: unknown, run: () => Promise<T>): Promise<T>;
+    /** `keep`: what of the result is stored for a repeat; omitted, all of it. */
+    once<T>(principal: string, cap: string, key: string | undefined | null, input: unknown, run: () => Promise<T>, keep?: (result: T) => unknown): Promise<T>;
     /** Write the approved result over the hold stored for the same key, so the Run's next call of that key gets what was released. */
     settle?(principal: string, cap: string, key: string, input: unknown, result: unknown): Promise<void> | void;
   };
@@ -290,6 +298,11 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       if (!cap) throw fail("validation.unknown_capability", traceId, { message: "There is no such capability.", details: { cap: capName, v: seed.v ?? null } });
       const c = cap;
       deps.personal?.gate(c.name, traceId, { input, principal: seed.principal, actingFor: seed.actingFor });
+      // A Personal Space on several computers: a send, post or payment inside a scheduled step happens only on the computer that holds the schedule lease at that moment (host/src/peers/runner.ts).
+      // Anywhere else the step parks and the holder carries it on after the next sync, so two computers that both thought they held the lease cannot both send.
+      if (seed.step && c.effects === "outward" && deps.scheduledHere && !deps.scheduledHere()) {
+        throw fail("internal.unavailable", traceId, { message: "Waiting for the computer that runs scheduled work.", details: { cap: c.name, reason: NOT_SCHEDULING_COMPUTER } });
+      }
       const depth = seed.depth ?? 0;
       if (depth >= MAX_DEPTH) throw fail("validation.precondition_failed", traceId, { message: "Calls nest too deeply.", details: { depth, limit: MAX_DEPTH } });
 
@@ -330,7 +343,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         key = seed.approval ? `${k}:approved` : k;
       }
       const run = (): Promise<InvokeResult> => stepsFour(c, input, seed, trace, depth, collectionRateChecked);
-      const result = key !== undefined && deps.idem ? await deps.idem.once(seed.principal.id, c.name, key, input, run) : await run();
+      // the answer kept for a repeat never holds a person's own memory in words (owner ruling 3 Nov 2026: it is sealed under their key, and events.db is not)
+      const result = key !== undefined && deps.idem ? await deps.idem.once(seed.principal.id, c.name, key, input, run, c.name.startsWith("memory.") ? withoutPersonalWords : undefined) : await run();
       if (seed.approval && rawKey && result.status === "ok") await deps.idem?.settle?.(seed.principal.id, c.name, rawKey, input, result);
       span(result.status === "held" ? "held" : "ok");
       return { ...result, traceId };
@@ -365,7 +379,8 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     if (!seed.preAuth) {
       try { resource = resolveResource(c, input, seed.space, deps.resolveItem); }
       catch (e) {
-        if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
+        // a Vault name or handle that names nothing the caller may use reads the same as one that does not exist, in words a person or an agent can act on
+        if (e instanceof BindingError) throw fail("validation.bad_input", traceId, { ...(e.message === "no such item" ? { message: "There is no Vault item by that name that you can use. Check the name, or ask for the key." } : {}), details: { errors: [`${e.pointer}: ${e.message}`], cap: c.name } });
         throw e;
       }
       if (resource && deps.ensureResource) await deps.ensureResource(resource);
@@ -400,12 +415,15 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         const pd = deps.authorize({ ...req, principal: seed.actingFor!, actingFor: undefined, approved: false });
         if (pd.effect === "deny") {
           await deps.audit?.(audit("deny", `asks_person:${pd.reason}`));
-          throw fail(codeForReason(pd.reason), traceId, { message: "The person you act for cannot do this either. Someone whose role allows it, an owner or an admin of this Space, has to do it or give them that role.", details: { cap: c.name, reason: "person_lacks_role", personReason: pd.reason, steps: pd.steps.map((x) => x.text) } });
+          throw fail(codeForReason(pd.reason), traceId, { message: PERSON_LACKS_ROLE_LINE, details: { cap: c.name, reason: "person_lacks_role", personReason: pd.reason, steps: pd.steps.map((x) => x.text) } });
         }
         // the setup grant: the person said yes ahead of time for this kind of call, so it runs as them now. Sends, posts and payments are never in it: they keep the Gate and the chat's rules.
         if (seed.setupGrant === true && c.effects !== "outward") {
           await deps.audit?.(audit("allow", "setup_grant"));
-          const asPerson: CtxSeed = { ...seed, principal: { kind: "person", id: seed.actingFor! }, actingFor: undefined, askPerson: undefined, setupGrant: undefined, askFirst: undefined, askable: undefined, chatMode: undefined, auditAll: true };
+          // Setting the Space AI key puts the value the agent itself sent into a Restricted folder and answers nothing secret: the provider label (which keeps Restricted data from reaching a provider)
+          // has nothing to keep from it there, so the call runs as the person alone. Every other call keeps the label.
+          const keyIn = c.name === "providers.space_key.set" ? { provider: undefined } : {};
+          const asPerson: CtxSeed = { ...seed, principal: { kind: "person", id: seed.actingFor! }, actingFor: undefined, askPerson: undefined, setupGrant: undefined, askFirst: undefined, askable: undefined, chatMode: undefined, auditAll: true, ...keyIn };
           return stepsFour(c, input, asPerson, trace, depth, true);
         }
         return park(c, input, seed, traceId, pd.decisionId, c.gate?.act && c.gate.act !== "none" ? c.gate.act : "approve", audit("hold", "asks_person"), "person");
@@ -415,7 +433,11 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         const code = codeForReason(d.reason);
         // an agent stopped at a folder or a file its person may be able to share: the refusal names the press, so the person gets it in Needs you
         const askShare = d.reason === "no_grant" && seed.principal.kind === "agent" && seed.actingFor !== undefined && resource !== null && (resource.type === "folder" || resource.type === "file");
-        throw fail(code, traceId, { details: { cap: c.name, reason: d.reason, steps: d.steps.map((s) => s.text) }, ...(askShare ? { message: "You have not been given this. Call access_request now with the resource and level in next, without asking first: it only asks, and a person shares it with you with one press.", next: [{ kind: "ask_access", label: "Ask to share this", action: { cap: "access.request", input: { resource: { type: resource.type, id: resource.id }, level: c.effects === "read" ? "view" : "edit" } } }] } : {}) });
+        // a role that does not reach a Vault, AI key or connection call: plain words with what to do instead (lib/vault-lines.ts)
+        // (a person whose access to the Space itself is too low for the call is the same thing said another way)
+        // (so is a guest making their own connection: they hold no grant on the app's connector, which hangs off the Space)
+        const plain = seed.principal.kind === "person" && (d.reason === "role_lacks_permission" || (d.reason === "no_grant" && (resource?.type === "space" || (resource?.type === "connection" && resource.id === null)))) ? roleLine(c.name) : null;
+        throw fail(code, traceId, { details: { cap: c.name, reason: d.reason, steps: d.steps.map((s) => s.text) }, ...(plain ? { message: plain } : {}), ...(askShare ? { message: "You have not been given this. Call access_request now with the resource and level in next, without asking first: it only asks, and a person shares it with you with one press.", next: [{ kind: "ask_access", label: "Ask to share this", action: { cap: "access.request", input: { resource: { type: resource.type, id: resource.id }, level: c.effects === "read" ? "view" : "edit" } } }] } : {}) });
       }
       if (d.effect === "hold") {
         const g = d.obligations.find((o) => o.type === "gate");
@@ -426,6 +448,10 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       if (guarded) {
         await deps.audit?.(audit("deny", guarded.reason));
         throw fail("permission.no_grant", traceId, { message: "This folder is the source of a connector. Changing it takes edit access to that connector as well.", details: { cap: c.name, reason: guarded.reason, connector: guarded.key } });
+      }
+      // what an agent reads for a person inside a chat is noted, so its answer is checked against everyone who reads that chat before it is posted there (seams/answer-reads.ts, gap 6)
+      if (c.effects === "read" && depth === 0 && resource !== null && seed.principal.kind === "agent" && seed.actingFor?.startsWith("usr_") && seed.thread !== undefined) {
+        noteRead({ thread: seed.thread, agent: seed.principal.id, asker: seed.actingFor, resource: { type: resource.type, id: resource.id } });
       }
     }
     // the capability's own Gate (spec 2.14): fail closed when a Gate is declared and nothing can park the call
@@ -555,6 +581,10 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         const d = deps.authorize({ principal: seed.principal.id, actingFor: seed.actingFor, action, resource, provider: seed.provider, now: now() });
         return { effect: d.effect, reason: d.reason, decisionId: d.decisionId };
       },
+      // each person on their own grants, as no one's agent: what a chat's audience may open (lib/audience.ts). A check that cannot run says no.
+      mayAll(people, action, resource): boolean {
+        return people.every((p) => { try { return deps.authorize({ principal: p, action, resource, now: now() }).effect === "allow"; } catch { return false; } });
+      },
       vault: svc.vault ?? { fill: unavailable("vault"), use: unavailable("vault") },
       http: svc.http ?? unavailable("http"),
       log,
@@ -567,3 +597,20 @@ export function createInvoke(deps: InvokeDeps): Invoke {
 
   return invoke;
 }
+
+/**
+ * A copy of a memory answer with the words of every person-layer item blanked (a fact's text; a page's title, subtitle, blurb and notes): what idempotency keeps for a repeat. Ids, layers and times stay,
+ * so a repeated call still learns which row it made; the words are read again through the module, under the person's key.
+ */
+export function withoutPersonalWords(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(withoutPersonalWords);
+  if (v === null || typeof v !== "object") return v;
+  const o = v as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [k, x] of Object.entries(o)) out[k] = withoutPersonalWords(x);
+  if (o["layer"] === "person") for (const k of ["text", "title", "subtitle", "blurb", "notes", "snippet"]) if (typeof out[k] === "string") out[k] = "";
+  // a page answer carries its notes next to the page
+  if (isPersonPage(o["page"]) && typeof out["notes"] === "string") out["notes"] = "";
+  return out;
+}
+const isPersonPage = (p: unknown): boolean => p !== null && typeof p === "object" && (p as { layer?: unknown }).layer === "person";

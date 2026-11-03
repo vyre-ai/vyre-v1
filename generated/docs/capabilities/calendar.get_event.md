@@ -1,6 +1,6 @@
 # calendar.get_event
 
-Read one event with attendees, agenda, linked records and meeting
+Read one event with attendees, agenda, linked records and meeting, your own answer and how it repeats
 
 | | |
 |---|---|
@@ -58,7 +58,24 @@ type Out = {
     status: "confirmed" | "tentative" | "canceled";
     bookedByAgentId?: string;
     fromBookingPage?: string;
+    seriesId?: string;
+    conference?: {
+      provider: "meet" | "zoom" | "teams" | "webex" | "whereby" | "around" | "other";
+      url?: string;
+      meetingId?: string;
+      passcode?: string;
+      dialIns: Array<{
+          number: string;
+          pin?: string;
+          label?: string;
+        }>;
+    };
   };
+  mine?: {
+    email: string;
+    response: "needs_action" | "accepted" | "declined" | "tentative";
+  };
+  repeats?: "day" | "weekday" | "week" | "two_weeks" | "month" | "other";
 };
 ```
 
@@ -92,6 +109,19 @@ type Out = {
       ],
       "bookedByAgentId": "agt_a1b2c3",
       "calendarId": "cld_a1b2c3",
+      "conference": {
+        "dialIns": [
+          {
+            "label": "example",
+            "number": "example",
+            "pin": "example"
+          }
+        ],
+        "meetingId": "example",
+        "passcode": "example",
+        "provider": "meet",
+        "url": "example"
+      },
       "description": "example",
       "endsAt": 1760000000000,
       "fromBookingPage": "frm_a1b2c3",
@@ -104,10 +134,16 @@ type Out = {
       "recordIds": [
         "rec_a1b2c3"
       ],
+      "seriesId": "example",
       "startsAt": 1760000000000,
       "status": "confirmed",
       "title": "example"
-    }
+    },
+    "mine": {
+      "email": "maya@example.com",
+      "response": "needs_action"
+    },
+    "repeats": "day"
   }
 }
 ```

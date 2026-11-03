@@ -41,6 +41,9 @@ export const WATCHED: Readonly<Record<string, { entity: string; idKey: string; r
   "automation.created": { entity: "automation", idKey: "automationId" }, "automation.updated": { entity: "automation", idKey: "automationId" },
   "automation.restored": { entity: "automation", idKey: "automationId" }, "automation.deleted": { entity: "automation", idKey: "automationId", remove: true },
   "task.created": { entity: "task", idKey: "taskId" }, "task.updated": { entity: "task", idKey: "taskId" }, "task.transitioned": { entity: "task", idKey: "taskId" },
+  // a deleted task leaves search, and one that comes back or changes hands is read again (l-tasks)
+  "task.deleted": { entity: "task", idKey: "taskId", remove: true }, "task.restored": { entity: "task", idKey: "taskId" }, "task.assigned": { entity: "task", idKey: "taskId" },
+  "task.withdrawn": { entity: "task", idKey: "taskId" }, "task.completed": { entity: "task", idKey: "taskId" },
   "channel.created": { entity: "channel", idKey: "channelId" }, "channel.updated": { entity: "channel", idKey: "channelId" }, "channel.unarchived": { entity: "channel", idKey: "channelId" },
   "channel.archived": { entity: "channel", idKey: "channelId", remove: true },
 };

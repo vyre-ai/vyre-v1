@@ -1,0 +1,15 @@
+{
+  "targets": [
+    { "id": "GOALS_01-page-active", "route": "/m/GOALS_01?part=page&state=active", "proto": "chats,{skin}", "waitFor": "[data-testid='goal-number']", "note": "A goal page: the Goals group in the Chats sidebar, the number and its chart, what waits on you with one-tap answers, the plan as tasks, Activity in the pane." },
+    { "id": "GOALS_01-page-stuck", "route": "/m/GOALS_01?part=page&state=stuck", "proto": "chats,{skin}", "waitFor": "[data-testid='goal-stuck']", "note": "Stuck: the reason in plain words and what you can do; the sidebar row says Stuck." },
+    { "id": "GOALS_01-page-budget", "route": "/m/GOALS_01?part=page&state=budget", "proto": "chats,{skin}", "waitFor": "[data-testid='goal-budget-warn']", "note": "80% of the budget used: one quiet line under the head." },
+    { "id": "GOALS_01-page-paused", "route": "/m/GOALS_01?part=page&state=paused", "proto": "chats,{skin}", "waitFor": "[data-testid='goal-budget-full']", "note": "Paused at the budget, with Raise by half." },
+    { "id": "GOALS_01-page-missed", "route": "/m/GOALS_01?part=page&state=missed", "proto": "chats,{skin}", "waitFor": "[data-testid='goal-ended-missed']", "note": "Missed: the honest summary, what moved it and what held it back, Extend." },
+    { "id": "GOALS_01-page-done", "route": "/m/GOALS_01?part=page&state=done", "proto": "chats,{skin}", "waitFor": "[data-testid='goal-ended-done']", "note": "Done: reached, with the retrospective." },
+    { "id": "GOALS_01-page-draft", "route": "/m/GOALS_01?part=page&state=draft", "proto": "chats,{skin}", "waitFor": "[data-testid='goal-draft']", "note": "A draft an agent made: Start goal; nothing runs and no permission holds until the press." },
+    { "id": "GOALS_01-landing", "route": "/m/GOALS_01?part=landing", "proto": "chats,{skin}", "waitFor": "[data-testid='landing-goals']", "note": "The first screen: Goals under the composer." },
+    { "id": "GOALS_01-alone-active", "route": "/m/GOALS_01?part=alone&state=active", "proto": "chats,{skin}", "waitFor": "[data-testid='goal-number']", "note": "The goal page on a phone after a tap on its row: the number, the bar, what waits on you, the plan." },
+    { "id": "GOALS_01-alone-stuck", "route": "/m/GOALS_01?part=alone&state=stuck", "proto": "chats,{skin}", "waitFor": "[data-testid='goal-stuck']", "note": "Stuck on a phone." },
+    { "id": "GOALS_01-cards", "route": "/m/GOALS_01?part=cards", "proto": "chats,{skin}", "waitFor": "[data-testid^='goal-card-draft']", "note": "The goal cards a chat carries: the draft to start, a check-in, stuck, missed with Extend, done." }
+  ]
+}

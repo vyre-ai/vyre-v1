@@ -1,6 +1,6 @@
 # sites.deploy
 
-Deploy a build to the always-password-protected staging URL
+Build the site from its source (GitHub repo, folder or zip in Files, or a folder here) and run it on this Space, like Railway: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends
 
 | | |
 |---|---|
@@ -15,7 +15,7 @@ Deploy a build to the always-password-protected staging URL
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |
-| Team Space only | yes |
+| Team Space only | no |
 | HTTP | POST /v1/sites/deploy |
 | MCP tool | sites_deploy (sites) |
 | CLI | none |
@@ -26,7 +26,17 @@ Deploy a build to the always-password-protected staging URL
 ```ts
 type In = {
   siteId: string;
-  deploymentId?: string;
+  source?: {
+    repo?: string;
+    branch?: string;
+    tokenHandle?: string;
+    folderId?: string;
+    fileId?: string;
+    path?: string;
+    root?: string;
+  };
+  wait?: boolean;
+  onlyIfChanged?: boolean;
 };
 ```
 
@@ -43,6 +53,12 @@ type Out = {
     branch?: string;
     commit?: string;
     at: number;
+    by?: string;
+    note?: string;
+    problem?: string;
+    fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+    current?: boolean;
+    finishedAt?: number;
   };
 };
 ```
@@ -51,11 +67,11 @@ type Out = {
 
 - internal.unexpected
 - permission.above_clearance
-- permission.needs_team
 - permission.no_grant
 - permission.role_lacks_permission
 - validation.bad_input
 - validation.not_found
+- validation.precondition_failed
 
 ## Example
 
@@ -63,16 +79,32 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "deploymentId": "dpl_a1b2c3",
-    "siteId": "sit_a1b2c3"
+    "onlyIfChanged": true,
+    "siteId": "sit_a1b2c3",
+    "source": {
+      "branch": "main",
+      "fileId": "fil_a1b2c3",
+      "folderId": "fld_a1b2c3",
+      "path": "example",
+      "repo": "https://github.com/acme/cx-dashboard",
+      "root": "apps/web",
+      "tokenHandle": "#Dana_Lawmatics"
+    },
+    "wait": true
   },
   "output": {
     "deployment": {
       "at": 1760000000000,
       "branch": "example",
+      "by": "example",
       "commit": "example",
+      "current": true,
       "deploymentId": "dpl_a1b2c3",
       "env": "staging",
+      "finishedAt": 1760000000000,
+      "fix": "set_env",
+      "note": "example",
+      "problem": "example",
       "siteId": "sit_a1b2c3",
       "state": "queued",
       "url": "example"

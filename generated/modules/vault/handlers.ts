@@ -20,6 +20,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "providers.subscription_complete": Handler<"providers.subscription_complete", X>;
   "providers.subscription_start": Handler<"providers.subscription_start", X>;
   "providers.test": Handler<"providers.test", X>;
+  "providers.uses.set": Handler<"providers.uses.set", X>;
   "vault.export_env": Handler<"vault.export_env", X>;
   "vault.exports.list": Handler<"vault.exports.list", X>;
   "vault.exports.revoke": Handler<"vault.exports.revoke", X>;
@@ -53,6 +54,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "vault.share": Handler<"vault.share", X>;
   "vault.site_rules.list": Handler<"vault.site_rules.list", X>;
   "vault.site_rules.set": Handler<"vault.site_rules.set", X>;
+  "vault.text_check": Handler<"vault.text_check", X>;
   "vault.unshare": Handler<"vault.unshare", X>;
   "vault.use": Handler<"vault.use", X>;
 }

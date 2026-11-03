@@ -338,6 +338,8 @@ test("a pending connection says which slot is empty; filling it from a handle ma
   assert.deepEqual(made.connection.filled, ["Acme_Key"]);
   await assert.rejects(k.hs["connections.set_secret"](k.ctx, { connectionId: made.connection.connectionId, slot: "Nope", handle: "#X" }), code("validation.bad_input"));
   await assert.rejects(k.hs["connections.set_secret"](k.ctx, { connectionId: made.connection.connectionId, slot: "Acme_Hook", handle: SECRET }), code("validation.bad_input"));
+  // a key the person cannot use is refused: a connection never fills someone else's key into the app (vault audit, Broken 17)
+  await assert.rejects(k.hs["connections.set_secret"](k.ctx, { connectionId: made.connection.connectionId, slot: "Acme_Hook", handle: "#Stripe_Live" }), code("permission.no_grant"));
   const done = await k.hs["connections.set_secret"](k.ctx, { connectionId: made.connection.connectionId, slot: "Acme_Hook", handle: "#AcmeHook.secret" });
   assert.deepEqual([done.connection.state, done.connection.filled], ["active", ["Acme_Hook", "Acme_Key"]]);
   assert.equal(JSON.stringify(done).includes(SECRET), false);

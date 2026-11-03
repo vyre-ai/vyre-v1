@@ -72,6 +72,10 @@ type Out = {
       traceId: string;
     };
     nodeId?: string;
+    ranOn?: Array<{
+        kind: "computer" | "server" | "space";
+        name: string;
+      }>;
   };
 };
 ```
@@ -127,6 +131,12 @@ type Out = {
       },
       "model": "example",
       "nodeId": "example",
+      "ranOn": [
+        {
+          "kind": "computer",
+          "name": "Dana's MacBook"
+        }
+      ],
       "runId": "run_a1b2c3",
       "startedAt": 1760000000000,
       "state": "queued",

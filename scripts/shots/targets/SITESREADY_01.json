@@ -1,0 +1,9 @@
+{
+  "targets": [
+    { "id": "SITESREADY_01-list", "route": "/m/SITESREADY_01", "proto": "apps,{skin}", "waitFor": "[data-testid='apps-place']", "note": "Apps opens on Sites. Each deployed site shows its state, address, last deploy and who deployed it; a failed one says so." },
+    { "id": "SITESREADY_01-new", "route": "/m/SITESREADY_01?view=new", "proto": "apps,{skin}", "waitFor": "[data-testid='new-site-sheet']", "note": "New site: one sheet with GitHub repo, Folder or zip, Ask an agent." },
+    { "id": "SITESREADY_01-detail", "route": "/m/SITESREADY_01?view=detail", "proto": "apps,{skin}", "waitFor": "[data-testid='apps-site-detail']", "note": "A live CX dashboard: status, address, last deploy and who, deploys with Roll back, env vars from the Vault, its Postgres and the import, access, resources, domains, app log." },
+    { "id": "SITESREADY_01-building", "route": "/m/SITESREADY_01?view=building", "proto": "apps,{skin}", "waitFor": "[data-testid='site-build-log']", "note": "A deploy running: the build log updates in place, nothing blinks." },
+    { "id": "SITESREADY_01-failed", "route": "/m/SITESREADY_01?view=failed", "proto": "apps,{skin}", "waitFor": "[data-testid='site-problem']", "note": "A failed deploy: plain words and one fix button (Add Postgres and deploy). The last good build keeps serving." }
+  ]
+}

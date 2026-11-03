@@ -24,6 +24,8 @@ export interface ConsoleData {
   allowedScreens?: ReadonlySet<string>;
   /** Names for ids shown in the audit log and the activity list. */
   name(id: string): string;
+  /** An agent's own name, for the audit details line: someone else's private agent is named as its person everywhere else. */
+  agentName?(id: string): string | undefined;
   nav: ConsoleNav;
   clock(): { now: number };
 }

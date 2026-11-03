@@ -1,4 +1,4 @@
-// A turn on the Space AI key, and on OpenCode Go in general (agent/src/accounts/resolve.ts puts the key after a person's own accounts).
+// A turn on the Space AI key, and on OpenCode Go in general (agent/src/accounts/resolve.ts puts the key after a person's own accounts), and a turn moved to a Space account's default model.
 //   model   A member with no account of their own chats with an agent whose model belongs to another provider (Claude, say). On the Space AI key that model cannot run, so the turn runs on the first
 //           model the key unlocks (the list the Vault keeps, providers.space_key.get). A model the key serves is kept as chosen, unless it is out of usage and another one is not.
 //   limits  A model the provider refused for its usage limit is remembered for the account (engine_model_limits) until the time the provider said, so the picker greys it with that time and the meter
@@ -22,7 +22,10 @@ export function fitModel(model: string | undefined, served: readonly string[], o
 }
 
 export function withSpaceKeyTurns(open: OpenSession, d: { call: Call; db: Db; now: () => number }): OpenSession {
-  return async (spec) => {
+  return async (asked) => {
+    // no account serving the chat's model could pay (owner ruling 9): the turn runs on the account's default model (model-fallback.ts says so in the chat)
+    const swap = asked.account?.modelFallback;
+    const spec: SessionSpec = swap ? { ...asked, agent: swap.to ? { ...asked.agent, model: swap.to } : (({ model: _asked, ...rest }) => rest)(asked.agent) } : asked;
     if (!watched(spec)) return open(spec);
     const ref = spec.account!.ref;
     const outNow = (): Set<string> => new Set(modelLimits(d.db, ref, d.now()).keys());

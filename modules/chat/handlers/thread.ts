@@ -169,6 +169,8 @@ export async function thread(ctx: ChatCtx, input: { threadId: string; messageId:
   const asker = askerOf(ctx);
   const t = insertThread(ctx, { kind: "thread", starter: asker, parentThreadId: parent.id, parentMessageId: msg.id, listed: false });
   if (asker.startsWith("usr_")) addMember(ctx, t.id, asker, "owner");
+  // whoever wrote the message is in its thread: replies to what they said reach them
+  if (msg.author.startsWith("usr_") && msg.author !== asker) addMember(ctx, t.id, msg.author);
   // An agent works inside the thread under its own message, and the agent that opens a thread leads it (spec 2.5); people's threads otherwise leave agents listening.
   const leads = [msg.author, ctx.principal.id].filter((id, i, all) => id.startsWith("agt_") && all.indexOf(id) === i);
   if (leads.length > 0) addAgent(ctx, t.id, { agentId: leads[0]!, mode: "lead", addedBy: asker });

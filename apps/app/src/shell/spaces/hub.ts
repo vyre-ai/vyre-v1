@@ -119,6 +119,8 @@ export interface ShellHub {
   dot(place: PlaceId, on: boolean): void;
   /** Whether this person has something flowing into Inbox in the open Space (rail/inbox-sources.ts). Only a change redraws. With `reveal`, Inbox joining the rail comes in as a fresh place. */
   setInbox(has: boolean, reveal?: { tip: string | null }): void;
+  /** The open Space's image changed (Console saved a new one, or removed it): the tile and the switcher follow at once. Only a change redraws. */
+  setFace(face: { image: string; imageKey: string } | null): void;
   /** The fresh place has been seen (its tip dismissed or timed out). */
   settle(): void;
   /** Show a tab the strip selected. */
@@ -273,7 +275,7 @@ export function createShellHub(options: HubOptions): ShellHub {
     session: (spaceId) => (spaceId === undefined ? open() : (sessions.get(spaceId) ?? open())),
     rail() {
       const s = open();
-      return railFor({ kit: s.kit, console: s.def.console, ...(s.def.inbox === undefined ? {} : { inbox: s.def.inbox }), counts: s.def.counts, dots: s.def.dots, active: s.place });
+      return railFor({ kit: s.kit, console: s.def.console, ...(s.def.hidden ? { hidden: s.def.hidden } : {}), ...(s.def.inbox === undefined ? {} : { inbox: s.def.inbox }), counts: s.def.counts, dots: s.def.dots, active: s.place });
     },
     switchTo(spaceId) {
       const next = sessions.get(spaceId);
@@ -331,6 +333,13 @@ export function createShellHub(options: HubOptions): ShellHub {
       s.def = { ...s.def, inbox: has };
       if (joins && reveal !== undefined) fresh = { place: "inbox", tip: reveal.tip };
       else if (!has && fresh?.place === "inbox") fresh = null;
+      emit();
+    },
+    setFace(face) {
+      const s = open();
+      if ((s.def.imageKey ?? null) === (face?.imageKey ?? null) && (s.def.image ?? null) === (face?.image ?? null)) return;
+      const { image: _image, imageKey: _key, ...rest } = s.def;
+      s.def = face ? { ...rest, image: face.image, imageKey: face.imageKey } : rest;
       emit();
     },
     settle() {

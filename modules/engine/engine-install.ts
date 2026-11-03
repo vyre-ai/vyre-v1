@@ -1,5 +1,5 @@
 // Vyre installs the CLI engines a turn needs (Claude Code, Codex, Grok) by itself, into a folder of its own on each computer: on a Mac ~/Library/Application Support/ai.vyre.desktop/engines, elsewhere
-// <data dir>/engines. Each program lives at <root>/<program>/<version>/<program>, at the version engine-pins.ts names. Nothing here uses sudo or a global npm, edits a shell profile, or touches a person's
+// <data dir>/engines (Windows included). Each program lives at <root>/<program>/<version>/<program> (<program>.exe on Windows), at the version engine-pins.ts names. Nothing here uses sudo or a global npm, edits a shell profile, or touches a person's
 // own install or their ~/.claude, ~/.codex and ~/.grok sign-ins: a person's own copy is found first (cli-programs.ts) and this folder is looked in last.
 // A download goes only to the vendor's hosts, is checked against the pinned size and SHA-256 before it is unpacked, and the unpacked program is checked again before it is made executable. Everything is
 // written into a hidden folder beside the final one and renamed into place in one step, so a failed, partial or cut-short install leaves nothing a lookup would pick up.
@@ -41,8 +41,12 @@ export function enginePlatform(platform: NodeJS.Platform = process.platform, arc
   if (cpu === null) return null;
   if (platform === "darwin") return `darwin-${cpu}`;
   if (platform === "linux") return musl ? `linux-${cpu}-musl` : `linux-${cpu}`;
+  if (platform === "win32") return `win32-${cpu}`;
   return null;
 }
+
+/** The program's file name on a computer: Windows runs only a name that ends in .exe. */
+export const programFile = (program: string, platform: EnginePlatform | NodeJS.Platform | null = process.platform): string => (platform !== null && platform.startsWith("win32") ? `${program}.exe` : program);
 
 function isMusl(exists: (p: string) => boolean = fs.existsSync): boolean {
   if (process.platform !== "linux") return false;
@@ -55,9 +59,9 @@ export function buildOf(program: string, platform: EnginePlatform | null): Engin
 }
 
 /** Where Vyre's own copy of a program is, whether or not it is there yet. */
-export function ownedProgram(root: string, program: string): string | null {
+export function ownedProgram(root: string, program: string, platform: NodeJS.Platform = process.platform): string | null {
   const pin = pinOf(program);
-  return pin ? path.join(root, pin.program, pin.version, pin.program) : null;
+  return pin ? path.join(root, pin.program, pin.version, programFile(pin.program, platform)) : null;
 }
 
 /** The folders that hold Vyre's own copies at their pinned versions: what is put last on an engine's PATH. An older version's folder is never on it. */
@@ -91,7 +95,8 @@ export async function installEngine(program: string, o: InstallOptions): Promise
   if (!pin || !build) throw new EngineInstallError("unsupported", `${program} has no build Vyre can install on this computer`);
   const home = path.join(o.root, pin.program);
   const final = path.join(home, pin.version);
-  const target = path.join(final, pin.program);
+  const file = programFile(pin.program, platform);
+  const target = path.join(final, file);
   if (runnable(target)) return target;
 
   try { fs.mkdirSync(home, { recursive: true, mode: 0o755 }); } catch (e) { throw diskOr(e, "the engines folder could not be made"); }
@@ -100,9 +105,9 @@ export async function installEngine(program: string, o: InstallOptions): Promise
   const part = path.join(home, `.part-${process.pid}-${randomHex(4)}`);
   try {
     fs.mkdirSync(part, { mode: 0o700 });
-    const packed = path.join(part, `${pin.program}.zst`);
+    const packed = path.join(part, `${file}.zst`);
     await download(build, pin.hosts, packed, o);
-    const unpacked = path.join(part, pin.program);
+    const unpacked = path.join(part, file);
     await unpack(packed, unpacked, build);
     fs.rmSync(packed, { force: true });
     fs.chmodSync(unpacked, 0o755);
@@ -254,7 +259,7 @@ export function createEngineInstaller(o: InstallerOptions): EngineInstaller {
   const states = new Map<string, EngineSetupState>();
   const inflight = new Map<string, Promise<string>>();
   const install = o.install ?? installEngine;
-  const where = (program: string): string | null => { const pin = pinFor(program); return pin ? path.join(o.root, pin.program, pin.version, pin.program) : null; };
+  const where = (program: string): string | null => { const pin = pinFor(program); return pin ? path.join(o.root, pin.program, pin.version, programFile(pin.program, platform)) : null; };
   return {
     root: o.root,
     supported: (program) => platform !== null && pinFor(program)?.builds[platform] !== undefined,

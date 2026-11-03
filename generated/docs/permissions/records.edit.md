@@ -25,6 +25,11 @@ Area: records. Risk: low. Applies to: record_type, record.
 - inbox.unmatch
 - meetings.attach_recording
 - meetings.cancel
+- meetings.closeout.approve
+- meetings.closeout.edit
+- meetings.closeout.prepare
+- meetings.closeout.share
+- meetings.closeout.skip
 - meetings.match_attendees
 - meetings.merge
 - meetings.set_summary

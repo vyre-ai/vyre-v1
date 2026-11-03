@@ -16,6 +16,8 @@ export interface TurnOut {
   runId?: string; startedAt: number; endedAt?: number; tokensIn: number; tokensOut: number; costMicros: number; error?: ErrShape;
   /** The server of the person's the turn ran on, when the chat was pinned to one. */
   nodeId?: string;
+  /** Where the turn ran, in order (its computer, then the server it went on to when the computer slept). */
+  ranOn?: Array<{ kind: "computer" | "server" | "space"; name: string }>;
 }
 
 /** The contract's turn row from an engine_turns row. */
@@ -26,7 +28,7 @@ export function turnOf(r: Row): TurnOut {
     ...(accountRef === undefined ? {} : { accountRef }), engine: str(r["engine"]), model: str(r["model"]), state: str(r["state"]) as TurnState, traceId: str(r["trace_id"]),
     ...(runId === undefined ? {} : { runId }), startedAt: num(r["started_at"]), ...(endedAt === undefined ? {} : { endedAt }),
     tokensIn: num(r["tokens_in"]), tokensOut: num(r["tokens_out"]), costMicros: num(r["cost_micros"]), ...(error === undefined ? {} : { error: JSON.parse(error) as ErrShape }),
-    ...(nodeId === undefined ? {} : { nodeId }),
+    ...(nodeId === undefined ? {} : { nodeId }), ...(Array.isArray(r["ran_on"]) ? { ranOn: r["ran_on"] as NonNullable<TurnOut["ranOn"]> } : {}),
   };
 }
 

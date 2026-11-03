@@ -1,0 +1,9 @@
+- Threads notify you. A reply in a thread you follow arrives as a banner and a push with Reply ("Maya replied in #intake"). Several replies in one thread make one notice ("3 new replies in #intake"). An @mention and a direct message notify you too. Quiet hours, working hours and mutes apply.
+- You follow a thread when you wrote the message it hangs off, replied in it, were @mentioned in it or chose Follow. Mute keeps you in the thread but quiet: its replies don't notify you or count as new. Leave takes you out until you reply again.
+- A mention in a task's thread makes that person a follower of the task.
+- Threads lists the threads you are in, newest reply first, a page at a time, with each one's unread count. Task threads stay with their tasks and no longer light the Threads dot.
+- "Reply in thread" opens the thread beside its message in the right pane, with the message on top, and the chat stays put. Escape closes it. On a phone the thread opens as a sheet over the chat. Opening a thread from a link or a notification lands in the same place, and a task's thread opens on its task.
+- A message with replies shows a line under it with the faces of who replied, "3 replies" and the time of the last reply. The line is bold while a reply is new to you. Press it to open the thread.
+- Pressing the message at the top of a thread scrolls the chat to that message and highlights it.
+- The Threads page updates live. Each row shows the chat or channel it hangs under, the newest line and who wrote it, and how many replies are new. Right-click a row for Open, Mark as Read, Follow, Mute, Leave Thread and Copy Link. J and K move through the list and Enter opens a thread. On the phone, the You tab has a Threads row with the count of new replies.
+- Banners now appear on screen for replies, mentions, direct messages and approvals, with Reply where one fits.

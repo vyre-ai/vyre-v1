@@ -6,9 +6,9 @@
 //   snapshot.take / versions / restore_version             the files a run uses, and rolling back
 // A broken agent.toml never stops an agent: the last good configuration stays in agents_agent.config and is what every read here returns.
 import {
-  AGENT_MD_DEFAULT, isAgentMdV1, AWAKE_MS, agentFor, agentView, seesSetup, withoutSetup, teammateOf, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, allows, applyPatch, askerOf, call, canSee, checkToml,
-  codeOf, ensure, insertAgent, makeFile, makeFolder, meta, mintId, newConfig, nameKey, parseToml, raise, saveFile, setMeta, slug, statusOf, storeConfig, textOf, tolerant, tomlFor, versionsOf, visible, widenings,
-  writeConfig,
+  AGENT_MD_DEFAULT, isAgentMdV1, AWAKE_MS, agentFor, agentView, governs, isPrivateAgent, seesSetup, withoutSetup, teammateOf, isAssistant, LIMIT_KEYS, LIMIT_TOML, MAX_NAME, MAX_ROLE, NAME_BAD, TREE_FOLDERS, agentBy, agentByName, agentOf, agentOut, allAgents, applyPatch, askerOf, call, canSee, checkToml,
+  codeOf, ensure, insertAgent, makeFile, makeFolder, meta, mintId, mustChangeSettings, newConfig, nameKey, parseToml, raise, saveFile, setMeta, settingsRefusal, slug, statusOf, storeConfig, textOf, tolerant, tomlFor,
+  versionsOf, visible, widenings, writeConfig,
 } from "../projections.ts";
 import type { AgentConfig, AgentKind, AgentRec, AgentRuntime, AgentsCtx, FolderOut, Limits, VersionOut } from "../projections.ts";
 import { isOutside, outsideFace, outsideName } from "./outside.ts";
@@ -52,6 +52,17 @@ export async function memoryKeyGet(ctx: AgentsCtx, input: { agentId: string }) {
   const a = isHostService(ctx.principal) ? agentBy(ctx.db, input.agentId) : visible(ctx, input.agentId);
   if (!a) raise(ctx, "validation.not_found", "That agent does not exist.");
   return { ...(a.config.memoryKey !== undefined && (isHostService(ctx.principal) || seesSetup(ctx, a)) ? { memoryKey: a.config.memoryKey } : {}), ownerId: a.ownerId };
+}
+
+/**
+ * A person's own Assistant, for the server: a module that works for a person when nobody is at a screen (the meeting close-out a transcript starts) finds it here. The host and the person
+ * themself are answered; anyone else gets nothing, the same as for a person with no Assistant, so whose Assistant exists is not leaked.
+ */
+export async function assistantOf(ctx: AgentsCtx, input: { personId: string }) {
+  ensure(ctx.db);
+  if (!isHostService(ctx.principal) && askerOf(ctx) !== input.personId) return {};
+  const a = allAgents(ctx.db).find((x) => x.ownerId === input.personId && isAssistant(x) && teammateOf(x) === undefined);
+  return a ? { agentId: a.id } : {};
 }
 
 export async function status(ctx: AgentsCtx, input: { agentId: string }) {
@@ -187,7 +198,10 @@ async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind, runtime
     templateVersion: await templateVersion(ctx, template), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
   };
   insertAgent(ctx.db, rec);
-  ctx.emit("agent.created", id, { agentId: id, name, ownerId: owner, folderId: tree.folderId, templateVersion: rec.templateVersion });
+  const priv = isPrivateAgent(rec);
+  ctx.emit("agent.created", id, { agentId: id, name, ownerId: owner, folderId: tree.folderId, templateVersion: rec.templateVersion, ...(priv ? { private: true } : {}) });
+  // access names a private agent as its person to everyone else ("Irfad Imtiaz (Agent)"); this is what tells it
+  if (priv) { ctx.emit("agent.privacy_set", id, { agentId: id, ownerId: owner, private: true }); setMeta(ctx.db, `privacy:${id}`, "1"); }
   return { agent: agentView(rec, now) };
 }
 
@@ -209,7 +223,7 @@ async function saveToml(ctx: AgentsCtx, a: AgentRec, text: string, reason: strin
 
 export async function update(ctx: AgentsCtx, input: { agentId: string; patch: Record<string, unknown> }) {
   const a = visible(ctx, input.agentId);
-  if (!allows(ctx, null, "edit", "agent", a.id)) raise(ctx, "permission.no_grant", "You can read this agent but not change it.");
+  mustChangeSettings(ctx, a);
   const doc = parseToml(a.tomlText).value;
   const res = applyPatch(doc, a.config, input.patch);
   if (!res.ok) raise(ctx, res.code, res.message);
@@ -235,7 +249,7 @@ export async function update(ctx: AgentsCtx, input: { agentId: string; patch: Re
 export async function roleLineSet(ctx: AgentsCtx, input: { agentId: string; description: string }) {
   const a = visible(ctx, input.agentId);
   // Without Edit the role line is read-only (a lock on hover in the UI): the call is refused here the same way.
-  if (!allows(ctx, null, "edit", "agent", a.id)) raise(ctx, "permission.no_grant", "You can read this agent but not change it.");
+  mustChangeSettings(ctx, a);
   const text = input.description.trim();
   if (text.includes("\n") || input.description.length > MAX_ROLE) raise(ctx, "validation.bad_input", `The role line is one line of up to ${MAX_ROLE} characters.`);
   if (a.tomlFileId === undefined) raise(ctx, "validation.bad_input", "This agent has no agent.toml yet.");
@@ -285,7 +299,10 @@ export async function retire(ctx: AgentsCtx, a: AgentRec, who: string): Promise<
 }
 
 export async function remove(ctx: AgentsCtx, input: { agentId: string }) {
-  const a = visible(ctx, input.agentId);
+  // an owner or admin removes someone's outside agent from Console (mcp.connected.remove), without it ever being listed for them
+  ensure(ctx.db);
+  const found = agentBy(ctx.db, input.agentId);
+  const a = found && governs(ctx, found) ? found : visible(ctx, input.agentId);
   // every person has one assistant for as long as they are here; it ends with them (onPersonLeft), never by a press or by an agent
   if (isAssistant(a)) raise(ctx, "validation.precondition_failed", "Your assistant stays with you. Rename it or change what it does instead.", { reason: "assistant_stays" });
   await retire(ctx, a, by(ctx));
@@ -375,6 +392,24 @@ export async function configValidate(ctx: AgentsCtx, input: { agentId: string; t
   };
 }
 
+/**
+ * Files asks this before it writes a new version of a file named agent.toml (files.write, files.save through it, files.restore_version, an approved changeset), as the writer: saving an agent's
+ * agent.toml is changing that agent's settings, so it takes the same right as agents.update. A file that is no agent's agent.toml (an agent in Trash counts) is any file: allowed.
+ */
+export async function configMaySave(ctx: AgentsCtx, input: { fileId: string }) {
+  ensure(ctx.db);
+  const row = (ctx.db.all("SELECT * FROM agents_agent WHERE tomlFileId = ? ORDER BY deletedAt IS NULL DESC LIMIT 1", input.fileId) as Row[])[0];
+  if (!row) return { agentId: null, allowed: true };
+  const a = agentOf(row);
+  const why = settingsRefusal(ctx, a);
+  // which agent the file belongs to is said only to someone who may see that agent
+  const agentId = canSee(ctx, a) ? a.id : null;
+  if (why === null) return { agentId, allowed: true };
+  return { agentId, allowed: false, reason: why === "outside" ? "person_only" : "no_edit", message: why === "outside"
+    ? "agent.toml is this agent's settings, and only a person can change an agent's settings. Ask the person you act for, or suggest the change with agents.suggestion.propose."
+    : "agent.toml is this agent's settings, and you can read this agent but not change it. Suggest the change with agents.suggestion.propose, or ask someone who can edit the agent." };
+}
+
 export async function limitsGet(ctx: AgentsCtx, input: { agentId: string }) {
   const a = visible(ctx, input.agentId);
   if (!seesSetup(ctx, a)) return { limits: {}, source: {} };
@@ -437,7 +472,7 @@ export async function versions(ctx: AgentsCtx, input: { agentId: string; file?: 
 
 export async function restoreVersion(ctx: AgentsCtx, input: { agentId: string; versionId: string; file?: AgentFile }) {
   const a = visible(ctx, input.agentId);
-  if (!allows(ctx, null, "edit", "agent", a.id)) raise(ctx, "permission.no_grant", "You can read this agent but not change it.");
+  mustChangeSettings(ctx, a);
   const candidates: Array<[AgentFile, string]> = [];
   if (a.tomlFileId !== undefined && (input.file === undefined || input.file === "agent.toml")) candidates.push(["agent.toml", a.tomlFileId]);
   if (a.agentMdFileId !== undefined && (input.file === undefined || input.file === "AGENT.md")) candidates.push(["AGENT.md", a.agentMdFileId]);
@@ -613,7 +648,8 @@ export interface FileVersionEvent { payload: { fileId: string; versionId: string
 export interface TurnEvent { payload: { agentId: string } }
 
 /**
- * A person saved agent.toml or AGENT.md in Files. A text that passes becomes the configuration the next run uses; one that does not is reported (agent.config_error) and the last good
+ * Someone saved agent.toml or AGENT.md in Files. Files writes agent.toml only after agents.config.may_save said the writer may change this agent's settings (the right agents.update takes), so what
+ * arrives here was written by someone allowed to. A text that passes becomes the configuration the next run uses; one that does not is reported (agent.config_error) and the last good
  * version keeps running. Returns the agents it concerned. Safe to run twice for one event.
  */
 export async function onFileVersion(ctx: AgentsCtx, event: FileVersionEvent): Promise<string[]> {
@@ -774,4 +810,17 @@ export async function upgradeStarterAgentMd(ctx: AgentsCtx): Promise<string[]> {
     }
   }
   return done;
+}
+
+/** At boot: every private agent made before access learnt of privacy (agent.privacy_set) is told once, so it is named as its person to everyone else. Safe to repeat. */
+export async function announcePrivacy(ctx: AgentsCtx): Promise<string[]> {
+  ensure(ctx.db);
+  const told: string[] = [];
+  for (const a of allAgents(ctx.db)) {
+    if (!isPrivateAgent(a) || meta(ctx.db, `privacy:${a.id}`) !== undefined) continue;
+    ctx.emit("agent.privacy_set", a.id, { agentId: a.id, ownerId: a.ownerId, private: true });
+    setMeta(ctx.db, `privacy:${a.id}`, "1");
+    told.push(a.id);
+  }
+  return told;
 }

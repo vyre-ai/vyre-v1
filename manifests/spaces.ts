@@ -36,12 +36,16 @@ export default defineManifest({
   ],
 
   capabilities: [
-    read('spaces.get', 'The Space profile: name, legal name, logo, address, hosting, defaults, kind', { ...V, in: {}, out: { space: spaceRow }, tool: 'meta' }),
+    read('spaces.get', 'The Space profile: name, legal name, logo, address, hosting, defaults, kind', { level: 'member', in: {}, out: { space: spaceRow }, tool: 'meta' }),
     write('spaces.update', 'Change the Space name, legal name, logo or defaults', {
-      ...V, in: { name: t.opt(t.str()), legalName: t.opt(t.str()), logoFileId: t.nullable(id.file), defaults: t.opt(t.rec()) }, out: { space: spaceRow }, perm: 'policy.manage', emits: ['space.updated'], audit: 'always', tool: 'meta',
+      ...V, in: { name: t.opt(t.str()), legalName: t.opt(t.str()), logoFileId: t.opt(t.nullable(id.file)), defaults: t.opt(t.rec()) }, out: { space: spaceRow }, perm: 'policy.manage', emits: ['space.updated'], audit: 'always', tool: 'meta',
+    }),
+    // the join and sign-in pages show the Space's face before sign-in, the way they show its name: anyone may ask
+    read('spaces.image', 'The Space image for its faces (the rail tile, the switcher, the join and sign-in pages, invites): a data: address of the picture, sent only when it differs from the logoFileId the caller already shows', {
+      caller: 'anonymous', rate: { n: 60, perSeconds: 60, scope: 'principal' }, in: { known: t.opt(id.file) }, out: { logoFileId: t.opt(id.file), image: t.opt(t.str({ description: 'data:image/png;base64,...' })) },
     }),
     read('spaces.switcher', 'This Space tile for the switcher: name, logo, kind, role, and whether it needs the person (red dot)', {
-      ...V, in: {}, out: { name: t.str(), logoFileId: t.opt(id.file), kind: t.enm('personal', 'team'), role: t.str(), needsYou: t.int({ minimum: 0 }), unread: t.int({ minimum: 0 }) }, tool: 'meta',
+      level: 'member', in: {}, out: { name: t.str(), logoFileId: t.opt(id.file), kind: t.enm('personal', 'team'), role: t.str(), needsYou: t.int({ minimum: 0 }), unread: t.int({ minimum: 0 }) }, tool: 'meta',
     }),
     read('spaces.matrix', 'Which features work in this Space and which need a Team Space (the Personal matrix)', {
       ...V, in: {}, out: { kind: t.enm('personal', 'team'), features: t.arr(t.obj({ key: featureKey, available: t.bool(), line: t.opt(t.str({ examples: ['Needs a Team Space'] })) })) }, tool: 'meta',

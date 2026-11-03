@@ -23,6 +23,8 @@ import { rememberMessage } from "../memory/actions.ts";
 import { BlockViewA, isPartOneType } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import type { BlockHost } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import { Face } from "../needsyou/parts.tsx";
+import { ReplyHover } from "../details/ReplyCard.tsx";
+import type { ReplyDetailsActions } from "../details/ReplyCard.tsx";
 import { LearnedLines } from "../memory/Learned.tsx";
 import type { MenuMessage, ShowMenu } from "../memory/menu.tsx";
 import { SubjectText, useSubjectBlocks } from "../memory/Subjects.tsx";
@@ -32,9 +34,11 @@ import { Fold, Glyph, IconButton, TextButton } from "./parts.tsx";
 import { ApprovalCard } from "./approval.tsx";
 import { useFollow } from "./use-follow.ts";
 import { CrewResultCard, CrewStartLine, isCrewResult, isCrewStart } from "./crew-card.tsx";
+import { GoalCard, goalBlockOf } from "../goals/GoalCard.tsx";
 import { KeyRequestCard, isKeyRequest } from "./keyrequest.tsx";
 import { AccessRequestCard, isAccessRequest } from "./accessrequest.tsx";
 import { ChecklistCard, isChecklist } from "./checklist.tsx";
+import { QuoteCard, WebPageCard, isQuote, isWebPage } from "./webpage.tsx";
 import { MountCard } from "./mountcard.tsx";
 import { TerminalCard } from "./TerminalCard.tsx";
 import { RunCode } from "./RunCode.tsx";
@@ -48,8 +52,12 @@ import { AttachmentChips, LinkedText, MountRefs, refsOf } from "./attachments.ts
 import { unnamed } from "../names.ts";
 import type { ConversationData } from "./data.tsx";
 import type { GlyphName } from "./parts.tsx";
-import { reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isTurnStatus, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
+import { reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isTurnStatus, onBehalfOf, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
+import { ReplyLine } from "./ReplyLine.tsx";
+import { MARK } from "./marks.ts";
+import type { ReplySummary } from "./replies.ts";
+import type { Clock } from "../rightpane/model.ts";
 
 export interface MessageActions {
   copy(text: string): void;
@@ -64,6 +72,8 @@ export interface MessageActions {
   remove(messageId: string): void;
   openAgent(agentId: string): void;
   openBeside(kind: string, id: string): void;
+  /** A goal's page, from a goal card in the chat. Left out where the shell has no such page. */
+  openGoal?(goalId: string): void;
   answer(blockId: string, answer: unknown): void;
   approvePlan(planId: string): void;
   retryTurn(turnId: string): void;
@@ -75,12 +85,18 @@ export interface MessageActions {
   retrySend(messageId: string): void;
   discardSend(messageId: string): void;
   showMenu(items: readonly MenuEntry[], x: number, y: number, label: string): void;
-  /** The memory items of the message menu (Remember This, Add to a Page, Show What the Agent Knew Here, Forget This); absent where the chat has no memory. */
+  /** A reply's hover card on its agent's face and name, and Details in its menu (the right pane's Details tab). Absent where the shell has no right pane. */
+  details?: ReplyDetailsActions;
+  /** The memory items of the message menu (Remember This, Add to a Page, Forget This); absent where the chat has no memory. */
   memoryEntries?: (m: MenuMessage, x: number, y: number, show: ShowMenu) => MenuEntry[];
   /** Branch the chat into a new one at this message. */
   fork?(messageId: string): void;
   /** Make a task from this message, linked back to it. */
   makeTask?(messageId: string): void;
+  /** Ask an agent to answer this message, as if it had been named (owner ruling, 3 Nov 2026): opens the channel's agent picker where you pressed. Left out where no agent can be asked. */
+  askAgent?(messageId: string, x: number, y: number): void;
+  /** The reader's side of an agent's message for its person (lane l-agentdm): who reads, and mute that person's agents for the rest of the day. Absent where the shell cannot. */
+  agentMute?: { me: string; mute(personId: string): void; /** the one message the quiet mute line goes under; absent: none */ offerFor?: string | null };
   /** Share this message to a channel or a person: opens the list of places at the point given. */
   share?(messageId: string, x: number, y: number): void;
   /** What the turn behind a reply being written is doing: the live line under it (steps, thinking). */
@@ -119,6 +135,8 @@ export interface MessageViewProps {
   openWork?: boolean;
   /** Find in chat: this message matches, or is the match the person is on. */
   mark?: "match" | "active" | undefined;
+  /** The thread under this message, when anyone has replied in it: the line that opens it. */
+  replies?: { s: ReplySummary; clock: Clock } | undefined;
 }
 
 /** Where a forked chat came from: the first line of a fork carries the chat, the message and the chat's title. */
@@ -170,16 +188,23 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
 
 /* ---------- the hover bar and the menu: the same list in both ---------- */
 
+const firstName = (name: string): string => name.split(" ")[0] || name;
+
 export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: () => void, at: { x: number; y: number } = { x: 0, y: 0 }): MenuEntry[] {
   const items: MenuEntry[] = [{ label: "Copy", onSelect: () => a.copy(m.body) }];
   if (mine && m.kind === "text") items.push({ label: "Edit", onSelect: onEdit });
   items.push({ label: "Reply in Thread", onSelect: () => a.openThread(m.messageId) });
+  if (a.askAgent && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Ask an Agent…", onSelect: () => a.askAgent!(m.messageId, at.x, at.y) });
   if (a.makeTask && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Make a Task", onSelect: () => a.makeTask!(m.messageId) });
   if (a.share && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Share to...", onSelect: () => a.share!(m.messageId, at.x, at.y) });
   if (a.fork && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Fork From Here", onSelect: () => a.fork!(m.messageId) });
   items.push({ label: m.pinned ? "Unpin Message" : "Pin Message", onSelect: () => a.setPinned(m.messageId, !m.pinned) });
   items.push({ label: "Add Reaction", onSelect: () => (a.pickReaction ? a.pickReaction(m.messageId, at.x, at.y) : a.react(m.messageId, "👍", false)) });
   if (m.kind !== "quiet" && a.memoryEntries) items.push(...a.memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu));
+  // how an agent's reply was made: the right pane's Details tab (what the agent knew is a section of it)
+  if (!mine && a.details && m.author.kind === "agent") items.push({ separator: true }, { label: "Details", onSelect: () => a.details!.open(m.messageId) });
+  const ob = onBehalfOf(m);
+  if (ob && a.agentMute && ob.teammate === a.agentMute.me) items.push({ label: `Mute Agent Messages From ${firstName(a.nameOf ? a.nameOf(ob.person) : "Them")} for Today`, onSelect: () => a.agentMute!.mute(ob.person) });
   if (mine) items.push({ separator: true }, { label: "Delete", danger: true, onSelect: () => a.remove(m.messageId) });
   return items;
 }
@@ -198,9 +223,11 @@ export function HoverBar({ m, mine, a, onEdit, visible, byAgent = false }: { m: 
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
     if (m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
     bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
+    if (a.askAgent && talk) bar.push({ icon: "spark", label: "Ask an agent", run: (x, y) => a.askAgent!(m.messageId, x, y) });
   } else {
     if (a.pickReaction && talk) bar.push({ icon: "smile", label: "React", run: (x, y) => a.pickReaction!(m.messageId, x, y) });
     bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
+    if (a.askAgent && talk) bar.push({ icon: "spark", label: "Ask an agent", run: (x, y) => a.askAgent!(m.messageId, x, y) });
     if (mine && m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
   }
   return (
@@ -247,7 +274,13 @@ function ActionSheet({ open, entries, onClose }: { open: boolean; entries: reado
 
 /* ---------- yours ---------- */
 
-function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extract<Item, { kind: "me" }> }): ReactElement {
+/** The line under a message with a thread; a press opens the thread beside the chat. */
+function Replies({ m, replies, actions, mine }: { m: Message; replies: MessageViewProps["replies"]; actions: MessageActions; mine: boolean }): ReactElement | null {
+  if (!replies) return null;
+  return <ReplyLine s={replies.s} clock={replies.clock} nameOf={actions.nameOf ?? unnamed} mine={mine} testID={`replies-${m.messageId}`} onOpen={() => actions.openThread(m.messageId)} />;
+}
+
+function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { item: Extract<Item, { kind: "me" }> }): ReactElement {
   const m = item.message;
   const [sheet, setSheet] = useState(false);
   const h = useHover(() => setSheet(true));
@@ -281,6 +314,9 @@ function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extra
       {actions.files && refsOf(m).length > 0 ? <LinkedText body={m.body} refs={refsOf(m)} data={actions.files} textStyle={st.bubbleText} /> : <SubjectText text={m.body} style={st.bubbleText} />}
         </View>
       )}
+      {!editing && m.blocks.some((b) => isWebPage(b.type) || isQuote(b.type)) ? (
+        <View style={st.mineFiles}>{m.blocks.map((b) => (isWebPage(b.type) ? <WebPageCard key={b.id} id={b.id} data={b.data} /> : isQuote(b.type) ? <QuoteCard key={b.id} id={b.id} data={b.data} /> : null))}</View>
+      ) : null}
       {!editing && actions.files && refsOf(m).length > 0 ? <View style={st.mineFiles}><MountRefs refs={refsOf(m)} data={actions.files} /></View> : null}
       {!editing && actions.files && m.attachments.length > 0 ? (
         <View style={st.mineFiles}><AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /></View>
@@ -296,6 +332,7 @@ function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extra
         </View>
       ) : null}
       <Reactions m={m} a={actions} mine />
+      <Replies m={m} replies={replies} actions={actions} mine />
       <LearnedLines messageId={m.messageId} />
     </View>
   );
@@ -303,7 +340,7 @@ function Mine({ item, actions, sending, mark }: MessageViewProps & { item: Extra
 
 /* ---------- anyone else's ---------- */
 
-function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProps & { item: Extract<Item, { kind: "other" }> }): ReactElement {
+function Theirs({ item, actions, stream, openWork, mark, meId, replies }: MessageViewProps & { item: Extract<Item, { kind: "other" }> }): ReactElement {
   const m = item.message;
   const [sheet, setSheet] = useState(false);
   const h = useHover(() => setSheet(true));
@@ -323,15 +360,21 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
   const runCfg = actions.runCode;
   const renderCode = useMemo(() => (runCfg ? (b: { lang: string; text: string; closed: boolean }) => { const c = commandOf(b.lang, b.text, b.closed); return c ? <RunCode command={c} cfg={runCfg} /> : null; } : undefined), [runCfg]);
   const subjects = useSubjectBlocks(blocks);
+  // an agent's reply: hovering its face or name shows how it was made (model, account, asker, where, cost, tokens, time)
+  const withCard = (kids: ReactElement): ReactElement => (!person && actions.details && !stream && !h.phone ? <ReplyHover messageId={m.messageId} details={actions.details}>{kids}</ReplyHover> : kids);
   return (
     <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined, { x, y }), x, y, "Message"))} style={[st.msg, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive]}>
       {h.phone ? <ActionSheet open={sheet} entries={menuFor(m, false, actions, () => undefined)} onClose={() => setSheet(false)} /> : <HoverBar byAgent={!person} m={m} mine={false} a={actions} onEdit={() => undefined} visible={h.over || h.focus} />}
       {item.newgroup ? (
         <View style={st.by}>
-          <Face name={item.who.name} seedId={item.who.id} kind={person ? "person" : "agent"} size={20} />
-          <Pressable accessibilityRole="link" accessibilityLabel={`Open ${item.who.name}`} testID={`who-${m.messageId}`} onPress={() => actions.openAgent(item.who.id)}>
-            <Text style={st.who}>{item.who.name}</Text>
-          </Pressable>
+          {withCard(
+            <>
+              <Face name={item.who.name} seedId={item.who.face ?? item.who.id} kind={person || item.who.face !== undefined ? "person" : "agent"} size={20} />
+              <Pressable accessibilityRole="link" accessibilityLabel={`Open ${item.who.name}`} testID={`who-${m.messageId}`} onPress={() => actions.openAgent(item.who.id)}>
+                <Text style={st.who}>{item.who.name}</Text>
+              </Pressable>
+            </>,
+          )}
           <Text style={st.time}>{item.time}</Text>
           {work?.short ? <Pressable accessibilityRole="button" accessibilityLabel={work.summary} testID={`work-short-${m.messageId}`} onPress={() => setWorkOpen((o) => !o)} style={{ opacity: h.over || workOpen ? 1 : 0 }}><Text style={st.time}>{work.summary}</Text></Pressable> : null}
         </View>
@@ -357,23 +400,35 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
       {actions.files && refsOf(m).length > 0 ? <MountRefs refs={refsOf(m)} data={actions.files} /> : null}
       {actions.files && m.attachments.length > 0 ? <AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /> : null}
       {collect(cards, (b) => {
+        const goal = goalBlockOf(b);
+        if (goal && actions.files) return <GoalCard key={b.id} block={goal} call={actions.files.call} changes={actions.files.changes} {...(actions.openGoal ? { openGoal: actions.openGoal } : {})} me={meId} />;
         if (isCrewResult(b) && actions.files) return <CrewResultCard key={b.id} block={b} leadThreadId={m.threadId} data={actions.files} />;
         if (isProposal(b)) return <AgentFileProposal key={b.id} block={b} host={actions.host} changes={actions.files?.changes} />;
         if (isPlanFile(b)) return <PlanFileCard key={b.id} block={b} onOpen={(id) => actions.openBeside("file", id)} />;
         const lc = linkCardOf(b);
         const held = lc && actions.files ? heldTaskOf(lc) : null;
-        if (held !== null) return parked.has(held) ? null : <ApprovalCard key={b.id} taskId={held} agent={item.who.name} agentId={item.who.id} data={actions.files!} />;
+        if (held !== null) return parked.has(held) ? null : <ApprovalCard key={b.id} taskId={held} agent={item.who.name} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files!} />;
         if (lc) return <LinkCardView key={b.id} id={b.id} data={lc} actions={actions} size={14} trusted={m.kind === "system"} />;
         if (isAccessRequest(b.type) && actions.files) return <AccessRequestCard key={b.id} block={b.data as never} data={actions.files} />;
         if (isKeyRequest(b.type) && actions.files) return <KeyRequestCard key={b.id} requestId={String((b.data as { requestId?: unknown }).requestId ?? "")} agent={item.who.name} agentId={item.who.id} data={actions.files} />;
         if (isChecklist(b.type)) return <ChecklistCard key={b.id} id={b.id} data={b.data} />;
+        if (isWebPage(b.type)) return <WebPageCard key={b.id} id={b.id} data={b.data} />;
+        if (isQuote(b.type)) return <QuoteCard key={b.id} id={b.id} data={b.data} />;
         if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
       })}
       {collect(errors, (b) => <ErrorRowView key={b.id} block={b} actions={actions} />)}
-      {collect(statuses, (x) => (x.kind === "note" ? <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>{x.text}</Text> : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={item.who.name} agentId={item.who.id} data={actions.files} /> : null))}
+      {collect(statuses, (x) => (x.kind === "note" ? <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>{x.text}</Text>
+        : x.kind === "wait" ? <View key={x.id} testID={`status-${x.id}`} style={st.waitRow}><Text style={st.edited}>{x.text}</Text><TextButton link label={x.action.label} testID={`status-${x.action.key}`} onPress={() => actions.errorNext(x.action.key)} /></View>
+        : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={item.who.name} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files} /> : null))}
       {item.who.kind === "agent" && actions.withPeople === true && !stream && m.body.trim() !== "" ? <ReplyActions m={m} actions={actions} /> : null}
+      {item.who.forPerson && actions.agentMute && actions.agentMute.offerFor === m.messageId && onBehalfOf(m)?.teammate === actions.agentMute.me ? (
+        <Pressable accessibilityRole="button" testID={`agent-mute-${m.messageId}`} onPress={() => actions.agentMute!.mute(item.who.forPerson!)}>
+          <Text style={[st.via, st.muteLine]}>{`Mute agent messages from ${firstName(item.who.name.replace(/ \(Agent\)$/, ""))} for today`}</Text>
+        </Pressable>
+      ) : null}
       <Reactions m={m} a={actions} mine={false} />
+      <Replies m={m} replies={replies} actions={actions} mine={false} />
       <LearnedLines messageId={m.messageId} />
       {m.pinned ? <Text testID={`pinned-${m.messageId}`} style={st.edited}>pinned</Text> : null}
     </View>
@@ -554,8 +609,9 @@ export const st = StyleSheet.create({
   eventLink: { color: "var(--accent)" as string, textDecorationLine: "underline", cursor: "pointer" } as object,
   eventTime: { fontSize: 11.5, color: "var(--ink-4)" as string },
   gapTop: { marginTop: 18 },
-  found: { backgroundColor: "var(--accent-wash)" as string, borderRadius: 8 },
-  foundActive: { backgroundColor: "var(--accent-wash)" as string, borderRadius: 8, boxShadow: "inset 0 0 0 1px var(--accent)" } as object,
+  // the mark sits outside the message (marks.ts), so nothing touches its edge
+  found: MARK.found as object,
+  foundActive: MARK.foundActive as object,
   me: { alignItems: "flex-end", paddingVertical: 2, marginTop: 4, position: "relative" },
   when: { position: "absolute", left: 0, top: 10, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
   whenLeft: { position: "absolute", left: -44, top: 4, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
@@ -566,6 +622,7 @@ export const st = StyleSheet.create({
   editBox: { width: "85%", gap: 6, borderWidth: 1, borderColor: "var(--line-2)" as string, borderRadius: 12, padding: 8, backgroundColor: "var(--win)" as string },
   editField: { minHeight: 44, fontSize: 15, lineHeight: 22, color: "var(--ink)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   editRow: { flexDirection: "row", justifyContent: "flex-end", gap: 6 },
+  waitRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },
   failed: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
   failedText: { fontSize: 12.5, color: "var(--danger)" as string },
   msg: { paddingVertical: 2, position: "relative", gap: 6 },
@@ -573,6 +630,8 @@ export const st = StyleSheet.create({
   who: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   time: { fontSize: 11.5, color: "var(--ink-3)" as string },
   via: { fontSize: 12, color: "var(--ink-3)" as string },
+  /** under an agent's message for its person, read by the teammate it went to (lane l-agentdm) */
+  muteLine: { marginTop: 4 },
   body: { paddingRight: 8 },
   step: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 24 },
   stepDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },

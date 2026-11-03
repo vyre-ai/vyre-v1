@@ -59,7 +59,18 @@ export interface ChatMemorySample {
   warm(extra?: Array<[string, unknown]>): Promise<void>;
 }
 
-export interface ChatMemoryOptions { fail?: string; withoutCaps?: string[]; noMemory?: boolean }
+/** The person's profile as memory.profile.get answers it for a chat: the private part only when nobody else reads the chat. */
+export function aboutYou(audience: "private" | "shared") {
+  const at = KNOW_NOW - 4 * 86_400_000;
+  const fact = (factId: string, text: string, place: "public" | "private", extra: Record<string, unknown> = {}) => ({ factId, text, place, layer: "person", ownerRef: ME, status: "current", sourceKind: "chat", sourceRef: KNOW_THREAD, validFrom: at, learnedAt: at, ...extra });
+  return {
+    audience, basics: [],
+    public: [fact("fct_about_pub", "Prefers short client emails with no exclamation marks.", "public", { lineLink: `vyre://thread/${KNOW_THREAD}?m=msg_about1` })],
+    private: audience === "private" ? [fact("fct_about_priv", "Picks up the kids at 3:30 on Thursdays.", "private"), fact("fct_about_sug", "Out of office every second Friday.", "private", { suggested: true })] : [],
+  };
+}
+
+export interface ChatMemoryOptions { fail?: string; withoutCaps?: string[]; noMemory?: boolean; /** Who reads this chat, for About you at the top of Knows: only you (default) or other people too. */ audience?: "private" | "shared" }
 
 export function createChatMemorySample(o: ChatMemoryOptions = {}): ChatMemorySample {
   const conv = createSample("idle");
@@ -82,6 +93,7 @@ export function createChatMemorySample(o: ChatMemoryOptions = {}): ChatMemorySam
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     calls.push({ cap, input });
     if (absent.has(cap)) throw new Error(`unknown capability ${cap}`);
+    if (cap === "memory.profile.get") return aboutYou(o.audience ?? "private");
     if (o.fail && !READS.has(cap)) throw new Error(o.fail);
     if (READS.has(cap)) {
       const snap = know.data.live(cap as never, tr(input) as never).getSnapshot() as { status: string; data?: unknown };
@@ -95,7 +107,7 @@ export function createChatMemorySample(o: ChatMemoryOptions = {}): ChatMemorySam
     store, now: () => KNOW_NOW, me: { id: ME, name: NAMES[ME]! }, nameOf: (id) => NAMES[id] ?? id,
     nav: {
       openLink: (l) => void opened.push(`link:${l}`), openPage: (id) => void opened.push(`page:${id}`), openGraph: (id) => void opened.push(`graph:${id}`),
-      openKnowledge: () => void opened.push("knowledge"), openSource: (k, r) => void opened.push(`source:${k}:${r}`),
+      openKnowledge: () => void opened.push("knowledge"), openSource: (k, r) => void opened.push(`source:${k}:${r}`), openAboutYou: () => void opened.push("about-you"),
     },
     showKnows: () => void opened.push("knows"),
   };

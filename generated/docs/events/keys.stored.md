@@ -19,6 +19,6 @@ A wrapped key bundle was stored or re-wrapped
 ```ts
 type Payload = {
   personId: string;
-  reason: "first_device" | "password_change" | "reset" | "recovery" | "space_key_epoch" | "new_device";
+  reason: "first_device" | "password_change" | "reset" | "recovery" | "space_key_epoch" | "new_device" | "link";
 };
 ```

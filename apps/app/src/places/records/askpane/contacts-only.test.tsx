@@ -8,7 +8,6 @@ import { worthShowing } from "../sidebar/model.ts";
 import type { TypeRow } from "../sidebar/model.ts";
 import { TypeSheet, connectChoices } from "../typeedit/index.ts";
 import { ASK_CLOSED, askContext, askHint, askPaneReduce, askScopeId, makeAskVyre } from "./model.ts";
-import { AskPane } from "./AskPane.tsx";
 import { RecordsDataProvider, RecordsSidebar, RecordsStateProvider } from "../sidebar/index.ts";
 import { createSampleRecords, northwind } from "../table/sample.ts";
 
@@ -84,10 +83,14 @@ test("Ask in Records opens a pane in the tab with the Records context and never 
   assert.equal(state.open, false);
 });
 
-test("the pane is the shared side pane with a line about where the person is", () => {
-  const out = clean(renderToStaticMarkup(<AskPane about={{ making: "Deal" }} onClose={() => undefined}><span data-testid="chat" /></AskPane>));
-  assert.ok(has(out, 'data-testid="side-pane"') && has(out, 'data-testid="records-ask-pane"') && has(out, 'data-testid="chat"'));
-  assert.ok(has(out, askHint({ making: "Deal" })) && has(out, "Ask Vyre"));
+test("the pane is the shared Ask pane of the shell, on the shared side pane, with a line about where the person is", async () => {
+  const { AskPane } = await import("../../../shell/ask/AskPane.tsx");
+  const { sampleRuntime } = await import("../../../shell/providers/misc-test-runtime.tsx");
+  const rt = sampleRuntime({ screens: {} as never, call: async () => ({}) });
+  const state = { place: "records", thing: { kind: "records", id: "types", title: "New type Deal" }, agentId: "assistant", hint: askHint({ making: "Deal" }), fresh: 0, seq: 1 };
+  const out = clean(renderToStaticMarkup(<AskPane rt={rt} state={state} />));
+  assert.ok(has(out, 'data-testid="side-pane"') && has(out, 'data-testid="ask-pane"') && has(out, 'data-testid="ask-pane-chip"'));
+  assert.ok(has(out, askHint({ making: "Deal" })) && has(out, "Ask Vyre") && has(out, "New type Deal"));
 });
 
 test("the assistant can reach schema.diff, schema.apply and the change card, and a plan-mode turn cannot apply", () => {

@@ -25,7 +25,7 @@ Note that the caller opened something so it shows under Recent
 
 ```ts
 type In = {
-  kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel";
+  kind: "person" | "agent" | "chat" | "inbox" | "record" | "file" | "automation" | "app" | "setting" | "memory" | "task" | "channel" | "note";
   itemId: string;
 };
 ```

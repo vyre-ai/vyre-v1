@@ -1,5 +1,6 @@
 // The phone's navigation (spec 3.11, ARCH 7.11): five bottom tabs and one history. Back returns to the screen you came from, which is not always the parent: a contact opened from a record
-// goes back to that record. No Automations, Journeys or Console on the phone. Pure, so the tests drive it without a renderer.
+// goes back to that record. No Automations, Journeys or Console on the phone (owner ruling, 3 Nov): a link to one is the Chat-about-it screen ("desktop:<place>:<hash>",
+// session/mobile-map.ts), never the place itself. Pure, so the tests drive it without a renderer.
 
 export type TabId = "chats" | "inbox" | "records" | "files" | "you";
 
@@ -11,8 +12,8 @@ export const MOBILE_TABS: readonly { id: TabId; label: string }[] = [
   { id: "you", label: "You" },
 ];
 
-/** Places the phone does not have: the first part of a screen key. */
-export const NOT_ON_PHONE: readonly string[] = ["journeys", "console"];
+/** Places the phone does not have: the first part of a screen key. A screen of one of these kinds is refused; links to them become the Chat-about-it screen instead. */
+export const NOT_ON_PHONE: readonly string[] = ["automations", "automation", "journeys", "journey", "console"];
 
 export interface Entry {
   tab: TabId;
@@ -56,6 +57,14 @@ export function open(s: NavState, entry: Entry): NavState {
   const top = current(s);
   if (top.tab === entry.tab && top.screen === entry.screen) return s;
   return { history: [...s.history, entry] };
+}
+
+/** Puts a screen in place of the one on show (an Ask link becomes the thread it found, so Back skips the link). */
+export function replace(s: NavState, entry: Entry): NavState {
+  if (!isAllowed(entry.screen)) return s;
+  const top = current(s);
+  if (top.tab === entry.tab && top.screen === entry.screen) return s;
+  return s.history.length > 1 ? { history: [...s.history.slice(0, -1), entry] } : { history: [...s.history, entry] };
 }
 
 /** Back to the originating screen. At a tab's first screen there is nothing to go back to. */

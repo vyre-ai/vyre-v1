@@ -5,3 +5,4 @@ export { QueueIndicator } from "./QueueIndicator.tsx";
 export type { QueueIndicatorProps } from "./QueueIndicator.tsx";
 export { BANNER_TTL_MS, BannerStack, MAX_BANNERS, collapseKey, placeMarks, queueLine, wantsBanner } from "./model.ts";
 export type { Banner, Notification, NotificationAction, PlaceId, PlaceMark, QueueLine } from "./model.ts";
+export { arrivals, bannerTarget } from "./model.ts";

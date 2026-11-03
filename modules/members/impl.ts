@@ -8,6 +8,11 @@ export { handlers };
 /** The host builds identity's ctx.invites from this (peek never spends, accept queues the join effects), and the scheduler calls drainJoins to retry steps that failed. */
 export { drainJoins, invitesSeam };
 export const projections = { inline: {}, consumers: {} };
+
+/** Join steps that did not work (a channel add, a group, the company mail and calendar match) are tried again every two minutes, as the system; each is idempotent, so a step that worked is never run twice. */
+export const periodic = {
+  "members.join_retry": { everyMs: 120_000, run: async (ctx: Ctx) => { await drainJoins(ctx as unknown as MembersCtx, undefined, { periodic: true }); } },
+};
 export const codecs = {};
 
 /** Host calls (host/src/daemon/consumers.ts): what identity's ctx.invites runs, with this module's ctx (members_* tables). */

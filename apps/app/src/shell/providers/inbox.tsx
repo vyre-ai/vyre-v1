@@ -1,5 +1,5 @@
 // Inbox in the shell (spec 3.3): the sidebar (inboxes, numbers, channels, calendars) on the left; in the middle the contact list, a contact's conversation once one is opened, or the
-// Calendar when the sidebar asks for it. The Inbox's own UI state (view, scope, filters, selection) is one reducer shared by the sidebar and the list. Before the Space's runtime
+// Calendar or the Meetings tab when the sidebar asks for it. The Inbox's own UI state (view, scope, filters, selection) is one reducer shared by the sidebar and the list. Before the Space's runtime
 // exists the place draws its loading frame. Inbox is off the rail until something flows in; a saved tab or a link that still opens it with nothing connected shows the connect
 // tiles of Settings > Email and calendar instead of an empty Inbox.
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -15,6 +15,7 @@ import { CallConversation } from "../../places/inbox/callpane/index.ts";
 import type { OpenTask } from "../../places/inbox/callpane/index.ts";
 import { getAsk } from "../../places/inbox/contacttab/ask.ts";
 import { InboxUnmatched } from "../../places/inbox/unmatched/index.ts";
+import { MeetingsTab } from "../../places/inbox/meetings/index.ts";
 import { ConnectChannel } from "../../places/inbox/connect/index.ts";
 import { InboxDataProvider, useCanSend } from "../../places/inbox/sidebar/data.tsx";
 import type { InboxData } from "../../places/inbox/sidebar/data.tsx";
@@ -27,6 +28,7 @@ import { inboxData } from "./inbox-data.ts";
 import { useInboxSources } from "../rail/inbox-sources.ts";
 import { capLive } from "./records-live.ts";
 import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
+import { openAskPane } from "../ask/pane.ts";
 import { SIDEBAR_DEFAULT } from "../sidebar/index.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
@@ -64,20 +66,61 @@ function useOpenTasks(rt: ShellRuntime): readonly OpenTask[] {
 }
 
 function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; close: () => void }): ReactElement {
+  // Ask in a conversation opens the Ask pane beside it, about the contact (one Ask per contact, the same one Records continues) or, before it is matched, the conversation
+  const askInbox = (contactId?: string, about?: { conversationId: string; title: string }): void => {
+    const thing = contactId ? { kind: "record", id: contactId, ...(about?.title ? { title: about.title } : {}) } : about && about.conversationId !== "" ? { kind: "conversation", id: about.conversationId, ...(about.title ? { title: about.title } : {}) } : null;
+    openAskPane({ thing, context: { actions: ["summarise the conversation", "draft a reply for the person to send", "find the record"] } }, "inbox");
+  };
   const missing = useMissing(rt.screens, "inbox.contact-tab", "thread", openId ? { conversationId: openId } : null);
   const { state, dispatch } = useInboxState();
   const { target, opened } = usePlaceHash();
   const people = useSyncExternalStore(rt.principals.subscribe, rt.principals.getSnapshot, rt.principals.getSnapshot);
   const team = useMemo(() => calendarTeam(people.status === "ready" ? people.data : []), [people]);
   const tasks = useOpenTasks(rt);
+  // a link to a meeting (subject meeting, or the Meetings screen) opens the Meetings tab, with that meeting's close-out when it names one
+  const meetingHash = target.subject?.type === "meeting" ? target.subject.id : target.screen === "meetings.closeout" ? (target.args["meetingId"] ?? "") : null;
+  useEffect(() => { if (meetingHash !== null && state.main !== "meetings") dispatch({ type: "meetings" }); }, [meetingHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the tab
+  // a link to an event (vyre://event/<id>, Copy Link in the event pane) opens the Calendar with that event in its pane
+  const eventHash = target.subject?.type === "event" ? target.subject.id : null;
+  useEffect(() => { if (eventHash !== null && state.main !== "calendar") dispatch({ type: "calendar" }); }, [eventHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
   // Choosing another inbox, view, filter or the Calendar in the sidebar leaves the open conversation and shows the list again.
   const first = useRef(true);
-  useEffect(() => { if (first.current) { first.current = false; return; } close(); if (target.screen === "inbox.unmatched") opened({}); }, [state.scope, state.view, state.main, state.channels, state.inboxes, state.needsMatch]); // eslint-disable-line react-hooks/exhaustive-deps -- close and the hash are read when the sidebar changes, not the other way round
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    close();
+    if (target.screen === "inbox.unmatched" || (state.main !== "meetings" && meetingHash !== null) || (state.main !== "calendar" && eventHash !== null)) opened({});
+  }, [state.scope, state.view, state.main, state.channels, state.inboxes, state.needsMatch]); // eslint-disable-line react-hooks/exhaustive-deps -- close and the hash are read when the sidebar changes, not the other way round
   // the connect choice is for an Inbox with nothing connected: once a channel can send (the person came back from the connect flow) the list takes over
   const canSend = useCanSend();
   useEffect(() => { if (state.main === "connect" && canSend === true) dispatch({ type: "scope", scope: { kind: "all" } }); }, [state.main, canSend]); // eslint-disable-line react-hooks/exhaustive-deps -- dispatch is stable
   if (state.main === "connect") return <ConnectChannel />;
-  if (state.main === "calendar") return <Calendar me={rt.me.id} team={team} />;
+  if (state.main === "calendar") {
+    return (
+      <Calendar
+        me={rt.me.id} team={team} {...(eventHash ? { initial: { openId: eventHash } } : {})}
+        onOpenEvent={(id) => { if (id !== eventHash) opened({ subject: { type: "event", id } }); }} onCloseEvent={() => { if (eventHash) opened({}); }}
+        onOpenRecord={(id) => rt.open({ subject: { type: "record", id } })} onOpenFile={(id) => rt.open({ subject: { type: "file", id } })}
+        onOpenConversation={(contactId) => { dispatch({ type: "scope", scope: { kind: "all" } }); opened({ args: { contactId } }); }}
+        onJoin={(url) => rt.openUrl(url)} onOpenUrl={(url) => rt.openUrl(url)}
+        onOpenMeeting={(id) => { dispatch({ type: "meetings" }); opened({ subject: { type: "meeting", id } }); }}
+        onAsk={(e) => { openAskPane({ thing: { kind: "event", id: e.id, title: e.title }, context: { actions: ["who is coming and what they want", "what was agreed last time", "draft an agenda", "move or reschedule it"] } }, "inbox"); }}
+      />
+    );
+  }
+  if (state.main === "meetings") {
+    const persons = people.status === "ready" ? people.data.filter((p) => p.kind === "person").map((p) => ({ id: p.id, name: p.name })) : [];
+    return (
+      <MeetingsTab
+        openId={meetingHash || null} team={persons} nameOf={(id) => (id === rt.me.id ? rt.me.name : persons.find((p) => p.id === id)?.name ?? "Someone")}
+        onOpen={(id) => opened({ subject: { type: "meeting", id } })} onBack={() => opened({})}
+        nav={{
+          openSubject: (sub) => rt.open({ subject: sub }),
+          openContact: (contactId) => { dispatch({ type: "scope", scope: { kind: "all" } }); opened({ args: { contactId } }); },
+          openCalendar: () => dispatch({ type: "calendar" }),
+        }}
+      />
+    );
+  }
   // Match to a record (the list's menu and its row) opens the Unmatched screen: every sender or caller with no record, and the Match menu on each
   if (target.screen === "inbox.unmatched" && !openId) {
     return (
@@ -89,10 +132,10 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
   }
   // "Ask for these" from a record: the person's conversation opens by contact (it may not exist yet) with the message drafted
   const askContact = !openId ? target.args["contactId"] : undefined;
-  if (askContact) return <CallConversation key={`ask:${target.args["ask"] ?? askContact}`} conversationId="" contactId={askContact} {...(getAsk(target.args["ask"]) ? { ask: getAsk(target.args["ask"])! } : {})} tasks={tasks} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={(contactId) => rt.open({ screen: "chats.conversation", args: { with: "assistant", ...(contactId ? { contactId } : {}) } })} />;
+  if (askContact) return <CallConversation key={`ask:${target.args["ask"] ?? askContact}`} conversationId="" contactId={askContact} {...(getAsk(target.args["ask"]) ? { ask: getAsk(target.args["ask"])! } : {})} tasks={tasks} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={askInbox} />;
   if (openId && missing) return <NotFound what="conversation" />;
   // the conversation with the call bar and, after a call, the ended strip when the phone is on this contact
-  if (openId) return <CallConversation key={openId} conversationId={openId} tasks={tasks} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={(contactId) => rt.open({ screen: "chats.conversation", args: { with: "assistant", ...(contactId ? { contactId } : {}) } })} />;
+  if (openId) return <CallConversation key={openId} conversationId={openId} tasks={tasks} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={askInbox} />;
   return <ContactList />;
 }
 

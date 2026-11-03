@@ -7,11 +7,23 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "meetings.attach_recording": Handler<"meetings.attach_recording", X>;
   "meetings.cancel": Handler<"meetings.cancel", X>;
+  "meetings.closeout.approve": Handler<"meetings.closeout.approve", X>;
+  "meetings.closeout.edit": Handler<"meetings.closeout.edit", X>;
+  "meetings.closeout.get": Handler<"meetings.closeout.get", X>;
+  "meetings.closeout.list": Handler<"meetings.closeout.list", X>;
+  "meetings.closeout.prepare": Handler<"meetings.closeout.prepare", X>;
+  "meetings.closeout.propose": Handler<"meetings.closeout.propose", X>;
+  "meetings.closeout.share": Handler<"meetings.closeout.share", X>;
+  "meetings.closeout.skip": Handler<"meetings.closeout.skip", X>;
+  "meetings.closeout.sync": Handler<"meetings.closeout.sync", X>;
   "meetings.get": Handler<"meetings.get", X>;
   "meetings.ingest": Handler<"meetings.ingest", X>;
   "meetings.list": Handler<"meetings.list", X>;
   "meetings.match_attendees": Handler<"meetings.match_attendees", X>;
   "meetings.merge": Handler<"meetings.merge", X>;
+  "meetings.prep.get": Handler<"meetings.prep.get", X>;
+  "meetings.prep.save": Handler<"meetings.prep.save", X>;
+  "meetings.prep.start": Handler<"meetings.prep.start", X>;
   "meetings.schedule": Handler<"meetings.schedule", X>;
   "meetings.set_state": Handler<"meetings.set_state", X>;
   "meetings.set_summary": Handler<"meetings.set_summary", X>;

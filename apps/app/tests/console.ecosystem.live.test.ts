@@ -64,15 +64,16 @@ test("production Console: Skills and Plugins add, install, configure and connect
     // ---- Skills
     await open("console.skills", '[data-testid="console-skills"]');
     await page.getByText("working-in-vyre", { exact: true }).first().waitFor();
-    await page.getByTestId("skill-new").click();
-    await page.getByTestId("skill-text").fill(SKILL);
-    await page.getByTestId("skill-sheet").getByRole("button", { name: "Add skill", exact: true }).click();
-    await page.getByText("matter-intake added", { exact: true }).waitFor();
+    await page.getByTestId("skill-add").click();
+    await page.getByTestId("skill-link").fill(SKILL);
+    await page.getByTestId("skill-link-read").click();
+    await page.getByTestId("skill-review-add").click();
+    await page.getByTestId("row-skill-space-matter-intake").waitFor();
     const list = (await api("skills.list", { includeOff: true }) as { skills: Array<{ name: string; tier: string; source: string }> }).skills;
     assert.deepEqual(list.filter((s) => s.name === "matter-intake").map((s) => [s.tier, s.source]), [["space", "upload"]]);
     await shoot("skills");
     await page.getByLabel("matter-intake is on", { exact: true }).click();
-    await page.getByText("Skill off", { exact: true }).waitFor();
+    await page.locator('[data-testid="skill-space-on-matter-intake"][aria-checked="false"]').waitFor();
     assert.equal(((await api("skills.list", {}) as { skills: Array<{ name: string }> }).skills).some((s) => s.name === "matter-intake"), false, "switched off, it leaves the index");
     t.diagnostic("PASS Skills add and switch off, read back");
 
@@ -89,13 +90,20 @@ test("production Console: Skills and Plugins add, install, configure and connect
     await page.getByText("Options saved", { exact: true }).waitFor();
     const plugins = (await api("plugins.list", {}) as { plugins: Array<{ name: string; config: Record<string, string>; parts: { skills: string[]; commands: string[]; mcpServers: string[] } }> }).plugins;
     assert.deepEqual(plugins.map((p) => [p.name, p.config, p.parts.skills, p.parts.commands, p.parts.mcpServers]), [["greeter", { echo_token: "#Eco_Echo.token" }, ["greeting"], ["hello"], ["echo"]]]);
-    await page.getByTestId("conn-name").fill("crm");
-    await page.getByTestId("conn-url").fill("https://crm.example.com/mcp");
-    await page.getByTestId("conn-header").fill("#Crm_Key.token");
-    await page.getByTestId("conn-add").click();
-    await page.getByText("Connected", { exact: true }).waitFor();
-    const conns = (await api("plugins.connections.list", {}) as { connections: Array<{ name: string; headers: Record<string, string> }> }).connections;
-    assert.deepEqual(conns.map((c) => [c.name, c.headers]), [["crm", { Authorization: "#Crm_Key.token" }]]);
+    // outside tools live in Vault > Connections (owner ruling D28): the Console links there, and the server is added by its address for the whole Space
+    await page.getByTestId("console-connections-open").click();
+    await page.getByTestId("vault-connections").waitFor({ timeout: 20_000 });
+    await page.getByTestId("connections-add").click();
+    await page.getByTestId("connection-way-paste").click();
+    await page.getByTestId("paste-input").fill("https://crm.example.com/mcp");
+    await page.getByTestId("paste-continue").click();
+    await page.getByTestId("setup-name").fill("crm");
+    await page.getByTestId("scope-space").click();
+    await page.getByTestId("setup-add").click();
+    await page.getByTestId("connection-added").waitFor({ timeout: 20_000 });
+    const conns = (await api("plugins.connections.list", {}) as { connections: Array<{ name: string; scope: string; source?: string }> }).connections;
+    assert.deepEqual(conns.map((c) => [c.name, c.scope, c.source]), [["crm", "space", "paste"]]);
+    await open("console.plugins", '[data-testid="console-plugins"]');
     await shoot("plugins");
     await page.getByTestId("plugin-remove").click();
     await page.getByText("Plugin removed", { exact: true }).waitFor();

@@ -40,30 +40,84 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
   no_account: { message: "Connect your AI to get replies.", cause: "No AI account is saved for this chat yet.", next: [{ key: "connect_ai", label: "Connect your AI" }], retryable: false },
   account_unavailable: { message: "Your AI account could not be reached just now.", next: [{ key: "connect_ai", label: "Check your AI account" }], retryable: true },
   "engine.server_off": { message: "Your server is off, so this chat did not run.", retryable: true },
+  "engine.device_off": { message: "Your computer is off, so this chat did not run.", next: [{ key: "run_on_server", label: "Run it on the server instead" }], retryable: true },
+  "engine.device_gone": { message: "Your computer went away in the middle of this.", next: [{ key: "run_on_server", label: "Run it on the server instead" }], retryable: true },
   "engine.link_insecure": { message: "Your server needs a secure link (https) before it can run your chats.", retryable: true },
   "engine.cli_missing": { message: "The engine is not installed here.", next: [{ key: "connect_ai", label: "Connect an account" }], retryable: true },
   "engine.vault_locked": { message: "Your Vault is locked.", cause: "Unlock it to let this chat use your AI account.", next: [{ key: "unlock_vault", label: "Unlock" }], retryable: false },
   "engine.vault_unreadable": { message: "Your Vault could not be read just now.", next: [{ key: "open_vault", label: "Open the Vault" }], retryable: true },
-  "sandbox.unavailable": { message: "Your server cannot sandbox the engine.", retryable: true },
+  "sandbox.unavailable": { message: "This engine cannot run safely on this computer yet.", cause: "Vyre runs Claude Code, Codex and Grok in a sandbox, and this computer has none it can use. An API key works now.", next: [{ key: "connect_ai", label: "Use an API key" }], retryable: false },
+  "sandbox.wsl_off": { message: "Claude Code, Codex and Grok need WSL on Windows.", cause: "Vyre runs them in a Linux sandbox, and WSL is off on this computer. Turn it on once (admin and a restart), or use an API key now.", next: [{ key: "turn_on_wsl", label: "Turn on WSL (needs admin and a restart)" }, { key: "connect_ai", label: "Use an API key" }], retryable: false },
+  "sandbox.wsl_setup": { message: "The Windows sandbox could not be set up.", cause: "Check the connection, then try again.", retryable: true },
+  "sandbox.wsl_start": { message: "The Windows sandbox did not start.", cause: "Try again. If it keeps happening, restart the computer.", retryable: true },
+  "sandbox.policy": { message: "The engine was kept out of a folder it may not use.", retryable: true },
+  "sandbox.net": { message: "The engine's network guard could not start.", retryable: true },
+  "engine.mcp_unavailable": { message: "The engine could not reach Vyre's tools.", retryable: true },
+  "engine.cli_failed": { message: "The engine could not start.", cause: "Try again. If it keeps happening, sign in to the account again.", next: [{ key: "connect_ai", label: "Check your AI account" }], retryable: true },
+  "engine.cli_error": { message: "The engine stopped with an error before it replied.", retryable: true },
+  "engine.mcp_failed": { message: "The engine could not reach Vyre's tools.", retryable: true },
+  "engine.step_limit": { message: "The agent took too many steps in one reply, so it was stopped.", cause: "Ask for a smaller part of the work.", retryable: true },
+  "engine.busy": { message: "The engine was still answering an earlier message.", retryable: true },
+  "engine.closed": { message: "The engine's session had closed.", retryable: true },
+  "engine.compact_unsupported": { message: "This engine cannot compact a chat.", retryable: false },
+  "engine.nothing_to_compact": { message: "There is nothing to compact yet.", retryable: false },
+  "provider.error": { message: "Your AI provider stopped with an error.", retryable: true },
+  "provider.filtered": { message: "Your AI provider declined to answer this.", retryable: false },
+  "engine.timeout": { message: "The engine did not answer in time.", retryable: true },
+  "engine.session_gone": { message: "The engine lost this chat's earlier session.", cause: "Try again: it starts from the chat's summary.", retryable: true },
+  "engine.no_account": { message: "Connect your AI to get replies.", cause: "No AI account is saved for this chat yet.", next: [{ key: "connect_ai", label: "Connect your AI" }], retryable: false },
+  "engine.account_unavailable": { message: "Your AI account could not be reached just now.", next: [{ key: "connect_ai", label: "Check your AI account" }], retryable: true },
+  "engine.account_unsupported": { message: "This engine cannot run on this kind of account yet.", cause: "Use an API key for it.", next: [{ key: "connect_ai", label: "Use an API key" }], retryable: false },
+  "engine.unknown_driver": { message: "This chat's AI is not one Vyre knows.", next: [{ key: "connect_ai", label: "Choose another AI" }], retryable: false },
+  "provider.auth_failed": { message: "Your AI account needs you to sign in again.", next: [{ key: "connect_ai", label: "Sign in again" }], retryable: false },
+  "provider.rate_limited": { message: "Your AI account reached its usage limit.", cause: "Wait for it to reset, or use another account.", next: [{ key: "connect_ai", label: "Use another account" }], retryable: true },
+  "provider.unavailable": { message: "Your AI provider is busy or down just now.", retryable: true },
+  "provider.overloaded": { message: "Your AI provider is busy just now.", retryable: true },
+  "provider.network": { message: "Your AI provider could not be reached.", cause: "Check the connection, then try again.", retryable: true },
+  "provider.context_too_long": { message: "This chat is too long for the model.", cause: "Compact the chat, then try again.", retryable: false },
+  "provider.bad_request": { message: "Your AI provider refused this request.", retryable: true },
+  "provider.bad_response": { message: "Your AI provider sent a reply Vyre could not read.", retryable: true },
+  "provider.bad_address": { message: "The address for this AI is not valid.", next: [{ key: "connect_ai", label: "Check your AI account" }], retryable: false },
+  "permission.no_grant": { message: "This agent may not use that AI account.", next: [{ key: "connect_ai", label: "Choose another account" }], retryable: false },
   "engine.post_failed": { message: "The reply was written but could not be shown.", cause: "Try again.", retryable: true },
   turn_timeout: { message: "That took too long, so it was stopped.", retryable: true },
   paid_fallback: { message: "This account is out for now.", cause: "A paid key could answer. It is in your Tasks for you to say yes.", retryable: false },
   host_lost: { message: "The server stopped while this was running.", cause: "It may have done part of the work. Check before running it again.", retryable: true },
   agent_paused: { message: "This agent is paused, so it did not answer.", cause: "Resume it from its page, then try again.", retryable: true },
   agent_gone: { message: "This agent was deleted, so it did not answer.", retryable: false },
+  no_asker: { message: "No one asked for this, so it did not run.", cause: "An agent's message started it. Ask the agent yourself and it runs for you.", retryable: false },
 };
 
+/** A code with no words of its own reads as its family: still what happened, never "did not finish". */
+const FAMILY_WORDS: Record<string, { message: string; retryable: boolean }> = {
+  sandbox: { message: "The engine's sandbox could not start.", retryable: true },
+  provider: { message: "Your AI provider could not answer this one.", retryable: true },
+  permission: { message: "This agent was not allowed to do that.", retryable: false },
+};
+/** The words for a code: its own, else its family's, else the plain fallback (an error Vyre has no code for). */
+export function wordsFor(code: string): { message: string; cause?: string; next?: { key: string; label: string }[]; retryable: boolean } {
+  return STATUS_WORDS[code] ?? FAMILY_WORDS[code.split(".")[0] ?? ""] ?? { message: "That reply did not finish.", retryable: true };
+}
+/** The codes with words of their own (status.test.ts checks every code a turn can fail with is here). */
+export const KNOWN_CODES: readonly string[] = Object.keys(STATUS_WORDS);
+
 /** How a turn_status block reads: a failed turn is the inline error row with a plain sentence and one action; a stopped or parked turn is a quiet line. */
-export type StatusView = { kind: "error"; block: MessageBlock } | { kind: "note"; id: string; text: string } | { kind: "approval"; id: string; taskId: string };
+export type StatusView = { kind: "error"; block: MessageBlock } | { kind: "note"; id: string; text: string } | { kind: "approval"; id: string; taskId: string } | { kind: "wait"; id: string; text: string; action: { key: string; label: string } };
+
+/** The line of a chat that waits for the person's computer (lane l-runson), and its one action. */
+export const DEVICE_WAIT_TEXT = "Your computer is off. This chat runs when it is back.";
+export const RUN_ON_SERVER = { key: "run_on_server", label: "Run it on the server instead" } as const;
 
 export function statusView(b: MessageBlock): StatusView {
   const d = dataOf(b);
   const state = str(d.state);
   if (state === "note" && str(d.text) !== "") return { kind: "note", id: b.id, text: str(d.text) };
+  // a chat pinned to the person's computer waits for it, quietly, with the way to run it on the server instead
+  if (state === "device_wait") return { kind: "wait", id: b.id, text: str(d.text) || DEVICE_WAIT_TEXT, action: { ...RUN_ON_SERVER } };
   if (state === "cancelled") return { kind: "note", id: b.id, text: "Stopped." };
   if (state === "waiting" && str(d.taskId) !== "") return { kind: "approval", id: b.id, taskId: str(d.taskId) };
   if (state === "waiting") return { kind: "note", id: b.id, text: "Waiting for your approval." };
-  let w = STATUS_WORDS[str(d.code)] ?? { message: "That reply did not finish.", retryable: true };
+  let w = wordsFor(str(d.code));
   // The engine that is missing is named with one button that installs it, and why the last try did not finish; one that has no build for this computer offers another account only. The reason the
   // Vault refused is the one it gave.
   const engine = Object.hasOwn(ENGINES, str(d.program)) ? ENGINES[str(d.program)] : undefined;
@@ -79,3 +133,9 @@ export function statusView(b: MessageBlock): StatusView {
   return { kind: "error", block: { ...b, type: "error", data: { code: str(d.code), message: w.message, ...(w.cause ? { cause: w.cause } : {}), next: w.next ?? [], retryable: w.retryable, turnId: str(d.turnId), steps: [...(str(d.code) ? [["Code", str(d.code)]] : []), ["Reply", str(d.turnId)]] } } };
 }
 
+
+/** "Olivia's Mac, then the Northwind server": where a turn ran, in order, as its details say it. */
+export function ranOnText(ran: ReadonlyArray<{ kind: string; name: string }>): string {
+  const word = (r: { kind: string; name: string }): string => (r.kind === "space" && /^the /.test(r.name) ? r.name.charAt(0).toUpperCase() + r.name.slice(1) : r.name);
+  return ran.map((r, i) => (i === 0 ? word(r) : r.name)).join(", then ");
+}

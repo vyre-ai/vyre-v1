@@ -92,7 +92,7 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
           label={personal ? "Personal" : "Space"}
           sub={personal ? "Yours alone. It runs with only the access you already have." : "Bigger than one person. It runs on access given to it, not on anyone's own."}
         >
-          {personal ? <TextButton label="Promote to Space" primary testID="promote" onPress={() => setPromote(true)} /> : <TextButton label="Make a personal copy" icon="plus" testID="personal-copy" onPress={() => void copy()} />}
+          {personal ? (data.canSpace === false ? null : <TextButton label="Promote to Space" primary testID="promote" onPress={() => setPromote(true)} />) : <TextButton label="Make a personal copy" icon="plus" testID="personal-copy" onPress={() => void copy()} />}
         </SRow>
       </Group>
       {data.keysStatus ? (

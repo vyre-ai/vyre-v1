@@ -38,6 +38,8 @@ export interface FilesNav {
   uploadFiles?(folderId: string | null, files: readonly { name: string; type?: string }[]): void;
   /** Review a change set an agent staged: the shell opens its review surface. */
   reviewChanges?(changesetId: string): void;
+  /** The goal a folder belongs to (the "Goal:" line at its top). */
+  openGoal?(goalId: string): void;
   /** Resolve the two edits of a file (the Conflict tag): the shell opens the conflict choice for it. */
   resolveConflict?(fileId: string): void;
   /** Open an address outside Vyre (a mounted file in its provider's editor): the shell's own way of opening a link. */

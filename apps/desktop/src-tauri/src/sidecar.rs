@@ -150,7 +150,7 @@ pub(crate) fn runtime_dir(app: &AppHandle) -> Result<PathBuf, String> {
 /// Fixed native process specification, also exercised by the real-daemon integration test.
 pub(crate) fn launch_args(entry: PathBuf, data: &std::path::Path, personal: bool) -> Result<Vec<String>,String> {
  let mut args=vec![entry.to_string_lossy().to_string(),"--role".into(),if personal {"space,device"}else{"device"}.into(),"--data-dir".into(),data.to_string_lossy().to_string(),"--host".into(),"127.0.0.1".into(),"--port".into(),"0".into()];
- if personal {args.extend(["--space-kind".into(),"personal".into(),"--space-name".into(),"Personal".into(),"--space".into(),crate::personal::profile_space_id(data)?]);}Ok(args)
+ if personal {args.extend(["--space-kind".into(),"personal".into(),"--space-name".into(),"Personal".into(),"--space".into(),crate::personal::profile_space_id(data)?,"--peers".into()]);}Ok(args)
 }
 
 /// `vyred` arguments for the Mac Space server: a team Space (role space and device) on a fixed loopback port, linked outward to the relay. The page chooses none of it.

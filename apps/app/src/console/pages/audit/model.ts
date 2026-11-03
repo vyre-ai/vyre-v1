@@ -48,3 +48,10 @@ export function snapshotLines(v: unknown): string[] {
   if (v === null || typeof v !== "object") return [String(v)];
   return Object.entries(v as Record<string, unknown>).map(([k, x]) => `${k}: ${typeof x === "object" && x !== null ? JSON.stringify(x) : String(x)}`);
 }
+
+/** The details line under an agent's audit row (owner ruling 3 Nov): the headline credits its person, "Irfad Imtiaz (Agent)"; this says which agent, its id, the setup grant when it used one, and the trace. */
+export function agentDetails(r: Pick<AuditRow, "actor" | "after" | "traceId">, agentName: string | undefined): string | null {
+  if (r.actor.kind !== "agent") return null;
+  const setup = (r.after as { reason?: unknown } | undefined)?.reason === "setup_grant";
+  return [agentName ?? "An agent", r.actor.id, ...(setup ? ["under the setup grant"] : []), `trace ${r.traceId}`].join(" · ");
+}

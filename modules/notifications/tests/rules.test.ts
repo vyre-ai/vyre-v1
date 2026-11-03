@@ -41,7 +41,8 @@ test("only calls, incidents and approval reminders are exempt from working hours
 
 const SAMPLE: Record<string, Record<string, unknown>> = {
   "approval.requested": { title: "Retainer" }, "approval.backstop": { title: "Retainer" }, dm: { from: "Bob" }, mention: { from: "Bob", where: "Sales" }, "call.incoming": { from: "Bob" },
-  "agent.blocked": { agent: "Scout", reason: "needs a login" }, "incident.owned": { title: "Mail is down" }, "task.assigned": { from: "Bob", title: "Call Lee" },
+  "agent.blocked": { agent: "Scout", reason: "needs a login" }, "incident.owned": { title: "Mail is down" }, "task.assigned": { from: "Bob", what: "gave you a task", title: "Call Lee" },
+  "task.turn": { from: "Maya", step: "review" }, "task.returned": { from: "Cara", note: "Fix the date" }, "task.finished": { from: "Maya" }, "task.due": { when: "Due today" },
   "reply.followed": { where: "Intake" }, "agent.task_finished": { agent: "Scout", title: "Research" }, "digest.away": {},
   "mention.thread": { where: "Intake" }, "run.failed": { name: "Weekly", message: "no mailbox" }, "conflict.needs_you": { title: "Lee" },
   "access.requested": { from: "Bob", level: "edit", title: "Clients" }, "access.decided": { title: "Clients", decision: "approved" }, "sync.attention": { device: "Laptop" },
@@ -295,18 +296,54 @@ test("the fanout consumer files a row for the events that name a kind and ignore
   const h = harness();
   const ctx = h.ctxFor(null, sender);
   const fan = consumers["notifications.fanout"];
-  assert.deepEqual(fan.on, ["task.requested", "task.assigned", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined"]);
+  assert.deepEqual(fan.on, ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined"]);
   const a = await fan.run(ctx, { name: "task.requested", payload: { taskId: "tsk_1", kind: "approve", title: "Retainer", assigned: { kind: "person", id: alice.id } } });
   assert.equal(a.length, 1);
   assert.equal(row(h, a[0]!).kind, "approval.requested");
   assert.equal(row(h, a[0]!).title, "Approval needed: Retainer");
-  assert.deepEqual(await fan.run(ctx, { name: "task.requested", payload: { taskId: "tsk_2", kind: "approve", title: "x", assigned: { kind: "role", id: "rol_admin" } } }), [], "a role is reached through Needs you");
+  assert.deepEqual(await fan.run(ctx, { name: "task.requested", payload: { taskId: "tsk_2", kind: "approve", title: "x", assigned: { kind: "role", id: "rol_admin" } } }), [], "a role nobody can list reaches nobody");
   const b = await fan.run(ctx, { name: "task.assigned", payload: { taskId: "tsk_3", slot: "assigned", to: { kind: "person", id: bob.id }, from: null } });
   assert.equal(row(h, b[0]!).person, bob.id);
-  assert.deepEqual(await fan.run(ctx, { name: "task.assigned", payload: { taskId: "tsk_3", slot: "reviewer", to: { kind: "person", id: bob.id }, from: null } }), []);
+  assert.equal((await fan.run(ctx, { name: "task.assigned", payload: { taskId: "tsk_3", slot: "reviewer", to: { kind: "person", id: bob.id }, from: null } })).length, 1, "a reviewer is told too (l-tasks)");
   const c = await fan.run(ctx, { name: "run.failed", payload: { runId: "run_1", kind: "Weekly", code: "x", message: "no mailbox", owner: alice.id } });
   assert.equal(row(h, c[0]!).title, "Weekly failed: no mailbox");
   const d = await fan.run(ctx, { name: "member.joined", payload: { personId: "usr_new", inviteId: "inv_1", role: "member", invitedBy: alice.id } });
   assert.equal(row(h, d[0]!).level, "digest");
   assert.deepEqual(await fan.run(ctx, { name: "something.else", payload: {} }), []);
+});
+
+// ---- the baton reaches people, by name (l-tasks) ----
+
+test("probe: the turn of a person on handed-in work is a notification naming the task and who handed it in", async () => {
+  const h = harness();
+  h.callee("access.principals.get", (i: { principal: { id: string } }) => ({ principal: { name: i.principal.id === "agt_scout" ? "Irfad Imtiaz (Agent)" : "Maya" } }));
+  h.callee("tasks.get", () => ({ task: { kind: "work", title: "Draft the letter", createdBy: alice.id, workingNotes: { fixes: JSON.stringify(["Fix the date"]) } } }));
+  const ctx = h.ctxFor(null, sender);
+  const fan = consumers["notifications.fanout"];
+  const turn = await fan.run(ctx, { name: "task.requested", payload: { taskId: "tsk_w1", kind: "work", title: "Draft the letter", assigned: { kind: "person", id: bob.id }, step: "review", by: "usr_maya" } });
+  assert.equal(row(h, turn[0]!).title, 'Maya handed in "Draft the letter" for your review');
+  assert.equal(row(h, turn[0]!).kind, "task.turn");
+  const back = await fan.run(ctx, { name: "task.requested", payload: { taskId: "tsk_w2", kind: "work", title: "Draft the letter", assigned: { kind: "person", id: alice.id }, step: "work", by: "agt_scout" } });
+  assert.equal(row(h, back[0]!).title, 'Irfad Imtiaz (Agent) sent "Draft the letter" back: Fix the date', "a private agent is named as its person");
+  const given = await fan.run(ctx, { name: "task.assigned", payload: { taskId: "tsk_w3", slot: "assigned", to: { kind: "person", id: bob.id }, from: null, title: "Call Lee", by: "usr_maya" } });
+  assert.equal(row(h, given[0]!).title, "Maya gave you a task: Call Lee", "never \"a task\"");
+  assert.deepEqual(await fan.run(ctx, { name: "task.assigned", payload: { taskId: "tsk_w4", slot: "assigned", to: { kind: "person", id: bob.id }, from: null, title: "Mine", by: bob.id } }), [], "nobody is told about their own move");
+});
+
+test("a team's people hear a task given to the team; the person who asked hears it finished; the holder hears it is due", async () => {
+  const h = harness();
+  h.callee("access.groups.get", () => ({ group: { members: [{ kind: "person", id: alice.id }, { kind: "person", id: bob.id }, { kind: "agent", id: "agt_x" }] } }));
+  h.callee("access.principals.get", () => ({ principal: { name: "Cara" } }));
+  h.callee("tasks.get", () => ({ task: { kind: "work", title: "Send the bill", createdBy: alice.id } }));
+  const ctx = h.ctxFor(null, sender);
+  const fan = consumers["notifications.fanout"];
+  const team = await fan.run(ctx, { name: "task.assigned", payload: { taskId: "tsk_g1", slot: "assigned", to: { kind: "group", id: "grp_support" }, from: null, title: "Send the bill", by: "usr_cara" } });
+  assert.deepEqual(team.map((id) => row(h, id).person).sort(), [alice.id, bob.id].sort());
+  const done = await fan.run(ctx, { name: "task.completed", payload: { taskId: "tsk_g1", kind: "work" }, actor: "usr_cara" });
+  assert.equal(row(h, done[0]!).title, 'Cara finished "Send the bill"');
+  assert.equal(row(h, done[0]!).person, alice.id);
+  const due = await fan.run(ctx, { name: "task.due", payload: { taskId: "tsk_g1", title: "Send the bill", due: 1, at: "day", holder: { kind: "person", id: bob.id } } });
+  assert.equal(row(h, due[0]!).title, "Due today: Send the bill");
+  const nudge = await fan.run(ctx, { name: "task.nudged", payload: { taskId: "tsk_g1", title: "Send the bill", why: "waiting_on_decision", notify: bob.id } });
+  assert.equal(row(h, nudge[0]!).kind, "approval.backstop");
 });

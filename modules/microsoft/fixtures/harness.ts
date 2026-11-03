@@ -51,7 +51,7 @@ export function harness(opts: HarnessOptions = {}) {
   const userApps = new Map<string, { clientId: string; tenant?: string }>([["#Microsoft_Sign_In", { clientId: "22222222-3333-4444-5555-666666666666" }]]);
   const exchanges: { appHandle: string; code: string; verifier: string; redirectUri: string }[] = [];
   const refreshes: { appHandle: string; refreshToken: string; cacheKey: string; fresh: boolean }[] = [];
-  const userState = { exchangeFails: false, refreshFails: false, publicUrl: "https://space.test" as string | null };
+  const userState = { exchangeFails: false, refreshFails: false, publicUrl: "https://space.test" as string | null, /** Microsoft rotates the refresh token on each refresh */ rotate: false };
   const mailState = { duplicate: false };
   const spaceState = { kind: "team" as "team" | "personal" };
   let taskSeq = 0;
@@ -172,7 +172,7 @@ export function harness(opts: HarnessOptions = {}) {
     async userRefresh(_c: MsCtx, a: { appHandle: string; refreshToken: string; cacheKey: string; fresh?: boolean }) {
       refreshes.push({ appHandle: a.appHandle, refreshToken: a.refreshToken, cacheKey: a.cacheKey, fresh: a.fresh === true });
       if (userState.refreshFails) throw fail("provider.auth_failed", ctx.trace.traceId, { message: "Microsoft did not accept the sign-in." });
-      return { token: `user-access-${refreshes.length}`, expiresAt: clock + 3_600_000 };
+      return { token: `user-access-${refreshes.length}`, expiresAt: clock + 3_600_000, ...(userState.rotate ? { refreshToken: `rotated-${refreshes.length}` } : {}) };
     },
   });
   setMsHost(host);

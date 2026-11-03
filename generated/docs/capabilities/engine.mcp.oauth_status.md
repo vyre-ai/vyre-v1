@@ -8,7 +8,7 @@ Has this remote connection signed in? A yes or no, never the token.
 | Version | 1 (since 1.0.0) |
 | Effects | read |
 | Permission | grant only |
-| Grant level | view |
+| Grant level | member |
 | Risk | low |
 | Resource | space |
 | Gate | none |
