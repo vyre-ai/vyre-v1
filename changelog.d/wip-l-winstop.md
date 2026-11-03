@@ -1,0 +1,1 @@
+- When Vyre stops on a computer linked to a Team Space, it now ends every engine the link started and waits for them to exit before finishing. On Windows a running engine kept its work folder locked, so the data folder could not be removed.

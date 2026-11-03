@@ -13,8 +13,8 @@ export interface TeamLink { id: string; name: string; address: string; token: st
 export interface TeamLinksDeps {
   /** This daemon's admin token: the shell's own key to it. */
   token: string;
-  /** Start the link to one Space; returns its stop. */
-  start(link: TeamLink): () => void;
+  /** Start the link to one Space; returns its stop, which settles once the link and every engine it started have ended. */
+  start(link: TeamLink): () => void | Promise<void>;
   sameToken(a: string, b: string): boolean;
   log?(msg: string, attrs: Record<string, unknown>): void;
 }
@@ -40,14 +40,15 @@ export function linkAddress(v: unknown): string | null {
   } catch { return null; }
 }
 
-export function createTeamLinksRoute(d: TeamLinksDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean; ids(): string[]; sessions(): TeamLink[]; close(): void } {
-  const links = new Map<string, { stop(): void; address: string; link: TeamLink }>();
-  const drop = (id: string): void => { const l = links.get(id); if (l) { links.delete(id); l.stop(); } };
+export function createTeamLinksRoute(d: TeamLinksDeps): { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean; ids(): string[]; sessions(): TeamLink[]; close(): Promise<void> } {
+  const links = new Map<string, { stop(): void | Promise<void>; address: string; link: TeamLink }>();
+  const drop = (id: string): Promise<void> => { const l = links.get(id); if (!l) return Promise.resolve(); links.delete(id); return Promise.resolve().then(() => l.stop()).catch(() => undefined); };
   return {
     ids: () => [...links.entries()].filter(([, l]) => l.link.compute !== false).map(([id]) => id),
     /** Every session the shell handed over, in the order it did (Vyre for Chrome acts as the person with these, lib/chrome-app.ts). */
     sessions: () => [...links.values()].map((l) => ({ ...l.link })),
-    close() { for (const id of [...links.keys()]) drop(id); },
+    /** Every link ends, and its engines with it: the daemon's stop waits for this, so nothing it started still holds a folder in the data directory. */
+    async close() { await Promise.all([...links.keys()].map((id) => drop(id))); },
     handle(req, res) {
       const url = new URL(req.url ?? "/", "http://x");
       if (url.pathname !== PATH) return false;
