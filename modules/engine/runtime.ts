@@ -109,6 +109,8 @@ export interface EngineHostSeam {
   extend?: (engine: TurnEngine) => void;
   /** Told at shutdown with the promise of the engine's close (CLI sessions ended, the sign-ins they refreshed saved), so the daemon waits for it before its databases close. */
   closing?: (done: Promise<void>) => void;
+  /** Set by the module when a later host half has replaced this one while its opener was still open: closes that opener. The seam wiring calls it when this daemon stops. */
+  retire?: () => Promise<void>;
   /** Told how many turns run here now, each time it changes (the desktop shell waits for 0 before it updates the app). */
   turns?: (running: number) => void;
 }
@@ -133,11 +135,11 @@ export function setEngineHost(h: EngineHostSeam | null): void {
     const done = (closeOpener ? closeOpener().catch(() => undefined) : Promise.resolve()).then(() => closeDefaultSandbox()).catch(() => undefined);
     host?.closing?.(done);
   }
-  // Two daemons in one process (tests): the next host half replaces the first before the first has been unwired. The first one's opener (its CLI sessions, MCP socket and egress proxy) is closed
-  // now and handed to its host half to wait for; before, it was dropped here and never closed.
-  else if (closeOpener && host) {
-    const old = closeOpener;
-    host.closing?.(old().catch(() => undefined));
+  // Two daemons in one process: the next host half replaces the first while the first daemon may still be running (its turns go on through the opener it built), so its opener is NOT closed here.
+  // It is handed to the first host half as `retire`, which the seam wiring calls when that daemon stops without holding the seam any more; before, the opener was dropped here and never closed.
+  else if (closeOpener && host && h !== host) {
+    const old = host, close = closeOpener;
+    old.retire = () => { const done = close().catch(() => undefined); old.closing?.(done); return done; };
   }
   closeOpener = null;
   host = h;

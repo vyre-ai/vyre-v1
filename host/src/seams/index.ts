@@ -182,6 +182,7 @@ export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
   const missing: MissingDriver[] = [];
   const called: ((driver: unknown) => void)[] = [];
   const names: string[] = [];
+  const drivers: unknown[] = [];
   for (const [name, fn] of Object.entries(setters)) {
     if (typeof fn !== "function") continue;
     const module = deps.owners?.get(name);
@@ -196,6 +197,7 @@ export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
     names.push(name);
     holders.set(name, me);
     stacks.set(name, [...(stacks.get(name) ?? []), { me, driver }]);
+    drivers.push(driver);
     const legacy = LEGACY[name];
     if (legacy) state[legacy] = "wired";
   }
@@ -206,7 +208,12 @@ export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
         const name = names[i]!;
         const rest = (stacks.get(name) ?? []).filter((x) => x.me !== me);
         stacks.set(name, rest);
-        if (holders.get(name) !== me) return;
+        if (holders.get(name) !== me) {
+          // a later daemon holds the seam: this one's own leftovers (an engine opener the module retired when it was replaced) are closed now
+          const mine = drivers[i];
+          try { void (mine as { retire?: () => Promise<void> } | undefined)?.retire?.(); } catch { /* shutting down */ }
+          return;
+        }
         holders.delete(name);
         try { set(null); } catch { /* shutting down: one module's refusal must not keep the others wired */ }
         // the daemon that wired before this one and is still running gets its seam back
