@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import { SignInPanel } from "../ai-signin/SignInPanel.tsx";
-import { SIGNIN_BUTTONS } from "../ai-signin/flow.ts";
+import { LOCAL_SIGNINS, SIGNIN_BUTTONS, takeLocalSignin } from "../ai-signin/flow.ts";
 import { API_KEYS, saveApiKey, startSubscription } from "./connect-ai.ts";
 import type { SignInFlow } from "./connect-ai.ts";
 import { Mark } from "./ProviderLogo.tsx";
@@ -14,7 +14,7 @@ import { checkKey } from "../ai-signin/key-prefix.ts";
 import { CARD } from "./card-style.ts";
 import type { AiHome } from "../ai-signin/own-ai.ts";
 
-export function ConnectAiCard({ call, connected, onConnected, initialFlow, home = "here" }: { call: CapCall; connected?: boolean; onConnected(providerId: string): void; /** Opens with this sign-in showing (screenshots and tests). */ initialFlow?: SignInFlow & { provider: string }; /** where the person's own key can be kept from here, for the words of a refusal (ai-signin/own-ai.ts) */ home?: AiHome }): ReactElement {
+export function ConnectAiCard({ call, connected, onConnected, initialFlow, home = "here", local = false }: { call: CapCall; connected?: boolean; onConnected(providerId: string): void; /** Opens with this sign-in showing (screenshots and tests). */ initialFlow?: SignInFlow & { provider: string }; /** where the person's own key can be kept from here, for the words of a refusal (ai-signin/own-ai.ts) */ home?: AiHome; /** A Personal Space: offer the Claude Code or Codex sign-in already on this computer first (owner decision D2). */ local?: boolean }): ReactElement {
   const attempt = useRef(globalThis.crypto?.randomUUID?.() ?? String(Date.now()));
   const [mode, setMode] = useState<"tiles" | "key">("tiles");
   const [flow, setFlow] = useState<(SignInFlow & { provider: string }) | null>(initialFlow ?? null);
@@ -62,6 +62,9 @@ export function ConnectAiCard({ call, connected, onConnected, initialFlow, home 
       ) : (
         <View style={s.col}>
           {/* ui-rows-lint: not a list (sign-in choices are buttons, not list rows) */}
+          {local ? LOCAL_SIGNINS.map((o) => (
+            <Pressable key={`local-${o.key}`} testID={`ai-local-${o.key}`} accessibilityRole="button" accessibilityLabel={o.button} disabled={busy} onPress={() => void run(async () => onConnected((await takeLocalSignin(call as never, o.key, `${attempt.current}:local:${o.key}:${Date.now()}`, home)).id))} style={[s.signin, busy && s.busyDim]}><Mark k={o.key} size={18} /><Text style={s.tileText}>{o.button}</Text></Pressable>
+          )) : null}
           {SIGNIN_BUTTONS.map((o) => (
             <Pressable key={o.key} testID={`ai-sub-${o.key}`} accessibilityRole="button" accessibilityLabel={o.button} disabled={busy} onPress={() => void run(async () => setFlow({ ...(await startSubscription(call, o.key, `${attempt.current}:${o.key}:${Date.now()}`, home)), provider: o.key }))} style={[s.signin, busy && s.busyDim]}><Mark k={o.key} size={18} /><Text style={s.tileText}>{o.button}</Text></Pressable>
           ))}

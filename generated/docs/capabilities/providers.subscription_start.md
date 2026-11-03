@@ -26,6 +26,7 @@ Start a subscription sign-in (Claude, ChatGPT through Codex, Grok): the server s
 ```ts
 type In = {
   providerKey: string;
+  local?: boolean;
   idempotencyKey: string;
 };
 ```
@@ -56,6 +57,7 @@ type Out = {
   "name": "example",
   "input": {
     "idempotencyKey": "idem_1",
+    "local": true,
     "providerKey": "claude-code"
   },
   "output": {

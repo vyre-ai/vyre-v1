@@ -191,3 +191,32 @@ test("every event a sign-in emits while it refreshes and folds is one the capabi
     assert.ok(sent.includes("vault.item_updated") && sent.includes("provider.removed"), "the refresh and the fold both happened");
   } finally { u.configureVault(null); h.cleanup(); }
 });
+
+test("the sign-in on this computer (owner decision D2): Start with local answers no link, and Done saves it like any sign-in, in the person's own Mine item", async () => {
+  const h = harness();
+  const started: Array<{ local?: boolean }> = [];
+  const files = codexFiles("acct-local", "local-access");
+  const base = port([{ state: "done", fields: [{ key: "credentials", value: files, secret: true }], identity: { id: "codex:acct-local", label: "maya@example.com" } }]);
+  u.configureVault({ sinks: {}, signin: { ...base, async start(p0: { id: string; local?: boolean }) { started.push({ ...(p0.local ? { local: true } : {}) }); return base.start(p0); } } });
+  try {
+    const input = { providerKey: "codex", idempotencyKey: key(), local: true };
+    assert.deepEqual(contractErrors("providers.subscription_start", "in", input), [], "local is part of the contract");
+    const s = out(await p.subscriptionStart(h.ctx, input));
+    assert.deepEqual(started, [{ local: true }]);
+    assert.equal(s.url, undefined, "no link to open");
+    assert.match(String(s.instruction), /sign-in on this computer/);
+    const done = out(await p.subscriptionComplete(h.ctx, { flowId: String(s.flowId) }));
+    const provider = out(done.provider);
+    assert.equal(provider.connection, "subscription");
+    assert.equal(await secretOf(h, `${String(provider.handle)}.credentials`), files);
+    assert.equal(h.everything().includes("local-access"), false, "no token in a row, event, call or log");
+  } finally { u.configureVault(null); h.cleanup(); }
+});
+
+test("without a host that can read this computer (a Team Space server), local is refused in plain words", async () => {
+  const h = harness();
+  u.configureVault({ sinks: {} });
+  try {
+    await assert.rejects(p.subscriptionStart(h.ctx, { providerKey: "codex", idempotencyKey: key(), local: true }), (e: unknown) => /Personal Space only/.test(`${(e as { message?: string })?.message ?? ""} ${JSON.stringify(e)}`));
+  } finally { u.configureVault(null); h.cleanup(); }
+});

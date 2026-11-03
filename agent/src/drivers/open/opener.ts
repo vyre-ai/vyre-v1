@@ -21,7 +21,7 @@ import { CLI_ADAPTERS, createCliDriver } from "../cli/driver.ts";
 import type { CliDriverDeps } from "../cli/driver.ts";
 import { CLI_IDS } from "../cli/types.ts";
 import type { CliId, Launcher, McpEndpoint, NativePlugins } from "../cli/types.ts";
-import { cliCredential } from "./credentials.ts";
+import { claudeSigninSlot, cliCredential } from "./credentials.ts";
 import type { CredentialKind } from "./credentials.ts";
 import { createFillAuthorizer } from "./fill-authorizer.ts";
 import { createFillLauncher } from "./fill-launcher.ts";
@@ -119,8 +119,12 @@ export function createSessionOpener(d: SessionOpenerDeps): SessionOpener {
     id, kind: "cli",
     async open(spec0) {
       const spec = need(spec0);
-      const cred = cliCredential(id, spec.account.kind, spec.account.ref);
-      if (!cred) throw new DriverError("engine.account_unsupported", `${id} cannot run on this kind of account yet. Use an API key for it.`);
+      const slot = cliCredential(id, spec.account.kind, spec.account.ref);
+      if (!slot) throw new DriverError("engine.account_unsupported", `${id} cannot run on this kind of account yet. Use an API key for it.`);
+      // a Claude sign-in taken from this computer is kept as files, not a setup token (owner decision D2)
+      const cred = id === "claude_code" && spec.account.kind === "subscription"
+        ? await claudeSigninSlot(slot, spec.account.ref, async (handle) => (await d.source.lookup(handle, { ...whoOf(spec), account: true }).catch(() => ({ kind: "unknown" as const }))).kind === "value")
+        : slot;
       try { await d.prepare?.(spec); } catch { /* the engine runs without the guide */ }
       const native = id === "claude_code" || id === "codex" ? (await d.nativePlugins?.(spec, id)) ?? null : null;
       const launcher = createFillLauncher({ inner: d.launcher, source: d.source, reportMiss: d.reportMiss, who: whoOf(spec), env: { [cred.env]: cred.handle, ...(native?.secrets ?? {}) }, onUsed: used(spec), ...(d.saveSignin ? { saveSignin: d.saveSignin } : {}) });

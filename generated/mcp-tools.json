@@ -41663,6 +41663,9 @@
             "minLength": 1,
             "type": "string"
           },
+          "local": {
+            "type": "boolean"
+          },
           "providerKey": {
             "examples": [
               "claude-code"

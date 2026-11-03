@@ -66510,6 +66510,7 @@ if (g4228 === 'object') { const o4228 = x4228 as Record<string, unknown>;
 if (!("providerKey" in o4228)) e.push(p + "/providerKey" + ': required');
 if (!("idempotencyKey" in o4228)) e.push(p + "/idempotencyKey" + ': required');
 if ("providerKey" in o4228) lf(o4228["providerKey"], p + "/providerKey", e, L2);
+if ("local" in o4228) lf(o4228["local"], p + "/local", e, L7);
 if ("idempotencyKey" in o4228) lf(o4228["idempotencyKey"], p + "/idempotencyKey", e, L51);
 }
 }

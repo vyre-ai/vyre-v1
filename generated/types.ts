@@ -23120,6 +23120,7 @@ export type ProvidersSubscriptionCompleteOut = {
 };
 export type ProvidersSubscriptionStartIn = {
   providerKey: string;
+  local?: boolean;
   idempotencyKey: string;
 };
 export type ProvidersSubscriptionStartOut = {
