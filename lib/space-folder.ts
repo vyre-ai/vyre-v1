@@ -25,7 +25,7 @@ export type Call = (cap: string, input: unknown) => Promise<unknown>;
 export const EVERYONE_GROUP = "grp_everyone";
 
 /** Words for a folder that was made, or found, but could not be shared with the Space. */
-export const NOT_SHARED = "The key was saved, but its folder could not be shared with everyone in the Space, so only you can use it. Share the folder from the Vault, or ask an owner or admin.";
+export const NOT_SHARED = "The key was not saved: its folder could not be shared with everyone in the Space. Ask an owner or admin to add it, or to share the folder with everyone.";
 
 interface ListedFolder { id: string; name: string; scope: string; yourLevel?: string; owner?: string }
 
