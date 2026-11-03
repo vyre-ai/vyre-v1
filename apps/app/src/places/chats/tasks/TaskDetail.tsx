@@ -186,7 +186,9 @@ function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, seats, openTa
     g.addEventListener("keydown", f);
     return () => g.removeEventListener("keydown", f);
   }, []);
-  const saveTitle = (): void => { const t = title.trim(); if (t === "" || t === task.title) { setTitle(task.title); return; } void run("tasks.update", { title: t }); };
+  // the title is saved against the version it was started on, so a change someone else made meanwhile is told, not overwritten
+  const titleBase = useRef<number | undefined>(undefined);
+  const saveTitle = (): void => { const t = title.trim(); const base = titleBase.current; titleBase.current = undefined; if (t === "" || t === task.title) { setTitle(task.title); return; } void run("tasks.update", { title: t, ...(base !== undefined ? { expectedVersion: base } : {}) }); };
   const steps = isBaton(view) || task.reviewer || task.approver ? stepsOf(view) : [];
   const labels: ReactElement[] = [];
   for (const l of (task.labels ?? []).slice(0, 4)) labels.push(<Text key={l} style={st.label}>{`#${l}`}</Text>);
@@ -204,7 +206,7 @@ function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, seats, openTa
     <View style={st.titleRow}>
       <View style={{ marginTop: 7 }}><StatusDot state={task.state} size={24} live={turn !== undefined} onPress={(at) => menu.show(statusEntries(task, rt.me.id, run, begin), at.x, at.y, "other", { label: "Status" })} testID="task-status" /></View>
       {/* the title wraps to as many lines as it needs (a phone, the side pane); Enter saves it, it never holds a line break */}
-      <TextInput accessibilityLabel="Task title" testID="task-title" value={title} onChangeText={(v) => setTitle(v.replace(/\n/g, ""))} onBlur={saveTitle} onSubmitEditing={saveTitle} multiline blurOnSubmit scrollEnabled={false} onContentSizeChange={(e) => setTitleH(Math.max(34, Math.ceil(e.nativeEvent.contentSize.height)))} style={[st.h1, { height: titleH }]} />
+      <TextInput accessibilityLabel="Task title" testID="task-title" value={title} onFocus={() => { titleBase.current = task.version; }} onChangeText={(v) => setTitle(v.replace(/\n/g, ""))} onBlur={saveTitle} onSubmitEditing={saveTitle} multiline blurOnSubmit scrollEnabled={false} onContentSizeChange={(e) => setTitleH(Math.max(34, Math.ceil(e.nativeEvent.contentSize.height)))} style={[st.h1, { height: titleH }]} />
     </View>
     {steps.length > 2 ? <BatonPath steps={steps} nameOf={nameOf} /> : null}
     {turn ? <View style={st.liveLine}><LiveWords turn={turn} turns={rt.turns} name={nameOf(turn.agentId)} /></View> : null}
