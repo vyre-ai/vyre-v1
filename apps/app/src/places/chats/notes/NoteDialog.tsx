@@ -1,6 +1,7 @@
 // The note opened over the grid: the layer dims the page (a press on the dimmed area closes it), the card shows the picture, the title and the text to edit in place (saved as you type),
 // a clipped page's quote and address, the link card, what the note was turned into, its labels and who sees it, then Ask about this note, Turn into task and Turn into record, and the bar:
 // colour, labels, image, share, more, Close. Esc or Cmd-Enter closes it (the page owns those keys). A note shared with you to view is read here, not edited.
+import { MarkdownEditor } from "../../../../../../ui/src/RichEditor/index.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { ComponentRef, ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
@@ -44,10 +45,9 @@ export interface DialogActions {
 export function NoteDialog({ n, image, who, edited, a }: { n: Note; image: string | null; who: Who; edited: string; a: DialogActions }): ReactElement {
   const [title, setTitle] = useState(n.title);
   const [body, setBody] = useState(n.body);
-  const [bodyH, setBodyH] = useState(60);
-  const bodyRef = useRef<ComponentRef<typeof TextInput> | null>(null);
+  const [bodyFocus, setBodyFocus] = useState(1);
   // the caret goes to the end of the text when the note opens
-  useEffect(() => { const t = setTimeout(() => bodyRef.current?.focus?.(), 30); return () => clearTimeout(t); }, [n.noteId]);
+  useEffect(() => { const t = setTimeout(() => setBodyFocus((k) => k + 1), 30); return () => clearTimeout(t); }, [n.noteId]);
   const words = shareWords(n, who);
   const ro = !n.canEdit;
   const menu = menuTrigger(a.menu);
@@ -64,15 +64,12 @@ export function NoteDialog({ n, image, who, edited, a }: { n: Note; image: strin
           {n.hasImage ? <View {...menu}><Picture uri={image} alt={n.clip ? "Screenshot of the clipped page" : "Pasted image"} maxHeight={300} testID="note-dialog-image" /></View> : null}
           <TextInput
             value={title} editable={!ro} onChangeText={(v) => { setTitle(v); a.title(v); }} placeholder="Title" placeholderTextColor="var(--ink-3)" accessibilityLabel="Title" testID="note-title"
-            style={s.mt} onKeyPress={(e) => { if ((e.nativeEvent as { key?: string }).key === "Enter") { (e as unknown as { preventDefault?: () => void }).preventDefault?.(); bodyRef.current?.focus?.(); } }}
+            style={s.mt} onKeyPress={(e) => { if ((e.nativeEvent as { key?: string }).key === "Enter") { (e as unknown as { preventDefault?: () => void }).preventDefault?.(); setBodyFocus((k) => k + 1); } }}
           />
           <View style={s.pin}>
             <IconBtn icon={n.pinned ? "pinf" : "pin"} label={n.pinned ? "Unpin" : "Pin"} onPress={() => a.pin()} color={n.pinned ? "var(--ink)" : "var(--ink-3)"} over testID="note-dialog-pin" />
           </View>
-          <TextInput
-            ref={bodyRef} value={body} editable={!ro} multiline onChangeText={(v) => { setBody(v); a.body(v); }} accessibilityLabel="Note" testID="note-body" placeholder="Note" placeholderTextColor="var(--ink-3)"
-            onContentSizeChange={(e) => setBodyH(Math.max(60, Math.ceil(e.nativeEvent.contentSize.height)))} style={[s.mb, { height: bodyH }]}
-          />
+          <View style={s.mbWrap}><MarkdownEditor testID="note-body" label="Note" value={body} mode={ro ? "read" : "edit"} onChange={(v) => { setBody(v); a.body(v); }} placeholder="Note" bare density="compact" minHeight={60} focusKey={bodyFocus} /></View>
           {/* a right-click on the text keeps the browser's menu; anywhere else it opens the note menu */}
           <View {...menu}>
           {n.clip ? (
@@ -137,6 +134,7 @@ const s = StyleSheet.create({
   card: { width: "100%", borderRadius: 16, overflow: "hidden", position: "relative", ...(web ? ({ boxShadow: "var(--sh-pop)" } as object) : null) },
   mt: { width: "100%", fontSize: 20, lineHeight: 27, fontWeight: "600", letterSpacing: -0.2, color: "var(--ink)" as string, paddingTop: 18, paddingRight: 54, paddingLeft: 20, paddingBottom: 4, ...(web ? ({ outlineStyle: "none" } as object) : null) },
   pin: { position: "absolute", top: 12, right: 12 },
+  mbWrap: { paddingTop: 6, paddingHorizontal: 20, paddingBottom: 8 },
   mb: { width: "100%", fontSize: 15, lineHeight: 24, color: "var(--ink)" as string, paddingTop: 6, paddingHorizontal: 20, paddingBottom: 8, ...(web ? ({ outlineStyle: "none", resize: "none" } as object) : null) },
   pad: { paddingHorizontal: 20 },
   ref: { fontSize: 11.5, color: "var(--accent)" as string },

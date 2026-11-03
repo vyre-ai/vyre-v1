@@ -42,6 +42,12 @@ export interface MarkdownEditorProps {
   /** A quiet line about what a paste did ("Removed 4 spaces of indent"). Without it the editor shows its own small pill. */
   onNote?: (note: string) => void;
   minHeight?: number;
+  /** No page margins or column: the editor fills the box it is in (a note card, a field). */
+  bare?: boolean;
+  /** Bumped to put the caret in the editor (a title's Enter, a paste elsewhere). */
+  focusKey?: number;
+  /** Cmd or Ctrl with Enter (close the note). */
+  onModEnter?: () => void;
   testID?: string;
 }
 
@@ -121,11 +127,12 @@ export function highlightMarkdown(text: string): RawSpan[][] {
 
 interface DomTextArea { value: string; style: { height: string }; scrollHeight: number; selectionStart: number; selectionEnd: number; focus(): void; setSelectionRange(a: number, b: number): void; setRangeText(t: string, a: number, b: number, m: string): void }
 
-function RawMarkdown(p: { value: string; onChange: (v: string) => void; editable: boolean; label: string; placeholder: string; autoFocus: boolean; jump: { line: number; n: number } | null; onSave?: () => void; onEscape?: () => void; onBlur?: () => void; onNote: (s: string) => void; minHeight: number }): ReactElement {
+function RawMarkdown(p: { value: string; onChange: (v: string) => void; editable: boolean; label: string; placeholder: string; autoFocus: boolean; jump: { line: number; n: number } | null; focusKey?: number; onModEnter?: () => void; onSave?: () => void; onEscape?: () => void; onBlur?: () => void; onNote: (s: string) => void; minHeight: number }): ReactElement {
   const area = useRef<DomTextArea | null>(null);
   const size = useCallback(() => { const a = area.current; if (a?.style) { a.style.height = "auto"; a.style.height = `${Math.max(a.scrollHeight, p.minHeight)}px`; } }, [p.minHeight]);
   useEffect(() => { size(); }, [p.value, size]);
   useEffect(() => { if (p.autoFocus) area.current?.focus(); }, [p.autoFocus]);
+  useEffect(() => { if (p.focusKey) area.current?.focus(); }, [p.focusKey]);
   useEffect(() => {
     const a = area.current;
     if (!a || p.jump === null) return;
@@ -164,6 +171,7 @@ function RawMarkdown(p: { value: string; onChange: (v: string) => void; editable
       onKeyDown: (e: { key: string; metaKey: boolean; ctrlKey: boolean; preventDefault(): void; stopPropagation(): void }) => {
         e.stopPropagation();
         if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") { e.preventDefault(); p.onSave?.(); }
+        if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && p.onModEnter) { e.preventDefault(); p.onModEnter(); }
         if (e.key === "Escape") p.onEscape?.();
       },
     }),
@@ -312,7 +320,8 @@ export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
     void (async () => {
       const core = await import("@tiptap/core");
       const { markdownExtensions } = await import("./extensions.ts");
-      if (gone || host.current === null) return;
+      // a real element only: a test renderer hands back a stand-in with no DOM behind it
+      if (gone || host.current === null || (host.current as { nodeType?: number }).nodeType !== 1) return;
       const e = new core.Editor({
         element: host.current as never,
         extensions: markdownExtensions({ onLink: openLink }),
@@ -339,6 +348,7 @@ export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
           handleKeyDown: (_v: unknown, event: unknown) => {
             const k = event as { key: string; metaKey: boolean; ctrlKey: boolean; preventDefault(): void };
             if ((k.metaKey || k.ctrlKey) && k.key.toLowerCase() === "s") { k.preventDefault(); cb.current.onSave?.(); return true; }
+            if ((k.metaKey || k.ctrlKey) && k.key === "Enter" && cb.current.onModEnter) { k.preventDefault(); cb.current.onModEnter(); return true; }
             if (k.key === "Escape") { cb.current.onEscape?.(); return false; }
             return false;
           },
@@ -406,9 +416,15 @@ export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
     dom?.classList?.add("vyre-hit");
   }, [props.jump?.n, editor]);
 
+  // a caret asked for from outside (the raw view takes it through its own prop)
+  useEffect(() => {
+    if (!props.focusKey || view !== "styled") return;
+    editorRef.current?.commands.focus("end");
+  }, [props.focusKey, editor]);
+
   const onRawChange = (v: string): void => { last.current = v; props.onChange?.(v); };
   // raw edits and styled edits share `last`: switching views shows the same text
-  const toggle = props.toggle !== false && editable;
+  const toggle = props.toggle !== false && editable && web;
   const barOn = editable && view === "styled" && editor !== null;
   const run = (c: Cmd): ((e: unknown) => void) => () => { if (editor) c.run(editor, { link: openLink }); };
   const openStyle = (e: unknown): void => {
@@ -472,7 +488,7 @@ export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
   let body: ReactElement;
   if (view === "raw" || !web) {
     body = <RawMarkdown value={props.value} onChange={onRawChange} editable={editable} label={props.label} placeholder={placeholder} autoFocus={props.autoFocus === true} jump={props.jump ?? null} onNote={say} minHeight={minHeight}
-      {...(props.onSave ? { onSave: props.onSave } : {})} {...(props.onEscape ? { onEscape: props.onEscape } : {})} {...(props.onBlur ? { onBlur: props.onBlur } : {})} />;
+      {...(props.onSave ? { onSave: props.onSave } : {})} {...(props.onModEnter ? { onModEnter: props.onModEnter } : {})} {...(props.focusKey ? { focusKey: props.focusKey } : {})} {...(props.onEscape ? { onEscape: props.onEscape } : {})} {...(props.onBlur ? { onBlur: props.onBlur } : {})} />;
   } else {
     body = createElement("div", { ref: (el: unknown) => { host.current = el; }, "data-testid": "markdown-editor-host", style: { minHeight } });
   }
@@ -480,7 +496,7 @@ export function MarkdownEditor(props: MarkdownEditorProps): ReactElement {
   return (
     <View testID={props.testID ?? "markdown-editor"} style={st.root} accessibilityLabel={props.label} {...webProps({ role: "group", dataSet: { view, mode } })}>
       {!phone ? bar : null}
-      <View style={[st.page, compact && st.pageCompact]} ref={wrap as never}>
+      <View style={[st.page, compact && st.pageCompact, props.bare === true && st.pageBare]} ref={wrap as never}>
         {body}
         {bubbleNode}
       </View>
@@ -531,6 +547,7 @@ const st = StyleSheet.create({
   linkBtnText: { color: "var(--accent)" as string, fontSize: 12.5 },
   page: { flex: 1, paddingVertical: 20, paddingHorizontal: 32, maxWidth: 760, width: "100%", alignSelf: "center", position: "relative" },
   pageCompact: { paddingVertical: 12, paddingHorizontal: 16 },
+  pageBare: { paddingVertical: 0, paddingHorizontal: 0, maxWidth: "100%" as unknown as number, alignSelf: "stretch" },
   bubble: { position: "absolute", zIndex: 20, flexDirection: "row", alignItems: "center", gap: 1, padding: 3, borderRadius: 9, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
   pill: { position: "absolute", bottom: 14, alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 99, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
   pillDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string },

@@ -21,7 +21,7 @@ import { applySuggestion, historyVersions, latestVersion, shortDay } from "./mod
 import { Btn, IconBtn, Note, Segmented, TextField, anchorOf } from "./parts.tsx";
 import { SuggestionCard } from "./SuggestionCard.tsx";
 
-export interface AgentFilePageProps extends Omit<AgentFileEditorProps, "above" | "mode" | "onReviewPane"> {
+export interface AgentFilePageProps extends Omit<AgentFileEditorProps, "above" | "mode" | "onReviewPane" | "onHeader" | "apiRef"> {
   /** "Agents/Intake". */
   path: string;
   agentId: string;
