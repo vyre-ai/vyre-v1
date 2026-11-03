@@ -18760,6 +18760,7 @@ export type MemoryFactsListOut = {
     }>;
   next?: string;
   total?: number;
+  locked?: string;
 };
 export type MemoryFactsRemoveIn = {
   factIds?: Array<string>;
@@ -18812,6 +18813,7 @@ export type MemoryFactsAsOfOut = {
     }>;
   next?: string;
   total?: number;
+  locked?: string;
 };
 export type MemoryFindBySubjectIn = {
   subject: string;
@@ -19434,6 +19436,7 @@ export type MemoryPointerOut = {
     }>;
   tokens: number;
   skipped?: "short_ack" | "mid_tool_loop" | "no_match" | "duplicate";
+  locked?: string;
 };
 export type MemoryPromoteIn = {
   factId: string;
@@ -19795,6 +19798,7 @@ export type MemorySearchOut = {
     model?: string;
     hint?: string;
   };
+  locked?: string;
 };
 export type MemoryTrailIn = {
   factId?: string;
