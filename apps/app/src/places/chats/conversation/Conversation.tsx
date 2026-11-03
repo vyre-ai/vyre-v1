@@ -2,6 +2,8 @@
 // agent's mode menu), Helpers while any run, Stop and Stop all while any work, the pane toggle and a menu. Under it the last 50 messages (older ones stream in on request), the agent's
 // work folded into one line, and the shared composer with its who-will-reply line. A send shows on the page in the same frame, before chat.post answers; while an agent works, a plain
 // send queues for its next step and Interrupt sends it now.
+import { readReplyDetails } from "../details/read.ts";
+import type { Call } from "../details/read.ts";
 import { DECIDED_LINE, isDecided } from "../../../shell/decided.ts";
 import { rememberFirstLine } from "../sidebar/titles.ts";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -429,6 +431,11 @@ function ConversationView(): ReactElement {
     invoke: (cap, input) => data.call(cap, input),
     open: (tab, input) => { const id = Object.values(input).find((v): v is string => typeof v === "string"); data.nav.openBeside(tab, id ?? ""); },
   };
+  const openDetails = data.nav.openDetails;
+  // a plain object (no hook below the early returns): the card and the tab read by message id, and the read is kept per reply
+  const details = openDetails
+    ? { read: (messageId: string) => readReplyDetails(data.call as Call, thread.threadId, messageId), open: (messageId: string) => openDetails(thread.threadId, messageId), meId: data.me.id, nameOf }
+    : undefined;
   const actions: MessageActions = {
     host,
     copy: (t) => { data.copy(t); say("Copied"); },
@@ -458,6 +465,7 @@ function ConversationView(): ReactElement {
     ...(data.terminal ? { terminalCard: { deps: { call: data.call, newKey: data.newKey }, ...(lead ? { agentId: lead.agentId } : {}), copy: (t: string) => data.copy(t), openTerminal: (id: string) => data.nav.openBeside("terminal", id) } } : {}),
     ...(data.mountSheet ? { mountCard: { agents: thread.agents.map((a) => ({ id: a.agentId, name: nameOf(a.agentId) })), data } } : {}),
     ...(memoryEntries ? { memoryEntries } : {}),
+    ...(details ? { details } : {}),
     pickReaction: (id, x, y) => setPicker({ id, x, y }),
     humanChat: thread.agents.length === 0,
     ...(thread.agents.length === 0 || thread.kind === "channel" ? {} : { fork: (id: string) => void act.forkChat(data, id, data.newKey()).then((next) => { say("Branched into a new chat, linked back to this one"); data.nav.openThread(next); }, fail("Could not fork it.")) }),

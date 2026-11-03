@@ -286,7 +286,7 @@ export default defineManifest({
     read('chat.message.get', 'Read one message with its blocks', {
       in: { ...threadT, messageId: id.message }, out: { message: messageRow }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',
     }),
-    read('chat.reply_details', 'Everything about how one agent reply was made, for its hover card and Details tab: the turn (model, effort, account, where it ran, timing, tokens, cost, tools, files, skills, switches), what the agent knew, and the reply\'s own steps when no turn was recorded. In a shared chat the account, the cost and the tool arguments are the asker\'s and the AI-spend managers\' only', {
+    read('chat.reply_details', 'How one agent reply was made, for its hover card and Details tab: its turn, what the agent knew, and its own steps when no turn was kept. Account, cost and tool arguments are for the asker and AI-spend managers only', {
       in: { ...threadT, messageId: id.message },
       out: {
         details: t.obj({

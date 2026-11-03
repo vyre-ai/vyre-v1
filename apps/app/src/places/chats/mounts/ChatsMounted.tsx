@@ -48,6 +48,9 @@ import { setAgentFaces } from "../../../../../../ui/src/Avatar/assistant.ts";
 import { useDirectory } from "../../../shell/providers/automations-parts.tsx";
 import { ProfilePane, afterClose, profileTab, withTab } from "../rightpane/ProfilePane.tsx";
 import type { ProfileTab } from "../rightpane/ProfilePane.tsx";
+import { ReplyDetailsPane } from "../details/ReplyDetailsPane.tsx";
+import { readReplyDetails } from "../details/read.ts";
+import type { Call } from "../details/read.ts";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { WORKSPACE_MIN_W, Workspace } from "./Workspace.tsx";
 import { ChatWork } from "../tasks/ChatWork.tsx";
@@ -177,6 +180,13 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     setRightTabs((t) => withTab(t, tab));
     setRightOn(tab.key);
   }, [rt.assistant.id, byId, nameOf]);
+  // a reply's Details: one tab, which shows the reply asked for last (opening another reply's Details moves the tab to it)
+  const replyDetails = useCallback((threadId: string, messageId: string, agentId?: string): void => {
+    const tab: ProfileTab = { key: "details", id: messageId, title: "Details", kind: "details", threadId, ...(agentId ? { agentId } : {}) };
+    setRightTabs((t) => (t.some((x) => x.key === "details") ? t.map((x) => (x.key === "details" ? tab : x)) : [...t, tab]));
+    setRightOn("details");
+    go.openPane();
+  }, [go]);
   const closeRight = useCallback((key: string): void => {
     setRightOn((on) => { if (on !== key) return on; return afterClose(rightTabs, key); });
     setRightTabs((t) => t.filter((x) => x.key !== key));
@@ -239,9 +249,9 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     () => {
       if (threadId === null) return null;
       const wired = wireConversation(rt, go, { threadId, list, nameOf, leadId, fill, ...(focus ? { focus } : {}) });
-      return { ...wired, nav: { ...wired.nav, openAgent: profile } };
+      return { ...wired, nav: { ...wired.nav, openAgent: profile, openDetails: (tid: string, mid: string) => replyDetails(tid, mid) } };
     },
-    [rt, go, threadId, list, nameOf, leadId, fill, focus, profile],
+    [rt, go, threadId, list, nameOf, leadId, fill, focus, profile, replyDetails],
   );
   const conversationFor = useCallback((id: string) => wireConversation(rt, go, { threadId: id, list, nameOf, leadId: rt.assistant.id, fill }), [rt, go, list, nameOf, fill]);
   const searchData = useMemo<SearchData>(() => ({
@@ -292,8 +302,14 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
 
   /* ---------- the right ---------- */
   const rightTab = rightTabs.find((t) => t.key === rightOn);
-  const rightSpecs = rightTabs.map((t) => ({ key: t.key, title: t.title, lead: <Avatar {...avatarOf({ id: t.id, name: nameOf(t.id), kind: t.kind })} size={16} /> }));
-  const rightBody = rightTab ? (
+  const rightSpecs = rightTabs.map((t) => ({ key: t.key, title: t.title, ...(t.kind === "details" ? {} : { lead: <Avatar {...avatarOf({ id: t.id, name: nameOf(t.id), kind: t.kind })} size={16} /> }) }));
+  const rightBody = rightTab?.kind === "details" ? (
+    <ReplyDetailsPane
+      key={`details:${rightTab.id}`} messageId={rightTab.id}
+      details={{ read: (mid) => readReplyDetails(rt.call as Call, rightTab.threadId ?? "", mid), open: (mid) => replyDetails(rightTab.threadId ?? "", mid), meId: rt.me.id, nameOf }}
+      copy={(text, what) => { copy(text); setLine(`Copied the ${what}`); }}
+    />
+  ) : rightTab ? (
     <ProfilePane
       key={rightTab.key} tab={rightTab} name={nameOf(rightTab.id)} call={rt.call as (cap: string, input: unknown) => Promise<unknown>}
       onMessage={() => { if (rightTab.kind === "person") void Promise.resolve(rt.call("chat.start", { kind: "chat", agentIds: [], personId: rightTab.id, idempotencyKey: `dm_${rightTab.id}` })).then((o) => { const id = (o as { thread?: { threadId?: string } }).thread?.threadId; if (id) go.chat(id); }, () => setLine("Could not start the chat. Try again.")); else go.agentChat(rightTab.id); }}

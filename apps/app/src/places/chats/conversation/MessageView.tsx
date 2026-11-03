@@ -23,6 +23,8 @@ import { rememberMessage } from "../memory/actions.ts";
 import { BlockViewA, isPartOneType } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import type { BlockHost } from "../../../../../../ui/src/blocks/impl-a/index.tsx";
 import { Face } from "../needsyou/parts.tsx";
+import { ReplyHover } from "../details/ReplyCard.tsx";
+import type { ReplyDetailsActions } from "../details/ReplyCard.tsx";
 import { LearnedLines } from "../memory/Learned.tsx";
 import type { MenuMessage, ShowMenu } from "../memory/menu.tsx";
 import { SubjectText, useSubjectBlocks } from "../memory/Subjects.tsx";
@@ -75,7 +77,9 @@ export interface MessageActions {
   retrySend(messageId: string): void;
   discardSend(messageId: string): void;
   showMenu(items: readonly MenuEntry[], x: number, y: number, label: string): void;
-  /** The memory items of the message menu (Remember This, Add to a Page, Show What the Agent Knew Here, Forget This); absent where the chat has no memory. */
+  /** A reply's hover card on its agent's face and name, and Details in its menu (the right pane's Details tab). Absent where the shell has no right pane. */
+  details?: ReplyDetailsActions;
+  /** The memory items of the message menu (Remember This, Add to a Page, Forget This); absent where the chat has no memory. */
   memoryEntries?: (m: MenuMessage, x: number, y: number, show: ShowMenu) => MenuEntry[];
   /** Branch the chat into a new one at this message. */
   fork?(messageId: string): void;
@@ -187,6 +191,8 @@ export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: ()
   items.push({ label: m.pinned ? "Unpin Message" : "Pin Message", onSelect: () => a.setPinned(m.messageId, !m.pinned) });
   items.push({ label: "Add Reaction", onSelect: () => (a.pickReaction ? a.pickReaction(m.messageId, at.x, at.y) : a.react(m.messageId, "👍", false)) });
   if (m.kind !== "quiet" && a.memoryEntries) items.push(...a.memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu));
+  // how an agent's reply was made: the right pane's Details tab (what the agent knew is a section of it)
+  if (!mine && a.details && m.author.kind === "agent") items.push({ separator: true }, { label: "Details", onSelect: () => a.details!.open(m.messageId) });
   const ob = onBehalfOf(m);
   if (ob && a.agentMute && ob.teammate === a.agentMute.me) items.push({ label: `Mute Agent Messages From ${firstName(a.nameOf ? a.nameOf(ob.person) : "Them")} for Today`, onSelect: () => a.agentMute!.mute(ob.person) });
   if (mine) items.push({ separator: true }, { label: "Delete", danger: true, onSelect: () => a.remove(m.messageId) });
@@ -334,15 +340,21 @@ function Theirs({ item, actions, stream, openWork, mark, meId }: MessageViewProp
   const runCfg = actions.runCode;
   const renderCode = useMemo(() => (runCfg ? (b: { lang: string; text: string; closed: boolean }) => { const c = commandOf(b.lang, b.text, b.closed); return c ? <RunCode command={c} cfg={runCfg} /> : null; } : undefined), [runCfg]);
   const subjects = useSubjectBlocks(blocks);
+  // an agent's reply: hovering its face or name shows how it was made (model, account, asker, where, cost, tokens, time)
+  const withCard = (kids: ReactElement): ReactElement => (!person && actions.details && !stream && !h.phone ? <ReplyHover messageId={m.messageId} details={actions.details}>{kids}</ReplyHover> : kids);
   return (
     <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined, { x, y }), x, y, "Message"))} style={[st.msg, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive]}>
       {h.phone ? <ActionSheet open={sheet} entries={menuFor(m, false, actions, () => undefined)} onClose={() => setSheet(false)} /> : <HoverBar byAgent={!person} m={m} mine={false} a={actions} onEdit={() => undefined} visible={h.over || h.focus} />}
       {item.newgroup ? (
         <View style={st.by}>
-          <Face name={item.who.name} seedId={item.who.face ?? item.who.id} kind={person || item.who.face !== undefined ? "person" : "agent"} size={20} />
-          <Pressable accessibilityRole="link" accessibilityLabel={`Open ${item.who.name}`} testID={`who-${m.messageId}`} onPress={() => actions.openAgent(item.who.id)}>
-            <Text style={st.who}>{item.who.name}</Text>
-          </Pressable>
+          {withCard(
+            <>
+              <Face name={item.who.name} seedId={item.who.face ?? item.who.id} kind={person || item.who.face !== undefined ? "person" : "agent"} size={20} />
+              <Pressable accessibilityRole="link" accessibilityLabel={`Open ${item.who.name}`} testID={`who-${m.messageId}`} onPress={() => actions.openAgent(item.who.id)}>
+                <Text style={st.who}>{item.who.name}</Text>
+              </Pressable>
+            </>,
+          )}
           <Text style={st.time}>{item.time}</Text>
           {work?.short ? <Pressable accessibilityRole="button" accessibilityLabel={work.summary} testID={`work-short-${m.messageId}`} onPress={() => setWorkOpen((o) => !o)} style={{ opacity: h.over || workOpen ? 1 : 0 }}><Text style={st.time}>{work.summary}</Text></Pressable> : null}
         </View>
