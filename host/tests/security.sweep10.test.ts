@@ -119,6 +119,7 @@ test("every module trust of kind service is reviewed: the sites below are the wh
   };
   walk(root);
   assert.deepEqual(found.sort(), [
+    "access/handlers/share.ts",           // Sharing with Everyone (l-team1, owner D22): the host's own services (#vyre for a new member, the join steps) skip the admin check; a restricted item is still refused
     "automations/handlers/triggers.ts",   // an Automation's own Run: which vault names a tenant service may use (a restriction, not a power)
     "chat/handlers/private.ts",           // the engine runtime opens a private chat only for its owner (asker equals owner, and only an agent or the host)
     "devices/handlers/register.ts",       // devices.register: kind service AND id svc_host
