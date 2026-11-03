@@ -180,7 +180,8 @@ test("erase a person end to end: found in every store, erased, and nothing of th
     for (const w of WORDS) assert.ok(!left.includes(w), `no row in any store holds "${w}": ${holders(w)}`);
     const ids = (sql: string): string[] => (d.db!.all(sql) as { id: string }[]).map((r) => r.id).sort();
     assert.deepEqual(ids("SELECT id FROM chat_thread WHERE kind IN ('chat', 'channel')").filter((i) => i === chat || i === keepChat), [keepChat], "Pat's chat is gone, the other chat stays");
-    assert.deepEqual(ids("SELECT id FROM chat_channel"), [], "the channel is gone");
+    assert.deepEqual(ids("SELECT id FROM chat_channel").filter((i) => i === channel), [], "the channel is gone");
+    assert.equal(ids("SELECT id FROM chat_channel").length, 1, "only #vyre, the Space's first channel (l-team1), is left");
     assert.deepEqual(ids("SELECT id FROM telephony_sms"), ["sms_other001"]);
     assert.deepEqual(ids("SELECT id FROM telephony_call"), ["cal_other001"]);
     assert.deepEqual(ids("SELECT id FROM mail_message"), ["eml_other001"]);

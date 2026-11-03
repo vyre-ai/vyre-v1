@@ -37,7 +37,7 @@ test("agent-optout is exactly the automation plumbing and the provider check, an
   // the Connector builder grant and status are a person's decision about an agent, so no agent holds them as tools; and
   // deleting, restoring and leaving a chat, deleting an imported coding session, and signing in to a remote MCP server, are the person's own act, never an agent's;
   // host-side steps an Automation runs for itself (its HTTP step, its AI step) and the label check of an AI step's records: an agent reaches the same ends through its own tools (docs/frozen/agent-tools.md)
-  assert.deepEqual([...optedOut].sort(), ["access.connector_builder.grant", "access.connector_builder.status", "access.provider_check", "automations.http_read", "automations.http_send", "engine.mcp.oauth_complete", "engine.mcp.oauth_start", "engine.mcp.oauth_status", "engine.step_turn", "sessions.delete", "threads.delete", "threads.leave", "threads.restore"]);
+  assert.deepEqual([...optedOut].sort(), ["access.connector_builder.grant", "access.connector_builder.status", "access.provider_check", "automations.http_read", "automations.http_send", "engine.mcp.oauth_complete", "engine.mcp.oauth_start", "engine.mcp.oauth_status", "engine.step_turn", "plugins.connection.checked", "sessions.delete", "threads.delete", "threads.leave", "threads.restore"]);   // plugins.connection.checked: the host's record of what a connection last did (l-connections), never an agent's
   const pre = reg.capabilities.filter((c) => c.caller === "anonymous" || c.caller === "pending").map((c) => c.name);
   assert.ok(pre.length >= 10);
   const toolCaps = new Set(tools.map((t) => t.cap));
