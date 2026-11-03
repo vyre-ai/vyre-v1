@@ -232,7 +232,7 @@ test("own computer under Seatbelt: an added folder reads and writes; Vyre's data
     fs.mkdirSync(dataDir, { recursive: true });
     fs.writeFileSync(path.join(fake, "code", "proj", "notes.txt"), "added-folder-notes\n");
     fs.writeFileSync(path.join(dataDir, "vault.sqlite"), "VAULT-SECRET\n");
-    fs.writeFileSync(path.join(fake, ".ssh", "id_ed25519"), "-----BEGIN OPENSSH PRIVATE KEY-----\n");
+    fs.writeFileSync(path.join(fake, ".ssh", "id_ed25519"), "FAKE-KEY-FILE-MARKER\n");
     fs.writeFileSync(path.join(fake, ".ssh", "known_hosts"), "# known\n");
     fs.writeFileSync(path.join(fake, ".gitconfig"), "[user]\n\tname = Dana Wall\n");
     process.env["HOME"] = fake;
@@ -249,7 +249,7 @@ test("own computer under Seatbelt: an added folder reads and writes; Vyre's data
     assert.match(out, /added=added-folder-notes/, out);
     assert.match(out, /write=ok/, out);
     assert.doesNotMatch(out, /VAULT-SECRET/, out);
-    assert.doesNotMatch(out, /BEGIN OPENSSH PRIVATE KEY/, out);
+    assert.doesNotMatch(out, /FAKE-KEY-FILE-MARKER/, out);
     assert.match(out, /known=# known/, out);
     assert.match(out, /gituser=Dana Wall/, out);
     assert.match(out, /work=here/, out);

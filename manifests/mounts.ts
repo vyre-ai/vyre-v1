@@ -71,7 +71,6 @@ export default defineManifest({
     // owner ruling 3 Nov: a CLI engine on the person's own computer works in the folders the person added to Vyre from that computer (modules/engine/sandbox.ts). Host only: the engine asks as each process starts.
     read('mounts.engine_folders', 'System: the folders on their own computers a person mounted into this Space (local mounts they added), with the path on the computer, for that person\'s CLI engine', {
       in: { person: id.user }, out: { folders: t.arr(t.obj({ mountId: id.mount, folderId: id.folder, deviceId: t.opt(t.str()), path: t.str({ examples: ['/Users/dana/code/site'] }) })) },
-      errors: ['permission.denied'],
     }),
     read('mounts.get', 'Read one mount: state, lag, pending changes and conflicts (the sync line of a folder)', { in: { mountId: id.mount }, out: { mount: mountRow }, tool: 'files', label: 'check' }),
     create('mounts.add', 'Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run', {

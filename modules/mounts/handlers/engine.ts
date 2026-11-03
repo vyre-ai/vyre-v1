@@ -972,7 +972,7 @@ async function mountsList(ctx: Ctx, input: unknown): Promise<Row> {
  * engine process starts); a person, an agent or an outside actor is refused, since the paths are of the person's machine. A folder the person mounted is theirs to work in, private or shared.
  */
 async function engineFolders(ctx: Ctx, input: unknown): Promise<{ folders: Row[] }> {
-  if (!isHostService(ctx.principal)) fail(ctx, "permission.denied", "only Vyre itself reads where a person's folders are on their computer");
+  if (!isHostService(ctx.principal)) fail(ctx, "permission.no_grant", "only Vyre itself reads where a person's folders are on their computer");
   const o = record(ctx, input);
   const person = optStr(o, "person");
   if (person === undefined) fail(ctx, "validation.bad_input", "person is required");
