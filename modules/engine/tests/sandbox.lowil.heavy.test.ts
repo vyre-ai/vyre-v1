@@ -86,6 +86,15 @@ test("a Windows Personal Space: a Claude Code Bash turn, git over HTTPS, and no 
     // 2. git over HTTPS, through the proxy
     const git = await run(wrap(["git", "clone", "--depth", "1", "https://github.com/octocat/Hello-World.git", "hello"], { cwd, env: {} }), { cwd, ms: 180_000 });
     console.log(`git: exit ${git.code} ${git.err.slice(-600)}`);
+    if (git.code !== 0) {
+      // what Windows says about the folders git could not use
+      const refs = path.join(cwd, "hello", ".git", "refs");
+      const mk = await run(wrap(["cmd.exe", "/d", "/c", `mkdir "${path.join(refs, "remotes", "probe")}" && echo mkdir-ok`], { cwd, env: {} }), { cwd, ms: 60_000 });
+      const acl = await run(["icacls.exe", refs], { cwd });
+      const acl2 = await run(["icacls.exe", path.join(refs, "remotes")], { cwd });
+      const again = await run(wrap(["git", "clone", "--depth", "1", "https://github.com/octocat/Hello-World.git", "hello2"], { cwd, env: { GIT_TRACE: "1" } }), { cwd, env: { GIT_TRACE: "1" }, ms: 180_000 });
+      console.log(`low mkdir: ${mk.code} ${mk.out} ${mk.err}\nrefs acl: ${acl.out}\nremotes acl: ${acl2.out}\ntrace: ${again.err.slice(-2500)}`);
+    }
     assert.equal(git.code, 0, git.err.slice(-600));
     assert.ok(fs.existsSync(path.join(cwd, "hello", "README")), "the repository is in the work folder");
 
