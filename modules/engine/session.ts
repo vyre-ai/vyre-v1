@@ -10,7 +10,7 @@ import { openMcpBridge } from "./mcp-bridge.ts";
 import { enginePath, wallEgress, wallEgressOfRule } from "./sandbox-default.ts";
 import { CLI_NAME, findProgram, isOwned, ownedDirs } from "./cli-programs.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
-import { sandboxWrap, scratchFolder, workFolder } from "./sandbox.ts";
+import { sandboxWrap, scratchFolder, workFolder, workParts } from "./sandbox.ts";
 import { ensureWorkspace } from "./handlers/crew.ts";
 import { placeCredentialFiles, takeCredentialFiles } from "./credential-files.ts";
 import type { Placed } from "./credential-files.ts";
@@ -304,13 +304,10 @@ export function withAccess(spec: LaunchSpec, asked: AccessAsked): LaunchSpec {
 /** Where an engine process went on the network: one call per host and verdict per process (at most 40 of each), with the person and thread of its work folder. */
 export type EgressWatch = (where: { person: string; threadId: string }, e: EgressEvent) => void;
 
-/** The person and the thread of a work folder `<dataDir>/work/<person>/<thread>`, or null for any other folder. */
+/** The person and the thread of a work folder (sandbox.ts workParts: `<dataDir>/work/<person>/<thread>`, or the short Windows layout), or null for any other folder. */
 function workOf(dataDir: string, cwd: string | undefined): { person: string; threadId: string } | null {
-  if (cwd === undefined) return null;
-  let root: string;
-  try { root = fs.realpathSync(path.join(dataDir, "work")); } catch { return null; }
-  const rel = path.relative(root, cwd).split(path.sep);
-  return rel.length === 2 && rel.every((x) => x !== "" && x !== "..") ? { person: rel[0] as string, threadId: rel[1] as string } : null;
+  const w = workParts(dataDir, cwd);
+  return w ? { person: w.person, threadId: w.threadId } : null;
 }
 
 /** One report per host, port and verdict for the life of a process, and at most 40 hosts reached and 40 refused: a turn that fetches a thousand files from one registry is one line. */

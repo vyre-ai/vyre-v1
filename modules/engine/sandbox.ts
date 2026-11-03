@@ -8,6 +8,7 @@
 //     unwrapped launcher.
 import fs from "node:fs";
 import path from "node:path";
+import { sha256Hex } from "../../kernel/src/log/hash.ts";
 import { CONNECT_SOURCE, SandboxError, bwrapWallCommand, seatbeltCommand, sshFiles, toolProxyEnv } from "../../sandbox/src/index.ts";
 import type { EgressEvent, EgressRule, EngineAccess, Roots, SandboxSpec } from "../../sandbox/src/index.ts";
 import type { LocalLauncherOptions } from "../../agent/src/drivers/cli/launcher.ts";
@@ -47,15 +48,67 @@ const part = (id: string): string => {
   return s;
 };
 
+/**
+ * Where work and scratch folders live. A Mac and Linux: `<dataDir>/work/<person>/<thread>` and `<dataDir>/scratch/<person>`, named by the ids. Windows keeps its paths short, since the engines and
+ * the tools they run do not all read a path past MAX_PATH (260; claude.exe's Read hangs on one, the windows-latest proof): `<dataDir>\w\<p>\<t>` and `<dataDir>\s\<p>`, each segment the first
+ * 10 hex digits of a hash of the id, and an index Vyre keeps beside them (`<dataDir>\w-ids\<segment>`, the id) turns a segment back into its id. The engine cannot change the index: it is not in
+ * a folder the engine may write.
+ */
+export function layoutRoots(platform: NodeJS.Platform = process.platform): { work: string; scratch: string } {
+  return platform === "win32" ? { work: "w", scratch: "s" } : { work: "work", scratch: "scratch" };
+}
+
+const IDS = "w-ids";
+
+/** A person's or a thread's folder name. Windows: a short hash, kept in the index; a hash another id already holds is made longer. */
+export function segmentOf(dataDir: string, kind: "person" | "thread", id: string, platform: NodeJS.Platform = process.platform): string {
+  if (platform !== "win32") return part(id);
+  part(id);   // the same ids are refused as on a Mac
+  const full = sha256Hex(`${kind}:${id}`);
+  const index = path.join(dataDir, IDS);
+  fs.mkdirSync(index, { recursive: true });
+  for (let n = 10; n <= full.length; n += 2) {
+    const seg = full.slice(0, n);
+    const file = path.join(index, seg);
+    let have: string | null = null;
+    try { have = fs.readFileSync(file, "utf8"); } catch { /* not yet */ }
+    if (have === `${kind}:${id}`) return seg;
+    if (have === null) { fs.writeFileSync(file, `${kind}:${id}`); return seg; }
+  }
+  throw new SandboxError("sandbox.policy", "a person or thread id cannot name a folder");
+}
+
+/** The id a folder name stands for, or null when it is not one Vyre made. */
+export function idOfSegment(dataDir: string, kind: "person" | "thread", seg: string, platform: NodeJS.Platform = process.platform): string | null {
+  if (platform !== "win32") return seg;
+  if (!/^[0-9a-f]{10,64}$/.test(seg)) return null;
+  try {
+    const v = fs.readFileSync(path.join(dataDir, IDS, seg), "utf8");
+    return v.startsWith(`${kind}:`) ? v.slice(kind.length + 1) : null;
+  } catch { return null; }
+}
+
+/** The person and the thread of a work folder, with the work root and the person's segment, or null for any other folder. The one parser of the layout. */
+export function workParts(dataDir: string, cwd: string | undefined, platform: NodeJS.Platform = process.platform): { person: string; threadId: string; workRoot: string; personSeg: string } | null {
+  if (cwd === undefined) return null;
+  let workRoot: string;
+  try { workRoot = fs.realpathSync(path.join(dataDir, layoutRoots(platform).work)); } catch { return null; }
+  const rel = path.relative(workRoot, cwd).split(path.sep);
+  if (rel.length !== 2 || rel.some((x) => x === "" || x === "..")) return null;
+  const person = idOfSegment(dataDir, "person", rel[0] as string, platform);
+  const threadId = idOfSegment(dataDir, "thread", rel[1] as string, platform);
+  return person !== null && threadId !== null ? { person, threadId, workRoot, personSeg: rel[0] as string } : null;
+}
+
 /** The folder one person's one thread works in. It is made if it is not there. Different people and different threads never share one. */
-export function workFolder(dataDir: string, person: string, thread: string): string {
-  const dir = path.join(dataDir, "work", part(person), part(thread));
+export function workFolder(dataDir: string, person: string, thread: string, platform: NodeJS.Platform = process.platform): string {
+  const dir = path.join(dataDir, layoutRoots(platform).work, segmentOf(dataDir, "person", person, platform), segmentOf(dataDir, "thread", thread, platform));
   fs.mkdirSync(dir, { recursive: true });
   return fs.realpathSync(dir);
 }
 
-export function scratchFolder(dataDir: string, person: string): string {
-  const dir = path.join(dataDir, "scratch", part(person));
+export function scratchFolder(dataDir: string, person: string, platform: NodeJS.Platform = process.platform): string {
+  const dir = path.join(dataDir, layoutRoots(platform).scratch, segmentOf(dataDir, "person", person, platform));
   fs.mkdirSync(dir, { recursive: true });
   return fs.realpathSync(dir);
 }
@@ -73,13 +126,12 @@ export function sandboxWrap(plan: SandboxPlan, o: { homeFromScratch?: boolean; a
       throw new SandboxError("sandbox.unavailable", s.reason ?? "this engine has to run in the person's container, which cannot start a local engine yet");
     }
     if (start.cwd === undefined) throw new SandboxError("sandbox.policy", "a CLI engine needs a work folder");
-    const workRoot = fs.realpathSync(path.join(plan.dataDir, "work"));
-    const rel = path.relative(workRoot, start.cwd).split(path.sep);
-    if (rel.length !== 2 || rel.some((x) => x === "" || x === "..")) throw new SandboxError("sandbox.policy", "the work folder is not one of the Space's person-and-thread folders");
-    const person = rel[0] as string;
+    const where = workParts(plan.dataDir, start.cwd);
+    if (where === null) throw new SandboxError("sandbox.policy", "the work folder is not one of the Space's person-and-thread folders");
+    const { person, workRoot } = where;
     const scratch = scratchFolder(plan.dataDir, person);
     // The roots are the real paths of the folders: a data folder reached through a symlink (/var is /private/var on a Mac) must name the same folders the work and scratch helpers returned.
-    const roots: Roots = { work: [workRoot], scratch: [fs.realpathSync(path.join(plan.dataDir, "scratch"))] };
+    const roots: Roots = { work: [workRoot], scratch: [fs.realpathSync(path.join(plan.dataDir, layoutRoots().scratch))] };
     const spec: SandboxSpec = {
       id: sandboxId(person), person, kind: s.kind === "lowil" ? "seatbelt" : s.kind, scratch,
       mounts: [{ host: start.cwd, mode: "rw" }],
