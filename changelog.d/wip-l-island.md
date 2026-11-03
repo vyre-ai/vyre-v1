@@ -1,0 +1,2 @@
+## What's new
+- A pill floats above the chat composer while anyone is working: the Vyre mark, the live state word (Thinking, Writing, Reading, Searching the web), and one face per working agent with its state ring. Press a face to steer that agent, press the pill for the list of everyone working with background jobs and Stop, and press the computer button to watch the computer while an agent uses it.

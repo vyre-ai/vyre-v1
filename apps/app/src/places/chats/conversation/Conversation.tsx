@@ -60,6 +60,7 @@ import { useMobileBack } from "../../../mobile/shell/back.ts";
 import { offlineLine } from "../agentpage/model.ts";
 import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts";
 import type { AiReady } from "./ai-ready.ts";
+import { Island } from "./Island.tsx";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import {
   WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, participants, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel, swapNeeded,
@@ -732,6 +733,12 @@ function ConversationView(): ReactElement {
         <View testID="conversation-closed" style={st.closed}><Text style={st.lineText}>This thread is closed.</Text><TextButton label="Reopen" onPress={() => void data.call("threads.reopen", { threadId: thread.threadId }).catch(fail("Could not reopen."))} testID="reopen" /></View>
       ) : (
         <View style={st.composerBox}>
+          <Island
+            turns={liveTurns} {...(data.activityOf ? { activityOf: data.activityOf } : {})} nameOf={nameOf} now={() => data.clock().now}
+            jobs={helpers.map((h) => ({ threadId: h.threadId, title: h.title, startedAt: h.startedAt }))}
+            onSteer={(agentId) => { setSeed((x) => ({ value: `@${nameOf(agentId)} `, n: x.n + 1 })); setJump((n) => n + 1); setAtEnd(true); }}
+            onStopJob={(threadId) => void data.call("engine.stop", { threadId }).then(() => say("Stopped."), fail("Could not stop it."))}
+            onOpenComputer={(agentId) => data.nav.openBeside("computer", agentId)} />
           <Composer
             key={`composer-${seed.n}`} {...(seed.value !== "" ? { value: seed.value } : {})}
             testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={data.placeholder ?? placeholderFor(thread, nameOf, isWorking, canSteer)} working={isWorking}
