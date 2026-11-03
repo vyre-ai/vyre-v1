@@ -63,7 +63,7 @@ const turnInfoIn = t.obj({
   tools: t.arr(toolTrace), switches: t.arr(t.obj({ at: t.ts(), from: t.str(), to: t.str(), why: t.str() })),
 });
 const whatHappened = t.obj({
-  turn: turnRow, machine: t.enm('host', 'device'), keyUsed: t.opt(t.str()), steps: t.arr(t.obj({ idx: t.int(), kind: t.str(), title: t.str(), durationMs: t.int(), ok: t.bool() })),
+  turn: turnRow, machine: t.enm('host', 'device'), keyUsed: t.opt(t.str()), paid: t.opt(t.str({ description: 'Who paid and why, in a plain line: the agent\'s Chat key when it is on and paid, a Space AI account, or the asker\'s own account' })), steps: t.arr(t.obj({ idx: t.int(), kind: t.str(), title: t.str(), durationMs: t.int(), ok: t.bool() })),
   denials: t.arr(t.obj({ cap: t.str(), reason: t.str() })), fallbacks: t.arr(t.obj({ kind: t.str(), to: t.str(), at: t.ts() })),
   reached: t.opt(t.arr(t.str({ examples: ['github.com'] }), { description: 'Hosts the engine reached on the internet while the turn ran (a sample, at most 20)' })),
 });

@@ -11017,6 +11017,7 @@ export type EngineTurnGetOut = {
     };
     machine: "host" | "device";
     keyUsed?: string;
+    paid?: string;
     steps: Array<{
         idx: number;
         kind: string;

@@ -41638,6 +41638,7 @@ if (!("fallbacks" in o2567)) e.push(p + "/what" + "/fallbacks" + ': required');
 if ("turn" in o2567) d_s_12082abd71(o2567["turn"], p + "/what" + "/turn", e);
 if ("machine" in o2567) lf(o2567["machine"], p + "/what" + "/machine", e, L587);
 if ("keyUsed" in o2567) lf(o2567["keyUsed"], p + "/what" + "/keyUsed", e, L1);
+if ("paid" in o2567) lf(o2567["paid"], p + "/what" + "/paid", e, L1);
 if ("steps" in o2567) {
 {
 const x2568 = o2567["steps"];

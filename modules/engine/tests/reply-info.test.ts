@@ -121,11 +121,11 @@ test("a reply with no recorded turn is not found; an older turn with only its ro
 test("engine.turn.get: the in-process engine's tool steps and account switches show, and a turn of a chat the caller cannot open does not exist for them", async () => {
   const h = harness();
   await recordTurn(h, apiInfo({ switches: [{ at: 1_000_100, from: "#Dana_Claude", to: "#Team_Anthropic", why: "provider.rate_limited" }] }));
-  const { what } = H["engine.turn.get"](h.ctx, { turnId: "trn_reply1" });
+  const { what } = await H["engine.turn.get"](h.ctx, { turnId: "trn_reply1" });
   assert.deepEqual(what.steps.map((s) => [s.kind, s.title, s.ok]), [["tool_call", "Read", true], ["tool_result", "Read", true], ["tool_call", "records.get", true], ["tool_result", "records.get", true]]);
   assert.deepEqual(what.fallbacks, [{ kind: "backup_key", to: "#Team_Anthropic", at: 1_000_100 }]);
   const outsider = harness({ raw: h.raw, principal: { kind: "person", id: "usr_eve" }, manager: false });
-  assert.throws(() => H["engine.turn.get"](outsider.ctx, { turnId: "trn_reply1" }), (e) => codeOf(e) === "validation.not_found");
+  await assert.rejects(async () => H["engine.turn.get"](outsider.ctx, { turnId: "trn_reply1" }), (e) => codeOf(e) === "validation.not_found");
   const asker = harness({ raw: h.raw, principal: { kind: "person", id: "usr_dana" }, manager: false });
-  assert.equal(H["engine.turn.get"](asker.ctx, { turnId: "trn_reply1" }).what.turn.turnId, "trn_reply1", "the asker always sees their own turn");
+  assert.equal((await H["engine.turn.get"](asker.ctx, { turnId: "trn_reply1" })).what.turn.turnId, "trn_reply1", "the asker always sees their own turn");
 });
