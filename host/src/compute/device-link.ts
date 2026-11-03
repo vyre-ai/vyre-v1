@@ -41,12 +41,17 @@ export interface DeviceLinkDeps {
 /** What ownSignin reads of this computer. */
 export interface OwnHomes {
   home: string; env: Readonly<Record<string, string | undefined>>; platform: NodeJS.Platform; exists(p: string): boolean;
+  /** The clock (tests). Default Date.now. */
+  now?: () => number;
   /** The Mac login Keychain, read and written by this daemon (outside any sandbox). Absent: none (Linux, Windows, a test). */
   keychain?: { read(service: string): string | null; write(service: string, text: string): void };
 }
 
 /** The Keychain entry Claude Code keeps its sign-in in on a Mac (the same one l-decisions' local-signin reader reads). */
 export const CLAUDE_KEYCHAIN = "Claude Code-credentials";
+
+/** When a Claude Code sign-in's access token runs out (epoch ms), or undefined when it does not say. */
+const claudeExpiry = (text: string | null): number | undefined => { try { const t = (JSON.parse(text ?? "") as { claudeAiOauth?: { expiresAt?: unknown } }).claudeAiOauth?.expiresAt; return typeof t === "number" ? t : undefined; } catch { return undefined; } };
 
 /** The access token in a Claude Code credentials file, or "" (to tell a refresh from the file as written). */
 const claudeToken = (text: string | null): string => { try { const t = (JSON.parse(text ?? "") as { claudeAiOauth?: { accessToken?: unknown } }).claudeAiOauth?.accessToken; return typeof t === "string" ? t : ""; } catch { return ""; } };
@@ -56,11 +61,16 @@ const claudeToken = (text: string | null): string => { try { const t = (JSON.par
  * .credentials.json into a private config folder for the person inside their scratch folder (which the sandbox opens for the turn, and nothing else's), and points CLAUDE_CONFIG_DIR there:
  * Claude Code reads that file and refreshes it in place (owner decision D2, proved on 2.1.316). When the process ends, a refreshed token is written back to the Keychain, so the person's own
  * Claude Code stays signed in, and the file is removed. A warm engine lives across turns, so a refresh is also written back as soon as the file changes (checked every `watchMs`).
+ * The access token also goes in CLAUDE_CODE_OAUTH_TOKEN: the desktop CI's run of the real Claude Code on macOS under Seatbelt (mac-claude-signin.heavy.test.ts) found that on a Mac it does not read
+ * the file and says "Not logged in", while it does take the token from that variable. A token that has run out is not handed over at all: the turn takes the Space's fill of the person's account,
+ * and the person's own Claude Code refreshes the Keychain entry the next time they use it.
  */
 export function macClaude(env: Readonly<Record<string, string>>, h: OwnHomes, dataDir: string, person: string, proc: string, watchMs = 2_000): { env: Record<string, string>; after(): void } | null {
   if (h.platform !== "darwin" || !h.keychain) return null;
   const text = h.keychain.read(CLAUDE_KEYCHAIN);
   if (!text || claudeToken(text) === "") return null;
+  const expires = claudeExpiry(text);
+  if (expires !== undefined && expires <= (h.now ?? Date.now)() + 60_000) return null;
   const dir = path.join(dataDir, "scratch", safePart(person), "claude-own", proc);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const file = path.join(dir, ".credentials.json");
@@ -68,6 +78,7 @@ export function macClaude(env: Readonly<Record<string, string>>, h: OwnHomes, da
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(env)) if (k !== "CLAUDE_CODE_OAUTH_TOKEN" && k !== "ANTHROPIC_API_KEY") out[k] = v;
   out["CLAUDE_CONFIG_DIR"] = dir;
+  out["CLAUDE_CODE_OAUTH_TOKEN"] = claudeToken(text);
   let last = claudeToken(text);
   const writeBack = (): void => {
     let now: string | null = null;

@@ -67,10 +67,17 @@ export function seatbeltProfile(checked: Checked, o: SeatbeltOptions): string {
   lines.push(
     ";; the only way out: the egress proxy, on loopback",
     `(allow network-outbound (remote ip ${sbplString(`localhost:${o.proxyPort}`)}))`,
+    // A sandbox inside this one cannot start (sandbox_apply: Operation not permitted), and a tool that finds sandbox-exec tries it and fails: Homebrew does, so `brew install` failed on a
+    // person's own Mac. Hidden, a tool sees no sandbox to nest and runs as it does elsewhere, still inside this profile (lane l-runson, found on the desktop CI's macOS run).
+    ";; no sandbox inside this one: sandbox-exec is not there",
+    `(deny file-read* process-exec (literal ${sbplString(HIDDEN_SANDBOX_EXEC)}))`,
     "",
   );
   return lines.join("\n");
 }
+
+/** What the profile hides (a deny, never an allow): the sandbox-exec a tool would try to nest a sandbox with. */
+export const HIDDEN_SANDBOX_EXEC = "/usr/bin/sandbox-exec";
 
 export interface WrappedCommand { cmd: string; args: string[]; env: Record<string, string>; enforcement: { files: "kernel"; network: "kernel" } }
 

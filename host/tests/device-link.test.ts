@@ -59,7 +59,8 @@ test("her own sign-in on this computer: Codex's CODEX_HOME with auth.json, Claud
 test("Claude Code on a Mac: the Keychain sign-in is handed over as a file in a private folder, the Space's account is taken out, and a refresh goes back to the Keychain", async () => {
   const { macClaude, CLAUDE_KEYCHAIN } = await import("../src/compute/device-link.ts");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-macclaude-"));
-  const cred = (t: string) => JSON.stringify({ claudeAiOauth: { accessToken: t, refreshToken: "r", expiresAt: 1 } });
+  const later = Date.now() + 3_600_000;
+  const cred = (t: string, expiresAt = later) => JSON.stringify({ claudeAiOauth: { accessToken: t, refreshToken: "r", expiresAt } });
   const kc = new Map<string, string>([[CLAUDE_KEYCHAIN, cred("tok-1")]]);
   const writes: string[] = [];
   const homes = { home: "/Users/dana", env: {}, platform: "darwin" as const, exists: () => false, keychain: { read: (sv: string) => kc.get(sv) ?? null, write: (sv: string, t: string) => { writes.push(t); kc.set(sv, t); } } };
@@ -69,7 +70,7 @@ test("Claude Code on a Mac: the Keychain sign-in is handed over as a file in a p
   assert.equal(cfg, path.join(dir, "scratch", "usr_dana", "claude-own", "prc_1"), "inside the person's scratch folder, which the sandbox opens for the turn");
   assert.equal(fs.readFileSync(path.join(cfg, ".credentials.json"), "utf8"), cred("tok-1"));
   assert.equal((fs.statSync(path.join(cfg, ".credentials.json")).mode & 0o777), 0o600);
-  assert.deepEqual([m!.env["CLAUDE_CODE_OAUTH_TOKEN"], m!.env["OTHER"]], [undefined, "x"]);
+  assert.deepEqual([m!.env["CLAUDE_CODE_OAUTH_TOKEN"], m!.env["OTHER"]], ["tok-1", "x"], "her own Mac sign-in's token in place of the Space's (Claude Code on a Mac takes it from the variable)");
   // the engine refreshes in place while it is still warm: written back without waiting for it to end
   fs.writeFileSync(path.join(cfg, ".credentials.json"), cred("tok-2"));
   for (let i = 0; i < 50 && writes.length === 0; i++) await new Promise((r) => setTimeout(r, 10));
@@ -79,6 +80,7 @@ test("Claude Code on a Mac: the Keychain sign-in is handed over as a file in a p
   assert.equal(fs.existsSync(cfg), false, "the file is gone when the engine ends");
   assert.equal(macClaude({}, { ...homes, platform: "linux" as const }, dir, "usr_dana", "prc_2"), null, "only on a Mac");
   assert.equal(macClaude({}, { ...homes, keychain: { read: () => null, write: () => undefined } }, dir, "usr_dana", "prc_3"), null, "no Keychain sign-in: as the Space sent it");
+  assert.equal(macClaude({}, { ...homes, keychain: { read: () => cred("old", Date.now() - 1000), write: () => undefined } }, dir, "usr_dana", "prc_4"), null, "a token that has run out is not handed over: the Space's fill stands");
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

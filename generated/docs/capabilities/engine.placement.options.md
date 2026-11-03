@@ -41,6 +41,11 @@ type Out = {
     serverId?: string;
     deviceId?: string;
   };
+  automatic?: {
+    target: "device" | "space" | "server";
+    serverId?: string;
+    deviceId?: string;
+  };
   options: Array<{
       target: "device" | "space" | "server";
       serverId?: string;
@@ -71,6 +76,11 @@ type Out = {
     "threadId": "thr_a1b2c3"
   },
   "output": {
+    "automatic": {
+      "deviceId": "example",
+      "serverId": "example",
+      "target": "device"
+    },
     "effective": {
       "deviceId": "example",
       "serverId": "example",

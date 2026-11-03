@@ -8619,7 +8619,7 @@
     {
       "deferred": false,
       "name": "vault_requests_fulfil",
-      "summary": "Supply the key: attach an existing item, or save new fields as an item in the requested folder",
+      "summary": "Supply the key: attach an existing item, or save new fields as an item in the requested folder; say who may use it through the agent that asked",
       "toolset": "vault"
     },
     {
