@@ -144,3 +144,17 @@ test("a clash that cannot be renamed keeps the other row whole in the conflicts 
   assert.equal(kept[0]!.kind, "kept_aside");
   assert.equal(JSON.parse(kept[0]!.row).c.number.v, 5551234, "the row is kept whole, not lost");
 });
+
+test("a row written before capture began travels whole the first time any column of it changes", () => {
+  const clock = { t: 1_000 };
+  const db = new DatabaseSync(":memory:");
+  db.exec(SCHEMA);
+  db.exec("INSERT INTO chat_thread (id, title, starred) VALUES ('t_old', 'Made at the first start', 1)");   // before any capture
+  const cdb: CellDb = { all: (s, ...a) => db.prepare(s).all(...(a as never[])), run: (s, ...a) => db.prepare(s).run(...(a as never[])), exec: (s) => db.exec(s) };
+  const a = { db, cells: createCells(cdb, { site: "peer_a", now: () => clock.t }) };
+  a.cells.install();
+  const b = computer("peer_b", clock);
+  clock.t = 2_000; a.db.exec("UPDATE chat_thread SET starred = 0 WHERE id = 't_old'");
+  sync(a.cells, b.cells, "peer_a");
+  assert.deepEqual(rows(b.db, "SELECT id, title, starred FROM chat_thread"), [{ id: "t_old", title: "Made at the first start", starred: 0 }], "the whole row, not only the starred cell");
+});
