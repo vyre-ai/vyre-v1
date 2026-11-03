@@ -73,6 +73,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "threads.close": async (ctx) => { throw new VyreErr(notImplemented("threads.close", ctx.trace)); },
   "threads.delete": async (ctx) => { throw new VyreErr(notImplemented("threads.delete", ctx.trace)); },
   "threads.erase": async (ctx) => { throw new VyreErr(notImplemented("threads.erase", ctx.trace)); },
+  "threads.follow": async (ctx) => { throw new VyreErr(notImplemented("threads.follow", ctx.trace)); },
   "threads.get": async (ctx) => { throw new VyreErr(notImplemented("threads.get", ctx.trace)); },
   "threads.leave": async (ctx) => { throw new VyreErr(notImplemented("threads.leave", ctx.trace)); },
   "threads.list": async (ctx) => { throw new VyreErr(notImplemented("threads.list", ctx.trace)); },

@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine, mcp.
 
-## Capabilities (83)
+## Capabilities (84)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -74,9 +74,10 @@ Requires: engine, mcp.
 - [threads.close](../capabilities/threads.close.md): Close a thread (idle with nothing waiting, or done)
 - [threads.delete](../capabilities/threads.delete.md): Delete a chat only I am in (me and agents): hidden everywhere, running turns stop first, undone with threads.restore until the retention purge removes it. A chat with other people is left, not deleted
 - [threads.erase](../capabilities/threads.erase.md): Erase one chat thread for good: messages, blocks, pins, reactions, attachment links, transcript rows, summaries and search entries (governance erase)
+- [threads.follow](../capabilities/threads.follow.md): Follow a thread (its replies reach me), mute it (I stay in it, its replies are quiet and do not count as new) or leave it
 - [threads.get](../capabilities/threads.get.md): Read one thread with its members, agents, modes, plan mode and (for helpers) the address bar path
 - [threads.leave](../capabilities/threads.leave.md): Leave a chat that has other people in it: I stop being a member, they keep it. A channel is left with channels.leave
-- [threads.list](../capabilities/threads.list.md): List threads by kind, folder, scope or record
+- [threads.list](../capabilities/threads.list.md): List threads by kind, folder, scope or record; or the threads I am in, newest reply first
 - [threads.make_channel](../capabilities/threads.make_channel.md): Make a private chat into a channel with another person; the new channel links back to the chat
 - [threads.mark_read](../capabilities/threads.mark_read.md): Mark a thread read up to a sequence number, or unread again (the newest message from someone else counts as new)
 - [threads.members.add](../capabilities/threads.members.add.md): Add a person to a thread; a private chat never gains people, so this offers a channel instead

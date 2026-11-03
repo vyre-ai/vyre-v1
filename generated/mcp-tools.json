@@ -38413,7 +38413,8 @@
               "problem.report",
               "member.joined",
               "limit.hit",
-              "vault.rotation_due"
+              "vault.rotation_due",
+              "reply.thread"
             ],
             "type": "string"
           },
@@ -38872,7 +38873,8 @@
               "problem.report",
               "member.joined",
               "limit.hit",
-              "vault.rotation_due"
+              "vault.rotation_due",
+              "reply.thread"
             ],
             "type": "string"
           },
@@ -57247,6 +57249,41 @@
     },
     {
       "blocks": [],
+      "cap": "threads.follow",
+      "deferred": false,
+      "description": "Follow a thread (its replies reach me), mute it (I stay in it, its replies are quiet and do not count as new) or leave it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "mode": {
+            "enum": [
+              "follow",
+              "mute",
+              "leave"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "mode"
+        ],
+        "type": "object"
+      },
+      "name": "threads_follow",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "threads.get",
       "deferred": false,
       "description": "Read one thread with its members, agents, modes, plan mode and (for helpers) the address bar path",
@@ -57275,12 +57312,22 @@
       "blocks": [],
       "cap": "threads.list",
       "deferred": false,
-      "description": "List threads by kind, folder, scope or record",
+      "description": "List threads by kind, folder, scope or record; or the threads I am in, newest reply first",
       "effects": "read",
       "inputSchema": {
         "properties": {
           "cursor": {
             "type": "string"
+          },
+          "exceptScope": {
+            "description": "Leave out threads that belong to these kinds of object (a task keeps its own thread)",
+            "items": {
+              "examples": [
+                "task"
+              ],
+              "type": "string"
+            },
+            "type": "array"
           },
           "folderId": {
             "examples": [
@@ -57308,6 +57355,16 @@
             "maximum": 500,
             "minimum": 1,
             "type": "integer"
+          },
+          "mine": {
+            "type": "boolean"
+          },
+          "order": {
+            "enum": [
+              "created",
+              "latest"
+            ],
+            "type": "string"
           },
           "parentThreadId": {
             "examples": [

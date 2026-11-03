@@ -2432,6 +2432,7 @@ export function stubs(ctx: CallCtx) {
       close: call("threads.close"),
       delete: call("threads.delete"),
       erase: call("threads.erase"),
+      follow: call("threads.follow"),
       get: call("threads.get"),
       leave: call("threads.leave"),
       list: call("threads.list"),

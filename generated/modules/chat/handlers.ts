@@ -73,6 +73,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "threads.close": Handler<"threads.close", X>;
   "threads.delete": Handler<"threads.delete", X>;
   "threads.erase": Handler<"threads.erase", X>;
+  "threads.follow": Handler<"threads.follow", X>;
   "threads.get": Handler<"threads.get", X>;
   "threads.leave": Handler<"threads.leave", X>;
   "threads.list": Handler<"threads.list", X>;

@@ -8294,6 +8294,12 @@
     },
     {
       "deferred": false,
+      "name": "threads_follow",
+      "summary": "Follow a thread (its replies reach me), mute it (I stay in it, its replies are quiet and do not count as new) or leave it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "threads_get",
       "summary": "Read one thread with its members, agents, modes, plan mode and (for helpers) the address bar path",
       "toolset": "chats"
@@ -8301,7 +8307,7 @@
     {
       "deferred": false,
       "name": "threads_list",
-      "summary": "List threads by kind, folder, scope or record",
+      "summary": "List threads by kind, folder, scope or record; or the threads I am in, newest reply first",
       "toolset": "chats"
     },
     {

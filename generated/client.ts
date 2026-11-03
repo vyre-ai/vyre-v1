@@ -2432,6 +2432,7 @@ export function createClient(transport: Transport) {
       close: call("threads.close", 1),
       delete: call("threads.delete", 1),
       erase: call("threads.erase", 1),
+      follow: call("threads.follow", 1),
       get: call("threads.get", 1),
       leave: call("threads.leave", 1),
       list: call("threads.list", 1),
