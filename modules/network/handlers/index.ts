@@ -4,6 +4,7 @@
 import { asRow, certs, endpoints, failWith, healthProbe, hostnames, ingress, phoneOf, queue, readConfig, servers, statusOf, JOIN_CODE_MS } from "./status.ts";
 import type { Mode, NetworkCtx } from "./status.ts";
 import { approve, approveMine, decline, declineMine, enroll, enrollStatus, makeJoinCode, mine, revoke } from "./enroll.ts";
+import { peerAllow, peerDecline, peerRemove, peerRequests, peers } from "./peers.ts";
 
 export type { NetworkCtx } from "./status.ts";
 
@@ -154,4 +155,9 @@ export const handlers = {
   "network.server_reconnect": serverReconnect,
   "network.server_remove": serverRemove,
   "network.health": health,
+  "network.peers": peers,
+  "network.peer_requests": peerRequests,
+  "network.peer_allow": peerAllow,
+  "network.peer_decline": peerDecline,
+  "network.peer_remove": peerRemove,
 };

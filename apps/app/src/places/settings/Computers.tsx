@@ -6,11 +6,12 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Dialog } from "../../../../../ui/src/Dialog/index.tsx";
 import { TextField } from "../../../../../ui/src/TextField/index.tsx";
 import { setComputersAvailable, takeAddServerRequest } from "../../shell/computers-available.ts";
-import { useSettingsData } from "./data.tsx";
+import { useIsPersonal, useSettingsData } from "./data.tsx";
 import { addressKind, emptySheet, factsLine, joinCommand, phaseOf, runsLine, validNickname } from "./computers-model.ts";
 import type { HostInfo, ServerInfo, Sheet } from "./computers-model.ts";
 import { Glyph, Section, SettingsRow, SmallButton, Tip, pointer } from "./ui.tsx";
 import { PhoneAccessSection } from "./PhoneAccess.tsx";
+import { PeersSection } from "./Peers.tsx";
 
 const WHERE = "Any Linux machine or Mac that stays on. A small cloud server from Hetzner or DigitalOcean works.";
 const LAN_ONLY = "Works only while the server and this computer are on the same network. Over plain http the server can run agent computers, but not your chats: those need an https address.";
@@ -143,6 +144,7 @@ const copyText = (text: string): void => { void (globalThis as { navigator?: { c
 /** The Computers section with its live data: the list refreshes after every change and, while the sheet waits, every two seconds. */
 export function ComputersSection(): ReactElement {
   const data = useSettingsData();
+  const personal = useIsPersonal();
   const [hosts, setHosts] = useState<HostInfo[]>([]);
   const [servers, setServers] = useState<ServerInfo[]>([]);
   const [removing, setRemoving] = useState<string | null>(null);
@@ -190,6 +192,7 @@ export function ComputersSection(): ReactElement {
 
   return (
     <>
+      {personal ? <PeersSection /> : null}
       <ComputersBody hosts={hosts} servers={servers} removing={removing} onAdd={() => { setError(""); setSheet(emptySheet()); }} onAskRemove={setRemoving} onRemove={(id) => void remove(id)} />
       <PhoneAccessSection />
       {sheet ? (

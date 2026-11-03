@@ -106,6 +106,10 @@ import { createSigninRefresh } from "../seams/signin-refresh.ts";
 import type { ConnectorNetwork } from "../seams/connectors.ts";
 import { createAuditRecorder } from "../seams/audit.ts";
 import { INVITE_TRIES, inviteKeyOf, loadRelayKeys, startRelayBox } from "../seams/relay.ts";
+import { createPeerService } from "../peers/service.ts";
+import type { PeerService } from "../peers/service.ts";
+import type { CreateCells } from "../peers/sync.ts";
+import { applyPeerJoin } from "../peers/join.ts";
 import { createAppFilesRoute, defaultAppDir } from "../routes/app-files.ts";
 import type { RelayBox } from "../seams/relay.ts";
 import { createSyncLiveBridge, createSyncSeam } from "../seams/sync.ts";
@@ -225,6 +229,8 @@ function sealKeyFile(file: string): string {
 export interface DaemonOptions {
   /** Lets the process entry resolve after an authenticated HTTP shutdown as well as a signal. */
   onStopped?:()=>void;
+  /** Tests: how often the computers of a Personal Space sync (host/src/peers/sync.ts); 5 s when absent. */
+  peerRoundMs?: number;
   /** GitHub sign-in (default: VYRE_GH_OAUTH_CLIENT_ID and VYRE_GH_OAUTH_CLIENT_SECRET from the environment; null: not set up) */
   githubOAuth?: GithubOAuth | null;
   /** where the GitHub app an admin saves in the app talks to (default: github.com; only a test points these at a stand-in) */
@@ -345,6 +351,8 @@ export interface Daemon {
   nodeRelay: { spawnProc: ComputeStream["spawnProc"]; connected(nodeId: string): boolean; secure(nodeId: string): boolean; devices: ComputeStream["devices"] };
   /** A device-role daemon: the Team Spaces it links to for its person's turns (POST /local/chrome/spaces). */
   teamLinks: () => string[];
+  /** One Personal Space on several computers (host/src/peers): null unless a Personal Space started with --peers. */
+  peers: PeerService | null;
   stop(): Promise<void>;
 }
 
@@ -376,6 +384,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   ensureDirs(paths);
 
   applyPendingRestore(paths.root);   // a restore staged by backup.restore is moved into place before any database is opened
+  // a computer that asked to use a Personal Space from another computer and was allowed: the copy it staged replaces the fresh Space it made on its first run (host/src/peers/join.ts)
+  const joined = cfg.peers && hasSpace ? applyPeerJoin(paths.root, now) : null;
   const existing = readInfo(paths);
   if (existing && existing.pid !== process.pid && alive(existing.pid)) throw new Error(`vyred is already running for ${paths.root} (pid ${existing.pid})`);
 
@@ -386,7 +396,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   closers.push(() => { chromeBridge.failAll(); chromeBridge.closeStreams(); });
   const fetchFn: FetchFn | null = o.fetch ?? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null);
 
-  let space: string | null = cfg.space ?? (hasSpace ? readLogMeta(paths.events, "space") : null);
+  let space: string | null = joined?.space ?? cfg.space ?? (hasSpace ? readLogMeta(paths.events, "space") : null);
   let db: HostDb | null = null;
   let queue: ScheduleQueue | null = null;
   let seams: WiredSeams | null = null;
@@ -1840,6 +1850,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // The relay link (--relay, or the public relay once a phone address is claimed) and the phone address on it. Both are set where the daemon starts it, after boot.
   let relayBox: RelayBox | null = null;
   let startPhoneRelay: (() => RelayBox) | null = null;
+  // One Personal Space on several computers (host/src/peers): asks by name, new computers, copies. Only a Personal Space started with --peers.
+  // the cell engine lives in sync/ (sync/src/peers/cells.ts), which host may not import: the sync module hands it over
+  const peerCells = cfg.peers && hasSpace ? ((await fileExportsImporter(codeRoot)("sync"))?.["createPeerCells"] as CreateCells | undefined) ?? null : null;
+  const peerService: PeerService | null = cfg.peers && hasSpace ? createPeerService({
+    root: paths.root, db: () => db, space: () => space, enabled: true,
+    name: cfg.peerName ?? platform.hostname.replace(/\.local$/, "").slice(0, 60), platform: platform.os,
+    relayUrl: cfg.relayUrl ?? cfg.phoneRelayUrl,
+    ensureBox: () => relayBox ?? startPhoneRelay?.() ?? null,
+    now, log: (msg, attrs) => sink.log({ space: space ?? "-", level: 20, msg, place: "peers", ...(attrs ? { attrs } : {}) }),
+    restart: () => requestStop(),
+    ...(o.seams?.relayWebSocket ? { WebSocket: o.seams.relayWebSocket } : {}),
+    createCells: () => peerCells,
+    changed: () => { if (space) hub?.poke?.(space); },
+    ...(o.peerRoundMs ? { roundMs: o.peerRoundMs } : {}),
+  }) : null;
+  if (peerService) closers.push(() => peerService.stop());
   const phone: PhonePort = createPhonePort({ current: () => relayBox, start: () => startPhoneRelay?.() ?? null, dropped: () => { relayBox = null; }, configured: Boolean(cfg.relayUrl) });
   const runCommands = (): Promise<number> => {
     if (!db) return Promise.resolve(0);
@@ -1968,6 +1994,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         res.once("finish", () => { setImmediate(requestStop); });
         return;
       }
+      if (peerService?.handle(req, res)) return;
       if (liveTicketRoute.handle(req, res) || publicPath.handle(req, res) || mcpRoute.handle(req, res) || chromeBridge.handle(req, res) || githubSignInRoute.handle(req, res) || ssoSignInRoute.handle(req, res) || blobRoute?.handle(req, res) || formsPageRoute?.handle(req, res) || unsubscribeRoute.handle(req, res) || shareRoute?.handle(req, res) || portalLinkRoute?.handle(req, res) || exportRoute.handle(req, res) || webhookRoute.handle(req, res) || computeRoute.handle(req, res) || computeStream.handle(req, res) || teamLinks.handle(req, res) || fillRoute.handle(req, res) || localKeyRoute.handle(req, res) || appFiles.handle(req, res)) return;
       listener(req, res);
     });
@@ -2013,6 +2040,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const relayAt = (url: string): RelayBox => {
         const box = startRelayBox({
           relayUrl: url, dataDir: paths.root, localPort: () => boundPort, invites: openInvites,
+          onSigninAsk: (loc, s) => peerService?.onAsk(loc, s),
           log: (m) => sink.log({ space: space ?? "-", level: 30, msg: "relay.link", place: "relay", attrs: { note: m } }),
           ...(o.seams?.relayWebSocket ? { WebSocket: o.seams.relayWebSocket } : {}),
           onState: (st) => {
@@ -2034,6 +2062,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       else if ((relayDb.all("SELECT state FROM network_phone WHERE id = 1")[0] as { state?: string } | undefined)?.state === "claimed") relayBox = relayAt(cfg.phoneRelayUrl);
       startPhoneRelay = () => (relayBox ??= relayAt(cfg.phoneRelayUrl));
     }
+    if (peerService) void peerService.tick().catch(() => {});
     if (hasSpace) {
       const issued = await claimIssue();
       if (issued) {
@@ -2069,6 +2098,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   return {
     url: `http://${cfg.host}:${boundPort}`, claim, port: boundPort, token, roles: cfg.roles, space, paths, supervisor, scheduler, db, schedule: queue, seams, hooks, projections, sink, log, chromeBridge, nodeRelay: { spawnProc: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p) }, teamLinks: () => teamLinks.ids(),
     runProbes: (names) => runProbes(names), pollCommands: runCommands, ensureIngress: () => ensureIngress(false),
+    peers: peerService,
     stop,
   };
 }
