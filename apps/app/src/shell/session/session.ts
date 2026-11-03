@@ -30,6 +30,8 @@ import { BUILD_REGISTRY_HASH } from "../../../../../client/src/connection/regist
 import { assistantName } from "../../../../../ui/src/Avatar/assistant.ts";
 import type { Dial, Scheduler } from "../../../../../client/src/connection/index.ts";
 import { PLACE_QUERIES, WARM_ORDER } from "./prefetch.ts";
+import { directoryOf, standInsOf } from "./private-agents.ts";
+import { setStandIns } from "../../../../../ui/src/Avatar/assistant.ts";
 import { createRemoteScreenHooks } from "./remote-hooks.ts";
 import type { RemoteHooks } from "./remote-hooks.ts";
 import { onRetryLoads } from "../../../../../ui/src/States/retry.ts";
@@ -271,13 +273,15 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   // Keep the shell's own lists warm for the life of the session.
   const keep = [connections, principalsList, groupsList, agentsList].map((q) => q.subscribe(() => undefined));
 
-  const principals = derived<Principal[]>([principalsList, groupsList, agentsList], ([p, g]) => {
+  const principals = derived<Principal[]>([principalsList, groupsList, agentsList], ([p, g, ag]) => {
     const own = assistant();
     const list = new Map<string, Principal>([[me.id, me]]);
+    // the agents this person may use are what agents.list answers (the agents module's visibility rule); any other agent is someone else's private one, credited to its person ("Irfad Imtiaz (Agent)") and never offered
+    const usable = ag?.status === "ready" ? new Set((ag.data as Out<"agents.list">).agents.map((a) => a.agentId)) : null;
     if (p?.status === "ready") {
-      for (const x of (p.data as Out<"access.principals.list">).principals) {
-        list.set(x.id, { id: x.id, name: x.id === own.id ? own.name : x.name, kind: x.kind === "person" ? "person" : "agent" });
-      }
+      const dir = directoryOf((p.data as Out<"access.principals.list">).principals, own, me.id, usable);
+      for (const x of dir) list.set(x.id, x);
+      setStandIns(standInsOf(dir));
     }
     if (g?.status === "ready") {
       for (const x of (g.data as Out<"access.groups.list">).groups) list.set(x.id, { id: x.id, name: x.name, kind: "group" });

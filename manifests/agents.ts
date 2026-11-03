@@ -131,7 +131,7 @@ export default defineManifest({
     }),
     // ---- outside agents: an app that signed in from outside Vyre is a normal agent that runs elsewhere. Work waits for it here, because it is not running all the time.
     write('agents.outside.connect', 'System: make the agent an app becomes when a person allows it. Called by mcp.oauth.allow, never by a client', {
-      in: { clientName: t.str() }, out: { agentId: id.agent, name: t.str() }, perm: 'agents.create', emits: ['agent.created'], audit: 'always', idem: 'none', risk: 'high', offline: 'online',
+      in: { clientName: t.str() }, out: { agentId: id.agent, name: t.str() }, perm: 'agents.create', emits: ['agent.created', 'agent.privacy_set'], audit: 'always', idem: 'none', risk: 'high', offline: 'online',
     }),
     write('agents.outside.enqueue', 'System: a mention or a task for an outside agent waits in its queue until it asks', {
       in: { agentId: id.agent, kind: t.enm('mention', 'task', 'answer'), threadId: t.opt(id.thread), taskId: t.opt(id.task), messageId: t.opt(id.message), asker: t.str(), title: t.opt(t.str()), text: t.opt(t.str()) },
@@ -269,7 +269,9 @@ export default defineManifest({
     ev('skill.removed', 'A skill was removed from the Space library or from one agent', { p: { name: t.str(), agentId: t.opt(id.agent), by: t.str() }, subject: ['entity', '/name'] }),
     ...pluginEvents,
     ev('skill.changed', 'A skill was turned off or on', { p: { name: t.str(), agentId: t.opt(id.agent), enabled: t.bool(), by: t.str() }, subject: ['entity', '/name'] }),
-    ev('agent.created', 'An agent was created', { p: { agentId: id.agent, name: t.str(), ownerId: id.user, folderId: t.str(), templateVersion: t.int() }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is created' } }),
+    // private: the person's own assistant or an outside agent they connected (owner ruling 3 Nov): to everyone else it is named as its person, "Irfad Imtiaz (Agent)", never by its own name
+    ev('agent.created', 'An agent was created', { p: { agentId: id.agent, name: t.str(), ownerId: id.user, folderId: t.str(), templateVersion: t.int(), private: t.opt(t.bool()) }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is created' } }),
+    ev('agent.privacy_set', 'An agent became private to its person (their assistant, an outside agent) or stopped being so; access names it as its person to everyone else', { p: { agentId: id.agent, ownerId: id.user, private: t.bool() }, subject: ['agent', '/agentId'], retention: 'audit' }),
     ev('agent.paused', 'An agent was paused', { p: { agentId: id.agent, reason: t.opt(t.str()), by: t.str() }, subject: ['agent', '/agentId'], trigger: { title: 'An agent is paused' } }),
     ev('agent.resumed', 'An agent was resumed', { p: { agentId: id.agent, by: t.str() }, subject: ['agent', '/agentId'] }),
     ev('agent.owner_changed', 'An agent was handed to another person', { p: { agentId: id.agent, from: id.user, to: id.user, by: t.str() }, subject: ['agent', '/agentId'] }),

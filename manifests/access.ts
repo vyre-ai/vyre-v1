@@ -29,6 +29,9 @@ const rights = t.obj({ manage: t.bool(), edit: t.opt(t.bool()), share: t.bool(),
 const roleHolderRef = t.obj({ kind: t.enm('person', 'agent', 'actor', 'service', 'group'), id: t.str({ pattern: '^(usr|agt|act|svc|grp)_[a-z0-9]+$', examples: ['usr_a1b2c3'] }) });
 const principalRow = t.obj({
   id: pid, kind: t.enm('person', 'agent', 'actor', 'service'), name: t.str(), owner: t.opt(pid),
+  // someone else's private agent (their assistant, an outside agent they connected): `name` is its person's, "Irfad Imtiaz (Agent)", and it wears `owner`'s face (owner ruling 3 Nov).
+  // `agentName` is its own name, for owners and admins only (the audit details line).
+  private: t.opt(t.bool()), agentName: t.opt(t.str()),
   status: t.enm('invited', 'active', 'suspended', 'removed'), roles: t.arr(id.role), groups: t.arr(id.group),
   title: t.opt(t.str()), createdAt: t.ts(),
 });

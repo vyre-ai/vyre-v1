@@ -2,7 +2,7 @@
 // Also here: what the module reads from the event log. `consumers` lists, by name, the events each one reads and what it does with one; the host runs them after commit, at least once, so each is safe to repeat.
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
-import { OWNER_LEFT, onFileVersion, onDisplayNameChanged, onPersonCreated, onPersonLeft, onTurn, renameOldAssistants, restoreAgentFiles, retire, upgradeStarterAgentMd } from "./handlers/crud.ts";
+import { OWNER_LEFT, announcePrivacy, onFileVersion, onDisplayNameChanged, onPersonCreated, onPersonLeft, onTurn, renameOldAssistants, restoreAgentFiles, retire, upgradeStarterAgentMd } from "./handlers/crud.ts";
 import { onMessageReceived } from "./handlers/routines.ts";
 import { memoryGuideConsumers } from "./memory-guide.ts";
 import type { FileVersionEvent, PersonLeftEvent, PrincipalEvent, SettingChangedEvent, TurnEvent } from "./handlers/crud.ts";
@@ -19,6 +19,8 @@ export const periodic = {
   /** Once at boot (it repeats every 15 minutes in case the people list was not ready at boot; once renamed nothing matches): an assistant still called "<First> Assistant" becomes "<First>’s Assistant"; one the person renamed is left alone. */
   "agents.assistant_names": { everyMs: 15 * 60_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => renameOldAssistants(ctx) },
   /** At boot and every 15 minutes: an AGENT.md that is still the untouched old nine-line starter gets today's default as a new version; an edited one is never touched. */
+  /** At boot and hourly: a private agent made before access learnt of privacy is announced once (agent.privacy_set). */
+  "agents.privacy": { everyMs: 60 * 60_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => announcePrivacy(ctx) },
   "agents.agent_md_upgrade": { everyMs: 15 * 60_000, immediate: true, run: (ctx: AgentsCtx): Promise<string[]> => upgradeStarterAgentMd(ctx) },
 };
 
