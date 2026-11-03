@@ -95,7 +95,8 @@ test("Add to Vault: the key goes to the Vault only and the skill keeps the handl
   const calls: Array<[string, Record<string, unknown>]> = [];
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     calls.push([cap, input as Record<string, unknown>]);
-    if (cap === "vault.folders.list") return { folders: [{ id: "fld_mine", scope: "mine" }, { id: "fld_shared", scope: "shared" }] };
+    // the Space's Skills folder, shared with everyone (lib/space-folder.ts finds a Space-wide key's folder by its name)
+    if (cap === "vault.folders.list") return { folders: [{ id: "fld_mine", name: "Mine", scope: "mine" }, { id: "fld_shared", name: "Skills", scope: "shared" }] };
     if (cap === "engine.mcp.tools") return { servers: [{ key: "skill:sko_notion/notion", ok: true, tools: [{}, {}, {}] }] };
     return {};
   };
