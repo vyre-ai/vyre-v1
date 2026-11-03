@@ -253,8 +253,13 @@ test("a person sees only the projects they are in, or may open", async () => {
   assert.equal((await run(h, "projects.list", {}, h.person(LEO))).total, 0);
   h.allowOnly(() => true);
   await run(h, "projects.members.set", { projectId: p.projectId, principal: LEO, role: "guest" });
+  // listed only when get would open it: a role row without the grant behind it is not shown, and the id that list gives always resolves
   h.allowOnly(() => false);
-  assert.equal((await run(h, "projects.list", {}, h.person(LEO))).total, 1, "Leo is in it");
+  assert.equal((await run(h, "projects.list", {}, h.person(LEO))).total, 0, "no grant, so get would refuse it and list does not show it");
+  h.allowOnly(() => true);
+  const seen = (await run(h, "projects.list", {}, h.person(LEO))).projects as Array<{ projectId: string }>;
+  assert.deepEqual(seen.map((x) => x.projectId), [p.projectId], "Leo is in it");
+  assert.equal((await run(h, "projects.get", { projectId: seen[0]!.projectId }, h.person(LEO))).project.projectId, p.projectId);
 });
 
 // ---- Overview ----

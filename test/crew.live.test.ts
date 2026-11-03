@@ -44,9 +44,6 @@ test("a teammate started from a chat works in its own copy of the repository on 
     owner = (await ok(d, "agents.get", { agentId: lead })).agent.ownerId as string;
     const chat = await startChat(d, lead, "crew1");
 
-    // no repository yet: the start says so in words
-    const early = await fetch(`${d.url}/v1/engine/crew/start`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify({ threadId: chat, projectId: project, teammateId: teammate, title: "Dark mode", brief: "Add a dark mode toggle.", idempotencyKey: "crew-early" }) });
-    assert.equal(early.status, 422, await early.text());
     // a folder that is not a repository is refused
     const bad = await fetch(`${d.url}/v1/engine/crew/repo/set`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify({ projectId: project, path: os.tmpdir() }) });
     assert.equal(bad.status, 422, await bad.text());

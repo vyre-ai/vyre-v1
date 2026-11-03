@@ -1,0 +1,9 @@
+- Making a project from a chat no longer fails on the Manage grant. The person who makes a project, and their own assistant acting for them, hold Manage on it; the Space owner's assistant can add teammates and give an agent a computer for them.
+- A project that fails half way is removed, so no second "Crew test" is left behind and Projects only lists a project that Open can open.
+- The people a new project starts with now get their role on it (the host step that writes them was being refused).
+- A crew now starts on the person's own computer with nothing to set up: when a project has no repository, "start a crew" makes a local git repository in the project's folder (main as its start), teammates work on their own branches there, and Merge lands them. GitHub stays optional, for push and pull requests.
+- A chat running on the person's own computer no longer hears "there is no computer". It hears that Vyre has no terminal open there yet and that the assistant's own shell in its work folder is the way to run commands.
+- /usage now tells the truth about a Claude Code chat. A turn records the model its engine really ran on instead of "unknown", and usage shows the cached input apart from the fresh input (a turn of many requests re-sends the whole chat with each one, and the totals added all of them). The chat's size is what the last request carried.
+- Usage can be grouped by the account that paid, and the usage for a chat names the model and account of its latest turn and who paid, so it agrees with the turn's own details.
+- The line "Ran on a team model; Claude isn't on the team key" is now said when the turn really opens on that model, never for an account that was only considered. The turn's record names the model that ran.
+- An assistant can read its chat's usage and limits. It was refused with "no valid session" because it asked where the person's computers are as itself instead of as the person it acts for.

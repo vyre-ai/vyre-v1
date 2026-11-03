@@ -196,6 +196,15 @@ test("a turn on the Space AI key runs a model the key serves; a model out of usa
   script["kimi-k3"] = [{ type: "text", text: "back" }, { type: "done" }];
   await drain(await wrapped({ ...spec, agent: { ...spec.agent, model: "kimi-k3" } }));
   assert.equal(modelLimits(h.db, account.ref, NOW).has("kimi-k3"), false);
+  // the turn's usage names the model that really ran, not the one the chat asked for
+  script["kimi-k3"] = [{ type: "usage", inputTokens: 10, outputTokens: 2 }, { type: "done" }];
+  const usageOf = (evs: DriverEvent[]) => evs.filter((e): e is Extract<DriverEvent, { type: "usage" }> => e.type === "usage").map((e) => e.model);
+  assert.deepEqual(usageOf(await drain(await wrapped({ ...spec, agent: { ...spec.agent, model: "kimi-k3" } }))), ["kimi-k3"]);
+  // a turn moved to a Space account's own model that is not a watched one is stamped the same way
+  opened.length = 0;
+  const swapped = await wrapped({ ...spec, agent: { ...spec.agent, model: "claude-sonnet-5-5" }, account: { ...account, ref: "#Cheap", driver: "anthropic", provider: "anthropic", spaceKey: false, modelFallback: { from: "claude-sonnet-5-5", to: "glm-5.3" } } });
+  script["glm-5.3"] = [{ type: "usage", inputTokens: 10, outputTokens: 2 }, { type: "done" }];
+  assert.deepEqual(usageOf(await drain(swapped)), ["glm-5.3"]);
   // someone's own account is left alone
   opened.length = 0;
   const own = { ...spec, account: { ...account, ref: "#Dana_Anthropic", driver: "anthropic", provider: "anthropic", spaceKey: false } };

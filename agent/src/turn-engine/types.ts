@@ -129,6 +129,8 @@ export interface TurnInfo {
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
   reasoningTokens?: number;
+  /** What the turn's last request sent, fresh and cached: the size of the chat as the model last saw it (the turn's token total adds every request of the turn together). */
+  contextTokens?: number;
   /** The provider's own dollar figure, summed over the turn's calls, when every call reported one. */
   costUsd?: number;
   tools: ToolTrace[];
@@ -163,7 +165,7 @@ export type DriverEvent =
    * inputTokens counts every input token, cache reads and writes included. The optional fields are present only when the provider reported them: cache reads and writes, reasoning tokens
    * (already inside outputTokens), and the provider's own price for the call in dollars (Claude Code's total_cost_usd, OpenRouter's usage.cost). Absent means not reported, never zero.
    */
-  | { type: "usage"; inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number; reasoningTokens?: number; costUsd?: number }
+  | { type: "usage"; inputTokens: number; outputTokens: number; model?: string; contextTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number; reasoningTokens?: number; costUsd?: number }
   /** A subscription limit window as the engine reported it (percent used 0 to 100, reset time in epoch ms). Kept per account; shown only when reported. */
   | { type: "limits"; window: "session" | "week"; pct: number; resetsAt?: number }
   | { type: "done"; mentions?: readonly RouteMention[] }
