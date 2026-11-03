@@ -62,6 +62,8 @@ const SETUP_CAPS: ReadonlySet<string> = new Set([
   "providers.add", "providers.list", "providers.catalog", "providers.test", "providers.set_space_use", "providers.remove",
   // the Space AI key (owner ruling 3 Nov: the setup grant covers the Space's AI key); the person's own role decides, as in Console
   "providers.space_key.get", "providers.space_key.set",
+  // Space AI accounts (owner ruling 9): what each shared key pays for and its cap
+  "providers.uses.set",
   "spaces.update", "spaces.get",
   // groups and roles, for people only: every subject is checked by setupRefusal
   "access.groups.create", "access.groups.update", "access.groups.add_member", "access.groups.remove_member", "access.groups.delete", "access.groups.list", "access.groups.get",
