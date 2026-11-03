@@ -1,10 +1,10 @@
 {
-  "version": "1.0.0-rc.19",
+  "version": "1.0.0-rc.20",
   "lines": [
-    "Vyre on Windows opens every time, not only the first time.",
-    "Vyre now keeps itself up to date. When a new version is ready, it updates as it opens and you are back in a moment.",
-    "A calm Updating screen shows how far along it is, and your chats and files stay just as they are.",
-    "Settings has a new About Vyre page with your version, a Check now button and a switch for automatic updates.",
-    "After each update you see a short note like this one about what got better."
+    "Ask the Space from the top search: type a question and get an answer with its sources, only from what you can read.",
+    "Agents learn from your corrections. Each lesson shows a Learned line you can undo, and you can turn learning off in Settings.",
+    "Hide parts of a file from AI: redact or highlight text, and set a folder to Redacted or Not available for agents.",
+    "Choose which AI account pays for an agent's own work and for each automation, with a backup when one runs out.",
+    "Tasks: keyboard on Board and Timeline, a warning before a guest gets a task, and no edit lost when two people save."
   ]
 }
