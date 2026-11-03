@@ -35,6 +35,40 @@ function killAll(): void {
   else { spawnSync("pkill", ["-x", "vyre-desktop"], { stdio: "ignore" }); spawnSync("pkill", ["-x", "vyred"], { stdio: "ignore" }); }
 }
 
+/** Close the app the way a person does (its window's close, or Quit on a Mac) and wait for it to end; force it only if it has not ended in 15 s. A force kill is what an earlier step's trap does,
+ *  and the start after one is what the force-kill check below looks at, so a normal close is the default between launches here. */
+async function quit(tag: string): Promise<void> {
+  const running = (): boolean => (win
+    ? /vyre-desktop\.exe/i.test(spawnSync("tasklist", ["/FI", "IMAGENAME eq vyre-desktop.exe"], { encoding: "utf8" }).stdout ?? "")
+    : spawnSync("pgrep", ["-x", "vyre-desktop"], { stdio: "ignore" }).status === 0);
+  if (win) spawnSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", "Get-Process vyre-desktop -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | ForEach-Object { [void]$_.CloseMainWindow() }"], { stdio: "ignore", timeout: 20_000 });
+  else spawnSync("osascript", ["-e", 'tell application id "ai.vyre.desktop" to quit'], { stdio: "ignore", timeout: 20_000 });
+  for (let i = 0; i < 60 && running(); i++) await sleep(250);
+  const forced = running();
+  if (forced) killAll();
+  await sleep(1500);
+  if (win) spawnSync("taskkill", ["/F", "/T", "/IM", "vyred.exe"], { stdio: "ignore", timeout: 10_000 });
+  console.log(`update-proof: ${tag}: closed ${forced ? "by force (it did not end in 15 s)" : "normally"}`);
+}
+
+/** Windows: the app's two folders (the WebView2 profile and the daemons' data), so a run starts as a fresh person and the artifact shows what an earlier run left. */
+const PROFILE = win ? [path.join(process.env["LOCALAPPDATA"] ?? "", "ai.vyre.desktop"), path.join(process.env["APPDATA"] ?? "", "ai.vyre.desktop")] : [];
+function profileListing(tag: string): void {
+  const lines: string[] = [];
+  const walk = (d: string, depth: number): void => {
+    let names: string[] = [];
+    try { names = fs.readdirSync(d); } catch { return; }
+    for (const n of names.sort()) { const f = path.join(d, n); lines.push(`${"  ".repeat(depth)}${n}`); if (depth < 2) { try { if (fs.statSync(f).isDirectory()) walk(f, depth + 1); } catch { /* gone */ } } }
+  };
+  for (const d of PROFILE) { lines.push(`${d}${fs.existsSync(d) ? "" : " (none)"}`); walk(d, 1); }
+  fs.writeFileSync(path.join(OUT, `${process.platform}-profile-${tag}.txt`), `${lines.join("\n")}\n`);
+}
+function freshProfile(tag: string): void {
+  profileListing(tag);
+  for (const d of PROFILE) fs.rmSync(d, { recursive: true, force: true });
+}
+const charsOf = (log: string): number => Number(/page rendered: (\d+) chars/.exec(log)?.[1] ?? "0");
+
 function launch(feed: string, tag: string, off = false): { child: ChildProcess; log: () => string; waitFor(re: RegExp, ms: number): Promise<boolean> } {
   const env: Record<string, string | undefined> = { ...process.env, VYRE_UPDATE_FEED: feed };
   if (!off) delete env["VYRE_NO_AUTO_UPDATE"];
@@ -72,25 +106,43 @@ if (win) {
 }
 killAll();
 await sleep(2000);
+// the earlier steps of this job ran the app on this profile and ended it with a force kill (run-shell.sh's trap): start as a fresh person, keeping a listing of what was there
+freshProfile("before");
 
-// 0. the control: the same installed app with automatic updates off opens to its first screen, so a blank page below is the update's doing and not the install's
+// 0. the control: the same installed app with automatic updates off opens to its first screen, so a blank page below is the update's doing and not the install's.
+//    Then, on record: it opens again after a normal close, and what it does after a force kill (the earlier blank pages came right after one).
 {
-  killAll();
   const run = launch(GOOD, "control", true);
   await run.waitFor(/page rendered: \d+ chars/, 60_000);
   await sleep(4000);
   shot("control");
-  const chars = Number(/page rendered: (\d+) chars/.exec(run.log())?.[1] ?? "0");
+  const chars = charsOf(run.log());
   console.log(`update-proof: control (updates off) rendered ${chars} chars`);
   if (chars === 0) failures.push("control: the app draws nothing even with updates off");
   if (/update: downloading/.test(run.log())) failures.push("control: it updated with VYRE_NO_AUTO_UPDATE=1");
+  await quit("control");
+  const again = launch(GOOD, "control-again", true);
+  await again.waitFor(/page rendered: \d+ chars/, 60_000);
+  await sleep(4000);
+  shot("control-again");
+  console.log(`update-proof: control after a normal close rendered ${charsOf(again.log())} chars`);
+  if (charsOf(again.log()) === 0) failures.push("control: the app draws nothing the second time it opens, after a normal close");
   killAll();
   await sleep(2000);
+  profileListing("after-force-kill");
+  const forced = launch(GOOD, "control-after-kill", true);
+  await forced.waitFor(/page rendered: \d+ chars/, 60_000);
+  await sleep(4000);
+  shot("control-after-kill");
+  const afterKill = charsOf(forced.log());
+  console.log(`update-proof: NOTE after a force kill the app ${afterKill === 0 ? "draws nothing on its next start (an app finding, reported, not part of this proof)" : `draws again (${afterKill} chars)`}`);
+  await quit("control-after-kill");
+  // the update proof below starts from a fresh profile either way, so the finding above cannot decide it
+  freshProfile("after-control");
 }
 
 // 1. a bad signature is refused and nothing is installed
 {
-  killAll();
   const run = launch(BAD, "badsig");
   const refused = await run.waitFor(/update: refused/, 240_000);
   await sleep(3000);
@@ -102,8 +154,7 @@ await sleep(2000);
   if (!same(APP, before)) failures.push("bad signature: the installed program changed");
   if (!/sidecar ready/.test(run.log())) failures.push("bad signature: the background service was not left running");
   console.log(`update-proof: bad signature refused=${refused}, app running=${run.child.exitCode === null}`);
-  killAll();
-  await sleep(2000);
+  await quit("badsig");
 }
 
 // 2. the real update, with the daemons stopped first
