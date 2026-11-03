@@ -337,6 +337,34 @@ test("session: while the window is hidden a change waits, and showing the window
   } finally { g.document = was; }
 });
 
+test("session: last seen follows activity: opening, a press, a key and the window showing again touch the device, at most once a minute, never on a timer", async () => {
+  const touches: number[] = [];
+  let t = 1_000_000;
+  const listeners = new Map<string, Array<() => void>>();
+  const doc = { visibilityState: "visible", addEventListener: (k: string, l: () => void) => { listeners.set(k, [...(listeners.get(k) ?? []), l]); }, removeEventListener: (k: string, l: () => void) => { listeners.set(k, (listeners.get(k) ?? []).filter((x) => x !== l)); } };
+  const fire = (k: string): void => { for (const l of listeners.get(k) ?? []) l(); };
+  const g = globalThis as { document?: unknown };
+  const was = g.document;
+  g.document = doc;
+  try {
+    const gw = sessionGateway({ "POST /v1/devices/touch": () => { touches.push(t); return { body: { data: { ok: true, lastSeenAt: t } } }; } });
+    const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => [...ROUTES, { method: "POST", path: "/v1/devices/touch", cap: "devices.touch", v: 1 }], screens: async () => SCREENS, dial: fakeServer().dial, pollMs: 1_000_000, now: () => t });
+    await wait(20);
+    assert.equal(touches.length, 1, "opening the Space is activity");
+    t += 10_000; fire("pointerdown"); fire("keydown"); await wait(10);
+    assert.equal(touches.length, 1, "inside a minute nothing more is sent");
+    t += 61_000; fire("keydown"); await wait(10);
+    assert.equal(touches.length, 2, "a key a minute later moves last seen");
+    t += 61_000; fire("visibilitychange"); await wait(10);
+    assert.equal(touches.length, 3, "the window showing again moves it");
+    t += 600_000; await wait(30);
+    assert.equal(touches.length, 3, "an idle window sends nothing");
+    s.close();
+    t += 61_000; fire("pointerdown"); await wait(10);
+    assert.equal(touches.length, 3, "a closed session stops listening");
+  } finally { g.document = was; }
+});
+
 test("session: a 401 on any call ends the session and tells the shell once", async () => {
   let out = 0;
   const gw = sessionGateway({ "POST /v1/files/rename": () => ({ status: 401, body: { error: { code: "auth.unauthenticated", message: "Sign in.", traceId: "t" } } }) });

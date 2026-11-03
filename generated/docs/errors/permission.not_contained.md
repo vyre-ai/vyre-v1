@@ -8,6 +8,7 @@ HTTP 403. Retryable: no.
 
 - access.audience_set
 - access.grants.update
+- access.join_share
 - access.requests.approve
 - access.share
 - folders.place

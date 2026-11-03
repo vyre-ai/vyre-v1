@@ -4,8 +4,14 @@ import { handlers as table } from "./handlers/index.ts";
 import { recentWithUnread } from "./handlers/g26.ts";
 import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
 import type { ChatCtx } from "./projections.ts";
+import { ensureHome } from "./handlers/home-channel.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
+
+/** Every Team Space has #vyre (owner D22): made at the first start, and in an older Space that has neither #vyre nor #general. Hourly after that, which costs one read when it exists. */
+export const periodic = {
+  "chat.home_channel": { everyMs: 3_600_000, immediate: true, run: async (ctx: ChatCtx) => { await ensureHome(ctx); } },
+};
 
 export const consumers = {
   /** A person left or was removed: they come off every thread, a thread they started gets a new owner, and each chat gets one line. */

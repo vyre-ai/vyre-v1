@@ -28,6 +28,8 @@ export interface GateSearchDeps {
   state: { away: boolean; offline: boolean; terminal?: boolean; inbox?: boolean };
   /** The recent hits read ahead of the sheet (search.recent.list). */
   recent: () => readonly Hit[];
+  /** Set away for real (stored, seen by teammates). Left out: the action only shows it here. */
+  away?: (on: boolean) => void;
 }
 
 const PLACE_OF: Record<HitKind, PlaceId> = {
@@ -149,8 +151,8 @@ export function createGateSearch(d: GateSearchDeps): CmdKData {
       if (a.key === ASK_HERE) askHere();
       else if (a.key === "presence.away") {
         state.away = !state.away;
-        nav.setAway(state.away);
-        nav.flash(state.away ? "You are set as away" : "Welcome back");
+        if (d.away) d.away(state.away);
+        else { nav.setAway(state.away); nav.flash(state.away ? "You are set as away" : "Welcome back"); }
       } else if (a.key === "network.offline") {
         state.offline = !state.offline;
         nav.setOnline(!state.offline && rt.connection.get() === "online", 0);

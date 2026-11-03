@@ -25,6 +25,7 @@ export const ICON = {
   alert: ["M8 14a6 6 0 100-12 6 6 0 000 12z", "M8 5v3.5M8 11h.01"],
   retry: ["M13 8a5 5 0 11-1.6-3.7", "M13 2.5v3h-3"],
   panel: ["M2.5 4A1.5 1.5 0 014 2.5h8A1.5 1.5 0 0113.5 4v8a1.5 1.5 0 01-1.5 1.5H4A1.5 1.5 0 012.5 12z", "M6.5 2.5v11"],
+  clock: ["M8 14.200a6.200 6.200 0 100-12.400 6.200 6.200 0 000 12.400z", "M8 4.800V8l2.200 1.400"],
 } as const;
 export type IconName = keyof typeof ICON;
 
@@ -39,12 +40,16 @@ export function Glyph({ name, size = 15, color = "var(--ink-3)", fill }: { name:
   );
 }
 
-/** A person is a round marble, an agent a pixel face on a soft tint: the shared Avatar. State sits on the face: `pulse` is the moving ring while an agent works, `waiting` the amber ring; `online` adds the presence dot. */
-export function Face({ name, seedId, kind, size = 18, pulse = false, waiting = false, online = false }: { name: string; seedId?: string | undefined; kind: "person" | "agent"; size?: number; pulse?: boolean; waiting?: boolean; online?: boolean }): ReactElement {
+/**
+ * A person is a round marble, an agent a pixel face on a soft tint: the shared Avatar. State sits on the face: `pulse` is the moving ring while an agent works, `waiting` the amber ring;
+ * `presence` is a steady dot (owner D23): green when the person is online, an amber ring when they set themselves away, nothing when they are not around. `online` is the old name for green.
+ */
+export function Face({ name, seedId, kind, size = 18, pulse = false, waiting = false, online = false, presence }: { name: string; seedId?: string | undefined; kind: "person" | "agent"; size?: number; pulse?: boolean; waiting?: boolean; online?: boolean; presence?: "online" | "away" | undefined }): ReactElement {
+  const mark = presence ?? (online ? "online" : undefined);
   return (
     <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0, flexGrow: 0 }}>
       <Avatar name={name} seedId={seedId} kind={kind} size={size} state={waiting ? "waiting" : pulse ? "working" : undefined} {...(waiting || pulse ? { testID: "pulse" } : {})} />
-      {online ? <View testID="presence" style={s.presence} /> : null}
+      {mark === "online" ? <View testID="presence" style={s.presence} /> : mark === "away" ? <View testID="presence-away" style={s.away} /> : null}
     </View>
   );
 }
@@ -128,6 +133,7 @@ export function EmptyLine({ text }: { text: string }): ReactElement {
 
 export const s = StyleSheet.create({
   presence: { position: "absolute", right: -2, bottom: -2, width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string, borderWidth: 1.5, borderColor: "var(--side)" as string },
+  away: { position: "absolute", right: -2, bottom: -2, width: 8, height: 8, borderRadius: 4, backgroundColor: "var(--side)" as string, borderWidth: 2, borderColor: "var(--warn)" as string },
   lead: { width: 18, height: 18, marginRight: 9, alignItems: "center", justifyContent: "center" },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--accent)" as string },
   badge: { minWidth: 17, height: 17, paddingHorizontal: 5, borderRadius: 9, backgroundColor: "var(--accent-wash)" as string, alignItems: "center", justifyContent: "center", marginLeft: 6 },

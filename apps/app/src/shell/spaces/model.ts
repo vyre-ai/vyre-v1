@@ -32,13 +32,15 @@ export interface SpaceDef {
   inbox?: boolean;
   /** Owner or developer: Open Terminal in the switcher menu. */
   terminal: boolean;
+  /** May invite people (members.invite: Owner and Admin, Team Spaces only): Invite People in the switcher menu. */
+  invite?: boolean;
   counts: Readonly<Partial<Record<PlaceId, number>>>;
   dots: Readonly<Partial<Record<PlaceId, boolean>>>;
 }
 
 export const NORTHWIND: SpaceDef = {
   spaceId: "nw", name: "Northwind", kind: "team", address: "northwind.vyre.run", role: "Owner", tint: ["#6E5CF0", "#9B6BE8"],
-  kit: "northwind", skinDefault: "system", starred: true, needsYou: false, console: true, terminal: true,
+  kit: "northwind", skinDefault: "system", starred: true, needsYou: false, console: true, terminal: true, invite: true,
   counts: { chats: 7 }, dots: { inbox: true, records: true },
 };
 

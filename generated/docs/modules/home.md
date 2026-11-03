@@ -4,10 +4,11 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: calendar, chat, notifications, runs, spaces, tasks, terminal.
 
-## Capabilities (8)
+## Capabilities (9)
 
 - [home.activity](../capabilities/home.activity.md): See all: the full activity for the digest period on records I follow, my agents, and my routines
 - [home.at_risk](../capabilities/home.at_risk.md): Projects at risk: overdue, blocked or slipped, with the counting rule
+- [home.away_digest](../capabilities/home.away_digest.md): Write my While you were away digest for the time since I was last here: what my agents and routines did, changes on records I follow and the quiet notices that waited (an agent past its interrupt cap, a person who joined), by name. Writes nothing when nothing happened
 - [home.checklist](../capabilities/home.checklist.md): The first-run checklist: five items, hidden once all are done or dismissed
 - [home.digest](../capabilities/home.digest.md): My While you were away digest: three lines, then at most seven ranked items, each decision with Undo
 - [home.dismiss_checklist](../capabilities/home.dismiss_checklist.md): Dismiss the first-run checklist

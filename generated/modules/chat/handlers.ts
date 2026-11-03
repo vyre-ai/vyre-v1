@@ -12,6 +12,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "channels.create": Handler<"channels.create", X>;
   "channels.erase": Handler<"channels.erase", X>;
   "channels.get": Handler<"channels.get", X>;
+  "channels.home": Handler<"channels.home", X>;
+  "channels.home_join": Handler<"channels.home_join", X>;
   "channels.join": Handler<"channels.join", X>;
   "channels.leave": Handler<"channels.leave", X>;
   "channels.list": Handler<"channels.list", X>;

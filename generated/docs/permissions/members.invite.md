@@ -18,3 +18,5 @@ Area: space. Risk: medium. Applies to: space.
 - members.invites.extend
 - members.invites.list
 - members.invites.revoke
+- members.joins.list
+- members.joins.retry

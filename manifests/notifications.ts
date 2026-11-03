@@ -124,6 +124,7 @@ export default defineManifest({
       in: {}, out: { waitedApprovals: t.int(), waitedDigest: t.int(), digestId: t.opt(t.id('dgs')) }, level: 'use', emits: ['away.cleared'], tool: 'meta', cli: 'vyre away clear',
     }),
     read('notifications.away.get', 'Am I away, until when, and who holds my approvals', { in: {}, out: { away: t.bool(), until: t.opt(t.ts()), delegate: t.opt(delegateTo) }, tool: 'meta' }),
+    read('notifications.away.who', 'Who in the Space is away right now and until when (what a teammate sees as a steady away dot); never the delegate', { in: {}, out: { people: t.arr(t.obj({ person: t.str({ examples: ['usr_a1b2c3'] }), until: t.ts() })) }, perm: null, tool: 'meta' }),
     read('notifications.delegate.get', 'My standing approvals delegate chain (delegate, next delegate, role)', { in: {}, out: { chain: t.arr(delegateTo) }, tool: 'meta' }),
     write('notifications.delegate.set', 'Set my standing approvals delegate chain; a delegate never gains access', {
       in: { chain: t.arr(delegateTo, { maxItems: 5 }) }, out: { chain: t.arr(delegateTo) }, level: 'use', emits: ['notification.delegate_changed'], tool: 'meta',

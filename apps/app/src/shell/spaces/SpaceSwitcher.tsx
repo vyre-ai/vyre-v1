@@ -1,5 +1,5 @@
 // The Space tile and its menu (spec 2.1, 3.0): the tile sits at the top of the rail with a red dot when another Space needs you; click or right-click opens the
-// switcher: your Spaces (the open one checked, a Space that needs you says so), then Add a Space, Invite People, Space Settings, Open Terminal (owner or
+// switcher: your Spaces (the open one checked, a Space that needs you says so), then Add a Space, Invite People (owner or admin, Team Space), Space Settings, Open Terminal (owner or
 // developer), Set Yourself Away, Your Profile and Sign Out. ui/Menu appends Report a problem.
 import { useState } from "react";
 import type { ReactElement } from "react";
@@ -41,7 +41,8 @@ export function spaceMenuEntries(input: SpaceMenuInput): MenuEntry[] {
   });
   out.push({ separator: true });
   out.push({ label: "Add a Space", icon: iconMarkup("join"), onSelect: () => input.onAction("add") });
-  out.push({ label: "Invite People", icon: iconMarkup("userPlus"), onSelect: () => input.onAction("invite") });
+  // copies a real invite link (a Member, 7 days): only for someone who may invite, and never in a Personal Space
+  if (open !== undefined && open.kind !== "personal" && open.invite === true) out.push({ label: "Invite People", icon: iconMarkup("userPlus"), onSelect: () => input.onAction("invite") });
   out.push({ label: "Space Settings", icon: iconMarkup("settings"), onSelect: () => input.onAction("settings") });
   out.push({ label: "Add a Server", icon: iconMarkup("server"), onSelect: () => input.onAction("add-server") });
   if (open !== undefined && open.terminal) out.push({ label: "Open Terminal", icon: iconMarkup("terminal"), onSelect: () => input.onAction("terminal") });
