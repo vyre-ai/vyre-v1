@@ -31584,6 +31584,56 @@
     },
     {
       "blocks": [],
+      "cap": "engine.mcp.call",
+      "deferred": false,
+      "description": "Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that may change things, as mcp_tools lists it; an agent's call goes through the Gate",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "input": {
+            "description": "Any JSON value"
+          },
+          "server": {
+            "description": "The server key mcp_tools lists",
+            "examples": [
+              "greeter/echo"
+            ],
+            "type": "string"
+          },
+          "tool": {
+            "description": "The tool name as the server lists it",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "server",
+          "tool",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "mcp_call",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mcp.connected.link",
       "deferred": false,
       "description": "The address to paste into an MCP app, and the one line for Claude Code",
@@ -31595,6 +31645,48 @@
       "name": "mcp_connected_link",
       "planMode": "allowed",
       "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.mcp.read",
+      "deferred": false,
+      "description": "Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that only reads, as mcp_tools lists it with readOnly true; a tool that may change things goes through mcp_call",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "input": {
+            "description": "Any JSON value"
+          },
+          "server": {
+            "description": "The server key mcp_tools lists",
+            "examples": [
+              "greeter/echo"
+            ],
+            "type": "string"
+          },
+          "tool": {
+            "description": "The tool name as the server lists it",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "server",
+          "tool"
+        ],
+        "type": "object"
+      },
+      "name": "mcp_read",
+      "planMode": "allowed",
+      "toolset": "agents",
       "v": 1
     },
     {
@@ -47940,7 +48032,7 @@
       "blocks": [],
       "cap": "skills.list",
       "deferred": false,
-      "description": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones",
+      "description": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. Two with one name are both listed, the one not used marked shadowedBy; a broken one is marked broken. With no agentId, the Space library and built-in ones",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -47958,6 +48050,281 @@
         "type": "object"
       },
       "name": "skills_list",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.members",
+      "deferred": false,
+      "description": "Console: the skills each member keeps for themselves, by name only; contents only of the ones they shared",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "skills_members",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.mine.add",
+      "deferred": false,
+      "description": "Add a skill for yourself and your agents (Mine), or replace one of yours. A name already taken is kept, and this one is renamed with its source",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agents": {
+            "items": {
+              "description": "\"*\" for all of my agents, or agent ids",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "files": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "replaces": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_mine_add",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.mine.remove",
+      "deferred": false,
+      "description": "Remove one of your skills (and its shares), or take a shared one off your list",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skillId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_mine_remove",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.mine.set",
+      "deferred": false,
+      "description": "Switch one of your skills (or one shared with you) on or off, pick the agents that use it, or give its tool servers their Vault keys",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agents": {
+            "items": {
+              "description": "\"*\" for all of my agents, or agent ids",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "setup": {
+            "additionalProperties": {
+              "description": "A Vault handle such as #Notion_key.api_key",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skillId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_mine_set",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.mine.update",
+      "deferred": false,
+      "description": "Fetch one of your skills again from its link or repo; whoever it is shared with approves again if it can now touch more",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skillId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_mine_update",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.page",
+      "deferred": false,
+      "description": "Settings > Skills for the person asking: cards for skills shared with them, their own skills (Mine), the Space skills an admin set, the built-in ones, and their agents to assign them to",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "skills_page",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.preview",
+      "deferred": false,
+      "description": "Read the skills in a link (a SKILL.md, a GitHub repo or folder, a zip), a dropped folder or a zip, with what each can touch. Nothing is saved",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "files": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "hint": {
+            "description": "The folder name, for a lone AGENTS.md",
+            "type": "string"
+          },
+          "link": {
+            "examples": [
+              "https://github.com/anthropics/skills/tree/main/pdf"
+            ],
+            "type": "string"
+          },
+          "marketplace": {
+            "properties": {
+              "marketplaceId": {
+                "examples": [
+                  "mkt_a1b2c3"
+                ],
+                "pattern": "^mkt_[a-z0-9]+$",
+                "type": "string"
+              },
+              "plugin": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "marketplaceId",
+              "plugin"
+            ],
+            "type": "object"
+          },
+          "zip": {
+            "description": "The zip, base64",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "skills_preview",
       "planMode": "allowed",
       "toolset": "agents",
       "v": 1
@@ -47985,6 +48352,10 @@
             "type": "string"
           },
           "name": {
+            "type": "string"
+          },
+          "source": {
+            "description": "Remove it only when this source added it (a Kit undo names its own)",
             "type": "string"
           }
         },
@@ -48037,6 +48408,162 @@
       },
       "name": "skills_set_enabled",
       "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.share",
+      "deferred": false,
+      "description": "Share one of your skills with chosen people in this Space, or with everyone here. Each of them gets a card and decides",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          },
+          "space": {
+            "type": "boolean"
+          },
+          "stop": {
+            "type": "boolean"
+          },
+          "to": {
+            "items": {
+              "examples": [
+                "usr_a1b2c3"
+              ],
+              "pattern": "^usr_[a-z0-9]+$",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "skillId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_share",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.shared.decide",
+      "deferred": false,
+      "description": "Add a skill shared with you, so it applies to you and your agents, or say Not now",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "add",
+              "not_now"
+            ],
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skillId",
+          "decision",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_shared_decide",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.space.install",
+      "deferred": false,
+      "description": "Console: set a skill for everyone in the Space. It applies to every member and their agents at once, with no card",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "files": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "skills_space_install",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.view",
+      "deferred": false,
+      "description": "The full text and files of one skill: your own, one shared with you (before you add it, too), a Space one or a built-in one",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "skillId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "skills_view",
+      "planMode": "allowed",
       "toolset": "agents",
       "v": 1
     },

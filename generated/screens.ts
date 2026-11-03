@@ -7504,6 +7504,61 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "settings.skills",
+    "module": "agents",
+    "place": "settings",
+    "slot": "main",
+    "builtin": "ui:SettingsSkills",
+    "caller": "principal",
+    "queries": {
+      "page": {
+        "cap": "skills.page",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "add": {
+        "cap": "skills.mine.add",
+        "input": {}
+      },
+      "set": {
+        "cap": "skills.mine.set",
+        "input": {
+          "skillId": "/state/skillId"
+        }
+      },
+      "remove": {
+        "cap": "skills.mine.remove",
+        "input": {
+          "skillId": "/state/skillId"
+        },
+        "confirm": "Remove this skill?"
+      },
+      "share": {
+        "cap": "skills.share",
+        "input": {
+          "skillId": "/state/skillId"
+        }
+      },
+      "decide": {
+        "cap": "skills.shared.decide",
+        "input": {
+          "skillId": "/state/skillId"
+        }
+      },
+      "preview": {
+        "cap": "skills.preview",
+        "input": {}
+      }
+    },
+    "needs": [],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "shell.ask-pane",
     "module": "chat",
     "place": "shell",

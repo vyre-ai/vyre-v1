@@ -4700,9 +4700,21 @@
     },
     {
       "deferred": false,
+      "name": "mcp_call",
+      "summary": "Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that may change things, as mcp_tools lists it; an agent's call goes through the Gate",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "mcp_connected_link",
       "summary": "The address to paste into an MCP app, and the one line for Claude Code",
       "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "mcp_read",
+      "summary": "Call a tool of an outside tool server or connection (app hub, OAuth server, remote MCP) that only reads, as mcp_tools lists it with readOnly true; a tool that may change things goes through mcp_call",
+      "toolset": "agents"
     },
     {
       "deferred": false,
@@ -7245,7 +7257,49 @@
     {
       "deferred": false,
       "name": "skills_list",
-      "summary": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones",
+      "summary": "Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. Two with one name are both listed, the one not used marked shadowedBy; a broken one is marked broken. With no agentId, the Space library and built-in ones",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_members",
+      "summary": "Console: the skills each member keeps for themselves, by name only; contents only of the ones they shared",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_mine_add",
+      "summary": "Add a skill for yourself and your agents (Mine), or replace one of yours. A name already taken is kept, and this one is renamed with its source",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_mine_remove",
+      "summary": "Remove one of your skills (and its shares), or take a shared one off your list",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_mine_set",
+      "summary": "Switch one of your skills (or one shared with you) on or off, pick the agents that use it, or give its tool servers their Vault keys",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_mine_update",
+      "summary": "Fetch one of your skills again from its link or repo; whoever it is shared with approves again if it can now touch more",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_page",
+      "summary": "Settings > Skills for the person asking: cards for skills shared with them, their own skills (Mine), the Space skills an admin set, the built-in ones, and their agents to assign them to",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_preview",
+      "summary": "Read the skills in a link (a SKILL.md, a GitHub repo or folder, a zip), a dropped folder or a zip, with what each can touch. Nothing is saved",
       "toolset": "agents"
     },
     {
@@ -7258,6 +7312,30 @@
       "deferred": false,
       "name": "skills_set_enabled",
       "summary": "Turn a Space or agent skill off or on without removing it",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_share",
+      "summary": "Share one of your skills with chosen people in this Space, or with everyone here. Each of them gets a card and decides",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_shared_decide",
+      "summary": "Add a skill shared with you, so it applies to you and your agents, or say Not now",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_space_install",
+      "summary": "Console: set a skill for everyone in the Space. It applies to every member and their agents at once, with no card",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_view",
+      "summary": "The full text and files of one skill: your own, one shared with you (before you add it, too), a Space one or a built-in one",
       "toolset": "agents"
     },
     {

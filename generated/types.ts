@@ -26344,14 +26344,21 @@ export type SkillsAddOut = {
   skill: {
     name: string;
     description: string;
-    tier: "builtin" | "space" | "agent";
+    tier: "builtin" | "space" | "agent" | "mine" | "shared";
+    label?: string;
     source: string;
     agentId?: string;
     system: boolean;
     enabled: boolean;
     bytes: number;
     updatedAt?: number;
+    hash?: string;
+    shadowedBy?: "builtin" | "space" | "agent" | "mine" | "shared";
+    note?: string;
+    broken?: string;
   };
+  kept?: boolean;
+  note?: string;
 };
 export type SkillsListIn = {
   agentId?: string;
@@ -26361,13 +26368,18 @@ export type SkillsListOut = {
   skills: Array<{
       name: string;
       description: string;
-      tier: "builtin" | "space" | "agent";
+      tier: "builtin" | "space" | "agent" | "mine" | "shared";
+      label?: string;
       source: string;
       agentId?: string;
       system: boolean;
       enabled: boolean;
       bytes: number;
       updatedAt?: number;
+      hash?: string;
+      shadowedBy?: "builtin" | "space" | "agent" | "mine" | "shared";
+      note?: string;
+      broken?: string;
     }>;
 };
 export type SkillsLoadIn = {
@@ -26378,18 +26390,303 @@ export type SkillsLoadOut = {
   skill: {
     name: string;
     description: string;
-    tier: "builtin" | "space" | "agent";
+    tier: "builtin" | "space" | "agent" | "mine" | "shared";
     source: string;
     body: string;
     files: Array<{
         path: string;
         text: string;
       }>;
+    text?: string;
+    hash?: string;
   };
+};
+export type SkillsMembersIn = Record<string, unknown>;
+export type SkillsMembersOut = {
+  skills: Array<{
+      owner: string;
+      ownerName: string;
+      name: string;
+      shared: boolean;
+      skillId?: string;
+      toSpace: boolean;
+    }>;
+};
+export type SkillsMineAddIn = {
+  text: string;
+  files?: Record<string, string>;
+  source?: string;
+  version?: string;
+  projectId?: string;
+  agents?: Array<string>;
+  replaces?: string;
+  idempotencyKey: string;
+};
+export type SkillsMineAddOut = {
+  skill: {
+    skillId: string;
+    name: string;
+    label?: string;
+    description: string;
+    source: string;
+    origin: string;
+    version?: string;
+    projectId?: string;
+    agents: Array<string>;
+    enabled: boolean;
+    perms: {
+      scripts: Array<string>;
+      mcpServers: Array<{
+          name: string;
+          transport: "stdio" | "http" | "sse" | "ws";
+          target: string;
+          keys: Array<string>;
+        }>;
+      network: Array<string>;
+      vaultKeys: Array<string>;
+    };
+    setup: Record<string, string>;
+    needs: Array<string>;
+    sharedWith: Array<string>;
+    updatedAt: number;
+  };
+};
+export type SkillsMineRemoveIn = {
+  skillId: string;
+  idempotencyKey: string;
+};
+export type SkillsMineRemoveOut = {
+  removed: boolean;
+};
+export type SkillsMineSetIn = {
+  skillId: string;
+  enabled?: boolean;
+  agents?: Array<string>;
+  setup?: Record<string, string>;
+  idempotencyKey: string;
+};
+export type SkillsMineSetOut = {
+  skillId: string;
+  enabled: boolean;
+  agents: Array<string>;
+  setup: Record<string, string>;
+  needs: Array<string>;
+};
+export type SkillsMineUpdateIn = {
+  skillId: string;
+  idempotencyKey: string;
+};
+export type SkillsMineUpdateOut = {
+  skill: {
+    skillId: string;
+    name: string;
+    label?: string;
+    description: string;
+    source: string;
+    origin: string;
+    version?: string;
+    projectId?: string;
+    agents: Array<string>;
+    enabled: boolean;
+    perms: {
+      scripts: Array<string>;
+      mcpServers: Array<{
+          name: string;
+          transport: "stdio" | "http" | "sse" | "ws";
+          target: string;
+          keys: Array<string>;
+        }>;
+      network: Array<string>;
+      vaultKeys: Array<string>;
+    };
+    setup: Record<string, string>;
+    needs: Array<string>;
+    sharedWith: Array<string>;
+    updatedAt: number;
+  };
+  changed: boolean;
+  growth: Array<string>;
+};
+export type SkillsPageIn = {
+  projectId?: string;
+};
+export type SkillsPageOut = {
+  waiting: Array<{
+      skillId: string;
+      name: string;
+      label?: string;
+      description: string;
+      sharer: string;
+      sharerName: string;
+      toSpace: boolean;
+      source: string;
+      origin: string;
+      version?: string;
+      perms: {
+        scripts: Array<string>;
+        mcpServers: Array<{
+            name: string;
+            transport: "stdio" | "http" | "sse" | "ws";
+            target: string;
+            keys: Array<string>;
+          }>;
+        network: Array<string>;
+        vaultKeys: Array<string>;
+      };
+      state: "waiting" | "added" | "not_now";
+      growth: Array<string>;
+      agents: Array<string>;
+      enabled: boolean;
+      setup: Record<string, string>;
+      needs: Array<string>;
+      updatedAt: number;
+    }>;
+  mine: Array<{
+      skillId: string;
+      name: string;
+      label?: string;
+      description: string;
+      source: string;
+      origin: string;
+      version?: string;
+      projectId?: string;
+      agents: Array<string>;
+      enabled: boolean;
+      perms: {
+        scripts: Array<string>;
+        mcpServers: Array<{
+            name: string;
+            transport: "stdio" | "http" | "sse" | "ws";
+            target: string;
+            keys: Array<string>;
+          }>;
+        network: Array<string>;
+        vaultKeys: Array<string>;
+      };
+      setup: Record<string, string>;
+      needs: Array<string>;
+      sharedWith: Array<string>;
+      updatedAt: number;
+    }>;
+  shared: Array<{
+      skillId: string;
+      name: string;
+      label?: string;
+      description: string;
+      sharer: string;
+      sharerName: string;
+      toSpace: boolean;
+      source: string;
+      origin: string;
+      version?: string;
+      perms: {
+        scripts: Array<string>;
+        mcpServers: Array<{
+            name: string;
+            transport: "stdio" | "http" | "sse" | "ws";
+            target: string;
+            keys: Array<string>;
+          }>;
+        network: Array<string>;
+        vaultKeys: Array<string>;
+      };
+      state: "waiting" | "added" | "not_now";
+      growth: Array<string>;
+      agents: Array<string>;
+      enabled: boolean;
+      setup: Record<string, string>;
+      needs: Array<string>;
+      updatedAt: number;
+    }>;
+  space: Array<{
+      skillId: string;
+      name: string;
+      label?: string;
+      description: string;
+      source: string;
+      origin: string;
+      version?: string;
+      enabled: boolean;
+      perms: {
+        scripts: Array<string>;
+        mcpServers: Array<{
+            name: string;
+            transport: "stdio" | "http" | "sse" | "ws";
+            target: string;
+            keys: Array<string>;
+          }>;
+        network: Array<string>;
+        vaultKeys: Array<string>;
+      };
+      setup: Record<string, string>;
+      needs: Array<string>;
+      from?: string;
+      updatedAt?: number;
+    }>;
+  builtin: Array<{
+      name: string;
+      description: string;
+    }>;
+  agents: Array<{
+      agentId: string;
+      name: string;
+    }>;
+  policy: {
+    scriptsAdminOnly: boolean;
+  };
+  admin: boolean;
+  me: string;
+};
+export type SkillsPolicySetIn = {
+  scriptsAdminOnly: boolean;
+  idempotencyKey: string;
+};
+export type SkillsPolicySetOut = {
+  policy: {
+    scriptsAdminOnly: boolean;
+  };
+};
+export type SkillsPreviewIn = {
+  link?: string;
+  zip?: string;
+  files?: Record<string, string>;
+  hint?: string;
+  marketplace?: {
+    marketplaceId: string;
+    plugin: string;
+  };
+};
+export type SkillsPreviewOut = {
+  skills: Array<{
+      name: string;
+      description: string;
+      text: string;
+      files: Record<string, string>;
+      path: string;
+      source: string;
+      kind: "skill" | "plugin" | "codex";
+      version?: string;
+      perms: {
+        scripts: Array<string>;
+        mcpServers: Array<{
+            name: string;
+            transport: "stdio" | "http" | "sse" | "ws";
+            target: string;
+            keys: Array<string>;
+          }>;
+        network: Array<string>;
+        vaultKeys: Array<string>;
+      };
+      taken?: string;
+    }>;
+  problems: Array<string>;
+  skipped: Array<string>;
+  source: string;
 };
 export type SkillsRemoveIn = {
   name: string;
   agentId?: string;
+  source?: string;
   idempotencyKey: string;
 };
 export type SkillsRemoveOut = {
@@ -26405,13 +26702,223 @@ export type SkillsSetEnabledOut = {
   skill: {
     name: string;
     description: string;
-    tier: "builtin" | "space" | "agent";
+    tier: "builtin" | "space" | "agent" | "mine" | "shared";
+    label?: string;
     source: string;
     agentId?: string;
     system: boolean;
     enabled: boolean;
     bytes: number;
     updatedAt?: number;
+    hash?: string;
+    shadowedBy?: "builtin" | "space" | "agent" | "mine" | "shared";
+    note?: string;
+    broken?: string;
+  };
+};
+export type SkillsShareIn = {
+  skillId: string;
+  to?: Array<string>;
+  space?: boolean;
+  stop?: boolean;
+  idempotencyKey: string;
+};
+export type SkillsShareOut = {
+  sharedWith: Array<string>;
+};
+export type SkillsSharedDecideIn = {
+  skillId: string;
+  decision: "add" | "not_now";
+  idempotencyKey: string;
+};
+export type SkillsSharedDecideOut = {
+  card: {
+    skillId: string;
+    name: string;
+    label?: string;
+    description: string;
+    sharer: string;
+    sharerName: string;
+    toSpace: boolean;
+    source: string;
+    origin: string;
+    version?: string;
+    perms: {
+      scripts: Array<string>;
+      mcpServers: Array<{
+          name: string;
+          transport: "stdio" | "http" | "sse" | "ws";
+          target: string;
+          keys: Array<string>;
+        }>;
+      network: Array<string>;
+      vaultKeys: Array<string>;
+    };
+    state: "waiting" | "added" | "not_now";
+    growth: Array<string>;
+    agents: Array<string>;
+    enabled: boolean;
+    setup: Record<string, string>;
+    needs: Array<string>;
+    updatedAt: number;
+  };
+};
+export type SkillsSpaceAdoptIn = {
+  skillId: string;
+  idempotencyKey: string;
+};
+export type SkillsSpaceAdoptOut = {
+  skill: {
+    skillId: string;
+    name: string;
+    label?: string;
+    description: string;
+    source: string;
+    origin: string;
+    version?: string;
+    enabled: boolean;
+    perms: {
+      scripts: Array<string>;
+      mcpServers: Array<{
+          name: string;
+          transport: "stdio" | "http" | "sse" | "ws";
+          target: string;
+          keys: Array<string>;
+        }>;
+      network: Array<string>;
+      vaultKeys: Array<string>;
+    };
+    setup: Record<string, string>;
+    needs: Array<string>;
+    from?: string;
+    updatedAt?: number;
+  };
+};
+export type SkillsSpaceInstallIn = {
+  text: string;
+  files?: Record<string, string>;
+  source?: string;
+  version?: string;
+  idempotencyKey: string;
+};
+export type SkillsSpaceInstallOut = {
+  skill: {
+    skillId: string;
+    name: string;
+    label?: string;
+    description: string;
+    source: string;
+    origin: string;
+    version?: string;
+    enabled: boolean;
+    perms: {
+      scripts: Array<string>;
+      mcpServers: Array<{
+          name: string;
+          transport: "stdio" | "http" | "sse" | "ws";
+          target: string;
+          keys: Array<string>;
+        }>;
+      network: Array<string>;
+      vaultKeys: Array<string>;
+    };
+    setup: Record<string, string>;
+    needs: Array<string>;
+    from?: string;
+    updatedAt?: number;
+  };
+};
+export type SkillsSpaceSetupIn = {
+  name: string;
+  setup: Record<string, string>;
+  idempotencyKey: string;
+};
+export type SkillsSpaceSetupOut = {
+  skill: {
+    skillId: string;
+    name: string;
+    label?: string;
+    description: string;
+    source: string;
+    origin: string;
+    version?: string;
+    enabled: boolean;
+    perms: {
+      scripts: Array<string>;
+      mcpServers: Array<{
+          name: string;
+          transport: "stdio" | "http" | "sse" | "ws";
+          target: string;
+          keys: Array<string>;
+        }>;
+      network: Array<string>;
+      vaultKeys: Array<string>;
+    };
+    setup: Record<string, string>;
+    needs: Array<string>;
+    from?: string;
+    updatedAt?: number;
+  };
+};
+export type SkillsSpaceUpdateIn = {
+  name: string;
+  idempotencyKey: string;
+};
+export type SkillsSpaceUpdateOut = {
+  skill: {
+    skillId: string;
+    name: string;
+    label?: string;
+    description: string;
+    source: string;
+    origin: string;
+    version?: string;
+    enabled: boolean;
+    perms: {
+      scripts: Array<string>;
+      mcpServers: Array<{
+          name: string;
+          transport: "stdio" | "http" | "sse" | "ws";
+          target: string;
+          keys: Array<string>;
+        }>;
+      network: Array<string>;
+      vaultKeys: Array<string>;
+    };
+    setup: Record<string, string>;
+    needs: Array<string>;
+    from?: string;
+    updatedAt?: number;
+  };
+  changed: boolean;
+};
+export type SkillsViewIn = {
+  skillId?: string;
+  name?: string;
+};
+export type SkillsViewOut = {
+  skill: {
+    name: string;
+    description: string;
+    text: string;
+    files: Array<{
+        path: string;
+        bytes: number;
+        text: string;
+      }>;
+    perms: {
+      scripts: Array<string>;
+      mcpServers: Array<{
+          name: string;
+          transport: "stdio" | "http" | "sse" | "ws";
+          target: string;
+          keys: Array<string>;
+        }>;
+      network: Array<string>;
+      vaultKeys: Array<string>;
+    };
+    source: string;
+    version?: string;
   };
 };
 export type SourceRulesListIn = Record<string, unknown>;
@@ -35534,8 +36041,23 @@ export interface CapMap {
   "skills.add": { in: SkillsAddIn; out: SkillsAddOut };
   "skills.list": { in: SkillsListIn; out: SkillsListOut };
   "skills.load": { in: SkillsLoadIn; out: SkillsLoadOut };
+  "skills.members": { in: SkillsMembersIn; out: SkillsMembersOut };
+  "skills.mine.add": { in: SkillsMineAddIn; out: SkillsMineAddOut };
+  "skills.mine.remove": { in: SkillsMineRemoveIn; out: SkillsMineRemoveOut };
+  "skills.mine.set": { in: SkillsMineSetIn; out: SkillsMineSetOut };
+  "skills.mine.update": { in: SkillsMineUpdateIn; out: SkillsMineUpdateOut };
+  "skills.page": { in: SkillsPageIn; out: SkillsPageOut };
+  "skills.policy.set": { in: SkillsPolicySetIn; out: SkillsPolicySetOut };
+  "skills.preview": { in: SkillsPreviewIn; out: SkillsPreviewOut };
   "skills.remove": { in: SkillsRemoveIn; out: SkillsRemoveOut };
   "skills.set_enabled": { in: SkillsSetEnabledIn; out: SkillsSetEnabledOut };
+  "skills.share": { in: SkillsShareIn; out: SkillsShareOut };
+  "skills.shared.decide": { in: SkillsSharedDecideIn; out: SkillsSharedDecideOut };
+  "skills.space.adopt": { in: SkillsSpaceAdoptIn; out: SkillsSpaceAdoptOut };
+  "skills.space.install": { in: SkillsSpaceInstallIn; out: SkillsSpaceInstallOut };
+  "skills.space.setup": { in: SkillsSpaceSetupIn; out: SkillsSpaceSetupOut };
+  "skills.space.update": { in: SkillsSpaceUpdateIn; out: SkillsSpaceUpdateOut };
+  "skills.view": { in: SkillsViewIn; out: SkillsViewOut };
   "source_rules.list": { in: SourceRulesListIn; out: SourceRulesListOut };
   "source_rules.set": { in: SourceRulesSetIn; out: SourceRulesSetOut };
   "sources.create": { in: SourcesCreateIn; out: SourcesCreateOut };
@@ -38664,9 +39186,32 @@ export type SkillChangedPayload = {
   enabled: boolean;
   by: string;
 };
+export type SkillMineChangedPayload = {
+  skillId: string;
+  name: string;
+  op: "added" | "changed" | "removed" | "updated";
+  by: string;
+};
+export type SkillPolicyChangedPayload = {
+  scriptsAdminOnly: boolean;
+  by: string;
+};
 export type SkillRemovedPayload = {
   name: string;
   agentId?: string;
+  by: string;
+};
+export type SkillShareDecidedPayload = {
+  skillId: string;
+  name: string;
+  decision: "add" | "not_now";
+  by: string;
+};
+export type SkillSharedPayload = {
+  skillId: string;
+  name: string;
+  to: Array<string>;
+  stop: boolean;
   by: string;
 };
 export type SmsErasedPayload = {
@@ -40004,7 +40549,11 @@ export interface EventMap {
   "site.table_promoted": SiteTablePromotedPayload;
   "skill.added": SkillAddedPayload;
   "skill.changed": SkillChangedPayload;
+  "skill.mine_changed": SkillMineChangedPayload;
+  "skill.policy_changed": SkillPolicyChangedPayload;
   "skill.removed": SkillRemovedPayload;
+  "skill.share_decided": SkillShareDecidedPayload;
+  "skill.shared": SkillSharedPayload;
   "sms.erased": SmsErasedPayload;
   "sms.received": SmsReceivedPayload;
   "source.created": SourceCreatedPayload;

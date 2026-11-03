@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat, engine, mcp, memory, runs, terminal.
 
-## Capabilities (68)
+## Capabilities (83)
 
 - [agents.builtin_skill.get](../capabilities/agents.builtin_skill.get.md): Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer
 - [agents.builtin_skills.list](../capabilities/agents.builtin_skills.list.md): Skills every agent carries, led by "Working in Vyre": save facts to the asker layer, propose promotions, cite sources, use secrets only by name, never copy data across Spaces
@@ -70,12 +70,27 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [plugins.set_enabled](../capabilities/plugins.set_enabled.md): Turn an installed plugin off or on without removing it
 - [plugins.uninstall](../capabilities/plugins.uninstall.md): Remove an installed plugin and what it brought
 - [skills.add](../capabilities/skills.add.md): Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)
-- [skills.list](../capabilities/skills.list.md): Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. With no agentId, the Space library and built-in ones
+- [skills.list](../capabilities/skills.list.md): Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. Two with one name are both listed, the one not used marked shadowedBy; a broken one is marked broken. With no agentId, the Space library and built-in ones
 - [skills.load](../capabilities/skills.load.md): Load the full text of one skill by name (SKILL.md body and its supporting files); agent skills win over Space ones, Space ones over built-in
+- [skills.members](../capabilities/skills.members.md): Console: the skills each member keeps for themselves, by name only; contents only of the ones they shared
+- [skills.mine.add](../capabilities/skills.mine.add.md): Add a skill for yourself and your agents (Mine), or replace one of yours. A name already taken is kept, and this one is renamed with its source
+- [skills.mine.remove](../capabilities/skills.mine.remove.md): Remove one of your skills (and its shares), or take a shared one off your list
+- [skills.mine.set](../capabilities/skills.mine.set.md): Switch one of your skills (or one shared with you) on or off, pick the agents that use it, or give its tool servers their Vault keys
+- [skills.mine.update](../capabilities/skills.mine.update.md): Fetch one of your skills again from its link or repo; whoever it is shared with approves again if it can now touch more
+- [skills.page](../capabilities/skills.page.md): Settings > Skills for the person asking: cards for skills shared with them, their own skills (Mine), the Space skills an admin set, the built-in ones, and their agents to assign them to
+- [skills.policy.set](../capabilities/skills.policy.set.md): Console: who may add skills that run scripts or start tool servers (everyone, the default, or only admins)
+- [skills.preview](../capabilities/skills.preview.md): Read the skills in a link (a SKILL.md, a GitHub repo or folder, a zip), a dropped folder or a zip, with what each can touch. Nothing is saved
 - [skills.remove](../capabilities/skills.remove.md): Remove a skill from the Space library, or from one agent
 - [skills.set_enabled](../capabilities/skills.set_enabled.md): Turn a Space or agent skill off or on without removing it
+- [skills.share](../capabilities/skills.share.md): Share one of your skills with chosen people in this Space, or with everyone here. Each of them gets a card and decides
+- [skills.shared.decide](../capabilities/skills.shared.decide.md): Add a skill shared with you, so it applies to you and your agents, or say Not now
+- [skills.space.adopt](../capabilities/skills.space.adopt.md): Console: make a skill a member shared Space-wide, so it applies to everyone with no card
+- [skills.space.install](../capabilities/skills.space.install.md): Console: set a skill for everyone in the Space. It applies to every member and their agents at once, with no card
+- [skills.space.setup](../capabilities/skills.space.setup.md): Console: give the tool servers of a Space skill their Vault keys
+- [skills.space.update](../capabilities/skills.space.update.md): Console: fetch a Space skill again from its link or repo
+- [skills.view](../capabilities/skills.view.md): The full text and files of one skill: your own, one shared with you (before you add it, too), a Space one or a built-in one
 
-## Events (29)
+## Events (33)
 
 - [agent.config_changed](../events/agent.config_changed.md): AGENT.md, agent.toml or the agent record changed (a new version was saved)
 - [agent.config_error](../events/agent.config_error.md): An agent.toml failed validation; the last good version keeps running
@@ -105,4 +120,8 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [plugin.uninstalled](../events/plugin.uninstalled.md): A plugin was removed
 - [skill.added](../events/skill.added.md): A skill was added to the Space library or to one agent
 - [skill.changed](../events/skill.changed.md): A skill was turned off or on
+- [skill.mine_changed](../events/skill.mine_changed.md): A person added, changed or removed one of their own skills
+- [skill.policy_changed](../events/skill.policy_changed.md): An admin changed who may add skills that run scripts
 - [skill.removed](../events/skill.removed.md): A skill was removed from the Space library or from one agent
+- [skill.share_decided](../events/skill.share_decided.md): A person added a skill shared with them, or said Not now
+- [skill.shared](../events/skill.shared.md): A person shared one of their skills, or stopped

@@ -1081,6 +1081,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.settings.skills",
+      "place": "settings",
+      "screen": "settings.skills"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.shell.ask-pane",
       "place": "shell",
       "screen": "shell.ask-pane"

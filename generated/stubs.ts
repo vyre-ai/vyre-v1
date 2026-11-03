@@ -2145,8 +2145,31 @@ export function stubs(ctx: CallCtx) {
       add: call("skills.add"),
       list: call("skills.list"),
       load: call("skills.load"),
+      members: call("skills.members"),
+      mine: {
+        add: call("skills.mine.add"),
+        remove: call("skills.mine.remove"),
+        set: call("skills.mine.set"),
+        update: call("skills.mine.update"),
+      },
+      page: call("skills.page"),
+      policy: {
+        set: call("skills.policy.set"),
+      },
+      preview: call("skills.preview"),
       remove: call("skills.remove"),
       set_enabled: call("skills.set_enabled"),
+      share: call("skills.share"),
+      shared: {
+        decide: call("skills.shared.decide"),
+      },
+      space: {
+        adopt: call("skills.space.adopt"),
+        install: call("skills.space.install"),
+        setup: call("skills.space.setup"),
+        update: call("skills.space.update"),
+      },
+      view: call("skills.view"),
     },
     source_rules: {
       list: call("source_rules.list"),

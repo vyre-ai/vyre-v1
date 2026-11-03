@@ -2145,8 +2145,31 @@ export function createClient(transport: Transport) {
       add: call("skills.add", 1),
       list: call("skills.list", 1),
       load: call("skills.load", 1),
+      members: call("skills.members", 1),
+      mine: {
+        add: call("skills.mine.add", 1),
+        remove: call("skills.mine.remove", 1),
+        set: call("skills.mine.set", 1),
+        update: call("skills.mine.update", 1),
+      },
+      page: call("skills.page", 1),
+      policy: {
+        set: call("skills.policy.set", 1),
+      },
+      preview: call("skills.preview", 1),
       remove: call("skills.remove", 1),
       set_enabled: call("skills.set_enabled", 1),
+      share: call("skills.share", 1),
+      shared: {
+        decide: call("skills.shared.decide", 1),
+      },
+      space: {
+        adopt: call("skills.space.adopt", 1),
+        install: call("skills.space.install", 1),
+        setup: call("skills.space.setup", 1),
+        update: call("skills.space.update", 1),
+      },
+      view: call("skills.view", 1),
     },
     source_rules: {
       list: call("source_rules.list", 1),
