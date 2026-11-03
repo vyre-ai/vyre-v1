@@ -1,11 +1,11 @@
 // Native skills on a Windows computer (lane l-winfix): Windows-shaped names and paths, checked with path.win32 on any machine. One file the disk refuses never drops the other skills; a name Windows
-// cannot hold is made one it can; a "skill.md" beside SKILL.md never replaces it; a path past MAX_PATH is written in the long form.
+// cannot hold is made one it can; a "skill.md" beside SKILL.md never replaces it; a path past MAX_PATH is left out.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { longPath, skillDir, skillFile, syncNativeSkills } from "../skills-native.ts";
+import { WIN_MAX_FILE, fitsPath, skillDir, skillFile, syncNativeSkills } from "../skills-native.ts";
 
 const SKILL = (name: string) => `---\nname: ${name}\ndescription: ${name} steps\n---\n\nDo it.\n`;
 const work = (): string => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-skills-win-")));
@@ -24,6 +24,8 @@ function world(lib: Array<{ name: string; text: string; files: Record<string, st
 }
 
 test("a skill's folder is never a Windows device name", () => {
+  assert.equal(skillDir("a".repeat(70), "win32"), "a".repeat(40));
+  assert.equal(skillDir("a".repeat(70), "linux"), "a".repeat(64));
   for (const [name, dir] of [["CON", "con-skill"], ["nul", "nul-skill"], ["Com1", "com1-skill"], ["lpt9", "lpt9-skill"], ["aux", "aux-skill"], ["prn", "prn-skill"], ["con-tracts", "con-tracts"], ["console", "console"]] as const) {
     assert.equal(skillDir(name), dir, name);
   }
@@ -46,17 +48,20 @@ test("a skill's file names, as Windows can hold them: refused characters, traili
   assert.equal(skillFile("notes: draft?.md", "linux"), "notes: draft?.md", "on a Mac or Linux the name is kept as it is");
 });
 
-test("a path past MAX_PATH is written in the long form on Windows; a short one and every POSIX path as they are", () => {
-  const deep = `C:\\Users\\Dana Reyes\\AppData\\Roaming\\ai.vyre.desktop\\personal\\work\\usr_${"a".repeat(26)}\\thr_${"b".repeat(26)}\\.claude\\skills\\${"c".repeat(64)}\\references\\${"d".repeat(60)}.md`;
-  assert.ok(deep.length > 260);
-  assert.equal(longPath(deep, "win32"), `\\\\?\\${deep}`);
-  assert.equal(longPath("\\\\fileserver\\share\\" + "x".repeat(250), "win32"), `\\\\?\\UNC\\fileserver\\share\\${"x".repeat(250)}`);
-  assert.equal(longPath("C:\\short\\SKILL.md", "win32"), "C:\\short\\SKILL.md");
-  assert.equal(longPath(`/${"x".repeat(300)}`, "linux"), `/${"x".repeat(300)}`);
-  // the worst case Vyre makes itself, before a skill's own file path: profile folder (a local account name is at most 20), the data folder, the work folder's ids, the CLI's skills folder and a
-  // 64-character skill name. SKILL.md fits under MAX_PATH; a supporting file deeper than about 30 characters does not, which is why the writes take the long form.
-  const worst = `C:\\Users\\${"u".repeat(20)}\\AppData\\Roaming\\ai.vyre.desktop\\personal\\work\\usr_${"a".repeat(26)}\\thr_${"b".repeat(26)}\\.agents\\skills\\${"c".repeat(64)}\\SKILL.md`;
-  assert.ok(worst.length < 260, String(worst.length));
+test("Windows: a file at MAX_PATH or past it is left out, since the engines do not read it; the worst case of Vyre's own part of the path leaves a skill room", () => {
+  // the worst case Vyre makes itself: a profile folder of 36 characters (a domain profile "name.DOMAIN": a 20-character account name, a dot and a 15-character domain; a local account holds 20,
+  // a Microsoft account 5), the app's data folder, the short work layout, the CLI's skills folder and a skill folder of 40 (Windows' cap)
+  const data = `C:\\Users\\${"u".repeat(36)}\\AppData\\Roaming\\ai.vyre.desktop\\personal`;
+  const work = `${data}\\w\\${"a".repeat(10)}\\${"b".repeat(10)}`;
+  const skillMd = `${work}\\.agents\\skills\\${skillDir("c".repeat(64), "win32")}\\SKILL.md`;
+  console.log(`worst case: work folder ${work.length}, SKILL.md ${skillMd.length}, room left for a skill's own file path ${WIN_MAX_FILE - skillMd.length + "SKILL.md".length}`);
+  assert.ok(skillMd.length <= 180, `SKILL.md at most 180 characters in the worst case (${skillMd.length})`);
+  assert.ok(WIN_MAX_FILE - (skillMd.length - "SKILL.md".length) >= 85, "a skill's own file path has at least 85 characters");
+  assert.equal(fitsPath(skillMd, "win32"), true);
+  assert.equal(fitsPath(`C:\\${"x".repeat(256)}`, "win32"), true, "259 characters fit");
+  assert.equal(fitsPath(`C:\\${"x".repeat(257)}`, "win32"), false, "260 do not");
+  assert.equal(fitsPath(`C:\\${"d".repeat(246)}\\f`, "win32"), false, "nor a file in a folder of 248");
+  assert.equal(fitsPath(`/${"x".repeat(400)}`, "linux"), true);
 });
 
 test("one file the disk refuses loses that file only; the other files and the other skills are written", async () => {

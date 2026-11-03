@@ -30,10 +30,15 @@ interface Manifest { fingerprint: string; dirs: string[] }
 /** Windows' reserved device names: a file or folder named one of them (with any extension) opens the device, not a file. */
 const RESERVED = /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³]|conin\$|conout\$)(\.|$)/i;
 
-/** A skill name as a folder name a CLI accepts: lowercase letters, digits and hyphens, at most 64, never a name Windows keeps for a device (con, nul, com1: "con-skill"). */
-export function skillDir(name: string): string {
-  const d = name.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 64) || "skill";
-  return RESERVED.test(d) ? `${d.slice(0, 58)}-skill` : d;
+/**
+ * A skill name as a folder name a CLI accepts: lowercase letters, digits and hyphens, at most 64 (40 on Windows, to keep paths short: the CLIs name a skill by its front matter, not its folder),
+ * never a name Windows keeps for a device (con, nul, com1: "con-skill").
+ */
+export function skillDir(name: string, platform: NodeJS.Platform = process.platform): string {
+  const max = platform === "win32" ? 40 : 64;
+  let d = name.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, max) || "skill";
+  if (platform === "win32") d = d.replace(/-+$/, "") || "skill";
+  return RESERVED.test(d) ? `${d.slice(0, max - 6)}-skill` : d;
 }
 
 /**
@@ -54,9 +59,14 @@ export function skillFile(rel: string, platform: NodeJS.Platform = process.platf
   return out;
 }
 
-/** Windows: a path past what the classic file calls take (MAX_PATH, 260; a folder 248), in the long form node and the CLIs read. Anything shorter, and every path elsewhere, as it is. */
-export function longPath(p: string, platform: NodeJS.Platform = process.platform): string {
-  return platform === "win32" && p.length >= 248 && !p.startsWith("\\\\?\\") ? path.win32.toNamespacedPath(p) : p;
+/**
+ * Windows: whether a file can be written where every engine and tool reads it. Vyre does not count on long-path support in programs it does not own (claude.exe's Read hangs on a path past
+ * MAX_PATH, the windows-latest proof), so a file at 260 characters or more, or in a folder at 248 or more, is left out and logged. The short work layout (sandbox.ts) keeps Vyre's own part of the
+ * path near 100 characters, which leaves a skill's own file paths room. Elsewhere every path fits.
+ */
+export const WIN_MAX_FILE = 259;
+export function fitsPath(file: string, platform: NodeJS.Platform = process.platform): boolean {
+  return platform !== "win32" || (file.length <= WIN_MAX_FILE && path.win32.dirname(file).length < 248);
 }
 
 function readManifest(base: string): Manifest | null {
@@ -94,7 +104,7 @@ export async function syncNativeSkills(d: NativeSkillsDeps, driver: NativeSkillD
   if (rows.length === 0 && before === null) return "same";   // no skills and none written before: the folder is left as it is, with nothing added
   fs.mkdirSync(base, { recursive: true });
   // the folders Vyre wrote last time go; anything else in the folder is the repository's or the person's, and stays
-  for (const dir of before?.dirs ?? []) fs.rmSync(longPath(path.join(base, dir)), { recursive: true, force: true });
+  for (const dir of before?.dirs ?? []) fs.rmSync(path.join(base, dir), { recursive: true, force: true });
   const written: string[] = [];
   for (const r of rows) {
     const dir = skillDir(String(r.name));
@@ -106,16 +116,18 @@ export async function syncNativeSkills(d: NativeSkillsDeps, driver: NativeSkillD
     const text = typeof skill.text === "string" && skill.text !== "" ? skill.text : `---\nname: ${dir}\ndescription: ${JSON.stringify(skill.description ?? "")}\n---\n\n${skill.body ?? ""}`;
     // each write on its own: a file the disk refuses (a name, a path too long, a full disk) loses that file, or that one skill when it is SKILL.md, and never the others
     try {
-      fs.mkdirSync(longPath(root), { recursive: true });
-      fs.writeFileSync(longPath(path.join(root, "SKILL.md")), text, { mode: 0o644 });
-    } catch (e) { d.log?.("a skill could not be written for the engine", { skill: dir, error: e instanceof Error ? e.message : String(e) }); fs.rmSync(longPath(root), { recursive: true, force: true }); continue; }
+      if (!fitsPath(path.join(root, "SKILL.md"))) throw new Error("the path is too long for Windows");
+      fs.mkdirSync(root, { recursive: true });
+      fs.writeFileSync(path.join(root, "SKILL.md"), text, { mode: 0o644 });
+    } catch (e) { d.log?.("a skill could not be written for the engine", { skill: dir, error: e instanceof Error ? e.message : String(e) }); fs.rmSync(root, { recursive: true, force: true }); continue; }
     for (const f of skill.files ?? []) {
       const rel = typeof f.path === "string" ? skillFile(f.path) : null;
       if (rel === null || typeof f.text !== "string") continue;
       const abs = path.join(root, rel);
       try {
-        fs.mkdirSync(longPath(path.dirname(abs)), { recursive: true });
-        fs.writeFileSync(longPath(abs), f.text, { mode: /\.(sh|py)$/.test(f.path) || f.path.startsWith("scripts/") ? 0o755 : 0o644 });
+        if (!fitsPath(abs)) throw new Error("the path is too long for Windows");
+        fs.mkdirSync(path.dirname(abs), { recursive: true });
+        fs.writeFileSync(abs, f.text, { mode: /\.(sh|py)$/.test(f.path) || f.path.startsWith("scripts/") ? 0o755 : 0o644 });
       } catch (e) { d.log?.("a skill's file could not be written for the engine", { skill: dir, file: rel, error: e instanceof Error ? e.message : String(e) }); }
     }
     written.push(dir);

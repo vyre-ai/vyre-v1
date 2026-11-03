@@ -6,7 +6,7 @@
 // on disk (another turn refreshed it, or a daemon that died mid-turn left it) is kept rather than overwritten with the older one from the Vault.
 import fs from "node:fs";
 import path from "node:path";
-import { scratchFolder } from "./sandbox.ts";
+import { scratchFolder, workParts } from "./sandbox.ts";
 import { compareFresh, providerOfFiles, readSignin } from "../../host/src/seams/signin-refresh.ts";
 
 export const CRED_FILES_ENV = "VYRE_CRED_FILES";
@@ -42,10 +42,9 @@ export function parseCredentialFiles(json: string): Record<string, string> {
 
 /** The home of the engine for this person: `<scratch>/home`, where the Seatbelt profile and the bwrap home bind put it. The person is named by the work folder. */
 export function engineHome(dataDir: string, cwd: string): string {
-  const workRoot = fs.realpathSync(path.join(dataDir, "work"));
-  const rel = path.relative(workRoot, cwd).split(path.sep);
-  if (rel.length !== 2 || rel.some((x) => x === "" || x === "..")) throw new CredentialFilesError("The engine is not in one of the Space's work folders.");
-  const home = path.join(scratchFolder(dataDir, rel[0] as string), "home");
+  const where = workParts(dataDir, cwd);
+  if (where === null) throw new CredentialFilesError("The engine is not in one of the Space's work folders.");
+  const home = path.join(scratchFolder(dataDir, where.person), "home");
   fs.mkdirSync(home, { recursive: true, mode: 0o700 });
   return home;
 }
