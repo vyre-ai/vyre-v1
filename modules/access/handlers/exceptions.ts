@@ -39,7 +39,7 @@ function rowOf(ctx: AccessCtx, g: GrantRec): ExceptionRow {
   return {
     exceptionId: g.id, subject: { kind: g.subject.kind === "group" ? "group" : "person", id: g.subject.id, name: nameOf(ctx, g.subject.id) }, perms: [...x.perms], ...(x.area ? { area: x.area } : {}),
     effect: x.effect, ...(g.conditions.expiresAt !== undefined ? { until: g.conditions.expiresAt } : {}), ...(x.why ? { why: x.why } : {}),
-    by: { id: g.by, name: nameOf(ctx, g.by) }, at: g.createdAt,
+    by: { id: g.by, name: nameOf(ctx, g.by) }, at: x.at ?? g.createdAt,
   };
 }
 const live = (ctx: AccessCtx, g: GrantRec): boolean => isException(g) && (g.conditions.expiresAt === undefined || g.conditions.expiresAt > ctx.now());
@@ -88,7 +88,7 @@ export async function exceptionsSet(ctx: AccessCtx, input: ExceptionIn & { idemp
   const why = input.why?.trim();
   const g: GrantRec = {
     id: nid("exc"), subject: { kind: subject.kind === "group" ? "group" : "person", id: subject.id }, resource: { type: "exception", id: "" }, level: "view",
-    conditions: { exception: { perms: perms.sort(), effect: input.effect, ...(input.area ? { area: input.area } : {}), ...(why ? { why } : {}) }, ...(input.until !== undefined ? { expiresAt: input.until } : {}) },
+    conditions: { exception: { perms: perms.sort(), effect: input.effect, at: ctx.now(), ...(input.area ? { area: input.area } : {}), ...(why ? { why } : {}) }, ...(input.until !== undefined ? { expiresAt: input.until } : {}) },
     by: ctx.actingFor ?? ctx.principal.id, createdAt: ctx.now(), source: "exception",
   };
   g.resource.id = g.id;
@@ -155,8 +155,8 @@ export async function exceptionsExplain(ctx: AccessCtx, input: { principal: stri
   const viaGroup = exc.filter((g) => g.subject.kind === "group" && groupsOfP.has(g.subject.id)).sort((a, b) => (a.conditions.exception!.effect === "allow" ? -1 : 1) - (b.conditions.exception!.effect === "allow" ? -1 : 1))[0];
   let source: "owner" | "person" | "group" | "role" = "role", words = roleWords, exception: ExceptionRow | undefined;
   if (holdsOwner(ctx, person)) { source = "owner"; words = "The Owner can do everything here."; }
-  else if (own) { source = "person"; exception = rowOf(ctx, own); words = `Exception set by ${first(own.by)} on ${date(own.createdAt)}${ends(own)}, overrides ${roleWords}.${own.conditions.exception!.why ? ` Reason: ${own.conditions.exception!.why}` : ""}`; }
-  else if (viaGroup) { source = "group"; exception = rowOf(ctx, viaGroup); words = `Exception for ${nameOf(ctx, viaGroup.subject.id)}, set by ${first(viaGroup.by)} on ${date(viaGroup.createdAt)}${ends(viaGroup)}, overrides ${roleWords}.${viaGroup.conditions.exception!.why ? ` Reason: ${viaGroup.conditions.exception!.why}` : ""}`; }
+  else if (own) { source = "person"; exception = rowOf(ctx, own); words = `Exception set by ${first(own.by)} on ${date((own.conditions.exception!.at ?? own.createdAt))}${ends(own)}, overrides ${roleWords}.${own.conditions.exception!.why ? ` Reason: ${own.conditions.exception!.why}` : ""}`; }
+  else if (viaGroup) { source = "group"; exception = rowOf(ctx, viaGroup); words = `Exception for ${nameOf(ctx, viaGroup.subject.id)}, set by ${first(viaGroup.by)} on ${date((viaGroup.conditions.exception!.at ?? viaGroup.createdAt))}${ends(viaGroup)}, overrides ${roleWords}.${viaGroup.conditions.exception!.why ? ` Reason: ${viaGroup.conditions.exception!.why}` : ""}`; }
   if (person !== p.id) words += ` ${p.name} acts for ${store.principals.get(person)?.name ?? person} and gets the same answer.`;
   return { allowed: holds, source, words, ...(exception ? { exception } : {}) };
 }

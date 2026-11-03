@@ -188,10 +188,27 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const deferred = createDeferred(who.deferred, (who as typeof who & {deferredModules?:readonly string[]}).deferredModules);
   const me: Principal = { id: who.principal.id, name: who.name, kind: "person", ...(o.username ? { username: o.username } : {}) };
   // a place whose first permission the role lacks is off the rail and never warmed (a guest: no Mine automations, nothing kept in the Vault)
+  // the person's permissions, kept live: a change to their role or a permission exception reaches an open session (the set is the runtime's own object, so every gate reads the new answer)
+  const livePerms: Set<string> | null = who.permissions ? new Set(who.permissions) : null;
+  let permsAt = 0, permsTimer: ReturnType<typeof setTimeout> | null = null;
+  const rereadPerms = (): void => {
+    if (!livePerms || closed || permsTimer !== null) return;
+    permsTimer = setTimeout(() => {
+      permsTimer = null; permsAt = Date.now();
+      void reach("identity.whoami", {}).then((out) => {
+        const next = (out as { permissions?: string[] }).permissions;
+        if (!next || closed) return;
+        if (next.length === livePerms.size && next.every((k) => livePerms.has(k))) return;
+        livePerms.clear(); for (const k of next) livePerms.add(k);
+        hooks.invalidate();
+      }, () => undefined);
+    }, Math.max(400, 3000 - (Date.now() - permsAt)));
+  };
   const offRail: readonly string[] = who.permissions && space.kind === "team" ? hiddenPlaces(who.permissions) : [];
 
   // A 401 means signed out (once, to sign-in): it is never a failure state a screen reacts to by asking again.
   const hooks = createRemoteScreenHooks({ screens, read: (cap, input) => reach(cap, input), ignoreError: (e) => e instanceof CapError && e.status === 401 });
+  const stopPerms = livePerms ? hooks.onInvalidate(rereadPerms) : (): void => undefined;
   // While the window is hidden a change re-reads the screen at most every HIDDEN_REFRESH_MS; showing it again re-reads at once whatever is waiting.
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
   const reread = (): void => { if (refreshTimer !== null) clearTimeout(refreshTimer); refreshTimer = null; if (!closed) hooks.invalidate(); };
@@ -406,7 +423,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     get aiConnected() { return connected(AI_CONNECTORS); },
     get calendarConnected() { return connected(CALENDAR_CONNECTORS); },
     plainRole: plainRoleOnly(who.roles, space.kind),
-    ...(who.permissions ? { permissions: new Set(who.permissions) } : {}),
+    ...(livePerms ? { permissions: livePerms } : {}),
     deferredModules: deferred.deferredModules,
     isDeferred: deferred.isDeferred,
     open,
@@ -425,6 +442,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     close(why = "unspecified") {
       if (closed) return;
       closed = true;
+      stopPerms(); if (permsTimer !== null) clearTimeout(permsTimer);
       detachSpeed();
       console.info(`vyre session closed: ${why}`);
       clearInterval(poll);

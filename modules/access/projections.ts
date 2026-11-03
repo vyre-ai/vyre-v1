@@ -33,7 +33,7 @@ export interface Cond {
   /** The holder may share it further, up to their own level, without Manage. */
   reshare?: boolean;
   /** A permission exception (handlers/exceptions.ts): not a grant on a resource; it changes which permissions the subject holds. */
-  exception?: { perms: string[]; effect: "allow" | "deny"; area?: string; why?: string };
+  exception?: { perms: string[]; effect: "allow" | "deny"; at?: number; area?: string; why?: string };
 }
 export interface RoleRec {
   id: string;

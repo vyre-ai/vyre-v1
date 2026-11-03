@@ -6,6 +6,8 @@ import { Platform, StyleSheet, View } from "react-native";
 const web = Platform.OS === "web";
 
 export const PATHS: Readonly<Record<string, readonly string[]>> = {
+  // the Permissions matrix: roles across, permissions down
+  grid: ["M2.500 3h11v10h-11z", "M2.500 6.500h11M2.500 10h11M6.500 3v10"],
   overview: ["M3 3h4.500v4.500H3zM8.500 3H13v4.500H8.500zM3 8.500h4.500V13H3zM8.500 8.500H13V13H8.500z"],
   people: ["M6 7.500a2.300 2.300 0 100-4.600 2.300 2.300 0 000 4.600z", "M1.800 13c.5-2.200 2.200-3.400 4.200-3.400s3.700 1.200 4.200 3.400", "M10.500 3.300a2.300 2.300 0 010 4.300M12 9.800c1.300.5 2.100 1.600 2.400 3.200"],
   agent: ["M3.500 5.500h9v7h-9z", "M8 5.500V3M6 9h.01M10 9h.01"],
