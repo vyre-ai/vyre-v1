@@ -108,6 +108,7 @@ type Out = {
         kind: "computer" | "server" | "space";
         name: string;
       }>;
+    movedFrom?: string;
   };
 };
 ```
@@ -196,6 +197,7 @@ type Out = {
         "traceId": "0123456789abcdef0123456789abcdef"
       },
       "model": "example",
+      "movedFrom": "Moved from Berlin box because it was busy: 4 of 4 turns",
       "nodeId": "example",
       "ranOn": [
         {

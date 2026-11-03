@@ -2,8 +2,8 @@
 //   engine.placement.decide  agent/src/placement placeTurn: host, the asker's computer, or wait.
 //   engine.pool.status       the pool the session opener keeps (agent/src/pool): sessions per driver, hits and misses.
 //   engine.warm              agent/src/pool warmHint through the opener: start the engine ahead of the first message; answers at once.
-import { placeTurn } from "../../../agent/src/placement/index.ts";
-import type { PlaceDevice, PlaceInput, PlaceServer } from "../../../agent/src/placement/index.ts";
+import { movedLine, placeTurn } from "../../../agent/src/placement/index.ts";
+import type { PlaceDevice, PlaceInput, PlaceRoom, PlaceServer } from "../../../agent/src/placement/index.ts";
 import { relayOf } from "../relay.ts";
 import { usingIn } from "../node-turns.ts";
 import type { ResolvedAccount, SessionSpec, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
@@ -48,6 +48,20 @@ export function devicesFrom(out: DevicesOut, now: number, person?: string): Plac
   // a computer linked under a session whose device row this list does not show (a test's injected session) is still one of theirs
   for (const l of links ?? []) if (!rows.some((r) => r.id === l.deviceId)) rows.push({ id: l.deviceId, role: "daemon", online: true, engines: l.engines, ...(l.name ? { name: l.name } : {}) });
   return rows;
+}
+
+/**
+ * How much room each machine of the asker's has (lane l-machines): the Machines module's number for each of their computers, their servers and the Space server. A Space without that module, or a call
+ * that fails, leaves every machine with room, as before.
+ */
+export async function roomsOf(ctx: CallCtx, devices: readonly PlaceDevice[], servers: readonly PlaceServer[]): Promise<Record<string, PlaceRoom>> {
+  const ids = [...devices.map((d) => `device:${d.id}`), ...servers.map((s) => s.serverId), "space"];
+  try {
+    const r = (await ctx.call("machines.rooms", { ids })) as { rooms?: Array<{ machineId: string; score: number; why: string }> };
+    const out: Record<string, PlaceRoom> = {};
+    for (const x of r.rooms ?? []) out[x.machineId.startsWith("device:") ? x.machineId.slice(7) : x.machineId] = { score: x.score, why: x.why };
+    return out;
+  } catch { return {}; }
 }
 
 interface MyServer { serverId: string; name: string; state: string; enrollment: string }
@@ -117,16 +131,19 @@ export async function placementDecide(ctx: CallCtx, input: { threadId: string; a
   // the Space menu's "Chats run on": off means new chats run on the Space instead of this computer (engine.local_runs)
   let localRuns = true;
   try { localRuns = ((await ctx.call("settings.get", { key: "engine.local_runs" })) as { row?: { value?: unknown } }).row?.value !== false; } catch { /* the default stands */ }
+  const myDevices = personalDevices(space.team, devicesFrom(d, ctx.now(), asker));
+  const rooms = await roomsOf(ctx, myDevices, servers);
   const place: PlaceInput = {
     thread: { kind, persons, onSharedRecord: kind === "ask" && t.thread.scopeType === "record" && persons > 1, ...(isCrewJob(ctx, input.threadId) ? { crew: true } : {}) },
     item: { kind: input.kind === "message" ? "message" : input.kind },
     agent: { hasComputer: a.agent.hasComputer === true },
     engine: engineOf(ctx, input.threadId, input.agentId),
-    asker: { devices: personalDevices(space.team, devicesFrom(d, ctx.now(), asker)), ...(current ? { current } : {}), servers, localRuns, runtimeOptIn: flagOn(ctx, asker, "runtime_opt_in"), ...(chosen ? { chosen } : {}) },
+    asker: { devices: myDevices, ...(current ? { current } : {}), servers, localRuns, runtimeOptIn: flagOn(ctx, asker, "runtime_opt_in"), ...(chosen ? { chosen } : {}) },
     space: space.team ? { shared: space.shared } : { shared: false, hostIsAsker: true },
+    ...(Object.keys(rooms).length ? { rooms } : {}),
   };
   const p = placeTurn(place);
-  return { placement: p.placement, reason: p.reason, ...(p.wakeLine ? { wakeLine: p.wakeLine } : {}), ...(p.nodeId ? { nodeId: p.nodeId } : {}), ...(p.deviceId ? { deviceId: p.deviceId } : {}) };
+  return { placement: p.placement, reason: p.reason, ...(p.wakeLine ? { wakeLine: p.wakeLine } : {}), ...(p.nodeId ? { nodeId: p.nodeId } : {}), ...(p.deviceId ? { deviceId: p.deviceId } : {}), ...(p.movedFrom ? { movedFrom: p.movedFrom, movedLine: movedLine(p.movedFrom) } : {}) };
 }
 
 export function poolStatus(ctx: EngineCtx, _input: Record<string, never>) {

@@ -210,14 +210,14 @@ test("alerts: disk under 10%, memory pressure with yesterday's number, offline w
 
 test("machines.rooms: the score the Machines page shows is the score placement gets, with the words for why", async () => {
   const w = fleet();
-  const r = w.rooms();
+  const r = await w.rooms();
   assert.equal(r[IRFAD_MAC]!.score, 0);
   assert.equal(r[IRFAD_MAC]!.why, "4 of 4 turns");
   assert.equal(r["space"]!.score > 0, true);
   const list = (await w.call("machines.list", {}, admin)).machines;
   for (const m of list) assert.equal(m.room.score, r[m.machineId]!.score);
   w.bind({ turns: (id) => (id === "space" ? 12 : undefined) });
-  assert.equal(w.rooms()["space"]!.why, "12 of 4 turns");
+  assert.equal((await w.rooms())["space"]!.why, "12 of 4 turns");
   w.bind(null);
 });
 
@@ -237,3 +237,15 @@ test("agent computers sit under their host", async () => {
   assert.equal(m[0].runs.agentComputers, 1);
 });
 void ADMIN;
+
+test("machines.rooms: a person asks for their own machines and the Space's and gets no words about another person's CPU or disk", async () => {
+  const w = fleet();
+  w.feed(MAYA_AIR, "computer", "Maya's MacBook Air", report({ cpu: 99 }), { ownerId: MAYA });
+  const mine = await w.rooms(irfad);
+  assert.equal(mine[IRFAD_MAC]!.why, "4 of 4 turns");
+  assert.equal(mine[MAYA_AIR], undefined, "another member's computer is not one to place on, and not one to ask about");
+  const asAdmin = await w.rooms(admin);
+  assert.equal(asAdmin[MAYA_AIR]!.why, "busy", "an admin sees that it is busy and not why");
+  const hers = await w.rooms(maya);
+  assert.match(hers[MAYA_AIR]!.why, /CPU at 99%/);
+});

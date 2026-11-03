@@ -1410,6 +1410,7 @@ export function createClient(transport: Transport) {
       alerts: call("machines.alerts", 1),
       get: call("machines.get", 1),
       list: call("machines.list", 1),
+      rooms: call("machines.rooms", 1),
       set: call("machines.set", 1),
     },
     mail: {

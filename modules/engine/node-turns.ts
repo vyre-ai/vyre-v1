@@ -35,10 +35,11 @@ const TABLE = "CREATE TABLE IF NOT EXISTS engine_turn_node (turn_id TEXT PRIMARY
 const WHERE = "CREATE TABLE IF NOT EXISTS engine_turn_where (turn_id TEXT NOT NULL, seq INTEGER NOT NULL, kind TEXT NOT NULL, node_id TEXT, name TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (turn_id, seq))";
 const USING = "CREATE TABLE IF NOT EXISTS engine_thread_device (thread_id TEXT NOT NULL, person TEXT NOT NULL, device_id TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (thread_id, person))";
 const ONCE = "CREATE TABLE IF NOT EXISTS engine_thread_once (thread_id TEXT PRIMARY KEY, by_person TEXT NOT NULL, at INTEGER NOT NULL)";
+const MOVED = "CREATE TABLE IF NOT EXISTS engine_turn_moved (turn_id TEXT PRIMARY KEY, line TEXT NOT NULL, at INTEGER NOT NULL)";
 const ready = new WeakSet<object>();
 function ensureNodeTable(db: Db): void {
   if (ready.has(db)) return;
-  db.run(TABLE); db.run(WHERE); db.run(USING); db.run(ONCE);
+  db.run(TABLE); db.run(WHERE); db.run(USING); db.run(ONCE); db.run(MOVED);
   ready.add(db);
 }
 
@@ -64,6 +65,18 @@ export function recordWhere(db: Db, turnId: string, ran: Ran, at: number): void 
   ensureNodeTable(db);
   const n = Number(((db.all("SELECT COUNT(*) AS n FROM engine_turn_where WHERE turn_id = ?", turnId) as Array<{ n?: unknown }>)[0]?.n) ?? 0);
   db.run("INSERT INTO engine_turn_where (turn_id, seq, kind, node_id, name, at) VALUES (?, ?, ?, ?, ?, ?)", turnId, n, ran.kind, ran.nodeId ?? null, ran.name, at);
+}
+
+/** The line a turn keeps when placement skipped a machine with no room: "Moved from Berlin box because it was busy: 4 of 4 turns" (lane l-machines). */
+export function recordMoved(db: Db, turnId: string, line: string, at: number): void {
+  if (turnId === "") return;
+  ensureNodeTable(db);
+  db.run("INSERT OR REPLACE INTO engine_turn_moved (turn_id, line, at) VALUES (?, ?, ?)", turnId, line, at);
+}
+export function movedOfTurn(db: Db, turnId: string): string | undefined {
+  ensureNodeTable(db);
+  const r = (db.all("SELECT line FROM engine_turn_moved WHERE turn_id = ?", turnId) as Array<{ line?: unknown }>)[0];
+  return typeof r?.line === "string" ? r.line : undefined;
 }
 
 /** Where a turn ran, in order (the turn's details). Empty for a turn recorded before this was kept. */
@@ -125,7 +138,7 @@ export function remoteLauncher(relay: NodeRelay, nodeId: string, person?: string
   };
 }
 
-interface Decided { placement?: string; reason?: string; nodeId?: string; deviceId?: string; wakeLine?: string }
+interface Decided { placement?: string; reason?: string; nodeId?: string; deviceId?: string; wakeLine?: string; movedLine?: string }
 
 async function decide(call: (cap: string, input: unknown, as?: string) => Promise<unknown>, spec: SessionSpec): Promise<Decided | undefined> {
   try { return (await call("engine.placement.decide", { threadId: spec.threadId, agentId: spec.agent.id, kind: "message" }, spec.asker)) as Decided; }
@@ -196,6 +209,8 @@ export function routed(inner: OpenSession, o: RouteDeps): OpenSession {
     if (takeOnce(o.db, spec.threadId)) return (await onSpace(spec)).session;   // "Run it on the server instead"
     const decided = await decide(o.call, spec);
     if (!decided) return inner(spec);
+    // a machine with no room was skipped (lane l-machines): the turn keeps the line, and the chat shows it
+    if (decided.movedLine && spec.turnId) { recordMoved(o.db, spec.turnId, decided.movedLine, now()); o.note?.(spec, decided.movedLine); }
     if (decided.placement === "device" && decided.deviceId) {
       const pinned = decided.reason === "chosen_device";
       const deviceId = decided.deviceId;

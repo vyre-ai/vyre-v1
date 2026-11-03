@@ -37,6 +37,8 @@ export interface DeviceLinkDeps {
   retryMs?: number;
   /** This computer's 30-second report (specs, load, what Vyre runs, what it can run): sent right after the hello and every 30 s while linked. Absent: none is sent (an older daemon, a test). */
   report?: (now: { turns: number }) => unknown;
+  /** How often the report is sent. Default 30 s. */
+  reportMs?: number;
   /** Where the person's own engine homes are looked for (tests). Default: this computer's home and environment. */
   homes?: OwnHomes;
 }
@@ -221,7 +223,7 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
         if (d.report) {
           const send = (): void => { try { const r = d.report!({ turns: engines.running() }); if (r) say({ t: "report", ...(r as Record<string, unknown>) }); } catch { /* a report that cannot be read is skipped this time */ } };
           send();
-          rep = setInterval(send, REPORT_EVERY_MS); rep.unref?.();
+          rep = setInterval(send, d.reportMs ?? REPORT_EVERY_MS); rep.unref?.();
         }
       });
       up.onClose(end);

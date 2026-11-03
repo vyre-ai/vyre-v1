@@ -7,8 +7,8 @@ import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
 import { OFFLINE_AFTER_MS } from "../../host/src/machines/report.ts";
 import type { Can, Load, Report, Runs, Specs, VyreShare } from "../../host/src/machines/report.ts";
-import { roomLeft } from "../../agent/src/placement/room.ts";
-import type { Room } from "../../agent/src/placement/room.ts";
+import { roomLeft } from "../../lib/room-left.ts";
+import type { Room } from "../../lib/room-left.ts";
 
 export type Kind = "space" | "server" | "computer";
 export interface Db { all(sql: string, ...args: unknown[]): unknown[]; run(sql: string, ...args: unknown[]): { changes: number } }

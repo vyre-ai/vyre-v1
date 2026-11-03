@@ -40,6 +40,12 @@ type Out = {
   wakeLine?: string;
   nodeId?: string;
   deviceId?: string;
+  movedFrom?: {
+    id: string;
+    name: string;
+    why: string;
+  };
+  movedLine?: string;
 };
 ```
 
@@ -63,6 +69,12 @@ type Out = {
   },
   "output": {
     "deviceId": "example",
+    "movedFrom": {
+      "id": "example",
+      "name": "example",
+      "why": "example"
+    },
+    "movedLine": "Moved from Berlin box because it was busy: 4 of 4 turns",
     "nodeId": "example",
     "placement": "host",
     "reason": "example",

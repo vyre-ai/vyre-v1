@@ -3,7 +3,7 @@
 // DECISION: the report is not a capability. It travels on the socket each machine already holds to the Space, and the host hands it to the module (hostCalls machines.ingest), so no session can post one.
 // DECISION: privacy is decided once, in the handlers. On a member's own computer an admin sees its name, whether it is online, its capacity (cores, memory, limits) and Vyre's own work; the member sees everything.
 //   A member sees only their own machines; an admin sees every machine.
-// DECISION: "room left" is roomLeft in agent/src/placement/room.ts, the number the Machines page shows and the number placement skips a busy machine by.
+// DECISION: "room left" is roomLeft in lib/room-left.ts, the number the Machines page shows and the number placement skips a busy machine by.
 import { defineManifest, ev, read, t, write } from '../packages/contracts/src/index.ts';
 
 const kind = t.enm('space', 'server', 'computer');
@@ -61,6 +61,10 @@ export default defineManifest({
         pinAgent: t.opt(t.obj({ agentId: t.id('agt'), pinned: t.bool() })),
       },
       out: { machine: machineRow }, emits: ['machine.changed'], audit: 'always', idem: 'natural', errors: ['validation.not_found', 'permission.no_grant', 'validation.bad_input'],
+    }),
+    read('machines.rooms', 'Room left on the machines you name (ids as machines.list gives them): the number placement skips a busy machine by, and the plain words for why ("4 of 4 turns"). Only machines you may see; used by engine.placement.decide', {
+      ...V, in: { ids: t.arr(t.str(), { maxItems: 64 }) },
+      out: { rooms: t.arr(t.obj({ machineId: t.str(), name: t.str(), score: t.int({ minimum: 0, maximum: 100 }), why: t.str(), turns: t.int({ minimum: 0 }), maxTurns: t.int({ minimum: 1 }), draining: t.bool() })) },
     }),
     read('machines.alerts', 'What needs a look: disk under 10% free, memory pressure, a machine offline with pinned work, an update waiting, a failed backup. Each says what to do', {
       ...V, in: {}, out: { alerts: t.arr(alertRow) },

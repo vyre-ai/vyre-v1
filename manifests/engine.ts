@@ -52,6 +52,7 @@ const turnRow = t.obj({
   turnId: id.turn, threadId: id.thread, agentId: id.agent, asker: t.str(), accountRef: t.opt(accountRef), engine: t.str(), model: t.str(), state: turnState,
   traceId: id.trace, runId: t.opt(id.run), startedAt: t.ts(), endedAt: t.opt(t.ts()), tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), error: t.opt(errShape), nodeId: t.opt(t.str({ description: 'The server of the asker\'s the turn ran on, when the chat was pinned to one' })),
   ranOn: t.opt(t.arr(t.obj({ kind: t.enm('computer', 'server', 'space'), name: t.str({ examples: ['Dana\'s MacBook', 'the Northwind server'] }) }), { description: 'Where the turn ran, in order: two places when its computer went to sleep and it went on elsewhere' })),
+  movedFrom: t.opt(t.str({ description: 'Set when placement skipped a machine with no room', examples: ['Moved from Berlin box because it was busy: 4 of 4 turns'] })),
 });
 // A reply's Details (chat.reply_details, reply-info.ts). A count that is absent was not reported by the provider: never shown as 0.
 const toolTrace = t.obj({ id: t.str(), name: t.str(), detail: t.opt(t.str()), startedAt: t.ts(), endedAt: t.opt(t.ts()), ok: t.opt(t.bool()), held: t.opt(id.task) });
@@ -261,7 +262,7 @@ export default defineManifest({
     }),
     read('engine.placement.decide', 'Decide where a turn runs: host or the asker device (private chat rules, computers, routines, phone and web askers)', {
       in: { ...threadT, agentId: id.agent, kind: t.enm('message', 'interrupt', 'wake', 'handoff') },
-      out: { placement: t.enm('host', 'device', 'wait'), reason: t.str(), wakeLine: t.opt(t.str({ examples: ['Your computer is off'] })), nodeId: t.opt(t.str()), deviceId: t.opt(t.str({ description: 'The computer of the asker\'s the turn runs on, or the pinned one it waits for' })) }, on: ['thread', '/threadId'],
+      out: { placement: t.enm('host', 'device', 'wait'), reason: t.str(), wakeLine: t.opt(t.str({ examples: ['Your computer is off'] })), nodeId: t.opt(t.str()), deviceId: t.opt(t.str({ description: 'The computer of the asker\'s the turn runs on, or the pinned one it waits for' })), movedFrom: t.opt(t.obj({ id: t.str(), name: t.str(), why: t.str() }, { description: 'The machine the order would have used first, skipped because it had no room' })), movedLine: t.opt(t.str({ examples: ['Moved from Berlin box because it was busy: 4 of 4 turns'] })) }, on: ['thread', '/threadId'],
     }),
     write('engine.placement.set', 'Choose where a private chat runs: one of your computers, the Space, one of your own servers, or auto. Never a teammate\'s machine. once with space runs the next turn on the Space once', {
       in: { ...threadT, target: t.enm('auto', 'device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()), once: t.opt(t.bool()) }, out: { target: t.enm('auto', 'device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()) },

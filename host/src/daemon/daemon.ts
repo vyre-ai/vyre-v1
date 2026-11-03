@@ -312,7 +312,9 @@ export interface DaemonOptions {
    * A device-role daemon's links to the Team Spaces its person is signed in to (routes/team-links.ts, compute/device-link.ts): the launcher their engines start with, the engines it says it runs,
    * the name it shows and the socket it dials with. Default: the engine module's own launcher in this computer's sandbox, the CLI engines the sandbox can run, the host name, the platform WebSocket.
    */
-  deviceLink?: { launcher?: import("../compute/node.ts").NodeLauncher; engines?: readonly string[]; name?: string; socket?: (url: string, headers: Record<string, string>) => import("../compute/node.ts").NodeSocket; retryMs?: number; homes?: import("../compute/device-link.ts").OwnHomes };
+  /** Shapes the 30-second machine report this daemon sends or records (tests pin the load of the machine they run on) */
+  machineReport?: (r: import("../machines/report.ts").Report) => import("../machines/report.ts").Report;
+  deviceLink?: { launcher?: import("../compute/node.ts").NodeLauncher; engines?: readonly string[]; name?: string; socket?: (url: string, headers: Record<string, string>) => import("../compute/node.ts").NodeSocket; retryMs?: number; homes?: import("../compute/device-link.ts").OwnHomes; /** how often the computer reports its load to the Space (tests); default 30 s */ reportMs?: number };
   /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
   engineSandbox?: unknown;
   /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
@@ -560,8 +562,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const engines = o.deviceLink?.engines ?? (engine?.nodeCliReport?.().sandbox.ok === true ? ["claude_code", "codex", "grok"] : []);
     await runDeviceLink({
       server: l.address, token: l.token, dataDir: paths.root, name: o.deviceLink?.name ?? platform.hostname, engines, launcher,
-      report: (now) => (deviceReporter ??= createReporter({ dataDir: paths.root, version: cfg.version, runs: () => ({ turns: 0, agentComputers: 0, sites: 0, automations: 0 }), engines: () => engines, chrome: () => chromeBridge.connected > 0 })).report({ turns: now.turns }),
-      socket: o.deviceLink?.socket ?? platformSocket, signal, ...(o.deviceLink?.retryMs !== undefined ? { retryMs: o.deviceLink.retryMs } : {}), ...(o.deviceLink?.homes ? { homes: o.deviceLink.homes } : {}),
+      report: (now) => (o.machineReport ?? ((r: import("../machines/report.ts").Report) => r))((deviceReporter ??= createReporter({ dataDir: paths.root, version: cfg.version, runs: () => ({ turns: 0, agentComputers: 0, sites: 0, automations: 0 }), engines: () => engines, chrome: () => chromeBridge.connected > 0 })).report({ turns: now.turns })),
+      socket: o.deviceLink?.socket ?? platformSocket, signal, ...(o.deviceLink?.retryMs !== undefined ? { retryMs: o.deviceLink.retryMs } : {}), ...(o.deviceLink?.homes ? { homes: o.deviceLink.homes } : {}), ...(o.deviceLink?.reportMs !== undefined ? { reportMs: o.deviceLink.reportMs } : {}),
       sleep: (ms, sig) => new Promise<void>((resolve, reject) => { const t = setTimeout(resolve, ms); t.unref?.(); sig.addEventListener("abort", () => { clearTimeout(t); reject(new Error("stopped")); }, { once: true }); }),
       log: (line) => sink.log({ space: l.id, level: 20, msg: "team.link", place: "device-link", attrs: { line } }),
     });
@@ -857,7 +859,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         const reporter = createReporter({ dataDir: paths.root, version: cfg.version, runs: () => ({ turns: Math.max(0, engineTurns - computeStream.running()), agentComputers: 0, sites: 0, automations: 0 }), engines: () => ["claude_code", "codex"], chrome: () => chromeBridge.connected > 0 });
         (loaded.moduleExports.get("machines") as { bindMachines?: (h: unknown) => void } | undefined)?.bindMachines?.({
           turns: (id: string) => (id === "space" ? Math.max(0, engineTurns - computeStream.running()) : computeStream.connected(id) ? computeStream.running(id) : undefined),
-          own: async () => ({ name: reporter.name(), report: reporter.report() }),
+          own: async () => ({ name: reporter.name(), report: (o.machineReport ?? ((r) => r))(reporter.report()) }),
           findings: async () => (await runDoctor({ dataDir: paths.root, role: "space" })).findings,
         });
       }

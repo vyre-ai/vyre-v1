@@ -8,5 +8,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "machines.alerts": async (ctx) => { throw new VyreErr(notImplemented("machines.alerts", ctx.trace)); },
   "machines.get": async (ctx) => { throw new VyreErr(notImplemented("machines.get", ctx.trace)); },
   "machines.list": async (ctx) => { throw new VyreErr(notImplemented("machines.list", ctx.trace)); },
+  "machines.rooms": async (ctx) => { throw new VyreErr(notImplemented("machines.rooms", ctx.trace)); },
   "machines.set": async (ctx) => { throw new VyreErr(notImplemented("machines.set", ctx.trace)); },
 };

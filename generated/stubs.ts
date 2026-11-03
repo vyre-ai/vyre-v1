@@ -1410,6 +1410,7 @@ export function stubs(ctx: CallCtx) {
       alerts: call("machines.alerts"),
       get: call("machines.get"),
       list: call("machines.list"),
+      rooms: call("machines.rooms"),
       set: call("machines.set"),
     },
     mail: {

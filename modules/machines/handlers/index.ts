@@ -5,8 +5,9 @@ import {
   allMachines, ensure, isOnline, machineById, maxTurnsOf, memAgo, mayList, pinsOf, raise, restrictedFor, roomOf, seriesOf, DAY, RANGES,
 } from "../projections.ts";
 import type { MachinesCtx, Range, Rec, Viewer } from "../projections.ts";
-import type { Room } from "../../../agent/src/placement/room.ts";
+import type { Room } from "../../../lib/room-left.ts";
 import { latestVersion, hostSeams } from "../seams.ts";
+import { roomsFor } from "../rooms.ts";
 
 type Row = Record<string, unknown>;
 const GB = 1024 ** 3;
@@ -37,7 +38,6 @@ async function directory(ctx: MachinesCtx, v: Viewer): Promise<Map<string, Dir>>
   try {
     const d = (await ctx.call(v.admin ? "devices.list" : "devices.mine", {})) as { devices?: Row[] };
     for (const x of d.devices ?? []) out.set(`device:${String(x["id"])}`, { name: String(x["name"] ?? ""), ...(x["revokedAt"] !== undefined ? { removed: true } : {}), owner: String(x["person"] ?? "") });
-    if (d.devices) out.set("\u0000devices", {});
   } catch { /* the reports stand */ }
   return out;
 }
@@ -48,7 +48,6 @@ const gone = (r: Rec, dir: Map<string, Dir>): boolean => {
   if (d?.removed) return true;
   // the directory listed servers (or devices) and this one is not among them: removed
   if (r.kind === "server" && dir.has("\u0000listed") && !d) return true;
-  if (r.kind === "computer" && dir.has("\u0000devices") && !d) return true;
   return false;
 };
 
@@ -188,4 +187,19 @@ export async function set(ctx: MachinesCtx, input: { machineId: string; nickname
 export async function alerts(ctx: MachinesCtx, _input: Record<string, never>) {
   const { v, dir, pins, recs } = await context(ctx);
   return { alerts: await alertsFor(ctx, v, recs, dir, pins) };
+}
+
+/** Room left on the named machines the caller may see (own machines, or any for an admin). Placement asks for a person's own computers, their servers and the Space server. */
+export async function rooms(ctx: MachinesCtx, input: { ids: string[] }) {
+  ensure(ctx.db);
+  const v = viewerOf(ctx), want = new Set(input.ids);
+  const room = roomsFor(ctx);
+  return {
+    rooms: allMachines(ctx).filter((r) => want.has(r.machineId) && (mayList(r, v) || r.kind === "space")).map((r) => {
+      const x = room[r.machineId]!;
+      // another person's machine reveals nothing but a number and the turns: the words for CPU, memory and disk stay with its owner
+      const why = restrictedFor(r, v) ? (/^\d+ of \d+ turns$|^draining$|^offline$/.test(x.why) ? x.why : "busy") : x.why;
+      return { machineId: r.machineId, name: x.name, score: x.score, why, turns: x.turns, maxTurns: x.maxTurns, draining: x.draining };
+    }),
+  };
 }

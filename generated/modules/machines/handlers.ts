@@ -8,5 +8,6 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "machines.alerts": Handler<"machines.alerts", X>;
   "machines.get": Handler<"machines.get", X>;
   "machines.list": Handler<"machines.list", X>;
+  "machines.rooms": Handler<"machines.rooms", X>;
   "machines.set": Handler<"machines.set", X>;
 }

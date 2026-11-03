@@ -1,25 +1,14 @@
 // Machines module (lane l-machines). The handlers, the Space server's own 30-second report, the ingest the host calls for every other machine, and the thinning of old points.
 import { parseReport } from "../../host/src/machines/report.ts";
 import type { Report } from "../../host/src/machines/report.ts";
-import { alerts, get, list, set } from "./handlers/index.ts";
-import { compact, ensure, ingest, isOnline, machineById, allMachines, maxTurnsOf, pinsOf, roomOf } from "./projections.ts";
+import { alerts, get, list, rooms, set } from "./handlers/index.ts";
+import { roomsFor } from "./rooms.ts";
+import { compact, ensure, ingest, isOnline, machineById, pinsOf } from "./projections.ts";
 import type { Kind, MachinesCtx } from "./projections.ts";
 import { bindMachines, hostSeams } from "./seams.ts";
 
-export const handlers = { "machines.alerts": alerts, "machines.get": get, "machines.list": list, "machines.set": set };
-export { bindMachines };
-
-/** What placement needs of each machine: how much room it has, and the words for why not. Keyed by machine id. The caller names live turn counts for the machines it holds sockets to. */
-export function roomsFor(ctx: MachinesCtx): Record<string, { score: number; why: string; name: string; turns: number; maxTurns: number; draining: boolean }> {
-  ensure(ctx.db);
-  const now = ctx.now(), out: Record<string, { score: number; why: string; name: string; turns: number; maxTurns: number; draining: boolean }> = {};
-  for (const r of allMachines(ctx)) {
-    const turns = hostSeams.turns(r.machineId) ?? r.runs?.turns ?? 0;
-    const room = roomOf(r, now, turns);
-    out[r.machineId] = { score: room.score, why: room.why, name: r.nickname ?? r.name, turns, maxTurns: maxTurnsOf(r), draining: r.drain };
-  }
-  return out;
-}
+export const handlers = { "machines.alerts": alerts, "machines.get": get, "machines.list": list, "machines.rooms": rooms, "machines.set": set };
+export { bindMachines, roomsFor };
 
 /** Every 30 seconds: the Space server reads itself. Every 10 minutes: raw points older than a day fold into ten-minute points. */
 export const periodic = {
@@ -45,7 +34,5 @@ export const hostCalls = {
     ingest(ctx, { machineId: input.machineId, kind: input.kind, name: String(input.name).slice(0, 60) || "Computer", ...(input.ownerId ? { ownerId: input.ownerId } : {}), ...(input.latencyMs !== undefined ? { latencyMs: Math.max(0, Math.round(input.latencyMs)) } : {}), report });
     return { ok: true };
   },
-  /** For placement: room per machine. */
-  "machines.rooms": (ctx: MachinesCtx): ReturnType<typeof roomsFor> => roomsFor(ctx),
 };
 export { isOnline, machineById, pinsOf };

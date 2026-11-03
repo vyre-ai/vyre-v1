@@ -57,6 +57,7 @@ type Out = {
           kind: string;
           name: string;
         }>;
+      movedFrom?: string;
       timing: {
         queuedAt?: number;
         startedAt: number;
@@ -213,6 +214,7 @@ type Out = {
           ]
         },
         "model": "example",
+        "movedFrom": "example",
         "paid": "example",
         "partial": true,
         "private": true,

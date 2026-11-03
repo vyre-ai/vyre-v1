@@ -46,6 +46,27 @@ test("a computer that is off: Automatic runs on the Space's server (allowed by d
   assert.equal((await placementDecide(phone.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" })).reason, "space");
 });
 
+test("a computer with no room is skipped for the next place with room, and the answer says why (lane l-machines)", async () => {
+  const dm = ctxFor("chat", [{ kind: "person", id: "usr_dana" }], [mac]);
+  const asked: unknown[] = [];
+  const withRooms = (rooms: Array<{ machineId: string; score: number; why: string }> | null) => Object.assign(Object.create(dm.ctx), {
+    call: async (cap: string, input: unknown) => {
+      if (cap !== "machines.rooms") return (dm.ctx as { call(c: string, i: unknown): Promise<unknown> }).call(cap, input);
+      asked.push(input);
+      if (!rooms) throw new Error("no machines module");
+      return { rooms };
+    },
+  });
+  const busy = withRooms([{ machineId: "device:dev_mac", score: 0, why: "4 of 4 turns" }, { machineId: "space", score: 80, why: "CPU at 20%" }]);
+  assert.deepEqual(await placementDecide(busy, { threadId: "thr_1", agentId: "agt_1", kind: "message" }), {
+    placement: "host", reason: "space", movedFrom: { id: "dev_mac", name: "Your computer", why: "busy: 4 of 4 turns" }, movedLine: "Moved from Your computer because it was busy: 4 of 4 turns",
+  });
+  assert.deepEqual(asked[0], { ids: ["device:dev_mac", "space"] });
+  const roomy = withRooms([{ machineId: "device:dev_mac", score: 60, why: "memory at 40%" }]);
+  assert.equal((await placementDecide(roomy, { threadId: "thr_1", agentId: "agt_1", kind: "message" })).placement, "device");
+  assert.equal((await placementDecide(withRooms(null), { threadId: "thr_1", agentId: "agt_1", kind: "message" })).placement, "device", "no machines module: every machine has room, as before");
+});
+
 test("pool.status reports the opener's pool per driver, and an empty one before any engine is bound", () => {
   const h = harness();
   bindOpener(null);

@@ -6940,6 +6940,7 @@ export type ChatReplyDetailsOut = {
           kind: string;
           name: string;
         }>;
+      movedFrom?: string;
       timing: {
         queuedAt?: number;
         startedAt: number;
@@ -10633,6 +10634,12 @@ export type EnginePlacementDecideOut = {
   wakeLine?: string;
   nodeId?: string;
   deviceId?: string;
+  movedFrom?: {
+    id: string;
+    name: string;
+    why: string;
+  };
+  movedLine?: string;
 };
 export type EnginePlacementOptionsIn = {
   threadId: string;
@@ -11027,6 +11034,7 @@ export type EngineTurnFinishOut = {
         kind: "computer" | "server" | "space";
         name: string;
       }>;
+    movedFrom?: string;
   };
 };
 export type EngineTurnGetIn = {
@@ -11064,6 +11072,7 @@ export type EngineTurnGetOut = {
           kind: "computer" | "server" | "space";
           name: string;
         }>;
+      movedFrom?: string;
     };
     machine: "host" | "device";
     keyUsed?: string;
@@ -11110,6 +11119,7 @@ export type EngineTurnOfMessageOut = {
         kind: string;
         name: string;
       }>;
+    movedFrom?: string;
     timing: {
       queuedAt?: number;
       startedAt: number;
@@ -11241,6 +11251,7 @@ export type EngineTurnRecordOut = {
         kind: "computer" | "server" | "space";
         name: string;
       }>;
+    movedFrom?: string;
   };
 };
 export type EngineTurnRecordUsageIn = {
@@ -11290,6 +11301,7 @@ export type EngineTurnRetryOut = {
         kind: "computer" | "server" | "space";
         name: string;
       }>;
+    movedFrom?: string;
   };
 };
 export type EngineTurnStartIn = {
@@ -11333,6 +11345,7 @@ export type EngineTurnStartOut = {
         kind: "computer" | "server" | "space";
         name: string;
       }>;
+    movedFrom?: string;
   };
 };
 export type EngineTurnWaitIn = {
@@ -11382,6 +11395,7 @@ export type EngineTurnsListOut = {
           kind: "computer" | "server" | "space";
           name: string;
         }>;
+      movedFrom?: string;
     }>;
   next?: string;
   total?: number;
@@ -20068,6 +20082,20 @@ export type MachinesListOut = {
     agentComputers: number;
     roomAvg: number;
   };
+};
+export type MachinesRoomsIn = {
+  ids: Array<string>;
+};
+export type MachinesRoomsOut = {
+  rooms: Array<{
+      machineId: string;
+      name: string;
+      score: number;
+      why: string;
+      turns: number;
+      maxTurns: number;
+      draining: boolean;
+    }>;
 };
 export type MachinesSetIn = {
   machineId: string;
@@ -41406,6 +41434,7 @@ export interface CapMap {
   "machines.alerts": { in: MachinesAlertsIn; out: MachinesAlertsOut };
   "machines.get": { in: MachinesGetIn; out: MachinesGetOut };
   "machines.list": { in: MachinesListIn; out: MachinesListOut };
+  "machines.rooms": { in: MachinesRoomsIn; out: MachinesRoomsOut };
   "machines.set": { in: MachinesSetIn; out: MachinesSetOut };
   "mail.attachment.save": { in: MailAttachmentSaveIn; out: MailAttachmentSaveOut };
   "mail.auto_connect_members": { in: MailAutoConnectMembersIn; out: MailAutoConnectMembersOut };

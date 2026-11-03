@@ -79,6 +79,7 @@ export const replyTurn = t.obj({
   accountKind: t.opt(t.enm('api_key', 'subscription')), shared: t.opt(t.bool()), accountRef: t.opt(t.str({ description: 'Vault handle or subscription account reference; never a secret value' })), state: t.enm('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled'),
   paid: t.opt(t.str({ description: 'Who paid and why, in a plain line (the asker\'s and AI-spend managers\' only)' })),
   ranOn: t.arr(t.obj({ kind: t.str(), name: t.str() })),
+  movedFrom: t.opt(t.str()),
   timing: t.obj({ queuedAt: t.opt(t.ts()), startedAt: t.ts(), firstTokenAt: t.opt(t.ts()), endedAt: t.opt(t.ts()) }),
   tokens: t.obj({ in: t.int(), out: t.int(), cacheRead: t.opt(t.int()), cacheWrite: t.opt(t.int()), reasoning: t.opt(t.int()) }),
   cost: t.opt(turnCost),

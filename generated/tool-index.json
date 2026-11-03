@@ -4742,6 +4742,12 @@
     },
     {
       "deferred": false,
+      "name": "machines_rooms",
+      "summary": "Room left on the machines you name (ids as machines.list gives them): the number placement skips a busy machine by, and the plain words for why (\"4 of 4 turns\"). Only machines you may see; used by engine.placement.decide",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "machines_set",
       "summary": "Name a machine, set the most turns or agent computers it takes at once, drain it (no new work, what runs finishes) or pin an agent to it. A server is an admin's (and its owner's); a person's own computer is theirs, and an admin may only drain it",
       "toolset": "engineer"

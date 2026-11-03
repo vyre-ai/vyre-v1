@@ -1,4 +1,4 @@
-// Room left (lane l-machines): what is free of the tightest of CPU, memory, the turn limit and disk, 0 to 100. Offline or draining is 0. Pure: the Machines page, the alerts and placement all call it,
+// Room left (lane l-machines; lib so the machines module and agent placement share one function): what is free of the tightest of CPU, memory, the turn limit and disk, 0 to 100. Offline or draining is 0. Pure: the Machines page, the alerts and placement all call it,
 // so the number a person reads is the number the next turn was placed by.
 export type RoomWhy = "cpu" | "memory" | "turns" | "disk" | "offline" | "draining";
 

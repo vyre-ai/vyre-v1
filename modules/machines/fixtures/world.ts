@@ -74,6 +74,6 @@ export function world(f: Fakes = {}, file = ":memory:", fast = false) {
   /** One machine's report as the host hands it over. */
   const feed = (machineId: string, kind: Kind, name: string, r: Report, o: { ownerId?: string; latencyMs?: number } = {}): boolean =>
     (hostCalls["machines.ingest"](ctxFor(host), { machineId, kind, name, report: r, ...o }) as { ok: boolean }).ok;
-  const rooms = () => hostCalls["machines.rooms"](ctxFor(host));
+  const rooms = async (who: Caller = host, ids?: string[]) => { const r = (await call("machines.rooms", { ids: ids ?? ["space", "srv_berlin1", "device:dev_irfadmac", "device:dev_mayaair"] }, who)).rooms as Array<{ machineId: string; score: number; why: string; name: string }>; return Object.fromEntries(r.map((x) => [x.machineId, x])); };
   return { state, call, feed, rooms, ctxFor, db, sqlite, advance(ms: number) { state.now += ms; }, bind: bindMachines };
 }
