@@ -157,6 +157,7 @@ type Out = {
       text: string;
       by?: string;
       ref?: string;
+      tpl?: string;
     }>;
   readings: Array<{
       at: number;
@@ -190,7 +191,8 @@ type Out = {
         "by": "example",
         "kind": "reading",
         "ref": "example",
-        "text": "example"
+        "text": "example",
+        "tpl": "example"
       }
     ],
     "goal": {
