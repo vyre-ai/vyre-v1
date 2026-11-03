@@ -2211,6 +2211,7 @@ export function stubs(ctx: CallCtx) {
       actions: {
         list: call("search.actions.list"),
       },
+      ask: call("search.ask"),
       embed: {
         run: call("search.embed.run"),
       },
