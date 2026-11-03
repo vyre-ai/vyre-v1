@@ -72,7 +72,8 @@ export function folderLine(f: FolderRow): Line {
   return { key: `folder:${f.folderId}`, type: "folder", id: f.folderId, name: f.name, kind: "folder", size: 0, updatedAt: 0, updatedBy: null, thumb: false, source: f.source?.provider ?? null, items: f.fileCount + f.folderCount, folderId: f.parentId ?? null };
 }
 
-const EXT_LABEL: Readonly<Record<string, string>> = { pdf: "PDF", md: "MD", markdown: "MD", csv: "CSV", docx: "DOCX", doc: "DOCX", xlsx: "XLSX", pptx: "PPTX", txt: "TXT", json: "JSON", zip: "ZIP" };
+// an older Word, Excel or PowerPoint file wears the same tile as a new one: the list, the grid and the viewer's header say Word, Excel or PowerPoint the same way
+const EXT_LABEL: Readonly<Record<string, string>> = { pdf: "PDF", md: "MD", markdown: "MD", csv: "CSV", docx: "DOCX", doc: "DOCX", xlsx: "XLSX", xls: "XLSX", pptx: "PPTX", ppt: "PPTX", txt: "TXT", json: "JSON", zip: "ZIP" };
 
 /** The short label on a file's type tile (PDF, MD, CSV, DOCX), from its extension; pictures, folders and files with no known extension get an icon instead (null). */
 export function tileLabel(name: string, kind: FileKind | "folder"): string | null {

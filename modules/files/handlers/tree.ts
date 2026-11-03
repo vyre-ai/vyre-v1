@@ -226,7 +226,10 @@ function guessMime(name: string, asText: boolean): string {
     pdf: "application/pdf", csv: "text/csv", html: "text/html",
     js: "text/javascript", ts: "text/plain", py: "text/plain",
     docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation", yml: "text/plain", yaml: "text/plain", toml: "text/plain", sql: "text/plain", sh: "text/plain",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    // the older and OpenDocument formats: an empty placeholder of a mounted .doc is not a text file
+    doc: "application/msword", xls: "application/vnd.ms-excel", ppt: "application/vnd.ms-powerpoint", rtf: "application/rtf",
+    odt: "application/vnd.oasis.opendocument.text", ods: "application/vnd.oasis.opendocument.spreadsheet", odp: "application/vnd.oasis.opendocument.presentation", yml: "text/plain", yaml: "text/plain", toml: "text/plain", sql: "text/plain", sh: "text/plain",
     heic: "image/heic", bmp: "image/bmp", avif: "image/avif", tiff: "image/tiff",
   };
   if (known[ext]) return known[ext];
@@ -946,6 +949,35 @@ async function extractedText(ctx: Ctx, fileId: string, versionId: string | undef
   }
 }
 
+const OOXML_EXT = new Set(["docx", "pptx", "xlsx"]);
+const LEGACY_EXT = new Set(["doc", "ppt", "xls", "rtf"]);
+/** The previews module reads at most this much of a file (previews MAX_BYTES); a larger one has no text. */
+const EXTRACT_MAX_BYTES = 30 * 1024 * 1024;
+const OFFICE_APP: Readonly<Record<string, string>> = { doc: "Word", docx: "Word", rtf: "Word", odt: "Word", ppt: "PowerPoint", pptx: "PowerPoint", odp: "PowerPoint", xls: "Excel", xlsx: "Excel", ods: "Excel" };
+
+/**
+ * An Office file with no words is either empty or one Vyre cannot read. A file saved with a password, a damaged one, one too large to read and an old binary one with no converter on the
+ * server are refused with what to do instead, so an agent is never handed an empty string as if it were the file. A Word file that is really empty reads as "".
+ */
+function unreadable(ctx: Ctx, name: string, size: number, bytes: () => Uint8Array): void {
+  const ext = extOf(name);
+  const app = OFFICE_APP[ext];
+  const openIt = app === undefined ? "Open it in its own app." : `Open it in ${app}.`;
+  // an empty file (or a placeholder its provider could not fill) is read as the empty file it is
+  if (size === 0) return;
+  if (size > EXTRACT_MAX_BYTES) fail(ctx, "validation.too_large", `This file is too large for its text to be read here. ${openIt}`);
+  if (LEGACY_EXT.has(ext)) fail(ctx, "validation.unsupported", `The text of this file cannot be read here right now. ${openIt}`);
+  if (!OOXML_EXT.has(ext)) return;
+  const b = bytes();
+  if (b.length >= 4 && b[0] === 0x50 && b[1] === 0x4b) return;
+  // a password-protected Office file is a compound file (D0 CF 11 E0 ...) holding an EncryptedPackage stream, not a zip file
+  const cfb = b.length >= 8 && b[0] === 0xd0 && b[1] === 0xcf && b[2] === 0x11 && b[3] === 0xe0;
+  if (cfb && Buffer.from(b.buffer, b.byteOffset, b.byteLength).indexOf(Buffer.from("EncryptedPackage", "utf16le")) >= 0) {
+    fail(ctx, "validation.unsupported", `This file is password-protected, so its text cannot be read. ${openIt}`);
+  }
+  fail(ctx, "validation.unsupported", `This file is damaged, so its text cannot be read. ${openIt}`);
+}
+
 async function filesRead(ctx: Ctx, input: unknown): Promise<{ text?: string; base64?: string; url?: string; mime: string; size: number; version: number; truncated: boolean }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
@@ -984,8 +1016,10 @@ async function filesRead(ctx: Ctx, input: unknown): Promise<{ text?: string; bas
   if (offset < 0) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "offset" });
   if (length !== undefined && length < 1) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "length" });
   // As text, a PDF or an Office file is read through its extracted text (previews.text), the way an agent or a person reads it, not as the bytes of a zip file. Offset and length then count characters.
-  if (as === "text" && !textLike(mime) && extractable(String(file.name), mime)) {
+  // An Office or PDF file is extracted even when an older placeholder recorded it as text/plain; a Google export is read as the export it is.
+  if (as === "text" && extractable(String(file.name), mime) && (!textLike(mime) || (!native && EXTRACT_EXT.has(extOf(String(file.name)))))) {
     const out = await extractedText(ctx, String(file.id), versionId);
+    if (out.text.trim() === "") unreadable(ctx, String(file.name), size, () => openBlob(ctx, blobId));
     const text = out.text.slice(Math.min(offset, out.text.length), length === undefined ? undefined : offset + length);
     return { text, mime, size, version: n, truncated: out.truncated || offset > 0 || (length !== undefined && offset + length < out.text.length) };
   }

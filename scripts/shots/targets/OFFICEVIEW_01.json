@@ -1,0 +1,7 @@
+{
+  "targets": [
+    { "id": "OFFICEVIEW_01-docx", "route": "/m/OFFICEVIEW_01?view=docx", "proto": "files,viewer-md,{skin}", "waitFor": "[data-testid='vw-doc']", "note": "A Word file from a SharePoint library open in the viewer: its headings, bold and italic, nested bullets, numbered steps, the fee table with its header row and a picture's place, under the DOCX tile with SharePoint's mark, with Open in Word and no Edit switch." },
+    { "id": "OFFICEVIEW_01-pptx", "route": "/m/OFFICEVIEW_01?view=pptx", "proto": "files,viewer-md,{skin}", "waitFor": "[data-testid='vw-slide-1']", "note": "A PowerPoint deck as a vertical run of slide cards: each slide's number and title, its bullets, a table and a picture's place, and its speaker notes, under the PPTX tile with Open in PowerPoint." },
+    { "id": "OFFICEVIEW_01-locked", "route": "/m/OFFICEVIEW_01?view=locked", "proto": "files,{skin}", "waitFor": "[data-testid='vw-other']", "note": "A password-protected Word file: the quiet line No preview of this file here. Open in Word to see it., beside Open in Word, never a blank page." }
+  ]
+}
