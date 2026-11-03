@@ -6,8 +6,8 @@ import type { Catalog, Level, Refusal, ThreadFacts, ToolCtx, ToolDef, ToolSet } 
 /** The one write an Ask pane offers a view-only person: it stores a drafted change for the editors and writes nothing else (ARCH 4.13). */
 export const ASK_VIEW_EXTRAS: ReadonlySet<string> = new Set(["access.propose_change"]);
 
-/** In a task thread the agent finishes every turn with one of these, so they are in its list without a search. */
-export const TASK_BATON_TOOLS: ReadonlySet<string> = new Set(["task_submit", "task_ask", "task_block", "task_review", "task_decide", "tasks_take"]);
+/** In a task thread the agent finishes every turn with one of these, so they are in its list without a search. A request (Answer, Review, Approve, Unblock) ends with tasks_act. */
+export const TASK_BATON_TOOLS: ReadonlySet<string> = new Set(["task_submit", "task_ask", "task_block", "task_review", "task_decide", "tasks_take", "tasks_act"]);
 
 export interface AccessDeps {
   catalog: Catalog;

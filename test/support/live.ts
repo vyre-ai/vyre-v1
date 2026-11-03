@@ -28,8 +28,9 @@ export function seededDir(): string {
 }
 
 /** `standIn` null with `engineCli` boots the real driver around a CLI process (the fake claude of host/tests/fixtures/fake-cli-driver). */
-export async function boot(dir: string, standIn: OpenSession | null, extra: { engineCli?: unknown } = {}): Promise<Daemon> {
+export async function boot(dir: string, standIn: OpenSession | null, extra: { engineCli?: unknown; now?: () => number } = {}): Promise<Daemon> {
   return startDaemon({
+    ...(extra.now ? { now: extra.now } : {}),
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
     codeRoot: CODE_ROOT,
     platform: fakePlatform({

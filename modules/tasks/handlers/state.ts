@@ -158,7 +158,7 @@ function batonNext(t: Task, action: MoveAction): { to: Assignee; step: "work" | 
 
 /**
  * May the caller change this task (its fields, its people, its links)? Someone on it: a slot they hold by id or took, a group or role slot the kernel lets them use, its creator, the person
- * responsible for its agent; or anyone the kernel grants edit on it (an admin). The server itself always may. The pipeline checks the grant first; this is the task's own word.
+ * responsible for its agent; or anyone the kernel grants manage on it (an admin). The server itself always may. The pipeline checks the grant first; this is the task's own word.
  */
 export function mayEdit(ctx: TasksCtx, t: Task): boolean {
   const who = whoIs(ctx);
@@ -170,7 +170,8 @@ export function mayEdit(ctx: TasksCtx, t: Task): boolean {
     if (!a) continue;
     if ((a.kind === "group" || a.kind === "role") ? t.takenBy === undefined && can("use") : me(a.id)) return true;
   }
-  return can("edit");
+  // the kernel's word alone is enough only at manage (an admin, the task's own manager): a Space-wide edit grant does not put a member on someone else's task
+  return can("manage");
 }
 function mustEdit(ctx: TasksCtx, t: Task, what: string): void {
   if (!mayEdit(ctx, t)) raise(ctx, "validation.precondition_failed", `Only someone on this task can ${what}.`, { reason: "wrong_actor" });

@@ -137,7 +137,7 @@ export function taskSection(t: Obj, agentId: string, names: Readonly<Record<stri
   if (loops > 0) out.push(`It has been sent back ${loops} time${loops === 1 ? "" : "s"}.`);
   if (answers.length > 0) out.push(`Answers to your questions:\n${answers.slice(0, 5).map((a) => `- ${one(a.question, 160)} -> ${one(a.answer, 300)}`).join("\n")}`);
   const next = [t["reviewer"] as Who | undefined, t["approver"] as Who | undefined].filter((w) => w?.id);
-  if (next.length > 0) out.push(`Next after the doer: ${[t["reviewer"] ? `${whoLabel(t["reviewer"] as Who, names)} reviews` : "", t["approver"] ? `${whoLabel(t["approver"] as Who, names)} approves` : ""].filter((x) => x !== "").join(", then ")}.`);
+  if (next.length > 0 && kind === "work") out.push(`Next after the doer: ${[t["reviewer"] ? `${whoLabel(t["reviewer"] as Who, names)} reviews` : "", t["approver"] ? `${whoLabel(t["approver"] as Who, names)} approves` : ""].filter((x) => x !== "").join(", then ")}.`);
   return out.join("\n\n");
 }
 
