@@ -36,15 +36,16 @@ public static class LowRun {
   [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] static extern IntPtr GetCommandLine();
   [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)] static extern bool ConvertStringSecurityDescriptorToSecurityDescriptor(string sddl, uint rev, out IntPtr sd, out uint size);
   [DllImport("advapi32.dll", SetLastError = true)] static extern bool GetSecurityDescriptorSacl(IntPtr sd, out bool present, out IntPtr sacl, out bool defaulted);
-  [DllImport("advapi32.dll", CharSet = CharSet.Unicode)] static extern uint SetNamedSecurityInfo(string name, int type, uint info, IntPtr owner, IntPtr group, IntPtr dacl, IntPtr sacl);
+  [DllImport("advapi32.dll", CharSet = CharSet.Unicode)] static extern uint TreeResetNamedSecurityInfo(string name, int type, uint info, IntPtr owner, IntPtr group, IntPtr dacl, IntPtr sacl, bool keepExplicit, IntPtr progress, int invoke, IntPtr args);
 
   // A folder's mandatory label (LABEL_SECURITY_INFORMATION): Windows passes an inheritable label on to what is under the folder. Setting a label at or below one's own level needs no admin.
   static int Label(string path, string sddl) {
     IntPtr sd, sacl; uint size; bool present, defaulted;
     if (!ConvertStringSecurityDescriptorToSecurityDescriptor(sddl, 1, out sd, out size)) return Fail("the label " + sddl);
     if (!GetSecurityDescriptorSacl(sd, out present, out sacl, out defaulted) || !present) return Fail("the label's SACL");
-    // LABEL_SECURITY_INFORMATION, protected: this label stands, whatever the parent passes on
-    uint err = SetNamedSecurityInfo(path, 1, 0x10 | 0x40000000, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, sacl);
+    // LABEL_SECURITY_INFORMATION, protected (this label stands, whatever the parent passes on), and reset on everything already under the folder, so files that exist now (admin.token,
+    // the keys, the databases) take the inherited label as new ones will. Setting the label alone does not reach files that are already there (the windows-latest proof).
+    uint err = TreeResetNamedSecurityInfo(path, 1, 0x10 | 0x40000000, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, sacl, false, IntPtr.Zero, 1, IntPtr.Zero);
     if (err != 0) { Console.Error.WriteLine("vyre-lowrun: could not label " + path + ": " + new Win32Exception((int)err).Message); return 1; }
     return 0;
   }
