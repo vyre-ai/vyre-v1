@@ -35,6 +35,7 @@ type Out = {
   github?: string;
   totp: boolean;
   passkeys: Array<string>;
+  username?: string;
 };
 ```
 
@@ -57,7 +58,8 @@ type Out = {
       "example"
     ],
     "passwordChangedAt": 1760000000000,
-    "totp": true
+    "totp": true,
+    "username": "maya"
   }
 }
 ```

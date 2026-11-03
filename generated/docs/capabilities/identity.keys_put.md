@@ -34,6 +34,7 @@ type In = {
         epoch: number;
         wrapped: string;
       }>;
+    formerKey?: string;
   };
   reason: "first_device" | "password_change" | "reset" | "recovery" | "space_key_epoch" | "new_device";
 };
@@ -61,6 +62,7 @@ type Out = {
   "name": "example",
   "input": {
     "keys": {
+      "formerKey": "d3JhcHBlZA==",
       "personKeyByPassword": "d3JhcHBlZA==",
       "personKeyByRecovery": "d3JhcHBlZA==",
       "privateKeyWrapped": "d3JhcHBlZA==",

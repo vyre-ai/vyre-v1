@@ -1214,6 +1214,7 @@ export function createClient(transport: Transport) {
       github_unlink: call("identity.github_unlink", 1),
       keys_get: call("identity.keys_get", 1),
       keys_put: call("identity.keys_put", 1),
+      link_account: call("identity.link_account", 1),
       pair_create: call("identity.pair_create", 1),
       pair_redeem: call("identity.pair_redeem", 1),
       passkey_register: call("identity.passkey_register", 1),

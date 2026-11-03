@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access, members.
 
-## Capabilities (31)
+## Capabilities (32)
 
 - [identity.change_password](../capabilities/identity.change_password.md): Change my own password; keys are re-wrapped on the device first
 - [identity.claim_owner](../capabilities/identity.claim_owner.md): Claim a fresh Space as its owner with the one-time link: pick a username and password, store the wrapped keys, and sign in
@@ -13,6 +13,7 @@ Requires: access, members.
 - [identity.github_unlink](../capabilities/identity.github_unlink.md): Remove the GitHub link
 - [identity.keys_get](../capabilities/identity.keys_get.md): Fetch the wrapped key bundle for the signed-in person (ciphertext only)
 - [identity.keys_put](../capabilities/identity.keys_put.md): Store or replace the wrapped key bundle (first device, password change, recovery, new Space key epoch)
+- [identity.link_account](../capabilities/identity.link_account.md): Use one account everywhere: this Space's sign-in takes the username, password and key wraps of the account you keep. Your data, role and membership here stay
 - [identity.pair_create](../capabilities/identity.pair_create.md): A signed-in device makes a short pair code for another device, the extension or the local daemon (valid 10 minutes)
 - [identity.pair_redeem](../capabilities/identity.pair_redeem.md): Trade a pair code or invite code for a session on a new device
 - [identity.passkey_register](../capabilities/identity.passkey_register.md): Add a passkey as a second factor (ships later)
@@ -38,8 +39,9 @@ Requires: access, members.
 - [identity.whoami](../capabilities/identity.whoami.md): Who the caller is here: person, roles, clearance, device, epoch
 - [invites.accept_create_account](../capabilities/invites.accept_create_account.md): Join by invite with no account yet: creates the person, sets the password, stores the wrapped keys and joins the Space with the invite's role and groups
 
-## Events (10)
+## Events (11)
 
+- [account.linked](../events/account.linked.md): One account everywhere: this Space's sign-in took the username, password and key wraps of the account the person kept; their data and membership here did not change
 - [factor.enrolled](../events/factor.enrolled.md): A second factor was added
 - [factor.removed](../events/factor.removed.md): A second factor was removed
 - [github.linked](../events/github.linked.md): A GitHub account was linked to the sign-in

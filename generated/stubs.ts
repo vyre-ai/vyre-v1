@@ -1214,6 +1214,7 @@ export function stubs(ctx: CallCtx) {
       github_unlink: call("identity.github_unlink"),
       keys_get: call("identity.keys_get"),
       keys_put: call("identity.keys_put"),
+      link_account: call("identity.link_account"),
       pair_create: call("identity.pair_create"),
       pair_redeem: call("identity.pair_redeem"),
       passkey_register: call("identity.passkey_register"),
