@@ -149,5 +149,5 @@ function lowWrap(s: Extract<EngineSandbox, { kind: "lowil" }>, plan: SandboxPlan
   // the engine's own copy of Git Bash (sandbox/src/win/msys.ts): a person's Git Bash window must not stop the engine's Bash tool
   if (s.bash) (own as Record<string, string>)["CLAUDE_CODE_GIT_BASH_PATH"] = s.bash;
   void start;
-  return lowrunArgv(s.helper, argv, { ...proxyEnv(`http://127.0.0.1:${s.proxyPort}`), ...own });
+  return lowrunArgv(s.helper, argv, { ...toolProxyEnv(`http://127.0.0.1:${s.proxyPort}`), ...own });   // the merge of l-winlow kept the old name, proxyEnv, which this file no longer imports
 }
