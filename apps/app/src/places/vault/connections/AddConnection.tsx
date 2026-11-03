@@ -16,7 +16,19 @@ import { Btn, Glyph, Mono } from "../layout/parts.tsx";
 import { Sheet } from "../layout/Sheet.tsx";
 import { addFromPlan, messageOf, signIn } from "./actions.ts";
 import type { Added } from "./actions.ts";
-import { dotColor, healthWords } from "./model.ts";
+import { dotColor, healthWords, itemName } from "./model.ts";
+
+/** A member's choice in place of Everyone in the Space (only an admin shares with everyone, owner D22): it asks the admins with a Vault request and adds nothing. */
+export const ASK_ADMIN = "Ask an admin to add it for the team";
+export const ASKED_ADMIN = "Asked the admins to add it for the team.";
+
+/** The Vault request a member sends for a connection: its key's name as a handle, the keys it needs as fields, and what to add in the reason. The values are never in it. */
+export function askInput(p: Pending, name: string, idempotencyKey: string): { name: string; fields?: string[]; reason: string; idempotencyKey: string } {
+  const n = itemName(name || p.draft.name, "key");
+  const fields = [...new Set(p.asks.map((a) => a.key.replace(/[^A-Za-z0-9_]+/g, "_").replace(/^[^A-Za-z]+/, "")).filter((k) => k.length > 0))];
+  const where = p.draft.url ?? [p.draft.command, ...p.draft.args].join(" ");
+  return { name: /^[A-Za-z]/.test(n) ? n : `Key_${n}`, ...(fields.length ? { fields } : {}), reason: `Add ${p.title ?? name} for everyone in the Space: ${where}`, idempotencyKey };
+}
 
 export type Way = "browse" | "paste" | "import";
 type Entry = CatalogEntry & { allowed: boolean };
@@ -44,7 +56,8 @@ export function pendingFromDraft(d: ConnectionDraft, source: "paste" | "import")
 /** Where the sheet starts: a way in, text already pasted, or a server already picked (an address that asked for one, a screenshot mount). */
 export interface AddInitial { way?: Way; text?: string; query?: string; pending?: Pending[] }
 
-export function AddConnection({ canAddSpace, onClose, onAdded, initial }: { canAddSpace: boolean; onClose(): void; onAdded(text: string): void; initial?: AddInitial }): ReactElement {
+/** canAsk: a member of a Team Space, who gets Ask an admin to add it for the team where an admin gets Everyone in the Space. */
+export function AddConnection({ canAddSpace, canAsk = false, onClose, onAdded, initial }: { canAddSpace: boolean; canAsk?: boolean; onClose(): void; onAdded(text: string): void; initial?: AddInitial }): ReactElement {
   const data = useVaultData();
   const online = useOnline();
   const [way, setWay] = useState<Way>(initial?.way ?? "browse");
@@ -55,7 +68,7 @@ export function AddConnection({ canAddSpace, onClose, onAdded, initial }: { canA
   const title = current ? `Add ${current.title ?? current.draft.name}` : done.length > 0 ? "Added" : "Add a connection";
   return (
     <Sheet title={title} onClose={onClose} testID="connection-add-sheet" icon={<Glyph name="plus" size={15} color="var(--accent)" />}>
-      {current ? <Setup key={`${current.draft.name}-${queue.length}`} pending={current} canAddSpace={canAddSpace} onSkip={() => next()} onAdded={(t, a) => { onAdded(`Added ${t}`); next({ title: t, added: a }); }} />
+      {current ? <Setup key={`${current.draft.name}-${queue.length}`} pending={current} canAddSpace={canAddSpace} canAsk={canAsk && !canAddSpace && data.personal !== true} onSkip={() => next()} onAdded={(t, a) => { onAdded(`Added ${t}`); next({ title: t, added: a }); }} onAsked={() => { onAdded(ASKED_ADMIN); if (queue.length > 1 || done.length > 0) next(); else onClose(); }} />
         : done.length > 0 ? <Done done={done} onClose={onClose} onMore={() => setDone([])} />
         : (
           <>
@@ -166,18 +179,27 @@ function DraftRows({ drafts, off, onToggle }: { drafts: readonly ConnectionDraft
   return <View testID="draft-rows">{rows}</View>;
 }
 
-function Setup({ pending, canAddSpace, onSkip, onAdded }: { pending: Pending; canAddSpace: boolean; onSkip(): void; onAdded(title: string, a: Added): void }): ReactElement {
+function Setup({ pending, canAddSpace, canAsk, onSkip, onAdded, onAsked }: { pending: Pending; canAddSpace: boolean; canAsk: boolean; onSkip(): void; onAdded(title: string, a: Added): void; onAsked(): void }): ReactElement {
   const data = useVaultData();
   const d = pending.draft;
   const [name, setName] = useState(d.name);
-  const [scope, setScope] = useState<"mine" | "space">("mine");
+  const [scope, setScope] = useState<"mine" | "space" | "ask">("mine");
+  const [asked, setAsked] = useState(false);
   const [typed, setTyped] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [added, setAdded] = useState<Added | null>(null);
   const missing = pending.asks.filter((a) => a.required && (typed[a.key] ?? "").trim() === "");
   const titleText = pending.title ?? d.name;
+  // a member asks the admins (vault.request to the Space's vault managers): no connection is added and no key is typed in
+  const ask = async (): Promise<void> => {
+    setBusy(true); setError("");
+    try { await data.call("vault.request", askInput(pending, name.trim(), `ask-connection-${d.name}-${data.clock().now}`)); setAsked(true); }
+    catch (e) { setError(messageOf(e)); }
+    finally { setBusy(false); }
+  };
   const add = async (): Promise<void> => {
+    if (scope === "ask") return;
     setBusy(true); setError("");
     try {
       const a = await addFromPlan(data.call, { scope, name: name.trim(), ...(pending.title ? { title: pending.title } : {}), draft: d, typed, oauth: pending.oauth, source: pending.source, ...(pending.sourceRef ? { sourceRef: pending.sourceRef } : {}) }, data.assistantId);
@@ -185,6 +207,14 @@ function Setup({ pending, canAddSpace, onSkip, onAdded }: { pending: Pending; ca
     } catch (e) { setError(messageOf(e)); }
     finally { setBusy(false); }
   };
+  if (asked) {
+    return (
+      <View style={{ gap: 10 }} testID="connection-asked">
+        <Text style={s.resultText}>{ASKED_ADMIN}</Text>
+        <View style={s.actions}><View style={{ flex: 1 }} /><Btn label="Done" primary onPress={onAsked} testID="connection-asked-done" /></View>
+      </View>
+    );
+  }
   if (added) {
     const origin = (globalThis as { location?: { origin?: string } }).location?.origin ?? "";
     return (
@@ -201,7 +231,7 @@ function Setup({ pending, canAddSpace, onSkip, onAdded }: { pending: Pending; ca
     );
   }
   const fields: ReactElement[] = [];
-  for (const a of pending.asks) {
+  for (const a of scope === "ask" ? [] : pending.asks) {
     fields.push(
       <View key={a.key} style={{ gap: 4 }}>
         <Text style={s.label}>{`${a.key}${a.required ? "" : " (optional)"}${a.secret ? " · goes into your Vault" : ""}`}</Text>
@@ -227,15 +257,26 @@ function Setup({ pending, canAddSpace, onSkip, onAdded }: { pending: Pending; ca
             <Pressable accessibilityRole="radio" accessibilityState={{ checked: scope === "space" }} onPress={() => setScope("space")} style={[s.seg, scope === "space" && s.segOn]} testID="scope-space"><Text style={[s.segText, scope === "space" && s.segTextOn]}>Everyone in the Space</Text></Pressable>
           </View>
         </View>
+      ) : canAsk ? (
+        <View style={{ gap: 4 }}>
+          <Text style={s.label}>Who can use it</Text>
+          <View style={s.segs} accessibilityRole="radiogroup">
+            <Pressable accessibilityRole="radio" accessibilityState={{ checked: scope === "mine" }} onPress={() => setScope("mine")} style={[s.seg, scope === "mine" && s.segOn]} testID="scope-mine"><Text style={[s.segText, scope === "mine" && s.segTextOn]}>Me and my agents</Text></Pressable>
+            <Pressable accessibilityRole="radio" accessibilityState={{ checked: scope === "ask" }} onPress={() => setScope("ask")} style={[s.seg, scope === "ask" && s.segOn]} testID="scope-ask"><Text style={[s.segText, scope === "ask" && s.segTextOn]}>{ASK_ADMIN}</Text></Pressable>
+          </View>
+          {scope === "ask" ? <Text style={s.quiet} testID="scope-ask-note">An admin adds it for everyone. Vyre sends them your request.</Text> : null}
+        </View>
       ) : <Text style={s.quiet}>For you and your agents. Only you can see it.</Text>}
-      {d.secrets.length > 0 ? <View style={s.result}><Glyph name="lock" /><Text style={s.quiet}>{`${d.secrets.map((x) => x.key).join(", ")} ${d.secrets.length === 1 ? "was" : "were"} in what you pasted. ${d.secrets.length === 1 ? "It goes" : "They go"} into your ${scope === "space" ? "Space's shared" : "own"} Vault folder, not into the command.`}</Text></View> : null}
+      {d.secrets.length > 0 && scope !== "ask" ? <View style={s.result}><Glyph name="lock" /><Text style={s.quiet}>{`${d.secrets.map((x) => x.key).join(", ")} ${d.secrets.length === 1 ? "was" : "were"} in what you pasted. ${d.secrets.length === 1 ? "It goes" : "They go"} into your ${scope === "space" ? "Space's shared" : "own"} Vault folder, not into the command.`}</Text></View> : null}
       {fields}
-      {pending.oauth ? <Text style={s.quiet}>This server signs in with your account. You can sign in once it is added.</Text> : null}
+      {pending.oauth && scope !== "ask" ? <Text style={s.quiet}>This server signs in with your account. You can sign in once it is added.</Text> : null}
       {error ? <Text style={s.error} accessibilityRole="alert">{error}</Text> : null}
       <View style={s.actions}>
         <Btn label="Skip" onPress={onSkip} testID="setup-skip" />
         <View style={{ flex: 1 }} />
-        <Btn label={busy ? "Adding…" : "Add and check"} primary disabled={busy || name.trim() === "" || missing.length > 0} why={missing.length > 0 ? `Fill in ${missing.map((m) => m.key).join(", ")}` : undefined} onPress={() => { void add(); }} testID="setup-add" />
+        {scope === "ask"
+          ? <Btn label={busy ? "Asking…" : "Ask an admin"} primary disabled={busy || name.trim() === ""} onPress={() => { void ask(); }} testID="setup-ask" />
+          : <Btn label={busy ? "Adding…" : "Add and check"} primary disabled={busy || name.trim() === "" || missing.length > 0} why={missing.length > 0 ? `Fill in ${missing.map((m) => m.key).join(", ")}` : undefined} onPress={() => { void add(); }} testID="setup-add" />}
       </View>
     </View>
   );

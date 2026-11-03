@@ -180,7 +180,7 @@ export function ConnectionsView({ onClose, initialAdd = false, initialData }: Co
         )}
       <View style={s.lineSlot}>{note ? <QuietLine text={note} testID="connections-line" /> : null}</View>
       </ScrollView>
-      {adding ? <AddConnection canAddSpace={canAddSpace && !data.personal} {...(typeof adding === "object" ? { initial: adding } : {})} onClose={() => setAdding(false)} onAdded={(t) => { setNote(t); conns.refresh(); }} /> : null}
+      {adding ? <AddConnection canAddSpace={canAddSpace && !data.personal} canAsk={!!conns.home && !canAddSpace && !data.personal} {...(typeof adding === "object" ? { initial: adding } : {})} onClose={() => setAdding(false)} onAdded={(t) => { setNote(t); conns.refresh(); }} /> : null}
       {sharing ? <ShareSheet row={sharing} groups={conns.groups} onClose={() => setSharing(null)} onSaved={(t) => { setSharing(null); setNote(t); conns.refresh(); }} /> : null}
     </View>
   );
