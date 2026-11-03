@@ -5,7 +5,7 @@
 //   ?view=team     the task page of the team task nobody took: Take it, and the rail's Taken by line.
 //   ?view=menu     the review's status menu: only the moves his seat allows.
 //   ?view=pane     the review in the side pane of a chat (no rail, Open the full page).
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { createThemeController } from "../../../ui/src/theme/index.ts";
@@ -73,7 +73,13 @@ function answer(cap: string, input: Row): unknown {
 }
 
 function runtime(): unknown {
-  const live = (data: unknown) => ({ subscribe: () => () => undefined, getSnapshot: () => ({ status: "ready", data }) });
+  // one snapshot object per query, as a live query keeps it: a new object on every read would redraw forever
+  const kept = new Map<string, unknown>();
+  const live = (data: unknown, key = JSON.stringify(data)) => {
+    let snap = kept.get(key);
+    if (!snap) { snap = { status: "ready", data }; kept.set(key, snap); }
+    return { subscribe: () => () => undefined, getSnapshot: () => snap };
+  };
   const screens = {
     query(screen: string, name: string, state: Row) {
       if (screen === "tasks.my-work" && name === "rev") return live({ rev: "r1" });
@@ -96,9 +102,13 @@ interface RootLike { setAttribute(name: string, value: string): void; style: { s
 type Doc = { querySelector(s: string): { click?: () => void } | null; documentElement?: RootLike };
 
 export default function Mount(): ReactNode {
-  const q = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "");
-  const view = q.get("view") ?? "list";
-  const skin = q.get("skin") ?? "paper";
+  // the address is read after mount (rule 25), so the static first frame and the page agree
+  const [q, setQ] = useState<URLSearchParams | null>(null);
+  useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
+  return q ? <Page view={q.get("view") ?? "list"} skin={q.get("skin") ?? "paper"} /> : <View testID="tasks-mount-wait" style={StyleSheet.absoluteFill} />;
+}
+
+function Page({ view, skin }: { view: string; skin: string }): ReactNode {
   useMemo(() => {
     const root = (globalThis as { document?: Doc }).document?.documentElement;
     const themeRoot: ThemeRoot = { setAttribute: (n, v) => { root?.setAttribute(n, v); }, setProperty: (n, v) => { root?.style.setProperty(n, v); }, removeProperty: (n) => { root?.style.removeProperty(n); } };
