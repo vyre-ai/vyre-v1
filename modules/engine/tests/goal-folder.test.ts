@@ -62,8 +62,16 @@ function world() {
     },
   };
   ports.put = async (url, bytes) => { blobs.set(url.replace("/slot/", ""), Buffer.from(bytes)); };
-  ports.person = async (cap, input) => { if (cap !== "files.delete") throw new Error(cap); const f = files.find((x) => x.id === (input as { fileId: string }).fileId)!; f.deleted = true; trashed.push(f.id); return { deleted: true }; };
-  return { files, dirs, writes, put, ports, trashed };
+  const gate = { hold: false };
+  const act0 = ports.act;
+  ports.act = async (cap, input, who) => {
+    if (cap !== "files.delete") return act0(cap, input, who);
+    const f = files.find((x) => x.id === (input as { fileId: string }).fileId)!;
+    writes.push({ cap, input: input as Record<string, unknown> });
+    if (gate.hold) throw Object.assign(new Error("held"), { code: "permission.on_hold", taskId: `tsk_${f.id}` });
+    f.deleted = true; trashed.push(f.id); return { deleted: true };
+  };
+  return { files, dirs, writes, put, ports, trashed, gate };
 }
 const turn = (work: string, k = 1): GoalTurn => ({ work, goalId: "gol_1", agentId: "agt_1", asker: "usr_1", turnId: `trn_${k}` });
 const tmp = (): string => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-goal-folder-")));
@@ -224,4 +232,35 @@ test("goal folder: an edited Google document export is saved beside it, in its f
   assert.equal(w.files.find((x) => x.name === "Plan (agent copy).md")?.bytes.toString(), "# Plan\nmore\n");
   assert.match(turnLines(r)[0]!["text"] as string, /^Plan is a Google document.*saved as Plan \(agent copy\)\.md\.$/);
   assert.ok(!w.writes.some((x) => x.cap === "files.write"));
+});
+
+test("goal folder: where the Gate holds an agent's delete the turn does not wait: an approval card per file, Keep brings the file back with a note, Approve is the Trash", async () => {
+  const w = world(), work = tmp();
+  w.gate.hold = true;
+  const a = w.put("fld_root", "a.md", "a"), b = w.put("fld_root", "b.md", "b");
+  await startOfTurn(w.ports, turn(work));
+  fs.rmSync(g(work, "a.md")); fs.rmSync(g(work, "b.md"));
+  const r = await endOfTurn(w.ports, turn(work));
+  assert.deepEqual(w.trashed, [], "nothing moved yet");
+  assert.deepEqual(r.held.map((x) => [x.name, x.taskId]), [["a.md", `tsk_${a.id}`], ["b.md", `tsk_${b.id}`]]);
+  assert.deepEqual(turnLines(r), [
+    { state: "note", text: "Moving 2 files deleted in goal/ to Vyre's Trash waits for approval: a.md, b.md." },
+    { state: "waiting", taskId: `tsk_${a.id}` }, { state: "waiting", taskId: `tsk_${b.id}` },
+  ]);
+  // the next turn does not ask again while it waits, and a Keep (the file is still in Vyre) puts it back, said in GOAL-SYNC.txt
+  const asked = w.writes.filter((x) => x.cap === "files.delete").length;
+  await startOfTurn(w.ports, turn(work, 2));
+  assert.equal(w.writes.filter((x) => x.cap === "files.delete").length, asked);
+  assert.equal(fs.readFileSync(g(work, "a.md"), "utf8"), "a");
+  assert.match(fs.readFileSync(path.join(work, GOAL_NOTES), "utf8"), /a\.md was deleted in goal\/ but the delete was not approved/);
+  // Approve: the Gate runs the delete; the file leaves the folder and stays off the disk
+  b.deleted = true;
+  await startOfTurn(w.ports, turn(work, 3));
+  assert.ok(!fs.existsSync(g(work, "b.md")));
+  // where the Space's rules allow it, it goes straight to Trash, with the line
+  w.gate.hold = false;
+  fs.rmSync(g(work, "a.md"));
+  const r2 = await endOfTurn(w.ports, turn(work, 3));
+  assert.deepEqual(r2.trashed.map((x) => x.name), ["a.md"]);
+  assert.equal(turnLines(r2)[0]!["state"], "trashed");
 });

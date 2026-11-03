@@ -11,8 +11,9 @@
 // hidden below a disk folder) stays as it is; goal/ is a different thing, a copy that holds nothing but what an agent may read.
 // Writes run as the agent acting for the person (credit "<Person> (Agent)", Review changes folders stage them), through `act`.
 // Size: a file up to the Files upload limit (25 MB) is saved back; one over the direct write limit (256 KB) goes up through an upload slot (files.upload_url, bytes put in process by the host), the rest inline.
-// Deletes: a file deleted in goal/ is moved to Vyre's Trash (files.delete as the person, so it is recoverable and not held at the Gate; never a purge), unless it changed in Vyre meanwhile. The chat's turn line
-// says so with Undo (files.restore). A file that is a Google document's export (or has hidden parts) that was edited on disk is saved beside it as a copy, in the format it came down in, and the turn line says so.
+// Deletes: a file deleted in goal/ is moved to Vyre's Trash (files.delete as the agent, through the Gate like any agent delete; recoverable, never a purge), unless it changed in Vyre meanwhile. Where the Space's rules
+// hold an agent's delete, the turn does not wait: the held delete is the chat's normal approval card (Approve moves it to Trash, Keep leaves it, and the next turn finds the file back in goal/ and GOAL-SYNC.txt says so).
+// Where they allow it, the file goes straight to Trash and the chat's turn line says so with Undo (files.restore). A file that is a Google document's export (or has hidden parts) that was edited on disk is saved beside it as a copy, in the format it came down in, and the turn line says so.
 // What cannot be saved back (over 25 MB) is said in GOAL-SYNC.txt in the work folder, which the skill tells the agent to read.
 import { createHash } from "node:crypto";
 import fs from "node:fs";
@@ -42,8 +43,6 @@ export interface GoalFolderPorts {
   read(cap: string, input: unknown, asker: string): Promise<unknown>;
   /** A write as the agent acting for the asker. */
   act(cap: string, input: unknown, who: { agentId: string; asker: string }): Promise<unknown>;
-  /** A write as the person (a move to Trash, which a hold at the Gate would not fit: it is recoverable and the chat says so with Undo). */
-  person?(cap: string, input: unknown, asker: string): Promise<unknown>;
   /** Bytes into an upload slot (the address files.upload_url gave). Absent: a file over the inline limit is not saved back. */
   put?(url: string, bytes: Uint8Array): Promise<void>;
   log?(msg: string, attrs?: Record<string, unknown>): void;
@@ -52,8 +51,8 @@ export interface GoalTurn { work: string; goalId: string; agentId: string; asker
 
 interface Entry { fileId: string; version: number; sha: string; ro: boolean; /** a Google document's export */ g?: boolean }
 /** What a sync did, for the notes file and the chat's turn line. */
-export interface SyncResult { notes: string[]; trashed: Array<{ fileId: string; name: string }>; copies: string[] }
-interface Manifest { v: 1; goalId: string; folderId: string; files: Record<string, Entry>; folders: Record<string, string> }
+export interface SyncResult { notes: string[]; trashed: Array<{ fileId: string; name: string }>; held: Array<{ fileId: string; name: string; taskId: string }>; copies: string[] }
+interface Manifest { v: 1; goalId: string; folderId: string; files: Record<string, Entry>; folders: Record<string, string>; /** deletes the Gate is holding: file id to task id */ held?: Record<string, string> }
 
 const sha = (b: Uint8Array): string => createHash("sha256").update(b).digest("hex");
 const codeOf = (e: unknown): string => (isObj(e) && isObj(e.error) ? str(e.error.code) : isObj(e) ? str(e.code) : "");
@@ -129,6 +128,7 @@ export async function syncDown(p: GoalFolderPorts, t: GoalTurn): Promise<string[
   const rootReal = fs.realpathSync(root);
   const old = readManifest(t.work);
   const next: Manifest = { v: 1, goalId: t.goalId, folderId, files: {}, folders: {} };
+  const wasHeld = old?.held ?? {};
   let count = 0, bytes = 0;
   const seen = new Set<string>();   // fileIds seen this pass
 
@@ -201,14 +201,16 @@ export async function syncDown(p: GoalFolderPorts, t: GoalTurn): Promise<string[
     if (!inside(rootReal, path.join(rootReal, r))) continue;
     try { if (fs.lstatSync(abs).isFile()) { fs.rmSync(abs, { force: true }); rmEmptyDirs(rootReal, path.dirname(abs)); } } catch { /* already gone */ }
   }
+  // a delete the Gate held that is still a file in Vyre: it was kept (or is still waiting), so it is back on disk
+  for (const [fileId] of Object.entries(wasHeld)) { const at = Object.entries(next.files).find(([, e]) => e.fileId === fileId); if (at) notes.push(`${at[0]} was deleted in goal/ but the delete was not approved (or still waits), so it is back.`); }
   writeManifest(t.work, next);
   return notes;
 }
 
 /** Upload what changed on disk. Returns the notes for GOAL-SYNC.txt. */
 export async function syncUp(p: GoalFolderPorts, t: GoalTurn): Promise<SyncResult> {
-  const notes: string[] = [], trashed: SyncResult["trashed"] = [], copies: string[] = [];
-  const out = (): SyncResult => ({ notes, trashed, copies });
+  const notes: string[] = [], trashed: SyncResult["trashed"] = [], held: SyncResult["held"] = [], copies: string[] = [];
+  const out = (): SyncResult => ({ notes, trashed, held, copies });
   const m = readManifest(t.work);
   const root = path.join(t.work, GOAL_DIR);
   if (!m || m.goalId !== t.goalId || !fs.existsSync(root)) return out();
@@ -341,16 +343,18 @@ export async function syncUp(p: GoalFolderPorts, t: GoalTurn): Promise<SyncResul
   // a file that was in goal/ and is not any more goes to Vyre's Trash, where it can be restored: never a purge, and not when someone changed it in Vyre meanwhile
   const onDisk = new Set(files);
   for (const [r, e] of Object.entries(m.files)) {
-    if (onDisk.has(r) || e.ro || e.fileId === "") continue;
+    if (onDisk.has(r) || e.ro || e.fileId === "" || m.held?.[e.fileId]) continue;
     try { fs.lstatSync(path.join(rootReal, r)); continue; } catch { /* gone from disk */ }
     try {
       const now = ((await p.read("files.get", { fileId: e.fileId }, t.asker)) as { file?: { version?: unknown; deletedAt?: unknown } }).file;
       if (!now || now.deletedAt) { delete m.files[r]; continue; }
       if (num(now.version) !== e.version) { notes.push(`${r} was deleted in goal/ but changed in Vyre meanwhile, so it was kept.`); continue; }
-      await (p.person ?? ((cap, input) => p.act(cap, input, t)))("files.delete", { fileId: e.fileId, idempotencyKey: key("trash") }, t.asker);
+      await p.act("files.delete", { fileId: e.fileId, idempotencyKey: key("trash") }, t);
       trashed.push({ fileId: e.fileId, name: r });
       delete m.files[r];
-    } catch (err) { notes.push(`${r} was deleted in goal/ but could not be moved to Trash in Vyre: ${msgOf(err)}`); }
+    } catch (err) {
+      // the Gate holds an agent's delete: the turn does not wait, the approval card is the chat's
+      if (codeOf(err) === "permission.on_hold" && typeof (err as { taskId?: unknown }).taskId === "string") { held.push({ fileId: e.fileId, name: r, taskId: (err as { taskId: string }).taskId }); (m.held ??= {})[e.fileId] = (err as { taskId: string }).taskId; continue; } notes.push(`${r} was deleted in goal/ but could not be moved to Trash in Vyre: ${msgOf(err)}`); }
   }
   // folders that exist only on disk (empty ones the agent made) are made too, so they are there for the next turn
   for (const d of dirs) if (!m.folders[d]) await folderOf(d);
@@ -378,7 +382,7 @@ function exclusive<T>(work: string, f: () => Promise<T>): Promise<T> {
 export async function startOfTurn(p: GoalFolderPorts, t: GoalTurn): Promise<SyncResult> {
   return exclusive(t.work, async () => {
     // an earlier turn that never finished (the daemon stopped) left edits on disk: they go up before anything is downloaded over them
-    const up = await syncUp(p, t).catch((e: unknown): SyncResult => { p.log?.("goal/ could not be saved at the start of a turn", { goalId: t.goalId, error: msgOf(e) }); return { notes: [], trashed: [], copies: [] }; });
+    const up = await syncUp(p, t).catch((e: unknown): SyncResult => { p.log?.("goal/ could not be saved at the start of a turn", { goalId: t.goalId, error: msgOf(e) }); return { notes: [], trashed: [], held: [], copies: [] }; });
     const down = await syncDown(p, t);
     notesFile(t.work, [...up.notes, ...down]);
     return up;
@@ -395,6 +399,11 @@ export function turnLines(r: SyncResult): Array<Record<string, unknown>> {
   if (r.trashed.length > 0) {
     const names = r.trashed.slice(0, 5).map((x) => x.name).join(", ") + (r.trashed.length > 5 ? ` and ${r.trashed.length - 5} more` : "");
     out.push({ state: "trashed", text: `Moved ${r.trashed.length === 1 ? "a file" : `${r.trashed.length} files`} deleted in goal/ to Vyre's Trash: ${names}.`, fileIds: r.trashed.map((x) => x.fileId) });
+  }
+  if (r.held.length > 0) {
+    const names = r.held.slice(0, 5).map((x) => x.name).join(", ") + (r.held.length > 5 ? ` and ${r.held.length - 5} more` : "");
+    out.push({ state: "note", text: `Moving ${r.held.length === 1 ? "a file" : `${r.held.length} files`} deleted in goal/ to Vyre's Trash waits for approval: ${names}.` });
+    for (const x of r.held.slice(0, 10)) out.push({ state: "waiting", taskId: x.taskId });
   }
   return out;
 }

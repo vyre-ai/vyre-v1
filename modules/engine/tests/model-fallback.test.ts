@@ -7,9 +7,9 @@ import type { EngineSession, ResolvedAccount, SessionSpec } from "../../../agent
 
 test("the line names the model it ran on and the maker that is not on the team key", () => {
   assert.equal(modelWords("glm-5.3"), "GLM 5.3");
-  assert.equal(fallbackLine({ from: "claude-sonnet-5-5", to: "glm-5.3" }), "Ran on GLM 5.3; Claude isn't on the team key.");
-  assert.equal(fallbackLine({ from: "gpt-5", to: "kimi-k3" }), "Ran on Kimi K3; GPT isn't on the team key.");
-  assert.equal(fallbackLine({ from: "claude-sonnet-5-5" }), "Ran on the team key's own model; Claude isn't on it.");
+  assert.equal(fallbackLine({ from: "claude-sonnet-5-5", to: "glm-5.3" }), "Claude Sonnet 5.5 isn't available here, ran GLM 5.3.");
+  assert.equal(fallbackLine({ from: "gpt-5", to: "kimi-k3" }), "GPT-5 isn't available here, ran Kimi K3.");
+  assert.equal(fallbackLine({ from: "claude-sonnet-5-5" }), "Claude Sonnet 5.5 isn't available here, ran the key's own model.");
 });
 
 test("it is said once per chat, agent and swap", async () => {
@@ -20,7 +20,7 @@ test("it is said once per chat, agent and swap", async () => {
   await say(q, swap);
   await say(q, swap);
   await say({ ...q, threadId: "thr_2" }, swap);
-  assert.deepEqual(posts, ["Ran on GLM 5.3; Claude isn't on the team key.", "Ran on GLM 5.3; Claude isn't on the team key."]);
+  assert.deepEqual(posts, ["Claude Sonnet 5.5 isn't available here, ran GLM 5.3.", "Claude Sonnet 5.5 isn't available here, ran GLM 5.3."]);
 });
 
 test("the line is said when the session opens on the swapped model, not when an account is only picked", async () => {
@@ -34,5 +34,5 @@ test("the line is said when the session opens on the swapped model, not when an 
   await wrapped({ ...spec, account: { ...acct, modelFallback: undefined } as ResolvedAccount });
   assert.deepEqual(posts, [], "an account that does not swap says nothing");
   await wrapped({ ...spec, account: acct });
-  assert.deepEqual([posts, opened.at(-1)], [["Ran on GLM 5.3; Claude isn't on the team key."], "glm-5.3"]);
+  assert.deepEqual([posts, opened.at(-1)], [["Claude Sonnet 5.5 isn't available here, ran GLM 5.3."], "glm-5.3"]);
 });

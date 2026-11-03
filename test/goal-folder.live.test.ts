@@ -123,22 +123,37 @@ test("goal folder live: a goal turn reads, edits and adds files in goal/; a chan
       fs.rmSync(path.join(work, "goal", "Research", "notes.md"));
     };
     await wake("big one", "w4");
+    const waitingTasks = async (): Promise<string[]> => {
+      const msgs = (await ok(d, "chat.messages.list", { threadId, limit: 100 })).messages as Array<{ blocks?: Array<{ type: string; data: { state?: string; taskId?: string } }> }>;
+      return msgs.flatMap((m) => m.blocks ?? []).filter((b) => b.type === "turn_status" && b.data.state === "waiting" && b.data.taskId).map((b) => b.data.taskId!);
+    };
     await eventually(async () => {
       const big = (await ok(d, "files.list", { folder: draftsF.folderId })).files.find((f: { name: string }) => f.name === "big.bin");
       assert.ok(big, "the big file is in Vyre");
       assert.equal(big.size, 3 * 1024 * 1024);
-      assert.deepEqual((await ok(d, "files.list", { folder: research })).files.map((f: { name: string }) => f.name), [], "notes.md left the folder");
-      const trash = (await ok(d, "files.trash.list", {})).files.map((f: { fileId: string }) => f.fileId);
-      assert.ok(trash.includes(notes.fileId), "it is in Trash, not gone");
     });
-    const line = await waitFor(async () => {
-      const msgs = (await ok(d, "chat.messages.list", { threadId, limit: 100 })).messages as Array<{ blocks?: Array<{ type: string; data: { state?: string; text?: string; fileIds?: string[] } }> }>;
-      return msgs.flatMap((m) => m.blocks ?? []).find((b) => b.type === "turn_status" && b.data.state === "trashed") ?? null;
-    }, 20_000, () => hostLog(d));
-    assert.match(line.data.text!, /^Moved a file deleted in goal\/ to Vyre's Trash: Research\/notes\.md\.$/);
-    assert.deepEqual(line.data.fileIds, [notes.fileId]);
-    // Undo
-    await ok(d, "files.restore", { fileId: line.data.fileIds![0] });
+    // the Space's rules hold an agent's delete: the turn finished, the file is still in Vyre, and the chat has the normal approval card
+    const held = await waitFor(async () => { const t = await waitingTasks(); return t.length > 0 ? t : null; }, 20_000, () => hostLog(d));
+    assert.deepEqual((await ok(d, "files.list", { folder: research })).files.map((f: { name: string }) => f.name), ["notes.md"], "nothing moved while it waits");
+    const note = (await ok(d, "chat.messages.list", { threadId, limit: 100 })).messages.flatMap((m: { blocks?: Array<{ data: { text?: string } }> }) => m.blocks ?? []).map((b: { data: { text?: string } }) => b.data.text ?? "").find((x: string) => /waits for approval/.test(x));
+    assert.match(note, /^Moving a file deleted in goal\/ to Vyre's Trash waits for approval: Research\/notes\.md\.$/);
+    // Approve: the Gate runs the delete and the file is in Trash, recoverable
+    await ok(d, "tasks.act", { taskId: held[0], action: "approve" });
+    await eventually(async () => {
+      assert.deepEqual((await ok(d, "files.list", { folder: research })).files.map((f: { name: string }) => f.name), [], "notes.md left the folder");
+      assert.ok((await ok(d, "files.trash.list", {})).files.map((f: { fileId: string }) => f.fileId).includes(notes.fileId), "it is in Trash, not gone");
+    });
+    await ok(d, "files.restore", { fileId: notes.fileId });
     assert.deepEqual((await ok(d, "files.list", { folder: research })).files.map((f: { name: string }) => f.name), ["notes.md"]);
+    // Keep: another delete is held, the person keeps the file, and the next turn finds it back with a note
+    script = async (work) => { fs.rmSync(path.join(work, "goal", "Drafts", "email.md")); };
+    await wake("another", "w5");
+    const second = await waitFor(async () => { const t = (await waitingTasks()).filter((x) => x !== held[0]); return t.length > 0 ? t : null; }, 20_000, () => hostLog(d));
+    await ok(d, "tasks.act", { taskId: second[0], action: "reject", note: "Keep it" });
+    const back: Record<string, string> = {};
+    script = async (work) => { back.file = fs.existsSync(path.join(work, "goal", "Drafts", "email.md")) ? "back" : "missing"; back.note = fs.existsSync(path.join(work, "GOAL-SYNC.txt")) ? fs.readFileSync(path.join(work, "GOAL-SYNC.txt"), "utf8") : ""; };
+    await wake("once more", "w6");
+    assert.equal(back.file, "back");
+    assert.match(back.note, /Drafts\/email\.md was deleted in goal\/ but the delete was not approved/);
   } finally { clearInterval(pumping); await d.stop(); }
 });

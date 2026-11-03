@@ -19,6 +19,10 @@ export interface LockedDeps {
 export const LOCKED_SPACE_KEY_LINE = "Your own AI account opens when you sign in to this Space, so the Space AI key answered.";
 export const lockedLine = (to: ResolvedAccount): string => (to.spaceKey === true ? LOCKED_SPACE_KEY_LINE : "Your own AI account opens when you sign in to this Space, so another account answered.");
 
+const ENGINE = { claude_code: "Claude Code", codex: "Codex", grok: "Grok" } as const;
+/** The line when the person's own sign-in is the only way to run the picked model and the server does not hold it. */
+export const lockedWords = (a: Pick<ResolvedAccount, "driver">): string => `Your ${(ENGINE as Record<string, string>)[a.driver] ?? "AI"} sign-in is locked on this server. Unlock Vyre on your device, or pick another model.`;
+
 export function skipLocked(d: LockedDeps): (q: AccountQuery) => Promise<ResolvedAccount | null> {
   const held = d.held;
   if (!held) return d.resolve;
@@ -31,7 +35,11 @@ export function skipLocked(d: LockedDeps): (q: AccountQuery) => Promise<Resolved
     if (held(first.payer)) { for (const k of [...said]) if (k.startsWith(`${q.threadId}|${q.agentId}|`)) said.delete(k); return first; }
     const skipped = [first.ref];
     for (let i = 0; i < 8; i++) {
-      const next = await d.resolve({ ...q, unavailable: [...(q.unavailable ?? []), ...skipped] });
+      // the picked model needs this sign-in and nothing else serves it: never another model under its name, one plain line instead (the owner's rc.20 test)
+      const next = await d.resolve({ ...q, unavailable: [...(q.unavailable ?? []), ...skipped] }).catch((e: unknown) => {
+        if ((e as { code?: unknown } | null)?.code === "engine.model_unavailable") throw Object.assign(new Error(lockedWords(first)), { code: "engine.model_unavailable" });
+        throw e;
+      });
       if (!next) break;
       if (next.shared !== true && !held(next.payer)) { skipped.push(next.ref); continue; }
       const key = `${q.threadId}|${q.agentId}|${first.ref}|${next.ref}`;

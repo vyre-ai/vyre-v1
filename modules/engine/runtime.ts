@@ -438,13 +438,12 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         workOf: (spec) => workFolder(skillsDir, spec.asker, spec.threadId, spec.agent.id),
         terminal: (spec) => !!host.openSession || spec.account?.driver === "claude_code" || spec.account?.driver === "codex",
         read: (cap, input, asker) => h.call(cap, input, asker),
-        person: (cap, input, asker) => h.call(cap, input, asker),
         ...(h.putToSlot ? { put: h.putToSlot } : {}),
         say: (t, data) => noteLine(t.agentId, t.asker, t.threadId, data),
         act: async (cap, input, who) => {
           if (!h.invoke || !h.space) return h.call(cap, input, who.asker);
           const r = await h.invoke(cap, input, { space: h.space, principal: { kind: "agent", id: who.agentId }, actingFor: who.asker, origin: "engine" });
-          if (r.status !== "ok") throw Object.assign(new Error(`${cap} was held for approval`), { code: "permission.on_hold" });
+          if (r.status !== "ok") throw Object.assign(new Error(`${cap} was held for approval`), { code: "permission.on_hold", taskId: r.taskId });
           return r.output;
         },
         ...(h.log ? { log: h.log } : {}),
