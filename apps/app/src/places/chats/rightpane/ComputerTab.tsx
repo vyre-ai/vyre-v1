@@ -87,6 +87,7 @@ export function NoneBody({ hosts, canProvision, onProvision }: { hosts: HostsAns
     <View testID="computer-none" style={st.padded}>
       <Text style={st.none}>No computer yet</Text>
       {v.kind === "checking" ? <Text style={st.none} testID="computer-checking">Checking where its computer can run</Text> : null}
+      {/* ui-rows-lint: not a list (the reasons no machine can run its computer, as sentences under one heading) */}
       {v.kind === "cannot" ? <View testID="computer-cannot" style={{ marginTop: 6, gap: 4 }}>{v.reasons.map((r) => <Text key={r} style={st.none}>{r}</Text>)}</View> : null}
       {v.kind === "can"
         ? (canProvision
